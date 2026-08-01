@@ -2,8 +2,9 @@
 /**
  * Watchlist screenshot → reviewed price candidates.  PERSONAL RESEARCH ONLY.
  *
- *   node ingest/watchlist.mjs --in shot.png
- *   node ingest/watchlist.mjs --in shot.png --baseline data/personal-prices.json
+ *   node ingest/watchlist.mjs --clipboard      after Win+Shift+S
+ *   node ingest/watchlist.mjs                 newest image in watchlist-shots/
+ *   node ingest/watchlist.mjs --in shot.png   an explicit path
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * SCOPE
@@ -25,22 +26,80 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { dirname, resolve } from 'node:path';
+import { dirname, resolve, join } from 'node:path';
 
 const run = promisify(execFile);
 const argv = process.argv.slice(2);
+const has = (n) => argv.includes(`--${n}`);
 const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 ? argv[i + 1] : d; };
 
-const inPath    = flag('in', null);
 const baseline  = flag('baseline', 'data/personal-prices.json');
 const outPath   = flag('out', 'data/watchlist-review.csv');
 const moveLimit = Number(flag('max-move', 15));      /* % day move that needs a human */
+const DROP      = 'watchlist-shots';                 /* where screenshots live */
+
+/* Three ways to point at an image, so "where do I put the file?" has an answer
+   at every level of effort: name it, drop it in a folder, or just snip it. */
+const IMG = /\.(png|jpg|jpeg|bmp)$/i;
+const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+
+async function newestInDrop() {
+  let names;
+  try { names = (await readdir(DROP)).filter(n => IMG.test(n)); }
+  catch { return null; }
+  if (!names.length) return null;
+  const withTime = await Promise.all(names.map(async n => {
+    const p = join(DROP, n);
+    return { p, t: (await stat(p)).mtimeMs };
+  }));
+  return withTime.sort((a, b) => b.t - a.t)[0].p;
+}
+
+async function fromClipboard() {
+  await mkdir(DROP, { recursive: true });
+  const out = join(DROP, `clip-${stamp()}.png`);
+  /* Surface the reason, not a Node stack trace. clip.ps1 reports its own cause
+     on an ERR: line so nothing here has to parse PowerShell error formatting. */
+  let stdout = '';
+  try { ({ stdout } = await run('powershell', ['-NoProfile', '-Sta', '-ExecutionPolicy', 'Bypass',
+    '-File', resolve('ingest/clip.ps1'), '-Out', resolve(out)])); }
+  catch (e) { stdout = String(e.stdout || ''); }
+
+  const err = stdout.split('\n').map(s => s.trim()).find(s => s.startsWith('ERR:'));
+  if (err || !stdout.trim()) {
+    console.error(`Could not take the image from the clipboard: ${err ? err.slice(4).trim() : 'the capture returned nothing'}.`);
+    console.error(`\nTake a snip with Win+Shift+S — drag a box over your watchlist — then run this again.`);
+    console.error(`Or save the image into ${DROP}/ and run without --clipboard.`);
+    process.exit(1);
+  }
+  return out;
+}
+
+let inPath = flag('in', null);
+let picked = 'named on the command line';
+if (!inPath && has('clipboard')) { inPath = await fromClipboard(); picked = 'clipboard'; }
+if (!inPath) { inPath = await newestInDrop(); if (inPath) picked = `newest image in ${DROP}/`; }
 
 if (!inPath) {
-  console.error('usage: node ingest/watchlist.mjs --in <screenshot.png> [--baseline data/personal-prices.json] [--max-move 15]');
+  await mkdir(DROP, { recursive: true });
+  console.error(`No screenshot found. There is nothing to upload anywhere — this reads a file on this PC.
+
+Pick whichever is least effort:
+
+  1. Snip it and go              Win+Shift+S, drag over your watchlist, then
+                                 node ingest/watchlist.mjs --clipboard
+
+  2. Drop the file in a folder   save or drag the image into
+                                 ${resolve(DROP)}
+                                 then just: node ingest/watchlist.mjs
+
+  3. Name it yourself            node ingest/watchlist.mjs --in "C:\\path\\to\\shot.png"
+
+The folder in (2) has been created for you. It is git-ignored, so nothing you
+put there is committed or published.`);
   process.exit(1);
 }
 
@@ -146,7 +205,8 @@ await writeFile(outPath, csv + '\n');
    only way to fix it is to see what OCR actually saw. */
 await writeFile(outPath.replace(/\.csv$/, '.txt'), rows.join('\n') + '\n');
 
-console.log(`read      ${words.length} words from ${inPath}`);
+console.log(`image     ${inPath}  (${picked})`);
+console.log(`read      ${words.length} words`);
 console.log(`rows      ${rows.length}`);
 console.log(`candidates ${reviewed.length}`);
 console.log(`flagged   ${flagged.length}${flagged.length ? ' — ' + flagged.map(f => `${f.symbol} (${f.why})`).join('; ') : ''}`);

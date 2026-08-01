@@ -163,8 +163,31 @@ for the American side.
 
 A separate path, deliberately walled off from the one above.
 
+### Where the screenshot goes
+
+Nowhere — there is nothing to upload. This reads a file on your own PC. Three
+ways in, in ascending order of effort:
+
 ```bash
-node ingest/watchlist.mjs --in shot.png            # OCR → review file
+# 1. snip and go — nothing to save, nothing to name
+#    press Win+Shift+S, drag a box over your watchlist, then:
+node ingest/watchlist.mjs --clipboard
+
+# 2. drop the image in a folder, then run with no arguments at all
+#    (takes the newest image in watchlist-shots/)
+node ingest/watchlist.mjs
+
+# 3. point at any file yourself
+node ingest/watchlist.mjs --in "C:\path\to\shot.png"
+```
+
+`watchlist-shots/` is created on first run and is git-ignored — someone else's
+licensed data rendered as pixels never gets committed or deployed. Running with
+no image at all prints these three options rather than a usage string.
+
+### Then
+
+```bash
 #   …look at data/watchlist-review.csv, fix anything marked CHECK…
 node ingest/prices.mjs --in data/watchlist-review.csv \
      --out data/personal-prices.json --licence "personal research — not for redistribution"

@@ -16,3 +16,7 @@ data/prices.json
 data/personal-prices.json
 data/watchlist-review*.csv
 data/watchlist-review*.txt
+
+# where you drop watchlist screenshots. Someone else's licensed data rendered
+# as pixels — never committed, never deployed.
+watchlist-shots/
