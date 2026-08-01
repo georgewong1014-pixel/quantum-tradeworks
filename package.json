@@ -1,0 +1,13 @@
+{
+  "name": "quantum-tradeworks",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Quantum Tradeworks — Malaysia-first cross-asset research prototype for US and Bursa equities and Malaysian property. Research only; all data is synthetic. Static single-page app, no build step.",
+  "scripts": {
+    "dev": "node serve.mjs",
+    "shot": "node screenshot.mjs http://localhost:3000"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
