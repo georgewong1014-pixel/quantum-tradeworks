@@ -6,11 +6,11 @@
 <title>Quantum Tradeworks — Malaysia-first cross-asset research</title>
 <meta name="description" content="Research the company. Reach your own conclusion. An evidence-led equity and property research subscription for Malaysian investors. Research only — no recommendations, no ratings, no target prices.">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#10263B">
+<meta name="theme-color" content="#2764E7">
 <!-- App-icon variant of the mark. The chart and building are dropped here:
      at 16px they turn to mush, and the ring plus tail is what reads. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2310263B'/%3E%3Cpath fill-rule='evenodd' fill='%23fff' d='M34 14 H66 L86 34 V66 L66 86 H34 L14 66 V34 Z M40 28 H60 L72 40 V60 L60 72 H40 L28 60 V40 Z'/%3E%3Cpath fill='%2317A08E' d='M60 60 L88 84 L81 92 L53 68 Z'/%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2310263B'/%3E%3Cpath fill-rule='evenodd' fill='%23fff' d='M34 14 H66 L86 34 V66 L66 86 H34 L14 66 V34 Z M40 28 H60 L72 40 V60 L60 72 H40 L28 60 V40 Z'/%3E%3Crect x='40' y='54' width='5' height='10' fill='%2317A08E'/%3E%3Crect x='47' y='48' width='5' height='16' fill='%2317A08E'/%3E%3Cpath fill='%23D0A65A' d='M56 46 L62 41 H67 V64 H56 Z'/%3E%3Cpath fill='%2317A08E' d='M60 60 L88 84 L81 92 L53 68 Z'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 /* ==========================================================================
    Quantum Tradeworks design system
@@ -44,13 +44,15 @@
      Taken from the Quantum Tradeworks mark: navy ring, teal chart and tail,
      gold building. The ring flips to a light tint in dark mode so the mark
      stays visible; teal and gold are mode-invariant, as in the original. */
-  --logo-ring:  #10263B;
-  --logo-teal:  #17A08E;
-  --logo-gold:  #D0A65A;
-  /* The brand teal is a graphic colour: it clears the 3:1 bar for a mark but
-     lands near 2.8:1 as text on this surface, under the 4.5:1 needed. The
-     wordmark therefore uses a darker step of the same hue. */
-  --logo-teal-text: #0B6A5D;
+  --logo-blue:  #2764E7;   /* the ring */
+  --logo-navy:  #14284B;   /* "Quantum" */
+  --logo-teal:  #21C1A2;   /* mosaic + handle + "Tradeworks" */
+  --logo-amber: #FBB040;   /* mosaic grid */
+  /* The brand teal is a graphic colour. It clears the 3:1 bar for a mark but
+     measures about 1.8:1 as text on this surface, far under the 4.5:1 needed,
+     so the wordmark uses a darker step of the same hue. */
+  --logo-teal-text: #0B7159;
+  --logo-word:      var(--logo-navy);
 
   /* --- brand ---------------------------------------------------------- */
   --brand:        #00544a;
@@ -122,7 +124,7 @@
     --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
     --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
     --ok-text:#4dc46c; --dn-text:#e8a184;
-    --logo-ring: #E7EDF3; --logo-teal-text: #3FC9B4;
+    --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
     --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
     --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
     --lift-3: 0 28px 70px -24px rgba(0,0,0,.7), 0 6px 16px rgba(0,0,0,.35), 0 0 0 1px var(--ring);
@@ -142,7 +144,7 @@
   --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
   --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
   --ok-text:#4dc46c; --dn-text:#e8a184;
-  --logo-ring: #E7EDF3; --logo-teal-text: #3FC9B4;
+  --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
   --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
   --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
   --lift-3: 0 28px 70px -24px rgba(0,0,0,.7), 0 6px 16px rgba(0,0,0,.35), 0 0 0 1px var(--ring);
@@ -236,17 +238,18 @@ a { color: inherit; }
 .brand-mark { width: 30px; height: 30px; flex: none; display: block; }
 .brand-mark svg { width: 100%; height: 100%; display: block; }
 .brand-name {
-  font-size: 14px; font-weight: 680; letter-spacing: .02em;
-  text-transform: uppercase; white-space: nowrap; color: var(--logo-ring);
+  font-size: 15px; font-weight: 700; letter-spacing: -.01em;
+  white-space: nowrap; color: var(--logo-word);
   display: flex; align-items: baseline; gap: 6px;
 }
-.brand-name span { color: var(--logo-teal-text); font-weight: 540; letter-spacing: .13em; }
+.brand-name span { color: var(--logo-teal-text); font-weight: 700; letter-spacing: -.01em; }
 @media (max-width: 520px) { .brand-name span { display: none; } }
 .brand-tagline {
   font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--ink-3); margin-top: 5px; font-weight: 560;
 }
-.brand-tagline i { color: var(--logo-gold); font-style: normal; }
+.brand-tagline i { color: var(--logo-teal); font-style: normal; }
+.brand-tagline i.amber { color: var(--logo-amber); }
 
 .mainnav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .mainnav::-webkit-scrollbar { display: none; }
@@ -754,16 +757,25 @@ details > summary::marker { content: ''; }
 <header class="topbar">
   <div class="topbar-in">
     <a class="brand" href="#" data-nav="home" aria-label="Quantum Tradeworks home">
-      <!-- Reduced lockup. At 30px the chart bars fall under two pixels wide and
-           read as noise, so the nav mark carries the ring, the tail and a single
-           chunky chart/building pair. The full mark is used in the footer. -->
+      <!-- Reduced lockup. At 30px the four-square staircase and the six-square
+           grid collapse into noise, so the nav mark keeps the ring, the handle
+           and a simplified two-plus-four mosaic. Full mark is in the footer. -->
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 100 100" role="img">
-          <path fill-rule="evenodd" fill="var(--logo-ring)" d="M31 4 H69 L96 31 V69 L69 96 H31 L4 69 V31 Z
-                                                               M38 21 H62 L79 38 V62 L62 79 H38 L21 62 V38 Z"/>
-          <rect x="32" y="52" width="9" height="16" fill="var(--logo-teal)"/>
-          <path fill="var(--logo-gold)" d="M45 44 L53 38 H62 V68 H45 Z"/>
-          <path fill="var(--logo-teal)" d="M61.6 57.9 L95.6 87.9 L88.4 96.1 L54.4 66.1 Z"/>
+          <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
+                stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
+          <g fill="var(--logo-teal)">
+            <rect x="30" y="30" width="11" height="11" rx="3"/>
+            <rect x="30" y="45" width="11" height="11" rx="3"/>
+          </g>
+          <g fill="var(--logo-amber)">
+            <rect x="47" y="38" width="11" height="11" rx="3"/>
+            <rect x="60" y="38" width="11" height="11" rx="3"/>
+            <rect x="47" y="51" width="11" height="11" rx="3"/>
+            <rect x="60" y="51" width="11" height="11" rx="3"/>
+          </g>
+          <path d="M63 67 L81 85" fill="none" stroke="var(--logo-teal)"
+                stroke-width="13" stroke-linecap="round"/>
         </svg>
       </span>
       <span class="brand-name">Quantum <span>Tradeworks</span></span>
@@ -806,19 +818,31 @@ details > summary::marker { content: ''; }
       <div>
         <div class="row" style="gap:10px;align-items:flex-start">
           <span class="brand-mark" aria-hidden="true" style="width:46px;height:46px">
+            <!-- Full mark: descending four-square staircase and the 2×3 grid. -->
             <svg viewBox="0 0 100 100" role="img">
-              <path fill-rule="evenodd" fill="var(--logo-ring)" d="M31 4 H69 L96 31 V69 L69 96 H31 L4 69 V31 Z
-                                                                   M38 22 H62 L78 38 V62 L62 78 H38 L22 62 V38 Z"/>
-              <rect x="31" y="58" width="5.4" height="10" fill="var(--logo-teal)"/>
-              <rect x="38" y="52" width="5.4" height="16" fill="var(--logo-teal)"/>
-              <rect x="45" y="46" width="5.4" height="22" fill="var(--logo-teal)"/>
-              <path fill="var(--logo-gold)" d="M54 44 L61 38 H67 V68 H54 Z"/>
-              <path fill="var(--logo-teal)" d="M61.6 57.9 L95.6 87.9 L88.4 96.1 L54.4 66.1 Z"/>
+              <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
+                    stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
+              <g fill="var(--logo-teal)">
+                <rect x="38" y="24" width="9" height="9" rx="2.6"/>
+                <rect x="30" y="33.5" width="9" height="9" rx="2.6"/>
+                <rect x="22" y="43" width="9" height="9" rx="2.6"/>
+                <rect x="22" y="52.5" width="9" height="9" rx="2.6"/>
+              </g>
+              <g fill="var(--logo-amber)">
+                <rect x="47" y="33.5" width="9" height="9" rx="2.6"/>
+                <rect x="57.5" y="33.5" width="9" height="9" rx="2.6"/>
+                <rect x="47" y="43" width="9" height="9" rx="2.6"/>
+                <rect x="57.5" y="43" width="9" height="9" rx="2.6"/>
+                <rect x="47" y="52.5" width="9" height="9" rx="2.6"/>
+                <rect x="57.5" y="52.5" width="9" height="9" rx="2.6"/>
+              </g>
+              <path d="M64 68 L81 85" fill="none" stroke="var(--logo-teal)"
+                    stroke-width="12.5" stroke-linecap="round"/>
             </svg>
           </span>
           <span>
             <span class="brand-name">Quantum <span>Tradeworks</span></span>
-            <span class="brand-tagline" style="display:block">Equities <i>·</i> Property <i>·</i> Intelligence</span>
+            <span class="brand-tagline" style="display:block">Equities <i>·</i> Property <i class="amber">·</i> Intelligence</span>
           </span>
         </div>
         <p class="body" style="font-size:12.5px;max-width:34ch">Research the company. Model the property. See both in one place.</p>
