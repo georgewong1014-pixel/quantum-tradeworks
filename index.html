@@ -1180,8 +1180,13 @@ const activePF = () => State.portfolios[State.pfIdx] || State.portfolios[0];
 const savePortfolios = () => store.write('portfolios', State.portfolios);
 const savePriceAlerts = () => store.write('priceAlerts', State.priceAlerts);
 
-/* Indicative FX for the cross-market view. Sample rate, fixed for reproducibility. */
-const FX = { USDMYR: 4.42, asOf: '30 Jul 2026 17:00 MYT' };
+/* Indicative FX for the cross-market view. The sample rate is fixed so the
+   synthetic dataset stays reproducible; a supplied price file that carries
+   USDMYR replaces it at load and says where the number came from. Every US
+   figure shown in MYR passes through this one number, so a stale rate misstates
+   the whole cross-market view rather than one field. */
+const FX = { USDMYR: 4.42, asOf: '30 Jul 2026 17:00 MYT', source: 'sample', personal: false };
+let fxRejected = null;
 
 /* Illustrative dividend withholding, per market of listing. These are user
    inputs, not tax advice and not a lookup of anyone's actual position — the
@@ -3021,6 +3026,33 @@ function applyPrices(c) {
   return true;
 }
 
+/* TradingView and most vendors quote the pair as USDMYR; the =X forms turn up
+   in files exported from other tools. */
+const FX_KEYS = ['USDMYR', 'USDMYR=X', 'MYR=X', 'USD/MYR'];
+
+function applyFx() {
+  if (!priceBook?.prices) return false;
+  for (const k of FX_KEYS) {
+    const p = priceBook.prices[k];
+    if (!p || !isNum(p.close) || p.close <= 0) continue;
+    /* An inverted or order-of-magnitude-wrong rate would silently rescale every
+       cross-market figure on every page, and nothing on screen would look odd.
+       USDMYR has not left roughly 2.4–4.8 in modern history, so anything beyond
+       a generous band is refused and reported rather than applied. A misread
+       digit turning 4.08 into 40.8 is exactly the failure this catches. */
+    if (p.close < 2 || p.close > 8) {
+      fxRejected = { value: p.close, key: k, why: 'outside a plausible band for USD/MYR — probably a misread digit or an inverted quote' };
+      continue;
+    }
+    FX.USDMYR = p.close;
+    FX.asOf = p.date || priceBook.asOf || null;
+    FX.source = priceBook.personal ? 'personal' : 'file';
+    FX.personal = !!priceBook.personal;
+    return true;
+  }
+  return false;
+}
+
 async function loadRealData() {
   const res = await fetch('data/us-sample.json', { cache: 'no-store' });
   if (!res.ok) throw new Error(`${res.status} loading data/us-sample.json`);
@@ -3041,6 +3073,10 @@ async function loadRealData() {
     if (pr.ok) { priceBook = await pr.json(); priceBook.personal = personal; priceBook.file = priceFile; }
   } catch { /* no price file supplied */ }
 
+  /* Before anything is derived or drawn: every MYR figure translates through
+     this rate, so it has to be settled first. */
+  const fxUpdated = applyFx();
+
   let added = 0, priced = 0;
   for (const r of (j.results || [])) {
     if (BY_ID.has(`${r.id}-SEC`)) continue;         /* already loaded */
@@ -3053,7 +3089,7 @@ async function loadRealData() {
     added++;
   }
   if (added) { finaliseUniverse(); FEED = buildFeed(); }
-  return { added, priced, generated: j.generated, failures: j.failures || [],
+  return { added, priced, fxUpdated, generated: j.generated, failures: j.failures || [],
            priceSource: priceBook ? { asOf: priceBook.asOf, licence: priceBook.licence,
              count: priceBook.count, personal: !!priceBook.personal, file: priceBook.file } : null };
 }
@@ -3866,8 +3902,20 @@ VIEWS.home = () => {
   });
 
   const fxCard = el('div', { class: 'card' });
-  fxCard.append(el('div', { class: 'row', style: 'margin-bottom:8px' }, [el('span', { class: 'chip chip-bronze' }, 'FX'), el('span', { class: 'caption' }, 'Cross-market base')]));
-  fxCard.append(statTile('USD / MYR', FX.USDMYR.toFixed(2), { sub: `Indicative rate · ${FX.asOf}` }));
+  fxCard.append(el('div', { class: 'row', style: 'margin-bottom:8px' }, [el('span', { class: 'chip chip-bronze' }, 'FX'),
+    el('span', { class: 'caption' }, 'Cross-market base'),
+    FX.source === 'sample' ? null
+      : el('span', { class: FX.personal ? 'chip chip-bronze' : 'chip', style: 'margin-left:auto' },
+          FX.personal ? 'from your screen' : 'from your price file')]));
+  /* Four decimals once the rate is real: a cross rate rounded to two loses
+     enough precision to move a translated market capitalisation visibly. */
+  fxCard.append(statTile('USD / MYR',
+    FX.source === 'sample' ? FX.USDMYR.toFixed(2) : FX.USDMYR.toFixed(4),
+    { sub: FX.source === 'sample'
+        ? `Indicative sample rate · ${FX.asOf}`
+        : `${FX.personal ? 'Read from your screen' : 'From your price file'} · ${FX.asOf || 'date not stated'}` }));
+  if (fxRejected) fxCard.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--dn-text)' },
+    `A USD/MYR rate of ${fxRejected.value} was supplied and refused: ${fxRejected.why}. The sample rate is still in use.`));
   fxCard.append(el('div', { class: 'row', style: 'margin-top:10px;gap:6px' }, [
     el('span', { class: 'caption' }, 'Base currency'),
     el('div', { class: 'segmented', style: 'margin-left:auto' }, ['USD', 'MYR'].map(cc =>

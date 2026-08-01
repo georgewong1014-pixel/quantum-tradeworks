@@ -232,6 +232,26 @@ and on a second-day fixture carrying that same `814.30` misread, the bad row was
 flagged and refused while the seven genuine moves — including a −4.13% day —
 passed through untouched.
 
+### The FX rate rides along with it
+
+Every US figure shown in ringgit passes through one number. If the price file
+carries `USDMYR` — under any of `USDMYR`, `USDMYR=X`, `MYR=X`, `USD/MYR` — it
+replaces the sample rate at load, and the Home card states whether it came from
+a licensed file or off your screen, with its date.
+
+This mattered more than it sounds. The sample rate was **4.42** against a real
+**4.0830**: a 7.6% error on every cross-market comparison, every translated
+market capitalisation and every MYR-based portfolio figure. Nothing on screen
+looked wrong.
+
+A rate outside roughly 2–8 is **refused and reported**, not applied. An inverted
+quote or a misread digit — 4.08 read as 40.8 — would otherwise rescale every
+ringgit figure in the product silently, and there is no visual tell for that.
+The sample rate stays in use and the card says what was rejected and why.
+
+Sample mode is unaffected: with no price file the rate stays fixed at 4.42 so
+the synthetic dataset stays reproducible.
+
 ### What it is still not
 
 Your working note. Not a source of record, not a price history, and not a
