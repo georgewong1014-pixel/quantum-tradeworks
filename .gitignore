@@ -7,3 +7,6 @@ node_modules
 
 # local screenshot output (dev only)
 temporary screenshots/
+
+# end-of-day prices are supplied by you under your own licence
+data/prices.json

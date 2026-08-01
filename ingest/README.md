@@ -113,3 +113,55 @@ accounting invariants and cross-source reconciliation.
 
 The engine will happily compute a beautiful, fully-decomposed, source-linked
 valuation from a wrong number. That is the part to budget for.
+
+---
+
+## Prices: end-of-day, supplied by you
+
+```bash
+node ingest/prices.mjs --in your-eod-file.csv --licence "Vendor X EOD redistribution, 2026"
+```
+
+Writes `data/prices.json`, which the app picks up automatically when `?real=1`
+is on. Vendor-neutral by design: swapping suppliers is a different input file,
+not a code change. `data/prices.json` is git-ignored — prices are supplied under
+your licence, not shipped in this repo. See `data/prices.example.csv` for the
+column shape.
+
+Validation **rejects rather than repairs**. A negative close, a future date, or
+a close above its own stated 52-week high is reported and dropped, because a
+price that fails a sanity check is a data problem to look at rather than
+something to coerce into the file.
+
+### Why end-of-day is the right target
+
+Valuation, screening, scorecards, portfolio tracking and thesis monitoring all
+work on closes. Real-time exchange data is licensed per user with audit
+obligations and priced accordingly; end-of-day is a cheaper product with lighter
+redistribution terms. For a research product the capability loss is nil, and it
+is probably the single largest cost lever available.
+
+### What a licence has to cover — and what does not count
+
+None of the following permit redistribution to your subscribers:
+
+- **Broker-provided data.** Licensed to the broker, sublicensed to you as their
+  client for viewing in their platform.
+- **A personal TradingView subscription**, at any tier. There is no data API,
+  and the terms bar automated extraction. Their embeddable *widgets* remain a
+  legitimate way to display a chart with no licence of your own — just not a way
+  to get prices into a model.
+- **Yahoo Finance.** No official API; terms bar commercial use.
+
+What you need is an end-of-day **redistribution** licence: direct from Bursa
+Information Services for Malaysian prices, and any of the commodity US vendors
+for the American side.
+
+### Prices change the answer, not just the display
+
+Concretely, on Apple: with no price the cost of capital falls back to book-equity
+weighting, the discount rate lands at 6.1% and the base case comes out at $187.
+Supply an end-of-day close and the weighting uses market equity, the discount
+rate corrects, and the base case moves to $111.
+
+A missing price is not a cosmetic gap. It changes the valuation.

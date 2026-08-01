@@ -2993,7 +2993,7 @@ function realToCompany(r) {
   return {
     id, name: r.name, tk: r.id, code: r.id, exch: 'SEC filer', mkt: 'US', ccy: 'USD',
     sector, industry, type: REAL_TYPES[r.id] || 'mature',
-    desc: `Figures are audited annual statements retrieved from SEC EDGAR (CIK ${r.cik}) on ${r.retrieved}. No price feed is attached — SEC publishes filings, not market data.`,
+    desc: `Audited annual statements retrieved from SEC EDGAR (CIK ${r.cik}) on ${r.retrieved}. SEC publishes filings, not market data — the price basis is stated separately below.`,
     px, fin,
     real: true, cik: r.cik, provenance: r.provenance, gaps: r.gaps,
     completeness: r.completeness, retrieved: r.retrieved,
@@ -3005,20 +3005,47 @@ function realToCompany(r) {
   };
 }
 
+/* End-of-day prices, if a licensed file has been supplied. Absent by default:
+   broker-supplied data, a personal TradingView subscription and Yahoo Finance
+   all permit viewing but not redistribution, so nothing ships with the repo. */
+let priceBook = null;
+
+function applyPrices(c) {
+  const p = priceBook?.prices?.[c.tk];
+  if (!p || !isNum(p.close)) return false;
+  c.px = { p: p.close, d1: p.d1 ?? null, m1: null, m3: null,
+           m12: isNum(p.m12) ? p.m12 : null, lo: p.lo ?? null, hi: p.hi ?? null,
+           eod: true, asOf: p.date || priceBook.asOf || null };
+  c.priceLicence = priceBook.licence || null;
+  return true;
+}
+
 async function loadRealData() {
   const res = await fetch('data/us-sample.json', { cache: 'no-store' });
   if (!res.ok) throw new Error(`${res.status} loading data/us-sample.json`);
   const j = await res.json();
-  let added = 0;
+
+  /* Optional and non-fatal: no price file simply means the companies load
+     without prices, which the engine already handles. */
+  try {
+    const pr = await fetch('data/prices.json', { cache: 'no-store' });
+    if (pr.ok) priceBook = await pr.json();
+  } catch { /* no price file supplied */ }
+
+  let added = 0, priced = 0;
   for (const r of (j.results || [])) {
     if (BY_ID.has(`${r.id}-SEC`)) continue;         /* already loaded */
     const c = realToCompany(r);
+    /* Prices must be attached before the company is derived — everything
+       price-dependent is computed once, at build time. */
+    if (!isNum(c.px?.p) && applyPrices(c)) priced++;
     RAW.push(c);
     addCompany(c);
     added++;
   }
   if (added) { finaliseUniverse(); FEED = buildFeed(); }
-  return { added, generated: j.generated, failures: j.failures || [] };
+  return { added, priced, generated: j.generated, failures: j.failures || [],
+           priceSource: priceBook ? { asOf: priceBook.asOf, licence: priceBook.licence, count: priceBook.count } : null };
 }
 let realStatus = null;
 
@@ -3859,7 +3886,10 @@ VIEWS.home = () => {
     const n = U.filter(r => r.c.real).length;
     freshCard.append(el('div', { class: 'metaline', style: 'margin-top:4px' },
       realStatus === null ? 'Loading filings from SEC EDGAR…'
-      : realStatus.ok ? `${n} companies loaded from SEC EDGAR. Statements are audited and real; no price feed is attached.`
+      : realStatus.ok ? `${n} companies loaded from SEC EDGAR. Statements are audited and real. `
+          + (realStatus.priced
+              ? `${realStatus.priced} carry end-of-day prices from data/prices.json${realStatus.priceSource?.licence ? ` (${realStatus.priceSource.licence})` : ' — licence not stated'}.`
+              : 'No price file supplied, so price-derived measures are unavailable.')
       : `Could not load filings: ${realStatus.error}`));
   }
   ctx.append(freshCard);
@@ -5179,8 +5209,11 @@ VIEWS.research = () => {
       el('span', { class: 'chip' }, `CIK ${c.cik}`),
       el('span', { class: 'chip' }, `${Math.round(c.completeness * 100)}% of lines present`),
       el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
-      isNum(c.px?.p) ? el('span', { class: 'chip chip-bronze' }, 'price entered by you')
-                     : sevChip('warning', 'no licensed price feed'),
+      c.px?.eod ? sevChip('good', `end-of-day close${c.px.asOf ? ' ' + c.px.asOf : ''}`)
+        : isNum(c.px?.p) ? el('span', { class: 'chip chip-bronze' }, 'price entered by you')
+        : sevChip('warning', 'no licensed price feed'),
+      c.px?.eod ? el('span', { class: c.priceLicence ? 'chip' : 'chip chip-bronze' },
+        c.priceLicence ? `licence: ${c.priceLicence}` : 'licence not stated') : null,
     ]));
     const mixed = Object.entries(c.provenance || {}).filter(([, p]) => p.mixedTags);
     if (mixed.length) rp.append(el('p', { class: 'metaline', style: 'margin-bottom:6px' },
@@ -5194,7 +5227,9 @@ VIEWS.research = () => {
       onchange: e => { setManualPrice(c.id, parseFloat(e.target.value)); location.reload(); } }));
     pr.append(f);
     pr.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
-      isNum(c.px?.p)
+      c.px?.eod
+        ? `End-of-day close from the price file you supplied${c.px.asOf ? ', as of ' + c.px.asOf : ''}. Delayed closes are sufficient for valuation, screening and portfolio work — nothing here needs real-time data.`
+        : isNum(c.px?.p)
         ? 'This price was typed in by you. It is not market data, and every price-derived figure below inherits that.'
         : 'SEC publishes filings, not prices. Valuation still computes a value per share; market capitalisation, multiples, yield and margin of safety cannot be computed without a price. Enter one to complete the picture.'));
     rp.append(pr);
