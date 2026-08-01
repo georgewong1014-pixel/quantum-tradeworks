@@ -252,8 +252,8 @@ a { color: inherit; }
 .mainnav::-webkit-scrollbar { display: none; }
 .navlink {
   appearance: none; background: none; border: 0; cursor: pointer;
-  padding: 7px 11px; border-radius: var(--r-sm);
-  font-size: 13px; font-weight: 530; color: var(--ink-2); white-space: nowrap;
+  padding: 7px 9px; border-radius: var(--r-sm);
+  font-size: 12.5px; font-weight: 530; color: var(--ink-2); white-space: nowrap;
   transition: color 160ms ease, background-color 160ms ease;
 }
 .navlink:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
@@ -263,7 +263,7 @@ a { color: inherit; }
 
 .searchbtn {
   display: flex; align-items: center; gap: var(--xs);
-  height: 34px; padding: 0 10px 0 11px; min-width: 210px;
+  height: 34px; padding: 0 10px 0 11px; min-width: 172px;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
   color: var(--ink-3); font-size: 13px; cursor: pointer; text-align: left;
   transition: border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
@@ -272,10 +272,11 @@ a { color: inherit; }
 .searchbtn .kbd { margin-left: auto; }
 @media (max-width: 1080px) { .searchbtn { min-width: 0; } .searchbtn-label, .searchbtn .kbd { display: none; } }
 
-/* Below ~780px the nav cannot share a row with the brand and the actions
-   without becoming a hidden side-scroller, so it takes its own full-width row.
+/* With ten primary areas the nav can no longer share a row with the brand and
+   the actions on a narrow laptop without silently clipping the last item, so it
+   takes its own full-width row well before tablet widths.
    Declared after the base .mainnav rule so the flex override actually wins. */
-@media (max-width: 780px) {
+@media (max-width: 1220px) {
   .topbar-in { height: auto; flex-wrap: wrap; padding-top: 10px; row-gap: 0; }
   .brand { flex: 1 1 auto; }
   .topbar-actions { order: 2; }
