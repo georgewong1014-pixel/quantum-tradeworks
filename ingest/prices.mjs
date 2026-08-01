@@ -82,6 +82,15 @@ for (const r of rows) {
   if (close == null || close <= 0) { rejected.push({ symbol, why: 'close is missing or not positive' }); continue; }
   if (date && date > today) { rejected.push({ symbol, why: `date ${date} is in the future` }); continue; }
 
+  /* A review file from watchlist.mjs carries a verdict column. A row still
+     marked CHECK has not been looked at by a human, and an unreviewed OCR
+     candidate must never become a price. Vendor files have no such column and
+     are unaffected. */
+  if (String(r.verdict || '').trim().toUpperCase() === 'CHECK') {
+    rejected.push({ symbol, why: 'still marked CHECK in the review file — confirm or correct it, then set the verdict to accept' });
+    continue;
+  }
+
   const prev = num(r.prev ?? r.previous ?? r.prevclose);
   const high52 = num(r.high52 ?? r.yearhigh);
   const low52 = num(r.low52 ?? r.yearlow);

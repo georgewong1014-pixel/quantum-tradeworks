@@ -10,3 +10,9 @@ temporary screenshots/
 
 # end-of-day prices are supplied by you under your own licence
 data/prices.json
+
+# prices read off your own screen: personal research, never redistributable,
+# so they must never reach the deployed site
+data/personal-prices.json
+data/watchlist-review*.csv
+data/watchlist-review*.txt

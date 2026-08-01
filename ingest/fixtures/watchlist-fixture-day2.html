@@ -1,0 +1,33 @@
+<!-- Test fixture only. Day 2, with AAPL carrying the exact misread Windows OCR
+     produced on a real screenshot earlier: 214.30 read as 814.30. Everything
+     else moves a plausible amount. Used to prove the review gate catches the
+     bad digit and lets the genuine moves through. Not real data. -->
+<meta charset="utf-8">
+<title>watchlist fixture — day 2</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#131722; color:#d1d4dc;
+         font:14px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif; }
+  .wrap { width:420px; padding:12px 0; }
+  .hd { display:grid; grid-template-columns:104px 1fr 82px 74px;
+        padding:6px 16px; color:#787b86; font-size:11px; letter-spacing:.04em;
+        text-transform:uppercase; border-bottom:1px solid #2a2e39; }
+  .row { display:grid; grid-template-columns:104px 1fr 82px 74px; align-items:baseline;
+         padding:9px 16px; border-bottom:1px solid #1e222d; }
+  .sym  { font-weight:600; color:#d1d4dc; }
+  .desc { color:#787b86; font-size:12px; overflow:hidden; white-space:nowrap; }
+  .last { text-align:right; font-variant-numeric:tabular-nums; }
+  .chg  { text-align:right; font-variant-numeric:tabular-nums; }
+  .up   { color:#26a69a; } .dn { color:#ef5350; }
+</style>
+<div class="wrap">
+  <div class="hd"><span>Symbol</span><span>Description</span><span class="last">Last</span><span class="chg">Chg%</span></div>
+  <div class="row"><span class="sym">AAPL</span><span class="desc">Apple Inc.</span><span class="last">814.30</span><span class="chg up">+0.41%</span></div>
+  <div class="row"><span class="sym">MSFT</span><span class="desc">Microsoft Corp.</span><span class="last">518.20</span><span class="chg up">+1.04%</span></div>
+  <div class="row"><span class="sym">NVDA</span><span class="desc">NVIDIA Corp.</span><span class="last">171.05</span><span class="chg dn">-4.13%</span></div>
+  <div class="row"><span class="sym">JPM</span><span class="desc">JPMorgan Chase</span><span class="last">298.10</span><span class="chg up">+0.00%</span></div>
+  <div class="row"><span class="sym">KO</span><span class="desc">Coca-Cola Co.</span><span class="last">71.90</span><span class="chg up">+0.49%</span></div>
+  <div class="row"><span class="sym">XOM</span><span class="desc">Exxon Mobil Corp.</span><span class="last">118.20</span><span class="chg dn">-0.59%</span></div>
+  <div class="row"><span class="sym">1155</span><span class="desc">Malayan Banking Bhd</span><span class="last">10.90</span><span class="chg up">+0.55%</span></div>
+  <div class="row"><span class="sym">5347</span><span class="desc">Tenaga Nasional Bhd</span><span class="last">13.88</span><span class="chg dn">-1.00%</span></div>
+</div>

@@ -3017,6 +3017,7 @@ function applyPrices(c) {
            m12: isNum(p.m12) ? p.m12 : null, lo: p.lo ?? null, hi: p.hi ?? null,
            eod: true, asOf: p.date || priceBook.asOf || null };
   c.priceLicence = priceBook.licence || null;
+  c.pricePersonal = !!priceBook.personal;
   return true;
 }
 
@@ -3026,10 +3027,18 @@ async function loadRealData() {
   const j = await res.json();
 
   /* Optional and non-fatal: no price file simply means the companies load
-     without prices, which the engine already handles. */
+     without prices, which the engine already handles.
+
+     ?personal=1 reads data/personal-prices.json instead — prices you recognised
+     from your own screen, under your own subscription, for your own research.
+     Never a silent fallback: it is opt-in, it is git-ignored so it cannot reach
+     the deployed site, and every price it supplies is labelled personal
+     research rather than licensed market data. */
+  const personal = new URLSearchParams(location.search).get('personal') === '1';
+  const priceFile = personal ? 'data/personal-prices.json' : 'data/prices.json';
   try {
-    const pr = await fetch('data/prices.json', { cache: 'no-store' });
-    if (pr.ok) priceBook = await pr.json();
+    const pr = await fetch(priceFile, { cache: 'no-store' });
+    if (pr.ok) { priceBook = await pr.json(); priceBook.personal = personal; priceBook.file = priceFile; }
   } catch { /* no price file supplied */ }
 
   let added = 0, priced = 0;
@@ -3045,7 +3054,8 @@ async function loadRealData() {
   }
   if (added) { finaliseUniverse(); FEED = buildFeed(); }
   return { added, priced, generated: j.generated, failures: j.failures || [],
-           priceSource: priceBook ? { asOf: priceBook.asOf, licence: priceBook.licence, count: priceBook.count } : null };
+           priceSource: priceBook ? { asOf: priceBook.asOf, licence: priceBook.licence,
+             count: priceBook.count, personal: !!priceBook.personal, file: priceBook.file } : null };
 }
 let realStatus = null;
 
@@ -3625,8 +3635,15 @@ function marketChip(mkt) {
 /* Freshness + lineage, shown on every analytical surface. */
 function provenance(row, extra = []) {
   const { c, m } = row;
+  /* AS_OF is the sample set's fixed stamp. A company carrying a real supplied
+     price has its own date, and showing the sample stamp next to it would
+     misdate the number on every analytical surface. */
+  const priceStamp = c.px?.eod && c.px.asOf ? `${c.px.asOf} close`
+    : isNum(c.px?.p) && c.px.manual ? 'entered by you'
+    : !isNum(c.px?.p) ? 'none supplied'
+    : `${AS_OF} 17:00 ${c.mkt === 'US' ? 'ET' : 'MYT'}`;
   const bits = [
-    `<b>Price</b> ${AS_OF} 17:00 ${c.mkt === 'US' ? 'ET' : 'MYT'}`,
+    `<b>Price</b> ${priceStamp}`,
     `<b>Period</b> FY${last(YEARS)} reported`,
     `<b>Currency</b> ${c.ccy}`,
     `<b>Coverage</b> <span title="Computable ÷ applicable metrics${m.inapplicable ? `. ${m.inapplicable} dictionary metrics do not apply to this business model and are excluded from the denominator rather than counted as missing.` : ''}">${m.coverage}%${m.inapplicable ? ` <span style="color:var(--ink-3)">(${m.inapplicable} n/a)</span>` : ''}</span>`,
@@ -3888,7 +3905,9 @@ VIEWS.home = () => {
       realStatus === null ? 'Loading filings from SEC EDGAR…'
       : realStatus.ok ? `${n} companies loaded from SEC EDGAR. Statements are audited and real. `
           + (realStatus.priced
-              ? `${realStatus.priced} carry end-of-day prices from data/prices.json${realStatus.priceSource?.licence ? ` (${realStatus.priceSource.licence})` : ' — licence not stated'}.`
+              ? (realStatus.priceSource?.personal
+                  ? `${realStatus.priced} carry closes you recognised from your own screen (${realStatus.priceSource.file}). Personal research only — these are not licensed market data and must not be redistributed.`
+                  : `${realStatus.priced} carry end-of-day prices from data/prices.json${realStatus.priceSource?.licence ? ` (${realStatus.priceSource.licence})` : ' — licence not stated'}.`)
               : 'No price file supplied, so price-derived measures are unavailable.')
       : `Could not load filings: ${realStatus.error}`));
   }
@@ -5209,11 +5228,15 @@ VIEWS.research = () => {
       el('span', { class: 'chip' }, `CIK ${c.cik}`),
       el('span', { class: 'chip' }, `${Math.round(c.completeness * 100)}% of lines present`),
       el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
-      c.px?.eod ? sevChip('good', `end-of-day close${c.px.asOf ? ' ' + c.px.asOf : ''}`)
+      c.px?.eod ? (c.pricePersonal
+          ? el('span', { class: 'chip chip-bronze' }, `read from your screen${c.px.asOf ? ' ' + c.px.asOf : ''}`)
+          : sevChip('good', `end-of-day close${c.px.asOf ? ' ' + c.px.asOf : ''}`))
         : isNum(c.px?.p) ? el('span', { class: 'chip chip-bronze' }, 'price entered by you')
         : sevChip('warning', 'no licensed price feed'),
-      c.px?.eod ? el('span', { class: c.priceLicence ? 'chip' : 'chip chip-bronze' },
-        c.priceLicence ? `licence: ${c.priceLicence}` : 'licence not stated') : null,
+      c.px?.eod ? (c.pricePersonal
+          ? el('span', { class: 'chip chip-bronze' }, 'personal research — not redistributable')
+          : el('span', { class: c.priceLicence ? 'chip' : 'chip chip-bronze' },
+              c.priceLicence ? `licence: ${c.priceLicence}` : 'licence not stated')) : null,
     ]));
     const mixed = Object.entries(c.provenance || {}).filter(([, p]) => p.mixedTags);
     if (mixed.length) rp.append(el('p', { class: 'metaline', style: 'margin-bottom:6px' },
@@ -5227,7 +5250,9 @@ VIEWS.research = () => {
       onchange: e => { setManualPrice(c.id, parseFloat(e.target.value)); location.reload(); } }));
     pr.append(f);
     pr.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
-      c.px?.eod
+      c.px?.eod && c.pricePersonal
+        ? `Read from your own screen${c.px.asOf ? ', as of ' + c.px.asOf : ''}, and confirmed by you before import. Character recognition misreads digits, so treat this as your working note rather than a source of record — and it carries no right to redistribute.`
+      : c.px?.eod
         ? `End-of-day close from the price file you supplied${c.px.asOf ? ', as of ' + c.px.asOf : ''}. Delayed closes are sufficient for valuation, screening and portfolio work — nothing here needs real-time data.`
         : isNum(c.px?.p)
         ? 'This price was typed in by you. It is not market data, and every price-derived figure below inherits that.'
@@ -6141,9 +6166,12 @@ function studioOutputs(r, inputs, redraw) {
     grid.append(p);
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
-  pp.append(el('div', { class: 'stat-label' }, 'Market price'));
+  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : 'Market price'));
   pp.append(el('div', { class: 'num', style: 'font-size:19px;font-weight:650;margin:2px 0;color:var(--s2)' }, fmtMoney(c.px.p, c.ccy)));
-  pp.append(el('div', { class: 'metaline' }, `${AS_OF} close`));
+  pp.append(el('div', { class: 'metaline' },
+    c.px?.eod && c.px.asOf ? `${c.px.asOf} close`
+    : c.px?.manual ? 'entered by you'
+    : `${AS_OF} close`));
   grid.append(pp);
   head.append(grid);
 

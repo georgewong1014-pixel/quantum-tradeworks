@@ -157,6 +157,66 @@ What you need is an end-of-day **redistribution** licence: direct from Bursa
 Information Services for Malaysian prices, and any of the commodity US vendors
 for the American side.
 
+---
+
+## Screenshots of your own watchlist — personal research only
+
+A separate path, deliberately walled off from the one above.
+
+```bash
+node ingest/watchlist.mjs --in shot.png            # OCR → review file
+#   …look at data/watchlist-review.csv, fix anything marked CHECK…
+node ingest/prices.mjs --in data/watchlist-review.csv \
+     --out data/personal-prices.json --licence "personal research — not for redistribution"
+```
+
+Then open the app with `?real=1&personal=1`. Prices sourced this way are
+labelled *read from your screen* and *personal research — not redistributable*
+everywhere they appear, and `data/personal-prices.json` is git-ignored so it
+cannot reach the deployed site.
+
+OCR is the Windows built-in engine (`Windows.Media.Ocr`) — no install, no
+dependency, no network. `ingest/ocr.ps1` is the bridge.
+
+### Why this is separate, and why it stays separate
+
+Reading a price off your own screen, under your own subscription, for your own
+research, is fine. It confers **no right to redistribute**, and a screenshot
+does not transfer one — photographing a page of a book is not a licence to
+publish the text. Manual and automated extraction are alike in this: what
+matters is not how the pixels became numbers but who you then serve them to.
+
+So `watchlist.mjs` refuses to write `data/prices.json`, whatever the flags say.
+
+### Why there is a review gate rather than a direct write
+
+On the **first** test run against a real screenshot, Windows OCR returned
+`814.30` for a price of `214.30`. One character, a 280% error, and nothing
+about the output looked wrong.
+
+A wrong price does not surface as an error downstream — it produces a confident,
+fully-decomposed, source-linked valuation built on a bad number, which is the
+exact failure this product exists to avoid. So OCR proposes and you dispose:
+
+- every candidate is checked against the last known close;
+- a move beyond `--max-move` (default 15%) is marked `CHECK`;
+- `prices.mjs` **refuses to import any row still marked `CHECK`**;
+- the raw OCR text is written alongside the CSV, because when a row is missed
+  the only way to fix it is to see what the engine actually saw.
+
+Verified end to end against a fixture with known values: 8 of 8 prices exact,
+and on a second-day fixture carrying that same `814.30` misread, the bad row was
+flagged and refused while the seven genuine moves — including a −4.13% day —
+passed through untouched.
+
+### What it is still not
+
+Your working note. Not a source of record, not a price history, and not a
+substitute for a licensed feed the moment anyone but you is looking. For charts
+and trend evaluation inside a product you ship, embed a TradingView **widget** —
+licensed, free, attribution only — and keep the licensed EOD feed for the
+numbers the engine consumes.
+
 ### Prices change the answer, not just the display
 
 Concretely, on Apple: with no price the cost of capital falls back to book-equity
