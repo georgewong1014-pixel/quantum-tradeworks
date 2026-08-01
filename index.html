@@ -3046,8 +3046,13 @@ function applyFx() {
     }
     FX.USDMYR = p.close;
     FX.asOf = p.date || priceBook.asOf || null;
-    FX.source = priceBook.personal ? 'personal' : 'file';
-    FX.personal = !!priceBook.personal;
+    /* Per-symbol provenance wins over the file's. An official central-bank rate
+       merged into a file of screen-read prices is not itself screen-read, and
+       labelling it that way would understate a number that is actually sound. */
+    FX.named = p.src || null;
+    FX.crossChecked = p.crossChecked || null;
+    FX.source = p.src ? 'named' : (priceBook.personal ? 'personal' : 'file');
+    FX.personal = p.src ? false : !!priceBook.personal;
     return true;
   }
   return false;
@@ -3906,14 +3911,19 @@ VIEWS.home = () => {
     el('span', { class: 'caption' }, 'Cross-market base'),
     FX.source === 'sample' ? null
       : el('span', { class: FX.personal ? 'chip chip-bronze' : 'chip', style: 'margin-left:auto' },
-          FX.personal ? 'from your screen' : 'from your price file')]));
+          FX.source === 'named' ? 'official rate'
+          : FX.personal ? 'from your screen' : 'from your price file')]));
   /* Four decimals once the rate is real: a cross rate rounded to two loses
      enough precision to move a translated market capitalisation visibly. */
   fxCard.append(statTile('USD / MYR',
     FX.source === 'sample' ? FX.USDMYR.toFixed(2) : FX.USDMYR.toFixed(4),
     { sub: FX.source === 'sample'
         ? `Indicative sample rate · ${FX.asOf}`
+        : FX.named
+        ? `${FX.named} · ${FX.asOf || 'date not stated'}`
         : `${FX.personal ? 'Read from your screen' : 'From your price file'} · ${FX.asOf || 'date not stated'}` }));
+  if (FX.crossChecked) fxCard.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
+    `Cross-checked against an independent source: ${FX.crossChecked}.`));
   if (fxRejected) fxCard.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--dn-text)' },
     `A USD/MYR rate of ${fxRejected.value} was supplied and refused: ${fxRejected.why}. The sample rate is still in use.`));
   fxCard.append(el('div', { class: 'row', style: 'margin-top:10px;gap:6px' }, [

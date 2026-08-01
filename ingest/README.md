@@ -232,6 +232,33 @@ and on a second-day fixture carrying that same `814.30` misread, the bad row was
 flagged and refused while the seven genuine moves — including a −4.13% day —
 passed through untouched.
 
+### FX needs no screenshot at all
+
+```bash
+node ingest/fx.mjs                                  # -> data/prices.json
+node ingest/fx.mjs --out data/personal-prices.json  # merge alongside OCR prices
+```
+
+**Bank Negara Malaysia publishes the USD/MYR reference rate through its own
+public API** — free, no key, and the authority for the ringgit. So this is
+allowed to write `data/prices.json`, unlike the screenshot path. (Confirm BNM's
+current terms before relying on it commercially: open data is not an
+unrestricted licence.)
+
+Two sources, because one rate has nothing to check it against. BNM is the
+authority; **Frankfurter** (ECB reference rates) is independent of it. Agreement
+is evidence, disagreement beyond `--tolerance` (default 1.5%) stops the run
+without writing. Observed in practice: 4.0855 against 4.0865, **0.024% apart**.
+
+The merge preserves every other row in the file, and the rate carries per-symbol
+provenance, so an official central-bank rate sitting in a file of screen-read
+prices is labelled *Bank Negara Malaysia* rather than inheriting the file's.
+
+Sources checked and rejected: **Stooq** (free EOD CSV, but now behind a
+JavaScript browser challenge), **Yahoo Finance** (no official API, terms bar
+commercial use). **Alpha Vantage** works on a free key if US end-of-day
+equities are wanted without a screenshot.
+
 ### The FX rate rides along with it
 
 Every US figure shown in ringgit passes through one number. If the price file
