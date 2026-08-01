@@ -20,3 +20,7 @@ data/watchlist-review*.txt
 # where you drop watchlist screenshots. Someone else's licensed data rendered
 # as pixels — never committed, never deployed.
 watchlist-shots/
+
+# what you track is your business, and this repository is public.
+# watchlist-symbols.example.txt is the committed template.
+watchlist-symbols.txt

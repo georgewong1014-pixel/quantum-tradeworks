@@ -1,0 +1,38 @@
+# Copy to watchlist-symbols.txt and edit. The real file is git-ignored, because
+# what you track is your business and this repository is public.
+#
+# One instrument per line. This is the single most effective fix for OCR error.
+# Character recognition reliably confuses O/0, I/1, S/5, Z/2 and B/8: "US100"
+# comes back as "USIOO" and "US2000" as "uszooo". Snapping onto a symbol you
+# have declared is exact; guessing from the glyphs alone is not.
+#
+# It also disambiguates the row icons, which OCR reads as stray letters — the
+# "O" beside SPY and the "a" beside NVDA would otherwise be taken as tickers.
+#
+# Anything read that is NOT in this list is flagged CHECK rather than accepted,
+# so an unlisted instrument is never silently wrong — only unconfirmed.
+
+# --- equities --------------------------------------------------------------
+AAPL
+MSFT
+NVDA
+
+# --- Bursa (four-digit codes work too) -------------------------------------
+1155
+5347
+
+# --- FX --------------------------------------------------------------------
+USDMYR
+EURUSD
+
+# --- indices and ETFs ------------------------------------------------------
+US500
+SPY
+QQQ
+
+# --- commodities and futures -----------------------------------------------
+FCPO1!
+XAUUSD
+
+# --- crypto ----------------------------------------------------------------
+BTCUSD

@@ -124,55 +124,173 @@ async function ocrWords(imagePath) {
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script,
     '-Path', resolve(imagePath), '-Lines',
   ], { maxBuffer: 1024 * 1024 * 32 });
-  const parsed = JSON.parse(stdout.trim() || '[]');
-  return Array.isArray(parsed) ? parsed : [parsed];
+  /* Row icons come back as raw control characters that ConvertTo-Json emits
+     unescaped, which makes the whole payload invalid. The compressed JSON
+     contains no legitimate control characters, so stripping them here is safe
+     — and one bullet glyph must not be able to kill an entire run. */
+  const CTRL = new RegExp('[\\u0000-\\u001F\\u007F-\\u009F\\uE000-\\uF8FF\\uFFFD]', 'g');
+  const clean = stdout.replace(CTRL, '').trim();
+  const parsed = JSON.parse(clean || '[]');
+  const arr = Array.isArray(parsed) ? parsed : [parsed];
+  return arr.filter(w => w && String(w.text || '').trim());
 }
 
 /* --------------------------------------------------------------- parsing */
-/* A watchlist is a table, so the symbol and its price share a row. Group words
-   by vertical overlap rather than a fixed pixel gap, so the tolerance scales
-   with the font size instead of assuming a zoom level. */
+/* A watchlist is a table, so the symbol and its price share a row. The OCR
+   engine emits column by column, not row by row, so rows are rebuilt from
+   vertical position. Tolerance scales with glyph height rather than assuming
+   a zoom level. */
 function groupRows(words) {
   const rows = [];
   for (const w of [...words].sort((a, b) => a.top - b.top)) {
     const tol = Math.max(6, (w.h || 14) * 0.6);
     const row = rows.find(r => Math.abs(r.top - w.top) <= tol);
-    if (row) { row.parts.push(w); row.top = (row.top * (row.parts.length - 1) + w.top) / row.parts.length; }
+    if (row) { row.parts.push(w); row.top = (row.top * row.parts.length + w.top) / (row.parts.length + 1); }
     else rows.push({ top: w.top, parts: [w] });
   }
-  return rows.map(r => r.parts.sort((a, b) => a.left - b.left).map(p => p.text).join(' '));
+  for (const r of rows) r.parts.sort((a, b) => a.left - b.left);
+  return rows;
 }
 
-const SYMBOL = /^(?:[A-Z]{1,6}|\d{4}[A-Z]{0,2})$/;    /* US tickers and Bursa codes */
-const NUMBER = /^-?\d{1,3}(?:,\d{3})*(?:\.\d+)?$|^-?\d+(?:\.\d+)?$/;
-
-function extractCandidates(rowText) {
+/* One number can arrive as several words: "4,643" comes back as "4," + "643".
+   Joining by gap rather than by guessing keeps a thousands separator together
+   without also welding two genuinely separate columns into one number. */
+function weldNumbers(parts) {
   const out = [];
-  for (const line of rowText) {
-    const tokens = line.split(/\s+/).filter(Boolean);
-    const si = tokens.findIndex(t => SYMBOL.test(t));
-    if (si === -1) continue;
-    /* The first plausible number to the right of the symbol is the last price.
-       Percentages and signed change columns are skipped. */
-    for (let i = si + 1; i < tokens.length; i++) {
-      const t = tokens[i];
-      if (t.includes('%') || t.startsWith('+')) continue;
-      if (!NUMBER.test(t)) continue;
-      const v = Number(t.replace(/,/g, ''));
+  for (const p of parts) {
+    const prev = out[out.length - 1];
+    if (prev && prev.w != null && p.w != null) {
+      const charW = prev.w / Math.max(1, prev.text.length);
+      const gap = p.left - (prev.left + prev.w);
+      const numeric = /[\d.,]$/.test(prev.text) && /^[\d.,]/.test(p.text);
+      if (numeric && gap < charW * 0.5) {
+        prev.text += p.text;
+        prev.w = (p.left + p.w) - prev.left;
+        prev.welded = true;
+        continue;
+      }
+      /* Close enough to belong together, too far to join safely. This is what a
+         dropped decimal point looks like — "62,847" "3" for 62,847.3. Welding
+         would invent 62,8473, so record the doubt and let the review gate raise
+         it rather than silently shipping the truncated number. */
+      if (numeric && gap < charW * 2) prev.suspectSplit = true;
+    }
+    out.push({ ...p });
+  }
+  return out;
+}
+
+/* Strict on purpose. A malformed join such as "62,8473" — which is what a lost
+   decimal point looks like — fails this and gets flagged rather than silently
+   becoming a price. */
+const NUMBER = /^-?\d{1,3}(?:,\d{3})+(?:\.\d+)?$|^-?\d+(?:\.\d+)?$/;
+
+/* OCR confuses a small, fixed set of glyph pairs. Folding both sides onto one
+   representative lets "USIOO" match "US100" and "uszooo" match "US2000"
+   without inventing a fuzzy edit distance that would also match the wrong
+   ticker. */
+const fold = (s) => s.toUpperCase()
+  .replace(/[OQ]/g, '0').replace(/[IL|]/g, '1').replace(/S/g, '5')
+  .replace(/Z/g, '2').replace(/B/g, '8').replace(/G/g, '6');
+
+/* Leading icon debris and the trailing status dot both attach to the symbol. */
+const cleanSymbol = (t) => t.replace(/^[^A-Za-z0-9]+/, '').replace(/[^A-Za-z0-9!]+$/, '').toUpperCase();
+
+/* Anything that could plausibly be an instrument: equities, FX pairs, futures
+   with a continuation suffix, index codes, and Bursa's four-digit numbers. */
+const SYMBOLISH = /^(?:[A-Z][A-Z0-9]{0,9}!?|\d{4}[A-Z]{0,2})$/;
+
+function extractCandidates(rows, known) {
+  const foldedKnown = new Map();
+  for (const k of known) {
+    const f = fold(k);
+    /* An ambiguous fold would silently rename one instrument to another, so
+       drop both rather than pick. */
+    foldedKnown.set(f, foldedKnown.has(f) ? null : k);
+  }
+
+  const out = [], skipped = [];
+  for (const row of rows) {
+    const parts = weldNumbers(row.parts);
+    const text = parts.map(p => p.text).join(' ');
+
+    /* Every row carries an instrument icon, and OCR reads those as stray
+       letters — "O" beside SPY, "a" beside NVDA. Taking the first symbol-shaped
+       token therefore picks the debris.
+
+       Leftmost wins, NOT longest: a watchlist that shows descriptions would
+       otherwise yield "MICROSOFT" in preference to "MSFT". Single characters
+       are dropped first, which is what removes the icon debris, and a declared
+       symbol outranks both. */
+    const cands = [];
+    for (let i = 0; i < parts.length; i++) {
+      /* An icon fused to the ticker arrives as one word — "K@VTI". Try the
+         whole token first, then each alphanumeric run inside it, so the ticker
+         is still recoverable when the icon did not separate cleanly. */
+      const raw = parts[i].text;
+      for (const frag of [raw, ...raw.split(/[^A-Za-z0-9!]+/)]) {
+        const c = cleanSymbol(frag);
+        if (!c || !SYMBOLISH.test(c)) continue;
+        /* A pure-digit token is a Bursa code at the head of the row and a price
+           anywhere else. Requiring a further number to its right keeps "1155
+           Malayan Banking 10.84" working without letting a bare price become a
+           ticker. */
+        if (!/[A-Z]/.test(c)) {
+          if (i !== 0 || !/^\d{4}$/.test(c)) continue;
+          if (!parts.slice(1).some(p => NUMBER.test(p.text.replace(/^\+/, '')))) continue;
+        }
+        cands.push({ i, c, snapped: foldedKnown.get(fold(c)) });
+      }
+    }
+    const named = cands.filter(x => x.snapped);
+    const multi = cands.filter(x => x.c.length >= 2);
+    const pool = named.length ? named : (multi.length ? multi : cands);
+    const hit = pool[0];                                     /* leftmost of the best class */
+
+    if (!hit) { if (parts.some(p => NUMBER.test(p.text))) skipped.push({ why: 'no symbol recognised', text }); continue; }
+    const si = hit.i, symbol = hit.snapped || hit.c;
+
+    /* The first number to the right of the symbol is the last price. The change
+       columns sit further right, so first-wins is the correct rule. */
+    let close = null, ambiguous = false, split = false;
+    for (let i = si + 1; i < parts.length; i++) {
+      const t = parts[i].text;
+      if (t.includes('%')) continue;
+      if (!/\d/.test(t)) continue;
+      if (!NUMBER.test(t.replace(/^\+/, ''))) { ambiguous = true; break; }
+      const v = Number(t.replace(/[,+]/g, ''));
       if (!Number.isFinite(v) || v <= 0) continue;
-      out.push({ symbol: tokens[si], close: v, line });
+      close = v;
+      split = !!parts[i].suspectSplit;
       break;
     }
+    if (close == null) {
+      skipped.push({ why: ambiguous ? 'the price did not parse cleanly' : 'no price found on the row', text, symbol });
+      continue;
+    }
+    out.push({ symbol, close, line: text, split,
+               unknown: known.length > 0 && !foldedKnown.has(fold(symbol)) });
   }
-  /* One row per symbol: the first occurrence wins. */
+
   const seen = new Set();
-  return out.filter(c => (seen.has(c.symbol) ? false : (seen.add(c.symbol), true)));
+  return { candidates: out.filter(c => (seen.has(c.symbol) ? false : (seen.add(c.symbol), true))), skipped };
 }
 
 /* ---------------------------------------------------------------- review */
 const words = await ocrWords(inPath);
 const rows = groupRows(words);
-const candidates = extractCandidates(rows);
+
+/* A list of the symbols you actually track is the single most effective fix
+   for OCR error. Snapping "USIOO" onto a known "US100" is reliable; guessing
+   it from the glyphs alone is not. */
+const SYMBOL_FILE = flag('symbols', 'watchlist-symbols.txt');
+let known = [];
+try {
+  known = (await readFile(SYMBOL_FILE, 'utf8')).split(/\r?\n/)
+    .map(s => s.replace(/#.*$/, '').trim()).filter(Boolean);
+} catch { /* optional */ }
+
+const { candidates, skipped } = extractCandidates(rows, known);
 
 let prev = {};
 try { prev = JSON.parse(await readFile(baseline, 'utf8')).prices || {}; } catch { /* first run */ }
@@ -182,7 +300,9 @@ const reviewed = candidates.map(c => {
   const last = prev[c.symbol]?.close;
   const move = (last != null && last > 0) ? ((c.close - last) / last) * 100 : null;
   let verdict = 'accept', why = '';
-  if (move == null) { verdict = 'confirm'; why = 'no previous close to check against'; }
+  if (c.split) { verdict = 'CHECK'; why = 'a digit group sits just past the price — a decimal point may have been dropped'; }
+  else if (c.unknown) { verdict = 'CHECK'; why = `${c.symbol} is not in ${SYMBOL_FILE} — the symbol may be misread`; }
+  else if (move == null) { verdict = 'confirm'; why = 'no previous close to check against'; }
   else if (Math.abs(move) > moveLimit) { verdict = 'CHECK'; why = `implies ${move > 0 ? '+' : ''}${move.toFixed(1)}% in a day — likely a misread digit`; }
   return { ...c, prev: last ?? null, movePct: move == null ? null : +move.toFixed(2), verdict, why };
 });
@@ -203,13 +323,24 @@ await writeFile(outPath, csv + '\n');
 
 /* The raw text goes alongside it, because when the parser misses a row the
    only way to fix it is to see what OCR actually saw. */
-await writeFile(outPath.replace(/\.csv$/, '.txt'), rows.join('\n') + '\n');
+await writeFile(outPath.replace(/\.csv$/, '.txt'),
+  rows.map(r => r.parts.map(p => p.text).join(' ')).join('\n') + '\n');
 
 console.log(`image     ${inPath}  (${picked})`);
 console.log(`read      ${words.length} words`);
 console.log(`rows      ${rows.length}`);
+console.log(`symbols   ${known.length ? `${known.length} known from ${SYMBOL_FILE}` : `no ${SYMBOL_FILE} — symbols taken from OCR as-is`}`);
 console.log(`candidates ${reviewed.length}`);
-console.log(`flagged   ${flagged.length}${flagged.length ? ' — ' + flagged.map(f => `${f.symbol} (${f.why})`).join('; ') : ''}`);
+console.log(`flagged   ${flagged.length}`);
+for (const f of flagged) console.log(`          ${f.symbol}: ${f.why}`);
+/* Rows the parser could not use are named, never dropped in silence — a
+   missing instrument is indistinguishable from one that never existed. */
+if (skipped.length) {
+  console.log(`skipped   ${skipped.length} row(s) with a number but no usable pair:`);
+  for (const s of skipped) console.log(`          ${s.why}: ${s.text.slice(0, 78)}`);
+  console.log(`          (a row whose symbol OCR did not read at all cannot be recovered —`);
+  console.log(`           add it by hand to ${outPath} if you need it)`);
+}
 console.log(`\nwrote ${outPath}`);
 console.log(`      ${outPath.replace(/\.csv$/, '.txt')}  (raw OCR, for when a row is missed)`);
 console.log(`\nReview the CSV, correct anything marked CHECK or confirm, then:`);
