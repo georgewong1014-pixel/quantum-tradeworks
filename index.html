@@ -1874,10 +1874,14 @@ function derive(c) {
   const bvps = eq.map((v, k) => isNum(v) && sh[k] ? v / sh[k] : null);
   const fcfps = fcf.map((v, k) => isNum(v) && sh[k] ? v / sh[k] : null);
 
-  const price = c.px.p;
-  const mcap = price * sh[i];
+  /* Fundamentals can exist without a price: SEC filings are free, market data
+     is licensed. Everything price-derived degrades to null rather than NaN, so
+     a company with real statements and no feed stays usable. */
+  const price = isNum(c.px?.p) ? c.px.p : null;
+  const hasPx = price != null;
+  const mcap = hasPx ? price * sh[i] : null;
   const netDebt = isBank ? null : debt[i] - cash[i];
-  const ev = isBank ? null : mcap + netDebt;
+  const ev = (isBank || !hasPx) ? null : mcap + netDebt;
 
   const m = {};
   m.mcap = mcap; m.ev = ev; m.netDebt = netDebt;
@@ -1885,12 +1889,12 @@ function derive(c) {
   m.fcf = fcf[i];
 
   /* --- valuation multiples ------------------------------------------- */
-  m.pe    = isNum(m.eps)  && m.eps  > 0 ? price / m.eps  : null;
-  m.pb    = isNum(m.bvps) && m.bvps > 0 ? price / m.bvps : null;
-  m.pfcf  = isNum(m.fcfps) && m.fcfps > 0 ? price / m.fcfps : null;
+  m.pe    = hasPx && isNum(m.eps)  && m.eps  > 0 ? price / m.eps  : null;
+  m.pb    = hasPx && isNum(m.bvps) && m.bvps > 0 ? price / m.bvps : null;
+  m.pfcf  = hasPx && isNum(m.fcfps) && m.fcfps > 0 ? price / m.fcfps : null;
   m.evebit = isNum(ev) && ebit[i] > 0 ? ev / ebit[i] : null;
-  m.dy    = price > 0 ? dps[i] / price * 100 : null;
-  m.fcfy  = isNum(m.fcf) && mcap > 0 ? m.fcf / mcap * 100 : null;
+  m.dy    = hasPx && price > 0 ? dps[i] / price * 100 : null;
+  m.fcfy  = isNum(m.fcf) && isNum(mcap) && mcap > 0 ? m.fcf / mcap * 100 : null;
   m.ey    = isNum(m.pe) ? 100 / m.pe : null;
 
   /* --- profitability -------------------------------------------------- */
@@ -1943,13 +1947,18 @@ function derive(c) {
   m.reinv    = isNum(ocf[i]) && ocf[i] > 0 ? capex[i] / ocf[i] * 100 : null;
 
   /* --- market ------------------------------------------------------------ */
-  m.rs12 = c.px.m12;
-  m.from52 = (c.px.p - c.px.hi) / c.px.hi * 100;
-  m.range52 = (c.px.p - c.px.lo) / (c.px.hi - c.px.lo) * 100;
+  m.rs12 = isNum(c.px?.m12) ? c.px.m12 : null;
+  m.from52 = hasPx && isNum(c.px?.hi) ? (price - c.px.hi) / c.px.hi * 100 : null;
+  m.range52 = hasPx && isNum(c.px?.lo) && isNum(c.px?.hi) && c.px.hi !== c.px.lo
+    ? (price - c.px.lo) / (c.px.hi - c.px.lo) * 100 : null;
 
   /* --- sector-specific ---------------------------------------------------- */
-  if (isBank) { Object.assign(m, { cet1:c.bank.cet1, npl:c.bank.npl, nim:c.bank.nim, cir:c.bank.cir, casa:c.bank.casa, ldr:c.bank.loans/c.bank.dep*100 }); }
-  if (isReit) { Object.assign(m, { occ:c.reit.occ, wale:c.reit.wale, gearing:c.reit.gearing, cap:c.reit.cap, aff:c.reit.aff });
+  /* Sector-specific measures are supplementary disclosures, not statement
+     lines. A bank ingested from SEC filings has no CET1 or impaired-loan ratio
+     because those sit in regulatory returns, so they resolve to null and the
+     coverage figure reflects the gap rather than the code throwing. */
+  if (isBank && c.bank) { Object.assign(m, { cet1:c.bank.cet1, npl:c.bank.npl, nim:c.bank.nim, cir:c.bank.cir, casa:c.bank.casa, ldr:c.bank.loans/c.bank.dep*100 }); }
+  if (isReit && c.reit) { Object.assign(m, { occ:c.reit.occ, wale:c.reit.wale, gearing:c.reit.gearing, cap:c.reit.cap, aff:c.reit.aff });
                 m.dpuCover = c.reit.aff && dps[i] ? c.reit.aff / dps[i] * 100 : null;
                 m.pnav = m.bvps > 0 ? price / m.bvps : null; }
 
@@ -2222,7 +2231,10 @@ function defaultInputs(c, d) {
   /* Weighted average cost of capital from the company's own capital structure:
      equity at the cost of equity, debt at the risk-free rate plus a credit
      spread, after tax. Weights come from market value of equity and book debt. */
-  const E = m.mcap, D = last(d.debt) || 0, V = E + D;
+  /* Without a market price there is no market value of equity, so the weight
+     falls back to book equity. Noted rather than silently substituted. */
+  const usedBookEquity = !isNum(m.mcap);
+  const E = usedBookEquity ? (last(d.eq) || 0) : m.mcap, D = last(d.debt) || 0, V = (E + D) || 1;
   const costDebtAfterTax = (riskFree + 1.2) * (1 - TAX[c.mkt]);
   const wacc = (coe * E + costDebtAfterTax * D) / V;
 
@@ -2250,7 +2262,7 @@ function defaultInputs(c, d) {
   }
 
   const g1 = clamp(isNum(m.rev5) ? m.rev5 * 0.75 : 4, -2, 14);
-  return { model:'dcf', fcf0:+baseFcf.toFixed(3), g1:+g1.toFixed(2), gt:c.mkt === 'US' ? 2.5 : 3.0,
+  return { model:'dcf', waccFromBook: usedBookEquity, fcf0:+baseFcf.toFixed(3), g1:+g1.toFixed(2), gt:c.mkt === 'US' ? 2.5 : 3.0,
            wacc:+wacc.toFixed(2), netDebt:m.netDebt, shares:last(d.sh), years:5,
            /* Only a holding company carries a conglomerate discount, and it is an
               editable input rather than something buried in the model. */
@@ -2566,9 +2578,9 @@ function valuationRun(c, d, inputs) {
   const bull = runModel(apply(shift.bull));
   const err = base.error || bear.error || bull.error;
 
-  const price = c.px.p;
+  const price = isNum(c.px?.p) ? c.px.p : null;
   const vals = err ? null : { bear: bear.perShare, base: base.perShare, bull: bull.perShare };
-  const mos = err ? null : {
+  const mos = (err || price == null) ? null : {
     bear: (bear.perShare - price) / price * 100,
     base: (base.perShare - price) / price * 100,
     bull: (bull.perShare - price) / price * 100,
@@ -2652,12 +2664,11 @@ function sensitivityGrid(inputs) {
 const U = [];          /* the working universe */
 const BY_ID = new Map();
 
-RAW.forEach(c => {
+function addCompany(c) {
   c.flags = c.flags || { shariah: null, pn17: false, board: c.mkt === 'US' ? 'US listed' : 'Main Market', idx: c.mkt === 'US' ? 'S&P 500' : null };
   /* Bursa companies trade under a numeric code but are read by their short
      name. Display the short name; keep the code for the identity line. */
-  c.code = c.tk;
-  c.tk = c.id;
+  if (!c.real) { c.code = c.tk; c.tk = c.id; }   /* real records set both already */
   /* Extend to the full ten-year window before anything is derived from it. */
   if (c.fin.length === AUTHORED_YEARS) c.fin = [...backcast(c), ...c.fin];
   const d = derive(c);
@@ -2689,7 +2700,10 @@ RAW.forEach(c => {
   const row = { c, d, m: d.m, scores, val, inputs, flags, risk, discount };
   U.push(row);
   BY_ID.set(c.id, row);
-});
+  return row;
+}
+
+RAW.forEach(addCompany);
 
 /* ------------------------------------------------------------ percentiles */
 /* Scores are ranked inside valid cohorts — market, sector and business model —
@@ -2742,7 +2756,7 @@ function momentumOf(r) {
   const medRs = median(peers.map(x => x.c.px.m12)) ?? 0;
   const pc = (a, b) => isNum(a) && isNum(b) && a !== 0 ? (b - a) / Math.abs(a) * 100 : null;
   const raw = {
-    rel: r.c.px.m12 - medRs,
+    rel: isNum(r.c.px?.m12) ? r.c.px.m12 - medRs : null,
     ebitDir: pc(r.d.ebit[LYI - 1], r.d.ebit[LYI]),
     revDir: pc(r.d.rev[LYI - 1], r.d.rev[LYI]),
   };
@@ -2756,6 +2770,9 @@ function momentumOf(r) {
            cohortMedian: medRs };
 }
 
+/* Re-runnable: cohort percentiles and momentum are relative measures, so they
+   must be recomputed whenever the universe changes size. */
+function finaliseUniverse() {
 U.forEach(r => { r.mom = momentumOf(r); });
 U.forEach(r => {
   r.pct = {
@@ -2767,6 +2784,8 @@ U.forEach(r => {
   };
   r.pctAll = { quality: pctFor(r, 'quality', 'all'), value: pctFor(r, 'value', 'all') };
 });
+}
+finaliseUniverse();
 
 /* ==========================================================================
    GENERATED SERIES — deterministic, seeded by ticker
@@ -2775,6 +2794,7 @@ U.forEach(r => {
 /* 52 weekly closes ending at the current price, consistent with the stated
    12-month return and the 52-week range. */
 function priceHistory(c) {
+  if (!isNum(c.px?.p) || !isNum(c.px?.m12)) return null;   /* nothing to draw */
   const rnd = seeded(c.id + 'px');
   const n = 52;
   const start = c.px.p / (1 + c.px.m12 / 100);
@@ -2794,6 +2814,7 @@ function priceHistory(c) {
    and the prior year is implied by the stated twelve-month return; earlier years
    are generated deterministically from the seed. */
 function priceSeries(c) {
+  if (!isNum(c.px?.p) || !isNum(c.px?.m12)) return new Array(YEARS.length).fill(null);
   const rnd = seeded(c.id + 'annual');
   const n = YEARS.length, out = new Array(n);
   out[n - 1] = c.px.p;
@@ -2909,7 +2930,7 @@ function buildFeed() {
     if (isNum(m.cashPayout) && m.cashPayout > 100)
       feed.push({ kind:'dividend', sev:'serious', id:c.id, title:`${c.tk} distribution is ${fmtPct(m.cashPayout,0)} of free cash flow`,
         detail:'Cash cover below 1.0× — the payout is being funded from the balance sheet rather than from operations.' });
-    if (Math.abs(c.px.m3) > 10)
+    if (isNum(c.px?.m3) && Math.abs(c.px.m3) > 10)
       feed.push({ kind:'price', sev: c.px.m3 > 0 ? 'good' : 'warning', id:c.id, title:`${c.tk} ${c.px.m3 > 0 ? 'up' : 'down'} ${fmtPct(Math.abs(c.px.m3),1)} over three months`,
         detail:'Price move only. Check the "Why moved?" attribution before treating this as new information.' });
     if (isNum(m.revDD) && m.revDD > 25)
@@ -2921,7 +2942,85 @@ function buildFeed() {
   });
   return feed;
 }
-const FEED = buildFeed();
+let FEED = buildFeed();
+
+/* ==========================================================================
+   REAL DATA — SEC-filed fundamentals, behind a flag
+   --------------------------------------------------------------------------
+   Enable with ?real=1 or the toggle on Home. Companies loaded this way carry
+   audited statements from SEC EDGAR and NO PRICE, because SEC publishes
+   filings and not market data. That is the licensing gap made visible rather
+   than described: everything price-derived shows as unavailable until a price
+   is supplied, and nothing is imputed to paper over it.
+   ========================================================================== */
+const realEnabled = () => new URLSearchParams(location.search).get('real') === '1'
+                       || store.read('realData', false);
+
+/* A price a user typed in themselves. Explicitly not market data, and labelled
+   as such everywhere it is used. */
+const manualPrices = store.read('manualPrices', {});
+const setManualPrice = (id, p) => {
+  if (isNum(p) && p > 0) manualPrices[id] = p; else delete manualPrices[id];
+  store.write('manualPrices', manualPrices);
+};
+
+/* Business model drives the valuation router, and SEC filings do not carry a
+   classification we can trust for it. Rather than guess from SIC codes, the
+   mapping is explicit and small — and anything unmapped defaults to the
+   general pack with the assumption stated on the page. */
+const REAL_TYPES = { JPM:'bank', RIVN:'early', XOM:'cyclical', CAT:'cyclical', NEE:'mature' };
+const REAL_SECTORS = {
+  AAPL:['Technology','Consumer Electronics'], MSFT:['Technology','Software — Infrastructure'],
+  GOOGL:['Communication Services','Interactive Media'], NVDA:['Technology','Semiconductors'],
+  JPM:['Financials','Diversified Banks'], XOM:['Energy','Integrated Oil & Gas'],
+  NEE:['Utilities','Electric Utilities'], CAT:['Industrials','Construction Machinery'],
+  KO:['Consumer Staples','Soft Drinks'], RIVN:['Consumer Discretionary','Automobile Manufacturers'],
+};
+
+function realToCompany(r) {
+  /* Ingestion emits nulls for lines a filer does not report. The engine already
+     treats null as "not available" rather than zero, so they pass through. */
+  const fin = r.fin.map(row => row.map(v => (v == null ? null : v)));
+  const [sector, industry] = REAL_SECTORS[r.id] || ['Unclassified', 'Unclassified'];
+  /* The ingested tickers deliberately overlap the sample set, so the real
+     record takes a distinct id and the two sit side by side. Comparing
+     synthetic AAPL against filed AAPL is the most useful thing this flag can
+     show — it makes the difference between invented and audited legible. */
+  const id = `${r.id}-SEC`;
+  const px = isNum(manualPrices[id])
+    ? { p: manualPrices[id], d1: null, m1: null, m3: null, m12: null, lo: null, hi: null, manual: true }
+    : { p: null, d1: null, m1: null, m3: null, m12: null, lo: null, hi: null };
+  return {
+    id, name: r.name, tk: r.id, code: r.id, exch: 'SEC filer', mkt: 'US', ccy: 'USD',
+    sector, industry, type: REAL_TYPES[r.id] || 'mature',
+    desc: `Figures are audited annual statements retrieved from SEC EDGAR (CIK ${r.cik}) on ${r.retrieved}. No price feed is attached — SEC publishes filings, not market data.`,
+    px, fin,
+    real: true, cik: r.cik, provenance: r.provenance, gaps: r.gaps,
+    completeness: r.completeness, retrieved: r.retrieved,
+    seg: [], moat: { kind:'Not assessed', dur:'—', conf:'Low',
+      support:[], counter:['No moat assessment exists for a company loaded from filings alone. Moat evidence is analyst work, not a computed field.'] },
+    qrisk: 'Loaded from filings only. Segment mix, ownership and qualitative risk have not been researched for this company.',
+    own: { insider: null, inst: null, top: [] },
+    flags: { shariah: null, pn17: false, board: 'US listed', idx: null },
+  };
+}
+
+async function loadRealData() {
+  const res = await fetch('data/us-sample.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${res.status} loading data/us-sample.json`);
+  const j = await res.json();
+  let added = 0;
+  for (const r of (j.results || [])) {
+    if (BY_ID.has(`${r.id}-SEC`)) continue;         /* already loaded */
+    const c = realToCompany(r);
+    RAW.push(c);
+    addCompany(c);
+    added++;
+  }
+  if (added) { finaliseUniverse(); FEED = buildFeed(); }
+  return { added, generated: j.generated, failures: j.failures || [] };
+}
+let realStatus = null;
 
 /* ==========================================================================
    CHART LAYER
@@ -3000,7 +3099,7 @@ function tableTwin(caption, headers, rows) {
 
 /* ------------------------------------------------------------- sparkline */
 function sparkline(values, { w = 78, h = 24, up = null } = {}) {
-  const vals = values.filter(isNum);
+  const vals = (values || []).filter(isNum);
   if (vals.length < 2) return el('span', { class: 'caption' }, '—');
   const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
   const x = i => (i / (vals.length - 1)) * (w - 6) + 3;
@@ -3432,16 +3531,20 @@ function waterfallChart(container, { steps, fmt, ccy }) {
 
 /* ------------------------------------------------------ value range strip */
 function rangeStrip(bear, base, bull, price, ccy) {
-  const lo = Math.min(bear, price) * 0.94, hi = Math.max(bull, price) * 1.06;
+  /* A company can have a modelled value and no price. Plotting a marker at
+     zero would invent a comparison that was never made. */
+  const hasPx = isNum(price);
+  const lo = (hasPx ? Math.min(bear, price) : bear) * 0.94;
+  const hi = (hasPx ? Math.max(bull, price) : bull) * 1.06;
   const at = v => clamp((v - lo) / (hi - lo) * 100, 0, 100);
   return el('div', { style: 'position:relative;height:56px;margin-top:var(--xs)' }, [
     el('div', { style: `position:absolute;left:${at(bear)}%;right:${100 - at(bull)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,var(--dn-2),var(--mid),var(--up-2))` }),
     el('div', { style: `position:absolute;left:${at(base)}%;top:16px;width:2px;height:20px;background:var(--ink);transform:translateX(-1px)` }),
-    el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
-      `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }),
+    hasPx ? el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
+      `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }) : null,
     el('div', { class: 'metaline', style: `position:absolute;left:${at(bear)}%;top:36px;transform:translateX(-30%)` }, `Bear ${fmtMoney(bear, ccy)}`),
     el('div', { class: 'metaline', style: `position:absolute;left:${at(bull)}%;top:36px;transform:translateX(-70%)` }, `Bull ${fmtMoney(bull, ccy)}`),
-    el('div', { class: 'metaline', style: `position:absolute;left:${at(price)}%;top:0;transform:translateX(-50%);color:var(--s2);font-weight:600;white-space:nowrap` }, `Price ${fmtMoney(price, ccy)}`),
+    hasPx ? el('div', { class: 'metaline', style: `position:absolute;left:${at(price)}%;top:0;transform:translateX(-50%);color:var(--s2);font-weight:600;white-space:nowrap` }, `Price ${fmtMoney(price, ccy)}`) : null,
     el('div', { class: 'metaline', style: `position:absolute;left:${at(base)}%;top:36px;transform:translateX(-50%);color:var(--ink);font-weight:600;white-space:nowrap` }, `Base ${fmtMoney(base, ccy)}`),
   ]);
 }
@@ -3645,7 +3748,7 @@ document.addEventListener('click', e => {
    ========================================================================== */
 
 function marketSummary(mkt) {
-  const rows = U.filter(r => r.c.mkt === mkt);
+  const rows = U.filter(r => r.c.mkt === mkt && isNum(r.m.mcap) && isNum(r.c.px?.d1));
   const capTotal = sum(rows.map(r => r.m.mcap));
   const wChg = sum(rows.map(r => r.c.px.d1 * r.m.mcap)) / capTotal;
   const advancers = rows.filter(r => r.c.px.d1 > 0).length;
@@ -3737,6 +3840,28 @@ VIEWS.home = () => {
   freshCard.append(statTile('Data as of', AS_OF, { sub: `${U.length} companies · ${MODEL_VERSION.split('·')[0].trim()}` }));
   freshCard.append(el('div', { class: 'metaline', style: 'margin-top:10px' },
     `This date does not advance — nothing here is fed by a live source. Median coverage ${Math.round(U.map(r => r.m.coverage).sort((a, b) => a - b)[Math.floor(U.length / 2)])}%.`));
+
+  /* Real-data switch. Loading SEC filings alongside the sample set is the
+     clearest way to show what the engine does on audited numbers — and what
+     stops working without a licensed price feed. */
+  const realOn = realEnabled();
+  const realRow = el('div', { class: 'row', style: 'gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--grid)' });
+  const lab = el('label', { class: 'checkline', style: 'gap:8px' });
+  lab.append(el('input', { type: 'checkbox', checked: realOn ? '' : null,
+    onchange: e => {
+      store.write('realData', e.target.checked);
+      location.href = e.target.checked ? '?real=1' : location.pathname;
+    } }));
+  lab.append(el('span', {}, 'Load SEC-filed companies'));
+  realRow.append(lab);
+  freshCard.append(realRow);
+  if (realOn) {
+    const n = U.filter(r => r.c.real).length;
+    freshCard.append(el('div', { class: 'metaline', style: 'margin-top:4px' },
+      realStatus === null ? 'Loading filings from SEC EDGAR…'
+      : realStatus.ok ? `${n} companies loaded from SEC EDGAR. Statements are audited and real; no price feed is attached.`
+      : `Could not load filings: ${realStatus.error}`));
+  }
   ctx.append(freshCard);
   if (dashOf('context').visible) wrap.append(ctx);
 
@@ -4826,7 +4951,7 @@ function renderHeatmap() {
   bar.append(row);
   wrap.append(bar);
 
-  let rows = U;
+  let rows = U.filter(r => isNum(r.m.mcap));           /* area comes from market cap */
   if (st.universe === 'US' || st.universe === 'MY') rows = rows.filter(r => r.c.mkt === st.universe);
   if (st.universe === 'watchlist') rows = rows.filter(r => State.watchlist.includes(r.c.id));
   const mode = HEAT_MODES.find(m => m.id === st.mode);
@@ -5044,6 +5169,37 @@ VIEWS.research = () => {
 
   head.append(el('div', { style: 'margin-top:var(--md);padding-top:var(--sm);border-top:1px solid var(--grid)' },
     provenance(r, [`<b>Model</b> ${r.val.pack.name}`, `<b>Confidence</b> ${r.val.confBand}`])));
+
+  /* Real-data companies get their own provenance strip: which filer, how
+     complete, which XBRL tags, and the price gap with a way to close it. */
+  if (c.real) {
+    const rp = el('div', { style: 'margin-top:var(--sm);padding-top:var(--sm);border-top:1px solid var(--grid)' });
+    rp.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:8px' }, [
+      sevChip('good', 'SEC-filed statements'),
+      el('span', { class: 'chip' }, `CIK ${c.cik}`),
+      el('span', { class: 'chip' }, `${Math.round(c.completeness * 100)}% of lines present`),
+      el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
+      isNum(c.px?.p) ? el('span', { class: 'chip chip-bronze' }, 'price entered by you')
+                     : sevChip('warning', 'no licensed price feed'),
+    ]));
+    const mixed = Object.entries(c.provenance || {}).filter(([, p]) => p.mixedTags);
+    if (mixed.length) rp.append(el('p', { class: 'metaline', style: 'margin-bottom:6px' },
+      `Assembled from more than one XBRL tag: ${mixed.map(([k, p]) => `${k} (${p.concept})`).join('; ')}. Comparability across peers is weaker where this happens.`));
+
+    const pr = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:flex-end' });
+    const f = el('div', { class: 'field', style: 'width:150px' });
+    f.append(el('label', { for: 'realpx' }, 'Price (USD)'));
+    f.append(el('input', { class: 'input input-inline', id: 'realpx', type: 'number', step: '0.01',
+      value: isNum(c.px?.p) ? c.px.p : '', placeholder: 'not available',
+      onchange: e => { setManualPrice(c.id, parseFloat(e.target.value)); location.reload(); } }));
+    pr.append(f);
+    pr.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
+      isNum(c.px?.p)
+        ? 'This price was typed in by you. It is not market data, and every price-derived figure below inherits that.'
+        : 'SEC publishes filings, not prices. Valuation still computes a value per share; market capitalisation, multiples, yield and margin of safety cannot be computed without a price. Enter one to complete the picture.'));
+    rp.append(pr);
+    head.append(rp);
+  }
   wrap.append(head);
 
   /* ---------- sticky identity + tabs ----------
@@ -5099,11 +5255,12 @@ function tabSnapshot(r) {
   else {
     vr.append(rangeStrip(val.vals.bear, val.vals.base, val.vals.bull, c.px.p, c.ccy));
     const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--lg)' });
-    [['Bear', val.vals.bear, val.mos.bear], ['Base', val.vals.base, val.mos.base], ['Bull', val.vals.bull, val.mos.bull]].forEach(([label, v, mos]) => {
+    [['Bear', val.vals.bear, val.mos?.bear], ['Base', val.vals.base, val.mos?.base], ['Bull', val.vals.bull, val.mos?.bull]].forEach(([label, v, mos]) => {
       const p = el('div', { class: 'panel' });
       p.append(el('div', { class: 'stat-label' }, `${label} case`));
       p.append(el('div', { class: 'num', style: 'font-size:18px;font-weight:640;margin:2px 0' }, fmtMoney(v, c.ccy)));
-      p.append(el('div', { class: 'num ' + signClass(mos), style: 'font-size:12px;font-weight:580' }, `${withSign(mos, 1)} vs price`));
+      p.append(el('div', { class: 'num ' + signClass(mos), style: 'font-size:12px;font-weight:580' },
+        isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
       g.append(p);
     });
     vr.append(g);
@@ -5111,22 +5268,36 @@ function tabSnapshot(r) {
   main.append(vr);
 
   /* price */
-  const pc = el('div', { class: 'card' });
-  pc.append(cardHead('Price, last 52 weeks', 'Weekly closes reconstructed from the sample dataset.'));
-  const ph = el('div', { style: 'width:100%' });
-  pc.append(ph);
   const hist = priceHistory(c);
-  lineChart(ph, { values: hist, labels: hist.map((_, i) => i === hist.length - 1 ? AS_OF : `Week ${i + 1}`), fmt: v => fmtMoney(v, c.ccy, 2), varName: '--s1' });
-  pc.append(el('div', { class: 'row row-wrap', style: 'gap:var(--lg);margin-top:var(--sm)' }, [
-    el('span', { class: 'metaline' }, `52-week range ${fmtMoney(c.px.lo, c.ccy)} – ${fmtMoney(c.px.hi, c.ccy)}`),
-    el('span', { class: 'metaline' }, `${fmtPct(m.from52)} from the high`),
-    el('span', { class: 'metaline ' + signClass(c.px.m12) }, `${withSign(c.px.m12)} over 12 months`),
-  ]));
+  const pc = el('div', { class: 'card' });
+  if (!hist) {
+    /* Fundamentals without a feed. Say so rather than draw an empty chart. */
+    pc.append(cardHead('Price history', 'Not available for this company.'));
+    pc.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+      c.real
+        ? 'This company was loaded from SEC filings, which carry statements and not market data. A price series needs a licensed feed. Everything above that does not depend on a price — statements, quality, the valuation itself — is computed from the filings as normal.'
+        : 'No price series is attached to this company.'));
+  } else {
+    pc.append(cardHead('Price, last 52 weeks', 'Weekly closes reconstructed from the sample dataset.'));
+    const ph = el('div', { style: 'width:100%' });
+    pc.append(ph);
+    lineChart(ph, { values: hist, labels: hist.map((_, i) => i === hist.length - 1 ? AS_OF : `Week ${i + 1}`), fmt: v => fmtMoney(v, c.ccy, 2), varName: '--s1' });
+    pc.append(el('div', { class: 'row row-wrap', style: 'gap:var(--lg);margin-top:var(--sm)' }, [
+      el('span', { class: 'metaline' }, `52-week range ${fmtMoney(c.px.lo, c.ccy)} – ${fmtMoney(c.px.hi, c.ccy)}`),
+      el('span', { class: 'metaline' }, `${fmtPct(m.from52)} from the high`),
+      el('span', { class: 'metaline ' + signClass(c.px.m12) }, `${withSign(c.px.m12)} over 12 months`),
+    ]));
+  }
   main.append(pc);
 
   /* peers — economically comparable, not merely same-sector */
   const peers = U.filter(x => x.c.id !== c.id && x.c.type === c.type && (x.c.mkt === c.mkt || x.c.sector === c.sector))
-    .sort((a, b) => Math.abs(b.m.mcap - m.mcap) > Math.abs(a.m.mcap - m.mcap) ? -1 : 1).slice(0, 5);
+    .sort((a, b) => {
+      if (!isNum(m.mcap)) return 0;                 /* no anchor to sort against */
+      const da = isNum(a.m.mcap) ? Math.abs(a.m.mcap - m.mcap) : Infinity;
+      const db = isNum(b.m.mcap) ? Math.abs(b.m.mcap - m.mcap) : Infinity;
+      return da - db;
+    }).slice(0, 5);
   if (peers.length) {
     const pcard = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
     const ph2 = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
@@ -5897,6 +6068,13 @@ function studioOutputs(r, inputs, redraw) {
   /* Unit, sign and per-share base checks run for every pack. */
   warnings.push(...consistencyWarnings(c, d, inputs));
 
+  /* Without a market price the cost of capital is weighted on BOOK equity,
+     which for a leveraged balance sheet tilts the blend toward cheap debt and
+     lowers the discount rate — inflating the value. Too consequential to leave
+     in a code comment. */
+  if (inputs.waccFromBook)
+    warnings.push({ sev:'serious', text:`No market price is attached, so the cost of capital is weighted using book equity of ${fmtCap(last(d.eq), c.ccy)} against debt of ${fmtCap(last(d.debt), c.ccy)} rather than market value. That pulls the discount rate to ${fmtPct(inputs.wacc)} and materially raises the value. Enter a price to weight it properly.` });
+
   if (r.m.coverage < 80)
     warnings.push({ sev:'warning', text:`Data completeness for this company is ${r.m.coverage}%. Confidence is reduced accordingly rather than the gaps being filled in.` });
 
@@ -5919,11 +6097,12 @@ function studioOutputs(r, inputs, redraw) {
     ])));
   head.append(rangeStrip(run.vals.bear, run.vals.base, run.vals.bull, c.px.p, c.ccy));
   const grid = el('div', { class: 'grid g-4', style: 'margin-top:var(--lg)' });
-  [['Bear', run.vals.bear, run.mos.bear], ['Base', run.vals.base, run.mos.base], ['Bull', run.vals.bull, run.mos.bull]].forEach(([label, v, mos]) => {
+  [['Bear', run.vals.bear, run.mos?.bear], ['Base', run.vals.base, run.mos?.base], ['Bull', run.vals.bull, run.mos?.bull]].forEach(([label, v, mos]) => {
     const p = el('div', { class: 'panel' });
     p.append(el('div', { class: 'stat-label' }, `${label} case`));
     p.append(el('div', { class: 'num', style: 'font-size:19px;font-weight:650;margin:2px 0' }, fmtMoney(v, c.ccy)));
-    p.append(el('div', { class: 'num ' + signClass(mos), style: 'font-size:12px;font-weight:580' }, `${withSign(mos, 1)} vs price`));
+    p.append(el('div', { class: 'num ' + signClass(mos), style: 'font-size:12px;font-weight:580' },
+        isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
     grid.append(p);
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
@@ -8242,6 +8421,32 @@ if (savedTheme) document.documentElement.dataset.theme = savedTheme;
 $('#themeIcon').innerHTML = currentTheme() === 'dark' ? SUN : MOON;
 
 /* ------------------------------------------------------------------- boot */
+const refreshSearchLabel = () => {
+  $('#searchLabel').textContent = `Search ${U.length} companies…`;
+  $('#openSearch').setAttribute('aria-label', `Search ${U.length} companies`);
+};
+
+/* Real data loads asynchronously and changes the size of the universe, so the
+   first paint happens on the sample set and the view re-renders once the
+   filings land. */
+if (realEnabled()) {
+  loadRealData()
+    .then(res => {
+      realStatus = { ok: true, ...res };
+      refreshSearchLabel();
+      render();
+      /* A deep link can name a company that did not exist at first paint, so
+         the hash is resolved again once the filings are in. */
+      fromHash();
+      console.info(`real data: +${res.added} SEC-filed companies`);
+    })
+    .catch(err => {
+      realStatus = { ok: false, error: err.message };
+      render();
+      console.warn('real data failed to load:', err.message);
+    });
+}
+
 $('#searchLabel').textContent = `Search ${U.length} companies…`;
 $('#openSearch').setAttribute('aria-label', `Search ${U.length} companies`);
 render();
