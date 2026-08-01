@@ -7,6 +7,26 @@
 <meta name="description" content="Research the company. Reach your own conclusion. An evidence-led equity and property research subscription for Malaysian investors. Research only — no recommendations, no ratings, no target prices.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#2764E7">
+<link rel="canonical" href="https://quantum-tradeworks.vercel.app/">
+
+<!-- Open Graph / Twitter. Without these a shared link renders as a bare URL. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Quantum Tradeworks">
+<meta property="og:url" content="https://quantum-tradeworks.vercel.app/">
+<meta property="og:title" content="Quantum Tradeworks — research the company, reach your own conclusion">
+<meta property="og:description" content="Evidence-led equity and property research for Malaysian investors. Every number shows its formula, period and coverage. Research only — no recommendations, ratings or target prices.">
+<meta property="og:image" content="https://quantum-tradeworks.vercel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Quantum Tradeworks — evidence-led equity and property research for Malaysian investors.">
+<meta property="og:locale" content="en_MY">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Quantum Tradeworks — research the company, reach your own conclusion">
+<meta name="twitter:description" content="Evidence-led equity and property research for Malaysian investors. Research only — no recommendations, ratings or target prices.">
+<meta name="twitter:image" content="https://quantum-tradeworks.vercel.app/og.png">
+
+<!-- Vercel Web Analytics. Needs Analytics enabled on the project to report. -->
+<script defer src="/_vercel/insights/script.js"></script>
 <!-- App-icon variant of the mark. The chart and building are dropped here:
      at 16px they turn to mush, and the ring plus tail is what reads. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
@@ -55,9 +75,9 @@
   --logo-word:      var(--logo-navy);
 
   /* --- brand ---------------------------------------------------------- */
-  --brand:        #00544a;
-  --brand-hi:     #00695c;
-  --brand-wash:   #e6efeb;
+  --brand:        #1B4FCC;
+  --brand-hi:     #2E68E4;
+  --brand-wash:   #E7EEFD;
   --bronze:       #9a6f22;
   --bronze-wash:  #f4ecdb;
 
@@ -117,7 +137,7 @@
     --plane: #0b0d0c; --surface: #111413; --surface-2: #171b19; --surface-sunk: #0d100f; --surface-inv: #f4f1ea;
     --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #7c7e76; --ink-inv: #141a18;
     --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
-    --brand: #4bbfa6; --brand-hi: #6bd0b9; --brand-wash: #12241f; --bronze: #d3a44e; --bronze-wash: #241d0f;
+    --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
     --s1:#1f9c81; --s2:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
     --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
     --mid: #2a2e2c;
@@ -137,7 +157,7 @@
   --plane: #0b0d0c; --surface: #111413; --surface-2: #171b19; --surface-sunk: #0d100f; --surface-inv: #f4f1ea;
   --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #7c7e76; --ink-inv: #141a18;
   --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
-  --brand: #4bbfa6; --brand-hi: #6bd0b9; --brand-wash: #12241f; --bronze: #d3a44e; --bronze-wash: #241d0f;
+  --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
   --s1:#1f9c81; --s2:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
   --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
   --mid: #2a2e2c;
@@ -381,12 +401,12 @@ a { color: inherit; }
 .btn svg { width: 15px; height: 15px; flex: none; }
 .btn-primary {
   background: linear-gradient(180deg, var(--brand-hi), var(--brand));
-  color: #fff; box-shadow: 0 1px 2px rgba(0,84,74,.28), 0 6px 18px -8px rgba(0,84,74,.5);
+  color: #fff; box-shadow: 0 1px 2px rgba(27,79,204,.30), 0 6px 18px -8px rgba(27,79,204,.5);
 }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,84,74,.3), 0 14px 28px -10px rgba(0,84,74,.55); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(27,79,204,.32), 0 14px 28px -10px rgba(27,79,204,.55); }
 .btn-primary:active { transform: translateY(0); }
-:root[data-theme="dark"] .btn-primary, html:where(:not([data-theme="light"])) .btn-primary { color: #04211c; }
-@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .btn-primary { color: #04211c; } }
+:root[data-theme="dark"] .btn-primary, html:where(:not([data-theme="light"])) .btn-primary { color: #0A1A33; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .btn-primary { color: #0A1A33; } }
 
 .btn-ghost { background: var(--surface-2); border-color: var(--line); color: var(--ink-2); }
 .btn-ghost:hover { color: var(--ink); border-color: var(--line-2); box-shadow: var(--lift-1); transform: translateY(-1px); }
@@ -3650,6 +3670,38 @@ VIEWS.home = () => {
   hd.append(hr);
   wrap.append(hd);
 
+  /* First-run orientation. The root URL drops a visitor inside the application,
+     so this band answers "what is this, what is it not, where do I start"
+     before they meet a dashboard of someone else's watchlist. Dismissible, and
+     the dismissal sticks. */
+  if (!store.read('introDismissed', false)) {
+    const intro = el('div', { class: 'card', style: 'margin-bottom:var(--lg);border-left:3px solid var(--brand)' });
+    const top = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:flex-start' });
+    const txt = el('div', { style: 'flex:1 1 420px;min-width:0' });
+    txt.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' }, [
+      el('span', { class: 'chip chip-brand' }, 'New here?'),
+      el('h3', { class: 'h-card' }, 'What this is, in three lines'),
+    ]));
+    const ul = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
+    ['A research subscription for US and Bursa Malaysia equities, plus a calculator that turns a Malaysian property into a financial model.',
+     'Every number shows the formula, the period and the coverage behind it — and says so plainly when it does not know.',
+     'It gives you analysis, not answers: no buy or sell ratings, no target prices, no recommendations.'
+    ].forEach(x => ul.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
+    txt.append(ul);
+    top.append(txt);
+    top.append(el('button', { class: 'iconbtn', 'aria-label': 'Dismiss introduction',
+      onclick: () => { store.write('introDismissed', true); render(); },
+      html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>` }));
+    intro.append(top);
+    const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
+    acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openResearch('MAYBANK') }, 'Start with a company'));
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('property') }, 'Model a property'));
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { State.learnTab = 'dictionary'; go('learn'); } }, 'How it works'));
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('plans') }, 'Plans'));
+    intro.append(acts);
+    wrap.append(intro);
+  }
+
   /* -- market context ---------------------------------------------------- */
   const ctx = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
   ['US', 'MY'].forEach(mkt => {
@@ -3677,9 +3729,14 @@ VIEWS.home = () => {
   ctx.append(fxCard);
 
   const freshCard = el('div', { class: 'card' });
-  freshCard.append(el('div', { class: 'row', style: 'margin-bottom:8px' }, [sevChip('good', 'All feeds current'), el('span', { class: 'caption' }, 'Freshness')]));
+  /* "All feeds current" was a false claim — there are no feeds. The dataset is
+     fixed, so the card says so rather than implying a live pipeline that would
+     silently age into a lie. */
+  freshCard.append(el('div', { class: 'row', style: 'margin-bottom:8px' },
+    [sevChip('info', 'Fixed sample dataset'), el('span', { class: 'caption' }, 'Freshness')]));
   freshCard.append(statTile('Data as of', AS_OF, { sub: `${U.length} companies · ${MODEL_VERSION.split('·')[0].trim()}` }));
-  freshCard.append(el('div', { class: 'metaline', style: 'margin-top:10px' }, `Median coverage ${Math.round(U.map(r => r.m.coverage).sort((a, b) => a - b)[Math.floor(U.length / 2)])}%`));
+  freshCard.append(el('div', { class: 'metaline', style: 'margin-top:10px' },
+    `This date does not advance — nothing here is fed by a live source. Median coverage ${Math.round(U.map(r => r.m.coverage).sort((a, b) => a - b)[Math.floor(U.length / 2)])}%.`));
   ctx.append(freshCard);
   if (dashOf('context').visible) wrap.append(ctx);
 
