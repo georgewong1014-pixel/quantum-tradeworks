@@ -201,6 +201,50 @@ cannot reach the deployed site.
 OCR is the Windows built-in engine (`Windows.Media.Ocr`) — no install, no
 dependency, no network. `ingest/ocr.ps1` is the bridge.
 
+### Unattended daily
+
+```bash
+node ingest/autoshot.mjs --login --url "<your watchlist url>"   # once
+powershell -ExecutionPolicy Bypass -File ingest/schedule.ps1 `
+  -Url "<your watchlist url>" -At 18:30                          # once
+```
+
+Then it runs itself: capture → read → import → FX → report.
+
+`autoshot.mjs` drives **its own headless browser with its own profile**, not the
+window you are using. That matters: capturing your real window needs an
+unlocked desktop with nothing covering it, and a task set to run while signed
+out lands in session 0, which has no desktop — every capture comes back black.
+A dedicated profile has none of those failure modes, cannot be disturbed by
+what you are doing, and never touches your normal Chrome profile.
+
+The scroll step is **70% of the viewport, never a fixed pixel count**. Two rows
+were lost in testing at a 620px viewport with a 600px step: one fell in the 20px
+seam, and one sat permanently under the sticky column header, which covers
+whatever is beneath it after every scroll.
+
+Exit codes are the reporting channel, because Task Scheduler shows the last
+result and nobody reads a log that says everything is fine:
+
+| | |
+|---|---|
+| `0` | imported cleanly |
+| `1` | the run failed, or nothing reached the file |
+| `2` | imported, but rows are held back for review |
+
+```bash
+powershell -ExecutionPolicy Bypass -File ingest/schedule.ps1 -Status
+powershell -ExecutionPolicy Bypass -File ingest/schedule.ps1 -RunNow
+```
+
+**Staleness is checked, because a broken capture looks like a quiet market.** If
+every page is byte-identical to the previous run — a signed-out session, a stuck
+tab, a changed layout — the run stops and imports nothing. The day-move check
+cannot catch this: unchanged prices produce a 0% move, which looks normal.
+
+The review gate still applies unattended. `prices.mjs` refuses any row marked
+`CHECK`, so clean rows land automatically and doubtful ones wait for you.
+
 ### Why this is separate, and why it stays separate
 
 Reading a price off your own screen, under your own subscription, for your own

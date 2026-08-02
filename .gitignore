@@ -24,3 +24,18 @@ watchlist-shots/
 # what you track is your business, and this repository is public.
 # watchlist-symbols.example.txt is the committed template.
 watchlist-symbols.txt
+
+# the browser profile the unattended capture signs in with. Contains live
+# session cookies for your account — never commit this.
+.chrome-watchlist/
+*.state.json
+
+# output of the daily run
+data/daily-report.txt
+data/daily-*.csv
+data/daily-*.json
+data/r[0-9].csv
+data/r[0-9].txt
+data/probe-*
+data/scroll-probe.*
+data/pp.bak.json
