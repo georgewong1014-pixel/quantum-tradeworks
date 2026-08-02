@@ -2986,7 +2986,12 @@ function realToCompany(r) {
   /* Ingestion emits nulls for lines a filer does not report. The engine already
      treats null as "not available" rather than zero, so they pass through. */
   const fin = r.fin.map(row => row.map(v => (v == null ? null : v)));
-  const [sector, industry] = REAL_SECTORS[r.id] || ['Unclassified', 'Unclassified'];
+  /* Order matters. A curated entry wins, then the filer's own SIC registration,
+     then Unclassified. Without the SIC step every newly ingested company fell
+     back to "mature" — which routes a bank into a free-cash-flow DCF, an answer
+     that is not merely imprecise but meaningless. */
+  const [sector, industry] = REAL_SECTORS[r.id]
+    || (r.sector && r.sector !== 'Unclassified' ? [r.sector, r.industry] : ['Unclassified', 'Unclassified']);
   /* The ingested tickers deliberately overlap the sample set, so the real
      record takes a distinct id and the two sit side by side. Comparing
      synthetic AAPL against filed AAPL is the most useful thing this flag can
@@ -2997,7 +3002,11 @@ function realToCompany(r) {
     : { p: null, d1: null, m1: null, m3: null, m12: null, lo: null, hi: null };
   return {
     id, name: r.name, tk: r.id, code: r.id, exch: 'SEC filer', mkt: 'US', ccy: 'USD',
-    sector, industry, type: REAL_TYPES[r.id] || 'mature',
+    sector, industry, type: REAL_TYPES[r.id] || r.type || 'mature',
+    /* Recorded so the page can say the model was assumed rather than let a
+       default read as a decision. */
+    typeAssumed: !REAL_TYPES[r.id] && (r.assumed !== false),
+    sic: r.sic || null, sicDescription: r.sicDescription || null,
     desc: `Audited annual statements retrieved from SEC EDGAR (CIK ${r.cik}) on ${r.retrieved}. SEC publishes filings, not market data — the price basis is stated separately below.`,
     px, fin,
     real: true, cik: r.cik, provenance: r.provenance, gaps: r.gaps,
@@ -3615,15 +3624,38 @@ function rangeStrip(bear, base, bull, price, ccy) {
   const lo = (hasPx ? Math.min(bear, price) : bear) * 0.94;
   const hi = (hasPx ? Math.max(bull, price) : bull) * 1.06;
   const at = v => clamp((v - lo) / (hi - lo) * 100, 0, 100);
+
+  /* Keep a label inside the strip instead of letting it hang off either end. */
+  const anchor = (pct) => pct > 88 ? 'translateX(-100%)' : pct < 12 ? 'translateX(0)' : 'translateX(-50%)';
+
+  /* When the price sits far outside the modelled range — a business trading at
+     a large premium or discount to its own model — the scale has to span both,
+     which squeezes bear/base/bull into a sliver and collides their three
+     labels into unreadable overlap. Rather than distort the scale, which is the
+     one thing the strip exists to show honestly, collapse the three labels into
+     one line placed under the compressed range. */
+  const spread = at(bull) - at(bear);
+  const tight = spread < 24;
+  const mid = (at(bear) + at(bull)) / 2;
+
+  const labels = tight
+    ? [el('div', { class: 'metaline', style: `position:absolute;left:${clamp(mid, 0, 100)}%;top:36px;transform:${anchor(mid)};white-space:nowrap` },
+        `Bear ${fmtMoney(bear, ccy)} · Base ${fmtMoney(base, ccy)} · Bull ${fmtMoney(bull, ccy)}`)]
+    : [
+        el('div', { class: 'metaline', style: `position:absolute;left:${at(bear)}%;top:36px;transform:${anchor(at(bear))}` }, `Bear ${fmtMoney(bear, ccy)}`),
+        el('div', { class: 'metaline', style: `position:absolute;left:${at(bull)}%;top:36px;transform:${anchor(at(bull))}` }, `Bull ${fmtMoney(bull, ccy)}`),
+        el('div', { class: 'metaline', style: `position:absolute;left:${at(base)}%;top:36px;transform:${anchor(at(base))};color:var(--ink);font-weight:600;white-space:nowrap` }, `Base ${fmtMoney(base, ccy)}`),
+      ];
+
   return el('div', { style: 'position:relative;height:56px;margin-top:var(--xs)' }, [
-    el('div', { style: `position:absolute;left:${at(bear)}%;right:${100 - at(bull)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,var(--dn-2),var(--mid),var(--up-2))` }),
+    /* A minimum width so the range stays visible as a bar rather than becoming
+       a dot when the price dwarfs it. */
+    el('div', { style: `position:absolute;left:${at(bear)}%;width:${Math.max(spread, 3)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,var(--dn-2),var(--mid),var(--up-2))` }),
     el('div', { style: `position:absolute;left:${at(base)}%;top:16px;width:2px;height:20px;background:var(--ink);transform:translateX(-1px)` }),
     hasPx ? el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
       `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }) : null,
-    el('div', { class: 'metaline', style: `position:absolute;left:${at(bear)}%;top:36px;transform:translateX(-30%)` }, `Bear ${fmtMoney(bear, ccy)}`),
-    el('div', { class: 'metaline', style: `position:absolute;left:${at(bull)}%;top:36px;transform:translateX(-70%)` }, `Bull ${fmtMoney(bull, ccy)}`),
-    hasPx ? el('div', { class: 'metaline', style: `position:absolute;left:${at(price)}%;top:0;transform:translateX(-50%);color:var(--s2);font-weight:600;white-space:nowrap` }, `Price ${fmtMoney(price, ccy)}`) : null,
-    el('div', { class: 'metaline', style: `position:absolute;left:${at(base)}%;top:36px;transform:translateX(-50%);color:var(--ink);font-weight:600;white-space:nowrap` }, `Base ${fmtMoney(base, ccy)}`),
+    ...labels,
+    hasPx ? el('div', { class: 'metaline', style: `position:absolute;left:${at(price)}%;top:0;transform:${anchor(at(price))};color:var(--s2);font-weight:600;white-space:nowrap` }, `Price ${fmtMoney(price, ccy)}`) : null,
   ]);
 }
 

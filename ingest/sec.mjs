@@ -202,6 +202,57 @@ async function cikFor(ticker) {
   return { cik: String(hit.cik_str).padStart(10, '0'), title: hit.title };
 }
 
+/* ------------------------------------------------------- business classification */
+/* The valuation router picks the model from the business type, and getting that
+   wrong is not a cosmetic error: run a deposit-taking bank through a free-cash-
+   flow DCF and the answer is meaningless rather than merely imprecise.
+   Defaulting every newly ingested company to "mature" would do exactly that,
+   silently.
+
+   The SEC publishes each filer's own SIC code on the submissions endpoint, so
+   the classification comes from the filer's registration rather than a guess.
+   Anything unmapped stays "mature" but is marked assumed, so the page can say
+   so instead of implying the model was chosen deliberately. */
+const SIC_MAP = [
+  [/^60(0[0-9]|1[0-9]|2[0-9]|3[0-6])$/, 'bank',      'Financials', 'Banks'],
+  [/^6199$|^6111$|^6141$/,              'bank',      'Financials', 'Consumer Finance'],
+  [/^63(1[1-9]|2[0-9]|3[0-9]|5[0-9]|6[0-9])$|^6411$/, 'insurer', 'Financials', 'Insurance'],
+  [/^6798$/,                            'reit',      'Real Estate', 'REIT'],
+  [/^65[0-9]{2}$/,                      'mature',    'Real Estate', 'Real Estate Management'],
+  [/^6726$|^6770$|^6199$/,              'holding',   'Financials', 'Diversified Holdings'],
+  [/^737[23]$|^7370$|^7371$|^7374$/,    'saas',      'Technology', 'Software & Services'],
+  /* Specific before general, always. 3571 is Electronic Computers, and the
+     broad 35xx capital-goods rule below would otherwise route Apple to
+     "cyclical / Industrials" — a mid-cycle normalised model for a business
+     with none of the cyclicality that assumes. */
+  [/^357[0-9]$/,                        'mature',    'Technology', 'Technology Hardware'],
+  [/^367[0-9]$|^3559$/,                 'cyclical',  'Technology', 'Semiconductors'],
+  [/^366[0-9]$|^3827$|^3861$/,          'mature',    'Technology', 'Electronic Equipment'],
+  [/^1311$|^1381$|^1389$|^2911$|^291[0-9]$/, 'cyclical', 'Energy', 'Oil & Gas'],
+  [/^10[0-9]{2}$|^14[0-9]{2}$|^33[0-9]{2}$/, 'cyclical', 'Materials', 'Metals & Mining'],
+  [/^28[0-9]{2}$/,                      'mature',    'Health Care', 'Pharmaceuticals'],
+  [/^38(4[0-9]|41|45)$/,                'mature',    'Health Care', 'Medical Devices'],
+  [/^80[0-9]{2}$|^6324$/,               'mature',    'Health Care', 'Health Care Services'],
+  [/^49(11|22|23|24|31|32|41)$/,        'mature',    'Utilities', 'Utilities'],
+  [/^481[0-9]$|^484[0-9]$/,             'mature',    'Communication Services', 'Telecom'],
+  [/^73(1[0-9]|4[0-9]|8[0-9])$|^78[0-9]{2}$/, 'mature', 'Communication Services', 'Media & Services'],
+  [/^20[0-9]{2}$|^21[0-9]{2}$/,         'mature',    'Consumer Staples', 'Food, Beverage & Tobacco'],
+  [/^5(4[0-9]{2}|9[0-9]{2})$/,          'mature',    'Consumer Staples', 'Retail — Staples'],
+  [/^3711$|^3713$|^3714$|^37[0-9]{2}$/, 'cyclical',  'Consumer Discretionary', 'Automobiles'],
+  [/^5(3[0-9]{2}|6[0-9]{2}|7[0-9]{2})$/,'mature',    'Consumer Discretionary', 'Retail'],
+  [/^35[0-9]{2}$|^34[0-9]{2}$|^37(21|24|28)$/, 'cyclical', 'Industrials', 'Capital Goods'],
+  [/^45[0-9]{2}$|^42[0-9]{2}$|^44[0-9]{2}$/,   'cyclical', 'Industrials', 'Transportation'],
+];
+
+function classify(sic, sicDescription) {
+  const s = String(sic || '').padStart(4, '0');
+  for (const [re, type, sector, industry] of SIC_MAP) {
+    if (re.test(s)) return { type, sector, industry, sic: s, sicDescription, assumed: false };
+  }
+  return { type: 'mature', sector: 'Unclassified', industry: sicDescription || 'Unclassified',
+           sic: s, sicDescription, assumed: true };
+}
+
 /* ---------------------------------------------------------------- ingest one */
 export async function ingestTicker(ticker, nYears) {
   const { cik, title, overridden } = await cikFor(ticker);
@@ -263,10 +314,19 @@ export async function ingestTicker(ticker, nYears) {
   const cells = fin.flat();
   const completeness = cells.filter(v => v != null).length / cells.length;
 
+  /* Non-fatal: without it the company still loads, just with an assumed model
+     that the page labels as assumed. */
+  let cls = { type: 'mature', sector: 'Unclassified', industry: 'Unclassified', assumed: true };
+  try {
+    const sub = await getJSON(`https://data.sec.gov/submissions/CIK${cik}.json`);
+    cls = classify(sub.sic, sub.sicDescription);
+  } catch { /* classification unavailable */ }
+
   return {
     id: ticker.toUpperCase(), name: title, cik, exch: null, mkt: 'US', ccy: 'USD',
     years, fin, provenance, gaps,
     completeness: +completeness.toFixed(3),
+    ...cls,
     source: 'SEC EDGAR companyfacts', retrieved: new Date().toISOString().slice(0, 10),
   };
 }

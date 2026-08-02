@@ -1,5 +1,5 @@
 {
-  "generated": "2026-08-01T02:16:15.718Z",
+  "generated": "2026-08-02T10:50:52.208Z",
   "source": "SEC EDGAR",
   "results": [
     {
@@ -384,8 +384,14 @@
         }
       ],
       "completeness": 1,
+      "type": "mature",
+      "sector": "Technology",
+      "industry": "Technology Hardware",
+      "sic": "3571",
+      "sicDescription": "Electronic Computers",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "MSFT",
@@ -760,8 +766,14 @@
       },
       "gaps": [],
       "completeness": 1,
+      "type": "saas",
+      "sector": "Technology",
+      "industry": "Software & Services",
+      "sic": "7372",
+      "sicDescription": "Services-Prepackaged Software",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "GOOGL",
@@ -1179,8 +1191,14 @@
         }
       ],
       "completeness": 0.92,
+      "type": "saas",
+      "sector": "Technology",
+      "industry": "Software & Services",
+      "sic": "7370",
+      "sicDescription": "Services-Computer Programming, Data Processing, Etc.",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "NVDA",
@@ -1592,8 +1610,14 @@
         }
       ],
       "completeness": 0.95,
+      "type": "cyclical",
+      "sector": "Technology",
+      "industry": "Semiconductors",
+      "sic": "3674",
+      "sicDescription": "Semiconductors & Related Devices",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "JPM",
@@ -1932,8 +1956,14 @@
         }
       ],
       "completeness": 0.8,
+      "type": "bank",
+      "sector": "Financials",
+      "industry": "Banks",
+      "sic": "6021",
+      "sicDescription": "National Commercial Banks",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "XOM",
@@ -2325,8 +2355,14 @@
         }
       ],
       "completeness": 1,
+      "type": "cyclical",
+      "sector": "Energy",
+      "industry": "Oil & Gas",
+      "sic": "2911",
+      "sicDescription": "Petroleum Refining",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "NEE",
@@ -2693,8 +2729,14 @@
         }
       ],
       "completeness": 0.88,
+      "type": "mature",
+      "sector": "Utilities",
+      "industry": "Utilities",
+      "sic": "4911",
+      "sicDescription": "Electric Services",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "CAT",
@@ -3087,8 +3129,14 @@
         }
       ],
       "completeness": 1,
+      "type": "cyclical",
+      "sector": "Industrials",
+      "industry": "Capital Goods",
+      "sic": "3531",
+      "sicDescription": "Construction Machinery & Equip",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "KO",
@@ -3480,8 +3528,14 @@
         }
       ],
       "completeness": 1,
+      "type": "mature",
+      "sector": "Consumer Staples",
+      "industry": "Food, Beverage & Tobacco",
+      "sic": "2080",
+      "sicDescription": "Beverages",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
     },
     {
       "id": "RIVN",
@@ -3924,8 +3978,449 @@
         }
       ],
       "completeness": 0.65,
+      "type": "cyclical",
+      "sector": "Consumer Discretionary",
+      "industry": "Automobiles",
+      "sic": "3711",
+      "sicDescription": "Motor Vehicles & Passenger Car Bodies",
+      "assumed": false,
       "source": "SEC EDGAR companyfacts",
-      "retrieved": "2026-08-01"
+      "retrieved": "2026-08-02"
+    },
+    {
+      "id": "AVGO",
+      "name": "Broadcom Inc.",
+      "cik": "0001730168",
+      "exch": null,
+      "mkt": "US",
+      "ccy": "USD",
+      "years": [
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "fin": [
+        [
+          13.24,
+          -0.409,
+          -1.739,
+          3.411,
+          0.723,
+          21.876,
+          null,
+          3.097,
+          0.278,
+          1.94
+        ],
+        [
+          17.636,
+          2.371,
+          1.692,
+          6.551,
+          1.069,
+          20.285,
+          17.548,
+          11.204,
+          0.408732155,
+          4.08
+        ],
+        [
+          20.848,
+          5.135,
+          12.259,
+          8.88,
+          0.635,
+          26.657,
+          17.493,
+          4.292,
+          0.407637618,
+          7
+        ],
+        [
+          22.597,
+          3.444,
+          2.724,
+          9.697,
+          0.432,
+          24.941,
+          32.798,
+          5.055,
+          0.398,
+          10.6
+        ],
+        [
+          23.888,
+          4.014,
+          2.96,
+          12.061,
+          0.463,
+          23.874,
+          41.062,
+          7.618,
+          0.407,
+          13
+        ],
+        [
+          27.45,
+          8.519,
+          6.736,
+          13.764,
+          0.443,
+          24.962,
+          41.499,
+          12.163,
+          0.413,
+          14.4
+        ],
+        [
+          33.203,
+          14.225,
+          11.495,
+          16.736,
+          0.424,
+          22.709,
+          41.361,
+          12.416,
+          0.418,
+          1.64
+        ],
+        [
+          35.819,
+          16.207,
+          14.082,
+          18.085,
+          0.452,
+          23.988,
+          39.184,
+          14.189,
+          4.139,
+          1.84
+        ],
+        [
+          51.574,
+          13.463,
+          5.895,
+          19.962,
+          0.548,
+          67.678,
+          67.54,
+          9.348,
+          4.686,
+          2.105
+        ],
+        [
+          63.887,
+          25.484,
+          23.126,
+          27.537,
+          0.623,
+          69.789,
+          65.136,
+          16.178,
+          4.741,
+          2.36
+        ]
+      ],
+      "provenance": {
+        "rev": {
+          "concept": "Revenues + RevenueFromContractWithCustomerExcludingAssessedTax",
+          "unit": "USD",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": true,
+          "byYear": {
+            "2016": "Revenues",
+            "2017": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2018": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2019": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2020": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2021": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2022": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2023": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2024": "RevenueFromContractWithCustomerExcludingAssessedTax",
+            "2025": "RevenueFromContractWithCustomerExcludingAssessedTax"
+          }
+        },
+        "ebit": {
+          "concept": "OperatingIncomeLoss",
+          "unit": "USD",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": false,
+          "byYear": {
+            "2016": "OperatingIncomeLoss",
+            "2017": "OperatingIncomeLoss",
+            "2018": "OperatingIncomeLoss",
+            "2019": "OperatingIncomeLoss",
+            "2020": "OperatingIncomeLoss",
+            "2021": "OperatingIncomeLoss",
+            "2022": "OperatingIncomeLoss",
+            "2023": "OperatingIncomeLoss",
+            "2024": "OperatingIncomeLoss",
+            "2025": "OperatingIncomeLoss"
+          }
+        },
+        "ni": {
+          "concept": "NetIncomeLoss + ProfitLoss",
+          "unit": "USD",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": true,
+          "byYear": {
+            "2016": "NetIncomeLoss",
+            "2017": "NetIncomeLoss",
+            "2018": "NetIncomeLoss",
+            "2019": "ProfitLoss",
+            "2020": "ProfitLoss",
+            "2021": "ProfitLoss",
+            "2022": "NetIncomeLoss",
+            "2023": "NetIncomeLoss",
+            "2024": "NetIncomeLoss",
+            "2025": "ProfitLoss"
+          }
+        },
+        "ocf": {
+          "concept": "NetCashProvidedByUsedInOperatingActivities",
+          "unit": "USD",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": false,
+          "byYear": {
+            "2016": "NetCashProvidedByUsedInOperatingActivities",
+            "2017": "NetCashProvidedByUsedInOperatingActivities",
+            "2018": "NetCashProvidedByUsedInOperatingActivities",
+            "2019": "NetCashProvidedByUsedInOperatingActivities",
+            "2020": "NetCashProvidedByUsedInOperatingActivities",
+            "2021": "NetCashProvidedByUsedInOperatingActivities",
+            "2022": "NetCashProvidedByUsedInOperatingActivities",
+            "2023": "NetCashProvidedByUsedInOperatingActivities",
+            "2024": "NetCashProvidedByUsedInOperatingActivities",
+            "2025": "NetCashProvidedByUsedInOperatingActivities"
+          }
+        },
+        "capex": {
+          "concept": "PaymentsToAcquirePropertyPlantAndEquipment",
+          "unit": "USD",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": false,
+          "byYear": {
+            "2016": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2017": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2018": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2019": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2020": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2021": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2022": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2023": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2024": "PaymentsToAcquirePropertyPlantAndEquipment",
+            "2025": "PaymentsToAcquirePropertyPlantAndEquipment"
+          }
+        },
+        "eq": {
+          "concept": "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest + StockholdersEquity",
+          "unit": "USD",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": true,
+          "byYear": {
+            "2016": "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            "2017": "StockholdersEquity",
+            "2018": "StockholdersEquity",
+            "2019": "StockholdersEquity",
+            "2020": "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            "2021": "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            "2022": "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            "2023": "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            "2024": "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            "2025": "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"
+          }
+        },
+        "debtL": {
+          "concept": "LongTermDebtNoncurrent + LongTermDebtAndCapitalLeaseObligations",
+          "unit": "USD",
+          "coverage": 0.9,
+          "weak": false,
+          "mixedTags": true,
+          "byYear": {
+            "2017": "LongTermDebtNoncurrent",
+            "2018": "LongTermDebtNoncurrent",
+            "2019": "LongTermDebtNoncurrent",
+            "2020": "LongTermDebtNoncurrent",
+            "2021": "LongTermDebtNoncurrent",
+            "2022": "LongTermDebtNoncurrent",
+            "2023": "LongTermDebtAndCapitalLeaseObligations",
+            "2024": "LongTermDebtAndCapitalLeaseObligations",
+            "2025": "LongTermDebtNoncurrent"
+          }
+        },
+        "debtC": {
+          "concept": "LongTermDebtCurrent",
+          "unit": "USD",
+          "coverage": 0.9,
+          "weak": false,
+          "mixedTags": false,
+          "byYear": {
+            "2017": "LongTermDebtCurrent",
+            "2018": "LongTermDebtCurrent",
+            "2019": "LongTermDebtCurrent",
+            "2020": "LongTermDebtCurrent",
+            "2021": "LongTermDebtCurrent",
+            "2022": "LongTermDebtCurrent",
+            "2023": "LongTermDebtCurrent",
+            "2024": "LongTermDebtCurrent",
+            "2025": "LongTermDebtCurrent"
+          }
+        },
+        "cash": {
+          "concept": "CashAndCashEquivalentsAtCarryingValue",
+          "unit": "USD",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": false,
+          "byYear": {
+            "2016": "CashAndCashEquivalentsAtCarryingValue",
+            "2017": "CashAndCashEquivalentsAtCarryingValue",
+            "2018": "CashAndCashEquivalentsAtCarryingValue",
+            "2019": "CashAndCashEquivalentsAtCarryingValue",
+            "2020": "CashAndCashEquivalentsAtCarryingValue",
+            "2021": "CashAndCashEquivalentsAtCarryingValue",
+            "2022": "CashAndCashEquivalentsAtCarryingValue",
+            "2023": "CashAndCashEquivalentsAtCarryingValue",
+            "2024": "CashAndCashEquivalentsAtCarryingValue",
+            "2025": "CashAndCashEquivalentsAtCarryingValue"
+          }
+        },
+        "sh": {
+          "concept": "CommonStockSharesOutstanding",
+          "unit": "shares",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": false,
+          "byYear": {
+            "2016": "CommonStockSharesOutstanding",
+            "2017": "CommonStockSharesOutstanding",
+            "2018": "CommonStockSharesOutstanding",
+            "2019": "CommonStockSharesOutstanding",
+            "2020": "CommonStockSharesOutstanding",
+            "2021": "CommonStockSharesOutstanding",
+            "2022": "CommonStockSharesOutstanding",
+            "2023": "CommonStockSharesOutstanding",
+            "2024": "CommonStockSharesOutstanding",
+            "2025": "CommonStockSharesOutstanding"
+          }
+        },
+        "shWtd": {
+          "concept": "WeightedAverageNumberOfDilutedSharesOutstanding",
+          "unit": "shares",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": false,
+          "byYear": {
+            "2016": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2017": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2018": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2019": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2020": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2021": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2022": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2023": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2024": "WeightedAverageNumberOfDilutedSharesOutstanding",
+            "2025": "WeightedAverageNumberOfDilutedSharesOutstanding"
+          }
+        },
+        "dps": {
+          "concept": "CommonStockDividendsPerShareCashPaid + CommonStockDividendsPerShareDeclared",
+          "unit": "USD/shares",
+          "coverage": 1,
+          "weak": false,
+          "mixedTags": true,
+          "byYear": {
+            "2016": "CommonStockDividendsPerShareCashPaid",
+            "2017": "CommonStockDividendsPerShareDeclared",
+            "2018": "CommonStockDividendsPerShareDeclared",
+            "2019": "CommonStockDividendsPerShareDeclared",
+            "2020": "CommonStockDividendsPerShareDeclared",
+            "2021": "CommonStockDividendsPerShareCashPaid",
+            "2022": "CommonStockDividendsPerShareCashPaid",
+            "2023": "CommonStockDividendsPerShareCashPaid",
+            "2024": "CommonStockDividendsPerShareCashPaid",
+            "2025": "CommonStockDividendsPerShareCashPaid"
+          }
+        }
+      },
+      "gaps": [
+        {
+          "line": "rev",
+          "warning": "series assembled from more than one XBRL tag",
+          "concepts": [
+            "Revenues",
+            "RevenueFromContractWithCustomerExcludingAssessedTax"
+          ]
+        },
+        {
+          "line": "ni",
+          "warning": "series assembled from more than one XBRL tag",
+          "concepts": [
+            "NetIncomeLoss",
+            "ProfitLoss"
+          ]
+        },
+        {
+          "line": "eq",
+          "warning": "series assembled from more than one XBRL tag",
+          "concepts": [
+            "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+            "StockholdersEquity"
+          ]
+        },
+        {
+          "line": "debtL",
+          "warning": "series assembled from more than one XBRL tag",
+          "concepts": [
+            "LongTermDebtNoncurrent",
+            "LongTermDebtAndCapitalLeaseObligations"
+          ]
+        },
+        {
+          "line": "debtL",
+          "concept": "LongTermDebtNoncurrent + LongTermDebtAndCapitalLeaseObligations",
+          "missingYears": [
+            2016
+          ]
+        },
+        {
+          "line": "debtC",
+          "concept": "LongTermDebtCurrent",
+          "missingYears": [
+            2016
+          ]
+        },
+        {
+          "line": "dps",
+          "warning": "series assembled from more than one XBRL tag",
+          "concepts": [
+            "CommonStockDividendsPerShareCashPaid",
+            "CommonStockDividendsPerShareDeclared"
+          ]
+        }
+      ],
+      "completeness": 0.99,
+      "type": "cyclical",
+      "sector": "Technology",
+      "industry": "Semiconductors",
+      "sic": "3674",
+      "sicDescription": "Semiconductors & Related Devices",
+      "assumed": false,
+      "source": "SEC EDGAR companyfacts",
+      "retrieved": "2026-08-02"
     }
   ],
   "failures": []
