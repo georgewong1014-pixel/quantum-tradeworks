@@ -2241,10 +2241,30 @@ function derive(c) {
   m.reinv    = isNum(ocf[i]) && ocf[i] > 0 ? capex[i] / ocf[i] * 100 : null;
 
   /* --- market ------------------------------------------------------------ */
-  m.rs12 = isNum(c.px?.m12) ? c.px.m12 : null;
-  m.from52 = hasPx && isNum(c.px?.hi) ? (price - c.px.hi) / c.px.hi * 100 : null;
-  m.range52 = hasPx && isNum(c.px?.lo) && isNum(c.px?.hi) && c.px.hi !== c.px.lo
-    ? (price - c.px.lo) / (c.px.hi - c.px.lo) * 100 : null;
+  /* Momentum comes from observed closes or it does not exist.
+
+     These fields used to read c.px.m12 and c.px.hi, which are hand-written
+     literals on the illustrative companies and absent on every real filing. A
+     screen on twelve-month strength therefore returned 36 invented companies
+     and 4 real ones, and ranked the invented ones at the top — the least
+     trustworthy rows winning the screen outright.
+
+     Now they are computed by the same engine the company page and the Tracked
+     view use, from imported or captured history, and are null without it. A
+     momentum filter that matches nothing is telling the truth: no price history
+     has been imported yet. The illustrative price series is still drawn on the
+     sample charts, where it is labelled as an illustration; it is not evidence
+     and no longer reaches a screen. */
+  const obs = (typeof realSeriesFor === 'function') ? realSeriesFor(c) : null;
+  const tr = obs ? trendContext(obs.series) : null;
+  m.rs12    = tr && isNum(tr.values.ret12m)  ? tr.values.ret12m  : null;
+  m.from52  = tr && isNum(tr.values.ddown)   ? tr.values.ddown   : null;
+  m.sma200d = tr && isNum(tr.values.dist200) ? tr.values.dist200 : null;
+  m.range52 = (tr && isNum(tr.values.hi52) && isNum(tr.values.lo52) && tr.values.hi52 !== tr.values.lo52)
+    ? (tr.last - tr.values.lo52) / (tr.values.hi52 - tr.values.lo52) * 100 : null;
+  /* How many observed closes back these four, so the interface can say why a
+     momentum field is empty rather than leaving a dash to be guessed at. */
+  m.pxPoints = tr ? tr.points : 0;
 
   /* --- sector-specific ---------------------------------------------------- */
   /* Sector-specific measures are supplementary disclosures, not statement
@@ -2963,6 +2983,11 @@ function sensitivityGrid(inputs) {
    UNIVERSE ASSEMBLY
    ========================================================================== */
 
+/* Declared here, not beside the other loaders: the universe build below reads
+   it through realSeriesFor(), and a later `let` would be a temporal dead zone
+   rather than a null. It stays null until the history file loads. */
+let trackedHistory = null;
+
 const U = [];          /* the working universe */
 const BY_ID = new Map();
 
@@ -3003,6 +3028,23 @@ function addCompany(c) {
   U.push(row);
   BY_ID.set(c.id, row);
   return row;
+}
+
+/* Removes the illustrative stand-in for a company once the real filing arrives.
+   The two carry different ids — 'AAPL' and 'AAPL-SEC' — so nothing collided and
+   both stayed in the universe. Seventeen companies were present twice, which is
+   not a cosmetic duplication: every cohort percentile counted them twice, so
+   each one moved its own ranking, and a screen returned the same business on two
+   rows with different numbers. The real filing always wins; the stand-in goes. */
+function retireIllustrativeTwin(c) {
+  const key = String(c.tk || c.code || '').toUpperCase();
+  if (!key) return null;
+  const i = U.findIndex(r => !r.c.real && String(r.c.tk || r.c.code || '').toUpperCase() === key
+                          && r.c.mkt === c.mkt);
+  if (i === -1) return null;
+  const [gone] = U.splice(i, 1);
+  BY_ID.delete(gone.c.id);
+  return gone.c.tk || gone.c.id;
 }
 
 RAW.forEach(addCompany);
@@ -3074,6 +3116,27 @@ function momentumOf(r) {
 
 /* Re-runnable: cohort percentiles and momentum are relative measures, so they
    must be recomputed whenever the universe changes size. */
+/* Recomputes the four observed-price fields once history is available. Metrics
+   are otherwise derived once, at build time, which happens before the history
+   file has loaded — so without this every momentum field would stay null no
+   matter how much history was imported. */
+function refreshMomentum() {
+  let backed = 0;
+  for (const r of U) {
+    const obs = realSeriesFor(r.c);
+    const t = obs ? trendContext(obs.series) : null;
+    const m = r.m;
+    m.rs12    = t && isNum(t.values.ret12m)  ? t.values.ret12m  : null;
+    m.from52  = t && isNum(t.values.ddown)   ? t.values.ddown   : null;
+    m.sma200d = t && isNum(t.values.dist200) ? t.values.dist200 : null;
+    m.range52 = (t && isNum(t.values.hi52) && isNum(t.values.lo52) && t.values.hi52 !== t.values.lo52)
+      ? (t.last - t.values.lo52) / (t.values.hi52 - t.values.lo52) * 100 : null;
+    m.pxPoints = t ? t.points : 0;
+    if (t) backed++;
+  }
+  return backed;
+}
+
 function finaliseUniverse() {
 U.forEach(r => { r.mom = momentumOf(r); });
 U.forEach(r => {
@@ -3326,7 +3389,6 @@ let priceBook = null;
    can be reached. Keeping them out of the universe is what stops an empty
    scorecard from being rendered as though it were a finding. */
 let instruments = null;
-let trackedHistory = null;
 
 function applyPrices(c) {
   const p = priceBook?.prices?.[c.tk];
@@ -3403,7 +3465,7 @@ async function loadRealData() {
   const fxUpdated = applyFx();
 
   let added = 0, priced = 0;
-  const broken = [];
+  const broken = [], superseded = [];
   for (const r of (j.results || [])) {
     if (BY_ID.has(`${r.id}-SEC`)) continue;         /* already loaded */
     /* Per company, not per batch. One filer whose shape the engine cannot
@@ -3418,6 +3480,8 @@ async function loadRealData() {
          price-dependent is computed once, at build time. */
       if (!isNum(c.px?.p) && applyPrices(c)) priced++;
       RAW.push(c);
+      const replaced = retireIllustrativeTwin(c);
+      if (replaced) superseded.push(replaced);
       addCompany(c);
       added++;
     } catch (e) {
@@ -3425,8 +3489,9 @@ async function loadRealData() {
       console.warn(`skipped ${r.id}: ${e.message}`);
     }
   }
+  const momentumBacked = refreshMomentum();
   if (added) { finaliseUniverse(); FEED = buildFeed(); }
-  return { added, priced, fxUpdated, broken, generated: j.generated, failures: j.failures || [],
+  return { added, priced, fxUpdated, broken, superseded, momentumBacked, generated: j.generated, failures: j.failures || [],
            priceSource: priceBook ? { asOf: priceBook.asOf, licence: priceBook.licence,
              count: priceBook.count, personal: !!priceBook.personal, file: priceBook.file } : null };
 }
@@ -4771,6 +4836,7 @@ const FIELDS = [
   { g:'Financial risk',        k:'dilution',  label:'Share count growth',         fmt:v=>fmtPct(v,2), formula:'CAGR of shares in issue' },
   { g:'Market and eligibility',k:'rs12',      label:'12-month price change',      fmt:v=>fmtPct(v),   formula:'price change over the trailing twelve months' },
   { g:'Market and eligibility',k:'from52',    label:'Distance from 52-week high', fmt:v=>fmtPct(v),   formula:'(price − 52-week high) ÷ 52-week high' },
+  { g:'Market and eligibility',k:'sma200d',   label:'Distance from 200-day average', fmt:v=>fmtPct(v), formula:'(price − 200-day simple moving average) ÷ 200-day average', note:'Needs 200 observed closes. Computed from imported or captured history only.' },
   { g:'Market and eligibility',k:'mcap',      label:'Market capitalisation',      fmt:v=>fmtNum(v,1), formula:'price × shares in issue' },
 ];
 const FIELD_BY_K = Object.fromEntries(FIELDS.map(f => [f.k, f]));
@@ -5021,6 +5087,25 @@ function renderScreener() {
   const failed = evald.filter(x => !x.ev.pass);
 
   const resCard = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
+
+  /* A filter on an observed-price field excludes every company that has no
+     imported history, which can empty a screen entirely. Without this the
+     result reads as "nothing qualifies" when it means "nothing has been
+     measured" — the same distinction the trend engine makes everywhere else. */
+  const PRICE_FIELDS = { rs12: '12-month price change', from52: 'distance from the 52-week high',
+                         sma200d: 'distance from the 200-day average', range52: 'position in the 52-week range' };
+  const usedPriceFields = (sc.rules || []).map(r => r.k).filter(k => PRICE_FIELDS[k]);
+  if (usedPriceFields.length) {
+    const backed = U.filter(r => r.m.pxPoints >= 20).length;
+    if (backed < U.length) {
+      resCard.append(el('div', { class: 'note', style: 'margin:0;border-radius:0;border-left:3px solid var(--bronze)' }, [
+        el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
+          `${U.length - backed} of ${U.length} companies have no observed price history`),
+        el('p', { class: 'metaline' },
+          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Import with: node ingest/history-import.mjs --dir <folder of CSV exports>`),
+      ]));
+    }
+  }
 
   /* Active filters, above the results, each removable where it stands. A screen
      that returns four companies is meaningless unless what produced it is
