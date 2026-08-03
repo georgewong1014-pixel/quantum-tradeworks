@@ -1,21 +1,5 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": true,
-  "trailingSlash": false,
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/data/(.*)",
-      "headers": [{ "key": "cache-control", "value": "public, max-age=0, must-revalidate" }]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "x-content-type-options", "value": "nosniff" },
-        { "key": "referrer-policy", "value": "strict-origin-when-cross-origin" }
-      ]
-    }
   ]
 }
