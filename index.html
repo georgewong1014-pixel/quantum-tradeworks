@@ -2325,6 +2325,91 @@ const anchor = (v, lo, hi, invert = false) => {
 };
 
 /* ==========================================================================
+   RESEARCH-CASE COMPOSITE — section 14
+
+   Five pillars: business quality 35, valuation evidence 30, balance sheet and
+   risk 15, catalysts and change 10, macro and sector context 10. Technical
+   context is weighted zero and is not consulted here at all — the trend engine
+   feeds the price surfaces and stops there.
+
+   Three of the five can be scored. Catalysts needs the registry of section 11
+   and macro needs the engine of section 6; neither exists, so a fifth of the
+   framework weight has nothing behind it.
+
+   The composite is therefore reported over the weight actually tested, and the
+   tested weight is reported with it. It is NOT renormalised to 100. Spreading
+   the missing 20 points across the three surviving pillars would score
+   catalysts and macro as though each had been examined and found average, which
+   is precisely the move section 4.1 prohibits — a company cannot earn points
+   for a metric that was not tested. Scoring them zero would be the mirror
+   error, penalising a company for the product's own gap.
+
+   Section 14 decomposes business quality differently from section 7: there it
+   is one pillar of five at 35% here, while section 7 splits it into its own
+   five. The app's quality, growth and capital pillars each stand for one of
+   section 7's five, so they combine into this 35% in equal thirds; the app's
+   strength pillar is section 14's separate balance-sheet weight. Moat is absent
+   from both, as declared in the coverage table below.
+   ========================================================================== */
+const COMPOSITE_PILLARS = [
+  { id:'quality', label:'Business Quality', w:35,
+    get: (r) => {
+      /* Equal thirds of the section 7 pillars this build actually scores. */
+      const parts = [r.scores.quality?.score, r.scores.growth?.score, r.scores.capital?.score].filter(isNum);
+      return parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : null;
+    },
+    from: 'the business quality, growth quality and capital allocation pillars' },
+  { id:'value',  label:'Valuation Evidence', w:30, get: (r) => r.scores.value?.score,
+    from: 'the valuation pillar' },
+  { id:'risk',   label:'Balance Sheet and Risk', w:15, get: (r) => r.scores.strength?.score,
+    from: 'the financial strength pillar' },
+  { id:'catalysts', label:'Catalysts and Change', w:10, get: () => null,
+    absent:'The catalyst registry of section 11 does not exist, so no catalyst has been counted, dated or expired for any company.' },
+  { id:'macro',  label:'Macro and Sector Context', w:10, get: () => null,
+    absent:'The macro engine of section 6 does not exist — no cycle state, rate context, currency exposure or policy evidence is carried.' },
+];
+
+/* Section 14.2, in the section 2 language: a state, never an instruction. */
+const COMPOSITE_BANDS = [
+  { min:85, state:'Research criteria strongly met', next:'Open the evidence behind each pillar, then record a thesis if you agree with it.' },
+  { min:70, state:'Several criteria met',           next:'Read the unmet criteria and the valuation sensitivities before going further.' },
+  { min:55, state:'Mixed research case',            next:'Review the weaker pillars individually; the aggregate is not informative at this level.' },
+  { min:0,  state:'Research criteria not met',      next:'Read the failed gates and the missing evidence rather than the score.' },
+];
+
+function researchComposite(r) {
+  const parts = COMPOSITE_PILLARS.map(p => ({ ...p, score: p.get(r) }));
+  const tested = parts.filter(p => isNum(p.score));
+  const testedWeight = tested.reduce((s, p) => s + p.w, 0);
+  const untested = parts.filter(p => !isNum(p.score));
+
+  /* Weighted over the tested weight only, and the divisor is reported. */
+  const score = testedWeight
+    ? Math.round(tested.reduce((s, p) => s + p.score * p.w, 0) / testedWeight)
+    : null;
+
+  /* Section 14.3. Coverage below 70% yields no aggregate classification at all,
+     and that is a per-company data test, separate from the weight above. */
+  const dataCoverage = isNum(r.m.coverage) ? r.m.coverage : 0;
+  const classified = isNum(score) && dataCoverage >= 70;
+
+  /* Section 7.1 makes governance a hard gate and section 4.1 makes an untested
+     hard gate manual review rather than a pass. No governance register exists,
+     so no company in this build can be cleared of it. That is a standing
+     condition of the product, identical for every company, so it is stated once
+     as a property of the composite rather than raised as a per-company alarm
+     that carries no per-company information. */
+  const gates = [{ id:'governance', state:'manual_review',
+    why:'No governance event register exists, so the governance hard gate is untested for every company. An untested hard gate is manual review, never a pass.' }];
+  if (!classified && isNum(score))
+    gates.push({ id:'coverage', state:'not_classified',
+      why:`Data completeness is ${dataCoverage}%, below the 70% the framework requires before an aggregate classification may be shown.` });
+
+  const band = classified ? COMPOSITE_BANDS.find(b => score >= b.min) : null;
+  return { score, band, classified, testedWeight, dataCoverage, parts, tested, untested, gates };
+}
+
+/* ==========================================================================
    SCORECARD COVERAGE AGAINST THE FIVE-PILLAR FRAMEWORK
 
    The framework weights five pillars at 20% each. This product scores four
@@ -6471,6 +6556,54 @@ function tabSnapshot(r) {
   const { c, m, val } = r;
   const wrap = el('div', { class: 'research-layout' });
   const main = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md);min-width:0' });
+
+  /* Research-case composite, section 14. Shown with its divisor: a number that
+     hides how much of the framework it covers is worse than no number. */
+  const rc = researchComposite(r);
+  const rcCard = el('div', { class: 'card' });
+  rcCard.append(cardHead('Research case',
+    'Five weighted pillars from the framework. Technical context is weighted zero here and is not consulted — price evidence lives on its own card.'));
+
+  const head = el('div', { class: 'row', style: 'gap:var(--lg);align-items:baseline;flex-wrap:wrap' });
+  head.append(el('div', {}, [
+    el('div', { style: 'font-size:34px;font-weight:680;line-height:1' },
+      isNum(rc.score) ? String(rc.score) : '—'),
+    el('div', { class: 'metaline' }, `out of 100, over ${rc.testedWeight}% of the framework weight`),
+  ]));
+  head.append(el('div', { style: 'flex:1;min-width:220px' }, [
+    el('div', { style: 'font-weight:600;font-size:13px' },
+      rc.classified ? rc.band.state : 'No aggregate classification'),
+    el('div', { class: 'metaline' },
+      rc.classified ? rc.band.next
+        : `Data completeness is ${rc.dataCoverage}%. The framework requires 70% before an aggregate may be classified.`),
+  ]));
+  rcCard.append(head);
+
+  /* Every pillar, including the two with nothing behind them. */
+  const pt = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  pt.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Pillar'), el('th', { class: 'num' }, 'Weight'),
+    el('th', { class: 'num' }, 'Score'), el('th', {}, 'Source')])));
+  const pb = el('tbody');
+  rc.parts.forEach(p => {
+    pb.append(el('tr', {}, [
+      el('td', { style: isNum(p.score) ? '' : 'opacity:.7' }, p.label),
+      el('td', { class: 'num' }, `${p.w}%`),
+      el('td', { class: 'num' }, isNum(p.score) ? fmtNum(p.score, 0) : 'not tested'),
+      el('td', { class: 'metaline' }, isNum(p.score) ? `From ${p.from}.` : p.absent),
+    ]));
+  });
+  pt.append(pb);
+  rcCard.append(el('div', { style: 'overflow-x:auto' }, pt));
+
+  if (rc.untested.length) rcCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    `${rc.untested.map(p => p.label).join(' and ')} contribute nothing to the number above, and the missing ${100 - rc.testedWeight}% is not redistributed. Spreading it across the other pillars would score them as examined and average; leaving it out keeps the score an honest average of what was measured.`));
+
+  rc.gates.forEach(g => rcCard.append(el('div', { class: 'note', style: 'margin-top:var(--md)' }, [
+    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:12.5px' },
+      g.state === 'manual_review' ? 'Governance: manual review required' : 'No aggregate classification'),
+    el('p', { class: 'metaline' }, g.why),
+  ])));
+  main.append(rcCard);
 
   /* key figures */
   const tiles = el('div', { class: 'card' });
