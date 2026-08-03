@@ -6340,6 +6340,39 @@ function tabSnapshot(r) {
   main.append(vr);
 
   /* price */
+  /* Trend context, but only where real closes exist for this company. The
+     chart below may be a generated illustration; indicators must never be. */
+  const real = realSeriesFor(c);
+  const tc = el('div', { class: 'card' });
+  tc.append(cardHead('Trend context',
+    'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.'));
+  if (!real) {
+    tc.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+      `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`));
+    tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `Import real closes to enable this: node ingest/history-import.mjs --in ${c.tk}.csv --symbol ${c.tk}`));
+  } else {
+    const t = trendContext(real.series);
+    const ctx = TREND_STRATEGIES[0].evaluate(t);
+    const vol = volumeContext(trackedHistory?.volume?.[real.symbol] || {}, real.series);
+    const g2 = el('div', { class: 'grid g-4' });
+    g2.append(el('div', { class: 'panel' }, statTile('Observed closes', String(t.points),
+      { sub: `${t.first} to ${t.last ? Object.keys(real.series).sort().pop() : '—'}` })));
+    g2.append(el('div', { class: 'panel' }, statTile('Trend', ctx ? ctx.state : 'not computable',
+      { sub: ctx ? '' : `needs ${(t.pending.find(x => x.id === 'sma200') || {}).more || '—'} more closes` })));
+    g2.append(el('div', { class: 'panel' }, statTile('vs 200-day',
+      isNum(t.values.dist200) ? withSign(t.values.dist200, 1) : '—', { sub: 'distance from the long-term average' })));
+    g2.append(el('div', { class: 'panel' }, statTile('Volume vs 50-day',
+      isNum(vol.ratio50) ? `${fmtNum(vol.ratio50, 2)}×` : 'no volume',
+      { sub: vol.pending ? `needs ${vol.pending.more} more days` : vol.ratio50 ? 'latest day against its average' : 'the imported file carried no volume column' })));
+    tc.append(g2);
+    tc.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
+      el('button', { class: 'btn btn-ghost btn-sm',
+        onclick: () => openTrendDrawer({ sym: real.symbol, name: c.name, meta: { market: c.mkt, kind: 'equity' } }, t) },
+        'Full trend detail and relative strength')));
+  }
+  main.append(tc);
+
   const hist = priceHistory(c);
   const pc = el('div', { class: 'card' });
   if (!hist) {
@@ -9083,6 +9116,37 @@ function openTrendDrawer(row, t) {
     body.append(card);
   });
 
+  /* Volume, where the imported file carried it. */
+  const vol = volumeContext(trackedHistory?.volume?.[row.sym] || {}, series[row.sym] || {});
+  const vCard = el('div', { class: 'panel' });
+  vCard.append(el('div', { class: 'row', style: 'gap:8px' }, [
+    el('span', { style: 'font-weight:600;font-size:13px' }, 'Volume context'),
+    el('span', { class: 'metaline', style: 'margin-left:auto' }, 'section 13.3'),
+  ]));
+  if (vol.pending || !vol.points) {
+    vCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      vol.points
+        ? `Needs 20 days of volume and has ${vol.points}.`
+        : 'No volume for this instrument. A watchlist screenshot shows a price, not a day’s turnover — import an export that carries a volume column.'));
+  } else {
+    const vt = el('table', { class: 'dt' });
+    vt.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', { class: 'num' }, 'Value')])));
+    vt.append(el('tbody', {}, [
+      ['Latest volume', fmtNum(vol.latest, 0)],
+      ['20-day average', isNum(vol.avg20) ? fmtNum(vol.avg20, 0) : '—'],
+      ['50-day average', isNum(vol.avg50) ? fmtNum(vol.avg50, 0) : '—'],
+      ['Latest vs 20-day', isNum(vol.ratio20) ? `${fmtNum(vol.ratio20, 2)}×` : '—'],
+      ['Latest vs 50-day', isNum(vol.ratio50) ? `${fmtNum(vol.ratio50, 2)}×` : '—'],
+      ['Average on up days', isNum(vol.upAvg) ? `${fmtNum(vol.upAvg, 0)} (${vol.upDays} days)` : '—'],
+      ['Average on down days', isNum(vol.downAvg) ? `${fmtNum(vol.downAvg, 0)} (${vol.downDays} days)` : '—'],
+      ['Up/down turnover', isNum(vol.upDownRatio) ? `${fmtNum(vol.upDownRatio, 2)}×` : '—'],
+    ].map(([k, v]) => el('tr', {}, [el('td', {}, k), el('td', { class: 'num' }, v)]))));
+    vCard.append(el('div', { style: 'overflow-x:auto;margin-top:6px' }, vt));
+    vCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      'Heavier turnover on up days than down days is a description of the tape, not evidence about the business. Breakout volume is not shown: the specification defines it against a resistance level you set, and this build has no place to set one.'));
+  }
+  body.append(vCard);
+
   /* Every indicator, computed or pending, so the gap is legible. */
   const tbl = el('table', { class: 'dt' });
   tbl.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Indicator'), el('th', { class: 'num' }, 'Value'), el('th', {}, 'Status')])));
@@ -9343,6 +9407,57 @@ function trendContext(series) {
 
   out.last = last;
   return out;
+}
+
+/* Section 13.3. Volume is the one input the capture pipeline never had — a
+   screenshot of a watchlist shows a price, not a day's turnover — so this
+   works only where a series was imported from an export that carried it. */
+function volumeContext(volSeries, priceSeries) {
+  const dates = Object.keys(volSeries || {}).sort();
+  const vols = dates.map(d => volSeries[d]).filter(v => isNum(v) && v >= 0);
+  const n = vols.length;
+  if (n < 20) return { points: n, pending: { needs: 20, more: 20 - n } };
+  const latest = vols[n - 1];
+  const avg = (k) => n < k ? null : vols.slice(-k).reduce((s, v) => s + v, 0) / k;
+  const a20 = avg(20), a50 = avg(50);
+
+  /* Up-day and down-day turnover, over the window where both a close and a
+     volume exist for the day and the one before it. */
+  let upVol = 0, downVol = 0, upDays = 0, downDays = 0;
+  const pDates = Object.keys(priceSeries || {}).sort();
+  for (let i = 1; i < pDates.length; i++) {
+    const d = pDates[i], prev = pDates[i - 1];
+    const v = volSeries[d];
+    if (!isNum(v)) continue;
+    const chg = priceSeries[d] - priceSeries[prev];
+    if (chg > 0) { upVol += v; upDays++; } else if (chg < 0) { downVol += v; downDays++; }
+  }
+  return {
+    points: n, latest, avg20: a20, avg50: a50,
+    ratio20: a20 ? latest / a20 : null,
+    ratio50: a50 ? latest / a50 : null,
+    upAvg: upDays ? upVol / upDays : null,
+    downAvg: downDays ? downVol / downDays : null,
+    /* Above 1 means buyers turned over more than sellers across the window. */
+    upDownRatio: (upDays && downDays && downVol) ? (upVol / upDays) / (downVol / downDays) : null,
+    upDays, downDays,
+  };
+}
+
+/* Real observed history for a company, or null. Deliberately separate from
+   priceHistory(), which generates a seeded random walk for the sample charts:
+   running trend indicators over invented prices would produce a confident
+   200-day average of a series that never existed, which is the single most
+   misleading thing this module could emit. A company gets trend analysis only
+   once genuine closes have been imported or captured for it. */
+function realSeriesFor(c) {
+  const s = trackedHistory?.series;
+  if (!s) return null;
+  for (const key of [c.tk, c.code, c.id].filter(Boolean)) {
+    const hit = s[String(key).toUpperCase()];
+    if (hit && Object.keys(hit).length >= 2) return { symbol: String(key).toUpperCase(), series: hit };
+  }
+  return null;
 }
 
 /* ==========================================================================

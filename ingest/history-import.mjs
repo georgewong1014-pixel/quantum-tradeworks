@@ -56,6 +56,9 @@ if (resolve(outPath) === resolve('data/prices.json')) {
 
 const DATE_KEYS  = ['date', 'time', 'timestamp', 'datetime'];
 const CLOSE_KEYS = ['close', 'last', 'price', 'adj close', 'adjclose', 'close/last'];
+/* Volume was being parsed and discarded. It is the input for every indicator
+   in section 13.3, and an OHLCV export already carries it. */
+const VOL_KEYS   = ['volume', 'vol', 'total volume'];
 
 function parseCsv(text, label) {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
@@ -63,10 +66,11 @@ function parseCsv(text, label) {
   const head = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
   const di = head.findIndex(h => DATE_KEYS.includes(h));
   const ci = head.findIndex(h => CLOSE_KEYS.includes(h));
+  const vi = head.findIndex(h => VOL_KEYS.includes(h));
   if (di === -1) throw new Error(`${label}: no date column (looked for ${DATE_KEYS.join(', ')})`);
   if (ci === -1) throw new Error(`${label}: no close column (looked for ${CLOSE_KEYS.join(', ')})`);
 
-  const out = {};
+  const out = {}, vols = {};
   let skipped = 0;
   for (const line of lines.slice(1)) {
     const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
@@ -82,8 +86,13 @@ function parseCsv(text, label) {
     /* Reject rather than repair, as everywhere else in this pipeline. */
     if (!date || !Number.isFinite(close) || close <= 0) { skipped++; continue; }
     out[date] = close;
+    if (vi > -1) {
+      const v = Number(String(cells[vi] ?? '').replace(/[, ]/g, ''));
+      /* Zero is a real reading on a day with no trades; negative is not. */
+      if (Number.isFinite(v) && v >= 0) vols[date] = v;
+    }
   }
-  return { series: out, skipped };
+  return { series: out, volume: vols, skipped };
 }
 
 const files = [];
@@ -96,7 +105,7 @@ if (inDir) {
 }
 if (!files.length) { console.error('no CSV files found'); process.exit(1); }
 
-let hist = { generated: null, series: {} };
+let hist = { generated: null, series: {}, volume: {} };
 try { hist = { ...hist, ...JSON.parse(await readFile(outPath, 'utf8')) }; } catch { /* first run */ }
 
 let totalAdded = 0, totalKept = 0;
@@ -106,6 +115,8 @@ for (const f of files) {
   catch (e) { console.error(`${f.symbol.padEnd(10)} FAILED — ${e.message}`); continue; }
 
   const target = hist.series[f.symbol] || (hist.series[f.symbol] = {});
+  hist.volume = hist.volume || {};
+  const vtarget = hist.volume[f.symbol] || (hist.volume[f.symbol] = {});
   const before = Object.keys(target).length;
   let added = 0, conflicts = 0;
   for (const [d, v] of Object.entries(parsed.series)) {
@@ -115,13 +126,17 @@ for (const f of files) {
        the disagreement is reported rather than swallowed. */
     else if (Math.abs(target[d] - v) / v > 0.0001) { target[d] = v; conflicts++; }
   }
+  let volAdded = 0;
+  for (const [d, v] of Object.entries(parsed.volume)) { if (vtarget[d] === undefined) volAdded++; vtarget[d] = v; }
+
   const dates = Object.keys(target).sort();
-  if (dates.length > KEEP) for (const d of dates.slice(0, dates.length - KEEP)) delete target[d];
+  if (dates.length > KEEP) for (const d of dates.slice(0, dates.length - KEEP)) { delete target[d]; delete vtarget[d]; }
 
   const after = Object.keys(target).length;
   totalAdded += added; totalKept += after;
   console.log(`${f.symbol.padEnd(10)} ${String(added).padStart(5)} new  ${String(before).padStart(5)} -> ${String(after).padStart(5)} points` +
     `  ${dates[0]} to ${dates[dates.length - 1]}` +
+    `${volAdded ? `  +${volAdded} volume` : '  no volume column'}` +
     `${conflicts ? `  (${conflicts} day(s) corrected against the previous value)` : ''}` +
     `${parsed.skipped ? `  (${parsed.skipped} row(s) skipped: unusable date or close)` : ''}`);
 }
