@@ -1348,8 +1348,8 @@ const PLANS = {
              propertyCalculator:true, propertyReports:0, crossAsset:false, priceDelayMin:15 },
   },
   pro: {
-    id:'pro', name:'Equities Research', tagline:'The recurring research subscription', priceMo:49, priceYr:399,
-    founding:299, foundingSeats:300,
+    id:'pro', name:'Equities Research', tagline:'The recurring research subscription', priceMo:29, priceYr:299,
+    founding:199, foundingSeats:500, foundingName:'Founding Research',
     blurb:'Unlimited company research, editable valuation assumptions, the full screener, comparison, multiple portfolios and watchlists, fundamental alerts and exports. Research only — no recommendations, no ratings, no target prices.',
     limits:{ reportsPerMonth:Infinity, watchlists:20, watchlistStocks:100, portfolios:20, holdings:100,
              compare:5, screenerFields:Infinity, percentileMode:true, savedScreens:50,
@@ -1357,7 +1357,11 @@ const PLANS = {
              propertyCalculator:true, propertyReports:0, crossAsset:false, priceDelayMin:0 },
   },
   all: {
-    id:'all', name:'All-Access', tagline:'Cross-asset — introduce only after both products show demand', priceMo:79, priceYr:699,
+    /* Not launched. Kept in the registry so the entitlement map stays complete
+       and a later launch is a flag change rather than a rebuild, but never
+       offered — a tier a user cannot obtain must not appear purchasable. */
+    id:'all', name:'All-Access', launched:false,
+    tagline:'Cross-asset — not launched. Introduce only after both products show demand', priceMo:79, priceYr:699,
     blurb:'Everything in Equities Research, plus the property portfolio, two standard property reports a month, and the consolidated net-worth view.',
     limits:{ reportsPerMonth:Infinity, watchlists:20, watchlistStocks:100, portfolios:20, holdings:100,
              compare:5, screenerFields:Infinity, percentileMode:true, savedScreens:50,
@@ -1367,15 +1371,41 @@ const PLANS = {
 };
 const PROPERTY_REPORT_PRICE = { basic:19, full:49, verified:89 };
 
+/* The single pricing surface. Anything that displays a price reads this, so a
+   change lands everywhere at once and two pages cannot drift apart again. */
+const PRICING = {
+  free:     { name:'Free', price:'RM0',
+              line:`${PLANS.free.limits.reportsPerMonth} company reports a month` },
+  founding: { name:PLANS.pro.foundingName, price:`RM${PLANS.pro.founding}`,
+              period:'for the first year',
+              line:`Limited to ${PLANS.pro.foundingSeats} members. Renews at RM${PLANS.pro.priceYr} a year.` },
+  standard: { name:PLANS.pro.name, price:`RM${PLANS.pro.priceMo}`, period:'a month',
+              line:`Or RM${PLANS.pro.priceYr} a year after the beta.` },
+  property: { name:'Property report', price:`RM${PROPERTY_REPORT_PRICE.basic}`, period:'and up',
+              line:`Saved analysis RM${PROPERTY_REPORT_PRICE.basic} · full report RM${PROPERTY_REPORT_PRICE.full} · verified RM${PROPERTY_REPORT_PRICE.verified}.` },
+};
+
 const State = {
   view: 'home',
   discoverTab: 'screener',
   researchTab: 'snapshot',
   ticker: 'AAPL',
-  baseCcy: store.read('baseCcy', 'USD'),
+  /* Malaysia-first, so a Malaysian browser starts in ringgit. USD remains
+     available as a reporting currency; this is the default, not a restriction.
+     Detected from the browser's own locale and time zone rather than assumed,
+     and any stored preference overrides it. */
+  baseCcy: store.read('baseCcy', (() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const langs = [navigator.language, ...(navigator.languages || [])].join(' ');
+      if (tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY/i.test(langs)) return 'MYR';
+    } catch { /* locale unavailable — fall through */ }
+    return 'USD';
+  })()),
   theses: store.read('theses', null),
   savedScreens: store.read('savedScreens', []),
   screen: null,
+  recentCompanies: store.read('recentCompanies', []),
   /* Seeded with two, not three. The page states the limit from the plan — two
      on Free — and then displayed three, so the copy and the contents
      contradicted each other on first load. The stored value is clamped on
@@ -4427,7 +4457,7 @@ const ROUTES = [
   { path: '/discover',            view: 'discover',  title: 'Discover' },
   { path: '/discover/screener',   view: 'discover',  tab: 'screener',  title: 'Screener' },
   { path: '/discover/value-map',  view: 'discover',  tab: 'radar',     title: 'Quality vs Value Map' },
-  { path: '/research',            view: 'research',  title: 'Research' },
+  { path: '/research',            view: 'researchHome', title: 'Research' },
   { path: '/company/:id',         view: 'research',  title: 'Company report' },
   { path: '/compare',             view: 'compare',   title: 'Compare' },
   { path: '/my/portfolio',        view: 'portfolio', title: 'Portfolio' },
@@ -4453,6 +4483,7 @@ const META = {
   marketing: 'Transparent research tools for Bursa Malaysia and US equities, plus property cash-flow analysis built for Malaysian investors.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
   research:  'A company report where every number shows its formula, its period and its source.',
+  researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
@@ -6353,8 +6384,97 @@ function toggleWatch(id, wlIdx = State.wlIdx) {
   render();
 }
 
+/* /research is a way in, not a company. It used to fall through to whichever
+   company happened to be first in the universe — Apple — so a Malaysian
+   visitor clicking "Research" was shown a US technology report and could
+   reasonably read that as the product's own preference. A navigation link must
+   never silently choose a security. */
+VIEWS.researchHome = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  const hd = el('div', { class: 'page-hd' });
+  hd.append(el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Research'),
+    el('h1', {}, 'Start from a company, a market or a question'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Nothing on this page is ordered by preference, and opening it does not choose a company for you.'),
+  ]));
+  wrap.append(hd);
+
+  const search = el('div', { class: 'card' });
+  search.append(cardHead('Find a company', 'By name, ticker or Bursa code.'));
+  const inp = el('input', { class: 'input', type:'search', placeholder:'Maybank, 1155, AAPL…',
+    'aria-label':'Search for a company' });
+  const results = el('div', { style: 'margin-top:10px;display:flex;flex-direction:column;gap:4px' });
+  const runSearch = () => {
+    const q = inp.value.trim().toLowerCase();
+    results.replaceChildren();
+    if (q.length < 2) return;
+    U.filter(r => [r.c.name, r.c.tk, r.c.code].filter(Boolean)
+        .some(f => String(f).toLowerCase().includes(q)))
+     .slice(0, 8)
+     .forEach(r => results.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'justify-content:flex-start',
+        onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } },
+        `${r.c.tk || r.c.code} — ${r.c.name}`)));
+    if (!results.children.length) results.append(el('p', { class: 'metaline' }, `Nothing in the beta universe matches “${inp.value.trim()}”.`));
+  };
+  inp.addEventListener('input', runSearch);
+  search.append(inp); search.append(results);
+  wrap.append(search);
+
+  /* Collections, described by what they contain. */
+  const colls = [
+    ['Bursa Malaysia',  'Malaysian listings in the beta universe.',      () => { const s = blankScreen(); s.universe='MY'; State.screen=s; State.appliedTemplate=null; navigate('/discover/screener'); }],
+    ['US equities',     'US listings, filed with the SEC.',              () => { const s = blankScreen(); s.universe='US'; State.screen=s; State.appliedTemplate=null; navigate('/discover/screener'); }],
+    ['Banks',           'Deposit takers, on measures that fit a bank balance sheet.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'my-banks'))],
+    ['REITs',           'Property trusts, on distribution and gearing.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'my-reits'))],
+    ['Dividend research','Payout covered by cash rather than borrowing.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'div-cover'))],
+  ];
+  const cg = el('div', { class: 'grid grid-3' });
+  colls.forEach(([t, b, go]) => {
+    const card = el('div', { class: 'card task-card', role:'button', tabindex:'0' });
+    card.append(el('h3', { class: 'h-card' }, t));
+    card.append(el('p', { class: 'body', style: 'font-size:12.5px' }, b));
+    const act = () => go();
+    card.addEventListener('click', act);
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+    cg.append(card);
+  });
+  wrap.append(cg);
+
+  /* Recently viewed and saved cases, each empty-stated honestly. */
+  const recent = (State.recentCompanies || []).map(id => BY_ID.get(id)).filter(Boolean).slice(0, 6);
+  const rc = el('div', { class: 'card' });
+  rc.append(cardHead('Recently viewed', 'The last companies you opened in this browser.'));
+  if (recent.length) {
+    const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
+    recent.forEach(r => row.append(el('button', { class: 'btn btn-ghost btn-sm',
+      onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } }, r.c.tk || r.c.code)));
+    rc.append(row);
+  } else rc.append(el('p', { class: 'metaline' }, 'Nothing yet. Companies you open will be listed here.'));
+  wrap.append(rc);
+
+  const cases = el('div', { class: 'card' });
+  cases.append(cardHead('Saved research cases', 'Your own written theses and their conditions.'));
+  const th = State.theses || [];
+  if (th.length) {
+    const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
+    th.slice(0, 8).forEach(t => row.append(el('button', { class: 'btn btn-ghost btn-sm',
+      onclick: () => navigate('/theses') }, t.ticker)));
+    cases.append(row);
+  } else cases.append(el('p', { class: 'metaline' }, 'No cases saved yet. A case records your own reasoning and the conditions that would change it.'));
+  wrap.append(cases);
+
+  wrap.append(el('p', { class: 'metaline' },
+    `The beta universe holds ${U.length} companies. It is not a complete listing of either market.`));
+  return wrap;
+};
+
 VIEWS.research = () => {
   const r = BY_ID.get(State.ticker) || U[0];
+  /* Recorded here rather than at navigation, so it reflects reports actually
+     rendered instead of every URL that was touched. */
+  State.recentCompanies = [r.c.id, ...(State.recentCompanies || []).filter(x => x !== r.c.id)].slice(0, 12);
+  store.write('recentCompanies', State.recentCompanies);
   const { c, m } = r;
   const wrap = el('div');
 
@@ -7887,6 +8007,36 @@ if (!State.theses) { State.theses = seedTheses(); store.write('theses', State.th
 
 function saveTheses() { store.write('theses', State.theses); }
 
+/* A condition state, never an action. "Holding" was the previous label for a
+   condition inside its threshold, which reads as a hold recommendation and
+   contradicts this product's own terminology — and section 2 forbids buy, hold
+   and sell language in the public research interface regardless of what the
+   surrounding paragraph says. */
+const CONDITION_STATES = {
+  breached:    { label:'Breached',              sev:'serious' },
+  approaching: { label:'Approaching threshold', sev:'warning' },
+  within:      { label:'Within threshold',      sev:'good' },
+  unavailable: { label:'Data unavailable',      sev:'muted' },
+  awaiting:    { label:'Awaiting update',       sev:'muted' },
+};
+
+/* Within a tenth of the threshold, on the side that would breach it. */
+const APPROACH_MARGIN = 0.10;
+
+function conditionState(cd) {
+  if (cd.actual == null) {
+    /* A condition bound to a metric this build carries, but with no current
+       value, is waiting for data. One bound to nothing never had a source. */
+    return (cd.k || cd.type === 'val') ? CONDITION_STATES.awaiting : CONDITION_STATES.unavailable;
+  }
+  if (cd.hit) return CONDITION_STATES.breached;
+  if (isNum(cd.v) && cd.v !== 0) {
+    const gap = Math.abs(cd.actual - cd.v) / Math.abs(cd.v);
+    if (gap <= APPROACH_MARGIN) return CONDITION_STATES.approaching;
+  }
+  return CONDITION_STATES.within;
+}
+
 function evaluateThesis(t) {
   const r = BY_ID.get(t.ticker);
   if (!r) return { breaches: [], ok: [] };
@@ -8061,7 +8211,8 @@ function thesisCard(t, expanded) {
       el('td', { class: 'ident', style: 'white-space:normal;max-width:280px' }, cd.label),
       el('td', {}, `${cd.op} ${fmt(cd.v)}`),
       el('td', { html: isNum(cd.actual) ? fmt(cd.actual) : NA }),
-      el('td', { html: cd.actual == null ? '<span class="caption">not evaluable</span>' : (cd.hit ? sevChip('serious', 'Breached').outerHTML : sevChip('good', 'Holding').outerHTML) }),
+      el('td', {}, (() => { const st = conditionState(cd);
+        return st.sev === 'muted' ? el('span', { class: 'caption' }, st.label) : sevChip(st.sev, st.label); })()),
     ]));
   });
   tab.append(tb); tw.append(tab); card.append(tw);
@@ -9258,7 +9409,8 @@ VIEWS.marketing = () => {
   const cityGrid = el('div', { class: 'grid grid-4', style: 'margin-top:var(--md)' });
   ['Kuching', 'Sibu', 'Miri', 'Bintulu'].forEach(city => {
     const c = el('a', { class: 'card task-card', href: href('/property/calculator'),
-      onclick: (e) => { e.preventDefault(); State.dealCity = city; navigate('/property/calculator'); } });
+      href: href('/property/calculator') + '?city=' + city.toLowerCase(),
+      onclick: (e) => { e.preventDefault(); navigate('/property/calculator?city=' + city.toLowerCase()); } });
     c.append(el('h3', { class: 'h-card' }, city));
     c.append(el('span', { class: 'task-cta' }, 'Model a purchase here'));
     cityGrid.append(c);
@@ -9313,16 +9465,12 @@ VIEWS.marketing = () => {
   const pricing = el('section');
   pricing.append(el('h2', { class: 'h-section' }, 'Pricing'));
   const pg = el('div', { class: 'grid grid-3', style: 'margin-top:var(--md)' });
-  [['Free', 'RM0', ['10 Bursa company reports', 'One watchlist', 'One portfolio', 'Property calculator', 'Delayed prices']],
-   ['Research', 'RM199 / year', ['The full research universe', 'Full screener', 'Editable valuation', 'Alerts and portfolio import', 'Export']],
-   ['Property report', 'From RM39', ['One property, fully modelled', 'Stress tests', 'Evidence quality on every input']],
-  ].forEach(([name, price, feats]) => {
+  [PRICING.free, PRICING.founding, PRICING.property].forEach(t => {
     const card = el('div', { class: 'card' });
-    card.append(el('h3', { class: 'h-card' }, name));
-    card.append(el('div', { class: 'num', style: 'font-size:26px;font-weight:660;margin:6px 0 10px' }, price));
-    const ul = el('ul', { class: 'ticklist' });
-    feats.forEach(f => ul.append(el('li', {}, f)));
-    card.append(ul);
+    card.append(el('h3', { class: 'h-card' }, t.name));
+    card.append(el('div', { style: 'font-size:26px;font-weight:680;margin:4px 0 2px' }, t.price));
+    if (t.period) card.append(el('div', { class: 'metaline' }, t.period));
+    card.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px' }, t.line));
     pg.append(card);
   });
   pricing.append(pg);
@@ -10613,13 +10761,38 @@ const PROJECTS = [
    all follow from where the property is, and a calculator that starts at
    "purchase price" has already skipped the questions that matter most.
    ========================================================================== */
+/* Each city carries its own areas and its own demand and risk prompts. All
+   four used to lead into the same generic calculator, so choosing Sibu and
+   choosing Miri produced an identical experience — which is wrong in the way
+   that matters most here, because what moves rent in an oil town and what
+   moves it in a river town are not the same forces.
+
+   The factors are prompts, not assumptions. Nothing here adjusts a number on
+   the user's behalf; they are the questions a local buyer would ask and an
+   out-of-state model would miss. */
 const SARAWAK_CITIES = [
-  { id:'kuching',  name:'Kuching',  districts:['Kuching city centre','Tabuan','Stutong','Batu Kawa','Matang','Petra Jaya','Samarahan','Kota Samarahan (university belt)','Other Kuching'] },
-  { id:'sibu',     name:'Sibu',     districts:['Sibu town','Sungai Merah','Salim','Bukit Assek','Other Sibu'] },
-  { id:'miri',     name:'Miri',     districts:['Miri city centre','Piasau','Krokop','Lutong','Senadin','Permyjaya','Other Miri'] },
-  { id:'bintulu',  name:'Bintulu',  districts:['Bintulu town','Kidurong','Tanjung Batu','Samalaju','Other Bintulu'] },
-  { id:'other-swk',name:'Other Sarawak', districts:['Sri Aman','Kapit','Limbang','Mukah','Betong','Sarikei','Elsewhere in Sarawak'] },
-  { id:'outside',  name:'Outside Sarawak', districts:['Peninsular Malaysia','Sabah','Labuan'] },
+  { id:'kuching', name:'Kuching',
+    districts:['City centre','Tabuan','Stutong','Batu Kawa','Matang','Petra Jaya','Samarahan','Kota Samarahan'],
+    factors:['Government employment','University demand','Medical and professional employment',
+             'New suburban supply','Traffic and parking'] },
+  { id:'sibu', name:'Sibu',
+    districts:['Town centre','Rejang Park','Ulu Sungai Merah','Jalan Salim','Jalan Teku','Permai','Lanang','Sibujaya'],
+    factors:['Flood history','River and drainage exposure','Shophouse liquidity','Population growth',
+             'Local family rental demand','Lower transaction liquidity'] },
+  { id:'miri', name:'Miri',
+    districts:['City centre','Marina','Pujut','Lutong','Permyjaya','Senadin','Tudan','Taman Tunku'],
+    factors:['Oil and gas employment','Curtin student demand','Brunei-related activity','Rotation staff',
+             'Industry-cycle vacancy'] },
+  { id:'bintulu', name:'Bintulu',
+    districts:['Town centre','Tanjung Batu','Kidurong','Samalaju','Jepak','Kemena','Parkcity','Sibiew'],
+    factors:['LNG and industrial employment','Samalaju activity','Project-completion vacancy',
+             'Contractor housing','Heavy-industry concentration'] },
+  { id:'other-swk', name:'Other Sarawak',
+    districts:['Sri Aman','Kapit','Limbang','Mukah','Betong','Sarikei','Elsewhere in Sarawak'],
+    factors:['Thin transaction record','Financing availability','Local employment base'] },
+  { id:'outside', name:'Outside Sarawak',
+    districts:['Peninsular Malaysia','Sabah','Labuan'],
+    factors:['The Sarawak Land Code does not apply outside Sarawak — title questions here follow the National Land Code'] },
 ];
 
 /* Sarawak land is classified under its own Land Code, not the National Land
@@ -10688,10 +10861,10 @@ const SARAWAK_CHECKS = [
     why:'Transfer of restricted classes is limited by the Sarawak Land Code. If it applies, no financial model matters until it is resolved.' },
   { id:'lease-remaining', q:'If leasehold, how many years remain and has extension been applied for?',
     who:'Lawyer, Land and Survey Department', sev:'warning',
-    why:'Financing tightens sharply below roughly 60 years remaining, and resale liquidity falls before that.' },
+    why:'Short remaining leases can reduce financing availability and resale demand. Confirm applicable thresholds with the intended lender.' },
   { id:'strata-issued', q:'For an apartment: has the strata title issued, or is it still a master title?',
     who:'Lawyer, developer', sev:'warning',
-    why:'A pending strata title delays resale and complicates financing.' },
+    why:'A pending strata title may affect transfer, financing and transaction timing. Confirm the title status and implications with the lawyer and lender.' },
   { id:'flood', q:'Is the site in an area with a known flood history?',
     who:'Local council, neighbours, DID flood maps', sev:'serious',
     why:'Parts of Kuching, Sibu and the Rajang basin flood recurrently. It affects insurance, tenant retention and resale.' },
@@ -10758,6 +10931,21 @@ function dealModel(d) {
      as the deposit. Leaving it out of "cash required" is the most common way a
      property model understates what the purchase actually takes. */
   const renovation = num0(d.renovation);
+  /* Grouped rather than summed into one figure. The headline used to name four
+     components and total five, so the arithmetic on screen did not add up:
+     RM57.2k + RM11.2k + RM6.3k + RM2.6k is RM77.3k, and the stated total was
+     RM102.2k. The missing RM25k was renovation, included in the sum and absent
+     from the sentence. Every total below reconciles from its own parts. */
+  const costGroups = [
+    { id:'acquisition', label:'Acquisition costs', items:[
+        ['Deposit', deposit], ['Transfer stamp duty', duty], ['Purchase legal fees', legal]] },
+    { id:'financing', label:'Financing costs', items:[
+        ['Loan stamp duty', loanDuty]] },
+    { id:'improvement', label:'Initial improvement costs', items:[
+        ['Renovation and furnishing', renovation]] },
+  ];
+  /* Three months of instalment and running cost, held back rather than spent.
+     Not part of the purchase, but part of what the purchase requires. */
   const acquisitionCost = deposit + duty + legal + loanDuty + renovation;
 
   const instalment = monthlyInstalment(loan, d.ratePct, d.tenureYears);
@@ -10906,7 +11094,17 @@ function dealModel(d) {
              annualised: num0(d.equityReturnPct), vsProperty: e.profit - (grown - acquisitionCost) };
   });
 
-  return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost, instalment,
+  /* Three months of instalment and running cost, held rather than spent. Not
+     part of the purchase price, but part of what the purchase requires — a
+     buyer who arrives at completion with nothing behind the deposit is one
+     vacancy away from distress. */
+  const reserve = Math.round((instalment + opex / 12) * 3);
+  costGroups.push({ id:'reserve', label:'Emergency reserve', items:[
+    ['Three months of instalment and running costs', reserve]] });
+  const totalInitialCash = acquisitionCost + reserve;
+
+  return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
+           costGroups, reserve, totalInitialCash, instalment,
            grossAnnualRent, effectiveRent, opex, noi, annualDebtService, grossYield, netYield,
            maintenanceY, sinkingY, statutoryY, insuranceY, mgmtY, repairY,
            cashflowMonthly, cashOnCash, dscr, breakEvenRent,
@@ -10947,7 +11145,7 @@ function propertyRiskFlags(d, m) {
 
   if (d.titleType !== 'strata' && isNum(d.remainingLease) && d.remainingLease > 0 && d.remainingLease < 60)
     out.push({ sev:'serious', t:`Only ${d.remainingLease} years remain on the lease`,
-      n:'Below roughly 60 years most lenders shorten the tenure or decline, which narrows the pool of buyers at your own exit as well.' });
+      n:'A short remaining lease can shorten the tenure a lender will offer and narrow the pool of buyers at your own exit. Thresholds vary between lenders and are theirs to state — confirm with the intended lender rather than relying on a rule of thumb, including this well.' });
 
   /* Answers the buyer gave to the checklist, surfaced as findings. */
   for (const chk of SARAWAK_CHECKS) {
@@ -11012,6 +11210,14 @@ VIEWS.property = () => {
   cityField.append(citySel);
   loc.append(cityField);
 
+  /* A city named in the URL wins on arrival, and takes the area with it —
+     leaving a Kuching district selected under Sibu would be worse than
+     ignoring the parameter entirely. */
+  const urlCity = new URLSearchParams(location.search).get('city');
+  if (urlCity) {
+    const hit = SARAWAK_CITIES.find(c => c.id === String(urlCity).toLowerCase());
+    if (hit && d.city !== hit.id) { d.city = hit.id; d.district = hit.districts[0]; }
+  }
   const cityDef = SARAWAK_CITIES.find(c => c.id === d.city) || SARAWAK_CITIES[0];
   const distField = el('div', { class: 'field', style: 'margin-top:10px' });
   distField.append(el('label', { for: 'dealDistrict' }, 'District or neighbourhood'));
@@ -11020,6 +11226,21 @@ VIEWS.property = () => {
   cityDef.districts.forEach(x => distSel.append(el('option', { value: x, selected: d.district === x ? '' : null }, x)));
   distField.append(distSel);
   loc.append(distField);
+
+  /* What actually moves demand in the selected city. Prompts, not adjustments:
+     the model changes nothing on the strength of these, because a tool that
+     silently marked Miri rents down for the oil cycle would be forecasting. */
+  if (cityDef.factors?.length) {
+    const fx = el('div', { style: 'margin-top:12px' });
+    fx.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' },
+      `What moves demand in ${cityDef.name}`));
+    const chips = el('div', { class: 'row row-wrap', style: 'gap:6px' });
+    cityDef.factors.forEach(f => chips.append(el('span', { class: 'chip' }, f)));
+    fx.append(chips);
+    fx.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      'These change nothing in the model. They are the questions a local buyer would ask, and the ones the numbers below cannot answer on their own.'));
+    loc.append(fx);
+  }
 
   const typeField = el('div', { class: 'field', style: 'margin-top:10px' });
   typeField.append(el('label', { for: 'dealType' }, 'Property type'));
@@ -11037,6 +11258,15 @@ VIEWS.property = () => {
   titleField.append(titleSel);
   const tDef = TITLE_TYPES.find(t => t.id === d.titleType);
   if (tDef) titleField.append(el('p', { class: 'metaline', style: 'margin-top:5px' }, tDef.note));
+  /* A dropdown implies the platform has determined something. It has not: it
+     recorded what the user typed. Land Code classification governs who may
+     lawfully hold the title, and getting it wrong is not a modelling error —
+     it is a void transfer. */
+  titleField.append(el('div', { class: 'note', style: 'margin-top:8px' }, [
+    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:12.5px' }, 'Title classification recorded from your input'),
+    el('p', { class: 'metaline' },
+      'Eligibility has not been verified. Nothing here confirms that a transfer is permitted, and this selection changes only how the tool describes the property to you. Confirm with a Sarawak property lawyer and the Land and Survey Department before relying on it.'),
+  ]));
   loc.append(titleField);
 
   if (d.titleType !== 'strata') {
@@ -11149,8 +11379,31 @@ VIEWS.property = () => {
     { sub: 'After costs, vacancy and the loan', tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
   fg.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
   free.append(fg);
-  free.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `Acquisition needs ${fmtAmount(m.acquisitionCost, 'MYR')} in cash: ${fmtAmount(m.deposit, 'MYR')} deposit, ${fmtAmount(m.duty, 'MYR')} transfer stamp duty, ${fmtAmount(m.legal, 'MYR')} legal and ${fmtAmount(m.loanDuty, 'MYR')} loan stamp duty.`));
+  /* A table rather than a sentence, because a sentence that lists four
+     components and totals five is not a rounding problem — it is a number the
+     reader cannot check. Each group subtotals and the groups sum to the total. */
+  const cash = el('div', { style: 'margin-top:var(--md);overflow-x:auto' });
+  const cashT = el('table', { class: 'dt' });
+  const cashB = el('tbody');
+  m.costGroups.forEach(g => {
+    const sub = g.items.reduce((s2, [, v]) => s2 + v, 0);
+    cashB.append(el('tr', {}, [
+      el('td', { style: 'font-weight:600', colspan: 2 }, g.label)]));
+    g.items.forEach(([label, v]) => cashB.append(el('tr', {}, [
+      el('td', { style: 'padding-left:var(--md)' }, label),
+      el('td', { class: 'num' }, fmtAmount(v, 'MYR'))])));
+    if (g.items.length > 1) cashB.append(el('tr', {}, [
+      el('td', { class: 'metaline', style: 'padding-left:var(--md)' }, `${g.label} subtotal`),
+      el('td', { class: 'num metaline' }, fmtAmount(sub, 'MYR'))]));
+  });
+  cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
+    el('td', { style: 'font-weight:680' }, 'Total initial cash'),
+    el('td', { class: 'num', style: 'font-weight:680' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
+  cashT.append(cashB);
+  cash.append(cashT);
+  cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `The emergency reserve is not paid to anyone — it is what stays in your account after completion. Excluding it, completion itself takes ${fmtAmount(m.acquisitionCost, 'MYR')}.`));
+  free.append(cash);
   out.append(free);
 
   /* ---------- Sarawak checklist ---------- */
