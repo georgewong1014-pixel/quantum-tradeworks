@@ -8993,7 +8993,62 @@ function openTrendDrawer(row, t) {
     ]));
   }
 
-  TREND_STRATEGIES.filter(s => s.evaluate).forEach(s => {
+  /* Relative strength, computed against the benchmark for this instrument. */
+  const series = trackedHistory?.series || {};
+  const reg = instruments?.instruments || [];
+  const rs = relativeStrength(row.sym, row.meta, series);
+  const rsCard = el('div', { class: 'panel' });
+  const rsDef = TREND_STRATEGIES.find(s => s.id === 'qt_relative_strength_v1');
+  rsCard.append(el('div', { class: 'row', style: 'gap:8px' }, [
+    el('span', { style: 'font-weight:600;font-size:13px' }, rsDef.name),
+    el('span', { class: 'metaline', style: 'margin-left:auto' }, `v${rsDef.version}`),
+  ]));
+  if (!rs.benchmark) {
+    rsCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, rs.reason));
+  } else if (rs.isBenchmark) {
+    rsCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `${row.sym} is the benchmark other ${row.meta?.market === 'MY' ? 'Malaysian' : ''} instruments are measured against, so it has no relative strength of its own.`));
+  } else if (rs.reason) {
+    rsCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, rs.reason));
+  } else {
+    rsCard.append(el('p', { class: 'metaline', style: 'margin:6px 0 8px' },
+      `Against ${rs.benchmark.label}. ${rs.benchmark.why}`));
+    if (rs.benchmark.weak) rsCard.append(el('p', { class: 'metaline', style: 'color:var(--bronze)' },
+      'Not a like-for-like benchmark — read it as global context.'));
+    const rt = el('table', { class: 'dt' });
+    rt.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Window'), el('th', { class: 'num' }, row.sym),
+      el('th', { class: 'num' }, rs.benchmark.symbol), el('th', { class: 'num' }, 'Difference'), el('th', {}, 'Percentile')])));
+    const rb = el('tbody');
+    rs.horizons.forEach(h => {
+      if (h.insufficient) {
+        rb.append(el('tr', {}, [el('td', {}, h.label),
+          el('td', { class: 'metaline', colspan: 4 },
+            `needs ${h.needs} shared closes, has ${h.have}`)]));
+        return;
+      }
+      const pc = rsPercentile(row.sym, row.meta, series, reg, h.days);
+      rb.append(el('tr', {}, [
+        el('td', {}, h.label),
+        el('td', { class: 'num' }, withSign(h.instrument, 1)),
+        el('td', { class: 'num' }, withSign(h.benchmark, 1)),
+        el('td', { class: 'num ' + diffClass(h.excess) }, withSign(h.excess, 1)),
+        el('td', { class: 'metaline' }, !pc ? '—'
+          : pc.insufficient ? `${pc.have} of ${pc.needs} peers` : `${ord(pc.pct)} of ${pc.peers}`),
+      ]));
+    });
+    rt.append(rb);
+    rsCard.append(el('div', { style: 'overflow-x:auto' }, rt));
+    const done = rs.horizons.filter(h => !h.insufficient);
+    if (done.length) rsCard.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      `Windows are measured on dates both series share, not on row counts — ${done[0].from} to ${done[0].to} for the shortest window shown. Price return only; dividends are not included.`));
+  }
+  rsCard.append(el('details', { style: 'margin-top:8px' }, [
+    el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'What this does and does not tell you'),
+    el('ul', { class: 'ticklist', style: 'margin-top:6px' }, rsDef.limitations.map(l => el('li', {}, l))),
+  ]));
+  body.append(rsCard);
+
+  TREND_STRATEGIES.filter(s => s.evaluate && !s.external).forEach(s => {
     const res = s.evaluate(t);
     const card = el('div', { class: 'panel' });
     card.append(el('div', { class: 'row', style: 'gap:8px' }, [
@@ -9281,6 +9336,96 @@ function trendContext(series) {
 }
 
 /* ==========================================================================
+   RELATIVE STRENGTH
+
+   Price return against a benchmark, over matched windows.
+
+   Two things make this easy to get wrong and both are handled explicitly.
+
+   First, calendars. Bursa and the US do not share holidays, so two series of
+   the same length do not cover the same days. Counting back N rows in each is
+   silently comparing different periods. Every window here is built from the
+   dates the two series have in COMMON, and counted back within that.
+
+   Second, benchmarks. Not everything has one. Gold measured against the S&P
+   500 is a number without a question behind it, so "no appropriate benchmark"
+   is an available answer rather than a fallback to whatever is at hand.
+   ========================================================================== */
+const RS_HORIZONS = [
+  { id:'1m',  label:'1 month',   days:22 },
+  { id:'3m',  label:'3 months',  days:66 },
+  { id:'6m',  label:'6 months',  days:126 },
+  { id:'12m', label:'12 months', days:252 },
+];
+
+/* An instrument is compared against the market it actually trades in. Where
+   there is no defensible comparison the answer is that there is none. */
+function benchmarkFor(meta, symbol) {
+  /* A symbol may be a registry instrument or a company in the research
+     universe; both need a benchmark and only the first carries meta. Falling
+     back to the company record is what stops a US equity being told no
+     benchmark exists for it. */
+  if (!meta && symbol) {
+    const hit = U.find(r => String(r.c.tk || '').toUpperCase() === String(symbol).toUpperCase()
+                         || String(r.c.code || '').toUpperCase() === String(symbol).toUpperCase());
+    if (hit) meta = { market: hit.c.mkt, kind: 'equity' };
+  }
+  if (!meta) return null;
+  if (meta.kind === 'crypto') return { symbol:'BTCUSD', label:'Bitcoin', why:'Crypto is compared against Bitcoin, which is the sector benchmark in practice.' };
+  if (meta.kind === 'commodity') return null;
+  if (meta.kind === 'fx') return null;
+  if (meta.market === 'MY') return { symbol:'KLSE', label:'FTSE Bursa Malaysia KLCI', why:'Malaysian listings and indices are compared against the KLCI.' };
+  if (meta.market === 'US') return { symbol:'US500', label:'S&P 500', why:'US listings and indices are compared against the S&P 500.' };
+  if (['JP','HK','CN','KR','TW','IN','AU','NZ','SG','TH','ID','PH','VN'].includes(meta.market))
+    return { symbol:'US500', label:'S&P 500', why:'No regional benchmark is carried in this build, so a global equity benchmark is used. Read it as global context rather than a like-for-like comparison.', weak:true };
+  return null;
+}
+
+/* Return over a window measured on dates both series share. */
+function alignedReturn(a, b, days) {
+  const common = Object.keys(a).filter(d => b[d] != null).sort();
+  if (common.length <= days) return { insufficient: true, have: common.length, needs: days + 1 };
+  const now = common[common.length - 1], then = common[common.length - 1 - days];
+  if (!(a[then] > 0) || !(b[then] > 0)) return { insufficient: true, have: common.length, needs: days + 1 };
+  const ra = (a[now] / a[then] - 1) * 100;
+  const rb = (b[now] / b[then] - 1) * 100;
+  return { insufficient: false, from: then, to: now, instrument: ra, benchmark: rb, excess: ra - rb };
+}
+
+function relativeStrength(symbol, meta, allSeries) {
+  const bench = benchmarkFor(meta, symbol);
+  if (!bench) return { benchmark: null, reason: `No benchmark is defensible here${meta?.kind ? ` for ${meta.kind === 'fx' ? 'a currency pair' : `a ${meta.kind}`}` : ''}. Measuring it against an equity index would be a number with no question behind it.` };
+  if (symbol.toUpperCase() === bench.symbol) return { benchmark: bench, isBenchmark: true };
+  const a = allSeries[symbol], b = allSeries[bench.symbol];
+  if (!a || !b) return { benchmark: bench, reason: `No series for ${!b ? bench.symbol : symbol}. Import one to compare.` };
+  return { benchmark: bench, horizons: RS_HORIZONS.map(h => ({ ...h, ...alignedReturn(a, b, h.days) })) };
+}
+
+/* Percentile across the instruments sharing a benchmark. Reported only when
+   enough peers have the depth — a percentile computed over three instruments
+   describes those three, not a market. */
+function rsPercentile(symbol, meta, allSeries, registry, horizonDays, minPeers = 8) {
+  const bench = benchmarkFor(meta, symbol);
+  if (!bench) return null;
+  const peers = registry.filter(i => {
+    const b2 = benchmarkFor(i, i.symbol);
+    return b2 && b2.symbol === bench.symbol && i.symbol.toUpperCase() !== bench.symbol;
+  });
+  const scored = [];
+  for (const pRow of peers) {
+    const s = allSeries[pRow.symbol];
+    if (!s || !allSeries[bench.symbol]) continue;
+    const r = alignedReturn(s, allSeries[bench.symbol], horizonDays);
+    if (!r.insufficient) scored.push({ symbol: pRow.symbol, excess: r.excess });
+  }
+  if (scored.length < minPeers) return { insufficient: true, have: scored.length, needs: minPeers };
+  const mine = scored.find(x => x.symbol === symbol);
+  if (!mine) return null;
+  const below = scored.filter(x => x.excess < mine.excess).length;
+  return { insufficient: false, pct: Math.round(below / scored.length * 100), peers: scored.length };
+}
+
+/* ==========================================================================
    TREND STRATEGY REGISTRY
 
    Versioned definitions rather than logic buried in a view, per section 5 of
@@ -9338,7 +9483,10 @@ const TREND_STRATEGIES = [
       'Outperformance is evidence about price, not about the business or the economy behind it.',
     ],
     requires: ['ret3m'],
-    evaluate: () => null,   /* computed against a benchmark in the view */
+    /* Needs a second series, so it is computed where both are available rather
+       than from one instrument's indicators. */
+    evaluate: () => null,
+    external: true,
   },
 ];
 
