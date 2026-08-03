@@ -660,6 +660,19 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 .pos { color: var(--ok-text); }
 .neg { color: var(--dn-text); }
 
+/* A difference between price and a model estimate is not a gain or a loss. It
+   is a disagreement between the market and a set of assumptions someone chose,
+   and the market is frequently right. Colouring it green made every company
+   trading below its own model look like a recommendation the product does not
+   make — so model differences get a neutral tone, and green and red stay
+   reserved for things that factually improved or deteriorated.
+
+   Direction is still legible: the sign is always shown, and the two weights
+   differ enough to scan without implying good and bad. */
+.mdiff       { color: var(--ink-2); }
+.mdiff-below { color: var(--s3); font-weight: 560; }   /* price under the estimate */
+.mdiff-above { color: var(--ink-3); }                  /* price over the estimate */
+
 /* ------------------------------------------------------------ stat tiles */
 .stat { display: flex; flex-direction: column; gap: 3px; }
 .stat-label { font-size: 11.5px; color: var(--ink-3); font-weight: 520; }
@@ -1133,6 +1146,14 @@ function fmtMoney(v, ccy, dp = 2) {
   return `${sym}${v.toFixed(dp)}`;
 }
 function signClass(v) { return !isNum(v) || Math.abs(v) < 0.005 ? '' : (v > 0 ? 'pos' : 'neg'); }
+
+/* For price-versus-model differences specifically. Deliberately NOT signClass:
+   a discount to a modelled estimate is not a profit, and rendering it in the
+   same green as a real gain turns an assumption into an implied instruction. */
+function diffClass(v) {
+  if (!isNum(v) || Math.abs(v) < 0.005) return 'mdiff';
+  return v > 0 ? 'mdiff-below' : 'mdiff-above';
+}
 function withSign(v, dp = 1, suffix = '%') {
   if (!isNum(v)) return '—';
   if (Math.abs(v) < Math.pow(10, -dp) / 2) v = 0;
@@ -2889,7 +2910,7 @@ function valuationRun(c, d, inputs) {
   return { pack, inputs, base, bear, bull, vals, mos, err, conf, confBand, price, shift };
 }
 
-/* Driver sensitivity: how much does the base value move per unit of each
+/* Driver sensitivity: how much does the base-case model estimate move per unit of each
    assumption? Computed by re-running the model, never estimated. */
 function driverImpact(c, d, inputs) {
   const probes = {
@@ -2965,7 +2986,7 @@ function addCompany(c) {
     capital:  scorePillar('capital', c, d),
   };
   /* Valuation pillar leans on the model output, so it is scored separately. */
-  const discount = val.mos ? -val.mos.base : null;   /* +ve = trading above base value */
+  const discount = val.mos ? -val.mos.base : null;   /* +ve = trading above base-case model estimate */
   scores.value = {
     score: Math.round(clamp(
       (anchor(val.mos?.base, -35, 45) ?? 50) * 0.6 +
@@ -2973,7 +2994,7 @@ function addCompany(c) {
       (anchor(d.m.dy, 0, 6) ?? 40) * 0.2, 0, 100)),
     coverage: 100,
     parts: [
-      { k:'mosBase', w:.6, label:'Margin of safety vs base value', raw:val.mos?.base, score:anchor(val.mos?.base, -35, 45), fmt:v=>fmtPct(v), lo:-35, hi:45 },
+      { k:'mosBase', w:.6, label:'Difference to model estimate vs base-case model estimate', raw:val.mos?.base, score:anchor(val.mos?.base, -35, 45), fmt:v=>fmtPct(v), lo:-35, hi:45 },
       { k:'fcfy',    w:.2, label:'Free cash flow yield',           raw:d.m.fcfy,      score:anchor(d.m.fcfy, 0, 9),        fmt:v=>fmtPct(v), lo:0, hi:9 },
       { k:'dy',      w:.2, label:'Dividend yield',                 raw:d.m.dy,        score:anchor(d.m.dy, 0, 6),          fmt:v=>fmtPct(v), lo:0, hi:6 },
     ] };
@@ -3206,7 +3227,7 @@ function buildFeed() {
   U.forEach(r => {
     const { c, m, val } = r;
     if (val.mos && val.mos.base > 18 && val.confBand !== 'Low')
-      feed.push({ kind:'valuation', sev:'good', id:c.id, title:`${c.tk} moved to a ${fmtPct(val.mos.base,0)} discount to base value`,
+      feed.push({ kind:'valuation', sev:'good', id:c.id, title:`${c.tk} moved to a ${fmtPct(val.mos.base,0)} discount to base-case model estimate`,
         detail:`${val.pack.name}, ${val.confBand.toLowerCase()} confidence. Largest driver: ${driverImpact(c, r.d, r.inputs)[0].label}.` });
     if (isNum(m.cashPayout) && m.cashPayout > 100)
       feed.push({ kind:'dividend', sev:'serious', id:c.id, title:`${c.tk} distribution is ${fmtPct(m.cashPayout,0)} of free cash flow`,
@@ -3654,7 +3675,7 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
     /* fair-value line at zero discount */
     s.append(sv('line', { class: 'ax-line', x1: X(0), x2: X(0), y1: padT, y2: padT + ih, 'stroke-width': 1.5 }));
     const zl = sv('text', { class: 'ax-label', x: X(0), y: padT - 5, 'text-anchor': 'middle', 'font-weight': 600 });
-    zl.textContent = 'Base value'; s.append(zl);
+    zl.textContent = 'Base-case model estimate'; s.append(zl);
 
     /* Long captions do not wrap in SVG, so a narrow chart takes the short form
        rather than letting the text run past the plot. */
@@ -3668,7 +3689,7 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
       const g = sv('g', { style: 'cursor:pointer' });
       g.setAttribute('tabindex', '0');
       g.setAttribute('role', 'button');
-      g.setAttribute('aria-label', `${p.label}, ${xFmt(p.x)} to base value, quality percentile ${p.y}`);
+      g.setAttribute('aria-label', `${p.label}, ${xFmt(p.x)} to base-case model estimate, quality percentile ${p.y}`);
       const fill = `var(${p.varName})`;
       g.append(sv('circle', { cx: X(p.x), cy: Y(p.y), r: R(p.size), fill, opacity: .30 }));
       /* 2px surface ring keeps overlapping marks legible */
@@ -3677,7 +3698,7 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
       /* hit target never smaller than ~24px */
       const hit = sv('circle', { cx: X(p.x), cy: Y(p.y), r: Math.max(13, R(p.size)), fill: 'transparent' });
       const tip = () => `<div class="t-title">${esc(p.label)} · ${esc(p.name)}</div>
-        <div class="t-row"><span>vs base value</span><b>${xFmt(p.x)}</b></div>
+        <div class="t-row"><span>vs base-case model estimate</span><b>${xFmt(p.x)}</b></div>
         <div class="t-row"><span>Quality percentile</span><b>${p.y}</b></div>
         <div class="t-row"><span>Market cap</span><b>${p.capLabel}</b></div>
         <div class="t-row"><span>Model</span><b>${esc(p.model)}</b></div>
@@ -3869,7 +3890,7 @@ function tornadoChart(container, { drivers, fmt = v => withSign(v) }) {
         `<div class="t-title">${esc(d.label)}</div>
          <div class="t-row"><span>+${d.unit === 'pp' ? fmtNum(d.step, 2) + ' pp' : d.unit}</span><b>${fmt(d.hi)}</b></div>
          <div class="t-row"><span>−${d.unit === 'pp' ? fmtNum(d.step, 2) + ' pp' : d.unit}</span><b>${fmt(d.lo)}</b></div>
-         <div class="t-note">Change in base value per share</div>`, e.clientX, e.clientY));
+         <div class="t-note">Change in base-case model estimate per share</div>`, e.clientX, e.clientY));
       hit.addEventListener('pointerleave', hideTip);
       s.append(hit);
     });
@@ -3891,7 +3912,7 @@ function waterfallChart(container, { steps, fmt, ccy }) {
     const nt = niceTicks(Math.min(...allV, 0), Math.max(...allV, 0) * 1.1, 4);
     const y = v => padT + ih - ((v - nt.lo) / ((nt.hi - nt.lo) || 1)) * ih;
     const band = iw / marks.length, barW = Math.min(24, band - 16);
-    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Composition of the base value per share' });
+    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Composition of the base-case model estimate per share' });
 
     nt.ticks.forEach(v => {
       s.append(sv('line', { class: 'gridline', x1: padL, x2: W - padR, y1: y(v), y2: y(v) }));
@@ -3953,7 +3974,11 @@ function rangeStrip(bear, base, bull, price, ccy) {
   return el('div', { style: 'position:relative;height:56px;margin-top:var(--xs)' }, [
     /* A minimum width so the range stays visible as a bar rather than becoming
        a dot when the price dwarfs it. */
-    el('div', { style: `position:absolute;left:${at(bear)}%;width:${Math.max(spread, 3)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,var(--dn-2),var(--mid),var(--up-2))` }),
+    /* A neutral ramp, not red-to-green. The green end was the higher valuation,
+       so a price sitting there was rendered in the colour of a good outcome
+       while actually meaning expensive — the opposite of what a reader would
+       take from it. Lightness alone carries the bear-to-bull direction. */
+    el('div', { style: `position:absolute;left:${at(bear)}%;width:${Math.max(spread, 3)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,color-mix(in srgb, var(--s3) 22%, transparent),color-mix(in srgb, var(--s3) 55%, transparent))` }),
     el('div', { style: `position:absolute;left:${at(base)}%;top:16px;width:2px;height:20px;background:var(--ink);transform:translateX(-1px)` }),
     hasPx ? el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
       `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }) : null,
@@ -4754,6 +4779,7 @@ State.screen = State.screen || blankScreen();
 State.density = store.read('density', 'comfortable');
 State.compareCcy = store.read('compareCcy', 'common');
 State.dividendsReceived = store.read('dividendsReceived', []);
+State.requiredDiscount = store.read('requiredDiscount', null);
 
 /* ==========================================================================
    SCREEN TEMPLATES
@@ -5034,7 +5060,7 @@ function renderScreener() {
       { k:'ident', label:'Company', sortable:false },
       { k:'quality', label:'Quality', get:r => r.scores.quality.score, fmt:(v, r) => scorePill(v, r.pct.quality) },
       { k:'value', label:'Value', get:r => r.scores.value.score, fmt:(v, r) => scorePill(v, r.pct.value) },
-      { k:'mos', label:'vs base value', get:r => r.val.mos?.base, fmt:v => `<span class="${signClass(v)}">${withSign(v, 0)}</span>`, mfmt:v => withSign(v, 0) },
+      { k:'mos', label:'vs base-case model estimate', get:r => r.val.mos?.base, fmt:v => `<span class="${signClass(v)}">${withSign(v, 0)}</span>`, mfmt:v => withSign(v, 0) },
       ...sc.cols.map(k => ({ k, label:FIELD_BY_K[k].label, get:r => r.m[k], fmt:v => isNum(v) ? FIELD_BY_K[k].fmt(v) : NA, mfmt:FIELD_BY_K[k].fmt })),
       { k:'risk', label:'Risk', get:r => r.risk.raw, fmt:(v, r) => riskPill(r.risk.band) },
       { k:'coverage', label:'Coverage', get:r => r.m.coverage, fmt:v => `${v}%`, mfmt:v => `${Math.round(v)}%` },
@@ -5598,7 +5624,7 @@ function renderRadar() {
     ].join('<span class="dotsep"></span>') })));
 
   card.append(tableTwin('Show the table view of every plotted company',
-    ['Company', 'Market', `Price FY${YEARS[rr.yi]}`, 'vs base value', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
+    ['Company', 'Market', `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
     rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
       withSign(r.val.mos.base, 1), String(yOf(r)),
       fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy), esc(r.val.pack.name), r.val.confBand])));
@@ -5607,8 +5633,8 @@ function renderRadar() {
   const cohortLabel = rr.cohort === 'sector' ? 'sector' : 'market';
   scatterChart(plot, {
     points,
-    xLabel: 'Margin of safety vs base-case value — right of the line is below it, left is above it',
-    xLabelShort: 'Margin of safety vs base value',
+    xLabel: 'Difference to model estimate vs base-case value — right of the line is below it, left is above it',
+    xLabelShort: 'Difference to model estimate vs base-case model estimate',
     yLabel: `Quality percentile within ${cohortLabel} cohort`,
     yLabelShort: `Quality percentile (${cohortLabel})`,
     xFmt: v => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`,
@@ -5650,7 +5676,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   const drivers = driverImpact(r.c, r.d, r.inputs).slice(0, 3);
   const dl = el('div', { style: 'display:flex;flex-direction:column;gap:6px;margin-bottom:var(--md)' });
   drivers.forEach(d => dl.append(el('div', { class: 'evidence support' },
-    `${d.label} — a ${d.unit === 'pp' ? fmtNum(d.step, 2) + ' point' : d.unit} move changes the base value by about ${fmtNum(d.span, 1)}%.`)));
+    `${d.label} — a ${d.unit === 'pp' ? fmtNum(d.step, 2) + ' point' : d.unit} move changes the base-case model estimate by about ${fmtNum(d.span, 1)}%.`)));
   body.append(dl);
 
   /* Movement between the selected snapshot and today, so the slider answers
@@ -5661,7 +5687,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
     const dMos = (live.val.mos?.base ?? 0) - (r.val.mos?.base ?? 0);
     const dQ = live.scores.quality.score - r.q.score;
     const dPx = (live.c.px.p - (r.price ?? live.c.px.p)) / (r.price || 1) * 100;
-    [['Margin of safety', withSign(dMos, 1) + ' points'],
+    [['Difference to model estimate', withSign(dMos, 1) + ' points'],
      ['Quality score', withSign(dQ, 0, '')],
      ['Price', withSign(dPx, 1)]]
      .forEach(([k, v]) => { mv.append(el('dt', {}, k)); mv.append(el('dd', { class: signClass(parseFloat(v)) }, v)); });
@@ -5772,7 +5798,7 @@ function renderIdeas() {
         row.append(el('span', { class: 'spacer' }));
         row.append(sparkline(priceHistory(r.c)));
         row.append(el('span', { class: 'num', style: 'font-size:12.5px;font-weight:600;min-width:64px;text-align:right' }, fmtMoney(r.c.px.p, r.c.ccy)));
-        row.append(el('span', { class: 'num ' + signClass(r.val.mos?.base), style: 'font-size:12px;min-width:52px;text-align:right' }, withSign(r.val.mos?.base, 0)));
+        row.append(el('span', { class: 'num ' + diffClass(r.val.mos?.base), style: 'font-size:12px;min-width:52px;text-align:right' }, withSign(r.val.mos?.base, 0)));
         l.append(row);
       });
       card.append(l);
@@ -5811,7 +5837,7 @@ function openThemeDetail(t, members) {
   tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Quality'), el('th', {}, 'Yield'), el('th', {}, 'vs base')])));
   tab.append(el('tbody', {}, members.map(r => el('tr', {}, [
     el('td', { class: 'ident' }, r.c.tk), el('td', {}, String(r.scores.quality.score)),
-    el('td', {}, fmtPct(r.m.dy, 2)), el('td', { class: signClass(r.val.mos?.base) }, withSign(r.val.mos?.base, 0)),
+    el('td', {}, fmtPct(r.m.dy, 2)), el('td', { class: diffClass(r.val.mos?.base) }, withSign(r.val.mos?.base, 0)),
   ]))));
   tw.append(tab); body.append(tw);
 
@@ -5827,7 +5853,7 @@ const HEAT_MODES = [
   { id:'m1',  label:'1 month',      get:r => r.c.px.m1,  full:8,  fmt:v => withSign(v, 1) },
   { id:'m3',  label:'3 months',     get:r => r.c.px.m3,  full:15, fmt:v => withSign(v, 1) },
   { id:'m12', label:'12 months',    get:r => r.c.px.m12, full:35, fmt:v => withSign(v, 0) },
-  { id:'val', label:'vs base value',get:r => r.val.mos?.base, full:40, fmt:v => withSign(v, 0) },
+  { id:'val', label:'vs base-case model estimate',get:r => r.val.mos?.base, full:40, fmt:v => withSign(v, 0) },
   { id:'qual',label:'Quality score',get:r => r.scores.quality.score - 50, full:50, fmt:v => String(Math.round(v + 50)) },
 ];
 
@@ -6125,7 +6151,7 @@ VIEWS.research = () => {
         ? `End-of-day close from the price file you supplied${c.px.asOf ? ', as of ' + c.px.asOf : ''}. Delayed closes are sufficient for valuation, screening and portfolio work — nothing here needs real-time data.`
         : isNum(c.px?.p)
         ? 'This price was typed in by you. It is not market data, and every price-derived figure below inherits that.'
-        : 'SEC publishes filings, not prices. Valuation still computes a value per share; market capitalisation, multiples, yield and margin of safety cannot be computed without a price. Enter one to complete the picture.'));
+        : 'SEC publishes filings, not prices. Valuation still computes a value per share; market capitalisation, multiples, yield and difference to model estimate cannot be computed without a price. Enter one to complete the picture.'));
     rp.append(pr);
     head.append(rp);
   }
@@ -6261,11 +6287,40 @@ function tabSnapshot(r) {
       const p = el('div', { class: 'panel' });
       p.append(el('div', { class: 'stat-label' }, `${label} case`));
       p.append(el('div', { class: 'num', style: 'font-size:18px;font-weight:640;margin:2px 0' }, fmtMoney(v, c.ccy)));
-      p.append(el('div', { class: 'num ' + signClass(mos), style: 'font-size:12px;font-weight:580' },
+      p.append(el('div', { class: 'num ' + diffClass(mos), style: 'font-size:12px;font-weight:580' },
         isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
       g.append(p);
     });
     vr.append(g);
+
+    /* The required discount is the reader's, not the product's. This product
+       will not say a company is cheap; it will say whether the difference the
+       model produces clears the threshold you set, and that threshold starts
+       unset so nothing is implied by a default. */
+    const req = el('div', { style: 'margin-top:var(--lg);padding-top:var(--md);border-top:1px solid var(--line)' });
+    const cur = State.requiredDiscount;
+    const row = el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' });
+    row.append(el('label', { class: 'metaline', for: 'reqDisc', style: 'margin:0' },
+      'Discount you require before you would research further'));
+    row.append(el('input', { class: 'input input-inline', id: 'reqDisc', type: 'number', step: '5',
+      style: 'width:74px;text-align:right', placeholder: 'none', value: isNum(cur) ? String(cur) : '',
+      onchange: e => {
+        const v2 = e.target.value === '' ? null : num0(e.target.value);
+        State.requiredDiscount = v2; store.write('requiredDiscount', v2); render();
+      } }));
+    row.append(el('span', { class: 'metaline' }, '%'));
+    req.append(row);
+    if (isNum(cur) && isNum(val.mos?.base)) {
+      const meets = val.mos.base >= cur;
+      req.append(el('p', { class: 'body', style: 'margin-top:8px;font-size:12.5px' },
+        meets
+          ? `The base case sits ${withSign(val.mos.base, 0)} from the price, which clears the ${fmtPct(cur, 0)} you asked for. That is your rule applied to this model, not a view on the company.`
+          : `The base case sits ${withSign(val.mos.base, 0)} from the price, short of the ${fmtPct(cur, 0)} you asked for.`));
+    } else {
+      req.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+        'Left blank, nothing is judged against it. This product does not carry a default required discount, because that would be a recommendation wearing a number.'));
+    }
+    vr.append(req);
   }
   main.append(vr);
 
@@ -6321,9 +6376,9 @@ function tabSnapshot(r) {
       const tr = el('tr', p.c.id === c.id ? { style: 'background:color-mix(in srgb, var(--brand) 7%, transparent)' } : {});
       const td0 = el('td', { class: 'pin ident' }); td0.append(tickerCell(p)); tr.append(td0);
       const cells = isB ? [fmtPct(p.m.roe), fmtPct(p.m.cet1), fmtPct(p.m.npl, 2), fmtX(p.m.pb, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality)]
-                  : isR ? [fmtPct(p.m.occ), fmtPct(p.m.gearing), fmtX(p.m.pnav, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${signClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`]
+                  : isR ? [fmtPct(p.m.occ), fmtPct(p.m.gearing), fmtX(p.m.pnav, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`]
                         : [isNum(p.m.roic) ? fmtPct(p.m.roic) : NA, fmtPct(p.m.om), isNum(p.m.pe) ? fmtX(p.m.pe) : '<span class="caption">n/m</span>',
-                           isNum(p.m.fcfy) ? fmtPct(p.m.fcfy, 2) : NA, scorePill(p.scores.quality.score, p.pct.quality), `<span class="${signClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`];
+                           isNum(p.m.fcfy) ? fmtPct(p.m.fcfy, 2) : NA, scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`];
       cells.forEach(v => tr.append(el('td', { html: v })));
       tb2.append(tr);
     });
@@ -6815,7 +6870,7 @@ function tabFilings(r) {
       const imp = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
       const drivers = driverImpact(c, r.d, r.inputs).slice(0, 3);
       drivers.forEach(dr => imp.append(el('div', { class: 'evidence', style: 'font-size:12.5px' },
-        `${dr.label} is the ${drivers.indexOf(dr) === 0 ? 'largest' : 'next largest'} driver of the valuation range — a ${dr.unit === 'pp' ? fmtNum(dr.step, 2) + ' point' : dr.unit} change moves the base value about ${fmtNum(dr.span, 1)}%.`)));
+        `${dr.label} is the ${drivers.indexOf(dr) === 0 ? 'largest' : 'next largest'} driver of the valuation range — a ${dr.unit === 'pp' ? fmtNum(dr.step, 2) + ' point' : dr.unit} change moves the base-case model estimate about ${fmtNum(dr.span, 1)}%.`)));
       card.append(imp);
       card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
         'Uncertainty label: these are arithmetic consequences of the reported change, not a claim about what management will do next.'));
@@ -7103,7 +7158,7 @@ function studioOutputs(r, inputs, redraw) {
     const p = el('div', { class: 'panel' });
     p.append(el('div', { class: 'stat-label' }, `${label} case`));
     p.append(el('div', { class: 'num', style: 'font-size:19px;font-weight:650;margin:2px 0' }, fmtMoney(v, c.ccy)));
-    p.append(el('div', { class: 'num ' + signClass(mos), style: 'font-size:12px;font-weight:580' },
+    p.append(el('div', { class: 'num ' + diffClass(mos), style: 'font-size:12px;font-weight:580' },
         isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
     grid.append(p);
   });
@@ -7126,7 +7181,7 @@ function studioOutputs(r, inputs, redraw) {
   const drivers = driverImpact(c, d, inputs);
   const dr = el('div', { class: 'card' });
   dr.append(cardHead('Which assumptions actually move the answer',
-    'Each bar is the change in the base value per share when that one assumption is stepped up and down, holding the others fixed. Ranked by the size of the effect.'));
+    'Each bar is the change in the base-case model estimate per share when that one assumption is stepped up and down, holding the others fixed. Ranked by the size of the effect.'));
   const dh = el('div', { style: 'width:100%' });
   dr.append(dh);
   dr.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -7156,7 +7211,7 @@ function studioOutputs(r, inputs, redraw) {
 
   /* ---------- value bridge ---------- */
   const bridge = el('div', { class: 'card' });
-  bridge.append(cardHead('What makes up the base value',
+  bridge.append(cardHead('What makes up the base-case model estimate',
     'The composition of the value per share. It shows where the answer comes from — which is usually more useful than the answer.'));
   const bh = el('div', { style: 'width:100%' });
   bridge.append(bh);
@@ -7168,7 +7223,7 @@ function studioOutputs(r, inputs, redraw) {
       { short:'Terminal', label:'Present value of the terminal value', value:run.base.pvTerminal / sh3 },
       { short:'Net debt', label:'Less net debt', value:-run.base.netDebt / sh3 },
       ...(run.base.hold ? [{ short:'Holdco', label:`Less the ${run.base.hold}% holding-company discount`, value:-run.base.holdDiscount / sh3 }] : []),
-      { short:'Base', label:'Base value per share', value:run.vals.base, total:true },
+      { short:'Base', label:'Base-case model estimate per share', value:run.vals.base, total:true },
     ];
   } else if (inputs.model === 'scenario') {
     const sh4 = run.base.shares;
@@ -7178,27 +7233,27 @@ function studioOutputs(r, inputs, redraw) {
       { short:'Net debt', label:'Less net debt', value:-run.base.netDebt / sh4 },
       { short:'Dilution', label:`Effect of ${fmtPct(inputs.dilution)} annual share issuance over ${inputs.years} years`,
         value:run.vals.base - run.base.undilutedPerShare },
-      { short:'Base', label:'Base value per share', value:run.vals.base, total:true },
+      { short:'Base', label:'Base-case model estimate per share', value:run.vals.base, total:true },
     ];
   } else if (inputs.model === 'early') {
     steps = [
       { short:'Success', label:`Success case before dilution, at ${fmtPct(inputs.pSuccess, 0)} probability`, value:run.base.equity / run.base.shares },
       { short:'Dilution', label:`Less dilution from raising ${fmtCap(run.base.need, c.ccy)}`, value:run.base.successPerShare - run.base.equity / run.base.shares },
       { short:'Weighted', label:'Probability-weighted against the downside floor', value:run.vals.base - run.base.successPerShare },
-      { short:'Base', label:'Base value per share', value:run.vals.base, total:true },
+      { short:'Base', label:'Base-case model estimate per share', value:run.vals.base, total:true },
     ];
   } else if (inputs.model === 'insurer' || inputs.model === 'ri') {
     steps = [
       { short:'Book', label:'Book value per share', value:run.base.bvps },
       { short:'Excess', label:'Present value of returns above the cost of equity', value:run.base.riPremium },
-      { short:'Base', label:'Base value per share', value:run.vals.base, total:true },
+      { short:'Base', label:'Base-case model estimate per share', value:run.vals.base, total:true },
     ];
   } else {
     const noGrowth = inputs.dpu / (inputs.req / 100);
     steps = [
       { short:'Income', label:'Current distribution capitalised with no growth', value:noGrowth },
       { short:'Growth', label:'Value added by the distribution growth assumption', value:run.vals.base - noGrowth },
-      { short:'Base', label:'Base value per unit', value:run.vals.base, total:true },
+      { short:'Base', label:'Base-case model estimate per unit', value:run.vals.base, total:true },
     ];
   }
   bridge.append(tableTwin('Show the table view', ['Component', 'Per share'],
@@ -7257,7 +7312,7 @@ function studioOutputs(r, inputs, redraw) {
       el('td', { style: 'text-align:left;white-space:normal', class: 'ident' },
         x.why === 'Primary model for this company.' ? `${x.name} · primary` : x.name),
       el('td', { html: isNum(x.value) ? fmtMoney(x.value, c.ccy) : NA }),
-      el('td', { class: signClass(mos), html: isNum(mos) ? withSign(mos, 0) : '<span class="caption">—</span>' }),
+      el('td', { class: diffClass(mos), html: isNum(mos) ? withSign(mos, 0) : '<span class="caption">—</span>' }),
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:320px' }, x.why),
     ]);
   })));
@@ -7294,15 +7349,15 @@ function studioOutputs(r, inputs, redraw) {
     ? [['Justified price / book', fmtX(run.base.justifiedPB, 2)], ['Current price / book', fmtX(r.m.pb, 2)],
        ['ROE less cost of equity', `${withSign(run.base.spread, 1)} points`], ['Reported ROE', fmtPct(r.m.roe)]]
     : inputs.model === 'ddm'
-    ? [['Implied distribution yield at base value', fmtPct(run.base.impliedYield, 2)], ['Current distribution yield', fmtPct(r.m.dy, 2)],
+    ? [['Implied distribution yield at base-case model estimate', fmtPct(run.base.impliedYield, 2)], ['Current distribution yield', fmtPct(r.m.dy, 2)],
        ['Implied price / NAV', fmtX(run.base.pnav, 2)], ['Portfolio capitalisation rate', fmtPct(inputs.cap)]]
     : inputs.model === 'scenario'
-    ? [['Implied EV / revenue at base value', fmtX(run.base.ev / last(d.rev), 1)],
+    ? [['Implied EV / revenue at base-case model estimate', fmtX(run.base.ev / last(d.rev), 1)],
        ['Current EV / revenue', fmtX(r.m.ev / last(d.rev), 1)],
        ['Terminal-year revenue', fmtCap(run.base.terminalRevenue, c.ccy)],
        ['Base-case EV against terminal-year operating profit', fmtX(run.base.ev / (run.base.terminalRevenue * inputs.termMargin / 100), 1)],
        ['Revenue CAGR assumed vs last four years', `${fmtPct(inputs.revCagr)} vs ${isNum(r.m.rev5) ? fmtPct(r.m.rev5) : 'n/m'}`]]
-    : [['Implied EV / EBIT at base value', fmtX((run.base.ev) / last(d.ebit), 1)], ['Current EV / EBIT', isNum(r.m.evebit) ? fmtX(r.m.evebit) : 'n/a'],
+    : [['Implied EV / EBIT at base-case model estimate', fmtX((run.base.ev) / last(d.ebit), 1)], ['Current EV / EBIT', isNum(r.m.evebit) ? fmtX(r.m.evebit) : 'n/a'],
        ['Implied price / earnings', isNum(r.m.eps) && r.m.eps > 0 ? fmtX(run.vals.base / r.m.eps) : 'n/m'], ['Current free cash flow yield', fmtPct(r.m.fcfy, 2)]];
   crossRows.forEach(([k, v]) => { cross.append(el('dt', {}, k)); cross.append(el('dd', {}, v)); });
   notes.append(cross);
@@ -7392,14 +7447,14 @@ function seedTheses() {
         { type:'metric', k:'roe', op:'<', v:10, label:'Return on equity falls below 10%' },
         { type:'metric', k:'npl', op:'>', v:2.2, label:'Gross impaired loans rise above 2.2%' },
         { type:'metric', k:'cet1', op:'<', v:13.5, label:'CET1 falls below 13.5%' },
-        { type:'val', op:'>', v:15, label:'Price moves more than 15% above the base value' },
+        { type:'val', op:'>', v:15, label:'Price moves more than 15% above the base-case model estimate' },
       ],
       horizon:'3–5 years', review:'2026-10-30', conf:'Medium',
       questions:['How much of the margin improvement is structural rather than cyclical?', 'What is the through-cycle credit cost for the Indonesian book?'],
       created:'2026-05-14' },
     { id:'t2', ticker:'AXREIT', oneLine:'Industrial rent reversion is real, but unit issuance has been absorbing most of it — the test is distribution per unit, not total distributions.',
       quality:'Logistics demand supports positive reversion; the assets themselves are replicable, so the moat rating is deliberately low.',
-      valCase:'Distribution discount model on a 2% growth assumption against a required return near 8% leaves little margin of safety at the current unit price.',
+      valCase:'Distribution discount model on a 2% growth assumption against a required return near 8% leaves little difference to model estimate at the current unit price.',
       catalysts:['A full year without a placement', 'Occupancy recovering above 96%'],
       risks:['Continued unit issuance diluting distribution per unit', 'Gearing rising toward the ceiling'],
       conds:[
@@ -7422,7 +7477,7 @@ function evaluateThesis(t) {
   const breaches = [], ok = [];
   t.conds.forEach(cd => {
     let actual, label = cd.label;
-    if (cd.type === 'val') actual = -(r.val.mos?.base ?? 0);          /* premium to base value */
+    if (cd.type === 'val') actual = -(r.val.mos?.base ?? 0);          /* premium to base-case model estimate */
     else actual = r.m[cd.k];
     if (!isNum(actual)) { ok.push({ ...cd, actual: null, note: 'Input not available — condition cannot be evaluated, and is not treated as passing.' }); return; }
     const hit = cd.op === '<' ? actual < cd.v : actual > cd.v;
@@ -7438,7 +7493,7 @@ function addToThesis(id) {
   State.theses = [...State.theses, {
     id: 't' + Date.now(), ticker: id, oneLine: '', quality: '', valCase: '',
     catalysts: [], risks: r.flags.filter(f => f.sev !== 'good').slice(0, 2).map(f => f.title),
-    conds: [{ type:'val', op:'>', v:15, label:'Price moves more than 15% above the base value' }],
+    conds: [{ type:'val', op:'>', v:15, label:'Price moves more than 15% above the base-case model estimate' }],
     horizon: '3–5 years', review: '2026-10-30', conf: 'Low', questions: [],
     created: new Date().toISOString().slice(0, 10),
   }];
@@ -7944,7 +7999,7 @@ VIEWS.compare = () => {
     ...pack.rows,
     ['— Valuation —', null],
     ['Base-case model estimate', r => isNum(r.val.vals?.base) ? fmtMoney(r.val.vals.base, r.c.ccy) : NA],
-    ['Difference to price', r => isNum(r.val.mos?.base) ? `<span class="${signClass(r.val.mos.base)}">${withSign(r.val.mos.base, 0)}</span>` : NA],
+    ['Difference to price', r => isNum(r.val.mos?.base) ? `<span class="${diffClass(r.val.mos.base)}">${withSign(r.val.mos.base, 0)}</span>` : NA],
     ['Valuation confidence', r => r.val.confBand],
     ['— Scores —', null],
     ['Business Quality', r => scorePill(r.scores.quality.score, r.pct.quality)],
@@ -7995,8 +8050,8 @@ VIEWS.compare = () => {
       id:r.c.id, label:r.c.tk, name:r.c.name, x:r.val.mos.base, y:r.pct.quality ?? 50,
       size:toBase(r.m.mcap, r.c.ccy), capLabel:fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       model:r.val.pack.name, conf:r.val.confBand, varName:r.c.mkt === 'US' ? '--s1' : '--s2' })),
-    xLabel:'Margin of safety vs base-case value — right of the line is below it',
-    xLabelShort:'Margin of safety vs base value',
+    xLabel:'Difference to model estimate vs base-case value — right of the line is below it',
+    xLabelShort:'Difference to model estimate vs base-case model estimate',
     yLabel:'Quality percentile within market cohort',
     yLabelShort:'Quality percentile',
     xFmt:v => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`,
@@ -9200,7 +9255,7 @@ VIEWS.alerts = () => {
       sev:'good', kind:'screen', id:r.c.id,
       title:`${r.c.tk} is a new match for “${s.name}”`,
       what:`It did not clear this screen when the snapshot was taken on ${s.snapshot?.saved ?? s.asOf}.`,
-      detail:`Quality ${r.scores.quality.score}, Value ${r.scores.value.score}, ${withSign(r.val.mos?.base, 0)} vs base value.`,
+      detail:`Quality ${r.scores.quality.score}, Value ${r.scores.value.score}, ${withSign(r.val.mos?.base, 0)} vs base-case model estimate.`,
       source:`Screen saved ${s.snapshot?.saved ?? s.asOf} · ${s.snapshot?.model ?? s.model}`,
     }));
     diff.left.forEach(m => items.push({
@@ -10434,13 +10489,13 @@ VIEWS.property = () => {
   const dyRows = U.filter(x => x.c.mkt === 'MY' && x.m.dy > 3).sort((a, b) => b.m.dy - a.m.dy).slice(0, 5);
   const etw = el('div', { class: 'tablewrap' });
   const et = el('table', { class: 'dt' });
-  et.append(el('thead', {}, el('tr', {}, ['Bursa alternative', 'Gross yield', 'Net yield after withholding', 'Quality', 'vs base value'].map(h => el('th', {}, h)))));
+  et.append(el('thead', {}, el('tr', {}, ['Bursa alternative', 'Gross yield', 'Net yield after withholding', 'Quality', 'vs base-case model estimate'].map(h => el('th', {}, h)))));
   et.append(el('tbody', {}, dyRows.map(x => el('tr', {}, [
     el('td', { class: 'ident' }, `${x.c.tk} — ${x.c.name}`),
     el('td', {}, fmtPct(x.m.dy, 2)),
     el('td', {}, fmtPct(netYield(x.m.dy, x.c.mkt), 2)),
     el('td', { html: scorePill(x.scores.quality.score, x.pct.quality) }),
-    el('td', { class: signClass(x.val.mos?.base) }, withSign(x.val.mos?.base, 0)),
+    el('td', { class: diffClass(x.val.mos?.base) }, withSign(x.val.mos?.base, 0)),
   ]))));
   etw.append(et); eq2.append(etw);
   eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
