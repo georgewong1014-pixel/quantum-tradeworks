@@ -2232,6 +2232,22 @@ function derive(c) {
      genuinely cannot be computed. It is reported as missing, never imputed. */
   m.icov = null;
 
+  /* Net gearing — net debt against equity. Section 7.3 lists this separately
+     from debt/equity above, and they are not interchangeable: one nets off cash
+     and the other does not, so a cash-rich borrower looks levered on de and
+     unlevered here. Section 18.3 screens on this one. */
+  m.netGearing = isBank ? null : (eq[i] > 0 ? netDebt / eq[i] * 100 : null);
+
+  /* Years of positive operating cash flow in the last five — section 18.3 asks
+     for four of five. Counted over the years actually reported, so a company
+     with three years of history can never satisfy a five-year test by accident;
+     it reports how many were examined alongside how many passed. */
+  {
+    const w = ocf.slice(-5).filter(isNum);
+    m.ocfPosYears = w.length ? w.filter(v => v > 0).length : null;
+    m.ocfYearsSeen = w.length;
+  }
+
   /* --- capital allocation ------------------------------------------------ */
   const shCagr = cagr(sh);
   m.dilution = isNum(shCagr) ? shCagr : null;          /* +ve = issuing */
@@ -2344,6 +2360,8 @@ const PILLARS = {
     general: [
       { k:'ndEbit', w:.45, label:'Net debt / EBIT',        lo:0,  hi:5,  inv:true, fmt:v=>fmtX(v) },
       { k:'de',     w:.25, label:'Debt / equity',          lo:0,  hi:2.5,inv:true, fmt:v=>fmtX(v,2) },
+      { g:'Financial risk',        k:'netGearing', label:'Net gearing',                fmt:v=>fmtPct(v,0), formula:'(total debt − cash) ÷ shareholders’ equity', miss:'not applicable to a bank balance sheet', note:'Cash here is cash and equivalents only. A company holding short-term investments will look more indebted than it is.' },
+      { g:'Financial risk',        k:'ocfPosYears',label:'Years of positive operating cash flow', fmt:v=>`${fmtNum(v,0)} of 5`, formula:'count of the last five reported years with operating cash flow above zero' },
       { k:'fcfm',   w:.15, label:'Free cash flow margin',  lo:-5, hi:25, fmt:v=>fmtPct(v) },
       { k:'bv5',    w:.15, label:'Book value CAGR (4y)',   lo:-5, hi:18, fmt:v=>fmtPct(v) },
     ],
@@ -3023,6 +3041,19 @@ function addCompany(c) {
       { k:'fcfy',    w:.2, label:'Free cash flow yield',           raw:d.m.fcfy,      score:anchor(d.m.fcfy, 0, 9),        fmt:v=>fmtPct(v), lo:0, hi:9 },
       { k:'dy',      w:.2, label:'Dividend yield',                 raw:d.m.dy,        score:anchor(d.m.dy, 0, 6),          fmt:v=>fmtPct(v), lo:0, hi:6 },
     ] };
+
+  /* Section 18.1 screens on the composite scores and the difference to the
+     base-case model. Those are derived above, after the metric block has
+     already run, so they are attached to the same metric object rather than
+     recomputed — the screener then reaches them through the ordinary field
+     machinery instead of needing a parallel path. */
+  d.m.qscore  = isNum(scores.quality?.score) ? scores.quality.score : null;
+  d.m.vscore  = isNum(scores.value?.score)   ? scores.value.score   : null;
+  /* Already a percentage — the feed thresholds on `val.mos.base > 18` and
+     formats it with fmtPct. Scaling it again put the median model difference at
+     -769% and the maximum at 12,544%, and silently turned this screen's
+     20% floor into 0.2%. */
+  d.m.mosBase = isNum(val.mos?.base) ? val.mos.base : null;
 
   const row = { c, d, m: d.m, scores, val, inputs, flags, risk, discount };
   U.push(row);
@@ -4837,6 +4868,9 @@ const FIELDS = [
   { g:'Market and eligibility',k:'rs12',      label:'12-month price change',      fmt:v=>fmtPct(v),   formula:'price change over the trailing twelve months' },
   { g:'Market and eligibility',k:'from52',    label:'Distance from 52-week high', fmt:v=>fmtPct(v),   formula:'(price − 52-week high) ÷ 52-week high' },
   { g:'Market and eligibility',k:'sma200d',   label:'Distance from 200-day average', fmt:v=>fmtPct(v), formula:'(price − 200-day simple moving average) ÷ 200-day average', note:'Needs 200 observed closes. Computed from imported or captured history only.' },
+  { g:'Composite scores',      k:'qscore',     label:'Business quality score',     fmt:v=>fmtNum(v,0), formula:'weighted pillar score, 0–100' },
+  { g:'Composite scores',      k:'vscore',     label:'Valuation evidence score',   fmt:v=>fmtNum(v,0), formula:'weighted valuation score, 0–100' },
+  { g:'Composite scores',      k:'mosBase',    label:'Difference to base-case model', fmt:v=>fmtPct(v,0), formula:'(base-case model estimate − price) ÷ base-case estimate' },
   { g:'Market and eligibility',k:'mcap',      label:'Market capitalisation',      fmt:v=>fmtNum(v,1), formula:'price × shares in issue' },
 ];
 const FIELD_BY_K = Object.fromEntries(FIELDS.map(f => [f.k, f]));
@@ -4873,6 +4907,26 @@ State.requiredDiscount = store.read('requiredDiscount', null);
    exists not to make.
    ========================================================================== */
 const SCREEN_TEMPLATES = [
+  /* Section 18.1 of the migration specification, published under its own
+     identifier and version so a saved screen can be traced back to the rule set
+     it came from.
+
+     Four of its five rules are testable here. The fifth — no critical
+     governance flag — has no data behind it, because the governance register in
+     section 8 does not exist yet. Section 4.1 is explicit about what that means:
+     a hard gate whose input is missing produces manual review, never a pass. So
+     the rule is carried on the screen, shown to the reader, and excluded from
+     the filter rather than quietly dropped. A screen that tests four rules and
+     claims five is the failure this product exists to avoid. */
+  { id:'my_quality_reasonable_value_v1', name:'Quality at reasonable valuation', version:'1.0.0',
+    spec:'section 18.1',
+    why:'Business quality of 80 or better, valuation evidence of 60 or better, and a price at least 20% below the base-case model estimate — on companies with at least 80% data completeness.',
+    untestable:[{ rule:'governance_critical_flags == 0',
+      because:'No governance event register exists in this build, so the flag cannot be evaluated. Under section 4.1 an untested hard gate is manual review, not a pass — check governance yourself before treating a match as complete.' }],
+    apply: (s) => { s.minCoverage = 80;
+      s.crit = { qscore:{min:80}, vscore:{min:60}, mosBase:{min:20} };
+      s.cols = ['qscore','vscore','mosBase','roic','ndEbit','dy']; } },
+
   { id:'div-cover', name:'Dividend cash coverage',
     why:'Companies paying a dividend that free cash flow actually covers, rather than one funded from the balance sheet.',
     apply: (s) => { s.crit = { dy:{min:3}, cashPayout:{max:80}, fcfy:{min:0} }; s.cols = ['dy','cashPayout','fcfy','payout','ndEbit','roe']; } },
@@ -5087,6 +5141,21 @@ function renderScreener() {
   const failed = evald.filter(x => !x.ev.pass);
 
   const resCard = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
+
+  /* A published screen that cannot test one of its own rules says so here,
+     beside its results. Declaring it in the definition and not on the screen
+     would be the same omission with extra steps. */
+  const publishedScreen = SCREEN_TEMPLATES.find(t => t.id === State.appliedTemplate);
+  if (publishedScreen?.untestable?.length) {
+    resCard.append(el('div', { class: 'note', style: 'margin:0;border-radius:0;border-left:3px solid var(--warn)' }, [
+      el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
+        `${publishedScreen.name} (${publishedScreen.spec}, v${publishedScreen.version}) — ${publishedScreen.untestable.length} rule${publishedScreen.untestable.length > 1 ? 's' : ''} not evaluated`),
+      ...publishedScreen.untestable.map(u => el('p', { class: 'metaline', style: 'margin-top:4px' },
+        [el('code', {}, u.rule), ' — ', u.because].filter(Boolean))),
+      el('p', { class: 'metaline', style: 'margin-top:6px' },
+        'Matches below satisfy the rules that could be tested. They are not a complete pass of this screen.'),
+    ]));
+  }
 
   /* A filter on an observed-price field excludes every company that has no
      imported history, which can empty a screen entirely. Without this the

@@ -72,6 +72,21 @@ const LINES = [
   { key: 'cash',  taxonomy: 'us-gaap', kind: 'instant',  concepts: [
       'CashAndCashEquivalentsAtCarryingValue',
       'CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents' ] },
+  /* Current assets and liabilities were never pulled, so the current ratio —
+     a named test in sections 7.3 and 18.3 — could not be computed at all, and
+     the balance-sheet resilience screen could evaluate only two of its five
+     rules. Interest expense has the same problem: interest cover is listed
+     first in 18.3 and the metric was hard-null for want of the line.
+     Filers report these under several concepts and banks report none of them,
+     which is correct rather than missing — a bank has no operating cycle to
+     divide. */
+  { key: 'ca',    taxonomy: 'us-gaap', kind: 'instant',  concepts: [
+      'AssetsCurrent' ] },
+  { key: 'cl',    taxonomy: 'us-gaap', kind: 'instant',  concepts: [
+      'LiabilitiesCurrent' ] },
+  { key: 'intExp', taxonomy: 'us-gaap', kind: 'duration', concepts: [
+      'InterestExpense', 'InterestExpenseDebt',
+      'InterestIncomeExpenseNet', 'InterestExpenseNonoperating' ] },
   { key: 'sh',    taxonomy: 'us-gaap', kind: 'instant',  concepts: [
       'CommonStockSharesOutstanding', 'CommonStockSharesIssued' ], unit: 'shares' },
   { key: 'shWtd', taxonomy: 'us-gaap', kind: 'duration', concepts: [
