@@ -4752,6 +4752,8 @@ function blankScreen() {
 }
 State.screen = State.screen || blankScreen();
 State.density = store.read('density', 'comfortable');
+State.compareCcy = store.read('compareCcy', 'common');
+State.dividendsReceived = store.read('dividendsReceived', []);
 
 /* ==========================================================================
    SCREEN TEMPLATES
@@ -7828,35 +7830,121 @@ VIEWS.compare = () => {
   }
 
   /* peer table */
+  /* Currency, stated rather than assumed. A table mixing RM share prices with
+     $ market capitalisations is not wrong so much as unreadable — the reader
+     cannot tell which figures are comparable. Either everything sits in the
+     currency it trades in, or everything is converted at a rate shown on the
+     page. Share prices always stay local: converting a quoted price invents a
+     number no exchange ever printed. */
+  const showLocal = State.compareCcy === 'local';
+  const mixedCcy = new Set(rows.map(r => r.c.ccy)).size > 1;
+  const ccyBar = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  ccyBar.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
+    el('span', { class: 'metaline' }, 'Show totals in'),
+    el('div', { class: 'segmented' }, [
+      el('button', { 'aria-selected': !showLocal ? 'true' : 'false',
+        onclick: () => { State.compareCcy = 'common'; store.write('compareCcy', 'common'); render(); } },
+        `Common currency (${State.baseCcy})`),
+      el('button', { 'aria-selected': showLocal ? 'true' : 'false',
+        onclick: () => { State.compareCcy = 'local'; store.write('compareCcy', 'local'); render(); } },
+        'Local currency'),
+    ]),
+    mixedCcy && !showLocal
+      ? el('span', { class: FX.source === 'sample' ? 'chip chip-bronze' : 'chip' },
+          `USD/MYR ${FX.USDMYR.toFixed(4)} · ${FX.named || (FX.source === 'sample' ? 'indicative sample rate' : 'your price file')}${FX.asOf ? ' · ' + FX.asOf : ''}`)
+      : null,
+  ]));
+  ccyBar.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    showLocal
+      ? 'Each company is shown in the currency it trades in. Figures are not comparable across markets in this mode.'
+      : `Market capitalisations are converted to ${State.baseCcy} at the rate above. Share prices stay in the currency they trade in — a converted quote is a number no exchange printed.`));
+  if (mixedCcy) wrap.append(ccyBar);
+
+  /* ==== comparison packs =============================================== */
+  /* Which measures matter is decided by what the businesses are. A bank has no
+     meaningful free cash flow and a REIT has no meaningful EV/EBIT, so putting
+     either on a generic table produces a column of dashes that reads as missing
+     data rather than as an inapplicable question. The pack is chosen from the
+     selection: all banks gets the bank pack, all REITs the REIT pack, a mixed
+     set falls back to the measures that survive across every model. */
+  const kinds = [...new Set(rows.map(r => r.c.type))];
+  const allAre = (t) => rows.length > 0 && kinds.length === 1 && kinds[0] === t;
+
+  const PACKS = {
+    bank: { id:'bank', name:'Bank comparison',
+      why:'Deposit takers are compared on the return they earn on equity, the quality of their funding and their loan book — free cash flow and EV multiples are not meaningful for a bank balance sheet.',
+      rows: [
+        ['— Returns —', null],
+        ['Return on equity', r => fmtPct(r.m.roe)],
+        ['Net interest margin', r => isNum(r.c.bank?.nim) ? fmtPct(r.c.bank.nim, 2) : NA],
+        ['Cost-to-income', r => isNum(r.c.bank?.cir) ? fmtPct(r.c.bank.cir, 1) : NA],
+        ['— Funding and capital —', null],
+        ['CASA ratio', r => isNum(r.c.bank?.casa) ? fmtPct(r.c.bank.casa, 1) : NA],
+        ['Loan-to-deposit', r => isNum(r.c.bank?.ldr) ? fmtPct(r.c.bank.ldr, 1) : NA],
+        ['CET1 ratio', r => isNum(r.c.bank?.cet1) ? fmtPct(r.c.bank.cet1, 1) : NA],
+        ['— Asset quality —', null],
+        ['Gross impaired loans', r => isNum(r.c.bank?.npl) ? fmtPct(r.c.bank.npl, 2) : NA],
+        ['— Valuation and payout —', null],
+        ['Price / book', r => fmtX(r.m.pb, 2)],
+        ['Price / earnings', r => isNum(r.m.pe) ? fmtX(r.m.pe) : NA],
+        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        ['Payout ratio', r => isNum(r.m.payout) ? fmtPct(r.m.payout, 0) : NA],
+      ] },
+    reit: { id:'reit', name:'REIT comparison',
+      why:'Property trusts distribute most of what they earn, so the comparison is on the distribution, what backs it, and how much debt sits against the portfolio — not on earnings multiples.',
+      rows: [
+        ['— Distribution —', null],
+        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        ['Distribution growth (4y)', r => isNum(r.m.dps5) ? fmtPct(r.m.dps5) : NA],
+        ['Distribution cover', r => isNum(r.m.dpuCover) ? fmtPct(r.m.dpuCover, 0) : NA],
+        ['— Portfolio —', null],
+        ['Occupancy', r => isNum(r.c.reit?.occ) ? fmtPct(r.c.reit.occ, 1) : NA],
+        ['Weighted average lease expiry', r => isNum(r.c.reit?.wale) ? `${fmtNum(r.c.reit.wale, 1)} yrs` : NA],
+        ['Capitalisation rate', r => isNum(r.c.reit?.cap) ? fmtPct(r.c.reit.cap, 1) : NA],
+        ['— Leverage —', null],
+        ['Gearing', r => isNum(r.c.reit?.gearing) ? fmtPct(r.c.reit.gearing, 1) : NA],
+        ['Interest cover', r => isNum(r.m.icov) ? fmtX(r.m.icov) : NA],
+        ['— Valuation —', null],
+        ['Price / NAV', r => isNum(r.m.pnav) ? fmtX(r.m.pnav, 2) : fmtX(r.m.pb, 2)],
+      ] },
+    general: { id:'general', name:'Operating business comparison',
+      why:'Capital efficiency, margin, cash conversion and what the whole business costs including its debt.',
+      rows: [
+        ['— Returns —', null],
+        ['Return on invested capital', r => isNum(r.m.roic) ? fmtPct(r.m.roic) : NA],
+        ['Operating margin', r => fmtPct(r.m.om)],
+        ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA],
+        ['— Growth —', null],
+        ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : NA],
+        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : NA],
+        ['— Balance sheet —', null],
+        ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA],
+        ['— Valuation —', null],
+        ['EV / EBIT', r => isNum(r.m.evebit) ? fmtX(r.m.evebit) : NA],
+        ['Free cash flow yield', r => isNum(r.m.fcfy) ? fmtPct(r.m.fcfy, 2) : NA],
+        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+      ] },
+  };
+  const pack = allAre('bank') ? PACKS.bank : allAre('reit') ? PACKS.reit : PACKS.general;
+
+  const packNote = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  packNote.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+    el('span', { class: 'chip chip-brand' }, pack.name),
+    el('p', { class: 'body', style: 'flex:1 1 320px;font-size:12.5px;margin:0' }, pack.why),
+  ]));
+  if (pack.id === 'general' && kinds.length > 1) packNote.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `The selection mixes ${kinds.join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
+  wrap.append(packNote);
+
   const METRIC_ROWS = [
     ['Price', r => fmtMoney(r.c.px.p, r.c.ccy)],
-    ['Market capitalisation', r => fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)],
+    ['Market capitalisation', r => fmtCap(showLocal ? r.m.mcap : toBase(r.m.mcap, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy)],
     ['Business model', r => r.c.type],
     ['Model pack', r => r.val.pack.name],
-    ['— Quality —', null],
-    ['Return on invested capital', r => isNum(r.m.roic) ? fmtPct(r.m.roic) : NA],
-    ['Return on equity', r => fmtPct(r.m.roe)],
-    ['Operating margin', r => fmtPct(r.m.om)],
-    ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA],
-    ['— Growth —', null],
-    ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : '<span class="caption">n/m</span>'],
-    ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : '<span class="caption">n/m</span>'],
-    ['Dividend CAGR (4y)', r => isNum(r.m.dps5) ? fmtPct(r.m.dps5) : '<span class="caption">n/m</span>'],
-    ['— Balance sheet —', null],
-    ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA],
-    ['Debt / equity', r => isNum(r.m.de) ? fmtX(r.m.de, 2) : NA],
-    ['Interest cover', () => NA],
+    ...pack.rows,
     ['— Valuation —', null],
-    ['Price / earnings', r => isNum(r.m.pe) ? fmtX(r.m.pe) : '<span class="caption">n/m</span>'],
-    ['Price / book', r => fmtX(r.m.pb, 2)],
-    ['EV / EBIT', r => isNum(r.m.evebit) ? fmtX(r.m.evebit) : NA],
-    ['Dividend yield (gross)', r => fmtPct(r.m.dy, 2)],
-    ['Dividend yield (illustrative net)', r => {
-      const n = netYield(r.m.dy, r.c.mkt);
-      return isNum(n) ? `${fmtPct(n, 2)} <span class="caption">at ${State.wht[r.c.mkt] ?? 0}%</span>` : NA;
-    }],
-    ['Free cash flow yield', r => isNum(r.m.fcfy) ? fmtPct(r.m.fcfy, 2) : NA],
-    ['vs base-case value', r => `<span class="${signClass(r.val.mos?.base)}">${withSign(r.val.mos?.base, 1)}</span>`],
+    ['Base-case model estimate', r => isNum(r.val.vals?.base) ? fmtMoney(r.val.vals.base, r.c.ccy) : NA],
+    ['Difference to price', r => isNum(r.val.mos?.base) ? `<span class="${signClass(r.val.mos.base)}">${withSign(r.val.mos.base, 0)}</span>` : NA],
     ['Valuation confidence', r => r.val.confBand],
     ['— Scores —', null],
     ['Business Quality', r => scorePill(r.scores.quality.score, r.pct.quality)],
@@ -8096,11 +8184,88 @@ VIEWS.portfolio = () => {
   });
   wrap.append(ex);
 
-  /* ---------- dividend calculator ---------- */
+  /* ---------- income ---------- */
+  /* Four different things, kept apart. Money that has arrived, money declared
+     but not yet paid, a projection from the last declared rate, and that
+     projection after an illustrative withholding. Adding them together — or
+     showing a projection where a reader expects a record — is how a portfolio
+     page ends up reporting income nobody received. */
   const grossIncome = sum(pos.map(p => p.incomeBase));
   const netIncome = sum(pos.map(p => p.incomeBase * (1 - (State.wht[p.r.c.mkt] ?? 0) / 100)));
+  const received = (State.dividendsReceived || []).filter(x => pos.some(p => p.h.id === x.id));
+  const recTotal = sum(received.map(x => toBase(num0(x.amount), x.ccy || State.baseCcy)));
+  const yr = new Date().getFullYear();
+  const recYTD = sum(received.filter(x => String(x.date || '').startsWith(String(yr)))
+    .map(x => toBase(num0(x.amount), x.ccy || State.baseCcy)));
+
+  const inc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
+  inc.append(cardHead('Income',
+    'Received, declared, projected and after-withholding are four separate figures. They are never added together.'));
+  const ig2 = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
+  ig2.append(el('div', { class: 'panel' }, statTile('Dividends received', fmtAmount(recTotal, State.baseCcy),
+    { sub: received.length
+        ? received.length + ' payment' + (received.length === 1 ? '' : 's') + ' you recorded · ' + fmtAmount(recYTD, State.baseCcy) + ' in ' + yr
+        : 'Nothing recorded yet' })));
+  ig2.append(el('div', { class: 'panel' }, statTile('Declared but unpaid', 'not available',
+    { sub: 'Needs a corporate-actions feed. Bursa publishes none that is machine-readable, so this cannot be filled in honestly.' })));
+  ig2.append(el('div', { class: 'panel' }, statTile('Projected, annual', fmtAmount(grossIncome, State.baseCcy),
+    { sub: 'Latest declared rate repeated. Not a forecast.' })));
+  ig2.append(el('div', { class: 'panel' }, statTile('Projected after withholding', fmtAmount(netIncome, State.baseCcy),
+    { sub: 'Illustrative only — the rate that applies depends on your circumstances.' })));
+  inc.append(ig2);
+
+  const selH = el('select', { class: 'select select-sm', id: 'divHold', 'aria-label': 'Holding' });
+  pos.forEach(p2 => selH.append(el('option', { value: p2.h.id }, p2.r.c.tk + ' — ' + p2.r.c.name)));
+  const dDate = el('input', { class: 'input input-inline', type: 'date', id: 'divDate',
+    value: new Date().toISOString().slice(0, 10), 'aria-label': 'Payment date' });
+  const dAmt = el('input', { class: 'input input-inline', type: 'number', step: '0.01',
+    placeholder: 'amount', id: 'divAmt', 'aria-label': 'Amount received' });
+  const addRow = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:flex-end;margin-bottom:var(--md)' });
+  addRow.append(el('div', { class: 'field', style: 'margin:0' }, [el('label', { for: 'divHold' }, 'Record a payment'), selH]));
+  addRow.append(el('div', { class: 'field', style: 'margin:0' }, [el('label', { for: 'divDate' }, 'Date paid'), dDate]));
+  addRow.append(el('div', { class: 'field', style: 'margin:0' }, [el('label', { for: 'divAmt' }, 'Amount'), dAmt]));
+  addRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+    const amount = num0(dAmt.value);
+    if (!(amount > 0)) { toast('Enter the amount that was actually paid'); return; }
+    const hold = pos.find(p2 => p2.h.id === selH.value);
+    State.dividendsReceived = [...(State.dividendsReceived || []),
+      { id: selH.value, date: dDate.value, amount, ccy: (hold && hold.r.c.ccy) || State.baseCcy }];
+    store.write('dividendsReceived', State.dividendsReceived);
+    render();
+  } }, 'Add'));
+  if (pos.length) inc.append(addRow);
+
+  /* Built from payments actually recorded, not from projected ex-dates. This
+     dataset carries no dividend dates, and a calendar of invented ones would be
+     fiction with a grid around it. */
+  if (received.length) {
+    const byMonth = {};
+    received.forEach(x => {
+      const k = String(x.date || '').slice(0, 7) || 'undated';
+      byMonth[k] = (byMonth[k] || 0) + toBase(num0(x.amount), x.ccy || State.baseCcy);
+    });
+    const cal = el('div', { class: 'tablewrap' });
+    const ct = el('table', { class: 'dt' });
+    ct.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Month'), el('th', { class: 'num' }, 'Received'), el('th', {}, 'Holdings')])));
+    ct.append(el('tbody', {}, Object.keys(byMonth).sort().map(mo => el('tr', {}, [
+      el('td', {}, mo),
+      el('td', { class: 'num' }, fmtAmount(byMonth[mo], State.baseCcy)),
+      el('td', { class: 'metaline' }, received.filter(x => String(x.date || '').startsWith(mo))
+        .map(x => { const b = BY_ID.get(x.id); return b ? b.c.tk : null; }).filter(Boolean).join(', ')),
+    ]))));
+    cal.append(ct);
+    inc.append(el('p', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Payments recorded, by month'));
+    inc.append(cal);
+    inc.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:8px', onclick: () => {
+      if (!confirm('Remove every recorded dividend payment? This cannot be undone.')) return;
+      State.dividendsReceived = []; store.write('dividendsReceived', []); render();
+    } }, 'Clear recorded payments'));
+  }
+  wrap.append(inc);
+
+  /* ---------- dividend projection ---------- */
   const dc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
-  dc.append(cardHead('Dividend calculator',
+  dc.append(cardHead('How the projection is built',
     'Projected income from the current holdings at the latest declared dividend per share. It assumes the distribution is repeated — it is a projection from reported history, not a forecast, and a cut or a special dividend would change it.'));
   const dg = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
   dg.append(el('div', { class: 'panel' }, statTile('Gross income, annual', fmtAmount(grossIncome, State.baseCcy),
