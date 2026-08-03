@@ -438,6 +438,22 @@ body[data-surface="public"] .disclosure-long { display: none; }
 /* The screener renders both a table and a card list; the viewport decides
    which is shown. Cards below 768px, table above — a wide table on a phone
    either overflows or shrinks the type past reading size. */
+/* A cell whose source can be opened. The affordance is deliberately quiet —
+   every metric cell has it, so a loud one would make the table unreadable. */
+.cell-sourced { cursor: pointer; position: relative; }
+.cell-sourced:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.cell-sourced:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.cell-sourced::after {
+  content: ''; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 3px; border-radius: 50%; background: var(--ink-3); opacity: 0;
+  transition: opacity 160ms ease;
+}
+.cell-sourced:hover::after { opacity: .5; }
+
+/* Density. Comfortable is the default; compact fits roughly a third more rows
+   on screen for someone scanning a long result set. */
+.dt[data-density="compact"] td, .dt[data-density="compact"] th { padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
+
 .screener-cards { display: none; }
 .screener-card { display: block; text-decoration: none; color: inherit; padding: 12px 14px; }
 .screener-card + .screener-card { margin-top: 8px; }
@@ -4393,7 +4409,7 @@ VIEWS.home = () => {
   const hr = el('div', { class: 'row', style: 'gap:8px' });
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openDashboardCustomiser(), html: `${icon('grid')} Customise` }));
-  hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Value Radar` }));
+  hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
   hd.append(hr);
   wrap.append(hd);
 
@@ -4583,7 +4599,9 @@ VIEWS.home = () => {
   const CARDS = { feed: feedCard, watchlist: wl };
 
   const disc = el('div', { class: 'card' });
-  disc.append(cardHead('Largest gaps to base case',
+  disc.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
+    'A large difference indicates model sensitivity or disagreement. It is not a recommendation.'));
+  disc.append(cardHead('Largest differences between market price and model estimate',
     'An arithmetic sort of the universe by the distance between price and the modelled base case, restricted to Medium confidence or better. A sort, not a selection — the order carries no view about which company is worth owning.'));
   const top = U.filter(r => r.val.mos && r.val.confBand !== 'Low').sort((a, b) => b.val.mos.base - a.val.mos.base).slice(0, 5);
   const dl = el('div', { style: 'display:flex;flex-direction:column' });
@@ -4630,7 +4648,7 @@ const DASH_CARDS = [
   { k:'context',   label:'Market context strip', col:'top'  },
   { k:'feed',      label:'What changed',         col:'main' },
   { k:'watchlist', label:'Watchlist',            col:'rail' },
-  { k:'discounts', label:'Largest gaps to base case', col:'rail' },
+  { k:'discounts', label:'Largest differences between price and model estimate', col:'rail' },
   { k:'loop',      label:'The research loop',    col:'rail' },
 ];
 State.dash = store.read('dash', null) || DASH_CARDS.map(c => ({ k: c.k, col: c.col, visible: true }));
@@ -4678,42 +4696,42 @@ function openDashboardCustomiser() {
 
 const DISCOVER_TABS = [
   { id:'screener', label:'Stock Screener' },
-  { id:'radar',    label:'Value Radar' },
-  { id:'ideas',    label:'Research screens' },
+  { id:'radar',    label:'Quality vs Value Map' },
+  { id:'ideas',    label:'Screening Strategies' },
   { id:'heatmap',  label:'Heatmap' },
 ];
 
 /* --------------------------------------------------------------- screener */
 /* Every field publishes its formula, period and missing-data behaviour. */
 const FIELDS = [
-  { g:'Quality',        k:'roic',      label:'Return on invested capital', fmt:v=>fmtPct(v),   formula:'EBIT × (1 − tax rate) ÷ (equity + debt − cash)', miss:'Not meaningful for banks — excluded rather than imputed.' },
-  { g:'Quality',        k:'om',        label:'Operating margin',           fmt:v=>fmtPct(v),   formula:'EBIT ÷ revenue' },
-  { g:'Quality',        k:'fcfm',      label:'Free cash flow margin',      fmt:v=>fmtPct(v),   formula:'(operating cash flow − capex) ÷ revenue', miss:'Not computed for banks.' },
-  { g:'Quality',        k:'roe',       label:'Return on equity',           fmt:v=>fmtPct(v),   formula:'net income ÷ average shareholders’ equity' },
-  { g:'Quality',        k:'cashconv',  label:'Cash conversion',            fmt:v=>fmtPct(v,0), formula:'operating cash flow ÷ net income' },
-  { g:'Growth',         k:'rev5',      label:'Revenue CAGR (4y)',          fmt:v=>fmtPct(v),   formula:'(latest ÷ earliest)^(1/n) − 1', miss:'Null when the base period is non-positive.' },
-  { g:'Growth',         k:'eps5',      label:'Earnings CAGR (4y)',         fmt:v=>fmtPct(v),   formula:'compound growth of earnings per share' },
-  { g:'Growth',         k:'fcf5',      label:'Free cash flow CAGR (4y)',   fmt:v=>fmtPct(v),   formula:'compound growth of free cash flow' },
-  { g:'Growth',         k:'dps5',      label:'Dividend CAGR (4y)',         fmt:v=>fmtPct(v),   formula:'compound growth of dividend per share' },
-  { g:'Balance sheet',  k:'ndEbit',    label:'Net debt / EBIT',            fmt:v=>fmtX(v),     formula:'(debt − cash) ÷ EBIT', miss:'Not applicable to banks.' },
-  { g:'Balance sheet',  k:'de',        label:'Debt / equity',              fmt:v=>fmtX(v,2),   formula:'total debt ÷ shareholders’ equity' },
-  { g:'Balance sheet',  k:'icov',      label:'Interest cover',             fmt:v=>fmtX(v),     formula:'EBIT ÷ net interest expense', miss:'Interest expense is not a line in this sample dataset — reported missing, never estimated.' },
-  { g:'Valuation',      k:'pe',        label:'Price / earnings',           fmt:v=>fmtX(v),     formula:'price ÷ earnings per share', miss:'Null when earnings are negative.' },
-  { g:'Valuation',      k:'pb',        label:'Price / book',               fmt:v=>fmtX(v,2),   formula:'price ÷ book value per share' },
-  { g:'Valuation',      k:'evebit',    label:'EV / EBIT',                  fmt:v=>fmtX(v),     formula:'(market cap + net debt) ÷ EBIT', miss:'Enterprise value is not meaningful for banks.' },
-  { g:'Valuation',      k:'pfcf',      label:'Price / free cash flow',     fmt:v=>fmtX(v),     formula:'price ÷ free cash flow per share' },
-  { g:'Valuation',      k:'dy',        label:'Dividend yield',             fmt:v=>fmtPct(v,2), formula:'dividend per share ÷ price' },
-  { g:'Valuation',      k:'fcfy',      label:'Free cash flow yield',       fmt:v=>fmtPct(v,2), formula:'free cash flow ÷ market capitalisation' },
-  { g:'Capital allocation', k:'buyback', label:'Net buyback yield',        fmt:v=>fmtPct(v,2), formula:'negative of the share-count CAGR' },
-  { g:'Capital allocation', k:'payout',  label:'Payout ratio',             fmt:v=>fmtPct(v,0), formula:'dividend per share ÷ earnings per share' },
-  { g:'Capital allocation', k:'cashPayout', label:'Dividend as % of FCF',  fmt:v=>fmtPct(v,0), formula:'total dividends paid ÷ free cash flow' },
-  { g:'Capital allocation', k:'reinv',   label:'Reinvestment rate',        fmt:v=>fmtPct(v,0), formula:'capex ÷ operating cash flow' },
-  { g:'Risk',           k:'epsVol',    label:'Earnings variability',       fmt:v=>fmtNum(v),   formula:'standard deviation of year-on-year net income growth' },
-  { g:'Risk',           k:'revDD',     label:'Revenue drawdown',           fmt:v=>fmtPct(v,0), formula:'largest peak-to-trough fall in revenue' },
-  { g:'Risk',           k:'dilution',  label:'Share count growth',         fmt:v=>fmtPct(v,2), formula:'CAGR of shares in issue' },
-  { g:'Market',         k:'rs12',      label:'12-month price change',      fmt:v=>fmtPct(v),   formula:'price change over the trailing twelve months' },
-  { g:'Market',         k:'from52',    label:'Distance from 52-week high', fmt:v=>fmtPct(v),   formula:'(price − 52-week high) ÷ 52-week high' },
-  { g:'Market',         k:'mcap',      label:'Market capitalisation',      fmt:v=>fmtNum(v,1), formula:'price × shares in issue' },
+  { g:'Business quality',      k:'roic',      label:'Return on invested capital', fmt:v=>fmtPct(v),   formula:'EBIT × (1 − tax rate) ÷ (equity + debt − cash)', miss:'Not meaningful for banks — excluded rather than imputed.' },
+  { g:'Business quality',      k:'om',        label:'Operating margin',           fmt:v=>fmtPct(v),   formula:'EBIT ÷ revenue' },
+  { g:'Business quality',      k:'fcfm',      label:'Free cash flow margin',      fmt:v=>fmtPct(v),   formula:'(operating cash flow − capex) ÷ revenue', miss:'Not computed for banks.' },
+  { g:'Business quality',      k:'roe',       label:'Return on equity',           fmt:v=>fmtPct(v),   formula:'net income ÷ average shareholders’ equity' },
+  { g:'Business quality',      k:'cashconv',  label:'Cash conversion',            fmt:v=>fmtPct(v,0), formula:'operating cash flow ÷ net income' },
+  { g:'Growth and profitability', k:'rev5',      label:'Revenue CAGR (4y)',          fmt:v=>fmtPct(v),   formula:'(latest ÷ earliest)^(1/n) − 1', miss:'Null when the base period is non-positive.' },
+  { g:'Growth and profitability', k:'eps5',      label:'Earnings CAGR (4y)',         fmt:v=>fmtPct(v),   formula:'compound growth of earnings per share' },
+  { g:'Growth and profitability', k:'fcf5',      label:'Free cash flow CAGR (4y)',   fmt:v=>fmtPct(v),   formula:'compound growth of free cash flow' },
+  { g:'Growth and profitability', k:'dps5',      label:'Dividend CAGR (4y)',         fmt:v=>fmtPct(v),   formula:'compound growth of dividend per share' },
+  { g:'Financial risk',        k:'ndEbit',    label:'Net debt / EBIT',            fmt:v=>fmtX(v),     formula:'(debt − cash) ÷ EBIT', miss:'Not applicable to banks.' },
+  { g:'Financial risk',        k:'de',        label:'Debt / equity',              fmt:v=>fmtX(v,2),   formula:'total debt ÷ shareholders’ equity' },
+  { g:'Financial risk',        k:'icov',      label:'Interest cover',             fmt:v=>fmtX(v),     formula:'EBIT ÷ net interest expense', miss:'Interest expense is not a line in this sample dataset — reported missing, never estimated.' },
+  { g:'Valuation and income',  k:'pe',        label:'Price / earnings',           fmt:v=>fmtX(v),     formula:'price ÷ earnings per share', miss:'Null when earnings are negative.' },
+  { g:'Valuation and income',  k:'pb',        label:'Price / book',               fmt:v=>fmtX(v,2),   formula:'price ÷ book value per share' },
+  { g:'Valuation and income',  k:'evebit',    label:'EV / EBIT',                  fmt:v=>fmtX(v),     formula:'(market cap + net debt) ÷ EBIT', miss:'Enterprise value is not meaningful for banks.' },
+  { g:'Valuation and income',  k:'pfcf',      label:'Price / free cash flow',     fmt:v=>fmtX(v),     formula:'price ÷ free cash flow per share' },
+  { g:'Valuation and income',  k:'dy',        label:'Dividend yield',             fmt:v=>fmtPct(v,2), formula:'dividend per share ÷ price' },
+  { g:'Valuation and income',  k:'fcfy',      label:'Free cash flow yield',       fmt:v=>fmtPct(v,2), formula:'free cash flow ÷ market capitalisation' },
+  { g:'Valuation and income',  k:'buyback', label:'Net buyback yield',        fmt:v=>fmtPct(v,2), formula:'negative of the share-count CAGR' },
+  { g:'Valuation and income',  k:'payout',  label:'Payout ratio',             fmt:v=>fmtPct(v,0), formula:'dividend per share ÷ earnings per share' },
+  { g:'Valuation and income',  k:'cashPayout', label:'Dividend as % of FCF',  fmt:v=>fmtPct(v,0), formula:'total dividends paid ÷ free cash flow' },
+  { g:'Valuation and income',  k:'reinv',   label:'Reinvestment rate',        fmt:v=>fmtPct(v,0), formula:'capex ÷ operating cash flow' },
+  { g:'Financial risk',        k:'epsVol',    label:'Earnings variability',       fmt:v=>fmtNum(v),   formula:'standard deviation of year-on-year net income growth' },
+  { g:'Financial risk',        k:'revDD',     label:'Revenue drawdown',           fmt:v=>fmtPct(v,0), formula:'largest peak-to-trough fall in revenue' },
+  { g:'Financial risk',        k:'dilution',  label:'Share count growth',         fmt:v=>fmtPct(v,2), formula:'CAGR of shares in issue' },
+  { g:'Market and eligibility',k:'rs12',      label:'12-month price change',      fmt:v=>fmtPct(v),   formula:'price change over the trailing twelve months' },
+  { g:'Market and eligibility',k:'from52',    label:'Distance from 52-week high', fmt:v=>fmtPct(v),   formula:'(price − 52-week high) ÷ 52-week high' },
+  { g:'Market and eligibility',k:'mcap',      label:'Market capitalisation',      fmt:v=>fmtNum(v,1), formula:'price × shares in issue' },
 ];
 const FIELD_BY_K = Object.fromEntries(FIELDS.map(f => [f.k, f]));
 const FIELD_GROUPS = [...new Set(FIELDS.map(f => f.g))];
@@ -4733,6 +4751,55 @@ function blankScreen() {
            cols:['roic','om','pe','dy','fcfy','ndEbit'], sort:{ k:'quality', dir:-1 } };
 }
 State.screen = State.screen || blankScreen();
+State.density = store.read('density', 'comfortable');
+
+/* ==========================================================================
+   SCREEN TEMPLATES
+
+   Starting points, not selections. Each one loads into the screener as an
+   ordinary set of thresholds you can then change — nothing is hidden behind a
+   name, and the name says what the screen tests rather than what the result
+   is worth. None is called "best", "top picks" or "buy now", because a screen
+   is a filter and calling its output a pick is the exact move this product
+   exists not to make.
+   ========================================================================== */
+const SCREEN_TEMPLATES = [
+  { id:'div-cover', name:'Dividend cash coverage',
+    why:'Companies paying a dividend that free cash flow actually covers, rather than one funded from the balance sheet.',
+    apply: (s) => { s.crit = { dy:{min:3}, cashPayout:{max:80}, fcfy:{min:0} }; s.cols = ['dy','cashPayout','fcfy','payout','ndEbit','roe']; } },
+  { id:'consistent', name:'Consistent profitability',
+    why:'A steady operating record rather than one good year — low earnings variability and no deep revenue drawdown.',
+    apply: (s) => { s.crit = { om:{min:8}, epsVol:{max:25}, revDD:{max:20} }; s.cols = ['om','epsVol','revDD','roic','rev5','fcfm']; } },
+  { id:'conservative', name:'Conservative balance sheet',
+    why:'Low borrowings against operating profit, with interest comfortably covered.',
+    apply: (s) => { s.crit = { ndEbit:{max:1.5}, de:{max:0.6}, icov:{min:6} }; s.cols = ['ndEbit','de','icov','roic','om','fcfy']; } },
+  { id:'my-banks', name:'Malaysian banks',
+    why:'Bursa-listed deposit takers, shown on the measures that fit a bank balance sheet rather than on free cash flow.',
+    apply: (s) => { s.universe='MY'; s.types=['bank']; s.crit = { roe:{min:8} }; s.cols = ['roe','pb','dy','payout','eps5','pe']; } },
+  { id:'my-reits', name:'Malaysian REITs',
+    why:'Bursa-listed property trusts, on distribution and gearing rather than earnings multiples.',
+    apply: (s) => { s.universe='MY'; s.types=['reit']; s.crit = { dy:{min:4} }; s.cols = ['dy','pb','payout','de','dps5','pe']; } },
+  { id:'plantation', name:'Plantation cycle watch',
+    why:'Palm oil and agriculture, where margin swings with the commodity. Read the drawdown and the balance sheet before the multiple.',
+    apply: (s) => { s.universe='MY'; s.sectors=['Consumer Staples','Materials']; s.crit = { revDD:{min:10}, ndEbit:{max:3} }; s.cols = ['om','revDD','ndEbit','roic','pe','dy']; } },
+  { id:'infra', name:'Construction and infrastructure',
+    why:'Contract-driven businesses, where order-book visibility and gearing matter more than a single year of earnings.',
+    apply: (s) => { s.universe='MY'; s.sectors=['Industrials','Utilities']; s.crit = { ndEbit:{max:4}, icov:{min:3} }; s.cols = ['ndEbit','icov','om','rev5','roic','pe']; } },
+  { id:'shariah', name:'Shariah-compliant universe',
+    why:'Only companies flagged Shariah-compliant in this dataset. The flag is carried from the source, not assessed here.',
+    apply: (s) => { s.universe='MY'; s.local = { ...s.local, shariahOnly:true }; s.cols = ['roic','om','ndEbit','dy','pe','fcfy']; } },
+  { id:'no-pn17', name:'Excluding PN17 and GN3',
+    why:'Removes companies under Bursa financial-distress classifications. This is an exclusion, not an endorsement of what remains.',
+    apply: (s) => { s.universe='MY'; s.local = { ...s.local, excludePn17:true }; s.cols = ['roic','ndEbit','icov','om','dy','pe']; } },
+];
+
+function applyTemplate(t) {
+  const s = blankScreen();
+  t.apply(s);
+  State.screen = s;
+  State.appliedTemplate = t.id;
+  render();
+}
 
 /* Returns { pass, fails:[reason] } for one company — the "explain exclusion" data. */
 function evaluateScreen(row, sc) {
@@ -4788,11 +4855,30 @@ function renderScreener() {
 
   const railBody = el('div', { style: 'padding:var(--md);max-height:min(70vh,760px);overflow-y:auto' });
 
+  /* Templates first: a starting point beats an empty form, and each one states
+     what it tests rather than what the result is worth. */
+  const tpl = el('details', { style: 'margin-bottom:var(--md)' });
+  tpl.append(el('summary', { style: 'cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:4px 0' },
+    'Start from a template'));
+  const tplList = el('div', { style: 'display:grid;gap:6px;margin-top:8px' });
+  SCREEN_TEMPLATES.forEach(t => {
+    const b = el('button', { class: 'ob-option', style: 'padding:9px 11px',
+      'aria-pressed': State.appliedTemplate === t.id ? 'true' : 'false',
+      onclick: () => applyTemplate(t) });
+    b.append(el('div', { class: 'ob-option-t', style: 'font-size:12.5px' }, t.name));
+    b.append(el('div', { class: 'ob-option-n' }, t.why));
+    tplList.append(b);
+  });
+  tpl.append(tplList);
+  tpl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'A template only sets thresholds. Every one is visible above and yours to change.'));
+  railBody.append(tpl);
+
   /* universe */
   const uni = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   uni.append(el('label', { for: 'uniSel' }, 'Universe'));
   const uniSel = el('select', { class: 'select', id: 'uniSel', onchange: e => { sc.universe = e.target.value; render(); } });
-  [['all', `All markets (${U.length})`], ['US', 'United States'], ['MY', 'Bursa Malaysia'], ['watchlist', 'My watchlist']]
+  [['all', `All markets (${U.length})`], ['US', 'United States'], ['MY', 'Bursa Malaysia'], ['watchlist', 'Only companies I follow']]
     .forEach(([v, l]) => uniSel.append(el('option', { value: v, selected: sc.universe === v ? '' : null }, l)));
   uni.append(uniSel);
   railBody.append(uni);
@@ -4828,29 +4914,54 @@ function renderScreener() {
   bm.append(bmRow);
   railBody.append(bm);
 
+  /* Six filters are visible; the rest are behind Advanced. Twenty-six numeric
+     thresholds presented at once is a wall, and the six below are the ones that
+     answer "is this worth opening" — how well it earns, how much it owes, what
+     it costs and what it pays. */
+  const PRIMARY = ['roic', 'roe', 'ndEbit', 'pe', 'dy'];
+  const primaryFields = FIELDS.filter(f => PRIMARY.includes(f.k));
+
+  const critRow = (f) => {
+    const c = sc.crit[f.k] || {};
+    const row = el('div', { style: 'display:grid;grid-template-columns:1fr 62px 62px;gap:6px;align-items:center;padding:3px 0' });
+    row.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'justify-content:flex-start;padding:0;font-size:12px;text-align:left',
+      title: f.formula, onclick: () => openMetricInfo(f) }, f.label));
+    ['min', 'max'].forEach(side => {
+      row.append(el('input', { class: 'input input-inline', type: 'number', placeholder: side, value: c[side] ?? '',
+        'aria-label': `${f.label} ${side}`,
+        onchange: e => {
+          sc.crit[f.k] = { ...(sc.crit[f.k] || {}), [side]: e.target.value === '' ? null : +e.target.value };
+          render();
+        } }));
+    });
+    return row;
+  };
+
+  const prim = el('div', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
+  prim.append(el('p', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Main filters'));
+  primaryFields.forEach(f => prim.append(critRow(f)));
+  railBody.append(prim);
+
+  const adv = el('details', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
+  const advActive = FIELDS.filter(f => !PRIMARY.includes(f.k) && sc.crit[f.k]
+    && (sc.crit[f.k].min != null || sc.crit[f.k].max != null)).length;
+  adv.append(el('summary', { style: 'cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:4px 0' },
+    el('span', { class: 'row' }, ['Advanced filters',
+      advActive ? el('span', { class: 'chip chip-brand', style: 'margin-left:auto' }, String(advActive)) : null])));
+  if (advActive) adv.setAttribute('open', '');
+  railBody.append(adv);
+
   /* metric families */
   FIELD_GROUPS.forEach(g => {
-    const det = el('details', { style: 'border-top:1px solid var(--grid);padding:8px 0', open: ['Quality', 'Valuation'].includes(g) ? '' : null });
-    const activeCount = FIELDS.filter(f => f.g === g && sc.crit[f.k] && (sc.crit[f.k].min != null || sc.crit[f.k].max != null)).length;
-    det.append(el('summary', { style: 'cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:4px 0;list-style:none' },
-      el('span', { class: 'row' }, [g, activeCount ? el('span', { class: 'chip chip-brand', style: 'margin-left:auto' }, String(activeCount)) : el('span', { class: 'spacer' })])));
-    FIELDS.filter(f => f.g === g).forEach(f => {
-      const c = sc.crit[f.k] || {};
-      const row = el('div', { style: 'display:grid;grid-template-columns:1fr 62px 62px;gap:6px;align-items:center;padding:4px 0' });
-      const lbl = el('button', { class: 'btn btn-quiet btn-sm', style: 'justify-content:flex-start;padding:0;font-size:11.5px;font-weight:480;color:var(--ink-2);text-align:left;min-height:24px',
-        title: `${f.formula}`, onclick: () => openMetricInfo(f) }, f.label);
-      row.append(lbl);
-      ['min', 'max'].forEach(side => {
-        row.append(el('input', { class: 'input input-inline', type: 'number', placeholder: side, value: c[side] ?? '',
-          'aria-label': `${f.label} ${side}`,
-          onchange: e => {
-            sc.crit[f.k] = { ...(sc.crit[f.k] || {}), [side]: e.target.value === '' ? null : +e.target.value };
-            render();
-          } }));
-      });
-      det.append(row);
-    });
-    railBody.append(det);
+    const groupFields = FIELDS.filter(f => f.g === g && !PRIMARY.includes(f.k));
+    if (!groupFields.length) return;
+    const det = el('details', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
+    const activeCount = groupFields.filter(f => sc.crit[f.k] && (sc.crit[f.k].min != null || sc.crit[f.k].max != null)).length;
+    det.append(el('summary', { style: 'cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:4px 0' },
+      el('span', { class: 'row' }, [g, activeCount ? el('span', { class: 'chip chip-brand', style: 'margin-left:auto' }, String(activeCount)) : null])));
+    if (activeCount) det.setAttribute('open', '');
+    groupFields.forEach(f => det.append(critRow(f)));
+    adv.append(det);
   });
   rail.append(railBody);
 
@@ -4867,6 +4978,37 @@ function renderScreener() {
   const failed = evald.filter(x => !x.ev.pass);
 
   const resCard = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
+
+  /* Active filters, above the results, each removable where it stands. A screen
+     that returns four companies is meaningless unless what produced it is
+     visible — otherwise the reader cannot tell a strict screen from an empty
+     universe. */
+  const activeChips = el('div', { class: 'row row-wrap', style: 'gap:6px;padding:10px var(--lg);border-bottom:1px solid var(--line)' });
+  const active = [];
+  if (sc.universe !== 'all') active.push({ label: `Universe: ${
+    { US:'United States', MY:'Bursa Malaysia', watchlist:'Only companies I follow' }[sc.universe] || sc.universe }`,
+    clear: () => { sc.universe = 'all'; } });
+  if (sc.minCoverage > 0) active.push({ label: `Data completeness ≥ ${sc.minCoverage}%`, clear: () => { sc.minCoverage = 0; } });
+  (sc.types || []).forEach(t => active.push({ label: `Type: ${t}`, clear: () => { sc.types = sc.types.filter(x => x !== t); } }));
+  (sc.sectors || []).forEach(t => active.push({ label: `Sector: ${t}`, clear: () => { sc.sectors = sc.sectors.filter(x => x !== t); } }));
+  Object.entries(sc.crit || {}).forEach(([k, c3]) => {
+    if (!c3 || (c3.min == null && c3.max == null)) return;
+    const f = FIELD_BY_K[k]; if (!f) return;
+    const bits = [c3.min != null ? `≥ ${c3.min}` : null, c3.max != null ? `≤ ${c3.max}` : null].filter(Boolean).join(' and ');
+    active.push({ label: `${f.label} ${bits}`, clear: () => { delete sc.crit[k]; } });
+  });
+  if (sc.local?.shariahOnly) active.push({ label: 'Shariah-compliant only', clear: () => { sc.local.shariahOnly = false; } });
+  if (sc.local?.excludePn17) active.push({ label: 'Excluding PN17 / GN3', clear: () => { sc.local.excludePn17 = false; } });
+  if (sc.local?.klciOnly) active.push({ label: 'FBM KLCI constituents only', clear: () => { sc.local.klciOnly = false; } });
+
+  activeChips.append(el('span', { class: 'metaline', style: 'margin-right:2px' },
+    active.length ? `${active.length} active filter${active.length === 1 ? '' : 's'}:` : 'No filters applied — every company in the universe is shown.'));
+  active.forEach(a => activeChips.append(el('button', { class: 'chip chip-brand', style: 'cursor:pointer;border:0',
+    'aria-label': `Remove filter: ${a.label}`,
+    onclick: () => { a.clear(); render(); } }, `${a.label} ✕`)));
+  if (active.length) activeChips.append(el('button', { class: 'btn btn-quiet btn-sm',
+    onclick: () => { State.screen = blankScreen(); render(); } }, 'Clear all'));
+
   const resHd = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
   const hdRow = el('div', { class: 'row row-wrap', style: 'gap:var(--sm)' });
   hdRow.append(el('div', {}, [
@@ -4881,6 +5023,7 @@ function renderScreener() {
   hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openExclusions(failed), html: `${icon('info', 13)} Explain exclusions` }));
   resHd.append(hdRow);
   resCard.append(resHd);
+  resCard.append(activeChips);
 
   if (!passed.length) {
     resCard.append(emptyState('No company clears every criterion. Loosen a threshold, or open "Explain exclusions" to see which test each company failed.'));
@@ -4905,7 +5048,7 @@ function renderScreener() {
     });
 
     const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0;max-height:66vh;overflow:auto' });
-    const table = el('table', { class: 'dt' });
+    const table = el('table', { class: 'dt', data: { density: State.density || 'comfortable' } });
     const thead = el('thead'); const htr = el('tr');
     cols.forEach(c2 => {
       const th = el('th', { class: (c2.k === 'ident' ? 'pin ' : '') + (c2.get ? 'sortable' : ''),
@@ -4921,7 +5064,21 @@ function renderScreener() {
       cols.forEach(c2 => {
         if (c2.k === 'ident') { const td = el('td', { class: 'pin ident' }); td.append(tickerCell(r)); tr.append(td); return; }
         const v = c2.get(r);
-        tr.append(el('td', { html: c2.fmt(v, r) }));
+        const td = el('td', { html: c2.fmt(v, r) });
+        /* Any metric cell opens its own source drawer: what it is, the formula,
+           the period, the prior period, where it came from and how complete the
+           company's data is. This is the product's central claim made operable
+           rather than asserted in copy. */
+        const fld = FIELD_BY_K[c2.k];
+        if (fld && isNum(v)) {
+          td.classList.add('cell-sourced');
+          td.setAttribute('tabindex', '0');
+          td.setAttribute('role', 'button');
+          td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${fld.fmt(v)} — show source`);
+          td.addEventListener('click', () => openSourceDrawer(r, fld));
+          td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSourceDrawer(r, fld); } });
+        }
+        tr.append(td);
       });
       tb.append(tr);
     });
@@ -4991,6 +5148,12 @@ function renderScreener() {
     resCard.append(tw);
     resCard.append(el('div', { style: 'padding:9px var(--lg);border-top:1px solid var(--line);display:flex;gap:var(--sm);align-items:center' }, [
       el('span', { class: 'metaline' }, `${sorted.length} rows · scroll the table for the rest`),
+      el('div', { class: 'segmented', style: 'margin-left:var(--sm)' }, [
+        el('button', { 'aria-selected': (State.density || 'comfortable') === 'comfortable' ? 'true' : 'false',
+          onclick: () => { State.density = 'comfortable'; store.write('density', 'comfortable'); render(); } }, 'Comfortable'),
+        el('button', { 'aria-selected': State.density === 'compact' ? 'true' : 'false',
+          onclick: () => { State.density = 'compact'; store.write('density', 'compact'); render(); } }, 'Compact'),
+      ]),
       el('span', { class: 'spacer' }),
       el('span', { class: 'metaline' }, `Sorted by ${cols.find(c2 => c2.k === sc.sort.k)?.label ?? '—'}, ${sc.sort.dir === 1 ? 'ascending' : 'descending'}`),
     ]));
@@ -5045,6 +5208,83 @@ function riskPill(band) {
   const map = { Low:'--ok', Medium:'--warn', High:'--critical' };
   return `<span class="chip" style="background:color-mix(in srgb, var(${map[band]}) 13%, transparent);border-color:color-mix(in srgb, var(${map[band]}) 32%, transparent)">
     <span class="chip-dot" style="background:var(${map[band]})"></span>${band}</span>`;
+}
+
+/* ==========================================================================
+   PROVENANCE — reported, calculated, or modelled
+
+   These are three different kinds of claim and the product's whole argument
+   rests on never presenting them as one. A reported figure came off a filed
+   statement. A calculated one is arithmetic on reported figures and is exactly
+   as reliable as they are. A modelled one is the output of assumptions someone
+   chose, and could have been chosen differently.
+   ========================================================================== */
+const PROVENANCE = {
+  reported:   { label: 'Reported',   cls: 'chip chip-ok',     note: 'Taken directly from a filed statement line. Not adjusted.' },
+  calculated: { label: 'Calculated', cls: 'chip',             note: 'Arithmetic on reported lines. No assumption is involved, so it is exactly as reliable as the figures underneath it.' },
+  modelled:   { label: 'Modelled',   cls: 'chip chip-bronze', note: 'An output of assumptions you can see and change. A different set of assumptions gives a different number.' },
+  market:     { label: 'Market',     cls: 'chip',             note: 'A price, from the source stated on the page rather than from a filing.' },
+};
+function provChip(kind) {
+  const p = PROVENANCE[kind] || PROVENANCE.calculated;
+  return el('span', { class: p.cls, title: p.note }, p.label);
+}
+
+/* Which kind each screener field is. Statement lines are reported; everything
+   derived from them is calculated; anything needing a price is market-derived
+   and anything needing an assumption is modelled. */
+const FIELD_PROVENANCE = {
+  pe:'market', pb:'market', evebit:'market', pfcf:'market', dy:'market', fcfy:'market', rs12:'market',
+};
+const provenanceOf = (k) => FIELD_PROVENANCE[k] || 'calculated';
+
+/* The drawer behind any number: what it is, how it was produced, from which
+   period, against what it was before, and how far to trust it. */
+function openSourceDrawer(r, f) {
+  const { c, m } = r;
+  const v = m[f.k];
+  const prev = (() => {
+    /* Same metric one year earlier, where the series supports it. */
+    try { const d2 = derive({ ...c, fin: c.fin.slice(0, -1) }); return d2.m[f.k]; } catch { return null; }
+  })();
+  const kind = provenanceOf(f.k);
+
+  const body = el('div', { class: 'stack' });
+  body.append(el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
+    provChip(kind),
+    el('span', { class: 'chip' }, `${c.tk} · ${c.name}`),
+  ]));
+  body.append(el('div', { class: 'panel' }, statTile(f.label, isNum(v) ? f.fmt(v) : 'not computable',
+    { sub: isNum(prev) && isNum(v) ? `was ${f.fmt(prev)} in the prior period` : null })));
+
+  const kv = el('dl', { class: 'kv' });
+  const rows = [
+    ['What it is', PROVENANCE[kind].note],
+    ['Formula', f.formula],
+    ['Reporting period', `FY${last(YEARS)}, as reported`],
+    ['Prior period', isNum(prev) ? `FY${YEARS[YEARS.length - 2]} · ${f.fmt(prev)}` : 'not computable'],
+    ['Currency', c.ccy],
+    ['Source', c.real
+      ? `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`
+      : 'Synthetic sample statement — not a filing'],
+    ['Adjustments', 'None. The figure is computed directly from the stored lines.'],
+    ['Data completeness', `${m.coverage}% of applicable measures are computable for this company`],
+    ['Model version', MODEL_VERSION],
+    ['Computed', AS_OF],
+  ];
+  if (c.real && c.provenance) {
+    const mixed = Object.entries(c.provenance).filter(([, pv]) => pv.mixedTags).map(([kk]) => kk);
+    if (mixed.length) rows.push(['Tag drift',
+      `${mixed.join(', ')} assembled from more than one XBRL tag across the window. Comparability across peers is weaker where this happens.`]);
+  }
+  rows.forEach(([k2, v2]) => { kv.append(el('dt', {}, k2)); kv.append(el('dd', { style: 'text-align:left' }, v2)); });
+  body.append(kv);
+
+  if (METRIC_HELP[f.k]) {
+    body.append(el('button', { class: 'btn btn-ghost btn-sm',
+      onclick: () => explainMetric(f.k) }, 'What does this measure mean?'));
+  }
+  openDrawer(f.label, body);
 }
 
 function openMetricInfo(f) {
@@ -5272,7 +5512,7 @@ function renderRadar() {
 
   const hd = el('div', { class: 'page-hd' });
   hd.append(el('div', {}, [
-    el('h2', { class: 'h-section' }, 'Value Radar'),
+    el('h2', { class: 'h-section' }, 'Quality vs Value Map'),
     el('p', { class: 'body', style: 'margin-top:4px' },
       'Quality against modelled valuation. Position is the answer; size is scale; colour is the chosen grouping. A mark far right on a low-confidence model is not the same finding as one on a high-confidence model.'),
   ]));
