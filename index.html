@@ -3372,8 +3372,8 @@ function applyFx() {
 }
 
 async function loadRealData() {
-  const res = await fetch('data/us.json', { cache: 'no-store' });
-  if (!res.ok) throw new Error(`${res.status} loading data/us.json`);
+  const res = await fetch(dataUrl('us.json'), { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${res.status} loading ${dataUrl('us.json')}`);
   const j = await res.json();
 
   /* Optional and non-fatal: no price file simply means the companies load
@@ -3387,16 +3387,16 @@ async function loadRealData() {
   const personal = new URLSearchParams(location.search).get('personal') === '1';
   const priceFile = personal ? 'data/personal-prices.json' : 'data/prices.json';
   try {
-    const pr = await fetch(priceFile, { cache: 'no-store' });
+    const pr = await fetch(dataUrl(priceFile.split('/').pop()), { cache: 'no-store' });
     if (pr.ok) { priceBook = await pr.json(); priceBook.personal = personal; priceBook.file = priceFile; }
   } catch { /* no price file supplied */ }
 
   /* Identity and accumulated series for instruments that are tracked by price
      alone. Both optional: without them the Tracked view simply has less to
      say, and nothing else in the app depends on either. */
-  try { const r = await fetch('data/instruments.json', { cache: 'no-store' }); if (r.ok) instruments = await r.json(); }
+  try { const r = await fetch(dataUrl('instruments.json'), { cache: 'no-store' }); if (r.ok) instruments = await r.json(); }
   catch { /* no registry */ }
-  try { const r = await fetch('data/price-history.json', { cache: 'no-store' }); if (r.ok) trackedHistory = await r.json(); }
+  try { const r = await fetch(dataUrl('price-history.json'), { cache: 'no-store' }); if (r.ok) trackedHistory = await r.json(); }
   catch { /* no history yet */ }
 
   /* Before anything is derived or drawn: every MYR figure translates through
@@ -4247,6 +4247,11 @@ const BASE = (() => {
   return i > -1 ? p.slice(0, i) : '';
 })();
 const href = (path) => `${BASE}${path}` || '/';
+/* Data files live at the app's base, never relative to the current route. A
+   relative 'data/x.json' worked only while every URL was the root; on
+   /my/tracked it resolves to /my/data/x.json and 404s, which silently disabled
+   real data on every nested route. */
+const dataUrl = (file) => `${BASE}/data/${file}`;
 
 function matchRoute(pathname) {
   const clean = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname).replace(/\/+$/, '') || '/';
@@ -8963,6 +8968,80 @@ VIEWS.watchlists = () => {
   return wrap;
 };
 
+/* The full trend picture for one instrument, including what is not yet
+   computable and exactly how far away it is. */
+function openTrendDrawer(row, t) {
+  const body = el('div', { class: 'stack' });
+  body.append(el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
+    el('span', { class: 'chip' }, row.sym),
+    el('span', { class: t.points >= 252 ? 'chip chip-ok' : 'chip chip-bronze' },
+      `${t.points} close${t.points === 1 ? '' : 's'}`),
+    row.meta?.kind ? el('span', { class: 'chip' }, row.meta.kind) : null,
+  ]));
+  body.append(el('p', { class: 'metaline' },
+    `${row.name}. Price evidence only — this instrument has no financial statements, so nothing here is a valuation and nothing here feeds a quality score.`));
+
+  if (t.seams?.length) {
+    const s0 = t.seams[0];
+    body.append(el('div', { class: 'card', style: 'border-left:3px solid var(--warn)' }, [
+      el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
+        `${t.seams.length} discontinuit${t.seams.length === 1 ? 'y' : 'ies'} in the series`),
+      el('p', { class: 'metaline' },
+        `${withSign(s0.movePct, 1)} between ${s0.from} and ${s0.to}${s0.gapDays > 1 ? ` across a ${s0.gapDays}-day gap` : ''}. ` +
+        'A step like this is usually where an imported history was joined to daily readings, not a move in the market. ' +
+        'Volatility, returns and drawdown are all distorted by it — reimport a continuous series before relying on them.'),
+    ]));
+  }
+
+  TREND_STRATEGIES.filter(s => s.evaluate).forEach(s => {
+    const res = s.evaluate(t);
+    const card = el('div', { class: 'panel' });
+    card.append(el('div', { class: 'row', style: 'gap:8px' }, [
+      el('span', { style: 'font-weight:600;font-size:13px' }, s.name),
+      el('span', { class: 'metaline', style: 'margin-left:auto' }, `v${s.version}`),
+    ]));
+    if (res) {
+      card.append(el('p', { style: 'margin:6px 0 2px;font-weight:560' }, res.state));
+      card.append(el('p', { class: 'metaline' }, res.detail));
+    } else {
+      const missing = s.requires.map(id => t.pending.find(x => x.id === id)).filter(Boolean);
+      const worst = missing.sort((a, b) => b.more - a.more)[0];
+      card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+        worst
+          ? `Not computed. Needs ${worst.needs} closes and has ${worst.have} — ${worst.more} more trading days, or one import.`
+          : 'Not computed for this instrument.'));
+    }
+    card.append(el('details', { style: 'margin-top:8px' }, [
+      el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'What this does and does not tell you'),
+      el('ul', { class: 'ticklist', style: 'margin-top:6px' }, s.limitations.map(l => el('li', {}, l))),
+    ]));
+    body.append(card);
+  });
+
+  /* Every indicator, computed or pending, so the gap is legible. */
+  const tbl = el('table', { class: 'dt' });
+  tbl.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Indicator'), el('th', { class: 'num' }, 'Value'), el('th', {}, 'Status')])));
+  const tb2 = el('tbody');
+  TREND_INDICATORS.forEach(ind => {
+    const v = t.values[ind.id];
+    const pend = t.pending.find(x => x.id === ind.id);
+    let shown = '—';
+    if (ind.id === 'cross') shown = v ? `${v.dir === 'up' ? 'upward' : 'downward'} on ${v.date}` : (pend ? '—' : 'none in the window');
+    else if (isNum(v)) shown = ind.kind === 'pct' ? withSign(v, 2) : fmtNum(v, 2);
+    tb2.append(el('tr', {}, [
+      el('td', {}, ind.label),
+      el('td', { class: 'num' }, shown),
+      el('td', { class: 'metaline' }, pend ? `needs ${pend.more} more closes` : 'computed'),
+    ]));
+  });
+  tbl.append(tb2);
+  body.append(el('div', { style: 'overflow-x:auto' }, tbl));
+  body.append(el('p', { class: 'metaline' },
+    `Series runs ${t.first || '—'} to ${t.last || '—'}. Backfill it in one step with: node ingest/history-import.mjs --dir <folder of CSV exports>`));
+
+  openDrawer(`${row.sym} — trend context`, body);
+}
+
 /* Shared secondary navigation for the personal surfaces. */
 function mySubnav(active) {
   const row = el('div', { class: 'segmented', style: 'margin-bottom:var(--md);flex-wrap:wrap' });
@@ -9093,6 +9172,177 @@ VIEWS.notfound = () => {
 };
 
 /* ==========================================================================
+   TREND CONTEXT ENGINE
+
+   For instruments that have no fundamentals and never will: indices, currency
+   pairs, commodities, crypto, and Bursa listings whose statements this product
+   cannot reach. Price is the only evidence they have, so price is what gets
+   analysed — and nothing here is allowed to leak into a quality or valuation
+   score, because a chart is not a business.
+
+   The governing rule of this module is that an indicator with too little
+   history does not get computed. A 200-day average built from twelve closes is
+   not an approximation of a 200-day average; it is a different number wearing
+   its name, and it would be the most dangerous kind of output this product
+   could produce — confident, precise, and meaningless.
+   ========================================================================== */
+
+/* Each indicator declares what it needs. Nothing computes below that. */
+const TREND_INDICATORS = [
+  { id:'sma20',  label:'20-day average',   needs:20,  kind:'level' },
+  { id:'sma50',  label:'50-day average',   needs:50,  kind:'level' },
+  { id:'sma200', label:'200-day average',  needs:200, kind:'level' },
+  { id:'dist50', label:'Distance from 50-day',  needs:50,  kind:'pct' },
+  { id:'dist200',label:'Distance from 200-day', needs:200, kind:'pct' },
+  { id:'cross',  label:'50/200 crossover',      needs:200, kind:'event' },
+  { id:'hi52',   label:'52-week high',     needs:252, kind:'level' },
+  { id:'lo52',   label:'52-week low',      needs:252, kind:'level' },
+  { id:'ddown',  label:'Drawdown from high', needs:252, kind:'pct' },
+  { id:'ret1m',  label:'1-month return',   needs:22,  kind:'pct' },
+  { id:'ret3m',  label:'3-month return',   needs:66,  kind:'pct' },
+  { id:'ret6m',  label:'6-month return',   needs:126, kind:'pct' },
+  { id:'ret12m', label:'12-month return',  needs:252, kind:'pct' },
+  { id:'vol',    label:'Realised volatility (annualised)', needs:30, kind:'pct' },
+];
+const TREND_BY_ID = Object.fromEntries(TREND_INDICATORS.map(i => [i.id, i]));
+
+const sma = (a, n) => a.length < n ? null : a.slice(-n).reduce((s, v) => s + v, 0) / n;
+const pctChange = (a, n) => (a.length <= n || !(a[a.length - 1 - n] > 0))
+  ? null : (a[a.length - 1] / a[a.length - 1 - n] - 1) * 100;
+
+/* Returns every indicator plus, for each one that could not be computed, how
+   many more closes it needs. "Not yet" and "not applicable" are different
+   answers and the interface has to be able to tell them apart. */
+function trendContext(series) {
+  const dates = Object.keys(series || {}).sort();
+  const closes = dates.map(d => series[d]).filter(v => isNum(v) && v > 0);
+  const n = closes.length;
+  const last = n ? closes[n - 1] : null;
+  const out = { points: n, first: dates[0] || null, last: dates[dates.length - 1] || null, values: {}, pending: [] };
+
+  const need = (id) => { const req = TREND_BY_ID[id].needs; if (n < req) { out.pending.push({ id, needs: req, have: n, more: req - n }); return true; } return false; };
+  const set = (id, v) => { out.values[id] = v; };
+
+  if (!need('sma20'))  set('sma20',  sma(closes, 20));
+  if (!need('sma50'))  set('sma50',  sma(closes, 50));
+  if (!need('sma200')) set('sma200', sma(closes, 200));
+  if (!need('dist50'))  set('dist50',  (last / sma(closes, 50) - 1) * 100);
+  if (!need('dist200')) set('dist200', (last / sma(closes, 200) - 1) * 100);
+
+  if (!need('cross')) {
+    /* The most recent day on which the 50-day crossed the 200-day, found by
+       walking the two series rather than inferring from today's positions. */
+    let found = null;
+    for (let i = n - 1; i >= 200; i--) {
+      const w = closes.slice(0, i + 1);
+      const a = sma(w, 50), b = sma(w, 200);
+      const wp = closes.slice(0, i);
+      const ap = sma(wp, 50), bp = sma(wp, 200);
+      if (a == null || b == null || ap == null || bp == null) break;
+      if ((a > b) !== (ap > bp)) { found = { date: dates[i], dir: a > b ? 'up' : 'down' }; break; }
+    }
+    set('cross', found);
+  }
+
+  if (!need('hi52')) {
+    const w = closes.slice(-252);
+    set('hi52', Math.max(...w)); set('lo52', Math.min(...w));
+    set('ddown', (last / Math.max(...w) - 1) * 100);
+  }
+  [['ret1m', 22], ['ret3m', 66], ['ret6m', 126], ['ret12m', 252]].forEach(([id, k]) => {
+    if (!need(id)) set(id, pctChange(closes, k));
+  });
+
+  if (!need('vol')) {
+    const w = closes.slice(-30);
+    const rets = w.slice(1).map((v, i) => Math.log(v / w[i])).filter(Number.isFinite);
+    const mean = rets.reduce((s, v) => s + v, 0) / rets.length;
+    const variance = rets.reduce((s, v) => s + (v - mean) ** 2, 0) / Math.max(1, rets.length - 1);
+    set('vol', Math.sqrt(variance) * Math.sqrt(252) * 100);
+  }
+
+  /* Splicing an imported series onto screen-read closes leaves a seam: the
+     import may end weeks before the daily capture began, and the step between
+     them is a gap in the record rather than a move in the market. Left
+     unflagged it inflates volatility, distorts every return and can invent a
+     drawdown. Found by looking for moves too large to be plausible for the
+     instrument, and for calendar gaps wide enough to hide one. */
+  out.seams = [];
+  for (let i = 1; i < n; i++) {
+    const move = (closes[i] / closes[i - 1] - 1) * 100;
+    const days = (new Date(dates[i]) - new Date(dates[i - 1])) / 86400000;
+    if (Math.abs(move) > 15 || (days > 5 && Math.abs(move) > 5)) {
+      out.seams.push({ from: dates[i - 1], to: dates[i], movePct: move, gapDays: Math.round(days) });
+    }
+  }
+
+  out.last = last;
+  return out;
+}
+
+/* ==========================================================================
+   TREND STRATEGY REGISTRY
+
+   Versioned definitions rather than logic buried in a view, per section 5 of
+   the migration specification. A strategy states what it requires, and when a
+   requirement is unmet it returns "insufficient history" — never a pass and
+   never a fail, because an untested rule has not been satisfied and has not
+   been broken either.
+   ========================================================================== */
+const TREND_STRATEGIES = [
+  {
+    id: 'qt_trend_context_v1', name: 'Long-term trend context', version: '1.0.0',
+    market: 'ALL', status: 'active',
+    what: 'Where price sits against its own 50- and 200-day averages, and which way the averages last crossed.',
+    limitations: [
+      'Describes price only. It says nothing about what the instrument is worth.',
+      'Moving averages lag by construction. A crossover confirms a move that has already happened.',
+      'On an index this is market context. It is not a signal, and this product does not produce signals.',
+    ],
+    requires: ['sma50', 'sma200'],
+    evaluate: (t) => {
+      const a = t.values.sma50, b = t.values.sma200, p = t.last;
+      if (!isNum(a) || !isNum(b) || !isNum(p)) return null;
+      const above200 = p > b, above50 = p > a, stacked = a > b;
+      return {
+        state: above200 && stacked ? 'Long-term uptrend context'
+             : !above200 && !stacked ? 'Long-term downtrend context'
+             : 'Mixed trend context',
+        detail: `Price is ${above50 ? 'above' : 'below'} the 50-day and ${above200 ? 'above' : 'below'} the 200-day. The 50-day sits ${stacked ? 'above' : 'below'} the 200-day.`,
+      };
+    },
+  },
+  {
+    id: 'qt_drawdown_context_v1', name: 'Drawdown and range position', version: '1.0.0',
+    market: 'ALL', status: 'active',
+    what: 'How far price sits below its own 52-week high, and where it falls in the 52-week range.',
+    limitations: [
+      'A deep drawdown is not evidence of value, and a new high is not evidence of quality.',
+      'Needs a full year of closes before it means anything.',
+    ],
+    requires: ['hi52', 'lo52', 'ddown'],
+    evaluate: (t) => {
+      const hi = t.values.hi52, lo = t.values.lo52, p = t.last;
+      if (!isNum(hi) || !isNum(lo) || !isNum(p) || hi <= lo) return null;
+      const pos = (p - lo) / (hi - lo) * 100;
+      return { state: `${pos.toFixed(0)}% of the 52-week range`,
+               detail: `${fmtPct(t.values.ddown, 1)} from the high of ${fmtNum(hi, 2)}; the low was ${fmtNum(lo, 2)}.` };
+    },
+  },
+  {
+    id: 'qt_relative_strength_v1', name: 'Relative strength against a benchmark', version: '1.0.0',
+    market: 'ALL', status: 'active',
+    what: 'Total price return against a chosen benchmark over one, three, six and twelve months.',
+    limitations: [
+      'Price return only. Dividends and distributions are not included.',
+      'Outperformance is evidence about price, not about the business or the economy behind it.',
+    ],
+    requires: ['ret3m'],
+    evaluate: () => null,   /* computed against a benchmark in the view */
+  },
+];
+
+/* ==========================================================================
    TRACKED — instruments that are followed by price alone.
 
    Everything here is deliberately outside the research universe. The engine
@@ -9194,7 +9444,8 @@ VIEWS.tracked = () => {
   tbl.append(el('thead', {}, el('tr', {}, [
     el('th', {}, 'Instrument'), el('th', {}, 'Type'),
     el('th', { class: 'num' }, 'Last'), el('th', { class: 'num' }, 'As of'),
-    el('th', { class: 'num' }, 'Change over series'), el('th', {}, 'Trend'),
+    el('th', { class: 'num' }, 'Change over series'), el('th', {}, 'Series'),
+    el('th', {}, 'Trend context'),
   ])));
   const tb = el('tbody');
   for (const r of rows) {
@@ -9215,6 +9466,30 @@ VIEWS.tracked = () => {
     if (r.values.length >= 2) cell.append(sparkline(r.values));
     else cell.append(el('span', { class: 'metaline' }, 'building'));
     tr.append(cell);
+
+    /* Trend state, or how much more history it needs. Never a computed-looking
+       value on a series too short to support it. */
+    const t = trendContext(series[r.sym] || {});
+    const tCell = el('td');
+    const ctx = TREND_STRATEGIES[0].evaluate(t);
+    if (ctx) {
+      tCell.append(el('div', { style: 'font-size:12px;font-weight:560' }, ctx.state));
+      tCell.append(el('div', { class: 'metaline' },
+        isNum(t.values.dist200) ? `${withSign(t.values.dist200, 1)} vs 200-day` : ''));
+    } else {
+      const p200 = t.pending.find(x => x.id === 'sma200');
+      tCell.append(el('span', { class: 'metaline' },
+        p200 ? `${p200.more} more days` : 'no history'));
+    }
+    tCell.style.cursor = 'pointer';
+    tCell.setAttribute('role', 'button');
+    tCell.setAttribute('tabindex', '0');
+    tCell.setAttribute('aria-label', `Trend detail for ${r.sym}`);
+    const openIt = () => openTrendDrawer(r, t);
+    tCell.addEventListener('click', openIt);
+    tCell.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openIt(); } });
+    tr.append(tCell);
+
     tb.append(tr);
   }
   tbl.append(tb);
