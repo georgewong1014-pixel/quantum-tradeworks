@@ -3372,9 +3372,8 @@ function applyFx() {
 }
 
 async function loadRealData() {
-  const res = await fetch(dataUrl('us.json'), { cache: 'no-store' });
-  if (!res.ok) throw new Error(`${res.status} loading ${dataUrl('us.json')}`);
-  const j = await res.json();
+  const j = await fetchJson(dataUrl('us.json'));
+  if (!j) throw new Error(`could not load ${dataUrl('us.json')} — it is missing, or the host returned a page instead of the file`);
 
   /* Optional and non-fatal: no price file simply means the companies load
      without prices, which the engine already handles.
@@ -3387,16 +3386,16 @@ async function loadRealData() {
   const personal = new URLSearchParams(location.search).get('personal') === '1';
   const priceFile = personal ? 'data/personal-prices.json' : 'data/prices.json';
   try {
-    const pr = await fetch(dataUrl(priceFile.split('/').pop()), { cache: 'no-store' });
-    if (pr.ok) { priceBook = await pr.json(); priceBook.personal = personal; priceBook.file = priceFile; }
+    const pb = await fetchJson(dataUrl(priceFile.split('/').pop()));
+    if (pb) { priceBook = pb; priceBook.personal = personal; priceBook.file = priceFile; }
   } catch { /* no price file supplied */ }
 
   /* Identity and accumulated series for instruments that are tracked by price
      alone. Both optional: without them the Tracked view simply has less to
      say, and nothing else in the app depends on either. */
-  try { const r = await fetch(dataUrl('instruments.json'), { cache: 'no-store' }); if (r.ok) instruments = await r.json(); }
+  try { instruments = await fetchJson(dataUrl('instruments.json')); }
   catch { /* no registry */ }
-  try { const r = await fetch(dataUrl('price-history.json'), { cache: 'no-store' }); if (r.ok) trackedHistory = await r.json(); }
+  try { trackedHistory = await fetchJson(dataUrl('price-history.json')); }
   catch { /* no history yet */ }
 
   /* Before anything is derived or drawn: every MYR figure translates through
@@ -4252,6 +4251,17 @@ const href = (path) => `${BASE}${path}` || '/';
    /my/tracked it resolves to /my/data/x.json and 404s, which silently disabled
    real data on every nested route. */
 const dataUrl = (file) => `${BASE}/data/${file}`;
+
+/* Returns the parsed body, or null when the file is genuinely absent. A host
+   configured with a catch-all rewrite answers 200 and text/html for a missing
+   path, so status alone cannot distinguish "not deployed" from "here it is". */
+async function fetchJson(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) return null;
+  const ct = r.headers.get('content-type') || '';
+  if (!/json/i.test(ct)) return null;      /* an HTML fallback, not the file */
+  try { return await r.json(); } catch { return null; }
+}
 
 function matchRoute(pathname) {
   const clean = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname).replace(/\/+$/, '') || '/';
