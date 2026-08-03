@@ -53,6 +53,16 @@ async function resolveTarget(pathname) {
         await stat(candidate + '.html');
         return candidate + '.html';
       } catch { /* fall through */ }
+      // Single-page fallback. The app owns routes like /company/1155-maybank
+      // and /my/portfolio, which have no file behind them — without this a
+      // refresh on any real route 404s and the router never gets to run.
+      // Only extensionless paths fall back, so a genuinely missing asset still
+      // 404s instead of being served an HTML page with the wrong MIME type.
+      try {
+        const spa = join(ROOT, 'index.html');
+        await stat(spa);
+        return spa;
+      } catch { /* no app entry point */ }
     }
     return null;
   }

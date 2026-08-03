@@ -278,7 +278,13 @@ a { color: inherit; }
   padding: 7px 9px; border-radius: var(--r-sm);
   font-size: 12.5px; font-weight: 530; color: var(--ink-2); white-space: nowrap;
   transition: color 160ms ease, background-color 160ms ease;
+  /* Nav items and buttons became real anchors so the browser contract works —
+     middle-click, open in new tab, copy link address. Anchors bring a default
+     underline that these never had. */
+  text-decoration: none;
 }
+.btn, a.btn, .task-card, a.task-card { text-decoration: none; }
+.navlink:focus-visible, .btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .navlink:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .navlink[aria-current="page"] { color: var(--ink); background: var(--surface-2); box-shadow: var(--lift-1); font-weight: 600; }
 
@@ -340,6 +346,14 @@ a { color: inherit; }
 @media (max-width: 560px) { .disclosure-in { padding: 8px var(--md); } }
 .disclosure svg { width: 14px; height: 14px; flex: none; color: var(--bronze); }
 .disclosure strong { color: var(--ink); font-weight: 620; }
+
+/* On the public page the disclosure collapses to one compact line: the warning
+   still appears above the fold, but it no longer occupies four lines in front
+   of the headline. The full text stays in the markup for assistive technology
+   and for anyone who reads the source; only the elaboration is hidden. */
+body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size: 11.5px; }
+body[data-surface="public"] .disclosure-in .chip { display: none; }
+body[data-surface="public"] .disclosure-long { display: none; }
 .disclosure a { color: var(--ink); text-underline-offset: 3px; }
 
 /* ------------------------------------------------------------------ chips */
@@ -379,6 +393,41 @@ a { color: inherit; }
 .sunk { background: var(--surface-sunk); border-radius: var(--r-md); padding: var(--md); }
 
 .grid { display: grid; gap: var(--md); }
+
+/* ---- layout primitives used by the public pages and the personal surfaces */
+.stack    { display: flex; flex-direction: column; gap: var(--lg); }
+.stack-lg { display: flex; flex-direction: column; gap: var(--xxxl); }
+.link { color: var(--brand); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); }
+.link:hover { border-bottom-color: var(--brand); }
+.link:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 2px; }
+
+/* Auto-fit rather than fixed counts, so a row reflows instead of overflowing
+   and no separate mobile rule is needed to stop horizontal scroll. */
+.grid-tasks { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.grid-3     { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.grid-4     { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.grid-5     { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+
+.hero { padding: var(--xxxl) 0 var(--xl); max-width: 46rem; }
+.hero-h1 {
+  font-size: clamp(30px, 4.2vw, 46px); font-weight: 660; letter-spacing: -0.022em;
+  line-height: 1.12; margin: 0; text-wrap: balance;
+}
+.hero-lede { font-size: clamp(15px, 1.4vw, 17px); color: var(--ink-2); line-height: 1.55; margin: var(--md) 0 0; max-width: 42rem; }
+
+.task-card { display: block; text-decoration: none; color: inherit; }
+.task-card:hover { border-color: color-mix(in srgb, var(--brand) 34%, var(--line)); }
+.task-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.task-cta { display: inline-block; font-size: 12px; font-weight: 600; color: var(--brand); }
+.task-cta::after { content: ' →'; }
+
+.step-n {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--brand-wash); color: var(--brand); font-size: 12px; font-weight: 660;
+}
+.ticklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ticklist li { font-size: 13px; color: var(--ink-2); padding-left: 18px; position: relative; }
+.ticklist li::before { content: '✓'; position: absolute; left: 0; color: var(--ok-text); font-weight: 700; }
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .g-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .g-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -776,7 +825,7 @@ details > summary::marker { content: ''; }
 
 <header class="topbar">
   <div class="topbar-in">
-    <a class="brand" href="#" data-nav="home" aria-label="Quantum Tradeworks home">
+    <a class="brand" href="/" data-path="/" aria-label="Quantum Tradeworks home">
       <!-- Reduced lockup. At 30px the four-square staircase and the six-square
            grid collapse into noise, so the nav mark keeps the ring, the handle
            and a simplified two-plus-four mosaic. Full mark is in the footer. -->
@@ -819,7 +868,7 @@ details > summary::marker { content: ''; }
 <div class="disclosure">
   <div class="disclosure-in">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-    <span><strong>Prototype — illustrative sample data.</strong> Figures are synthetic and do not represent real financials. Company names and listing codes are used to demonstrate the interface only.</span>
+    <span><strong>Beta preview using illustrative data.</strong> Do not use sample figures for investment decisions.<span class="disclosure-long"> Figures are synthetic and do not represent real financials; company names and listing codes are used to demonstrate the interface only.</span></span>
     <span class="chip chip-brand" title="Research mode: factual and analytical outputs only">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
       Research mode
@@ -874,28 +923,28 @@ details > summary::marker { content: ''; }
       <div>
         <h4>Methodology</h4>
         <ul>
-          <li><a href="#" data-nav="learn">Metric dictionary</a></li>
-          <li><a href="#" data-nav="learn">Scoring architecture</a></li>
-          <li><a href="#" data-nav="learn">Valuation model router</a></li>
-          <li><a href="#" data-nav="learn">Point-in-time policy</a></li>
+          <li><a href="/learn/glossary" data-path="/learn/glossary">Metric dictionary</a></li>
+          <li><a href="/methodology" data-path="/methodology">Scoring architecture</a></li>
+          <li><a href="/methodology" data-path="/methodology">Valuation model router</a></li>
+          <li><a href="/data-sources" data-path="/data-sources">Point-in-time policy</a></li>
         </ul>
       </div>
       <div>
         <h4>Trust</h4>
         <ul>
-          <li><a href="#" data-nav="learn">Data sources &amp; rights</a></li>
-          <li><a href="#" data-nav="learn">Corrections log</a></li>
-          <li><a href="#" data-nav="learn">Model change notices</a></li>
-          <li><a href="#" data-action="report-error">Report a data error</a></li>
+          <li><a href="/data-sources" data-path="/data-sources">Data sources &amp; rights</a></li>
+          <li><a href="/corrections" data-path="/corrections">Corrections log</a></li>
+          <li><a href="/corrections" data-path="/corrections">Model change notices</a></li>
+          <li><button type="button" class="linklike" data-action="report-error">Report a data error</button></li>
         </ul>
       </div>
       <div>
         <h4>Coverage</h4>
         <ul>
-          <li><a href="#" data-nav="discover">S&amp;P 500 (sample)</a></li>
-          <li><a href="#" data-nav="discover">FBM KLCI (sample)</a></li>
-          <li><a href="#" data-nav="learn">Excluded company types</a></li>
-          <li><a href="#" data-nav="learn">Release notes</a></li>
+          <li><a href="/discover/screener" data-path="/discover/screener">S&amp;P 500 (sample)</a></li>
+          <li><a href="/discover/screener" data-path="/discover/screener">FBM KLCI (sample)</a></li>
+          <li><a href="/methodology" data-path="/methodology">Excluded company types</a></li>
+          <li><a href="/corrections" data-path="/corrections">Release notes</a></li>
         </ul>
       </div>
     </div>
@@ -1015,6 +1064,17 @@ function withSign(v, dp = 1, suffix = '%') {
   return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(dp)}${suffix}`;
 }
 
+/* English ordinal suffix. Percentiles were rendering as "92th" and "42th"
+   because the suffix was a hardcoded literal. 11, 12 and 13 take "th" despite
+   ending in 1, 2 and 3, which is why this is a lookup rather than a switch on
+   the last digit alone. */
+function ord(n) {
+  if (!isNum(n)) return '—';
+  const i = Math.trunc(Math.abs(n)), t = i % 100, u = i % 10;
+  const sfx = (t >= 11 && t <= 13) ? 'th' : u === 1 ? 'st' : u === 2 ? 'nd' : u === 3 ? 'rd' : 'th';
+  return `${Math.trunc(n)}${sfx}`;
+}
+
 /* ---------------------------------------------------------------- palette */
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const SERIES = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7', '--s8'];
@@ -1073,7 +1133,7 @@ const PLANS = {
     founding:299, foundingSeats:300,
     blurb:'Unlimited company research, editable valuation assumptions, the full screener, comparison, multiple portfolios and watchlists, fundamental alerts and exports. Research only — no recommendations, no ratings, no target prices.',
     limits:{ reportsPerMonth:Infinity, watchlists:20, watchlistStocks:100, portfolios:20, holdings:100,
-             compare:30, screenerFields:Infinity, percentileMode:true, savedScreens:50,
+             compare:5, screenerFields:Infinity, percentileMode:true, savedScreens:50,
              valuationEditable:true, exports:true, fundamentalAlerts:true, priceAlerts:100,
              propertyCalculator:true, propertyReports:0, crossAsset:false, priceDelayMin:0 },
   },
@@ -1081,7 +1141,7 @@ const PLANS = {
     id:'all', name:'All-Access', tagline:'Cross-asset — introduce only after both products show demand', priceMo:79, priceYr:699,
     blurb:'Everything in Equities Research, plus the property portfolio, two standard property reports a month, and the consolidated net-worth view.',
     limits:{ reportsPerMonth:Infinity, watchlists:20, watchlistStocks:100, portfolios:20, holdings:100,
-             compare:30, screenerFields:Infinity, percentileMode:true, savedScreens:50,
+             compare:5, screenerFields:Infinity, percentileMode:true, savedScreens:50,
              valuationEditable:true, exports:true, fundamentalAlerts:true, priceAlerts:100,
              propertyCalculator:true, propertyReports:2, crossAsset:true, priceDelayMin:0 },
   },
@@ -1097,7 +1157,12 @@ const State = {
   theses: store.read('theses', null),
   savedScreens: store.read('savedScreens', []),
   screen: null,
-  compare: store.read('compare', ['MAYBANK', 'PBBANK', 'CIMB']),
+  /* Seeded with two, not three. The page states the limit from the plan — two
+     on Free — and then displayed three, so the copy and the contents
+     contradicted each other on first load. The stored value is clamped on
+     read as well, further down, so an existing saved set of three cannot
+     reintroduce the contradiction after a downgrade. */
+  compare: store.read('compare', ['MAYBANK', 'PBBANK']),
   valuation: {},
 
   /* Multiple watchlists and portfolios. The single-list shape used earlier is
@@ -1123,6 +1188,11 @@ State.propertyReportsBought = store.read('propertyReportsBought', []);
 
 const planOf = () => PLANS[State.plan] || PLANS.free;
 const lim = (k) => planOf().limits[k];
+/* Enforced once, at the point the value is used, so the stated cap and the
+   contents can never disagree — including for a workspace saved under a
+   higher plan and opened under a lower one. */
+State.compare = (State.compare || []).slice(0, lim('compare'));
+
 const LIMITS = new Proxy({}, {                     /* workspace caps now follow the plan */
   get: (_, k) => ({ watchlists:lim('watchlists'), watchlistStocks:lim('watchlistStocks'),
                     portfolios:lim('portfolios'), holdings:lim('holdings'),
@@ -3774,7 +3844,7 @@ function scoreBar(label, value, pct, tone = '--brand') {
   meter.append(el('i', { style: `width:${isNum(value) ? value : 0}%;background:var(${tone})` }));
   const cell = el('div');
   cell.append(meter);
-  if (isNum(pct)) cell.append(el('div', { class: 'metaline', style: 'margin-top:3px;white-space:nowrap', title: 'Percentile within the market cohort' }, `${pct}th percentile`));
+  if (isNum(pct)) cell.append(el('div', { class: 'metaline', style: 'margin-top:3px;white-space:nowrap', title: 'Percentile within the market cohort' }, `${ord(pct)} percentile`));
   wrap.append(cell);
   wrap.append(el('span', { class: 'sr-val' }, isNum(value) ? value : '—'));
   return wrap;
@@ -3835,36 +3905,226 @@ function toast(msg) {
 }
 
 /* --------------------------------------------------------------- routing */
+/* ==========================================================================
+   NAVIGATION AND ROUTING
+
+   Five destinations, not eleven. The previous header gave equal weight to
+   Home, Compare, Thesis, Portfolio, Alerts, Tracked and Plans, which made
+   nothing look important. Compare belongs inside Research, the four personal
+   surfaces belong together, and pricing is reached from the call to action
+   and the footer rather than competing with the product.
+   ========================================================================== */
 const NAV = [
-  { id:'home',      label:'Home',      icon:'home' },
-  { id:'discover',  label:'Discover',  icon:'grid' },
-  { id:'research',  label:'Research',  icon:'chart' },
-  { id:'compare',   label:'Compare',   icon:'scale' },
-  { id:'thesis',    label:'Thesis',    icon:'target' },
-  { id:'portfolio', label:'Portfolio', icon:'briefcase' },
-  { id:'alerts',    label:'Alerts',    icon:'bell' },
-  { id:'tracked',   label:'Tracked',   icon:'target' },
-  { id:'property',  label:'Property',  icon:'home' },
-  { id:'learn',     label:'Learn',     icon:'book' },
-  { id:'plans',     label:'Plans',     icon:'coin' },
+  { id:'discover',  label:'Discover',       icon:'grid',      path:'/discover' },
+  { id:'research',  label:'Research',       icon:'chart',     path:'/research' },
+  { id:'my',        label:'My Investments', icon:'briefcase', path:'/my/portfolio' },
+  { id:'property',  label:'Property',       icon:'home',      path:'/property' },
+  { id:'learn',     label:'Learn',          icon:'book',      path:'/learn' },
+];
+
+/* Views reachable by URL but not in the header. */
+const SUBNAV_MY = [
+  { id:'portfolio',  label:'Portfolio',  path:'/my/portfolio' },
+  { id:'watchlists', label:'Watchlists', path:'/my/watchlists' },
+  { id:'thesis',     label:'Investment cases', path:'/my/theses' },
+  { id:'alerts',     label:'Alerts',     path:'/my/alerts' },
+  { id:'tracked',    label:'Tracked',    path:'/my/tracked' },
 ];
 
 const VIEWS = {};
 const viewRoot = $('#views');
 
-function go(view, opts = {}) {
-  State.view = view;
-  if (opts.ticker) State.ticker = opts.ticker;
-  if (opts.tab) { if (view === 'discover') State.discoverTab = opts.tab; if (view === 'research') State.researchTab = opts.tab; }
-  render();
+/* --------------------------------------------------------------- routing */
+/* Real paths, not fragments. Previously go() changed State and re-rendered
+   without touching the URL at all, so back and forward did nothing, a refresh
+   dropped you back to the start, and no company page could be shared or
+   linked. Every addressable state now has a path, and the path is the source
+   of truth — render reads it rather than the other way round. */
+
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+/* A company's URL carries a readable slug but resolves on the leading code, so
+   /company/1155-maybank and /company/1155 are the same page and a renamed
+   company does not break an old link. */
+/* A Bursa company is known by its four-digit code, so that leads its URL —
+   /company/1155-maybank, which is what a Malaysian reader recognises. A US
+   company leads with its ticker. Either way the readable tail is decoration:
+   resolution happens on the leading segment, so an old link survives a rename. */
+function companyPath(c) {
+  const lead = c.mkt === 'MY' && c.code ? c.code : (c.tk || c.id);
+  const tail = c.name ? `-${slug(c.name).split('-').slice(0, 2).join('-')}` : '';
+  return `/company/${slug(String(lead))}${tail}`;
+}
+
+function companyFromSlug(s) {
+  if (!s) return null;
+  const raw = decodeURIComponent(s).toUpperCase();
+  if (BY_ID.has(raw)) return raw;
+
+  const head = raw.split('-')[0];
+  if (BY_ID.has(head)) return head;
+  if (BY_ID.has(`${head}-SEC`)) return `${head}-SEC`;
+  /* -SEC ids carry their own hyphen, so the first two segments may be the id. */
+  const two = raw.split('-').slice(0, 2).join('-');
+  if (BY_ID.has(two)) return two;
+
+  /* Then the listing code and the ticker. Scanned rather than indexed because
+     companies load asynchronously and a map built at startup would miss every
+     SEC-filed company. The universe is small enough that this is free. */
+  const hit = U.find(r => String(r.c.code || '').toUpperCase() === head
+                       || String(r.c.tk || '').toUpperCase() === head);
+  return hit ? hit.c.id : null;
+}
+
+const ROUTES = [
+  { path: '/',                    view: 'marketing', title: 'Quantum Tradeworks — research the company, test the property' },
+  { path: '/app',                 view: 'home',      title: 'Dashboard' },
+  { path: '/discover',            view: 'discover',  title: 'Discover' },
+  { path: '/discover/screener',   view: 'discover',  tab: 'screener',  title: 'Screener' },
+  { path: '/discover/value-map',  view: 'discover',  tab: 'radar',     title: 'Quality vs Value Map' },
+  { path: '/research',            view: 'research',  title: 'Research' },
+  { path: '/company/:id',         view: 'research',  title: 'Company report' },
+  { path: '/compare',             view: 'compare',   title: 'Compare' },
+  { path: '/my/portfolio',        view: 'portfolio', title: 'Portfolio' },
+  { path: '/my/watchlists',       view: 'watchlists',title: 'Watchlists' },
+  { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
+  { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
+  { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
+  { path: '/property',            view: 'property',  title: 'Property' },
+  { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
+  { path: '/learn',               view: 'learn',     title: 'Learn' },
+  { path: '/learn/glossary',      view: 'learn',     tab: 'glossary',  title: 'Glossary' },
+  { path: '/methodology',         view: 'learn',     tab: 'models',    title: 'Methodology' },
+  { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
+  { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
+  { path: '/pricing',             view: 'plans',     title: 'Pricing' },
+  { path: '/about',               view: 'about',     title: 'About' },
+  { path: '/contact',             view: 'contact',   title: 'Contact' },
+  { path: '/privacy',             view: 'privacy',   title: 'Privacy' },
+  { path: '/terms',               view: 'terms',     title: 'Terms' },
+];
+
+const META = {
+  marketing: 'Transparent research tools for Bursa Malaysia and US equities, plus property cash-flow analysis built for Malaysian investors.',
+  discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
+  research:  'A company report where every number shows its formula, its period and its source.',
+  compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
+  property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
+  learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
+  plans:     'Plans and pricing for Quantum Tradeworks research and property reports.',
+};
+
+/* The app is mounted at the domain root in production, but served from a
+   subdirectory in some local setups. Deriving the base once keeps every
+   generated link correct in both. */
+const BASE = (() => {
+  const p = location.pathname;
+  const i = p.indexOf('/index.html');
+  return i > -1 ? p.slice(0, i) : '';
+})();
+const href = (path) => `${BASE}${path}` || '/';
+
+function matchRoute(pathname) {
+  const clean = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname).replace(/\/+$/, '') || '/';
+  for (const r of ROUTES) {
+    if (!r.path.includes(':')) { if (r.path === clean) return { ...r, params: {} }; continue; }
+    const rp = r.path.split('/'), cp = clean.split('/');
+    if (rp.length !== cp.length) continue;
+    const params = {};
+    let ok = true;
+    for (let i = 0; i < rp.length; i++) {
+      if (rp[i].startsWith(':')) params[rp[i].slice(1)] = cp[i];
+      else if (rp[i] !== cp[i]) { ok = false; break; }
+    }
+    if (ok) return { ...r, params };
+  }
+  return null;
+}
+
+function setDocumentMeta(route) {
+  const name = route?.view === 'research' && State.ticker && BY_ID.get(State.ticker)
+    ? `${BY_ID.get(State.ticker).c.tk} — ${BY_ID.get(State.ticker).c.name}`
+    : (route?.title || 'Not found');
+  document.title = route?.path === '/' ? route.title : `${name} · Quantum Tradeworks`;
+  const desc = META[route?.view] || META.marketing;
+  let tag = document.querySelector('meta[name="description"]');
+  if (!tag) { tag = document.createElement('meta'); tag.setAttribute('name', 'description'); document.head.append(tag); }
+  tag.setAttribute('content', desc);
+  let canon = document.querySelector('link[rel="canonical"]');
+  if (!canon) { canon = document.createElement('link'); canon.setAttribute('rel', 'canonical'); document.head.append(canon); }
+  canon.setAttribute('href', location.origin + location.pathname);
+}
+
+/* Navigate. push=false is for popstate, where the browser already moved. */
+function navigate(path, { push = true, replace = false } = {}) {
+  const url = href(path) + (path.includes('?') ? '' : location.search.replace(/^\?$/, ''));
+  if (replace) history.replaceState({ path }, '', url);
+  else if (push && (location.pathname + location.search) !== url) history.pushState({ path }, '', url);
+  applyRoute();
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
-function openResearch(id, tab) { go('research', { ticker: id, tab: tab || 'snapshot' }); }
+
+function applyRoute() {
+  const route = matchRoute(location.pathname);
+  if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
+  if (route.params?.id) {
+    const id = companyFromSlug(route.params.id);
+    if (id) State.ticker = id;
+    else { State.view = 'notfound'; State.notFoundWhat = `company “${route.params.id}”`; setDocumentMeta(null); render(); return; }
+  }
+  if (route.tab) {
+    if (route.view === 'discover') State.discoverTab = route.tab;
+    if (route.view === 'research') State.researchTab = route.tab;
+    if (route.view === 'learn') State.learnTab = route.tab;
+  }
+  const qs = new URLSearchParams(location.search);
+  if (route.view === 'compare' && qs.get('companies')) {
+    const ids = qs.get('companies').split(',').map(s => s.trim().toUpperCase()).filter(x => BY_ID.has(x));
+    if (ids.length) State.compare = ids.slice(0, lim('compare'));
+  }
+  if (route.view === 'research' && qs.get('tab')) State.researchTab = qs.get('tab');
+  State.view = route.view;
+  setDocumentMeta(route);
+  render();
+}
+
+/* Kept so the existing call sites keep working while the app moves to paths.
+   Each one resolves to the route that owns that view. */
+function go(view, opts = {}) {
+  if (opts.ticker) State.ticker = opts.ticker;
+  if (opts.tab) {
+    if (view === 'discover') State.discoverTab = opts.tab;
+    if (view === 'research') State.researchTab = opts.tab;
+    if (view === 'learn') State.learnTab = opts.tab;
+  }
+  if (view === 'research' && State.ticker && BY_ID.has(State.ticker)) {
+    const c = BY_ID.get(State.ticker).c;
+    navigate(companyPath(c) + (opts.tab ? `?tab=${opts.tab}` : ''));
+    return;
+  }
+  const r = ROUTES.find(x => x.view === view && (!opts.tab || x.tab === opts.tab))
+         || ROUTES.find(x => x.view === view && !x.path.includes(':'));
+  navigate(r ? r.path : '/app');
+}
+function openResearch(id, tab) {
+  State.ticker = id;
+  const row = BY_ID.get(id);
+  navigate(companyPath(row ? row.c : id) + (tab && tab !== 'snapshot' ? `?tab=${tab}` : ''));
+}
 
 function buildNav() {
   const nav = $('#mainnav');
-  nav.replaceChildren(...NAV.map(n =>
-    el('button', { class: 'navlink', onclick: () => go(n.id), 'aria-current': State.view === n.id ? 'page' : null }, n.label)));
+  /* Real anchors, so the whole browser contract works: middle-click, open in
+     a new tab, copy link address, and the status bar showing where it goes. */
+  nav.replaceChildren(...NAV.map(n => {
+    const active = State.view === n.id
+      || (n.id === 'my' && SUBNAV_MY.some(s => s.id === State.view))
+      || (n.id === 'research' && State.view === 'compare');
+    return el('a', {
+      class: 'navlink', href: href(n.path), 'aria-current': active ? 'page' : null,
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(n.path); },
+    }, n.label);
+  }));
 }
 
 let stickyObserver = null;
@@ -3873,7 +4133,16 @@ function render() {
   const node = VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found');
   const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
-  document.title = `Quantum Tradeworks — ${NAV.find(n => n.id === State.view)?.label || 'Research'}`;
+  /* The title is set by setDocumentMeta, which knows the route and the company
+     on it. Setting it here as well overwrote that with a generic view label —
+     so a company page announced itself as "Research" and every shared link
+     previewed identically. */
+
+  /* On the public page the disclosure is a single compact line. A four-line
+     warning block above the headline buries the thing a first-time visitor
+     came to read, and a warning nobody reaches is not a warning. Inside the
+     app it stays in full, because there the sample data IS the context. */
+  document.body.dataset.surface = State.view === 'marketing' ? 'public' : 'app';
 
   /* Reveal the compact ticker identity only once the full header is gone. */
   stickyObserver?.disconnect();
@@ -3890,6 +4159,11 @@ function render() {
 }
 
 document.addEventListener('click', e => {
+  /* Modified clicks are left to the browser, so open-in-new-tab and
+     open-in-new-window keep working on every internal link. */
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+  const link = e.target.closest('[data-path]');
+  if (link) { e.preventDefault(); navigate(link.dataset.path); return; }
   const nav = e.target.closest('[data-nav]');
   if (nav) { e.preventDefault(); go(nav.dataset.nav); }
   const act = e.target.closest('[data-action="report-error"]');
@@ -4539,7 +4813,7 @@ function scorePill(v, pct) {
   const bg = cssVar(sequentialVar(t));
   return `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:flex-end">
     <span class="num" style="font-weight:600;color:var(--ink)">${v}</span>
-    <span style="width:26px;height:6px;border-radius:999px;background:${bg};flex:none" title="${isNum(pct) ? pct + 'th percentile' : ''}"></span></span>`;
+    <span style="width:26px;height:6px;border-radius:999px;background:${bg};flex:none" title="${isNum(pct) ? ord(pct) + ' percentile' : ''}"></span></span>`;
 }
 function riskPill(band) {
   const map = { Low:'--ok', Medium:'--warn', High:'--critical' };
@@ -5768,7 +6042,7 @@ function tabQuality(r) {
     ]));
     hd.append(el('div', { style: 'text-align:right' }, [
       el('div', { class: 'num', style: 'font-size:24px;font-weight:660' }, isNum(p.score) ? p.score : '—'),
-      el('div', { class: 'metaline' }, isNum(r.pct[k]) ? `${r.pct[k]}th percentile` : 'no percentile'),
+      el('div', { class: 'metaline' }, isNum(r.pct[k]) ? `${ord(r.pct[k])} percentile` : 'no percentile'),
     ]));
     card.append(hd);
 
@@ -7585,6 +7859,372 @@ const ALERT_KINDS = [
 ];
 
 /* ==========================================================================
+   PUBLIC HOMEPAGE
+
+   Separate from the dashboard on purpose. The previous root behaved like an
+   existing user's workspace — watchlist, alerts, research queue — which tells
+   a first-time visitor nothing about what the product is or why they would
+   use it. The dashboard now lives at /app and this is what the domain root
+   serves.
+   ========================================================================== */
+function taskCard(title, body, path, cta) {
+  const card = el('a', { class: 'card task-card', href: href(path),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); navigate(path); } });
+  card.append(el('h3', { class: 'h-card' }, title));
+  card.append(el('p', { class: 'metaline', style: 'margin:6px 0 10px' }, body));
+  card.append(el('span', { class: 'task-cta' }, cta));
+  return card;
+}
+
+VIEWS.marketing = () => {
+  const wrap = el('div', { class: 'stack-lg' });
+
+  /* -- 1. hero ---------------------------------------------------------- */
+  const hero = el('section', { class: 'hero' });
+  hero.append(el('h1', { class: 'hero-h1' },
+    'Research the company. Test the property. Keep the evidence behind every decision.'));
+  hero.append(el('p', { class: 'hero-lede' },
+    'Transparent research tools for Bursa Malaysia and US equities, plus property cash-flow analysis built for Malaysian investors.'));
+  const heroCtas = el('div', { class: 'row row-wrap', style: 'gap:10px;margin-top:var(--lg)' });
+  heroCtas.append(el('a', { class: 'btn btn-primary', href: href('/company/1155-maybank'),
+    onclick: (e) => { e.preventDefault(); openResearch('MAYBANK'); } }, 'Research a Bursa company'));
+  heroCtas.append(el('a', { class: 'btn', href: href('/property/calculator'),
+    onclick: (e) => { e.preventDefault(); navigate('/property/calculator'); } }, 'Check a property deal'));
+  hero.append(heroCtas);
+  hero.append(el('p', { style: 'margin-top:12px' },
+    el('a', { class: 'link', href: href('/learn'), onclick: (e) => { e.preventDefault(); navigate('/learn'); } },
+      'See how Quantum Tradeworks works')));
+  hero.append(el('p', { class: 'metaline', style: 'margin-top:var(--lg);max-width:60ch' },
+    'No stock tips. No hidden rankings. Every important number shows its assumptions and source.'));
+  wrap.append(hero);
+
+  /* -- 2. choose what you want to do ------------------------------------ */
+  const tasks = el('section');
+  tasks.append(el('h2', { class: 'h-section' }, 'Choose what you want to do'));
+  const tgrid = el('div', { class: 'grid grid-tasks', style: 'margin-top:var(--md)' });
+  tgrid.append(taskCard('Find companies worth researching',
+    'Screen on quality, financial strength and valuation. Every filter states what it measures.',
+    '/discover/screener', 'Open the screener'));
+  tgrid.append(taskCard('Check whether a dividend is sustainable',
+    'Cover the distribution against earnings and free cash flow, and see how much headroom is left.',
+    '/discover/screener', 'Check cover'));
+  tgrid.append(taskCard('Compare similar businesses',
+    'Compare on the measures that fit the business model rather than one generic table.',
+    '/compare', 'Compare companies'));
+  tgrid.append(taskCard('Calculate a property’s real cash flow',
+    'Instalment, maintenance, vacancy and exit costs — down to the monthly number.',
+    '/property/calculator', 'Open the calculator'));
+  tgrid.append(taskCard('Monitor changes to your investment case',
+    'Write down what must stay true, and be told when the evidence moves against it.',
+    '/my/theses', 'Build a case'));
+  tasks.append(tgrid);
+  wrap.append(tasks);
+
+  /* -- 3. interactive demonstration ------------------------------------- */
+  const demo = el('section');
+  demo.append(el('h2', { class: 'h-section' }, 'See what a report actually contains'));
+  demo.append(el('p', { class: 'body-lg' }, 'Pick one. Five outputs, then the full report.'));
+  const picks = [
+    { id: 'MAYBANK', label: 'Maybank' }, { id: 'PBBANK', label: 'Public Bank' },
+    { id: 'TENAGA', label: 'Tenaga' }, { id: 'AAPL-SEC', label: 'Apple' },
+  ].filter(p => BY_ID.has(p.id));
+  State.demoPick = picks.some(p => p.id === State.demoPick) ? State.demoPick : (picks[0]?.id || null);
+
+  const seg = el('div', { class: 'segmented', style: 'margin:var(--md) 0' });
+  picks.forEach(p => seg.append(el('button', {
+    'aria-selected': State.demoPick === p.id ? 'true' : 'false',
+    onclick: () => { State.demoPick = p.id; render(); } }, p.label)));
+  seg.append(el('button', { 'aria-selected': State.demoPick === 'property' ? 'true' : 'false',
+    onclick: () => { State.demoPick = 'property'; render(); } }, 'A Kuching property'));
+  demo.append(seg);
+
+  const panel = el('div', { class: 'card' });
+  if (State.demoPick === 'property') {
+    panel.append(el('div', { class: 'grid grid-5' }, [
+      statTile('Monthly cash flow', '−RM840', { sub: 'after instalment, maintenance and vacancy' }),
+      statTile('Break-even rent', 'RM2,810', { sub: 'rent needed to cover every cost' }),
+      statTile('Cash required upfront', 'RM91,000', { sub: 'deposit, fees, renovation' }),
+      statTile('Gross yield', '4.15%', { sub: 'RM1,900 rent on RM550,000' }),
+      statTile('Evidence quality', 'Illustrative', { sub: 'user-supplied inputs, no verified comparables' }),
+    ]));
+    panel.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+      'An example, not a listing. Enter your own numbers to get your own answer.'));
+  } else if (State.demoPick && BY_ID.has(State.demoPick)) {
+    const r = BY_ID.get(State.demoPick);
+    panel.append(el('div', { class: 'grid grid-5' }, [
+      statTile('Business quality', `${r.scores.quality.score}/100`, { sub: 'margin durability, returns, consistency' }),
+      statTile('Financial strength', `${r.scores.strength.score}/100`, { sub: 'leverage, cover, liquidity' }),
+      statTile('Valuation range', isNum(r.val?.vals?.bear) && isNum(r.val?.vals?.bull)
+        ? `${fmtMoney(r.val.vals.bear, r.c.ccy)} – ${fmtMoney(r.val.vals.bull, r.c.ccy)}` : 'not computable',
+        { sub: r.val?.pack?.name || '—' }),
+      statTile('Principal risks', String((r.flags || []).length || 'none flagged'),
+        { sub: 'raised from the reported figures' }),
+      statTile('Data completeness', `${r.m.coverage}%`, { sub: 'computable ÷ applicable metrics' }),
+    ]));
+    panel.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
+      el('a', { class: 'btn btn-primary', href: href(companyPath(r.c)),
+        onclick: (e) => { e.preventDefault(); openResearch(r.c.id); } }, 'Open the complete research report')));
+  }
+  demo.append(panel);
+  wrap.append(demo);
+
+  /* -- 4. property ------------------------------------------------------ */
+  const prop = el('section');
+  prop.append(el('h2', { class: 'h-section' }, 'Sarawak property deal check'));
+  const cityGrid = el('div', { class: 'grid grid-4', style: 'margin-top:var(--md)' });
+  ['Kuching', 'Sibu', 'Miri', 'Bintulu'].forEach(city => {
+    const c = el('a', { class: 'card task-card', href: href('/property/calculator'),
+      onclick: (e) => { e.preventDefault(); State.dealCity = city; navigate('/property/calculator'); } });
+    c.append(el('h3', { class: 'h-card' }, city));
+    c.append(el('span', { class: 'task-cta' }, 'Model a purchase here'));
+    cityGrid.append(c);
+  });
+  prop.append(cityGrid);
+  const example = el('div', { class: 'card', style: 'margin-top:var(--md)' });
+  example.append(el('div', { class: 'grid grid-5' }, [
+    statTile('Purchase price', 'RM550,000'),
+    statTile('Expected rent', 'RM1,900', { sub: 'per month' }),
+    statTile('Monthly cash flow', '−RM840', { tone: '--dn-text' }),
+    statTile('Break-even rent', 'RM2,810'),
+    statTile('Cash required upfront', 'RM91,000'),
+  ]));
+  example.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
+    el('a', { class: 'btn btn-primary', href: href('/property/calculator'),
+      onclick: (e) => { e.preventDefault(); navigate('/property/calculator'); } }, 'Calculate my property')));
+  prop.append(example);
+  wrap.append(prop);
+
+  /* -- 5. how it works -------------------------------------------------- */
+  const how = el('section');
+  how.append(el('h2', { class: 'h-section' }, 'How it works'));
+  const steps = el('div', { class: 'grid grid-3', style: 'margin-top:var(--md)' });
+  [['1', 'Select a company or enter a property.'],
+   ['2', 'Review the evidence and assumptions.'],
+   ['3', 'Save what you believe and monitor what changes.']].forEach(([n, t]) => {
+    const s = el('div', { class: 'card' });
+    s.append(el('div', { class: 'step-n' }, n));
+    s.append(el('p', { style: 'margin-top:8px' }, t));
+    steps.append(s);
+  });
+  how.append(steps);
+  wrap.append(how);
+
+  /* -- 6. trust --------------------------------------------------------- */
+  const trust = el('section');
+  trust.append(el('h2', { class: 'h-section' }, 'What you can check for yourself'));
+  const tg = el('div', { class: 'grid grid-3', style: 'margin-top:var(--md)' });
+  [['Data sources', 'Every provider, its coverage, its delay and its licence status.', '/data-sources'],
+   ['Methodology', 'Metric definitions, scoring weights, peer grouping and model routing.', '/methodology'],
+   ['Corrections log', 'What was wrong, what it is now, and whether anyone was told.', '/corrections'],
+   ['Model version', `Currently ${MODEL_VERSION}. Saved screens record the version that produced them.`, '/methodology'],
+   ['Who runs this', 'Legal entity, location and contact.', '/about'],
+   ['Conflicts of interest', 'What we are and are not paid for, and what can never change a score.', '/about'],
+  ].forEach(([t, b, p]) => tg.append(taskCard(t, b, p, 'Read')));
+  trust.append(tg);
+  trust.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    `Data as of ${AS_OF}. This date does not advance on its own — nothing here is fed by a live source.`));
+  wrap.append(trust);
+
+  /* -- 7. pricing ------------------------------------------------------- */
+  const pricing = el('section');
+  pricing.append(el('h2', { class: 'h-section' }, 'Pricing'));
+  const pg = el('div', { class: 'grid grid-3', style: 'margin-top:var(--md)' });
+  [['Free', 'RM0', ['10 Bursa company reports', 'One watchlist', 'One portfolio', 'Property calculator', 'Delayed prices']],
+   ['Research', 'RM199 / year', ['The full research universe', 'Full screener', 'Editable valuation', 'Alerts and portfolio import', 'Export']],
+   ['Property report', 'From RM39', ['One property, fully modelled', 'Stress tests', 'Evidence quality on every input']],
+  ].forEach(([name, price, feats]) => {
+    const card = el('div', { class: 'card' });
+    card.append(el('h3', { class: 'h-card' }, name));
+    card.append(el('div', { class: 'num', style: 'font-size:26px;font-weight:660;margin:6px 0 10px' }, price));
+    const ul = el('ul', { class: 'ticklist' });
+    feats.forEach(f => ul.append(el('li', {}, f)));
+    card.append(ul);
+    pg.append(card);
+  });
+  pricing.append(pg);
+  pricing.append(el('div', { class: 'row', style: 'margin-top:var(--md);gap:10px' }, [
+    el('a', { class: 'btn', href: href('/pricing'), onclick: (e) => { e.preventDefault(); navigate('/pricing'); } }, 'Compare plans'),
+  ]));
+  pricing.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+    'No payment is processed anywhere in this build. Billing, trials, renewal and cancellation are not implemented — see Plans for what that means.'));
+  wrap.append(pricing);
+
+  return wrap;
+};
+
+/* ==========================================================================
+   WATCHLISTS — its own destination, not a panel on a dashboard.
+   ========================================================================== */
+VIEWS.watchlists = () => {
+  const wrap = el('div', { class: 'stack' });
+  wrap.append(el('div', {}, [
+    el('h1', { class: 'h-display' }, 'Watchlists'),
+    el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers.'),
+  ]));
+  wrap.append(mySubnav('watchlists'));
+
+  /* State.watchlists is an array of { id, name, ids } — the shape the rest of
+     the app migrated to when multiple lists were added. */
+  const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
+  if (!lists.length) {
+    wrap.append(emptyStateCta('No watchlists yet',
+      'A watchlist decides which companies the change feed and alerts cover.',
+      'Find companies', '/discover/screener'));
+    return wrap;
+  }
+  lists.forEach(list => {
+    const ids = list.ids || [];
+    const card = el('div', { class: 'card' });
+    card.append(el('div', { class: 'row', style: 'gap:8px' }, [
+      el('h2', { class: 'h-card' }, list.name),
+      el('span', { class: 'chip' }, `${ids.length} compan${ids.length === 1 ? 'y' : 'ies'}`),
+    ]));
+    if (!ids.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'Nothing in this list yet.'));
+    else {
+      const ul = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:10px' });
+      ids.forEach(id => {
+        const row = BY_ID.get(id);
+        if (!row) return;
+        ul.append(el('a', { class: 'chip', href: href(companyPath(row.c)),
+          onclick: (e) => { e.preventDefault(); openResearch(id); } }, `${row.c.tk} · ${row.c.name}`));
+      });
+      card.append(ul);
+    }
+    wrap.append(card);
+  });
+  return wrap;
+};
+
+/* Shared secondary navigation for the personal surfaces. */
+function mySubnav(active) {
+  const row = el('div', { class: 'segmented', style: 'margin-bottom:var(--md);flex-wrap:wrap' });
+  SUBNAV_MY.forEach(s => row.append(el('a', {
+    href: href(s.path), 'aria-selected': active === s.id ? 'true' : 'false',
+    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(s.path); } }, s.label)));
+  return row;
+}
+
+/* A consistent empty state: says what the surface is for and offers the one
+   action that fills it, rather than rendering a blank container. */
+function emptyStateCta(title, body, ctaLabel, ctaPath) {
+  const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxl) var(--lg)' });
+  card.append(el('h2', { class: 'h-card' }, title));
+  card.append(el('p', { class: 'metaline', style: 'margin:8px auto 14px;max-width:52ch' }, body));
+  if (ctaLabel) card.append(el('a', { class: 'btn btn-primary', href: href(ctaPath),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(ctaPath); } }, ctaLabel));
+  return card;
+}
+
+/* ==========================================================================
+   TRUST PAGES
+
+   These state what is known and mark what is not. An About page carrying an
+   invented registration number would be worse than one that says the entity
+   is not yet registered — a reader can act on the second and is misled by the
+   first.
+   ========================================================================== */
+function trustPage(title, lede, blocks) {
+  const wrap = el('div', { class: 'stack' });
+  wrap.append(el('div', {}, [el('h1', { class: 'h-display' }, title), el('p', { class: 'body-lg' }, lede)]));
+  blocks.forEach(([heading, body, pending]) => {
+    const card = el('div', { class: 'card' });
+    card.append(el('div', { class: 'row', style: 'gap:8px' }, [
+      el('h2', { class: 'h-card' }, heading),
+      pending ? el('span', { class: 'chip chip-bronze' }, 'not yet established') : null,
+    ]));
+    (Array.isArray(body) ? body : [body]).forEach(p =>
+      card.append(el('p', { class: pending ? 'metaline' : '', style: 'margin-top:8px' }, p)));
+    wrap.append(card);
+  });
+  return wrap;
+}
+
+VIEWS.about = () => trustPage('About',
+  'Who is responsible for this product, and what it is and is not.',
+  [
+    ['What Quantum Tradeworks is',
+      ['A research tool. It shows the figures a company reported, derives measures from them, and models a range of values under assumptions you can see and change.',
+       'It is also a property calculator: you enter a purchase and it returns the monthly cash flow, the break-even rent and the cash required.']],
+    ['What it is not',
+      ['Not advice. It does not tell you what to buy, hold or sell, produces no ratings or target prices, asks nothing about your circumstances, and executes nothing.',
+       'Not a data vendor. It does not redistribute market data, and where a price is shown its source and licence are stated on the page.']],
+    ['Legal entity and registration',
+      'No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.', true],
+    ['The people responsible',
+      'Not published. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
+    ['Regulatory position',
+      'This product is not licensed by the Securities Commission Malaysia and does not carry on any regulated activity. It publishes research and calculators; it gives no personal recommendation.'],
+    ['Conflicts of interest',
+      ['Nothing on this site is paid for. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
+       'If any of that changes it will be declared here before it takes effect. A score or a valuation must never move because of who paid — that is the one commitment this product cannot trade away.']],
+    ['Contact', 'See the contact page.'],
+  ]);
+
+VIEWS.contact = () => trustPage('Contact',
+  'How to reach whoever is responsible for a page, a figure or a correction.',
+  [
+    ['Corrections',
+      'If a number here is wrong, that is the most useful thing you can tell us. Every correction is published in the corrections log with what was wrong, what it is now and why.'],
+    ['Contact address',
+      'Not yet published. A contact route will be listed here alongside the registered entity rather than before it.', true],
+    ['What to include',
+      'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'],
+  ]);
+
+VIEWS.privacy = () => trustPage('Privacy',
+  'What this build stores, where it stores it, and what leaves your device.',
+  [
+    ['What is stored',
+      ['Your watchlists, saved screens, investment cases, portfolio holdings, property inputs, theme and base currency are held in this browser’s local storage. They are not sent anywhere.',
+       'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
+    ['What leaves your device',
+      ['Page views are counted by Vercel Analytics, which does not use cookies and does not build a profile of you.',
+       'When SEC-filed companies are loaded, the filing data is fetched from a file served by this site. No request identifying you is made to any third party.']],
+    ['What is never collected',
+      'No brokerage credentials, no account numbers, no identity documents. The portfolio feature records what you type and nothing else.'],
+    ['Clearing your data',
+      'Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly.'],
+    ['A formal policy',
+      'This page describes the build as it actually behaves. A formal privacy policy naming a data controller follows the registered entity.', true],
+  ]);
+
+VIEWS.terms = () => trustPage('Terms',
+  'The terms this build is offered under.',
+  [
+    ['Research, not advice',
+      'Everything here is general information. It does not take account of your objectives, financial situation or needs, and nothing on this site is a recommendation to deal in any security or property.'],
+    ['Sample data',
+      'A substantial part of the dataset is synthetic and exists to demonstrate the interface. It is labelled as such wherever it appears. Do not use a sample figure for a decision.'],
+    ['No warranty on figures',
+      'Data is drawn from filings and files you supply. Errors are possible, are corrected when found, and are logged. Verify anything you intend to act on against the primary source.'],
+    ['Prices and licensing',
+      'No market data is redistributed. Where a price is shown, its source and the right it is shown under are stated on the page.'],
+    ['Payment',
+      'No payment is processed anywhere in this build. Nothing charges, renews or cancels, and the plan controls are demonstrations.'],
+    ['Governing terms',
+      'Formal terms follow the registered entity.', true],
+  ]);
+
+VIEWS.notfound = () => {
+  const wrap = el('div', { class: 'stack' });
+  const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxxl) var(--lg)' });
+  card.append(el('div', { class: 'num', style: 'font-size:44px;font-weight:660' }, '404'));
+  card.append(el('h1', { class: 'h-section', style: 'margin-top:6px' },
+    State.notFoundWhat ? `No ${State.notFoundWhat}` : 'That page does not exist'));
+  card.append(el('p', { class: 'metaline', style: 'margin:10px auto 16px;max-width:54ch' },
+    State.notFoundWhat
+      ? 'It may have been renamed, or it may not be in the universe this build covers. Search for it, or start from Discover.'
+      : 'The link may be out of date. Everything below is a real destination.'));
+  const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap' });
+  [['Discover', '/discover'], ['Research', '/research'], ['Property', '/property'], ['Home', '/']]
+    .forEach(([l, p]) => row.append(el('a', { class: 'btn', href: href(p),
+      onclick: (e) => { e.preventDefault(); State.notFoundWhat = null; navigate(p); } }, l)));
+  card.append(row);
+  wrap.append(card);
+  return wrap;
+};
+
+/* ==========================================================================
    TRACKED — instruments that are followed by price alone.
 
    Everything here is deliberately outside the research universe. The engine
@@ -8757,10 +9397,10 @@ if (realEnabled()) {
     .then(res => {
       realStatus = { ok: true, ...res };
       refreshSearchLabel();
-      render();
       /* A deep link can name a company that did not exist at first paint, so
-         the hash is resolved again once the filings are in. */
-      fromHash();
+         the route is resolved again once the filings are in. applyRoute
+         re-renders, so no separate render call is needed. */
+      applyRoute();
       console.info(`real data: +${res.added} SEC-filed companies`);
     })
     .catch(err => {
@@ -8772,26 +9412,43 @@ if (realEnabled()) {
 
 $('#searchLabel').textContent = `Search ${U.length} companies…`;
 $('#openSearch').setAttribute('aria-label', `Search ${U.length} companies`);
-render();
+/* No render() here: the router paints, and painting twice showed the previous
+   view for a frame before the routed one replaced it. */
+/* Links of the old shape (#research/AAPL/valuation) are already in the wild —
+   in notes, in this project's own history, possibly bookmarked. They are
+   translated to the equivalent path and the URL is replaced rather than
+   pushed, so the back button does not bounce between the two forms. */
+const LEGACY_VIEW_PATH = {
+  home: '/app', discover: '/discover', compare: '/compare', thesis: '/my/theses',
+  portfolio: '/my/portfolio', alerts: '/my/alerts', tracked: '/my/tracked',
+  property: '/property', learn: '/learn', plans: '/pricing',
+};
 
-/* Deep link support: #research/AAPL/valuation */
 function fromHash() {
   const h = location.hash.replace(/^#/, '');
-  if (!h) return;
-  const [view, ticker, tab] = h.split('/');
-  if (!NAV.some(n => n.id === view)) return;
-  if (ticker && BY_ID.has(ticker.toUpperCase())) State.ticker = ticker.toUpperCase();
-  if (tab) {
-    if (view === 'research') State.researchTab = tab;
-    if (view === 'discover') State.discoverTab = tab;
-    /* Methodology pages are meant to be citable, so they get their own links. */
-    if (view === 'learn') State.learnTab = tab;
+  if (!h) return false;
+  const [view, a, b] = h.split('/');
+  if (view === 'research' && a) {
+    const id = companyFromSlug(a);
+    if (id) {
+      State.ticker = id;
+      navigate(companyPath(BY_ID.get(id).c) + (b && b !== 'snapshot' ? `?tab=${b}` : ''), { replace: true });
+      return true;
+    }
   }
-  State.view = view;
-  render();
+  const path = LEGACY_VIEW_PATH[view] || (view === 'research' ? '/research' : null);
+  if (!path) return false;
+  if (view === 'discover' && a) State.discoverTab = a;
+  if (view === 'learn' && a) State.learnTab = a;
+  navigate(path, { replace: true });
+  return true;
 }
-window.addEventListener('hashchange', fromHash);
-fromHash();
+
+window.addEventListener('popstate', () => applyRoute());
+/* Anything else that still sets a hash keeps working. */
+window.addEventListener('hashchange', () => { if (fromHash()) history.replaceState(history.state, '', location.pathname + location.search); });
+
+if (!fromHash()) applyRoute();
 
 console.info('Quantum Tradeworks prototype — synthetic data only. %d companies, %s', U.length, MODEL_VERSION);
 </script>
