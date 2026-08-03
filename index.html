@@ -395,6 +395,10 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .grid { display: grid; gap: var(--md); }
 
 /* ---- layout primitives used by the public pages and the personal surfaces */
+/* A select sized to sit in an assumption row beside its label, matching the
+   inline number inputs it appears alongside. */
+.select-sm { height: 30px; padding: 0 26px 0 8px; font-size: 12px; max-width: 190px; }
+
 .stack    { display: flex; flex-direction: column; gap: var(--lg); }
 .stack-lg { display: flex; flex-direction: column; gap: var(--xxxl); }
 .link { color: var(--brand); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); }
@@ -8322,7 +8326,7 @@ VIEWS.tracked = () => {
   wrap.append(head);
 
   const card = el('div', { class: 'card' });
-  const tbl = el('table', { class: 'tbl' });
+  const tbl = el('table', { class: 'dt' });
   tbl.append(el('thead', {}, el('tr', {}, [
     el('th', {}, 'Instrument'), el('th', {}, 'Type'),
     el('th', { class: 'num' }, 'Last'), el('th', { class: 'num' }, 'As of'),
@@ -8821,12 +8825,115 @@ const PROJECTS = [
     vacancyPct:11, maintPsf:0.42 },
 ];
 
+/* ==========================================================================
+   SARAWAK GEOGRAPHY
+
+   Location is asked first because in Sarawak it decides more than price does.
+   Title class, transfer restriction, flood exposure and who the tenants are
+   all follow from where the property is, and a calculator that starts at
+   "purchase price" has already skipped the questions that matter most.
+   ========================================================================== */
+const SARAWAK_CITIES = [
+  { id:'kuching',  name:'Kuching',  districts:['Kuching city centre','Tabuan','Stutong','Batu Kawa','Matang','Petra Jaya','Samarahan','Kota Samarahan (university belt)','Other Kuching'] },
+  { id:'sibu',     name:'Sibu',     districts:['Sibu town','Sungai Merah','Salim','Bukit Assek','Other Sibu'] },
+  { id:'miri',     name:'Miri',     districts:['Miri city centre','Piasau','Krokop','Lutong','Senadin','Permyjaya','Other Miri'] },
+  { id:'bintulu',  name:'Bintulu',  districts:['Bintulu town','Kidurong','Tanjung Batu','Samalaju','Other Bintulu'] },
+  { id:'other-swk',name:'Other Sarawak', districts:['Sri Aman','Kapit','Limbang','Mukah','Betong','Sarikei','Elsewhere in Sarawak'] },
+  { id:'outside',  name:'Outside Sarawak', districts:['Peninsular Malaysia','Sabah','Labuan'] },
+];
+
+/* Sarawak land is classified under its own Land Code, not the National Land
+   Code, and the class governs who may hold the title. This is the single most
+   consequential thing about a Sarawak property and the one a calculator must
+   never quietly decide — it is a question for a lawyer and the Land and Survey
+   Department, so the tool raises it and stops there. */
+const TITLE_TYPES = [
+  { id:'mixed-zone',  label:'Mixed Zone Land',      note:'Generally transferable without a native-status restriction. Confirm the class on the title document itself.' },
+  { id:'native-area', label:'Native Area Land',     note:'Transfer is restricted to persons of native status under the Sarawak Land Code. A non-native purchase is not a matter of price.', restricted:true },
+  { id:'native-cust', label:'Native Customary Rights land', note:'NCR land carries restrictions and frequently unresolved documentation. Do not proceed on a calculator.', restricted:true },
+  { id:'interior',    label:'Interior Area Land',   note:'Restricted class. Verify with the Land and Survey Department before anything else.', restricted:true },
+  { id:'strata',      label:'Strata (parcel title)',note:'Common for apartments and condominiums. Check whether the strata title has actually issued or is still pending.' },
+  { id:'unknown',     label:'Not yet verified',     note:'The class has not been established. Everything below is provisional until it is.', restricted:true },
+];
+
+const PROPERTY_TYPES = ['Condominium', 'Serviced apartment', 'Apartment / flat',
+  'Terrace (single storey)', 'Terrace (2 storey)', 'Semi-detached', 'Detached / bungalow',
+  'Shophouse', 'Commercial lot', 'Land'];
+
+/* Every input carries where its number came from. A figure a developer quoted
+   and a figure taken from a transacted comparable are not the same evidence,
+   and a report that presents them identically is overstating what it knows. */
+const EVIDENCE = [
+  { id:'verified',  label:'Verified transaction', rank:5, note:'A transacted price or a signed tenancy you have seen.' },
+  { id:'public',    label:'Public data',          rank:4, note:'Published by an authority or a listed source.' },
+  { id:'user',      label:'You supplied',         rank:3, note:'A figure you entered from your own knowledge.' },
+  { id:'developer', label:'Developer supplied',   rank:2, note:'Quoted by a seller or their agent. Treat projections from this source with care.' },
+  { id:'estimated', label:'Estimated',            rank:1, note:'Derived from a range or a comparable rather than observed directly.' },
+  { id:'assumed',   label:'Assumed',              rank:0, note:'A default carried by this tool. Not evidence.' },
+];
+const evidenceOf = (id) => EVIDENCE.find(e => e.id === id) || EVIDENCE[EVIDENCE.length - 1];
+
 State.deal = store.read('deal', null) || {
-  projectId:'p1', price:572000, sqft:1050, downPct:10, ratePct:4.30, tenureYears:35,
-  rent:1850, maintenance:294, quitRentAssessment:1100, insurance:450,
-  vacancyPct:9, mgmtPct:0, holdYears:10, apprecPct:3.0, rentGrowthPct:2.5,
+  /* where */
+  city:'kuching', district:'Tabuan', projectId:'p1',
+  propertyType:'Condominium', titleType:'strata', remainingLease:88,
+  /* size */
+  sqft:1050, landSqft:0, parking:1,
+  /* purchase */
+  price:572000, renovation:25000, downPct:10, ratePct:4.30, tenureYears:35,
+  /* income */
+  rent:1850, rentGrowthPct:2.5, vacancyPct:9,
+  /* running costs, annual unless stated */
+  maintenance:294, sinkingFund:0, assessment:800, quitRent:300, insurance:450,
+  mgmtPct:0, repairReservePct:5,
+  /* exit */
+  holdYears:10, apprecPct:3.0, sellMonths:6, agentPct:2.0, exitLegalPct:0.5,
+  /* comparison */
+  equityReturnPct:7.0,
+  /* provenance per figure */
+  evidence: { price:'user', rent:'estimated', maintenance:'developer', vacancyPct:'assumed',
+              apprecPct:'assumed', sqft:'developer', titleType:'assumed' },
+  /* answers to the Sarawak checklist, keyed by check id */
+  checks: {},
 };
 const saveDeal = () => store.write('deal', State.deal);
+
+/* ------------------------------------------------------- Sarawak checklist */
+/* Questions, not verdicts. Each names who can actually answer it, because the
+   honest output of a calculator on a legal or physical question is "ask this
+   person", not a score. */
+const SARAWAK_CHECKS = [
+  { id:'title-restricted', q:'Is the title Native Area Land, NCR or another restricted class?',
+    who:'Lawyer and the Land and Survey Department', sev:'serious',
+    why:'Transfer of restricted classes is limited by the Sarawak Land Code. If it applies, no financial model matters until it is resolved.' },
+  { id:'lease-remaining', q:'If leasehold, how many years remain and has extension been applied for?',
+    who:'Lawyer, Land and Survey Department', sev:'warning',
+    why:'Financing tightens sharply below roughly 60 years remaining, and resale liquidity falls before that.' },
+  { id:'strata-issued', q:'For an apartment: has the strata title issued, or is it still a master title?',
+    who:'Lawyer, developer', sev:'warning',
+    why:'A pending strata title delays resale and complicates financing.' },
+  { id:'flood', q:'Is the site in an area with a known flood history?',
+    who:'Local council, neighbours, DID flood maps', sev:'serious',
+    why:'Parts of Kuching, Sibu and the Rajang basin flood recurrently. It affects insurance, tenant retention and resale.' },
+  { id:'single-employer', q:'Does rental demand here depend on one employer or one industry?',
+    who:'Local agents, your own observation', sev:'serious',
+    why:'Bintulu and Miri rental demand tracks oil, gas and heavy industry. A single project ending can empty a neighbourhood.' },
+  { id:'transient-demand', q:'Is demand driven by students, O&G rotation staff or construction workers?',
+    who:'Local agents', sev:'warning',
+    why:'Transient demand is real demand, but it is shorter, more seasonal and more sensitive to one contract than a family tenancy.' },
+  { id:'parking', q:'Is the unit hard to rent without parking?',
+    who:'Local agents', sev:'warning',
+    why:'Outside the city centres, a unit without allocated parking rents at a discount or not at all.' },
+  { id:'supply', q:'Is there substantial unsold or newly completed supply nearby?',
+    who:'Developer sales offices, NAPIC data', sev:'warning',
+    why:'Competing new stock caps rent and lengthens the void period before the market absorbs it.' },
+  { id:'comparables', q:'Have you verified comparable rental transactions, not asking prices?',
+    who:'Agents, existing tenants', sev:'serious',
+    why:'The rent assumption drives every output on this page. An asking price is not a transaction.' },
+  { id:'resale-time', q:'How long would a resale realistically take in this district?',
+    who:'Local agents', sev:'warning',
+    why:'Sarawak secondary markets outside the main centres can take many months. The carrying cost of that period is real.' },
+];
 
 /* Malaysian acquisition costs. Rates are editable elsewhere in a real build;
    here they are the published scales, labelled illustrative. */
@@ -8867,12 +8974,26 @@ function dealModel(d) {
   const duty = stampDutyMOT(d.price);
   const legal = legalFeesBuy(d.price);
   const loanDuty = loanStampDuty(loan);
-  const acquisitionCost = deposit + duty + legal + loanDuty;
+  /* Renovation and furnishing is cash out of the same pocket on the same day
+     as the deposit. Leaving it out of "cash required" is the most common way a
+     property model understates what the purchase actually takes. */
+  const renovation = num0(d.renovation);
+  const acquisitionCost = deposit + duty + legal + loanDuty + renovation;
 
   const instalment = monthlyInstalment(loan, d.ratePct, d.tenureYears);
   const grossAnnualRent = d.rent * 12;
   const effectiveRent = grossAnnualRent * (1 - d.vacancyPct / 100);
-  const opex = (d.maintenance * 12) + d.quitRentAssessment + d.insurance + (effectiveRent * d.mgmtPct / 100);
+  /* Running costs, separated so each is visible and editable rather than
+     folded into one figure the reader has to take on trust. A repair reserve
+     is charged against rent because the repairs happen whether or not anyone
+     budgeted for them. */
+  const maintenanceY = num0(d.maintenance) * 12;
+  const sinkingY = num0(d.sinkingFund) * 12;
+  const statutoryY = num0(d.assessment) + num0(d.quitRent);
+  const insuranceY = num0(d.insurance);
+  const mgmtY = effectiveRent * num0(d.mgmtPct) / 100;
+  const repairY = effectiveRent * num0(d.repairReservePct) / 100;
+  const opex = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtY + repairY;
   const noi = effectiveRent - opex;
   const annualDebtService = instalment * 12;
 
@@ -8885,14 +9006,18 @@ function dealModel(d) {
   const breakEvenRent = ((opex + annualDebtService) / (1 - d.vacancyPct / 100)) / 12;
   const psf = d.sqft > 0 ? d.price / d.sqft : null;
 
-  /* Exit scenario at the chosen holding period. */
+  /* Exit at the chosen holding period. Selling is not instantaneous: the
+     property is carried, unlet, for however long the sale takes, and in a
+     Sarawak secondary market that is months rather than weeks. */
   const exitValue = d.price * Math.pow(1 + d.apprecPct / 100, d.holdYears);
   const outstanding = balanceAfter(loan, d.ratePct, d.tenureYears, d.holdYears * 12);
-  const agentFee = exitValue * 0.02;
-  const exitLegal = Math.max(500, exitValue * 0.005);
+  const agentFee = exitValue * num0(d.agentPct) / 100;
+  const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
+  const sellMonths = num0(d.sellMonths);
+  const carryWhileSelling = sellMonths * (instalment + (opex / 12));
   const gain = Math.max(0, exitValue - d.price - duty - legal - agentFee - exitLegal);
   const rpgt = gain * rpgtRate(d.holdYears) / 100;
-  const netExitProceeds = exitValue - outstanding - agentFee - exitLegal - rpgt;
+  const netExitProceeds = exitValue - outstanding - agentFee - exitLegal - rpgt - carryWhileSelling;
 
   /* Cumulative rental cash flow across the hold, with rent growth. */
   let cumCash = 0;
@@ -8912,12 +9037,107 @@ function dealModel(d) {
   const multiple = acquisitionCost > 0 ? (cumCash + netExitProceeds) / acquisitionCost : null;
   const irrApprox = isNum(multiple) && multiple > 0 ? (Math.pow(multiple, 1 / d.holdYears) - 1) * 100 : null;
 
-  return { proj, loan, deposit, duty, legal, loanDuty, acquisitionCost, instalment,
+  /* ---- stress tests ---------------------------------------------------- */
+  /* Each re-runs the monthly position with one assumption moved, because the
+     question a buyer actually has is not "what does this return" but "at what
+     point does this stop working". Rate and vacancy are the two that move, and
+     renovation is the one that overruns. */
+  const monthlyAt = ({ ratePct = d.ratePct, vacancyPct = d.vacancyPct } = {}) => {
+    const inst = monthlyInstalment(loan, ratePct, d.tenureYears);
+    const eff = grossAnnualRent * (1 - vacancyPct / 100);
+    const ox = maintenanceY + sinkingY + statutoryY + insuranceY
+             + (eff * num0(d.mgmtPct) / 100) + (eff * num0(d.repairReservePct) / 100);
+    return ((eff - ox) / 12) - inst;
+  };
+  const stress = {
+    rate: [0, 1, 2, 3].map(bump => ({
+      label: bump === 0 ? 'as entered' : `+${bump}.0 pp`,
+      ratePct: d.ratePct + bump, monthly: monthlyAt({ ratePct: d.ratePct + bump }),
+    })),
+    vacancy: [d.vacancyPct, 15, 25, 40].map((v, i) => ({
+      label: i === 0 ? 'as entered' : `${v}% vacant`,
+      vacancyPct: v, monthly: monthlyAt({ vacancyPct: v }),
+    })),
+    /* Renovation does not change the monthly position — it changes how much
+       cash the purchase consumes and therefore every return measured on it. */
+    renovation: [0, 25, 50, 100].map(over => {
+      const reno = renovation * (1 + over / 100);
+      const cash = deposit + duty + legal + loanDuty + reno;
+      return { label: over === 0 ? 'as budgeted' : `+${over}% over`, renovation: reno, cash,
+               cashOnCash: cash > 0 ? (noi - annualDebtService) / cash * 100 : null };
+    }),
+  };
+  /* The point at which the monthly position crosses zero, by bisection.
+     Crucially it returns null when there is no crossing — a property can be
+     cash-flow negative at a 0% interest rate and with no vacancy at all, and
+     collapsing that case to "0%" reads as an excellent result when it means
+     the exact opposite. A missing answer is stated as missing. */
+  /* Returns WHY there is no crossing, not just that there isn't one. Collapsing
+     "negative at every rate" and "positive at every rate" both to null is how a
+     failing deal gets displayed as one that never fails. */
+  const crossing = (fn, lo, hi) => {
+    if (fn(lo) <= 0) return { value: null, reason: 'never-positive' };
+    if (fn(hi) > 0) return { value: null, reason: 'always-positive' };
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (fn(mid) > 0) lo = mid; else hi = mid;
+    }
+    return { value: (lo + hi) / 2, reason: 'crosses' };
+  };
+  const rateBE = crossing(r2 => monthlyAt({ ratePct: r2 }), 0, 25);
+  const vacBE = crossing(v => monthlyAt({ vacancyPct: v }), 0, 100);
+  const breakEvenRate = rateBE.value, breakEvenRateWhy = rateBE.reason;
+  const breakEvenVacancy = vacBE.value, breakEvenVacancyWhy = vacBE.reason;
+  /* The genuinely structural case: no rate and no occupancy level fixes it. */
+  const negativeAtBest = monthlyAt({ ratePct: 0, vacancyPct: 0 }) <= 0;
+
+  /* ---- five and ten year exits ----------------------------------------- */
+  const exitAt = (yrs) => {
+    const val = d.price * Math.pow(1 + d.apprecPct / 100, yrs);
+    const bal = balanceAfter(loan, d.ratePct, d.tenureYears, yrs * 12);
+    const agent = val * num0(d.agentPct) / 100;
+    const lg = Math.max(500, val * num0(d.exitLegalPct) / 100);
+    const carry = sellMonths * (instalment + (opex / 12));
+    const gn = Math.max(0, val - d.price - duty - legal - agent - lg);
+    const tax = gn * rpgtRate(yrs) / 100;
+    const net = val - bal - agent - lg - tax - carry;
+    let cum = 0;
+    for (let y = 1; y <= yrs; y++) {
+      const rentY = grossAnnualRent * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
+      const effY = rentY * (1 - d.vacancyPct / 100);
+      cum += effY - (opex * Math.pow(1.02, y - 1)) - annualDebtService;
+    }
+    const profit = cum + net - acquisitionCost;
+    const mult = acquisitionCost > 0 ? (cum + net) / acquisitionCost : null;
+    return { yrs, value: val, outstanding: bal, agentFee: agent, exitLegal: lg, carry,
+             rpgtPct: rpgtRate(yrs), rpgt: tax, sellingCosts: agent + lg + tax + carry,
+             net, cumCash: cum, profit,
+             annualised: isNum(mult) && mult > 0 ? (Math.pow(mult, 1 / yrs) - 1) * 100 : null };
+  };
+  const exits = [5, 10].map(exitAt);
+
+  /* ---- the same cash, in equities -------------------------------------- */
+  /* Not a recommendation and not a forecast — the point is that the deposit
+     has an alternative use, and a property model that never mentions it is
+     answering an easier question than the one being asked. */
+  const equity = exits.map(e => {
+    const grown = acquisitionCost * Math.pow(1 + num0(d.equityReturnPct) / 100, e.yrs);
+    return { yrs: e.yrs, value: grown, profit: grown - acquisitionCost,
+             annualised: num0(d.equityReturnPct), vsProperty: e.profit - (grown - acquisitionCost) };
+  });
+
+  return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost, instalment,
            grossAnnualRent, effectiveRent, opex, noi, annualDebtService, grossYield, netYield,
-           cashflowMonthly, cashOnCash, dscr, breakEvenRent, psf, exitValue, outstanding,
-           agentFee, exitLegal, gain, rpgt, rpgtPct: rpgtRate(d.holdYears), netExitProceeds,
-           cumCash, path, totalProfit, multiple, irrApprox };
+           maintenanceY, sinkingY, statutoryY, insuranceY, mgmtY, repairY,
+           cashflowMonthly, cashOnCash, dscr, breakEvenRent,
+           breakEvenRate, breakEvenRateWhy, breakEvenVacancy, breakEvenVacancyWhy, negativeAtBest,
+           psf, exitValue, outstanding, agentFee, exitLegal, carryWhileSelling,
+           gain, rpgt, rpgtPct: rpgtRate(d.holdYears), netExitProceeds,
+           cumCash, path, totalProfit, multiple, irrApprox, stress, exits, equity };
 }
+
+/* Inputs arrive from number fields, where an emptied box is '' and not 0. */
+function num0(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
 function propertyRiskFlags(d, m) {
   const out = [];
@@ -8937,6 +9157,33 @@ function propertyRiskFlags(d, m) {
     n:`Selling in year ${d.holdYears} attracts RPGT at ${m.rpgtPct}% for an individual Malaysian citizen, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
   if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
     n:'Financing and resale liquidity both tighten as the remaining lease shortens. Check the balance term before committing.' });
+  /* Title class outranks everything financial. A restricted class is not a
+     risk to be priced — it is a question about whether the purchase is open to
+     you at all, and that is answered by a lawyer and the Land and Survey
+     Department rather than by this page. */
+  const title = TITLE_TYPES.find(t => t.id === d.titleType);
+  if (title?.restricted) out.unshift({ sev:'serious', t:`Title class: ${title.label}`,
+    n:`${title.note} Nothing below is meaningful until the class on the title document is confirmed.` });
+
+  if (d.titleType !== 'strata' && isNum(d.remainingLease) && d.remainingLease > 0 && d.remainingLease < 60)
+    out.push({ sev:'serious', t:`Only ${d.remainingLease} years remain on the lease`,
+      n:'Below roughly 60 years most lenders shorten the tenure or decline, which narrows the pool of buyers at your own exit as well.' });
+
+  /* Answers the buyer gave to the checklist, surfaced as findings. */
+  for (const chk of SARAWAK_CHECKS) {
+    if (State.deal.checks?.[chk.id] === 'yes' && chk.id !== 'comparables' && chk.id !== 'lease-remaining')
+      out.push({ sev: chk.sev, t: chk.q.replace(/\?$/, ''), n: `${chk.why} Confirm with: ${chk.who}.` });
+    if (chk.id === 'comparables' && State.deal.checks?.[chk.id] === 'no')
+      out.push({ sev:'serious', t:'Rental comparables have not been verified',
+        n:'Every figure on this page is driven by the rent assumption. Until a transacted rent is confirmed, the outputs are arithmetic on a guess.' });
+  }
+
+  /* Provenance is itself a risk. A model whose two largest drivers came from
+     the seller is a sales projection wearing a spreadsheet. */
+  const weak = ['price', 'rent'].filter(k => ['developer', 'assumed'].includes(State.deal.evidence?.[k]));
+  if (weak.length) out.push({ sev:'warning', t:'Key figures are not independently evidenced',
+    n:`${weak.join(' and ')} ${weak.length === 1 ? 'is' : 'are'} marked as supplied by the seller or assumed by this tool. Those two drive every output here.` });
+
   if (!out.length) out.push({ sev:'good', t:'No threshold breached', n:'On the assumptions entered, none of the modelled risk thresholds is crossed. That is a statement about the assumptions, not about the property.' });
   return out;
 }
@@ -8967,6 +9214,62 @@ VIEWS.property = () => {
   /* ---------- inputs ---------- */
   const rail = el('div', { class: 'card rail-sticky' });
   rail.append(cardHead('Your deal', 'Everything is yours to enter. The free calculator is complete — nothing below is withheld.'));
+
+  /* Location first. In Sarawak the district decides the title class, the flood
+     exposure and who the tenants are, and every one of those matters more to
+     the outcome than the purchase price does. */
+  const loc = el('div', { style: 'margin-bottom:var(--md);padding-bottom:var(--md);border-bottom:1px solid var(--line)' });
+  loc.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, '1 · Where'));
+
+  const cityField = el('div', { class: 'field' });
+  cityField.append(el('label', { for: 'dealCity' }, 'City'));
+  const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
+    d.city = e.target.value;
+    d.district = (SARAWAK_CITIES.find(c => c.id === d.city)?.districts || [''])[0];
+    saveDeal(); render();
+  } });
+  SARAWAK_CITIES.forEach(c => citySel.append(el('option', { value: c.id, selected: d.city === c.id ? '' : null }, c.name)));
+  cityField.append(citySel);
+  loc.append(cityField);
+
+  const cityDef = SARAWAK_CITIES.find(c => c.id === d.city) || SARAWAK_CITIES[0];
+  const distField = el('div', { class: 'field', style: 'margin-top:10px' });
+  distField.append(el('label', { for: 'dealDistrict' }, 'District or neighbourhood'));
+  const distSel = el('select', { class: 'select', id: 'dealDistrict',
+    onchange: e => { d.district = e.target.value; saveDeal(); render(); } });
+  cityDef.districts.forEach(x => distSel.append(el('option', { value: x, selected: d.district === x ? '' : null }, x)));
+  distField.append(distSel);
+  loc.append(distField);
+
+  const typeField = el('div', { class: 'field', style: 'margin-top:10px' });
+  typeField.append(el('label', { for: 'dealType' }, 'Property type'));
+  const typeSel = el('select', { class: 'select', id: 'dealType',
+    onchange: e => { d.propertyType = e.target.value; saveDeal(); render(); } });
+  PROPERTY_TYPES.forEach(x => typeSel.append(el('option', { value: x, selected: d.propertyType === x ? '' : null }, x)));
+  typeField.append(typeSel);
+  loc.append(typeField);
+
+  const titleField = el('div', { class: 'field', style: 'margin-top:10px' });
+  titleField.append(el('label', { for: 'dealTitle' }, 'Title class'));
+  const titleSel = el('select', { class: 'select', id: 'dealTitle',
+    onchange: e => { d.titleType = e.target.value; saveDeal(); render(); } });
+  TITLE_TYPES.forEach(t => titleSel.append(el('option', { value: t.id, selected: d.titleType === t.id ? '' : null }, t.label)));
+  titleField.append(titleSel);
+  const tDef = TITLE_TYPES.find(t => t.id === d.titleType);
+  if (tDef) titleField.append(el('p', { class: 'metaline', style: 'margin-top:5px' }, tDef.note));
+  loc.append(titleField);
+
+  if (d.titleType !== 'strata') {
+    const leaseField = el('div', { class: 'field', style: 'margin-top:10px' });
+    leaseField.append(el('label', { for: 'dealLease' }, 'Years remaining on the lease (0 if freehold)'));
+    leaseField.append(el('input', { class: 'input', id: 'dealLease', type: 'number', min: '0', max: '999',
+      value: String(d.remainingLease ?? 0),
+      oninput: e => { d.remainingLease = num0(e.target.value); saveDeal(); render(); } }));
+    loc.append(leaseField);
+  }
+  rail.append(loc);
+  rail.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, '2 · What'));
+
   const psel = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   psel.append(el('label', { for: 'pj' }, 'Project'));
   const ps = el('select', { class: 'select', id: 'pj', onchange: e => {
@@ -8981,25 +9284,76 @@ VIEWS.property = () => {
     `${pr2.name} — ${pr2.area}`)));
   psel.append(ps); rail.append(psel);
 
-  const fields = [
-    ['price', 'Purchase price (RM)', 1000], ['sqft', 'Built-up area (sq ft)', 10],
-    ['downPct', 'Deposit (%)', 1], ['ratePct', 'Loan interest rate (%)', 0.05],
-    ['tenureYears', 'Loan tenure (years)', 1], ['rent', 'Expected monthly rent (RM)', 50],
-    ['maintenance', 'Monthly maintenance and sinking fund (RM)', 10],
-    ['quitRentAssessment', 'Annual quit rent and assessment (RM)', 50],
-    ['insurance', 'Annual insurance (RM)', 50], ['vacancyPct', 'Vacancy allowance (%)', 1],
-    ['mgmtPct', 'Letting and management fee (% of rent)', 1],
-    ['holdYears', 'Holding period (years)', 1], ['apprecPct', 'Annual capital growth (%)', 0.25],
-    ['rentGrowthPct', 'Annual rent growth (%)', 0.25],
+  /* Grouped, because a flat list of twenty numbers reads as a form to be
+     endured rather than a model to be understood. Each group is one question:
+     what does it cost, what does it earn, what does it cost to run, what
+     happens on the way out. */
+  const GROUPS = [
+    ['Size and parking', [
+      ['sqft', 'Built-up area (sq ft)', 10],
+      ['landSqft', 'Land area (sq ft, 0 if none)', 10],
+      ['parking', 'Allocated parking bays', 1],
+    ]],
+    ['3 · Purchase', [
+      ['price', 'Purchase price (RM)', 1000],
+      ['renovation', 'Renovation and furnishing (RM)', 500],
+      ['downPct', 'Deposit (%)', 1],
+      ['ratePct', 'Loan interest rate (%)', 0.05],
+      ['tenureYears', 'Loan tenure (years)', 1],
+    ]],
+    ['4 · Income', [
+      ['rent', 'Expected monthly rent (RM)', 50],
+      ['rentGrowthPct', 'Annual rent growth (%)', 0.25],
+      ['vacancyPct', 'Vacancy allowance (%)', 1],
+    ]],
+    ['5 · Running costs', [
+      ['maintenance', 'Monthly maintenance (RM)', 10],
+      ['sinkingFund', 'Monthly sinking fund (RM)', 10],
+      ['assessment', 'Annual assessment (RM)', 50],
+      ['quitRent', 'Annual quit rent (RM)', 25],
+      ['insurance', 'Annual insurance (RM)', 50],
+      ['mgmtPct', 'Letting and management fee (% of rent)', 0.5],
+      ['repairReservePct', 'Repair reserve (% of rent)', 0.5],
+    ]],
+    ['6 · Exit', [
+      ['holdYears', 'Holding period (years)', 1],
+      ['apprecPct', 'Annual capital growth (%)', 0.25],
+      ['sellMonths', 'Expected months to sell', 1],
+      ['agentPct', 'Agent commission on exit (%)', 0.25],
+      ['exitLegalPct', 'Legal costs on exit (%)', 0.1],
+    ]],
+    ['7 · Comparison', [
+      ['equityReturnPct', 'Assumed equity return (% a year)', 0.5],
+    ]],
   ];
-  fields.forEach(([k, label, step]) => {
-    const f = el('div', { class: 'assumption' });
-    f.append(el('label', { for: `d-${k}` }, label));
-    f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
-      value: d[k], style: 'text-align:right',
-      onchange: e => { d[k] = +e.target.value || 0; saveDeal(); render(); } }));
-    rail.append(f);
+  GROUPS.forEach(([heading, fields]) => {
+    rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, heading));
+    fields.forEach(([k, label, step]) => {
+      const f = el('div', { class: 'assumption' });
+      f.append(el('label', { for: `d-${k}` }, label));
+      f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
+        value: d[k] ?? 0, style: 'text-align:right',
+        onchange: e => { d[k] = num0(e.target.value); saveDeal(); render(); } }));
+      rail.append(f);
+    });
   });
+
+  /* Provenance for the figures that actually move the answer. */
+  rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, '8 · Evidence quality'));
+  rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
+    'Where each of the two figures that drive every output came from.'));
+  [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
+    .forEach(([k, label]) => {
+      const f = el('div', { class: 'assumption' });
+      f.append(el('label', { for: `ev-${k}` }, label));
+      const sel = el('select', { class: 'select select-sm', id: `ev-${k}`,
+        onchange: e => { d.evidence = { ...(d.evidence || {}), [k]: e.target.value }; saveDeal(); render(); } });
+      EVIDENCE.forEach(ev => sel.append(el('option', { value: ev.id,
+        selected: (d.evidence?.[k] || 'assumed') === ev.id ? '' : null }, ev.label)));
+      f.append(sel);
+      rail.append(f);
+    });
+
   layout.append(rail);
 
   /* ---------- outputs ---------- */
@@ -9019,6 +9373,132 @@ VIEWS.property = () => {
     `Acquisition needs ${fmtAmount(m.acquisitionCost, 'MYR')} in cash: ${fmtAmount(m.deposit, 'MYR')} deposit, ${fmtAmount(m.duty, 'MYR')} transfer stamp duty, ${fmtAmount(m.legal, 'MYR')} legal and ${fmtAmount(m.loanDuty, 'MYR')} loan stamp duty.`));
   out.append(free);
 
+  /* ---------- Sarawak checklist ---------- */
+  /* Questions, answered by the buyer, each naming who can actually settle it.
+     The tool does not decide legal eligibility or flood exposure — it makes
+     sure neither is skipped. */
+  const chk = el('div', { class: 'card' });
+  chk.append(cardHead('Before the numbers mean anything',
+    'Ten questions that decide more than the price does. Nothing here is scored — answering "yes" to a risk simply raises it in the findings below, with who can confirm it.'));
+  const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
+  chk.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:var(--md)' }, [
+    el('span', { class: answered === SARAWAK_CHECKS.length ? 'chip chip-ok' : 'chip chip-bronze' },
+      `${answered} of ${SARAWAK_CHECKS.length} answered`),
+    answered < SARAWAK_CHECKS.length
+      ? el('span', { class: 'metaline' }, 'Unanswered questions are not neutral — they are unknowns carried into the result.') : null,
+  ]));
+  SARAWAK_CHECKS.forEach(c => {
+    const row = el('div', { style: 'padding:10px 0;border-top:1px solid var(--line)' });
+    row.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:flex-start' }, [
+      el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:530;margin:0' }, c.q),
+      el('div', { class: 'segmented', style: 'flex:none' }, ['yes', 'no', 'unknown'].map(v =>
+        el('button', { 'aria-selected': d.checks?.[c.id] === v ? 'true' : 'false',
+          onclick: () => { d.checks = { ...(d.checks || {}), [c.id]: v }; saveDeal(); render(); } },
+          v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Not sure'))),
+    ]));
+    row.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `${c.why} · Confirm with: ${c.who}`));
+    chk.append(row);
+  });
+  chk.append(el('p', { class: 'metaline', style: 'margin-top:var(--md);padding-top:10px;border-top:1px solid var(--line)' },
+    'This tool does not determine legal eligibility, flood risk or market demand. Each question names the professional or authority who can.'));
+  out.append(chk);
+
+  /* ---------- stress tests ---------- */
+  const stressCard = el('div', { class: 'card' });
+  stressCard.append(cardHead('What breaks it',
+    'The useful question is not what this returns but at what point it stops working. Each row moves one assumption and leaves the rest as entered.'));
+
+  if (m.negativeAtBest) stressCard.append(el('p', { class: 'body', style: 'margin-bottom:var(--md);color:var(--dn-text)' },
+    'This deal is cash-flow negative even at a 0% interest rate with the unit never empty. No interest rate or occupancy level makes it pay for itself — the shortfall is structural, in the price against the rent.'));
+
+  const stressGrid = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
+  /* The three cases are displayed as three different things, because they are:
+     it crosses somewhere, it is never positive, or it is always positive. */
+  const beTile = (label, value, why, entered, fmt, copy) => {
+    const never = why === 'never-positive', always = why === 'always-positive';
+    return el('div', { class: 'panel' }, statTile(label,
+      isNum(value) ? fmt(value) : never ? copy.neverValue : copy.alwaysValue,
+      { sub: isNum(value) ? copy.crosses(entered) : never ? copy.never : copy.always,
+        tone: isNum(value) ? (copy.good(value, entered) ? '--ok-text' : '--dn-text')
+            : never ? '--dn-text' : '--ok-text' }));
+  };
+  stressGrid.append(beTile('Breaks even at', m.breakEvenRate, m.breakEvenRateWhy, d.ratePct,
+    v => fmtPct(v, 2), {
+      neverValue: 'no rate', alwaysValue: 'any rate',
+      crosses: e => `Interest rate at which monthly cash flow reaches zero. You entered ${fmtPct(e, 2)}.`,
+      never: 'Negative at every rate down to 0%. The interest rate is not what makes this negative.',
+      always: 'Stays positive at every rate tested, up to 25%.',
+      good: (v, e) => v > e + 1,
+    }));
+  stressGrid.append(beTile('Survives vacancy to', m.breakEvenVacancy, m.breakEvenVacancyWhy, d.vacancyPct,
+    v => fmtPct(v, 0), {
+      neverValue: 'none', alwaysValue: 'fully vacant',
+      crosses: e => `Vacancy at which it reaches zero. You assumed ${fmtPct(e, 0)}.`,
+      never: 'Negative even with the unit never empty. Vacancy is not what makes this negative.',
+      always: 'Covers its costs even with no tenant at all.',
+      good: (v, e) => v > e + 10,
+    }));
+  stressGrid.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
+    { sub: `Rent needed to cover everything. You expect ${fmtAmount(d.rent, 'MYR')}.`,
+      tone: d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
+  stressCard.append(stressGrid);
+
+  const stressTable = (caption, rows, cols) => {
+    const t = el('table', { class: 'dt' });
+    t.append(el('caption', { class: 'metaline', style: 'text-align:left;padding:6px 0' }, caption));
+    t.append(el('thead', {}, el('tr', {}, cols.map(c2 => el('th', { class: c2.num ? 'num' : '' }, c2.label)))));
+    const tb = el('tbody');
+    rows.forEach(r2 => tb.append(el('tr', {}, cols.map(c2 => {
+      const v = c2.get(r2);
+      return el('td', { class: (c2.num ? 'num ' : '') + (c2.tone ? c2.tone(r2) : '') }, v);
+    }))));
+    t.append(tb);
+    return el('div', { style: 'overflow-x:auto;margin-bottom:var(--md)' }, t);
+  };
+
+  stressCard.append(stressTable('If the interest rate rises', m.stress.rate, [
+    { label: 'Rate', get: r2 => `${r2.label} · ${fmtPct(r2.ratePct, 2)}` },
+    { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
+      tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
+  ]));
+  stressCard.append(stressTable('If it sits empty for longer', m.stress.vacancy, [
+    { label: 'Vacancy', get: r2 => r2.label },
+    { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
+      tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
+  ]));
+  stressCard.append(stressTable('If the renovation overruns', m.stress.renovation, [
+    { label: 'Renovation', get: r2 => `${r2.label} · ${fmtAmount(r2.renovation, 'MYR')}` },
+    { label: 'Cash required', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
+    { label: 'Cash-on-cash', num: true, get: r2 => isNum(r2.cashOnCash) ? fmtPct(r2.cashOnCash, 2) : '—',
+      tone: r2 => isNum(r2.cashOnCash) && r2.cashOnCash >= 0 ? 'pos' : 'neg' },
+  ]));
+  out.append(stressCard);
+
+  /* ---------- evidence quality ---------- */
+  const ev = el('div', { class: 'card' });
+  ev.append(cardHead('What this rests on',
+    'A figure a seller quoted and a figure taken from a transacted comparable are not the same evidence.'));
+  const evRows = [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']];
+  const evT = el('table', { class: 'dt' });
+  evT.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Figure'), el('th', {}, 'Source'), el('th', {}, 'What that means')])));
+  const evB = el('tbody');
+  evRows.forEach(([k, label]) => {
+    const e2 = evidenceOf(d.evidence?.[k] || 'assumed');
+    evB.append(el('tr', {}, [
+      el('td', {}, label),
+      el('td', {}, el('span', { class: e2.rank >= 4 ? 'chip chip-ok' : e2.rank >= 2 ? 'chip' : 'chip chip-bronze' }, e2.label)),
+      el('td', { class: 'metaline' }, e2.note),
+    ]));
+  });
+  evT.append(evB);
+  ev.append(el('div', { style: 'overflow-x:auto' }, evT));
+  const worst = Math.min(...evRows.map(([k]) => evidenceOf(d.evidence?.[k] || 'assumed').rank));
+  ev.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+    worst <= 1
+      ? 'At least one figure driving this model is assumed or estimated. A verified report is one where these say "verified transaction" — that is the difference between the two, not extra pages.'
+      : 'Every figure above is evidenced at least to a figure you supplied. Verified transactions are stronger still.'));
+  out.append(ev);
+
   if (!paid) {
     out.append(upsell(`Full investor report — RM${PROPERTY_REPORT_PRICE.full}`,
       'Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Bought per report, or included twice monthly on All-Access.'));
@@ -9034,6 +9514,40 @@ VIEWS.property = () => {
     wrap.append(layout);
     return wrap;
   }
+
+  /* ---------- exits and the alternative ---------- */
+  const exitCard = el('div', { class: 'card' });
+  exitCard.append(cardHead('Selling in year 5 and year 10',
+    'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.'));
+  const exTable = el('table', { class: 'dt' });
+  exTable.append(el('thead', {}, el('tr', {}, ['', 'Sell in year 5', 'Sell in year 10'].map((h, i) =>
+    el('th', { class: i ? 'num' : '' }, h)))));
+  const exBody = el('tbody');
+  const exRows = [
+    ['Sale value', e => fmtAmount(e.value, 'MYR')],
+    ['Loan outstanding', e => `−${fmtAmount(e.outstanding, 'MYR')}`],
+    ['Agent commission', e => `−${fmtAmount(e.agentFee, 'MYR')}`],
+    ['Legal on exit', e => `−${fmtAmount(e.exitLegal, 'MYR')}`],
+    [`Carried while selling`, e => `−${fmtAmount(e.carry, 'MYR')}`],
+    ['Real property gains tax', e => `−${fmtAmount(e.rpgt, 'MYR')} (${e.rpgtPct}%)`],
+    ['Net proceeds', e => fmtAmount(e.net, 'MYR')],
+    ['Rental cash over the hold', e => fmtAmount(e.cumCash, 'MYR')],
+    ['Total profit on cash invested', e => fmtAmount(e.profit, 'MYR')],
+    ['Annualised', e => isNum(e.annualised) ? fmtPct(e.annualised, 2) : '—'],
+  ];
+  exRows.forEach(([label, get], i) => {
+    const strong = i >= exRows.length - 2;
+    exBody.append(el('tr', {}, [
+      el('td', { style: strong ? 'font-weight:620' : '' }, label),
+      ...m.exits.map(e => el('td', { class: 'num', style: strong ? 'font-weight:620' : '' }, get(e))),
+    ]));
+  });
+  exTable.append(exBody);
+  exitCard.append(el('div', { style: 'overflow-x:auto' }, exTable));
+
+  exitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'Exit costs include the months the property is carried unlet while it sells — a real cost in a Sarawak secondary market, and one most calculators leave out.'));
+  out.append(exitCard);
 
   /* ---------- paid report ---------- */
   const comps = el('div', { class: 'card' });
@@ -9095,25 +9609,6 @@ VIEWS.property = () => {
   stw.append(st); sc2.append(stw);
   out.append(sc2);
 
-  /* exit */
-  const ex = el('div', { class: 'card' });
-  ex.append(cardHead('Exit costs and net proceeds',
-    `Selling in year ${d.holdYears}. Real property gains tax is applied at the individual Malaysian citizen rate for that holding period.`));
-  const ekv = el('dl', { class: 'kv' });
-  [['Sale value', fmtAmount(m.exitValue, 'MYR')],
-   ['Outstanding loan', `−${fmtAmount(m.outstanding, 'MYR')}`],
-   ['Agent fee at 2%', `−${fmtAmount(m.agentFee, 'MYR')}`],
-   ['Legal on disposal', `−${fmtAmount(m.exitLegal, 'MYR')}`],
-   [`Real property gains tax at ${m.rpgtPct}%`, `−${fmtAmount(m.rpgt, 'MYR')}`],
-   ['Net proceeds', fmtAmount(m.netExitProceeds, 'MYR')],
-   ['Cumulative rental cash flow', fmtAmount(m.cumCash, 'MYR')],
-   ['Total profit over the hold', fmtAmount(m.totalProfit, 'MYR')],
-   ['Approximate annualised return on cash', isNum(m.irrApprox) ? fmtPct(m.irrApprox, 2) : '—']]
-   .forEach(([k, v]) => { ekv.append(el('dt', {}, k)); ekv.append(el('dd', {}, v)); });
-  ex.append(ekv);
-  ex.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'RPGT rates shown are the published individual-citizen scale and are illustrative. Your liability depends on your residency, ownership structure and any exemption claimed — confirm with a tax adviser.'));
-  out.append(ex);
 
   /* equity comparison — the cross-asset point of the whole product */
   const eq2 = el('div', { class: 'card' });
