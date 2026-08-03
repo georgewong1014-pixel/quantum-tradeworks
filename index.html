@@ -7609,13 +7609,28 @@ VIEWS.tracked = () => {
   const book = priceBook?.prices || {};
   const series = trackedHistory?.series || {};
   const reg = instruments?.instruments || [];
-  const byId = new Map(reg.map(i => [i.symbol.toUpperCase(), i]));
+  /* Vendors name the same index several ways — SPX, US500 and ES1! are one
+     instrument. Without aliases the same index appears twice, once named and
+     once as an unregistered stranger, and its series is split across both. */
+  const byId = new Map();
+  for (const i of reg) {
+    byId.set(i.symbol.toUpperCase(), i);
+    for (const a of (i.aliases || [])) if (!byId.has(a.toUpperCase())) byId.set(a.toUpperCase(), i);
+  }
 
   /* Union of what is registered and what actually arrived in the price file,
      so an instrument you started tracking shows up before anyone remembers to
-     name it in the registry. */
-  const symbols = [...new Set([...Object.keys(book), ...reg.map(i => i.symbol)].map(s => s.toUpperCase()))]
-    .filter(s => !BY_ID.has(`${s}-SEC`));      /* a real company belongs in Research, not here */
+     name it in the registry. An alias present in the price file resolves to
+     its canonical row rather than adding a second one. */
+  const seen = new Set(), symbols = [];
+  for (const raw of [...Object.keys(book), ...reg.map(i => i.symbol)]) {
+    const up = raw.toUpperCase();
+    if (BY_ID.has(`${up}-SEC`)) continue;      /* a real company belongs in Research, not here */
+    const canonical = (byId.get(up)?.symbol || up).toUpperCase();
+    if (seen.has(canonical)) continue;
+    seen.add(canonical);
+    symbols.push({ canonical, seenAs: up });
+  }
 
   if (!symbols.length) {
     wrap.append(el('div', { class: 'card' }, [
@@ -7626,10 +7641,15 @@ VIEWS.tracked = () => {
   }
 
   const KIND_LABEL = { equity:'Equity', index:'Index', fx:'FX', commodity:'Commodity', crypto:'Crypto', etf:'ETF' };
-  const rows = symbols.map(sym => {
-    const meta = byId.get(sym) || {};
-    const p = book[sym] || null;
-    const hist = series[sym] || {};
+  const rows = symbols.map(({ canonical: sym, seenAs }) => {
+    const meta = byId.get(sym) || byId.get(seenAs) || {};
+    /* The price file is keyed by whatever the source called it, so read under
+       both names and merge the series — otherwise renaming an alias in the
+       registry would orphan the history collected under the old key. */
+    const keys = [...new Set([sym, seenAs, meta.symbol, ...(meta.aliases || [])]
+      .filter(Boolean).map(s => s.toUpperCase()))];
+    const p = keys.map(k => book[k]).find(Boolean) || null;
+    const hist = Object.assign({}, ...keys.map(k => series[k] || {}));
     const dates = Object.keys(hist).sort();
     const values = dates.map(d => hist[d]);
     /* Change measured across the stored series, not from the vendor's own

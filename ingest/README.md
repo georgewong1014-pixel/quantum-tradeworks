@@ -97,9 +97,25 @@ coverage figure. They are deliberately *not* companies in the research universe,
 because admitting them would render an empty scorecard beside real ones — and an
 empty analysis reads like a finished analysis that found nothing.
 
-`data/instruments.json` gives them identity. Bursa codes there are transcribed
-from public listings and **should be checked against your own broker**: a wrong
-code silently attaches a price to the wrong company.
+`data/instruments.json` gives them identity — 101 instruments: 34 Bursa
+listings, **39 indices across 27 markets**, 9 currency pairs, 8 commodities,
+7 ETFs and 4 crypto pairs. Bursa codes there are transcribed from public
+listings and **should be checked against your own broker**: a wrong code
+silently attaches a price to the wrong company.
+
+### Aliases, because one index has several names
+
+The S&P 500 is `SPX`, `US500` or `ES1!` depending on where you look. Each entry
+carries an `aliases` list, matched case-insensitively, so:
+
+- an index resolves to one row whichever form your watchlist shows;
+- a series collected under an old name is merged rather than orphaned;
+- the OCR symbol matcher reads the registry too, so adding an index is one edit
+  here rather than two.
+
+Verified by injecting `SPX` beside an existing `US500` and `GC1!` beside
+`XAUUSD`: both collapsed into their canonical rows and the row count did not
+move. Alias collisions are checked — no alias points at two instruments.
 
 Series accumulate from the daily run:
 

@@ -401,6 +401,24 @@ try {
     .map(s => s.replace(/#.*$/, '').trim()).filter(Boolean);
 } catch { /* optional */ }
 
+/* The instrument registry is the other place a symbol is already written down.
+   Reading it too means adding an index to what you track is one edit rather
+   than two, and every alias a vendor might use is recognised without anyone
+   having to remember them. */
+const REGISTRY = flag('registry', 'data/instruments.json');
+let fromRegistry = 0;
+try {
+  const reg = JSON.parse(await readFile(REGISTRY, 'utf8'));
+  const extra = [];
+  for (const i of (reg.instruments || [])) {
+    extra.push(i.symbol, ...(i.aliases || []));
+  }
+  const before = new Set(known.map(s => s.toUpperCase()));
+  for (const s of extra) {
+    if (s && !before.has(s.toUpperCase())) { known.push(s); before.add(s.toUpperCase()); fromRegistry++; }
+  }
+} catch { /* optional */ }
+
 const { candidates, skipped } = extractCandidates(rows, known);
 
 let prev = {};
@@ -441,7 +459,9 @@ await writeFile(outPath.replace(/\.csv$/, '.txt'),
 console.log(`image     ${picked}`);
 console.log(`read      ${words.length} words`);
 console.log(`rows      ${rows.length}`);
-console.log(`symbols   ${known.length ? `${known.length} known from ${SYMBOL_FILE}` : `no ${SYMBOL_FILE} — symbols taken from OCR as-is`}`);
+console.log(`symbols   ${known.length
+  ? `${known.length} known${fromRegistry ? ` (${known.length - fromRegistry} from ${SYMBOL_FILE}, ${fromRegistry} from ${REGISTRY})` : ` from ${SYMBOL_FILE}`}`
+  : `none declared — symbols taken from OCR as-is`}`);
 console.log(`candidates ${reviewed.length}`);
 console.log(`flagged   ${flagged.length}`);
 for (const f of flagged) console.log(`          ${f.symbol}: ${f.why}`);
