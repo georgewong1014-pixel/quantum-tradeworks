@@ -2324,6 +2324,47 @@ const anchor = (v, lo, hi, invert = false) => {
   return (invert ? 1 - t : t) * 100;
 };
 
+/* ==========================================================================
+   SCORECARD COVERAGE AGAINST THE FIVE-PILLAR FRAMEWORK
+
+   The framework weights five pillars at 20% each. This product scores four
+   pillars of its own, and every factor in them is a financial-statement ratio.
+   Nothing here tests a moat, an owner, a board or a disclosure practice.
+
+   That gap cannot be closed with the data this build holds, and inventing a
+   moat score from return on capital would be the specific move section 7.5
+   prohibits — a moat inferred from a financial outcome is a restatement of the
+   outcome, not evidence of a barrier. So the gap is declared instead.
+
+   Read with section 4.1: a company cannot earn points for a metric that was not
+   tested, and a score has to be shown beside its tested coverage. A reader
+   holding the framework would otherwise take "Business Quality 82" to include
+   the moat and management judgements it weights at a fifth each, and it does
+   not include them at all.
+   ========================================================================== */
+const SCORECARD_COVERAGE = [
+  { pillar: 'Revenue Quality', weight: 20, state: 'partial',
+    tested: ['Operating margin', 'Free cash flow margin', 'Revenue growth stability', 'Revenue CAGR'],
+    untested: ['Recurring or contracted share of revenue', 'Customer concentration', 'Geographic and product diversification', 'Cash collection and receivable quality'],
+    why: 'Segment and customer disclosures are narrative in the filings and are not carried in this dataset.' },
+  { pillar: 'Balance Sheet', weight: 20, state: 'tested',
+    tested: ['Net debt / EBIT', 'Debt / equity', 'Net gearing', 'Gearing ratio and CET1 where the model applies'],
+    untested: ['Interest coverage', 'Current ratio', 'Debt maturity profile and refinancing risk'],
+    why: 'Interest expense and current assets and liabilities are not yet extracted from the filings; the metrics report as missing rather than being estimated.' },
+  { pillar: 'Competitive Moat', weight: 20, state: 'not scored',
+    tested: [],
+    untested: ['Moat type', 'Durability', 'Supporting and counter-evidence', 'Analyst confidence'],
+    why: 'Moat evidence is analyst work. It is recorded and shown on the Moat tab where it exists, and marked "Not assessed" on every company loaded from filings alone. It is never scored, and it is never inferred from returns — section 7.5 forbids generating a moat from sector identity or financial outcome.' },
+  { pillar: 'Management', weight: 20, state: 'partial',
+    tested: ['Net buyback yield', 'Payout ratio', 'Dividend cover by free cash flow', 'Return on reinvestment', 'Share count growth'],
+    untested: ['Insider ownership and changes', 'Board independence', 'Audit opinion and auditor changes', 'Related-party transactions', 'Guidance accuracy'],
+    why: 'Capital allocation is visible in the statements and is scored. Governance and ownership are not in this dataset, and the governance event register of section 8 does not exist yet.' },
+  { pillar: 'Growth Visibility', weight: 20, state: 'partial',
+    tested: ['Revenue CAGR', 'Earnings CAGR', 'Free cash flow CAGR', 'Earnings consistency'],
+    untested: ['Order book and contracted revenue', 'Capacity additions', 'Catalyst pipeline', 'Forward earnings visibility'],
+    why: 'Every growth factor scored here is historic. Nothing in this score is forward-looking, and a company with a deteriorating order book and four strong past years scores well on it.' },
+];
+
 const PILLARS = {
   quality: {
     label: 'Business Quality',
@@ -6829,6 +6870,46 @@ function tabQuality(r) {
   chips.append(el('span', { class: 'chip' }, `Source periods FY${YEARS[0]}–FY${last(YEARS)}`));
   intro.append(chips);
   wrap.append(intro);
+
+  /* What this score does not test, stated beside it rather than left to be
+     discovered. Section 7.7 requires the aggregate not to conceal a weakness,
+     and the largest weakness here is not a low pillar — it is two pillars that
+     were never measured. */
+  const cov = el('div', { class: 'card' });
+  cov.append(cardHead('What this score tests, and what it does not',
+    'Against the five-pillar framework, each weighted a fifth. Every factor scored here comes from the financial statements; nothing scored here tests a moat, an owner or a board.'));
+  const notScored = SCORECARD_COVERAGE.filter(p => p.state === 'not scored').length;
+  const partial   = SCORECARD_COVERAGE.filter(p => p.state === 'partial').length;
+  cov.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-bottom:var(--md)' },
+    `${SCORECARD_COVERAGE.length - notScored - partial} of ${SCORECARD_COVERAGE.length} pillars are tested in full, ${partial} in part, and ${notScored} not at all. A high score is evidence about the statements and nothing more.`));
+
+  const ct = el('table', { class: 'dt' });
+  ct.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Pillar'), el('th', {}, 'Framework weight'),
+    el('th', {}, 'State'), el('th', {}, 'Tested here'), el('th', {}, 'Not tested')])));
+  const cb = el('tbody');
+  SCORECARD_COVERAGE.forEach(p => {
+    const tr = el('tr', {});
+    tr.append(el('td', { style: 'font-weight:560' }, p.pillar));
+    tr.append(el('td', { class: 'num' }, `${p.weight}%`));
+    tr.append(el('td', {}, el('span', {
+      class: 'chip ' + (p.state === 'tested' ? 'chip-ok' : p.state === 'partial' ? 'chip-bronze' : 'chip-warn') },
+      p.state)));
+    tr.append(el('td', { class: 'metaline' }, p.tested.length ? p.tested.join(' · ') : '—'));
+    tr.append(el('td', { class: 'metaline' }, p.untested.join(' · ')));
+    cb.append(tr);
+    cb.append(el('tr', {}, el('td', { class: 'metaline', colspan: 5, style: 'padding-top:0' }, p.why)));
+  });
+  ct.append(cb);
+  cov.append(el('div', { style: 'overflow-x:auto' }, ct));
+
+  /* The moat status for this specific company, so a strong score is not read as
+     including a judgement nobody made about it. */
+  const assessed = r.c.moat && r.c.moat.kind !== 'Not assessed';
+  cov.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    assessed
+      ? `Moat evidence exists for ${r.c.tk} — ${r.c.moat.kind}, confidence ${String(r.c.moat.conf).toLowerCase()} — and is on the Moat tab. It is recorded, not scored, and contributes nothing to the number above.`
+      : `No moat assessment exists for ${r.c.tk}. It was loaded from filings, and moat evidence is analyst work that has not been done for this company. The score above is unaffected either way, because the moat pillar is never scored.`));
+  wrap.append(cov);
 
   [['quality', 'Business Quality'], ['growth', 'Growth Quality'], ['strength', 'Financial Strength'], ['capital', 'Capital Allocation'], ['value', 'Valuation']].forEach(([k, label]) => {
     const p = r.scores[k];
