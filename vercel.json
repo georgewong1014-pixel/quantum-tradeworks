@@ -3,11 +3,7 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    {
-      "//": "The app owns its routes — /company/1155-maybank, /my/portfolio, /methodology. None has a file behind it, so without this a refresh or a shared link 404s before the router can run. Real files are matched first by the platform, so data/*.json and og.png are unaffected.",
-      "source": "/((?!data/|ingest/|.*\\.[a-zA-Z0-9]+$).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
