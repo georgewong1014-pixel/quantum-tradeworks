@@ -2229,7 +2229,15 @@ function defaultInputs(c, d) {
     /* A perpetual distribution-growth rate has to be a long-run rate, not an
        extrapolation of a strong recovery period — capped well below nominal GDP. */
     const g = isNum(m.dps5) ? clamp(m.dps5 * 0.7, 0, 3.5) : 2;
-    return { model:'ddm', dpu:m.dps, g:+g.toFixed(2), req:+(coe + 0.4).toFixed(2), navps:m.bvps, cap:c.reit.cap, gearing:c.reit.gearing };
+    /* Capitalisation rate, gearing, occupancy and WALE are analyst-supplied
+       property disclosures. SEC XBRL carries none of them, so a REIT loaded
+       from filings has no c.reit at all — dereferencing it here crashed the
+       entire real-data load on the first REIT in the set, which is why ten
+       companies had loaded and a hundred had not. Neither field enters the
+       DDM computation; both are context, so null is honest and the assumption
+       rows already render a dash for a missing value. */
+    return { model:'ddm', dpu:m.dps, g:+g.toFixed(2), req:+(coe + 0.4).toFixed(2), navps:m.bvps,
+             cap:c.reit?.cap ?? null, gearing:c.reit?.gearing ?? null };
   }
   const fcfSeries = d.fcf.filter(isNum);
   const baseFcf = pack.id === 'dcfMid' ? sum(fcfSeries) / fcfSeries.length : last(fcfSeries);
@@ -3023,6 +3031,13 @@ function realToCompany(r) {
    broker-supplied data, a personal TradingView subscription and Yahoo Finance
    all permit viewing but not redistribution, so nothing ships with the repo. */
 let priceBook = null;
+/* Instruments that are tracked by price alone — Malaysian listings, indices,
+   FX, commodities, crypto. They are deliberately NOT companies: the engine
+   values businesses from financial statements, and none of these has any that
+   can be reached. Keeping them out of the universe is what stops an empty
+   scorecard from being rendered as though it were a finding. */
+let instruments = null;
+let trackedHistory = null;
 
 function applyPrices(c) {
   const p = priceBook?.prices?.[c.tk];
@@ -3068,8 +3083,8 @@ function applyFx() {
 }
 
 async function loadRealData() {
-  const res = await fetch('data/us-sample.json', { cache: 'no-store' });
-  if (!res.ok) throw new Error(`${res.status} loading data/us-sample.json`);
+  const res = await fetch('data/us.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${res.status} loading data/us.json`);
   const j = await res.json();
 
   /* Optional and non-fatal: no price file simply means the companies load
@@ -3087,23 +3102,43 @@ async function loadRealData() {
     if (pr.ok) { priceBook = await pr.json(); priceBook.personal = personal; priceBook.file = priceFile; }
   } catch { /* no price file supplied */ }
 
+  /* Identity and accumulated series for instruments that are tracked by price
+     alone. Both optional: without them the Tracked view simply has less to
+     say, and nothing else in the app depends on either. */
+  try { const r = await fetch('data/instruments.json', { cache: 'no-store' }); if (r.ok) instruments = await r.json(); }
+  catch { /* no registry */ }
+  try { const r = await fetch('data/price-history.json', { cache: 'no-store' }); if (r.ok) trackedHistory = await r.json(); }
+  catch { /* no history yet */ }
+
   /* Before anything is derived or drawn: every MYR figure translates through
      this rate, so it has to be settled first. */
   const fxUpdated = applyFx();
 
   let added = 0, priced = 0;
+  const broken = [];
   for (const r of (j.results || [])) {
     if (BY_ID.has(`${r.id}-SEC`)) continue;         /* already loaded */
-    const c = realToCompany(r);
-    /* Prices must be attached before the company is derived — everything
-       price-dependent is computed once, at build time. */
-    if (!isNum(c.px?.p) && applyPrices(c)) priced++;
-    RAW.push(c);
-    addCompany(c);
-    added++;
+    /* Per company, not per batch. One filer whose shape the engine cannot
+       handle used to abort the whole load: ten companies were in the universe,
+       a hundred were not, and the ten that were in had no percentiles because
+       finaliseUniverse never ran. A dataset of a hundred names will always
+       contain one awkward filer, so the failure has to be contained to it and
+       reported by name. */
+    try {
+      const c = realToCompany(r);
+      /* Prices must be attached before the company is derived — everything
+         price-dependent is computed once, at build time. */
+      if (!isNum(c.px?.p) && applyPrices(c)) priced++;
+      RAW.push(c);
+      addCompany(c);
+      added++;
+    } catch (e) {
+      broken.push({ id: r.id, error: e.message });
+      console.warn(`skipped ${r.id}: ${e.message}`);
+    }
   }
   if (added) { finaliseUniverse(); FEED = buildFeed(); }
-  return { added, priced, fxUpdated, generated: j.generated, failures: j.failures || [],
+  return { added, priced, fxUpdated, broken, generated: j.generated, failures: j.failures || [],
            priceSource: priceBook ? { asOf: priceBook.asOf, licence: priceBook.licence,
              count: priceBook.count, personal: !!priceBook.personal, file: priceBook.file } : null };
 }
@@ -3808,6 +3843,7 @@ const NAV = [
   { id:'thesis',    label:'Thesis',    icon:'target' },
   { id:'portfolio', label:'Portfolio', icon:'briefcase' },
   { id:'alerts',    label:'Alerts',    icon:'bell' },
+  { id:'tracked',   label:'Tracked',   icon:'target' },
   { id:'property',  label:'Property',  icon:'home' },
   { id:'learn',     label:'Learn',     icon:'book' },
   { id:'plans',     label:'Plans',     icon:'coin' },
@@ -3994,6 +4030,7 @@ VIEWS.home = () => {
     freshCard.append(el('div', { class: 'metaline', style: 'margin-top:4px' },
       realStatus === null ? 'Loading filings from SEC EDGAR…'
       : realStatus.ok ? `${n} companies loaded from SEC EDGAR. Statements are audited and real. `
+          + (realStatus.broken?.length ? `${realStatus.broken.length} could not be built and were skipped (${realStatus.broken.map(b => b.id).join(', ')}). ` : '')
           + (realStatus.priced
               ? (realStatus.priceSource?.personal
                   ? `${realStatus.priced} carry closes you recognised from your own screen (${realStatus.priceSource.file}). Personal research only — these are not licensed market data and must not be redistributed.`
@@ -7546,6 +7583,119 @@ const ALERT_KINDS = [
   { id:'status',    label:'Local status change',   note:'Shariah status, PN17 or GN3 classification changes.' },
   { id:'price',     label:'Price move',            note:'A price threshold. Off by default — price alone is not new information.' },
 ];
+
+/* ==========================================================================
+   TRACKED — instruments that are followed by price alone.
+
+   Everything here is deliberately outside the research universe. The engine
+   values a business from its financial statements, and none of these has any
+   this product can reach: Bursa Malaysia publishes no machine-readable
+   financials and no Malaysian issuer files XBRL anywhere accessible, while an
+   index, a currency, a metal and a token have no statements to publish.
+
+   Keeping them separate is the honest arrangement. Admitting them as companies
+   would render an empty scorecard and a blank coverage figure next to real
+   ones, and an empty analysis reads like a finished analysis that found
+   nothing.
+   ========================================================================== */
+VIEWS.tracked = () => {
+  const wrap = el('div', { class: 'stack' });
+  wrap.append(el('div', {}, [
+    el('h1', { class: 'h1' }, 'Tracked'),
+    el('p', { class: 'lede' },
+      'Price and trend only. Nothing here is valued, scored or ranked — these are instruments the engine cannot analyse, followed so the direction is visible alongside the research.'),
+  ]));
+
+  const book = priceBook?.prices || {};
+  const series = trackedHistory?.series || {};
+  const reg = instruments?.instruments || [];
+  const byId = new Map(reg.map(i => [i.symbol.toUpperCase(), i]));
+
+  /* Union of what is registered and what actually arrived in the price file,
+     so an instrument you started tracking shows up before anyone remembers to
+     name it in the registry. */
+  const symbols = [...new Set([...Object.keys(book), ...reg.map(i => i.symbol)].map(s => s.toUpperCase()))]
+    .filter(s => !BY_ID.has(`${s}-SEC`));      /* a real company belongs in Research, not here */
+
+  if (!symbols.length) {
+    wrap.append(el('div', { class: 'card' }, [
+      el('p', { class: 'metaline' },
+        'No tracked instruments yet. Run the daily import — prices land in the price file and appear here, and a series builds up as the runs accumulate.'),
+    ]));
+    return wrap;
+  }
+
+  const KIND_LABEL = { equity:'Equity', index:'Index', fx:'FX', commodity:'Commodity', crypto:'Crypto', etf:'ETF' };
+  const rows = symbols.map(sym => {
+    const meta = byId.get(sym) || {};
+    const p = book[sym] || null;
+    const hist = series[sym] || {};
+    const dates = Object.keys(hist).sort();
+    const values = dates.map(d => hist[d]);
+    /* Change measured across the stored series, not from the vendor's own
+       day-change field, so what is drawn and what is stated agree. */
+    const first = values[0], last = values[values.length - 1];
+    const chg = (values.length >= 2 && first > 0) ? ((last - first) / first) * 100 : null;
+    return { sym, meta, p, dates, values, chg, name: meta.name || sym,
+             kind: meta.kind || 'unknown', market: meta.market || '' };
+  });
+
+  /* Ordered by what is being looked for, not alphabetically by type: the
+     listings that cannot be researched anywhere else in this product come
+     first, and the macro context follows. */
+  const KIND_ORDER = ['equity', 'index', 'fx', 'commodity', 'crypto', 'etf'];
+  const rank = (k) => { const i = KIND_ORDER.indexOf(k); return i === -1 ? KIND_ORDER.length : i; };
+  rows.sort((a, b) => (rank(a.kind) - rank(b.kind)) || a.sym.localeCompare(b.sym));
+
+  const depth = Math.max(0, ...rows.map(r => r.dates.length));
+  const myEquities = rows.filter(r => r.market === 'MY' && r.kind === 'equity').length;
+
+  const head = el('div', { class: 'card' });
+  head.append(el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
+    el('span', { class: 'chip' }, `${rows.length} instrument${rows.length === 1 ? '' : 's'}`),
+    el('span', { class: depth >= 2 ? 'chip' : 'chip chip-bronze' },
+      depth >= 2 ? `${depth} day series` : depth === 1 ? '1 day — a trend needs a second run' : 'no series yet'),
+    priceBook?.personal ? el('span', { class: 'chip chip-bronze' }, 'read from your screen') : null,
+  ]));
+  if (myEquities) head.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `${myEquities} Bursa Malaysia listing${myEquities === 1 ? '' : 's'}. ${instruments?.fundamentals?.MY || 'No fundamentals are available for these.'}`));
+  wrap.append(head);
+
+  const card = el('div', { class: 'card' });
+  const tbl = el('table', { class: 'tbl' });
+  tbl.append(el('thead', {}, el('tr', {}, [
+    el('th', {}, 'Instrument'), el('th', {}, 'Type'),
+    el('th', { class: 'num' }, 'Last'), el('th', { class: 'num' }, 'As of'),
+    el('th', { class: 'num' }, 'Change over series'), el('th', {}, 'Trend'),
+  ])));
+  const tb = el('tbody');
+  for (const r of rows) {
+    const tr = el('tr');
+    tr.append(el('td', {}, [
+      el('div', { style: 'font-weight:600' }, r.sym),
+      el('div', { class: 'metaline' }, r.name === r.sym ? 'not in the instrument registry' : r.name),
+    ]));
+    tr.append(el('td', {}, [
+      el('span', { class: 'chip' }, KIND_LABEL[r.kind] || 'Unknown'),
+      r.market === 'MY' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:4px' }, 'MY') : null,
+    ]));
+    tr.append(el('td', { class: 'num' }, r.p && isNum(r.p.close) ? fmtNum(r.p.close, r.p.close < 10 ? 4 : 2) : '—'));
+    tr.append(el('td', { class: 'num metaline' }, r.p?.date || '—'));
+    tr.append(el('td', { class: 'num ' + (r.chg == null ? '' : signClass(r.chg)) },
+      r.chg == null ? '—' : withSign(r.chg, 2)));
+    const cell = el('td');
+    if (r.values.length >= 2) cell.append(sparkline(r.values));
+    else cell.append(el('span', { class: 'metaline' }, 'building'));
+    tr.append(cell);
+    tb.append(tr);
+  }
+  tbl.append(tb);
+  card.append(el('div', { style: 'overflow-x:auto' }, tbl));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+    'Change is measured across the stored series, which starts the first time the daily import ran — it is not a 24-hour move unless the series is two days long. Nothing here is a recommendation.'));
+  wrap.append(card);
+  return wrap;
+};
 
 VIEWS.alerts = () => {
   const wrap = el('div');

@@ -93,7 +93,21 @@ try {
   await finish(1);
 }
 
-/* 4 ------------------------------------------------------------------ FX */
+/* 4 ------------------------------------------------------------- history */
+/* The price file holds only today. Trends need the series, and for a Bursa
+   listing — which can never have a valuation here — the series is the whole
+   signal rather than a supporting detail. */
+try {
+  const { stdout } = await node(['ingest/history.mjs', '--in', PRICES]);
+  const depth = (stdout.match(/depth\s*:\s*(\S+)/) || [])[1];
+  const syms = (stdout.match(/symbols\s*:\s*(\d+)/) || [])[1];
+  say(`history   ${syms || '?'} symbol(s), ${depth || '?'} day(s) deep`);
+} catch {
+  say(`history   could not be updated — today's prices are still imported`);
+  bump(2);
+}
+
+/* 5 ------------------------------------------------------------------ FX */
 if (!SKIP_FX) {
   try {
     const { stdout } = await node(['ingest/fx.mjs', '--out', PRICES]);
@@ -106,7 +120,7 @@ if (!SKIP_FX) {
   }
 }
 
-/* 5 -------------------------------------------------------------- verdict */
+/* 6 -------------------------------------------------------------- verdict */
 if (rejected > 0 || flagged > 0) bump(2);
 /* Overrides rather than bumps. "Some rows need review" and "no price reached
    the file at all" are different situations, and the second must not be

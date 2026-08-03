@@ -216,6 +216,13 @@ async function cikFor(ticker) {
 const SIC_MAP = [
   [/^60(0[0-9]|1[0-9]|2[0-9]|3[0-6])$/, 'bank',      'Financials', 'Banks'],
   [/^6199$|^6111$|^6141$/,              'bank',      'Financials', 'Consumer Finance'],
+  /* Securities brokers and dealers. Their economics are driven by the balance
+     sheet and regulatory capital, so residual income on book equity is the
+     defensible pack — a free-cash-flow DCF on an investment bank is the same
+     category of error as running one on a deposit-taker. */
+  [/^6211$|^6221$|^6231$/,              'bank',      'Financials', 'Capital Markets'],
+  [/^6282$|^6289$/,                     'mature',    'Financials', 'Asset Management'],
+  [/^732[0-9]$|^6099$/,                 'mature',    'Financials', 'Financial Services'],
   [/^63(1[1-9]|2[0-9]|3[0-9]|5[0-9]|6[0-9])$|^6411$/, 'insurer', 'Financials', 'Insurance'],
   [/^6798$/,                            'reit',      'Real Estate', 'REIT'],
   [/^65[0-9]{2}$/,                      'mature',    'Real Estate', 'Real Estate Management'],
@@ -241,10 +248,16 @@ const SIC_MAP = [
   [/^3711$|^3713$|^3714$|^37[0-9]{2}$/, 'cyclical',  'Consumer Discretionary', 'Automobiles'],
   [/^5(3[0-9]{2}|6[0-9]{2}|7[0-9]{2})$/,'mature',    'Consumer Discretionary', 'Retail'],
   [/^35[0-9]{2}$|^34[0-9]{2}$|^37(21|24|28)$/, 'cyclical', 'Industrials', 'Capital Goods'],
-  [/^45[0-9]{2}$|^42[0-9]{2}$|^44[0-9]{2}$/,   'cyclical', 'Industrials', 'Transportation'],
+  [/^36[0-9]{2}$/,                      'cyclical',  'Industrials', 'Electrical Equipment'],
+  [/^45[0-9]{2}$|^42[0-9]{2}$|^44[0-9]{2}$|^40[0-9]{2}$/, 'cyclical', 'Industrials', 'Transportation'],
+  [/^382[0-9]$|^384[0-9]$/,             'mature',    'Health Care', 'Life Sciences Tools'],
+  [/^5[0-9]{3}$/,                       'mature',    'Consumer Discretionary', 'Retail'],
+  [/^58[0-9]{2}$|^70[0-9]{2}$|^47[0-9]{2}$/,   'mature', 'Consumer Discretionary', 'Consumer Services'],
+  [/^79[0-9]{2}$/,                      'mature',    'Communication Services', 'Entertainment'],
+  [/^30[0-9]{2}$|^31[0-9]{2}$|^23[0-9]{2}$/,   'mature', 'Consumer Discretionary', 'Consumer Goods'],
 ];
 
-function classify(sic, sicDescription) {
+export function classify(sic, sicDescription) {
   const s = String(sic || '').padStart(4, '0');
   for (const [re, type, sector, industry] of SIC_MAP) {
     if (re.test(s)) return { type, sector, industry, sic: s, sicDescription, assumed: false };

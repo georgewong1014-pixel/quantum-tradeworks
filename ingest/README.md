@@ -8,6 +8,28 @@ export SEC_UA="QuantumTradeworks/0.1 (your@email.com)"   # the SEC requires a co
 node ingest/sec.mjs --years 10 --out data/us.json AAPL MSFT JPM XOM
 ```
 
+## What is loaded today
+
+**119 US companies from SEC EDGAR**, ten years each, averaging 95% line
+completeness, 53 of them complete. Business type is derived from each filer's
+own SIC registration rather than a guess, so the valuation router picks the
+right model without anyone hand-classifying: 12 banks route to residual income,
+5 REITs to a distribution model, 3 insurers to their own pack, 32 cyclicals to a
+mid-cycle normalisation. Nothing in the set falls back to an assumed type.
+
+**Malaysian listings are tracked by price only** — see below.
+
+### Coverage is honest, not uniform
+
+Four names sit below 80%: BLK 42%, BRK-B 70%, CDNS 76%, O 78%. That is reported
+rather than patched, and confidence falls accordingly. A holding company and an
+asset manager genuinely do not report the lines a generic model wants.
+
+BLK routes to `bank` because SIC 6211 covers brokers and dealers, which fits
+Goldman, Morgan Stanley and Schwab far better than it fits an asset manager.
+It is a judgement call, it is visible on the page, and the model pack can be
+changed per company.
+
 ## What actually happened on the first ten companies
 
 Not a plan — the result of running it.
@@ -58,6 +80,36 @@ JPMorgan's FY2025 operating cash flow comes back at **−$147.8bn**. That is
 correct, not a bug: a bank's operating cash flow swings with trading assets and
 loan flows. The engine already refuses to compute free cash flow for a
 deposit-taking balance sheet, so this never becomes a valuation.
+
+## Malaysia: tracked, not analysed
+
+There is no source. This was tested rather than assumed:
+
+- **Bursa Malaysia's own site returns 403** behind a Cloudflare challenge. There
+  is no public API.
+- **No Malaysian issuer files XBRL** anywhere reachable. They do not file with
+  the SEC, and Bursa publishes annual reports as PDFs.
+- **data.gov.my** carries macroeconomic statistics, not company financials.
+
+So Malaysian listings live in a separate **Tracked** view: price, date, change
+across the stored series, and a trend line. No valuation, no scorecard, no
+coverage figure. They are deliberately *not* companies in the research universe,
+because admitting them would render an empty scorecard beside real ones — and an
+empty analysis reads like a finished analysis that found nothing.
+
+`data/instruments.json` gives them identity. Bursa codes there are transcribed
+from public listings and **should be checked against your own broker**: a wrong
+code silently attaches a price to the wrong company.
+
+Series accumulate from the daily run:
+
+```bash
+node ingest/history.mjs --in data/personal-prices.json
+```
+
+One close per symbol per day, bounded by `--keep`. For a Bursa listing the
+series is the entire signal rather than a supporting detail, which is why the
+daily run builds it whether or not anything else succeeded.
 
 ## What SEC gives you, and what it does not
 
