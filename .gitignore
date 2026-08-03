@@ -42,3 +42,6 @@ data/r[0-9].txt
 data/probe-*
 data/scroll-probe.*
 data/pp.bak.json
+
+# Household income cache — redistribution rights unconfirmed, see ingest/sarawak-geo.mjs
+data/sarawak-income.json

@@ -1,0 +1,257 @@
+{
+  "cities": {
+    "kuching": {
+      "name": "Kuching",
+      "areas": {
+        "City centre": {
+          "lat": 1.55976,
+          "lon": 110.3454,
+          "matched": "Kuching, Bahagian Kuching, Sarawak, 93000, Malaysia",
+          "kind": "place/city",
+          "confidence": "city-point",
+          "approximate": true
+        },
+        "Tabuan": {
+          "lat": 1.51866,
+          "lon": 110.39138,
+          "matched": "Tabuan Tranquility, Kuching, Bahagian Kuching, Sarawak, 93000, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Stutong": {
+          "lat": 1.50506,
+          "lon": 110.38015,
+          "matched": "Stutong, Kuching, Bahagian Kuching, Sarawak, 93000, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Batu Kawa": {
+          "lat": 1.51124,
+          "lon": 110.26859,
+          "matched": "Batu Kawa, Kuching, Bahagian Kuching, Sarawak, 93150, Malaysia",
+          "kind": "place/town",
+          "confidence": "locality"
+        },
+        "Matang": {
+          "lat": 1.57685,
+          "lon": 110.2505,
+          "matched": "Taman Resident Matang, Petra Jaya, Kampung Kolong 2, Kuching, Bahagian Kuching, Sarawak, Malaysia",
+          "kind": "place/neighbourhood",
+          "confidence": "locality"
+        },
+        "Petra Jaya": {
+          "lat": 1.57158,
+          "lon": 110.3512,
+          "matched": "Petra Jaya, Kuching, Bahagian Kuching, Sarawak, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Samarahan": {
+          "lat": 1.50504,
+          "lon": 110.39168,
+          "matched": "Kuching / Samarahan Expressway, Northbank, Tabuan Tranquility, Kuching, Bahagian Kuching, Sarawak, 93000, Malaysia",
+          "kind": "highway/trunk",
+          "confidence": "named-feature"
+        },
+        "Kota Samarahan": {
+          "lat": 1.46427,
+          "lon": 110.4166,
+          "matched": "Smart Reader Kids Uni Garden, Kota Samarahan, Phase 2B, No 8, Lot 5230, Jalan Uni Garden, Kampung Merdang Gayam, Taman Uni-Garden, Kuching, Samarahan, Bahagian Samarahan, Sarawak, 94300, Malaysia",
+          "kind": "amenity/kindergarten",
+          "confidence": "landmark-proxy"
+        }
+      }
+    },
+    "sibu": {
+      "name": "Sibu",
+      "areas": {
+        "Town centre": {
+          "lat": 2.29064,
+          "lon": 111.82562,
+          "matched": "Sibu, Bahagian Sibu, Sarawak, 96000, Malaysia",
+          "kind": "place/city",
+          "confidence": "city-point",
+          "approximate": true
+        },
+        "Rejang Park": {
+          "lat": 2.28488,
+          "lon": 111.83114,
+          "matched": "Rejang Esplanade, Sibu, Bahagian Sibu, Sarawak, 96000, Malaysia",
+          "kind": "leisure/park",
+          "confidence": "landmark-proxy"
+        },
+        "Ulu Sungai Merah": {
+          "lat": 2.33274,
+          "lon": 111.86586,
+          "matched": "Gereja Methodist Chiew Cho | Ulu Sg. Merah, Lorong Ulu Sungai Merah 51E, Sibu, Bahagian Sibu, Sarawak, 96000, Malaysia",
+          "kind": "amenity/place_of_worship",
+          "confidence": "landmark-proxy"
+        },
+        "Jalan Salim": {
+          "lat": 2.20621,
+          "lon": 111.92098,
+          "matched": "Jalan Salim, Sibu, Bahagian Sibu, Sarawak, Malaysia",
+          "kind": "highway/tertiary",
+          "confidence": "named-feature"
+        },
+        "Jalan Teku": {
+          "lat": 2.34737,
+          "lon": 111.8428,
+          "matched": "Jalan Teku, Sibu, Bahagian Sibu, Sarawak, Malaysia",
+          "kind": "highway/secondary",
+          "confidence": "named-feature"
+        },
+        "Permai": {
+          "lat": 2.29864,
+          "lon": 111.89442,
+          "matched": "Permai Jaya, Sibu, Bahagian Sibu, Sarawak, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Lanang": {
+          "lat": 2.27378,
+          "lon": 111.84182,
+          "matched": "Jalan Upper Lanang, Sibu, Bahagian Sibu, Sarawak, 96000, Malaysia",
+          "kind": "highway/primary",
+          "confidence": "named-feature"
+        },
+        "Sibujaya": {
+          "lat": 2.2467,
+          "lon": 111.96571,
+          "matched": "Lorong Sibujaya 14C, Sibu Jaya, Sibu, Bahagian Sibu, Sarawak, Malaysia",
+          "kind": "highway/residential",
+          "confidence": "named-feature"
+        }
+      }
+    },
+    "miri": {
+      "name": "Miri",
+      "areas": {
+        "City centre": {
+          "lat": 4.39401,
+          "lon": 113.98802,
+          "matched": "Miri, Bahagian Miri, Sarawak, 98000, Malaysia",
+          "kind": "place/city",
+          "confidence": "city-point",
+          "approximate": true
+        },
+        "Marina": {
+          "lat": 4.39082,
+          "lon": 113.97897,
+          "matched": "Marina ParkCity, Miri, Bahagian Miri, Sarawak, 98000, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Pujut": {
+          "lat": 4.43661,
+          "lon": 114.01845,
+          "matched": "Pujut, Kampung Piasau Utara, Miri, Bahagian Miri, Sarawak, 98100, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Lutong": {
+          "lat": 4.47075,
+          "lon": 114.00905,
+          "matched": "Lutong, Kampong Tulang, Miri, Bahagian Miri, Sarawak, 98100, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Permyjaya": {
+          "lat": 4.46327,
+          "lon": 114.04213,
+          "matched": "Permyjaya, Miri, Bahagian Miri, Sarawak, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Senadin": {
+          "lat": 4.50069,
+          "lon": 114.01685,
+          "matched": "Senadin, Miri, Bahagian Miri, Sarawak, 98107, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Tudan": {
+          "lat": 4.47345,
+          "lon": 114.03018,
+          "matched": "Tudan, Miri, Bahagian Miri, Sarawak, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Taman Tunku": {
+          "lat": 4.31347,
+          "lon": 113.9923,
+          "matched": "Taman Tunku, Kampung Lusut Jaya, Miri, Bahagian Miri, Sarawak, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        }
+      }
+    },
+    "bintulu": {
+      "name": "Bintulu",
+      "areas": {
+        "Town centre": {
+          "lat": 3.18743,
+          "lon": 113.04728,
+          "matched": "Bintulu, Bahagian Bintulu, Sarawak, 97000, Malaysia",
+          "kind": "place/city",
+          "confidence": "city-point",
+          "approximate": true
+        },
+        "Tanjung Batu": {
+          "lat": 3.19876,
+          "lon": 113.0465,
+          "matched": "Tanjung Batu, Kemena Commercial Centre, Bintulu, Bahagian Bintulu, Sarawak, 97000, Malaysia",
+          "kind": "landuse/commercial",
+          "confidence": "named-feature"
+        },
+        "Kidurong": {
+          "lat": 3.23976,
+          "lon": 113.09584,
+          "matched": "Tanjung Kidurong, Bintulu, Bahagian Bintulu, Sarawak, 97300, Malaysia",
+          "kind": "place/suburb",
+          "confidence": "locality"
+        },
+        "Samalaju": {
+          "lat": 3.56751,
+          "lon": 113.38433,
+          "matched": "Samalaju Ecopark Properties, Bintulu, Bahagian Bintulu, Sarawak, Malaysia",
+          "kind": "place/neighbourhood",
+          "confidence": "locality"
+        },
+        "Jepak": {
+          "lat": 3.15529,
+          "lon": 113.00809,
+          "matched": "Jalan Jepak - Kuala Tatau, Bintulu, Bahagian Bintulu, Sarawak, Malaysia",
+          "kind": "highway/secondary",
+          "confidence": "named-feature"
+        },
+        "Kemena": {
+          "lat": 3.18312,
+          "lon": 113.06593,
+          "matched": "Taman kemena sutera, Bintulu, Bahagian Bintulu, Sarawak, Malaysia",
+          "kind": "landuse/residential",
+          "confidence": "named-feature"
+        },
+        "Parkcity": {
+          "lat": 3.18371,
+          "lon": 113.04045,
+          "matched": "Parkcity Commerce Square, Bintulu, Bahagian Bintulu, Sarawak, 97000, Malaysia",
+          "kind": "landuse/commercial",
+          "confidence": "named-feature"
+        },
+        "Sibiew": {
+          "lat": 3.17584,
+          "lon": 113.06299,
+          "matched": "Stesen Minyak Petronas Jalan Sibiew, Jalan Sibiyu, Bintulu, Bahagian Bintulu, Sarawak, 97000, Malaysia",
+          "kind": "amenity/fuel",
+          "confidence": "landmark-proxy"
+        }
+      }
+    }
+  },
+  "source": "OpenStreetMap via Nominatim",
+  "licence": "ODbL 1.0",
+  "attribution": "© OpenStreetMap contributors, openstreetmap.org/copyright",
+  "retrieved": "2026-08-03",
+  "note": "Coordinates are a single representative point per area, not a boundary. Redistribution is permitted under ODbL with attribution."
+}
