@@ -399,6 +399,61 @@ body[data-surface="public"] .disclosure-long { display: none; }
    inline number inputs it appears alongside. */
 .select-sm { height: 30px; padding: 0 26px 0 8px; font-size: 12px; max-width: 190px; }
 
+/* A metric label you can ask about. Inherits the surrounding type so it does
+   not read as a link, but is a real button for keyboard and screen readers. */
+.metric-label {
+  appearance: none; background: none; border: 0; padding: 0; cursor: help;
+  font: inherit; color: inherit; text-align: left;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.metric-label-q {
+  width: 13px; height: 13px; border-radius: 50%; flex: none;
+  display: inline-grid; place-items: center;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  background: var(--surface-2); color: var(--ink-3); border: 1px solid var(--line);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.metric-label:hover .metric-label-q { background: var(--brand-wash); color: var(--brand); border-color: transparent; }
+.metric-label:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 3px; }
+
+/* Onboarding is a full-surface sequence rather than a modal: it is the first
+   thing rather than an interruption to something else. */
+.ob-wrap { max-width: 42rem; margin: 0 auto; padding: var(--xxl) 0; }
+.ob-steps { display: flex; gap: 6px; margin-bottom: var(--xl); }
+.ob-dot { height: 3px; flex: 1; border-radius: 999px; background: var(--line); }
+.ob-dot[data-done="1"] { background: var(--brand); }
+.ob-options { display: grid; gap: 10px; margin-top: var(--lg); }
+.ob-option {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 14px 16px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line); font: inherit; color: inherit;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+.ob-option:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+.ob-option:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ob-option[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-wash); box-shadow: var(--lift-1); }
+.ob-option-t { font-weight: 600; font-size: 14px; }
+.ob-option-n { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+
+/* The screener renders both a table and a card list; the viewport decides
+   which is shown. Cards below 768px, table above — a wide table on a phone
+   either overflows or shrinks the type past reading size. */
+.screener-cards { display: none; }
+.screener-card { display: block; text-decoration: none; color: inherit; padding: 12px 14px; }
+.screener-card + .screener-card { margin-top: 8px; }
+.screener-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.screener-card-metrics {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px;
+}
+@media (max-width: 768px) {
+  .screener-cards { display: block; padding: 10px; }
+  .screener-cards + table, table.dt.screener-table { display: none; }
+  .tablewrap:has(.screener-cards) > table { display: none; }
+  /* 16px is the minimum body size on a phone, and 44px the minimum tap target. */
+  .screener-card { min-height: 44px; }
+  .screener-card .num { font-size: 16px; }
+}
+
 .stack    { display: flex; flex-direction: column; gap: var(--lg); }
 .stack-lg { display: flex; flex-direction: column; gap: var(--xxxl); }
 .link { color: var(--brand); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); }
@@ -1077,6 +1132,129 @@ function ord(n) {
   const i = Math.trunc(Math.abs(n)), t = i % 100, u = i % 10;
   const sfx = (t >= 11 && t <= 13) ? 'th' : u === 1 ? 'st' : u === 2 ? 'nd' : u === 3 ? 'rd' : 'th';
   return `${Math.trunc(n)}${sfx}`;
+}
+
+/* ==========================================================================
+   METRIC EXPLANATIONS — three depths, simple by default
+
+   The same measure has to answer three different questions depending on who is
+   reading: what does this word mean, why would I look at it for THIS kind of
+   business, and exactly how was it computed. Showing all three at once buries
+   the first reader; showing only the third is what most finance tools do and
+   is why they are unreadable to the person who needs them most.
+
+   Simple is the default and it is written for someone who has not used a ratio
+   before. It never uses another undefined term to define a term.
+   ========================================================================== */
+const METRIC_HELP = {
+  roe: { label: 'Return on equity',
+    simple: 'How much profit the company earns from the money shareholders have put in and left in.',
+    context: 'Most useful for banks and insurers, where equity is the constraint on how much business can be written. Comparing a bank against an industrial company on this measure is comparing two different things — bank balance sheets are structured completely differently.',
+    technical: 'Net income ÷ average shareholders’ equity, using opening and closing equity for the period.' },
+  roic: { label: 'Return on invested capital',
+    simple: 'How much profit the business earns from all the money in it — both shareholders’ and borrowed.',
+    context: 'The cleanest single measure of whether a business is good, because it ignores how the company chose to finance itself. Not meaningful for banks, where borrowing is the raw material rather than the funding.',
+    technical: 'Operating profit after tax ÷ (total debt + equity − cash). Excluded for deposit-taking institutions.' },
+  om: { label: 'Operating margin',
+    simple: 'Out of every ringgit of sales, how much is left after the costs of running the business.',
+    context: 'Compare it only within an industry. A supermarket at 4% can be excellent and a software company at 20% can be poor — the cost structures are not alike.',
+    technical: 'Operating profit ÷ revenue for the reported period.' },
+  fcfm: { label: 'Free cash flow margin',
+    simple: 'Out of every ringgit of sales, how much becomes cash the company can actually use.',
+    context: 'Profit is an opinion, cash is a fact. A company reporting rising profit with falling free cash flow is the single most common warning sign in fundamental analysis.',
+    technical: 'Operating cash flow less capital expenditure, ÷ revenue.' },
+  pe: { label: 'Price to earnings',
+    simple: 'How many years of current profit you are paying for the shares.',
+    context: 'Low is not automatically cheap. A cyclical company looks cheapest at the top of its cycle, when earnings are at their peak and about to fall.',
+    technical: 'Market price per share ÷ earnings per share for the latest reported year.' },
+  pb: { label: 'Price to book',
+    simple: 'What you pay for the shares compared with the accounting value of what the company owns, less what it owes.',
+    context: 'Central for banks and property companies, where the balance sheet is the business. Close to meaningless for a company whose value is people and brands, which the balance sheet does not record.',
+    technical: 'Market price per share ÷ shareholders’ equity per share.' },
+  evebit: { label: 'Enterprise value to EBIT',
+    simple: 'What the whole business costs — shares plus debt, less cash — compared with its operating profit.',
+    context: 'Fairer than price-to-earnings when comparing companies with very different borrowings, because it prices the debt as part of what you are buying.',
+    technical: '(Market capitalisation + total debt − cash) ÷ operating profit.' },
+  dy: { label: 'Dividend yield',
+    simple: 'The cash paid out per year as a percentage of the share price.',
+    context: 'A high yield is sometimes generosity and sometimes a falling share price. Always read it beside whether earnings and cash flow actually cover the payment.',
+    technical: 'Dividend per share for the trailing year ÷ current price. Shown gross, before any withholding.' },
+  ndEbit: { label: 'Net debt to EBIT',
+    simple: 'How many years of operating profit it would take to repay the borrowings.',
+    context: 'The most direct measure of whether debt is a problem. Above roughly 3×, a downturn stops being uncomfortable and starts being dangerous. Not applicable to banks.',
+    technical: '(Total debt − cash) ÷ operating profit.' },
+  de: { label: 'Debt to equity',
+    simple: 'How much the company has borrowed for every ringgit shareholders have put in.',
+    context: 'Read alongside the stability of earnings. Steady utilities safely carry debt that would sink a cyclical manufacturer.',
+    technical: 'Total debt ÷ shareholders’ equity.' },
+  coverage: { label: 'Data completeness',
+    simple: 'How much of the information needed to analyse this company is actually present.',
+    context: 'A low figure does not mean the company is bad — it means this page knows less about it. Confidence is reduced instead of the gaps being filled in with estimates.',
+    technical: 'Computable metrics ÷ metrics applicable to this business model. Measures that do not apply are excluded from the denominator rather than counted as missing.' },
+  mos: { label: 'Difference to model estimate',
+    simple: 'How far today’s price sits from what this model estimates, given the assumptions shown.',
+    context: 'A large difference means the model and the market disagree. That is a reason to examine the assumptions, not a signal — the market may be right and the model wrong.',
+    technical: '(Base-case model estimate − price) ÷ price. The base case is an output of the assumptions listed beside it.' },
+  dscr: { label: 'Debt-service cover',
+    simple: 'Whether the rent covers the loan repayments, and by how much.',
+    context: 'Below 1.0 the shortfall comes out of your own income every month. Lenders generally want comfortably above 1.0 before the rent is treated as self-supporting.',
+    technical: 'Net operating income ÷ annual debt service.' },
+  grossYield: { label: 'Gross yield',
+    simple: 'A year of rent as a percentage of the purchase price, before any costs.',
+    context: 'Useful only for a first comparison between properties. It ignores maintenance, vacancy, tax and the loan, all of which decide whether the property actually pays.',
+    technical: 'Annual gross rent ÷ purchase price.' },
+  netYield: { label: 'Net yield',
+    simple: 'Rent left after running costs, as a percentage of the purchase price.',
+    context: 'Closer to the truth than gross yield because it subtracts what the property costs to hold. Still before the loan.',
+    technical: 'Net operating income ÷ purchase price, where NOI is effective rent less operating costs.' },
+};
+
+/* Remembered so a reader who wants the technical depth is not returned to the
+   simple one on every metric they open.
+
+   Read lazily: this block sits above the State and store declarations, and
+   touching either at module scope here is a temporal dead zone error that
+   takes the whole page down on load. */
+const explainDepth = () => (State.explainDepth ??= store.read('explainDepth', 'simple'));
+const setExplainDepth = (v) => { State.explainDepth = v; store.write('explainDepth', v); };
+
+function explainMetric(key, opts = {}) {
+  const h = METRIC_HELP[key];
+  if (!h) return;
+  const body = el('div', { class: 'stack' });
+
+  const DEPTHS = [['simple', 'Simple'], ['context', 'Investor context'], ['technical', 'Technical']];
+  const seg = el('div', { class: 'segmented' });
+  DEPTHS.forEach(([id, label]) => seg.append(el('button', {
+    'aria-selected': explainDepth() === id ? 'true' : 'false',
+    onclick: () => { setExplainDepth(id); explainMetric(key, opts); },
+  }, label)));
+  body.append(seg);
+
+  body.append(el('p', { class: 'body-lg' }, h[explainDepth()] || h.simple));
+
+  if (opts.value != null) {
+    body.append(el('div', { class: 'panel' }, statTile(opts.valueLabel || h.label, opts.value,
+      { sub: opts.valueSub || null })));
+  }
+  if (explainDepth() !== 'technical') {
+    body.append(el('p', { class: 'metaline' },
+      'Switch to Technical above for the exact formula and period.'));
+  }
+  openDrawer(h.label, body);
+}
+
+/* A metric label that can be asked about. The affordance is a real button so
+   it is reachable by keyboard and announced as one. */
+function metricLabel(key, text, opts = {}) {
+  const h = METRIC_HELP[key];
+  const label = text || h?.label || key;
+  if (!h) return el('span', {}, label);
+  return el('button', {
+    class: 'metric-label', type: 'button',
+    'aria-label': `${label} — what this means`,
+    onclick: () => explainMetric(key, opts),
+  }, [el('span', {}, label), el('span', { class: 'metric-label-q', 'aria-hidden': 'true' }, '?')]);
 }
 
 /* ---------------------------------------------------------------- palette */
@@ -3983,6 +4161,7 @@ function companyFromSlug(s) {
 const ROUTES = [
   { path: '/',                    view: 'marketing', title: 'Quantum Tradeworks — research the company, test the property' },
   { path: '/app',                 view: 'home',      title: 'Dashboard' },
+  { path: '/welcome',             view: 'onboarding',title: 'Get started' },
   { path: '/discover',            view: 'discover',  title: 'Discover' },
   { path: '/discover/screener',   view: 'discover',  tab: 'screener',  title: 'Screener' },
   { path: '/discover/value-map',  view: 'discover',  tab: 'radar',     title: 'Quality vs Value Map' },
@@ -4071,6 +4250,20 @@ function navigate(path, { push = true, replace = false } = {}) {
 function applyRoute() {
   const route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
+
+  /* Onboarding intercepts the dashboard only. Everything else is a legitimate
+     entry point: a shared company link, a screener someone was sent, a
+     property calculator found by search. Putting a setup sequence in front of
+     any of those loses the visitor the link was meant to bring — they asked
+     for a specific page, not to start a product. */
+  const ENTRY = ['home'];
+  if (!onboarded() && ENTRY.includes(route.view)) {
+    State.view = 'onboarding';
+    setDocumentMeta({ ...route, view: 'onboarding', title: 'Get started' });
+    if (location.pathname !== href('/welcome')) history.replaceState({ path: '/welcome' }, '', href('/welcome'));
+    render();
+    return;
+  }
   if (route.params?.id) {
     const id = companyFromSlug(route.params.id);
     if (id) State.ticker = id;
@@ -4766,6 +4959,35 @@ function renderScreener() {
     }
 
     tw.append(table);
+
+    /* Below 768px a twenty-column table is unusable — it either overflows the
+       viewport or shrinks the type past reading size. The same rows are
+       rendered as cards, showing the four measures that decide whether a
+       company is worth opening. Both are in the DOM and CSS chooses; the card
+       list is not a reduced dataset, only a reduced set of columns. */
+    const cards = el('div', { class: 'screener-cards' });
+    sorted.forEach(r => {
+      const card = el('a', { class: 'card screener-card', href: href(companyPath(r.c)),
+        onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); openResearch(r.c.id); } });
+      card.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
+        el('span', { style: 'font-weight:640' }, r.c.tk),
+        el('span', { class: 'metaline', style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, r.c.name),
+        el('span', { class: r.c.mkt === 'US' ? 'chip chip-us' : 'chip chip-my' }, r.c.mkt),
+      ]));
+      const mini = el('div', { class: 'screener-card-metrics' });
+      [['Quality', String(r.scores.quality.score)],
+       ['Value', String(r.scores.value.score)],
+       ['Yield', isNum(r.m.dy) ? fmtPct(r.m.dy, 2) : '—'],
+       ['Completeness', `${r.m.coverage}%`]].forEach(([k, v]) => {
+        mini.append(el('div', {}, [
+          el('div', { class: 'metaline' }, k),
+          el('div', { class: 'num', style: 'font-weight:620;font-size:14px' }, v),
+        ]));
+      });
+      card.append(mini);
+      cards.append(card);
+    });
+    tw.append(cards);
     resCard.append(tw);
     resCard.append(el('div', { style: 'padding:9px var(--lg);border-top:1px solid var(--line);display:flex;gap:var(--sm);align-items:center' }, [
       el('span', { class: 'metaline' }, `${sorted.length} rows · scroll the table for the rest`),
@@ -5684,6 +5906,13 @@ VIEWS.research = () => {
   stick.append(sub);
   wrap.append(stick);
 
+  /* The plain-language summary sits above the tabs, on every tab, because it
+     is the orientation the rest of the page assumes you already have. Four
+     questions in the order a reader actually asks them — and "what needs
+     attention" comes before any valuation, because a number you cannot trust
+     is worse than no number. */
+  if (State.researchTab !== 'thesis') wrap.append(companySummary(r));
+
   const panel = {
     snapshot: tabSnapshot, business: tabBusiness, financials: tabFinancials, quality: tabQuality,
     valuation: tabValuation, moat: tabMoat, risks: tabRisks, ownership: tabOwnership,
@@ -5692,6 +5921,72 @@ VIEWS.research = () => {
   wrap.append(panel(r));
   return wrap;
 };
+
+/* ------------------------------------------------ plain-language summary */
+function companySummary(r) {
+  const { c, m, val } = r;
+  const card = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  const grid = el('div', { class: 'grid g-4' });
+
+  const block = (heading, nodes, note) => {
+    const b = el('div');
+    b.append(el('p', { class: 'eyebrow', style: 'margin-bottom:6px' }, heading));
+    (Array.isArray(nodes) ? nodes : [nodes]).forEach(n =>
+      b.append(typeof n === 'string' ? el('p', { class: 'body', style: 'margin:0 0 4px' }, n) : n));
+    if (note) b.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, note));
+    return b;
+  };
+
+  /* 1. What it does — from the company's own description, kept short. */
+  const does = String(c.desc || '').split(/(?<=\.)\s+/).slice(0, 2).join(' ')
+    || `${c.name} is listed on ${c.exch}. No business description has been recorded for it.`;
+  grid.append(block('What the company does', does,
+    `${c.sector}${c.industry && c.industry !== c.sector ? ' · ' + c.industry : ''}`));
+
+  /* 2. What changed — from the computed feed, which is derived from the
+     reported figures rather than from news. */
+  const changes = (typeof FEED !== 'undefined' && Array.isArray(FEED))
+    ? FEED.filter(f => f.id === c.id).slice(0, 3) : [];
+  grid.append(block('What changed recently',
+    changes.length
+      ? changes.map(f => el('p', { class: 'body', style: 'margin:0 0 4px' }, f.title))
+      : ['Nothing has changed state since the last model run.'],
+    changes.length ? 'Computed from the reported figures, not from news.' : null));
+
+  /* 3. What needs attention — the most serious risk flags, worst first. */
+  const rank = { critical: 0, serious: 1, warning: 2, good: 3 };
+  const attention = [...(r.flags || [])].sort((a, b) => (rank[a.sev] ?? 9) - (rank[b.sev] ?? 9))
+    .filter(f => f.sev !== 'good').slice(0, 3);
+  grid.append(block('What needs attention',
+    attention.length
+      ? attention.map(f => el('p', { class: 'body', style: 'margin:0 0 4px' }, [
+          el('span', { class: `chip chip-${f.sev === 'serious' || f.sev === 'critical' ? 'critical' : 'warn'}`,
+                       style: 'margin-right:6px' }, f.sev), f.t || f.title || '']))
+      : ['No risk threshold is crossed on the reported figures.'],
+    attention.length ? 'Open Risks for what each one is measuring.' : null));
+
+  /* 4. Data confidence — what is present, what is old, what is missing. */
+  const conf = el('div');
+  conf.append(el('div', { class: 'row', style: 'gap:6px;flex-wrap:wrap;margin-bottom:6px' }, [
+    el('span', { class: m.coverage >= 90 ? 'chip chip-ok' : m.coverage >= 70 ? 'chip' : 'chip chip-bronze' },
+      `${m.coverage}% complete`),
+    val?.confBand ? el('span', { class: val.confBand === 'High' ? 'chip chip-ok' : val.confBand === 'Low' ? 'chip chip-bronze' : 'chip' },
+      `${val.confBand} confidence`) : null,
+    c.real ? el('span', { class: 'chip' }, 'audited filings') : el('span', { class: 'chip chip-bronze' }, 'sample data'),
+  ]));
+  const gaps = [];
+  if (!isNum(c.px?.p)) gaps.push('No price is attached, so market capitalisation, multiples and yield cannot be computed.');
+  if (m.inapplicable) gaps.push(`${m.inapplicable} measures do not apply to this business model and are excluded rather than counted as missing.`);
+  if (c.real && c.completeness != null && c.completeness < 1)
+    gaps.push(`${Math.round((1 - c.completeness) * 100)}% of statement lines were not reported in the filings.`);
+  if (!gaps.length) gaps.push('Every applicable measure is computable from what has been reported.');
+  gaps.forEach(g => conf.append(el('p', { class: 'body', style: 'margin:0 0 4px' }, g)));
+  grid.append(block('Data confidence', conf,
+    metricLabel('coverage', 'What completeness measures')));
+
+  card.append(grid);
+  return card;
+}
 
 /* --------------------------------------------------------------- snapshot */
 function tabSnapshot(r) {
@@ -7861,6 +8156,115 @@ const ALERT_KINDS = [
   { id:'status',    label:'Local status change',   note:'Shariah status, PN17 or GN3 classification changes.' },
   { id:'price',     label:'Price move',            note:'A price threshold. Off by default — price alone is not new information.' },
 ];
+
+/* ==========================================================================
+   ONBOARDING — five questions, then one completed task
+
+   The purpose is not to configure the product. It is to get one real thing
+   done: a company opened, a holding added, a watchlist made, a property
+   calculated. Everything asked is asked because it changes what happens next,
+   which is why there is no question about goals or risk tolerance here — those
+   would shape a recommendation, and this product does not make one.
+   ========================================================================== */
+const OB_STEPS = [
+  { key:'goal', q:'What would you like Quantum Tradeworks to help you with?',
+    note:'This decides where you land at the end, and nothing else.',
+    options:[
+      { v:'bursa',    t:'Research Bursa companies',      n:'Malaysian listed companies' },
+      { v:'us',       t:'Research US companies',         n:'Filed with the SEC, audited annual statements' },
+      { v:'monitor',  t:'Monitor my existing portfolio', n:'Track what you already hold' },
+      { v:'property', t:'Analyse a property',            n:'Model a purchase to its monthly cash flow' },
+      { v:'learn',    t:'Learn investment fundamentals', n:'Start with how the measures work' },
+    ] },
+  { key:'level', q:'How much of this is familiar already?',
+    note:'This sets how much explanation appears by default. It never changes a number, and it never changes what you are shown — only how much is said about it.',
+    options:[
+      { v:'new',      t:'New investor',                   n:'Explain terms in plain language' },
+      { v:'basic',    t:'Comfortable with basic ratios',  n:'Skip the definitions, keep the context' },
+      { v:'experienced', t:'Experienced investor',        n:'Formulas and periods, minimal prose' },
+    ] },
+  { key:'market', q:'Which market are you mainly looking at?',
+    note:'Sets the default filter on screens and comparisons. You can always widen it.',
+    options:[
+      { v:'MY',   t:'Bursa Malaysia' },
+      { v:'US',   t:'US equities' },
+      { v:'both', t:'Both' },
+    ] },
+  { key:'ccy', q:'Which currency should totals be shown in?',
+    note:'Portfolio values, market capitalisations and comparisons are converted to this. Individual share prices always stay in the currency they trade in.',
+    options:[
+      { v:'MYR', t:'Malaysian ringgit (RM)' },
+      { v:'USD', t:'US dollar ($)' },
+    ] },
+];
+
+State.onboarding = store.read('onboarding', null);
+const onboarded = () => !!State.onboarding?.done;
+
+function completeOnboarding(answers) {
+  const done = { ...answers, done: true, at: new Date().toISOString() };
+  State.onboarding = done;
+  store.write('onboarding', done);
+
+  /* The answers take effect immediately rather than being stored and ignored. */
+  if (done.ccy) { State.baseCcy = done.ccy; store.write('baseCcy', done.ccy); }
+  setExplainDepth(done.level === 'experienced' ? 'technical' : done.level === 'basic' ? 'context' : 'simple');
+  if (done.market && done.market !== 'both' && State.screen) {
+    State.screen.market = done.market; store.write('screen', State.screen);
+  }
+
+  /* One task, chosen by the first answer, and it is a real destination rather
+     than a tour. */
+  const FIRST = {
+    bursa:    () => { const r = U.find(x => x.c.mkt === 'MY'); r ? openResearch(r.c.id) : navigate('/discover'); },
+    us:       () => { const r = U.find(x => x.c.mkt === 'US'); r ? openResearch(r.c.id) : navigate('/discover'); },
+    monitor:  () => navigate('/my/portfolio'),
+    property: () => navigate('/property/calculator'),
+    learn:    () => navigate('/learn'),
+  };
+  (FIRST[done.goal] || (() => navigate('/app')))();
+}
+
+VIEWS.onboarding = () => {
+  const draft = State.obDraft ||= {};
+  const i = Math.min(State.obStep || 0, OB_STEPS.length - 1);
+  const step = OB_STEPS[i];
+
+  const wrap = el('div', { class: 'ob-wrap' });
+  const dots = el('div', { class: 'ob-steps', role: 'progressbar',
+    'aria-valuemin': '1', 'aria-valuemax': String(OB_STEPS.length + 1),
+    'aria-valuenow': String(i + 1), 'aria-label': `Step ${i + 1} of ${OB_STEPS.length + 1}` });
+  for (let k = 0; k <= OB_STEPS.length; k++) dots.append(el('div', { class: 'ob-dot', data: { done: k <= i ? '1' : '0' } }));
+  wrap.append(dots);
+
+  wrap.append(el('p', { class: 'eyebrow' }, `Step ${i + 1} of ${OB_STEPS.length + 1}`));
+  wrap.append(el('h1', { class: 'h-display', style: 'font-size:26px;margin:4px 0 6px' }, step.q));
+  wrap.append(el('p', { class: 'body' }, step.note));
+
+  const opts = el('div', { class: 'ob-options' });
+  step.options.forEach(o => {
+    const btn = el('button', { class: 'ob-option', type: 'button',
+      'aria-pressed': draft[step.key] === o.v ? 'true' : 'false',
+      onclick: () => {
+        draft[step.key] = o.v;
+        if (i < OB_STEPS.length - 1) { State.obStep = i + 1; render(); }
+        else completeOnboarding(draft);
+      } });
+    btn.append(el('div', { class: 'ob-option-t' }, o.t));
+    if (o.n) btn.append(el('div', { class: 'ob-option-n' }, o.n));
+    opts.append(btn);
+  });
+  wrap.append(opts);
+
+  const foot = el('div', { class: 'row', style: 'gap:10px;margin-top:var(--xl)' });
+  if (i > 0) foot.append(el('button', { class: 'btn btn-ghost btn-sm',
+    onclick: () => { State.obStep = i - 1; render(); } }, 'Back'));
+  foot.append(el('span', { class: 'spacer' }));
+  foot.append(el('button', { class: 'btn btn-quiet btn-sm',
+    onclick: () => completeOnboarding({ ...draft, skipped: true }) }, 'Skip — take me to the app'));
+  wrap.append(foot);
+  return wrap;
+};
 
 /* ==========================================================================
    PUBLIC HOMEPAGE
