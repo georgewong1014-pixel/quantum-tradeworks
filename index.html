@@ -1409,6 +1409,9 @@ const State = {
   /* The user's own area observations. Local to this browser, never sent
      anywhere, and carrying no redistribution right. */
   observations: store.read('observations', []),
+  lang: store.read('lang', 'en'),
+  /* Sarawak exposure records — the user's own research, local to this browser. */
+  sarawakExposure: store.read('sarawakExposure', []),
   /* Seeded with two, not three. The page states the limit from the plan — two
      on Free — and then displayed three, so the copy and the contents
      contradicted each other on first load. The stored value is clamped on
@@ -4468,6 +4471,7 @@ const ROUTES = [
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
+  { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
   { path: '/learn',               view: 'learn',     title: 'Learn' },
@@ -4487,6 +4491,7 @@ const META = {
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
+  sarawak: 'Companies with material exposure to the Sarawak economy. Inclusion is descriptive and does not indicate preference.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
@@ -6431,6 +6436,7 @@ VIEWS.researchHome = () => {
     ['Banks',           'Deposit takers, on measures that fit a bank balance sheet.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'my-banks'))],
     ['REITs',           'Property trusts, on distribution and gearing.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'my-reits'))],
     ['Dividend research','Payout covered by cash rather than borrowing.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'div-cover'))],
+    ['Sarawak Economy Watch','Companies with material exposure to the Sarawak economy. Descriptive, not a preference.', () => navigate('/discover/sarawak')],
   ];
   const cg = el('div', { class: 'grid grid-3' });
   colls.forEach(([t, b, go]) => {
@@ -11123,6 +11129,115 @@ function cityMap(cityId, selectedArea, onPick) {
 }
 
 /* ==========================================================================
+   METRIC DICTIONARY — ONE DEFINITION, THREE LANGUAGES
+
+   English carries the full analytical product. Bahasa Malaysia and Chinese
+   carry the property calculator's summary, which is where a Sarawak buyer
+   most needs to read in their own language and least needs the surrounding
+   equity apparatus.
+
+   The rule that matters: one dictionary, not three. A term translated
+   separately in three places drifts, and a metric that means one thing in
+   English and a slightly different thing in Bahasa is a worse failure than
+   leaving it untranslated — the reader cannot see the discrepancy. Formulas
+   are never restated per language; only the label moves.
+   ========================================================================== */
+const LANGUAGES = [
+  { id:'en', label:'English',          native:'English' },
+  { id:'ms', label:'Bahasa Malaysia',  native:'Bahasa Malaysia' },
+  { id:'zh', label:'Chinese',          native:'简体中文' },
+];
+
+const METRIC_DICTIONARY = {
+  grossYield:      { en:'Gross yield',              ms:'Hasil sewa kasar',        zh:'租金毛回报率' },
+  netCashFlow:     { en:'Net cash flow',            ms:'Aliran tunai bersih',     zh:'净现金流' },
+  breakEvenRent:   { en:'Break-even rent',          ms:'Sewa pulang modal',       zh:'收支平衡租金' },
+  dataCompleteness:{ en:'Data completeness',        ms:'Kelengkapan data',        zh:'数据完整度' },
+  baseCaseModel:   { en:'Base-case model estimate', ms:'Anggaran model kes asas', zh:'基准情景模型估值' },
+  netYield:        { en:'Net yield',                ms:'Hasil sewa bersih',       zh:'租金净回报率' },
+  totalInitialCash:{ en:'Total initial cash',       ms:'Jumlah tunai permulaan',  zh:'初始现金总额' },
+  monthlyInstalment:{ en:'Monthly instalment',      ms:'Ansuran bulanan',         zh:'每月供款' },
+  vacancy:         { en:'Vacancy',                  ms:'Kekosongan',              zh:'空置率' },
+  evidenceQuality: { en:'Evidence quality',         ms:'Kualiti bukti',           zh:'证据质量' },
+};
+
+const lang = () => State.lang || 'en';
+/* Falls back to English rather than to a key. A missing translation should
+   read as the English term, never as "breakEvenRent". */
+const tr = (key) => METRIC_DICTIONARY[key]?.[lang()] || METRIC_DICTIONARY[key]?.en || key;
+
+/* The calculator's own summary, in the reader's language. Deliberately the
+   figures and their names only — the surrounding explanation stays in English
+   because a half-translated argument is harder to trust than an English one. */
+const SUMMARY_COPY = {
+  en: { title:'Summary', note:'Full analysis and all explanations are in English.',
+        forEvery:'For every ringgit of rent you collect', afterAll:'after every cost modelled here' },
+  ms: { title:'Ringkasan', note:'Analisis penuh dan semua penjelasan adalah dalam bahasa Inggeris.',
+        forEvery:'Bagi setiap ringgit sewa yang dikutip', afterAll:'selepas semua kos yang dimodelkan di sini' },
+  zh: { title:'摘要', note:'完整分析与所有说明均为英文。',
+        forEvery:'每收取一令吉租金', afterAll:'扣除此处模型中的所有成本后' },
+};
+
+/* ==========================================================================
+   SARAWAK ECONOMY WATCH
+
+   A research collection, not a recommended-stock list, and explicitly not a
+   list this product asserts.
+
+   The obvious way to build this would be to write out the Sarawak-linked Bursa
+   companies from memory — the Kuching conglomerates, the Miri oil services
+   names, the Samalaju smelter. That would be inventing the exposure data the
+   collection exists to record. Whether a company is incorporated in Sarawak is
+   checkable; what share of its order book is Sarawak state contracts, which
+   concessions it depends on, how concentrated its state customer base is —
+   none of that is in any source this product can reach, and a list of names
+   with empty exposure fields dressed as a research collection would be worse
+   than no collection.
+
+   So the structure is here and the evidence is the user's to record, against
+   any company already in the universe, with the same evidence grades and the
+   same refusal to average across incompatible things that the property
+   observations use. It fills up as it is researched, and what has not been
+   researched reads as absent rather than as zero.
+   ========================================================================== */
+const SARAWAK_THEMES = [
+  { id:'infrastructure', label:'Infrastructure and construction', note:'State and federal works, roads, bridges, water and utilities delivery.' },
+  { id:'energy',         label:'Renewable and conventional energy', note:'Hydropower, gas, and the generation and transmission built around them.' },
+  { id:'ogservices',     label:'Oil and gas services', note:'Offshore and onshore services to the fields off Sarawak, and the Miri and Bintulu bases.' },
+  { id:'ports',          label:'Ports and logistics', note:'Bintulu, Kuching and the river ports, and what moves through them.' },
+  { id:'plantation',     label:'Plantations', note:'Oil palm estates and mills within the state.' },
+  { id:'timber',         label:'Timber', note:'Licences, concessions and downstream processing.' },
+  { id:'materials',      label:'Building materials', note:'Cement, steel and aggregates supplying state construction.' },
+  { id:'industrial',     label:'Industrial development and SCORE', note:'Samalaju and the corridor: smelting, processing and the power that supports them.' },
+  { id:'consumer',       label:'Tourism and local consumption', note:'Businesses whose revenue follows Sarawak households and visitors.' },
+];
+
+/* Every field section 19.2 asks for, each recorded or explicitly not. */
+const EXPOSURE_FIELDS = [
+  { k:'nature',      label:'Nature of Sarawak exposure', kind:'text' },
+  { k:'assets',      label:'Sarawak assets',             kind:'text' },
+  { k:'orderbook',   label:'Sarawak contracts and order book', kind:'text' },
+  { k:'stateCustomer', label:'State or federal customer exposure', kind:'text' },
+  { k:'commodity',   label:'Commodity sensitivity',      kind:'text' },
+  { k:'projects',    label:'Major project status',       kind:'text' },
+  { k:'concession',  label:'Concession or policy dependency', kind:'text' },
+  { k:'concentration', label:'Customer concentration',   kind:'text' },
+  { k:'balance',     label:'Balance-sheet capacity',     kind:'text' },
+  { k:'liquidity',   label:'Liquidity and free float',   kind:'text' },
+  { k:'announcements', label:'Latest relevant announcements', kind:'text' },
+];
+
+const saveExposures = () => store.write('sarawakExposure', State.sarawakExposure);
+
+/* Completeness against the eleven fields, so a thin record cannot pass for a
+   researched one — the same rule the company scores follow. */
+function exposureCompleteness(rec) {
+  if (!rec) return 0;
+  const filled = EXPOSURE_FIELDS.filter(f => String(rec.fields?.[f.k] || '').trim().length > 2).length;
+  return Math.round(filled / EXPOSURE_FIELDS.length * 100);
+}
+
+/* ==========================================================================
    AREA OBSERVATIONS
 
    The layer no source can supply. There is no neighbourhood-level rental or
@@ -11474,6 +11589,107 @@ function propertyRiskFlags(d, m) {
   return out;
 }
 
+VIEWS.sarawak = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  const hd = el('div', { class: 'page-hd' });
+  hd.append(el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Sarawak Economy Watch'),
+    el('h1', {}, 'Companies with material exposure to the Sarawak economy'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Inclusion is descriptive and does not indicate preference. This is a research collection, not a recommended-stock list, and nothing here is ordered by merit.'),
+  ]));
+  wrap.append(hd);
+
+  const recs = State.sarawakExposure || [];
+
+  /* Why the collection is empty, stated once and plainly. */
+  const why = el('div', { class: 'card' });
+  why.append(cardHead('Why this starts empty',
+    'Because the alternative was to invent it.'));
+  why.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    'Whether a company is incorporated in Sarawak is checkable in a filing. What share of its order book is state contracts, which concessions it depends on, how concentrated its state customer base is — none of that is carried by any source this product can reach. A list of familiar names with empty exposure fields would look like research and contain none, so the names are yours to add as you verify them.'));
+  why.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'Records are stored in this browser, are never sent anywhere, and carry no redistribution right.'));
+  wrap.append(why);
+
+  /* Themes, each showing what has been recorded against it. */
+  const tg = el('div', { class: 'grid grid-3' });
+  SARAWAK_THEMES.forEach(t => {
+    const n = recs.filter(r => r.theme === t.id).length;
+    const card = el('div', { class: 'card' });
+    card.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
+      el('h3', { class: 'h-card' }, t.label),
+      el('span', { class: 'metaline', style: 'margin-left:auto' },
+        n ? `${n} recorded` : 'none yet'),
+    ]));
+    card.append(el('p', { class: 'body', style: 'font-size:12.5px' }, t.note));
+    tg.append(card);
+  });
+  wrap.append(tg);
+
+  /* Add a company from the universe against a theme. */
+  const add = el('div', { class: 'card' });
+  add.append(cardHead('Record an exposure', 'Pick a company already in the universe and the theme its Sarawak exposure sits under. The eleven evidence fields are filled in afterwards.'));
+  const coSel = el('select', { class: 'select', 'aria-label': 'Company' });
+  U.slice().sort((a, b) => (a.c.tk || '').localeCompare(b.c.tk || ''))
+    .forEach(r => coSel.append(el('option', { value: r.c.id }, `${r.c.tk || r.c.code} — ${r.c.name}`)));
+  const thSel = el('select', { class: 'select', 'aria-label': 'Theme' });
+  SARAWAK_THEMES.forEach(t => thSel.append(el('option', { value: t.id }, t.label)));
+  const addRow = el('div', { style: 'display:grid;grid-template-columns:2fr 2fr auto;gap:8px;align-items:end' });
+  addRow.append(coSel); addRow.append(thSel);
+  addRow.append(el('button', { class: 'btn', onclick: () => {
+    const co = BY_ID.get(coSel.value);
+    if (!co) return;
+    if (recs.some(r => r.id === co.c.id && r.theme === thSel.value)) { toast('Already recorded under that theme'); return; }
+    State.sarawakExposure = [...recs, { id: co.c.id, tk: co.c.tk || co.c.code, name: co.c.name,
+      theme: thSel.value, fields: {}, evidence: 'user', added: new Date().toISOString().slice(0, 10) }];
+    saveExposures(); toast(`${co.c.tk || co.c.code} added — the exposure fields are still empty`); render();
+  } }, 'Add'));
+  add.append(addRow);
+  wrap.append(add);
+
+  /* The collection itself. */
+  if (recs.length) {
+    const list = el('div', { class: 'card' });
+    list.append(cardHead(`Recorded — ${recs.length}`,
+      'Completeness counts the eleven fields section 19.2 asks for. A thin record cannot pass for a researched one.'));
+    recs.forEach((rec, i) => {
+      const theme = SARAWAK_THEMES.find(t => t.id === rec.theme);
+      const pct = exposureCompleteness(rec);
+      const det = el('details', { style: 'border-top:1px solid var(--line);padding:10px 0' });
+      det.append(el('summary', { style: 'cursor:pointer' }, [
+        el('span', { style: 'font-weight:600' }, `${rec.tk} — ${rec.name}`),
+        el('span', { class: 'metaline' }, `  ${theme?.label} · ${pct}% of fields recorded`),
+      ]));
+      EXPOSURE_FIELDS.forEach(f => {
+        const row = el('div', { class: 'field', style: 'margin-top:8px' });
+        row.append(el('label', {}, f.label));
+        const ta = el('textarea', { class: 'input', rows: '2', placeholder: 'Not recorded',
+          'aria-label': f.label });
+        ta.value = rec.fields?.[f.k] || '';
+        ta.addEventListener('change', () => {
+          rec.fields = { ...(rec.fields || {}), [f.k]: ta.value };
+          saveExposures();
+        });
+        row.append(ta);
+        det.append(row);
+      });
+      det.append(el('div', { class: 'row', style: 'margin-top:10px;gap:8px' }, [
+        el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+          State.sarawakExposure = recs.filter((_, j) => j !== i); saveExposures(); render();
+        } }, 'Remove'),
+        el('span', { class: 'metaline' }, `Added ${rec.added}. If a field is blank it is unresearched, not zero.`),
+      ]));
+      list.append(det);
+    });
+    wrap.append(list);
+  }
+
+  wrap.append(el('p', { class: 'metaline' },
+    'Exposure that cannot be quantified should be recorded as qualitative with the limitation stated, rather than left to imply a number nobody has.'));
+  return wrap;
+};
+
 VIEWS.property = () => {
   const d = State.deal;
   const m = dealModel(d);
@@ -11767,6 +11983,35 @@ VIEWS.property = () => {
 
   /* free tier: the four headline numbers */
   const free = el('div', { class: 'card' });
+  /* Language applies to the summary below and to the metric names in it. The
+     analysis itself stays in English, which the note says rather than leaving
+     the reader to discover it. */
+  const langRow = el('div', { class: 'row', style: 'gap:6px;margin-bottom:10px;flex-wrap:wrap' });
+  LANGUAGES.forEach(L => langRow.append(el('button', {
+    class: 'btn btn-ghost btn-sm', 'aria-pressed': lang() === L.id ? 'true' : 'false',
+    style: lang() === L.id ? 'border-color:var(--brand);color:var(--brand)' : '',
+    onclick: () => { State.lang = L.id; store.write('lang', L.id); render(); },
+  }, L.native)));
+  free.append(langRow);
+
+  const sc = SUMMARY_COPY[lang()] || SUMMARY_COPY.en;
+  const summary = el('div', { class: 'panel', style: 'margin-bottom:var(--md)' });
+  summary.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, sc.title));
+  const srows = [
+    [tr('grossYield'),       fmtPct(m.grossYield, 2)],
+    [tr('netYield'),         fmtPct(m.netYield, 2)],
+    [tr('netCashFlow'),      fmtAmount(m.cashflowMonthly, 'MYR') + ' / bln'],
+    [tr('breakEvenRent'),    fmtAmount(m.breakEvenRent, 'MYR')],
+    [tr('monthlyInstalment'),fmtAmount(m.instalment, 'MYR')],
+    [tr('totalInitialCash'), fmtAmount(m.totalInitialCash, 'MYR')],
+  ];
+  const sumT = el('table', { class: 'dt' });
+  sumT.append(el('tbody', {}, srows.map(([k, v]) => el('tr', {}, [
+    el('td', {}, k), el('td', { class: 'num' }, v)]))));
+  summary.append(el('div', { style: 'overflow-x:auto' }, sumT));
+  summary.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, sc.note));
+  free.append(summary);
+
   free.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.'));
   const fg = el('div', { class: 'grid g-4' });
   fg.append(el('div', { class: 'panel' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
