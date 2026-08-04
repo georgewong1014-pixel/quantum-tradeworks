@@ -10867,6 +10867,13 @@ const saveDeal = () => store.write('deal', State.deal);
 const SARAWAK_CHECKS = [
   { id:'title-restricted', q:'Is the title Native Area Land, NCR or another restricted class?',
     who:'Lawyer and the Land and Survey Department', sev:'serious',
+    steps:[
+      'Instruct the lawyer to conduct an official title search at the Land and Survey Department, rather than relying on what the seller or agent states the class to be.',
+      'Obtain a copy of the title document and read the class from it.',
+      'Confirm any endorsements, caveats, charges or restrictions in interest recorded against it.',
+      'Confirm in writing that a transfer to a buyer of your status is permitted — before any deposit is paid.',
+    ],
+    affects:['Whether the purchase can complete at all', 'Financing', 'Resale pool'],
     why:'Transfer of restricted classes is limited by the Sarawak Land Code. If it applies, no financial model matters until it is resolved.' },
   { id:'lease-remaining', q:'If leasehold, how many years remain and has extension been applied for?',
     who:'Lawyer, Land and Survey Department', sev:'warning',
@@ -10875,6 +10882,14 @@ const SARAWAK_CHECKS = [
     who:'Lawyer, developer', sev:'warning',
     why:'A pending strata title may affect transfer, financing and transaction timing. Confirm the title status and implications with the lawyer and lender.' },
   { id:'flood', q:'Is the site in an area with a known flood history?',
+    steps:[
+      'Ask the Department of Irrigation and Drainage (Jabatan Pengairan dan Saliran) for flood records covering the locality.',
+      'Ask the local council about past events and any drainage works planned or completed.',
+      'Ask neighbours and nearby shophouses about the last three flood events and how high the water reached.',
+      'Read the insurance policy: flood cover is commonly an add-on rather than part of a standard fire policy. Confirm what is actually covered and at what premium.',
+      'Ask the intended lender whether flood history affects their valuation or their margin of finance.',
+    ],
+    affects:['Insurance cost and availability', 'Vacancy between tenancies', 'Resale time', 'Financing terms'],
     who:'Local council, neighbours, DID flood maps', sev:'serious',
     why:'Parts of Kuching, Sibu and the Rajang basin flood recurrently. It affects insurance, tenant retention and resale.' },
   { id:'single-employer', q:'Does rental demand here depend on one employer or one industry?',
@@ -12061,7 +12076,26 @@ VIEWS.property = () => {
     answered < SARAWAK_CHECKS.length
       ? el('span', { class: 'metaline' }, 'Unanswered questions are not neutral — they are unknowns carried into the result.') : null,
   ]));
-  SARAWAK_CHECKS.forEach(c => {
+  /* A city's own conditions decide what to ask first. Sibu sits on the Rejang
+     and its flood history is the question a buyer there should reach before
+     any other; Miri and Bintulu turn on single-industry employment. This
+     changes the order of the questions and nothing else — no answer is
+     pre-filled and no risk is assumed on the reader's behalf. */
+  const CITY_PRIORITY = {
+    sibu:    ['flood', 'comparables', 'resale-time'],
+    miri:    ['single-employer', 'transient-demand', 'supply'],
+    bintulu: ['single-employer', 'transient-demand', 'supply'],
+    kuching: ['supply', 'parking', 'comparables'],
+  };
+  const priority = CITY_PRIORITY[d.city] || [];
+  const ordered = [...SARAWAK_CHECKS].sort((a, b) => {
+    const ia = priority.indexOf(a.id), ib = priority.indexOf(b.id);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+  if (priority.length) chk.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
+    `Ordered for ${cityDef.name}: ${priority.map(id => SARAWAK_CHECKS.find(c2 => c2.id === id)?.q.slice(0, -1)).filter(Boolean)[0]?.toLowerCase()} comes first here. The questions are the same everywhere; only the order changes.`));
+
+  ordered.forEach(c => {
     const row = el('div', { style: 'padding:10px 0;border-top:1px solid var(--line)' });
     row.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:flex-start' }, [
       el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:530;margin:0' }, c.q),
@@ -12071,6 +12105,34 @@ VIEWS.property = () => {
           v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Not sure'))),
     ]));
     row.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `${c.why} · Confirm with: ${c.who}`));
+
+    /* How you know, recorded beside what you answered. */
+    const ans = d.checks?.[c.id];
+    if (ans) {
+      const evRow = el('div', { class: 'row', style: 'gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap' });
+      evRow.append(el('span', { class: 'metaline' }, 'How you established this:'));
+      const evSel = el('select', { class: 'select select-sm', 'aria-label': `Evidence for: ${c.q}` });
+      EVIDENCE.forEach(ev => evSel.append(el('option', { value: ev.id,
+        selected: (d.checkEvidence?.[c.id] || 'assumed') === ev.id ? '' : null }, ev.label)));
+      evSel.addEventListener('change', e => {
+        d.checkEvidence = { ...(d.checkEvidence || {}), [c.id]: e.target.value }; saveDeal(); render();
+      });
+      evRow.append(evSel);
+      if ((d.checkEvidence?.[c.id] || 'assumed') === 'assumed')
+        evRow.append(el('span', { class: 'metaline', style: 'color:var(--bronze)' },
+          'An assumed answer is not an answer.'));
+      row.append(evRow);
+    }
+
+    /* What it bears on, and how to settle it. */
+    if (c.affects?.length) row.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `Bears on: ${c.affects.join(' · ')}. This tool changes no figure on the strength of your answer — it has no basis for a coefficient, and inventing one would be worse than leaving the number alone.`));
+    if (c.steps?.length) {
+      const det = el('details', { style: 'margin-top:8px' });
+      det.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'How to establish this'));
+      det.append(el('ol', { class: 'ticklist', style: 'margin-top:6px' }, c.steps.map(x => el('li', {}, x))));
+      row.append(det);
+    }
     chk.append(row);
   });
   chk.append(el('p', { class: 'metaline', style: 'margin-top:var(--md);padding-top:10px;border-top:1px solid var(--line)' },
