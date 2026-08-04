@@ -10920,6 +10920,196 @@ function balanceAfter(principal, annualRatePct, years, monthsElapsed) {
   return Math.max(0, principal * Math.pow(1 + r, monthsElapsed) - pmt * (Math.pow(1 + r, monthsElapsed) - 1) / r);
 }
 
+/* ==========================================================================
+   CITY AREA MAP
+
+   A relative-position diagram, not a map. There is no basemap, no road, no
+   coastline and no boundary — drawing one would need tiles, which means an
+   external service on every page view, a licence for commercial use and a
+   network dependency in a file that otherwise has none. What this shows is
+   where the areas of one city sit in relation to each other, which is the
+   question a buyer comparing Permyjaya with Senadin actually has.
+
+   Every point carries the confidence its coordinate was graded with when it
+   was cached. A locality is the mapped place; a named feature is the road or
+   parcel carrying the area's own name; a landmark proxy is a building that
+   happens to sit inside the area, and is drawn hollow because it is somewhere
+   in the right neighbourhood and no more precise than that.
+   ========================================================================== */
+let sarawakGeo = null, sarawakIncome = null, geoLoadState = 'idle';
+
+async function loadSarawakLayers() {
+  if (geoLoadState !== 'idle') return;
+  geoLoadState = 'loading';
+  sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json'));
+  /* Git-ignored while its licence is unconfirmed, so absent is the normal
+     case rather than an error. */
+  sarawakIncome = await fetchJson(dataUrl('sarawak-income.json'));
+  geoLoadState = 'done';
+  if (State.view === 'property') render();
+}
+
+const AREA_CONFIDENCE = {
+  'locality':       { r:6.5, fill:true,  label:'Mapped locality' },
+  'named-feature':  { r:5.5, fill:true,  label:'Road or parcel of the same name' },
+  'city-point':     { r:8,   fill:false, label:'City centre point' },
+  'landmark-proxy': { r:5,   fill:false, label:'A landmark inside the area' },
+};
+
+/* Equirectangular, corrected for latitude. Over one city this is accurate to
+   well under the precision the points themselves have. */
+function cityMap(cityId, selectedArea, onPick) {
+  const city = sarawakGeo?.cities?.[cityId];
+  const areas = Object.entries(city?.areas || {});
+  const host = el('div', { style: 'width:100%' });
+  if (!areas.length) return host;
+
+  chartHost(host, (w) => {
+    const pad = 40;
+    const lats = areas.map(([, a]) => a.lat), lons = areas.map(([, a]) => a.lon);
+    const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+    const kx = Math.cos(midLat * Math.PI / 180);
+    const xs = lons.map(l => l * kx), ys = lats.map(l => -l);
+    const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
+    const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+    const spanX = (x1 - x0) || 0.01, spanY = (y1 - y0) || 0.01;
+    /* One scale for both axes — a map with two is not a map — with the height
+       following from the data rather than a chosen ratio, so a city that is
+       long north-to-south gets a tall box instead of a wide empty one. */
+    const inner = w - pad * 2;
+    const MAXH = 460;
+    /* Fit width first, then shrink if the resulting height would exceed the
+       ceiling — a clamp applied after the scale was chosen pushed points
+       outside the viewBox, which drew a map with areas missing off the top. */
+    const scale = Math.min(inner / spanX, (MAXH - pad * 2) / spanY);
+    const H = Math.round(Math.max(200, Math.min(MAXH, spanY * scale + pad * 2)));
+    const sx = (v) => (v - (x0 + x1) / 2) * scale + Math.min(w, Math.round(spanX * scale + pad * 2)) / 2;
+    const sy = (v) => pad + (v - (y0 + y1) / 2) * scale + (H - pad * 2) / 2;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    /* The box hugs the points: viewBox spans the content, and the element is
+       centred rather than stretched. */
+    const contentW = Math.min(w, Math.round(spanX * scale + pad * 2));
+    svg.setAttribute('viewBox', `0 0 ${contentW} ${H}`);
+    svg.setAttribute('width', String(contentW)); svg.setAttribute('height', String(H));
+    svg.setAttribute('style', 'display:block;margin:0 auto;max-width:100%');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label',
+      `Relative positions of ${areas.length} areas in ${city.name}. The table below lists the same information.`);
+
+    const mk = (n, attrs = {}) => { const e = document.createElementNS(NS, n);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+
+    svg.append(mk('rect', { x:0, y:0, width:contentW, height:H, rx:10, fill:'var(--surface-sunk)' }));
+
+    /* A scale bar, because a diagram with no basemap gives no sense of size. */
+    const kmPerDeg = 111.32;
+    /* scale is pixels per degree, so a bar of n km is n/111.32 degrees of it.
+       Derived from scale rather than from a span variable, which is what broke
+       this: the spans were split into x and y and the bar kept referencing the
+       old single name, throwing inside a ResizeObserver callback where the
+       error surfaced as an empty box rather than as a stack trace. */
+    const targetKm = (w - pad * 2) / scale * kmPerDeg / 3;
+    const niceKm = [1, 2, 5, 10, 20, 50, 100].find(v => v >= targetKm) || 100;
+    const barPx = (niceKm / kmPerDeg) * scale;
+    const by = H - 14;
+    svg.append(mk('line', { x1:pad, y1:by, x2:pad + barPx, y2:by, stroke:'var(--ink-3)', 'stroke-width':2 }));
+    const sl = mk('text', { x:pad + barPx + 6, y:by + 4, fill:'var(--ink-3)', 'font-size':10.5 });
+    sl.textContent = `${niceKm} km`; svg.append(sl);
+
+    /* Two adjacent areas put their labels in the same place — "Marina" and
+       "City centre" overlapped and read as one word. Each label claims a box;
+       a label whose box hits one already claimed flips beneath its point, and
+       flips back only if that is clear too. */
+    const claimed = [];
+    /* Every marker is an obstacle from the start, so a label never lands on a
+       point belonging to a different area. */
+    areas.forEach(([, a]) => {
+      const cf0 = AREA_CONFIDENCE[a.confidence] || AREA_CONFIDENCE['landmark-proxy'];
+      const px = (a.lon * kx - (x0 + x1) / 2) * scale + Math.min(w, Math.round(spanX * scale + pad * 2)) / 2;
+      const py = pad + (-a.lat - (y0 + y1) / 2) * scale + (H - pad * 2) / 2;
+      claimed.push({ x1:px - cf0.r - 2, x2:px + cf0.r + 2, y1:py - cf0.r - 2, y2:py + cf0.r + 2 });
+    });
+    const hits = (b) => claimed.some(c => !(b.x2 < c.x1 || b.x1 > c.x2 || b.y2 < c.y1 || b.y1 > c.y2));
+
+    areas.forEach(([name, a]) => {
+      const cf = AREA_CONFIDENCE[a.confidence] || AREA_CONFIDENCE['landmark-proxy'];
+      const cx = sx(a.lon * kx), cy = sy(-a.lat);
+      const on = name === selectedArea;
+      const g = mk('g', { tabindex:'0', role:'button', style:'cursor:pointer',
+        'aria-label':`${name}. ${cf.label}. ${on ? 'Currently selected.' : 'Select this area.'}` });
+
+      /* A ring behind the selected point rather than a colour change, so the
+         selection survives a colourblind reading. */
+      if (on) g.append(mk('circle', { cx, cy, r:cf.r + 5, fill:'none',
+        stroke:'var(--brand)', 'stroke-width':2 }));
+      g.append(mk('circle', { cx, cy, r:cf.r,
+        fill: cf.fill ? 'var(--brand)' : 'var(--surface)',
+        stroke:'var(--brand)', 'stroke-width': cf.fill ? 1 : 1.6,
+        'stroke-dasharray': a.confidence === 'landmark-proxy' ? '3 2' : 'none' }));
+      const halfW = name.length * 3.05 + 4, lh = 13;
+      const above = { x1:cx - halfW, x2:cx + halfW, y1:cy - cf.r - 5 - lh, y2:cy - cf.r - 3 };
+      const below = { x1:cx - halfW, x2:cx + halfW, y1:cy + cf.r + 3, y2:cy + cf.r + 5 + lh };
+      const box = hits(above) && !hits(below) ? below : above;
+      claimed.push(box);
+      const t = mk('text', { x:cx, y: box === below ? cy + cf.r + 14 : cy - cf.r - 6,
+        'text-anchor':'middle', 'font-size':11, 'font-weight': on ? 640 : 500,
+        fill: on ? 'var(--ink)' : 'var(--ink-2)' });
+      t.textContent = name;
+      g.append(t);
+
+      const pick = () => onPick && onPick(name);
+      g.addEventListener('click', pick);
+      g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+      svg.append(g);
+    });
+    return svg;
+  });
+  return host;
+}
+
+/* City-level affordability, stated as city-level. The income series is one
+   figure for the whole district, so it cannot distinguish Petra Jaya from Batu
+   Kawa, and a band drawn beside per-area points would otherwise read as though
+   it could. */
+function affordabilityPanel(cityName) {
+  if (!sarawakIncome?.districts) return null;
+  const series = sarawakIncome.districts[cityName];
+  if (!series?.length) return null;
+  const latest = series[series.length - 1];
+  if (!isNum(latest.median)) return null;
+
+  const card = el('div', { class: 'panel' });
+  card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, `${cityName} district household income`));
+  card.append(el('div', { class: 'row', style: 'gap:var(--lg);flex-wrap:wrap' }, [
+    el('div', {}, [el('div', { style:'font-size:20px;font-weight:660' }, `RM${latest.median.toLocaleString()}`),
+                   el('div', { class:'metaline' }, `median, ${latest.year}`)]),
+    el('div', {}, [el('div', { style:'font-size:20px;font-weight:660' }, `RM${latest.mean.toLocaleString()}`),
+                   el('div', { class:'metaline' }, `mean, ${latest.year}`)]),
+  ]));
+
+  /* A quarter to a third of household income is the conventional sustainable
+     range for rent. It is a rule of thumb, not a measurement, and it is the
+     only rent-shaped number any source here supports. */
+  const lo = Math.round(latest.median * 0.25 / 10) * 10;
+  const hi = Math.round(latest.median * 0.30 / 10) * 10;
+  card.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:10px' },
+    `A household on the median here sustains roughly RM${lo.toLocaleString()}–${hi.toLocaleString()} a month in rent.`));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    'Derived from published income at a quarter to a third of it — a convention, not a measurement, and not an observed rent. No source consulted carries transacted rents for Sarawak. It describes the whole district, so it cannot tell one area here from another.'));
+
+  if (series.length > 1) {
+    const first = series[0];
+    const chg = ((latest.median - first.median) / first.median) * 100;
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `Median income ${chg >= 0 ? 'rose' : 'fell'} ${Math.abs(chg).toFixed(0)}% between ${first.year} and ${latest.year}.`));
+  }
+  card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    `Source: ${sarawakIncome.source}. Retrieved ${sarawakIncome.retrieved}.`));
+  return card;
+}
+
 function dealModel(d) {
   const proj = PROJECTS.find(p => p.id === d.projectId) || PROJECTS[0];
   const loan = d.price * (1 - d.downPct / 100);
@@ -11240,6 +11430,34 @@ VIEWS.property = () => {
     fx.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'These change nothing in the model. They are the questions a local buyer would ask, and the ones the numbers below cannot answer on their own.'));
     loc.append(fx);
+  }
+
+  /* Where the areas sit relative to each other, plus what the district earns.
+     Loaded once and cached; absent until it arrives, and absent for good if
+     the file was never fetched. */
+  if (geoLoadState === 'idle') loadSarawakLayers();
+  const mapAreas = sarawakGeo?.cities?.[d.city]?.areas;
+  if (mapAreas && Object.keys(mapAreas).length) {
+    const mapWrap = el('div', { style: 'margin-top:14px' });
+    mapWrap.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' },
+      `${cityDef.name} areas`));
+    mapWrap.append(cityMap(d.city, d.district, (name) => {
+      d.district = name; saveDeal(); render();
+    }));
+    mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      'Relative positions only — there is no basemap, road or boundary here. A hollow or dashed point is a coordinate taken from a landmark inside the area rather than the area itself. Click or press Enter on a point to select that area.'));
+    mapWrap.append(tableTwin(`${cityDef.name} areas as a table`,
+      ['Area', 'Latitude', 'Longitude', 'Coordinate is'],
+      Object.entries(mapAreas).map(([n, a]) => [n, a.lat.toFixed(4), a.lon.toFixed(4),
+        (AREA_CONFIDENCE[a.confidence] || {}).label || a.confidence])));
+    mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `${sarawakGeo.attribution} · ${sarawakGeo.licence}`));
+
+    const aff = affordabilityPanel(cityDef.name);
+    if (aff) mapWrap.append(el('div', { style: 'margin-top:12px' }, aff));
+    else mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+      'District household income is not loaded. It is cached locally by ingest/sarawak-geo.mjs and is not published with the site while its licence is unconfirmed.'));
+    loc.append(mapWrap);
   }
 
   const typeField = el('div', { class: 'field', style: 'margin-top:10px' });
