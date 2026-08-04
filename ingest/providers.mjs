@@ -142,3 +142,118 @@ export function createRegistry(providers) {
     },
   };
 }
+
+/* =========================================================================
+   YAHOO FINANCE — PERSONAL RESEARCH ONLY
+
+   The note at the top of this file is still right that Yahoo cannot carry a
+   paid product: undocumented endpoints, no support, terms that prohibit
+   redistribution. What it did not account for is that this repository already
+   runs two lanes, because the screenshot pipeline needed them —
+   data/prices.json is what the app serves and must be licensed, and
+   data/personal-prices.json is git-ignored, never published, and holds
+   figures the owner gathered for their own research.
+
+   So this adapter exists in the second lane and is hard-wired licensed:false.
+   That is not a default to flip: there is no licence behind it, and the
+   registry above already refuses to serve an unlicensed provider to a paid
+   deployment.
+
+   Verified against what a Malaysian research tool actually needs: AAPL in USD,
+   1155.KL in MYR, ^KLSE, USDMYR=X. Bursa equities, the index and the currency
+   all resolve through the same endpoint.
+   ========================================================================= */
+export function yahooProvider({ userAgent } = {}) {
+  const BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+  /* A browser user agent is required; the endpoint refuses a bare fetch. */
+  const headers = { 'user-agent': userAgent ||
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36' };
+
+  const chart = async (symbol, params) => {
+    const r = await fetch(BASE + encodeURIComponent(symbol) + '?' + params,
+      { headers, signal: AbortSignal.timeout(20000) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j?.chart?.result?.[0] || null;
+  };
+
+  return {
+    name: 'yahoo (personal research)',
+    licensed: false,
+    markets: ['US', 'MY'],
+    delayMinutes: null,
+    async quote(symbol) {
+      const m = (await chart(symbol, 'interval=1d&range=5d'))?.meta;
+      if (!m || !Number.isFinite(m.regularMarketPrice)) return null;
+      return {
+        symbol, price: m.regularMarketPrice, currency: m.currency || null,
+        asOf: m.regularMarketTime ? new Date(m.regularMarketTime * 1000).toISOString() : null,
+        delayMinutes: Number.isFinite(m.exchangeDataDelayedBy)
+          ? Math.round(m.exchangeDataDelayedBy / 60) : null,
+        source: 'Yahoo Finance (unofficial endpoint, personal research only)',
+      };
+    },
+    async history(symbol, from, to) {
+      const p1 = Math.floor(new Date(from).getTime() / 1000);
+      const p2 = Math.floor(new Date(to).getTime() / 1000);
+      const res = await chart(symbol, `interval=1d&period1=${p1}&period2=${p2}`);
+      const ts = res?.timestamp, q = res?.indicators?.quote?.[0];
+      if (!ts || !q) return null;
+      const out = [];
+      for (let i = 0; i < ts.length; i++) {
+        const close = q.close?.[i];
+        /* A null close is a non-trading day, not a zero. */
+        if (!Number.isFinite(close)) continue;
+        out.push({ date: new Date(ts[i] * 1000).toISOString().slice(0, 10), close,
+                   volume: Number.isFinite(q.volume?.[i]) ? q.volume[i] : null });
+      }
+      return out.length ? out : null;
+    },
+  };
+}
+
+/* =========================================================================
+   TWELVE DATA — the licensed path, with a name on it.
+
+   Their catalogue lists Bursa Malaysia as XKLS and they sell redistribution
+   licences, which makes this the swap the abstraction was built for: change
+   the provider, not the engine.
+
+   licensed defaults to FALSE and becomes true only when the caller states that
+   their plan covers redistribution. A key is not a licence, and a plan that
+   permits personal use does not become a publishing right because the code
+   holds an API token.
+   ========================================================================= */
+export function twelveDataProvider({ apiKey, redistribution = false } = {}) {
+  if (!apiKey) throw new Error('twelveDataProvider: apiKey is required');
+  const call = async (path, params) => {
+    const r = await fetch(`https://api.twelvedata.com/${path}?${params}&apikey=${apiKey}`,
+      { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    /* Their failures arrive with HTTP 200 and a status field. */
+    return j?.status === 'error' ? null : j;
+  };
+  return {
+    name: 'twelvedata',
+    licensed: !!redistribution,
+    markets: ['US', 'MY'],
+    delayMinutes: null,
+    async quote(symbol) {
+      const j = await call('quote', `symbol=${encodeURIComponent(symbol)}`);
+      if (!j || !Number.isFinite(Number(j.close))) return null;
+      return { symbol, price: Number(j.close), currency: j.currency || null,
+               asOf: j.datetime || null, delayMinutes: null, source: 'Twelve Data' };
+    },
+    async history(symbol, from, to) {
+      const j = await call('time_series',
+        `symbol=${encodeURIComponent(symbol)}&interval=1day&start_date=${from}&end_date=${to}&outputsize=5000`);
+      if (!Array.isArray(j?.values)) return null;
+      return j.values
+        .map(v => ({ date: v.datetime, close: Number(v.close),
+                     volume: v.volume != null ? Number(v.volume) : null }))
+        .filter(x => Number.isFinite(x.close))
+        .reverse();
+    },
+  };
+}

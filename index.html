@@ -6814,7 +6814,7 @@ function tabSnapshot(r) {
     const vol = volumeContext(trackedHistory?.volume?.[real.symbol] || {}, real.series);
     const g2 = el('div', { class: 'grid g-4' });
     g2.append(el('div', { class: 'panel' }, statTile('Observed closes', String(t.points),
-      { sub: `${t.first} to ${t.last ? Object.keys(real.series).sort().pop() : '—'}` })));
+      { sub: `${t.first || '—'} to ${t.lastDate || '—'}` })));
     g2.append(el('div', { class: 'panel' }, statTile('Trend', ctx ? ctx.state : 'not computable',
       { sub: ctx ? '' : `needs ${(t.pending.find(x => x.id === 'sma200') || {}).more || '—'} more closes` })));
     g2.append(el('div', { class: 'panel' }, statTile('vs 200-day',
@@ -9691,7 +9691,7 @@ function openTrendDrawer(row, t) {
   tbl.append(tb2);
   body.append(el('div', { style: 'overflow-x:auto' }, tbl));
   body.append(el('p', { class: 'metaline' },
-    `Series runs ${t.first || '—'} to ${t.last || '—'}. Backfill it in one step with: node ingest/history-import.mjs --dir <folder of CSV exports>`));
+    `Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Backfill it in one step with: node ingest/history-import.mjs --dir <folder of CSV exports>`));
 
   openDrawer(`${row.sym} — trend context`, body);
 }
@@ -9872,7 +9872,8 @@ function trendContext(series) {
   const closes = dates.map(d => series[d]).filter(v => isNum(v) && v > 0);
   const n = closes.length;
   const last = n ? closes[n - 1] : null;
-  const out = { points: n, first: dates[0] || null, last: dates[dates.length - 1] || null, values: {}, pending: [] };
+  const out = { points: n, first: dates[0] || null, lastDate: dates[dates.length - 1] || null,
+                values: {}, pending: [] };
 
   const need = (id) => { const req = TREND_BY_ID[id].needs; if (n < req) { out.pending.push({ id, needs: req, have: n, more: req - n }); return true; } return false; };
   const set = (id, v) => { out.values[id] = v; };
@@ -9930,6 +9931,8 @@ function trendContext(series) {
     }
   }
 
+  /* Named apart. lastDate is when the series ends; last is what it closed at.
+     They shared a name and the drawer printed a price where a date belonged. */
   out.last = last;
   return out;
 }
