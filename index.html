@@ -1406,6 +1406,9 @@ const State = {
   savedScreens: store.read('savedScreens', []),
   screen: null,
   recentCompanies: store.read('recentCompanies', []),
+  /* The user's own area observations. Local to this browser, never sent
+     anywhere, and carrying no redistribution right. */
+  observations: store.read('observations', []),
   /* Seeded with two, not three. The page states the limit from the plan — two
      on Free — and then displayed three, so the copy and the contents
      contradicted each other on first load. The stored value is clamped on
@@ -11022,14 +11025,16 @@ function cityMap(cityId, selectedArea, onPick) {
        "City centre" overlapped and read as one word. Each label claims a box;
        a label whose box hits one already claimed flips beneath its point, and
        flips back only if that is clear too. */
-    const claimed = [];
+    const claimed = [], unlabelled = [];
     /* Every marker is an obstacle from the start, so a label never lands on a
        point belonging to a different area. */
     areas.forEach(([, a]) => {
       const cf0 = AREA_CONFIDENCE[a.confidence] || AREA_CONFIDENCE['landmark-proxy'];
       const px = (a.lon * kx - (x0 + x1) / 2) * scale + Math.min(w, Math.round(spanX * scale + pad * 2)) / 2;
       const py = pad + (-a.lat - (y0 + y1) / 2) * scale + (H - pad * 2) / 2;
-      claimed.push({ x1:px - cf0.r - 2, x2:px + cf0.r + 2, y1:py - cf0.r - 2, y2:py + cf0.r + 2 });
+      /* Include the selection ring, which extends 5px beyond the marker. */
+      const rr = cf0.r + 3 + (a === (city.areas[selectedArea]) ? 5 : 0);
+      claimed.push({ x1:px - rr, x2:px + rr, y1:py - rr, y2:py + rr });
     });
     const hits = (b) => claimed.some(c => !(b.x2 < c.x1 || b.x1 > c.x2 || b.y2 < c.y1 || b.y1 > c.y2));
 
@@ -11038,7 +11043,9 @@ function cityMap(cityId, selectedArea, onPick) {
       const cx = sx(a.lon * kx), cy = sy(-a.lat);
       const on = name === selectedArea;
       const g = mk('g', { tabindex:'0', role:'button', style:'cursor:pointer',
-        'aria-label':`${name}. ${cf.label}. ${on ? 'Currently selected.' : 'Select this area.'}` });
+        'aria-label': name + '. ' + cf.label + '. '
+          + (State.observations || []).filter(o => o.city === cityId && o.area === name).length
+          + ' observation(s) recorded. ' + (on ? 'Currently selected.' : 'Select this area.') });
 
       /* A ring behind the selected point rather than a colour change, so the
          selection survives a colourblind reading. */
@@ -11048,25 +11055,136 @@ function cityMap(cityId, selectedArea, onPick) {
         fill: cf.fill ? 'var(--brand)' : 'var(--surface)',
         stroke:'var(--brand)', 'stroke-width': cf.fill ? 1 : 1.6,
         'stroke-dasharray': a.confidence === 'landmark-proxy' ? '3 2' : 'none' }));
-      const halfW = name.length * 3.05 + 4, lh = 13;
-      const above = { x1:cx - halfW, x2:cx + halfW, y1:cy - cf.r - 5 - lh, y2:cy - cf.r - 3 };
-      const below = { x1:cx - halfW, x2:cx + halfW, y1:cy + cf.r + 3, y2:cy + cf.r + 5 + lh };
-      const box = hits(above) && !hits(below) ? below : above;
-      claimed.push(box);
-      const t = mk('text', { x:cx, y: box === below ? cy + cf.r + 14 : cy - cf.r - 6,
-        'text-anchor':'middle', 'font-size':11, 'font-weight': on ? 640 : 500,
-        fill: on ? 'var(--ink)' : 'var(--ink-2)' });
-      t.textContent = name;
-      g.append(t);
+      /* A count badge where something has been recorded. The map is the
+         natural place to see which areas you have evidence for and which are
+         still blank. */
+      const obsN = (State.observations || []).filter(o => o.city === cityId && o.area === name).length;
+      if (obsN) {
+        g.append(mk('circle', { cx:cx + cf.r + 4, cy:cy - cf.r - 2, r:7,
+          fill:'var(--bronze)', stroke:'var(--surface)', 'stroke-width':1.5 }));
+        const bt = mk('text', { x:cx + cf.r + 4, y:cy - cf.r + 1.5, 'text-anchor':'middle',
+          'font-size':9, 'font-weight':700, fill:'var(--surface)' });
+        bt.textContent = String(obsN); g.append(bt);
+      }
+
+      const halfW = name.length * 3.05 + 4, lh = 13, gap = cf.r + 4;
+      /* Tried in order of legibility: centred above, centred below, then to
+         either side. The first placement that collides with nothing wins; if
+         all four are taken the label goes above anyway, because a slightly
+         crowded label is better than a missing one. */
+      const places = [
+        { x:cx, y:cy - gap - 3, anchor:'middle', box:{ x1:cx - halfW, x2:cx + halfW, y1:cy - gap - 3 - lh, y2:cy - gap } },
+        { x:cx, y:cy + gap + 11, anchor:'middle', box:{ x1:cx - halfW, x2:cx + halfW, y1:cy + gap, y2:cy + gap + 13 } },
+        { x:cx + gap + 4, y:cy + 4, anchor:'start', box:{ x1:cx + gap + 4, x2:cx + gap + 4 + halfW * 2, y1:cy - 6, y2:cy + 7 } },
+        { x:cx - gap - 4, y:cy + 4, anchor:'end', box:{ x1:cx - gap - 4 - halfW * 2, x2:cx - gap - 4, y1:cy - 6, y2:cy + 7 } },
+        /* Diagonals, for clusters where the four cardinal slots are all taken —
+           Bintulu packs six areas around the town with Samalaju far out, and
+           four placements left three labels overlapping. */
+        { x:cx + gap, y:cy - gap, anchor:'start', box:{ x1:cx + gap, x2:cx + gap + halfW * 2, y1:cy - gap - lh, y2:cy - gap + 2 } },
+        { x:cx - gap, y:cy - gap, anchor:'end',   box:{ x1:cx - gap - halfW * 2, x2:cx - gap, y1:cy - gap - lh, y2:cy - gap + 2 } },
+        { x:cx + gap, y:cy + gap + 8, anchor:'start', box:{ x1:cx + gap, x2:cx + gap + halfW * 2, y1:cy + gap - 2, y2:cy + gap + 11 } },
+        { x:cx - gap, y:cy + gap + 8, anchor:'end',   box:{ x1:cx - gap - halfW * 2, x2:cx - gap, y1:cy + gap - 2, y2:cy + gap + 11 } },
+      ];
+      const inside = (b) => b.x1 >= 2 && b.x2 <= contentW - 2 && b.y1 >= 2 && b.y2 <= H - 2;
+      const place = places.find(pl => !hits(pl.box) && inside(pl.box));
+
+      /* Bintulu spans 0.9km to 62km — Samalaju is 57km from a town centre that
+         has six areas within two kilometres of it. At a scale that fits the
+         outlier those six are a few pixels apart, and no placement rule can
+         separate their labels because the geometry does not separate them.
+         Printing overlapping text would be worse than printing none: the
+         selected area is always labelled, the rest stay clickable and remain in
+         the table, and the caption reports how many were left off. */
+      if (place || on) {
+        const put = place || places[0];
+        claimed.push(put.box);
+        const t = mk('text', { x:put.x, y:put.y,
+          'text-anchor':put.anchor, 'font-size':11, 'font-weight': on ? 640 : 500,
+          fill: on ? 'var(--ink)' : 'var(--ink-2)' });
+        t.textContent = name;
+        g.append(t);
+      } else unlabelled.push(name);
 
       const pick = () => onPick && onPick(name);
       g.addEventListener('click', pick);
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
       svg.append(g);
     });
+
+    if (unlabelled.length) {
+      const note = mk('text', { x:contentW / 2, y:16, 'text-anchor':'middle',
+        'font-size':10.5, fill:'var(--ink-3)' });
+      note.textContent = `${unlabelled.length} label${unlabelled.length > 1 ? 's' : ''} hidden — areas too close to separate`;
+      svg.append(note);
+    }
     return svg;
   });
   return host;
+}
+
+/* ==========================================================================
+   AREA OBSERVATIONS
+
+   The layer no source can supply. There is no neighbourhood-level rental or
+   transaction dataset for Sarawak — NAPIC would not respond, listing sites
+   carry asking prices under terms that forbid scraping, and asking is not
+   achieved in any case. So the only route to that data is to record it, one
+   observation at a time, from what a buyer actually sees.
+
+   Three rules make the difference between a dataset and a pile of numbers:
+
+   Asking and achieved are never mixed. A quoted rent and a signed tenancy are
+   different facts, and averaging them produces a figure describing neither.
+
+   Every observation carries the evidence grade the rest of the calculator
+   already uses, so a figure from a signed tenancy and one remembered from a
+   conversation stay distinguishable for as long as they are kept.
+
+   A count is always shown beside a summary. Two observations are two
+   observations; presenting their midpoint as an area's rent would be inventing
+   the market rate this whole layer exists because nobody publishes.
+
+   It stays in this browser. It is the user's own record, it is not sent
+   anywhere, and it carries no redistribution right — the same position as
+   every other screen-derived figure in this product.
+   ========================================================================== */
+const OBSERVATION_KINDS = [
+  { id:'ask-rent',  label:'Asking rent',       unit:'RM/month', family:'rent',  asking:true },
+  { id:'let-rent',  label:'Achieved rent',     unit:'RM/month', family:'rent',  asking:false },
+  { id:'ask-price', label:'Asking price',      unit:'RM',       family:'price', asking:true },
+  { id:'sold-price',label:'Transacted price',  unit:'RM',       family:'price', asking:false },
+  { id:'vacancy',   label:'Weeks vacant',      unit:'weeks',    family:'other', asking:false },
+];
+const OBS_BY_ID = Object.fromEntries(OBSERVATION_KINDS.map(k => [k.id, k]));
+const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map(e => [e.id, e]));
+
+const saveObservations = () => store.write('observations', State.observations);
+
+function addObservation(o) {
+  State.observations = [{ ...o, id: `obs-${State.observations.length + 1}-${o.date}` }, ...State.observations];
+  saveObservations();
+}
+
+/* Summarised per area and per kind, never across kinds. Returns the median
+   rather than the mean: with a handful of observations one unusual figure
+   moves a mean and does not move a median. */
+function observationsFor(city, area) {
+  const rows = State.observations.filter(o => o.city === city && (!area || o.area === area));
+  const groups = {};
+  for (const o of rows) {
+    const g = (groups[o.kind] = groups[o.kind] || { kind: OBS_BY_ID[o.kind], values: [], best: null, latest: null });
+    if (isNum(o.value)) g.values.push(o.value);
+    const rank = EVIDENCE_BY_ID[o.evidence]?.rank ?? 0;
+    if (g.best == null || rank > g.best) g.best = rank;
+    if (!g.latest || o.date > g.latest) g.latest = o.date;
+  }
+  for (const g of Object.values(groups)) {
+    const v = g.values.slice().sort((a, b) => a - b);
+    g.n = v.length;
+    g.median = v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null;
+    g.lo = v[0] ?? null; g.hi = v[v.length - 1] ?? null;
+  }
+  return { total: rows.length, groups, rows };
 }
 
 /* City-level affordability, stated as city-level. The income series is one
@@ -11403,10 +11521,16 @@ VIEWS.property = () => {
   /* A city named in the URL wins on arrival, and takes the area with it —
      leaving a Kuching district selected under Sibu would be worse than
      ignoring the parameter entirely. */
-  const urlCity = new URLSearchParams(location.search).get('city');
+  const params = new URLSearchParams(location.search);
+  const urlCity = params.get('city');
   if (urlCity) {
     const hit = SARAWAK_CITIES.find(c => c.id === String(urlCity).toLowerCase());
-    if (hit && d.city !== hit.id) { d.city = hit.id; d.district = hit.districts[0]; }
+    if (hit && d.city !== hit.id) { d.city = hit.id; d.district = hit.districts[0]; saveDeal(); }
+    /* Consumed. The link did its job; leaving it in place would keep undoing
+       every later change the reader makes to the city control. */
+    params.delete('city');
+    const q = params.toString();
+    history.replaceState(history.state, '', location.pathname + (q ? '?' + q : ''));
   }
   const cityDef = SARAWAK_CITIES.find(c => c.id === d.city) || SARAWAK_CITIES[0];
   const distField = el('div', { class: 'field', style: 'margin-top:10px' });
@@ -11452,6 +11576,60 @@ VIEWS.property = () => {
         (AREA_CONFIDENCE[a.confidence] || {}).label || a.confidence])));
     mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `${sarawakGeo.attribution} · ${sarawakGeo.licence}`));
+
+    /* What has been recorded for the selected area, and a way to add to it. */
+    const obs = observationsFor(d.city, d.district);
+    const oc = el('div', { class: 'panel', style: 'margin-top:12px' });
+    oc.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' },
+      `What you have recorded — ${d.district}`));
+
+    if (!obs.total) {
+      oc.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+        'Nothing yet for this area. No source publishes neighbourhood rents or transactions for Sarawak, so the only way this becomes known is one observation at a time.'));
+    } else {
+      const ot = el('table', { class: 'dt' });
+      ot.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', { class:'num' }, 'Observations'),
+        el('th', { class:'num' }, 'Median'), el('th', { class:'num' }, 'Range'), el('th', {}, 'Best evidence')])));
+      const ob = el('tbody');
+      Object.values(obs.groups).forEach(g => {
+        const best = EVIDENCE.find(e => e.rank === g.best);
+        ob.append(el('tr', {}, [
+          el('td', {}, [g.kind.label, g.kind.asking ? el('span', { class:'metaline' }, ' · quoted, not achieved') : null].filter(Boolean)),
+          el('td', { class:'num' }, String(g.n)),
+          el('td', { class:'num' }, g.n ? fmtNum(g.median, 0) : '—'),
+          el('td', { class:'num' }, g.n > 1 ? `${fmtNum(g.lo, 0)}–${fmtNum(g.hi, 0)}` : '—'),
+          el('td', { class:'metaline' }, best ? best.label : '—'),
+        ]));
+      });
+      ot.append(ob);
+      oc.append(el('div', { style:'overflow-x:auto' }, ot));
+      oc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+        'A median of a handful of readings is those readings, not the market. Asking and achieved are never combined — a quoted rent and a signed tenancy are different facts.'));
+    }
+
+    /* The form. Deliberately small: a record nobody makes is worth nothing. */
+    const form = el('div', { style: 'margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;align-items:end' });
+    const kindSel = el('select', { class:'select select-sm', 'aria-label':'What you observed' });
+    OBSERVATION_KINDS.forEach(k => kindSel.append(el('option', { value:k.id }, `${k.label} (${k.unit})`)));
+    const valInp = el('input', { class:'input input-sm', type:'number', inputmode:'decimal',
+      placeholder:'Amount', 'aria-label':'Observed value' });
+    const evSel = el('select', { class:'select select-sm', 'aria-label':'Evidence quality' });
+    EVIDENCE.filter(e => e.rank >= 2).forEach(e => evSel.append(el('option', { value:e.id, selected: e.id === 'user' ? '' : null }, e.label)));
+    const dateInp = el('input', { class:'input input-sm', type:'date',
+      value: new Date().toISOString().slice(0, 10), 'aria-label':'Date observed' });
+    const addBtn = el('button', { class:'btn btn-sm', onclick: () => {
+      const v = Number(valInp.value);
+      if (!Number.isFinite(v) || v <= 0) { toast('Enter an amount above zero'); return; }
+      addObservation({ city:d.city, area:d.district, kind:kindSel.value, value:v,
+                       evidence:evSel.value, date:dateInp.value });
+      toast(`Recorded for ${d.district}`);
+      render();
+    } }, 'Record');
+    [kindSel, valInp, evSel, dateInp, addBtn].forEach(x => form.append(x));
+    oc.append(form);
+    oc.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      'Stored in this browser only. It is never sent anywhere, it is not published with the site, and it carries no redistribution right — the same position as every other figure you supply here.'));
+    mapWrap.append(oc);
 
     const aff = affordabilityPanel(cityDef.name);
     if (aff) mapWrap.append(el('div', { style: 'margin-top:12px' }, aff));
