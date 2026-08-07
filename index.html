@@ -6681,7 +6681,10 @@ VIEWS.research = () => {
     marketChip(c.mkt),
     el('span', { class: 'chip' }, `${c.exch} · ${c.code}`),
     el('span', { class: 'chip' }, c.sector),
-    el('span', { class: 'chip' }, c.industry),
+    /* Bursa publishes no industry classification below sector, so the two are
+       the same string for a Malaysian company and rendering both put
+       "Materials Materials" in the header. One fact, shown once. */
+    c.industry && c.industry !== c.sector ? el('span', { class: 'chip' }, c.industry) : null,
     c.flags.shariah === true ? el('span', { class: 'chip chip-my' }, 'Shariah-compliant') : null,
     c.flags.idx ? el('span', { class: 'chip' }, c.flags.idx) : null,
     c.flags.pn17 ? sevChip('critical', 'PN17') : null,
@@ -6720,10 +6723,19 @@ VIEWS.research = () => {
      complete, which XBRL tags, and the price gap with a way to close it. */
   if (c.real) {
     const rp = el('div', { style: 'margin-top:var(--sm);padding-top:var(--sm);border-top:1px solid var(--grid)' });
+    /* This strip described one source because there was only ever one. A
+       Malaysian company loaded from annual statements is not an SEC filer, has
+       no CIK, and carries no redistribution right — labelling it "SEC-filed"
+       beside "CIK undefined" got all three wrong at once. */
     rp.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:8px' }, [
-      sevChip('good', 'SEC-filed statements'),
-      el('span', { class: 'chip' }, `CIK ${c.cik}`),
+      c.personal
+        ? el('span', { class: 'chip chip-bronze' }, 'annual statements — personal research')
+        : sevChip('good', 'SEC-filed statements'),
+      c.cik ? el('span', { class: 'chip' }, `CIK ${c.cik}`) : null,
+      c.personal ? el('span', { class: 'chip chip-bronze' }, 'not redistributable') : null,
       el('span', { class: 'chip' }, `${Math.round(c.completeness * 100)}% of lines present`),
+      isNum(c.fin?.length) && c.fin.length < 6
+        ? el('span', { class: 'chip chip-bronze' }, `${c.fin.length} years held`) : null,
       el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
       c.px?.eod ? (c.pricePersonal
           ? el('span', { class: 'chip chip-bronze' }, `read from your screen${c.px.asOf ? ' ' + c.px.asOf : ''}`)
@@ -6741,7 +6753,7 @@ VIEWS.research = () => {
 
     const pr = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:flex-end' });
     const f = el('div', { class: 'field', style: 'width:150px' });
-    f.append(el('label', { for: 'realpx' }, 'Price (USD)'));
+    f.append(el('label', { for: 'realpx' }, `Price (${c.ccy || 'USD'})`));
     f.append(el('input', { class: 'input input-inline', id: 'realpx', type: 'number', step: '0.01',
       value: isNum(c.px?.p) ? c.px.p : '', placeholder: 'not available',
       onchange: e => { setManualPrice(c.id, parseFloat(e.target.value)); location.reload(); } }));
@@ -6753,7 +6765,9 @@ VIEWS.research = () => {
         ? `End-of-day close from the price file you supplied${c.px.asOf ? ', as of ' + c.px.asOf : ''}. Delayed closes are sufficient for valuation, screening and portfolio work — nothing here needs real-time data.`
         : isNum(c.px?.p)
         ? 'This price was typed in by you. It is not market data, and every price-derived figure below inherits that.'
-        : 'SEC publishes filings, not prices. Valuation still computes a value per share; market capitalisation, multiples, yield and difference to model estimate cannot be computed without a price. Enter one to complete the picture.'));
+        : `${c.personal
+              ? 'These are annual statements, not market data, and no licensed price feed is configured for Bursa Malaysia.'
+              : 'SEC publishes filings, not prices.'} Valuation still computes a value per share; market capitalisation, multiples, yield and difference to model estimate cannot be computed without a price. Enter one to complete the picture.`));
     rp.append(pr);
     head.append(rp);
   }

@@ -119,10 +119,12 @@ for (const inst of targets) {
     fin: f.fin,
     extra: f.extra,
     gaps: f.gaps,
-    /* Completeness against the ten statement lines across every year returned,
-       computed the same way the SEC extractor computes it. */
-    completeness: Math.round(
-      f.fin.flat().filter(v => v != null).length / (f.fin.length * 10) * 100),
+    /* A FRACTION, 0 to 1, because that is what ingest/sec.mjs emits and the app
+       multiplies by 100 on the way to the screen. Emitting a percentage here
+       instead put "10000% of lines present" on every Malaysian company page —
+       the same 100x scaling error this project has made before, and it comes
+       back whenever one field name carries two conventions. */
+    completeness: +(f.fin.flat().filter(v => v != null).length / (f.fin.length * 10)).toFixed(3),
     provenance: 'personal-research',
     source: f.source,
     retrieved: new Date().toISOString().slice(0, 10),
@@ -158,7 +160,7 @@ if (failures.length) {
 }
 const median = results.length
   ? results.map(r => r.completeness).sort((a, b) => a - b)[Math.floor(results.length / 2)] : 0;
-console.log(`  median completeness ${median}% of the ten statement lines`);
+console.log(`  median completeness ${Math.round(median * 100)}% of the ten statement lines`);
 
 console.log('\nPersonal research only. This file is git-ignored, is not licensed for');
 console.log('redistribution, and must not be published with the site. The deployed');
