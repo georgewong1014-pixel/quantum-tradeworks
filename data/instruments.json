@@ -10,114 +10,960 @@
     "etf": "not applicable — an ETF holds securities rather than operating a business"
   },
   "instruments": [
-    { "symbol": "1155", "name": "Malayan Banking Berhad (Maybank)", "market": "MY", "kind": "equity", "sector": "Financials" },
-    { "symbol": "1023", "name": "CIMB Group Holdings Berhad", "market": "MY", "kind": "equity", "sector": "Financials" },
-    { "symbol": "1295", "name": "Public Bank Berhad", "market": "MY", "kind": "equity", "sector": "Financials" },
-    { "symbol": "1066", "name": "RHB Bank Berhad", "market": "MY", "kind": "equity", "sector": "Financials" },
-    { "symbol": "5819", "name": "Hong Leong Bank Berhad", "market": "MY", "kind": "equity", "sector": "Financials" },
-    { "symbol": "1082", "name": "Hong Leong Financial Group Berhad", "market": "MY", "kind": "equity", "sector": "Financials" },
-    { "symbol": "1015", "name": "AMMB Holdings Berhad", "market": "MY", "kind": "equity", "sector": "Financials" },
-    { "symbol": "2488", "name": "Alliance Bank Malaysia Berhad", "market": "MY", "kind": "equity", "sector": "Financials" },
-    { "symbol": "5347", "name": "Tenaga Nasional Berhad", "market": "MY", "kind": "equity", "sector": "Utilities" },
-    { "symbol": "6742", "name": "YTL Power International Berhad", "market": "MY", "kind": "equity", "sector": "Utilities" },
-    { "symbol": "4677", "name": "YTL Corporation Berhad", "market": "MY", "kind": "equity", "sector": "Industrials" },
-    { "symbol": "6888", "name": "Axiata Group Berhad", "market": "MY", "kind": "equity", "sector": "Communication Services" },
-    { "symbol": "6012", "name": "Maxis Berhad", "market": "MY", "kind": "equity", "sector": "Communication Services" },
-    { "symbol": "4863", "name": "Telekom Malaysia Berhad", "market": "MY", "kind": "equity", "sector": "Communication Services" },
-    { "symbol": "6947", "name": "CelcomDigi Berhad", "market": "MY", "kind": "equity", "sector": "Communication Services" },
-    { "symbol": "5183", "name": "Petronas Chemicals Group Berhad", "market": "MY", "kind": "equity", "sector": "Materials" },
-    { "symbol": "6033", "name": "Petronas Gas Berhad", "market": "MY", "kind": "equity", "sector": "Utilities" },
-    { "symbol": "5681", "name": "Petronas Dagangan Berhad", "market": "MY", "kind": "equity", "sector": "Energy" },
-    { "symbol": "3816", "name": "MISC Berhad", "market": "MY", "kind": "equity", "sector": "Energy" },
-    { "symbol": "2445", "name": "Kuala Lumpur Kepong Berhad", "market": "MY", "kind": "equity", "sector": "Consumer Staples" },
-    { "symbol": "1961", "name": "IOI Corporation Berhad", "market": "MY", "kind": "equity", "sector": "Consumer Staples" },
-    { "symbol": "5285", "name": "SD Guthrie Berhad", "market": "MY", "kind": "equity", "sector": "Consumer Staples" },
-    { "symbol": "4197", "name": "Sime Darby Berhad", "market": "MY", "kind": "equity", "sector": "Industrials" },
-    { "symbol": "7084", "name": "QL Resources Berhad", "market": "MY", "kind": "equity", "sector": "Consumer Staples" },
-    { "symbol": "5296", "name": "MR D.I.Y. Group (M) Berhad", "market": "MY", "kind": "equity", "sector": "Consumer Discretionary" },
-    { "symbol": "5225", "name": "IHH Healthcare Berhad", "market": "MY", "kind": "equity", "sector": "Health Care" },
-    { "symbol": "3182", "name": "Genting Berhad", "market": "MY", "kind": "equity", "sector": "Consumer Discretionary" },
-    { "symbol": "4715", "name": "Genting Malaysia Berhad", "market": "MY", "kind": "equity", "sector": "Consumer Discretionary" },
-    { "symbol": "5014", "name": "Malaysia Airports Holdings Berhad", "market": "MY", "kind": "equity", "sector": "Industrials" },
-    { "symbol": "5099", "name": "Capital A Berhad", "market": "MY", "kind": "equity", "sector": "Industrials" },
-    { "symbol": "8869", "name": "Press Metal Aluminium Holdings Berhad", "market": "MY", "kind": "equity", "sector": "Materials" },
-    { "symbol": "5211", "name": "Sunway Berhad", "market": "MY", "kind": "equity", "sector": "Real Estate" },
-    { "symbol": "7113", "name": "Top Glove Corporation Berhad", "market": "MY", "kind": "equity", "sector": "Health Care" },
-    { "symbol": "5168", "name": "Hartalega Holdings Berhad", "market": "MY", "kind": "equity", "sector": "Health Care" },
-
-    { "symbol": "US500", "name": "S&P 500", "market": "US", "kind": "index", "aliases": ["SPX", "SP500", "ES1!", "GSPC", "SPX500"] },
-    { "symbol": "US100", "name": "Nasdaq 100", "market": "US", "kind": "index", "aliases": ["NDX", "NQ1!", "NAS100", "IXIC"] },
-    { "symbol": "US30", "name": "Dow Jones Industrial Average", "market": "US", "kind": "index", "aliases": ["DJI", "YM1!", "DJIA"] },
-    { "symbol": "US2000", "name": "Russell 2000", "market": "US", "kind": "index", "aliases": ["RUT", "RTY1!", "IWM"] },
-    { "symbol": "VIX", "name": "CBOE Volatility Index", "market": "US", "kind": "index", "aliases": ["VX1!"] },
-    { "symbol": "DXY", "name": "US Dollar Index", "market": "US", "kind": "index", "aliases": ["USDX", "DX1!"] },
-    { "symbol": "TSX", "name": "S&P/TSX Composite (Canada)", "market": "CA", "kind": "index", "aliases": ["TSE", "GSPTSE", "CA60"] },
-    { "symbol": "IBOV", "name": "Ibovespa (Brazil)", "market": "BR", "kind": "index", "aliases": ["BVSP", "BRA50"] },
-    { "symbol": "MEXBOL", "name": "S&P/BMV IPC (Mexico)", "market": "MX", "kind": "index", "aliases": ["MXX", "MEX"] },
-
-    { "symbol": "DAX", "name": "DAX 40 (Germany)", "market": "DE", "kind": "index", "aliases": ["DE40", "GER40", "GDAXI", "FDAX"] },
-    { "symbol": "UK100", "name": "FTSE 100 (United Kingdom)", "market": "GB", "kind": "index", "aliases": ["UKX", "FTSE", "FTSE100"] },
-    { "symbol": "CAC40", "name": "CAC 40 (France)", "market": "FR", "kind": "index", "aliases": ["CAC", "FR40", "FCHI"] },
-    { "symbol": "EU50", "name": "EURO STOXX 50", "market": "EU", "kind": "index", "aliases": ["SX5E", "STOXX50E", "ESTX50"] },
-    { "symbol": "IBEX35", "name": "IBEX 35 (Spain)", "market": "ES", "kind": "index", "aliases": ["IBC", "ES35", "IBEX"] },
-    { "symbol": "FTSEMIB", "name": "FTSE MIB (Italy)", "market": "IT", "kind": "index", "aliases": ["IT40", "FTMIB"] },
-    { "symbol": "AEX", "name": "AEX (Netherlands)", "market": "NL", "kind": "index", "aliases": ["NL25"] },
-    { "symbol": "SMI", "name": "Swiss Market Index", "market": "CH", "kind": "index", "aliases": ["CH20", "SSMI"] },
-    { "symbol": "OMXS30", "name": "OMX Stockholm 30 (Sweden)", "market": "SE", "kind": "index", "aliases": ["SE30", "OMX"] },
-
-    { "symbol": "NIKKEI", "name": "Nikkei 225 (Japan)", "market": "JP", "kind": "index", "aliases": ["JP225", "NI225", "NKY", "N225"] },
-    { "symbol": "TOPIX", "name": "TOPIX (Japan)", "market": "JP", "kind": "index", "aliases": ["TPX"] },
-    { "symbol": "HSI", "name": "Hang Seng Index (Hong Kong)", "market": "HK", "kind": "index", "aliases": ["HK50", "HANGSENG"] },
-    { "symbol": "HSCEI", "name": "Hang Seng China Enterprises", "market": "HK", "kind": "index", "aliases": ["HSCE", "CHINAH"] },
-    { "symbol": "SHCOMP", "name": "Shanghai Composite (China)", "market": "CN", "kind": "index", "aliases": ["SSEC", "000001", "SHANGHAI"] },
-    { "symbol": "CN50", "name": "FTSE China A50", "market": "CN", "kind": "index", "aliases": ["XIN9", "A50", "CHINA50"] },
-    { "symbol": "KOSPI", "name": "KOSPI Composite (South Korea)", "market": "KR", "kind": "index", "aliases": ["KS11", "KR200", "KOSPI200"] },
-    { "symbol": "TWII", "name": "TAIEX (Taiwan)", "market": "TW", "kind": "index", "aliases": ["TAIEX", "TW50"] },
-    { "symbol": "NIFTY", "name": "Nifty 50 (India)", "market": "IN", "kind": "index", "aliases": ["NSEI", "IN50", "NIFTY50", "CNXNIFTY"] },
-    { "symbol": "SENSEX", "name": "BSE SENSEX (India)", "market": "IN", "kind": "index", "aliases": ["BSESN", "BSE"] },
-    { "symbol": "ASX200", "name": "S&P/ASX 200 (Australia)", "market": "AU", "kind": "index", "aliases": ["XJO", "AUS200", "AS51"] },
-    { "symbol": "NZ50", "name": "S&P/NZX 50 (New Zealand)", "market": "NZ", "kind": "index", "aliases": ["NZ50G"] },
-    { "symbol": "STI", "name": "Straits Times Index (Singapore)", "market": "SG", "kind": "index", "aliases": ["SG30", "STI30"] },
-    { "symbol": "KLSE", "name": "FTSE Bursa Malaysia KLCI", "market": "MY", "kind": "index", "aliases": ["FBMKLCI", "KLCI", "MY30"] },
-    { "symbol": "SET", "name": "SET Index (Thailand)", "market": "TH", "kind": "index", "aliases": ["TH50", "SETI"] },
-    { "symbol": "JKSE", "name": "IDX Composite (Indonesia)", "market": "ID", "kind": "index", "aliases": ["COMPOSITE", "IDX", "ID35"] },
-    { "symbol": "PSEI", "name": "PSEi Composite (Philippines)", "market": "PH", "kind": "index", "aliases": ["PSI", "PSEIN"] },
-    { "symbol": "VNINDEX", "name": "VN-Index (Vietnam)", "market": "VN", "kind": "index", "aliases": ["VNI", "VN30"] },
-
-    { "symbol": "US30Y", "name": "US 30-Year Treasury Yield", "market": "US", "kind": "index", "aliases": ["TYX", "US30YR"] },
-    { "symbol": "US10Y", "name": "US 10-Year Treasury Yield", "market": "US", "kind": "index", "aliases": ["TNX", "US10YR"] },
-    { "symbol": "US02Y", "name": "US 2-Year Treasury Yield", "market": "US", "kind": "index", "aliases": ["UST2Y", "US2Y", "US02YR"] },
-
-    { "symbol": "USDMYR", "name": "US Dollar / Malaysian Ringgit", "market": "FX", "kind": "fx", "aliases": ["USDMYR=X", "MYR=X", "USD/MYR"] },
-    { "symbol": "EURUSD", "name": "Euro / US Dollar", "market": "FX", "kind": "fx" },
-    { "symbol": "GBPUSD", "name": "British Pound / US Dollar", "market": "FX", "kind": "fx" },
-    { "symbol": "AUDUSD", "name": "Australian Dollar / US Dollar", "market": "FX", "kind": "fx" },
-    { "symbol": "NZDUSD", "name": "New Zealand Dollar / US Dollar", "market": "FX", "kind": "fx" },
-    { "symbol": "USDCAD", "name": "US Dollar / Canadian Dollar", "market": "FX", "kind": "fx" },
-    { "symbol": "USDJPY", "name": "US Dollar / Japanese Yen", "market": "FX", "kind": "fx" },
-    { "symbol": "USDCNH", "name": "US Dollar / Chinese Yuan (offshore)", "market": "FX", "kind": "fx", "aliases": ["USDCNY"] },
-    { "symbol": "USDSGD", "name": "US Dollar / Singapore Dollar", "market": "FX", "kind": "fx" },
-
-    { "symbol": "XAUUSD", "name": "Gold (spot, USD/oz)", "market": "COM", "kind": "commodity", "aliases": ["GOLD", "GC1!"] },
-    { "symbol": "SILVER", "name": "Silver (spot, USD/oz)", "market": "COM", "kind": "commodity", "aliases": ["XAGUSD", "SI1!"] },
-    { "symbol": "XAUXAG", "name": "Gold / Silver ratio", "market": "COM", "kind": "commodity" },
-    { "symbol": "COPPER", "name": "Copper (USD/lb)", "market": "COM", "kind": "commodity", "aliases": ["HG1!"] },
-    { "symbol": "USOIL", "name": "WTI Crude Oil", "market": "COM", "kind": "commodity", "aliases": ["CL1!", "WTICOUSD", "WTI"] },
-    { "symbol": "UKOIL", "name": "Brent Crude Oil", "market": "COM", "kind": "commodity", "aliases": ["BRENT", "BCOUSD"] },
-    { "symbol": "NATGAS", "name": "Natural Gas", "market": "COM", "kind": "commodity", "aliases": ["NG1!", "NGAS"] },
-    { "symbol": "FCPO1!", "name": "Crude Palm Oil futures (Bursa Derivatives)", "market": "MY", "kind": "commodity", "aliases": ["FCPO"] },
-
-    { "symbol": "SPY", "name": "SPDR S&P 500 ETF Trust", "market": "US", "kind": "etf" },
-    { "symbol": "QQQ", "name": "Invesco QQQ Trust", "market": "US", "kind": "etf" },
-    { "symbol": "VTI", "name": "Vanguard Total Stock Market ETF", "market": "US", "kind": "etf" },
-    { "symbol": "SLV", "name": "iShares Silver Trust", "market": "US", "kind": "etf" },
-    { "symbol": "PSLV", "name": "Sprott Physical Silver Trust", "market": "US", "kind": "etf" },
-    { "symbol": "SILJ", "name": "Amplify Junior Silver Miners ETF", "market": "US", "kind": "etf" },
-    { "symbol": "IBIT", "name": "iShares Bitcoin Trust", "market": "US", "kind": "etf" },
-
-    { "symbol": "BTCUSD", "name": "Bitcoin / US Dollar", "market": "CRYPTO", "kind": "crypto", "aliases": ["BTCUSDT", "XBTUSD"] },
-    { "symbol": "ETHUSD", "name": "Ethereum / US Dollar", "market": "CRYPTO", "kind": "crypto", "aliases": ["ETHUSDT"] },
-    { "symbol": "ETHBTC", "name": "Ethereum / Bitcoin", "market": "CRYPTO", "kind": "crypto" },
-    { "symbol": "SUIUSDT", "name": "Sui / Tether", "market": "CRYPTO", "kind": "crypto", "aliases": ["SUIUSD"] }
-  ]
+    {
+      "symbol": "1155",
+      "name": "Malayan Banking Berhad (Maybank)",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "1023",
+      "name": "CIMB Group Holdings Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "1295",
+      "name": "Public Bank Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "1066",
+      "name": "RHB Bank Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "5819",
+      "name": "Hong Leong Bank Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "1082",
+      "name": "Hong Leong Financial Group Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "1015",
+      "name": "AMMB Holdings Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "2488",
+      "name": "Alliance Bank Malaysia Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "5347",
+      "name": "Tenaga Nasional Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Utilities"
+    },
+    {
+      "symbol": "6742",
+      "name": "YTL Power International Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Utilities"
+    },
+    {
+      "symbol": "4677",
+      "name": "YTL Corporation Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Industrials"
+    },
+    {
+      "symbol": "6888",
+      "name": "Axiata Group Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Communication Services"
+    },
+    {
+      "symbol": "6012",
+      "name": "Maxis Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Communication Services"
+    },
+    {
+      "symbol": "4863",
+      "name": "Telekom Malaysia Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Communication Services"
+    },
+    {
+      "symbol": "6947",
+      "name": "CelcomDigi Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Communication Services"
+    },
+    {
+      "symbol": "5183",
+      "name": "Petronas Chemicals Group Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Materials"
+    },
+    {
+      "symbol": "6033",
+      "name": "Petronas Gas Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Utilities"
+    },
+    {
+      "symbol": "5681",
+      "name": "Petronas Dagangan Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Energy"
+    },
+    {
+      "symbol": "3816",
+      "name": "MISC Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Energy"
+    },
+    {
+      "symbol": "2445",
+      "name": "Kuala Lumpur Kepong Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Staples"
+    },
+    {
+      "symbol": "1961",
+      "name": "IOI Corporation Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Staples"
+    },
+    {
+      "symbol": "5285",
+      "name": "SD Guthrie Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Staples"
+    },
+    {
+      "symbol": "4197",
+      "name": "Sime Darby Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Industrials"
+    },
+    {
+      "symbol": "7084",
+      "name": "QL Resources Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Staples"
+    },
+    {
+      "symbol": "5296",
+      "name": "MR D.I.Y. Group (M) Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "symbol": "5225",
+      "name": "IHH Healthcare Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Health Care"
+    },
+    {
+      "symbol": "3182",
+      "name": "Genting Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "symbol": "4715",
+      "name": "Genting Malaysia Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "symbol": "5014",
+      "name": "Malaysia Airports Holdings Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Industrials"
+    },
+    {
+      "symbol": "5099",
+      "name": "Capital A Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Industrials"
+    },
+    {
+      "symbol": "8869",
+      "name": "Press Metal Aluminium Holdings Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Materials",
+      "sarawak": true,
+      "sarawakTheme": "industrial"
+    },
+    {
+      "symbol": "5211",
+      "name": "Sunway Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Real Estate"
+    },
+    {
+      "symbol": "7113",
+      "name": "Top Glove Corporation Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Health Care"
+    },
+    {
+      "symbol": "5168",
+      "name": "Hartalega Holdings Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Health Care"
+    },
+    {
+      "symbol": "US500",
+      "name": "S&P 500",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "SPX",
+        "SP500",
+        "ES1!",
+        "GSPC",
+        "SPX500"
+      ]
+    },
+    {
+      "symbol": "US100",
+      "name": "Nasdaq 100",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "NDX",
+        "NQ1!",
+        "NAS100",
+        "IXIC"
+      ]
+    },
+    {
+      "symbol": "US30",
+      "name": "Dow Jones Industrial Average",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "DJI",
+        "YM1!",
+        "DJIA"
+      ]
+    },
+    {
+      "symbol": "US2000",
+      "name": "Russell 2000",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "RUT",
+        "RTY1!",
+        "IWM"
+      ]
+    },
+    {
+      "symbol": "VIX",
+      "name": "CBOE Volatility Index",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "VX1!"
+      ]
+    },
+    {
+      "symbol": "DXY",
+      "name": "US Dollar Index",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "USDX",
+        "DX1!"
+      ]
+    },
+    {
+      "symbol": "TSX",
+      "name": "S&P/TSX Composite (Canada)",
+      "market": "CA",
+      "kind": "index",
+      "aliases": [
+        "TSE",
+        "GSPTSE",
+        "CA60"
+      ]
+    },
+    {
+      "symbol": "IBOV",
+      "name": "Ibovespa (Brazil)",
+      "market": "BR",
+      "kind": "index",
+      "aliases": [
+        "BVSP",
+        "BRA50"
+      ]
+    },
+    {
+      "symbol": "MEXBOL",
+      "name": "S&P/BMV IPC (Mexico)",
+      "market": "MX",
+      "kind": "index",
+      "aliases": [
+        "MXX",
+        "MEX"
+      ]
+    },
+    {
+      "symbol": "DAX",
+      "name": "DAX 40 (Germany)",
+      "market": "DE",
+      "kind": "index",
+      "aliases": [
+        "DE40",
+        "GER40",
+        "GDAXI",
+        "FDAX"
+      ]
+    },
+    {
+      "symbol": "UK100",
+      "name": "FTSE 100 (United Kingdom)",
+      "market": "GB",
+      "kind": "index",
+      "aliases": [
+        "UKX",
+        "FTSE",
+        "FTSE100"
+      ]
+    },
+    {
+      "symbol": "CAC40",
+      "name": "CAC 40 (France)",
+      "market": "FR",
+      "kind": "index",
+      "aliases": [
+        "CAC",
+        "FR40",
+        "FCHI"
+      ]
+    },
+    {
+      "symbol": "EU50",
+      "name": "EURO STOXX 50",
+      "market": "EU",
+      "kind": "index",
+      "aliases": [
+        "SX5E",
+        "STOXX50E",
+        "ESTX50"
+      ]
+    },
+    {
+      "symbol": "IBEX35",
+      "name": "IBEX 35 (Spain)",
+      "market": "ES",
+      "kind": "index",
+      "aliases": [
+        "IBC",
+        "ES35",
+        "IBEX"
+      ]
+    },
+    {
+      "symbol": "FTSEMIB",
+      "name": "FTSE MIB (Italy)",
+      "market": "IT",
+      "kind": "index",
+      "aliases": [
+        "IT40",
+        "FTMIB"
+      ]
+    },
+    {
+      "symbol": "AEX",
+      "name": "AEX (Netherlands)",
+      "market": "NL",
+      "kind": "index",
+      "aliases": [
+        "NL25"
+      ]
+    },
+    {
+      "symbol": "SMI",
+      "name": "Swiss Market Index",
+      "market": "CH",
+      "kind": "index",
+      "aliases": [
+        "CH20",
+        "SSMI"
+      ]
+    },
+    {
+      "symbol": "OMXS30",
+      "name": "OMX Stockholm 30 (Sweden)",
+      "market": "SE",
+      "kind": "index",
+      "aliases": [
+        "SE30",
+        "OMX"
+      ]
+    },
+    {
+      "symbol": "NIKKEI",
+      "name": "Nikkei 225 (Japan)",
+      "market": "JP",
+      "kind": "index",
+      "aliases": [
+        "JP225",
+        "NI225",
+        "NKY",
+        "N225"
+      ]
+    },
+    {
+      "symbol": "TOPIX",
+      "name": "TOPIX (Japan)",
+      "market": "JP",
+      "kind": "index",
+      "aliases": [
+        "TPX"
+      ]
+    },
+    {
+      "symbol": "HSI",
+      "name": "Hang Seng Index (Hong Kong)",
+      "market": "HK",
+      "kind": "index",
+      "aliases": [
+        "HK50",
+        "HANGSENG"
+      ]
+    },
+    {
+      "symbol": "HSCEI",
+      "name": "Hang Seng China Enterprises",
+      "market": "HK",
+      "kind": "index",
+      "aliases": [
+        "HSCE",
+        "CHINAH"
+      ]
+    },
+    {
+      "symbol": "SHCOMP",
+      "name": "Shanghai Composite (China)",
+      "market": "CN",
+      "kind": "index",
+      "aliases": [
+        "SSEC",
+        "000001",
+        "SHANGHAI"
+      ]
+    },
+    {
+      "symbol": "CN50",
+      "name": "FTSE China A50",
+      "market": "CN",
+      "kind": "index",
+      "aliases": [
+        "XIN9",
+        "A50",
+        "CHINA50"
+      ]
+    },
+    {
+      "symbol": "KOSPI",
+      "name": "KOSPI Composite (South Korea)",
+      "market": "KR",
+      "kind": "index",
+      "aliases": [
+        "KS11",
+        "KR200",
+        "KOSPI200"
+      ]
+    },
+    {
+      "symbol": "TWII",
+      "name": "TAIEX (Taiwan)",
+      "market": "TW",
+      "kind": "index",
+      "aliases": [
+        "TAIEX",
+        "TW50"
+      ]
+    },
+    {
+      "symbol": "NIFTY",
+      "name": "Nifty 50 (India)",
+      "market": "IN",
+      "kind": "index",
+      "aliases": [
+        "NSEI",
+        "IN50",
+        "NIFTY50",
+        "CNXNIFTY"
+      ]
+    },
+    {
+      "symbol": "SENSEX",
+      "name": "BSE SENSEX (India)",
+      "market": "IN",
+      "kind": "index",
+      "aliases": [
+        "BSESN",
+        "BSE"
+      ]
+    },
+    {
+      "symbol": "ASX200",
+      "name": "S&P/ASX 200 (Australia)",
+      "market": "AU",
+      "kind": "index",
+      "aliases": [
+        "XJO",
+        "AUS200",
+        "AS51"
+      ]
+    },
+    {
+      "symbol": "NZ50",
+      "name": "S&P/NZX 50 (New Zealand)",
+      "market": "NZ",
+      "kind": "index",
+      "aliases": [
+        "NZ50G"
+      ]
+    },
+    {
+      "symbol": "STI",
+      "name": "Straits Times Index (Singapore)",
+      "market": "SG",
+      "kind": "index",
+      "aliases": [
+        "SG30",
+        "STI30"
+      ]
+    },
+    {
+      "symbol": "KLSE",
+      "name": "FTSE Bursa Malaysia KLCI",
+      "market": "MY",
+      "kind": "index",
+      "aliases": [
+        "FBMKLCI",
+        "KLCI",
+        "MY30"
+      ]
+    },
+    {
+      "symbol": "SET",
+      "name": "SET Index (Thailand)",
+      "market": "TH",
+      "kind": "index",
+      "aliases": [
+        "TH50",
+        "SETI"
+      ]
+    },
+    {
+      "symbol": "JKSE",
+      "name": "IDX Composite (Indonesia)",
+      "market": "ID",
+      "kind": "index",
+      "aliases": [
+        "COMPOSITE",
+        "IDX",
+        "ID35"
+      ]
+    },
+    {
+      "symbol": "PSEI",
+      "name": "PSEi Composite (Philippines)",
+      "market": "PH",
+      "kind": "index",
+      "aliases": [
+        "PSI",
+        "PSEIN"
+      ]
+    },
+    {
+      "symbol": "VNINDEX",
+      "name": "VN-Index (Vietnam)",
+      "market": "VN",
+      "kind": "index",
+      "aliases": [
+        "VNI",
+        "VN30"
+      ]
+    },
+    {
+      "symbol": "US30Y",
+      "name": "US 30-Year Treasury Yield",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "TYX",
+        "US30YR"
+      ]
+    },
+    {
+      "symbol": "US10Y",
+      "name": "US 10-Year Treasury Yield",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "TNX",
+        "US10YR"
+      ]
+    },
+    {
+      "symbol": "US02Y",
+      "name": "US 2-Year Treasury Yield",
+      "market": "US",
+      "kind": "index",
+      "aliases": [
+        "UST2Y",
+        "US2Y",
+        "US02YR"
+      ]
+    },
+    {
+      "symbol": "USDMYR",
+      "name": "US Dollar / Malaysian Ringgit",
+      "market": "FX",
+      "kind": "fx",
+      "aliases": [
+        "USDMYR=X",
+        "MYR=X",
+        "USD/MYR"
+      ]
+    },
+    {
+      "symbol": "EURUSD",
+      "name": "Euro / US Dollar",
+      "market": "FX",
+      "kind": "fx"
+    },
+    {
+      "symbol": "GBPUSD",
+      "name": "British Pound / US Dollar",
+      "market": "FX",
+      "kind": "fx"
+    },
+    {
+      "symbol": "AUDUSD",
+      "name": "Australian Dollar / US Dollar",
+      "market": "FX",
+      "kind": "fx"
+    },
+    {
+      "symbol": "NZDUSD",
+      "name": "New Zealand Dollar / US Dollar",
+      "market": "FX",
+      "kind": "fx"
+    },
+    {
+      "symbol": "USDCAD",
+      "name": "US Dollar / Canadian Dollar",
+      "market": "FX",
+      "kind": "fx"
+    },
+    {
+      "symbol": "USDJPY",
+      "name": "US Dollar / Japanese Yen",
+      "market": "FX",
+      "kind": "fx"
+    },
+    {
+      "symbol": "USDCNH",
+      "name": "US Dollar / Chinese Yuan (offshore)",
+      "market": "FX",
+      "kind": "fx",
+      "aliases": [
+        "USDCNY"
+      ]
+    },
+    {
+      "symbol": "USDSGD",
+      "name": "US Dollar / Singapore Dollar",
+      "market": "FX",
+      "kind": "fx"
+    },
+    {
+      "symbol": "XAUUSD",
+      "name": "Gold (spot, USD/oz)",
+      "market": "COM",
+      "kind": "commodity",
+      "aliases": [
+        "GOLD",
+        "GC1!"
+      ]
+    },
+    {
+      "symbol": "SILVER",
+      "name": "Silver (spot, USD/oz)",
+      "market": "COM",
+      "kind": "commodity",
+      "aliases": [
+        "XAGUSD",
+        "SI1!"
+      ]
+    },
+    {
+      "symbol": "XAUXAG",
+      "name": "Gold / Silver ratio",
+      "market": "COM",
+      "kind": "commodity"
+    },
+    {
+      "symbol": "COPPER",
+      "name": "Copper (USD/lb)",
+      "market": "COM",
+      "kind": "commodity",
+      "aliases": [
+        "HG1!"
+      ]
+    },
+    {
+      "symbol": "USOIL",
+      "name": "WTI Crude Oil",
+      "market": "COM",
+      "kind": "commodity",
+      "aliases": [
+        "CL1!",
+        "WTICOUSD",
+        "WTI"
+      ]
+    },
+    {
+      "symbol": "UKOIL",
+      "name": "Brent Crude Oil",
+      "market": "COM",
+      "kind": "commodity",
+      "aliases": [
+        "BRENT",
+        "BCOUSD"
+      ]
+    },
+    {
+      "symbol": "NATGAS",
+      "name": "Natural Gas",
+      "market": "COM",
+      "kind": "commodity",
+      "aliases": [
+        "NG1!",
+        "NGAS"
+      ]
+    },
+    {
+      "symbol": "FCPO1!",
+      "name": "Crude Palm Oil futures (Bursa Derivatives)",
+      "market": "MY",
+      "kind": "commodity",
+      "aliases": [
+        "FCPO"
+      ]
+    },
+    {
+      "symbol": "SPY",
+      "name": "SPDR S&P 500 ETF Trust",
+      "market": "US",
+      "kind": "etf"
+    },
+    {
+      "symbol": "QQQ",
+      "name": "Invesco QQQ Trust",
+      "market": "US",
+      "kind": "etf"
+    },
+    {
+      "symbol": "VTI",
+      "name": "Vanguard Total Stock Market ETF",
+      "market": "US",
+      "kind": "etf"
+    },
+    {
+      "symbol": "SLV",
+      "name": "iShares Silver Trust",
+      "market": "US",
+      "kind": "etf"
+    },
+    {
+      "symbol": "PSLV",
+      "name": "Sprott Physical Silver Trust",
+      "market": "US",
+      "kind": "etf"
+    },
+    {
+      "symbol": "SILJ",
+      "name": "Amplify Junior Silver Miners ETF",
+      "market": "US",
+      "kind": "etf"
+    },
+    {
+      "symbol": "IBIT",
+      "name": "iShares Bitcoin Trust",
+      "market": "US",
+      "kind": "etf"
+    },
+    {
+      "symbol": "BTCUSD",
+      "name": "Bitcoin / US Dollar",
+      "market": "CRYPTO",
+      "kind": "crypto",
+      "aliases": [
+        "BTCUSDT",
+        "XBTUSD"
+      ]
+    },
+    {
+      "symbol": "ETHUSD",
+      "name": "Ethereum / US Dollar",
+      "market": "CRYPTO",
+      "kind": "crypto",
+      "aliases": [
+        "ETHUSDT"
+      ]
+    },
+    {
+      "symbol": "ETHBTC",
+      "name": "Ethereum / Bitcoin",
+      "market": "CRYPTO",
+      "kind": "crypto"
+    },
+    {
+      "symbol": "SUIUSDT",
+      "name": "Sui / Tether",
+      "market": "CRYPTO",
+      "kind": "crypto",
+      "aliases": [
+        "SUIUSD"
+      ]
+    },
+    {
+      "symbol": "2852",
+      "name": "Cahya Mata Sarawak Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Materials",
+      "sarawak": true,
+      "sarawakTheme": "materials"
+    },
+    {
+      "symbol": "5126",
+      "name": "Sarawak Oil Palms Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Staples",
+      "sarawak": true,
+      "sarawakTheme": "plantation"
+    },
+    {
+      "symbol": "5012",
+      "name": "Ta Ann Holdings Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Materials",
+      "sarawak": true,
+      "sarawakTheme": "timber"
+    },
+    {
+      "symbol": "5073",
+      "name": "Naim Holdings Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Real Estate",
+      "sarawak": true,
+      "sarawakTheme": "infrastructure"
+    },
+    {
+      "symbol": "5141",
+      "name": "Dayang Enterprise Holdings Bhd",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Energy",
+      "sarawak": true,
+      "sarawakTheme": "ogservices"
+    },
+    {
+      "symbol": "5032",
+      "name": "Bintulu Port Holdings Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Industrials",
+      "sarawak": true,
+      "sarawakTheme": "ports"
+    },
+    {
+      "symbol": "5135",
+      "name": "Sarawak Plantation Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Consumer Staples",
+      "sarawak": true,
+      "sarawakTheme": "plantation"
+    },
+    {
+      "symbol": "9466",
+      "name": "KKB Engineering Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Industrials",
+      "sarawak": true,
+      "sarawakTheme": "infrastructure"
+    },
+    {
+      "symbol": "9237",
+      "name": "Sarawak Consolidated Industries Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Materials",
+      "sarawak": true,
+      "sarawakTheme": "materials"
+    },
+    {
+      "symbol": "5084",
+      "name": "Ibraco Berhad",
+      "market": "MY",
+      "kind": "equity",
+      "sector": "Real Estate",
+      "sarawak": true,
+      "sarawakTheme": "infrastructure"
+    }
+  ],
+  "sarawakNote": "Companies with material operations in Sarawak, flagged for the Sarawak Economy Watch. Codes were resolved against a live quote lookup and the returned company name checked against the name recorded here, on 2026-08-07. Inclusion is descriptive and does not indicate preference. The flag records where a company operates, not what its exposure is worth — that is a research question the Economy Watch asks separately and this file does not answer."
 }
