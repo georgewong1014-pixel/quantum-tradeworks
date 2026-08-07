@@ -956,7 +956,7 @@ details > summary::marker { content: ''; }
 <div class="disclosure">
   <div class="disclosure-in">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-    <span><strong>Beta preview using illustrative data.</strong> Do not use sample figures for investment decisions.<span class="disclosure-long"> Figures are synthetic and do not represent real financials; company names and listing codes are used to demonstrate the interface only.</span></span>
+    <span id="disclosureText"><strong>Beta preview.</strong> Do not use figures here for investment decisions.<span class="disclosure-long"> Some companies carry illustrative figures that are synthetic and do not represent real financials.</span></span>
     <span class="chip chip-brand" title="Research mode: factual and analytical outputs only">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
       Research mode
@@ -1350,7 +1350,13 @@ const PLANS = {
   pro: {
     id:'pro', name:'Equities Research', tagline:'The recurring research subscription', priceMo:29, priceYr:299,
     founding:199, foundingSeats:500, foundingName:'Founding Research',
-    blurb:'Unlimited company research, editable valuation assumptions, the full screener, comparison, multiple portfolios and watchlists, fundamental alerts and exports. Research only — no recommendations, no ratings, no target prices.',
+    /* "Unlimited company research" was true about the report limit and false
+       about everything a reader would take from it. Unlimited access to a
+       universe of this size is a statement about a cap, not about breadth, and
+       phrasing it as breadth is the kind of claim this product refuses
+       everywhere else. The count is appended at render time from the universe
+       actually loaded, so the sentence cannot drift from it. */
+    blurb:'Every company in the beta universe, editable valuation assumptions, the full screener, comparison, multiple portfolios and watchlists, fundamental alerts and exports. Research only — no recommendations, no ratings, no target prices.',
     limits:{ reportsPerMonth:Infinity, watchlists:20, watchlistStocks:100, portfolios:20, holdings:100,
              compare:5, screenerFields:Infinity, percentileMode:true, savedScreens:50,
              valuationEditable:true, exports:true, fundamentalAlerts:true, priceAlerts:100,
@@ -3511,8 +3517,22 @@ let FEED = buildFeed();
    than described: everything price-derived shows as unavailable until a price
    is supplied, and nothing is imputed to paper over it.
    ========================================================================== */
-const realEnabled = () => new URLSearchParams(location.search).get('real') === '1'
-                       || store.read('realData', false);
+/* On by default. It was opt-in, and the cost of that was not visible from
+   inside: an external audit of the deployed site counted 36 companies and
+   concluded the product's data was entirely synthetic. It was not — 119 real
+   SEC filings were deployed and working the whole time, behind a flag nobody
+   had a reason to find. Hiding audited statements to avoid showing the gaps
+   they carry is the wrong side of this product's own argument, which is that a
+   missing figure should be visible rather than filled in.
+
+   ?real=0 still turns it off, so the sample-only view remains reachable for
+   comparison and for screenshots of the illustrative set. */
+const realEnabled = () => {
+  const q = new URLSearchParams(location.search).get('real');
+  if (q === '1') return true;
+  if (q === '0') return false;
+  return store.read('realData', true);
+};
 
 /* A price a user typed in themselves. Explicitly not market data, and labelled
    as such everywhere it is used. */
@@ -4808,7 +4828,7 @@ VIEWS.home = () => {
   lab.append(el('input', { type: 'checkbox', checked: realOn ? '' : null,
     onchange: e => {
       store.write('realData', e.target.checked);
-      location.href = e.target.checked ? '?real=1' : location.pathname;
+      location.href = e.target.checked ? '?real=1' : '?real=0';
     } }));
   lab.append(el('span', {}, 'Load SEC-filed companies'));
   realRow.append(lab);
@@ -5036,7 +5056,12 @@ const FIELDS = [
   { g:'Composite scores',      k:'qscore',     label:'Business quality score',     fmt:v=>fmtNum(v,0), formula:'weighted pillar score, 0–100' },
   { g:'Composite scores',      k:'vscore',     label:'Valuation evidence score',   fmt:v=>fmtNum(v,0), formula:'weighted valuation score, 0–100' },
   { g:'Composite scores',      k:'mosBase',    label:'Difference to base-case model', fmt:v=>fmtPct(v,0), formula:'(base-case model estimate − price) ÷ base-case estimate' },
-  { g:'Market and eligibility',k:'mcap',      label:'Market capitalisation',      fmt:v=>fmtNum(v,1), formula:'price × shares in issue' },
+  /* The only field here denominated in money. Every other column is a ratio, a
+     multiple or a percentage, and therefore reads the same whichever currency
+     the company reports in. Flagged so the screener can convert and label this
+     one rather than printing a Bursa figure in ringgit beside a US figure in
+     dollars as though they were the same unit. */
+  { g:'Market and eligibility',k:'mcap',      label:'Market capitalisation',      fmt:v=>fmtNum(v,1), formula:'price × shares in issue', money:true },
 ];
 const FIELD_BY_K = Object.fromEntries(FIELDS.map(f => [f.k, f]));
 const FIELD_GROUPS = [...new Set(FIELDS.map(f => f.g))];
@@ -5395,7 +5420,18 @@ function renderScreener() {
       { k:'quality', label:'Quality', get:r => r.scores.quality.score, fmt:(v, r) => scorePill(v, r.pct.quality) },
       { k:'value', label:'Value', get:r => r.scores.value.score, fmt:(v, r) => scorePill(v, r.pct.value) },
       { k:'mos', label:'vs base-case model estimate', get:r => r.val.mos?.base, fmt:v => `<span class="${signClass(v)}">${withSign(v, 0)}</span>`, mfmt:v => withSign(v, 0) },
-      ...sc.cols.map(k => ({ k, label:FIELD_BY_K[k].label, get:r => r.m[k], fmt:v => isNum(v) ? FIELD_BY_K[k].fmt(v) : NA, mfmt:FIELD_BY_K[k].fmt })),
+      /* A monetary column is converted to one currency and says which. It used
+         to print r.m.mcap raw, so a screen across both markets stacked ringgit
+         and dollars in the same column with nothing to tell them apart — and a
+         Bursa company looked 4.4× larger than it is. */
+      ...sc.cols.map(k => {
+        const f = FIELD_BY_K[k];
+        if (!f.money) return { k, label:f.label, get:r => r.m[k], fmt:v => isNum(v) ? f.fmt(v) : NA, mfmt:f.fmt };
+        return { k, label:`${f.label} (${State.baseCcy})`,
+                 get:r => toBase(r.m[k], r.c.ccy),
+                 fmt:v => isNum(v) ? fmtCap(v, State.baseCcy) : NA,
+                 mfmt:v => fmtCap(v, State.baseCcy) };
+      }),
       { k:'risk', label:'Risk', get:r => r.risk.raw, fmt:(v, r) => riskPill(r.risk.band) },
       { k:'coverage', label:'Coverage', get:r => r.m.coverage, fmt:v => `${v}%`, mfmt:v => `${Math.round(v)}%` },
     ];
@@ -5478,6 +5514,22 @@ function renderScreener() {
     }
 
     tw.append(table);
+
+    /* What was converted and what was not, stated where the mixed table is
+       rather than on a methodology page. Only shown when the screen actually
+       spans both markets, because on a single-market screen there is nothing to
+       disambiguate. */
+    const spansMarkets = new Set(sorted.map(r => r.c.ccy)).size > 1;
+    const moneyCols = sc.cols.filter(k => FIELD_BY_K[k]?.money);
+    if (spansMarkets) {
+      const parts = [`This screen spans companies reporting in ${[...new Set(sorted.map(r => r.c.ccy))].sort().join(' and ')}.`];
+      parts.push(moneyCols.length
+        ? `${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} converted to ${State.baseCcy} at ${FX.USDMYR.toFixed(2)} (${FX.asOf}).`
+        : `No monetary column is shown, so nothing has been converted.`);
+      parts.push('Every other column is a ratio, a multiple or a percentage and reads the same in either currency. Scores and percentile ranks are computed within each market cohort, not across the two.');
+      tw.append(el('p', { class: 'metaline', style: 'padding:10px var(--md);border-top:1px solid var(--line)' },
+        parts.join(' ')));
+    }
 
     /* Below 768px a twenty-column table is unusable — it either overflows the
        viewport or shrinks the type past reading size. The same rows are
@@ -8021,16 +8073,35 @@ function saveTheses() { store.write('theses', State.theses); }
    contradicts this product's own terminology — and section 2 forbids buy, hold
    and sell language in the public research interface regardless of what the
    surrounding paragraph says. */
-const CONDITION_STATES = {
-  breached:    { label:'Breached',              sev:'serious' },
-  approaching: { label:'Approaching threshold', sev:'warning' },
-  within:      { label:'Within threshold',      sev:'good' },
-  unavailable: { label:'Data unavailable',      sev:'muted' },
-  awaiting:    { label:'Awaiting update',       sev:'muted' },
-};
-
 /* Within a tenth of the threshold, on the side that would breach it. */
 const APPROACH_MARGIN = 0.10;
+
+/* The rule each label follows, carried on the label itself rather than left in
+   the code. A reader shown "Approaching threshold" against an ROE of 10.3% on a
+   10% floor can see it is 0.3 points away and that 0.3 is inside a tenth of the
+   threshold — without that, the label is a judgement they cannot check. */
+const CONDITION_STATES = {
+  breached:    { label:'Breached',              sev:'serious',
+                 rule:'The condition evaluates true on the current value.' },
+  approaching: { label:'Approaching threshold', sev:'warning',
+                 rule:`Not breached, but within ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value, measured as |actual − threshold| ÷ |threshold|.` },
+  within:      { label:'Within threshold',      sev:'good',
+                 rule:`Not breached, and further than ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value away from it.` },
+  unavailable: { label:'Data unavailable',      sev:'muted',
+                 rule:'The condition is bound to no metric this build carries, so it has no source and is never treated as passing.' },
+  awaiting:    { label:'Awaiting update',       sev:'muted',
+                 rule:'The metric exists in this build but has no current value. Not treated as passing.' },
+};
+
+/* The proximity itself, so the label can be inspected rather than trusted.
+   Returns null where there is nothing to measure — no value, or a zero
+   threshold, against which a relative distance is undefined rather than
+   infinite. */
+function conditionDistance(cd) {
+  if (!isNum(cd.actual) || !isNum(cd.v) || cd.v === 0) return null;
+  const abs = cd.actual - cd.v;
+  return { abs, rel: Math.abs(abs) / Math.abs(cd.v) };
+}
 
 function conditionState(cd) {
   if (cd.actual == null) {
@@ -8039,10 +8110,8 @@ function conditionState(cd) {
     return (cd.k || cd.type === 'val') ? CONDITION_STATES.awaiting : CONDITION_STATES.unavailable;
   }
   if (cd.hit) return CONDITION_STATES.breached;
-  if (isNum(cd.v) && cd.v !== 0) {
-    const gap = Math.abs(cd.actual - cd.v) / Math.abs(cd.v);
-    if (gap <= APPROACH_MARGIN) return CONDITION_STATES.approaching;
-  }
+  const dist = conditionDistance(cd);
+  if (dist && dist.rel <= APPROACH_MARGIN) return CONDITION_STATES.approaching;
   return CONDITION_STATES.within;
 }
 
@@ -8212,19 +8281,29 @@ function thesisCard(t, expanded) {
   card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Invalidation conditions — evaluated against the latest data'));
   const tw = el('div', { class: 'tablewrap' });
   const tab = el('table', { class: 'dt' });
-  tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Condition'), el('th', {}, 'Threshold'), el('th', {}, 'Current'), el('th', {}, 'State')])));
+  tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Condition'), el('th', {}, 'Threshold'), el('th', {}, 'Current'),
+    el('th', {}, 'Distance'), el('th', {}, 'State')])));
   const tb = el('tbody');
   [...evalr.breaches.map(x => ({ ...x, hit: true })), ...evalr.ok.map(x => ({ ...x, hit: false }))].forEach(cd => {
     const fmt = cd.type === 'val' ? (v) => fmtPct(v, 1) : fmtFor(cd.k);
+    const st = conditionState(cd);
+    const dist = conditionDistance(cd);
     tb.append(el('tr', {}, [
       el('td', { class: 'ident', style: 'white-space:normal;max-width:280px' }, cd.label),
       el('td', {}, `${cd.op} ${fmt(cd.v)}`),
       el('td', { html: isNum(cd.actual) ? fmt(cd.actual) : NA }),
-      el('td', {}, (() => { const st = conditionState(cd);
-        return st.sev === 'muted' ? el('span', { class: 'caption' }, st.label) : sevChip(st.sev, st.label); })()),
+      /* The number the label was derived from. Without it, "Approaching" is a
+         verdict the reader has to take on trust. */
+      el('td', { class: 'num' }, dist
+        ? `${fmt(Math.abs(dist.abs))} · ${fmtPct(dist.rel * 100, 1)} of threshold`
+        : '—'),
+      el('td', { title: st.rule || '' },
+        st.sev === 'muted' ? el('span', { class: 'caption' }, st.label) : sevChip(st.sev, st.label)),
     ]));
   });
   tab.append(tb); tw.append(tab); card.append(tw);
+  card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `A condition reads Breached when it evaluates true, Approaching threshold when it does not but sits within ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value — |actual − threshold| ÷ |threshold| — and Within threshold beyond that. A condition with no current value is never counted as passing.`));
 
   if (t.questions?.length) {
     card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Unanswered questions'));
@@ -10463,11 +10542,21 @@ VIEWS.learn = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'If a number cannot be explained, it should not be shown. Every formula, weight, anchor range and limitation used anywhere in this prototype is published here.'),
   ])));
+  /* /learn/glossary is a route in the table and a link in the navigation, but
+     'glossary' is not a tab id — the tab is 'dictionary', labelled "Metric
+     dictionary". The lookup returned undefined and calling it threw, so the
+     page rendered its header, its tab strip and nothing else. Resolved before
+     the strip is built so the correct tab is also the one highlighted, and
+     aliased rather than renamed because these URLs are already in the wild. */
+  const LEARN_TAB_ALIAS = { glossary:'dictionary', methodology:'models', 'data-sources':'data', corrections:'trust' };
+  const panels = { dictionary: learnDictionary, scoring: learnScoring, models: learnModels, data: learnData, trust: learnTrust };
+  if (!panels[State.learnTab]) State.learnTab = LEARN_TAB_ALIAS[State.learnTab] || 'dictionary';
+
   const sub = el('div', { class: 'subnav', style: 'margin-bottom:var(--lg)' });
   LEARN_TABS.forEach(t => sub.append(el('button', { role: 'tab', 'aria-selected': State.learnTab === t.id ? 'true' : 'false',
     onclick: () => { State.learnTab = t.id; render(); } }, t.label)));
   wrap.append(sub);
-  wrap.append(({ dictionary: learnDictionary, scoring: learnScoring, models: learnModels, data: learnData, trust: learnTrust })[State.learnTab]());
+  wrap.append(panels[State.learnTab]());
   return wrap;
 };
 
@@ -10746,24 +10835,66 @@ function openReportError() {
    ========================================================================== */
 
 /* Sample projects. Sarawak first, matching the stated pilot geography. */
+/* Each carries the city it belongs to, because the selector used to offer all
+   four regardless of where the reader said the property was: choosing Sibu
+   still listed two Kuching projects, one in Miri and one in Kuala Lumpur, and
+   nothing in Sibu at all. A comparable from another city is not a weak
+   comparable, it is a different market. */
 const PROJECTS = [
-  { id:'p1', name:'Riveria Park Residences', area:'Kuching, Sarawak', type:'Condominium', tenure:'Leasehold',
+  { id:'p1', city:'kuching', name:'Riveria Park Residences', area:'Kuching, Sarawak', type:'Condominium', tenure:'Leasehold',
     psfLo:480, psfMid:545, psfHi:610, rentLo:1500, rentMid:1850, rentHi:2200, sqft:1050,
     txns:[['Q4 2025', 552, 3], ['Q3 2025', 541, 5], ['Q2 2025', 536, 4], ['Q1 2025', 528, 6], ['Q4 2024', 519, 4]],
     vacancyPct:9, maintPsf:0.28 },
-  { id:'p2', name:'Tabuan Heights Terraces', area:'Kuching, Sarawak', type:'2-storey terrace', tenure:'Freehold',
+  { id:'p2', city:'kuching', name:'Tabuan Heights Terraces', area:'Kuching, Sarawak', type:'2-storey terrace', tenure:'Freehold',
     psfLo:330, psfMid:372, psfHi:415, rentLo:1400, rentMid:1700, rentHi:2000, sqft:1600,
     txns:[['Q4 2025', 378, 7], ['Q3 2025', 371, 9], ['Q2 2025', 366, 6], ['Q1 2025', 359, 8], ['Q4 2024', 351, 5]],
     vacancyPct:6, maintPsf:0.12 },
-  { id:'p3', name:'Miri Waterfront Suites', area:'Miri, Sarawak', type:'Serviced apartment', tenure:'Leasehold',
+  { id:'p3', city:'miri', name:'Miri Waterfront Suites', area:'Miri, Sarawak', type:'Serviced apartment', tenure:'Leasehold',
     psfLo:410, psfMid:462, psfHi:520, rentLo:1250, rentMid:1550, rentHi:1900, sqft:900,
     txns:[['Q4 2025', 458, 2], ['Q3 2025', 466, 3], ['Q2 2025', 471, 2], ['Q1 2025', 469, 4], ['Q4 2024', 474, 3]],
     vacancyPct:14, maintPsf:0.31 },
-  { id:'p4', name:'Mont Kiara Vista', area:'Kuala Lumpur', type:'Condominium', tenure:'Freehold',
+  { id:'p4', city:'outside', name:'Mont Kiara Vista', area:'Kuala Lumpur', type:'Condominium', tenure:'Freehold',
     psfLo:780, psfMid:880, psfHi:990, rentLo:3200, rentMid:3900, rentHi:4600, sqft:1200,
     txns:[['Q4 2025', 889, 11], ['Q3 2025', 878, 14], ['Q2 2025', 871, 9], ['Q1 2025', 866, 12], ['Q4 2024', 858, 10]],
     vacancyPct:11, maintPsf:0.42 },
 ];
+
+/* Sibu, Bintulu and the smaller centres have no sample project, and one is not
+   invented to fill the gap. Every city therefore also offers a custom entry,
+   which attaches no comparable at all: the reader supplies the price and the
+   rent, and the tool says plainly that it holds no transacted evidence for that
+   city rather than lending them a Kuching median.
+
+   The district and property type are separate controls immediately above, so a
+   per-area entry here would be a third copy of the same state. */
+const customProjectId = (cityId) => `custom-${cityId}`;
+const isCustomProject = (id) => String(id || '').startsWith('custom-');
+
+function projectsForCity(cityId) {
+  return PROJECTS.filter(p => p.city === cityId);
+}
+
+/* Resolves whatever is selected into something dealModel can price. A custom
+   entry carries no psf, no rent band and no transaction record — those fields
+   are absent rather than zero, so nothing downstream can read them as an
+   observation of a quiet market. */
+function activeProject(d) {
+  if (isCustomProject(d.projectId)) {
+    const city = SARAWAK_CITIES.find(c => c.id === d.city) || SARAWAK_CITIES[0];
+    return { id:d.projectId, city:city.id, custom:true,
+             name:`Custom property — ${city.name}`, area:city.name,
+             type:d.propertyType || 'Property', tenure:null,
+             sqft:d.sqft, vacancyPct:d.vacancyPct, maintPsf:null,
+             psfLo:null, psfMid:null, psfHi:null,
+             rentLo:null, rentMid:null, rentHi:null, txns:[] };
+  }
+  return PROJECTS.find(p => p.id === d.projectId)
+      || projectsForCity(d.city)[0]
+      || { id:customProjectId(d.city), custom:true, city:d.city,
+           name:'Custom property', area:'', type:d.propertyType || 'Property',
+           sqft:d.sqft, vacancyPct:d.vacancyPct, maintPsf:null,
+           psfLo:null, psfMid:null, psfHi:null, rentLo:null, rentMid:null, rentHi:null, txns:[] };
+}
 
 /* ==========================================================================
    SARAWAK GEOGRAPHY
@@ -10863,6 +10994,61 @@ State.deal = store.read('deal', null) || {
 };
 const saveDeal = () => store.write('deal', State.deal);
 
+/* ---------------------------------------------------------- shareable state */
+/* The city used to be read out of the URL and then deleted from it, because
+   re-reading it on every render locked the page to whatever the link said and
+   undid the reader's next change. Deleting it fixed the lock and broke sharing:
+   /property/calculator?city=sibu loaded Sibu and then showed a bare path, so a
+   refresh, a bookmark or a pasted link no longer reproduced what was on screen.
+
+   Both problems come from treating the URL as an inbox. It is state. It is read
+   on arrival, and written whenever a control changes — and because the write
+   happens before the re-render, what the next render reads back already agrees
+   with the deal. No flag, no consumed parameter, and no lock. */
+const slugParam = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const matchBySlug = (list, want) => list.find(x => slugParam(x) === slugParam(want));
+
+function syncPropertyUrl(d) {
+  const p = new URLSearchParams(location.search);
+  p.set('city', d.city);
+  if (d.district) p.set('district', slugParam(d.district)); else p.delete('district');
+  if (d.propertyType) p.set('type', slugParam(d.propertyType)); else p.delete('type');
+  const q = p.toString();
+  const next = location.pathname + (q ? `?${q}` : '');
+  if (next === location.pathname + location.search) return;
+  history.replaceState(history.state, '', next);
+}
+
+/* Applies a link's parameters to the deal. Returns true when something actually
+   changed, so the caller can persist only on a real change. */
+function readPropertyUrl(d) {
+  const p = new URLSearchParams(location.search);
+  let changed = false;
+  const city = p.get('city');
+  if (city) {
+    const hit = SARAWAK_CITIES.find(c => c.id === slugParam(city));
+    if (hit && d.city !== hit.id) {
+      d.city = hit.id;
+      d.district = hit.districts[0];
+      /* A Kuching project under Sibu would be worse than no project. */
+      if (!projectsForCity(hit.id).some(x => x.id === d.projectId)) d.projectId = customProjectId(hit.id);
+      changed = true;
+    }
+  }
+  const cityDef = SARAWAK_CITIES.find(c => c.id === d.city);
+  const district = p.get('district');
+  if (district && cityDef) {
+    const hit = matchBySlug(cityDef.districts, district);
+    if (hit && d.district !== hit) { d.district = hit; changed = true; }
+  }
+  const type = p.get('type');
+  if (type) {
+    const hit = matchBySlug(PROPERTY_TYPES, type);
+    if (hit && d.propertyType !== hit) { d.propertyType = hit; changed = true; }
+  }
+  return changed;
+}
+
 /* ------------------------------------------------------- Sarawak checklist */
 /* Questions, not verdicts. Each names who can actually answer it, because the
    honest output of a calculator on a legal or physical question is "ask this
@@ -10894,25 +11080,30 @@ const SARAWAK_CHECKS = [
     ],
     affects:['Insurance cost and availability', 'Vacancy between tenancies', 'Resale time', 'Financing terms'],
     who:'Local council, neighbours, DID flood maps', sev:'serious',
-    why:'Parts of Kuching, Sibu and the Rajang basin flood recurrently. It affects insurance, tenant retention and resale.' },
+    basis:'General observation. No flood record, depth or return period is held for any address in this tool.',
+    why:'Flooding is widely reported in parts of Kuching, Sibu and the Rajang basin, and where it recurs it can affect insurance cost and availability, tenant retention and resale. Establish the record for this specific site.' },
   { id:'single-employer', q:'Does rental demand here depend on one employer or one industry?',
     who:'Local agents, your own observation', sev:'serious',
-    why:'Bintulu and Miri rental demand tracks oil, gas and heavy industry. A single project ending can empty a neighbourhood.' },
+    basis:'General observation. This tool holds no vacancy series for any Sarawak locality.',
+    why:'Locations that depend heavily on one project or one employer may see higher vacancy when contracts end. Bintulu and Miri rental demand is commonly described as tracking oil, gas and heavy industry — confirm against current occupancy locally.' },
   { id:'transient-demand', q:'Is demand driven by students, O&G rotation staff or construction workers?',
     who:'Local agents', sev:'warning',
     why:'Transient demand is real demand, but it is shorter, more seasonal and more sensitive to one contract than a family tenancy.' },
   { id:'parking', q:'Is the unit hard to rent without parking?',
     who:'Local agents', sev:'warning',
-    why:'Outside the city centres, a unit without allocated parking rents at a discount or not at all.' },
+    basis:'General observation. No parking-related rental differential has been measured for any Sarawak locality.',
+    why:'Limited parking may reduce tenant demand in car-dependent locations. Confirm against comparable listings, recent tenancies and local agents.' },
   { id:'supply', q:'Is there substantial unsold or newly completed supply nearby?',
     who:'Developer sales offices, NAPIC data', sev:'warning',
-    why:'Competing new stock caps rent and lengthens the void period before the market absorbs it.' },
+    basis:'General observation. This tool holds no completions or unsold-stock counts.',
+    why:'Competing new stock may cap achievable rent and lengthen the void period before the market absorbs it. Check what is completing nearby over your holding period.' },
   { id:'comparables', q:'Have you verified comparable rental transactions, not asking prices?',
     who:'Agents, existing tenants', sev:'serious',
     why:'The rent assumption drives every output on this page. An asking price is not a transaction.' },
   { id:'resale-time', q:'How long would a resale realistically take in this district?',
     who:'Local agents', sev:'warning',
-    why:'Sarawak secondary markets outside the main centres can take many months. The carrying cost of that period is real.' },
+    basis:'General observation. No time-on-market series is held for any Sarawak district.',
+    why:'Secondary markets outside the main centres are commonly reported as slower to transact. Whatever that period turns out to be, its carrying cost falls on you — the exit assumption below sets it explicitly.' },
 ];
 
 /* Malaysian acquisition costs. Rates are editable elsewhere in a real build;
@@ -11362,7 +11553,7 @@ function affordabilityPanel(cityName) {
 }
 
 function dealModel(d) {
-  const proj = PROJECTS.find(p => p.id === d.projectId) || PROJECTS[0];
+  const proj = activeProject(d);
   const loan = d.price * (1 - d.downPct / 100);
   const deposit = d.price - loan;
   const duty = stampDutyMOT(d.price);
@@ -11564,14 +11755,20 @@ function propertyRiskFlags(d, m) {
     n:`Debt-service cover of ${fmtX(m.dscr, 2)} means net operating income falls short of the instalments. The shortfall is funded from your own income every month.` });
   if (m.cashflowMonthly < 0) out.push({ sev:'warning', t:'Negative monthly cash flow',
     n:`This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold before any repairs or void periods.` });
-  if (m.psf && m.psf > m.proj.psfHi) out.push({ sev:'serious', t:'Above the transacted range',
+  /* Every comparison below needs a comparable to compare against. On a custom
+     entry there is none, so the flag is absent rather than evaluated against a
+     missing bound — `price > undefined` is false, and a silent false here would
+     read as "within the transacted range" when nothing was checked. */
+  if (isNum(m.proj.psfHi) && m.psf && m.psf > m.proj.psfHi) out.push({ sev:'serious', t:'Above the transacted range',
     n:`At RM${m.psf.toFixed(0)} psf you would be paying above the highest recent transaction in ${m.proj.name} (RM${m.proj.psfHi} psf).` });
-  else if (m.psf && m.psf > m.proj.psfMid) out.push({ sev:'warning', t:'Above the median transaction',
+  else if (isNum(m.proj.psfMid) && m.psf && m.psf > m.proj.psfMid) out.push({ sev:'warning', t:'Above the median transaction',
     n:`RM${m.psf.toFixed(0)} psf sits above the median of RM${m.proj.psfMid} psf recently transacted here.` });
-  if (d.rent > m.proj.rentHi) out.push({ sev:'serious', t:'Rent assumption above the observed range',
+  if (isNum(m.proj.rentHi) && d.rent > m.proj.rentHi) out.push({ sev:'serious', t:'Rent assumption above the observed range',
     n:`RM${d.rent} exceeds the top of the observed rental range (RM${m.proj.rentHi}). The whole model rests on this figure.` });
-  if (d.vacancyPct < m.proj.vacancyPct) out.push({ sev:'warning', t:'Vacancy assumed below the area norm',
+  if (isNum(m.proj.vacancyPct) && !m.proj.custom && d.vacancyPct < m.proj.vacancyPct) out.push({ sev:'warning', t:'Vacancy assumed below the area norm',
     n:`You have assumed ${fmtPct(d.vacancyPct, 0)} vacancy against roughly ${fmtPct(m.proj.vacancyPct, 0)} observed in ${m.proj.area}.` });
+  if (m.proj.custom) out.push({ sev:'warning', t:'No comparable attached',
+    n:`This tool holds no transacted price, rental band or vacancy observation for ${m.proj.area}. The price, rent and vacancy below are entirely yours, and none of them has been checked against a market.` });
   if (d.holdYears <= 5) out.push({ sev:'warning', t:'Real property gains tax applies at this holding period',
     n:`Selling in year ${d.holdYears} attracts RPGT at ${m.rpgtPct}% for an individual Malaysian citizen, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
   if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
@@ -11743,34 +11940,31 @@ VIEWS.property = () => {
 
   const cityField = el('div', { class: 'field' });
   cityField.append(el('label', { for: 'dealCity' }, 'City'));
+  /* Read before the controls are built, so they render already showing what the
+     link asked for. */
+  if (readPropertyUrl(d)) saveDeal();
+  /* Written on arrival too, so a bare /property/calculator becomes a link that
+     reproduces what is on screen without the reader having to change anything
+     first. */
+  syncPropertyUrl(d);
+
   const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
     d.city = e.target.value;
     d.district = (SARAWAK_CITIES.find(c => c.id === d.city)?.districts || [''])[0];
-    saveDeal(); render();
+    /* The project list is city-scoped, so a selection from the previous city is
+       no longer on offer and must not stay selected behind the scenes. */
+    if (!projectsForCity(d.city).some(x => x.id === d.projectId)) d.projectId = customProjectId(d.city);
+    saveDeal(); syncPropertyUrl(d); render();
   } });
   SARAWAK_CITIES.forEach(c => citySel.append(el('option', { value: c.id, selected: d.city === c.id ? '' : null }, c.name)));
   cityField.append(citySel);
   loc.append(cityField);
 
-  /* A city named in the URL wins on arrival, and takes the area with it —
-     leaving a Kuching district selected under Sibu would be worse than
-     ignoring the parameter entirely. */
-  const params = new URLSearchParams(location.search);
-  const urlCity = params.get('city');
-  if (urlCity) {
-    const hit = SARAWAK_CITIES.find(c => c.id === String(urlCity).toLowerCase());
-    if (hit && d.city !== hit.id) { d.city = hit.id; d.district = hit.districts[0]; saveDeal(); }
-    /* Consumed. The link did its job; leaving it in place would keep undoing
-       every later change the reader makes to the city control. */
-    params.delete('city');
-    const q = params.toString();
-    history.replaceState(history.state, '', location.pathname + (q ? '?' + q : ''));
-  }
   const cityDef = SARAWAK_CITIES.find(c => c.id === d.city) || SARAWAK_CITIES[0];
   const distField = el('div', { class: 'field', style: 'margin-top:10px' });
   distField.append(el('label', { for: 'dealDistrict' }, 'District or neighbourhood'));
   const distSel = el('select', { class: 'select', id: 'dealDistrict',
-    onchange: e => { d.district = e.target.value; saveDeal(); render(); } });
+    onchange: e => { d.district = e.target.value; saveDeal(); syncPropertyUrl(d); render(); } });
   cityDef.districts.forEach(x => distSel.append(el('option', { value: x, selected: d.district === x ? '' : null }, x)));
   distField.append(distSel);
   loc.append(distField);
@@ -11875,7 +12069,7 @@ VIEWS.property = () => {
   const typeField = el('div', { class: 'field', style: 'margin-top:10px' });
   typeField.append(el('label', { for: 'dealType' }, 'Property type'));
   const typeSel = el('select', { class: 'select', id: 'dealType',
-    onchange: e => { d.propertyType = e.target.value; saveDeal(); render(); } });
+    onchange: e => { d.propertyType = e.target.value; saveDeal(); syncPropertyUrl(d); render(); } });
   PROPERTY_TYPES.forEach(x => typeSel.append(el('option', { value: x, selected: d.propertyType === x ? '' : null }, x)));
   typeField.append(typeSel);
   loc.append(typeField);
@@ -11912,17 +12106,34 @@ VIEWS.property = () => {
 
   const psel = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   psel.append(el('label', { for: 'pj' }, 'Project'));
+  const cityProjects = projectsForCity(d.city);
   const ps = el('select', { class: 'select', id: 'pj', onchange: e => {
     d.projectId = e.target.value;
     const pr2 = PROJECTS.find(x => x.id === d.projectId);
-    d.sqft = pr2.sqft; d.price = Math.round(pr2.psfMid * pr2.sqft / 1000) * 1000;
-    d.rent = pr2.rentMid; d.vacancyPct = pr2.vacancyPct;
-    d.maintenance = Math.round(pr2.maintPsf * pr2.sqft);
-    saveDeal(); render();
+    /* A named project seeds the assumptions from its own observed figures. The
+       custom entry seeds nothing: leaving the reader's own numbers in place is
+       the honest behaviour when there is no comparable to replace them with. */
+    if (pr2) {
+      d.sqft = pr2.sqft; d.price = Math.round(pr2.psfMid * pr2.sqft / 1000) * 1000;
+      d.rent = pr2.rentMid; d.vacancyPct = pr2.vacancyPct;
+      d.maintenance = Math.round(pr2.maintPsf * pr2.sqft);
+      d.evidence = { ...(d.evidence || {}), price:'estimated', rent:'estimated' };
+    } else {
+      d.evidence = { ...(d.evidence || {}), price:'user', rent:'user' };
+    }
+    saveDeal(); syncPropertyUrl(d); render();
   } });
-  PROJECTS.forEach(pr2 => ps.append(el('option', { value: pr2.id, selected: pr2.id === d.projectId ? '' : null },
+  cityProjects.forEach(pr2 => ps.append(el('option', { value: pr2.id, selected: pr2.id === d.projectId ? '' : null },
     `${pr2.name} — ${pr2.area}`)));
-  psel.append(ps); rail.append(psel);
+  const customId = customProjectId(d.city);
+  ps.append(el('option', { value: customId, selected: isCustomProject(d.projectId) ? '' : null },
+    `Custom property — ${cityDef.name}`));
+  psel.append(ps);
+  psel.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    cityProjects.length
+      ? `Sample projects in ${cityDef.name} only. Comparables from another city are not offered, because they are a different market rather than a weaker reading of this one.`
+      : `No sample project is held for ${cityDef.name}, and none has been invented. Enter the property yourself — the model runs identically, and says plainly that it has no transacted evidence to check your figures against.`));
+  rail.append(psel);
 
   /* Grouped, because a flat list of twenty numbers reads as a form to be
      endured rather than a model to be understood. Each group is one question:
@@ -12108,6 +12319,12 @@ VIEWS.property = () => {
           v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Not sure'))),
     ]));
     row.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `${c.why} · Confirm with: ${c.who}`));
+    /* What this tool actually holds on the question, stated next to the claim
+       rather than left for the reader to infer. A risk described in general
+       terms and a risk measured here are different things, and only one of them
+       is evidence. */
+    if (c.basis) row.append(el('p', { class: 'metaline', style: 'margin-top:4px;color:var(--bronze)' },
+      `Evidence held: ${c.basis}`));
 
     /* How you know, recorded beside what you answered. */
     const ans = d.checks?.[c.id];
@@ -12239,8 +12456,14 @@ VIEWS.property = () => {
   out.append(ev);
 
   if (!paid) {
+    /* The offer has to describe what this particular report would contain. On a
+       location with no comparable held, promising "comparable transactions and
+       the price and rental range for this project" would be selling a section
+       that cannot be produced. */
     out.append(upsell(`Full investor report — RM${PROPERTY_REPORT_PRICE.full}`,
-      'Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Bought per report, or included twice monthly on All-Access.'));
+      m.proj.custom
+        ? `Adds net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
+        : 'Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Bought per report, or included twice monthly on All-Access.'));
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     buy.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
       State.propertyReportsBought = [...State.propertyReportsBought, d.projectId];
@@ -12290,24 +12513,42 @@ VIEWS.property = () => {
 
   /* ---------- paid report ---------- */
   const comps = el('div', { class: 'card' });
-  comps.append(cardHead(`Comparable transactions — ${m.proj.name}`,
-    `${m.proj.type}, ${m.proj.tenure}, ${m.proj.area}. Sample transaction data for demonstration.`));
-  const ctw = el('div', { class: 'tablewrap' });
-  const ct = el('table', { class: 'dt' });
-  ct.append(el('thead', {}, el('tr', {}, ['Quarter', 'Median psf', 'Transactions', 'vs your price'].map(h => el('th', {}, h)))));
-  ct.append(el('tbody', {}, m.proj.txns.map(([q, ppsf, n]) => el('tr', {}, [
-    el('td', { class: 'ident' }, q), el('td', {}, `RM${ppsf}`), el('td', {}, String(n)),
-    el('td', { class: signClass(m.psf ? ppsf - m.psf : 0) }, m.psf ? withSign((ppsf - m.psf) / m.psf * 100, 1) : '—'),
-  ]))));
-  ctw.append(ct); comps.append(ctw);
-  const rng = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-  rng.append(el('div', { class: 'panel' }, statTile('Your price psf', m.psf ? `RM${m.psf.toFixed(0)}` : '—',
-    { sub: `Project range RM${m.proj.psfLo}–${m.proj.psfHi}, median RM${m.proj.psfMid}` })));
-  rng.append(el('div', { class: 'panel' }, statTile('Your rent', `RM${d.rent}`,
-    { sub: `Observed range RM${m.proj.rentLo}–${m.proj.rentHi}, median RM${m.proj.rentMid}` })));
-  rng.append(el('div', { class: 'panel' }, statTile('Area vacancy', fmtPct(m.proj.vacancyPct, 0),
-    { sub: `You assumed ${fmtPct(d.vacancyPct, 0)}` })));
-  comps.append(rng);
+  if (m.proj.custom) {
+    /* An empty comparables table with "RM null–null" beneath it would read as a
+       market with no transactions rather than as a tool with no data. The card
+       says which of the two it is. */
+    comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
+      'None held for this location.'));
+    comps.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+      `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
+    comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      'Every figure above came from you. Nothing on this page has been checked against a market, so treat the outputs as arithmetic on your own assumptions rather than as a valuation.'));
+    comps.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Where a comparable can be obtained'));
+    comps.append(el('ul', { class: 'ticklist' }, [
+      el('li', {}, 'NAPIC (Valuation and Property Services Department) publishes transacted prices by district. Their Property Market Report is the standard reference.'),
+      el('li', {}, 'A registered valuer can produce a formal comparable analysis for the specific address.'),
+      el('li', {}, 'Local agents hold recent tenancies — ask for signed tenancies rather than asking rents, which are the figure most commonly quoted and least commonly achieved.'),
+    ]));
+  } else {
+    comps.append(cardHead(`Comparable transactions — ${m.proj.name}`,
+      `${m.proj.type}, ${m.proj.tenure}, ${m.proj.area}. Sample transaction data for demonstration.`));
+    const ctw = el('div', { class: 'tablewrap' });
+    const ct = el('table', { class: 'dt' });
+    ct.append(el('thead', {}, el('tr', {}, ['Quarter', 'Median psf', 'Transactions', 'vs your price'].map(h => el('th', {}, h)))));
+    ct.append(el('tbody', {}, m.proj.txns.map(([q, ppsf, n]) => el('tr', {}, [
+      el('td', { class: 'ident' }, q), el('td', {}, `RM${ppsf}`), el('td', {}, String(n)),
+      el('td', { class: signClass(m.psf ? ppsf - m.psf : 0) }, m.psf ? withSign((ppsf - m.psf) / m.psf * 100, 1) : '—'),
+    ]))));
+    ctw.append(ct); comps.append(ctw);
+    const rng = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
+    rng.append(el('div', { class: 'panel' }, statTile('Your price psf', m.psf ? `RM${m.psf.toFixed(0)}` : '—',
+      { sub: `Project range RM${m.proj.psfLo}–${m.proj.psfHi}, median RM${m.proj.psfMid}` })));
+    rng.append(el('div', { class: 'panel' }, statTile('Your rent', `RM${d.rent}`,
+      { sub: `Observed range RM${m.proj.rentLo}–${m.proj.rentHi}, median RM${m.proj.rentMid}` })));
+    rng.append(el('div', { class: 'panel' }, statTile('Area vacancy', fmtPct(m.proj.vacancyPct, 0),
+      { sub: `You assumed ${fmtPct(d.vacancyPct, 0)}` })));
+    comps.append(rng);
+  }
   out.append(comps);
 
   const inv = el('div', { class: 'card' });
@@ -12476,6 +12717,11 @@ VIEWS.plans = () => {
     if (pl.priceYr) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' },
       `or RM${pl.priceYr} a year${pl.founding ? ` · founding offer RM${pl.founding} for the first year, ${pl.foundingSeats} seats` : ''}`));
     card.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-bottom:var(--md)' }, pl.blurb));
+    /* The size of what is being sold, taken from the universe on screen rather
+       than written into the copy, so it cannot be left behind when the universe
+       changes. */
+    if (pl.limits?.reportsPerMonth === Infinity) card.append(el('p', { class: 'metaline', style: 'margin:-8px 0 var(--md)' },
+      `The beta universe holds ${U.length} companies (${U.filter(r => r.c.mkt === 'MY').length} Bursa, ${U.filter(r => r.c.mkt === 'US').length} US). It is not a complete listing of either market.`));
 
     const rows = [
       ['Company reports', pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month`],
@@ -12623,6 +12869,26 @@ const refreshSearchLabel = () => {
   $('#openSearch').setAttribute('aria-label', `Search ${U.length} companies`);
 };
 
+/* The banner used to say every figure on the site was synthetic. That was true
+   when the universe was 36 illustrative companies and became false the moment
+   audited filings loaded alongside them — a disclosure that overstates the
+   problem is still a disclosure that is wrong, and on this product being wrong
+   about provenance is the worst kind. It now counts what is actually loaded and
+   says which of the two a reader is looking at. */
+const refreshDisclosure = () => {
+  const node = $('#disclosureText');
+  if (!node) return;
+  const real = U.filter(r => r.c.real).length;
+  const sample = U.length - real;
+  const priced = U.filter(r => r.c.real && isNum(r.c.px?.p)).length;
+  if (!real) return;                       /* the static wording is correct */
+  node.innerHTML =
+    `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
+    `<span class="disclosure-long"> ${real} ${real === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
+    (priced < real ? `, of which ${real - priced} ${real - priced === 1 ? 'has' : 'have'} no price because market data is not licensed for this build` : '') +
+    `. ${sample} ${sample === 1 ? 'carries' : 'carry'} illustrative figures that are synthetic. Every company page states which it is.</span>`;
+};
+
 /* Real data loads asynchronously and changes the size of the universe, so the
    first paint happens on the sample set and the view re-renders once the
    filings land. */
@@ -12631,6 +12897,7 @@ if (realEnabled()) {
     .then(res => {
       realStatus = { ok: true, ...res };
       refreshSearchLabel();
+      refreshDisclosure();
       /* A deep link can name a company that did not exist at first paint, so
          the route is resolved again once the filings are in. applyRoute
          re-renders, so no separate render call is needed. */
