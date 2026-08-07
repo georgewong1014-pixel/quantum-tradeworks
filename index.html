@@ -2528,8 +2528,14 @@ const PILLARS = {
     general: [
       { k:'ndEbit', w:.45, label:'Net debt / EBIT',        lo:0,  hi:5,  inv:true, fmt:v=>fmtX(v) },
       { k:'de',     w:.25, label:'Debt / equity',          lo:0,  hi:2.5,inv:true, fmt:v=>fmtX(v,2) },
-      { g:'Financial risk',        k:'netGearing', label:'Net gearing',                fmt:v=>fmtPct(v,0), formula:'(total debt − cash) ÷ shareholders’ equity', miss:'not applicable to a bank balance sheet', note:'Cash here is cash and equivalents only. A company holding short-term investments will look more indebted than it is.' },
-      { g:'Financial risk',        k:'ocfPosYears',label:'Years of positive operating cash flow', fmt:v=>`${fmtNum(v,0)} of 5`, formula:'count of the last five reported years with operating cash flow above zero' },
+      /* Net gearing and years of positive operating cash flow were written into
+         this array in the metric-dictionary shape — g/formula/miss/note rather
+         than w/lo/hi. A pillar input without a weight rendered "NaN%" in the
+         Weight column and an unanchorable row that could never score, so both
+         now live in FIELDS where that shape belongs. They are computed and
+         published; they are deliberately not scored inputs, because giving them
+         an anchor and a weight would change every Financial Strength score and
+         that is a model version, not a rendering fix. */
       { k:'fcfm',   w:.15, label:'Free cash flow margin',  lo:-5, hi:25, fmt:v=>fmtPct(v) },
       { k:'bv5',    w:.15, label:'Book value CAGR (4y)',   lo:-5, hi:18, fmt:v=>fmtPct(v) },
     ],
@@ -5050,6 +5056,8 @@ const FIELDS = [
   { g:'Financial risk',        k:'epsVol',    label:'Earnings variability',       fmt:v=>fmtNum(v),   formula:'standard deviation of year-on-year net income growth' },
   { g:'Financial risk',        k:'revDD',     label:'Revenue drawdown',           fmt:v=>fmtPct(v,0), formula:'largest peak-to-trough fall in revenue' },
   { g:'Financial risk',        k:'dilution',  label:'Share count growth',         fmt:v=>fmtPct(v,2), formula:'CAGR of shares in issue' },
+  { g:'Financial risk',        k:'netGearing',label:'Net gearing',                fmt:v=>fmtPct(v,0), formula:'(total debt − cash) ÷ shareholders’ equity', miss:'Not applicable to a bank balance sheet.', note:'Cash here is cash and equivalents only. A company holding short-term investments will look more indebted than it is.' },
+  { g:'Financial risk',        k:'ocfPosYears',label:'Years of positive operating cash flow', fmt:v=>`${fmtNum(v,0)} of 5`, formula:'count of the last five reported years with operating cash flow above zero' },
   { g:'Market and eligibility',k:'rs12',      label:'12-month price change',      fmt:v=>fmtPct(v),   formula:'price change over the trailing twelve months' },
   { g:'Market and eligibility',k:'from52',    label:'Distance from 52-week high', fmt:v=>fmtPct(v),   formula:'(price − 52-week high) ÷ 52-week high' },
   { g:'Market and eligibility',k:'sma200d',   label:'Distance from 200-day average', fmt:v=>fmtPct(v), formula:'(price − 200-day simple moving average) ÷ 200-day average', note:'Needs 200 observed closes. Computed from imported or captured history only.' },
@@ -6577,8 +6585,15 @@ VIEWS.research = () => {
     el('span', { class: 'num ' + signClass(c.px.d1), style: 'font-size:13px;font-weight:600' }, withSign(c.px.d1, 2)),
     el('span', { class: 'metaline' }, 'today'),
   ]));
-  if (State.baseCcy !== c.ccy) pxBlock.append(el('div', { class: 'metaline', style: 'margin-top:2px' },
-    `${baseSym()}${toBase(c.px.p, c.ccy).toFixed(2)} in ${State.baseCcy} at ${FX.USDMYR.toFixed(2)}`));
+  /* toBase returns null for an absent price, and this called .toFixed on it.
+     Every SEC-filed company has no price — SEC publishes filings, not market
+     data — so on the deployed site this threw on every company page opened in
+     a currency other than the company's own. It did not surface earlier because
+     the sample companies all carry a hardcoded price and the filings were
+     behind a flag. A missing price is the normal state here, not an edge. */
+  const pxBase = toBase(c.px.p, c.ccy);
+  if (State.baseCcy !== c.ccy && isNum(pxBase)) pxBlock.append(el('div', { class: 'metaline', style: 'margin-top:2px' },
+    `${baseSym()}${pxBase.toFixed(2)} in ${State.baseCcy} at ${FX.USDMYR.toFixed(2)}`));
   const acts = el('div', { class: 'row', style: 'gap:6px;justify-content:flex-end;margin-top:10px' });
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => toggleWatch(c.id) },
     State.watchlist.includes(c.id) ? '✓ Watching' : '+ Watchlist'));
@@ -9065,7 +9080,9 @@ function openPriceAlertEditor(existing) {
   const csel = el('select', { class: 'select', id: 'pa-co', onchange: e => {
     pa.ticker = e.target.value;
     const r = BY_ID.get(pa.ticker);
-    if (r && !existing) { pa.price = +(r.c.px.p * 0.9).toFixed(2); $('#pa-price').value = pa.price; }
+    /* null * 0.9 is 0, so an unpriced company used to prefill a price alert at
+       RM0.00 — a threshold that can never trigger, presented as a suggestion. */
+    if (r && !existing && isNum(r.c.px?.p)) { pa.price = +(r.c.px.p * 0.9).toFixed(2); $('#pa-price').value = pa.price; }
   } });
   U.forEach(r => csel.append(el('option', { value: r.c.id, selected: r.c.id === pa.ticker ? '' : null },
     `${r.c.tk} — ${fmtMoney(r.c.px.p, r.c.ccy)}`)));
