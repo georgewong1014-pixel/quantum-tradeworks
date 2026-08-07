@@ -2270,9 +2270,17 @@ function derive(c) {
   m.revDD  = maxDrawdown(W(rev));
   m.epsDD  = maxDrawdown(W(ni));
   /* Full-window equivalents, for the ten-year view. */
-  m.rev10 = safeCagr(rev);
-  m.eps10 = safeCagr(eps);
-  m.dps10 = dps[0] > 0 ? safeCagr(dps) : null;
+  /* Full-window measures, and only where the full window exists. A company
+     holding five reported years has no ten-year view, and computing one over
+     four intervals produces a different statistic under the same name — the
+     same trap as the four-year window above, one level up. Currently unread by
+     any view, which is exactly why it was worth closing now rather than when
+     something starts reading it. */
+  m.fullSpanYears = rev.filter(isNum).length;
+  const hasFullSpan = m.fullSpanYears >= YEARS.length;
+  m.rev10 = hasFullSpan ? safeCagr(rev) : null;
+  m.eps10 = hasFullSpan ? safeCagr(eps) : null;
+  m.dps10 = (hasFullSpan && dps[0] > 0) ? safeCagr(dps) : null;
   m.revDD10 = maxDrawdown(rev);
 
   /* --- balance sheet ---------------------------------------------------- */
@@ -3223,8 +3231,22 @@ function addCompany(c) {
   /* Bursa companies trade under a numeric code but are read by their short
      name. Display the short name; keep the code for the identity line. */
   if (!c.real) { c.code = c.tk; c.tk = c.id; }   /* real records set both already */
-  /* Extend to the full ten-year window before anything is derived from it. */
-  if (c.fin.length === AUTHORED_YEARS) c.fin = [...backcast(c), ...c.fin];
+  /* Extend to the full ten-year window before anything is derived from it —
+     but ONLY for the illustrative set, where the whole series is synthetic and
+     reconstructing earlier years adds no new class of fiction.
+
+     The test used to be "does this company have exactly five rows", which was a
+     safe proxy only while five rows meant illustrative and real meant ten. It
+     stopped being safe the moment Malaysian statements arrived: four of them
+     returned five reported years, matched the count, and had five invented
+     years silently prepended to audited figures — which then fed the ten-year
+     growth rates, the revenue drawdown and the earnings variability. One of the
+     four was Naim, a Sarawak company.
+
+     The proxy is now the fact itself. A real company's history is what was
+     reported and nothing else; where that is shorter, the measures needing a
+     longer window report themselves unavailable. */
+  if (!c.real && c.fin.length === AUTHORED_YEARS) c.fin = [...backcast(c), ...c.fin];
   const d = derive(c);
   const inputs = defaultInputs(c, d);
   const val = valuationRun(c, d, inputs);
