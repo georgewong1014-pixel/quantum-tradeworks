@@ -209,6 +209,130 @@ export function yahooProvider({ userAgent } = {}) {
       }
       return out.length ? out : null;
     },
+
+    /* ---------------------------------------------------------------------
+       ANNUAL STATEMENTS
+
+       The note at the top of this file says Bursa Malaysia publishes no
+       machine-readable financial statements, and that remains true of Bursa.
+       It does not follow that the statements are unreachable: this endpoint
+       returns audited annual figures for Bursa tickers in ringgit, with no
+       cookie handshake, and the values reconcile against the companies' own
+       reported accounts.
+
+       That changes what is POSSIBLE and nothing about what is PERMITTED. The
+       licence position is identical to the price endpoint above — undocumented,
+       unlicensed, redistribution prohibited — so this feeds the git-ignored
+       personal-research lane and can never reach the deployed site. The
+       provider stays licensed:false and the writer enforces the rest.
+
+       Yahoo carries four fiscal years, against the ten SEC gives. Any measure
+       needing a longer window has to report itself unavailable rather than be
+       computed over a shorter one and labelled as though it were not.
+       --------------------------------------------------------------------- */
+    async fundamentals(symbol) {
+      const KEYS = [
+        'annualTotalRevenue', 'annualOperatingIncome', 'annualNetIncome',
+        'annualOperatingCashFlow', 'annualCapitalExpenditure',
+        'annualStockholdersEquity', 'annualTotalDebt', 'annualCashAndCashEquivalents',
+        'annualBasicAverageShares', 'annualCashDividendsPaid', 'annualInterestExpense',
+        'annualTotalAssets', 'annualCurrentAssets', 'annualCurrentLiabilities',
+      ];
+      const url = 'https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/'
+        + encodeURIComponent(symbol)
+        + `?symbol=${encodeURIComponent(symbol)}&type=${KEYS.join(',')}`
+        + '&period1=1420070400&period2=2000000000&merge=false';
+      let j;
+      try {
+        const r = await fetch(url, { headers, signal: AbortSignal.timeout(25000) });
+        if (!r.ok) return null;
+        j = await r.json();
+      } catch { return null; }
+
+      const rows = j?.timeseries?.result;
+      if (!Array.isArray(rows)) return null;
+
+      /* Pivot to year -> metric. A metric absent for a year stays absent: the
+         engine reads null as "not reported" and zero as "reported as nothing",
+         and conflating them is how a company acquires debt it does not have. */
+      const byYear = new Map();
+      for (const row of rows) {
+        const key = Object.keys(row).find(k => k !== 'meta' && k !== 'timestamp');
+        if (!key) continue;
+        for (const point of (row[key] || [])) {
+          if (!point?.asOfDate) continue;
+          const year = Number(point.asOfDate.slice(0, 4));
+          const value = point.reportedValue?.raw;
+          if (!Number.isFinite(value)) continue;
+          if (!byYear.has(year)) byYear.set(year, {});
+          byYear.get(year)[key] = value;
+        }
+      }
+      if (!byYear.size) return null;
+
+      const years = [...byYear.keys()].sort((a, b) => a - b);
+      const BN = 1e9;                    /* the engine's statements are in billions */
+      const scale = (v) => Number.isFinite(v) ? +(v / BN).toFixed(6) : null;
+
+      const fin = years.map(y => {
+        const d = byYear.get(y);
+        const shares = d.annualBasicAverageShares;
+        /* Dividends are reported as a negative cash outflow. Per share, and
+           only when both parts are present — a dividend divided by an absent
+           share count is not a smaller dividend, it is no answer. */
+        const dps = Number.isFinite(d.annualCashDividendsPaid) && Number.isFinite(shares) && shares > 0
+          ? +(Math.abs(d.annualCashDividendsPaid) / shares).toFixed(4)
+          : null;
+        return [
+          scale(d.annualTotalRevenue),
+          scale(d.annualOperatingIncome),
+          scale(d.annualNetIncome),
+          scale(d.annualOperatingCashFlow),
+          /* Capital expenditure arrives negative. The engine subtracts it, so
+             it is stored as the positive magnitude the other rows assume. */
+          Number.isFinite(d.annualCapitalExpenditure) ? scale(Math.abs(d.annualCapitalExpenditure)) : null,
+          scale(d.annualStockholdersEquity),
+          scale(d.annualTotalDebt),
+          scale(d.annualCashAndCashEquivalents),
+          scale(shares),
+          dps,
+        ];
+      });
+
+      const extra = years.map(y => {
+        const d = byYear.get(y);
+        return {
+          assets: scale(d.annualTotalAssets),
+          ca: scale(d.annualCurrentAssets),
+          cl: scale(d.annualCurrentLiabilities),
+          intExp: Number.isFinite(d.annualInterestExpense) ? scale(Math.abs(d.annualInterestExpense)) : null,
+        };
+      });
+
+      /* Which lines were actually reported, per year, so the app can show
+         coverage rather than imply completeness. */
+      const FIELDS = ['revenue', 'ebit', 'netIncome', 'opCashFlow', 'capex',
+                      'equity', 'debt', 'cash', 'shares', 'dps'];
+      const gaps = [];
+      FIELDS.forEach((name, i) => {
+        const missing = fin.filter(row => row[i] == null).length;
+        if (missing) gaps.push({ field: name, missingYears: missing, ofYears: fin.length });
+      });
+
+      /* Read from the instrument rather than assumed from the suffix. A .KL
+         listing reporting in ringgit is the common case and not the only one,
+         and a statement labelled with the wrong currency is worse than one
+         labelled with none. */
+      let currency = null;
+      try { currency = (await chart(symbol, 'interval=1d&range=5d'))?.meta?.currency || null; }
+      catch { /* the statements are still usable; the label is not */ }
+
+      return {
+        symbol, years, fin, extra, gaps, currency,
+        source: 'Yahoo Finance fundamentals-timeseries (unofficial endpoint, personal research only)',
+        licensed: false,
+      };
+    },
   };
 }
 

@@ -2253,6 +2253,13 @@ function derive(c) {
      the statements view rather than silently re-basing every score. */
   const W = (a) => a.slice(-5);
   const safeCagr = (a) => { const s = a.filter(isNum); return s.length >= 2 ? cagr(s) : null; };
+  /* How many annual intervals the growth measures below were actually computed
+     over. Every US filer carries ten years, so the window is always the full
+     four and the number is uninteresting — until a company arrives with four
+     years of statements, at which point "Revenue CAGR (4y)" would silently mean
+     three. The label has to follow the data rather than the field definition,
+     so the span travels with the metrics and the page states it. */
+  m.growthYears = Math.max(0, W(rev).filter(isNum).length - 1);
   m.rev5 = safeCagr(W(rev));
   m.eps5 = safeCagr(W(eps));
   m.fcf5 = safeCagr(W(fcf));
@@ -2744,6 +2751,18 @@ function defaultInputs(c, d) {
   }
   const fcfSeries = d.fcf.filter(isNum);
   const baseFcf = pack.id === 'dcfMid' ? sum(fcfSeries) / fcfSeries.length : last(fcfSeries);
+  /* A discounted-cash-flow model needs cash flow. Two Bursa filers arrived with
+     no operating cash flow line in any year, which left fcfSeries empty and
+     last() undefined, and the function threw before any of the engine's own
+     error handling could see it — so the company vanished from the universe
+     with a console warning instead of appearing with an explanation.
+
+     The engine already has a convention for a model that does not apply: an
+     error string, which every caller checks. Using it here means the company
+     loads, its statements and scorecard work, and only the valuation reports
+     itself unavailable — which is the truthful outcome and the useful one. */
+  if (!isNum(baseFcf)) return { model:'unavailable', pack: pack.id,
+    reason: `No free cash flow could be computed for ${c.tk || c.code}: the statements carry no operating cash flow line for any year retrieved. A discounted-cash-flow estimate is not available, and no substitute has been assumed.` };
   /* Weighted average cost of capital from the company's own capital structure:
      equity at the cost of equity, debt at the risk-free rate plus a credit
      spread, after tax. Weights come from market value of equity and book debt. */
@@ -2965,6 +2984,8 @@ function valueEarly(inp) {
 }
 
 function runModel(inputs) {
+  /* A model the inputs cannot support. Reported, never approximated. */
+  if (inputs.model === 'unavailable') return { error: inputs.reason };
   if (inputs.model === 'insurer') return valueInsurer(inputs);
   if (inputs.model === 'early') return valueEarly(inputs);
   if (inputs.model === 'ri') return valueRI(inputs);
@@ -3090,6 +3111,16 @@ function valuationRun(c, d, inputs) {
   const apply = (delta) => { const o = { ...inputs }; for (const [k, v] of Object.entries(delta)) o[k] = o[k] + v; return o; };
 
   const base = runModel(inputs);
+  /* A model that does not apply has no bear and bull to shift. There is no
+     entry in SCENARIO_SHIFT for it and there should not be one — shifting the
+     assumptions of a model that could not be built is a scenario around
+     nothing. The base error carries through to every caller unchanged. */
+  if (!shift || base.error) {
+    return { pack, inputs, base, bear: base, bull: base,
+             err: base.error || `No scenario band is defined for the ${key} model.`,
+             vals: null, mos: null, conf: 0, confBand: 'Low',
+             price: isNum(c.px?.p) ? c.px.p : null, shift: null };
+  }
   const bear = runModel(apply(shift.bear));
   const bull = runModel(apply(shift.bull));
   const err = base.error || bear.error || bull.error;
@@ -3138,6 +3169,8 @@ function driverImpact(c, d, inputs) {
                 ['wacc', 1, 'Discount rate', 'pp'], ['fcfConv', 10, 'Cash conversion', 'pp'],
                 ['dilution', 1, 'Annual share issuance', 'pp'] ],
   }[inputs.model];
+  /* No probe list for a model that could not be built, and nothing to probe. */
+  if (!probes) return [];
 
   const baseVal = runModel(inputs).perShare;
   return probes.map(([k, step, label, unit]) => {
@@ -3600,10 +3633,53 @@ function realToCompany(r) {
   };
 }
 
+/* ==========================================================================
+   MALAYSIAN STATEMENTS — the personal-research lane
+
+   Bursa publishes no machine-readable statements, and no licensed feed has been
+   bought, so the deployed site holds no Malaysian financials and says so on
+   every surface. Those two facts are unchanged.
+
+   What changed is that the statements turned out to be obtainable, for the
+   owner's own research, from the same unlicensed source the prices come from.
+   So this file exists on one machine, is git-ignored, cannot reach the deploy,
+   and loads only when explicitly asked for with ?personal=1 — never as a silent
+   fallback. Every company built from it is marked personal-research, and the
+   marking is what makes it safe to look at: nobody, including the owner six
+   months from now, should have to remember which numbers these were.
+   ========================================================================== */
+function myFundamentalsToCompany(r) {
+  const fin = r.fin.map(row => row.map(v => (v == null ? null : v)));
+  const id = `${r.id}-MY`;
+  const px = isNum(manualPrices[id])
+    ? { p: manualPrices[id], d1: null, m1: null, m3: null, m12: null, lo: null, hi: null, manual: true }
+    : { p: null, d1: null, m1: null, m3: null, m12: null, lo: null, hi: null };
+  return {
+    id, name: r.name, tk: r.tk || r.id, code: r.id, exch: r.exch || 'Bursa Malaysia',
+    mkt: 'MY', ccy: r.ccy || 'MYR',
+    sector: r.sector || 'Unclassified', industry: r.sector || 'Unclassified',
+    /* No SIC equivalent is published for Bursa, so the model router has nothing
+       to route on and the type is assumed. Recorded as assumed so the page can
+       say so rather than let a default read as a decision. */
+    type: r.type || 'mature', typeAssumed: true,
+    desc: `Annual statements for ${r.years[0]}–${r.years[r.years.length - 1]}, retrieved ${r.retrieved} for personal research. Not licensed market data and not redistributable. Bursa Malaysia publishes no machine-readable statements, so nothing equivalent is available to the deployed product.`,
+    px, fin,
+    real: true, personal: true, provenance: 'personal-research',
+    gaps: r.gaps, completeness: r.completeness, retrieved: r.retrieved,
+    sarawak: !!r.sarawak, sarawakTheme: r.sarawakTheme || null,
+    seg: [], moat: { kind:'Not assessed', dur:'—', conf:'Low', support:[],
+      counter:['No moat assessment exists for a company loaded from statements alone.'] },
+    qrisk: 'Loaded from annual statements only. Segment mix, ownership and qualitative risk have not been researched for this company.',
+    own: { insider: null, inst: null, top: [] },
+    flags: { shariah: null, pn17: false, board: 'Bursa Main Market', idx: null },
+  };
+}
+
 /* End-of-day prices, if a licensed file has been supplied. Absent by default:
    broker-supplied data, a personal TradingView subscription and Yahoo Finance
    all permit viewing but not redistribution, so nothing ships with the repo. */
 let priceBook = null;
+let myFundamentals = null;
 /* Instruments that are tracked by price alone — Malaysian listings, indices,
    FX, commodities, crypto. They are deliberately NOT companies: the engine
    values businesses from financial statements, and none of these has any that
@@ -3673,6 +3749,17 @@ async function loadRealData() {
     if (pb) { priceBook = pb; priceBook.personal = personal; priceBook.file = priceFile; }
   } catch { /* no price file supplied */ }
 
+  /* Malaysian statements, personal-research lane only. Requested explicitly or
+     not at all: this file is git-ignored so it is absent from any deployment,
+     and loading it silently where it happened to exist would make the same
+     screen mean two different things depending on whose machine it ran on. */
+  if (personal) {
+    try {
+      const mf = await fetchJson(dataUrl('personal-fundamentals.json'));
+      if (mf?.results?.length) myFundamentals = mf;
+    } catch { /* absent, which is the normal case */ }
+  }
+
   /* Identity and accumulated series for instruments that are tracked by price
      alone. Both optional: without them the Tracked view simply has less to
      say, and nothing else in the app depends on either. */
@@ -3710,9 +3797,31 @@ async function loadRealData() {
       console.warn(`skipped ${r.id}: ${e.message}`);
     }
   }
+  /* Malaysian statements, if the personal file was asked for and found. Built
+     after the SEC set so an illustrative Bursa twin is retired by a real record
+     the same way a US one is. */
+  let addedMY = 0;
+  for (const r of (myFundamentals?.results || [])) {
+    if (BY_ID.has(`${r.id}-MY`)) continue;
+    try {
+      const c = myFundamentalsToCompany(r);
+      if (!isNum(c.px?.p) && applyPrices(c)) priced++;
+      RAW.push(c);
+      const replaced = retireIllustrativeTwin(c);
+      if (replaced) superseded.push(replaced);
+      addCompany(c);
+      addedMY++;
+    } catch (e) {
+      broken.push({ id: r.id, error: e.message });
+      console.warn(`skipped ${r.id}: ${e.message}`);
+    }
+  }
+
   const momentumBacked = refreshMomentum();
-  if (added) { finaliseUniverse(); FEED = buildFeed(); }
-  return { added, priced, fxUpdated, broken, superseded, momentumBacked, generated: j.generated, failures: j.failures || [],
+  if (added || addedMY) { finaliseUniverse(); FEED = buildFeed(); }
+  return { added, addedMY, priced, fxUpdated, broken, superseded, momentumBacked, generated: j.generated, failures: j.failures || [],
+           myStatements: myFundamentals ? { count: myFundamentals.count, retrieved: myFundamentals.results?.[0]?.retrieved || null,
+             years: myFundamentals.yearsAvailable || null } : null,
            priceSource: priceBook ? { asOf: priceBook.asOf, licence: priceBook.licence,
              count: priceBook.count, personal: !!priceBook.personal, file: priceBook.file } : null };
 }
@@ -7274,6 +7383,14 @@ function tabQuality(r) {
     t.append(tb); tw.append(t); card.append(tw);
     if (p.coverage < 100) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       `Weights are re-based across the inputs that could be computed, and the shortfall is reported as coverage — the score is not credited for data it does not have.`));
+    /* Every field here is labelled "(4y)", which is right for a filer carrying
+       ten years of statements and wrong for one carrying four. The window the
+       figures were actually computed over travels with the metrics, so the card
+       can correct its own labels instead of letting a shorter series pass as a
+       longer one. */
+    if (k === 'growth' && isNum(r.m.growthYears) && r.m.growthYears < 4)
+      card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+        `Computed over ${r.m.growthYears} year${r.m.growthYears === 1 ? '' : 's'}, not four — only ${r.m.growthYears + 1} annual statements are held for this company. The labels above read "(4y)" because that is the field definition; the window is what is stated here, and a shorter window makes a growth rate more sensitive to its endpoints.`));
     wrap.append(card);
   });
 
@@ -7598,6 +7715,32 @@ function studioInputs(r) {
 function tabValuation(r) {
   const { c, d } = r;
   const inputs = studioInputs(r);
+
+  /* A model that could not be built has no assumptions to edit, so there is no
+     Studio to render — ASSUMPTIONS has no entry for it, and it should not, since
+     a form of editable inputs for a valuation that does not exist would invite
+     the reader to tune their way to a number the statements cannot support.
+     What belongs here is the reason. */
+  if (!ASSUMPTIONS[inputs.model] || r.val?.err) {
+    const gone = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+    const card = el('div', { class: 'card' });
+    card.append(cardHead('No valuation is available for this company',
+      'Not a low estimate, and not a wide range — no estimate at all.'));
+    card.append(el('p', { class: 'body', style: 'font-size:13px' },
+      r.val?.err || 'The statements held for this company do not support any of the models in the router.'));
+    card.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:10px' },
+      'Everything else on this company still works: the reported statements, the scorecard over the inputs that could be computed, and the risk flags. Only the valuation is absent, and it is absent rather than approximated because a discounted-cash-flow estimate built on a substituted cash flow would be an opinion about the substitution rather than about the company.'));
+    if (c.gaps?.length) {
+      card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Statement lines not reported'));
+      const ul = el('ul', { class: 'ticklist' });
+      c.gaps.forEach(g => ul.append(el('li', {},
+        `${g.field} — absent in ${g.missingYears} of ${g.ofYears} years retrieved`)));
+      card.append(ul);
+    }
+    gone.append(card);
+    return gone;
+  }
+
   const wrap = el('div', { class: 'studio-layout' });
 
   /* Free sees the full valuation output and the assumptions that produced it —
