@@ -6846,7 +6846,15 @@ function wheelMath(p) {
   const mult = num0(p.contractMultiplier);
   const contracts = num0(p.contracts);
   const deliverableShares = mult * contracts;
-  const out = { deliverableShares, valid: deliverableShares > 0 };
+  /* W6. An adjusted contract whose deliverable has not been verified cannot be
+     collateralised or yielded, because the number of shares it delivers is the
+     input every other figure depends on. Suppressed rather than computed from
+     the standard multiplier — a plausible number here would be worse than none,
+     since the whole hazard of an adjusted contract is that it looks normal. */
+  const deliverableUnknown = !!p.adjustedContract && !p.adjustmentVerified;
+  const out = { deliverableShares, deliverableUnknown,
+                valid: deliverableShares > 0 && !deliverableUnknown,
+                suppressedReason: deliverableUnknown ? 'Adjusted contract terms incomplete' : null };
   if (!out.valid) return out;
 
   /* ---- put ---- */
@@ -6926,9 +6934,9 @@ function wheelScenario(p, m, expiryPrice) {
 /* 41A.4 and 7.11.3. Every gate must be KNOWN, not merely favourable. */
 function wheelFit(p, m, r) {
   const gates = [], supports = [];
-  if (!m.valid) gates.push('Contract multiplier and number of contracts are required before anything can be assessed.');
-  if (p.adjustedContract && !p.adjustmentVerified)
-    gates.push('This is an adjusted contract and its deliverable has not been verified. Splits, mergers and special distributions change what a contract delivers.');
+  if (m.deliverableUnknown)
+    gates.push('Adjusted contract terms incomplete. Splits, mergers and special distributions change what a contract delivers, so collateral and yield are suppressed rather than computed from a standard multiplier.');
+  else if (!m.valid) gates.push('Contract multiplier and number of contracts are required before anything can be assessed.');
   if (p.settlementType && p.settlementType !== 'physical')
     gates.push('Only physically settled options are supported. A cash-settled contract cannot deliver the shares the Wheel depends on.');
   if (!p.willingToOwnFull) gates.push('You have not confirmed you are willing and able to own the entire put deliverable at the strike.');
@@ -6960,6 +6968,113 @@ function wheelFit(p, m, r) {
     grade = score >= 80 ? 'A' : score >= 65 ? 'B' : score >= 50 ? 'C' : 'D';
   }
   return { grade, score, gates, supports };
+}
+
+/* ==========================================================================
+   CYCLE LEDGER AND STATE MACHINE — specification 41A.5, 41A.11, 41A.13
+
+   THE ROLL RULE IS THE POINT OF THIS
+
+   "Rolled for a credit" is the most comfortable sentence in options trading
+   and frequently the least informative. A roll is TWO transactions: a close
+   that realises a result, and an opening that creates a new obligation. Netting
+   them into one credit hides whichever half was a loss.
+
+   So a roll here can only be recorded as two legs. The closed leg keeps its
+   realised result permanently, the new leg carries its own contract and expiry,
+   and the net figure is shown as a third line beside both rather than instead
+   of them.
+
+   PREMIUM IS NOT PROFIT UNTIL THE LEG RESOLVES
+
+   41A.11 separates cash received from realised profit. A leg that is still open
+   contributes its premium to CASH and nothing to realised P&L, and carries an
+   open obligation alongside. Only expiry, close or assignment moves it.
+   ========================================================================== */
+const WHEEL_TRANSITIONS = {
+  candidate:   ['put_planned'],
+  put_planned: ['put_open', 'candidate'],
+  put_open:    ['put_expired', 'put_closed', 'put_assigned', 'paused'],
+  put_expired: ['candidate'],
+  put_closed:  ['candidate'],
+  put_assigned:['shares_held'],
+  shares_held: ['call_planned', 'complete', 'paused'],
+  call_planned:['call_open', 'shares_held'],
+  call_open:   ['call_expired', 'call_closed', 'called_away', 'paused'],
+  call_expired:['shares_held'],
+  call_closed: ['shares_held'],
+  called_away: ['complete'],
+  complete:    ['candidate'],
+  paused:      ['candidate', 'shares_held'],
+};
+
+State.wheelLegs = store.read('wheelLegs', []);
+const saveWheelLegs = () => store.write('wheelLegs', State.wheelLegs);
+
+/* Every figure 41A.11 requires kept apart. Nothing is netted that the
+   specification asks to be shown separately. */
+function wheelLedger(legs) {
+  const L = legs || [];
+  const t = {
+    grossPremiumQuoted: 0, premiumCashReceived: 0, openOptionLiability: 0,
+    realisedOptionPnl: 0, shareAcquisitionCash: 0, realisedSharePnl: 0,
+    dividends: 0, commissions: 0, fees: 0, fxCostMyr: 0,
+    openLegs: 0, resolvedLegs: 0, maxCapitalCommitted: 0,
+  };
+  L.forEach(l => {
+    t.grossPremiumQuoted += num0(l.grossPremium);
+    t.commissions += num0(l.commissions);
+    t.fees += num0(l.fees);
+    t.fxCostMyr += num0(l.fxCostMyr);
+    t.dividends += num0(l.dividends);
+    if (l.action === 'open') {
+      t.premiumCashReceived += num0(l.netCash);
+      if (l.status === 'open') { t.openLegs++; t.openOptionLiability += num0(l.currentCloseCost); }
+    }
+    /* A close is cash OUT. Recorded as a negative receipt so the cash column
+       stays a cash column rather than becoming a profit column. */
+    if (l.action === 'close') t.premiumCashReceived += num0(l.netCash);
+    if (isNum(l.realisedPnl)) { t.realisedOptionPnl += l.realisedPnl; t.resolvedLegs++; }
+    if (l.action === 'assign') t.shareAcquisitionCash += num0(l.cashPaid);
+    if (l.action === 'called_away') t.realisedSharePnl += num0(l.realisedSharePnl);
+    t.maxCapitalCommitted = Math.max(t.maxCapitalCommitted, num0(l.capitalCommitted));
+  });
+  t.totalRealisedCyclePnl = t.realisedOptionPnl + t.realisedSharePnl + t.dividends;
+  t.cycleReturnOnMaxCommitted = t.maxCapitalCommitted > 0
+    ? t.totalRealisedCyclePnl / t.maxCapitalCommitted : null;
+  return t;
+}
+
+const newLegId = () => `leg-${(State.wheelLegs || []).length + 1}-${WHEEL_LEG_SEQ++}`;
+let WHEEL_LEG_SEQ = 1;
+
+function addWheelLeg(leg) {
+  State.wheelLegs = [...(State.wheelLegs || []), { id: newLegId(), ...leg }];
+  saveWheelLegs();
+}
+
+/* A roll, recorded the only way it may be. Returns both legs so a caller
+   cannot accidentally create one without the other. */
+function rollWheelLeg(openLeg, closeDebitPerShare, newContract) {
+  const shares = num0(openLeg.shares);
+  const closeCash = -(num0(closeDebitPerShare) * shares) - num0(newContract.closeCommission);
+  const realised = num0(openLeg.netCash) + closeCash;
+  addWheelLeg({ ...openLeg, id: undefined, action:'close', status:'resolved',
+    parentLegId: openLeg.id, netCash: closeCash, realisedPnl: realised,
+    grossPremium: -(num0(closeDebitPerShare) * shares),
+    commissions: num0(newContract.closeCommission), note:'Closing the previous contract.' });
+  /* The original open leg is marked resolved but keeps its own record. */
+  const idx = State.wheelLegs.findIndex(x => x.id === openLeg.id);
+  if (idx > -1) State.wheelLegs[idx] = { ...State.wheelLegs[idx], status:'resolved', rolledInto: newContract.label };
+  const openCash = num0(newContract.creditPerShare) * num0(newContract.shares) - num0(newContract.openCommission);
+  addWheelLeg({ phase: openLeg.phase, action:'open', status:'open',
+    contractLabel: newContract.label, strike: newContract.strike, expiry: newContract.expiry,
+    shares: newContract.shares, grossPremium: num0(newContract.creditPerShare) * num0(newContract.shares),
+    commissions: num0(newContract.openCommission), netCash: openCash,
+    capitalCommitted: num0(newContract.strike) * num0(newContract.shares),
+    rollGroupId: openLeg.id, note:'New contract opened as part of a roll. A separate obligation, not a continuation.' });
+  saveWheelLegs();
+  return { realisedOnClose: realised, openedFor: openCash, netRollCash: closeCash + openCash };
 }
 
 State.wheel = store.read('wheelPlan', null) || {
