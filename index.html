@@ -4768,6 +4768,7 @@ const ROUTES = [
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
+  { path: '/us-options/wheel',    view: 'wheel',     title: 'US Options Cash Wheel' },
   { path: '/learn',               view: 'learn',     title: 'Learn' },
   { path: '/learn/glossary',      view: 'learn',     tab: 'glossary',  title: 'Glossary' },
   { path: '/methodology',         view: 'learn',     tab: 'models',    title: 'Methodology' },
@@ -6784,7 +6785,196 @@ const STRATEGY_FITS = [
   { k:'catalyst',   label:'Catalyst' },
   { k:'trend',      label:'Trend' },
   { k:'dca',        label:'DCA eligibility' },
+  { k:'wheel',      label:'US Cash Wheel' },
 ];
+
+/* ==========================================================================
+   US OPTIONS CASH WHEEL — specification 41A, directive 7.11
+
+   A repeating, FULLY COLLATERALISED two-phase process:
+
+     cash-secured put -> assignment or expiry
+     shares held      -> covered call -> called away or expiry
+
+   THE TWO GATES THAT CANNOT BE BYPASSED
+
+   A put is cash-secured only when reserved cash covers the ENTIRE assignment
+   notional plus fees. The opening premium is NOT deducted from that
+   requirement — 41A.7 is explicit, and the reason is that the broker's
+   treatment of unsettled premium, withdrawal rules and settlement state are not
+   knowable here. Reserving less than the full exercise cost is how a "cash
+   secured" put stops being cash secured.
+
+   A call is covered only when unencumbered shares cover the ENTIRE deliverable.
+   Shares pledged, lent, committed to another call or subject to a pending sale
+   cannot be counted twice.
+
+   Failing either gate does not produce a lower score. It produces a refusal.
+
+   THE ARITHMETIC THAT MATTERS MOST
+
+   Premium cash received is not realised profit while the option is open. The
+   ledger shows the cash receipt and the open obligation side by side, because
+   a premium presented as income while an unlimited-ish downside sits open is
+   the single most misleading thing this module could do.
+
+   Contract multiplier and deliverable come from the contract, never from an
+   assumption that every option is 100 unadjusted shares. A split or special
+   distribution changes the deliverable, and an adjusted contract whose terms
+   are unavailable returns U rather than a guess.
+   ========================================================================== */
+const WHEEL_STATES = [
+  { id:'candidate',   label:'Candidate',          phase:'none' },
+  { id:'put_planned', label:'Put planned',        phase:'put' },
+  { id:'put_open',    label:'Put open',           phase:'put' },
+  { id:'put_expired', label:'Put expired',        phase:'put' },
+  { id:'put_closed',  label:'Put closed',         phase:'put' },
+  { id:'put_assigned',label:'Put assigned',       phase:'shares' },
+  { id:'shares_held', label:'Shares held',        phase:'shares' },
+  { id:'call_planned',label:'Call planned',       phase:'call' },
+  { id:'call_open',   label:'Call open',          phase:'call' },
+  { id:'call_expired',label:'Call expired',       phase:'call' },
+  { id:'call_closed', label:'Call closed',        phase:'call' },
+  { id:'called_away', label:'Shares called away', phase:'complete' },
+  { id:'complete',    label:'Cycle complete',     phase:'complete' },
+  { id:'paused',      label:'Paused',             phase:'paused' },
+];
+
+/* Every calculation in 41A.7 to 41A.9, in one place so the UI cannot invent a
+   variant. Returns nulls rather than guesses wherever a term is unknown. */
+function wheelMath(p) {
+  const mult = num0(p.contractMultiplier);
+  const contracts = num0(p.contracts);
+  const deliverableShares = mult * contracts;
+  const out = { deliverableShares, valid: deliverableShares > 0 };
+  if (!out.valid) return out;
+
+  /* ---- put ---- */
+  out.assignmentNotional = num0(p.putStrike) * deliverableShares;
+  out.grossPutPremium = num0(p.putCredit) * deliverableShares;
+  out.putPremiumCashReceived = out.grossPutPremium - num0(p.openCommission) - num0(p.openFees);
+  out.requiredAssignmentCash = out.assignmentNotional + num0(p.assignmentFees);
+  /* The premium is deliberately NOT netted off. 41A.7. */
+  out.cashCoveragePct = out.requiredAssignmentCash > 0
+    ? num0(p.eligibleCashUsd) / out.requiredAssignmentCash : null;
+  out.cashSecured = isNum(out.cashCoveragePct) && out.cashCoveragePct >= 1;
+  out.putPeriodCashYield = out.assignmentNotional > 0
+    ? out.putPremiumCashReceived / out.assignmentNotional : null;
+  out.economicShareBasis = deliverableShares > 0
+    ? num0(p.putStrike) + num0(p.assignmentFees) / deliverableShares
+      - out.putPremiumCashReceived / deliverableShares
+    : null;
+  out.putMaxLossIfZero = out.assignmentNotional + num0(p.assignmentFees) - out.putPremiumCashReceived;
+  out.putBreakEven = out.economicShareBasis;
+
+  /* MYR, with the user's own FX buffer. A USD obligation met from ringgit is a
+     larger obligation than the USD figure suggests. */
+  const rate = num0(p.myrPerUsd) || FX.USDMYR;
+  out.safeAssignmentCashMyr = out.requiredAssignmentCash * rate * (1 + num0(p.fxBufferPct) / 100)
+    + num0(p.fxConversionCostMyr);
+
+  /* ---- call ---- */
+  out.requiredCoveredShares = deliverableShares;
+  out.shareCoveragePct = out.requiredCoveredShares > 0
+    ? num0(p.eligibleShares) / out.requiredCoveredShares : null;
+  out.covered = isNum(out.shareCoveragePct) && out.shareCoveragePct >= 1;
+  out.grossCallPremium = num0(p.callCredit) * deliverableShares;
+  out.callPremiumCashReceived = out.grossCallPremium - num0(p.callOpenCommission) - num0(p.callOpenFees);
+  const basis = isNum(p.economicShareBasisOverride) ? p.economicShareBasisOverride : out.economicShareBasis;
+  out.basisUsed = basis;
+  out.calledAwayGrossValue = num0(p.callStrike) * out.requiredCoveredShares;
+  out.coveredCallBreakEven = isNum(basis) && out.requiredCoveredShares > 0
+    ? basis - out.callPremiumCashReceived / out.requiredCoveredShares : null;
+  out.coveredCallMaxProfit = isNum(basis)
+    ? (num0(p.callStrike) - basis) * out.requiredCoveredShares + out.callPremiumCashReceived
+      + num0(p.realisedDividends) - num0(p.remainingResolutionCosts)
+    : null;
+  out.coveredCallMaxLoss = isNum(basis)
+    ? basis * out.requiredCoveredShares - out.callPremiumCashReceived
+      - num0(p.realisedDividends) + num0(p.remainingResolutionCosts)
+    : null;
+  /* A call struck below the basis locks in a loss if assigned. Named, because
+     the premium alone would read as income. */
+  out.callBelowBasis = isNum(basis) && num0(p.callStrike) < basis;
+  out.lockedInLossIfCalled = out.callBelowBasis
+    ? (basis - num0(p.callStrike)) * out.requiredCoveredShares - out.callPremiumCashReceived : null;
+
+  /* Simple annualisation, labelled as such wherever it appears. */
+  const days = num0(p.calendarDaysOpen);
+  out.simpleAnnualisedPutYield = (isNum(out.putPeriodCashYield) && days > 0)
+    ? out.putPeriodCashYield * 365 / days : null;
+
+  return out;
+}
+
+/* Scenario payoff at an expiry price, per 41A.8 and 41A.9. */
+function wheelScenario(p, m, expiryPrice) {
+  const s = { expiryPrice };
+  if (!m.valid) return s;
+  s.shortPutPnl = m.putPremiumCashReceived
+    - Math.max(0, num0(p.putStrike) - expiryPrice) * m.deliverableShares
+    - num0(p.remainingResolutionCosts);
+  const basis = m.basisUsed;
+  if (isNum(basis)) {
+    s.coveredCallPnl = Math.min(expiryPrice, num0(p.callStrike)) * m.requiredCoveredShares
+      - basis * m.requiredCoveredShares
+      + m.callPremiumCashReceived + num0(p.realisedDividends) - num0(p.remainingResolutionCosts);
+  }
+  return s;
+}
+
+/* 41A.4 and 7.11.3. Every gate must be KNOWN, not merely favourable. */
+function wheelFit(p, m, r) {
+  const gates = [], supports = [];
+  if (!m.valid) gates.push('Contract multiplier and number of contracts are required before anything can be assessed.');
+  if (p.adjustedContract && !p.adjustmentVerified)
+    gates.push('This is an adjusted contract and its deliverable has not been verified. Splits, mergers and special distributions change what a contract delivers.');
+  if (p.settlementType && p.settlementType !== 'physical')
+    gates.push('Only physically settled options are supported. A cash-settled contract cannot deliver the shares the Wheel depends on.');
+  if (!p.willingToOwnFull) gates.push('You have not confirmed you are willing and able to own the entire put deliverable at the strike.');
+  if (p.phase === 'call' && !p.willingToSellAtStrike)
+    gates.push('You have not confirmed you are willing to sell the entire covered quantity at the call strike.');
+  if (!p.optionsApprovalAttested) gates.push('Broker options approval and US market access have not been attested.');
+  if (!p.quoteTimestamp) gates.push('No quote timestamp. A premium yield computed from an undated quote is not assessable.');
+  if (p.phase !== 'call' && !m.cashSecured)
+    gates.push(isNum(m.cashCoveragePct)
+      ? `Cash covers ${fmtPct(m.cashCoveragePct * 100, 1)} of the ${fmtMoney(m.requiredAssignmentCash, 'USD')} assignment obligation. A put is not cash-secured below 100%, and the premium does not reduce the requirement.`
+      : 'Eligible cash has not been entered, so the put cannot be shown as cash-secured.');
+  if (p.phase === 'call' && !m.covered)
+    gates.push(isNum(m.shareCoveragePct)
+      ? `Unencumbered shares cover ${fmtPct(m.shareCoveragePct * 100, 1)} of the ${m.requiredCoveredShares}-share deliverable. A call is not covered below 100%.`
+      : 'Eligible shares have not been entered, so the call cannot be shown as covered.');
+
+  const thesis = p.underlyingThesisStatus || 'unknown';
+  if (thesis !== 'pass') gates.push(`The underlying thesis is "${thesis}". The Wheel is a way of acquiring or holding a company, so the company has to be researched first.`);
+  else supports.push('Underlying thesis passes.');
+
+  if (m.cashSecured) supports.push('Full assignment cash reserved, before premium.');
+  if (p.phase === 'call' && m.covered) supports.push('Full share deliverable held and unencumbered.');
+  if (p.eventWindowClear) supports.push('No earnings or ex-dividend date inside the contract window.');
+  else gates.push('Earnings, ex-dividend and corporate-action dates in the contract window have not been confirmed clear.');
+
+  let grade = 'U', score = null;
+  if (!gates.length) {
+    score = Math.round(clamp(60 + supports.length * 8, 0, 100));
+    grade = score >= 80 ? 'A' : score >= 65 ? 'B' : score >= 50 ? 'C' : 'D';
+  }
+  return { grade, score, gates, supports };
+}
+
+State.wheel = store.read('wheelPlan', null) || {
+  symbol:'', underlyingThesisStatus:'unknown', phase:'put', state:'candidate',
+  contractMultiplier:100, contracts:1, adjustedContract:false, adjustmentVerified:false,
+  settlementType:'physical',
+  putStrike:0, putCredit:0, openCommission:0, openFees:0, assignmentFees:0,
+  callStrike:0, callCredit:0, callOpenCommission:0, callOpenFees:0,
+  eligibleCashUsd:0, eligibleShares:0, realisedDividends:0, remainingResolutionCosts:0,
+  myrPerUsd:0, fxBufferPct:5, fxConversionCostMyr:0, calendarDaysOpen:30,
+  willingToOwnFull:false, willingToSellAtStrike:false, optionsApprovalAttested:false,
+  eventWindowClear:false, quoteTimestamp:'',
+  economicShareBasisOverride:null,
+};
+const saveWheel = () => store.write('wheelPlan', State.wheel);
 
 /* Directive 7.9. The tier decides what may be shown at all, and it is decided
    by the data rather than by the company. */
@@ -6868,6 +7058,24 @@ function fitGrade(r, key, tier) {
     out.missing.push('A dated, sourced event with dependencies and a failure case. No catalyst registry exists in this build.');
     out.cap = 'U until catalysts are recorded with evidence.';
     return out;
+  }
+
+  else if (key === 'wheel') {
+    /* 41A.3: US-listed underlyings only, and the contract, collateral and quote
+       evidence live in the Wheel workspace rather than on a company page. This
+       fit reports whether the UNDERLYING could support a Wheel at all. */
+    if (c.mkt !== 'US') {
+      out.missing.push('The Cash Wheel supports US-listed stocks and ETFs. Bursa options are not covered by this build.');
+      out.cap = 'Not applicable outside the US market.';
+      return out;
+    }
+    const q = r.scores?.quality?.score;
+    if (!need(isNum(q), 'A business-quality assessment of the underlying.')) return out;
+    out.missing.push('A verified contract, its deliverable, an authorised quote and your full collateral. Those are entered in the Wheel workspace, and no chain data exists in this build.');
+    if (q >= 60) out.supports.push(`Business quality ${q}/100 — the Wheel means being willing to own this company.`);
+    else out.weakens.push(`Business quality ${q}/100. A Wheel on a business you would not want to own is a way of acquiring it anyway.`);
+    out.cap = 'Underlying assessment only. Wheel fit itself is decided in the workspace, where collateral is checked.';
+    out.score = Math.round(clamp(q, 0, 100));
   }
 
   else if (key === 'dca') {
@@ -15158,6 +15366,9 @@ const CAPABILITY_REGISTER = [
     gate:'18 Malaysian companies carry illustrative figures. No investable grade is offered for any of them.' },
   { name:'US equities', status:'maintenance', path:'/research',
     now:'119 companies with audited SEC filings.' },
+  { name:'US Options Cash Wheel', status:'data-gated', path:'/us-options/wheel',
+    now:'Cash-secured put and covered-call arithmetic, collateral gates, downside scenarios and the full risk card, from figures you enter.',
+    gate:'No authorised option-chain data, so contracts are entered by hand. Live chains, any recommended contract, broker routing and execution stay Compliance Gated and are not built.' },
   { name:'Sarawak Economy Watch', status:'data-gated', path:'/discover/sarawak',
     gate:'11 companies identified with price history. Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.' },
   { name:'Portfolio and My Investments', status:'maintenance', path:'/my/portfolio',
@@ -15236,6 +15447,237 @@ const daysSince = (iso) => {
   if (!iso) return null;
   const n = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
   return Number.isFinite(n) ? n : null;
+};
+
+VIEWS.wheel = () => {
+  const p = State.wheel;
+  const m = wheelMath(p);
+  const fit = wheelFit(p, m, null);
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'US equities'),
+    el('h1', {}, 'Options Cash Wheel'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'A fully collateralised cash-secured put and covered call cycle, modelled from figures you enter. Research and arithmetic — no chain data, no recommended contract, no execution.'),
+  ])));
+
+  /* Fit and phase, then the two numbers 41A.15 requires above any yield. */
+  const tone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[fit.grade];
+  const head = el('div', { class: 'card', style: `border-left:3px solid var(${tone})` });
+  head.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline' }, [
+    el('div', {}, [
+      el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'Wheel fit'),
+      el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
+        el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${tone})` }, fit.grade),
+        el('span', { style: 'font-size:14px;font-weight:540' },
+          fit.grade === 'U' ? 'Not assessable' : 'Meets the criteria you selected'),
+      ]),
+    ]),
+    el('div', { style: 'margin-left:auto;text-align:right' }, [
+      el('div', { class: 'metaline' }, `Phase: ${p.phase === 'call' ? 'covered call' : 'cash-secured put'}`),
+      el('div', { class: 'metaline' }, `Thesis: ${p.underlyingThesisStatus}`),
+    ]),
+  ]));
+
+  /* Obligation and downside first. Deliberately before any premium figure. */
+  const risk = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
+  risk.append(el('div', { class: 'panel' }, statTile('Full assignment cash',
+    m.valid ? fmtMoney(m.requiredAssignmentCash, 'USD') : '—',
+    { sub: m.valid ? `${m.deliverableShares} shares at ${fmtMoney(num0(p.putStrike), 'USD')}, plus fees` : 'Enter the contract first' })));
+  risk.append(el('div', { class: 'panel' }, statTile('In ringgit, with your buffer',
+    m.valid ? fmtAmount(m.safeAssignmentCashMyr, 'MYR') : '—',
+    { sub: `${num0(p.fxBufferPct)}% FX buffer plus conversion cost` })));
+  risk.append(el('div', { class: 'panel' }, statTile('Maximum modelled downside',
+    m.valid ? fmtMoney(m.putMaxLossIfZero, 'USD') : '—',
+    { sub: 'If the underlying went to zero, after the premium', tone: '--dn-text' })));
+  head.append(risk);
+  head.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'These appear before any premium figure deliberately. The obligation is the size of the decision; the premium is the smaller number beside it.'));
+  wrap.append(head);
+
+  if (fit.gates.length) {
+    const g = el('div', { class: 'card', style: 'border-left:3px solid var(--dn-text)' });
+    g.append(cardHead(`Not assessable — ${fit.gates.length} gate${fit.gates.length === 1 ? '' : 's'} open`,
+      'These are refusals, not deductions. A gate cannot be offset by a good score elsewhere.'));
+    const ul = el('ul', { class: 'ticklist' });
+    fit.gates.forEach(x => ul.append(el('li', {}, x)));
+    g.append(ul);
+    wrap.append(g);
+  }
+
+  /* Inputs. */
+  const inputs = el('div', { class: 'card' });
+  inputs.append(cardHead('The contract and your cover', 'Entered by you. This build carries no option-chain data.'));
+  const nf = (k, label, step) => {
+    const f = el('div', { class: 'assumption' });
+    f.append(el('label', { for: `w-${k}` }, label));
+    f.append(el('input', { class: 'input input-inline', id: `w-${k}`, type: 'number', step: step || 1,
+      value: String(p[k] ?? 0), style: 'text-align:right',
+      onchange: e => { p[k] = num0(e.target.value); saveWheel(); render(); } }));
+    return f;
+  };
+  const cb = (k, label) => {
+    const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;margin-top:6px' });
+    l.append(el('input', { type: 'checkbox', checked: p[k] ? '' : null,
+      onchange: e => { p[k] = e.target.checked; saveWheel(); render(); } }));
+    l.append(el('span', {}, label));
+    return l;
+  };
+  inputs.append(el('p', { class: 'eyebrow', style: 'margin:10px 0 6px' }, 'Contract'));
+  [['contractMultiplier', 'Contract multiplier (shares per contract)', 1],
+   ['contracts', 'Number of contracts', 1],
+   ['putStrike', 'Put strike (USD)', 0.5],
+   ['putCredit', 'Put credit per share (USD)', 0.01],
+   ['openCommission', 'Opening commission (USD)', 1],
+   ['openFees', 'Opening option fees (USD)', 0.01],
+   ['assignmentFees', 'Estimated assignment fees (USD)', 1]].forEach(([k, l, s]) => inputs.append(nf(k, l, s)));
+  inputs.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Your cover'));
+  [['eligibleCashUsd', 'Eligible USD cash reserved', 100],
+   ['eligibleShares', 'Unencumbered shares held', 1],
+   ['myrPerUsd', 'MYR per USD (0 uses the site rate)', 0.01],
+   ['fxBufferPct', 'FX buffer (%)', 1],
+   ['calendarDaysOpen', 'Days the contract is open', 1]].forEach(([k, l, s]) => inputs.append(nf(k, l, s)));
+  inputs.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Covered call, once shares are held'));
+  [['callStrike', 'Call strike (USD)', 0.5],
+   ['callCredit', 'Call credit per share (USD)', 0.01],
+   ['callOpenCommission', 'Opening commission (USD)', 1]].forEach(([k, l, s]) => inputs.append(nf(k, l, s)));
+
+  inputs.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Attestations'));
+  inputs.append(cb('willingToOwnFull', `I am willing and able to buy all ${m.valid ? m.deliverableShares : '—'} shares at the strike, even if the market price is far below it`));
+  inputs.append(cb('willingToSellAtStrike', 'I am willing to sell the entire covered quantity at the call strike'));
+  inputs.append(cb('optionsApprovalAttested', 'I hold the broker options approval and US market access this would require'));
+  inputs.append(cb('eventWindowClear', 'I have checked earnings, ex-dividend and corporate-action dates in the contract window'));
+  inputs.append(cb('adjustedContract', 'This is an adjusted contract'));
+  if (p.adjustedContract) inputs.append(cb('adjustmentVerified', 'I have verified the adjusted deliverable and multiplier from the contract terms'));
+  const qt = el('div', { class: 'field', style: 'margin-top:8px' });
+  qt.append(el('label', { for: 'w-qt' }, 'Quote timestamp'));
+  qt.append(el('input', { class: 'input', id: 'w-qt', type: 'datetime-local', value: p.quoteTimestamp || '',
+    onchange: e => { p.quoteTimestamp = e.target.value; saveWheel(); render(); } }));
+  inputs.append(qt);
+  const th = el('div', { class: 'field', style: 'margin-top:8px' });
+  th.append(el('label', { for: 'w-th' }, 'Underlying thesis status'));
+  const ths = el('select', { class: 'select', id: 'w-th',
+    onchange: e => { p.underlyingThesisStatus = e.target.value; saveWheel(); render(); } });
+  ['unknown', 'failed', 'review', 'pass'].forEach(v => ths.append(el('option', { value: v, selected: p.underlyingThesisStatus === v ? '' : null }, v)));
+  th.append(ths);
+  inputs.append(th);
+  wrap.append(inputs);
+
+  /* Cover checks — pass or refuse, never a partial score. */
+  if (m.valid) {
+    const cov = el('div', { class: 'card' });
+    cov.append(cardHead('Collateral checks', 'Binary by design. Below 100% is a refusal, not a lower grade.'));
+    const ct = el('table', { class: 'dt' });
+    ct.append(el('thead', {}, el('tr', {}, ['Check', 'Required', 'You have', 'Coverage', 'Result'].map((h, i) =>
+      el('th', { style: i === 0 ? 'text-align:left' : null }, h)))));
+    const ctb = el('tbody');
+    ctb.append(el('tr', {}, [
+      el('td', { style: 'text-align:left' }, 'Cash secures the put'),
+      el('td', { class: 'num' }, fmtMoney(m.requiredAssignmentCash, 'USD')),
+      el('td', { class: 'num' }, fmtMoney(num0(p.eligibleCashUsd), 'USD')),
+      el('td', { class: 'num' }, isNum(m.cashCoveragePct) ? fmtPct(m.cashCoveragePct * 100, 1) : '—'),
+      el('td', {}, m.cashSecured ? sevChip('good', 'Cash-secured') : sevChip('serious', 'Not cash-secured')),
+    ]));
+    ctb.append(el('tr', {}, [
+      el('td', { style: 'text-align:left' }, 'Shares cover the call'),
+      el('td', { class: 'num' }, `${m.requiredCoveredShares}`),
+      el('td', { class: 'num' }, `${num0(p.eligibleShares)}`),
+      el('td', { class: 'num' }, isNum(m.shareCoveragePct) ? fmtPct(m.shareCoveragePct * 100, 1) : '—'),
+      el('td', {}, m.covered ? sevChip('good', 'Covered') : sevChip('serious', 'Not covered')),
+    ]));
+    ct.append(ctb); cov.append(el('div', { class: 'tablewrap' }, ct));
+    cov.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      'The premium is not deducted from the cash requirement. A broker’s treatment of unsettled premium, withdrawal rules and settlement state are not knowable here, and reserving less than the full exercise cost is how a cash-secured put stops being cash-secured.'));
+    wrap.append(cov);
+
+    /* Premium and the open obligation, side by side. */
+    const prem = el('div', { class: 'card' });
+    prem.append(cardHead('Premium, and what is still owed',
+      'Cash received is not realised profit while the option is open.'));
+    const pk = el('dl', { class: 'kv' });
+    [['Premium cash received', fmtMoney(m.putPremiumCashReceived, 'USD')],
+     ['Still open against it', `an obligation to buy ${m.deliverableShares} shares at ${fmtMoney(num0(p.putStrike), 'USD')}`],
+     ['Period cash yield', isNum(m.putPeriodCashYield) ? fmtPct(m.putPeriodCashYield * 100, 2) : '—'],
+     ['Simple annualised illustration', isNum(m.simpleAnnualisedPutYield) ? fmtPct(m.simpleAnnualisedPutYield * 100, 1) : '—'],
+     ['Economic basis if assigned', isNum(m.economicShareBasis) ? fmtMoney(m.economicShareBasis, 'USD') : '—'],
+     ['Break-even at expiry', isNum(m.putBreakEven) ? fmtMoney(m.putBreakEven, 'USD') : '—']]
+      .forEach(([k, v]) => { pk.append(el('dt', {}, k)); pk.append(el('dd', {}, v)); });
+    prem.append(pk);
+    prem.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      'The annualised figure is a simple illustration from this single premium and holding period. It does not assume another contract can be sold on the same terms, it is not an expected annual return, and it is not comparable to a dividend yield — the denominators and the obligations are different.'));
+    wrap.append(prem);
+
+    /* Downside scenarios. */
+    const sc = el('div', { class: 'card' });
+    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at the moves 41A.8 requires.'));
+    const st = el('table', { class: 'dt' });
+    st.append(el('thead', {}, el('tr', {}, ['Underlying move', 'Price at expiry', 'Put result'].map(h => el('th', {}, h)))));
+    const stb = el('tbody');
+    [0, -10, -20, -30, -50, -100].forEach(mv => {
+      const px = num0(p.putStrike) * (1 + mv / 100);
+      const s = wheelScenario(p, m, px);
+      stb.append(el('tr', {}, [
+        el('td', { class: 'ident' }, mv === 0 ? 'at the strike' : `${mv}%`),
+        el('td', { class: 'num' }, fmtMoney(px, 'USD')),
+        el('td', { class: 'num ' + signClass(s.shortPutPnl) }, fmtMoney(s.shortPutPnl, 'USD')),
+      ]));
+    });
+    st.append(stb); sc.append(el('div', { class: 'tablewrap' }, st));
+    wrap.append(sc);
+
+    /* Covered call, including the case the premium hides. */
+    if (num0(p.callStrike) > 0) {
+      const cc = el('div', { class: 'card' });
+      cc.append(cardHead('Covered call', 'What you receive, and what you give up.'));
+      const ck = el('dl', { class: 'kv' });
+      [['Premium cash received', fmtMoney(m.callPremiumCashReceived, 'USD')],
+       ['Called-away value', fmtMoney(m.calledAwayGrossValue, 'USD')],
+       ['Break-even', isNum(m.coveredCallBreakEven) ? fmtMoney(m.coveredCallBreakEven, 'USD') : '—'],
+       ['Maximum profit on this call', isNum(m.coveredCallMaxProfit) ? fmtMoney(m.coveredCallMaxProfit, 'USD') : '—'],
+       ['Maximum loss if it goes to zero', isNum(m.coveredCallMaxLoss) ? fmtMoney(m.coveredCallMaxLoss, 'USD') : '—']]
+        .forEach(([k, v]) => { ck.append(el('dt', {}, k)); ck.append(el('dd', {}, v)); });
+      cc.append(ck);
+      if (m.callBelowBasis) cc.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px;color:var(--dn-text)' },
+        `The call strike is below your economic basis. If assigned, this locks in a loss of ${fmtMoney(m.lockedInLossIfCalled, 'USD')} after the premium. The premium is not income in that case — it reduces a loss you have agreed to take.`));
+      cc.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+        'Above the strike the shares are sold and further upside is not captured. American-style short calls can be assigned before expiry, and attention rises near an ex-dividend date.'));
+      wrap.append(cc);
+    }
+  }
+
+  /* Risk card, per 41A.14. */
+  const rc = el('div', { class: 'card' });
+  rc.append(cardHead('What can go wrong', 'Plain language, before any yield.'));
+  const rl = el('ul', { class: 'ticklist' });
+  ['You may have to buy the full deliverable at the strike even if the market value is far lower.',
+   'If the underlying becomes worthless, the put loss approaches the whole assignment amount less the premium.',
+   'A covered call caps your upside — if assigned, the shares go at the strike however high the price went.',
+   'Call premium offsets only a small part of a large share-price fall.',
+   'American-style short options can be assigned before expiration, including out of the money near an ex-dividend date.',
+   'Earnings and corporate events can move the underlying beyond anything modelled here.',
+   'Wide spreads and thin open interest can make closing or rolling materially more expensive.',
+   'A USD gain can shrink or reverse in ringgit after currency moves and conversion costs.',
+   'One standard contract can create a large single-stock position, because the deliverable is usually substantial.',
+   'Splits, mergers and special distributions change what a contract delivers.',
+   'Broker approval, collateral treatment, exercise cutoffs and tax treatment all vary.']
+    .forEach(x => rl.append(el('li', {}, x)));
+  rc.append(rl);
+  rc.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+    'Read the OCC’s Characteristics and Risks of Standardized Options before writing any option. This page is arithmetic on figures you entered — it is not a recommendation to write a put or a call, it names no best strike or expiry, and it connects to no broker.'));
+  wrap.append(rc);
+
+  const boundary = el('div', { class: 'card' });
+  boundary.append(cardHead('What this is gated on',
+    'Research mode only, and the gates are named rather than implied.'));
+  boundary.append(el('ul', { class: 'ticklist' }, [
+    el('li', {}, 'No option-chain data. Every contract figure here is one you entered, and there is no licensed chain this product may redistribute.'),
+    el('li', {}, 'No recommended contract. Filters and arithmetic only — “best strike” is not an output this product will produce.'),
+    el('li', {}, 'No broker connection, order routing, automatic rolling or execution. Those are Compliance Gated and not built.'),
+    el('li', {}, 'A roll would be recorded as a close plus a separate new opening, so a net credit could never conceal the realised result of the leg being closed.'),
+  ]));
+  wrap.append(boundary);
+  return wrap;
 };
 
 VIEWS.opportunities = () => {
