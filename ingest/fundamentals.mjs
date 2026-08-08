@@ -28,9 +28,16 @@
  *   So the output is git-ignored and the writer refuses to put an unlicensed
  *   provider anywhere the deployed site can read. The Malaysian half of the
  *   product still says "no financial statements held" to every visitor, and
- *   that stays true until someone buys a licence. What changes is that the
- *   OWNER can now run the same engine over real Malaysian numbers for their own
- *   research, which is the lane this repository already built for prices.
+ *   that stays true until someone buys a licence.
+ *
+ *   READ THIS BEFORE RUNNING IT. The git-ignored lane answers redistribution
+ *   and does not answer collection. The source's terms bar automated collection
+ *   "for any purpose" and separately bar building a database that substitutes
+ *   for their service. Running this script is outside those terms even though
+ *   nothing it writes is ever published. It is confined to a lane that limits
+ *   the harm; it is not made clean by that lane. A source of Bursa fundamentals
+ *   that can carry a paid product has to be bought — see the review recorded in
+ *   README, and ingest/vendor-probe.mjs for testing one before committing to it.
  *
  * FOUR YEARS, NOT TEN
  *   SEC gives ten years of history. This gives four. Every measure with a

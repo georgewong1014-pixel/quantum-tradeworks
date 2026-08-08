@@ -162,6 +162,25 @@ export function createRegistry(providers) {
    Verified against what a Malaysian research tool actually needs: AAPL in USD,
    1155.KL in MYR, ^KLSE, USDMYR=X. Bursa equities, the index and the currency
    all resolve through the same endpoint.
+
+   ── WHAT THE TWO-LANE SPLIT DOES NOT COVER ──────────────────────────────────
+   The split was described here, and to the product's owner, as making this
+   usage clean because nothing is redistributed. That is narrower than the
+   terms. A review of Yahoo's published terms found two clauses that the lane
+   does not answer:
+
+     - automated collection of the data is barred "for any purpose", so the
+       breach is the fetching, not only the publishing; and
+     - building "any database … that competes with or constitutes a material
+       substitute for the Services" is barred separately, which describes this
+       product's equity research surface fairly directly.
+
+   Keeping the adapter is a decision the owner is entitled to make for their own
+   research, and it stays here because deleting working tooling is not the same
+   as being honest about it. But the honest position is "this is outside the
+   terms and confined to a lane that limits the harm", not "this is fine because
+   it is not redistributed". Anything the product charges for needs the licensed
+   path below.
    ========================================================================= */
 export function yahooProvider({ userAgent } = {}) {
   const BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
