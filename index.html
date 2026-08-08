@@ -1410,6 +1410,9 @@ const State = {
     } catch { /* locale unavailable — fall through */ }
     return 'USD';
   })()),
+  /* Null until the reader chooses, so it follows the base currency rather than
+     pinning itself to whatever the base happened to be on first visit. */
+  screenCcy: store.read('screenCcy', null),
   theses: store.read('theses', null),
   savedScreens: store.read('savedScreens', []),
   screen: null,
@@ -1533,6 +1536,22 @@ const toBase = (v, ccy) => {
   return State.baseCcy === 'MYR' ? v * FX.USDMYR : v / FX.USDMYR;
 };
 const baseSym = () => State.baseCcy === 'MYR' ? 'RM' : '$';
+
+/* Convert between the two currencies this product knows about, to a named
+   target rather than to whatever the global base happens to be. toBase above
+   answers "in the currency I read in"; this answers "in this currency", which
+   is a different question and the one a mixed table has to settle explicitly. */
+const convertTo = (v, from, to) => {
+  if (!isNum(v)) return null;
+  if (from === to) return v;
+  if (from === 'USD' && to === 'MYR') return v * FX.USDMYR;
+  if (from === 'MYR' && to === 'USD') return v / FX.USDMYR;
+  return null;                      /* a pair with no rate is not guessed */
+};
+
+/* The screener's own reporting currency, separate from the global base. Starts
+   at whatever the reader already reads in rather than at a fixed default. */
+const screenCcy = () => State.screenCcy || State.baseCcy;
 
 /* ==========================================================================
    DATASET — synthetic
@@ -5658,6 +5677,23 @@ function renderScreener() {
     el('h3', { class: 'h-card' }, `${passed.length} of ${U.length} companies match`),
     el('p', { class: 'caption', style: 'margin-top:2px' }, 'Same as-of date, data version and model version reproduce this exact result.'),
   ]));
+
+  /* Reporting currency for this screen. Distinct from the base currency on
+     Home, which sets what the whole product reports in — this decides only
+     whether a mixed table converts or leaves each company in its own currency.
+     "Local" is the option that converts nothing, which is the right default for
+     anyone comparing a Bursa company against its own history rather than
+     against a US one. */
+  const ccyRow = el('div', { class: 'row', style: 'gap:6px;align-items:center;margin-left:auto' });
+  ccyRow.append(el('span', { class: 'caption' }, 'Show money in'));
+  ccyRow.append(el('div', { class: 'segmented' }, [
+    ['local', 'Local'], ['MYR', 'MYR'], ['USD', 'USD'],
+  ].map(([v, label]) => el('button', {
+    'aria-selected': screenCcy() === v ? 'true' : 'false',
+    title: v === 'local' ? 'Each company in the currency it reports in. Nothing is converted.'
+                         : `Everything converted to ${v} at the rate shown below the table.`,
+    onclick: () => { State.screenCcy = v; store.write('screenCcy', v); render(); } }, label))));
+  hdRow.append(ccyRow);
   hdRow.append(el('span', { class: 'spacer' }));
   hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': sc.showMedians !== false ? 'true' : 'false',
     onclick: () => { sc.showMedians = sc.showMedians === false; render(); },
@@ -5679,14 +5715,26 @@ function renderScreener() {
       /* A monetary column is converted to one currency and says which. It used
          to print r.m.mcap raw, so a screen across both markets stacked ringgit
          and dollars in the same column with nothing to tell them apart — and a
-         Bursa company looked 4.4× larger than it is. */
+         Bursa company looked 4.4× larger than it is.
+
+         Under "Local" nothing is converted, so the column header cannot name a
+         single currency and each cell carries its own instead. A median across
+         mixed currencies is not a quantity, so it is withheld rather than
+         computed — mfmt is absent and the footer prints a dash. */
       ...sc.cols.map(k => {
         const f = FIELD_BY_K[k];
         if (!f.money) return { k, label:f.label, get:r => r.m[k], fmt:v => isNum(v) ? f.fmt(v) : NA, mfmt:f.fmt };
-        return { k, label:`${f.label} (${State.baseCcy})`,
-                 get:r => toBase(r.m[k], r.c.ccy),
-                 fmt:v => isNum(v) ? fmtCap(v, State.baseCcy) : NA,
-                 mfmt:v => fmtCap(v, State.baseCcy) };
+        if (screenCcy() === 'local') return {
+          k, label:`${f.label} (local)`,
+          get:r => r.m[k],
+          fmt:(v, r) => isNum(v) ? `${fmtCap(v, r.c.ccy)} <span class="caption">${r.c.ccy}</span>` : NA,
+          mfmt:null,
+        };
+        const target = screenCcy();
+        return { k, label:`${f.label} (${target})`,
+                 get:r => convertTo(r.m[k], r.c.ccy, target),
+                 fmt:v => isNum(v) ? fmtCap(v, target) : NA,
+                 mfmt:v => fmtCap(v, target) };
       }),
       { k:'risk', label:'Risk', get:r => r.risk.raw, fmt:(v, r) => riskPill(r.risk.band) },
       { k:'coverage', label:'Coverage', get:r => r.m.coverage, fmt:v => `${v}%`, mfmt:v => `${Math.round(v)}%` },
@@ -5779,9 +5827,13 @@ function renderScreener() {
     const moneyCols = sc.cols.filter(k => FIELD_BY_K[k]?.money);
     if (spansMarkets) {
       const parts = [`This screen spans companies reporting in ${[...new Set(sorted.map(r => r.c.ccy))].sort().join(' and ')}.`];
-      parts.push(moneyCols.length
-        ? `${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} converted to ${State.baseCcy} at ${FX.USDMYR.toFixed(2)} (${FX.asOf}).`
-        : `No monetary column is shown, so nothing has been converted.`);
+      if (!moneyCols.length) {
+        parts.push('No monetary column is shown, so nothing has been converted.');
+      } else if (screenCcy() === 'local') {
+        parts.push(`${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} shown in each company’s own reporting currency, labelled per row. Nothing has been converted, so those values are not comparable across the two markets and no median is offered for them.`);
+      } else {
+        parts.push(`${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} converted to ${screenCcy()} at USD/MYR ${FX.USDMYR.toFixed(2)}, ${FX.asOf}${FX.source === 'sample' ? ' — a sample rate, not a live one' : ''}.`);
+      }
       parts.push('Every other column is a ratio, a multiple or a percentage and reads the same in either currency. Scores and percentile ranks are computed within each market cohort, not across the two.');
       tw.append(el('p', { class: 'metaline', style: 'padding:10px var(--md);border-top:1px solid var(--line)' },
         parts.join(' ')));
@@ -11849,7 +11901,80 @@ const METRIC_DICTIONARY = {
   evidenceQuality: { en:'Evidence quality',         ms:'Kualiti bukti',           zh:'证据质量' },
 };
 
+/* The property workflow itself, not only its summary.
+   ---------------------------------------------------------------------------
+   The summary was translated and the reasoning behind it was not, which meant a
+   Bahasa or Chinese reader could see the outputs and not the assumptions
+   producing them — the least useful half to translate first, in a product whose
+   argument is that the assumptions are the point.
+
+   Sarawak statutory land classes keep the English term alongside the local one,
+   because a buyer has to match what they read here against what is printed on a
+   title document. Malaysian tax terms use the words that appear on the actual
+   bill — cukai pintu for assessment, cukai tanah for quit rent — rather than a
+   literal rendering nobody would recognise on a council notice. */
+const PROPERTY_I18N = {
+  /* evidence quality */
+  'ev.verified':  { en:'Verified transaction', ms:'Transaksi disahkan', zh:'已核实交易' },
+  'ev.public':    { en:'Public data', ms:'Data awam', zh:'公开数据' },
+  'ev.user':      { en:'You supplied', ms:'Daripada anda', zh:'您提供' },
+  'ev.developer': { en:'Developer supplied', ms:'Daripada pemaju', zh:'发展商提供' },
+  'ev.estimated': { en:'Estimated', ms:'Anggaran', zh:'估算' },
+  'ev.assumed':   { en:'Assumed', ms:'Andaian', zh:'假设' },
+  /* the ten risk questions */
+  'chk.title-restricted': { en:'Is the title Native Area Land, NCR or another restricted class?', ms:'Adakah hakmilik ini Tanah Kawasan Bumiputera (Native Area Land), NCR atau kelas terhad lain?', zh:'地契是否属土著地区土地（Native Area Land）、土著习俗地（NCR）或其他受限地类？' },
+  'chk.lease-remaining':  { en:'If leasehold, how many years remain and has extension been applied for?', ms:'Jika pajakan, berapa tahun berbaki dan adakah lanjutan tempoh dipohon?', zh:'若属租赁地契，尚余多少年？是否已申请延长年限？' },
+  'chk.strata-issued':    { en:'For an apartment: has the strata title issued, or is it still a master title?', ms:'Bagi apartmen: adakah hakmilik strata telah dikeluarkan, atau masih hakmilik induk?', zh:'公寓单位：分层地契是否已发出，还是仍属总地契？' },
+  'chk.flood':            { en:'Is the site in an area with a known flood history?', ms:'Adakah tapak ini terletak di kawasan yang ada sejarah banjir?', zh:'该地点是否位于已知有水灾记录的地区？' },
+  'chk.single-employer':  { en:'Does rental demand here depend on one employer or one industry?', ms:'Adakah permintaan sewa di sini bergantung pada satu majikan atau satu industri?', zh:'这里的租赁需求是否依赖单一雇主或单一行业？' },
+  'chk.transient-demand': { en:'Is demand driven by students, O&G rotation staff or construction workers?', ms:'Adakah permintaan didorong oleh pelajar, pekerja rotasi O&G atau pekerja binaan?', zh:'需求是否由学生、油气（O&G）轮班员工或建筑工人带动？' },
+  'chk.parking':          { en:'Is the unit hard to rent without parking?', ms:'Adakah unit ini sukar disewakan tanpa tempat letak kereta?', zh:'没有停车位，这个单位是否难以出租？' },
+  'chk.supply':           { en:'Is there substantial unsold or newly completed supply nearby?', ms:'Adakah banyak unit belum terjual atau baru siap berhampiran?', zh:'附近是否有大量未售出或刚竣工的单位？' },
+  'chk.comparables':      { en:'Have you verified comparable rental transactions, not asking prices?', ms:'Adakah anda telah mengesahkan transaksi sewa setanding, bukan kadar sewa yang diminta?', zh:'是否已核实同类单位的实际成交租金，而非叫价？' },
+  'chk.resale-time':      { en:'How long would a resale realistically take in this district?', ms:'Secara realistik, berapa lama jualan semula mengambil masa di daerah ini?', zh:'在这个县转售，实际上需要多久？' },
+  /* calculator inputs */
+  'in.sqft':      { en:'Built-up area (sq ft)', ms:'Keluasan binaan (sq ft)', zh:'建筑面积 (sq ft)' },
+  'in.landSqft':  { en:'Land area (sq ft, 0 if none)', ms:'Keluasan tanah (sq ft, 0 jika tiada)', zh:'土地面积 (sq ft，无则填 0)' },
+  'in.parking':   { en:'Allocated parking bays', ms:'Petak letak kereta diperuntukkan', zh:'分配的停车位' },
+  'in.price':     { en:'Purchase price (RM)', ms:'Harga belian (RM)', zh:'购买价格 (RM)' },
+  'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
+  'in.downPct':   { en:'Deposit (%)', ms:'Deposit (%)', zh:'头期 (%)' },
+  'in.ratePct':   { en:'Loan interest rate (%)', ms:'Kadar faedah pinjaman (%)', zh:'贷款利率 (%)' },
+  'in.tenureYears':{ en:'Loan tenure (years)', ms:'Tempoh pinjaman (tahun)', zh:'贷款期限 (年)' },
+  'in.rent':      { en:'Expected monthly rent (RM)', ms:'Jangkaan sewa bulanan (RM)', zh:'预计月租 (RM)' },
+  'in.rentGrowthPct':{ en:'Annual rent growth (%)', ms:'Pertumbuhan sewa tahunan (%)', zh:'年租金涨幅 (%)' },
+  'in.vacancyPct':{ en:'Vacancy allowance (%)', ms:'Peruntukan kekosongan (%)', zh:'空置预留 (%)' },
+  'in.maintenance':{ en:'Monthly maintenance (RM)', ms:'Penyelenggaraan bulanan (RM)', zh:'每月维修费 (RM)' },
+  'in.sinkingFund':{ en:'Monthly sinking fund (RM)', ms:'Sinking fund bulanan (RM)', zh:'每月储备金 (RM)' },
+  'in.assessment':{ en:'Annual assessment (RM)', ms:'Cukai pintu tahunan (RM)', zh:'每年门牌税 (RM)' },
+  'in.quitRent':  { en:'Annual quit rent (RM)', ms:'Cukai tanah tahunan (RM)', zh:'每年地税 (RM)' },
+  'in.insurance': { en:'Annual insurance (RM)', ms:'Insurans tahunan (RM)', zh:'每年保险费 (RM)' },
+  'in.mgmtPct':   { en:'Letting and management fee (% of rent)', ms:'Fi sewaan dan pengurusan (% sewa)', zh:'出租与管理费 (占租金 %)' },
+  'in.repairReservePct':{ en:'Repair reserve (% of rent)', ms:'Rizab pembaikan (% sewa)', zh:'维修储备 (占租金 %)' },
+  'in.holdYears': { en:'Holding period (years)', ms:'Tempoh pegangan (tahun)', zh:'持有期 (年)' },
+  'in.apprecPct': { en:'Annual capital growth (%)', ms:'Pertumbuhan modal tahunan (%)', zh:'年资本增值 (%)' },
+  'in.sellMonths':{ en:'Expected months to sell', ms:'Jangkaan bulan untuk menjual', zh:'预计出售月数' },
+  'in.agentPct':  { en:'Agent commission on exit (%)', ms:'Komisen ejen semasa jualan (%)', zh:'出售时经纪佣金 (%)' },
+  'in.exitLegalPct':{ en:'Legal costs on exit (%)', ms:'Kos guaman semasa jualan (%)', zh:'出售时律师费 (%)' },
+  'in.equityReturnPct':{ en:'Assumed equity return (% a year)', ms:'Andaian pulangan ekuiti (% setahun)', zh:'假设股票回报 (每年 %)' },
+  /* acquisition costs and the limitation statements */
+  'c.deposit':      { en:'Deposit', ms:'Deposit', zh:'头期款' },
+  'c.transferDuty': { en:'Transfer stamp duty', ms:'Duti setem pindah milik', zh:'转名印花税' },
+  'c.purchaseLegal':{ en:'Purchase legal fees', ms:'Yuran guaman pembelian', zh:'购屋律师费' },
+  'c.loanDuty':     { en:'Loan stamp duty', ms:'Duti setem pinjaman', zh:'贷款印花税' },
+  'c.emergencyReserve':{ en:'Emergency reserve', ms:'Simpanan kecemasan', zh:'应急储备金' },
+  'c.totalInitialCash':{ en:'Total initial cash', ms:'Jumlah tunai permulaan', zh:'初期现金总额' },
+  'c.reserveNote':  { en:'The emergency reserve is not spent. It stays in your account.', ms:'Simpanan kecemasan ini tidak dibelanjakan. Ia kekal dalam akaun anda.', zh:'应急储备金不会被动用，它留在你的户头里。' },
+  'c.notValuation': { en:'This is not an official property valuation. In Malaysia that must be carried out by a registered valuer.', ms:'Ini bukan penilaian hartanah rasmi. Di Malaysia, penilaian rasmi mesti dijalankan oleh penilai berdaftar.', zh:'这不是正式的产业估价。在马来西亚，正式估价必须由注册估价师进行。' },
+  'c.noModelChange':{ en:'This tool changes no figure on the strength of your answers.', ms:'Alat ini tidak mengubah sebarang angka berdasarkan jawapan anda.', zh:'本工具不会因你的回答而改动任何数字。' },
+  'c.titleUnverified':{ en:'Title classification is recorded from what you entered. Eligibility has not been verified.', ms:'Klasifikasi hakmilik direkodkan daripada maklumat yang anda masukkan. Kelayakan belum disahkan.', zh:'地契类别是按你输入的资料记录的，资格尚未核实。' },
+  'c.confirmLawyer':{ en:'Confirm with a Sarawak property lawyer and the Land and Survey Department.', ms:'Sahkan dengan peguam hartanah Sarawak dan Jabatan Tanah dan Survei.', zh:'请向砂拉越产业律师及土地与测量局（Land and Survey Department）核实。' },
+  'c.noComparable': { en:'No transacted price or rental band is held for this location.', ms:'Tiada harga transaksi atau julat sewa direkodkan untuk lokasi ini.', zh:'此地点没有成交价或租金区间的资料。' },
+};
+
 const lang = () => State.lang || 'en';
+/* Same fallback rule as tr(): English, never the key. */
+const ptr = (key, fallback) => PROPERTY_I18N[key]?.[lang()] || PROPERTY_I18N[key]?.en || fallback || key;
 /* Falls back to English rather than to a key. A missing translation should
    read as the English term, never as "breakEvenRent". */
 const tr = (key) => METRIC_DICTIONARY[key]?.[lang()] || METRIC_DICTIONARY[key]?.en || key;
@@ -11858,11 +11983,11 @@ const tr = (key) => METRIC_DICTIONARY[key]?.[lang()] || METRIC_DICTIONARY[key]?.
    figures and their names only — the surrounding explanation stays in English
    because a half-translated argument is harder to trust than an English one. */
 const SUMMARY_COPY = {
-  en: { title:'Summary', note:'Full analysis and all explanations are in English.',
+  en: { title:'Summary', note:'Input labels, evidence grades and the ten risk questions are translated. The longer explanations remain in English.',
         forEvery:'For every ringgit of rent you collect', afterAll:'after every cost modelled here' },
-  ms: { title:'Ringkasan', note:'Analisis penuh dan semua penjelasan adalah dalam bahasa Inggeris.',
+  ms: { title:'Ringkasan', note:'Label input, gred bukti dan sepuluh soalan risiko telah diterjemah. Penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
         forEvery:'Bagi setiap ringgit sewa yang dikutip', afterAll:'selepas semua kos yang dimodelkan di sini' },
-  zh: { title:'摘要', note:'完整分析与所有说明均为英文。',
+  zh: { title:'摘要', note:'输入项名称、证据等级与十道风险问题已翻译，较长的说明仍为英文。',
         forEvery:'每收取一令吉租金', afterAll:'扣除此处模型中的所有成本后' },
 };
 
@@ -12783,7 +12908,7 @@ VIEWS.property = () => {
     rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, heading));
     fields.forEach(([k, label, step]) => {
       const f = el('div', { class: 'assumption' });
-      f.append(el('label', { for: `d-${k}` }, label));
+      f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
       f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
         value: d[k] ?? 0, style: 'text-align:right',
         onchange: e => { d[k] = num0(e.target.value); saveDeal(); render(); } }));
@@ -12802,7 +12927,7 @@ VIEWS.property = () => {
       const sel = el('select', { class: 'select select-sm', id: `ev-${k}`,
         onchange: e => { d.evidence = { ...(d.evidence || {}), [k]: e.target.value }; saveDeal(); render(); } });
       EVIDENCE.forEach(ev => sel.append(el('option', { value: ev.id,
-        selected: (d.evidence?.[k] || 'assumed') === ev.id ? '' : null }, ev.label)));
+        selected: (d.evidence?.[k] || 'assumed') === ev.id ? '' : null }, ptr(`ev.${ev.id}`, ev.label))));
       f.append(sel);
       rail.append(f);
     });
@@ -12914,7 +13039,7 @@ VIEWS.property = () => {
   ordered.forEach(c => {
     const row = el('div', { style: 'padding:10px 0;border-top:1px solid var(--line)' });
     row.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:flex-start' }, [
-      el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:530;margin:0' }, c.q),
+      el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:530;margin:0' }, ptr(`chk.${c.id}`, c.q)),
       el('div', { class: 'segmented', style: 'flex:none' }, ['yes', 'no', 'unknown'].map(v =>
         el('button', { 'aria-selected': d.checks?.[c.id] === v ? 'true' : 'false',
           onclick: () => { d.checks = { ...(d.checks || {}), [c.id]: v }; saveDeal(); render(); } },
@@ -12935,7 +13060,7 @@ VIEWS.property = () => {
       evRow.append(el('span', { class: 'metaline' }, 'How you established this:'));
       const evSel = el('select', { class: 'select select-sm', 'aria-label': `Evidence for: ${c.q}` });
       EVIDENCE.forEach(ev => evSel.append(el('option', { value: ev.id,
-        selected: (d.checkEvidence?.[c.id] || 'assumed') === ev.id ? '' : null }, ev.label)));
+        selected: (d.checkEvidence?.[c.id] || 'assumed') === ev.id ? '' : null }, ptr(`ev.${ev.id}`, ev.label))));
       evSel.addEventListener('change', e => {
         d.checkEvidence = { ...(d.checkEvidence || {}), [c.id]: e.target.value }; saveDeal(); render();
       });
