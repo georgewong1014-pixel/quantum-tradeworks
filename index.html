@@ -6725,6 +6725,203 @@ VIEWS.discover = () => {
    VIEW — RESEARCH
    ========================================================================== */
 
+/* ==========================================================================
+   EQUITY STRATEGY LENS — directive 7, specification 37 to 43
+
+   THE FOUR THINGS "STOCK TYPE" USED TO MEAN AT ONCE
+
+     legal instrument   ordinary share, REIT, stapled security, ETF
+     business archetype bank, plantation, contractor, utility, developer
+     return role        why someone might own it
+     entry method       lump sum, staged, DCA, trend
+
+   Capital gain is an outcome, not an asset type. DCA is an entry method, not
+   evidence the business is worth owning. Collapsing these produced one score
+   that answered none of them.
+
+   THE GATE THAT DECIDES MOST OF THIS
+
+   Directive 7.9 and specification 37.3: a fit grade may not be produced from
+   synthetic, reconstructed, stale or missing data. That is not a footnote here,
+   it is the dominant fact — 18 Malaysian companies carry illustrative figures,
+   and no company in this build carries a licensed price. So most fits return U,
+   and the honest reading of this page is that it says what it cannot assess far
+   more often than it grades anything.
+
+   That is the intended behaviour. A weak grade computed from an illustration
+   would be worse than no grade, because it would look like research. */
+const INSTRUMENT_TYPES = {
+  reit:    { label:'Real estate investment trust', note:'A trust distributing rental income, taxed and regulated differently from an ordinary share.' },
+  bank:    { label:'Ordinary share', note:'Ordinary equity in a licensed bank.' },
+  insurer: { label:'Ordinary share', note:'Ordinary equity in an insurer.' },
+  default: { label:'Ordinary share', note:'Ordinary equity carrying residual claims on earnings and assets.' },
+};
+const BUSINESS_ARCHETYPES = {
+  bank:'Bank', insurer:'Insurer', reit:'Real estate trust', mature:'Mature operating company',
+  growth:'Secular grower', saas:'Software and subscription', cyclical:'Cyclical or commodity-linked',
+  holding:'Holding company', early:'Early-stage or loss-making',
+};
+const RETURN_ROLES = {
+  income:     { label:'Dividend income',        why:'Recurring distributions supported by earnings and a balance sheet that can keep paying them.' },
+  compounder: { label:'Long-term compounding',  why:'Growth in per-share earnings and business value over several years.' },
+  cyclical:   { label:'Cyclical recovery',      why:'Earnings may recover as a commodity, inventory or credit cycle turns.' },
+  value:      { label:'Value or re-rating',     why:'Price may differ from an evidence-based valuation range, with a mechanism to close the gap.' },
+  catalyst:   { label:'Catalyst or event',      why:'A dated event may change earnings, cash flow or capital structure.' },
+  trend:      { label:'Trend following',        why:'Capture a persistent price trend while controlling the loss when it fails.' },
+  turnaround: { label:'Turnaround',             why:'Material improvement from a distressed or loss-making base.' },
+  defensive:  { label:'Capital preservation',   why:'Lower variability of outcome rather than growth.' },
+};
+
+/* Which fits are even applicable before any data is considered. A REIT is not a
+   turnaround candidate by virtue of being a REIT, and a bank has no
+   conventional free cash flow to test a compounder case against. */
+const STRATEGY_FITS = [
+  { k:'income',     label:'Income' },
+  { k:'compounder', label:'Quality compounder' },
+  { k:'cyclical',   label:'Cyclical' },
+  { k:'value',      label:'Value / re-rating' },
+  { k:'catalyst',   label:'Catalyst' },
+  { k:'trend',      label:'Trend' },
+  { k:'dca',        label:'DCA eligibility' },
+];
+
+/* Directive 7.9. The tier decides what may be shown at all, and it is decided
+   by the data rather than by the company. */
+function coverageTier(r) {
+  const c = r.c;
+  if (!c.real) return { id:'unassessed', label:'Unassessed',
+    why:'Financial figures for this company are illustrative, not filed. Nothing here may produce a strategy grade.' };
+  const priced = isNum(c.px?.p);
+  const complete = isNum(c.completeness) ? c.completeness : (isNum(r.m?.coverage) ? r.m.coverage / 100 : 0);
+  if (priced && complete >= 0.9) return { id:'verified', label:'Verified Core',
+    why:'Filed statements and a price, with high coverage.' };
+  if (complete >= 0.7) return { id:'standard', label:'Standard Coverage',
+    why: priced ? 'Filed statements and a price, with gaps in the statement lines.'
+                : 'Filed statements with no licensed price, so anything price-derived cannot be assessed.' };
+  return { id:'directory', label:'Basic Directory',
+    why:'Identity and partial figures only. Not enough to assess a strategy.' };
+}
+
+/* One fit. Returns a grade or, far more often here, U with the reason. */
+function fitGrade(r, key, tier) {
+  const { c, m } = r;
+  const out = { key, label: STRATEGY_FITS.find(f => f.k === key).label,
+                grade:'U', score:null, supports:[], weakens:[], missing:[], cap:null };
+
+  if (tier.id === 'unassessed') { out.missing.push('Filed financial statements. The figures held are illustrative.'); return out; }
+
+  const priced = isNum(c.px?.p);
+  /* Trend needs an observed, adjusted price series. There is none in this
+     build, and specification 39.6 forbids substituting a reconstruction. */
+  if (key === 'trend') {
+    out.missing.push('An observed, corporate-action-adjusted price history under a licence that permits its use.');
+    out.cap = 'U until licensed price history exists. A reconstructed series may not be substituted.';
+    return out;
+  }
+
+  const need = (cond, label) => { if (!cond) out.missing.push(label); return cond; };
+
+  if (key === 'income') {
+    const hasDiv = isNum(m.dy) || isNum(m.payout);
+    need(priced, 'A price, without which distribution yield cannot be computed.');
+    need(hasDiv, 'Distribution history and payout evidence.');
+    if (!priced || !hasDiv) return out;
+    if (isNum(m.payout) && m.payout < 80) out.supports.push(`Payout ratio ${fmtPct(m.payout, 0)} of earnings.`);
+    else if (isNum(m.payout)) out.weakens.push(`Payout ratio ${fmtPct(m.payout, 0)} leaves little room for a weaker year.`);
+    if (isNum(m.cashPayout) && m.cashPayout < 90) out.supports.push(`Distributions are ${fmtPct(m.cashPayout, 0)} of free cash flow.`);
+    else if (isNum(m.cashPayout)) out.weakens.push('Distributions exceed or nearly exhaust free cash flow.');
+    out.score = Math.round(clamp(60 + (isNum(m.dy) ? m.dy * 5 : 0) - (isNum(m.payout) ? Math.max(0, m.payout - 70) : 0), 0, 100));
+  }
+
+  else if (key === 'compounder') {
+    const hasGrowth = isNum(m.rev5) && isNum(m.roe);
+    if (!need(hasGrowth, 'Multi-year per-share growth and returns on equity.')) return out;
+    if (m.roe > 12) out.supports.push(`Return on equity ${fmtPct(m.roe, 1)}.`); else out.weakens.push(`Return on equity ${fmtPct(m.roe, 1)}.`);
+    if (m.rev5 > 4) out.supports.push(`Revenue compounding ${fmtPct(m.rev5, 1)} a year over the window held.`);
+    else out.weakens.push(`Revenue growth ${fmtPct(m.rev5, 1)} a year.`);
+    if (isNum(m.dilution) && m.dilution > 2) out.weakens.push(`Share count rising ${fmtPct(m.dilution, 1)} a year, which dilutes per-share growth.`);
+    out.score = Math.round(clamp((r.scores?.quality?.score ?? 50) * 0.7 + clamp(m.rev5 * 2, 0, 30), 0, 100));
+    if (isNum(m.growthYears) && m.growthYears < 4) out.cap = `Growth measured over ${m.growthYears} years, not four.`;
+  }
+
+  else if (key === 'cyclical') {
+    if (c.type !== 'cyclical') { out.missing.push('This is not classified as a cyclical business, so a cycle case would need a named cycle variable and evidence this build does not hold.'); return out; }
+    if (!need(isNum(m.revDD), 'Revenue drawdown history to locate the cycle.')) return out;
+    out.supports.push(`Largest revenue fall in the window held: ${fmtPct(m.revDD, 0)}.`);
+    out.missing.push('A named cycle indicator, mid-cycle normalisation and supply-response evidence.');
+    out.cap = 'Capped without cycle evidence — a cyclical case needs the cycle, not only the volatility.';
+    out.score = 45;
+  }
+
+  else if (key === 'value') {
+    if (!need(priced, 'A price. Without one there is no gap between price and model to measure.')) return out;
+    if (!need(!r.val?.err && isNum(r.val?.mos?.base), 'A valuation model that could be built.')) return out;
+    const mos = r.val.mos.base;
+    if (mos > 20) out.supports.push(`Price sits ${fmtPct(mos, 0)} below the base-case model estimate.`);
+    else out.weakens.push(`Price is ${fmtPct(Math.abs(mos), 0)} ${mos < 0 ? 'above' : 'below'} the base-case estimate.`);
+    out.missing.push('A named mechanism and time path for the gap to close.');
+    out.score = Math.round(clamp(50 + mos, 0, 100));
+  }
+
+  else if (key === 'catalyst') {
+    out.missing.push('A dated, sourced event with dependencies and a failure case. No catalyst registry exists in this build.');
+    out.cap = 'U until catalysts are recorded with evidence.';
+    return out;
+  }
+
+  else if (key === 'dca') {
+    /* An entry method, gated on the thing being worth owning at all. */
+    const q = r.scores?.quality?.score;
+    if (!need(isNum(q), 'A business-quality assessment.')) return out;
+    if (!need(tier.id !== 'directory', 'Sufficient data coverage to keep a schedule under review.')) return out;
+    if (c.type === 'early' || c.type === 'cyclical') {
+      out.weakens.push('Early-stage and cyclical businesses are not eligible by default — a schedule can average into a deteriorating position.');
+      out.cap = 'Ineligible by default for this business type.';
+      return out;
+    }
+    if (q >= 60) out.supports.push(`Business quality ${q}/100.`); else out.weakens.push(`Business quality ${q}/100.`);
+    out.missing.push('A review cadence and maximum exposure, which are yours to set rather than this tool’s to assume.');
+    out.score = Math.round(clamp(q, 0, 100));
+  }
+
+  if (isNum(out.score) && !out.missing.length) {
+    out.grade = out.score >= 80 ? 'A' : out.score >= 65 ? 'B' : out.score >= 50 ? 'C' : 'D';
+  } else if (isNum(out.score)) {
+    /* Evidence exists but is incomplete: graded no higher than B, per the
+       specification's rule that a missing requirement caps rather than passes. */
+    out.grade = out.score >= 65 ? 'B' : out.score >= 50 ? 'C' : 'D';
+    out.cap = out.cap || 'Capped while evidence is missing.';
+  }
+  return out;
+}
+
+function strategyLens(r) {
+  const { c, m } = r;
+  const tier = coverageTier(r);
+  const instrument = INSTRUMENT_TYPES[c.type] || INSTRUMENT_TYPES.default;
+  const archetype = BUSINESS_ARCHETYPES[c.type] || 'Operating company';
+  const fits = STRATEGY_FITS.map(f => fitGrade(r, f.k, tier));
+
+  /* The primary role follows the best-supported fit, and is withheld entirely
+     when nothing could be assessed — an unassessable company has no return
+     role this product is entitled to name. */
+  const graded = fits.filter(f => f.grade !== 'U' && isNum(f.score)).sort((a, b) => b.score - a.score);
+  /* DCA is deliberately absent from this map: it is an entry METHOD, not a
+     reason to own the business, and 37.1 is explicit that treating it as one is
+     the confusion this whole section exists to undo. The role search therefore
+     skips past it rather than stopping — an earlier version checked only the
+     top-scoring fit, so a company whose best score was DCA reported no return
+     role at all while three roles sat graded beneath it. */
+  const roleOf = { income:'income', compounder:'compounder', cyclical:'cyclical', value:'value', catalyst:'catalyst' };
+  const roleFits = graded.filter(f => roleOf[f.key]);
+  const primary = roleFits[0] ? RETURN_ROLES[roleOf[roleFits[0].key]] : null;
+  const secondary = roleFits[1] ? RETURN_ROLES[roleOf[roleFits[1].key]] : null;
+  const notSuited = fits.filter(f => f.grade === 'U').map(f => f.label);
+
+  return { tier, instrument, archetype, fits, primary, secondary, notSuited,
+           assessable: graded.length > 0 };
+}
+
 const RESEARCH_TABS = [
   { id:'snapshot',  label:'Snapshot' },
   { id:'business',  label:'Business' },
@@ -6963,6 +7160,75 @@ VIEWS.research = () => {
     head.append(rp);
   }
   wrap.append(head);
+
+  /* ---------- Strategy Lens (directive 7.1) ----------
+     Above the research tabs, not replacing them. The tabs answer "what are the
+     numbers"; this answers "what is this and why would anyone own it", which is
+     the question a reader arrives with. */
+  const lens = strategyLens(r);
+  const lensCard = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
+  lensCard.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
+    el('p', { class: 'eyebrow', style: 'margin:0' }, 'Strategy Lens'),
+    el('span', { class: lens.tier.id === 'unassessed' ? 'chip chip-bronze' : 'chip', style: 'margin-left:auto',
+      title: lens.tier.why }, lens.tier.label),
+  ]));
+
+  const idRow = el('div', { class: 'grid g-2', style: 'margin-top:10px' });
+  idRow.append(el('div', {}, [
+    el('p', { class: 'metaline', style: 'margin-bottom:2px' }, 'What it is'),
+    el('p', { class: 'body', style: 'font-size:13px;font-weight:560;margin:0' }, `${lens.instrument.label} — ${lens.archetype}`),
+    el('p', { class: 'metaline', style: 'margin-top:2px' }, lens.instrument.note),
+  ]));
+  idRow.append(el('div', {}, [
+    el('p', { class: 'metaline', style: 'margin-bottom:2px' }, 'Why it might be owned'),
+    lens.primary
+      ? el('div', {}, [
+          el('p', { class: 'body', style: 'font-size:13px;font-weight:560;margin:0' }, lens.primary.label),
+          el('p', { class: 'metaline', style: 'margin-top:2px' }, lens.primary.why),
+          lens.secondary ? el('p', { class: 'metaline', style: 'margin-top:4px' }, `Secondary: ${lens.secondary.label}.`) : null,
+        ])
+      : el('p', { class: 'body', style: 'font-size:12.5px;margin:0;color:var(--bronze)' },
+          'Not stated. No strategy could be assessed from the data held, and naming a return role without one would be a guess dressed as a classification.'),
+  ]));
+  lensCard.append(idRow);
+
+  /* The fit grades, side by side. Most will read U, and that is the point. */
+  const fitRow = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:var(--md)' });
+  lens.fits.forEach(f => {
+    const tone = { A:'chip chip-ok', B:'chip chip-ok', C:'chip chip-bronze', D:'chip chip-bronze', U:'chip' }[f.grade];
+    fitRow.append(el('span', { class: tone, title: f.grade === 'U'
+      ? `Not assessable: ${f.missing[0] || 'required evidence is missing.'}`
+      : `${f.score}/100${f.cap ? ' — ' + f.cap : ''}` }, `${f.label} ${f.grade}`));
+  });
+  lensCard.append(fitRow);
+
+  const uCount = lens.fits.filter(f => f.grade === 'U').length;
+  lensCard.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    uCount === lens.fits.length
+      ? `Every strategy reads U for this company. ${lens.tier.why} A grade computed from figures this product cannot stand behind would look like research and would not be any.`
+      : `${uCount} of ${lens.fits.length} strategies are not assessable from the data held. A fit is graded only where the evidence it needs actually exists.`));
+
+  /* Each fit opens to what supports it, what weakens it, and what is missing. */
+  const det = el('details', { style: 'margin-top:10px' });
+  det.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'What each grade rests on'));
+  const ft = el('table', { class: 'dt', style: 'margin-top:8px' });
+  ft.append(el('thead', {}, el('tr', {}, ['Strategy', 'Grade', 'Supports', 'Weakens or missing'].map((h, i) =>
+    el('th', { style: i === 1 ? null : 'text-align:left' }, h)))));
+  const fb = el('tbody');
+  lens.fits.forEach(f => fb.append(el('tr', {}, [
+    el('td', { style: 'text-align:left' }, f.label),
+    el('td', {}, f.grade),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+      f.supports.length ? f.supports.join(' ') : '—'),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+      [...f.weakens, ...f.missing.map(x => `Missing: ${x}`), ...(f.cap ? [f.cap] : [])].join(' ') || '—'),
+  ])));
+  ft.append(fb);
+  det.append(el('div', { class: 'tablewrap' }, ft));
+  det.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'These are research criteria, not instructions. A grade describes how well the evidence meets a strategy’s requirements — it does not say to buy, sell or hold anything, and no allocation is implied by any of them.'));
+  lensCard.append(det);
+  wrap.append(lensCard);
 
   /* ---------- sticky identity + tabs ----------
      Once the header scrolls away there is nothing on screen saying which
