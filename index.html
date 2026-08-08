@@ -11766,16 +11766,32 @@ const SARAWAK_CHECKS = [
 
    THREE STATUSES, AND THEY MEAN DIFFERENT THINGS
 
-     verified    someone checked this against the cited source on a date, and
-                 their name is against it
-     unverified  a working figure inherited from the prototype. It computes, and
-                 nobody has checked it against the source. It is not evidence.
-     unset       no value. Returns null and reports itself as missing.
+     verified     someone checked this against the cited source on a date, and
+                  their name is against it
+     unverified   a working figure inherited from the prototype. It computes,
+                  and nobody has checked it against the source.
+     placeholder  a commonly-quoted approximation, entered so the calculator
+                  runs end to end. It computes and it is NOT evidence.
+     unset        no value. Returns null and reports itself as missing.
 
-   Nothing here is marked verified. That is not an oversight — verification is a
-   person reading the Solicitors' Remuneration Order 2023, the current LHDN rate
-   tables and a lender's actual quote, and recording that they did. This file
-   holds the structure and the citations so that work has somewhere to land.
+   ON PLACEHOLDERS, WHICH ARE THE DANGEROUS ONES
+
+   An unset line is safe because it is visibly absent. A placeholder is the
+   opposite: it is plausible, it produces a total that looks finished, and a
+   reader has no way to tell it from a checked figure unless the product keeps
+   telling them. So every placeholder is marked at every appearance, the total
+   states what share of it rests on placeholders, and no placeholder can ever be
+   reported as verified. They exist to make the workflow testable, not to make
+   the number usable.
+
+   The values below are approximations in general circulation. They are not
+   quotations, not read off the current schedules, and several — mortgage
+   protection above all — vary so widely per case that the placeholder should be
+   understood as a shape rather than an amount.
+
+   Nothing here is marked verified. Verification is a person reading the
+   Solicitors' Remuneration Order 2023, the current rate orders and a lender's
+   actual quote, and recording that they did.
    ========================================================================== */
 const FEE_TABLE = {
   id: 'my-property-fees',
@@ -11806,20 +11822,14 @@ const FEE_TABLE = {
       label: 'Purchase legal fees (SPA and transfer)',
       basis: 'scale',
       appliesTo: 'price',
-      status: 'unset',
-      /* The prototype used max(500, price x 1.1%) as a single flat rate, marked
-         illustrative. A flat percentage cannot reproduce a banded remuneration
-         order at any price, so it is not carried forward as a scale — filling
-         the bands below is the fix, not adjusting the percentage. */
-      scale: null,
-      scaleTemplate: [
-        { upTo: 500000, rate: null, label: 'First RM500,000' },
-        { upTo: 1000000, rate: null, label: 'Next RM500,000' },
-        { upTo: 3000000, rate: null, label: 'Next RM2,000,000' },
-        { upTo: 5000000, rate: null, label: 'Next RM2,000,000' },
-        { upTo: Infinity, rate: null, label: 'Excess' },
-      ],
-      minimumFee: null,
+      status: 'placeholder',
+      /* The prototype used max(500, price x 1.1%) as a single flat rate. A flat
+         percentage cannot reproduce a banded order at any price, so this is a
+         band structure rather than a rate — and the BOUNDARIES need checking as
+         much as the rates. If the real bands differ, filling correct rates into
+         wrong boundaries produces a confidently wrong fee. */
+      scale: [[500000, 0.0125], [500000, 0.01], [2000000, 0.007], [2000000, 0.006], [Infinity, 0.005]],
+      minimumFee: 500,
       permittedDiscountPct: null,
       source: "Solicitors' Remuneration Order 2023, First Schedule",
       sourceUrl: 'https://www.malaysianbar.org.my/article/members/laws-bc-rulings-and-practice-directions/other-laws/solicitors-remuneration-order-2023/sro-2023',
@@ -11830,14 +11840,9 @@ const FEE_TABLE = {
       label: 'Loan legal fees',
       basis: 'scale',
       appliesTo: 'loan',
-      status: 'unset',
-      scale: null,
-      scaleTemplate: [
-        { upTo: 500000, rate: null, label: 'First RM500,000' },
-        { upTo: 1000000, rate: null, label: 'Next RM500,000' },
-        { upTo: Infinity, rate: null, label: 'Excess' },
-      ],
-      minimumFee: null,
+      status: 'placeholder',
+      scale: [[500000, 0.0125], [500000, 0.01], [2000000, 0.007], [2000000, 0.006], [Infinity, 0.005]],
+      minimumFee: 500,
       source: "Solicitors' Remuneration Order 2023",
       sourceUrl: 'https://www.malaysianbar.org.my/article/members/laws-bc-rulings-and-practice-directions/other-laws/solicitors-remuneration-order-2023/sro-2023',
       effectiveFrom: null, verifiedAt: null, verifiedBy: null,
@@ -11858,9 +11863,9 @@ const FEE_TABLE = {
       label: 'Valuation fee',
       basis: 'scale',
       appliesTo: 'price',
-      status: 'unset',
-      scale: null,
-      minimumFee: null,
+      status: 'placeholder',
+      scale: [[100000, 0.0025], [2000000, 0.002], [Infinity, 0.00167]],
+      minimumFee: 300,
       source: 'Valuers, Appraisers, Estate Agents and Property Managers Rules',
       sourceUrl: 'https://lppeh.gov.my/',
       effectiveFrom: null, verifiedAt: null, verifiedBy: null,
@@ -11870,8 +11875,8 @@ const FEE_TABLE = {
       label: 'Registration, searches and disbursements',
       basis: 'fixed',
       appliesTo: null,
-      status: 'unset',
-      fixed: null,
+      status: 'placeholder',
+      fixed: 1200,
       source: 'Land and Survey Department Sarawak, and the acting firm',
       sourceUrl: null,
       effectiveFrom: null, verifiedAt: null, verifiedBy: null,
@@ -11881,8 +11886,8 @@ const FEE_TABLE = {
       label: 'Service tax on professional fees',
       basis: 'percentOfFees',
       appliesTo: 'legalFees',
-      status: 'unset',
-      percent: null,
+      status: 'placeholder',
+      percent: 8,
       source: 'Service Tax Act 2018 and current rate orders',
       sourceUrl: null,
       effectiveFrom: null, verifiedAt: null, verifiedBy: null,
@@ -11892,9 +11897,9 @@ const FEE_TABLE = {
       label: 'Mortgage protection (MRTA/MLTA)',
       basis: 'quote',
       appliesTo: null,
-      status: 'unset',
-      fixed: null,
-      financedByDefault: null,
+      status: 'placeholder',
+      fixed: 8000,
+      financedByDefault: false,
       source: 'Insurer quotation',
       sourceUrl: null,
       effectiveFrom: null, verifiedAt: null, verifiedBy: null,
@@ -11904,8 +11909,8 @@ const FEE_TABLE = {
       label: 'Utility and management deposits',
       basis: 'fixed',
       appliesTo: null,
-      status: 'unset',
-      fixed: null,
+      status: 'placeholder',
+      fixed: 1500,
       source: 'Utility providers and the management body',
       sourceUrl: null,
       effectiveFrom: null, verifiedAt: null, verifiedBy: null,
@@ -11949,10 +11954,14 @@ function resolveFee(lineId, bases = {}) {
 }
 
 /* What the registry still needs, so it can be reported rather than discovered. */
-const unsetFeeLines = () => Object.entries(FEE_TABLE.lines)
-  .filter(([, l]) => l.status === 'unset').map(([id, l]) => ({ id, label: l.label, note: l.note }));
-const unverifiedFeeLines = () => Object.entries(FEE_TABLE.lines)
-  .filter(([, l]) => l.status === 'unverified').map(([id, l]) => ({ id, label: l.label }));
+const feeLinesWith = (...statuses) => Object.entries(FEE_TABLE.lines)
+  .filter(([, l]) => statuses.includes(l.status)).map(([id, l]) => ({ id, label: l.label, note: l.note }));
+const unsetFeeLines = () => feeLinesWith('unset');
+const unverifiedFeeLines = () => feeLinesWith('unverified');
+const placeholderFeeLines = () => feeLinesWith('placeholder');
+/* Anything that is not a checked figure. The distinction the reader needs is
+   not which of the three unchecked statuses applies — it is checked or not. */
+const unconfirmedFeeLines = () => feeLinesWith('unverified', 'placeholder', 'unset');
 
 /* Kept as thin wrappers so existing callers keep working while the registry
    becomes the single source of the numbers. */
@@ -12618,6 +12627,17 @@ function dealModel(d) {
   const missingCostLines = costGroups.flatMap(g =>
     g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, label: it[0], why: it[2]?.why })));
 
+  /* How much of the completion cash rests on a figure nobody has checked. A
+     placeholder total looks exactly like a finished one, so the proportion has
+     to be computed and stated rather than left for the reader to work out from
+     a scatter of markers. */
+  const unconfirmedCost = costGroups.flatMap(g => g.items)
+    .filter(it => it[2] && it[2].status !== 'verified' && isNum(it[1]))
+    .reduce((t, it) => t + it[1], 0);
+  const placeholderCostLines = costGroups.flatMap(g => g.items)
+    .filter(it => it[2]?.status === 'placeholder' && isNum(it[1]))
+    .map(it => ({ label: it[0], amount: it[1] }));
+
   /* Three months of instalment and running cost, held back rather than spent.
      Not part of the purchase, but part of what the purchase requires.
 
@@ -12786,7 +12806,8 @@ function dealModel(d) {
   const totalInitialCash = acquisitionCost + reserve;
 
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
-           costGroups, missingCostLines, reserve, totalInitialCash, instalment,
+           costGroups, missingCostLines, unconfirmedCost, placeholderCostLines,
+           reserve, totalInitialCash, instalment,
            grossAnnualRent, effectiveRent, opex, noi, annualDebtService, grossYield, netYield,
            maintenanceY, sinkingY, statutoryY, insuranceY, mgmtY, repairY,
            cashflowMonthly, cashOnCash, dscr, breakEvenRent,
@@ -13471,13 +13492,24 @@ VIEWS.property = () => {
       el('td', { style: 'font-weight:600', colspan: 2 }, g.label)]));
     /* An unpriced line is shown as unpriced. Omitting it would read as a cost
        that does not exist, and every one of these exists. */
-    g.items.forEach(it => cashB.append(el('tr', {}, [
-      el('td', { style: 'padding-left:var(--md)' }, it[0]),
-      isNum(it[1])
-        ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
-        : el('td', { class: 'num' }, el('span', { class: 'caption', style: 'color:var(--bronze)',
-            title: it[2]?.why || 'No value has been entered for this line.' }, 'not set')),
-    ])));
+    g.items.forEach(it => {
+      const st = it[2]?.status;
+      cashB.append(el('tr', {}, [
+        el('td', { style: 'padding-left:var(--md)' }, [
+          it[0],
+          /* Marked at every appearance. A placeholder is plausible, which is
+             precisely why it cannot be left to look like a checked figure. */
+          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:10px',
+            title: it[2]?.line?.note || 'A commonly-quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder') : null,
+          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:10px',
+            title: 'A working figure nobody has checked against the cited source.' }, 'unverified') : null,
+        ]),
+        isNum(it[1])
+          ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
+          : el('td', { class: 'num' }, el('span', { class: 'caption', style: 'color:var(--bronze)',
+              title: it[2]?.why || 'No value has been entered for this line.' }, 'not set')),
+      ]));
+    });
     if (g.items.length > 1) cashB.append(el('tr', {}, [
       el('td', { class: 'metaline', style: 'padding-left:var(--md)' },
         `${g.label} subtotal${gMissing ? ` — ${gMissing} line${gMissing === 1 ? '' : 's'} unpriced` : ''}`),
@@ -13493,6 +13525,16 @@ VIEWS.property = () => {
   if (nMissing) cashB.append(el('tr', {}, [
     el('td', { colspan: 2, class: 'metaline', style: 'color:var(--bronze);white-space:normal' },
       `This is not the full amount. ${nMissing} cost line${nMissing === 1 ? ' has' : 's have'} no value yet — ${m.missingCostLines.map(x => x.label.toLowerCase()).join(', ')} — so the real figure is higher by whatever those come to. They are unpriced rather than zero, and this tool will not guess them.`)]));
+  /* The share of the total resting on unchecked figures, stated as a
+     proportion. Individual markers tell a reader which lines; only this tells
+     them how much of the answer is affected. */
+  if (isNum(m.unconfirmedCost) && m.unconfirmedCost > 0 && isNum(m.totalInitialCash) && m.totalInitialCash > 0)
+    cashB.append(el('tr', {}, [
+      el('td', { colspan: 2, class: 'metaline', style: 'color:var(--bronze);white-space:normal' },
+        `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — comes from fee lines nobody has checked against their source. `
+        + (m.placeholderCostLines.length
+            ? `${m.placeholderCostLines.length} ${m.placeholderCostLines.length === 1 ? 'is a placeholder' : 'are placeholders'}: approximations entered so the workflow runs, not quotations. Replace them with real quotes before this figure means anything.`
+            : 'They compute, and they are not evidence.'))]));
   cashT.append(cashB);
   cash.append(cashT);
   cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
