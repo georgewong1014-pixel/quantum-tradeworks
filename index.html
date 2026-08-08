@@ -8455,7 +8455,31 @@ const CONDITION_STATES = {
                  rule:'The condition is bound to no metric this build carries, so it has no source and is never treated as passing.' },
   awaiting:    { label:'Awaiting update',       sev:'muted',
                  rule:'The metric exists in this build but has no current value. Not treated as passing.' },
+  stale:       { label:'Data stale',            sev:'warning',
+                 rule:'A value exists and was evaluated, but the statements behind it are old enough that a newer report should already have been published. Not treated as passing.' },
 };
+
+/* How far behind the accounts are.
+   ---------------------------------------------------------------------------
+   A condition can be evaluated against a real figure and still be answering
+   last year's question. Bursa gives listed issuers four months from year end to
+   publish an annual report and the SEC gives large filers sixty days, so a
+   company whose most recent fiscal year ended more than eighteen months ago is
+   not merely un-updated — a newer report exists somewhere and this build does
+   not have it. Eighteen months is that publishing deadline plus a full year,
+   which is the point at which "not yet filed" stops being the explanation. */
+const STALE_AFTER_MONTHS = 18;
+
+function dataAgeMonths() {
+  const latest = YEARS[YEARS.length - 1];
+  if (!Number.isFinite(latest)) return null;
+  /* Fiscal years are recorded by year, so the end of the period is the end of
+     that calendar year. Approximate by construction, and the threshold is wide
+     enough that the approximation cannot decide the answer. */
+  const end = new Date(Date.UTC(latest, 11, 31));
+  const months = (Date.now() - end.getTime()) / (86400000 * 30.44);
+  return Number.isFinite(months) ? Math.max(0, Math.round(months)) : null;
+}
 
 /* The proximity itself, so the label can be inspected rather than trusted.
    Returns null where there is nothing to measure — no value, or a zero
@@ -8467,13 +8491,34 @@ function conditionDistance(cd) {
   return { abs, rel: Math.abs(abs) / Math.abs(cd.v) };
 }
 
+/* The gap between two percentages is measured in percentage POINTS, not in
+   percent. The distance cell used to print both meanings with the same sign —
+   "0.3% · 2.7% of threshold" — where the first is 0.3 points of ROE and the
+   second is a proportion of the threshold. Two different quantities wearing one
+   symbol, in a cell whose whole job is to let a reader check a label.
+
+   Detected from the formatter's own output rather than from a flag on the
+   field, so a metric added later is covered without anyone remembering to mark
+   it. A multiple or a count keeps its own formatting: the distance between 4.3x
+   and 5.0x is 0.7x, not 0.7 points. */
+function formatConditionGap(magnitude, fmt) {
+  const sample = String(fmt(magnitude));
+  return /%\s*$/.test(sample) ? `${sample.replace(/%\s*$/, '')}pp` : sample;
+}
+
 function conditionState(cd) {
   if (cd.actual == null) {
     /* A condition bound to a metric this build carries, but with no current
        value, is waiting for data. One bound to nothing never had a source. */
     return (cd.k || cd.type === 'val') ? CONDITION_STATES.awaiting : CONDITION_STATES.unavailable;
   }
+  /* A breach is reported even on old statements — it is the one answer that
+     does not become safer for being out of date. Everything short of a breach
+     is reported as stale instead, because "within threshold" on an eighteen-
+     month-old figure is a claim about a period that has since closed. */
   if (cd.hit) return CONDITION_STATES.breached;
+  const age = dataAgeMonths();
+  if (isNum(age) && age > STALE_AFTER_MONTHS) return CONDITION_STATES.stale;
   const dist = conditionDistance(cd);
   if (dist && dist.rel <= APPROACH_MARGIN) return CONDITION_STATES.approaching;
   return CONDITION_STATES.within;
@@ -8659,15 +8704,40 @@ function thesisCard(t, expanded) {
       /* The number the label was derived from. Without it, "Approaching" is a
          verdict the reader has to take on trust. */
       el('td', { class: 'num' }, dist
-        ? `${fmt(Math.abs(dist.abs))} · ${fmtPct(dist.rel * 100, 1)} of threshold`
+        ? `${formatConditionGap(Math.abs(dist.abs), fmt)} · ${fmtPct(dist.rel * 100, 1)} of threshold`
         : '—'),
       el('td', { title: st.rule || '' },
         st.sev === 'muted' ? el('span', { class: 'caption' }, st.label) : sevChip(st.sev, st.label)),
     ]));
   });
   tab.append(tb); tw.append(tab); card.append(tw);
+  /* Every state and its rule, in the place the labels are read. A reader who
+     can see "Approaching threshold" and its distance but not the rule that
+     connects them is being asked to trust an arithmetic they could check. */
+  const ruleBox = el('details', { style: 'margin-top:10px' });
+  ruleBox.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+    'How each state is decided'));
+  const ruleTable = el('table', { class: 'dt', style: 'margin-top:8px' });
+  ruleTable.append(el('thead', {}, el('tr', {}, ['State', 'Rule'].map(h =>
+    el('th', { style: 'text-align:left' }, h)))));
+  const ruleBody = el('tbody');
+  ['breached', 'approaching', 'within', 'stale', 'awaiting', 'unavailable'].forEach(k => {
+    const st = CONDITION_STATES[k];
+    ruleBody.append(el('tr', {}, [
+      el('td', { style: 'text-align:left' },
+        st.sev === 'muted' ? el('span', { class: 'caption' }, st.label) : sevChip(st.sev, st.label)),
+      el('td', { style: 'text-align:left;white-space:normal' }, st.rule),
+    ]));
+  });
+  ruleTable.append(ruleBody);
+  ruleBox.append(el('div', { class: 'tablewrap' }, ruleTable));
+  const age = dataAgeMonths();
+  ruleBox.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `Distance is shown two ways: the absolute gap in the metric's own unit — percentage points where the metric is a percentage — and that gap as a proportion of the threshold, which is the figure the ${Math.round(APPROACH_MARGIN * 100)}% margin is measured against.`
+    + (isNum(age) ? ` The statements behind these conditions are ${age} months old; they are treated as stale beyond ${STALE_AFTER_MONTHS}.` : '')));
+  card.append(ruleBox);
   card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `A condition reads Breached when it evaluates true, Approaching threshold when it does not but sits within ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value — |actual − threshold| ÷ |threshold| — and Within threshold beyond that. A condition with no current value is never counted as passing.`));
+    `A condition reads Breached when it evaluates true, Approaching threshold when it does not but sits within ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value — |actual − threshold| ÷ |threshold| — and Within threshold beyond that. A condition with no current value, or one resting on stale statements, is never counted as passing.`));
 
   if (t.questions?.length) {
     card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Unanswered questions'));
