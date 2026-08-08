@@ -11747,15 +11747,232 @@ const SARAWAK_CHECKS = [
 
 /* Malaysian acquisition costs. Rates are editable elsewhere in a real build;
    here they are the published scales, labelled illustrative. */
-function stampDutyMOT(price) {
-  /* 1% first 100k, 2% next 400k, 3% next 500k, 4% above 1m */
-  const bands = [[100000, 0.01], [400000, 0.02], [500000, 0.03], [Infinity, 0.04]];
-  let left = price, duty = 0;
-  for (const [size, rate] of bands) { const slice = Math.min(left, size); duty += slice * rate; left -= slice; if (left <= 0) break; }
-  return duty;
+/* ==========================================================================
+   FEE AND DUTY REGISTRY
+
+   Section 46 of the migration specification: every rate, threshold and fee
+   carries an effective date and a review owner. Section 29.4: fee tables are
+   versioned by effective date and transaction type, and one legal-fee number
+   cannot serve developer/HDA, secondary-market, auction and commercial cases.
+
+   THE RULE THAT MAKES THIS SAFE
+
+   An unfilled line returns null, never zero. A fee table that quietly returns
+   zero for a cost nobody has entered understates the cash a buyer needs on
+   completion day, which is the single most damaging thing this calculator could
+   get wrong — and it would do it silently, because zero looks like an answer.
+   Every consumer of this registry must handle null by showing the line as unset
+   rather than by adding nothing to a total.
+
+   THREE STATUSES, AND THEY MEAN DIFFERENT THINGS
+
+     verified    someone checked this against the cited source on a date, and
+                 their name is against it
+     unverified  a working figure inherited from the prototype. It computes, and
+                 nobody has checked it against the source. It is not evidence.
+     unset       no value. Returns null and reports itself as missing.
+
+   Nothing here is marked verified. That is not an oversight — verification is a
+   person reading the Solicitors' Remuneration Order 2023, the current LHDN rate
+   tables and a lender's actual quote, and recording that they did. This file
+   holds the structure and the citations so that work has somewhere to land.
+   ========================================================================== */
+const FEE_TABLE = {
+  id: 'my-property-fees',
+  version: '0.1.0-unverified',
+  jurisdiction: 'MY',
+  /* Fill these two first. Without an owner, nothing below gets re-checked when
+     a schedule changes, and a stale fee table is worse than an empty one
+     because it looks maintained. */
+  reviewOwner: null,
+  nextReviewDue: null,
+
+  lines: {
+    transferStampDuty: {
+      label: 'Transfer stamp duty (MOT)',
+      basis: 'scale',
+      appliesTo: 'price',
+      status: 'unverified',
+      /* Inherited from the prototype: 1% first 100k, 2% next 400k, 3% next
+         500k, 4% above 1m. Widely quoted and not verified here against the
+         current Stamp Act schedule or any exemption order in force. */
+      scale: [[100000, 0.01], [400000, 0.02], [500000, 0.03], [Infinity, 0.04]],
+      source: 'Stamp Act 1949, First Schedule',
+      sourceUrl: null,
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Check whether any first-home or threshold exemption applies to the buyer and the price before relying on this.',
+    },
+    purchaseLegal: {
+      label: 'Purchase legal fees (SPA and transfer)',
+      basis: 'scale',
+      appliesTo: 'price',
+      status: 'unset',
+      /* The prototype used max(500, price x 1.1%) as a single flat rate, marked
+         illustrative. A flat percentage cannot reproduce a banded remuneration
+         order at any price, so it is not carried forward as a scale — filling
+         the bands below is the fix, not adjusting the percentage. */
+      scale: null,
+      scaleTemplate: [
+        { upTo: 500000, rate: null, label: 'First RM500,000' },
+        { upTo: 1000000, rate: null, label: 'Next RM500,000' },
+        { upTo: 3000000, rate: null, label: 'Next RM2,000,000' },
+        { upTo: 5000000, rate: null, label: 'Next RM2,000,000' },
+        { upTo: Infinity, rate: null, label: 'Excess' },
+      ],
+      minimumFee: null,
+      permittedDiscountPct: null,
+      source: "Solicitors' Remuneration Order 2023, First Schedule",
+      sourceUrl: 'https://www.malaysianbar.org.my/article/members/laws-bc-rulings-and-practice-directions/other-laws/solicitors-remuneration-order-2023/sro-2023',
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Scales and any permitted discount differ by transaction type. Record HDA/developer, secondary market, auction and commercial separately rather than reusing one set.',
+    },
+    loanLegal: {
+      label: 'Loan legal fees',
+      basis: 'scale',
+      appliesTo: 'loan',
+      status: 'unset',
+      scale: null,
+      scaleTemplate: [
+        { upTo: 500000, rate: null, label: 'First RM500,000' },
+        { upTo: 1000000, rate: null, label: 'Next RM500,000' },
+        { upTo: Infinity, rate: null, label: 'Excess' },
+      ],
+      minimumFee: null,
+      source: "Solicitors' Remuneration Order 2023",
+      sourceUrl: 'https://www.malaysianbar.org.my/article/members/laws-bc-rulings-and-practice-directions/other-laws/solicitors-remuneration-order-2023/sro-2023',
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Charged on the loan amount, not the purchase price. Absent entirely from the prototype, which understated completion cash on every financed purchase.',
+    },
+    loanStampDuty: {
+      label: 'Loan agreement stamp duty',
+      basis: 'percent',
+      appliesTo: 'loan',
+      status: 'unverified',
+      percent: 0.5,
+      source: 'Stamp Act 1949',
+      sourceUrl: null,
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Inherited from the prototype as a flat 0.5% of the loan.',
+    },
+    valuationFee: {
+      label: 'Valuation fee',
+      basis: 'scale',
+      appliesTo: 'price',
+      status: 'unset',
+      scale: null,
+      minimumFee: null,
+      source: 'Valuers, Appraisers, Estate Agents and Property Managers Rules',
+      sourceUrl: 'https://lppeh.gov.my/',
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Usually required by the lender and paid by the buyer. Confirm whether the selected lender absorbs it.',
+    },
+    disbursements: {
+      label: 'Registration, searches and disbursements',
+      basis: 'fixed',
+      appliesTo: null,
+      status: 'unset',
+      fixed: null,
+      source: 'Land and Survey Department Sarawak, and the acting firm',
+      sourceUrl: null,
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Title search, registration, land-office and firm disbursements. Ask the acting firm for a written quotation rather than estimating.',
+    },
+    professionalServiceTax: {
+      label: 'Service tax on professional fees',
+      basis: 'percentOfFees',
+      appliesTo: 'legalFees',
+      status: 'unset',
+      percent: null,
+      source: 'Service Tax Act 2018 and current rate orders',
+      sourceUrl: null,
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Applies to the professional fee, not to the purchase price. Confirm the current rate and which of the fees above it attaches to.',
+    },
+    mortgageProtection: {
+      label: 'Mortgage protection (MRTA/MLTA)',
+      basis: 'quote',
+      appliesTo: null,
+      status: 'unset',
+      fixed: null,
+      financedByDefault: null,
+      source: 'Insurer quotation',
+      sourceUrl: null,
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Depends on age, sum assured, tenure and product. Record whether the premium is paid in cash or financed into the loan — the two produce very different completion cash.',
+    },
+    utilityDeposits: {
+      label: 'Utility and management deposits',
+      basis: 'fixed',
+      appliesTo: null,
+      status: 'unset',
+      fixed: null,
+      source: 'Utility providers and the management body',
+      sourceUrl: null,
+      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      note: 'Refundable, and still cash the buyer must have on completion day.',
+    },
+  },
+};
+
+/* Resolves one line to an amount, or to an explicit reason it has none.
+   Returns { amount, status, label, why } — the amount is null unless the line
+   can actually be computed, and callers must not coerce that null to zero. */
+function resolveFee(lineId, bases = {}) {
+  const line = FEE_TABLE.lines[lineId];
+  if (!line) return { amount: null, status: 'unknown', label: lineId, why: 'No such fee line.' };
+  const out = { amount: null, status: line.status, label: line.label, line,
+                why: line.status === 'unset' ? 'No value has been entered for this line.' : null };
+  if (line.status === 'unset') return out;
+
+  const base = line.appliesTo ? bases[line.appliesTo] : null;
+  if (line.basis === 'percent') {
+    if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or base is missing.'; return out; }
+    out.amount = base * line.percent / 100;
+  } else if (line.basis === 'percentOfFees') {
+    if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or fee base is missing.'; return out; }
+    out.amount = base * line.percent / 100;
+  } else if (line.basis === 'fixed' || line.basis === 'quote') {
+    if (!isNum(line.fixed)) { out.why = 'No amount has been entered.'; return out; }
+    out.amount = line.fixed;
+  } else if (line.basis === 'scale') {
+    if (!Array.isArray(line.scale) || !isNum(base)) { out.why = 'The scale has not been filled in.'; return out; }
+    let left = base, total = 0;
+    for (const [size, rate] of line.scale) {
+      const slice = Math.min(left, size);
+      total += slice * rate; left -= slice;
+      if (left <= 0) break;
+    }
+    if (isNum(line.minimumFee)) total = Math.max(total, line.minimumFee);
+    out.amount = total;
+  }
+  return out;
 }
-const legalFeesBuy = (price) => Math.max(500, price * 0.011);       /* SPA + loan documentation, illustrative */
-const loanStampDuty = (loan) => loan * 0.005;
+
+/* What the registry still needs, so it can be reported rather than discovered. */
+const unsetFeeLines = () => Object.entries(FEE_TABLE.lines)
+  .filter(([, l]) => l.status === 'unset').map(([id, l]) => ({ id, label: l.label, note: l.note }));
+const unverifiedFeeLines = () => Object.entries(FEE_TABLE.lines)
+  .filter(([, l]) => l.status === 'unverified').map(([id, l]) => ({ id, label: l.label }));
+
+/* Kept as thin wrappers so existing callers keep working while the registry
+   becomes the single source of the numbers. */
+function stampDutyMOT(price) {
+  const r = resolveFee('transferStampDuty', { price });
+  return isNum(r.amount) ? r.amount : 0;
+}
+const loanStampDuty = (loan) => {
+  const r = resolveFee('loanStampDuty', { loan });
+  return isNum(r.amount) ? r.amount : 0;
+};
+/* Deliberately NOT restored to a working percentage. The prototype's flat 1.1%
+   could not reproduce any banded remuneration order, and leaving it in place
+   would keep a number on screen that nobody can check against the cited
+   source — which is the defect, not the size of the number. It returns null
+   until the scale is filled, and the ledger shows the line as unset. */
+const legalFeesBuy = (price) => {
+  const r = resolveFee('purchaseLegal', { price });
+  return isNum(r.amount) ? r.amount : null;
+};
 
 /* RPGT for an individual Malaysian citizen, by completed years of holding. */
 function rpgtRate(years) {
@@ -12369,17 +12586,49 @@ function dealModel(d) {
      RM57.2k + RM11.2k + RM6.3k + RM2.6k is RM77.3k, and the stated total was
      RM102.2k. The missing RM25k was renovation, included in the sum and absent
      from the sentence. Every total below reconciles from its own parts. */
+  /* Section 29.4 requires every completion-cost line to appear, with its basis
+     and whether it is unset. A line the registry cannot price is listed with a
+     null amount rather than omitted — an absent row reads as a cost that does
+     not exist, and these all exist. */
+  const feeLine = (id, bases) => { const r = resolveFee(id, bases); return [r.label, r.amount, r]; };
+  const legalBase = isNum(legal) ? legal : 0;
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
-        ['Deposit', deposit], ['Transfer stamp duty', duty], ['Purchase legal fees', legal]] },
+        ['Deposit', deposit],
+        feeLine('transferStampDuty', { price: d.price }),
+        feeLine('purchaseLegal', { price: d.price }),
+        feeLine('disbursements', {}),
+        feeLine('professionalServiceTax', { legalFees: legalBase }),
+      ] },
     { id:'financing', label:'Financing costs', items:[
-        ['Loan stamp duty', loanDuty]] },
+        feeLine('loanStampDuty', { loan }),
+        feeLine('loanLegal', { loan }),
+        feeLine('valuationFee', { price: d.price }),
+        feeLine('mortgageProtection', {}),
+      ] },
     { id:'improvement', label:'Initial improvement costs', items:[
-        ['Renovation and furnishing', renovation]] },
+        ['Renovation and furnishing', renovation],
+        feeLine('utilityDeposits', {}),
+      ] },
   ];
+
+  /* Which lines exist but cannot yet be priced. Carried on the model so every
+     total that depends on them can say it is incomplete rather than presenting
+     a short number as though it were the answer. */
+  const missingCostLines = costGroups.flatMap(g =>
+    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, label: it[0], why: it[2]?.why })));
+
   /* Three months of instalment and running cost, held back rather than spent.
-     Not part of the purchase, but part of what the purchase requires. */
-  const acquisitionCost = deposit + duty + legal + loanDuty + renovation;
+     Not part of the purchase, but part of what the purchase requires.
+
+     Sums only what is priced. It was deposit + duty + legal + loanDuty +
+     renovation with every term assumed present; a single null now makes the
+     whole figure NaN rather than quietly short, and the report says how many
+     lines are missing beside it. */
+  const sumPriced = (xs) => xs.reduce((t, v) => t + (isNum(v) ? v : 0), 0);
+  const acquisitionCost = deposit + renovation
+    + sumPriced(costGroups.flatMap(g => g.items.filter(it => it[0] !== 'Deposit'
+        && it[0] !== 'Renovation and furnishing').map(it => it[1])));
 
   const instalment = monthlyInstalment(loan, d.ratePct, d.tenureYears);
   const grossAnnualRent = d.rent * 12;
@@ -12537,7 +12786,7 @@ function dealModel(d) {
   const totalInitialCash = acquisitionCost + reserve;
 
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
-           costGroups, reserve, totalInitialCash, instalment,
+           costGroups, missingCostLines, reserve, totalInitialCash, instalment,
            grossAnnualRent, effectiveRent, opex, noi, annualDebtService, grossYield, netYield,
            maintenanceY, sinkingY, statutoryY, insuranceY, mgmtY, repairY,
            cashflowMonthly, cashOnCash, dscr, breakEvenRent,
@@ -13216,19 +13465,34 @@ VIEWS.property = () => {
   const cashT = el('table', { class: 'dt' });
   const cashB = el('tbody');
   m.costGroups.forEach(g => {
-    const sub = g.items.reduce((s2, [, v]) => s2 + v, 0);
+    const sub = g.items.reduce((s2, it) => s2 + (isNum(it[1]) ? it[1] : 0), 0);
+    const gMissing = g.items.filter(it => !isNum(it[1])).length;
     cashB.append(el('tr', {}, [
       el('td', { style: 'font-weight:600', colspan: 2 }, g.label)]));
-    g.items.forEach(([label, v]) => cashB.append(el('tr', {}, [
-      el('td', { style: 'padding-left:var(--md)' }, label),
-      el('td', { class: 'num' }, fmtAmount(v, 'MYR'))])));
+    /* An unpriced line is shown as unpriced. Omitting it would read as a cost
+       that does not exist, and every one of these exists. */
+    g.items.forEach(it => cashB.append(el('tr', {}, [
+      el('td', { style: 'padding-left:var(--md)' }, it[0]),
+      isNum(it[1])
+        ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
+        : el('td', { class: 'num' }, el('span', { class: 'caption', style: 'color:var(--bronze)',
+            title: it[2]?.why || 'No value has been entered for this line.' }, 'not set')),
+    ])));
     if (g.items.length > 1) cashB.append(el('tr', {}, [
-      el('td', { class: 'metaline', style: 'padding-left:var(--md)' }, `${g.label} subtotal`),
+      el('td', { class: 'metaline', style: 'padding-left:var(--md)' },
+        `${g.label} subtotal${gMissing ? ` — ${gMissing} line${gMissing === 1 ? '' : 's'} unpriced` : ''}`),
       el('td', { class: 'num metaline' }, fmtAmount(sub, 'MYR'))]));
   });
+  const nMissing = (m.missingCostLines || []).length;
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
-    el('td', { style: 'font-weight:680' }, 'Total initial cash'),
+    el('td', { style: 'font-weight:680' },
+      nMissing ? 'Total initial cash so far' : 'Total initial cash'),
     el('td', { class: 'num', style: 'font-weight:680' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
+  /* The total names its own incompleteness in the row beneath it, because a
+     bold figure at the foot of a ledger is read as the answer. */
+  if (nMissing) cashB.append(el('tr', {}, [
+    el('td', { colspan: 2, class: 'metaline', style: 'color:var(--bronze);white-space:normal' },
+      `This is not the full amount. ${nMissing} cost line${nMissing === 1 ? ' has' : 's have'} no value yet — ${m.missingCostLines.map(x => x.label.toLowerCase()).join(', ')} — so the real figure is higher by whatever those come to. They are unpriced rather than zero, and this tool will not guess them.`)]));
   cashT.append(cashB);
   cash.append(cashT);
   cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
