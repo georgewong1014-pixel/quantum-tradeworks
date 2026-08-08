@@ -12585,6 +12585,187 @@ function affordabilityPanel(cityName) {
 }
 
 /* ==========================================================================
+   BORROWER LOAN READINESS — specification 28.1, 30
+
+   THE THING THIS MUST NOT BECOME
+
+   The obvious feature is "you have a 72% chance of approval". It cannot be
+   built. A real approval probability needs a large, current, lender-specific
+   dataset of applications, verified inputs and outcomes, and nobody outside a
+   lender has one. A number that looks like a probability and is not one is
+   worse than no number, because a reader will plan around it.
+
+   So this is a DIAGNOSTIC score: how much of what a lender will look at has
+   been evidenced, and how much of it holds up under stress. It is labelled as
+   that everywhere it appears.
+
+   THREE SEPARATE THINGS, NEVER COLLAPSED (30.1)
+
+     Borrower Loan Readiness      is the applicant strong and evidenced
+     Property Financeability      is the property itself lendable
+     Modelled Financing Coverage  what share of the price the scenario funds
+
+   A strong borrower can face an unfinanceable property and the reverse. One
+   opaque percentage hides exactly the fact the reader needs.
+
+   PRIVACY
+
+   Income, debts and credit conduct are the most sensitive data this product
+   touches, and this build has no accounts and no server. They are held under
+   their own storage key, never written to the URL, never included in the
+   property export, and never used for anything but affordability — 2.1 forbids
+   personal circumstances influencing security research, and there is no path
+   from here into the equity engine.
+   ========================================================================== */
+const EMPLOYMENT_TYPES = [
+  { id:'salaried', label:'Salaried' },
+  { id:'commission', label:'Salaried with commission' },
+  { id:'self_employed', label:'Self-employed' },
+  { id:'company_director', label:'Company director' },
+  { id:'mixed', label:'Mixed sources' },
+];
+const CREDIT_STATES = [
+  { id:'not_checked', label:'Not checked yet', ok:false },
+  { id:'none_reported', label:'Reviewed — nothing adverse reported', ok:true },
+  { id:'present', label:'Reviewed — arrears or restructuring present', ok:true, adverse:true },
+];
+const BORROWER_DOCS = [
+  { k:'identity',   label:'Identity documents' },
+  { k:'payslips',   label:'Recent payslips or income statements' },
+  { k:'epf',        label:'EPF contribution statement' },
+  { k:'bank',       label:'Bank statements showing income credited' },
+  { k:'tax',        label:'Filed tax return or assessment' },
+  { k:'employment', label:'Employment or business confirmation' },
+  { k:'existing',   label:'Statements for existing loans' },
+  { k:'deposit',    label:'Evidence of where the deposit came from' },
+];
+
+State.borrower = store.read('borrowerProfile', null) || {
+  assessed: false,
+  employmentType: 'salaried',
+  verifiedNetMonthlyIncome: 0,
+  variableIncomeMonthlyAverage: 0,
+  variableIncomeLookbackMonths: 0,
+  existingMonthlyDebtPayments: 0,
+  essentialMonthlyCommitments: 0,
+  creditCardUtilisationPct: 0,
+  liquidCashAvailable: 0,
+  incomeStabilityMonths: 0,
+  creditReview: 'not_checked',
+  applicantCount: 1,
+  docs: {},
+};
+const saveBorrower = () => store.write('borrowerProfile', State.borrower);
+
+/* Specification 30.3. Every figure shows its own formula on screen, because a
+   ratio a reader cannot reproduce is a number they have to trust. */
+function borrowerAffordability(b, m) {
+  const income = num0(b.verifiedNetMonthlyIncome);
+  const existing = num0(b.existingMonthlyDebtPayments);
+  const essentials = num0(b.essentialMonthlyCommitments);
+  const instalment = isNum(m?.instalment) ? m.instalment : null;
+  /* Three points above the entered rate, the top of the range 31.7 asks for. */
+  const stressedInstalment = (isNum(m?.loan) && m?.tenureValid)
+    ? monthlyInstalment(m.loan, num0(m.inputRatePct) + 3, num0(m.tenureYears)) : null;
+
+  const ok = income > 0 && isNum(instalment);
+  return {
+    income, existing, essentials, instalment, stressedInstalment,
+    baseTotalDebt: ok ? existing + instalment : null,
+    baseDSR: ok ? (existing + instalment) / income * 100 : null,
+    stressedDSR: (ok && isNum(stressedInstalment)) ? (existing + stressedInstalment) / income * 100 : null,
+    cashLeftAfterDebt: ok ? income - existing - instalment : null,
+    cashLeftAfterEssentials: ok ? income - existing - instalment - essentials : null,
+    computable: ok,
+  };
+}
+
+const READINESS_COMPONENTS = [
+  { k:'affordability', label:'Affordability and stress capacity', weight:25 },
+  { k:'credit',        label:'Credit conduct',                    weight:20 },
+  { k:'income',        label:'Income quality and stability',      weight:20 },
+  { k:'buffer',        label:'Liquid buffer',                     weight:15 },
+  { k:'documents',     label:'Documentation readiness',           weight:10 },
+  { k:'structure',     label:'Application structure',             weight:10 },
+];
+
+function loanReadiness(b, m) {
+  const a = borrowerAffordability(b, m);
+  const scores = {}, notes = {}, unknowns = [];
+
+  if (a.computable && isNum(a.stressedDSR)) {
+    /* Not a pass mark. BNM's financial-stability work identifies debt service
+       above 60% of net income as a higher-vulnerability group, which is a
+       description of risk rather than a lender's threshold — individual lenders
+       set their own and they differ. Scored as a gradient for that reason. */
+    const dsrPart = clamp((75 - a.stressedDSR) / 45 * 60, 0, 60);
+    const cashPart = a.cashLeftAfterEssentials > 0
+      ? clamp(a.cashLeftAfterEssentials / (a.income * 0.2) * 40, 0, 40) : 0;
+    scores.affordability = Math.round(dsrPart + cashPart);
+    notes.affordability = `Debt service ${fmtPct(a.baseDSR, 1)} of net income now, ${fmtPct(a.stressedDSR, 1)} at three points higher. ${fmtAmount(a.cashLeftAfterEssentials, 'MYR')} left after debt and essentials.`;
+  } else { scores.affordability = null; notes.affordability = 'Net income or the instalment is missing, so affordability cannot be tested.'; unknowns.push('affordability'); }
+
+  const credit = CREDIT_STATES.find(c => c.id === b.creditReview);
+  if (!credit?.ok) { scores.credit = null; notes.credit = 'The credit record has not been reviewed. This is the single most common reason an application that looks affordable is declined.'; unknowns.push('credit conduct'); }
+  else {
+    const util = num0(b.creditCardUtilisationPct);
+    scores.credit = Math.round(clamp((credit.adverse ? 35 : 100) - util * 0.4, 0, 100));
+    notes.credit = credit.adverse
+      ? 'Arrears or restructuring are present on the record. Lenders weigh recency and resolution, and this needs explaining rather than hiding.'
+      : `Nothing adverse reported. Revolving utilisation ${fmtPct(util, 0)}.`;
+  }
+
+  const months = num0(b.incomeStabilityMonths);
+  const variable = num0(b.variableIncomeMonthlyAverage);
+  const lookback = num0(b.variableIncomeLookbackMonths);
+  if (a.income > 0) {
+    let s = clamp(months / 24 * 60, 0, 60);
+    /* Variable income counts only where it has been averaged over a period.
+       A single good month is not income, and 30.1 forbids treating it as one. */
+    s += variable > 0 ? (lookback >= 6 ? 40 : lookback >= 3 ? 20 : 0) : 40;
+    scores.income = Math.round(clamp(s, 0, 100));
+    notes.income = variable > 0
+      ? `${months} months in the current role or business; variable income averaged over ${lookback} months.`
+      : `${months} months in the current role or business; no variable component entered.`;
+    if (variable > 0 && lookback < 3) notes.income += ' A variable component with under three months of history is not evidence of recurring income.';
+  } else { scores.income = null; notes.income = 'No verified net income entered.'; unknowns.push('income'); }
+
+  if (isNum(m?.safeCashRequired) && m.safeCashRequired > 0) {
+    const cash = num0(b.liquidCashAvailable);
+    scores.buffer = Math.round(clamp(cash / m.safeCashRequired * 100, 0, 100));
+    notes.buffer = cash >= m.safeCashRequired
+      ? `${fmtAmount(cash, 'MYR')} available against ${fmtAmount(m.safeCashRequired, 'MYR')} required, including the reserve.`
+      : `${fmtAmount(cash, 'MYR')} available against ${fmtAmount(m.safeCashRequired, 'MYR')} required — short by ${fmtAmount(m.safeCashRequired - cash, 'MYR')}, and borrowing that shortfall would change the affordability above.`;
+  } else { scores.buffer = null; notes.buffer = 'The cash requirement could not be computed.'; unknowns.push('liquid buffer'); }
+
+  const provided = BORROWER_DOCS.filter(x => b.docs?.[x.k] === 'verified' || b.docs?.[x.k] === 'provided').length;
+  scores.documents = Math.round(provided / BORROWER_DOCS.length * 100);
+  notes.documents = `${provided} of ${BORROWER_DOCS.length} documents gathered. A lender's own checklist overrides this one.`;
+
+  scores.structure = num0(b.applicantCount) >= 1 && a.income > 0 ? 70 : null;
+  notes.structure = 'Applicant count and tenure fit recorded. Joint-applicant evidence and declared source of funds are not modelled in this build.';
+  if (scores.structure == null) unknowns.push('application structure');
+
+  const tested = READINESS_COMPONENTS.filter(c => isNum(scores[c.k]));
+  const testedWeight = tested.reduce((s, c) => s + c.weight, 0);
+  const total = READINESS_COMPONENTS.reduce((s, c) => s + c.weight, 0);
+  const score = testedWeight > 0
+    ? Math.round(tested.reduce((s, c) => s + scores[c.k] * c.weight, 0) / testedWeight) : null;
+
+  /* A critical unknown must not be hidden behind a numeric total. */
+  let band;
+  if (unknowns.includes('credit conduct') || unknowns.includes('affordability') || score == null) band = 'Not assessed';
+  else if (score >= 80) band = 'Strong readiness';
+  else if (score >= 65) band = 'Workable with conditions';
+  else if (score >= 50) band = 'Marginal';
+  else band = 'Currently weak';
+
+  return { score, band, scores, notes, unknowns, affordability: a,
+           coverage: testedWeight / total,
+           components: READINESS_COMPONENTS.map(c => ({ ...c, score: scores[c.k], note: notes[c.k] })) };
+}
+
+/* ==========================================================================
    QT PROPERTY UNDERWRITING GRADE — specification 31
 
    Named for what it is. Not "investment grade", which reads as a credit
@@ -12611,6 +12792,84 @@ const GRADE_PILLARS = [
   { k:'demand',    label:'Local demand and liquidity',  weight:10 },
   { k:'operations',label:'Operations readiness',        weight:5  },
 ];
+
+/* Specification 30.4. Deliberately independent of the borrower: a strong
+   applicant can face a property no lender will take, and the reverse. Where a
+   hard gate is unknown the answer is "verify this", never zero and never a
+   pass — an averaged pass on a title question is the most expensive kind of
+   false comfort this tool could offer. */
+const FINANCEABILITY_COMPONENTS = [
+  { k:'title',      label:'Title and legal transfer',        weight:25 },
+  { k:'valuation',  label:'Valuation support',               weight:20 },
+  { k:'status',     label:'Lender-acceptable property status',weight:15 },
+  { k:'tenure',     label:'Tenure and remaining lease',      weight:10 },
+  { k:'condition',  label:'Physical and insurance condition', weight:10 },
+  { k:'liquidity',  label:'Market liquidity',                weight:10 },
+  { k:'documents',  label:'Documentation readiness',         weight:10 },
+];
+
+function propertyFinanceability(d, m) {
+  const scores = {}, notes = {}, gates = [];
+  const title = TITLE_TYPES.find(t => t.id === d.titleType);
+
+  if (!d.titleType || d.titleType === 'unknown') {
+    scores.title = null;
+    notes.title = 'Title class not established.';
+    gates.push('Title class and transfer eligibility are unverified. Nothing else here can compensate for that.');
+  } else if (title?.restricted) {
+    scores.title = null;
+    notes.title = `${title.label} — a restricted class.`;
+    gates.push(`Transfer of ${title.label} is restricted under the Sarawak Land Code and eligibility has not been confirmed.`);
+  } else { scores.title = 100; notes.title = `${title.label}, recorded from what you entered and not independently verified.`; }
+
+  if (m.financingBasisConfirmed) {
+    const gapPct = d.price > 0 ? m.valuationGapCash / d.price * 100 : 0;
+    scores.valuation = Math.round(clamp(100 - gapPct * 8, 0, 100));
+    notes.valuation = gapPct > 0
+      ? `Valuation ${fmtPct(gapPct, 1)} below the price, leaving ${fmtAmount(m.valuationGapCash, 'MYR')} to fund in cash.`
+      : 'Valuation at or above the price.';
+  } else { scores.valuation = null; notes.valuation = 'No bank or valuer estimate entered.'; gates.push('No valuation evidence, so whether a lender will lend against this price is unknown.'); }
+
+  if (d.titleType === 'strata') {
+    scores.status = 70;
+    notes.status = 'Strata parcel. Whether the strata title has actually issued, or the property is still on a master title, changes what a lender will accept.';
+  } else { scores.status = 80; notes.status = 'Completion and occupancy documentation is not modelled in this build.'; }
+
+  if (d.titleType === 'strata') { scores.tenure = 90; notes.tenure = 'Not applicable to a strata parcel in this build.'; }
+  else {
+    const yrs = num0(d.remainingLease);
+    scores.tenure = yrs === 0 ? 100 : Math.round(clamp((yrs - 30) / 60 * 100, 0, 100));
+    notes.tenure = yrs === 0 ? 'Recorded as freehold.'
+      : `${yrs} years remaining. Lenders apply their own minimum against the loan tenure and the borrower's age — confirm with the intended lender rather than against a general rule.`;
+  }
+
+  const flood = d.checks?.flood;
+  scores.condition = flood === 'yes' ? 35 : flood === 'no' ? 90 : null;
+  notes.condition = flood === 'yes' ? 'A flood history is recorded, which bears on insurability and therefore on financing.'
+    : flood === 'no' ? 'No flood history recorded against this site.'
+    : 'Flood history has not been answered, and insurance availability follows from it.';
+  if (scores.condition == null) gates.push('Flood history and insurability are unanswered, and financing commonly requires insurance.');
+
+  const resale = d.checks?.['resale-time'];
+  scores.liquidity = m.proj?.custom ? 40 : (resale ? 75 : 55);
+  notes.liquidity = m.proj?.custom
+    ? 'No transacted evidence is held for this location, so the buyer pool and realistic sale period are unknown.'
+    : 'Sample comparable transactions exist for this project.';
+
+  const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
+  scores.documents = Math.round(answered / SARAWAK_CHECKS.length * 100);
+  notes.documents = `${answered} of ${SARAWAK_CHECKS.length} verification questions answered.`;
+
+  const tested = FINANCEABILITY_COMPONENTS.filter(c => isNum(scores[c.k]));
+  const testedWeight = tested.reduce((s, c) => s + c.weight, 0);
+  const total = FINANCEABILITY_COMPONENTS.reduce((s, c) => s + c.weight, 0);
+  const score = testedWeight > 0
+    ? Math.round(tested.reduce((s, c) => s + scores[c.k] * c.weight, 0) / testedWeight) : null;
+
+  return { score: gates.length ? null : score, rawScore: score, gates, scores, notes,
+           coverage: testedWeight / total,
+           components: FINANCEABILITY_COMPONENTS.map(c => ({ ...c, score: scores[c.k], note: notes[c.k] })) };
+}
 
 function propertyGrade(d, m) {
   const gates = [];
@@ -13166,6 +13425,7 @@ function dealModel(d) {
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
            reserveComputable, tenureValid, zeroRateModelled,
            breakEvenOccupancy, annualOwnerSubsidy, fixedOperatingCosts, variableCostRate,
+           inputRatePct: d.ratePct, tenureYears: d.tenureYears,
            bankValuation, lenderValueBasis, valuationGapCash, marginOfFinancePct,
            financingBasisConfirmed, financingCoverageOfPrice, financingScenarios, valuationRule,
            reserve, totalInitialCash, instalment,
@@ -13556,6 +13816,122 @@ VIEWS.property = () => {
     `The score is weighted across the pillars that could be tested, not across all seven — a pillar with no evidence reduces coverage rather than scoring zero, so nothing loses points for data nobody has. Coverage is ${fmtPct(g.coverage * 100, 0)} of the framework weight; an A needs 90% and a B needs 80%.`));
   onePage.append(pw);
   wrap.append(onePage);
+
+  /* ---- financing readiness (specification 30) -------------------------- */
+  const b = State.borrower;
+  const lr = loanReadiness(b, m);
+  const pf = propertyFinanceability(d, m);
+  const finCard = el('div', { class: 'card' });
+  finCard.append(cardHead('Can this be financed?',
+    'Three separate questions. Collapsing them into one percentage would hide the one that is actually blocking.'));
+
+  const trio = el('div', { class: 'grid g-3' });
+  trio.append(el('div', { class: 'panel' }, statTile('Borrower Loan Readiness',
+    b.assessed && isNum(lr.score) ? `${lr.score}/100` : '—',
+    { sub: b.assessed ? lr.band : 'Loan readiness not assessed' })));
+  trio.append(el('div', { class: 'panel' }, statTile('Property Financeability',
+    isNum(pf.score) ? `${pf.score}/100` : '—',
+    { sub: pf.gates.length ? `${pf.gates.length} item${pf.gates.length === 1 ? '' : 's'} to verify first` : 'No blocking item recorded' })));
+  trio.append(el('div', { class: 'panel' }, statTile('Modelled financing coverage',
+    isNum(m.financingCoverageOfPrice) ? fmtPct(m.financingCoverageOfPrice, 1) : '—',
+    { sub: m.financingBasisConfirmed ? 'of the price, on the entered valuation' : 'modelled, not lender-confirmed' })));
+  finCard.append(trio);
+
+  /* The sentence this section exists to make unmissable. */
+  finCard.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:var(--md)' },
+    b.assessed && isNum(lr.score)
+      ? `Loan Readiness ${lr.score}/100 is a diagnostic score, not a ${lr.score}% chance of approval. No approval probability is offered anywhere in this product, because calculating one honestly would need a lender's own record of applications and outcomes, and nobody outside a lender has that. Each lender applies its own credit policy and its own final assessment.`
+      : 'Loan readiness has not been assessed. That is shown as unassessed rather than as a favourable default — an unanswered affordability question is not a passed one.'));
+
+  if (pf.gates.length) {
+    finCard.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Verify before a lender can be approached'));
+    const gl = el('ul', { class: 'ticklist' });
+    pf.gates.forEach(x => gl.append(el('li', {}, x)));
+    finCard.append(gl);
+    finCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      'Property Financeability is left unscored rather than averaged while any of these is open. A title question cannot be offset by a good valuation.'));
+  }
+
+  /* Borrower inputs, behind a disclosure because they are the most sensitive
+     data here and most readers modelling a property will not want them. */
+  const bd = el('details', { style: 'margin-top:var(--md)' });
+  bd.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+    b.assessed ? 'Your financing position — entered' : 'Assess your loan readiness'));
+  bd.append(el('p', { class: 'metaline', style: 'margin:8px 0' },
+    'Held in this browser under its own key, never written into the page address, never included in the property export, and never used for anything but this calculation. It does not reach the equity research anywhere in this product — the same analysis is shown to everyone regardless of their circumstances, and that is deliberate.'));
+
+  const bnum = (k, label, step) => {
+    const f = el('div', { class: 'assumption' });
+    f.append(el('label', { for: `b-${k}` }, label));
+    f.append(el('input', { class: 'input input-inline', id: `b-${k}`, type: 'number', step: step || 100,
+      value: String(b[k] ?? 0), style: 'text-align:right',
+      onchange: e => { b[k] = num0(e.target.value); b.assessed = true; saveBorrower(); render(); } }));
+    return f;
+  };
+  bd.append(el('p', { class: 'eyebrow', style: 'margin:10px 0 6px' }, 'Income and commitments, monthly'));
+  [['verifiedNetMonthlyIncome', 'Net income after tax and EPF (RM)'],
+   ['variableIncomeMonthlyAverage', 'Commission or variable income, monthly average (RM)'],
+   ['variableIncomeLookbackMonths', 'Months that average covers', 1],
+   ['existingMonthlyDebtPayments', 'All existing monthly debt payments (RM)'],
+   ['essentialMonthlyCommitments', 'Essential household commitments (RM)'],
+   ['creditCardUtilisationPct', 'Credit card utilisation (%)', 1],
+   ['liquidCashAvailable', 'Cash available now (RM)'],
+   ['incomeStabilityMonths', 'Months in the current role or business', 1]]
+    .forEach(([k, l, s]) => bd.append(bnum(k, l, s)));
+
+  const crField = el('div', { class: 'field', style: 'margin-top:10px' });
+  crField.append(el('label', { for: 'b-credit' }, 'Credit record (CCRIS)'));
+  const crSel = el('select', { class: 'select', id: 'b-credit',
+    onchange: e => { b.creditReview = e.target.value; b.assessed = true; saveBorrower(); render(); } });
+  CREDIT_STATES.forEach(c => crSel.append(el('option', { value: c.id, selected: b.creditReview === c.id ? '' : null }, c.label)));
+  crField.append(crSel);
+  crField.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
+    'Obtain your own report through Bank Negara’s eCCRIS service. This tool never asks for those credentials and cannot retrieve it for you.'));
+  bd.append(crField);
+
+  bd.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Documents gathered'));
+  BORROWER_DOCS.forEach(doc => {
+    const lab = el('label', { class: 'checkline', style: 'gap:8px;display:flex;margin-top:4px' });
+    lab.append(el('input', { type: 'checkbox', checked: b.docs?.[doc.k] === 'provided' ? '' : null,
+      onchange: e => { b.docs = { ...(b.docs || {}), [doc.k]: e.target.checked ? 'provided' : 'missing' }; b.assessed = true; saveBorrower(); render(); } }));
+    lab.append(el('span', {}, doc.label));
+    bd.append(lab);
+  });
+
+  if (b.assessed) {
+    const a = lr.affordability;
+    if (a.computable) {
+      const akv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
+      [['Debt service now', `${fmtPct(a.baseDSR, 1)} of net income — (${fmtAmount(a.existing, 'MYR')} existing + ${fmtAmount(a.instalment, 'MYR')} new) ÷ ${fmtAmount(a.income, 'MYR')}`],
+       ['Debt service at +3 points', isNum(a.stressedDSR) ? fmtPct(a.stressedDSR, 1) : '—'],
+       ['Cash left after all debt', fmtAmount(a.cashLeftAfterDebt, 'MYR')],
+       ['After essentials too', fmtAmount(a.cashLeftAfterEssentials, 'MYR')]]
+        .forEach(([k, v]) => { akv.append(el('dt', {}, k)); akv.append(el('dd', {}, v)); });
+      bd.append(akv);
+      bd.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+        'Lenders define debt-service ratio differently and set their own limits. Bank Negara’s financial-stability analysis identifies debt service above 60% of net income as a higher-vulnerability group — that describes risk, it is not a threshold any particular lender applies. The cash left matters as much as the ratio: a ratio can look acceptable while what remains does not cover a household.'));
+    }
+    const ct = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+    ct.append(el('thead', {}, el('tr', {}, ['Component', 'Weight', 'Score', 'Basis'].map((h, i) =>
+      el('th', { style: i === 0 || i === 3 ? 'text-align:left' : null }, h)))));
+    const cb = el('tbody');
+    lr.components.forEach(c => cb.append(el('tr', {}, [
+      el('td', { style: 'text-align:left' }, c.label),
+      el('td', { class: 'num' }, `${c.weight}%`),
+      el('td', { class: 'num' }, isNum(c.score) ? String(c.score) : el('span', { class: 'caption' }, 'not tested')),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, c.note || ''),
+    ])));
+    ct.append(cb);
+    bd.append(el('div', { class: 'tablewrap' }, ct));
+    if (lr.unknowns.length) bd.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
+      `Not assessed: ${lr.unknowns.join(', ')}. A total is withheld while any of these is open rather than presented with the gap inside it.`));
+    bd.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', onclick: () => {
+      if (!confirm('Remove everything you entered about your income, debts and credit? There is no copy anywhere else.')) return;
+      store.write('borrowerProfile', null); location.reload();
+    } }, 'Erase my financing details'));
+  }
+  finCard.append(bd);
+  wrap.append(finCard);
 
   /* Modelling states that change every figure below and cannot be inferred from
      the numbers themselves. */
