@@ -11568,8 +11568,45 @@ const EVIDENCE = [
   { id:'developer', label:'Developer supplied',   rank:2, note:'Quoted by a seller or their agent. Treat projections from this source with care.' },
   { id:'estimated', label:'Estimated',            rank:1, note:'Derived from a range or a comparable rather than observed directly.' },
   { id:'assumed',   label:'Assumed',              rank:0, note:'A default carried by this tool. Not evidence.' },
+  /* Below "assumed", because an assumption is at least a position someone took.
+     A seeded number is one nobody chose for this property.
+
+     This class exists because the calculator opened every city with the same
+     Kuching-derived price and rent and labelled them "You supplied" and
+     "Estimated" — so a first-time reader in Sibu met RM572,000 attributed to
+     themselves, having supplied nothing. That is not a display bug. It is the
+     tool misstating where a figure came from, on the two numbers that drive
+     every output on the page. */
+  { id:'illustrative_default', label:'Illustrative default', rank:-1,
+    note:'Carried by this tool as a starting number. Nobody chose it for this property and no market was consulted. Replace it before relying on any output.' },
 ];
 const evidenceOf = (id) => EVIDENCE.find(e => e.id === id) || EVIDENCE[EVIDENCE.length - 1];
+
+/* Which figures the reader has actually touched.
+   ---------------------------------------------------------------------------
+   Stored evidence cannot answer this on its own: a saved deal carries whatever
+   label was written when it was created, and the defaults were written as
+   "user" before anyone typed anything. So the answer comes from the edit
+   itself. A field is the reader's when the reader changed it, and until then it
+   is what this tool seeded, whatever the stored label says. */
+const isTouched = (d, k) => !!d?.touched?.[k];
+function markTouched(d, k) {
+  d.touched = { ...(d.touched || {}), [k]: true };
+  /* The evidence grade follows the edit for the driving figures, so the reader
+     does not have to find a second control to say what they just did. They can
+     still upgrade it to a verified transaction afterwards. */
+  if (EVIDENCE_DRIVERS.includes(k) && (d.evidence?.[k] === 'illustrative_default' || !d.evidence?.[k]))
+    d.evidence = { ...(d.evidence || {}), [k]: 'user' };
+}
+/* The figures whose provenance is displayed and whose grade drives the report's
+   own evidence assessment. */
+const EVIDENCE_DRIVERS = ['price', 'rent', 'maintenance', 'sqft'];
+
+/* What to show for a figure the reader has not touched: what it actually is. */
+const shownEvidence = (d, k) =>
+  (EVIDENCE_DRIVERS.includes(k) && !isTouched(d, k) && !d?.userStarted)
+    ? 'illustrative_default'
+    : (d.evidence?.[k] || 'assumed');
 
 State.deal = store.read('deal', null) || {
   /* where */
@@ -12820,6 +12857,22 @@ VIEWS.property = () => {
   ]));
   wrap.append(disc);
 
+  /* Stated once, at the top, while any figure that drives the model is still a
+     seeded number. "Built from your inputs" in the line above is only true once
+     the inputs are the reader's. */
+  const untouched = EVIDENCE_DRIVERS.filter(k => shownEvidence(d, k) === 'illustrative_default');
+  if (untouched.length) {
+    const warn = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze)' });
+    warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
+      el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
+      el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px;margin:0' },
+        `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on anything below.`),
+    ]));
+    if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
+    wrap.append(warn);
+  }
+
   const layout = el('div', { class: 'studio-layout' });
 
   /* ---------- inputs ---------- */
@@ -13078,7 +13131,12 @@ VIEWS.property = () => {
       f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
       f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
         value: d[k] ?? 0, style: 'text-align:right',
-        onchange: e => { d[k] = num0(e.target.value); saveDeal(); render(); } }));
+        onchange: e => { d[k] = num0(e.target.value); markTouched(d, k); saveDeal(); render(); } }));
+      /* Said beside the number rather than only in the evidence section below,
+         because this is where a reader decides whether to trust it. */
+      if (EVIDENCE_DRIVERS.includes(k) && shownEvidence(d, k) === 'illustrative_default')
+        f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
+          'Illustrative default — not yours, and not from any market'));
       rail.append(f);
     });
   });
@@ -13092,9 +13150,17 @@ VIEWS.property = () => {
       const f = el('div', { class: 'assumption' });
       f.append(el('label', { for: `ev-${k}` }, label));
       const sel = el('select', { class: 'select select-sm', id: `ev-${k}`,
-        onchange: e => { d.evidence = { ...(d.evidence || {}), [k]: e.target.value }; saveDeal(); render(); } });
+        onchange: e => {
+          d.evidence = { ...(d.evidence || {}), [k]: e.target.value };
+          /* Grading a figure IS a statement about it, so it stops being an
+             untouched default at that point — but only upward. Selecting
+             "illustrative default" leaves it exactly what it is. */
+          if (e.target.value !== 'illustrative_default') markTouched(d, k);
+          saveDeal(); render();
+        } });
+      const shown = shownEvidence(d, k);
       EVIDENCE.forEach(ev => sel.append(el('option', { value: ev.id,
-        selected: (d.evidence?.[k] || 'assumed') === ev.id ? '' : null }, ptr(`ev.${ev.id}`, ev.label))));
+        selected: shown === ev.id ? '' : null }, ptr(`ev.${ev.id}`, ev.label))));
       f.append(sel);
       rail.append(f);
     });
