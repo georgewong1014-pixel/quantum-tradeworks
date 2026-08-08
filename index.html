@@ -3223,6 +3223,114 @@ function sensitivityGrid(inputs) {
    rather than a null. It stays null until the history file loads. */
 let trackedHistory = null;
 
+/* ==========================================================================
+   DATA THE READER BRINGS
+
+   The deployed site carries no prices and no Malaysian statements, because
+   nothing it could carry is licensed to redistribute. That is settled and is
+   not what this is for.
+
+   What it left broken was the beta: a tester opening the Sarawak page met four
+   empty columns, and the app's own advice for filling them was to run a Node
+   script from a terminal. That is a reasonable instruction for the person who
+   built it and no instruction at all for anyone else.
+
+   So the reader can paste their own figures in, and they stay in their browser.
+   This is the licence position turned the right way round: the product ships no
+   data it may not ship, and the reader supplies data they already have every
+   right to hold — a broker export, their own subscription, a figure read off an
+   annual report. Nothing is uploaded, nothing is shared, and every number that
+   arrives this way is labelled as theirs rather than promoted to a source of
+   record.
+   ========================================================================== */
+const USER_DATA_KEY = 'userData';
+let userData = store.read(USER_DATA_KEY, null) || { series: {}, statements: {}, added: null };
+userData.series = userData.series || {};
+userData.statements = userData.statements || {};
+const saveUserData = () => store.write(USER_DATA_KEY, userData);
+
+const userSeriesCount = () => Object.keys(userData.series).length;
+const userCloseCount = () => Object.values(userData.series)
+  .reduce((n, s) => n + Object.keys(s).length, 0);
+
+/* Reads a pasted close series. Deliberately permissive about SHAPE and strict
+   about VALUES: a broker export, a spreadsheet copy and a hand-typed list all
+   arrive differently, and refusing them on formatting would push the reader
+   back to the terminal this exists to replace. But a row that cannot be read as
+   a date and a positive number is REPORTED, never skipped — a silent drop is
+   how someone ends up with a 40-close series they believe is 200, and every
+   trend indicator downstream gates on that count.
+
+   Accepts, per line: SYMBOL,DATE,CLOSE  or  DATE,CLOSE when a symbol is given
+   separately. Comma, tab or semicolon separated. A header line is detected and
+   skipped rather than counted as a failure. */
+function parseCloses(text, defaultSymbol) {
+  const out = {};                       /* symbol -> { date: close } */
+  const rejected = [];
+  const lines = String(text || '').split(/\r?\n/);
+
+  lines.forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) return;
+    const cells = line.split(/[,;\t]/).map(s => s.trim().replace(/^["']|["']$/g, ''));
+    if (cells.length < 2) { rejected.push({ line: i + 1, text: line, why: 'fewer than two columns' }); return; }
+
+    /* A header names its columns rather than holding a date, so it fails the
+       date test like any bad row would — detected here so it is not reported
+       as an error the reader has to go and look at. */
+    const looksHeader = /date|close|price|symbol|ticker/i.test(line) && !/\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4}/.test(line);
+    if (looksHeader) return;
+
+    let symbol, dateCell, closeCell;
+    if (cells.length >= 3) { [symbol, dateCell, closeCell] = cells; }
+    else { symbol = defaultSymbol; [dateCell, closeCell] = cells; }
+
+    if (!symbol) { rejected.push({ line: i + 1, text: line, why: 'no symbol on the row and none given above' }); return; }
+
+    /* ISO first, then the day-first forms a Malaysian or UK export uses.
+       Month-first is NOT guessed: 03/04/2026 is genuinely ambiguous, and
+       picking one silently would shift a series by months. */
+    let iso = null;
+    const d = dateCell;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) iso = d;
+    else {
+      const m = d.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+      if (m) {
+        const [, a, b, y] = m;
+        if (Number(a) > 12) iso = `${y}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+        else if (Number(b) > 12) iso = `${y}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+        else { rejected.push({ line: i + 1, text: line, why: `ambiguous date "${d}" — use YYYY-MM-DD` }); return; }
+      }
+    }
+    if (!iso) { rejected.push({ line: i + 1, text: line, why: `date "${d}" not recognised — use YYYY-MM-DD` }); return; }
+
+    const close = Number(String(closeCell).replace(/[^0-9.\-]/g, ''));
+    if (!Number.isFinite(close) || close <= 0) {
+      rejected.push({ line: i + 1, text: line, why: `"${closeCell}" is not a positive price` }); return;
+    }
+
+    const sym = String(symbol).toUpperCase();
+    (out[sym] = out[sym] || {})[iso] = close;
+  });
+
+  const accepted = Object.values(out).reduce((n, s) => n + Object.keys(s).length, 0);
+  return { series: out, accepted, rejected, symbols: Object.keys(out) };
+}
+
+/* Merged into the deployed history rather than read separately, so every view
+   that already reads trackedHistory sees it without knowing it exists. The
+   reader's own figure wins on a collision: they supplied it deliberately and
+   more recently than anything shipped. */
+function mergeUserHistory() {
+  if (!userSeriesCount()) return;
+  trackedHistory = trackedHistory || { series: {}, volume: {} };
+  trackedHistory.series = trackedHistory.series || {};
+  for (const [sym, series] of Object.entries(userData.series)) {
+    trackedHistory.series[sym] = { ...(trackedHistory.series[sym] || {}), ...series };
+  }
+  trackedHistory.hasUserData = true;
+}
+
 const U = [];          /* the working universe */
 const BY_ID = new Map();
 
@@ -3789,6 +3897,11 @@ async function loadRealData() {
   catch { /* no registry */ }
   try { trackedHistory = await fetchJson(dataUrl('price-history.json')); }
   catch { /* no history yet */ }
+  /* Outside the try, because the deployed site has no history file at all and
+     the reader's own closes are the only ones it will ever see. Merging only on
+     a successful fetch would have made the feature work everywhere except the
+     one place it was built for. */
+  mergeUserHistory();
 
   /* Before anything is derived or drawn: every MYR figure translates through
      this rate, so it has to be settled first. */
@@ -4568,6 +4681,7 @@ const SUBNAV_MY = [
   { id:'thesis',     label:'Investment cases', path:'/my/theses' },
   { id:'alerts',     label:'Alerts',     path:'/my/alerts' },
   { id:'tracked',    label:'Tracked',    path:'/my/tracked' },
+  { id:'userdata',   label:'Your data',  path:'/my/data' },
 ];
 
 const VIEWS = {};
@@ -4630,6 +4744,7 @@ const ROUTES = [
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
+  { path: '/my/data',             view: 'userdata',  title: 'Your data' },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
@@ -5502,7 +5617,7 @@ function renderScreener() {
         el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
           `${U.length - backed} of ${U.length} companies have no observed price history`),
         el('p', { class: 'metaline' },
-          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Import with: node ingest/history-import.mjs --dir <folder of CSV exports>`),
+          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Add your own closes under My Investments → Your data.`),
       ]));
     }
   }
@@ -7021,7 +7136,7 @@ function tabSnapshot(r) {
     tc.append(el('p', { class: 'body', style: 'font-size:12.5px' },
       `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`));
     tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `Import real closes to enable this: node ingest/history-import.mjs --in ${c.tk}.csv --symbol ${c.tk}`));
+      `Add closes for ${c.tk} under My Investments → Your data to enable this. They stay in this browser.`));
   } else {
     const t = trendContext(real.series);
     const ctx = TREND_STRATEGIES[0].evaluate(t);
@@ -9773,6 +9888,172 @@ VIEWS.marketing = () => {
 /* ==========================================================================
    WATCHLISTS — its own destination, not a panel on a dashboard.
    ========================================================================== */
+VIEWS.userdata = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(mySubnav('userdata'));
+  const hd = el('div', { class: 'page-hd' });
+  hd.append(el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Your data'),
+    el('h1', {}, 'Bring your own prices'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.'),
+  ]));
+  wrap.append(hd);
+
+  /* Why this exists, said once and without hedging. */
+  const why = el('div', { class: 'card' });
+  why.append(cardHead('What happens to what you paste',
+    'It stays in this browser.'));
+  why.append(el('ul', { class: 'ticklist' }, [
+    el('li', {}, 'Held in this browser’s local storage, on this device. It is not uploaded, not sent to a server, and not visible to anyone else — this build has no accounts and no backend to send it to.'),
+    el('li', {}, 'Every figure derived from it is labelled as yours rather than treated as a source of record. A price you supplied and a licensed close are not the same evidence.'),
+    el('li', {}, 'Clearing your browser data removes it. There is no copy anywhere else, so export it if it took work to assemble.'),
+    el('li', {}, 'Whatever you paste remains under whatever terms you obtained it. This tool does not acquire it, republish it, or give you a right to share it — a broker export is still your broker’s data.'),
+  ]));
+  wrap.append(why);
+
+  /* ---------- what is loaded now ---------- */
+  const have = userSeriesCount();
+  const status = el('div', { class: 'card' });
+  status.append(cardHead('Loaded now',
+    have ? 'Every view that uses price history is reading these.' : 'Nothing yet.'));
+  if (have) {
+    const tw = el('div', { class: 'tablewrap' });
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, ['Symbol', 'Company', 'Closes', 'From', 'To', ''].map((h, i) =>
+      el('th', { style: i === 1 ? 'text-align:left' : null }, h)))));
+    const tb = el('tbody');
+    const reg = instruments?.instruments || [];
+    Object.entries(userData.series).sort().forEach(([sym, series]) => {
+      const dates = Object.keys(series).sort();
+      const known = reg.find(x => x.symbol === sym);
+      tb.append(el('tr', {}, [
+        el('td', { class: 'ident' }, sym),
+        el('td', { style: 'text-align:left;white-space:normal' },
+          known ? known.name : el('span', { class: 'caption' }, 'not in the instrument registry')),
+        el('td', { class: 'num' }, String(dates.length)),
+        el('td', { class: 'num' }, dates[0] || '—'),
+        el('td', { class: 'num' }, dates[dates.length - 1] || '—'),
+        el('td', {}, el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+          delete userData.series[sym]; saveUserData();
+          toast(`${sym} removed`); location.reload();
+        } }, 'Remove')),
+      ]));
+    });
+    t.append(tb); tw.append(t); status.append(tw);
+    status.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+      `${userCloseCount().toLocaleString()} closes across ${have} instrument${have === 1 ? '' : 's'}. A trend indicator appears once its own minimum history is met — 20 closes for the 20-day average, 200 for the 200-day, 252 for the 52-week range — and says how many more it needs until then.`));
+    const exp = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:10px' });
+    exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      const blob = new Blob([JSON.stringify(userData, null, 2)], { type: 'application/json' });
+      const a = el('a', { href: URL.createObjectURL(blob), download: 'quantum-tradeworks-my-data.json' });
+      document.body.append(a); a.click(); a.remove();
+    } }, 'Export everything'));
+    exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      if (!confirm('Remove every price you have added? This cannot be undone and there is no copy on any server.')) return;
+      userData.series = {}; saveUserData(); location.reload();
+    } }, 'Remove all'));
+    status.append(exp);
+  } else {
+    status.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+      'Without prices, anything price-derived is shown as unavailable rather than estimated: market capitalisation, multiples, dividend yield, the difference to a model estimate, and every trend indicator. The statements, scorecards and risk flags all work without them.'));
+  }
+  wrap.append(status);
+
+  /* ---------- paste ---------- */
+  const add = el('div', { class: 'card' });
+  add.append(cardHead('Paste closes',
+    'One row per day. A column copied out of a spreadsheet or a broker export works as it is.'));
+
+  const symField = el('div', { class: 'field', style: 'max-width:280px' });
+  symField.append(el('label', { for: 'ud-sym' }, 'Symbol, if the rows do not carry one'));
+  const symInput = el('input', { class: 'input', id: 'ud-sym', placeholder: '2852, 1155, AAPL…' });
+  symField.append(symInput);
+  add.append(symField);
+
+  const ta = el('textarea', { class: 'input', rows: '9', style: 'margin-top:10px;width:100%;font-family:var(--mono, monospace);font-size:12px',
+    'aria-label': 'Paste closes',
+    placeholder: '2026-08-06,7.93\n2026-08-05,7.88\n2026-08-04,7.90\n\n…or with the symbol on each row:\n2852,2026-08-06,0.995' });
+  add.append(ta);
+
+  const report = el('div', { style: 'margin-top:10px' });
+  add.append(report);
+
+  const actions = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:10px' });
+  actions.append(el('button', { class: 'btn btn-primary', onclick: () => {
+    const res = parseCloses(ta.value, symInput.value.trim().toUpperCase());
+    report.replaceChildren();
+    if (!res.accepted && !res.rejected.length) { report.append(el('p', { class: 'metaline' }, 'Nothing to read.')); return; }
+
+    if (res.accepted) {
+      for (const [sym, series] of Object.entries(res.series)) {
+        userData.series[sym] = { ...(userData.series[sym] || {}), ...series };
+      }
+      userData.added = new Date().toISOString().slice(0, 10);
+      saveUserData();
+    }
+
+    /* Both halves reported, always. A partial import that only announces its
+       successes is how a reader ends up trusting a series with holes in it. */
+    const summary = el('p', { class: 'body', style: 'font-size:12.5px' },
+      `${res.accepted} close${res.accepted === 1 ? '' : 's'} read across ${res.symbols.length} symbol${res.symbols.length === 1 ? '' : 's'}`
+      + (res.rejected.length ? `, and ${res.rejected.length} row${res.rejected.length === 1 ? '' : 's'} could not be read.` : '.'));
+    report.append(summary);
+
+    if (res.rejected.length) {
+      const det = el('details', { style: 'margin-top:8px' });
+      det.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+        `Show the ${res.rejected.length} row${res.rejected.length === 1 ? '' : 's'} that were not read`));
+      const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
+      res.rejected.slice(0, 40).forEach(r => ul.append(el('li', {},
+        `Line ${r.line}: ${r.why} — ${r.text.slice(0, 80)}`)));
+      if (res.rejected.length > 40) ul.append(el('li', { class: 'caption' },
+        `…and ${res.rejected.length - 40} more.`));
+      det.append(ul);
+      report.append(det);
+    }
+
+    if (res.accepted) {
+      report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:10px',
+        onclick: () => location.reload() },
+        'Reload to apply'));
+      report.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+        'Everything derived from a price is computed once when the page loads, so the new closes appear after a reload rather than part-way through a session where half the figures used them and half did not.'));
+    }
+  } }, 'Read what I pasted'));
+  actions.append(el('button', { class: 'btn btn-ghost', onclick: () => { ta.value = ''; report.replaceChildren(); } }, 'Clear'));
+  add.append(actions);
+
+  add.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+    'Dates must be YYYY-MM-DD, or day-first where the day is unambiguous. 03/04/2026 is refused rather than guessed — reading it the wrong way round would move the whole series by months.'));
+  wrap.append(add);
+
+  /* Restore an export. */
+  const restore = el('div', { class: 'card' });
+  restore.append(cardHead('Restore an export', 'A file previously exported from this page.'));
+  const file = el('input', { class: 'input', type: 'file', accept: '.json', 'aria-label': 'Restore an export' });
+  file.addEventListener('change', async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      if (!j?.series || typeof j.series !== 'object') { toast('That file has no price series in it'); return; }
+      let n = 0;
+      for (const [sym, series] of Object.entries(j.series)) {
+        if (!series || typeof series !== 'object') continue;
+        userData.series[sym] = { ...(userData.series[sym] || {}), ...series };
+        n += Object.keys(series).length;
+      }
+      saveUserData();
+      toast(`${n} closes restored`);
+      location.reload();
+    } catch { toast('That file could not be read as JSON'); }
+  });
+  restore.append(file);
+  wrap.append(restore);
+
+  return wrap;
+};
+
 VIEWS.watchlists = () => {
   const wrap = el('div', { class: 'stack' });
   wrap.append(el('div', {}, [
@@ -9968,7 +10249,7 @@ function openTrendDrawer(row, t) {
   tbl.append(tb2);
   body.append(el('div', { style: 'overflow-x:auto' }, tbl));
   body.append(el('p', { class: 'metaline' },
-    `Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Backfill it in one step with: node ingest/history-import.mjs --dir <folder of CSV exports>`));
+    `Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Extend it by pasting closes under My Investments → Your data.`));
 
   openDrawer(`${row.sym} — trend context`, body);
 }
@@ -12117,8 +12398,19 @@ VIEWS.sarawak = () => {
       ]));
     });
     rt.append(rb); rw.append(rt); roster.append(rw);
+    /* On the deployed site there is no price history at all, so this table used
+       to arrive with four empty columns and no way for a reader to fill them —
+       the app's own advice was to run a Node script. Which is fine advice for
+       the person who wrote it and no advice at all for anyone else. */
+    const anyHistory = flagged.some(i => trackedHistory?.series?.[i.symbol]);
     roster.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
-      'The price column is computed from closes gathered for personal research under the owner’s own terms. It is not licensed market data, is not redistributed, and is absent from the deployed site. "Financial statements: none held" is the honest state of every row — Bursa publishes no machine-readable statements this product can reach, so no valuation, scorecard or coverage figure is offered for any of these companies.'));
+      anyHistory
+        ? 'The price columns are computed from closes held in this browser. They are not licensed market data, are not redistributed, and no price ships with this site.'
+        : 'No price history is loaded, so the price columns are empty. This site ships none: the closes it could ship are not licensed for it to redistribute. Your own are a different question — paste them under Your data and every column here fills in.'));
+    roster.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
+      '"Financial statements: none held" is the honest state of every row. Bursa Malaysia publishes no machine-readable statements this product can reach, so no valuation, scorecard or coverage figure is offered for any of these companies.'));
+    if (!anyHistory) roster.append(el('a', { class: 'btn btn-sm', style: 'margin-top:10px', href: href('/my/data'),
+      onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/my/data'); } }, 'Add your own closes'));
     wrap.append(roster);
   }
 
