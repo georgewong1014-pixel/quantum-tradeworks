@@ -12691,9 +12691,11 @@ function dealModel(d) {
      whole figure NaN rather than quietly short, and the report says how many
      lines are missing beside it. */
   const sumPriced = (xs) => xs.reduce((t, v) => t + (isNum(v) ? v : 0), 0);
-  const acquisitionCost = deposit + renovation
-    + sumPriced(costGroups.flatMap(g => g.items.filter(it => it[0] !== 'Deposit'
-        && it[0] !== 'Renovation and furnishing').map(it => it[1])));
+  /* Every cash line except the reserve, which has not been added to the groups
+     at this point. Derived from the groups rather than by re-listing the terms,
+     because the previous version matched on label text and would silently drop
+     a line the moment one was renamed. */
+  const acquisitionCost = sumPriced(costGroups.flatMap(g => g.items.map(it => it[1])));
 
   /* Financing coverage as a share of what is actually being paid, which is the
      figure a buyer needs — a 90% margin of finance against a valuation 10%
@@ -12850,13 +12852,56 @@ function dealModel(d) {
      part of the purchase price, but part of what the purchase requires — a
      buyer who arrives at completion with nothing behind the deposit is one
      vacancy away from distress. */
-  const reserve = Math.round((instalment + opex / 12) * 3);
+  /* ---- reserve (specification 29.5) ------------------------------------ */
+  /* Configurable rather than fixed at three months. A fragile property needs
+     more liquidity than a tenanted one, and the number of months is a policy
+     the buyer sets rather than a constant this tool imposes.
+
+     Two floors, because they answer different questions: what it costs to hold
+     the property with rent coming in under stress, and what it costs to hold it
+     with no rent at all. The reserve is the larger — a reserve that only
+     survives the gentler case is not a reserve. */
+  const reserveMonths = clamp(num0(d.reserveMonths) || 3, 1, 24);
+  const ownerFixedMonthly = instalment + (opex - mgmtY - repairY) / 12;
+  const stressedRentMonthly = effectiveRent / 12;
+  const burnWithRent = Math.max(0, ownerFixedMonthly - stressedRentMonthly);
+  const burnWithoutRent = ownerFixedMonthly;
+  /* The larger of the two, at full value. An earlier draft of this line scaled
+     the no-rent case by 0.6, which had no basis and made the reserve smaller
+     than the case it is meant to survive — understating required liquidity,
+     which is the direction that hurts. The specification takes the maximum of
+     the burn with rent and the full owner cost without it, and so does this. */
+  const reserve = Math.round(reserveMonths * Math.max(burnWithRent, burnWithoutRent));
+  /* Shown alongside, because the specification asks for three and six months at
+     minimum and a single figure hides how quickly the answer moves. */
+  const reserveScenarios = [3, 6].map(mo => ({ months: mo,
+    noRent: Math.round(mo * burnWithoutRent),
+    stressedRent: Math.round(mo * burnWithRent) }));
+
   costGroups.push({ id:'reserve', label:'Emergency reserve', items:[
-    ['Three months of instalment and running costs', reserve]] });
-  const totalInitialCash = acquisitionCost + reserve;
+    [`${reserveMonths} month${reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs`, reserve]] });
+
+  /* ---- the three cash figures (specification 29.1) --------------------- */
+  /* One "total initial cash" answered three different questions at once: what
+     leaves the account at completion, what it takes to make the property
+     earn, and what must still be there afterwards. A buyer can meet the first
+     and be ruined by the third.
+
+     Derived from the ledger groups rather than recomputed, so a line added to a
+     group cannot be left out of its own total. */
+  const groupTotal = (id) => sumPriced((costGroups.find(g => g.id === id)?.items || []).map(it => it[1]));
+  const transactionCash = groupTotal('acquisition') + groupTotal('financing');
+  const improvementCash = groupTotal('improvement');
+  const reserveCash = groupTotal('reserve');
+  const safeCashRequired = transactionCash + improvementCash + reserveCash;
+  /* Kept: existing callers read these, and both remain true — completion cash
+     is everything but the reserve. */
+  const totalInitialCash = safeCashRequired;
 
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
            costGroups, missingCostLines, unconfirmedCost, placeholderCostLines,
+           transactionCash, improvementCash, reserveCash, safeCashRequired,
+           reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
            bankValuation, lenderValueBasis, valuationGapCash, marginOfFinancePct,
            financingBasisConfirmed, financingCoverageOfPrice, financingScenarios, valuationRule,
            reserve, totalInitialCash, instalment,
@@ -13633,8 +13678,35 @@ VIEWS.property = () => {
   fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'Scenarios, not offers. No lender has seen this property or this borrower, and the margin a lender will actually extend depends on its own valuation, its credit policy and the applicant. Cash equity is the purchase price less the loan, so it carries any valuation gap with it.'));
   cash.append(fin);
+  /* The three figures, before the ledger's own total. One number answered three
+     questions at once — what leaves the account at completion, what it takes to
+     make the property earn, and what must still be there afterwards — and a
+     buyer can meet the first and be ruined by the third. */
+  const threeCash = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
+  [['Cash to complete', m.transactionCash, 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
+   ['Cash to make rent-ready', m.improvementCash, 'Spent after completion before the property can earn: renovation, furnishing and deposits.'],
+   ['Cash to keep untouched', m.reserveCash, `${m.reserveMonths} months of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`],
+   ['Safe cash required', m.safeCashRequired, 'All three together. This is the number that decides whether the purchase is survivable, not the deposit.']]
+    .forEach(([label, amount, sub], i) => threeCash.append(el('div', { class: 'panel' },
+      statTile(label, fmtAmount(amount, 'MYR'), { sub, tone: i === 3 ? '--brand' : null }))));
+  cash.append(threeCash);
+
+  /* Reserve policy, and what it costs at the two horizons the specification
+     asks for. */
+  const resRow = el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:end;margin-top:var(--md)' });
+  const resField = el('div', { class: 'field', style: 'width:190px' });
+  resField.append(el('label', { for: 'd-reserveMonths' }, 'Months of reserve to hold'));
+  resField.append(el('input', { class: 'input input-inline', id: 'd-reserveMonths', type: 'number',
+    min: '1', max: '24', step: '1', value: String(m.reserveMonths), style: 'text-align:right',
+    onchange: e => { d.reserveMonths = num0(e.target.value); markTouched(d, 'reserveMonths'); saveDeal(); render(); } }));
+  resRow.append(resField);
+  resRow.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
+    `At the entered rent and costs, holding this property burns ${fmtAmount(m.burnWithRent, 'MYR')} a month with rent still coming in and ${fmtAmount(m.burnWithoutRent, 'MYR')} a month with none. `
+    + m.reserveScenarios.map(s => `${s.months} months with no rent is ${fmtAmount(s.noRent, 'MYR')}`).join('; ') + '.'));
+  cash.append(resRow);
+
   cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `The emergency reserve is not paid to anyone — it is what stays in your account after completion. Excluding it, completion itself takes ${fmtAmount(m.acquisitionCost, 'MYR')}.`));
+    `The reserve is not paid to anyone — it is what stays in your account after completion. Completion and rent-ready together take ${fmtAmount(m.acquisitionCost, 'MYR')}; the reserve is on top of that.`));
   free.append(cash);
   out.append(free);
 
