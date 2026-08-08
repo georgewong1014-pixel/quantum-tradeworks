@@ -12618,7 +12618,12 @@ function dealModel(d) {
 
   /* What the same purchase looks like at other margins of finance. Scenarios,
      not offers — no lender has seen this. */
-  const financingScenarios = [70, 80, 90].map(mof => {
+  /* The entered margin is included as its own row rather than matched against
+     the three fixed ones. The chip used to sit on whichever of 70/80/90 came
+     within half a point, so an entered 89.6% marked the 90% row and reported a
+     loan and cash equity that were not the model's. */
+  const scenarioMargins = [...new Set([70, 80, 90, +marginOfFinancePct.toFixed(2)])].sort((a, b) => a - b);
+  const financingScenarios = scenarioMargins.map(mof => {
     const scLoan = lenderValueBasis * mof / 100;
     return { mof, loan: scLoan,
              cashEquity: d.price - scLoan,
@@ -12642,7 +12647,11 @@ function dealModel(d) {
      null amount rather than omitted — an absent row reads as a cost that does
      not exist, and these all exist. */
   const feeLine = (id, bases) => { const r = resolveFee(id, bases); return [r.label, r.amount, r]; };
-  const legalBase = isNum(legal) ? legal : 0;
+  /* Null, not zero. Coercing an unpriced legal fee to 0 made the tax on it
+     resolve to a priced RM0 line — a real-looking row for a cost that exists
+     and has not been calculated, absent from the missing-lines list because it
+     had a number. A tax on an unknown fee is unknown. */
+  const legalBase = isNum(legal) ? legal : null;
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
         ['Deposit', deposit],
@@ -12702,7 +12711,15 @@ function dealModel(d) {
      below the price funds 81% of the price, and the difference is cash. */
   const financingCoverageOfPrice = d.price > 0 ? loan / d.price * 100 : null;
 
-  const instalment = monthlyInstalment(loan, d.ratePct, d.tenureYears);
+  /* A tenure of zero or less has no amortisation schedule. It used to produce a
+     negative instalment, a zero reserve and a closing balance several times the
+     principal, none of it flagged. Reported as not computable instead. */
+  const tenureValid = num0(d.tenureYears) > 0;
+  const instalment = tenureValid ? monthlyInstalment(loan, d.ratePct, d.tenureYears) : null;
+  /* A cleared rate box reads as 0 through num0, and 0% is a legitimate entry —
+     so the two cannot be told apart from the value alone, and a zero rate cuts
+     the instalment by roughly half. Flagged rather than guessed at. */
+  const zeroRateModelled = num0(d.ratePct) === 0;
   const grossAnnualRent = d.rent * 12;
   const effectiveRent = grossAnnualRent * (1 - d.vacancyPct / 100);
   /* Running costs, separated so each is visible and editable rather than
@@ -12723,9 +12740,30 @@ function dealModel(d) {
   const netYield = noi / d.price * 100;
   const cashflowMonthly = (noi / 12) - instalment;
   const cashOnCash = acquisitionCost > 0 ? (noi - annualDebtService) / acquisitionCost * 100 : null;
-  const dscr = annualDebtService > 0 ? noi / annualDebtService : null;
+  /* Null when there is no debt, and null when the instalment could not be
+     computed — those are different states and neither is 0.00x. It reported an
+     exact 0.00x cover off a non-computable instalment, which reads as "the rent
+     covers none of the loan" rather than "this could not be worked out". */
+  const dscr = (isNum(annualDebtService) && annualDebtService > 0 && isNum(noi))
+    ? noi / annualDebtService : null;
   /* Rent at which the property covers operating costs and the loan. */
-  const breakEvenRent = ((opex + annualDebtService) / (1 - d.vacancyPct / 100)) / 12;
+  /* Break-even rent, per specification 31.5.
+
+     The previous form divided total opex by the vacancy factor. But opex already
+     contains the management fee and repair reserve, which are percentages of
+     rent COLLECTED — so those two were frozen at the entered rent, carried into
+     a figure that assumes a different rent, and then grossed up for vacancy a
+     second time. Feeding the answer back into the model left cash flow at
+     −RM204 a month: a break-even rent at which the deal does not break even.
+
+     Only the fixed costs belong in the numerator. The rent-linked costs scale
+     with the answer, so they belong in the denominator as a rate. */
+  const variableCostRate = (num0(d.mgmtPct) + num0(d.repairReservePct)) / 100;
+  const fixedOperatingCosts = maintenanceY + sinkingY + statutoryY + insuranceY;
+  const beDenominator = 12 * (1 - num0(d.vacancyPct) / 100) * (1 - variableCostRate);
+  const breakEvenRent = beDenominator > 0
+    ? (fixedOperatingCosts + annualDebtService) / beDenominator
+    : null;
   const psf = d.sqft > 0 ? d.price / d.sqft : null;
 
   /* Exit at the chosen holding period. Selling is not instantaneous: the
@@ -12784,9 +12822,26 @@ function dealModel(d) {
        cash the purchase consumes and therefore every return measured on it. */
     renovation: [0, 25, 50, 100].map(over => {
       const reno = renovation * (1 + over / 100);
-      const cash = deposit + duty + legal + loanDuty + reno;
+      /* Derived from the ledger, not re-listed. This was
+         `deposit + duty + legal + loanDuty + reno`, a five-term sum written
+         before the ledger had eleven lines — so it silently dropped the
+         valuation gap, disbursements, service tax, loan legal fees, the
+         valuation fee, mortgage protection and utility deposits.
+
+         The visible effect was two different cash figures for the same
+         scenario on one screen: RM121.8k as cash invested, RM102.9k in this
+         table, with two different cash-on-cash returns. Worse, because the
+         valuation gap was among the dropped terms, entering a LOWER valuation
+         made this figure fall while the real requirement rose — undoing the
+         one thing the gap line exists to show. It also added a null legal fee
+         as though it were a number, producing a finite total from an unpriced
+         input.
+
+         Only the renovation varies down this table, so the base is the ledger
+         total with the entered renovation swapped for the stressed one. */
+      const cash = acquisitionCost - renovation + reno;
       return { label: over === 0 ? 'as budgeted' : `+${over}% over`, renovation: reno, cash,
-               cashOnCash: cash > 0 ? (noi - annualDebtService) / cash * 100 : null };
+               cashOnCash: isNum(cash) && cash > 0 ? (noi - annualDebtService) / cash * 100 : null };
     }),
   };
   /* The point at which the monthly position crosses zero, by bisection.
@@ -12862,16 +12917,31 @@ function dealModel(d) {
      with no rent at all. The reserve is the larger — a reserve that only
      survives the gentler case is not a reserve. */
   const reserveMonths = clamp(num0(d.reserveMonths) || 3, 1, 24);
+  /* Two cases, and the costs differ between them. Management and repair fees
+     are charged as a percentage of rent collected, so they accrue in the
+     with-rent case and not in the without-rent case — the previous version
+     excluded them from both, which understated the with-rent burn and
+     contradicted cashflowMonthly on the same screen. */
+  const rentLinkedMonthly = (mgmtY + repairY) / 12;
   const ownerFixedMonthly = instalment + (opex - mgmtY - repairY) / 12;
   const stressedRentMonthly = effectiveRent / 12;
-  const burnWithRent = Math.max(0, ownerFixedMonthly - stressedRentMonthly);
+  const burnWithRent = Math.max(0, ownerFixedMonthly + rentLinkedMonthly - stressedRentMonthly);
   const burnWithoutRent = ownerFixedMonthly;
   /* The larger of the two, at full value. An earlier draft of this line scaled
      the no-rent case by 0.6, which had no basis and made the reserve smaller
      than the case it is meant to survive — understating required liquidity,
      which is the direction that hurts. The specification takes the maximum of
      the burn with rent and the full owner cost without it, and so does this. */
-  const reserve = Math.round(reserveMonths * Math.max(burnWithRent, burnWithoutRent));
+  /* Not computable when the instalment or the running costs are not, and
+     null in that case rather than a rounded NaN. Math.round(NaN) is NaN, which
+     sumPriced then skips — so the reserve disappeared from the safe-cash total
+     without the total ever declaring itself short. The most consequential
+     figure on the page could go missing silently, which is the exact failure
+     this product's own rule forbids. */
+  const reserveComputable = isNum(instalment) && isNum(opex) && isNum(burnWithoutRent);
+  const reserve = reserveComputable
+    ? Math.round(reserveMonths * Math.max(burnWithRent, burnWithoutRent))
+    : null;
   /* Shown alongside, because the specification asks for three and six months at
      minimum and a single figure hides how quickly the answer moves. */
   const reserveScenarios = [3, 6].map(mo => ({ months: mo,
@@ -12879,7 +12949,12 @@ function dealModel(d) {
     stressedRent: Math.round(mo * burnWithRent) }));
 
   costGroups.push({ id:'reserve', label:'Emergency reserve', items:[
-    [`${reserveMonths} month${reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs`, reserve]] });
+    [`${reserveMonths} month${reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs`, reserve,
+     reserveComputable ? null : { status:'unset', why:'The instalment or the running costs could not be computed, so the reserve cannot be either.' }]] });
+  /* Recomputed after the reserve is pushed, so an unpriced reserve is reported
+     as a missing line rather than quietly leaving the total short. */
+  if (!reserveComputable) missingCostLines.push({ group:'Emergency reserve',
+    label:'Emergency reserve', why:'The instalment or the running costs could not be computed.' });
 
   /* ---- the three cash figures (specification 29.1) --------------------- */
   /* One "total initial cash" answered three different questions at once: what
@@ -12902,6 +12977,7 @@ function dealModel(d) {
            costGroups, missingCostLines, unconfirmedCost, placeholderCostLines,
            transactionCash, improvementCash, reserveCash, safeCashRequired,
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
+           reserveComputable, tenureValid, zeroRateModelled,
            bankValuation, lenderValueBasis, valuationGapCash, marginOfFinancePct,
            financingBasisConfirmed, financingCoverageOfPrice, financingScenarios, valuationRule,
            reserve, totalInitialCash, instalment,
@@ -13227,6 +13303,22 @@ VIEWS.property = () => {
   /* Stated once, at the top, while any figure that drives the model is still a
      seeded number. "Built from your inputs" in the line above is only true once
      the inputs are the reader's. */
+  /* Modelling states that change every figure below and cannot be inferred from
+     the numbers themselves. */
+  if (m.zeroRateModelled || !m.tenureValid || !m.reserveComputable) {
+    const flags = el('div', { class: 'card', style: 'border-left:3px solid var(--dn-text)' });
+    const ul = el('ul', { class: 'ticklist' });
+    if (m.zeroRateModelled) ul.append(el('li', {},
+      'The loan interest rate is 0%. If that was intended, the instalment below is right; if the box was cleared, it is roughly half what it should be. This tool cannot tell the two apart from the value.'));
+    if (!m.tenureValid) ul.append(el('li', {},
+      'The loan tenure is zero or negative, so there is no repayment schedule. The instalment, reserve and closing balance are not computable and are shown as unavailable rather than calculated.'));
+    if (!m.reserveComputable) ul.append(el('li', {},
+      'The reserve could not be computed because the instalment or the running costs could not be. It is reported as missing rather than counted as nothing.'));
+    flags.append(cardHead('Check these before reading anything below', 'Each one changes every figure in the report.'));
+    flags.append(ul);
+    wrap.append(flags);
+  }
+
   const untouched = EVIDENCE_DRIVERS.filter(k => shownEvidence(d, k) === 'illustrative_default');
   if (untouched.length) {
     const warn = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze)' });
@@ -13664,7 +13756,7 @@ VIEWS.property = () => {
     .map((h, i) => el('th', { style: i === 0 ? 'text-align:left' : null }, h)))));
   const scB = el('tbody');
   m.financingScenarios.forEach(s => {
-    const isCurrent = Math.abs(s.mof - m.marginOfFinancePct) < 0.5;
+    const isCurrent = Math.abs(s.mof - m.marginOfFinancePct) < 1e-9;
     scB.append(el('tr', { style: isCurrent ? 'background:var(--surface-sunk)' : '' }, [
       el('td', { style: 'text-align:left' }, [`${s.mof}%`, isCurrent ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:10px' }, 'entered') : null]),
       el('td', { class: 'num' }, fmtAmount(s.loan, 'MYR')),
