@@ -22,11 +22,20 @@ What the deployed site actually holds:
 |---|---|---|
 | **US companies** | 119 | Audited annual statements from SEC EDGAR's XBRL `companyfacts`. Real. |
 | **Malaysian companies** | 18 | Illustrative. Financials are synthetic, listing codes are real. |
-| **Prices** | 0 | No company carries a licensed market price. |
+| **Prices** | 0 | No market-data licence is in place for either exchange. |
 
-Every company page states which of the two it is. Because no price is licensed,
-everything price-derived — market capitalisation, multiples, yield, difference to
-model estimate — is shown as unavailable rather than estimated.
+Every company page states which of the two it is. A filed company carries no price
+at all, so everything price-derived — market capitalisation, multiples, yield,
+difference to model estimate — is shown as unavailable rather than estimated, and
+its valuation pillar reports no coverage rather than a default score. Where a
+price, market capitalisation or yield does appear it belongs to an illustrative
+company and is part of that synthetic dataset; it is not a quote.
+
+Share counts are filed unadjusted for splits and no corporate-action source is
+licensed, so on the 26 US companies whose series contains one, share-count CAGR
+and net buyback yield are withheld and the discontinuity is named on the page. A
+CAGR across a split measures the split — it read Apple's four-for-one as "share
+count rising 12.0% a year", the reverse of the truth.
 
 **Do not use any number here for an investment decision.** A production
 deployment would require licensed market data for both markets and, in Malaysia,

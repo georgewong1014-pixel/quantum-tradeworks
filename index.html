@@ -1041,8 +1041,10 @@ details > summary::marker { content: ''; }
       assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell
       any security. Financial figures come from <strong>two different places and are labelled on every page</strong>: statements filed with
       the US SEC, which are audited and real, and illustrative figures for the Malaysian companies, which are synthetic and created for
-      interface demonstration. <strong>No company here carries a licensed market price</strong>, so every price-derived measure is shown as
-      unavailable rather than estimated. Nothing here may be used for an investment decision. A production deployment would require licensed
+      interface demonstration. <strong>No market-data licence is in place for either exchange.</strong> A filed company therefore carries no
+      price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as
+      unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and
+      is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed
       market data for both markets and, in Malaysia, written legal classification of each surface under the Capital Markets and Services Act
       before launch.
     </p>
@@ -2327,7 +2329,29 @@ function derive(c) {
   }
 
   /* --- capital allocation ------------------------------------------------ */
-  const shCagr = cagr(sh);
+  /* Share counts arrive from the filings unadjusted for splits, and a split is
+     indistinguishable from issuance to a CAGR. Apple's series runs
+     4.75bn -> 17.77bn across its 2020 four-for-one, which this reported as
+     "share count rising 12.0% a year, which dilutes per-share growth" — the
+     exact opposite of the truth for a company that has bought back stock for a
+     decade. NVDA read 51.3% and Alphabet 37.4%, each matching its own split.
+
+     No corporate-action feed exists in this build, so the split cannot be
+     undone. What can be done is refusing to describe a discontinuity as
+     issuance: a year-on-year move beyond half or above one-and-a-half times is
+     a corporate action, not a financing decision — real issuance and buybacks
+     do not move a share count by that much in a year. Where one is present the
+     measure is withheld and the reason is recorded. */
+  const shSeries = sh.filter(isNum);
+  let shBreak = null;
+  for (let k = 1; k < shSeries.length; k++) {
+    const prev = shSeries[k - 1], cur = shSeries[k];
+    if (!(prev > 0) || !(cur > 0)) continue;
+    const ratio = cur / prev;
+    if (ratio > 1.5 || ratio < 0.67) { shBreak = { from: prev, to: cur, ratio: +ratio.toFixed(2) }; break; }
+  }
+  m.shareSeriesBreak = shBreak;
+  const shCagr = shBreak ? null : cagr(sh);
   m.dilution = isNum(shCagr) ? shCagr : null;          /* +ve = issuing */
   m.buyback  = isNum(shCagr) ? -shCagr : null;         /* +ve = shrinking */
   m.payout   = isNum(m.eps) && m.eps > 0 ? dps[i] / m.eps * 100 : null;
@@ -2521,7 +2545,7 @@ const SCORECARD_COVERAGE = [
   { pillar: 'Management', weight: 20, state: 'partial',
     tested: ['Net buyback yield', 'Payout ratio', 'Dividend cover by free cash flow', 'Return on reinvestment', 'Share count growth'],
     untested: ['Insider ownership and changes', 'Board independence', 'Audit opinion and auditor changes', 'Related-party transactions', 'Guidance accuracy'],
-    why: 'Capital allocation is visible in the statements and is scored. Governance and ownership are not in this dataset, and the governance event register of section 8 does not exist yet.' },
+    why: 'Capital allocation is visible in the statements and is scored. Governance and ownership are not in this dataset, and the governance event register of section 8 does not exist yet. Share counts are filed unadjusted for splits and no corporate-action source is licensed here, so on any company whose series contains a split the two share-based inputs are withheld rather than measured — the pillar re-bases over what remains and its coverage falls to match.' },
   { pillar: 'Growth Visibility', weight: 20, state: 'partial',
     tested: ['Revenue CAGR', 'Earnings CAGR', 'Free cash flow CAGR', 'Earnings consistency'],
     untested: ['Order book and contracted revenue', 'Capacity additions', 'Catalyst pipeline', 'Forward earnings visibility'],
@@ -3388,12 +3412,28 @@ function addCompany(c) {
   };
   /* Valuation pillar leans on the model output, so it is scored separately. */
   const discount = val.mos ? -val.mos.base : null;   /* +ve = trading above base-case model estimate */
+  /* Scored across the inputs that could be computed, and null when none could.
+     It previously substituted 50, 40 and 40 for missing inputs, so a company
+     with no price — which is every company in this build — scored exactly
+     50x0.6 + 40x0.2 + 40x0.2 = 46, reported coverage 100%, carried 30% of the
+     composite and could be sorted on. All three of its inputs need a price.
+
+     That is the failure the missing-data policy names first: a company cannot
+     earn points for a metric that was not tested. Re-based over tested weight
+     now, with coverage reporting what was actually tested rather than the
+     constant 100 it asserted. */
+  const valueParts = [
+    { w:.6, s:anchor(val.mos?.base, -35, 45) },
+    { w:.2, s:anchor(d.m.fcfy, 0, 9) },
+    { w:.2, s:anchor(d.m.dy, 0, 6) },
+  ];
+  const valueTested = valueParts.filter(x => isNum(x.s));
+  const valueWeight = valueTested.reduce((a, x) => a + x.w, 0);
   scores.value = {
-    score: Math.round(clamp(
-      (anchor(val.mos?.base, -35, 45) ?? 50) * 0.6 +
-      (anchor(d.m.fcfy, 0, 9) ?? 40) * 0.2 +
-      (anchor(d.m.dy, 0, 6) ?? 40) * 0.2, 0, 100)),
-    coverage: 100,
+    score: valueWeight > 0
+      ? Math.round(clamp(valueTested.reduce((a, x) => a + x.s * x.w, 0) / valueWeight, 0, 100))
+      : null,
+    coverage: Math.round(valueWeight * 100),
     parts: [
       { k:'mosBase', w:.6, label:'Difference to model estimate vs base-case model estimate', raw:val.mos?.base, score:anchor(val.mos?.base, -35, 45), fmt:v=>fmtPct(v), lo:-35, hi:45 },
       { k:'fcfy',    w:.2, label:'Free cash flow yield',           raw:d.m.fcfy,      score:anchor(d.m.fcfy, 0, 9),        fmt:v=>fmtPct(v), lo:0, hi:9 },
@@ -7949,7 +7989,9 @@ function tabBusiness(r) {
    ['Primary listing', `${c.exch} · ${c.tk}`], ['Sector / industry', `${c.sector} — ${c.industry}`],
    ['Cyclicality', isNum(m.revDD) ? `Revenue drawdown ${fmtPct(m.revDD, 0)} in the window` : '—'],
    ['Capital intensity', isNum(m.reinv) ? `Capex is ${fmtPct(m.reinv, 0)} of operating cash flow` : 'Not meaningful'],
-   ['Shares in issue', `${fmtNum(last(d.sh), 3)}bn (${withSign(m.dilution, 2)} a year)`],
+   ['Shares in issue', m.shareSeriesBreak
+     ? `${fmtNum(last(d.sh), 3)}bn — annual change withheld, see capital allocation`
+     : `${fmtNum(last(d.sh), 3)}bn (${withSign(m.dilution, 2)} a year)`],
   ].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, String(v))); });
   prof.append(kv);
   prof.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:12.5px' }, c.desc));
@@ -8338,13 +8380,31 @@ function tabOwnership(r) {
   act.append(tableTwin('Show the table view', ['Year', 'Shares (bn)', 'Change'],
     YEARS.map((y, i) => [`FY${y}`, fmtNum(d.sh[i], 3), i ? withSign((d.sh[i] - d.sh[i - 1]) / d.sh[i - 1] * 100, 2) : '—'])));
   const kv2 = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
-  [['Share count CAGR', withSign(m.dilution, 2)],
-   ['Net buyback yield', withSign(m.buyback, 2)],
+  [['Share count CAGR', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.dilution, 2)],
+   ['Net buyback yield', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.buyback, 2)],
    [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : 'n/m'],
    ['Payout ratio', isNum(m.payout) ? fmtPct(m.payout, 0) : 'n/m'],
    ['Dividends as % of free cash flow', isNum(m.cashPayout) ? fmtPct(m.cashPayout, 0) : 'n/a']]
    .forEach(([k, v]) => { kv2.append(el('dt', {}, k)); kv2.append(el('dd', {}, v)); });
   act.append(kv2);
+  /* Share counts arrive from the filings as reported, unadjusted for splits, and
+     no corporate-action feed is licensed here to undo one. To a growth rate a
+     split is indistinguishable from issuance, which is how this page came to
+     report Apple's four-for-one as "share count rising 12.0% a year, which
+     dilutes per-share growth" — the reverse of the truth for a company that has
+     bought back stock for a decade. Rather than print a number that is wrong in
+     its sign, the measure is withheld and the discontinuity is named. */
+  if (m.shareSeriesBreak) {
+    const b = m.shareSeriesBreak;
+    act.append(el('div', { class: 'note', style: 'margin-top:var(--md);border-left:3px solid var(--warn)' },
+      el('p', { class: 'body', style: 'font-size:12.5px' },
+        `Share count CAGR and net buyback yield are withheld for this company. The series moves from `
+        + `${fmtNum(b.from, 3)}bn to ${fmtNum(b.to, 3)}bn between two consecutive years — a factor of ${b.ratio}× — `
+        + `which is a corporate action rather than a financing decision, since no issuance or buyback moves a share `
+        + `count that far in a year. The filings are reported unadjusted for splits and no corporate-action source is `
+        + `licensed here to restate them, so a growth rate over this series would measure the split, not the company. `
+        + `The year-by-year counts above are as filed and remain correct on their own terms.`)));
+  }
   wrap.append(act);
   columnChart(host, { cats: YEARS.map(y => `FY${y}`), series: [{ key:'sh', label:'Shares in issue', values:d.sh, varName:'--s1' }], fmt: v => fmtNum(v, 2) });
   return wrap;
@@ -11888,13 +11948,15 @@ function learnModels() {
 function learnData() {
   const wrap = el('div');
   const src = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  src.append(cardHead('Source hierarchy', 'What a production deployment would need. This prototype uses synthetic data throughout and does not connect to any of these.'));
+  src.append(cardHead('Source hierarchy', 'What a production deployment would need, and which of them this build actually reaches. One is connected; the rest are not. No price source is connected at any tier.'));
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, ['Rank', 'Source', 'Used for', 'Status in this prototype'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, [
-    ['1', 'Regulatory filings and exchange announcements', 'Reported facts', 'Not connected — sample data'],
-    ['2', 'Licensed market-data provider', 'Prices, corporate actions, reference data, redistribution rights', 'Not connected — sample data'],
+    ['1', 'Regulatory filings and exchange announcements', 'Reported facts',
+      'Connected for the US only — audited annual statements from SEC EDGAR XBRL company facts. Bursa filings are not reachable on any compliant route, so the Malaysian financials are illustrative.'],
+    ['2', 'Licensed market-data provider', 'Prices, corporate actions, reference data, redistribution rights',
+      'Not connected, on either market. This is why every price-derived measure on a filed company reads as unavailable, and why share counts cannot be split-adjusted.'],
     ['3', 'Licensed estimates and news provider', 'Forward estimates, earnings calendar', 'Out of scope'],
     ['4', 'Derived platform metrics', 'Every ratio shown in this product', 'Computed live from the stored sample lines'],
     ['5', 'AI-derived qualitative claims', 'Moat structuring and change summaries', 'Authored, evidence-linked templates only'],
@@ -16335,12 +16397,18 @@ VIEWS.plans = () => {
       ['Peer-percentile screening', pl.limits.percentileMode ? 'Yes' : 'No'],
       ['Editable valuation assumptions', pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
       ['Fundamental alerts', pl.limits.fundamentalAlerts ? 'Yes' : 'No'],
-      ['Price alerts', String(pl.limits.priceAlerts)],
+      ['Price alerts', `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
       ['Exports', pl.limits.exports ? 'Yes' : 'No'],
       ['Property calculator', pl.limits.propertyCalculator ? 'Included' : 'No'],
       ['Property reports', pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Pay per report'],
       ['Cross-asset net worth', pl.limits.crossAsset ? 'Yes' : 'No'],
-      ['Price data', pl.limits.priceDelayMin ? `${pl.limits.priceDelayMin}-minute delay` : 'Real time where licensed'],
+      /* No market-data licence has been signed for either exchange, so no plan
+         can deliver price data at any latency. Listing a delay tier here sold a
+         difference between plans that does not exist in the build. The tier is
+         still recorded on the plan so the row can state what it would become. */
+      ['Price data', 'Not available on any plan — no market-data licence is in place. '
+        + (pl.limits.priceDelayMin ? `Licensed, this plan would carry a ${pl.limits.priceDelayMin}-minute delay.`
+                                   : 'Licensed, this plan would carry real time where the exchange permits it.')],
     ];
     const dl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
     rows.forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', {}, v)); });
