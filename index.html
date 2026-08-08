@@ -4771,6 +4771,7 @@ const ROUTES = [
   { path: '/learn/glossary',      view: 'learn',     tab: 'glossary',  title: 'Glossary' },
   { path: '/methodology',         view: 'learn',     tab: 'models',    title: 'Methodology' },
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
+  { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
   { path: '/pricing',             view: 'plans',     title: 'Pricing' },
   { path: '/about',               view: 'about',     title: 'About' },
@@ -12040,6 +12041,32 @@ const EXPOSURE_FIELDS = [
   { k:'announcements', label:'Latest relevant announcements', kind:'text' },
 ];
 
+/* How a record was established, as distinct from what it says.
+   ---------------------------------------------------------------------------
+   The eleven fields above record the exposure. None of them records where it
+   came from, when it was last checked, or whether it is a measured figure or a
+   described one — so a record assembled from a company's own annual report and
+   a record assembled from memory looked identical, and the collection could
+   reach "100% complete" while being entirely unsourced.
+
+   That is the difference between a research collection and a notepad, and it is
+   the thing this product claims to be for. A qualitative record with a source
+   and a date is worth more than a quantitative one without them. */
+const EXPOSURE_META = [
+  { k:'sources', label:'Evidence sources', kind:'text',
+    hint:'Which document, and where in it. "FY2024 annual report, segment note p.87" can be checked. "Company website" cannot.' },
+  { k:'verified', label:'Last verified', kind:'date',
+    hint:'The date you last read the source, not the date you wrote the record.' },
+];
+
+/* Whether the exposure is measured or described. Both are legitimate; treating
+   them as the same thing is not. */
+const EXPOSURE_BASIS = [
+  { id:'quantitative', label:'Quantitative', note:'A reported figure — a segment revenue, a stated order book, a disclosed customer concentration.' },
+  { id:'qualitative',  label:'Qualitative',  note:'Described rather than measured. Legitimate, and must not be read as a number nobody has.' },
+  { id:'unstated',     label:'Not stated',   note:'The basis has not been recorded, so the record cannot be read as either.' },
+];
+
 const saveExposures = () => store.write('sarawakExposure', State.sarawakExposure);
 
 /* Who can be recorded against a theme.
@@ -12090,6 +12117,27 @@ function exposureCompleteness(rec) {
   if (!rec) return 0;
   const filled = EXPOSURE_FIELDS.filter(f => String(rec.fields?.[f.k] || '').trim().length > 2).length;
   return Math.round(filled / EXPOSURE_FIELDS.length * 100);
+}
+
+/* Sourcing is scored separately and NOT folded into completeness, because they
+   answer different questions and averaging them would let a well-sourced thin
+   record and a fully-written unsourced one land on the same number. A reader
+   deciding whether to trust a record needs both, side by side. */
+function exposureSourcing(rec) {
+  if (!rec) return { score: 0, missing: ['everything'] };
+  const missing = [];
+  if (String(rec.sources || '').trim().length < 4) missing.push('no source given');
+  if (!rec.verified) missing.push('never verified');
+  if (!rec.basis || rec.basis === 'unstated') missing.push('basis not stated');
+  return { score: Math.round((3 - missing.length) / 3 * 100), missing };
+}
+
+/* A record nobody has looked at for a year is not wrong, but it is old, and on
+   an order book or a project status a year is a long time. */
+function exposureStale(rec) {
+  if (!rec?.verified) return null;
+  const days = Math.floor((Date.now() - new Date(rec.verified).getTime()) / 86400000);
+  return Number.isFinite(days) ? days : null;
 }
 
 /* ==========================================================================
@@ -12599,10 +12647,59 @@ VIEWS.sarawak = () => {
       const theme = SARAWAK_THEMES.find(t => t.id === rec.theme);
       const pct = exposureCompleteness(rec);
       const det = el('details', { style: 'border-top:1px solid var(--line);padding:10px 0' });
+      /* Both numbers on the summary line, never averaged into one. A record can
+         be fully written and entirely unsourced, and a reader has to be able to
+         see that without opening it. */
+      const src = exposureSourcing(rec);
       det.append(el('summary', { style: 'cursor:pointer' }, [
         el('span', { style: 'font-weight:600' }, `${rec.tk} — ${rec.name}`),
         el('span', { class: 'metaline' }, `  ${theme?.label} · ${pct}% of fields recorded`),
+        el('span', { class: src.score === 100 ? 'chip chip-ok' : 'chip chip-bronze', style: 'margin-left:8px' },
+          src.score === 100
+            ? `sourced${rec.basis && rec.basis !== 'unstated' ? ' · ' + rec.basis : ''}`
+            : `${src.missing.length} sourcing gap${src.missing.length === 1 ? '' : 's'}`),
       ]));
+      /* How it was established, before what it says. A reader scanning the
+         record should meet the sourcing first — it qualifies everything below
+         it, and putting it at the bottom would make it a footnote to claims
+         they have already read. */
+      const meta = el('div', { style: 'padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px;background:var(--surface-sunk)' });
+      const srcState = exposureSourcing(rec);
+      meta.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline;margin-bottom:8px' }, [
+        el('h4', { class: 'eyebrow', style: 'margin:0' }, 'How this was established'),
+        el('span', { class: srcState.score === 100 ? 'chip chip-ok' : 'chip chip-bronze', style: 'margin-left:auto' },
+          srcState.score === 100 ? 'sourced, dated and classified' : srcState.missing.join(' · ')),
+      ]));
+
+      EXPOSURE_META.forEach(f => {
+        const row = el('div', { class: 'field', style: 'margin-top:8px' });
+        row.append(el('label', {}, f.label));
+        const inp = f.kind === 'date'
+          ? el('input', { class: 'input', type: 'date', value: rec.verified || '', 'aria-label': f.label })
+          : el('textarea', { class: 'input', rows: '2', placeholder: 'Not recorded', 'aria-label': f.label });
+        if (f.kind !== 'date') inp.value = rec[f.k] || '';
+        inp.addEventListener('change', () => { rec[f.k] = inp.value; saveExposures(); render(); });
+        row.append(inp);
+        row.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, f.hint));
+        meta.append(row);
+      });
+
+      const basisRow = el('div', { class: 'field', style: 'margin-top:8px' });
+      basisRow.append(el('label', {}, 'Exposure classification'));
+      const basisSel = el('select', { class: 'select', 'aria-label': 'Exposure classification' });
+      EXPOSURE_BASIS.forEach(b => basisSel.append(el('option', { value: b.id,
+        selected: (rec.basis || 'unstated') === b.id ? '' : null }, b.label)));
+      basisSel.addEventListener('change', () => { rec.basis = basisSel.value; saveExposures(); render(); });
+      basisRow.append(basisSel);
+      basisRow.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
+        (EXPOSURE_BASIS.find(b => b.id === (rec.basis || 'unstated')) || EXPOSURE_BASIS[2]).note));
+      meta.append(basisRow);
+
+      const age = exposureStale(rec);
+      if (age != null && age > 365) meta.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
+        `Last verified ${Math.floor(age / 30)} months ago. An order book or a project status moves faster than that.`));
+      det.append(meta);
+
       EXPOSURE_FIELDS.forEach(f => {
         const row = el('div', { class: 'field', style: 'margin-top:8px' });
         row.append(el('label', {}, f.label));
@@ -13371,6 +13468,37 @@ VIEWS.property = () => {
 /* The scope statement. It exists because the boundary between research and
    advice is a product decision that has to be legible to a user, a regulator
    and the team building the next feature — not a paragraph in a terms page. */
+/* The boundary argument in full, on its own page. It was the first thing on the
+   pricing page and is now the whole of this one — the same content, reached by
+   someone who has decided they want it rather than imposed on someone who came
+   to read a price. */
+VIEWS.boundaries = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Learn'),
+    el('h1', {}, 'What this product will not do'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Several obvious features are absent by design rather than by backlog. This page says which, and why each one would change what the product is.'),
+  ])));
+  wrap.append(scopeCard());
+
+  const legal = el('div', { class: 'card' });
+  legal.append(cardHead('Why the absent list is not a roadmap',
+    'It is a licensing boundary, not a set of features waiting their turn.'));
+  legal.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    'Advising on securities to specific people is a regulated activity in Malaysia under the Capital Markets and Services Act. A disclaimer does not change what a feature does: a screen that ranks companies by attractiveness and calls the result a "top pick" is making a recommendation whatever the footer says.'));
+  legal.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px' },
+    'So the boundary is built into the product rather than applied to it afterwards. There are no ratings to suppress, no target prices to caveat, and no suitability questions to disclaim — the question does not arise. That is a harder constraint to work inside and a much easier one to be honest about.'));
+  wrap.append(legal);
+
+  const back = el('div', { class: 'card' });
+  back.append(cardHead('Prices', 'What the product costs, on its own page.'));
+  back.append(el('a', { class: 'btn btn-primary', href: href('/pricing'),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/pricing'); } }, 'See plans and prices'));
+  wrap.append(back);
+  return wrap;
+};
+
 function scopeCard() {
   const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
   card.append(cardHead('What is being sold: research',
@@ -13417,7 +13545,12 @@ VIEWS.plans = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Equity research earns weekly engagement, so it is priced as a subscription. Property research is episodic — most people buy a home every several years, not every month — so it is priced per report. Charging a monthly fee for something used twice a year is how churn is manufactured.'),
   ])));
-  wrap.append(el('div', { style: 'margin-bottom:var(--md)' }, scopeCard()));
+  /* The scope card used to open this page: two columns of what the product
+     deliberately will not do, before a reader had seen a single price. It is
+     the most important thing about the product and the wrong thing to lead a
+     pricing page with — someone who came to find out what it costs had to read
+     an argument first. It lives at /learn/product-boundaries in full now, and
+     what remains here is one line, below the plans rather than above them. */
 
   const bar = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
   bar.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
@@ -13494,6 +13627,15 @@ VIEWS.plans = () => {
 
   /* what is deliberately not monetised */
   const mp = el('div', { class: 'card', style: 'margin-top:var(--md)' });
+  /* One line where the argument used to be, with the argument a click away. */
+  const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
+  boundaryLine.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    'What you are paying for is research: analysis, evidence and tools that let you reach your own conclusion — not a conclusion. There are no ratings, no target prices and no suitability questions, and that is a product boundary rather than a backlog.'));
+  boundaryLine.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', href: href('/learn/product-boundaries'),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/learn/product-boundaries'); } },
+    'What this product will not do, and why'));
+  wrap.append(boundaryLine);
+
   mp.append(cardHead('What is deliberately not monetised',
     'Revenue that would compromise the research is not taken, at any price. This list is a product constraint, not a phase.'));
   const g2 = el('div', { class: 'grid g-2' });
