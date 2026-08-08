@@ -15761,6 +15761,199 @@ VIEWS.wheel = () => {
     }
   }
 
+  /* ---- cycle state and ledger (41A.5, 41A.11, 41A.13) ------------------ */
+  const legs = State.wheelLegs || [];
+  const led = wheelLedger(legs);
+  const st = p.state || 'candidate';
+  const stDef = WHEEL_STATES.find(x => x.id === st) || WHEEL_STATES[0];
+  const allowed = WHEEL_TRANSITIONS[st] || [];
+  const openLeg = legs.find(l => l.status === 'open');
+
+  const cyc = el('div', { class: 'card' });
+  cyc.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
+    el('div', {}, [
+      el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'Cycle state'),
+      el('h3', { class: 'h-card', style: 'margin:0' }, stDef.label),
+    ]),
+    el('span', { class: 'chip', style: 'margin-left:auto' },
+      `${legs.length} leg${legs.length === 1 ? '' : 's'} recorded`),
+  ]));
+  cyc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    'Only the transitions this state permits are offered. A cycle cannot skip assignment, and a leg cannot be resolved twice.'));
+
+  /* Where a transition needs a figure, it is asked for rather than assumed. */
+  const resolveInput = (label, id) => {
+    const f = el('div', { class: 'field', style: 'max-width:230px;margin-top:8px' });
+    f.append(el('label', { for: id }, label));
+    f.append(el('input', { class: 'input', id, type: 'number', step: '0.01', value: '0' }));
+    return f;
+  };
+  const numFrom = (id) => num0(document.getElementById(id)?.value);
+  const go = (next) => { p.state = next; saveWheel(); render(); };
+
+  const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
+
+  if (allowed.includes('put_planned')) acts.append(el('button', { class: 'btn btn-sm', onclick: () => {
+    State.wheelLegs = []; saveWheelLegs(); go('put_planned');
+  } }, 'Start a cycle'));
+
+  if (allowed.includes('put_open')) acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    if (!m.valid) { toast('Enter the contract first'); return; }
+    if (!m.cashSecured) { toast('Not cash-secured — the full assignment cash must be reserved'); return; }
+    addWheelLeg({ phase:'put', action:'open', status:'open',
+      contractLabel:`${p.symbol || 'Underlying'} ${num0(p.putStrike)}P`, strike:num0(p.putStrike),
+      shares:m.deliverableShares, grossPremium:m.grossPutPremium,
+      commissions:num0(p.openCommission), fees:num0(p.openFees),
+      netCash:m.putPremiumCashReceived, capitalCommitted:m.requiredAssignmentCash,
+      currentCloseCost:0 });
+    go('put_open');
+  } }, 'Record the put as opened'));
+
+  if (st === 'put_open') {
+    acts.append(el('button', { class: 'btn btn-sm', onclick: () => {
+      const l = openLeg; if (!l) return;
+      const i = State.wheelLegs.indexOf(l);
+      State.wheelLegs[i] = { ...l, status:'resolved', realisedPnl: num0(l.netCash),
+        note:'Expired worthless. The premium becomes realised at this point and not before.' };
+      saveWheelLegs(); go('put_expired');
+    } }, 'It expired worthless'));
+    acts.append(el('button', { class: 'btn btn-sm', onclick: () => {
+      const l = openLeg; if (!l) return;
+      const debit = numFrom('w-closedebit') * num0(l.shares) + numFrom('w-closecomm');
+      const i = State.wheelLegs.indexOf(l);
+      State.wheelLegs[i] = { ...l, status:'resolved', realisedPnl: num0(l.netCash) - debit,
+        note:'Bought back before expiry.' };
+      addWheelLeg({ phase:'put', action:'close', status:'resolved', contractLabel:l.contractLabel,
+        shares:l.shares, netCash:-debit, realisedPnl:null, commissions:numFrom('w-closecomm'),
+        parentLegId:l.id, note:'Closing cash. The realised result sits on the opening leg it closed.' });
+      go('put_closed');
+    } }, 'I bought it back'));
+    acts.append(el('button', { class: 'btn btn-sm', onclick: () => {
+      const l = openLeg; if (!l) return;
+      const i = State.wheelLegs.indexOf(l);
+      State.wheelLegs[i] = { ...l, status:'resolved', realisedPnl: num0(l.netCash),
+        note:'Assigned. The premium is realised; the share position now carries the risk.' };
+      addWheelLeg({ phase:'shares', action:'assign', status:'resolved',
+        contractLabel:l.contractLabel, shares:l.shares,
+        cashPaid: num0(l.strike) * num0(l.shares) + num0(p.assignmentFees),
+        fees:num0(p.assignmentFees), capitalCommitted:num0(l.strike) * num0(l.shares),
+        note:`Bought ${l.shares} shares at ${fmtMoney(num0(l.strike), 'USD')}.` });
+      p.eligibleShares = num0(p.eligibleShares) + num0(l.shares);
+      p.economicShareBasisOverride = m.economicShareBasis;
+      p.phase = 'call'; saveWheel(); saveWheelLegs(); go('shares_held');
+    } }, 'It was assigned'));
+    cyc.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
+      resolveInput('Close debit per share (USD)', 'w-closedebit'),
+      resolveInput('Closing commission (USD)', 'w-closecomm'),
+    ]));
+  }
+
+  if (allowed.includes('call_planned')) acts.append(el('button', { class: 'btn btn-sm', onclick: () => go('call_planned') }, 'Plan a covered call'));
+
+  if (allowed.includes('call_open')) acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    if (!m.valid) { toast('Enter the contract first'); return; }
+    if (!m.covered) { toast('Not covered — the full share deliverable must be held and unencumbered'); return; }
+    addWheelLeg({ phase:'call', action:'open', status:'open',
+      contractLabel:`${p.symbol || 'Underlying'} ${num0(p.callStrike)}C`, strike:num0(p.callStrike),
+      shares:m.requiredCoveredShares, grossPremium:m.grossCallPremium,
+      commissions:num0(p.callOpenCommission), fees:num0(p.callOpenFees),
+      netCash:m.callPremiumCashReceived, capitalCommitted:0 });
+    go('call_open');
+  } }, 'Record the call as opened'));
+
+  if (st === 'call_open') {
+    acts.append(el('button', { class: 'btn btn-sm', onclick: () => {
+      const l = openLeg; if (!l) return;
+      const i = State.wheelLegs.indexOf(l);
+      State.wheelLegs[i] = { ...l, status:'resolved', realisedPnl: num0(l.netCash), note:'Expired. Shares retained.' };
+      saveWheelLegs(); go('call_expired');
+    } }, 'It expired, shares retained'));
+    acts.append(el('button', { class: 'btn btn-sm', onclick: () => {
+      const l = openLeg; if (!l) return;
+      const i = State.wheelLegs.indexOf(l);
+      const basis = isNum(m.basisUsed) ? m.basisUsed : 0;
+      State.wheelLegs[i] = { ...l, status:'resolved', realisedPnl: num0(l.netCash), note:'Assigned — shares sold at the strike.' };
+      addWheelLeg({ phase:'shares', action:'called_away', status:'resolved',
+        contractLabel:l.contractLabel, shares:l.shares,
+        realisedSharePnl:(num0(l.strike) - basis) * num0(l.shares),
+        note:`Sold ${l.shares} shares at ${fmtMoney(num0(l.strike), 'USD')} against a basis of ${fmtMoney(basis, 'USD')}.` });
+      saveWheelLegs(); go('called_away');
+    } }, 'Shares were called away'));
+  }
+
+  /* The roll, which can only ever be two legs. */
+  if (openLeg) {
+    const rollBox = el('details', { style: 'margin-top:var(--md)' });
+    rollBox.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'Roll this contract'));
+    rollBox.append(el('p', { class: 'metaline', style: 'margin:8px 0' },
+      'A roll is recorded as two transactions: closing the current contract and opening a new one. The realised result of the leg being closed is kept whatever the net cash looks like — a roll can show a credit and still have lost money, and that is exactly when the net figure alone misleads.'));
+    const rg = el('div', { class: 'row row-wrap', style: 'gap:10px' });
+    [['Close debit per share', 'r-debit'], ['New strike', 'r-strike'],
+     ['New credit per share', 'r-credit'], ['Commissions each side', 'r-comm']]
+      .forEach(([l, id]) => rg.append(resolveInput(l, id)));
+    rollBox.append(rg);
+    rollBox.append(el('button', { class: 'btn btn-sm', style: 'margin-top:8px', onclick: () => {
+      const res = rollWheelLeg(openLeg, numFrom('r-debit'), {
+        label:`${p.symbol || 'Underlying'} ${numFrom('r-strike')}${openLeg.phase === 'call' ? 'C' : 'P'}`,
+        strike:numFrom('r-strike'), shares:num0(openLeg.shares),
+        creditPerShare:numFrom('r-credit'),
+        openCommission:numFrom('r-comm'), closeCommission:numFrom('r-comm') });
+      toast(`Closed leg realised ${fmtMoney(res.realisedOnClose, 'USD')}; net roll ${fmtMoney(res.netRollCash, 'USD')}`);
+      render();
+    } }, 'Record the roll'));
+    cyc.append(rollBox);
+  }
+
+  if (legs.length) acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+    if (!confirm('Clear this cycle and all its legs?')) return;
+    State.wheelLegs = []; saveWheelLegs(); p.state = 'candidate'; p.phase = 'put';
+    p.economicShareBasisOverride = null; saveWheel(); render();
+  } }, 'Clear the cycle'));
+  cyc.append(acts);
+
+  /* The ledger. */
+  if (legs.length) {
+    const lt = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+    lt.append(el('thead', {}, el('tr', {}, ['Phase', 'Action', 'Contract', 'Cash', 'Realised', 'State'].map((h, i) =>
+      el('th', { style: i <= 2 || i === 5 ? 'text-align:left' : null }, h)))));
+    const lb = el('tbody');
+    legs.forEach(l => lb.append(el('tr', {}, [
+      el('td', { style: 'text-align:left' }, l.phase),
+      el('td', { style: 'text-align:left' }, l.action),
+      el('td', { style: 'text-align:left;white-space:normal' }, [
+        el('div', {}, l.contractLabel || '—'),
+        l.note ? el('div', { class: 'caption' }, l.note) : null,
+      ]),
+      el('td', { class: 'num ' + signClass(num0(l.netCash)) }, isNum(l.netCash) ? fmtMoney(l.netCash, 'USD') : '—'),
+      el('td', { class: 'num ' + signClass(num0(l.realisedPnl)) },
+        isNum(l.realisedPnl) ? fmtMoney(l.realisedPnl, 'USD')
+          : el('span', { class: 'caption' }, l.status === 'open' ? 'still open' : '—')),
+      el('td', { style: 'text-align:left' }, l.status === 'open'
+        ? el('span', { class: 'chip chip-bronze' }, 'open obligation')
+        : el('span', { class: 'caption' }, 'resolved')),
+    ])));
+    lt.append(lb);
+    cyc.append(el('div', { class: 'tablewrap' }, lt));
+
+    /* 41A.11 totals, kept apart. */
+    const tk = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
+    [['Premium cash received', fmtMoney(led.premiumCashReceived, 'USD')],
+     ['Realised option profit or loss', fmtMoney(led.realisedOptionPnl, 'USD')],
+     ['Open obligation', led.openLegs ? `${led.openLegs} leg still open` : 'none'],
+     ['Share acquisition cash', fmtMoney(led.shareAcquisitionCash, 'USD')],
+     ['Realised share profit or loss', fmtMoney(led.realisedSharePnl, 'USD')],
+     ['Commissions and fees', fmtMoney(led.commissions + led.fees, 'USD')],
+     ['Total realised cycle result', fmtMoney(led.totalRealisedCyclePnl, 'USD')],
+     ['Maximum capital committed', fmtMoney(led.maxCapitalCommitted, 'USD')],
+     ['Return on maximum committed', isNum(led.cycleReturnOnMaxCommitted)
+        ? fmtPct(led.cycleReturnOnMaxCommitted * 100, 2) : '—']]
+      .forEach(([k, v]) => { tk.append(el('dt', {}, k)); tk.append(el('dd', {}, v)); });
+    cyc.append(tk);
+    if (led.openLegs) cyc.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
+      `Premium cash received includes ${led.openLegs} leg that has not resolved. That cash is in the account and the obligation is still open — it is not profit yet, and the realised line above is the one that answers how this cycle has actually gone.`));
+  }
+  wrap.append(cyc);
+
   /* Risk card, per 41A.14. */
   const rc = el('div', { class: 'card' });
   rc.append(cardHead('What can go wrong', 'Plain language, before any yield.'));
