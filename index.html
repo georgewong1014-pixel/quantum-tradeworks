@@ -11615,7 +11615,11 @@ State.deal = store.read('deal', null) || {
   /* size */
   sqft:1050, landSqft:0, parking:1,
   /* purchase */
-  price:572000, renovation:25000, downPct:10, ratePct:4.30, tenureYears:35,
+  price:572000, bankValuation:0, renovation:25000, downPct:10, ratePct:4.30, tenureYears:35,
+  /* Which value a lender lends against. The lower of price and valuation is
+     the common default and not a universal rule; replace it with the selected
+     lender's actual policy when one is known. */
+  valuationRule:'lower_of',
   /* income */
   rent:1850, rentGrowthPct:2.5, vacancyPct:9,
   /* running costs, annual unless stated */
@@ -12271,6 +12275,7 @@ const PROPERTY_I18N = {
   'in.landSqft':  { en:'Land area (sq ft, 0 if none)', ms:'Keluasan tanah (sq ft, 0 jika tiada)', zh:'土地面积 (sq ft，无则填 0)' },
   'in.parking':   { en:'Allocated parking bays', ms:'Petak letak kereta diperuntukkan', zh:'分配的停车位' },
   'in.price':     { en:'Purchase price (RM)', ms:'Harga belian (RM)', zh:'购买价格 (RM)' },
+  'in.bankValuation': { en:'Bank or valuer estimate (RM, 0 if not yet known)', ms:'Nilaian bank atau penilai (RM, 0 jika belum diketahui)', zh:'银行或估价师估值 (RM，未知则填 0)' },
   'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
   'in.downPct':   { en:'Deposit (%)', ms:'Deposit (%)', zh:'头期 (%)' },
   'in.ratePct':   { en:'Loan interest rate (%)', ms:'Kadar faedah pinjaman (%)', zh:'贷款利率 (%)' },
@@ -12581,8 +12586,45 @@ function affordabilityPanel(cityName) {
 
 function dealModel(d) {
   const proj = activeProject(d);
-  const loan = d.price * (1 - d.downPct / 100);
-  const deposit = d.price - loan;
+
+  /* ---- financing basis (specification 29.2) ---------------------------- */
+  /* A lender lends against its own value, not against what the buyer agreed to
+     pay. Where the valuation comes in below the price, the difference is not a
+     smaller loan — it is cash the buyer has to find on completion day, on top
+     of the deposit. The calculator previously took the loan straight off the
+     price, so a low valuation was invisible until it was someone's problem.
+
+     The lower-of rule is this scenario's default, not a claim that every lender
+     applies it. The rule in force is stored so it can be replaced with a
+     lender's actual policy and evidence. */
+  const marginOfFinancePct = clamp(100 - num0(d.downPct), 0, 100);
+  const bankValuation = isNum(d.bankValuation) && d.bankValuation > 0 ? d.bankValuation : null;
+  const valuationRule = d.valuationRule || 'lower_of';
+  const lenderValueBasis = (bankValuation != null && valuationRule === 'lower_of')
+    ? Math.min(d.price, bankValuation)
+    : (bankValuation != null && valuationRule === 'valuation_only' ? bankValuation : d.price);
+  /* Absent a valuation the basis IS the price, and that is an assumption rather
+     than a finding — the report says so rather than letting the number pass as
+     lender-confirmed. */
+  const financingBasisConfirmed = bankValuation != null;
+  const valuationGapCash = Math.max(0, d.price - lenderValueBasis);
+
+  const loan = lenderValueBasis * marginOfFinancePct / 100;
+  /* Split as the specification's ledger splits it: the deposit against the
+     basis the lender used, and the gap as its own line. Together they are the
+     buyer's whole equity, and separating them shows which part is a choice and
+     which part the valuation forced. */
+  const deposit = lenderValueBasis - loan;
+
+  /* What the same purchase looks like at other margins of finance. Scenarios,
+     not offers — no lender has seen this. */
+  const financingScenarios = [70, 80, 90].map(mof => {
+    const scLoan = lenderValueBasis * mof / 100;
+    return { mof, loan: scLoan,
+             cashEquity: d.price - scLoan,
+             instalment: monthlyInstalment(scLoan, d.ratePct, d.tenureYears),
+             coverageOfPrice: scLoan / d.price * 100 };
+  });
   const duty = stampDutyMOT(d.price);
   const legal = legalFeesBuy(d.price);
   const loanDuty = loanStampDuty(loan);
@@ -12604,6 +12646,9 @@ function dealModel(d) {
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
         ['Deposit', deposit],
+        /* Only when it exists. A zero row for a gap there isn't would train the
+           reader to skip the line that matters when there is one. */
+        ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
         feeLine('transferStampDuty', { price: d.price }),
         feeLine('purchaseLegal', { price: d.price }),
         feeLine('disbursements', {}),
@@ -12649,6 +12694,11 @@ function dealModel(d) {
   const acquisitionCost = deposit + renovation
     + sumPriced(costGroups.flatMap(g => g.items.filter(it => it[0] !== 'Deposit'
         && it[0] !== 'Renovation and furnishing').map(it => it[1])));
+
+  /* Financing coverage as a share of what is actually being paid, which is the
+     figure a buyer needs — a 90% margin of finance against a valuation 10%
+     below the price funds 81% of the price, and the difference is cash. */
+  const financingCoverageOfPrice = d.price > 0 ? loan / d.price * 100 : null;
 
   const instalment = monthlyInstalment(loan, d.ratePct, d.tenureYears);
   const grossAnnualRent = d.rent * 12;
@@ -12807,6 +12857,8 @@ function dealModel(d) {
 
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
            costGroups, missingCostLines, unconfirmedCost, placeholderCostLines,
+           bankValuation, lenderValueBasis, valuationGapCash, marginOfFinancePct,
+           financingBasisConfirmed, financingCoverageOfPrice, financingScenarios, valuationRule,
            reserve, totalInitialCash, instalment,
            grossAnnualRent, effectiveRent, opex, noi, annualDebtService, grossYield, netYield,
            maintenanceY, sinkingY, statutoryY, insuranceY, mgmtY, repairY,
@@ -13364,6 +13416,7 @@ VIEWS.property = () => {
     ]],
     ['3 · Purchase', [
       ['price', 'Purchase price (RM)', 1000],
+      ['bankValuation', 'Bank or valuer estimate (RM, 0 if not yet known)', 1000],
       ['renovation', 'Renovation and furnishing (RM)', 500],
       ['downPct', 'Deposit (%)', 1],
       ['ratePct', 'Loan interest rate (%)', 0.05],
@@ -13537,6 +13590,49 @@ VIEWS.property = () => {
             : 'They compute, and they are not evidence.'))]));
   cashT.append(cashB);
   cash.append(cashT);
+
+  /* ---- financing basis (specification 29.2) ---------------------------- */
+  const fin = el('div', { style: 'margin-top:var(--md);padding-top:var(--md);border-top:1px solid var(--line)' });
+  fin.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'What the loan is calculated against'));
+  if (!m.financingBasisConfirmed) {
+    fin.append(el('p', { class: 'body', style: 'font-size:12.5px;color:var(--bronze)' },
+      'Financing basis is modelled, not lender-confirmed. No bank or valuer estimate has been entered, so the loan below is calculated against the purchase price — which assumes a valuation at least equal to what you agreed to pay. Where a valuation comes in lower, the shortfall becomes cash you must find at completion, and this figure would understate what the purchase takes.'));
+  } else {
+    const kv = el('dl', { class: 'kv' });
+    [['Purchase price', fmtAmount(d.price, 'MYR')],
+     ['Bank or valuer estimate', fmtAmount(m.bankValuation, 'MYR')],
+     ['Value the loan is calculated on', `${fmtAmount(m.lenderValueBasis, 'MYR')} — the lower of the two`],
+     ['Margin of finance applied', fmtPct(m.marginOfFinancePct, 0)],
+     ['Loan', fmtAmount(m.loan, 'MYR')],
+     ['Share of the price this funds', fmtPct(m.financingCoverageOfPrice, 1)]]
+      .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
+    fin.append(kv);
+    if (m.valuationGapCash > 0) fin.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px;color:var(--dn-text)' },
+      `The valuation is ${fmtAmount(m.valuationGapCash, 'MYR')} below the price, so a ${fmtPct(m.marginOfFinancePct, 0)} margin of finance funds ${fmtPct(m.financingCoverageOfPrice, 1)} of what you are paying, not ${fmtPct(m.marginOfFinancePct, 0)}. That difference is cash, it is due on completion day, and it is listed above as valuation-gap cash.`));
+    else fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      'The estimate is at or above the price, so there is no valuation gap on this scenario.'));
+  }
+
+  /* 70 / 80 / 90 scenarios. */
+  const scT = el('table', { class: 'dt', style: 'margin-top:10px' });
+  scT.append(el('thead', {}, el('tr', {}, ['Margin of finance', 'Loan', 'Cash equity needed', 'Monthly instalment', 'Share of price funded']
+    .map((h, i) => el('th', { style: i === 0 ? 'text-align:left' : null }, h)))));
+  const scB = el('tbody');
+  m.financingScenarios.forEach(s => {
+    const isCurrent = Math.abs(s.mof - m.marginOfFinancePct) < 0.5;
+    scB.append(el('tr', { style: isCurrent ? 'background:var(--surface-sunk)' : '' }, [
+      el('td', { style: 'text-align:left' }, [`${s.mof}%`, isCurrent ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:10px' }, 'entered') : null]),
+      el('td', { class: 'num' }, fmtAmount(s.loan, 'MYR')),
+      el('td', { class: 'num' }, fmtAmount(s.cashEquity, 'MYR')),
+      el('td', { class: 'num' }, fmtAmount(s.instalment, 'MYR')),
+      el('td', { class: 'num' }, fmtPct(s.coverageOfPrice, 1)),
+    ]));
+  });
+  scT.append(scB);
+  fin.append(el('div', { class: 'tablewrap' }, scT));
+  fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'Scenarios, not offers. No lender has seen this property or this borrower, and the margin a lender will actually extend depends on its own valuation, its credit policy and the applicant. Cash equity is the purchase price less the loan, so it carries any valuation gap with it.'));
+  cash.append(fin);
   cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `The emergency reserve is not paid to anyone — it is what stays in your account after completion. Excluding it, completion itself takes ${fmtAmount(m.acquisitionCost, 'MYR')}.`));
   free.append(cash);
