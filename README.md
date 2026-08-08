@@ -54,6 +54,30 @@ node screenshot.mjs http://localhost:3000 home-mobile --width 390 --height 844
 
 Output goes to `./temporary screenshots/` (git-ignored).
 
+## Checking a deployment
+
+```bash
+node deploy-check.mjs          # one check: exit 0 if production serves this file
+node deploy-check.mjs --wait   # poll until it matches, or time out
+```
+
+It compares the **whole file**, not a marker string. Newlines are normalised —
+the repository stores CRLF and the CDN serves LF — and nothing else is
+excused; after that normalisation the two are byte-identical, so nothing is
+injected in transit.
+
+**Do not verify a deployment by grepping the served HTML for a string from the
+change.** That method cannot merely fail, it produces false positives by
+construction: if the string already existed — added by an earlier commit,
+present in a comment, or a name the new code reuses — the grep passes against a
+stale bundle. That happened here. A check polled for a symbol the *previous*
+commit had shipped, reported "deployed" in ten seconds, and production served
+the old file for twenty minutes until an empty commit forced a real deployment:
+
+```bash
+git commit --allow-empty -m "chore: trigger redeploy"
+```
+
 ## Structure
 
 ```
