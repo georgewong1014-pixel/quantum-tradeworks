@@ -4767,6 +4767,7 @@ const ROUTES = [
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
+  { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/learn',               view: 'learn',     title: 'Learn' },
   { path: '/learn/glossary',      view: 'learn',     tab: 'glossary',  title: 'Glossary' },
   { path: '/methodology',         view: 'learn',     tab: 'models',    title: 'Methodology' },
@@ -15138,8 +15139,9 @@ const CAPABILITY_REGISTER = [
     now:'Title, valuation gap, tenure, condition and marketability, scored separately from the borrower.' },
   { name:'Property underwriting grade', status:'active-core', path:'/property/calculator',
     now:'A/B/C/D/U with hard gates and evidence caps.' },
-  { name:'Property opportunity register', status:'queued', path:null,
-    gate:'Needs real Sibu cases with source, availability date and rent evidence. Nothing is registered yet.' },
+  { name:'Property opportunity register', status:'active-core', path:'/property/opportunities',
+    now:'Records real candidates with source, availability date, four separate prices, grade and a next action with an owner.',
+    gate:'Holds nothing until you add cases. This product sources no listings and republishes none.' },
   { name:'Loan comparison across lenders', status:'queued', path:null,
     gate:'Needs the offer-status workflow. Financing scenarios at 70/80/90% exist today; named lender offers do not.' },
   { name:'Operations Excellence handoff', status:'queued', path:null,
@@ -15179,6 +15181,236 @@ const CAPABILITY_REGISTER = [
   { name:'Personalised advice mode', status:'compliance', path:null,
     gate:'Would require written Malaysian legal classification and SC authorisation. The research boundary is a product design, not a disclaimer.' },
 ];
+
+/* ==========================================================================
+   PROPERTY OPPORTUNITY REGISTER — directive 6.7, specification 27.5
+
+   A calculator answers "what would this deal do". A register answers "which
+   deals exist, and what do we actually know about each" — and the second is
+   the one that turns a tool into research.
+
+   THE RULES THAT SHAPE IT
+
+   A listing is not a recommendation, so nothing here is ordered by merit.
+   Sorting is by recency or an explicit filter the reader chose, because a
+   hidden merit rank is a recommendation wearing a sort order.
+
+   "Available" is never shown unless availability was checked, and the date it
+   was checked is shown beside it. A stale availability flag is worse than none:
+   it sends someone to a property that sold weeks ago.
+
+   Four prices are kept apart — asking, negotiated, bank valuation, registered
+   valuer — because collapsing them is how a valuation gap disappears.
+
+   A candidate with no verified rent, title or condition evidence stays U
+   however good its yield looks. Yield on an unverified rent is arithmetic on a
+   guess.
+
+   Nothing is scraped. Each record carries where it came from, and the source is
+   a reference the reader entered rather than content this product republished.
+   ========================================================================== */
+const CANDIDATE_STATES = [
+  { id:'captured',           label:'Captured',              note:'Recorded from a listing or a conversation. Nothing verified.' },
+  { id:'identity_verified',  label:'Identity verified',     note:'Address, title reference and attributes confirmed.' },
+  { id:'evidence_gathering', label:'Gathering evidence',    note:'Rent, comparables, valuation and title evidence being collected.' },
+  { id:'underwritten',       label:'Underwritten',          note:'Modelled and graded on the evidence held.' },
+  { id:'conditional_dd',     label:'Conditional due diligence', note:'Proceeding subject to named verifications.' },
+  { id:'finance_review',     label:'Finance review',        note:'With a lender or broker.' },
+  { id:'closed',             label:'Acquired or closed',    note:'Concluded, either way.' },
+  { id:'stale',              label:'Stale or withdrawn',    note:'No longer available, or not checked recently enough to say.' },
+];
+
+State.opportunities = store.read('opportunities', []);
+const saveOpportunities = () => store.write('opportunities', State.opportunities);
+
+/* Runs the underwriting engine over a candidate by layering its fields on the
+   calculator's own defaults, so a register entry and a calculator run cannot
+   diverge — one engine, two front doors. */
+function candidateModel(o) {
+  const d = { ...State.deal, ...o.deal, touched: o.touched || {}, evidence: o.evidence || {} };
+  const m = dealModel(d);
+  return { d, m, grade: propertyGrade(d, m), finance: propertyFinanceability(d, m) };
+}
+
+const daysSince = (iso) => {
+  if (!iso) return null;
+  const n = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  return Number.isFinite(n) ? n : null;
+};
+
+VIEWS.opportunities = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Property'),
+    el('h1', {}, 'Opportunity register'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Real properties, each with what is known about it and what is not. Ordered by when it was recorded, never by how good it looks.'),
+  ])));
+
+  const list = State.opportunities || [];
+
+  const rules = el('div', { class: 'card' });
+  rules.append(cardHead('How this register behaves', 'The constraints matter more than the fields.'));
+  rules.append(el('ul', { class: 'ticklist' }, [
+    el('li', {}, 'Nothing is ordered by merit. A hidden merit rank is a recommendation wearing a sort order, and this product does not make recommendations.'),
+    el('li', {}, '“Available” appears only where availability was checked, with the date beside it. A stale flag sends someone to a property that sold weeks ago.'),
+    el('li', {}, 'Asking price, your negotiated price, the bank valuation and a registered valuer’s figure are four different numbers and are kept apart.'),
+    el('li', {}, 'A candidate with no verified rent, title or condition evidence stays U however good its yield looks — yield on an unverified rent is arithmetic on a guess.'),
+    el('li', {}, 'Nothing is scraped or republished. Each record holds a reference you entered, not content taken from a listing site.'),
+    el('li', {}, 'Records stay in this browser. There is no server holding them and no one else can see them.'),
+  ]));
+  wrap.append(rules);
+
+  if (!list.length) {
+    const empty = el('div', { class: 'card' });
+    empty.append(cardHead('No properties recorded yet', 'This is a register, not a feed — it holds what you put in it.'));
+    empty.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+      'Quantum Tradeworks holds no property listings and does not source them. There is no permitted feed of Sarawak listings this product can republish, and inventing candidates would be worse than an empty page. Add a property you are actually looking at, and the underwriting engine will model it and grade it on whatever evidence you have.'));
+    wrap.append(empty);
+  }
+
+  /* Add a candidate. Deliberately few fields — the point is to get a property
+     into the register and let evidence accumulate against it, not to demand a
+     complete file before anything can be recorded. */
+  const add = el('div', { class: 'card' });
+  add.append(cardHead('Record a property', 'Enough to identify it. Evidence is added afterwards.'));
+  const draft = { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
+  const f = (label, key, kind) => {
+    const fl = el('div', { class: 'field', style: 'margin-top:8px' });
+    fl.append(el('label', {}, label));
+    let input;
+    if (kind === 'city') {
+      input = el('select', { class: 'select' });
+      SARAWAK_CITIES.forEach(c => input.append(el('option', { value: c.id }, c.name)));
+    } else if (kind === 'type') {
+      input = el('select', { class: 'select' });
+      PROPERTY_TYPES.forEach(t => input.append(el('option', { value: t }, t)));
+    } else {
+      input = el('input', { class: 'input', type: kind === 'num' ? 'number' : 'text' });
+    }
+    input.addEventListener('change', e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; });
+    fl.append(input);
+    return fl;
+  };
+  add.append(f('Project or address', 'name'));
+  add.append(f('City', 'city', 'city'));
+  add.append(f('Area or district', 'district'));
+  add.append(f('Property type', 'type', 'type'));
+  add.append(f('Asking price (RM)', 'askingPrice', 'num'));
+  add.append(f('Built-up area (sq ft)', 'sqft', 'num'));
+  add.append(f('Where you found it — listing reference, agent, or how you heard', 'source'));
+  add.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    'A reference, not a copy. Record enough to find it again; do not paste listing content you have no right to store.'));
+  add.append(el('button', { class: 'btn btn-primary', style: 'margin-top:10px', onclick: () => {
+    if (!draft.name.trim()) { toast('Give the property a name or address first'); return; }
+    State.opportunities = [{
+      id: `opp-${State.opportunities.length + 1}-${draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`,
+      name: draft.name, source: draft.source,
+      state: 'captured',
+      capturedAt: new Date().toISOString().slice(0, 10),
+      availabilityCheckedAt: null, available: null,
+      deal: { city: draft.city, district: draft.district || null, propertyType: draft.type,
+              price: draft.askingPrice, sqft: draft.sqft, projectId: customProjectId(draft.city),
+              bankValuation: 0, titleType: 'unknown' },
+      touched: draft.askingPrice > 0 ? { price: true, sqft: true } : {},
+      evidence: draft.askingPrice > 0 ? { price: 'user' } : {},
+      negotiatedPrice: null, valuerEstimate: null,
+      nextAction: '', nextActionOwner: '', nextActionDue: '',
+    }, ...State.opportunities];
+    saveOpportunities(); toast(`${draft.name} recorded`); render();
+  } }, 'Add to register'));
+  wrap.append(add);
+
+  /* The register itself. Newest first — an explicit, stated order. */
+  list.forEach((o, i) => {
+    const { m, grade, finance } = candidateModel(o);
+    const card = el('div', { class: 'card' });
+    const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[grade.grade];
+    card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
+      el('div', {}, [
+        el('h3', { class: 'h-card', style: 'margin:0' }, o.name),
+        el('p', { class: 'metaline', style: 'margin-top:2px' },
+          `${(SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).name || '—'}${o.deal.district ? ' · ' + o.deal.district : ''} · ${o.deal.propertyType}`),
+      ]),
+      el('div', { style: 'margin-left:auto;text-align:right' }, [
+        el('div', { class: 'num', style: `font-size:24px;font-weight:700;color:var(${gradeTone})` }, grade.grade),
+        el('div', { class: 'metaline' }, grade.verdict),
+      ]),
+    ]));
+
+    /* Availability, only where it was actually checked. */
+    const age = daysSince(o.availabilityCheckedAt);
+    card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:10px' }, [
+      el('span', { class: 'chip' }, (CANDIDATE_STATES.find(s => s.id === o.state) || {}).label || o.state),
+      o.availabilityCheckedAt && o.available && age != null && age <= 14
+        ? el('span', { class: 'chip chip-ok' }, `Available, checked ${age === 0 ? 'today' : age + 'd ago'}`)
+        : o.availabilityCheckedAt
+          ? el('span', { class: 'chip chip-bronze' }, `Availability last checked ${age}d ago — treat as unknown`)
+          : el('span', { class: 'chip chip-bronze' }, 'Availability never checked'),
+      el('span', { class: 'chip' }, `Recorded ${o.capturedAt}`),
+    ]));
+
+    /* Four prices, kept apart. */
+    const pk = el('dl', { class: 'kv', style: 'margin-top:10px' });
+    [['Asking price', isNum(o.deal.price) && o.deal.price > 0 ? fmtAmount(o.deal.price, 'MYR') : 'not recorded'],
+     ['Your negotiated price', isNum(o.negotiatedPrice) ? fmtAmount(o.negotiatedPrice, 'MYR') : 'none'],
+     ['Bank valuation', isNum(o.deal.bankValuation) && o.deal.bankValuation > 0 ? fmtAmount(o.deal.bankValuation, 'MYR') : 'not obtained'],
+     ['Registered valuer', isNum(o.valuerEstimate) ? fmtAmount(o.valuerEstimate, 'MYR') : 'not obtained'],
+     ['Safe cash required', isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : '—'],
+     ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—'],
+     ['Property Financeability', isNum(finance.score) ? `${finance.score}/100` : `unscored — ${finance.gates.length} to verify`]]
+      .forEach(([k, v]) => { pk.append(el('dt', {}, k)); pk.append(el('dd', {}, v)); });
+    card.append(pk);
+
+    if (grade.gates.length) {
+      card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Blocking or capping this'));
+      const gl = el('ul', { class: 'ticklist' });
+      grade.gates.slice(0, 4).forEach(g => gl.append(el('li', {}, g.text)));
+      card.append(gl);
+    }
+
+    /* Next verification action, with an owner and a date — 27.5 requires all
+       three, because a task with no owner is a wish. */
+    const na = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:end;margin-top:var(--md)' });
+    const naIn = el('input', { class: 'input', style: 'flex:2 1 220px', placeholder: 'Next verification action',
+      value: o.nextAction || '' });
+    const naWho = el('input', { class: 'input', style: 'flex:1 1 140px', placeholder: 'Who', value: o.nextActionOwner || '' });
+    const naDue = el('input', { class: 'input', style: 'flex:0 1 150px', type: 'date', value: o.nextActionDue || '' });
+    [naIn, naWho, naDue].forEach((inp, j) => inp.addEventListener('change', e => {
+      o[['nextAction', 'nextActionOwner', 'nextActionDue'][j]] = e.target.value; saveOpportunities(); render();
+    }));
+    na.append(naIn); na.append(naWho); na.append(naDue);
+    card.append(na);
+    if (o.nextAction && (!o.nextActionOwner || !o.nextActionDue))
+      card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+        'An action with no owner and no date is a wish. Name both.'));
+
+    const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
+    const stSel = el('select', { class: 'select select-sm', style: 'width:auto',
+      onchange: e => { o.state = e.target.value; saveOpportunities(); render(); } });
+    CANDIDATE_STATES.forEach(s => stSel.append(el('option', { value: s.id, selected: o.state === s.id ? '' : null }, s.label)));
+    acts.append(stSel);
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      o.availabilityCheckedAt = new Date().toISOString().slice(0, 10); o.available = true;
+      saveOpportunities(); toast('Availability confirmed today'); render();
+    } }, 'I checked — still available'));
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      State.deal = { ...State.deal, ...o.deal, touched: o.touched || {}, evidence: o.evidence || {} };
+      saveDeal(); navigate('/property/calculator');
+    } }, 'Open in the calculator'));
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+      if (!confirm(`Remove ${o.name} from the register?`)) return;
+      State.opportunities = list.filter((_, j) => j !== i); saveOpportunities(); render();
+    } }, 'Remove'));
+    card.append(acts);
+    if (o.source) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Source: ${o.source}`));
+    wrap.append(card);
+  });
+
+  if (list.length) wrap.append(el('p', { class: 'metaline' },
+    `${list.length} propert${list.length === 1 ? 'y' : 'ies'}, newest first. This order is recency, not merit — nothing on this page is ranked by how attractive it looks.`));
+  return wrap;
+};
 
 VIEWS.status = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
