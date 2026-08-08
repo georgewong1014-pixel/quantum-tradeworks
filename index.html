@@ -12584,6 +12584,178 @@ function affordabilityPanel(cityName) {
   return card;
 }
 
+/* ==========================================================================
+   QT PROPERTY UNDERWRITING GRADE — specification 31
+
+   Named for what it is. Not "investment grade", which reads as a credit
+   rating, and not a bank decision: it answers one question only —
+
+     on the evidence and assumptions entered, how well does this property meet
+     the selected acquisition criteria, and does it survive reasonable downside?
+
+   It does not say whether a lender will approve the loan, what the property is
+   worth, or whether the title is clear. Those are a lender, a registered valuer
+   and a lawyer, and the grade names them rather than standing in for them.
+
+   HARD GATES ARE NOT AVERAGED. A pillar score can be pulled up by its
+   neighbours; a gate cannot. An unresolved title question caps the whole report
+   at U however good the arithmetic is, because arithmetic on a property you may
+   not be permitted to buy is not a finding about the property.
+   ========================================================================== */
+const GRADE_PILLARS = [
+  { k:'evidence',  label:'Evidence quality',            weight:15 },
+  { k:'price',     label:'Acquisition price and valuation support', weight:15 },
+  { k:'financing', label:'Financing resilience',        weight:20 },
+  { k:'cashflow',  label:'Operating cash flow',         weight:20 },
+  { k:'downside',  label:'Downside and exit resilience', weight:15 },
+  { k:'demand',    label:'Local demand and liquidity',  weight:10 },
+  { k:'operations',label:'Operations readiness',        weight:5  },
+];
+
+function propertyGrade(d, m) {
+  const gates = [];
+  const scores = {};
+  const notes = {};
+
+  /* ---- hard gates ---------------------------------------------------- */
+  const title = TITLE_TYPES.find(t => t.id === d.titleType);
+  if (!d.titleType || d.titleType === 'unknown')
+    gates.push({ id:'title-unknown', severity:'critical',
+      text:'The title class has not been established, so whether this purchase is open to you at all is unknown.',
+      caps:'U', who:'A Sarawak property lawyer and the Land and Survey Department' });
+  else if (title?.restricted)
+    gates.push({ id:'title-restricted', severity:'critical',
+      text:`Title recorded as ${title.label}. Transfer of this class is restricted under the Sarawak Land Code and eligibility has not been verified.`,
+      caps:'U', who:'A Sarawak property lawyer and the Land and Survey Department' });
+
+  if (isNum(m.dscr) && m.dscr < 1)
+    gates.push({ id:'dscr', severity:'serious',
+      text:`Rent does not cover debt service. Cover is ${fmtX(m.dscr, 2)}, so the shortfall is funded from your own income every month.`,
+      caps:null });
+  if (isNum(m.breakEvenOccupancy) && m.breakEvenOccupancy > 100)
+    gates.push({ id:'breakeven', severity:'serious',
+      text:`Cannot break even at the entered rent and cost structure. It would need ${fmtPct(m.breakEvenOccupancy, 0)} occupancy, and 100% is the maximum.`,
+      caps:null });
+  if (!isNum(m.reserveCash) || m.reserveCash <= 0)
+    gates.push({ id:'no-reserve', severity:'serious',
+      text:'No safe reserve is held after completion. A single vacancy or major repair would have to be funded by new borrowing.',
+      caps:'B' });
+  if (m.proj?.custom)
+    gates.push({ id:'no-comparable', severity:'warning',
+      text:'No transacted price or rental evidence is held for this location, so nothing here has been checked against a market.',
+      caps:'B' });
+
+  const untouchedDrivers = EVIDENCE_DRIVERS.filter(k => shownEvidence(d, k) === 'illustrative_default');
+  if (untouchedDrivers.length)
+    gates.push({ id:'illustrative', severity:'critical',
+      text:`${untouchedDrivers.length} of the figures driving every output — ${untouchedDrivers.join(', ')} — are still this tool's starting numbers rather than yours.`,
+      caps:'U' });
+
+  const rentEvidence = evidenceOf(shownEvidence(d, 'rent'));
+  if (rentEvidence.rank < 3)
+    gates.push({ id:'unverified-rent', severity:'warning',
+      text:'The rent is not supported by an executed tenancy or a transacted comparable, so every return figure below is assumption-driven.',
+      caps:null, capsPillar:'evidence' });
+
+  /* ---- pillars -------------------------------------------------------- */
+  /* Each returns 0–100 or null. Null is not zero: a pillar that could not be
+     tested is excluded from the weighted score and reduces coverage instead,
+     so a company cannot lose points for evidence nobody has. */
+  const evRanks = EVIDENCE_DRIVERS.map(k => evidenceOf(shownEvidence(d, k)).rank);
+  scores.evidence = Math.round(evRanks.reduce((a, b) => a + Math.max(0, b), 0) / (EVIDENCE_DRIVERS.length * 5) * 100);
+  if (gates.some(g => g.capsPillar === 'evidence')) {
+    scores.evidence = Math.min(scores.evidence, 50);
+    notes.evidence = 'Capped at 50 because the rent has no transacted support.';
+  }
+
+  if (m.financingBasisConfirmed && isNum(m.valuationGapCash) && d.price > 0) {
+    const gapPct = m.valuationGapCash / d.price * 100;
+    scores.price = Math.round(clamp(100 - gapPct * 8, 0, 100));
+    notes.price = gapPct > 0
+      ? `Valuation is ${fmtPct(gapPct, 1)} below the price, which is cash you must find.`
+      : 'Valuation is at or above the price.';
+  } else {
+    scores.price = null;
+    notes.price = 'No bank or valuer estimate has been entered, so there is nothing to test the price against.';
+  }
+
+  if (isNum(m.dscr)) {
+    /* 1.00x is the floor at which rent just covers the loan before tax and any
+       major repair. 1.50x is comfortable. */
+    scores.financing = Math.round(clamp((m.dscr - 0.9) / 0.6 * 100, 0, 100));
+    notes.financing = `Debt-service cover ${fmtX(m.dscr, 2)}.`;
+  } else if (m.loan === 0) {
+    scores.financing = 100; notes.financing = 'Cash purchase — no financing risk.';
+  } else { scores.financing = null; notes.financing = 'Debt-service cover could not be computed.'; }
+
+  if (isNum(m.netYield) && isNum(m.cashflowMonthly)) {
+    const yieldPart = clamp(m.netYield / 5 * 60, 0, 60);
+    const cashPart = m.cashflowMonthly >= 0 ? 40 : clamp(40 + m.cashflowMonthly / 40, 0, 40);
+    scores.cashflow = Math.round(yieldPart + cashPart);
+    notes.cashflow = m.annualOwnerSubsidy > 0
+      ? `Net yield ${fmtPct(m.netYield, 2)}, and the property costs ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold.`
+      : `Net yield ${fmtPct(m.netYield, 2)}, cash-flow positive.`;
+  } else { scores.cashflow = null; notes.cashflow = 'Operating cash flow could not be computed.'; }
+
+  /* Downside rests on the stress the model already runs. Its own resilience is
+     how far the worst case sits from the break-even. */
+  /* The stress rows carry `monthly`, not `cashflowMonthly` — reading the wrong
+     key returned undefined, made this pillar untestable, and silently held
+     coverage at 80% so an A could never be awarded however good the deal was.
+     A scoring model whose top grade is unreachable is not a strict model, it is
+     a broken one.
+
+     Both stresses are taken, not just the rate: a property can survive higher
+     rates and not survive a vacancy, and the weaker of the two is the one that
+     decides whether it holds. */
+  const worstRate = m.stress?.rate?.[m.stress.rate.length - 1]?.monthly;
+  const worstVac = m.stress?.vacancy?.[m.stress.vacancy.length - 1]?.monthly;
+  const worstCase = [worstRate, worstVac].filter(isNum);
+  if (worstCase.length) {
+    const worst = Math.min(...worstCase);
+    scores.downside = Math.round(clamp(50 + worst / 30, 0, 100));
+    notes.downside = `Worst modelled month is ${fmtAmount(worst, 'MYR')}, across the highest rate and the deepest vacancy tested.`;
+  } else { scores.downside = null; notes.downside = 'The downside cases could not be computed.'; }
+
+  const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
+  scores.demand = Math.round(answered / SARAWAK_CHECKS.length * 100);
+  notes.demand = `${answered} of ${SARAWAK_CHECKS.length} local questions answered.`;
+
+  scores.operations = null;
+  notes.operations = 'No operations plan exists in this build, so this pillar is not scored.';
+
+  /* ---- weighted score over what was actually tested -------------------- */
+  const tested = GRADE_PILLARS.filter(p => isNum(scores[p.k]));
+  const testedWeight = tested.reduce((s, p) => s + p.weight, 0);
+  const totalWeight = GRADE_PILLARS.reduce((s, p) => s + p.weight, 0);
+  const coverage = testedWeight / totalWeight;
+  const score = testedWeight > 0
+    ? Math.round(tested.reduce((s, p) => s + scores[p.k] * p.weight, 0) / testedWeight)
+    : null;
+
+  /* ---- grade ---------------------------------------------------------- */
+  const capU = gates.some(g => g.caps === 'U');
+  const capB = gates.some(g => g.caps === 'B');
+  let grade, verdict;
+  if (capU || coverage < 0.80 || score == null) {
+    grade = 'U';
+    verdict = 'Not enough evidence';
+  } else {
+    if (score >= 80 && coverage >= 0.90) grade = 'A';
+    else if (score >= 65 && coverage >= 0.80) grade = 'B';
+    else if (score >= 50) grade = 'C';
+    else grade = 'D';
+    if (capB && grade === 'A') grade = 'B';
+    verdict = { A:'Meets the selected underwriting criteria',
+                B:'Conditional — verify the named items',
+                C:'Does not yet meet several criteria',
+                D:'Does not meet the selected underwriting criteria' }[grade];
+  }
+
+  return { grade, verdict, score, coverage, scores, notes, gates,
+           pillars: GRADE_PILLARS.map(p => ({ ...p, score: scores[p.k], note: notes[p.k] })) };
+}
+
 function dealModel(d) {
   const proj = activeProject(d);
 
@@ -12764,6 +12936,21 @@ function dealModel(d) {
   const breakEvenRent = beDenominator > 0
     ? (fixedOperatingCosts + annualDebtService) / beDenominator
     : null;
+
+  /* Occupancy at which the property covers its fixed costs and the loan, per
+     31.5. Above 100% means it cannot break even at the entered rent however
+     full it is — which is a different and more serious statement than a thin
+     margin, and one of the grade's hard gates. */
+  const beOccDenominator = grossAnnualRent * (1 - variableCostRate);
+  const breakEvenOccupancy = beOccDenominator > 0
+    ? (fixedOperatingCosts + annualDebtService) / beOccDenominator * 100
+    : null;
+  /* What the owner pays each year to hold a property that does not pay for
+     itself. Shown rather than buried in a negative cash-flow figure, because
+     "minus RM1,200 a month" and "RM14,400 a year out of your pocket, RM72,000
+     over five" land differently and the second is the commitment. */
+  const annualOwnerSubsidy = isNum(noi) && isNum(annualDebtService) && (noi - annualDebtService) < 0
+    ? annualDebtService - noi : 0;
   const psf = d.sqft > 0 ? d.price / d.sqft : null;
 
   /* Exit at the chosen holding period. Selling is not instantaneous: the
@@ -12978,6 +13165,7 @@ function dealModel(d) {
            transactionCash, improvementCash, reserveCash, safeCashRequired,
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
            reserveComputable, tenureValid, zeroRateModelled,
+           breakEvenOccupancy, annualOwnerSubsidy, fixedOperatingCosts, variableCostRate,
            bankValuation, lenderValueBasis, valuationGapCash, marginOfFinancePct,
            financingBasisConfirmed, financingCoverageOfPrice, financingScenarios, valuationRule,
            reserve, totalInitialCash, instalment,
@@ -13303,6 +13491,72 @@ VIEWS.property = () => {
   /* Stated once, at the top, while any figure that drives the model is still a
      seeded number. "Built from your inputs" in the line above is only true once
      the inputs are the reader's. */
+  /* ---- the one-page answer (specification 27.3) ------------------------ */
+  /* First on the page, and deliberately not the gross yield. Gross yield
+     ignores vacancy, maintenance, financing and every acquisition cost, which
+     makes it the most flattering number here and the least informative. */
+  const g = propertyGrade(d, m);
+  const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[g.grade];
+  const onePage = el('div', { class: 'card', style: `border-left:3px solid var(${gradeTone})` });
+  onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline' }, [
+    el('div', {}, [
+      el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
+      el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
+        el('span', { class: 'num', style: `font-size:34px;font-weight:700;color:var(${gradeTone})` }, g.grade),
+        el('span', { style: 'font-size:15px;font-weight:560' }, g.verdict),
+      ]),
+    ]),
+    el('div', { style: 'margin-left:auto;text-align:right' }, [
+      el('div', { class: 'metaline' }, isNum(g.score) ? `Score ${g.score}/100` : 'Not scored'),
+      el('div', { class: 'metaline' }, `Evidence coverage ${fmtPct(g.coverage * 100, 0)}`),
+    ]),
+  ]));
+  onePage.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
+
+  const answers = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
+  [['Cash to complete', fmtAmount(m.transactionCash, 'MYR'), 'Paid out on completion day'],
+   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'), 'Including rent-ready and the reserve'],
+   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
+     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
+   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
+     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
+    .forEach(([l, v, s]) => answers.append(el('div', { class: 'panel' }, statTile(l, v, { sub: s }))));
+  onePage.append(answers);
+
+  /* The owner subsidy stated as a commitment rather than a monthly minus. */
+  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:var(--md);color:var(--dn-text)' },
+    `This property does not pay for itself. Holding it costs ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
+
+  if (g.gates.length) {
+    onePage.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' },
+      g.grade === 'U' ? 'Why this cannot be graded' : 'Why this is conditional'));
+    const gl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px' });
+    g.gates.forEach(x => gl.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' },
+      x.text + (x.who ? ` Confirm with: ${x.who}.` : ''))));
+    onePage.append(gl);
+  }
+
+  /* Pillars, so the grade decomposes rather than being taken on trust. */
+  const pw = el('details', { style: 'margin-top:var(--md)' });
+  pw.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'How this grade was reached'));
+  const pt = el('table', { class: 'dt', style: 'margin-top:8px' });
+  pt.append(el('thead', {}, el('tr', {}, ['Pillar', 'Weight', 'Score', 'Basis'].map((h, i) =>
+    el('th', { style: i === 0 || i === 3 ? 'text-align:left' : null }, h)))));
+  const pb = el('tbody');
+  g.pillars.forEach(p => pb.append(el('tr', {}, [
+    el('td', { style: 'text-align:left' }, p.label),
+    el('td', { class: 'num' }, `${p.weight}%`),
+    el('td', { class: 'num' }, isNum(p.score) ? String(p.score) : el('span', { class: 'caption' }, 'not tested')),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, p.note || ''),
+  ])));
+  pt.append(pb);
+  pw.append(el('div', { class: 'tablewrap' }, pt));
+  pw.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `The score is weighted across the pillars that could be tested, not across all seven — a pillar with no evidence reduces coverage rather than scoring zero, so nothing loses points for data nobody has. Coverage is ${fmtPct(g.coverage * 100, 0)} of the framework weight; an A needs 90% and a B needs 80%.`));
+  onePage.append(pw);
+  wrap.append(onePage);
+
   /* Modelling states that change every figure below and cannot be inferred from
      the numbers themselves. */
   if (m.zeroRateModelled || !m.tenureValid || !m.reserveComputable) {
