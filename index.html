@@ -4772,6 +4772,7 @@ const ROUTES = [
   { path: '/methodology',         view: 'learn',     tab: 'models',    title: 'Methodology' },
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
+  { path: '/status',              view: 'status',    title: 'Build status' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
   { path: '/pricing',             view: 'plans',     title: 'Pricing' },
   { path: '/about',               view: 'about',     title: 'About' },
@@ -12783,14 +12784,23 @@ function loanReadiness(b, m) {
    at U however good the arithmetic is, because arithmetic on a property you may
    not be permitted to buy is not a finding about the property.
    ========================================================================== */
+/* Six pillars, per the execution directive 6.5, which supersedes the migration
+   specification's seven at 31.2. The two disagree in two places: the directive
+   raises evidence quality from 15 to 20, and folds operations readiness into
+   local demand rather than scoring it separately at 5.
+
+   Merging was the right call and not merely the controlling one. Operations
+   readiness had nothing to score against — the operating plan is a later
+   release — so it sat permanently untestable, holding maximum coverage at 95%
+   and making a nominal weight look like a measured one. A weight that can never
+   be earned is not strictness, it is a rounding error with a label. */
 const GRADE_PILLARS = [
-  { k:'evidence',  label:'Evidence quality',            weight:15 },
-  { k:'price',     label:'Acquisition price and valuation support', weight:15 },
+  { k:'evidence',  label:'Evidence quality',            weight:20 },
+  { k:'price',     label:'Price and valuation support', weight:15 },
   { k:'financing', label:'Financing resilience',        weight:20 },
-  { k:'cashflow',  label:'Operating cash flow',         weight:20 },
-  { k:'downside',  label:'Downside and exit resilience', weight:15 },
-  { k:'demand',    label:'Local demand and liquidity',  weight:10 },
-  { k:'operations',label:'Operations readiness',        weight:5  },
+  { k:'cashflow',  label:'Rental cash flow',            weight:20 },
+  { k:'downside',  label:'Downside and exit',           weight:15 },
+  { k:'demand',    label:'Local demand and management readiness', weight:10 },
 ];
 
 /* Specification 30.4. Deliberately independent of the borrower: a strong
@@ -12976,12 +12986,14 @@ function propertyGrade(d, m) {
     notes.downside = `Worst modelled month is ${fmtAmount(worst, 'MYR')}, across the highest rate and the deepest vacancy tested.`;
   } else { scores.downside = null; notes.downside = 'The downside cases could not be computed.'; }
 
+  /* Demand and management readiness together, per directive 6.5. The management
+     half is the operating plan, which arrives in a later release — so it is
+     named as absent inside this pillar rather than carried as a separate weight
+     nothing can earn. */
   const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
   scores.demand = Math.round(answered / SARAWAK_CHECKS.length * 100);
-  notes.demand = `${answered} of ${SARAWAK_CHECKS.length} local questions answered.`;
+  notes.demand = `${answered} of ${SARAWAK_CHECKS.length} local demand questions answered. Management readiness is not yet modelled in this build and contributes nothing to this pillar either way.`;
 
-  scores.operations = null;
-  notes.operations = 'No operations plan exists in this build, so this pillar is not scored.';
 
   /* ---- weighted score over what was actually tested -------------------- */
   const tested = GRADE_PILLARS.filter(p => isNum(scores[p.k]));
@@ -13415,6 +13427,19 @@ function dealModel(d) {
   const improvementCash = groupTotal('improvement');
   const reserveCash = groupTotal('reserve');
   const safeCashRequired = transactionCash + improvementCash + reserveCash;
+
+  /* Directive 6.3 asks for four totals, not three. The fourth is what has
+     already left the buyer's account — a booking or earnest deposit paid at
+     the point of offer, weeks before completion.
+
+     It is a TIMING split inside the down payment, never an addition to it.
+     Counting a booking deposit as its own cost is the double-count the
+     directive names explicitly, and it inflates the requirement by exactly the
+     amount the buyer has already handed over. So "still required" is the
+     completion figure less what is paid, and the two always reconcile to the
+     same total. */
+  const cashAlreadyPaid = clamp(num0(d.bookingDepositPaid), 0, transactionCash);
+  const cashStillRequiredToComplete = transactionCash - cashAlreadyPaid;
   /* Kept: existing callers read these, and both remain true — completion cash
      is everything but the reserve. */
   const totalInitialCash = safeCashRequired;
@@ -13422,6 +13447,7 @@ function dealModel(d) {
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
            costGroups, missingCostLines, unconfirmedCost, placeholderCostLines,
            transactionCash, improvementCash, reserveCash, safeCashRequired,
+           cashAlreadyPaid, cashStillRequiredToComplete,
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
            reserveComputable, tenureValid, zeroRateModelled,
            breakEvenOccupancy, annualOwnerSubsidy, fixedOperatingCosts, variableCostRate,
@@ -14184,6 +14210,7 @@ VIEWS.property = () => {
     ['3 · Purchase', [
       ['price', 'Purchase price (RM)', 1000],
       ['bankValuation', 'Bank or valuer estimate (RM, 0 if not yet known)', 1000],
+      ['bookingDepositPaid', 'Booking deposit already paid (RM)', 500],
       ['renovation', 'Renovation and furnishing (RM)', 500],
       ['downPct', 'Deposit (%)', 1],
       ['ratePct', 'Loan interest rate (%)', 0.05],
@@ -14405,12 +14432,18 @@ VIEWS.property = () => {
      make the property earn, and what must still be there afterwards — and a
      buyer can meet the first and be ruined by the third. */
   const threeCash = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
-  [['Cash to complete', m.transactionCash, 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
+  [...(m.cashAlreadyPaid > 0
+        ? [['Cash already paid', m.cashAlreadyPaid, 'Booking deposit handed over at offer. Part of the down payment, not on top of it.']]
+        : []),
+   ['Cash still to complete', m.cashStillRequiredToComplete,
+     m.cashAlreadyPaid > 0
+       ? `Completion needs ${fmtAmount(m.transactionCash, 'MYR')} in total, less what you have already paid.`
+       : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
    ['Cash to make rent-ready', m.improvementCash, 'Spent after completion before the property can earn: renovation, furnishing and deposits.'],
    ['Cash to keep untouched', m.reserveCash, `${m.reserveMonths} months of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`],
-   ['Safe cash required', m.safeCashRequired, 'All three together. This is the number that decides whether the purchase is survivable, not the deposit.']]
-    .forEach(([label, amount, sub], i) => threeCash.append(el('div', { class: 'panel' },
-      statTile(label, fmtAmount(amount, 'MYR'), { sub, tone: i === 3 ? '--brand' : null }))));
+   ['Safe cash required', m.safeCashRequired, 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
+    .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel' },
+      statTile(label, fmtAmount(amount, 'MYR'), { sub, tone: i === arr.length - 1 ? '--brand' : null }))));
   cash.append(threeCash);
 
   /* Reserve policy, and what it costs at the two horizons the specification
@@ -14804,6 +14837,136 @@ VIEWS.property = () => {
    pricing page and is now the whole of this one — the same content, reached by
    someone who has decided they want it rather than imposed on someone who came
    to read a price. */
+/* ==========================================================================
+   FEATURE STATUS REGISTER — execution directive 2.3, 3 and 9.3
+
+   The directive's central rule is that nothing is deleted. A capability may be
+   gated, limited or queued, but "deleted", "abandoned" and "hidden
+   indefinitely" are not valid states — and 9.3 requires every release to prove
+   that no capability silently disappeared.
+
+   That proof needs somewhere to live, so it lives here, publicly. A status
+   register kept in a private document is a claim; one a reader can open is a
+   commitment. Each row names what the capability is, what state it is in, and
+   for anything gated, the specific thing that is holding it and who clears it —
+   because "coming soon" is what a roadmap says when nobody has decided.
+   ========================================================================== */
+const FEATURE_STATUS = [
+  { id:'active-core', label:'Active Core Build', note:'Receiving current build capacity.' },
+  { id:'maintenance', label:'Active Maintenance', note:'Available and supported; reliability work continues.' },
+  { id:'beta',        label:'Beta', note:'Available with a stated limitation.' },
+  { id:'data-gated',  label:'Data Gated', note:'Interface and model retained; investable output waits on authorised data.' },
+  { id:'compliance',  label:'Compliance Gated', note:'Capability retained; activation waits on legal approval or licence.' },
+  { id:'queued',      label:'Expansion Queue', note:'In the roadmap, sequenced after core quality gates.' },
+];
+
+const CAPABILITY_REGISTER = [
+  { name:'Sarawak property underwriting', status:'active-core', path:'/property/calculator',
+    now:'Capital ledger, valuation gap, grade, downside and plain-language result.' },
+  { name:'True capital ledger', status:'active-core', path:'/property/calculator',
+    now:'Every completion, rent-ready and reserve line, reconciled.',
+    gate:'Seven fee lines carry placeholder values pending verification against the Solicitors’ Remuneration Order 2023 and the current rate orders.' },
+  { name:'Borrower Loan Readiness', status:'active-core', path:'/property/calculator',
+    now:'Income, debts, disposable income, credit conduct and documents, as a diagnostic score.' },
+  { name:'Property Financeability', status:'active-core', path:'/property/calculator',
+    now:'Title, valuation gap, tenure, condition and marketability, scored separately from the borrower.' },
+  { name:'Property underwriting grade', status:'active-core', path:'/property/calculator',
+    now:'A/B/C/D/U with hard gates and evidence caps.' },
+  { name:'Property opportunity register', status:'queued', path:null,
+    gate:'Needs real Sibu cases with source, availability date and rent evidence. Nothing is registered yet.' },
+  { name:'Loan comparison across lenders', status:'queued', path:null,
+    gate:'Needs the offer-status workflow. Financing scenarios at 70/80/90% exist today; named lender offers do not.' },
+  { name:'Operations Excellence handoff', status:'queued', path:null,
+    gate:'Book 2. Generated from Book 1 once acquisition underwriting is settled.' },
+  { name:'Property map and area observations', status:'maintenance', path:'/property/calculator',
+    now:'Cached coordinates under ODbL with per-area match confidence.' },
+  { name:'Discover and screener', status:'maintenance', path:'/discover/screener',
+    now:'Reproducible filters, cohort medians and a reporting-currency selector.' },
+  { name:'Company research', status:'maintenance', path:'/research',
+    now:'Statements, scorecards, valuation router and risk flags.' },
+  { name:'Equity Strategy Lens', status:'queued', path:null,
+    gate:'P1. Asset type, return role, separate fit grades, staged entry and leverage stress.' },
+  { name:'Bursa universe', status:'data-gated', path:'/research',
+    gate:'18 Malaysian companies carry illustrative figures. No investable grade is offered for any of them.' },
+  { name:'US equities', status:'maintenance', path:'/research',
+    now:'119 companies with audited SEC filings.' },
+  { name:'Sarawak Economy Watch', status:'data-gated', path:'/discover/sarawak',
+    gate:'11 companies identified with price history. Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.' },
+  { name:'Portfolio and My Investments', status:'maintenance', path:'/my/portfolio',
+    now:'Holdings, weights, currency attribution and thesis links.' },
+  { name:'Thesis, catalysts and invalidation', status:'maintenance', path:'/my/theses',
+    now:'User-authored conditions evaluated against current data, with the proximity rule published.' },
+  { name:'Alerts and monitoring', status:'beta', path:'/my/alerts',
+    now:'Fact-change alerts.', gate:'Stale-data and duplicate controls are not yet implemented.' },
+  { name:'Bring your own market data', status:'maintenance', path:'/my/data',
+    now:'Paste closes; they stay in this browser and never reach the site.' },
+  { name:'Multilingual property workflow', status:'beta', path:'/property/calculator',
+    now:'Input labels, evidence grades and the ten risk questions in Bahasa Malaysia and Chinese.',
+    gate:'The longer explanations remain English-only.' },
+  { name:'Learn and methodology', status:'maintenance', path:'/learn',
+    now:'Formulas, weights, anchor ranges and limitations.' },
+  { name:'Plans and pricing', status:'maintenance', path:'/pricing',
+    now:'Tiers and what each includes.',
+    gate:'No payment is processed anywhere in this build, and none will be until the operating entity is registered.' },
+  { name:'Brokerage connection and execution', status:'compliance', path:null,
+    gate:'Not built and not activated. Requires licensing, suitability, custody and consent work well beyond this product’s current boundary.' },
+  { name:'Personalised advice mode', status:'compliance', path:null,
+    gate:'Would require written Malaysian legal classification and SC authorisation. The research boundary is a product design, not a disclaimer.' },
+];
+
+VIEWS.status = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Status'),
+    el('h1', {}, 'What is built, what is gated, and what is holding it'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Nothing here is removed when it cannot yet work. It is labelled, and the thing blocking it is named — a capability with no stated gate and no owner is a promise, not a plan.'),
+  ])));
+
+  const key = el('div', { class: 'card' });
+  key.append(cardHead('What the statuses mean', 'Six states. "Deleted" and "coming soon" are not among them.'));
+  const kt = el('table', { class: 'dt' });
+  kt.append(el('thead', {}, el('tr', {}, ['Status', 'Meaning'].map(h => el('th', { style: 'text-align:left' }, h)))));
+  const kb = el('tbody');
+  FEATURE_STATUS.forEach(s => kb.append(el('tr', {}, [
+    el('td', { style: 'text-align:left' }, el('span', { class: 'chip' }, s.label)),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, s.note),
+  ])));
+  kt.append(kb); key.append(el('div', { class: 'tablewrap' }, kt));
+  wrap.append(key);
+
+  FEATURE_STATUS.forEach(s => {
+    const rows = CAPABILITY_REGISTER.filter(c => c.status === s.id);
+    if (!rows.length) return;
+    const card = el('div', { class: 'card' });
+    card.append(cardHead(`${s.label} — ${rows.length}`, s.note));
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, ['Capability', 'Where', 'State'].map(h =>
+      el('th', { style: 'text-align:left' }, h)))));
+    const tb = el('tbody');
+    rows.forEach(c => tb.append(el('tr', {}, [
+      el('td', { style: 'text-align:left;white-space:normal;font-weight:560' }, c.name),
+      el('td', { style: 'text-align:left' }, c.path
+        ? el('a', { href: href(c.path), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(c.path); } }, c.path)
+        : el('span', { class: 'caption' }, 'no route yet')),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, [
+        c.now ? el('div', {}, c.now) : null,
+        c.gate ? el('div', { style: 'color:var(--bronze);margin-top:4px' }, `Gate: ${c.gate}`) : null,
+      ]),
+    ])));
+    t.append(tb); card.append(el('div', { class: 'tablewrap' }, t));
+    wrap.append(card);
+  });
+
+  const foot = el('div', { class: 'card' });
+  foot.append(cardHead('Why a gate is named rather than hidden',
+    'A capability that quietly vanishes is indistinguishable from one that never worked.'));
+  foot.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    'Three things here are blocked by something no amount of engineering resolves: the Malaysian financial statements need a data licence, the paid tiers need a registered operating entity, and advice mode needs Securities Commission authorisation. Naming them is more useful than a progress bar, because it tells a reader which of these is a matter of time and which is a matter of decision.'));
+  wrap.append(foot);
+  return wrap;
+};
+
 VIEWS.boundaries = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
