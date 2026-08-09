@@ -6,6 +6,9 @@
  *   node qtti/extract.mjs --file qtti/screenshots/btc.png
  *   node qtti/extract.mjs --model claude-sonnet-5      cheaper for bulk runs
  *   node qtti/extract.mjs --dry-run                    show the plan, call nothing
+ *   node qtti/extract.mjs --simulate                   full pipeline, canned reply
+ *   node qtti/extract.mjs --print-request              dump the exact model contract
+ *   node qtti/extract.mjs --file one.png --debug       one image, raw API response
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * IT PRODUCES A DRAFT. IT DOES NOT PRODUCE A SCORE.
@@ -144,7 +147,7 @@ const panel = (tf) => ({
   additionalProperties: false,
   properties: {
     present: { type: 'boolean', description: `Is a ${tf} panel visible and readable at all?` },
-    latestBarAt: { type: ['string', 'null'], description: 'Date/time of the latest COMPLETED bar, if legible.' },
+    latestBarAt: { type: 'string', description: 'Date/time of the latest COMPLETED bar, if legible. Empty string if not.' },
     priceStructure: group('price structure'),
     trendReferences: group('trend reference'),
     momentum: group('momentum'),
@@ -169,12 +172,16 @@ const TOOL = {
         required: ['symbol', 'instrumentType', 'priceBasis', 'panelsSameInstrument', 'panelsCropped'],
         additionalProperties: false,
         properties: {
-          symbol: { type: ['string', 'null'], description: 'Exactly as printed on the chart.' },
+          /* Plain string, empty when unreadable, rather than ["string","null"].
+             Union types are legal JSON Schema but not every validator on the
+             path accepts the array form, and an empty string carries the same
+             meaning here without betting on that. */
+          symbol: { type: 'string', description: 'Exactly as printed on the chart. Empty string if not legible.' },
           instrumentType: { type: 'string', enum: ['ordinary_share', 'etf', 'spot_asset', 'option', 'future', 'perpetual', 'unknown'] },
-          venue: { type: ['string', 'null'] },
-          quoteCurrency: { type: ['string', 'null'] },
+          venue: { type: 'string', description: 'Exchange or venue. Empty string if not shown.' },
+          quoteCurrency: { type: 'string', description: 'Quote currency. Empty string if not shown.' },
           priceBasis: { type: 'string', enum: ['close', 'last', 'mark', 'index', 'unknown'] },
-          capturedAt: { type: ['string', 'null'], description: 'Screenshot capture time if a clock is visible, ISO-like.' },
+          capturedAt: { type: 'string', description: 'Screenshot capture time if a clock is visible, ISO-like. Empty string if not.' },
           panelsSameInstrument: { type: 'boolean', description: 'Do all visible panels show the SAME instrument and the same price basis? False if you cannot confirm it.' },
           panelsCropped: { type: 'boolean', description: 'Is any panel cut off before the latest price or the indicator scale?' },
         },
@@ -213,7 +220,13 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 function buildRequest(imgB64, mediaType, hint) {
   return {
     model: MODEL,
-    max_tokens: 4096,
+    /* The schema forces 18 evidence groups, each with a sentence of reasoning,
+       plus identity, five confidence scores and two string arrays. 4096 was
+       enough for a terse reply and not enough for a careful one — and running
+       out mid-object truncates the tool_use block, which surfaced as the
+       thoroughly unhelpful "model returned no tool_use block". Headroom is
+       cheap; output is billed on what is used, not what is allowed. */
+    max_tokens: 8192,
     system: SYSTEM,
     tools: [TOOL],
     tool_choice: { type: 'tool', name: 'record_chart_evidence' },
@@ -244,9 +257,9 @@ function simulatedResponse(hint) {
       identity: {
         symbol: 'SIMULATED / NOT A REAL EXTRACTION', instrumentType: 'spot_asset',
         venue: 'simulated', quoteCurrency: 'USD', priceBasis: 'unknown',
-        capturedAt: null, panelsSameInstrument: true, panelsCropped: false,
+        capturedAt: '', panelsSameInstrument: true, panelsCropped: false,
       },
-      daily: { present: true, latestBarAt: null,
+      daily: { present: true, latestBarAt: '',
         priceStructure: g('bullish', 'Higher low formed against the prior swing.', 75),
         trendReferences: g('neutral', 'Price sits between two averages whose slope is unclear.', 55),
         momentum: g('bullish', 'Oscillator rising through its midline on completed bars.', 70),
@@ -254,7 +267,7 @@ function simulatedResponse(hint) {
         relativeStrength: g('unknown', 'No benchmark comparison is shown on the chart.', 0),
         confirmation: g('neutral', 'Structure and momentum agree; volume does not confirm.', 60),
         estimatedSupport: '62,200–63,000', estimatedResistance: '66,500–67,000' },
-      weekly: { present: true, latestBarAt: null,
+      weekly: { present: true, latestBarAt: '',
         priceStructure: g('bearish', 'Lower high remains intact after the peak.', 70),
         trendReferences: g('bearish', 'Price under overhead cloud resistance.', 65),
         momentum: g('neutral', 'Momentum below midline but curling upward.', 60),
@@ -262,7 +275,7 @@ function simulatedResponse(hint) {
         relativeStrength: g('unknown', 'No benchmark comparison is shown.', 0),
         confirmation: g('bearish', 'Stabilising, but bullish evidence is not aligned.', 60),
         estimatedSupport: '', estimatedResistance: '' },
-      monthly: { present: false, latestBarAt: null,
+      monthly: { present: false, latestBarAt: '',
         priceStructure: g('unknown', 'No monthly panel is visible in this image.', 0),
         trendReferences: g('unknown', 'No monthly panel is visible.', 0),
         momentum: g('unknown', 'No monthly panel is visible.', 0),
@@ -305,13 +318,40 @@ async function callModel(imgB64, mediaType, hint) {
       await sleep(wait);
       continue;
     }
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`);
+    if (!res.ok) {
+      const raw = await res.text();
+      if (has('debug')) console.error(`\n--- ${res.status} response ---\n${raw}\n`);
+      let msg = raw.slice(0, 400);
+      try { const j = JSON.parse(raw); if (j.error?.message) msg = j.error.message; } catch { /* not JSON */ }
+      /* The two that are about your account rather than this code, named so they
+         are not mistaken for a bug here. */
+      if (res.status === 404 && /model/i.test(msg))
+        throw new Error(`model "${MODEL}" is not available to this API key — try --model claude-sonnet-5`);
+      if (res.status === 401)
+        throw new Error('ANTHROPIC_API_KEY was rejected (401). Check the key itself.');
+      throw new Error(`${res.status} ${msg}`);
+    }
 
     const json = await res.json();
+    if (has('debug')) console.error(`\n--- response ---\n${JSON.stringify(json, null, 2).slice(0, 4000)}\n`);
+
+    /* stop_reason first. A truncated reply and a refused one both arrive without
+       a usable tool_use block, and they need opposite fixes — reporting either
+       as "no tool_use block" sends you looking in the wrong place. */
+    if (json.stop_reason === 'max_tokens')
+      throw new Error(`response hit max_tokens (${json.usage?.output_tokens} out) before the tool call completed — raise max_tokens`);
+
     const block = (json.content || []).find(c => c.type === 'tool_use');
-    if (!block) throw new Error('model returned no tool_use block');
+    if (!block) {
+      const text = (json.content || []).filter(c => c.type === 'text').map(c => c.text).join(' ').slice(0, 300);
+      throw new Error(`no tool_use block (stop_reason ${json.stop_reason})`
+        + (text ? ` — the model replied with text instead: "${text}"` : ' — and no text either; run with --debug'));
+    }
+    if (!block.input || typeof block.input !== 'object')
+      throw new Error('tool_use block carried no input object');
     return { data: block.input, usage: json.usage || {} };
   }
+  throw new Error('retries exhausted without a response');
 }
 
 /* -------------------------------------------------------------- draft build -- */
@@ -420,11 +460,17 @@ async function work(path) {
   const file = basename(path);
   try {
     const buf = await readFile(path);
-    if (buf.length > 5 * 1024 * 1024)
-      throw new Error(`${(buf.length / 1048576).toFixed(1)}MB exceeds the 5MB image limit — downscale it`);
     const hash = createHash('sha256').update(buf).digest('hex');
     const media = MEDIA[extname(file).toLowerCase()];
-    const { data, usage } = await callModel(buf.toString('base64'), media, file);
+    const b64 = buf.toString('base64');
+    /* The 5MB limit applies to the BASE64 payload, not the file. Base64 inflates
+       by about a third, so the old check on buf.length let a 4.5MB screenshot
+       through as "fine" and the API rejected it at 6MB. Checked on what is
+       actually sent. */
+    if (b64.length > 5 * 1024 * 1024)
+      throw new Error(`${(b64.length / 1048576).toFixed(1)}MB once base64-encoded `
+        + `(file is ${(buf.length / 1048576).toFixed(1)}MB) exceeds the 5MB API limit — downscale it`);
+    const { data, usage } = await callModel(b64, media, file);
     results.push(toDraft(data, { file, hash, usage }));
     done++;
     const conf = data.confidence || {};
