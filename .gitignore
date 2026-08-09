@@ -54,5 +54,6 @@ data/personal-fundamentals.json
 # behind it — someone else's licensed data rendered as pixels, exactly like
 # watchlist-shots. qtti/observations.example.json is the committed template.
 qtti/observations.json
+qtti/observations.draft.json
 qtti/screenshots/
 qtti/out/

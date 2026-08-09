@@ -166,6 +166,37 @@ assets ranked by trend score is a pick list whatever it is titled, this product
 does not name a screen "Top Picks", and Malaysia's SC treats algorithmic ranking
 as advice for licensing purposes. Sort the CSV yourself if you want to.
 
+### Screenshot extraction (§22 phase 2)
+
+```bash
+node qtti/extract.mjs --simulate         # see the shape, no key, no call
+node qtti/extract.mjs --print-request    # inspect the exact model contract
+ANTHROPIC_API_KEY=… node qtti/extract.mjs
+```
+
+Reads every image in `qtti/screenshots/` and writes `qtti/observations.draft.json`.
+The prompt is §15.2 verbatim — including the two rules that matter most, that an
+indicator must not be inferred from its colour and that oversold is not bullish.
+
+**It produces a draft, never a score.** Every asset lands `confirmed: false`, and
+`batch.mjs` will not score one until a person has read it against the image and
+changed that; it exits 2 if any remain, so a scheduled run cannot report success
+while half the week sat unconfirmed. Reading a chart badly and reading it well
+produce equally confident JSON, and the only thing between the two is somebody
+looking. `identityConsistent` is never set true by extraction — §5.4 makes panel
+identity a rejection gate, and a model saying the panels match is not a person
+having checked.
+
+The model returns **ordinal states only**, never the analyst numbers §14 uses —
+those are a human refinement within the scale, and a model emitting 65 rather
+than "bullish" would be inventing precision the image cannot support. Unknown is
+a first-class answer: it costs coverage rather than being reweighted away, which
+is exactly §6's rule that a partly legible chart must not look decisive.
+
+Verified without an API call, via `--simulate`: draft → refused, exit 2; then
+confirmed → scored, and correctly refused on evidence because the simulated
+capture has no monthly panel. `qtti/observations.draft.json` is git-ignored.
+
 **Property Deal Check** — turns a property into a financial model: true
 acquisition cost with Malaysian stamp duty scales, financing, vacancy,
 maintenance, NOI, cash-on-cash, DSCR, ten-year scenarios, exit costs with RPGT,

@@ -261,8 +261,20 @@ if (!existsSync(OBS_FILE)) {
 const doc = JSON.parse(await readFile(OBS_FILE, 'utf8'));
 const assets = Array.isArray(doc) ? doc : (doc.assets || []);
 if (!assets.length) { console.error('\nThe observations file holds no assets.'); process.exit(1); }
+if (doc._draft) console.log(`\nnote: ${OBS_FILE} is an extraction draft.`);
 
-const rows = assets.map(a => {
+/* An asset extracted by qtti/extract.mjs arrives confirmed:false, and stays
+   unscored until a person has read it against the image. This refusal is the
+   only thing separating "a model looked at a picture" from "this is the trend
+   regime", and the tranche gate reads the trend regime. A pipeline that scored
+   drafts would make the confirmation step decorative.
+
+   Assets written by hand carry no confirmed flag at all and are scored — the
+   check is for drafts specifically, not a new ceremony for everyone. */
+const unconfirmed = assets.filter(a => a.confirmed === false);
+const scorable = assets.filter(a => a.confirmed !== false);
+
+const rows = scorable.map(a => {
   const r = E.qttiRun(buildPlan(E, a));
   const inst = (E.QTTI_INSTRUMENTS.find(x => x.id === (a.instrumentType || 'etf')) || {}).label || '—';
   return {
@@ -285,14 +297,22 @@ const rows = assets.map(a => {
 if (has('alpha')) rows.sort((a, b) => a.symbol.localeCompare(b.symbol));
 
 console.log('');
-console.log(table(rows));
+if (rows.length) console.log(table(rows));
+if (unconfirmed.length) {
+  console.log(`\n${unconfirmed.length} asset${unconfirmed.length === 1 ? '' : 's'} NOT SCORED — extracted but not confirmed by a person:`);
+  unconfirmed.forEach(a => console.log(`  · ${a.symbol || '(unnamed)'}${a.screenshot ? `  [${a.screenshot}]` : ''}`));
+  console.log('\nRead each against its screenshot, correct the states, complete the gate fields,');
+  console.log('then set confirmed: true. A model reading a chart and a person having checked it');
+  console.log('produce equally confident JSON; only one of them is evidence.');
+}
 console.log('');
 
 const assessable = rows.filter(r => r.assessable);
 const met = assessable.filter(r => /met|confirmed/i.test(r.state)).length;
 const notMet = assessable.length - met;
-console.log(`${rows.length} assets · ${assessable.length} assessable · ${rows.length - assessable.length} refused on evidence`);
-console.log(`${met} ${met === 1 ? 'meets' : 'meet'} the first-tranche criteria you declared; `
+console.log(`${assets.length} asset${assets.length === 1 ? '' : 's'} · ${rows.length} scored · `
+  + `${unconfirmed.length} unconfirmed · ${rows.length - assessable.length} refused on evidence`);
+if (rows.length) console.log(`${met} ${met === 1 ? 'meets' : 'meet'} the first-tranche criteria you declared; `
   + `${notMet} ${notMet === 1 ? 'does' : 'do'} not.`);
 console.log('Rows are in input order. Nothing here is ranked, and nothing here is a recommendation.');
 
@@ -306,3 +326,7 @@ await writeFile(mdPath, toMarkdown(rows, {
 await writeFile(csvPath, toCsv(rows), 'utf8');
 console.log(`\nwrote ${mdPath}`);
 console.log(`wrote ${csvPath}`);
+
+/* Non-zero when anything was left unscored, so a scheduled run cannot report
+   success while half the week's assets sat unconfirmed. */
+if (unconfirmed.length) process.exit(2);
