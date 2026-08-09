@@ -6982,6 +6982,24 @@ function wheelMath(p) {
   out.cashSecured = isNum(out.cashCoveragePct) && out.cashCoveragePct >= 1;
   out.putPeriodCashYield = out.assignmentNotional > 0
     ? out.putPremiumCashReceived / out.assignmentNotional : null;
+  /* TWO BASES, AND THEY ARE NOT INTERCHANGEABLE.
+
+     shareCostBasis is what the shares COST: the strike plus the fees paid to
+     acquire them. It is the accounting basis, and it is the one the ledger uses,
+     because the ledger reports the put premium separately as option P&L.
+
+     economicShareBasis subtracts the put premium as well. It is a BREAK-EVEN —
+     the price below which the whole position is under water once the premium is
+     counted — and it is the right number for the forward-looking projections
+     beneath it, which add only the call premium on top.
+
+     Mixing them is what produced a completed cycle overstated by exactly the put
+     premium: realised share P&L was measured against the premium-reduced basis
+     while realised option P&L added the same premium again. £1 of cash, counted
+     twice, because two self-consistent conventions were half-applied. */
+  out.shareCostBasis = deliverableShares > 0
+    ? num0(p.putStrike) + num0(p.assignmentFees) / deliverableShares
+    : null;
   out.economicShareBasis = deliverableShares > 0
     ? num0(p.putStrike) + num0(p.assignmentFees) / deliverableShares
       - out.putPremiumCashReceived / deliverableShares
@@ -7131,7 +7149,7 @@ function wheelLedger(legs) {
   const L = legs || [];
   const t = {
     grossPremiumQuoted: 0, premiumCashReceived: 0, openOptionLiability: 0,
-    realisedOptionPnl: 0, shareAcquisitionCash: 0, realisedSharePnl: 0,
+    realisedOptionPnl: 0, shareAcquisitionCash: 0, realisedSharePnl: 0, shareSaleProceeds: 0,
     dividends: 0, commissions: 0, fees: 0, fxCostMyr: 0,
     openLegs: 0, resolvedLegs: 0, maxCapitalCommitted: 0,
   };
@@ -7150,10 +7168,30 @@ function wheelLedger(legs) {
     if (l.action === 'close') t.premiumCashReceived += num0(l.netCash);
     if (isNum(l.realisedPnl)) { t.realisedOptionPnl += l.realisedPnl; t.resolvedLegs++; }
     if (l.action === 'assign') t.shareAcquisitionCash += num0(l.cashPaid);
-    if (l.action === 'called_away') t.realisedSharePnl += num0(l.realisedSharePnl);
+    if (l.action === 'called_away') {
+      t.realisedSharePnl += num0(l.realisedSharePnl);
+      t.shareSaleProceeds += num0(l.shareSaleProceeds);
+    }
     t.maxCapitalCommitted = Math.max(t.maxCapitalCommitted, num0(l.capitalCommitted));
   });
   t.totalRealisedCyclePnl = t.realisedOptionPnl + t.realisedSharePnl + t.dividends;
+
+  /* THE SAME ANSWER, DERIVED A SECOND WAY.
+
+     The total above is built from per-leg P&L. This one is built from cash that
+     actually moved: premiums received net of what was paid to close, plus what
+     the shares sold for, less what they cost. On a closed cycle the two must
+     agree, and when they do not it is because some figure has been counted
+     twice or not at all — which is exactly the defect that shipped here.
+
+     It is computed rather than asserted so the page can show the difference
+     instead of quietly presenting whichever number it happened to reach first. */
+  t.cashFlowRealised = t.premiumCashReceived + t.shareSaleProceeds
+    - t.shareAcquisitionCash + t.dividends;
+  t.cycleClosed = t.openLegs === 0 && t.resolvedLegs > 0;
+  t.reconciliationGap = t.totalRealisedCyclePnl - t.cashFlowRealised;
+  t.reconciles = !t.cycleClosed || Math.abs(t.reconciliationGap) < 0.005;
+
   t.cycleReturnOnMaxCommitted = t.maxCapitalCommitted > 0
     ? t.totalRealisedCyclePnl / t.maxCapitalCommitted : null;
   return t;
@@ -7201,7 +7239,7 @@ State.wheel = store.read('wheelPlan', null) || {
   myrPerUsd:0, fxBufferPct:5, fxConversionCostMyr:0, calendarDaysOpen:30,
   willingToOwnFull:false, willingToSellAtStrike:false, optionsApprovalAttested:false,
   eventWindowClear:false, quoteTimestamp:'',
-  economicShareBasisOverride:null,
+  economicShareBasisOverride:null, shareCostBasisOverride:null,
 };
 const saveWheel = () => store.write('wheelPlan', State.wheel);
 
@@ -16223,6 +16261,11 @@ VIEWS.wheel = () => {
         fees:num0(p.assignmentFees), capitalCommitted:num0(l.strike) * num0(l.shares),
         note:`Bought ${l.shares} shares at ${fmtMoney(num0(l.strike), 'USD')}.` });
       p.eligibleShares = num0(p.eligibleShares) + num0(l.shares);
+      /* Both are frozen at assignment. The cost basis settles realised share
+         P&L; the economic basis is the break-even the projections read. Storing
+         only the second is how the ledger came to measure a gain against a
+         number that already contained the premium it then added again. */
+      p.shareCostBasisOverride = m.shareCostBasis;
       p.economicShareBasisOverride = m.economicShareBasis;
       p.phase = 'call'; saveWheel(); saveWheelLegs(); go('shares_held');
     } }, 'It was assigned'));
@@ -16255,12 +16298,20 @@ VIEWS.wheel = () => {
     acts.append(el('button', { class: 'btn btn-sm', onclick: () => {
       const l = openLeg; if (!l) return;
       const i = State.wheelLegs.indexOf(l);
-      const basis = isNum(m.basisUsed) ? m.basisUsed : 0;
+      /* The COST basis, not the economic one. The put premium is already
+         realised as option P&L on its own leg; measuring the share gain against
+         a basis that had subtracted it counted it a second time and overstated
+         a completed cycle by exactly the premium. */
+      const basis = isNum(p.shareCostBasisOverride) ? p.shareCostBasisOverride
+                  : isNum(m.shareCostBasis) ? m.shareCostBasis : 0;
+      const proceeds = num0(l.strike) * num0(l.shares);
       State.wheelLegs[i] = { ...l, status:'resolved', realisedPnl: num0(l.netCash), note:'Assigned — shares sold at the strike.' };
       addWheelLeg({ phase:'shares', action:'called_away', status:'resolved',
         contractLabel:l.contractLabel, shares:l.shares,
+        shareSaleProceeds: proceeds,
         realisedSharePnl:(num0(l.strike) - basis) * num0(l.shares),
-        note:`Sold ${l.shares} shares at ${fmtMoney(num0(l.strike), 'USD')} against a basis of ${fmtMoney(basis, 'USD')}.` });
+        note:`Sold ${l.shares} shares at ${fmtMoney(num0(l.strike), 'USD')} for ${fmtMoney(proceeds, 'USD')}, `
+           + `against a cost basis of ${fmtMoney(basis, 'USD')}. The put premium is reported separately as option P&L, not netted into this basis.` });
       saveWheelLegs(); go('called_away');
     } }, 'Shares were called away'));
   }
@@ -16291,7 +16342,7 @@ VIEWS.wheel = () => {
   if (legs.length) acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
     if (!confirm('Clear this cycle and all its legs?')) return;
     State.wheelLegs = []; saveWheelLegs(); p.state = 'candidate'; p.phase = 'put';
-    p.economicShareBasisOverride = null; saveWheel(); render();
+    p.economicShareBasisOverride = null; p.shareCostBasisOverride = null; saveWheel(); render();
   } }, 'Clear the cycle'));
   cyc.append(acts);
 
@@ -16325,14 +16376,25 @@ VIEWS.wheel = () => {
      ['Realised option profit or loss', fmtMoney(led.realisedOptionPnl, 'USD')],
      ['Open obligation', led.openLegs ? `${led.openLegs} leg still open` : 'none'],
      ['Share acquisition cash', fmtMoney(led.shareAcquisitionCash, 'USD')],
+     ['Share sale proceeds', led.shareSaleProceeds ? fmtMoney(led.shareSaleProceeds, 'USD') : '—'],
      ['Realised share profit or loss', fmtMoney(led.realisedSharePnl, 'USD')],
      ['Commissions and fees', fmtMoney(led.commissions + led.fees, 'USD')],
      ['Total realised cycle result', fmtMoney(led.totalRealisedCyclePnl, 'USD')],
+     /* The same total from cash movements alone. Shown beside the total rather
+        than checked in private, because a reader is entitled to see that the
+        two agree — and to see it immediately if they ever stop. */
+     ['Same total from cash movements', led.cycleClosed ? fmtMoney(led.cashFlowRealised, 'USD') : '— (cycle still open)'],
      ['Maximum capital committed', fmtMoney(led.maxCapitalCommitted, 'USD')],
      ['Return on maximum committed', isNum(led.cycleReturnOnMaxCommitted)
         ? fmtPct(led.cycleReturnOnMaxCommitted * 100, 2) : '—']]
       .forEach(([k, v]) => { tk.append(el('dt', {}, k)); tk.append(el('dd', {}, v)); });
     cyc.append(tk);
+    if (!led.reconciles) cyc.append(el('div', { class: 'note', style: 'margin-top:var(--md);border-left:3px solid var(--dn-text)' },
+      el('p', { class: 'body', style: 'font-size:12.5px' },
+        `These two totals disagree by ${fmtMoney(led.reconciliationGap, 'USD')}. On a closed cycle they cannot: `
+        + `one is built from each leg's own result, the other from cash that actually moved, and both describe the `
+        + `same cycle. A difference means a figure has been counted twice or not at all, so neither total should be `
+        + `relied on until it is resolved. Please report this — the corrections form is linked in the footer.`)));
     if (led.openLegs) cyc.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
       `Premium cash received includes ${led.openLegs} leg that has not resolved. That cash is in the account and the obligation is still open — it is not profit yet, and the realised line above is the one that answers how this cycle has actually gone.`));
   }
