@@ -562,9 +562,29 @@ body[data-surface="public"] .disclosure-long { display: none; }
   background: var(--surface-2); color: var(--ink); font-weight: 620; box-shadow: var(--lift-1);
 }
 
+/* Ten company tabs at a 24px gap needed 752px inside a 701px strip at 1280px —
+   so half the information architecture was scrolled out of sight on a DESKTOP
+   viewport, with the scrollbar hidden and no fade, arrow or any other sign
+   that the rest existed. Two changes: a 16px gap, which recovers 72px and puts
+   the full set inside the strip at desktop; and a scroll shadow for the widths
+   where it genuinely cannot fit, so the affordance is visible instead of the
+   content merely being gone.
+
+   The shadow is the layered-gradient technique: the two `local` cover layers
+   travel with the content and hide the `scroll` shadow layers when the strip
+   is at that end, so each shadow appears only on the side that has more to
+   show. No JS, no resize observer, and nothing to keep in sync. */
 .subnav {
-  display: flex; gap: var(--lg); border-bottom: 1px solid var(--line);
+  display: flex; gap: var(--md); border-bottom: 1px solid var(--line);
   overflow-x: auto; scrollbar-width: none;
+  background:
+    /* The cover stays fully opaque past the shadow's full width (70% of 24px is
+       16.8px against a 12px shadow), so a strip that does not overflow shows no
+       edge at all rather than a faint permanent smudge. */
+    linear-gradient(to right, var(--plane) 70%, transparent) left center / 24px 100% no-repeat local,
+    linear-gradient(to left,  var(--plane) 70%, transparent) right center / 24px 100% no-repeat local,
+    linear-gradient(to right, rgba(20, 20, 20, 0.16), transparent) left center / 12px 100% no-repeat scroll,
+    linear-gradient(to left,  rgba(20, 20, 20, 0.16), transparent) right center / 12px 100% no-repeat scroll;
 }
 .subnav::-webkit-scrollbar { display: none; }
 .subnav button {
@@ -4625,16 +4645,29 @@ function marketChip(mkt) {
   return el('span', { class: 'chip ' + (mkt === 'US' ? 'chip-us' : 'chip-my') }, mkt === 'US' ? 'US' : 'MY');
 }
 
+/* How a price is dated, decided once.
+   ---------------------------------------------------------------------------
+   The company header carried a hardcoded "today" beside the day-one change
+   while this function, four hundred lines away, worked out the real stamp. On
+   the 115 filed companies that hold no price at all, "today" therefore sat
+   beside an em dash and dated a number that does not exist; on a company with a
+   supplied close it presented a 2026-07-31 figure as though it were current.
+   Both surfaces now read the same function, so a price cannot be dated two ways
+   on one page. */
+function priceAsOfLabel(c) {
+  if (c?.px?.eod && c.px.asOf) return `${c.px.asOf} close`;
+  if (isNum(c?.px?.p) && c.px.manual) return 'entered by you';
+  if (!isNum(c?.px?.p)) return 'none supplied';
+  return `${AS_OF} 17:00 ${c.mkt === 'US' ? 'ET' : 'MYT'}`;
+}
+
 /* Freshness + lineage, shown on every analytical surface. */
 function provenance(row, extra = []) {
   const { c, m } = row;
   /* AS_OF is the sample set's fixed stamp. A company carrying a real supplied
      price has its own date, and showing the sample stamp next to it would
      misdate the number on every analytical surface. */
-  const priceStamp = c.px?.eod && c.px.asOf ? `${c.px.asOf} close`
-    : isNum(c.px?.p) && c.px.manual ? 'entered by you'
-    : !isNum(c.px?.p) ? 'none supplied'
-    : `${AS_OF} 17:00 ${c.mkt === 'US' ? 'ET' : 'MYT'}`;
+  const priceStamp = priceAsOfLabel(c);
   const bits = [
     `<b>Price</b> ${priceStamp}`,
     `<b>Period</b> FY${last(YEARS)} reported`,
@@ -7479,10 +7512,15 @@ VIEWS.research = () => {
 
   const pxBlock = el('div', { style: 'text-align:right;flex:none' });
   pxBlock.append(el('div', { class: 'num', style: 'font-size:28px;font-weight:660;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy)));
-  pxBlock.append(el('div', { class: 'row', style: 'gap:8px;justify-content:flex-end;margin-top:2px' }, [
+  /* The change and its date render only when there is a price to have changed.
+     Previously this printed "— today" on every filed company, which dates a
+     figure that was never observed. */
+  if (isNum(c.px.p) && isNum(c.px.d1)) pxBlock.append(el('div', { class: 'row', style: 'gap:8px;justify-content:flex-end;margin-top:2px' }, [
     el('span', { class: 'num ' + signClass(c.px.d1), style: 'font-size:13px;font-weight:600' }, withSign(c.px.d1, 2)),
-    el('span', { class: 'metaline' }, 'today'),
+    el('span', { class: 'metaline' }, priceAsOfLabel(c)),
   ]));
+  else if (!isNum(c.px.p)) pxBlock.append(el('div', { class: 'metaline', style: 'margin-top:2px' },
+    'No licensed price'));
   /* toBase returns null for an absent price, and this called .toFixed on it.
      Every SEC-filed company has no price — SEC publishes filings, not market
      data — so on the deployed site this threw on every company page opened in
@@ -14508,15 +14546,19 @@ VIEWS.property = () => {
       : '')
     + 'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
 
-  const answers = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
-  [['Cash to complete', fmtAmount(m.transactionCash, 'MYR'), 'Paid out on completion day'],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'), 'Including rent-ready and the reserve'],
-   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
-     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
-   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
-    .forEach(([l, v, s]) => answers.append(el('div', { class: 'panel' }, statTile(l, v, { sub: s }))));
-  onePage.append(answers);
+  /* ---------- ANSWER, THEN CAVEAT, THEN ARITHMETIC ----------
+     The card used to open with four stat tiles and put the sentence that
+     actually answers the question — "this property does not pay for itself,
+     holding it costs RM14.4k a year" — underneath them, the reasons it cannot
+     be graded under that, and the warning that the figures are Kuching's in a
+     separate card eight screens further down. At 390px the fold ended on
+     "U / Not enough evidence / Score 9/100", so a reader who stopped there left
+     with a letter and no idea whose numbers produced it.
+
+     Order is now: what it does to your money -> why it cannot be graded ->
+     whose numbers these are -> the arithmetic. The caveat sits after the
+     verdict rather than before it, because a page that opens on a caveat has
+     not yet said what is being caveated. */
 
   /* The owner subsidy stated as a commitment rather than a monthly minus. */
   if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:var(--md);color:var(--dn-text)' },
@@ -14530,6 +14572,31 @@ VIEWS.property = () => {
       x.text + (x.who ? ` Confirm with: ${x.who}.` : ''))));
     onePage.append(gl);
   }
+
+  /* Whose numbers these are, beside the verdict they produced rather than in a
+     card the reader reaches long after believing it. */
+  const untouched = EVIDENCE_DRIVERS.filter(k => shownEvidence(d, k) === 'illustrative_default');
+  if (untouched.length) {
+    const warn = el('div', { style: 'margin-top:var(--md);padding:10px 12px;border-left:3px solid var(--bronze);background:var(--surface-2)' });
+    warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
+      el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
+      el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px;margin:0' },
+        `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on anything below.`),
+    ]));
+    if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
+    onePage.append(warn);
+  }
+
+  const answers = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
+  [['Cash to complete', fmtAmount(m.transactionCash, 'MYR'), 'Paid out on completion day'],
+   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'), 'Including rent-ready and the reserve'],
+   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
+     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
+   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
+     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
+    .forEach(([l, v, s]) => answers.append(el('div', { class: 'panel' }, statTile(l, v, { sub: s }))));
+  onePage.append(answers);
 
   /* Pillars, so the grade decomposes rather than being taken on trust. */
   const pw = el('details', { style: 'margin-top:var(--md)' });
@@ -14686,18 +14753,9 @@ VIEWS.property = () => {
     wrap.append(flags);
   }
 
-  const untouched = EVIDENCE_DRIVERS.filter(k => shownEvidence(d, k) === 'illustrative_default');
-  if (untouched.length) {
-    const warn = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze)' });
-    warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
-      el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
-      el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px;margin:0' },
-        `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on anything below.`),
-    ]));
-    if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-      `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
-    wrap.append(warn);
-  }
+  /* The illustrative-defaults warning used to be built here, roughly eight
+     screens below the verdict it qualifies. It now renders inside the grade
+     card, immediately after the reasons the deal cannot be graded. */
 
   const layout = el('div', { class: 'studio-layout' });
 
