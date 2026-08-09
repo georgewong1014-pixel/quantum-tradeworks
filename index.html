@@ -12662,6 +12662,13 @@ State.deal = store.read('deal', null) || {
   /* running costs, annual unless stated */
   maintenance:294, sinkingFund:0, assessment:800, quitRent:300, insurance:450,
   mgmtPct:0, repairReservePct:5,
+  /* management operations — specification P1-7. A management fee percentage on
+     its own says what the service costs and nothing about what it does, which
+     is the half a landlord actually has to judge. */
+  selfManaged:true, leasingFeeMonths:1, renewalFeeMonths:0.5, mgmtMinMonthly:0,
+  tenancyMonths:24, daysToFirstTenant:60, repairApprovalLimit:500,
+  inspectionsPerYear:2, arrearsChaseDays:7, ownerReportCadence:'monthly',
+  tenantPaysUtilities:true, depositMonths:2,
   /* exit */
   holdYears:10, apprecPct:3.0, sellMonths:6, agentPct:2.0, exitLegalPct:0.5,
   /* comparison */
@@ -14209,9 +14216,30 @@ function dealModel(d) {
   const sinkingY = num0(d.sinkingFund) * 12;
   const statutoryY = num0(d.assessment) + num0(d.quitRent);
   const insuranceY = num0(d.insurance);
-  const mgmtY = effectiveRent * num0(d.mgmtPct) / 100;
+  /* MANAGEMENT, SPLIT THE WAY THE BREAK-EVEN NEEDS IT.
+
+     A percentage of collected rent scales with rent; a minimum monthly fee and
+     a tenant-placement fee do not. The break-even calculation below depends on
+     that distinction — it puts rent-linked costs in the denominator as a rate
+     and fixed costs in the numerator — so folding a flat fee into the
+     percentage would reintroduce exactly the defect the note down there
+     describes.
+
+     Placement is charged once per tenancy cycle and amortised. It assumes the
+     tenant leaves at the end of every tenancy, which is the conservative case;
+     the renewal figure is reported beside it so the better case is visible
+     rather than assumed. */
+  const managed = !d.selfManaged;
+  const monthsPerCycle = Math.max(1, num0(d.tenancyMonths));
+  const cyclesPerYear = 12 / monthsPerCycle;
+  const mgmtY = managed ? effectiveRent * num0(d.mgmtPct) / 100 : 0;
+  const mgmtMinAnnual = managed ? num0(d.mgmtMinMonthly) * 12 : 0;
+  const mgmtMinTopUp = Math.max(0, mgmtMinAnnual - mgmtY);
+  const placementAnnual = managed ? num0(d.leasingFeeMonths) * num0(d.rent) * cyclesPerYear : 0;
+  const renewalAnnual = managed ? num0(d.renewalFeeMonths) * num0(d.rent) * cyclesPerYear : 0;
+  const mgmtFixedAnnual = mgmtMinTopUp + placementAnnual;
   const repairY = effectiveRent * num0(d.repairReservePct) / 100;
-  const opex = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtY + repairY;
+  const opex = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtY + mgmtFixedAnnual + repairY;
   const noi = effectiveRent - opex;
   const annualDebtService = instalment * 12;
 
@@ -14237,8 +14265,11 @@ function dealModel(d) {
 
      Only the fixed costs belong in the numerator. The rent-linked costs scale
      with the answer, so they belong in the denominator as a rate. */
-  const variableCostRate = (num0(d.mgmtPct) + num0(d.repairReservePct)) / 100;
-  const fixedOperatingCosts = maintenanceY + sinkingY + statutoryY + insuranceY;
+  const variableCostRate = ((managed ? num0(d.mgmtPct) : 0) + num0(d.repairReservePct)) / 100;
+  /* The flat half of management belongs here, with the other costs that do not
+     move with rent — a minimum fee and a placement fee are owed whatever the
+     rent turns out to be. */
+  const fixedOperatingCosts = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtFixedAnnual;
   const beDenominator = 12 * (1 - num0(d.vacancyPct) / 100) * (1 - variableCostRate);
   const breakEvenRent = beDenominator > 0
     ? (fixedOperatingCosts + annualDebtService) / beDenominator
@@ -14493,6 +14524,20 @@ function dealModel(d) {
            reserve, totalInitialCash, instalment,
            grossAnnualRent, effectiveRent, opex, noi, annualDebtService, grossYield, netYield,
            maintenanceY, sinkingY, statutoryY, insuranceY, mgmtY, repairY,
+           /* management operations, P1-7 */
+           managed, mgmtFixedAnnual, mgmtMinTopUp, placementAnnual, renewalAnnual,
+           mgmtTotalAnnual: mgmtY + mgmtFixedAnnual,
+           /* What the service costs per month the property is actually let, and
+              per tenancy signed — the two figures that make a percentage
+              comparable between one agent and another. */
+           mgmtCostPerOccupiedMonth: (mgmtY + mgmtFixedAnnual) / Math.max(0.01, 12 * (1 - num0(d.vacancyPct) / 100)),
+           mgmtCostPerTenancy: cyclesPerYear > 0 ? (mgmtY + mgmtFixedAnnual) / cyclesPerYear : null,
+           /* The vacancy the placement target implies, against the vacancy that
+              was entered. Two numbers describing the same thing, kept apart so
+              the reader reconciles them rather than the model quietly picking. */
+           impliedVacancyPct: (num0(d.daysToFirstTenant) + monthsPerCycle * 30) > 0
+             ? num0(d.daysToFirstTenant) / (num0(d.daysToFirstTenant) + monthsPerCycle * 30) * 100 : null,
+           monthsPerCycle, cyclesPerYear,
            cashflowMonthly, cashOnCash, dscr, breakEvenRent,
            breakEvenRate, breakEvenRateWhy, breakEvenVacancy, breakEvenVacancyWhy, negativeAtBest,
            psf, exitValue, outstanding, agentFee, exitLegal, carryWhileSelling,
@@ -15314,14 +15359,31 @@ VIEWS.property = () => {
       ['mgmtPct', 'Letting and management fee (% of rent)', 0.5],
       ['repairReservePct', 'Repair reserve (% of rent)', 0.5],
     ]],
-    ['6 · Exit', [
+    /* A fee percentage says what management costs and nothing about what it
+       does. These are the terms that decide both — and the ones a landlord has
+       to agree before signing a mandate, not after. */
+    ['6 · Management operations', [
+      ['selfManaged', 'I will manage this property myself', 'bool'],
+      ['leasingFeeMonths', 'Tenant placement fee (months of rent)', 0.25],
+      ['renewalFeeMonths', 'Renewal fee (months of rent)', 0.25],
+      ['mgmtMinMonthly', 'Minimum monthly fee (RM)', 10],
+      ['tenancyMonths', 'Expected tenancy length (months)', 6],
+      ['daysToFirstTenant', 'Target days to place a tenant', 5],
+      ['depositMonths', 'Tenancy deposit held (months)', 0.5],
+      ['repairApprovalLimit', 'Repair the manager may authorise without asking (RM)', 50],
+      ['inspectionsPerYear', 'Inspections a year, with a written report', 1],
+      ['arrearsChaseDays', 'Days late before arrears are chased', 1],
+      ['ownerReportCadence', 'Owner statement', ['monthly', 'quarterly', 'on request', 'not agreed']],
+      ['tenantPaysUtilities', 'Tenant pays utilities, not the owner', 'bool'],
+    ]],
+    ['7 · Exit', [
       ['holdYears', 'Holding period (years)', 1],
       ['apprecPct', 'Annual capital growth (%)', 0.25],
       ['sellMonths', 'Expected months to sell', 1],
       ['agentPct', 'Agent commission on exit (%)', 0.25],
       ['exitLegalPct', 'Legal costs on exit (%)', 0.1],
     ]],
-    ['7 · Comparison', [
+    ['8 · Comparison', [
       ['equityReturnPct', 'Assumed equity return (% a year)', 0.5],
     ]],
   ];
@@ -15329,6 +15391,25 @@ VIEWS.property = () => {
     rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, heading));
     fields.forEach(([k, label, step]) => {
       const f = el('div', { class: 'assumption' });
+      /* Two non-numeric kinds, because a management mandate is made of
+         commitments and cadences as well as amounts. */
+      if (step === 'bool') {
+        const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;align-items:flex-start' });
+        l.append(el('input', { type: 'checkbox', checked: d[k] ? '' : null,
+          onchange: e => { d[k] = e.target.checked; markTouched(d, k); saveDeal(); render(); } }));
+        l.append(el('span', {}, ptr(`in.${k}`, label)));
+        rail.append(l);
+        return;
+      }
+      if (Array.isArray(step)) {
+        f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+        const s = el('select', { class: 'select select-sm', id: `d-${k}`,
+          onchange: e => { d[k] = e.target.value; markTouched(d, k); saveDeal(); render(); } });
+        step.forEach(o => s.append(el('option', { value: o, selected: d[k] === o ? '' : null }, o)));
+        f.append(s);
+        rail.append(f);
+        return;
+      }
       f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
       f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
         value: d[k] ?? 0, style: 'text-align:right',
@@ -15343,7 +15424,7 @@ VIEWS.property = () => {
   });
 
   /* Provenance for the figures that actually move the answer. */
-  rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, '8 · Evidence quality'));
+  rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, '9 · Evidence quality'));
   rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
     'Where each of the two figures that drive every output came from.'));
   [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
@@ -15702,6 +15783,69 @@ VIEWS.property = () => {
       tone: r2 => isNum(r2.cashOnCash) && r2.cashOnCash >= 0 ? 'pos' : 'neg' },
   ]));
   out.append(stressCard);
+
+  /* ---------- management operations ---------- */
+  const ops = el('div', { class: 'card' });
+  ops.append(cardHead(m.managed ? 'Management operations' : 'Management operations — self-managed',
+    m.managed
+      ? 'What the service costs, and what it has to do for it. A percentage alone is not comparable between two agents; cost per occupied month and cost per tenancy are.'
+      : 'You have said you will manage this property yourself, so no management cost is charged below. The work does not disappear with the fee — it is listed here so it is a decision rather than an omission.'));
+
+  if (m.managed) {
+    ops.append(el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' }, [
+      el('div', { class: 'panel' }, statTile('Management cost a year', fmtAmount(m.mgmtTotalAnnual, 'MYR'),
+        { sub: `${fmtPct(num0(d.mgmtPct), 1)} of collected rent plus placement` })),
+      el('div', { class: 'panel' }, statTile('Cost per occupied month', fmtAmount(m.mgmtCostPerOccupiedMonth, 'MYR'),
+        { sub: 'what it costs for each month the property is actually let' })),
+      el('div', { class: 'panel' }, statTile('Cost per tenancy signed', isNum(m.mgmtCostPerTenancy)
+        ? fmtAmount(m.mgmtCostPerTenancy, 'MYR') : '—', { sub: `over a ${m.monthsPerCycle}-month tenancy` })),
+      el('div', { class: 'panel' }, statTile('Placement fee a year', fmtAmount(m.placementAnnual, 'MYR'),
+        { sub: `assumes the tenant leaves each cycle` })),
+    ]));
+    if (m.renewalAnnual < m.placementAnnual) ops.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+      `The model charges the placement fee every cycle, which assumes the tenant leaves each time. If they renew instead the fee is `
+      + `${fmtAmount(m.renewalAnnual, 'MYR')} a year rather than ${fmtAmount(m.placementAnnual, 'MYR')} — a difference of `
+      + `${fmtAmount(m.placementAnnual - m.renewalAnnual, 'MYR')} a year. The conservative case is the one modelled.`));
+    if (m.mgmtMinTopUp > 0) ops.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `The minimum fee bites: ${fmtPct(num0(d.mgmtPct), 1)} of this rent is less than the floor you entered, so `
+      + `${fmtAmount(m.mgmtMinTopUp, 'MYR')} a year is owed regardless of what the property collects. That part does not fall with rent, and the break-even above treats it as fixed.`));
+  }
+
+  /* The placement target and the vacancy allowance describe the same thing.
+     Shown side by side rather than reconciled silently — the model uses the
+     vacancy figure, and if the two disagree that is the reader's to settle. */
+  if (isNum(m.impliedVacancyPct)) {
+    const gap = Math.abs(m.impliedVacancyPct - num0(d.vacancyPct));
+    ops.append(el('div', { class: 'note', style: `margin-top:var(--md);border-left:3px solid var(${gap > 2 ? '--warn' : '--line'})` },
+      el('p', { class: 'body', style: 'font-size:12.5px' },
+        `Placing a tenant in ${num0(d.daysToFirstTenant)} days on a ${m.monthsPerCycle}-month tenancy implies `
+        + `${fmtPct(m.impliedVacancyPct, 1)} vacancy. You have entered ${fmtPct(num0(d.vacancyPct), 1)}, and that is the figure every output above uses. `
+        + (gap > 2
+            ? `These differ by ${fmtPct(gap, 1)}. One of them is wrong for this property, and the placement target is usually the more optimistic of the two.`
+            : `They agree closely enough that neither changes the answer much.`))));
+  }
+
+  /* The work itself. Named, because "management fee 5%" tells a first-time
+     landlord nothing about what they are buying or what they still have to do. */
+  const duties = el('details', { style: 'margin-top:var(--md)' });
+  duties.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+    m.managed ? 'What the manager is agreeing to do' : 'What you are taking on by managing it yourself'));
+  const dl = el('ul', { class: 'ticklist', style: 'margin-top:8px' });
+  [`Verify achievable rent from signed tenancies rather than listing prices.`,
+   `Market the unit, screen tenants, and prepare the tenancy documentation.`,
+   `Collect rent and chase arrears from day ${num0(d.arrearsChaseDays)}.`,
+   `Inspect ${num0(d.inspectionsPerYear)} time${num0(d.inspectionsPerYear) === 1 ? '' : 's'} a year and issue a written report with evidence.`,
+   `Authorise repairs up to ${fmtAmount(num0(d.repairApprovalLimit), 'MYR')} without asking; anything above needs the owner.`,
+   `Hold the ${num0(d.depositMonths)}-month deposit under agreed custody and handle the move-out inspection.`,
+   `${d.tenantPaysUtilities ? 'Tenant' : 'Owner'} pays utilities — arrears here fall on whoever is named.`,
+   `Provide an owner statement ${d.ownerReportCadence}, with receipts.`,
+   `Keep an incident and maintenance history the next buyer's solicitor can read.`,
+  ].forEach(x => dl.append(el('li', {}, x)));
+  duties.append(dl);
+  if (d.ownerReportCadence === 'not agreed') duties.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
+    'No reporting cadence has been agreed. Owner statements are the only routine evidence that the rest of this list is happening.'));
+  ops.append(duties);
+  out.append(ops);
 
   /* ---------- evidence quality ---------- */
   const ev = el('div', { class: 'card' });
