@@ -2231,6 +2231,66 @@ const RAW = [
 
 const MODEL_VERSION = 'metrics 1.4.0 · scores 1.2.0 · valuation 1.3.0';
 const AS_OF = '30 Jul 2026';
+
+/* THE COVERAGE MANIFEST — one count, counted once, in one place.
+   ---------------------------------------------------------------------------
+   Four surfaces stated the coverage four ways and a reader comparing them found
+   a contradiction:
+
+     Discover / Pricing   138 companies, 120 US and 18 Bursa
+     Data sources         120 US and 18 Bursa
+     Build status         119 companies with audited SEC filings
+                          "18 Malaysian companies carry illustrative figures"
+
+   Every one of those numbers was arithmetically right. They contradict because
+   they measure two DIFFERENT AXES without saying which:
+
+     by market   120 US + 18 Bursa      = 138
+     by source   119 SEC-filed + 19 illustrative = 138
+
+   And the gap between 120 US and 119 filed is one real company. PGR, Progressive
+   Corporation on the NYSE, is a US row with illustrative figures and a synthetic
+   $246.80 price. It has no SEC twin, so retireIllustrativeTwin never removed it
+   the way it removed the other seventeen. "18 Malaysian companies carry
+   illustrative figures" was therefore not merely incomplete — it told a reader
+   that every illustrative company is Malaysian, and one of them is not.
+
+   Counting is now done here and nowhere else, and every statement names its
+   axis. A count computed at the call site is a count that will disagree with
+   the next one. */
+function coverage() {
+  const rows = typeof U !== 'undefined' ? U : [];
+  const filed = rows.filter(r => r.c.real);
+  const illus = rows.filter(r => !r.c.real);
+  const us = rows.filter(r => r.c.mkt === 'US');
+  const my = rows.filter(r => r.c.mkt === 'MY');
+  const usIllus = us.filter(r => !r.c.real);
+  const priced = rows.filter(r => isNum(r.c.px?.p));
+  return {
+    total: rows.length,
+    filed: filed.length, illustrative: illus.length,
+    us: us.length, my: my.length,
+    usFiled: us.length - usIllus.length, usIllustrative: usIllus.length,
+    usIllustrativeNames: usIllus.map(r => r.c.tk || r.c.id),
+    priced: priced.length, filedPriced: filed.filter(r => isNum(r.c.px?.p)).length,
+    filedUnpriced: filed.length - filed.filter(r => isNum(r.c.px?.p)).length,
+  };
+}
+
+/* The same fact as a sentence, so two surfaces cannot word it differently.
+   `axis` picks which split leads; both are always reachable from the other. */
+function coverageSentence(axis) {
+  const k = coverage();
+  if (!k.total) return 'The universe is still loading.';
+  const bySource = `${k.filed} carry audited statements filed with the SEC and ${k.illustrative} carry illustrative figures that are synthetic`;
+  const byMarket = `${k.us} are US-listed and ${k.my} are Bursa-listed`;
+  const oddity = k.usIllustrative
+    ? ` Not every illustrative company is Malaysian: ${k.usIllustrativeNames.join(', ')} ${k.usIllustrative === 1 ? 'is a US listing' : 'are US listings'} whose figures are synthetic too.`
+    : '';
+  return axis === 'market'
+    ? `${k.total} companies: ${byMarket}. By source, ${bySource}.${oddity}`
+    : `${k.total} companies: ${bySource}. By market, ${byMarket}.${oddity}`;
+}
 const TAX = { US: 0.21, MY: 0.24 };
 
 /* Deterministic PRNG so generated series are stable across reloads. */
@@ -7642,7 +7702,7 @@ VIEWS.researchHome = () => {
   wrap.append(cases);
 
   wrap.append(el('p', { class: 'metaline' },
-    `The beta universe holds ${U.length} companies. It is not a complete listing of either market.`));
+    coverageSentence('source') + ' It is not a complete listing of either market.'));
   return wrap;
 };
 
@@ -12370,7 +12430,7 @@ function learnData() {
   const have = el('div');
   have.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Present'));
   const hl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  [`${U.filter(r => r.c.mkt === 'US').length} US companies and ${U.filter(r => r.c.mkt === 'MY').length} Bursa companies`,
+  [`${coverage().us} US companies and ${coverage().my} Bursa companies`,
    'Five reported years per company, with every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
    'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
@@ -12429,6 +12489,51 @@ function learnTrust() {
     'A disclaimer does not change the substance of a feature. In Malaysia, automated algorithm-based investment advice is treated as investment advice under the Capital Markets and Services Act and requires a licence when carried on as a business — so each surface needs written legal classification before launch, not a footnote.'));
   wrap.append(modes);
 
+  /* The reader's own cases, above the sample log — a case they raised and
+     cannot find again is a case they have no reason to believe was kept. */
+  const mine = State.corrections || [];
+  const mineCard = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  mineCard.append(cardHead(`Cases you have recorded — ${mine.length}`,
+    'Held in this browser only. Nothing has been sent, because there is no server behind this build and no contact address published yet.'));
+  if (!mine.length) {
+    mineCard.append(el('p', { class: 'metaline' },
+      'None yet. Any figure on this site can be challenged — the report button in the footer records a case with the page, the model version and the data date attached.'));
+  } else {
+    const mt = el('table', { class: 'dt' });
+    mt.append(el('thead', {}, el('tr', {}, ['Case', 'Raised', 'Item', 'Status', ''].map(h =>
+      el('th', { style: 'text-align:left' }, h)))));
+    const mb = el('tbody');
+    mine.forEach(c => mb.append(el('tr', {}, [
+      el('td', { class: 'ident', style: 'text-align:left' }, c.id),
+      el('td', { class: 'caption', style: 'text-align:left' }, c.createdAt),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+        `${c.item}${c.subject ? ` · ${c.subject}` : ''}`),
+      el('td', { style: 'text-align:left' }, el('span', { class: 'chip chip-bronze' }, c.status)),
+      el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm',
+        onclick: () => openDrawer(`Case ${c.id}`, (() => {
+          const w = el('div');
+          const pre = el('textarea', { class: 'input', style: 'min-height:220px;font-family:var(--mono,monospace);font-size:12px' });
+          pre.value = correctionPayload(c);
+          w.append(pre);
+          w.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+            el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+              pre.select();
+              (navigator.clipboard ? navigator.clipboard.writeText(pre.value) : Promise.reject())
+                .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
+            } }, 'Copy'),
+            el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+              State.corrections = (State.corrections || []).filter(x => x.id !== c.id);
+              saveCorrections(); closeDrawer(); render(); toast(`${c.id} deleted`);
+            } }, 'Delete this case'),
+          ]));
+          return w;
+        })()) }, 'Open')),
+    ])));
+    mt.append(mb);
+    mineCard.append(el('div', { class: 'tablewrap' }, mt));
+  }
+  wrap.append(mineCard);
+
   const corr = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   corr.append(cardHead('Corrections log', 'Sample entries showing the format. Every correction records what was wrong, who was affected and what changed.'));
   const tw = el('div', { class: 'tablewrap' });
@@ -12449,24 +12554,126 @@ function learnTrust() {
   return wrap;
 }
 
+/* CORRECTION CASES
+   ---------------------------------------------------------------------------
+   The form used to open, collect two fields, discard them, and toast "Report
+   submitted — you would receive the correction outcome". Nothing was submitted,
+   nothing was retained, and nobody would receive anything. A product whose
+   pitch is that every figure can be challenged had a challenge button that
+   threw the challenge away, and then said thank you.
+
+   There is no server, so a case cannot be sent anywhere from here. What it can
+   do is be RECORDED: given an id, kept, listed back, and handed over in a form
+   the reader can actually send. So the wording is exact — recorded, not
+   submitted; nothing has reached anyone. Claiming receipt is the thing that
+   made the old version worse than no button at all. */
+State.corrections = store.read('corrections', []);
+const saveCorrections = () => store.write('corrections', State.corrections);
+
+/* QT-YYYYMMDD-NNN. The sequence comes from the cases already stored on that
+   date, so two cases raised in the same millisecond cannot collide the way a
+   timestamp id would. */
+function nextCaseId() {
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const n = (State.corrections || []).filter(c => String(c.id || '').includes(stamp)).length + 1;
+  return `QT-${stamp}-${String(n).padStart(3, '0')}`;
+}
+
+function correctionPayload(c) {
+  return [
+    `Correction case ${c.id}`,
+    `Raised: ${c.createdAt}`,
+    `Page: ${c.route}`,
+    `Subject: ${c.subject || '—'}`,
+    `Data item: ${c.item}`,
+    `Shown: ${c.shownValue || '—'}`,
+    `Should be: ${c.expectedValue || '—'}`,
+    `Source that disagrees: ${c.sourceRef || '—'}`,
+    ``,
+    c.description || '(no description given)',
+    ``,
+    `Model version: ${c.modelVersion}`,
+    `Data as of: ${c.asOf}`,
+    `Universe at the time: ${c.coverage}`,
+  ].join('\n');
+}
+
 function openReportError() {
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-    'In production this form is pre-filled with the exact metric, company, period, source document and model version you were looking at, so support can inspect the lineage without going back to engineering.'));
+    'This records a case in this browser and gives it an identifier. It does not send anything — there is no server behind this build and no contact address published yet — so the last step hands you the case to send yourself.'));
+
+  const state = { item: (FIELDS[0] && FIELDS[0].label) || '', subject: '', shownValue: '', expectedValue: '', sourceRef: '', description: '' };
+  const field = (label, key, kind, placeholder) => {
+    const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
+    f.append(el('label', { for: `err-${key}` }, label));
+    const node = kind === 'area'
+      ? el('textarea', { class: 'input', id: `err-${key}`, placeholder })
+      : el('input', { class: 'input', id: `err-${key}`, type: 'text', placeholder });
+    node.addEventListener('input', e => { state[key] = e.target.value; });
+    f.append(node);
+    body.append(f);
+  };
+
   const f1 = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   f1.append(el('label', { for: 'errItem' }, 'Data item'));
-  const sel = el('select', { class: 'select', id: 'errItem' });
-  FIELDS.forEach(f => sel.append(el('option', {}, f.label)));
+  const sel = el('select', { class: 'select', id: 'errItem',
+    onchange: e => { state.item = e.target.value; } });
+  FIELDS.forEach(f => sel.append(el('option', { value: f.label }, f.label)));
   f1.append(sel); body.append(f1);
-  const f2 = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-  f2.append(el('label', { for: 'errNote' }, 'What looks wrong?'));
-  f2.append(el('textarea', { class: 'input', id: 'errNote', placeholder: 'Describe the discrepancy and, if you have it, the source that disagrees.' }));
-  body.append(f2);
+
+  field('Company or property this is about', 'subject', 'text', 'e.g. MSFT, or a Sibu condominium');
+  field('What the page shows', 'shownValue', 'text', 'the figure as displayed');
+  field('What it should be', 'expectedValue', 'text', 'leave blank if you only know it is wrong');
+  field('Source that disagrees', 'sourceRef', 'text', 'a filing, a page, a document — a source makes this verifiable rather than a disagreement');
+  field('What looks wrong?', 'description', 'area', 'Describe the discrepancy.');
+
   body.append(el('div', { class: 'sunk', style: 'margin-bottom:var(--md)' },
     el('dl', { class: 'kv' }, [
-      el('dt', {}, 'Attached automatically'), el('dd', { style: 'text-align:left' }, `Company, period, currency, source, model version (${MODEL_VERSION}), as-of date (${AS_OF})`),
+      el('dt', {}, 'Recorded with the case'),
+      el('dd', { style: 'text-align:left' }, `The page you were on, model version ${MODEL_VERSION}, data as of ${AS_OF}, and the universe as loaded.`),
     ])));
-  body.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => { closeDrawer(); toast('Report submitted — you would receive the correction outcome'); } }, 'Submit report'));
+
+  body.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    if (!state.description.trim() && !state.expectedValue.trim()) {
+      toast('Say what looks wrong, or what it should be, before recording the case');
+      return;
+    }
+    const k = coverage();
+    const c = {
+      id: nextCaseId(),
+      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      route: location.pathname + location.search,
+      status: 'recorded — not sent',
+      modelVersion: MODEL_VERSION, asOf: AS_OF,
+      coverage: `${k.total} companies, ${k.filed} filed, ${k.illustrative} illustrative`,
+      ...state,
+    };
+    State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
+    saveCorrections();
+    closeDrawer();
+    openDrawer(`Case ${c.id} recorded`, (() => {
+      const w = el('div');
+      w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
+        `Recorded in this browser as ${c.id}. Nothing has been sent and nobody has received it — there is no server behind this build, and no contact address is published yet. Copy the case below and keep it, or send it once there is somewhere to send it to.`));
+      const pre = el('textarea', { class: 'input', style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
+      pre.value = correctionPayload(c);
+      w.append(pre);
+      w.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+        el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+          pre.select();
+          (navigator.clipboard ? navigator.clipboard.writeText(pre.value) : Promise.reject())
+            .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
+        } }, 'Copy the case'),
+        el('a', { class: 'btn btn-ghost btn-sm', href: href('/corrections'),
+          onclick: e => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); closeDrawer(); navigate('/corrections'); } },
+          'See my recorded cases'),
+      ]));
+      return w;
+    })());
+    render();
+  } }, 'Record this case'));
   openDrawer('Report a data error', body);
 }
 
@@ -16237,9 +16444,11 @@ const CAPABILITY_REGISTER = [
   { name:'Equity Strategy Lens', status:'queued', path:null,
     gate:'P1. Asset type, return role, separate fit grades, staged entry and leverage stress.' },
   { name:'Bursa universe', status:'data-gated', path:'/research',
-    gate:'18 Malaysian companies carry illustrative figures. No investable grade is offered for any of them.' },
+    gate:() => `${coverage().illustrative} companies carry illustrative figures — ${coverage().my} Bursa`
+       + (coverage().usIllustrative ? ` and ${coverage().usIllustrativeNames.join(', ')} on the US side` : '')
+       + '. No investable grade is offered for any of them.' },
   { name:'US equities', status:'maintenance', path:'/research',
-    now:'119 companies with audited SEC filings.' },
+    now:() => `${coverage().usFiled} US companies with audited SEC filings, of ${coverage().us} US listings held.` },
   { name:'US Options Cash Wheel', status:'data-gated', path:'/us-options/wheel',
     now:'Cash-secured put and covered-call arithmetic, collateral gates, downside scenarios and the full risk card, from figures you enter.',
     gate:'No authorised option-chain data, so contracts are entered by hand. Live chains, any recommended contract, broker routing and execution stay Compliance Gated and are not built.' },
@@ -17809,9 +18018,15 @@ VIEWS.status = () => {
       el('td', { style: 'text-align:left' }, c.path
         ? el('a', { href: href(c.path), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(c.path); } }, c.path)
         : el('span', { class: 'caption' }, 'no route yet')),
+      /* A field may be a function, resolved at render. CAPABILITY_REGISTER is a
+         const evaluated when the file parses — before loadRealData has fetched
+         anything — so any count written into it as a literal string counted the
+         36-row sample set and froze that. It reported "0 US companies with
+         audited SEC filings" on a build holding 119 of them. */
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, [
-        c.now ? el('div', {}, c.now) : null,
-        c.gate ? el('div', { style: 'color:var(--bronze);margin-top:4px' }, `Gate: ${c.gate}`) : null,
+        c.now ? el('div', {}, typeof c.now === 'function' ? c.now() : c.now) : null,
+        c.gate ? el('div', { style: 'color:var(--bronze);margin-top:4px' },
+          `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`) : null,
       ]),
     ])));
     t.append(tb); card.append(el('div', { class: 'tablewrap' }, t));
@@ -17936,7 +18151,7 @@ VIEWS.plans = () => {
        than written into the copy, so it cannot be left behind when the universe
        changes. */
     if (pl.limits?.reportsPerMonth === Infinity) card.append(el('p', { class: 'metaline', style: 'margin:-8px 0 var(--md)' },
-      `The beta universe holds ${U.length} companies (${U.filter(r => r.c.mkt === 'MY').length} Bursa, ${U.filter(r => r.c.mkt === 'US').length} US). It is not a complete listing of either market.`));
+      coverageSentence('market') + ' It is not a complete listing of either market.'));
 
     const rows = [
       ['Company reports', pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month`],
@@ -18157,11 +18372,16 @@ const refreshDisclosure = () => {
     return;
   }
   if (!real) return;                       /* the static wording is correct */
+  /* Counted by the manifest, not here. This banner sits on every page, so a
+     count of its own would be the one most likely to disagree with the rest. */
+  const k = coverage();
   node.innerHTML =
     `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
-    `<span class="disclosure-long"> ${real} ${real === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
-    (priced < real ? `, of which ${real - priced} ${real - priced === 1 ? 'has' : 'have'} no price because market data is not licensed for this build` : '') +
-    `. ${sample} ${sample === 1 ? 'carries' : 'carry'} illustrative figures that are synthetic. Every company page states which it is.</span>`;
+    `<span class="disclosure-long"> ${k.filed} ${k.filed === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
+    (k.filedUnpriced ? `, of which ${k.filedUnpriced} ${k.filedUnpriced === 1 ? 'has' : 'have'} no price because market data is not licensed for this build` : '') +
+    `. ${k.illustrative} ${k.illustrative === 1 ? 'carries' : 'carry'} illustrative figures that are synthetic` +
+    (k.usIllustrative ? `, and ${k.usIllustrative === 1 ? 'one of those is a US listing' : `${k.usIllustrative} of those are US listings`} rather than Bursa` : '') +
+    `. Every company page states which it is.</span>`;
 };
 
 /* Real data loads asynchronously and changes the size of the universe. The
