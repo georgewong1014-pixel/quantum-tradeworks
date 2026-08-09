@@ -4982,6 +4982,7 @@ const ROUTES = [
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
+  { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
   { path: '/us-options/wheel',    view: 'wheel',     title: 'US Options Cash Wheel' },
   /* The paths a reader actually types. All five rendered the not-found card
      while the workspace sat behind a URL nobody would guess, and the workspace
@@ -13916,9 +13917,52 @@ const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map(e => [e.id, e]));
 
 const saveObservations = () => store.write('observations', State.observations);
 
+/* THE COMPARABLES REGISTER IS THIS, EXTENDED — NOT A SECOND STORE.
+   ---------------------------------------------------------------------------
+   The obvious way to answer "add a Sarawak comparables register" was a new
+   `comparables` key with its own record and its own view. It would also have
+   been wrong: this subsystem already keeps asking apart from achieved, and
+   asking apart from transacted, already keys to city and district, already
+   carries a source class from the same evidence ladder, and already refuses to
+   average across kinds. Two stores holding the same evidence would leave the
+   calculator choosing which to believe, which is the defect this codebase keeps
+   finding in itself.
+
+   So the record gains the fields a comparable needs and the register is a view
+   over what was already being collected. Existing rows keep working: every new
+   field is optional and absent reads as unrecorded, never as zero.
+
+   WHAT MAKES ONE COUNT
+
+   A figure with no reference to where it came from is a recollection. It can be
+   recorded — a half-remembered number is still worth writing down before it is
+   lost — but it can never be verified evidence, and the register says which of
+   the two it is rather than presenting a list of equals. */
 function addObservation(o) {
-  State.observations = [{ ...o, id: `obs-${State.observations.length + 1}-${o.date}` }, ...State.observations];
+  State.observations = [{
+    address:'', propertyType:'', sqft:null, sourceRef:'', reviewedBy:'', reviewedAt:'',
+    ...o,
+    id: `obs-${State.observations.length + 1}-${o.date}-${Math.floor(performance.now())}`,
+    recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+  }, ...State.observations];
   saveObservations();
+}
+
+/* Three states, because "verified" and "recorded" are different claims and a
+   register that shows them as one list is not evidence, it is a pile. */
+function observationStanding(o) {
+  const ev = evidenceOf(o.evidence);
+  if (!o.sourceRef || !String(o.sourceRef).trim())
+    return { id:'unsourced', label:'No source recorded', tone:'chip chip-bronze',
+             why:'Nothing says where this figure came from, so it cannot be checked by anyone else. It is a note, not evidence.' };
+  if (ev.rank < 4)
+    return { id:'sourced', label:`Sourced — ${ev.label.toLowerCase()}`, tone:'chip',
+             why:'A source is recorded, and the source class is below published or transacted. Usable as context; not enough on its own to lift a grade.' };
+  if (!o.reviewedBy || !String(o.reviewedBy).trim())
+    return { id:'awaiting_review', label:'Awaiting review', tone:'chip',
+             why:'Sourced at a class that could support a grade, but nobody has checked it against the source yet.' };
+  return { id:'verified', label:'Verified', tone:'chip chip-ok',
+           why:`Sourced, at ${ev.label.toLowerCase()}, and checked against the source by ${o.reviewedBy}.` };
 }
 
 /* Summarised per area and per kind, never across kinds. Returns the median
@@ -15614,21 +15658,38 @@ VIEWS.property = () => {
     const valInp = el('input', { class:'input input-sm', type:'number', inputmode:'decimal',
       placeholder:'Amount', 'aria-label':'Observed value' });
     const evSel = el('select', { class:'select select-sm', 'aria-label':'Evidence quality' });
-    EVIDENCE.filter(e => e.rank >= 2).forEach(e => evSel.append(el('option', { value:e.id, selected: e.id === 'user' ? '' : null }, e.label)));
+    /* Every class except the tool's own seeded default. Offering only rank 2 and
+       above meant the weakest thing a reader could say about a number they half
+       remembered was "developer supplied" — so the dropdown made them overstate
+       it. "Estimated" and "assumed" are honest answers and belong here. */
+    EVIDENCE.filter(e => e.rank >= 0).forEach(e => evSel.append(el('option', { value:e.id, selected: e.id === 'user' ? '' : null }, e.label)));
     const dateInp = el('input', { class:'input input-sm', type:'date',
       value: new Date().toISOString().slice(0, 10), 'aria-label':'Date observed' });
+    /* The field that decides whether this is evidence or a note. Optional at
+       capture, because a number nobody records is worth less than one recorded
+       without its source — but the register says which it is, permanently. */
+    const srcInp = el('input', { class:'input input-sm', type:'text',
+      placeholder:'Source — listing, tenancy, filing', 'aria-label':'Source reference' });
+    const addrInp = el('input', { class:'input input-sm', type:'text',
+      placeholder:'Address or project', 'aria-label':'Address or project' });
     const addBtn = el('button', { class:'btn btn-sm', onclick: () => {
       const v = Number(valInp.value);
       if (!Number.isFinite(v) || v <= 0) { toast('Enter an amount above zero'); return; }
       addObservation({ city:d.city, area:d.district, kind:kindSel.value, value:v,
-                       evidence:evSel.value, date:dateInp.value });
-      toast(`Recorded for ${d.district}`);
+                       evidence:evSel.value, date:dateInp.value,
+                       sourceRef:srcInp.value.trim(), address:addrInp.value.trim(),
+                       propertyType:d.propertyType });
+      toast(srcInp.value.trim() ? `Recorded for ${d.district}` : `Recorded for ${d.district} — no source, so it counts as a note`);
       render();
     } }, 'Record');
-    [kindSel, valInp, evSel, dateInp, addBtn].forEach(x => form.append(x));
+    [kindSel, valInp, evSel, dateInp, addrInp, srcInp, addBtn].forEach(x => form.append(x));
     oc.append(form);
     oc.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'Stored in this browser only. It is never sent anywhere, it is not published with the site, and it carries no redistribution right — the same position as every other figure you supply here.'));
+    oc.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' },
+      el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'),
+        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
+        `Open the comparables register${(State.observations || []).length ? ` — ${State.observations.length}` : ''}`)));
     mapWrap.append(oc);
 
     const aff = affordabilityPanel(cityDef.name);
@@ -16511,6 +16572,9 @@ const CAPABILITY_REGISTER = [
   { name:'Property opportunity register', status:'active-core', path:'/property/opportunities',
     now:'Records real candidates with source, availability date, four separate prices, grade and a next action with an owner.',
     gate:'Holds nothing until you add cases. This product sources no listings and republishes none.' },
+  { name:'Sarawak comparables register', status:'data-gated', path:'/property/comparables',
+    now:'The structure: address, district, title, built-up area, asking and achieved kept apart, date, evidence class, source reference and a reviewer.',
+    gate:'Ships empty, and stays empty until a person records evidence. No source publishes Sarawak transacted prices or achieved rents this product may redistribute.' },
   { name:'Loan comparison across lenders', status:'queued', path:null,
     gate:'Needs the offer-status workflow. Financing scenarios at 70/80/90% exist today; named lender offers do not.' },
   { name:'Operations Excellence handoff', status:'queued', path:null,
@@ -18062,6 +18126,140 @@ VIEWS.opportunities = () => {
     `${list.length} propert${list.length === 1 ? 'y' : 'ies'}, newest first. This order is recency, not merit — nothing on this page is ranked by how attractive it looks.`));
   return wrap;
 };
+
+/* ==========================================================================
+   SARAWAK COMPARABLES REGISTER
+
+   It ships empty, and that is the honest state rather than an unfinished one.
+   No source publishes Sarawak transacted prices or achieved rents that this
+   product may redistribute — that finding is recorded in the source review and
+   has not changed. So every row here is one a person entered from something
+   they can point at, and the register's job is to make the difference between
+   a sourced figure and a remembered one impossible to miss.
+
+   What it deliberately does not do: scrape, republish anyone's listing data,
+   ship seeded rows to look populated, or rank areas. A median of four readings
+   is four readings.
+   ========================================================================== */
+VIEWS.comparables = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Property'),
+    el('h1', {}, 'Sarawak comparables register'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Transacted prices and achieved rents you have recorded, with what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.'),
+  ])));
+
+  const rows = State.observations || [];
+  const stand = rows.map(o => ({ o, s: observationStanding(o) }));
+  const counts = stand.reduce((a, x) => { a[x.s.id] = (a[x.s.id] || 0) + 1; return a; }, {});
+
+  const head = el('div', { class: 'card' });
+  head.append(cardHead(`${rows.length} record${rows.length === 1 ? '' : 's'}`,
+    rows.length ? 'Standing is decided by the source, not by the number.'
+                : 'The register is empty, which is the true state of the evidence rather than a gap in the software.'));
+  if (rows.length) {
+    head.append(el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' },
+      [['Verified', counts.verified || 0], ['Awaiting review', counts.awaiting_review || 0],
+       ['Sourced', counts.sourced || 0], ['No source', counts.unsourced || 0]]
+        .map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
+  } else {
+    head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
+      'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it from the district panel on the calculator, where the city and district are already set.'));
+    head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+      el('a', { class: 'btn btn-primary btn-sm', href: href('/property/calculator'),
+        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
+        'Open the calculator to record one'),
+      el('a', { class: 'btn btn-ghost btn-sm', href: href('/data-sources'),
+        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/data-sources'); } },
+        'Why nothing can be loaded'),
+    ]));
+  }
+  wrap.append(head);
+
+  if (rows.length) {
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, ['Standing', 'What', 'Amount', 'Where', 'Address or project', 'Dated', 'Source', ''].map(h =>
+      el('th', { style: 'text-align:left' }, h)))));
+    const tb = el('tbody');
+    stand.forEach(({ o, s }) => {
+      const kind = OBS_BY_ID[o.kind];
+      tb.append(el('tr', {}, [
+        el('td', { style: 'text-align:left' }, el('span', { class: s.tone, title: s.why }, s.label)),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+          `${kind ? kind.label : o.kind}${kind && kind.asking ? ' · quoted, not achieved' : ''}`),
+        el('td', { class: 'num', style: 'text-align:left' },
+          `${fmtNum(o.value, 0)}${kind ? ` ${kind.unit.replace('RM', '').trim()}` : ''}`),
+        el('td', { class: 'caption', style: 'text-align:left' }, `${o.area || '—'}, ${o.city || '—'}`),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.address || '—'),
+        el('td', { class: 'caption', style: 'text-align:left' }, o.date || '—'),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.sourceRef || '—'),
+        el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm',
+          onclick: () => openObservationDrawer(o) }, 'Open')),
+      ]));
+    });
+    t.append(tb);
+    wrap.append(el('div', { class: 'card' }, el('div', { class: 'tablewrap' }, t)));
+  }
+
+  const rules = el('div', { class: 'card' });
+  rules.append(cardHead('What this register will not do', 'Named, because each one is a way a comparables list normally goes wrong.'));
+  const rl = el('ul', { class: 'ticklist blocklist' });
+  ['Ship with rows already in it. A populated register on a build that holds no licensed Sarawak evidence would be inventing the market this layer exists because nobody publishes.',
+   'Republish anyone\'s listing or transaction data. What is here is what you recorded from something you can point at.',
+   'Average asking against achieved. A quoted rent and a signed tenancy are different facts about different things.',
+   'Rank districts or call one a better area. It reports what was recorded and how many readings that is.',
+   'Treat a figure with no source as evidence. It is kept, because a half-remembered number is worth writing down before it is lost, and it is labelled a note.',
+  ].forEach(x => rl.append(el('li', {}, x)));
+  rules.append(rl);
+  rules.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'Held in this browser only. It is never sent anywhere, it is not published with the site, and it carries no redistribution right.'));
+  wrap.append(rules);
+  return wrap;
+};
+
+/* One record, with the fields the calculator's compact form has no room for. */
+function openObservationDrawer(o) {
+  const s = observationStanding(o);
+  const body = el('div');
+  body.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:var(--md)' },
+    el('span', { class: s.tone }, s.label)));
+  body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' }, s.why));
+
+  const edit = (label, key, kind) => {
+    const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
+    f.append(el('label', {}, label));
+    const node = kind === 'number'
+      ? el('input', { class: 'input', type: 'number', value: isNum(o[key]) ? String(o[key]) : '' })
+      : el('input', { class: 'input', type: 'text', value: o[key] || '' });
+    node.addEventListener('change', e => {
+      const v = kind === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value;
+      const i = State.observations.findIndex(x => x.id === o.id);
+      if (i > -1) { State.observations[i] = { ...State.observations[i], [key]: v }; saveObservations(); }
+      o[key] = v;
+      render();
+    });
+    f.append(node);
+    body.append(f);
+  };
+  edit('Address or project', 'address');
+  edit('Property type', 'propertyType');
+  edit('Built-up area (sq ft)', 'sqft', 'number');
+  edit('Source reference — the filing, listing, tenancy or document this came from', 'sourceRef');
+  edit('Checked against the source by', 'reviewedBy');
+
+  const kv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
+  [['Recorded', o.recordedAt || '—'], ['Dated', o.date || '—'],
+   ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${o.city || '—'}`]]
+    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
+  body.append(kv);
+
+  body.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--md)', onclick: () => {
+    State.observations = State.observations.filter(x => x.id !== o.id);
+    saveObservations(); closeDrawer(); render(); toast('Record deleted');
+  } }, 'Delete this record'));
+  openDrawer(`${OBS_BY_ID[o.kind] ? OBS_BY_ID[o.kind].label : 'Observation'} · ${fmtNum(o.value, 0)}`, body);
+}
 
 VIEWS.status = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
