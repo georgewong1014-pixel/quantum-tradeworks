@@ -551,14 +551,20 @@ body[data-surface="public"] .disclosure-long { display: none; }
   border-radius: var(--r-md); overflow-x: auto; scrollbar-width: none; max-width: 100%;
 }
 .segmented::-webkit-scrollbar { display: none; }
-.segmented button {
-  appearance: none; border: 0; background: none; cursor: pointer;
+/* Anchors as well as buttons. mySubnav builds real links — so they survive a
+   new tab, a copy, and a screen reader asking what they are — but every rule
+   here was scoped to `button`, so the strip rendered as six underlined words
+   run together with no padding or active state. It was only ever shown on the
+   two pages nothing linked to, which is why it went unnoticed; it now appears
+   on all six. */
+.segmented button, .segmented a {
+  appearance: none; border: 0; background: none; cursor: pointer; text-decoration: none;
   padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;
   font-size: 12.5px; font-weight: 540; color: var(--ink-2);
   transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
-.segmented button:hover { color: var(--ink); }
-.segmented button[aria-selected="true"] {
+.segmented button:hover, .segmented a:hover { color: var(--ink); }
+.segmented button[aria-selected="true"], .segmented a[aria-selected="true"] {
   background: var(--surface-2); color: var(--ink); font-weight: 620; box-shadow: var(--lift-1);
 }
 
@@ -833,7 +839,8 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 
 /* --------------------------------------------------------------- footer */
 .footer { border-top: 1px solid var(--line); background: var(--surface); padding: var(--xxl) 0 var(--xl); margin-top: var(--xxl); }
-.footer-grid { display: grid; grid-template-columns: 1.6fr repeat(3, 1fr); gap: var(--xl); }
+.footer-grid { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: var(--lg); }
+@media (max-width: 1080px) { .footer-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 860px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .footer-grid { grid-template-columns: 1fr; } }
 .footer h4 { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; font-weight: 640; }
@@ -1055,8 +1062,23 @@ details > summary::marker { content: ''; }
         <ul>
           <li><a href="/discover/screener" data-path="/discover/screener">S&amp;P 500 (sample)</a></li>
           <li><a href="/discover/screener" data-path="/discover/screener">FBM KLCI (sample)</a></li>
+          <li><a href="/discover/sarawak" data-path="/discover/sarawak">Sarawak Economy Watch</a></li>
           <li><a href="/methodology" data-path="/methodology">Excluded company types</a></li>
-          <li><a href="/corrections" data-path="/corrections">Release notes</a></li>
+        </ul>
+      </div>
+      <!-- Seven finished surfaces had no inbound link anywhere in the product:
+           the two legal pages, contact, pricing, build status, the dashboard and
+           the opportunity register. The footer is where a reader looks for
+           exactly these, and it carried none of them. -->
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/about" data-path="/about">About</a></li>
+          <li><a href="/contact" data-path="/contact">Contact</a></li>
+          <li><a href="/pricing" data-path="/pricing">Plans &amp; pricing</a></li>
+          <li><a href="/status" data-path="/status">Build status</a></li>
+          <li><a href="/privacy" data-path="/privacy">Privacy</a></li>
+          <li><a href="/terms" data-path="/terms">Terms</a></li>
         </ul>
       </div>
     </div>
@@ -4846,6 +4868,15 @@ const ROUTES = [
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/us-options/wheel',    view: 'wheel',     title: 'US Options Cash Wheel' },
+  /* The paths a reader actually types. All five rendered the not-found card
+     while the workspace sat behind a URL nobody would guess, and the workspace
+     had no inbound link either — so the only door was one nobody could find. */
+  { path: '/wheel',               view: 'wheel',     title: 'US Options Cash Wheel' },
+  { path: '/cash-wheel',          view: 'wheel',     title: 'US Options Cash Wheel' },
+  { path: '/options',             view: 'wheel',     title: 'US Options Cash Wheel' },
+  { path: '/my/wheel',            view: 'wheel',     title: 'US Options Cash Wheel' },
+  { path: '/my/options',          view: 'wheel',     title: 'US Options Cash Wheel' },
+  { path: '/trading-index',       view: 'tradingIndex', title: 'QT Trading Index' },
   { path: '/research/trading-index', view: 'tradingIndex', title: 'QT Trading Index' },
   /* §18.1 asks for /learn/trading-index as well. It resolves to the same view
      rather than a second page: the methodology is on the page beside the thing
@@ -9680,6 +9711,7 @@ function openReview(t) {
 VIEWS.thesis = () => {
   const wrap = el('div');
   wrap.append(mySubnav('thesis'));
+  appendSampleBanner(wrap);
   const hd = el('div', { class: 'page-hd' });
   hd.append(el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Thesis'),
@@ -9990,6 +10022,55 @@ const DEFAULT_PORTFOLIOS = [
 ];
 if (!State.portfolios) { State.portfolios = DEFAULT_PORTFOLIOS; savePortfolios(); }
 
+/* SEEDED DEMONSTRATION DATA, SAID OUT LOUD
+   ---------------------------------------------------------------------------
+   Two portfolios and two investment cases are written into a fresh profile so
+   these views have something to render. Only /my/portfolio admitted it, once,
+   in a sentence at the foot of a card — so a first-time reader met
+   "RM373.6k · 5 positions · +14.9%" on four surfaces as though it were theirs,
+   and an alert feed "mapped to your watchlist" built on top of it.
+
+   On a product whose entire argument is that every figure should say where it
+   came from, an unlabelled fictional portfolio presented as the reader's own is
+   the sharpest contradiction available to it.
+
+   Clearing removes the seeded ids and nothing else, so a reader who has already
+   added their own holdings or written their own case keeps them. */
+const SEEDED_PF_IDS = ['pf-1', 'pf-2'];
+const SEEDED_THESIS_IDS = ['t1', 't2'];
+const seededPortfolios = () => (State.portfolios || []).filter(p => SEEDED_PF_IDS.includes(p.id));
+const seededTheses = () => (State.theses || []).filter(t => SEEDED_THESIS_IDS.includes(t.id));
+const hasSeededData = () => seededPortfolios().length > 0 || seededTheses().length > 0;
+
+function clearSeededData() {
+  const ownPf = (State.portfolios || []).filter(p => !SEEDED_PF_IDS.includes(p.id));
+  const ownTh = (State.theses || []).filter(t => !SEEDED_THESIS_IDS.includes(t.id));
+  /* activePF() reads State.portfolios[0] and the view assumes it exists, so the
+     list is never left empty — it becomes one empty portfolio of the reader's
+     own rather than nothing at all. */
+  State.portfolios = ownPf.length ? ownPf
+    : [{ id:'pf-user', name:'My portfolio', cash:0, cashCcy:'MYR', holdings:[] }];
+  State.theses = ownTh;
+  State.pfIdx = 0;
+  savePortfolios(); saveTheses(); render();
+  toast('Sample data cleared');
+}
+
+/* Rendered on every surface that shows seeded data, not just the one that
+   happened to mention it. Returns null when there is nothing seeded left. */
+function sampleBanner() {
+  if (!hasSeededData()) return null;
+  const b = el('div', { class: 'note', style: 'border-left:3px solid var(--bronze);margin-bottom:var(--md)' });
+  b.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
+    el('span', { class: 'chip chip-bronze' }, 'Sample data'),
+    el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 300px;margin:0' },
+      'These holdings and investment cases were written into this browser so the views have something to show. They are not yours, nobody holds them, and every figure derived from them is illustrative.'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: clearSeededData }, 'Clear and start my own'),
+  ]));
+  return b;
+}
+const appendSampleBanner = (wrap) => { const b = sampleBanner(); if (b) wrap.append(b); };
+
 /* Compact money formatter for absolute position sizes (not the billions-scaled
    statement series). */
 function fmtAmount(v, ccy) {
@@ -10036,6 +10117,7 @@ VIEWS.portfolio = () => {
      actually reach were each a dead end, and the two that carried the way out
      were unreachable. Four calls restore six finished surfaces to each other. */
   wrap.append(mySubnav('portfolio'));
+  appendSampleBanner(wrap);
   const pf = activePF();
 
   const hd = el('div', { class: 'page-hd' });
@@ -11000,6 +11082,7 @@ VIEWS.watchlists = () => {
   /* Above the heading, matching the other five. A strip that sits above the
      title on four pages and below it on two reads as a different control. */
   wrap.append(mySubnav('watchlists'));
+  appendSampleBanner(wrap);
   wrap.append(el('div', {}, [
     el('h1', { class: 'h-display' }, 'Watchlists'),
     el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers.'),
@@ -11806,6 +11889,7 @@ VIEWS.tracked = () => {
 VIEWS.alerts = () => {
   const wrap = el('div');
   wrap.append(mySubnav('alerts'));
+  appendSampleBanner(wrap);
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Alerts'),
     el('h1', {}, 'Tell me what changed, and why it matters to my thesis'),
@@ -14848,6 +14932,17 @@ VIEWS.property = () => {
      screens below the verdict it qualifies. It now renders inside the grade
      card, immediately after the reasons the deal cannot be graded. */
 
+  /* The opportunity register had no inbound link anywhere in the product, and
+     the reader who has just modelled a deal is precisely the one who wants to
+     record it. A real anchor, so it can be opened in a new tab. */
+  wrap.append(el('div', { class: 'note', style: 'display:flex;flex-wrap:wrap;gap:10px;align-items:center' }, [
+    el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px;margin:0' },
+      'Modelling one deal answers what it would do. Recording several answers which ones exist and what you actually know about each — the register keeps the source, the availability date, four separate prices and a next action with an owner.'),
+    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/opportunities'),
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/opportunities'); } },
+      'Open the opportunity register'),
+  ]));
+
   const layout = el('div', { class: 'studio-layout' });
 
   /* ---------- inputs ---------- */
@@ -17531,7 +17626,36 @@ function runSearch(q) {
     b.append(el('span', { class: 'num', style: 'font-size:12.5px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
     b.append(el('span', { class: 'num ' + signClass(r.c.px.d1), style: 'font-size:11.5px;min-width:48px;text-align:right' }, withSign(r.c.px.d1, 2)));
     return b;
-  }) : [emptyState('No company matches that search.')]));
+  }) : []));
+
+  /* Pages, not only companies. Search indexed the universe and nothing else, so
+     "wheel" answered "No company matches that search" while the Cash Wheel
+     workspace sat two clicks away with no inbound link — the search box
+     confirmed the feature did not exist. Every route already carries a title,
+     so this is a filter over data that was there all along. */
+  const routeHits = !term ? [] : ROUTES.filter(rt =>
+    !rt.path.includes(':') && (rt.title.toLowerCase().includes(term) || rt.path.toLowerCase().includes(term)))
+    /* Aliases share a title with their canonical route; show each page once. */
+    .filter((rt, i, a) => a.findIndex(x => x.view === rt.view && x.title === rt.title) === i)
+    .slice(0, 6);
+  if (routeHits.length) {
+    searchResults.append(el('p', { class: 'eyebrow', style: 'padding:10px 10px 4px' }, 'Pages'));
+    routeHits.forEach(rt => {
+      const a = el('a', { class: 'row', href: href(rt.path),
+        style: 'width:100%;text-decoration:none;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
+        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+          e.preventDefault(); closeSearch(); navigate(rt.path); } });
+      a.addEventListener('pointerenter', () => a.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
+      a.addEventListener('pointerleave', () => a.style.background = 'none');
+      a.append(el('div', { style: 'min-width:0;flex:1' }, [
+        el('div', { style: 'font-size:13px;font-weight:620' }, rt.title),
+        el('div', { class: 'metaline' }, rt.path),
+      ]));
+      searchResults.append(a);
+    });
+  }
+  if (!hits.length && !routeHits.length)
+    searchResults.append(emptyState('Nothing matches that search — no company, and no page.'));
 }
 searchInput.addEventListener('input', e => runSearch(e.target.value));
 $('#openSearch').addEventListener('click', openSearch);
