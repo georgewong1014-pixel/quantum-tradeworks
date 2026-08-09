@@ -7191,20 +7191,64 @@ function coverageTier(r) {
     why:'Identity and partial figures only. Not enough to assess a strategy.' };
 }
 
-/* One fit. Returns a grade or, far more often here, U with the reason. */
+/* WHY ONE LETTER WAS NOT ENOUGH
+   ---------------------------------------------------------------------------
+   748 of the 1,104 fit grades in this universe read U, and U was carrying at
+   least four different statements at once: this does not apply to the business,
+   the evidence is missing, the feature does not exist in this prototype, and
+   the figures are illustrative. On a single company "Cyclical U", "Catalyst U"
+   and "Trend U" sat side by side and were indistinguishable — one meant the
+   business is not cyclical, one meant no catalyst registry has been built, one
+   meant no price licence exists.
+
+   Two of those are statements about the COMPANY and two are statements about
+   the PRODUCT, which is the distinction a reader most needs and the one a
+   single letter destroys. Two-thirds of everything this lens outputs was a
+   letter with no legend.
+
+   There is deliberately no "Demo only" GRADE. A grade is never computed on
+   illustrative figures, so a grade-shaped token would imply one had been. The
+   illustrative case is a state instead, and it says the figures are synthetic
+   rather than implying a result was reached from them. */
+const FIT_STATES = {
+  graded:         { token:null,     label:'Graded',         why:'Evidence was sufficient to grade against the criteria.' },
+  missing:        { token:'U',      label:'Unassessed',     why:'The strategy applies here, but evidence it needs is missing.' },
+  not_applicable: { token:'n/a',    label:'Not applicable', why:'The strategy does not apply to this instrument or business. More data would not change it.' },
+  not_built:      { token:'—',      label:'Not built',      why:'This prototype does not hold what the test would need, for every company.' },
+  illustrative:   { token:'illus.', label:'Illustrative',   why:'This company’s figures are synthetic, so no grade may be produced from them at all.' },
+};
+
+/* One fit. Returns a grade, or far more often a state saying why there is none. */
 function fitGrade(r, key, tier) {
   const { c, m } = r;
   const out = { key, label: STRATEGY_FITS.find(f => f.k === key).label,
-                grade:'U', score:null, supports:[], weakens:[], missing:[], cap:null };
+                grade:'U', state:'missing', score:null, supports:[], weakens:[], missing:[], cap:null };
 
-  if (tier.id === 'unassessed') { out.missing.push('Filed financial statements. The figures held are illustrative.'); return out; }
+  /* APPLICABILITY BEFORE DATA QUALITY.
+     The coverage-tier gate used to run first, so a Bursa company's Cash Wheel
+     reported "Filed financial statements. The figures held are illustrative."
+     — telling the reader that audited filings would unlock it. They would not.
+     This build covers no Bursa options at all, and no amount of data changes
+     a market that is not in the product. */
+  if (key === 'wheel' && c.mkt !== 'US') {
+    out.state = 'not_applicable';
+    out.cap = 'The Cash Wheel covers US-listed stocks and ETFs. Bursa options are not in this build, so this is not a question data could answer.';
+    return out;
+  }
+
+  if (tier.id === 'unassessed') {
+    out.state = 'illustrative';
+    out.missing.push('Filed financial statements. The figures held for this company are illustrative.');
+    return out;
+  }
 
   const priced = isNum(c.px?.p);
   /* Trend needs an observed, adjusted price series. There is none in this
      build, and specification 39.6 forbids substituting a reconstruction. */
   if (key === 'trend') {
+    out.state = 'not_built';
     out.missing.push('An observed, corporate-action-adjusted price history under a licence that permits its use.');
-    out.cap = 'U until licensed price history exists. A reconstructed series may not be substituted.';
+    out.cap = 'No licensed price history exists in this build, for any company. A reconstructed series may not be substituted.';
     return out;
   }
 
@@ -7234,7 +7278,11 @@ function fitGrade(r, key, tier) {
   }
 
   else if (key === 'cyclical') {
-    if (c.type !== 'cyclical') { out.missing.push('This is not classified as a cyclical business, so a cycle case would need a named cycle variable and evidence this build does not hold.'); return out; }
+    if (c.type !== 'cyclical') {
+      out.state = 'not_applicable';
+      out.cap = `Classified as ${BUSINESS_ARCHETYPES[c.type] ? BUSINESS_ARCHETYPES[c.type].toLowerCase() : 'a non-cyclical business'}, so there is no cycle to test. This is a statement about the business, not about the data held on it.`;
+      return out;
+    }
     if (!need(isNum(m.revDD), 'Revenue drawdown history to locate the cycle.')) return out;
     out.supports.push(`Largest revenue fall in the window held: ${fmtPct(m.revDD, 0)}.`);
     out.missing.push('A named cycle indicator, mid-cycle normalisation and supply-response evidence.');
@@ -7253,8 +7301,9 @@ function fitGrade(r, key, tier) {
   }
 
   else if (key === 'catalyst') {
-    out.missing.push('A dated, sourced event with dependencies and a failure case. No catalyst registry exists in this build.');
-    out.cap = 'U until catalysts are recorded with evidence.';
+    out.state = 'not_built';
+    out.missing.push('A dated, sourced event with dependencies and a failure case.');
+    out.cap = 'No catalyst registry exists in this build, for any company. This is a missing feature rather than a missing figure.';
     return out;
   }
 
@@ -7262,11 +7311,8 @@ function fitGrade(r, key, tier) {
     /* 41A.3: US-listed underlyings only, and the contract, collateral and quote
        evidence live in the Wheel workspace rather than on a company page. This
        fit reports whether the UNDERLYING could support a Wheel at all. */
-    if (c.mkt !== 'US') {
-      out.missing.push('The Cash Wheel supports US-listed stocks and ETFs. Bursa options are not covered by this build.');
-      out.cap = 'Not applicable outside the US market.';
-      return out;
-    }
+    /* The non-US case is decided at the top of this function, before the
+       coverage tier, so it cannot be reported as a data problem. */
     const q = r.scores?.quality?.score;
     if (!need(isNum(q), 'A business-quality assessment of the underlying.')) return out;
     out.missing.push('A verified contract, its deliverable, an authorised quote and your full collateral. Those are entered in the Wheel workspace, and no chain data exists in this build.');
@@ -7282,8 +7328,13 @@ function fitGrade(r, key, tier) {
     if (!need(isNum(q), 'A business-quality assessment.')) return out;
     if (!need(tier.id !== 'directory', 'Sufficient data coverage to keep a schedule under review.')) return out;
     if (c.type === 'early' || c.type === 'cyclical') {
+      /* This branch returned with an EMPTY missing array, so the card's tooltip
+         fell through to "Not assessable: required evidence is missing." when
+         nothing was missing at all — the evidence was present and the policy
+         refused it. That tooltip was simply false, on 32 companies. */
+      out.state = 'not_applicable';
       out.weakens.push('Early-stage and cyclical businesses are not eligible by default — a schedule can average into a deteriorating position.');
-      out.cap = 'Ineligible by default for this business type.';
+      out.cap = 'Refused by policy for this business type, with the evidence present. Nothing is missing; a schedule is not offered here.';
       return out;
     }
     if (q >= 60) out.supports.push(`Business quality ${q}/100.`); else out.weakens.push(`Business quality ${q}/100.`);
@@ -7292,8 +7343,10 @@ function fitGrade(r, key, tier) {
   }
 
   if (isNum(out.score) && !out.missing.length) {
+    out.state = 'graded';
     out.grade = out.score >= 80 ? 'A' : out.score >= 65 ? 'B' : out.score >= 50 ? 'C' : 'D';
   } else if (isNum(out.score)) {
+    out.state = 'graded';
     /* Evidence exists but is incomplete: graded no higher than B, per the
        specification's rule that a missing requirement caps rather than passes. */
     out.grade = out.score >= 65 ? 'B' : out.score >= 50 ? 'C' : 'D';
@@ -7312,7 +7365,7 @@ function strategyLens(r) {
   /* The primary role follows the best-supported fit, and is withheld entirely
      when nothing could be assessed — an unassessable company has no return
      role this product is entitled to name. */
-  const graded = fits.filter(f => f.grade !== 'U' && isNum(f.score)).sort((a, b) => b.score - a.score);
+  const graded = fits.filter(f => f.state === 'graded' && isNum(f.score)).sort((a, b) => b.score - a.score);
   /* DCA is deliberately absent from this map: it is an entry METHOD, not a
      reason to own the business, and 37.1 is explicit that treating it as one is
      the confusion this whole section exists to undo. The role search therefore
@@ -7323,9 +7376,13 @@ function strategyLens(r) {
   const roleFits = graded.filter(f => roleOf[f.key]);
   const primary = roleFits[0] ? RETURN_ROLES[roleOf[roleFits[0].key]] : null;
   const secondary = roleFits[1] ? RETURN_ROLES[roleOf[roleFits[1].key]] : null;
-  const notSuited = fits.filter(f => f.grade === 'U').map(f => f.label);
+  /* notSuited was computed here and never rendered — dead since it was written,
+     and actively misleading if it ever had been: a fit this product cannot test
+     is not one the company is unsuited to. Counting by state replaces it. */
+  const byState = {};
+  fits.forEach(f => { byState[f.state] = (byState[f.state] || 0) + 1; });
 
-  return { tier, instrument, archetype, fits, primary, secondary, notSuited,
+  return { tier, instrument, archetype, fits, primary, secondary, byState,
            assessable: graded.length > 0 };
 }
 
@@ -7584,7 +7641,13 @@ VIEWS.research = () => {
       c.px?.eod && c.pricePersonal
         ? `Read from your own screen${c.px.asOf ? ', as of ' + c.px.asOf : ''}, and confirmed by you before import. Character recognition misreads digits, so treat this as your working note rather than a source of record — and it carries no right to redistribute.`
       : c.px?.eod
-        ? `End-of-day close from the price file you supplied${c.px.asOf ? ', as of ' + c.px.asOf : ''}. Delayed closes are sufficient for valuation, screening and portfolio work — nothing here needs real-time data.`
+        /* "the price file you supplied" attributed data/prices.json to the
+           reader, who supplied nothing — /my/data reads "Nothing yet" on the
+           same profile. That file is git-ignored and 404s in production, so no
+           deployed reader sees this branch at all; it fires only where someone
+           has put a price file in the data directory, and it should name the
+           file and its stated licence rather than credit whoever is looking. */
+        ? `End-of-day close from data/prices.json in this deployment${c.px.asOf ? ', as of ' + c.px.asOf : ''} — licence: ${c.priceLicence || 'not stated'}. This is not a licensed market feed and not a file you supplied. Delayed closes are sufficient for valuation, screening and portfolio work; what is missing here is the licence, not the latency.`
         : isNum(c.px?.p)
         ? 'This price was typed in by you. It is not market data, and every price-derived figure below inherits that.'
         : `${c.personal
@@ -7629,18 +7692,46 @@ VIEWS.research = () => {
   /* The fit grades, side by side. Most will read U, and that is the point. */
   const fitRow = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:var(--md)' });
   lens.fits.forEach(f => {
-    const tone = { A:'chip chip-ok', B:'chip chip-ok', C:'chip chip-bronze', D:'chip chip-bronze', U:'chip' }[f.grade];
-    fitRow.append(el('span', { class: tone, title: f.grade === 'U'
-      ? `Not assessable: ${f.missing[0] || 'required evidence is missing.'}`
-      : `${f.score}/100${f.cap ? ' — ' + f.cap : ''}` }, `${f.label} ${f.grade}`));
+    const st = FIT_STATES[f.state] || FIT_STATES.missing;
+    const token = f.state === 'graded' ? f.grade : st.token;
+    const tone = f.state === 'graded'
+      ? ({ A:'chip chip-ok', B:'chip chip-ok', C:'chip chip-bronze', D:'chip chip-bronze' }[f.grade] || 'chip')
+      : 'chip';
+    /* cap before missing[0] before the generic string. The generic one used to
+       fire whenever `missing` was empty, which is exactly the case where
+       nothing IS missing — the policy refused a fit whose evidence was present,
+       and the tooltip then said the evidence was absent. */
+    fitRow.append(el('span', { class: tone, title: f.state === 'graded'
+      ? `${f.score}/100${f.cap ? ' — ' + f.cap : ''}`
+      : `${st.label}. ${f.cap || f.missing[0] || st.why}` }, `${f.label} ${token}`));
   });
   lensCard.append(fitRow);
 
-  const uCount = lens.fits.filter(f => f.grade === 'U').length;
+  /* Counted per state, because "not assessable from the data held" was false
+     for more than half of them. A strategy that does not apply to this business
+     and one whose registry has never been built are not short of data. */
+  const bs = lens.byState || {};
+  const n = lens.fits.length;
+  const phrases = [];
+  if (bs.graded) phrases.push(`${bs.graded} graded`);
+  if (bs.missing) phrases.push(`${bs.missing} awaiting evidence this product could hold but does not`);
+  if (bs.not_applicable) phrases.push(`${bs.not_applicable} that ${bs.not_applicable === 1 ? 'does' : 'do'} not apply to this business at all`);
+  if (bs.not_built) phrases.push(`${bs.not_built} that no company here can be graded on, because the feature is not built`);
+  if (bs.illustrative) phrases.push(`${bs.illustrative} withheld because this company’s figures are synthetic`);
   lensCard.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    uCount === lens.fits.length
-      ? `Every strategy reads U for this company. ${lens.tier.why} A grade computed from figures this product cannot stand behind would look like research and would not be any.`
-      : `${uCount} of ${lens.fits.length} strategies are not assessable from the data held. A fit is graded only where the evidence it needs actually exists.`));
+    bs.illustrative === n
+      ? `No strategy is graded for this company. ${lens.tier.why} A grade computed from figures this product cannot stand behind would look like research and would not be any.`
+      : `Of ${n} strategies: ${phrases.join(', ')}.`));
+
+  /* The legend, because two-thirds of what this card emits is a token and a
+     token without a key is decoration. */
+  const key = el('div', { class: 'row row-wrap', style: 'gap:10px;margin-top:8px' });
+  ['missing', 'not_applicable', 'not_built', 'illustrative'].forEach(k => {
+    if (!bs[k]) return;
+    key.append(el('span', { class: 'metaline' },
+      `${FIT_STATES[k].token} — ${FIT_STATES[k].label.toLowerCase()}: ${FIT_STATES[k].why}`));
+  });
+  if (key.children.length) lensCard.append(key);
 
   /* Each fit opens to what supports it, what weakens it, and what is missing. */
   const det = el('details', { style: 'margin-top:10px' });
@@ -7651,7 +7742,7 @@ VIEWS.research = () => {
   const fb = el('tbody');
   lens.fits.forEach(f => fb.append(el('tr', {}, [
     el('td', { style: 'text-align:left' }, f.label),
-    el('td', {}, f.grade),
+    el('td', {}, f.state === 'graded' ? f.grade : (FIT_STATES[f.state] || FIT_STATES.missing).token),
     el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
       f.supports.length ? f.supports.join(' ') : '—'),
     el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
