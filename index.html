@@ -354,6 +354,28 @@ a { color: inherit; }
 body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size: 11.5px; }
 body[data-surface="public"] .disclosure-in .chip { display: none; }
 body[data-surface="public"] .disclosure-long { display: none; }
+
+/* THE WARNING WAS EATING HALF THE PHONE.
+   ---------------------------------------------------------------------------
+   At 390px the banner ran to six lines and took ~390 of 844px before the page
+   had said anything. Every workspace then opened below the fold, so the answer
+   a reader came for was never the first thing they saw.
+
+   The material sentence — beta preview, do not use these figures for investment
+   decisions — is never hidden, at any width. What collapses is the source
+   breakdown, behind a control that says what it holds. A warning nobody reaches
+   is not a warning, and neither is one that pushes the page off the screen.
+
+   The button hides itself where the long text already shows, so there is never
+   a control that expands something already visible. */
+#disclosureMore { display: none; font-size: 12px; }
+@media (max-width: 760px) {
+  body:not([data-surface="public"]) .disclosure-long { display: none; }
+  body:not([data-surface="public"]) #disclosureMore { display: inline; }
+  body[data-disclosure="open"] .disclosure-long { display: inline; }
+  body[data-surface="public"] #disclosureMore { display: none; }
+  .disclosure-in .chip { font-size: 11px; }
+}
 .disclosure a { color: var(--ink); text-underline-offset: 3px; }
 
 /* ------------------------------------------------------------------ chips */
@@ -767,6 +789,38 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 .page-hd h1 { font-size: 24px; font-weight: 650; letter-spacing: -.02em; }
 .page-hd > div:first-child { flex: 1 1 560px; min-width: 0; }
 
+/* PROGRESSIVE DISCLOSURE ON THE PHONE.
+   ---------------------------------------------------------------------------
+   Each workspace opened with an eyebrow, a 24px heading and a four-to-six-line
+   standfirst explaining what the tool is — roughly 330px before a single figure.
+   Added to the warning banner above it, the first screen of a 390x844 phone was
+   entirely preamble, and the number the reader came for sat below the fold on
+   every one of the three workspaces.
+
+   On a narrow screen the standfirst clamps to two lines. It is not removed:
+   line-clamp keeps the whole sentence in the accessibility tree and in the page
+   for anyone who selects or searches it, and it returns in full above 760px
+   where there is room for it. Nothing that a reader must not miss lives here —
+   the refusals, gates and provenance notes are on the cards themselves. */
+/* The three figures that decide whether a reader can do the deal at all, across
+   the top of the grade card. Three columns on a phone, because two of them
+   wrapping under the third would put the holding cost back below the fold. */
+.capstrip {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--md);
+  padding-bottom: var(--md); border-bottom: 1px solid var(--line);
+}
+@media (max-width: 420px) { .capstrip { gap: var(--sm); } .capstrip .num { font-size: 16px !important; } }
+
+@media (max-width: 760px) {
+  .page-hd { margin-bottom: var(--md); }
+  .page-hd h1 { font-size: 21px; }
+  .page-hd .body-lg {
+    font-size: 13.5px; margin-top: 6px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
 /* ---------------------------------------------------------------- drawer */
 .scrim {
   position: fixed; inset: 0; z-index: 60; background: rgba(10, 14, 12, .5);
@@ -988,6 +1042,7 @@ details > summary::marker { content: ''; }
   <div class="disclosure-in">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
     <span id="disclosureText"><strong>Beta preview.</strong> Do not use figures here for investment decisions.<span class="disclosure-long"> Some companies carry illustrative figures that are synthetic and do not represent real financials.</span></span>
+    <button type="button" id="disclosureMore" class="linklike" aria-expanded="false">Which sources?</button>
     <span class="chip chip-brand" title="Research mode: factual and analytical outputs only">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
       Research mode
@@ -15148,11 +15203,19 @@ VIEWS.property = () => {
       'Most property tools show you what things sold for. This models what owning it would actually do to your cash: true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.'),
   ])));
 
+  /* The regulated claim leads and is never hidden at any width: in Malaysia an
+     official valuation requires a registered valuer, and this is not one. The
+     qualifying detail follows in a span that collapses on a phone — the part a
+     reader must not miss is the first sentence, and burying that to win fold
+     space would be trading the wrong thing for it. */
   const disc = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
   disc.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
     el('span', { class: 'chip chip-bronze' }, 'Not a valuation'),
-    el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px' },
-      'This is a property investment estimate built from your inputs and sample transaction data. It is not an official property valuation, which in Malaysia must be carried out by a registered valuer. Figures are scenarios, not predictions.'),
+    el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px' }, [
+      'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.',
+      el('span', { class: 'disclosure-long' },
+        ' This is an investment estimate built from your inputs and sample transaction data. Figures are scenarios, not predictions.'),
+    ]),
   ]));
   wrap.append(disc);
 
@@ -15166,7 +15229,24 @@ VIEWS.property = () => {
   const g = propertyGrade(d, m);
   const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[g.grade];
   const onePage = el('div', { class: 'card', style: `border-left:3px solid var(${gradeTone})` });
-  onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline' }, [
+
+  /* THE MONEY, FIRST.
+     The card opened on a letter grade and a score, and the three figures that
+     decide whether somebody can do this at all — what leaves the account, what
+     is needed to be safe, what it costs to hold each month — sat below the
+     fold on a phone behind the grade, the verdict and the gates.
+     A grade answers "is this a good deal". These answer "can I". */
+  const strip = el('div', { class: 'capstrip' });
+  [['Cash to complete', fmtAmount(m.transactionCash, 'MYR')],
+   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR')],
+   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—']]
+    .forEach(([k, v], i) => strip.append(el('div', {}, [
+      el('span', { class: 'eyebrow', style: 'display:block;margin-bottom:2px' }, k),
+      el('span', { class: 'num', style: `font-size:19px;font-weight:680${i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? ';color:var(--dn-text)' : ''}` }, v),
+    ])));
+  onePage.append(strip);
+
+  onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline;margin-top:var(--md)' }, [
     el('div', {}, [
       el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
@@ -18417,6 +18497,14 @@ if (realEnabled()) {
    and forgotten in the other. This synchronous write is what put "36" on screen
    between DOMContentLoaded and the filings landing. */
 refreshSearchLabel();
+
+$('#disclosureMore')?.addEventListener('click', (e) => {
+  const open = document.body.dataset.disclosure === 'open';
+  if (open) delete document.body.dataset.disclosure;
+  else document.body.dataset.disclosure = 'open';
+  e.currentTarget.setAttribute('aria-expanded', String(!open));
+  e.currentTarget.textContent = open ? 'Which sources?' : 'Hide sources';
+});
 /* No render() here: the router paints, and painting twice showed the previous
    view for a frame before the routed one replaced it. */
 /* Links of the old shape (#research/AAPL/valuation) are already in the wild —
