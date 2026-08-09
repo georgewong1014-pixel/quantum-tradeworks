@@ -5053,9 +5053,60 @@ function buildNav() {
 }
 
 let stickyObserver = null;
+/* THE FIRST PAINT WAS A DIFFERENT PRODUCT
+   ---------------------------------------------------------------------------
+   Filings load asynchronously, and the first paint used to happen on the sample
+   set — deliberately, and wrongly. For about a second on a cold load, production
+   served Microsoft at a SYNTHETIC $452.10, under "Beta preview." rather than
+   "mixed sources", with every strategy reading illus., over "Search 36
+   companies". Then it became the SEC-filed report with no price at all.
+
+   On a product whose central claim is that no filed company carries a price,
+   showing a fabricated one for a second is not a loading artefact. A slow phone,
+   a screenshot, a crawler, a print, an interrupted load — any of those captures
+   the version that is not true, and it is the more reassuring of the two.
+
+   So the universe-dependent views do not paint from the sample set while real
+   data is in flight. They paint a skeleton that states what is happening. Views
+   that need no company data are unaffected, because making somebody wait for
+   SEC filings to read the privacy policy would be its own defect.
+
+   If the fetch FAILS the sample set is painted, because a sample honestly
+   labelled is better than an empty page — realStatus carries the failure and
+   the disclosure says so. */
+let realPending = false;
+/* The landing page is deliberately absent. Its demo card defaults to a Malaysian
+   company, which no SEC filing supersedes, so its figures do not change — the
+   only difference the load makes there is that an Apple tab appears. Making a
+   first-time visitor watch a skeleton on the front door to avoid a tab
+   appearing would be a worse trade than the one it fixes. */
+const UNIVERSE_VIEWS = new Set([
+  'home', 'discover', 'research', 'researchHome', 'compare', 'portfolio',
+  'watchlists', 'thesis', 'alerts', 'tracked', 'sarawak', 'plans',
+]);
+
+function bootSkeleton() {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  const card = el('div', { class: 'card' });
+  card.append(el('p', { class: 'eyebrow' }, 'Loading filings'));
+  card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, 'Reading the audited statements'));
+  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;max-width:60ch' },
+    'Annual statements for the US companies are being fetched from SEC EDGAR. This page waits for them '
+    + 'rather than showing the illustrative sample first — a sample company and a filed one can share a '
+    + 'ticker, and the sample carries a price the filed company does not have.'));
+  const bars = el('div', { style: 'display:flex;flex-direction:column;gap:10px;margin-top:var(--lg)' });
+  [72, 100, 88, 60].forEach(w => bars.append(el('div', {
+    style: `height:12px;width:${w}%;border-radius:6px;background:var(--surface-sunk)` })));
+  card.append(bars);
+  wrap.append(card);
+  return wrap;
+}
+
 function render() {
   buildNav();
-  const node = VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found');
+  const node = (realPending && UNIVERSE_VIEWS.has(State.view))
+    ? bootSkeleton()
+    : (VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found'));
   const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
   /* The title is set by setDocumentMeta, which knows the route and the company
@@ -17772,8 +17823,12 @@ $('#themeIcon').innerHTML = currentTheme() === 'dark' ? SUN : MOON;
 
 /* ------------------------------------------------------------------- boot */
 const refreshSearchLabel = () => {
-  $('#searchLabel').textContent = `Search ${U.length} companies…`;
-  $('#openSearch').setAttribute('aria-label', `Search ${U.length} companies`);
+  /* No number while the filings are in flight. Writing "36" and correcting it to
+     "138" a second later states a figure the product is about to contradict,
+     and the static markup already says "Search companies…" — which is true in
+     both states. */
+  $('#searchLabel').textContent = realPending ? 'Search companies…' : `Search ${U.length} companies…`;
+  $('#openSearch').setAttribute('aria-label', realPending ? 'Search companies' : `Search ${U.length} companies`);
 };
 
 /* The banner used to say every figure on the site was synthetic. That was true
@@ -17796,13 +17851,15 @@ const refreshDisclosure = () => {
     `. ${sample} ${sample === 1 ? 'carries' : 'carry'} illustrative figures that are synthetic. Every company page states which it is.</span>`;
 };
 
-/* Real data loads asynchronously and changes the size of the universe, so the
-   first paint happens on the sample set and the view re-renders once the
-   filings land. */
+/* Real data loads asynchronously and changes the size of the universe. The
+   universe-dependent views therefore wait rather than painting the sample set
+   and correcting themselves a second later — see the note above render(). */
+realPending = realEnabled();
 if (realEnabled()) {
   loadRealData()
     .then(res => {
       realStatus = { ok: true, ...res };
+      realPending = false;
       refreshSearchLabel();
       refreshDisclosure();
       /* A deep link can name a company that did not exist at first paint, so
@@ -17813,13 +17870,20 @@ if (realEnabled()) {
     })
     .catch(err => {
       realStatus = { ok: false, error: err.message };
+      /* The fetch failed, so the sample set is now the only thing there is.
+         Painting it, honestly labelled, beats a skeleton that waits forever —
+         and realStatus carries the failure so the page can say what happened. */
+      realPending = false;
+      refreshSearchLabel();
       render();
       console.warn('real data failed to load:', err.message);
     });
 }
 
-$('#searchLabel').textContent = `Search ${U.length} companies…`;
-$('#openSearch').setAttribute('aria-label', `Search ${U.length} companies`);
+/* Through the same function, so the pending case cannot be handled in one place
+   and forgotten in the other. This synchronous write is what put "36" on screen
+   between DOMContentLoaded and the filings landing. */
+refreshSearchLabel();
 /* No render() here: the router paints, and painting twice showed the previous
    view for a frame before the routed one replaced it. */
 /* Links of the old shape (#research/AAPL/valuation) are already in the wild —
