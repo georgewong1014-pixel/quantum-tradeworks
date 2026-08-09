@@ -7291,6 +7291,9 @@ State.wheel = store.read('wheelPlan', null) || {
   willingToOwnFull:false, willingToSellAtStrike:false, optionsApprovalAttested:false,
   eventWindowClear:false, quoteTimestamp:'',
   economicShareBasisOverride:null, shareCostBasisOverride:null,
+  /* Which company page sent the reader here, if any. Recorded so a saved plan
+     can name the research it came from rather than floating free of it. */
+  sourceCompanyId:null, sourceTicker:'', sourceLinkedAt:'',
 };
 const saveWheel = () => store.write('wheelPlan', State.wheel);
 
@@ -7833,12 +7836,15 @@ VIEWS.research = () => {
      qualifies and left to guess where. Real anchors, and only for the strategies
      that actually apply to this instrument, so a Bursa company is not offered a
      workspace that does not cover it. */
+  /* The company travels with the link. `from` carries the id and resolves; the
+     ticker is readable decoration the workspace re-derives and never trusts. */
+  const ctx = `?from=${encodeURIComponent(c.id)}&symbol=${encodeURIComponent(c.tk || c.code || c.id)}`;
   const wsLinks = [];
   const wheelFitRow = lens.fits.find(f => f.key === 'wheel');
   if (wheelFitRow && wheelFitRow.state === 'graded')
-    wsLinks.push(['/us-options/wheel', `Open the Cash Wheel workspace`,
+    wsLinks.push([`/us-options/wheel${ctx}`, `Open the Cash Wheel workspace`,
       'Collateral, assignment and the covered-call cycle, from figures you enter.']);
-  wsLinks.push(['/research/trading-index', 'Record timing evidence',
+  wsLinks.push([`/research/trading-index${ctx}`, 'Record timing evidence',
     'Multi-timeframe trend and your own first-tranche rules. It carries no weight in any score above.']);
   const wsRow = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
   wsLinks.forEach(([path, label, note]) => {
@@ -12736,6 +12742,94 @@ function readPropertyUrl(d) {
   return changed;
 }
 
+/* CARRYING A COMPANY INTO A WORKSPACE
+   ---------------------------------------------------------------------------
+   The Strategy Lens grades a company and then linked to two blank workspaces,
+   so the reader retyped the symbol and the plan they saved had no idea which
+   research produced it.
+
+   `from` carries the company id and is the only parameter that resolves
+   anything — through companyFromSlug, which already understands -SEC ids, bare
+   tickers and Bursa codes. `symbol` is readable decoration re-derived from the
+   resolved record and never trusted, exactly as companyPath treats its readable
+   tail. A `symbol` with no `from` prefills nothing: a plan that cannot name its
+   company is not a plan, and refusing is better than half-filling one.
+
+   NOTHING IS APPLIED WITHOUT A CLICK. The banner offers; the reader accepts. A
+   workspace that silently rewrote itself from a URL would be indistinguishable
+   from one the reader had filled in, which is the whole problem with prefill. */
+function readWorkspaceUrl() {
+  const q = new URLSearchParams(location.search);
+  const from = q.get('from');
+  if (!from) return null;
+  const id = companyFromSlug(from);
+  const row = id ? BY_ID.get(id) : null;
+  if (!row) return { row: null, asked: from };
+  return { row, asked: from, ticker: row.c.tk || row.c.code || row.c.id };
+}
+
+/* Offered, not applied. Returns null when there is nothing to offer. */
+function workspaceLinkBanner(kind, plan, save) {
+  const link = readWorkspaceUrl();
+  if (!link) return null;
+
+  const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
+  if (!link.row) {
+    card.append(cardHead('That link names a company this build does not hold',
+      `The link asked for “${link.asked}”, which is not in the universe. Nothing has been filled in — a plan that cannot name its company is not one worth saving.`));
+    return card;
+  }
+
+  const c = link.row.c;
+  const already = plan.sourceCompanyId === c.id;
+  card.append(cardHead(already ? `Linked to ${c.name}` : `Start from ${c.name}?`,
+    already
+      ? `This plan records that it came from the ${c.tk || c.code} research page. Nothing below was filled in from it beyond the identity.`
+      : `You arrived from the ${c.tk || c.code} research page. Only the identity would be filled in — every figure, attestation and risk input stays yours to enter.`));
+
+  const kv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
+  const rows = kind === 'wheel'
+    ? [['Symbol', c.tk || c.code], ['Market', c.mkt], ['Research source', c.real ? 'SEC-filed statements' : 'Illustrative sample figures']]
+    : [['Symbol', c.tk || c.code],
+       ['Venue', /^SEC\b/i.test(c.exch || '') ? 'not known — read it off your chart' : (c.exch || '—')],
+       ['Quote currency', c.ccy || '—'],
+       ['Research source', c.real ? 'SEC-filed statements' : 'Illustrative sample figures']];
+  rows.forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
+  card.append(kv);
+
+  if (!already) {
+    card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+      el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+        plan.symbol = c.tk || c.code || '';
+        plan.sourceCompanyId = c.id;
+        plan.sourceTicker = c.tk || c.code || '';
+        plan.sourceLinkedAt = new Date().toISOString();
+        if (kind === 'qtti') {
+          plan.instrumentType = 'ordinary_share';
+          /* c.exch reads "SEC filer" on a filed company — that is where the
+             STATEMENTS came from, not where the share trades. Filling it in as
+             a venue would put a data source in a field that means exchange, on
+             the one card whose job is to say what the chart shows. Left blank
+             for the reader, who can see it on their own chart. */
+          plan.venue = /^SEC\b/i.test(c.exch || '') ? '' : (c.exch || '');
+          plan.quoteCurrency = c.ccy || '';
+        }
+        /* Deliberately absent: any strike, any collateral figure, any price.
+           A strike seeded from a last close would make the collateral gate —
+           required cash, coverage, the MYR buffer, the whole refusal — compute
+           from a number the reader never entered and might never have agreed. */
+        save(); toast(`Identity filled from ${c.tk || c.code}`);
+      } }, 'Fill in the identity'),
+      el('a', { class: 'btn btn-ghost btn-sm', href: href(companyPath(c)),
+        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+          e.preventDefault(); navigate(companyPath(c)); } }, `Back to ${c.tk || c.code}`),
+    ]));
+  }
+  card.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
+    'No price, strike, collateral or attestation is carried across. Those decide whether this workspace refuses you, and a figure you did not enter must never be one of them.'));
+  return card;
+}
+
 /* ------------------------------------------------------- Sarawak checklist */
 /* Questions, not verdicts. Each names who can actually answer it, because the
    honest output of a calculator on a legal or physical question is "ask this
@@ -16245,6 +16339,9 @@ VIEWS.wheel = () => {
       'A fully collateralised cash-secured put and covered call cycle, modelled from figures you enter. Research and arithmetic — no chain data, no recommended contract, no execution.'),
   ])));
 
+  const wLink = workspaceLinkBanner('wheel', p, () => { saveWheel(); render(); });
+  if (wLink) wrap.append(wLink);
+
   /* Fit and phase, then the two numbers 41A.15 requires above any yield. */
   const tone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[fit.grade];
   const head = el('div', { class: 'card', style: `border-left:3px solid var(${tone})` });
@@ -16846,6 +16943,12 @@ function qttiBlankPanel() {
 function qttiDefaultPlan() {
   return {
     symbol:'', instrumentType:'etf', venue:'', quoteCurrency:'USD', priceBasis:'unknown',
+    /* Declared HERE, not bolted on at prefill time. qttiWorkedExample() builds
+       from qttiDefaultPlan(), so a source field missing from the default would
+       let the §14 fixture keep a stale company id — a BTC/USDC perpetual plan
+       claiming a company that has nothing to do with it. That is the exact bug
+       the note on the fixture already describes. */
+    sourceCompanyId:null, sourceTicker:'', sourceLinkedAt:'',
     timezone:'', capturedAt:'', adjustedState:'unknown', screenshotName:'', screenshotHash:'',
     identityConsistent:false, panelsCropped:false, unknownIndicators:'', corrections:[],
     equityThesisStatus:'unknown',
@@ -17132,6 +17235,9 @@ VIEWS.tradingIndex = () => {
       'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record. '
       + 'It carries no weight in the research composite and does not replace the Strategy Lens — fundamentals first, technicals second.'),
   ])));
+
+  const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); });
+  if (qLink) wrap.append(qLink);
 
   /* ---------- the three numbers, §4 hierarchy ---------- */
   const card = el('div', { class: 'card' });
