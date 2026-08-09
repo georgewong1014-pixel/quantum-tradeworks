@@ -1,0 +1,84 @@
+{
+  "_readme": [
+    "Copy this to qtti/observations.json and edit. That path is git-ignored, so your own",
+    "reading of the charts never leaves the machine.",
+    "",
+    "One object per asset. Every field is OPTIONAL except symbol — anything omitted keeps",
+    "the blank plan's value, and for the six evidence groups that means 'unknown', which",
+    "contributes a neutral 50 and REDUCES COVERAGE rather than being quietly dropped.",
+    "That is deliberate: a half-read chart must not look decisive.",
+    "",
+    "Each evidence group takes either a state name or a number 0-100:",
+    "  strong_bearish (0) | bearish (25) | neutral (50) | bullish (75) | strong_bullish (100)",
+    "  unknown  -> not scored, reduces coverage",
+    "A number is an analyst refinement within the same scale; the page labels it as one.",
+    "",
+    "The six groups, and what each asks:",
+    "  priceStructure   higher highs and higher lows, lower highs and lower lows, range, break?",
+    "  trendReferences  where is price against the major averages or cloud, and are they rising?",
+    "  momentum         positive or negative, improving or deteriorating, any divergence?",
+    "  volume           does participation confirm the move, or warn of weak conviction?",
+    "  relativeStrength outperforming its declared benchmark? unknown if no benchmark is shown",
+    "  confirmation     how many independent evidence groups actually agree?",
+    "",
+    "confidence scores 0-100 describe how much of the result the IMAGE can support —",
+    "extraction reliability, not market predictability. Below 65 the run is refused outright.",
+    "",
+    "templates: trend_continuation | pullback_in_uptrend | early_reversal_scout | short_trend",
+    "instrumentType: ordinary_share | etf | spot_asset | option | future | perpetual",
+    "  ordinary_share clears its Strategy Lens tier via equityThesisStatus;",
+    "  everything else clears assetThesis (mandate, issuer, liquidity, custody).",
+    "",
+    "Run:  node qtti/batch.mjs"
+  ],
+
+  "assets": [
+    {
+      "_comment": "Specification §14 verbatim. Returns 38 / 35 / 77, blocked. Keep it as row one and you can see at a glance whether the engine still agrees with the spec.",
+      "symbol": "BTC / USDC Perpetual Contract",
+      "instrumentType": "perpetual",
+      "venue": "Coinbase",
+      "quoteCurrency": "USDC",
+      "priceBasis": "mark",
+      "capturedAt": "2026-08-09T08:37",
+      "screenshot": "9a871693-82dc-4f69-a67e-8a81e780832b.png",
+      "identityConsistent": true,
+      "unknownIndicators": "Several proprietary shapes and coloured markers are unnamed and are not scored.",
+      "template": "trend_continuation",
+      "entryLocation": "bearish",
+      "daily":   { "priceStructure": 65, "trendReferences": 50, "momentum": 70, "volume": 45, "relativeStrength": null, "confirmation": 55 },
+      "weekly":  { "priceStructure": 30, "trendReferences": 30, "momentum": 45, "volume": 40, "relativeStrength": null, "confirmation": 40 },
+      "monthly": { "priceStructure": 25, "trendReferences": 20, "momentum": 30, "volume": 35, "relativeStrength": null, "confirmation": 25 },
+      "confidence": { "metadata": 95, "panels": 100, "indicators": 50, "legibility": 85, "recency": 55 }
+    },
+
+    {
+      "_comment": "An ETF read with the five-state picker rather than analyst numbers. Trend is aligned but the tranche still blocks until the risk plan and the asset thesis are complete — which is the module working, not failing.",
+      "symbol": "VOO",
+      "instrumentType": "etf",
+      "venue": "NYSE Arca",
+      "quoteCurrency": "USD",
+      "priceBasis": "close",
+      "capturedAt": "2026-08-09T09:00",
+      "identityConsistent": true,
+      "tradingStatusClear": true,
+      "assetThesis": { "mandate": true, "issuer": true, "liquidity": true, "custody": true },
+      "template": "trend_continuation",
+      "entryLocation": "neutral",
+      "triggerComplete": true,
+      "daily":   { "priceStructure": "bullish", "trendReferences": "strong_bullish", "momentum": "bullish", "volume": "neutral", "relativeStrength": "unknown", "confirmation": "bullish" },
+      "weekly":  { "priceStructure": "bullish", "trendReferences": "bullish", "momentum": "bullish", "volume": "neutral", "relativeStrength": "unknown", "confirmation": "bullish" },
+      "monthly": { "priceStructure": "strong_bullish", "trendReferences": "strong_bullish", "momentum": "bullish", "volume": "neutral", "relativeStrength": "unknown", "confirmation": "bullish" },
+      "confidence": { "metadata": 90, "panels": 100, "indicators": 85, "legibility": 90, "recency": 85 },
+      "plan": { "plannedTotal": 20000, "stage1Fraction": 0.25, "plannedEntry": 500, "invalidation": 470, "target": 620, "minRewardToRisk": 3, "fees": 0.5, "fxCost": 0.4, "slippage": 0.3, "costsEntered": true }
+    },
+
+    {
+      "_comment": "A deliberately unreadable capture. Two panels missing and no identity confirmation, so the run is refused rather than scored low — an unreadable chart is not bearish evidence.",
+      "symbol": "EXAMPLE-UNREADABLE",
+      "instrumentType": "spot_asset",
+      "daily": { "priceStructure": "bullish" },
+      "confidence": { "metadata": 40, "panels": 30, "indicators": 20, "legibility": 45, "recency": 20 }
+    }
+  ]
+}

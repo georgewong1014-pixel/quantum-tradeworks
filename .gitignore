@@ -49,3 +49,10 @@ data/sarawak-income.json
 # Malaysian annual statements pulled from an unlicensed endpoint. Personal
 # research only, exactly like the prices above — never redistributable.
 data/personal-fundamentals.json
+
+# QT Trading Index. Your own reading of your own charts, and the chart images
+# behind it — someone else's licensed data rendered as pixels, exactly like
+# watchlist-shots. qtti/observations.example.json is the committed template.
+qtti/observations.json
+qtti/screenshots/
+qtti/out/

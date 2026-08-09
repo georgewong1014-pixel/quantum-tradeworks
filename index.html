@@ -16431,6 +16431,10 @@ VIEWS.wheel = () => {
    recorded. Nothing here claims to have looked at an image, and the page says
    so rather than implying a capability the build does not have.
    ========================================================================== */
+/* @qtti-engine-start — see the matching end marker. qtti/batch.mjs slices the
+   file between these two and evaluates it, so the engine has exactly one
+   definition and the weekly batch cannot drift from the page. Keep this region
+   free of DOM, localStorage and anything else a browser supplies. */
 const QTTI_VERSION = 'qt-trading-index-1.0.0';
 
 /* §19.3 model registry. Every weight, band, floor and threshold lives here and
@@ -16527,40 +16531,29 @@ function qttiBlankPanel() {
   return o;
 }
 
-State.qtti = store.read('qttiPlan', null) || {
-  symbol:'', instrumentType:'etf', venue:'', quoteCurrency:'USD', priceBasis:'unknown',
-  timezone:'', capturedAt:'', adjustedState:'unknown', screenshotName:'', screenshotHash:'',
-  identityConsistent:false, panelsCropped:false, unknownIndicators:'', corrections:[],
-  equityThesisStatus:'unknown',
-  assetThesis:{ mandate:false, issuer:false, liquidity:false, custody:false },
-  tradingStatusClear:false,
-  timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
-  confidence:{ metadata:null, panels:null, indicators:null, legibility:null, recency:null },
-  template:'trend_continuation', reversalOptIn:false, triggerComplete:false,
-  entryLocation:'unknown',
-  plan:{ plannedTotal:0, stage1Fraction:0, plannedEntry:0, invalidation:0, target:0,
-         minRewardToRisk:3, fees:0, fxCost:0, slippage:0, costsEntered:false },
-  perp:{ leverage:0, collateral:0, notional:0, marginMode:'', maintenanceMargin:0,
-         liquidationPrice:0, fundingRate:0, fundingIntervalHours:8, estimatedFunding:0,
-         maxAccountLoss:0, specVersion:'' },
-  extension:{ extendedFromMean:false, momentumExtreme:false, belowResistance:false, volumeDiverges:false },
-};
-const saveQtti = () => store.write('qttiPlan', State.qtti);
-
-/* §17.2 and acceptance test 21.3: a correction is APPENDED, never a silent
-   overwrite. The point is not the audit trail for its own sake — it is that a
-   reader who sees a blocked score and then walks the evidence upward until it
-   unblocks leaves a visible trail of having done so. Overwriting in place is
-   what makes that indistinguishable from having read the chart correctly the
-   first time. */
-function qttiCorrect(field, oldValue, newValue) {
-  if (String(oldValue ?? '') === String(newValue ?? '')) return;
-  State.qtti.corrections = State.qtti.corrections || [];
-  State.qtti.corrections.push({ field, oldValue: oldValue ?? null, newValue: newValue ?? null,
-    correctedAt: new Date().toISOString() });
-  /* Bounded so one long session cannot fill the browser's storage quota and
-     take the rest of the app's saved state down with it. */
-  while (State.qtti.corrections.length > 200) State.qtti.corrections.shift();
+/* A blank plan. A named function rather than an object literal spliced into a
+   State assignment, so the batch runner can build one without a browser and the
+   §14 fixture can start from a known-empty plan instead of from whatever the
+   reader last touched. */
+function qttiDefaultPlan() {
+  return {
+    symbol:'', instrumentType:'etf', venue:'', quoteCurrency:'USD', priceBasis:'unknown',
+    timezone:'', capturedAt:'', adjustedState:'unknown', screenshotName:'', screenshotHash:'',
+    identityConsistent:false, panelsCropped:false, unknownIndicators:'', corrections:[],
+    equityThesisStatus:'unknown',
+    assetThesis:{ mandate:false, issuer:false, liquidity:false, custody:false },
+    tradingStatusClear:false,
+    timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
+    confidence:{ metadata:null, panels:null, indicators:null, legibility:null, recency:null },
+    template:'trend_continuation', reversalOptIn:false, triggerComplete:false,
+    entryLocation:'unknown',
+    plan:{ plannedTotal:0, stage1Fraction:0, plannedEntry:0, invalidation:0, target:0,
+           minRewardToRisk:3, fees:0, fxCost:0, slippage:0, costsEntered:false },
+    perp:{ leverage:0, collateral:0, notional:0, marginMode:'', maintenanceMargin:0,
+           liquidationPrice:0, fundingRate:0, fundingIntervalHours:8, estimatedFunding:0,
+           maxAccountLoss:0, specVersion:'' },
+    extension:{ extendedFromMean:false, momentumExtreme:false, belowResistance:false, volumeDiverges:false },
+  };
 }
 
 /* One timeframe. §6: unknown evidence contributes a neutral 50 AND reduces
@@ -16770,8 +16763,13 @@ function qttiWorkedExample() {
     });
     return o;
   };
+  /* Built from a blank plan, not from State.qtti. Spreading the live plan meant
+     the fixture inherited whatever the reader had already ticked — assetThesis,
+     tradingStatusClear, the perpetual inputs and the extension flags all
+     survived it — so "load the worked example" reproduced §14's three scores
+     but not §14's gate list, which is half of what the example demonstrates. */
   return {
-    ...State.qtti,
+    ...qttiDefaultPlan(),
     symbol:'BTC / USDC Perpetual Contract', instrumentType:'perpetual', venue:'Coinbase',
     quoteCurrency:'USDC', priceBasis:'mark', capturedAt:'2026-08-09T08:37',
     screenshotName:'9a871693-82dc-4f69-a67e-8a81e780832b.png',
@@ -16786,8 +16784,31 @@ function qttiWorkedExample() {
     confidence:{ metadata:95, panels:100, indicators:50, legibility:85, recency:55 },
     entryLocation:'bearish',
     template:'trend_continuation', triggerComplete:false,
-    plan:{ ...State.qtti.plan, plannedTotal:0, stage1Fraction:0, plannedEntry:0, invalidation:0, target:0, costsEntered:false },
+    plan:{ ...qttiDefaultPlan().plan },
   };
+}
+/* @qtti-engine-end — everything above this marker is pure: no DOM, no
+   localStorage, no browser. qtti/batch.mjs extracts exactly this region and
+   runs it in Node, so the weekly batch and the page cannot score differently.
+   Anything below is browser-only and must stay below. */
+
+State.qtti = store.read('qttiPlan', null) || qttiDefaultPlan();
+const saveQtti = () => store.write('qttiPlan', State.qtti);
+
+/* §17.2 and acceptance test 21.3: a correction is APPENDED, never a silent
+   overwrite. The point is not the audit trail for its own sake — it is that a
+   reader who sees a blocked score and then walks the evidence upward until it
+   unblocks leaves a visible trail of having done so. Overwriting in place is
+   what makes that indistinguishable from having read the chart correctly the
+   first time. */
+function qttiCorrect(field, oldValue, newValue) {
+  if (String(oldValue ?? '') === String(newValue ?? '')) return;
+  State.qtti.corrections = State.qtti.corrections || [];
+  State.qtti.corrections.push({ field, oldValue: oldValue ?? null, newValue: newValue ?? null,
+    correctedAt: new Date().toISOString() });
+  /* Bounded so one long session cannot fill the browser's storage quota and
+     take the rest of the app's saved state down with it. */
+  while (State.qtti.corrections.length > 200) State.qtti.corrections.shift();
 }
 
 VIEWS.tradingIndex = () => {

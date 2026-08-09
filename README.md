@@ -134,6 +134,38 @@ not built. No indicator here has been validated on point-in-time data, so none i
 claimed to work. The specification's worked example loads as a fixture and
 reproduces its published 38 / 35 / 77 exactly; 23 acceptance tests cover §21.
 
+### Running a weekly batch
+
+The page is the single-asset deep dive. For a weekly pass over many assets, the
+batch runner scores them all from one file:
+
+```bash
+node qtti/batch.mjs --check     # self-test only
+node qtti/batch.mjs             # score qtti/observations.json
+```
+
+Copy `qtti/observations.example.json` to `qtti/observations.json` and edit it.
+That path is git-ignored, along with `qtti/screenshots/` and `qtti/out/` — your
+reading of your own charts stays on the machine, and the chart images are
+somebody else's licensed data rendered as pixels, exactly like `watchlist-shots/`.
+
+**It does not carry its own copy of the engine.** It slices `index.html` between
+`@qtti-engine-start` and `@qtti-engine-end` and evaluates that region in Node, so
+the batch and the page cannot score differently. Two copies of a scoring model
+drift apart and then disagree about which number is right — this repository has
+found that defect in itself more than once.
+
+Extraction by marker can fail quietly, so **every run first scores the
+specification's own worked example and refuses to continue unless it returns
+38 / 35 / 77**. Verified against all three failure modes: markers removed, engine
+truncated by a moved marker, and a single component weight changed from 0.25 to
+0.30 — the last is caught only by the self-test, which is the point of it.
+
+Rows come out **in input order, never sorted by score**. A weekly table of fifty
+assets ranked by trend score is a pick list whatever it is titled, this product
+does not name a screen "Top Picks", and Malaysia's SC treats algorithmic ranking
+as advice for licensing purposes. Sort the CSV yourself if you want to.
+
 **Property Deal Check** — turns a property into a financial model: true
 acquisition cost with Malaysian stamp duty scales, financing, vacancy,
 maintenance, NOI, cash-on-cash, DSCR, ten-year scenarios, exit costs with RPGT,
