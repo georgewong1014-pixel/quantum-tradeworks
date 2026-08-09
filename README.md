@@ -113,6 +113,27 @@ each number can show its own formula and inputs.
 - Thesis builder with invalidation conditions evaluated against live data
 - Ten-year financial history, Bursa specialisation (Shariah, PN17, CET1/NPL)
 
+**QT Trading Index** (`/research/trading-index`) — a separate timing module,
+because trend is the only evidence some instruments have. An index ETF has no
+return on equity and a perpetual contract is not an ownership claim, so routing
+either through the Strategy Lens returns U forever — which reads as "assessed
+and found wanting" when the truth is that no question applied. The fundamental
+gate is therefore replaced rather than removed: an ordinary share still clears
+its Strategy Lens tier, everything else clears an asset-thesis gate (mandate,
+issuer, liquidity, custody).
+
+Three numbers, never blended — trend regime, first-tranche readiness against
+rules you declared, and how much of either your screenshot can support. Weights
+are 40% monthly / 35% weekly / 25% daily, which is arithmetic encoding a
+discipline: a perfect daily 100 against a bearish monthly and weekly reaches
+54.25 and can never read "confirmed uptrend". It carries **0% weight in the
+research composite**.
+
+It does not read your screenshot. You record what you saw; OCR is phase 2 and is
+not built. No indicator here has been validated on point-in-time data, so none is
+claimed to work. The specification's worked example loads as a fixture and
+reproduces its published 38 / 35 / 77 exactly; 23 acceptance tests cover §21.
+
 **Property Deal Check** — turns a property into a financial model: true
 acquisition cost with Malaysian stamp duty scales, financing, vacancy,
 maintenance, NOI, cash-on-cash, DSCR, ten-year scenarios, exit costs with RPGT,
