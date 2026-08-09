@@ -9550,6 +9550,7 @@ function openReview(t) {
 
 VIEWS.thesis = () => {
   const wrap = el('div');
+  wrap.append(mySubnav('thesis'));
   const hd = el('div', { class: 'page-hd' });
   hd.append(el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Thesis'),
@@ -9901,6 +9902,11 @@ function positionsOf(pf) {
 
 VIEWS.portfolio = () => {
   const wrap = el('div');
+  /* mySubnav existed and was called from userdata and watchlists only — the two
+     surfaces nothing in the product linked to. So the four pages a reader could
+     actually reach were each a dead end, and the two that carried the way out
+     were unreachable. Four calls restore six finished surfaces to each other. */
+  wrap.append(mySubnav('portfolio'));
   const pf = activePF();
 
   const hd = el('div', { class: 'page-hd' });
@@ -10862,11 +10868,13 @@ VIEWS.userdata = () => {
 
 VIEWS.watchlists = () => {
   const wrap = el('div', { class: 'stack' });
+  /* Above the heading, matching the other five. A strip that sits above the
+     title on four pages and below it on two reads as a different control. */
+  wrap.append(mySubnav('watchlists'));
   wrap.append(el('div', {}, [
     el('h1', { class: 'h-display' }, 'Watchlists'),
     el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers.'),
   ]));
-  wrap.append(mySubnav('watchlists'));
 
   /* State.watchlists is an array of { id, name, ids } — the shape the rest of
      the app migrated to when multiple lists were added. */
@@ -11523,6 +11531,7 @@ const TREND_STRATEGIES = [
    ========================================================================== */
 VIEWS.tracked = () => {
   const wrap = el('div', { class: 'stack' });
+  wrap.append(mySubnav('tracked'));
   wrap.append(el('div', {}, [
     el('h1', { class: 'h1' }, 'Tracked'),
     el('p', { class: 'lede' },
@@ -11667,6 +11676,7 @@ VIEWS.tracked = () => {
 
 VIEWS.alerts = () => {
   const wrap = el('div');
+  wrap.append(mySubnav('alerts'));
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Alerts'),
     el('h1', {}, 'Tell me what changed, and why it matters to my thesis'),
@@ -14477,12 +14487,26 @@ VIEWS.property = () => {
       ]),
     ]),
     el('div', { style: 'margin-left:auto;text-align:right' }, [
-      el('div', { class: 'metaline' }, isNum(g.score) ? `Score ${g.score}/100` : 'Not scored'),
-      el('div', { class: 'metaline' }, `Evidence coverage ${fmtPct(g.coverage * 100, 0)}`),
+      /* "Score 9/100" beside "U — Not enough evidence" reads as a rating of the
+         property. It is the weighted result over the pillars that could be
+         tested, which is a different claim from the grade and has to say so. */
+      el('div', { class: 'metaline' }, !isNum(g.score) ? 'Not scored'
+        : g.grade === 'U' ? `Model score ${g.score}/100 — not carried into a grade`
+        : `Score ${g.score}/100`),
+      /* Was "Evidence coverage", which named neither the thing it measures nor
+         the thing a reader assumes it measures. It is the share of scoring
+         weight that could be computed — not provenance quality, and not the
+         proportion of the form filled in. "Evidence quality" is separately one
+         of the pillars below, and could read 0/100 while this read 85%. */
+      el('div', { class: 'metaline', title: `${GRADE_PILLARS.length} pillars carry this grade. This is the share of their combined weight that returned a number at all. An A needs 90%, a B needs 80%, and below 80% the grade is withheld.` },
+        `Scored on ${fmtPct(g.coverage * 100, 0)} of framework weight`),
     ]),
   ]));
   onePage.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
+    (g.grade === 'U' && isNum(g.score)
+      ? `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${g.coverage < 0.80 ? `only ${fmtPct(g.coverage * 100, 0)} of the framework weight could be scored, against the 80% a grade requires` : 'a hard gate below is unmet'}. `
+      : '')
+    + 'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
 
   const answers = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
   [['Cash to complete', fmtAmount(m.transactionCash, 'MYR'), 'Paid out on completion day'],
@@ -14523,7 +14547,10 @@ VIEWS.property = () => {
   pt.append(pb);
   pw.append(el('div', { class: 'tablewrap' }, pt));
   pw.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `The score is weighted across the pillars that could be tested, not across all seven — a pillar with no evidence reduces coverage rather than scoring zero, so nothing loses points for data nobody has. Coverage is ${fmtPct(g.coverage * 100, 0)} of the framework weight; an A needs 90% and a B needs 80%.`));
+    /* Counted from the registry rather than written out. The sentence said
+       "all seven" against six pillars — a number in prose beside the list it
+       describes will eventually disagree with it. */
+    `The score is weighted across the pillars that could be tested, not across all ${GRADE_PILLARS.length} — a pillar with no evidence reduces coverage rather than scoring zero, so nothing loses points for data nobody has. Coverage is ${fmtPct(g.coverage * 100, 0)} of the framework weight; an A needs 90% and a B needs 80%.`));
   onePage.append(pw);
   wrap.append(onePage);
 
@@ -15308,11 +15335,19 @@ VIEWS.property = () => {
   ev.append(cardHead('What this rests on',
     'A figure a seller quoted and a figure taken from a transacted comparable are not the same evidence.'));
   const evRows = [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']];
+  /* shownEvidence, not d.evidence. Reading the stored label directly is what
+     made this table contradict the selectors three inches above it: an
+     untouched deal showed "Illustrative default" in every selector while this
+     card reported the same four figures as "You supplied", "Estimated" and
+     "Developer supplied". The stored labels were written as defaults before
+     anyone typed anything, which is exactly the case shownEvidence exists to
+     answer. This is the one card whose whole job is provenance, and it was the
+     only surface on the page getting it wrong — in the reassuring direction. */
+  const evShown = evRows.map(([k, label]) => ({ k, label, e: evidenceOf(shownEvidence(d, k)) }));
   const evT = el('table', { class: 'dt' });
   evT.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Figure'), el('th', {}, 'Source'), el('th', {}, 'What that means')])));
   const evB = el('tbody');
-  evRows.forEach(([k, label]) => {
-    const e2 = evidenceOf(d.evidence?.[k] || 'assumed');
+  evShown.forEach(({ label, e: e2 }) => {
     evB.append(el('tr', {}, [
       el('td', {}, label),
       el('td', {}, el('span', { class: e2.rank >= 4 ? 'chip chip-ok' : e2.rank >= 2 ? 'chip' : 'chip chip-bronze' }, e2.label)),
@@ -15321,11 +15356,19 @@ VIEWS.property = () => {
   });
   evT.append(evB);
   ev.append(el('div', { style: 'overflow-x:auto' }, evT));
-  const worst = Math.min(...evRows.map(([k]) => evidenceOf(d.evidence?.[k] || 'assumed').rank));
+  /* Names the weakest row rather than asserting a floor. The previous sentence
+     claimed "evidenced at least to a figure you supplied" — rank 3 — whenever
+     the worst row cleared rank 1, so a table whose weakest entry was
+     "Developer supplied" (rank 2, a seller's own quote) was described as the
+     reader's own figure. A claim derived from the row it describes cannot
+     drift away from it. */
+  const weakest = evShown.reduce((a, x) => (x.e.rank < a.e.rank ? x : a), evShown[0]);
   ev.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
-    worst <= 1
-      ? 'At least one figure driving this model is assumed or estimated. A verified report is one where these say "verified transaction" — that is the difference between the two, not extra pages.'
-      : 'Every figure above is evidenced at least to a figure you supplied. Verified transactions are stronger still.'));
+    weakest.e.rank < 0
+      ? `The weakest figure here is ${weakest.label.toLowerCase()} — ${weakest.e.label.toLowerCase()}, a number this tool carried in rather than one anyone chose for this property. Replace it before relying on any output.`
+      : weakest.e.rank <= 1
+        ? `The weakest figure here is ${weakest.label.toLowerCase()} — ${weakest.e.label.toLowerCase()}. A verified report is one where every row reads "verified transaction". That is the difference between the two, not extra pages.`
+        : `The weakest figure here is ${weakest.label.toLowerCase()} — ${weakest.e.label.toLowerCase()}. Verified transactions are stronger still.`));
   out.append(ev);
 
   if (!paid) {
