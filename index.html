@@ -7827,6 +7827,32 @@ VIEWS.research = () => {
   });
   lensCard.append(fitRow);
 
+  /* A grade with nowhere to go.
+     The Cash Wheel fit scored this company and the workspace that acts on it sat
+     behind a URL with no link from here — the reader was told the underlying
+     qualifies and left to guess where. Real anchors, and only for the strategies
+     that actually apply to this instrument, so a Bursa company is not offered a
+     workspace that does not cover it. */
+  const wsLinks = [];
+  const wheelFitRow = lens.fits.find(f => f.key === 'wheel');
+  if (wheelFitRow && wheelFitRow.state === 'graded')
+    wsLinks.push(['/us-options/wheel', `Open the Cash Wheel workspace`,
+      'Collateral, assignment and the covered-call cycle, from figures you enter.']);
+  wsLinks.push(['/research/trading-index', 'Record timing evidence',
+    'Multi-timeframe trend and your own first-tranche rules. It carries no weight in any score above.']);
+  const wsRow = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
+  wsLinks.forEach(([path, label, note]) => {
+    const a = el('a', { class: 'btn btn-ghost btn-sm', href: href(path), title: note,
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+        e.preventDefault(); navigate(path); } }, label);
+    wsRow.append(a);
+  });
+  lensCard.append(wsRow);
+  lensCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    wheelFitRow && wheelFitRow.state === 'not_applicable'
+      ? `The Cash Wheel does not apply to this company — ${wheelFitRow.cap} Neither workspace changes any grade above.`
+      : 'Neither workspace changes any grade above. Both record your own plan and are weighted zero in the research composite.'));
+
   /* Counted per state, because "not assessable from the data held" was false
      for more than half of them. A strategy that does not apply to this business
      and one whose registry has never been built are not short of data. */
@@ -10966,7 +10992,10 @@ VIEWS.marketing = () => {
    ['Methodology', 'Metric definitions, scoring weights, peer grouping and model routing.', '/methodology'],
    ['Corrections log', 'What was wrong, what it is now, and whether anyone was told.', '/corrections'],
    ['Model version', `Currently ${MODEL_VERSION}. Saved screens record the version that produced them.`, '/methodology'],
-   ['Who runs this', 'Legal entity, location and contact.', '/about'],
+   /* Promised a legal entity, a location and a contact, then linked to a page
+      whose answer to all three is "not yet established". A card should not
+      advertise what the page it opens says does not exist. */
+   ['Who runs this', 'No entity is registered yet, and this page says so plainly.', '/about'],
    ['Conflicts of interest', 'What we are and are not paid for, and what can never change a score.', '/about'],
   ].forEach(([t, b, p]) => tg.append(taskCard(t, b, p, 'Read')));
   trust.append(tg);
@@ -11406,8 +11435,14 @@ function trustPage(title, lede, blocks) {
       el('h2', { class: 'h-card' }, heading),
       pending ? el('span', { class: 'chip chip-bronze' }, 'not yet established') : null,
     ]));
-    (Array.isArray(body) ? body : [body]).forEach(p =>
-      card.append(el('p', { class: pending ? 'metaline' : '', style: 'margin-top:8px' }, p)));
+    /* A paragraph may be a [text, path] pair, which renders as a real link.
+       "See the contact page." was a bare <p> whose closest('a') was null, so the
+       one sentence on the About page that points somewhere pointed nowhere. */
+    (Array.isArray(body) ? body : [body]).forEach(p => {
+      if (Array.isArray(p)) card.append(el('p', { style: 'margin-top:8px' },
+        el('a', { href: href(p[1]), 'data-path': p[1] }, p[0])));
+      else card.append(el('p', { class: pending ? 'metaline' : '', style: 'margin-top:8px' }, p));
+    });
     wrap.append(card);
   });
   return wrap;
@@ -11431,7 +11466,7 @@ VIEWS.about = () => trustPage('About',
     ['Conflicts of interest',
       ['Nothing on this site is paid for. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
        'If any of that changes it will be declared here before it takes effect. A score or a valuation must never move because of who paid — that is the one commitment this product cannot trade away.']],
-    ['Contact', 'See the contact page.'],
+    ['Contact', [['See the contact page.', '/contact']]],
   ]);
 
 VIEWS.contact = () => trustPage('Contact',
@@ -12349,7 +12384,12 @@ function learnData() {
    'Share-based compensation as a separate line — it cannot be isolated from operating cash flow in this dataset',
    'Accounts and sign-in — every list, portfolio, thesis and alert lives in this browser and is lost if you clear it',
    'Free trial, billing, cancellation and renewal — no payment system exists, and a mocked one would be a claim the product cannot honour',
-   'Plan tiers and entitlement enforcement — nothing here is gated, so no feature is withheld or unlocked by a subscription'].forEach(x => ll.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' }, x)));
+   /* This said nothing was gated, while the plan switcher on /pricing visibly
+      unlocks the full property report and the cross-asset view. Both were true
+      of different things — there is no SERVER entitlement, and there is a local
+      one — and the sentence collapsed them into a claim a reader could disprove
+      in two clicks. */
+   'Server-side entitlement — plan tiers are enforced in this browser only, for inspection. Switching plan on the pricing page does change what renders, including the full property report and the cross-asset view. There is no identity, no payment, no subscription record and no production access control behind it'].forEach(x => ll.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' }, x)));
   lack.append(ll); g.append(lack);
   cov.append(g);
   wrap.append(cov);
@@ -15771,7 +15811,18 @@ VIEWS.property = () => {
     comps.append(el('p', { class: 'body', style: 'font-size:12.5px' },
       `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
     comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-      'Every figure above came from you. Nothing on this page has been checked against a market, so treat the outputs as arithmetic on your own assumptions rather than as a valuation.'));
+      /* This said "Every figure above came from you" while the provenance table
+         three cards up correctly reported all four critical figures as
+         Illustrative default. On an untouched deal nothing came from the reader
+         at all, and the sentence sits behind the paywall — so the one place it
+         appears is the one place somebody has decided the report is worth
+         paying for. It now reads what is actually true of whichever figures are
+         in play. */
+      `Every figure above is either one you entered or a default this tool carried in, and the source table above says which is which for each. `
+      + (untouched.length
+          ? `${untouched.length} of the four figures that drive this model ${untouched.length === 1 ? 'is' : 'are'} still an illustrative default. `
+          : '')
+      + 'Nothing on this page has been checked against a market, so treat the outputs as arithmetic on those inputs rather than as a valuation.'));
     comps.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Where a comparable can be obtained'));
     comps.append(el('ul', { class: 'ticklist' }, [
       el('li', {}, 'NAPIC (Valuation and Property Services Department) publishes transacted prices by district. Their Property Market Report is the standard reference.'),
@@ -17843,6 +17894,18 @@ const refreshDisclosure = () => {
   const real = U.filter(r => r.c.real).length;
   const sample = U.length - real;
   const priced = U.filter(r => r.c.real && isNum(r.c.px?.p)).length;
+  /* A failed fetch used to fall through to the static wording, which describes a
+     sample-only build without saying that this one was meant to be more. The
+     reader then saw 36 illustrative companies presented as the whole product,
+     permanently, with nothing indicating a load had failed. */
+  if (!real && realStatus && realStatus.ok === false) {
+    node.innerHTML =
+      `<strong>Beta preview — filings did not load.</strong> Do not use figures here for investment decisions.`
+      + `<span class="disclosure-long"> The audited SEC statements this build normally carries could not be fetched`
+      + `, so only the ${U.length} illustrative companies are loaded and every figure on the site is synthetic.`
+      + ` Reload to try again.</span>`;
+    return;
+  }
   if (!real) return;                       /* the static wording is correct */
   node.innerHTML =
     `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
