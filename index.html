@@ -793,7 +793,16 @@ table.dt tfoot td.pin { z-index: 3; }
 
 /* Header row pinned under the top bar for full-page tables. */
 table.dt-pagesticky thead th { top: var(--topbar-h); }
-table.dt .pin { position: sticky; left: 0; z-index: 1; background: var(--surface-2); }
+/* A FROZEN COLUMN NEEDS A VISIBLE EDGE.
+   The company column has been sticky for a while and had no boundary of any
+   kind, so with fourteen columns scrolled under it the reader saw a header
+   clipped mid-word — "…ED CAPITAL" hard against a company name — which reads
+   as broken text, not as a column that stays put. The hairline states the
+   boundary and the soft shadow says the rest of the table passes UNDER it. */
+table.dt .pin {
+  position: sticky; left: 0; z-index: 1; background: var(--surface-2);
+  box-shadow: 1px 0 0 var(--line-2), 8px 0 10px -8px var(--ring);
+}
 table.dt thead .pin { z-index: 3; background: var(--surface-sunk); }
 table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, var(--surface-2)); }
 
@@ -4784,45 +4793,44 @@ function cashWaterfall(container, m) {
   });
 }
 
-/* IS THE RENT ENOUGH? ONE BAR AGAINST ONE THRESHOLD.
+/* ONE VALUE AGAINST ONE THRESHOLD — THE PRODUCT'S SECOND CHART GRAMMAR.
    ---------------------------------------------------------------------------
-   Two of the four headline tiles are "Monthly cash flow" and "Break-even rent".
-   Both are correct and neither shows the relationship between them, which is
-   the entire question the reader came with: RM1,850 against RM3,234 is not a
-   thin margin, it is a rent that would have to rise by three quarters.
+   Three different questions turned out to have the same shape. Is the rent
+   enough to cover the costs and the loan? Is the cash enough to be put the
+   shares? Does this timeframe clear the floor its template requires? Each is a
+   quantity, a line it must reach, and which side of the line it lands on.
 
-   breakEvenRent is the gross monthly asking rent at which fixed costs and debt
-   service are covered once vacancy and the rent-linked costs are taken out, so
-   it is directly comparable to the entered rent. Nothing is rescaled here.
+   They are drawn identically on purpose. A reader who learns to read the
+   property bar can read the collateral bar without being taught it again, and
+   a shared grammar makes the odd one out — the payoff chart, which is a
+   function rather than a comparison — legible as a different kind of claim.
 
    Polarity, so --pol-pos / --pol-neg rather than the series ramp: the only
-   question is which side of the line the bar lands on. Labels are stacked on
-   separate rows for the reason the payoff chart's were — when the rent is near
-   break-even the two marks are pixels apart, and that is precisely the case
-   where the reader most needs to read both. */
-function breakEvenRentBar(container, rentMonthly, breakEven) {
-  if (!isNum(breakEven) || !(breakEven > 0) || !isNum(rentMonthly)) return;
-  const covers = rentMonthly >= breakEven;
+   question a colour answers here is which side of the line it is on. Labels
+   are stacked on separate rows for the reason the payoff chart's were — when
+   the value is near the threshold the two marks are pixels apart, and that is
+   exactly the case where both need to stay readable. */
+function thresholdBar(container, o) {
+  const { value, threshold, ccy = 'MYR' } = o;
+  if (!isNum(threshold) || !(threshold > 0) || !isNum(value)) return;
+  const covers = value >= threshold;
 
   chartHost(container, (w) => {
     const h = 76, barY = 10, barH = 22, padR = 2;
     const iw = Math.max(40, w - padR);
-    const scale = Math.max(rentMonthly, breakEven) * 1.12 || 1;
+    const scale = Math.max(value, threshold) * 1.12 || 1;
     const X = (v) => (v / scale) * iw;
 
     const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
-      'aria-label': `Entered rent ${fmtMoney(rentMonthly, 'MYR')} a month against a break-even rent of `
-        + `${fmtMoney(breakEven, 'MYR')} a month. `
-        + (covers ? `The rent covers costs and the loan by ${fmtMoney(rentMonthly - breakEven, 'MYR')} a month.`
-                  : `The rent is ${fmtMoney(breakEven - rentMonthly, 'MYR')} a month short.`) });
+      'aria-label': o.aria(covers, Math.abs(value - threshold)) });
 
     g.append(sv('rect', { x: 0, y: barY, width: iw, height: barH, rx: 3, fill: 'var(--grid)' }));
-    g.append(sv('rect', { x: 0, y: barY, width: Math.max(2, X(rentMonthly)), height: barH, rx: 3,
+    g.append(sv('rect', { x: 0, y: barY, width: Math.max(2, X(value)), height: barH, rx: 3,
       fill: covers ? 'var(--pol-pos)' : 'var(--pol-neg)' }));
 
     /* The threshold, drawn over the bar and ringed in the surface colour so it
        stays legible whichever side of it the fill ends on. */
-    const bx = X(breakEven);
+    const bx = X(threshold);
     g.append(sv('line', { x1: bx, x2: bx, y1: barY - 4, y2: barY + barH + 4,
       stroke: 'var(--surface)', 'stroke-width': 4 }));
     g.append(sv('line', { x1: bx, x2: bx, y1: barY - 4, y2: barY + barH + 4,
@@ -4833,17 +4841,95 @@ function breakEvenRentBar(container, rentMonthly, breakEven) {
       g.append(sv('text', { x: flip ? x - 6 : x + 6, y, class: 'dl', fill: colour,
         'text-anchor': flip ? 'end' : 'start' }, text));
     };
-    /* Exact to the ringgit, not fmtAmount's abbreviation. A rent of RM1,850
+    /* Exact to the unit, not fmtAmount's abbreviation. A rent of RM1,850
        against RM3,234 is the whole comparison; rendered as "RM1.9k" against
        "RM3.2k" it loses a hundred ringgit at each end and the reader cannot
        tell how far short they actually are. The waterfall abbreviates because
        there the figures are axis furniture and proportion is the message —
        here the figures ARE the message. */
-    put(bx, barY + barH + 20, `break-even ${fmtMoney(breakEven, 'MYR', 0)}`, 'var(--ink)');
-    put(X(rentMonthly), barY + barH + 34, `your rent ${fmtMoney(rentMonthly, 'MYR', 0)}`,
+    put(bx, barY + barH + 20, `${o.thresholdLabel} ${fmtMoney(threshold, ccy, 0)}`, 'var(--ink)');
+    put(X(value), barY + barH + 34, `${o.valueLabel} ${fmtMoney(value, ccy, 0)}`,
       covers ? 'var(--pol-pos)' : 'var(--pol-neg)');
     return g;
   });
+}
+
+/* THREE TIMEFRAMES AGAINST THE FLOOR EACH HAS TO CLEAR.
+   ---------------------------------------------------------------------------
+   The scores were in a four-column table and the floors were somewhere else
+   entirely, so "monthly 29, weekly 37, daily 57" was three numbers the reader
+   had to hold against three thresholds they could not see. What the table
+   could not show is the shape: on this example every timeframe is under its
+   floor and the shortfall WIDENS as the timeframe lengthens, which is the
+   difference between a setup that is early and one that is against the trend.
+
+   All three share a 0-100 scale, so the bars are directly comparable — which
+   is the point, and is why the floors are drawn on the bars rather than
+   listed beside them.
+
+   COVERAGE IS NOT DECORATION HERE. An unrecorded evidence group contributes a
+   neutral 50 and lowers coverage, so a score is partly a placeholder whenever
+   coverage is below 100%. Drawing the bar without saying so would present a
+   half-filled form as a measurement, which is the exact failure this product
+   exists to avoid — so every row states its coverage and names what is
+   missing. */
+function timeframeScoreBars(container, tfs, floors) {
+  const rows = QTTI_TIMEFRAMES
+    .map(t => ({ t, x: tfs?.[t.k], floor: num0(floors?.[t.k]) }))
+    .filter(r => r.x && r.x.present && isNum(r.x.score));
+  if (rows.length < 2) return;
+
+  const host = el('div');
+  container.append(host);
+
+  chartHost(host, (w) => {
+    const rowH = 44, barH = 16, h = rows.length * rowH;
+    const X = (v) => (clamp(v, 0, 100) / 100) * w;
+    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
+      'aria-label': 'Timeframe scores against the floor each must clear for this template. '
+        + rows.map(r => `${r.t.label} ${Math.round(r.x.score)} against a floor of ${r.floor}, `
+          + `${r.x.score >= r.floor ? 'clear' : 'short'}, coverage ${Math.round(r.x.coverage * 100)}%.`).join(' ') });
+
+    rows.forEach((r, i) => {
+      const top = i * rowH, clears = r.x.score >= r.floor;
+      g.append(sv('text', { x: 0, y: top + 12, class: 'dl', fill: 'var(--ink-2)' },
+        `${r.t.label} · ${Math.round(r.t.w * 100)}% weight`));
+      g.append(sv('text', { x: w, y: top + 12, class: 'dl', fill: 'var(--ink)',
+        'text-anchor': 'end' }, `${Math.round(r.x.score)} / ${r.floor}`));
+
+      g.append(sv('rect', { x: 0, y: top + 18, width: w, height: barH, rx: 3, fill: 'var(--grid)' }));
+      g.append(sv('rect', { x: 0, y: top + 18, width: Math.max(2, X(r.x.score)), height: barH, rx: 3,
+        fill: clears ? 'var(--pol-pos)' : 'var(--pol-neg)' }));
+
+      /* The floor, ringed in the surface colour so it stays readable whichever
+         side of it the fill ends on. */
+      const fx = X(r.floor);
+      g.append(sv('line', { x1: fx, x2: fx, y1: top + 14, y2: top + 18 + barH + 4,
+        stroke: 'var(--surface)', 'stroke-width': 4 }));
+      g.append(sv('line', { x1: fx, x2: fx, y1: top + 14, y2: top + 18 + barH + 4,
+        stroke: 'var(--ink)', 'stroke-width': 2 }));
+
+    });
+    return g;
+  });
+
+  /* THE COVERAGE NOTES LIVE IN HTML, NOT IN THE SVG.
+     They started as a third line of SVG text inside each row and overflowed
+     the plot at 390px — SVG text does not wrap, so "coverage 90% — relative
+     strength not recorded, counted neutral at 50" simply ran off the right
+     edge. The obvious fix is to shorten it on narrow screens, which would
+     abbreviate the sentence that says the score is part placeholder on the
+     device most likely to be read in a hurry. In HTML it wraps, stays
+     selectable and is never the thing that gets cut. */
+  const notes = el('ul', { class: 'metaline', style: 'margin:var(--sm) 0 0;padding-left:1.1em' });
+  rows.forEach(r => {
+    const cov = Math.round(r.x.coverage * 100);
+    notes.append(el('li', { style: 'margin-top:2px' }, cov >= 100
+      ? `${r.t.label}: every evidence group recorded.`
+      : `${r.t.label}: coverage ${cov}% — ${r.x.unknown.join(', ').toLowerCase()} `
+        + 'not recorded, counted at a neutral 50 rather than as a zero.'));
+  });
+  container.append(notes);
 }
 
 /* A collapsible table beneath a chart — the WCAG-clean equivalent. */
@@ -6229,6 +6315,38 @@ const FIELDS = [
 const FIELD_BY_K = Object.fromEntries(FIELDS.map(f => [f.k, f]));
 const FIELD_GROUPS = [...new Set(FIELDS.map(f => f.g))];
 
+/* COLUMN PRESETS.
+   ---------------------------------------------------------------------------
+   Thirty-six fields, eight columns allowed, and the only way back from a wide
+   unreadable table was to untick metrics one at a time in a drawer. A reader
+   who widens the table to answer one question then has to dismantle it by hand
+   before they can read anything else, so in practice they stop widening it.
+
+   Every preset is DESCRIPTIVE — a named group of measures, not a ranking and
+   not a shortlist. None of them selects companies, orders them or implies that
+   one set of metrics is the one to judge by; they choose which columns are on
+   screen and nothing else. "Essentials" is the default set the screener opens
+   with, so it is also the way back. */
+const COL_PRESETS = [
+  { id:'essentials', label:'Essentials',
+    cols:['roic', 'om', 'pe', 'dy', 'fcfy', 'ndEbit'],
+    why:'The set the screener opens with — one measure from each group.' },
+  { id:'quality', label:'Business quality',
+    cols:['roic', 'om', 'fcfm', 'roe', 'cashconv'],
+    why:'How much the business earns on what it employs, and whether earnings arrive as cash.' },
+  { id:'risk', label:'Financial risk',
+    cols:['ndEbit', 'de', 'icov', 'netGearing', 'ocfPosYears'],
+    why:'What is owed, against what services it.' },
+  { id:'valuation', label:'Valuation and income',
+    cols:['pe', 'pb', 'evebit', 'dy', 'fcfy', 'payout'],
+    why:'What the price is against earnings, book, cash and the dividend.' },
+  { id:'growth', label:'Growth',
+    cols:['rev5', 'eps5', 'fcf5', 'dps5'],
+    why:'Four-year compound growth of the four lines that carry it.' },
+];
+const samePreset = (cols, p) =>
+  cols.length === p.cols.length && p.cols.every(k => cols.includes(k));
+
 /* Sector-specific measures are not general screener fields, but thesis
    conditions and alerts still need to render them with their units. */
 const SECTOR_FMT = {
@@ -6590,7 +6708,17 @@ function renderScreener() {
   hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': sc.showMedians !== false ? 'true' : 'false',
     onclick: () => { sc.showMedians = sc.showMedians === false; render(); },
     html: `${icon('scale', 13)} ${sc.showMedians !== false ? 'Hide' : 'Show'} medians` }));
-  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openColumnPicker(), html: `${icon('grid', 13)} Columns` }));
+  /* The count belongs on the button. A reader who has widened the table to
+     fourteen columns cannot see how many they added without opening the
+     drawer and counting ticks, and "Columns" alone gives no hint that the
+     wide table they are squinting at is something they did. */
+  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openColumnPicker(),
+    html: `${icon('grid', 13)} Columns · ${sc.cols.length}` }));
+  /* Offered only once it would do something — a reset button beside a table
+     already in its default state is a control that cannot be used. */
+  if (!samePreset(sc.cols, COL_PRESETS[0])) hdRow.append(el('button', {
+    class: 'btn btn-quiet btn-sm', title: COL_PRESETS[0].why,
+    onclick: () => { sc.cols = [...COL_PRESETS[0].cols]; render(); } }, 'Essentials'));
   hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openExclusions(failed), html: `${icon('info', 13)} Explain exclusions` }));
   resHd.append(hdRow);
   resCard.append(resHd);
@@ -6957,6 +7085,25 @@ function openColumnPicker() {
   const sc = State.screen;
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' }, 'Pick up to eight metric columns. The identity, scores and coverage columns are always shown.'));
+
+  /* Presets first, because getting back to a readable table is the request
+     that brings most readers here. Each names a group of measures; none of
+     them selects, orders or ranks companies. */
+  body.append(el('h4', { class: 'eyebrow', style: 'margin:0 0 6px' }, 'Presets'));
+  const pr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
+  COL_PRESETS.forEach(p => {
+    const on = samePreset(sc.cols, p);
+    pr.append(el('button', {
+      class: `btn btn-sm ${on ? 'btn-ghost' : 'btn-quiet'}`,
+      'aria-pressed': on ? 'true' : 'false',
+      title: p.why,
+      onclick: () => { sc.cols = [...p.cols]; render(); openColumnPicker(); },
+    }, p.label));
+  });
+  body.append(pr);
+  body.append(el('p', { class: 'metaline', style: 'margin:6px 0 var(--lg)' },
+    'A preset chooses which columns are on screen. It does not filter, sort or rank anything.'));
+
   FIELD_GROUPS.forEach(g => {
     body.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 4px' }, g));
     FIELDS.filter(f => f.g === g).forEach(f => {
@@ -16960,7 +17107,19 @@ VIEWS.property = () => {
       'Rent against break-even'));
     const rbHost = el('div', { style: 'margin-top:var(--sm)' });
     rb.append(rbHost);
-    breakEvenRentBar(rbHost, d.rent, m.breakEvenRent);
+    /* breakEvenRent is the gross monthly asking rent at which fixed costs and
+       debt service are covered once vacancy and the rent-linked costs are
+       taken out, so it is directly comparable to the entered rent. Nothing is
+       rescaled to make the comparison work. */
+    thresholdBar(rbHost, {
+      value: d.rent, valueLabel: 'your rent',
+      threshold: m.breakEvenRent, thresholdLabel: 'break-even',
+      ccy: 'MYR',
+      aria: (covers, gap) => `Entered rent ${fmtMoney(d.rent, 'MYR')} a month against a break-even rent of `
+        + `${fmtMoney(m.breakEvenRent, 'MYR')} a month. `
+        + (covers ? `The rent covers costs and the loan by ${fmtMoney(gap, 'MYR')} a month.`
+                  : `The rent is ${fmtMoney(gap, 'MYR')} a month short.`),
+    });
     const short = m.breakEvenRent - d.rent;
     rb.append(el('p', { class: 'metaline', style: 'margin-top:var(--xs)' },
       short > 0
@@ -17812,26 +17971,42 @@ VIEWS.wheel = () => {
   if (p.state === 'paused') head.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
     'This cycle is paused. The rail shows where it stopped, not where it ended.'));
 
-  /* COLLATERAL, AS A BAR RATHER THAN A PERCENTAGE.
-     Cash-secured is a binary gate and the number that decides it was a
-     percentage in a sentence. A bar shows the shortfall as a size. */
+  /* COLLATERAL AGAINST THE OBLIGATION.
+     -----------------------------------------------------------------------
+     Cash-secured is a binary gate and the figure deciding it used to be a
+     percentage in a sentence, then a div bar clamped with Math.min(100, …).
+     Two problems with the clamp: someone holding $10,000 against a $5,000
+     obligation saw exactly the same full bar as someone holding $5,000 to the
+     cent, and the obligation itself was never drawn, so "how far short" was
+     only ever readable from the caption.
+
+     It also filled with --ok-text and --dn-text, which are text tokens doing a
+     mark's job — and that specific green/rust pair measures ΔE 5.3 under
+     deuteranopia, below the floor that any secondary encoding can rescue.
+
+     Now the same threshold bar the property calculator uses: a real scale, so
+     surplus is visible, the obligation drawn as the line to reach, and the
+     measured polarity pair. */
   if (m.requiredAssignmentCash > 0) {
     const req = m.requiredAssignmentCash;
     const have = num0(p.eligibleCashUsd);
-    const pct = Math.min(100, have / req * 100);
-    const short = Math.max(0, req - have);
     const bar = el('div', { style: 'margin-top:var(--md)' });
-    bar.append(el('div', { class: 'row', style: 'gap:8px;justify-content:space-between' }, [
-      el('span', { class: 'eyebrow' }, 'Collateral against the obligation'),
-      el('span', { class: 'num', style: `font-size:13px;font-weight:600;color:var(${m.cashSecured ? '--ok-text' : '--dn-text'})` },
-        `${fmtMoney(have, 'USD')} of ${fmtMoney(req, 'USD')}`),
-    ]));
-    bar.append(el('div', { style: 'height:10px;border-radius:5px;background:var(--surface-sunk);margin-top:5px;overflow:hidden' },
-      el('div', { style: `height:100%;width:${pct}%;background:var(${m.cashSecured ? '--ok-text' : '--dn-text'});border-radius:5px` })));
+    bar.append(el('span', { class: 'eyebrow' }, 'Collateral against the obligation'));
+    const barHost = el('div', { style: 'margin-top:5px' });
+    bar.append(barHost);
+    thresholdBar(barHost, {
+      value: have, valueLabel: 'cash reserved',
+      threshold: req, thresholdLabel: 'obligation',
+      ccy: 'USD',
+      aria: (covers, gap) => `Cash reserved ${fmtMoney(have, 'USD')} against an assignment obligation of `
+        + `${fmtMoney(req, 'USD')}. `
+        + (covers ? `Fully secured, with ${fmtMoney(gap, 'USD')} beyond the obligation.`
+                  : `Short by ${fmtMoney(gap, 'USD')}, so the put is not cash-secured.`),
+    });
     bar.append(el('p', { class: 'metaline', style: 'margin-top:5px' },
       m.cashSecured
         ? `Fully secured, with ${fmtMoney(have - req, 'USD')} beyond the obligation. The premium is not part of this and never reduces it.`
-        : `Short by ${fmtMoney(short, 'USD')}. A put is not cash-secured below 100%, and the premium received does not count toward it.`));
+        : `Short by ${fmtMoney(Math.max(0, req - have), 'USD')}. A put is not cash-secured below 100%, and the premium received does not count toward it.`));
     head.append(bar);
   }
 
@@ -18803,6 +18978,15 @@ VIEWS.tradingIndex = () => {
   /* Per-timeframe, with coverage beside each — a score at 70% coverage is not
      the same claim as the same score at 100%. */
   if (r.assessable) {
+    /* Drawn first, itemised underneath. The table stays exactly as it was and
+       is now also this chart's accessible equivalent. */
+    const tfHost = el('div', { style: 'margin-top:var(--md)' });
+    card.append(tfHost);
+    timeframeScoreBars(tfHost, r.tfs, r.tpl?.floors);
+    card.append(el('p', { class: 'metaline', style: 'margin-top:var(--xs)' },
+      `Each floor is the minimum this template — ${r.tpl?.label || 'the selected template'} — requires of that `
+      + 'timeframe. A floor is a condition to be met, not a target and not a forecast.'));
+
     const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
     t.append(el('thead', {}, el('tr', {}, ['Timeframe', 'Weight', 'Score', 'Coverage'].map((h, i) =>
       el('th', { style: i ? null : 'text-align:left' }, h)))));
