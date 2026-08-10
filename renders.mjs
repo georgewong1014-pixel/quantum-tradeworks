@@ -77,7 +77,7 @@ const FRAMES = [
     what: 'The homepage, at Open Graph size. The three proof figures are computed live by the same engines the product runs on, not typeset.',
   },
   {
-    id: 'wheel-payoff', path: '/wheel', w: 1180, h: 900, wait: 4200, pad: 18,
+    id: 'wheel-payoff', path: '/wheel', w: 1180, h: 900, wait: 4200,
     sel: 'svg[aria-label^="Payoff at expiry"]',
     seed: `localStorage.setItem('vl.wheelPlan', JSON.stringify(Object.assign({}, State.wheel, {
       symbol:'MSFT', contractMultiplier:100, contracts:1, putStrike:50, putCredit:1.10,
@@ -86,7 +86,7 @@ const FRAMES = [
     what: 'One cash-secured put, at expiry. Arithmetic on figures the reader entered — no chain data and no probability.',
   },
   {
-    id: 'wheel-collateral', path: '/wheel', w: 1180, h: 900, wait: 4200, pad: 18,
+    id: 'wheel-collateral', path: '/wheel', w: 1180, h: 900, wait: 4200,
     sel: 'svg[aria-label^="Cash reserved"]',
     seed: `localStorage.setItem('vl.wheelPlan', JSON.stringify(Object.assign({}, State.wheel, {
       symbol:'MSFT', contractMultiplier:100, contracts:1, putStrike:50, putCredit:1.10,
@@ -95,17 +95,17 @@ const FRAMES = [
     what: 'Collateral against the obligation, deliberately short. Cash-secured is a gate, and the shortfall is drawn as a size.',
   },
   {
-    id: 'property-waterfall', path: '/property/calculator', w: 1180, h: 1000, wait: 5200, pad: 18,
+    id: 'property-waterfall', path: '/property/calculator', w: 1180, h: 1000, wait: 5200,
     sel: 'svg[aria-label^="Cash needed to buy"]',
     what: 'What the cash to buy is actually for, and the gap between completing the purchase and being safe afterwards.',
   },
   {
-    id: 'property-rent', path: '/property/calculator', w: 1180, h: 1000, wait: 5200, pad: 18,
+    id: 'property-rent', path: '/property/calculator', w: 1180, h: 1000, wait: 5200,
     sel: 'svg[aria-label^="Entered rent"]',
     what: 'The entered rent against the rent that would cover fixed costs and the loan.',
   },
   {
-    id: 'trading-index', path: '/trading-index', w: 1180, h: 1000, wait: 4200, pad: 18,
+    id: 'trading-index', path: '/trading-index', w: 1180, h: 1000, wait: 4200,
     sel: 'svg[aria-label^="Timeframe scores"]',
     act: `(() => { const b = [...document.querySelectorAll('button')].find(x => /worked example/.test(x.textContent)); if (b) b.click(); })()`,
     actWait: 1400,
@@ -113,7 +113,34 @@ const FRAMES = [
   },
   {
     id: 'screener', path: '/discover/screener', w: 1440, h: 900, wait: 7000,
-    what: 'The screener at its default columns, with the company column frozen against the horizontal scroll.',
+    /* Shown on the business-quality preset and scrolled sideways, which is the
+       state the two screener changes exist for: the preset that gets a reader
+       back to a readable table, and the company column holding its place while
+       the metrics move under it.
+
+       The default columns were the first choice and were the wrong one. This
+       build carries no price licence, so Value and "vs base-case model" are
+       correctly n/a and — for every row, and a frame led by three empty columns
+       reads as a product that does not work rather than one that declines to
+       invent. These five come from filed statements, so they are populated here
+       and populated in front of a reader. */
+    act: `(() => {
+      const p = (typeof COL_PRESETS !== 'undefined') && COL_PRESETS.find(x => x.id === 'quality');
+      if (p) { State.screen.cols = [...p.cols]; render(); }
+    })()`,
+    actWait: 1600,
+    settle: `(() => {
+      const card = [...document.querySelectorAll('.card')].find(c => c.querySelector('.tablewrap table.dt'));
+      if (card) card.scrollIntoView({ block: 'start' });
+      window.scrollBy(0, -84);
+      const tw = document.querySelector('.tablewrap[style*="overflow-x"]');
+      /* Far enough that the "vs base-case model" column is fully past the
+         frozen edge rather than clipped to a stub reading "E" over a row of
+         dashes, which looks like a rendering fault instead of a column. */
+      if (tw) tw.scrollLeft = 520;
+      return !!tw;
+    })()`,
+    what: 'The screener on its business-quality preset, scrolled sideways so the frozen company column holds while the metrics move under it.',
   },
 ];
 
@@ -242,11 +269,36 @@ async function main() {
       }
       await send('Page.navigate', { url: BASE + f.path });
       await sleep(f.wait);
-      if (f.act) { await evaluate(f.act); await sleep(f.actWait || 1200); }
+      if (f.act) {
+        await evaluate(f.act);
+        await sleep(f.actWait || 1200);
+        /* Wait the toast out rather than deleting it. Loading the worked
+           example raises "Worked example loaded", which sat squarely over two
+           of the coverage notes in the first captured frame — the notes saying
+           which evidence was never recorded, which are the last thing that may
+           be obscured. It clears itself after 2.6s, so the frame just waits for
+           the surface to settle instead of being tidied for the photograph. */
+        for (let i = 0; i < 40; i++) {
+          const showing = await evaluate(`(document.querySelector('#toast')?.dataset.show === '1')`);
+          if (!showing) break;
+          await sleep(200);
+        }
+        await sleep(400);   /* the fade-out transition */
+      }
+      /* Scroll position and anything else that must survive the final render,
+         applied after the page has stopped moving. */
+      if (f.settle) { await evaluate(f.settle); await sleep(600); }
 
       let clip = null, clipVia = null;
       if (f.sel) {
-        const pad = f.pad ?? 0;
+        /* Padding is horizontal only, and the asymmetry is the whole point.
+           Vertically a block is bounded by its neighbours, so any pad at all
+           reaches into them — 18px bled the rounded top edge of the next card
+           into two frames and a stray card edge into a third. Horizontally it
+           expands into the card's own padding, which is the same background,
+           so it buys breathing room at no risk. With zero on both axes the
+           caption of the rent frame ran flush into the right edge. */
+        const padX = f.padX ?? 20, padY = f.padY ?? 0;
         /* .render-block first, .card only as a fallback. Cropping to the
            nearest card sounds right and is not: the property calculator puts
            both charts and a full cost table inside ONE card, so both frames
@@ -264,8 +316,8 @@ async function main() {
         })()`);
         if (!box) throw new Error(`selector matched nothing: ${f.sel}`);
         clipVia = box.via;
-        clip = { x: Math.max(0, box.x - pad), y: Math.max(0, box.y - pad),
-                 width: box.w + pad * 2, height: box.h + pad * 2, scale: 1 };
+        clip = { x: Math.max(0, box.x - padX), y: Math.max(0, box.y - padY),
+                 width: box.w + padX * 2, height: box.h + padY * 2, scale: 1 };
       }
 
       const { result: { data } } = await send('Page.captureScreenshot',

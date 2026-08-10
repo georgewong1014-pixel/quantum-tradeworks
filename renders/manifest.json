@@ -1,0 +1,70 @@
+{
+  "base": "https://quantum-tradeworks.vercel.app",
+  "scale": 2,
+  "generated": "run node renders.mjs to refresh",
+  "frames": [
+    {
+      "id": "home-hero",
+      "path": "/",
+      "w": 2400,
+      "h": 1260,
+      "webp": 112278,
+      "avif": 54919,
+      "what": "The homepage, at Open Graph size. The three proof figures are computed live by the same engines the product runs on, not typeset."
+    },
+    {
+      "id": "wheel-payoff",
+      "path": "/wheel",
+      "w": 2312,
+      "h": 808,
+      "webp": 36364,
+      "avif": 20334,
+      "what": "One cash-secured put, at expiry. Arithmetic on figures the reader entered — no chain data and no probability."
+    },
+    {
+      "id": "wheel-collateral",
+      "path": "/wheel",
+      "w": 2210,
+      "h": 252,
+      "webp": 15042,
+      "avif": 8167,
+      "what": "Collateral against the obligation, deliberately short. Cash-secured is a gate, and the shortfall is drawn as a size."
+    },
+    {
+      "id": "property-waterfall",
+      "path": "/property/calculator",
+      "w": 1544,
+      "h": 636,
+      "webp": 32662,
+      "avif": 16376,
+      "what": "What the cash to buy is actually for, and the gap between completing the purchase and being safe afterwards."
+    },
+    {
+      "id": "property-rent",
+      "path": "/property/calculator",
+      "w": 1544,
+      "h": 304,
+      "webp": 23110,
+      "avif": 12176,
+      "what": "The entered rent against the rent that would cover fixed costs and the loan."
+    },
+    {
+      "id": "trading-index",
+      "path": "/trading-index",
+      "w": 2216,
+      "h": 460,
+      "webp": 36544,
+      "avif": 21602,
+      "what": "Three timeframes against the floor each must clear, with what was not recorded named on every row."
+    },
+    {
+      "id": "screener",
+      "path": "/discover/screener",
+      "w": 2880,
+      "h": 1800,
+      "webp": 149198,
+      "avif": 76933,
+      "what": "The screener on its business-quality preset, scrolled sideways so the frozen company column holds while the metrics move under it."
+    }
+  ]
+}
