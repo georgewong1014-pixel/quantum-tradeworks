@@ -1,0 +1,12 @@
+# Quantum Tradeworks
+#
+# /my/ holds one reader's own portfolios, investment cases, watchlists, property
+# evidence and correction cases. None of it leaves the browser, so there is
+# nothing there for a crawler to fetch — but a personal surface should not be in
+# an index whatever it happens to contain today.
+
+User-agent: *
+Disallow: /my/
+Allow: /
+
+Sitemap: https://quantum-tradeworks.vercel.app/sitemap.xml

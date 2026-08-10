@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Canonical routes only.
+
+  The alias paths (/wheel, /cash-wheel, /options, /my/wheel, /my/options,
+  /trading-index) resolve to the same two workspaces and are deliberately
+  absent: they exist so a reader who guesses a URL lands somewhere, not so a
+  crawler indexes one page five times.
+
+  /my/* is excluded here and in robots.txt. /app and /welcome are application
+  shells rather than destinations.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://quantum-tradeworks.vercel.app/</loc><priority>1.0</priority></url>
+
+  <url><loc>https://quantum-tradeworks.vercel.app/property</loc><priority>0.9</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/property/calculator</loc><priority>0.9</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/property/opportunities</loc><priority>0.6</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/property/comparables</loc><priority>0.6</priority></url>
+
+  <url><loc>https://quantum-tradeworks.vercel.app/research</loc><priority>0.9</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/research/trading-index</loc><priority>0.8</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/us-options/wheel</loc><priority>0.8</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/discover</loc><priority>0.8</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/discover/screener</loc><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/discover/value-map</loc><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/discover/sarawak</loc><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/compare</loc><priority>0.6</priority></url>
+
+  <url><loc>https://quantum-tradeworks.vercel.app/learn</loc><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/methodology</loc><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/learn/glossary</loc><priority>0.6</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/learn/product-boundaries</loc><priority>0.6</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/data-sources</loc><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/corrections</loc><priority>0.5</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/status</loc><priority>0.5</priority></url>
+
+  <url><loc>https://quantum-tradeworks.vercel.app/pricing</loc><priority>0.6</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/about</loc><priority>0.6</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/contact</loc><priority>0.5</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/privacy</loc><priority>0.4</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/terms</loc><priority>0.4</priority></url>
+</urlset>

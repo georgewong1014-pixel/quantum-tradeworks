@@ -991,6 +991,18 @@ details > summary::marker { content: ''; }
   .card, .panel, .noteitem { border: 1px solid CanvasText; }
 }
 </style>
+<!--
+  Vercel Web Analytics. First-party, cookieless, and it collects no personal
+  data — page, referrer, country, device class and nothing that identifies a
+  person. That is the only analytics this product can honestly run before it has
+  a published privacy notice and an entity behind it, and /privacy states
+  exactly what it records.
+
+  The script 404s harmlessly until Web Analytics is switched on for the
+  deployment, so nothing here needs changing to enable or disable it. Turning it
+  off in the dashboard turns it off everywhere.
+-->
+<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -1435,6 +1447,59 @@ const store = {
     try { localStorage.setItem('vl.' + key, JSON.stringify(value)); } catch { /* private mode */ }
   }
 };
+
+/* EVERYTHING A READER HAS MADE, IN ONE PLACE.
+   ---------------------------------------------------------------------------
+   All of it lives in this browser's localStorage. A cleared browser, a second
+   laptop, private mode, or a phone instead of a desk destroys the lot with no
+   copy anywhere — and there was no way to carry it either. Somebody who models
+   a property, writes two investment cases and sources a district's transactions
+   has done hours of work that one wrong click ends.
+
+   The list is explicit rather than "every vl.* key" so that adding a key does
+   not silently start exporting something the reader did not expect to travel —
+   and so each one can say what it is. */
+const PORTABLE_KEYS = [
+  { k:'portfolios',   label:'Portfolios and holdings' },
+  { k:'theses',       label:'Investment cases' },
+  { k:'watchlists',   label:'Watchlists' },
+  { k:'observations', label:'Property comparables' },
+  { k:'corrections',  label:'Correction cases' },
+  { k:'deal',         label:'Property deal inputs' },
+  { k:'opportunities',label:'Opportunity register' },
+  { k:'wheelPlan',    label:'Cash Wheel plan' },
+  { k:'wheelLegs',    label:'Cash Wheel cycle legs' },
+  { k:'qttiPlan',     label:'Trading Index evidence' },
+  { k:'manualPrices', label:'Prices you entered' },
+  { k:'userData',     label:'Price series you pasted' },
+];
+
+function exportEverything() {
+  const out = { format:'quantum-tradeworks/user-data', version:1,
+                exportedAt:new Date().toISOString(), model:MODEL_VERSION, data:{} };
+  PORTABLE_KEYS.forEach(({ k }) => {
+    const v = store.read(k, null);
+    if (v !== null && v !== undefined) out.data[k] = v;
+  });
+  return out;
+}
+
+/* Replaces wholesale rather than merging. Merging two portfolios that both
+   contain "Long-term core" is a guess about which the reader meant, and a wrong
+   guess here silently corrupts the thing they were trying to protect. The
+   confirmation says exactly what is about to be overwritten. */
+function importEverything(doc) {
+  if (!doc || doc.format !== 'quantum-tradeworks/user-data')
+    return { ok:false, err:'That file is not a Quantum Tradeworks export.' };
+  if (!doc.data || typeof doc.data !== 'object')
+    return { ok:false, err:'That export carries no data block.' };
+  const known = PORTABLE_KEYS.map(x => x.k);
+  const incoming = Object.keys(doc.data).filter(k => known.includes(k));
+  const ignored = Object.keys(doc.data).filter(k => !known.includes(k));
+  if (!incoming.length) return { ok:false, err:'That export holds nothing this build recognises.' };
+  return { ok:true, incoming, ignored, exportedAt:doc.exportedAt,
+    apply() { incoming.forEach(k => store.write(k, doc.data[k])); } };
+}
 
 /* ==========================================================================
    PLANS AND ENTITLEMENTS
@@ -2286,6 +2351,33 @@ const RAW = [
 
 const MODEL_VERSION = 'metrics 1.4.0 · scores 1.2.0 · valuation 1.3.0';
 const AS_OF = '30 Jul 2026';
+
+/* LAUNCH CONFIGURATION — the two things a campaign needs that code cannot supply.
+   ---------------------------------------------------------------------------
+   Both are empty, and both surfaces stay HIDDEN while they are. That is
+   deliberate and it is the same rule the corrections form now follows: a
+   waitlist that thanks somebody while storing nothing is worse than no
+   waitlist, because it converts a willing reader into one who thinks they have
+   already signed up.
+
+   waitlistEndpoint  A URL that accepts a POST. Any form backend does —
+                     Formspree, Buttondown, a Vercel function, anything that
+                     returns 2xx. Until it is set the waitlist does not render.
+
+   contactEmail      Used for the fallback mail link and for the contact page.
+                     Until it is set, /contact keeps saying no route is
+                     published, because none is.
+
+   ANALYTICS is Vercel Web Analytics, enabled in the Vercel dashboard rather
+   than here. It is first-party, cookieless and collects no personal data, which
+   is the only kind this product can honestly run before a privacy notice exists
+   — and the privacy page states exactly what it records. Nothing loads unless
+   the deployment has it switched on. */
+const LAUNCH = {
+  waitlistEndpoint: '',
+  contactEmail: '',
+};
+const waitlistReady = () => !!(LAUNCH.waitlistEndpoint || LAUNCH.contactEmail);
 
 /* THE COVERAGE MANIFEST — one count, counted once, in one place.
    ---------------------------------------------------------------------------
@@ -10993,6 +11085,8 @@ VIEWS.marketing = () => {
   hero.append(el('p', { class: 'metaline', style: 'margin-top:var(--lg);max-width:60ch' },
     'No stock tips. No hidden rankings. Every important number shows its assumptions and source.'));
   wrap.append(hero);
+  const wl = waitlistCard();
+  if (wl) wrap.append(wl);
 
   /* -- 2. choose what you want to do ------------------------------------ */
   const tasks = el('section');
@@ -11222,6 +11316,45 @@ VIEWS.userdata = () => {
       'Without prices, anything price-derived is shown as unavailable rather than estimated: market capitalisation, multiples, dividend yield, the difference to a model estimate, and every trend indicator. The statements, scorecards and risk flags all work without them.'));
   }
   wrap.append(status);
+
+  /* ---------- everything, not only the prices ----------
+     The export above covers pasted price series. Everything else a reader makes
+     — portfolios, investment cases, watchlists, property comparables,
+     correction cases, both workspaces — was unreachable, so the work that takes
+     the longest was the work most easily lost. */
+  const all = el('div', { class: 'card' });
+  all.append(cardHead('Everything you have made',
+    'All of it is held in this browser and nowhere else. This is the only copy that survives a cleared browser, a second machine, or private mode closing.'));
+
+  const held = PORTABLE_KEYS.map(({ k, label }) => {
+    const v = store.read(k, null);
+    const n = Array.isArray(v) ? v.length : (v && typeof v === 'object' ? 1 : 0);
+    return { k, label, n, has: v !== null && v !== undefined && n > 0 };
+  });
+  const kv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
+  held.filter(x => x.has).forEach(x => {
+    kv.append(el('dt', {}, x.label));
+    kv.append(el('dd', {}, Array.isArray(store.read(x.k, null)) ? `${x.n} record${x.n === 1 ? '' : 's'}` : 'saved'));
+  });
+  if (held.some(x => x.has)) all.append(kv);
+  else all.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'Nothing saved yet. Anything you build — a property model, an investment case, a comparable — appears here and can be carried to another browser.'));
+
+  all.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+      const doc = exportEverything();
+      if (!Object.keys(doc.data).length) { toast('Nothing saved yet'); return; }
+      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+      const a = el('a', { href: URL.createObjectURL(blob),
+        download: `quantum-tradeworks-${new Date().toISOString().slice(0, 10)}.json` });
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } }, 'Export everything'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openRestoreDrawer() }, 'Restore from a file'),
+  ]));
+  all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'The file never leaves your machine unless you send it. It is plain JSON — you can read it, and so can anyone you give it to.'));
+  wrap.append(all);
 
   /* ---------- paste ---------- */
   const add = el('div', { class: 'card' });
@@ -11609,12 +11742,21 @@ VIEWS.privacy = () => trustPage('Privacy',
       ['Your watchlists, saved screens, investment cases, portfolio holdings, property inputs, theme and base currency are held in this browser’s local storage. They are not sent anywhere.',
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
-      ['Page views are counted by Vercel Analytics, which does not use cookies and does not build a profile of you.',
-       'When SEC-filed companies are loaded, the filing data is fetched from a file served by this site. No request identifying you is made to any third party.']],
+      [
+        'Page views are counted by Vercel Web Analytics: the path you visited, the site that referred you, your country, and whether you are on a phone or a desktop. It sets no cookies, stores no identifier, and cannot follow you to another site — there is no way to tell a returning visitor from a new one, which is the trade being made deliberately.',
+        'When SEC-filed companies are loaded, the filing data is fetched from a file served by this site. No request identifying you is made to any third party.',
+        /* Written from the same flag the waitlist renders from. If that form is
+           ever switched on, this sentence appears with it — a privacy page that
+           has to be remembered separately is one that will be wrong. */
+        ...(waitlistReady()
+          ? ['If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.']
+          : ['There is no form on this site that sends anything anywhere. No email address is requested and none can be submitted.']),
+        'Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.',
+      ]],
     ['What is never collected',
       'No brokerage credentials, no account numbers, no identity documents. The portfolio feature records what you type and nothing else.'],
     ['Clearing your data',
-      'Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly.'],
+      'Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly. Export first if you want to keep it — there is no copy on any server to fall back on.'],
     ['A formal policy',
       'This page describes the build as it actually behaves. A formal privacy policy naming a data controller follows the registered entity.', true],
   ]);
@@ -12653,6 +12795,133 @@ function correctionPayload(c) {
     `Data as of: ${c.asOf}`,
     `Universe at the time: ${c.coverage}`,
   ].join('\n');
+}
+
+/* THE WAITLIST, WHICH REFUSES TO EXIST UNTIL IT CAN WORK.
+   ---------------------------------------------------------------------------
+   Nothing can be bought here: there is no entity, no payment, no account. So
+   every visitor a campaign brings is someone who cannot act today, and the only
+   honest thing to ask for is permission to tell them when they can.
+
+   It returns null while LAUNCH holds neither an endpoint nor an address,
+   because a form that thanks somebody and stores nothing is the corrections
+   form's old defect wearing a different label — and worse, because it converts
+   a willing reader into one who believes they have already signed up and will
+   not sign up again.
+
+   What it promises is deliberately small and exactly what it can keep: one
+   message, when there is something to say. No newsletter, no drip, no sharing —
+   and it says so beside the field rather than in a policy nobody opens. */
+/* Restore replaces; it never merges. Two portfolios both called "Long-term
+   core" cannot be reconciled by a machine, and guessing wrong destroys the
+   thing the reader was trying to protect. So the drawer says exactly what will
+   be overwritten and what is in the file, before anything is written. */
+function openRestoreDrawer() {
+  const body = el('div');
+  body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
+    'Paste a Quantum Tradeworks export, or choose the file. Nothing is written until you have seen what it holds.'));
+
+  const ta = el('textarea', { class: 'input', style: 'min-height:160px;font-family:var(--mono,monospace);font-size:12px',
+    placeholder: 'Paste the JSON here' });
+  const file = el('input', { class: 'input', type: 'file', accept: '.json,application/json', style: 'margin-bottom:var(--md)' });
+  file.addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    ta.value = await f.text();
+    check.click();
+  });
+  body.append(file);
+  body.append(ta);
+  const report = el('div', { style: 'margin-top:var(--md)' });
+
+  const check = el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)', onclick: () => {
+    report.replaceChildren();
+    let doc;
+    try { doc = JSON.parse(ta.value); }
+    catch (e) { report.append(el('p', { class: 'body', style: 'color:var(--dn-text)' }, `That is not valid JSON — ${e.message}`)); return; }
+    const r = importEverything(doc);
+    if (!r.ok) { report.append(el('p', { class: 'body', style: 'color:var(--dn-text)' }, r.err)); return; }
+
+    report.append(el('p', { class: 'body', style: 'font-size:13px' },
+      `Exported ${String(r.exportedAt || '').slice(0, 16).replace('T', ' ') || 'at an unstated time'}.`));
+    const ul = el('ul', { class: 'ticklist', style: 'margin-top:8px' });
+    r.incoming.forEach(k => {
+      const label = (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k;
+      const cur = store.read(k, null);
+      const has = cur !== null && cur !== undefined && (!Array.isArray(cur) || cur.length);
+      ul.append(el('li', {}, `${label} — ${has ? 'REPLACES what is here now' : 'nothing here to replace'}`));
+    });
+    report.append(ul);
+    if (r.ignored.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `Ignored, because this build does not recognise them: ${r.ignored.join(', ')}.`));
+
+    report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)', onclick: () => {
+      if (!confirm('Replace the listed items in this browser? What is here now cannot be recovered afterwards.')) return;
+      r.apply();
+      closeDrawer();
+      /* A full reload rather than render(): half this state was read into
+         module-level variables at boot, and repainting over them would show a
+         mixture of the old and the new. */
+      location.reload();
+    } }, `Restore ${r.incoming.length} item${r.incoming.length === 1 ? '' : 's'}`));
+  } }, 'Check this file');
+  body.append(check);
+  body.append(report);
+  openDrawer('Restore from a file', body);
+}
+
+function waitlistCard() {
+  if (!waitlistReady()) return null;
+
+  const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
+  card.append(cardHead('Tell me when this is real',
+    'There is no company behind this yet, nothing can be bought, and nothing is stored on a server. One message when that changes — not a newsletter.'));
+
+  const row = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:flex-end' });
+  const f = el('div', { class: 'field', style: 'flex:1 1 260px;margin:0' });
+  f.append(el('label', { for: 'wl-email' }, 'Email'));
+  const input = el('input', { class: 'input', id: 'wl-email', type: 'email',
+    autocomplete: 'email', placeholder: 'you@example.com' });
+  f.append(input);
+  row.append(f);
+
+  const status = el('p', { class: 'metaline', style: 'margin-top:10px' });
+  const submit = el('button', { class: 'btn btn-primary', onclick: async () => {
+    const email = input.value.trim();
+    /* Deliberately loose. Rejecting an address a mail server would accept, to
+       satisfy a regex, loses a real person for nothing. */
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { status.textContent = 'That does not look like an email address.'; return; }
+
+    if (!LAUNCH.waitlistEndpoint) {
+      /* No endpoint, but an address exists: hand it over rather than pretend. */
+      location.href = `mailto:${LAUNCH.contactEmail}?subject=${encodeURIComponent('Quantum Tradeworks waitlist')}`
+        + `&body=${encodeURIComponent(`Please add ${email} to the waitlist.`)}`;
+      return;
+    }
+    submit.disabled = true;
+    status.textContent = 'Sending…';
+    try {
+      const res = await fetch(LAUNCH.waitlistEndpoint, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, at: new Date().toISOString(), from: location.pathname }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      row.replaceChildren();
+      status.textContent = `${email} recorded. One message when there is something to say, and nothing else.`;
+    } catch (err) {
+      submit.disabled = false;
+      /* Named, not swallowed. A silent failure here looks identical to success
+         and costs the person the thing they came to do. */
+      status.textContent = 'That did not send — nothing has been recorded. '
+        + (LAUNCH.contactEmail ? `Email ${LAUNCH.contactEmail} instead.` : 'Please try again shortly.');
+    }
+  } }, 'Keep me posted');
+  row.append(submit);
+  card.append(row);
+  card.append(status);
+  card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'Your address is used for that one message and nothing else. It is not sold, not shared, and not added to any list you did not ask for. Reply to it and it is deleted.'));
+  return card;
 }
 
 function openReportError() {
