@@ -793,6 +793,15 @@ table.dt tfoot td.pin { z-index: 3; }
 
 /* Header row pinned under the top bar for full-page tables. */
 table.dt-pagesticky thead th { top: var(--topbar-h); }
+/* .render-block is a MARKER AND CARRIES NO STYLE, deliberately.
+   renders.mjs crops a published frame to it, so a frame is the chart plus the
+   caption that qualifies it rather than whatever card happens to contain them.
+   Without it the crop fell back to .card — and the property calculator's card
+   is some 2,700px tall, so the "break-even rent" render came out as a cost
+   table with a bar at the top, identical to the waterfall render beside it.
+   Give it declarations and it stops being free: a marker that changes what a
+   reader sees is no longer only a marker. */
+
 /* A FROZEN COLUMN NEEDS A VISIBLE EDGE.
    The company column has been sticky for a while and had no boundary of any
    kind, so with fourteen columns scrolled under it the reader saw a header
@@ -17102,7 +17111,7 @@ VIEWS.property = () => {
   /* The two rent tiles above, drawn against each other. One series, so no
      legend — the title names it and both marks are directly labelled. */
   if (isNum(m.breakEvenRent) && m.breakEvenRent > 0 && isNum(d.rent)) {
-    const rb = el('div', { style: 'margin-top:var(--lg)' });
+    const rb = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
     rb.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
       'Rent against break-even'));
     const rbHost = el('div', { style: 'margin-top:var(--sm)' });
@@ -17136,7 +17145,7 @@ VIEWS.property = () => {
      tiers means a legend is not optional — identity may never rest on colour
      alone, and here the colour carries the one distinction that matters. */
   if ((m.costGroups || []).length >= 2) {
-    const wf = el('div', { style: 'margin-top:var(--lg)' });
+    const wf = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
     wf.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
       'What the cash is for'));
     const swatch = (tok, text) => el('span', { class: 'caption',
@@ -17990,7 +17999,7 @@ VIEWS.wheel = () => {
   if (m.requiredAssignmentCash > 0) {
     const req = m.requiredAssignmentCash;
     const have = num0(p.eligibleCashUsd);
-    const bar = el('div', { style: 'margin-top:var(--md)' });
+    const bar = el('div', { class: 'render-block', style: 'margin-top:var(--md)' });
     bar.append(el('span', { class: 'eyebrow' }, 'Collateral against the obligation'));
     const barHost = el('div', { style: 'margin-top:5px' });
     bar.append(barHost);
@@ -18980,12 +18989,14 @@ VIEWS.tradingIndex = () => {
   if (r.assessable) {
     /* Drawn first, itemised underneath. The table stays exactly as it was and
        is now also this chart's accessible equivalent. */
-    const tfHost = el('div', { style: 'margin-top:var(--md)' });
-    card.append(tfHost);
+    const tfBlock = el('div', { class: 'render-block', style: 'margin-top:var(--md)' });
+    const tfHost = el('div');
+    tfBlock.append(tfHost);
     timeframeScoreBars(tfHost, r.tfs, r.tpl?.floors);
-    card.append(el('p', { class: 'metaline', style: 'margin-top:var(--xs)' },
+    tfBlock.append(el('p', { class: 'metaline', style: 'margin-top:var(--xs)' },
       `Each floor is the minimum this template — ${r.tpl?.label || 'the selected template'} — requires of that `
       + 'timeframe. A floor is a condition to be met, not a target and not a forecast.'));
+    card.append(tfBlock);
 
     const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
     t.append(el('thead', {}, el('tr', {}, ['Timeframe', 'Weight', 'Score', 'Coverage'].map((h, i) =>
