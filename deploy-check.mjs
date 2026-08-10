@@ -74,6 +74,32 @@ function localCommit() {
   try { return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim(); }
   catch { return null; }
 }
+
+/* WHICH COMMIT IS ACTUALLY LIVE.
+   ---------------------------------------------------------------------------
+   "STALE — production is NOT serving this file" says a deployment has not
+   landed and nothing else. It cannot distinguish a build still in flight from
+   one that never started, and when deployments stopped entirely it reported the
+   same two words for twenty minutes while the real answer — production is four
+   commits behind and no build has run since — was sitting in git history.
+
+   Hashing recent commits' index.html and matching the served file against them
+   turns that into a date and a subject line. */
+function liveCommit(servedHash) {
+  try {
+    const shas = execSync('git log --format=%H -25', { encoding: 'utf8' }).trim().split('\n');
+    for (const [i, sha] of shas.entries()) {
+      let f;
+      try { f = execSync(`git show ${sha}:${FILE}`, { encoding: 'utf8', maxBuffer: 1e8 }); }
+      catch { continue; }
+      if (fingerprint(f) === servedHash) {
+        const subj = execSync(`git log -1 --format=%s ${sha}`, { encoding: 'utf8' }).trim();
+        return { sha: sha.slice(0, 7), behind: i, subject: subj.split('\n')[0].slice(0, 60) };
+      }
+    }
+  } catch { /* not a git checkout, or git unavailable */ }
+  return null;
+}
 function isDirty() {
   try { return execSync(`git status --porcelain -- ${FILE}`, { encoding: 'utf8' }).trim().length > 0; }
   catch { return false; }
@@ -92,6 +118,19 @@ if (dirty) {
   console.log('\nnote: the local file has uncommitted changes, so a match here would mean');
   console.log('production is serving something you have not committed. Usually this means');
   console.log('the check is being run before the commit rather than after the deploy.');
+}
+
+function reportLive(servedHash) {
+  const live = liveCommit(servedHash);
+  if (!live) {
+    console.log('\nThe served file matches no commit in the last 25 — production may be serving');
+    console.log('something built from a branch or a state this checkout does not contain.');
+    return;
+  }
+  console.log(`\nlive    : ${live.sha} — ${live.subject}`);
+  if (live.behind === 0) console.log('        which is HEAD, so this is a caching delay rather than a missing build.');
+  else console.log(`        production is ${live.behind} commit${live.behind === 1 ? '' : 's'} behind HEAD. `
+    + `Every commit after ${live.sha} is on origin with no build.`);
 }
 
 const started = Date.now();
@@ -114,6 +153,7 @@ while (true) {
   if (!WAIT) {
     console.log(`\nserved  : ${err ? `could not fetch — ${err}` : short(got)}`);
     console.log('STALE — production is NOT serving this file.');
+    if (!err) reportLive(got);
     console.log('\nThe deployment has not landed. If it does not arrive within a few minutes,');
     console.log('an empty commit forces one: git commit --allow-empty -m "chore: trigger redeploy"');
     process.exit(1);
@@ -122,6 +162,7 @@ while (true) {
   if (elapsed >= TIMEOUT) {
     console.log(`\nserved  : ${err ? `could not fetch — ${err}` : short(got)}`);
     console.log(`TIMED OUT after ${elapsed}s — production never matched.`);
+    if (!err) reportLive(got);
     console.log('\nThe commit may be on origin without a deployment having run. Check that the');
     console.log('push reached origin, then force one: git commit --allow-empty -m "chore: trigger redeploy"');
     process.exit(1);
