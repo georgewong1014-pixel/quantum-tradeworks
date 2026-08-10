@@ -2507,7 +2507,20 @@ function derive(c) {
   const ocf = col(fin, F.OCF), capex = col(fin, F.CAPEX), eq = col(fin, F.EQ);
   const debt = col(fin, F.DEBT), cash = col(fin, F.CASH), sh = col(fin, F.SH), dps = col(fin, F.DPS);
 
-  const fcf = ocf.map((v, k) => isNum(v) ? v - (capex[k] || 0) : null);
+  /* NULL IS NOT ZERO, AND THIS FILE KEPT TREATING IT AS ONE.
+     ---------------------------------------------------------------------
+     `capex[k] || 0` substituted zero for a capital programme nobody had
+     reported, so free cash flow silently became operating cash flow — and on
+     16 of the 119 filers it did. ConocoPhillips read a 38.2% free cash flow
+     margin and EOG 44.4%, on oil businesses whose capital spending is most of
+     what they do. That figure then feeds the FCF yield, the DCF and the value
+     pillar.
+
+     This is the same defect the product exists to prevent, written into the
+     arithmetic rather than the copy: an absent input rendered as a confident
+     number instead of an absence. A missing capex line makes free cash flow
+     unknown, and unknown is a thing this product already knows how to say. */
+  const fcf = ocf.map((v, k) => (isNum(v) && isNum(capex[k])) ? v - capex[k] : null);
   const eps = ni.map((v, k) => isNum(v) && sh[k] ? v / sh[k] : null);
   const bvps = eq.map((v, k) => isNum(v) && sh[k] ? v / sh[k] : null);
   const fcfps = fcf.map((v, k) => isNum(v) && sh[k] ? v / sh[k] : null);
@@ -2518,7 +2531,11 @@ function derive(c) {
   const price = isNum(c.px?.p) ? c.px.p : null;
   const hasPx = price != null;
   const mcap = hasPx ? price * sh[i] : null;
-  const netDebt = isBank ? null : debt[i] - cash[i];
+  /* Both lines, or neither. `debt[i] - cash[i]` with a missing debt line
+     returned negative net debt, which made m.netCash true and m.netGearing
+     negative — the product asserting a net cash position for a company whose
+     borrowings it simply had not read. */
+  const netDebt = (isBank || !isNum(debt[i]) || !isNum(cash[i])) ? null : debt[i] - cash[i];
   const ev = (isBank || !hasPx) ? null : mcap + netDebt;
 
   const m = {};
@@ -2554,8 +2571,13 @@ function derive(c) {
   m.revenueSuspect = revenueSuspect
     ? `Operating profit of ${fmtNum(ebit[i], 2)}bn exceeds revenue of ${fmtNum(rev[i], 2)}bn, which cannot both be right — the revenue line looks partially captured. Every margin that divides by revenue is withheld rather than computed from figures that disagree.`
     : null;
-  m.om  = rev[i] > 0 && !revenueSuspect ? ebit[i] / rev[i] * 100 : null;
-  m.nm  = rev[i] > 0 && !revenueSuspect ? ni[i] / rev[i] * 100 : null;
+  /* isNum on the numerator too. A missing EBIT made `null / rev * 100` exactly
+     0, printed as "0.0%" — an operating margin of precisely zero on Phillips 66,
+     a business with revenue in the hundreds of billions. A genuine breakeven
+     year is real, which is why the test is on whether the line was reported and
+     not on whether the answer is small. */
+  m.om  = isNum(ebit[i]) && rev[i] > 0 && !revenueSuspect ? ebit[i] / rev[i] * 100 : null;
+  m.nm  = isNum(ni[i]) && rev[i] > 0 && !revenueSuspect ? ni[i] / rev[i] * 100 : null;
   m.fcfm = isNum(m.fcf) && rev[i] > 0 && !revenueSuspect ? m.fcf / rev[i] * 100 : null;
   /* RETURN ON EQUITY, WITHHELD WHERE THERE IS BARELY ANY EQUITY.
      ---------------------------------------------------------------------
@@ -2573,18 +2595,35 @@ function derive(c) {
      are real returns on a genuinely small equity base — the rule is about a
      denominator that has stopped carrying information, not about a large
      number. */
-  const avgEq = (eq[i] + eq[i - 1]) / 2;
-  const equityTooThin = isNum(eq[i]) && isNum(rev[i]) && rev[i] > 0
-    && eq[i] < 0.05 * rev[i] && !isBank && c.type !== 'reit';
+  /* The divisor is the AVERAGE, so the test has to be on the average. It was on
+     eq[i] alone, which meant the rule the code already believes in was being
+     applied to a variable that is not the one it divides by — a company thin at
+     the year end but not on average, or the reverse, was judged on the wrong
+     number. The sign test is the second half: an average spanning negative and
+     positive equity is the midpoint of two opposite states, not a capital base. */
+  const avgEq = (isNum(eq[i]) && isNum(eq[i - 1])) ? (eq[i] + eq[i - 1]) / 2 : null;
+  const equitySignFlip = isNum(eq[i]) && isNum(eq[i - 1]) && eq[i] * eq[i - 1] < 0;
+  const equityTooThin = isNum(avgEq) && isNum(rev[i]) && rev[i] > 0
+    && (avgEq < 0.05 * rev[i] || equitySignFlip) && !isBank && c.type !== 'reit';
   m.roe = avgEq > 0 && !equityTooThin ? ni[i] / avgEq * 100 : null;
   m.roeWithheld = avgEq > 0 && equityTooThin
     ? 'Book equity is under 5% of revenue, so return on equity divides by a base too small to carry meaning. The underlying figures are on the financials tab.'
     : null;
   m.roic = isBank ? null : (() => {
+    /* All three lines, or the denominator is not invested capital. With debt
+       missing it became equity minus cash — a net-cash residual, which on a
+       cash-rich filer is a small difference between two large numbers and
+       produced a return on nothing much. Nine non-bank rows. */
+    if (!isNum(eq[i]) || !isNum(debt[i]) || !isNum(cash[i]) || !isNum(ebit[i])) return null;
     const invested = eq[i] + debt[i] - cash[i];
     return invested > 0 ? ebit[i] * (1 - TAX[c.mkt]) / invested * 100 : null;
   })();
-  m.cashconv = isNum(ocf[i]) && ni[i] > 0 ? ocf[i] / ni[i] * 100 : null;
+  /* ni > 0 was the only guard, which is the AbbVie failure with a different
+     denominator: it tests the sign and not whether there is enough of it to
+     divide by. General Motors legitimately reaches 966% in a trough year, so
+     the floor sits well below that. */
+  m.cashconv = isNum(ocf[i]) && ni[i] > 0 && Math.abs(ocf[i]) / ni[i] <= 15
+    ? ocf[i] / ni[i] * 100 : null;
 
   /* --- growth ---------------------------------------------------------- */
   /* Scored growth and stability inputs stay on the most recent five reported
@@ -2624,9 +2663,14 @@ function derive(c) {
   m.revDD10 = maxDrawdown(rev);
 
   /* --- balance sheet ---------------------------------------------------- */
-  m.ndEbit = isBank ? null : (ebit[i] > 0 ? netDebt / ebit[i] : null);
-  m.de     = isBank ? null : (eq[i] > 0 ? debt[i] / eq[i] : null);
-  m.netCash = isBank ? null : netDebt < 0;
+  m.ndEbit = isBank ? null : (isNum(netDebt) && ebit[i] > 0 ? netDebt / ebit[i] : null);
+  /* `debt[i] / eq[i]` with no debt line rendered 0.00x — not "unknown" but a
+     positive claim of no borrowings, on Ford, General Motors, Deere and
+     Berkshire among nine others. Debt/equity of exactly zero is the strongest
+     balance-sheet statement this product can make and it was making it from an
+     absent line. */
+  m.de     = isBank ? null : (isNum(debt[i]) && eq[i] > 0 ? debt[i] / eq[i] : null);
+  m.netCash = (isBank || !isNum(netDebt)) ? null : netDebt < 0;
   /* Interest expense is not a line in this sample dataset, so interest cover
      genuinely cannot be computed. It is reported as missing, never imputed. */
   m.icov = null;
@@ -2635,7 +2679,7 @@ function derive(c) {
      from debt/equity above, and they are not interchangeable: one nets off cash
      and the other does not, so a cash-rich borrower looks levered on de and
      unlevered here. Section 18.3 screens on this one. */
-  m.netGearing = isBank ? null : (eq[i] > 0 ? netDebt / eq[i] * 100 : null);
+  m.netGearing = isBank ? null : (isNum(netDebt) && eq[i] > 0 ? netDebt / eq[i] * 100 : null);
 
   /* Years of positive operating cash flow in the last five — section 18.3 asks
      for four of five. Counted over the years actually reported, so a company
