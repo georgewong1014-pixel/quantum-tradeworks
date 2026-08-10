@@ -2673,7 +2673,34 @@ function derive(c) {
   const shCagr = shBreak ? null : cagr(sh);
   m.dilution = isNum(shCagr) ? shCagr : null;          /* +ve = issuing */
   m.buyback  = isNum(shCagr) ? -shCagr : null;         /* +ve = shrinking */
-  m.payout   = isNum(m.eps) && m.eps > 0 ? dps[i] / m.eps * 100 : null;
+  /* EARNINGS AND DIVIDENDS ON DIFFERENT SCALES.
+     ---------------------------------------------------------------------
+     Charles Schwab published a payout ratio of 22,070%. Its net income is
+     stored as 0.005942bn — five point nine MILLION for a business that earned
+     five point nine BILLION. The digits are right and the scale is out by a
+     thousand, which also made earnings per share 0.0049 against a dividend of
+     1.08, and a net margin of 0.037% for one of the most profitable brokers
+     in the United States.
+
+     A dividend more than fifty times earnings per share is the tell. No
+     dividend policy survives that; it means the two per-share figures were
+     built from inputs on different scales. Which of the two is wrong cannot be
+     established from here — so everything downstream of the disagreement is
+     withheld rather than one of them being quietly "corrected", the same rule
+     applied to American Tower's revenue.
+
+     Fifty, not five: a payout of several hundred percent is real in a bad year
+     and this must not fire on one. */
+  const perShareScaleBroken = isNum(m.eps) && m.eps > 0 && isNum(dps[i]) && dps[i] / m.eps > 50;
+  m.perShareScaleBroken = perShareScaleBroken
+    ? `A dividend of ${fmtNum(dps[i], 2)} a share against earnings of ${fmtNum(m.eps, 4)} a share is a ratio of ${Math.round(dps[i] / m.eps)}:1. No dividend policy produces that, so the two figures were built from inputs on different scales — most likely a reported value read at the wrong magnitude. Every earnings-derived ratio is withheld until the underlying lines agree.`
+    : null;
+  m.payout   = isNum(m.eps) && m.eps > 0 && !perShareScaleBroken ? dps[i] / m.eps * 100 : null;
+  /* Everything else that divides by the same earnings figure. Withheld here
+     rather than at each computation above, because they run before the two
+     per-share figures are both in hand — and a metric suppressed in one place
+     and left standing in another is worse than either choice made throughout. */
+  if (perShareScaleBroken) { m.nm = null; m.roe = null; m.pe = null; m.cashconv = null; }
   m.cashPayout = isNum(m.fcf) && m.fcf > 0 ? (dps[i] * sh[i]) / m.fcf * 100 : null;
   m.reinv    = isNum(ocf[i]) && ocf[i] > 0 ? capex[i] / ocf[i] * 100 : null;
 
@@ -2996,6 +3023,8 @@ function riskFlags(c, d) {
     add('warning', 'Equity base near zero', m.roeWithheld, 'roe');
   if (m.revenueSuspect)
     add('serious', 'Revenue line does not reconcile', m.revenueSuspect, 'om');
+  if (m.perShareScaleBroken)
+    add('serious', 'Earnings and dividends disagree on scale', m.perShareScaleBroken, 'payout');
   if (c.type === 'reit' && isNum(m.gearing) && m.gearing > 40)
     add('warning', 'Gearing approaching the regulatory ceiling', `Gearing of ${fmtPct(m.gearing)} leaves limited headroom for debt-funded acquisition.`, 'gearing');
   if (c.flags?.pn17) add('critical', 'PN17 status', 'Company is classified under Practice Note 17 and is subject to a regularisation plan.', null);
