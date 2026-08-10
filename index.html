@@ -8169,15 +8169,24 @@ VIEWS.research = () => {
       ? `No strategy is graded for this company. ${lens.tier.why} A grade computed from figures this product cannot stand behind would look like research and would not be any.`
       : `Of ${n} strategies: ${phrases.join(', ')}.`));
 
-  /* The legend, because two-thirds of what this card emits is a token and a
-     token without a key is decoration. */
-  const key = el('div', { class: 'row row-wrap', style: 'gap:10px;margin-top:8px' });
-  ['missing', 'not_applicable', 'not_built', 'illustrative'].forEach(k => {
-    if (!bs[k]) return;
-    key.append(el('span', { class: 'metaline' },
-      `${FIT_STATES[k].token} — ${FIT_STATES[k].label.toLowerCase()}: ${FIT_STATES[k].why}`));
-  });
-  if (key.children.length) lensCard.append(key);
+  /* The legend, on request rather than always.
+     Three sentences of vocabulary sat permanently between the grades and the
+     workspaces, so the explanation of the tokens competed with the tokens. It
+     is one line now, opened by whoever needs it — and it is still always
+     present, because a token without a key anywhere is decoration. */
+  const shown = ['missing', 'not_applicable', 'not_built', 'illustrative'].filter(k => bs[k]);
+  if (shown.length) {
+    const key = el('details', { style: 'margin-top:8px' });
+    key.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+      `What ${shown.map(k => FIT_STATES[k].token).join(', ')} mean${shown.length === 1 ? 's' : ''}`));
+    const kl = el('dl', { class: 'kv', style: 'margin-top:8px' });
+    shown.forEach(k => {
+      kl.append(el('dt', {}, `${FIT_STATES[k].token} — ${FIT_STATES[k].label.toLowerCase()}`));
+      kl.append(el('dd', { style: 'text-align:left' }, FIT_STATES[k].why));
+    });
+    key.append(kl);
+    lensCard.append(key);
+  }
 
   /* Each fit opens to what supports it, what weakens it, and what is missing. */
   const det = el('details', { style: 'margin-top:10px' });
@@ -15776,12 +15785,67 @@ VIEWS.property = () => {
     `This property does not pay for itself. Holding it costs ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
 
   if (g.gates.length) {
+    /* THE THREE THAT DECIDE IT, THEN THE REST ON REQUEST.
+       Every blocker was listed at equal weight, so eleven items competed and
+       the critical one read like the eleventh. Severity already exists on each
+       gate and was only being used for a colour; it orders them now. */
+    const rank = { critical: 0, serious: 1, warning: 2 };
+    const ordered = [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3));
+    const lead = ordered.slice(0, 3);
+    const rest = ordered.slice(3);
+
     onePage.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' },
       g.grade === 'U' ? 'Why this cannot be graded' : 'Why this is conditional'));
+    const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:13px' }, [
+      el('span', { class: x.severity === 'critical' ? 'chip chip-bronze' : null,
+        style: x.severity === 'critical' ? 'margin-right:6px' : 'display:none' }, 'Blocking'),
+      x.text + (x.who ? ` Confirm with: ${x.who}.` : ''),
+    ]);
     const gl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px' });
-    g.gates.forEach(x => gl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' },
-      x.text + (x.who ? ` Confirm with: ${x.who}.` : ''))));
+    lead.forEach(x => gl.append(gateLine(x)));
     onePage.append(gl);
+
+    if (rest.length) {
+      const more = el('details', { style: 'margin-top:8px' });
+      more.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+        `Show all ${g.gates.length} blockers and assumptions`));
+      const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px;margin-top:8px' });
+      rest.forEach(x => rl.append(gateLine(x)));
+      more.append(rl);
+      onePage.append(more);
+    }
+  }
+
+  /* THE CASH WATERFALL — where the completion figure comes from.
+     "Cash to complete RM95.3k" is the number a reader has to raise, and it was
+     a total with no decomposition on the first screen: the parts were in a cost
+     table much further down, grouped by category rather than shown as a sum. */
+  if (isNum(m.transactionCash) && m.transactionCash > 0) {
+    const wf = el('details', { style: 'margin-top:var(--md)' });
+    wf.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+      `Where ${fmtAmount(m.safeCashRequired, 'MYR')} of safe cash goes`));
+    const steps = [
+      ...(m.costGroups || []).map(grp => [grp.label,
+        grp.items.reduce((a, it) => a + (isNum(it[1]) ? it[1] : 0), 0)]),
+      ['Rent-ready cash', m.improvementCash],
+      ['Reserve held back', m.reserveCash],
+    ].filter(([, v]) => isNum(v) && v > 0);
+    const total = steps.reduce((a, [, v]) => a + v, 0) || 1;
+    const bars = el('div', { style: 'display:flex;flex-direction:column;gap:8px;margin-top:var(--md)' });
+    steps.forEach(([label, v]) => {
+      bars.append(el('div', {}, [
+        el('div', { class: 'row', style: 'gap:8px;justify-content:space-between' }, [
+          el('span', { style: 'font-size:13px' }, label),
+          el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtAmount(v, 'MYR')),
+        ]),
+        el('div', { style: 'height:8px;border-radius:4px;background:var(--surface-sunk);margin-top:3px;overflow:hidden' },
+          el('div', { style: `height:100%;width:${Math.max(1, v / total * 100)}%;background:var(--brand);border-radius:4px` })),
+      ]));
+    });
+    wf.append(bars);
+    if (m.missingCostLines?.length) wf.append(el('p', { class: 'metaline', style: 'margin-top:10px;color:var(--bronze)' },
+      `${m.missingCostLines.length} cost line${m.missingCostLines.length === 1 ? '' : 's'} could not be priced, so this total is short by an unknown amount rather than complete.`));
+    onePage.append(wf);
   }
 
   /* Whose numbers these are, beside the verdict they produced rather than in a
@@ -17157,6 +17221,58 @@ VIEWS.wheel = () => {
     ]),
   ]));
 
+  /* THE CYCLE RAIL.
+     Fourteen internal states drive the transitions; a reader needs to know
+     which of six things is happening. The rail maps them, marks where the cycle
+     actually is, and shows what has been passed — a lifecycle you can only
+     infer from which buttons are enabled is one you have to reverse-engineer. */
+  const STAGE = [
+    { id:'thesis',     label:'Thesis',      states:['candidate'] },
+    { id:'put',        label:'Put open',    states:['put_planned', 'put_open'] },
+    { id:'assignment', label:'Assigned',    states:['put_assigned', 'shares_held'] },
+    { id:'call',       label:'Call open',   states:['call_planned', 'call_open'] },
+    { id:'resolve',    label:'Closed',      states:['put_expired', 'put_closed', 'call_expired', 'call_closed', 'called_away'] },
+    { id:'done',       label:'Reconciled',  states:['complete'] },
+  ];
+  const atIdx = STAGE.findIndex(s => s.states.includes(p.state));
+  const rail = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:var(--md)' });
+  STAGE.forEach((s, i) => {
+    const done = atIdx > -1 && i < atIdx;
+    const here = i === atIdx;
+    rail.append(el('span', {
+      class: here ? 'chip chip-ok' : 'chip',
+      style: `${done ? 'opacity:.55' : ''}${here ? ';font-weight:700' : ''}`,
+      title: here ? `The cycle is here. Internal state: ${p.state}.` : (done ? 'Passed.' : 'Not reached.'),
+    }, `${done ? '✓ ' : ''}${s.label}`));
+    if (i < STAGE.length - 1) rail.append(el('span', { class: 'metaline', style: 'opacity:.4' }, '→'));
+  });
+  head.append(rail);
+  if (p.state === 'paused') head.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+    'This cycle is paused. The rail shows where it stopped, not where it ended.'));
+
+  /* COLLATERAL, AS A BAR RATHER THAN A PERCENTAGE.
+     Cash-secured is a binary gate and the number that decides it was a
+     percentage in a sentence. A bar shows the shortfall as a size. */
+  if (m.requiredAssignmentCash > 0) {
+    const req = m.requiredAssignmentCash;
+    const have = num0(p.eligibleCashUsd);
+    const pct = Math.min(100, have / req * 100);
+    const short = Math.max(0, req - have);
+    const bar = el('div', { style: 'margin-top:var(--md)' });
+    bar.append(el('div', { class: 'row', style: 'gap:8px;justify-content:space-between' }, [
+      el('span', { class: 'eyebrow' }, 'Collateral against the obligation'),
+      el('span', { class: 'num', style: `font-size:13px;font-weight:600;color:var(${m.cashSecured ? '--ok-text' : '--dn-text'})` },
+        `${fmtMoney(have, 'USD')} of ${fmtMoney(req, 'USD')}`),
+    ]));
+    bar.append(el('div', { style: 'height:10px;border-radius:5px;background:var(--surface-sunk);margin-top:5px;overflow:hidden' },
+      el('div', { style: `height:100%;width:${pct}%;background:var(${m.cashSecured ? '--ok-text' : '--dn-text'});border-radius:5px` })));
+    bar.append(el('p', { class: 'metaline', style: 'margin-top:5px' },
+      m.cashSecured
+        ? `Fully secured, with ${fmtMoney(have - req, 'USD')} beyond the obligation. The premium is not part of this and never reduces it.`
+        : `Short by ${fmtMoney(short, 'USD')}. A put is not cash-secured below 100%, and the premium received does not count toward it.`));
+    head.append(bar);
+  }
+
   /* Obligation and downside first. Deliberately before any premium figure. */
   const risk = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
   risk.append(el('div', { class: 'panel' }, statTile('Full assignment cash',
@@ -18036,6 +18152,31 @@ VIEWS.tradingIndex = () => {
   const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); });
   if (qLink) wrap.append(qLink);
 
+  /* THE STEPPER.
+     Six things have to be recorded and they were a vertical stack of cards a
+     reader had to scroll to audit. This says how far in they are and what is
+     outstanding, without moving anything — the form stays one page, because a
+     wizard would hide the fact that a later step can invalidate an earlier one. */
+  const groupsDone = (tf) => QTTI_GROUPS.filter(g => qttiCell(p.timeframes?.[tf]?.[g.k]).known).length;
+  const steps = [
+    { label:'Instrument', done: !!p.symbol && p.identityConsistent && !!p.capturedAt,
+      note: p.symbol ? p.symbol : 'not named' },
+    ...QTTI_TIMEFRAMES.map(t => ({ label:t.tf,
+      done: !!p.timeframes?.[t.k]?.present && groupsDone(t.k) >= QTTI_GROUPS.length - 1,
+      note: `${groupsDone(t.k)}/${QTTI_GROUPS.length}` })),
+    { label:'Risk plan', done: r.rr.defined && !!p.plan?.costsEntered,
+      note: r.rr.defined ? 'set' : 'not set' },
+    { label:'Result', done: r.assessable && !r.gates.length,
+      note: r.assessable ? (r.gates.length ? `${r.gates.length} blocking` : 'clear') : 'not assessable' },
+  ];
+  const stepRow = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:var(--md)' });
+  steps.forEach((s, i) => {
+    stepRow.append(el('span', { class: s.done ? 'chip chip-ok' : 'chip',
+      title: s.done ? 'Complete' : 'Outstanding' }, `${s.done ? '✓ ' : ''}${s.label} · ${s.note}`));
+    if (i < steps.length - 1) stepRow.append(el('span', { class: 'metaline', style: 'opacity:.4' }, '→'));
+  });
+  wrap.append(stepRow);
+
   /* ---------- the three numbers, §4 hierarchy ---------- */
   const card = el('div', { class: 'card' });
   card.append(cardHead('Three outputs, kept apart',
@@ -18230,8 +18371,14 @@ VIEWS.tradingIndex = () => {
   QTTI_TIMEFRAMES.forEach(tf => {
     const c = el('div', { class: 'card' });
     const x = r.tfs[tf.k];
+    const done = QTTI_GROUPS.filter(g => qttiCell(p.timeframes?.[tf.k]?.[g.k]).known).length;
     c.append(cardHead(`${tf.label} panel (${tf.tf})`,
-      `${tf.why} Needs about ${tf.minBars} completed bars visible. Score: ${Math.round(x.score)}, coverage ${fmtPct(x.coverage * 100, 0)}.`));
+      `${tf.why} Needs about ${tf.minBars} completed bars visible. Score: ${Math.round(x.score)}, coverage ${fmtPct(x.coverage * 100, 0)}.`,
+      /* The count belongs in the header, where a reader deciding whether to open
+         this card can see whether it is worth opening. */
+      el('span', { class: done === QTTI_GROUPS.length ? 'chip chip-ok' : 'chip',
+        title: `${done} of the ${QTTI_GROUPS.length} evidence groups are recorded. Unknown ones contribute a neutral 50 and reduce coverage.` },
+        `${done}/${QTTI_GROUPS.length} recorded`)));
     c.append(cb(`The ${tf.label.toLowerCase()} panel is present and readable`, p.timeframes[tf.k].present,
       v => { p.timeframes[tf.k].present = v; }));
     QTTI_GROUPS.forEach(g => {
