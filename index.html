@@ -553,7 +553,45 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .grid-4     { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .grid-5     { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 
-.hero { padding: var(--xxxl) 0 var(--xl); max-width: 46rem; }
+/* TWO COLUMNS, AND THE RIGHT ONE IS THE PRODUCT.
+   ---------------------------------------------------------------------------
+   The hero was one 46rem column with an empty right half and no product proof
+   anywhere on the page — a research tool asking to be trusted while showing
+   nothing it produces.
+
+   What sits there is not a screenshot and not an illustration. It is the real
+   render path: dealModel, wheelMath and qttiRun called on deterministic
+   fixtures, drawn with the same components the workspaces use. It cannot drift
+   from what the product actually outputs, it inherits the theme, it stays
+   readable at any zoom, and a screen reader reads it as the figures it is.
+
+   min-height reserves the space so nothing moves when it paints. */
+.hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: var(--xxl); align-items: center; }
+@media (max-width: 940px) { .hero-grid { grid-template-columns: 1fr; gap: var(--xl); } }
+.hero-proof { display: flex; flex-direction: column; gap: var(--md); min-height: 380px; }
+@media (max-width: 940px) { .hero-proof { min-height: 0; } }
+.proof-card {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: var(--md) var(--lg); box-shadow: var(--lift-1);
+}
+.proof-card .proof-hd { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sm); }
+.proof-card .proof-src { font-size: 12px; color: var(--ink-3); }
+/* Labels on one row, values on the next, as siblings in the same grid — so a
+   label that wraps to two lines pushes ALL three values down together instead
+   of dropping its own out of line with the others. Wrapping one cell of a
+   three-column figure row is the normal case on a phone, not the exception. */
+.proof-row {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px var(--md); margin-top: 10px; align-items: end;
+}
+.proof-row .pv { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.proof-row .pk { font-size: 12px; color: var(--ink-3); align-self: end; }
+@media (max-width: 420px) { .proof-row .pv { font-size: 17px; } }
+
+.hero { padding: var(--xxxl) 0 var(--xl); }
+/* On a phone the top padding was pushing the headline a third of the way down
+   the first screen, under a warning banner that already takes a quarter of it. */
+@media (max-width: 940px) { .hero { padding: var(--xl) 0 var(--lg); } }
 .hero-h1 {
   font-size: clamp(30px, 4.2vw, 46px); font-weight:700; letter-spacing: -0.022em;
   line-height: 1.12; margin: 0; text-wrap: balance;
@@ -11260,21 +11298,82 @@ VIEWS.marketing = () => {
 
   /* -- 1. hero ---------------------------------------------------------- */
   const hero = el('section', { class: 'hero' });
-  hero.append(el('h1', { class: 'hero-h1' },
-    'Research the company. Test the property. Keep the evidence behind every decision.'));
-  hero.append(el('p', { class: 'hero-lede' },
-    'Transparent research tools for Bursa Malaysia and US equities, plus property cash-flow analysis built for Malaysian investors.'));
+  const grid = el('div', { class: 'hero-grid' });
+
+  const left = el('div');
+  left.append(el('h1', { class: 'hero-h1' },
+    'Know what a Sarawak property does to your cash, and what a filed company actually reports.'));
+  left.append(el('p', { class: 'hero-lede' },
+    'Every figure shows its formula, its source and its date — and the product says so when it cannot work one out, '
+    + 'rather than filling the gap.'));
   const heroCtas = el('div', { class: 'row row-wrap', style: 'gap:10px;margin-top:var(--lg)' });
-  heroCtas.append(el('a', { class: 'btn btn-primary', href: href('/company/1155-maybank'),
-    onclick: (e) => { e.preventDefault(); openResearch('MAYBANK'); } }, 'Research a Bursa company'));
-  heroCtas.append(el('a', { class: 'btn', href: href('/property/calculator'),
-    onclick: (e) => { e.preventDefault(); navigate('/property/calculator'); } }, 'Check a property deal'));
-  hero.append(heroCtas);
-  hero.append(el('p', { style: 'margin-top:12px' },
-    el('a', { class: 'link', href: href('/learn'), onclick: (e) => { e.preventDefault(); navigate('/learn'); } },
-      'See how Quantum Tradeworks works')));
-  hero.append(el('p', { class: 'metaline', style: 'margin-top:var(--lg);max-width:60ch' },
-    'No stock tips. No hidden rankings. Every important number shows its assumptions and source.'));
+  /* Primary was "Research a Bursa company", which opens the one dataset here
+     that is entirely illustrative — the strongest call to action pointing at
+     the weakest evidence. The property calculator needs no market data to be
+     completely honest, and it is the surface that answers a decision. */
+  heroCtas.append(el('a', { class: 'btn btn-primary', href: href('/property/calculator'),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
+    'Check a Sarawak property'));
+  heroCtas.append(el('a', { class: 'btn', href: href('/research'),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/research'); } },
+    'Research an SEC-filed company'));
+  left.append(heroCtas);
+  left.append(el('p', { class: 'metaline', style: 'margin-top:var(--lg);max-width:56ch' },
+    'No stock tips, no rankings, no recommendations. '
+    + 'Malaysian company financials here are illustrative — they are labelled on every page that shows them.'));
+  grid.append(left);
+
+  /* THE PROOF, COMPUTED RATHER THAN DRAWN.
+     Each card runs the real engine on a fixture and shows what comes back. No
+     figure below is written by hand, and each says where it came from. */
+  const proof = el('div', { class: 'hero-proof' });
+  const proofCard = (title, source, rows, note) => {
+    const c = el('div', { class: 'proof-card' });
+    c.append(el('div', { class: 'proof-hd' }, [
+      el('span', { style: 'font-size:13px;font-weight:700' }, title),
+      el('span', { class: 'proof-src' }, source),
+    ]));
+    /* Two passes, not three wrappers: every label, then every value. Siblings
+       in one grid line up; nested wrappers do not when one of them wraps. */
+    const r = el('div', { class: 'proof-row' });
+    rows.forEach(([k]) => r.append(el('span', { class: 'pk' }, k)));
+    rows.forEach(([, v, tone]) => r.append(el('span', { class: 'pv', style: tone ? `color:var(${tone})` : null }, v)));
+    c.append(r);
+    if (note) c.append(el('p', { class: 'proof-src', style: 'margin-top:8px' }, note));
+    return c;
+  };
+
+  /* 1 — the property engine on its own default deal. */
+  const pm = dealModel(State.deal);
+  proof.append(proofCard('Sarawak property', 'your inputs', [
+    ['Cash to complete', fmtAmount(pm.transactionCash, 'MYR')],
+    ['Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
+    ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
+      isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
+  ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.'));
+
+  /* 2 — the Wheel engine on a worked contract. */
+  const wm = wheelMath({ ...State.wheel, contractMultiplier: 100, contracts: 1,
+    putStrike: 50, putCredit: 1.10, openCommission: 1, assignmentFees: 0,
+    eligibleCashUsd: 5000, myrPerUsd: 4.42, fxBufferPct: 5, calendarDaysOpen: 30 });
+  /* fmtAmount, not fmtMoney, so the three cards share one scale. Beside
+     "RM95.3k" a "$5000.00" reads as a different kind of number. */
+  proof.append(proofCard('US options Cash Wheel', 'figures you enter', [
+    ['Assignment cash', fmtAmount(wm.requiredAssignmentCash, 'USD')],
+    ['In ringgit', fmtAmount(wm.safeAssignmentCashMyr, 'MYR')],
+    ['Worst case', fmtAmount(wm.putMaxLossIfZero, 'USD'), '--dn-text'],
+  ], 'One cash-secured put at a $50 strike. The obligation is shown before any premium, because the obligation is the decision.'));
+
+  /* 3 — the Trading Index on the specification's published example. */
+  const qr = qttiRun(qttiWorkedExample());
+  proof.append(proofCard('QT Trading Index', 'worked example §14', [
+    ['Trend regime', String(qr.regime)],
+    ['Tranche ready', String(qr.tranche), '--dn-text'],
+    ['Screenshot conf.', String(qr.confidence)],
+  ], `Three outputs, never blended. This example is blocked on ${qr.gates.length} conditions and the page names every one.`));
+  grid.append(proof);
+
+  hero.append(grid);
   wrap.append(hero);
   const wl = waitlistCard();
   if (wl) wrap.append(wl);
