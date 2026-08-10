@@ -5929,7 +5929,11 @@ function renderScreener() {
     sc.mode === 'abs' ? 'Thresholds are raw metric values.' : 'Thresholds are percentile ranks within the same market cohort.'));
   rail.append(railHd);
 
-  const railBody = el('div', { style: 'padding:var(--md);max-height:min(70vh,760px);overflow-y:auto' });
+  /* The filter column was the second of three competing vertical scrollbars.
+     It is sticky instead: it follows the reader down the results without
+     trapping a wheel, and on a narrow screen where sticky would eat the whole
+     viewport it simply flows with the page. */
+  const railBody = el('div', { style: 'padding:var(--md)' });
 
   /* Templates first: a starting point beats an empty form, and each one states
      what it tests rather than what the result is worth. */
@@ -6197,7 +6201,18 @@ function renderScreener() {
       return (av - bv) * sc.sort.dir;
     });
 
-    const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0;max-height:66vh;overflow:auto' });
+    /* ONE VERTICAL SCROLL PER PAGE.
+       This was max-height:66vh with overflow:auto, so 11,094px of results lived
+       inside a 320px window, inside a page that also scrolled, beside a filter
+       column that scrolled too — three vertical scrollbars competing for the
+       same wheel. Whichever one the pointer happened to be over moved, which is
+       the kind of thing that reads as the page being broken.
+
+       The table now grows and the page scrolls, which is what a reader's wheel
+       and a browser's find-in-page both already expect. Horizontal scrolling
+       stays: twelve columns genuinely do not fit a phone, and that scroll is
+       one the reader initiates deliberately on the axis the content overflows. */
+    const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0;overflow-x:auto' });
     const table = el('table', { class: 'dt', data: { density: State.density || 'comfortable' } });
     const thead = el('thead'); const htr = el('tr');
     cols.forEach(c2 => {
