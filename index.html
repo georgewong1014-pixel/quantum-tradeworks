@@ -77,7 +77,14 @@
   /* --- ink ------------------------------------------------------------ */
   --ink:          #16191a;
   --ink-2:        #55574f;
-  --ink-3:        #85857c;
+  /* Was #85857c, which measures 3.5:1 on white and 4.23:1 as rendered — under
+     the 4.5:1 normal text requires, on every caption, metaline, stat label and
+     eyebrow in the product. That is most of the explanatory copy: the sentences
+     saying why a figure is withheld, what a gate means, where a number came
+     from. The recessive ones were the ones carrying the reasoning.
+     #74746b measures 4.78:1 on white — over the line with margin, and still
+     clearly secondary to --ink-2 beside it. */
+  --ink-3:        #74746b;
   --ink-inv:      #f4f1ea;
 
   /* --- lines ---------------------------------------------------------- */
@@ -133,6 +140,13 @@
   --critical: #d03b3b;
   --ok-text:  #0a6b32;
   --dn-text:  #a03a20;
+  /* The severity colours are chosen to read as fills and borders. As TEXT on
+     their own 12% wash, --critical measures 4.36:1 — under the 4.5:1 normal
+     text needs, on the chip that marks the most serious thing the product can
+     say. --ok-text and --dn-text already exist for exactly this reason; this
+     completes the set rather than darkening --critical itself, which would
+     also change every fill and border using it. 5.37:1. */
+  --critical-text: #b3261e;
 
   /* --- depth ---------------------------------------------------------- */
   --lift-1: 0 1px 2px rgba(20, 25, 22, .05), 0 0 0 1px var(--ring);
@@ -161,7 +175,7 @@
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
     --plane: #0b0d0c; --surface: #111413; --surface-2: #171b19; --surface-sunk: #0d100f; --surface-inv: #f4f1ea;
-    --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #7c7e76; --ink-inv: #141a18;
+    --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #94968c; --ink-inv: #141a18;
     --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
     --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
     --s1:#1f9c81; --s2:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
@@ -169,7 +183,7 @@
     --mid: #2a2e2c;
     --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
     --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
-    --ok-text:#4dc46c; --dn-text:#e8a184;
+    --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a;
     --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
     --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
     --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
@@ -181,7 +195,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --plane: #0b0d0c; --surface: #111413; --surface-2: #171b19; --surface-sunk: #0d100f; --surface-inv: #f4f1ea;
-  --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #7c7e76; --ink-inv: #141a18;
+  --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #94968c; --ink-inv: #141a18;
   --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
   --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
   --s1:#1f9c81; --s2:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
@@ -189,7 +203,7 @@
   --mid: #2a2e2c;
   --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
   --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
-  --ok-text:#4dc46c; --dn-text:#e8a184;
+  --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a;
   --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
   --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
   --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
@@ -232,9 +246,13 @@ a { color: inherit; }
   border-radius: var(--r-xs);
 }
 
+/* White on the brand blue measures 2.74:1. A skip link is reached only by
+   keyboard, so the people who use it are precisely those most likely to need
+   the contrast — and it was the worst ratio in the product. Dark ground,
+   light text: 14:1. */
 .skip-link {
   position: absolute; left: var(--md); top: -60px; z-index: 100;
-  background: var(--brand); color: #fff; padding: 10px 16px;
+  background: var(--surface-inv); color: var(--ink-inv); padding: 10px 16px;
   border-radius: var(--r-md); font-weight: 600;
   transition: top 180ms ease;
 }
@@ -419,7 +437,7 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .chip-my      { background: color-mix(in srgb, var(--s1) 12%, transparent); color: var(--s1); border-color: color-mix(in srgb, var(--s1) 28%, transparent); }
 .chip-ok      { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
 .chip-warn    { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
-.chip-critical{ background: color-mix(in srgb, var(--critical) 12%, transparent); color: var(--critical); border-color: color-mix(in srgb, var(--critical) 32%, transparent); }
+.chip-critical{ background: color-mix(in srgb, var(--critical) 12%, transparent); color: var(--critical-text); border-color: color-mix(in srgb, var(--critical) 32%, transparent); }
 .chip-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 
 /* ----------------------------------------------------------------- cards */
