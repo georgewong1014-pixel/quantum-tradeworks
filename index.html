@@ -41,6 +41,32 @@
 :root {
   color-scheme: light;
 
+  /* --- type scale ------------------------------------------------------
+     The file carried 26 distinct font sizes and 16 weights, including 9px,
+     9.5px and 10.5px text, and weights of 530, 630 and 660 that no reader
+     could tell apart from their neighbours. It was not a system, it was a
+     sediment — each value defensible where it was written and inconsistent
+     with the one beside it.
+
+     Everything is now on this scale. Weights are four, and the collapse was
+     chosen so existing hierarchy survived it: what was lighter stayed lighter.
+     Nothing decision-relevant sits below 12px, and nothing at all below 11px.
+
+     Add a value here before using it, or the sediment starts again. */
+  --text-micro:   11px;   /* eyebrows and tracked uppercase labels only */
+  --text-label:   12px;   /* metadata, timestamps, chips */
+  --text-sm:      13px;   /* the workhorse: captions, table cells, notes */
+  --text-body:    14px;   /* body copy that has to be read to use the tool */
+  --text-lead:    16px;   /* standfirsts */
+  --text-card:    20px;   /* card headings */
+  --text-h1:      24px;   /* page headings */
+  --text-display: 32px;   /* marketing display */
+
+  --weight-body:     400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
   /* --- surfaces ------------------------------------------------------- */
   --plane:        #f4f1ea;
   --surface:      #faf8f4;
@@ -197,7 +223,7 @@ body {
 
 img, svg { display: block; max-width: 100%; }
 button, input, select, textarea { font: inherit; color: inherit; }
-h1, h2, h3, h4, h5 { font-weight: 620; line-height: 1.22; letter-spacing: -0.012em; }
+h1, h2, h3, h4, h5 { font-weight:600; line-height: 1.22; letter-spacing: -0.012em; }
 a { color: inherit; }
 
 :focus-visible {
@@ -221,16 +247,16 @@ a { color: inherit; }
 
 /* ------------------------------------------------------------- typography */
 .eyebrow {
-  font-size: 11px; font-weight: 640; letter-spacing: .1em; text-transform: uppercase;
+  font-size: 11px; font-weight:700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--ink-3);
 }
-.h-display { font-size: clamp(28px, 3.4vw, 40px); font-weight: 660; letter-spacing: -.022em; }
-.h-section { font-size: 19px; font-weight: 630; letter-spacing: -.014em; }
-.h-card    { font-size: 15px; font-weight: 620; letter-spacing: -.008em; }
+.h-display { font-size: clamp(28px, 3.4vw, 40px); font-weight:700; letter-spacing: -.022em; }
+.h-section { font-size:20px; font-weight:700; letter-spacing: -.014em; }
+.h-card    { font-size: 15px; font-weight:600; letter-spacing: -.008em; }
 .body-lg   { font-size: 15px; color: var(--ink-2); line-height: 1.62; max-width: 68ch; }
-.body      { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; max-width: 72ch; }
+.body      { font-size:13px; color: var(--ink-2); line-height: 1.6; max-width: 72ch; }
 .caption   { font-size: 12px; color: var(--ink-3); line-height: 1.5; }
-.metaline  { font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.metaline  { font-size:12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .num       { font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------------------------ shell */
@@ -265,8 +291,8 @@ a { color: inherit; }
 .brand-name span { color: var(--logo-teal-text); font-weight: 700; letter-spacing: -.01em; }
 @media (max-width: 520px) { .brand-name span { display: none; } }
 .brand-tagline {
-  font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
-  color: var(--ink-3); margin-top: 5px; font-weight: 560;
+  font-size:11px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-3); margin-top: 5px; font-weight:600;
 }
 .brand-tagline i { color: var(--logo-teal); font-style: normal; }
 .brand-tagline i.amber { color: var(--logo-amber); }
@@ -276,7 +302,7 @@ a { color: inherit; }
 .navlink {
   appearance: none; background: none; border: 0; cursor: pointer;
   padding: 7px 9px; border-radius: var(--r-sm);
-  font-size: 12.5px; font-weight: 530; color: var(--ink-2); white-space: nowrap;
+  font-size:13px; font-weight:500; color: var(--ink-2); white-space: nowrap;
   transition: color 160ms ease, background-color 160ms ease;
   /* Nav items and buttons became real anchors so the browser contract works —
      middle-click, open in new tab, copy link address. Anchors bring a default
@@ -318,7 +344,7 @@ a { color: inherit; }
 }
 
 .kbd {
-  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+  font-family: var(--mono); font-size:11px; color: var(--ink-3);
   border: 1px solid var(--line); border-radius: var(--r-xs);
   padding: 1px 5px; background: var(--surface); line-height: 1.5;
 }
@@ -345,13 +371,13 @@ a { color: inherit; }
 @media (max-width: 900px) { .disclosure-in { padding: 8px var(--lg); } }
 @media (max-width: 560px) { .disclosure-in { padding: 8px var(--md); } }
 .disclosure svg { width: 14px; height: 14px; flex: none; color: var(--bronze); }
-.disclosure strong { color: var(--ink); font-weight: 620; }
+.disclosure strong { color: var(--ink); font-weight:600; }
 
 /* On the public page the disclosure collapses to one compact line: the warning
    still appears above the fold, but it no longer occupies four lines in front
    of the headline. The full text stays in the markup for assistive technology
    and for anyone who reads the source; only the elaboration is hidden. */
-body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size: 11.5px; }
+body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size:12px; }
 body[data-surface="public"] .disclosure-in .chip { display: none; }
 body[data-surface="public"] .disclosure-long { display: none; }
 
@@ -382,7 +408,7 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
   height: 22px; padding: 0 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 560; letter-spacing: .005em;
+  font-size: 11px; font-weight:600; letter-spacing: .005em;
   background: var(--surface-sunk); color: var(--ink-2);
   border: 1px solid var(--line); white-space: nowrap;
 }
@@ -431,7 +457,7 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .metric-label-q {
   width: 13px; height: 13px; border-radius: 50%; flex: none;
   display: inline-grid; place-items: center;
-  font-size: 9px; font-weight: 700; line-height: 1;
+  font-size:11px; font-weight: 700; line-height: 1;
   background: var(--surface-2); color: var(--ink-3); border: 1px solid var(--line);
   transition: background-color 160ms ease, color 160ms ease;
 }
@@ -507,7 +533,7 @@ body[data-surface="public"] .disclosure-long { display: none; }
 
 .hero { padding: var(--xxxl) 0 var(--xl); max-width: 46rem; }
 .hero-h1 {
-  font-size: clamp(30px, 4.2vw, 46px); font-weight: 660; letter-spacing: -0.022em;
+  font-size: clamp(30px, 4.2vw, 46px); font-weight:700; letter-spacing: -0.022em;
   line-height: 1.12; margin: 0; text-wrap: balance;
 }
 .hero-lede { font-size: clamp(15px, 1.4vw, 17px); color: var(--ink-2); line-height: 1.55; margin: var(--md) 0 0; max-width: 42rem; }
@@ -520,7 +546,7 @@ body[data-surface="public"] .disclosure-long { display: none; }
 
 .step-n {
   width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--brand-wash); color: var(--brand); font-size: 12px; font-weight: 660;
+  background: var(--brand-wash); color: var(--brand); font-size: 12px; font-weight:700;
 }
 .ticklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ticklist li { font-size: 13px; color: var(--ink-2); padding-left: 18px; position: relative; }
@@ -544,7 +570,7 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   min-height: 36px; padding: 0 14px; border-radius: var(--r-md);
-  font-size: 13px; font-weight: 580; cursor: pointer;
+  font-size: 13px; font-weight:600; cursor: pointer;
   border: 1px solid transparent; background: none; color: var(--ink);
   transition: transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease, border-color 200ms ease, color 200ms ease;
 }
@@ -563,7 +589,7 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .btn-ghost:active { transform: translateY(0); }
 .btn-quiet { color: var(--ink-2); padding: 0 8px; min-height: 30px; }
 .btn-quiet:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.btn-sm { min-height: 30px; padding: 0 10px; font-size: 12.5px; border-radius: var(--r-sm); }
+.btn-sm { min-height: 30px; padding: 0 10px; font-size:13px; border-radius: var(--r-sm); }
 .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 
 /* -------------------------------------------------------- segmented tabs */
@@ -582,12 +608,12 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .segmented button, .segmented a {
   appearance: none; border: 0; background: none; cursor: pointer; text-decoration: none;
   padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;
-  font-size: 12.5px; font-weight: 540; color: var(--ink-2);
+  font-size:13px; font-weight:500; color: var(--ink-2);
   transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 .segmented button:hover, .segmented a:hover { color: var(--ink); }
 .segmented button[aria-selected="true"], .segmented a[aria-selected="true"] {
-  background: var(--surface-2); color: var(--ink); font-weight: 620; box-shadow: var(--lift-1);
+  background: var(--surface-2); color: var(--ink); font-weight:600; box-shadow: var(--lift-1);
 }
 
 /* Ten company tabs at a 24px gap needed 752px inside a 701px strip at 1280px —
@@ -617,16 +643,16 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .subnav::-webkit-scrollbar { display: none; }
 .subnav button {
   appearance: none; background: none; border: 0; cursor: pointer;
-  padding: 10px 1px 11px; font-size: 13px; font-weight: 540; color: var(--ink-3);
+  padding: 10px 1px 11px; font-size: 13px; font-weight:500; color: var(--ink-3);
   border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
   transition: color 160ms ease, border-color 160ms ease;
 }
 .subnav button:hover { color: var(--ink); }
-.subnav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); font-weight: 620; }
+.subnav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); font-weight:600; }
 
 /* --------------------------------------------------------------- inputs */
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.field > label { font-size: 11.5px; font-weight: 560; color: var(--ink-2); }
+.field > label { font-size:12px; font-weight:600; color: var(--ink-2); }
 .input, .select {
   height: 34px; padding: 0 10px; width: 100%;
   background: var(--surface-2); color: var(--ink);
@@ -643,11 +669,11 @@ textarea.input { height: auto; padding: 8px 10px; resize: vertical; min-height: 
   background-position: calc(100% - 14px) 14px, calc(100% - 9px) 14px;
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
 }
-.input-inline { height: 28px; font-size: 12.5px; padding: 0 7px; }
+.input-inline { height: 28px; font-size:13px; padding: 0 7px; }
 
 .checkline { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 3px 0; min-height: 26px; }
 .checkline input { width: 15px; height: 15px; accent-color: var(--brand); cursor: pointer; flex: none; }
-.checkline span { font-size: 12.5px; color: var(--ink-2); }
+.checkline span { font-size:13px; color: var(--ink-2); }
 .checkline:hover span { color: var(--ink); }
 
 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; background: none; cursor: pointer; }
@@ -665,7 +691,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 
 /* --------------------------------------------------------------- tables */
 .tablewrap { overflow-x: auto; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); }
-table.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+table.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size:13px; }
 table.dt th, table.dt td { padding: 9px 12px; text-align: right; white-space: nowrap; }
 table.dt th:first-child, table.dt td:first-child { text-align: left; }
 table.dt thead th {
@@ -682,7 +708,7 @@ table.dt tbody td { border-bottom: 1px solid var(--grid); font-variant-numeric: 
 table.dt tbody tr:last-child td { border-bottom: 0; }
 table.dt tbody tr { transition: background-color 140ms ease; }
 table.dt tbody tr:hover { background: color-mix(in srgb, var(--brand) 5%, transparent); }
-table.dt td.ident { color: var(--ink); font-weight: 560; }
+table.dt td.ident { color: var(--ink); font-weight:600; }
 /* Median rows stay pinned to the bottom of a scrolling result set — a
    comparison baseline is useless if you have to scroll past 28 rows to see it. */
 table.dt tfoot td { position: sticky; z-index: 2; height: 34px; border-bottom: 0; }
@@ -702,12 +728,12 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 
 .tickerbtn {
   appearance: none; border: 0; background: none; padding: 0; cursor: pointer;
-  font: inherit; font-weight: 620; color: var(--ink); text-align: left;
+  font: inherit; font-weight:600; color: var(--ink); text-align: left;
   display: flex; flex-direction: column; gap: 1px;
 }
 .tickerbtn:hover .tk { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
-.tickerbtn .tk { font-size: 12.5px; transition: color 160ms ease; }
-.tickerbtn .nm { font-size: 11px; color: var(--ink-3); font-weight: 480; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tickerbtn .tk { font-size:13px; transition: color 160ms ease; }
+.tickerbtn .nm { font-size: 11px; color: var(--ink-3); font-weight:500; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .pos { color: var(--ok-text); }
 .neg { color: var(--dn-text); }
@@ -722,15 +748,15 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
    Direction is still legible: the sign is always shown, and the two weights
    differ enough to scan without implying good and bad. */
 .mdiff       { color: var(--ink-2); }
-.mdiff-below { color: var(--s3); font-weight: 560; }   /* price under the estimate */
+.mdiff-below { color: var(--s3); font-weight:600; }   /* price under the estimate */
 .mdiff-above { color: var(--ink-3); }                  /* price over the estimate */
 
 /* ------------------------------------------------------------ stat tiles */
 .stat { display: flex; flex-direction: column; gap: 3px; }
-.stat-label { font-size: 11.5px; color: var(--ink-3); font-weight: 520; }
-.stat-value { font-size: 22px; font-weight: 640; letter-spacing: -.02em; line-height: 1.15; }
-.stat-value.sm { font-size: 17px; }
-.stat-delta { font-size: 11.5px; font-weight: 560; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 4px; }
+.stat-label { font-size:12px; color: var(--ink-3); font-weight:500; }
+.stat-value { font-size: 22px; font-weight:700; letter-spacing: -.02em; line-height: 1.15; }
+.stat-value.sm { font-size:18px; }
+.stat-delta { font-size:12px; font-weight:600; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 4px; }
 .stat-sub { font-size: 11px; color: var(--ink-3); }
 
 /* --------------------------------------------------------------- meters */
@@ -739,8 +765,8 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 
 .scorerow { display: grid; grid-template-columns: 132px 1fr 44px; gap: var(--sm); align-items: center; padding: 7px 0; }
 .scorerow + .scorerow { border-top: 1px solid var(--grid); }
-.scorerow .sr-name { font-size: 12.5px; color: var(--ink-2); }
-.scorerow .sr-val { font-size: 13px; font-weight: 620; text-align: right; font-variant-numeric: tabular-nums; }
+.scorerow .sr-name { font-size:13px; color: var(--ink-2); }
+.scorerow .sr-val { font-size: 13px; font-weight:600; text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 480px) { .scorerow { grid-template-columns: 108px 1fr 40px; } }
 
 /* --------------------------------------------------------------- charts */
@@ -748,11 +774,11 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 .chart text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
 .ax-line { stroke: var(--line-2); stroke-width: 1; }
 .gridline { stroke: var(--grid); stroke-width: 1; }
-.ax-label { fill: var(--ink-3); font-size: 10.5px; }
+.ax-label { fill: var(--ink-3); font-size:11px; }
 .dl { fill: var(--ink); font-size: 11px; font-weight: 600; }
 
 .legend { display: flex; flex-wrap: wrap; gap: var(--md); align-items: center; }
-.legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; font-size:12px; color: var(--ink-2); }
 .legend-key { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .legend-key.line { height: 2px; width: 14px; border-radius: 2px; }
 
@@ -763,9 +789,9 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
   transition: opacity 140ms ease;
 }
 .viztip[data-show="1"] { opacity: 1; }
-.viztip .t-title { font-weight: 620; color: var(--ink); margin-bottom: 4px; font-size: 12.5px; }
+.viztip .t-title { font-weight:600; color: var(--ink); margin-bottom: 4px; font-size:13px; }
 .viztip .t-row { display: flex; justify-content: space-between; gap: var(--md); color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.viztip .t-row b { color: var(--ink); font-weight: 580; }
+.viztip .t-row b { color: var(--ink); font-weight:600; }
 .viztip .t-note { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--grid); color: var(--ink-3); font-size: 11px; }
 
 /* --------------------------------------------------------------- sparkline */
@@ -776,7 +802,7 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
   display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
   font-size: 11px; color: var(--ink-3);
 }
-.prov b { color: var(--ink-2); font-weight: 560; }
+.prov b { color: var(--ink-2); font-weight:600; }
 .prov .dotsep { width: 3px; height: 3px; border-radius: 50%; background: var(--line-2); flex: none; }
 
 /* ----------------------------------------------------------------- views */
@@ -786,7 +812,7 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 @media (max-width: 640px) { .view { padding: var(--lg) 0 var(--xxl); } }
 
 .page-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--lg); flex-wrap: wrap; margin-bottom: var(--lg); }
-.page-hd h1 { font-size: 24px; font-weight: 650; letter-spacing: -.02em; }
+.page-hd h1 { font-size: 24px; font-weight:700; letter-spacing: -.02em; }
 .page-hd > div:first-child { flex: 1 1 560px; min-width: 0; }
 
 /* PROGRESSIVE DISCLOSURE ON THE PHONE.
@@ -813,9 +839,9 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 
 @media (max-width: 760px) {
   .page-hd { margin-bottom: var(--md); }
-  .page-hd h1 { font-size: 21px; }
+  .page-hd h1 { font-size:22px; }
   .page-hd .body-lg {
-    font-size: 13.5px; margin-top: 6px;
+    font-size:13px; margin-top: 6px;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -863,13 +889,13 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 .noteitem .ni-icon { width: 26px; height: 26px; border-radius: 7px; flex: none; display: grid; place-items: center; }
 .noteitem .ni-icon svg { width: 13px; height: 13px; }
 
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 5px var(--md); font-size: 12.5px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 5px var(--md); font-size:13px; }
 .kv dt { color: var(--ink-3); }
 .kv dd { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
 
 .evidence {
   border-left: 2px solid var(--line-2); padding: 2px 0 2px var(--sm);
-  font-size: 12.5px; color: var(--ink-2);
+  font-size:13px; color: var(--ink-2);
 }
 .evidence.support { border-left-color: var(--s1); }
 .evidence.counter { border-left-color: var(--s4); }
@@ -885,7 +911,7 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 12px);
   z-index: 80; background: var(--surface-inv); color: var(--ink-inv);
-  padding: 10px 16px; border-radius: var(--r-md); font-size: 13px; font-weight: 540;
+  padding: 10px 16px; border-radius: var(--r-md); font-size: 13px; font-weight:500;
   box-shadow: var(--lift-3); opacity: 0; pointer-events: none;
   transition: opacity 240ms ease, transform 240ms ease;
 }
@@ -897,11 +923,11 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 @media (max-width: 1080px) { .footer-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 860px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .footer-grid { grid-template-columns: 1fr; } }
-.footer h4 { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; font-weight: 640; }
+.footer h4 { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; font-weight:700; }
 .footer ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-.footer a { font-size: 12.5px; color: var(--ink-2); text-decoration: none; transition: color 160ms ease; }
+.footer a { font-size:13px; color: var(--ink-2); text-decoration: none; transition: color 160ms ease; }
 .footer a:hover { color: var(--brand); }
-.footer-legal { margin-top: var(--xl); padding-top: var(--lg); border-top: 1px solid var(--line); font-size: 11.5px; color: var(--ink-3); line-height: 1.65; max-width: 90ch; }
+.footer-legal { margin-top: var(--xl); padding-top: var(--lg); border-top: 1px solid var(--line); font-size:12px; color: var(--ink-3); line-height: 1.65; max-width: 90ch; }
 
 /* ------------------------------------------------------- view-specific grids */
 .home-split { grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); align-items: start; }
@@ -955,10 +981,10 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 }
 /* Revealed only once the full identity card has scrolled out of view. */
 .ticker-sticky.is-stuck .ts-ident { max-height: 34px; opacity: 1; padding: 7px 0 3px; }
-.ts-tk { font-size: 14px; font-weight: 680; letter-spacing: -.01em; }
+.ts-tk { font-size: 14px; font-weight:700; letter-spacing: -.01em; }
 .ts-name { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-.ts-px { font-size: 13px; font-weight: 620; }
-.ts-chg { font-size: 12px; font-weight: 560; }
+.ts-px { font-size: 13px; font-weight:600; }
+.ts-chg { font-size: 12px; font-weight:600; }
 @media (max-width: 560px) { .ts-name { display: none; } }
 
 .masonry-2 { column-count: 2; column-gap: var(--md); }
@@ -979,7 +1005,7 @@ details > summary::marker { content: ''; }
   display: flex; gap: 8px; padding: 10px 12px; border-radius: var(--r-md);
   background: color-mix(in srgb, var(--critical) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--critical) 32%, transparent);
-  font-size: 12.5px; color: var(--ink);
+  font-size:13px; color: var(--ink);
 }
 .guardrail svg { color: var(--critical); flex: none; }
 
@@ -1100,7 +1126,7 @@ details > summary::marker { content: ''; }
             <span class="brand-tagline" style="display:block">Equities <i>·</i> Property <i class="amber">·</i> Intelligence</span>
           </span>
         </div>
-        <p class="body" style="font-size:12.5px;max-width:34ch">Research the company. Model the property. See both in one place.</p>
+        <p class="body" style="font-size:13px;max-width:34ch">Research the company. Model the property. See both in one place.</p>
         <div class="row row-wrap" style="margin-top:var(--md);gap:6px">
           <span class="chip chip-us">United States</span>
           <span class="chip chip-my">Bursa Malaysia</span>
@@ -1665,7 +1691,7 @@ function upsell(title, detail) {
     el('span', { class: 'chip chip-bronze' }, planOf().name),
     el('h3', { class: 'h-card' }, title),
   ]));
-  box.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-bottom:var(--sm)' }, detail));
+  box.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--sm)' }, detail));
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
     el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('plans') }, 'See plans'),
     el('span', { class: 'metaline' }, 'No payment is processed in this prototype.'),
@@ -2510,10 +2536,50 @@ function derive(c) {
   m.ey    = isNum(m.pe) ? 100 / m.pe : null;
 
   /* --- profitability -------------------------------------------------- */
-  m.om  = rev[i] > 0 ? ebit[i] / rev[i] * 100 : null;
-  m.nm  = rev[i] > 0 ? ni[i] / rev[i] * 100 : null;
-  m.fcfm = isNum(m.fcf) && rev[i] > 0 ? m.fcf / rev[i] * 100 : null;
-  m.roe = (eq[i] + eq[i - 1]) / 2 > 0 ? ni[i] / ((eq[i] + eq[i - 1]) / 2) * 100 : null;
+  /* A MARGIN OVER 100% IS NOT A GOOD MARGIN, IT IS A BROKEN DENOMINATOR.
+     ---------------------------------------------------------------------
+     American Tower reported an operating margin of 517.8% on this build: EBIT
+     of 4.85bn against revenue of 0.94bn. Its real revenue is around 11bn, so
+     the XBRL revenue tag has captured a partial line — a segment or a single
+     period — while EBIT and net income came through whole. Operating profit
+     cannot exceed turnover; when it appears to, the two figures disagree and
+     the ratio between them is arithmetic on a mismatch.
+
+     The screener sorts on these, so the company with the broken tag arrives at
+     the top of "most profitable". Withholding is the only honest answer,
+     because it is not possible to tell from here WHICH figure is wrong — and
+     picking one would be a guess presented as a correction. The raw lines stay
+     on the financials tab, where a reader can see the mismatch themselves. */
+  const revenueSuspect = rev[i] > 0 && isNum(ebit[i]) && ebit[i] > rev[i];
+  m.revenueSuspect = revenueSuspect
+    ? `Operating profit of ${fmtNum(ebit[i], 2)}bn exceeds revenue of ${fmtNum(rev[i], 2)}bn, which cannot both be right — the revenue line looks partially captured. Every margin that divides by revenue is withheld rather than computed from figures that disagree.`
+    : null;
+  m.om  = rev[i] > 0 && !revenueSuspect ? ebit[i] / rev[i] * 100 : null;
+  m.nm  = rev[i] > 0 && !revenueSuspect ? ni[i] / rev[i] * 100 : null;
+  m.fcfm = isNum(m.fcf) && rev[i] > 0 && !revenueSuspect ? m.fcf / rev[i] * 100 : null;
+  /* RETURN ON EQUITY, WITHHELD WHERE THERE IS BARELY ANY EQUITY.
+     ---------------------------------------------------------------------
+     The risk flags already say, in these words, that "sustained buybacks have
+     reduced book equity, so return-on-equity is not a meaningful comparison" —
+     and the number was printed, scored and screened on anyway. AbbVie read
+     15,367%, Colgate 1,603%. Those are not returns; they are what division by
+     something near zero produces, and a reader sorting on return on equity met
+     them at the top.
+
+     The test is the one the flag already uses, so the code now matches the
+     sentence beside it: equity below 5% of revenue, excluding banks and REITs
+     whose capital structures make that ratio meaningless in the other
+     direction. Apple at 181% and Mastercard at 211% survive it, because those
+     are real returns on a genuinely small equity base — the rule is about a
+     denominator that has stopped carrying information, not about a large
+     number. */
+  const avgEq = (eq[i] + eq[i - 1]) / 2;
+  const equityTooThin = isNum(eq[i]) && isNum(rev[i]) && rev[i] > 0
+    && eq[i] < 0.05 * rev[i] && !isBank && c.type !== 'reit';
+  m.roe = avgEq > 0 && !equityTooThin ? ni[i] / avgEq * 100 : null;
+  m.roeWithheld = avgEq > 0 && equityTooThin
+    ? 'Book equity is under 5% of revenue, so return on equity divides by a base too small to carry meaning. The underlying figures are on the financials tab.'
+    : null;
   m.roic = isBank ? null : (() => {
     const invested = eq[i] + debt[i] - cash[i];
     return invested > 0 ? ebit[i] * (1 - TAX[c.mkt]) / invested * 100 : null;
@@ -2923,8 +2989,13 @@ function riskFlags(c, d) {
     add('serious', 'Distribution exceeds free cash flow', `Dividends paid are ${fmtPct(m.cashPayout,0)} of free cash flow — funded from the balance sheet, not from operations.`, 'cashPayout');
   if (isNum(m.fcf) && m.fcf < 0)
     add('serious', 'Negative free cash flow', `Capital expenditure exceeds operating cash flow in the latest reported year.`, 'fcf');
-  if (isNum(m.roe) && isNum(d.eq[LYI]) && d.eq[LYI] < 0.05 * d.rev[LYI] && c.type !== 'bank' && c.type !== 'reit')
-    add('warning', 'Equity base near zero', `Sustained buybacks have reduced book equity, so return-on-equity is not a meaningful comparison.`, 'roe');
+  /* These two fire on the WITHHELD flag rather than on the value, because the
+     value is now null — a metric suppressed with no flag beside it looks like
+     data that was never collected rather than data that disagreed with itself. */
+  if (m.roeWithheld)
+    add('warning', 'Equity base near zero', m.roeWithheld, 'roe');
+  if (m.revenueSuspect)
+    add('serious', 'Revenue line does not reconcile', m.revenueSuspect, 'om');
   if (c.type === 'reit' && isNum(m.gearing) && m.gearing > 40)
     add('warning', 'Gearing approaching the regulatory ceiling', `Gearing of ${fmtPct(m.gearing)} leaves limited headroom for debt-funded acquisition.`, 'gearing');
   if (c.flags?.pn17) add('critical', 'PN17 status', 'Company is classified under Practice Note 17 and is subject to a regularisation plan.', null);
@@ -4338,7 +4409,7 @@ function chartHost(container, draw) {
 /* A collapsible table beneath a chart — the WCAG-clean equivalent. */
 function tableTwin(caption, headers, rows) {
   const det = el('details', { class: 'caption', style: 'margin-top:var(--sm)' });
-  det.append(el('summary', { style: 'cursor:pointer;color:var(--ink-3);font-size:11.5px' }, caption));
+  det.append(el('summary', { style: 'cursor:pointer;color:var(--ink-3);font-size:12px' }, caption));
   const wrap = el('div', { class: 'tablewrap', style: 'margin-top:var(--xs)' });
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, headers.map(h => el('th', {}, h)))));
@@ -4934,7 +5005,7 @@ function statTile(label, value, { delta, sub, spark, tone } = {}) {
   vr.append(el('div', { class: 'stat-value' + (String(value).length > 9 ? ' sm' : ''), style: tone ? `color:var(${tone})` : '' }, value));
   if (spark) vr.append(spark);
   t.append(vr);
-  if (delta != null) t.append(el('div', { class: 'stat-delta ' + signClass(delta.v), html: `${withSign(delta.v, delta.dp ?? 1, delta.suffix ?? '%')} <span style="color:var(--ink-3);font-weight:460">${esc(delta.label)}</span>` }));
+  if (delta != null) t.append(el('div', { class: 'stat-delta ' + signClass(delta.v), html: `${withSign(delta.v, delta.dp ?? 1, delta.suffix ?? '%')} <span style="color:var(--ink-3);font-weight:500">${esc(delta.label)}</span>` }));
   if (sub) t.append(el('div', { class: 'stat-sub' }, sub));
   return t;
 }
@@ -5400,7 +5471,7 @@ VIEWS.home = () => {
     ['A research subscription for US and Bursa Malaysia equities, plus a calculator that turns a Malaysian property into a financial model.',
      'Every number shows the formula, the period and the coverage behind it — and says so plainly when it does not know.',
      'It gives you analysis, not answers: no buy or sell ratings, no target prices, no recommendations.'
-    ].forEach(x => ul.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
+    ].forEach(x => ul.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
     txt.append(ul);
     top.append(txt);
     top.append(el('button', { class: 'iconbtn', 'aria-label': 'Dismiss introduction',
@@ -5518,7 +5589,7 @@ VIEWS.home = () => {
     item.append(el('span', { class: 'ni-icon', style: `background:color-mix(in srgb, var(${s.v}) 15%, transparent);color:var(${s.v})`, html: icon(s.icon, 13) }));
     const body = el('div', { style: 'min-width:0;flex:1' });
     const t = el('div', { class: 'row row-wrap', style: 'gap:6px' });
-    t.append(el('span', { style: 'font-size:13px;font-weight:580;color:var(--ink)' }, f.title));
+    t.append(el('span', { style: 'font-size:13px;font-weight:600;color:var(--ink)' }, f.title));
     if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, 'Watchlist'));
     body.append(t);
     body.append(el('p', { class: 'caption', style: 'margin-top:2px' }, f.detail));
@@ -5555,12 +5626,12 @@ VIEWS.home = () => {
       const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
         onclick: () => openResearch(r.c.id) });
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { style: 'font-size:12.5px;font-weight:600' }, r.c.tk));
+      nm.append(el('div', { style: 'font-size:13px;font-weight:600' }, r.c.tk));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
       row.append(sparkline(priceHistory(r.c)));
       const pv = el('div', { style: 'text-align:right' });
-      pv.append(el('div', { class: 'num', style: 'font-size:12.5px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
+      pv.append(el('div', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
       pv.append(el('div', { class: 'metaline ' + signClass(r.c.px.d1) }, withSign(r.c.px.d1, 2)));
       row.append(pv);
       t.append(row);
@@ -5580,10 +5651,10 @@ VIEWS.home = () => {
     const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
       onclick: () => openResearch(r.c.id, 'valuation') });
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:12.5px;font-weight:600' }, r.c.tk), marketChip(r.c.mkt)]));
+    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), marketChip(r.c.mkt)]));
     nm.append(el('div', { class: 'metaline' }, `${r.val.pack.name} · ${r.val.confBand} confidence`));
     row.append(nm);
-    row.append(el('div', { class: 'num pos', style: 'font-size:13px;font-weight:640' }, withSign(r.val.mos.base, 0)));
+    row.append(el('div', { class: 'num pos', style: 'font-size:13px;font-weight:700' }, withSign(r.val.mos.base, 0)));
     dl.append(row);
   });
   disc.append(dl);
@@ -5599,8 +5670,8 @@ VIEWS.home = () => {
     ol.append(el('li', {}, el('button', {
       class: 'row', style: 'width:100%;gap:10px;background:none;border:0;cursor:pointer;padding:7px 0;text-align:left',
       onclick: () => go(target) }, [
-      el('span', { style: 'width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10.5px;font-weight:700;background:var(--brand-wash);color:var(--brand)' }, String(i + 1)),
-      el('span', { style: 'font-size:12.5px;color:var(--ink-2)' }, label),
+      el('span', { style: 'width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--brand-wash);color:var(--brand)' }, String(i + 1)),
+      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, label),
     ])));
   });
   loop.append(ol);
@@ -5863,14 +5934,14 @@ function renderScreener() {
   /* Templates first: a starting point beats an empty form, and each one states
      what it tests rather than what the result is worth. */
   const tpl = el('details', { style: 'margin-bottom:var(--md)' });
-  tpl.append(el('summary', { style: 'cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:4px 0' },
+  tpl.append(el('summary', { style: 'cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);padding:4px 0' },
     'Start from a template'));
   const tplList = el('div', { style: 'display:grid;gap:6px;margin-top:8px' });
   SCREEN_TEMPLATES.forEach(t => {
     const b = el('button', { class: 'ob-option', style: 'padding:9px 11px',
       'aria-pressed': State.appliedTemplate === t.id ? 'true' : 'false',
       onclick: () => applyTemplate(t) });
-    b.append(el('div', { class: 'ob-option-t', style: 'font-size:12.5px' }, t.name));
+    b.append(el('div', { class: 'ob-option-t', style: 'font-size:13px' }, t.name));
     b.append(el('div', { class: 'ob-option-n' }, t.why));
     tplList.append(b);
   });
@@ -5950,7 +6021,7 @@ function renderScreener() {
   const adv = el('details', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
   const advActive = FIELDS.filter(f => !PRIMARY.includes(f.k) && sc.crit[f.k]
     && (sc.crit[f.k].min != null || sc.crit[f.k].max != null)).length;
-  adv.append(el('summary', { style: 'cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:4px 0' },
+  adv.append(el('summary', { style: 'cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);padding:4px 0' },
     el('span', { class: 'row' }, ['Advanced filters',
       advActive ? el('span', { class: 'chip chip-brand', style: 'margin-left:auto' }, String(advActive)) : null])));
   if (advActive) adv.setAttribute('open', '');
@@ -5962,7 +6033,7 @@ function renderScreener() {
     if (!groupFields.length) return;
     const det = el('details', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
     const activeCount = groupFields.filter(f => sc.crit[f.k] && (sc.crit[f.k].min != null || sc.crit[f.k].max != null)).length;
-    det.append(el('summary', { style: 'cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:4px 0' },
+    det.append(el('summary', { style: 'cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);padding:4px 0' },
       el('span', { class: 'row' }, [g, activeCount ? el('span', { class: 'chip chip-brand', style: 'margin-left:auto' }, String(activeCount)) : null])));
     if (activeCount) det.setAttribute('open', '');
     groupFields.forEach(f => det.append(critRow(f)));
@@ -6181,7 +6252,7 @@ function renderScreener() {
         const tr = el('tr', { style: 'background:var(--surface-sunk)' });
         cols.forEach(c2 => {
           if (c2.k === 'ident') {
-            tr.append(el('td', { class: 'pin ident', style: 'background:var(--surface-sunk);font-weight:620', title: note }, label));
+            tr.append(el('td', { class: 'pin ident', style: 'background:var(--surface-sunk);font-weight:600', title: note }, label));
             return;
           }
           if (!c2.get || !c2.mfmt) { tr.append(el('td', { style: 'background:var(--surface-sunk)' }, '')); return; }
@@ -6226,7 +6297,7 @@ function renderScreener() {
       const card = el('a', { class: 'card screener-card', href: href(companyPath(r.c)),
         onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); openResearch(r.c.id); } });
       card.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
-        el('span', { style: 'font-weight:640' }, r.c.tk),
+        el('span', { style: 'font-weight:700' }, r.c.tk),
         el('span', { class: 'metaline', style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, r.c.name),
         el('span', { class: r.c.mkt === 'US' ? 'chip chip-us' : 'chip chip-my' }, r.c.mkt),
       ]));
@@ -6237,7 +6308,7 @@ function renderScreener() {
        ['Completeness', `${r.m.coverage}%`]].forEach(([k, v]) => {
         mini.append(el('div', {}, [
           el('div', { class: 'metaline' }, k),
-          el('div', { class: 'num', style: 'font-weight:620;font-size:14px' }, v),
+          el('div', { class: 'num', style: 'font-weight:600;font-size:14px' }, v),
         ]));
       });
       card.append(mini);
@@ -6415,7 +6486,7 @@ function openExclusions(failed) {
   failed.slice(0, 40).forEach(({ r, ev }) => {
     const item = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     item.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' }, [
-      el('span', { style: 'font-weight:620;font-size:13px' }, r.c.tk), marketChip(r.c.mkt),
+      el('span', { style: 'font-weight:600;font-size:13px' }, r.c.tk), marketChip(r.c.mkt),
       el('span', { class: 'spacer' }),
       el('span', { class: 'chip' }, `${ev.fails.length} failed`),
     ]));
@@ -6530,18 +6601,18 @@ function openSavedScreen(idx) {
 
   if (diff.entered.length) {
     const l = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
-    diff.entered.forEach(r => l.append(el('div', { class: 'evidence support', style: 'font-size:12.5px' },
+    diff.entered.forEach(r => l.append(el('div', { class: 'evidence support', style: 'font-size:13px' },
       `${r.c.tk} — ${r.c.name} now clears every criterion.`)));
     section('Entered the screen', null, l);
   }
   if (diff.left.length) {
     const l = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
-    diff.left.forEach(m => l.append(el('div', { class: 'evidence counter', style: 'font-size:12.5px' },
+    diff.left.forEach(m => l.append(el('div', { class: 'evidence counter', style: 'font-size:13px' },
       `${m.tk} no longer clears the criteria it met when this screen was saved.`)));
     section('Dropped out', null, l);
   }
   if (!diff.entered.length && !diff.left.length) {
-    section('Membership', null, el('p', { class: 'body', style: 'font-size:12.5px' },
+    section('Membership', null, el('p', { class: 'body', style: 'font-size:13px' },
       'No company has entered or left this screen since it was saved. On a live data feed this is where new entrants would appear.'));
   }
 
@@ -6622,7 +6693,7 @@ function renderRadar() {
   const barRow = el('div', { class: 'row row-wrap', style: 'gap:var(--md)' });
   const mkSeg = (label, key, opts) => {
     const g = el('div', { class: 'row', style: 'gap:8px' });
-    g.append(el('span', { class: 'caption', style: 'font-weight:560' }, label));
+    g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
     g.append(el('div', { class: 'segmented' }, opts.map(([v, l]) =>
       el('button', { 'aria-selected': rr[key] === v ? 'true' : 'false', onclick: () => { rr[key] = v; render(); } }, l))));
     return g;
@@ -6639,7 +6710,7 @@ function renderRadar() {
   /* Time slider — each stop re-runs the whole derivation against statements
      truncated to that fiscal year and the price that applied then. */
   const timeRow = el('div', { class: 'row row-wrap', style: 'gap:var(--md);margin-top:10px;padding-top:10px;border-top:1px solid var(--grid)' });
-  timeRow.append(el('span', { class: 'caption', style: 'font-weight:560' }, 'As of'));
+  timeRow.append(el('span', { class: 'caption', style: 'font-weight:600' }, 'As of'));
   const slider = el('input', { type: 'range', min: RADAR_MIN_YI, max: YEARS.length - 1, step: 1, value: rr.yi,
     style: 'max-width:260px', 'aria-label': 'Fiscal year the radar is drawn as of',
     oninput: e => { rr.yi = +e.target.value; render(); } });
@@ -6868,7 +6939,7 @@ function renderIdeas() {
         row.append(tickerCell(r));
         row.append(el('span', { class: 'spacer' }));
         row.append(sparkline(priceHistory(r.c)));
-        row.append(el('span', { class: 'num', style: 'font-size:12.5px;font-weight:600;min-width:64px;text-align:right' }, fmtMoney(r.c.px.p, r.c.ccy)));
+        row.append(el('span', { class: 'num', style: 'font-size:13px;font-weight:600;min-width:64px;text-align:right' }, fmtMoney(r.c.px.p, r.c.ccy)));
         row.append(el('span', { class: 'num ' + diffClass(r.val.mos?.base), style: 'font-size:12px;min-width:52px;text-align:right' }, withSign(r.val.mos?.base, 0)));
         l.append(row);
       });
@@ -6887,12 +6958,12 @@ function openThemeDetail(t, members) {
 
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Inclusion rules'));
   const inc = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px;margin-bottom:var(--md)' });
-  t.rules.forEach(r => inc.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, r)));
+  t.rules.forEach(r => inc.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, r)));
   body.append(inc);
 
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Exclusions'));
   const exc = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px;margin-bottom:var(--md)' });
-  t.excl.forEach(r => exc.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' }, r)));
+  t.excl.forEach(r => exc.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, r)));
   body.append(exc);
 
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
@@ -6954,12 +7025,12 @@ function renderHeatmap() {
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md);margin-bottom:var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md)' });
   row.append(el('div', { class: 'row', style: 'gap:8px' }, [
-    el('span', { class: 'caption', style: 'font-weight:560' }, 'Measure'),
+    el('span', { class: 'caption', style: 'font-weight:600' }, 'Measure'),
     el('div', { class: 'segmented' }, HEAT_MODES.map(m =>
       el('button', { 'aria-selected': st.mode === m.id ? 'true' : 'false', onclick: () => { st.mode = m.id; render(); } }, m.label))),
   ]));
   row.append(el('div', { class: 'row', style: 'gap:8px' }, [
-    el('span', { class: 'caption', style: 'font-weight:560' }, 'Universe'),
+    el('span', { class: 'caption', style: 'font-weight:600' }, 'Universe'),
     el('div', { class: 'segmented' }, [['all', 'All'], ['US', 'S&P 500'], ['MY', 'FBM KLCI'], ['watchlist', 'Watchlist']].map(([v, l]) =>
       el('button', { 'aria-selected': st.universe === v ? 'true' : 'false', onclick: () => { st.universe = v; render(); } }, l))),
   ]));
@@ -7042,9 +7113,9 @@ function openWhyMoved(id, mode) {
   parts.forEach(([label, v, note]) => {
     const p = el('div', { style: 'padding:8px 0;border-bottom:1px solid var(--grid)' });
     p.append(el('div', { class: 'row' }, [
-      el('span', { style: 'font-size:12.5px;color:var(--ink-2)' }, label),
+      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, label),
       el('span', { class: 'spacer' }),
-      el('span', { class: 'num ' + signClass(v), style: 'font-size:12.5px;font-weight:620' }, a.m.fmt(v)),
+      el('span', { class: 'num ' + signClass(v), style: 'font-size:13px;font-weight:600' }, a.m.fmt(v)),
     ]));
     const track = el('div', { style: 'height:6px;background:var(--surface-sunk);border-radius:999px;margin:5px 0 4px;position:relative;overflow:hidden' });
     track.append(el('i', { style: `position:absolute;left:50%;${v >= 0 ? '' : 'transform:translateX(-100%);'}width:${Math.abs(v) / maxAbs * 50}%;height:100%;background:var(${v >= 0 ? '--up-4' : '--dn-4'});border-radius:999px;display:block` }));
@@ -7796,7 +7867,7 @@ VIEWS.researchHome = () => {
   colls.forEach(([t, b, go]) => {
     const card = el('div', { class: 'card task-card', role:'button', tabindex:'0' });
     card.append(el('h3', { class: 'h-card' }, t));
-    card.append(el('p', { class: 'body', style: 'font-size:12.5px' }, b));
+    card.append(el('p', { class: 'body', style: 'font-size:13px' }, b));
     const act = () => go();
     card.addEventListener('click', act);
     card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
@@ -7820,7 +7891,7 @@ VIEWS.researchHome = () => {
     const a = el('a', { class: 'card task-card', href: href(path), style: 'flex:1 1 260px;text-decoration:none',
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } });
     a.append(el('h3', { class: 'h-card' }, title));
-    a.append(el('p', { class: 'body', style: 'font-size:12.5px' }, note));
+    a.append(el('p', { class: 'body', style: 'font-size:13px' }, note));
     tl.append(a);
   });
   tools.append(tl);
@@ -7899,7 +7970,7 @@ VIEWS.research = () => {
   top.append(idBlock);
 
   const pxBlock = el('div', { style: 'text-align:right;flex:none' });
-  pxBlock.append(el('div', { class: 'num', style: 'font-size:28px;font-weight:660;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy)));
+  pxBlock.append(el('div', { class: 'num', style: 'font-size:28px;font-weight:700;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy)));
   /* The change and its date render only when there is a price to have changed.
      Previously this printed "— today" on every filed company, which dates a
      figure that was never observed. */
@@ -8004,18 +8075,18 @@ VIEWS.research = () => {
   const idRow = el('div', { class: 'grid g-2', style: 'margin-top:10px' });
   idRow.append(el('div', {}, [
     el('p', { class: 'metaline', style: 'margin-bottom:2px' }, 'What it is'),
-    el('p', { class: 'body', style: 'font-size:13px;font-weight:560;margin:0' }, `${lens.instrument.label} — ${lens.archetype}`),
+    el('p', { class: 'body', style: 'font-size:13px;font-weight:600;margin:0' }, `${lens.instrument.label} — ${lens.archetype}`),
     el('p', { class: 'metaline', style: 'margin-top:2px' }, lens.instrument.note),
   ]));
   idRow.append(el('div', {}, [
     el('p', { class: 'metaline', style: 'margin-bottom:2px' }, 'Why it might be owned'),
     lens.primary
       ? el('div', {}, [
-          el('p', { class: 'body', style: 'font-size:13px;font-weight:560;margin:0' }, lens.primary.label),
+          el('p', { class: 'body', style: 'font-size:13px;font-weight:600;margin:0' }, lens.primary.label),
           el('p', { class: 'metaline', style: 'margin-top:2px' }, lens.primary.why),
           lens.secondary ? el('p', { class: 'metaline', style: 'margin-top:4px' }, `Secondary: ${lens.secondary.label}.`) : null,
         ])
-      : el('p', { class: 'body', style: 'font-size:12.5px;margin:0;color:var(--bronze)' },
+      : el('p', { class: 'body', style: 'font-size:13px;margin:0;color:var(--bronze)' },
           'Not stated. No strategy could be assessed from the data held, and naming a return role without one would be a guess dressed as a classification.'),
   ]));
   lensCard.append(idRow);
@@ -8229,7 +8300,7 @@ function tabSnapshot(r) {
 
   const head = el('div', { class: 'row', style: 'gap:var(--lg);align-items:baseline;flex-wrap:wrap' });
   head.append(el('div', {}, [
-    el('div', { style: 'font-size:34px;font-weight:680;line-height:1' },
+    el('div', { style: 'font-size:32px;font-weight:700;line-height:1' },
       isNum(rc.score) ? String(rc.score) : '—'),
     el('div', { class: 'metaline' }, `out of 100, over ${rc.testedWeight}% of the framework weight`),
   ]));
@@ -8262,7 +8333,7 @@ function tabSnapshot(r) {
     `${rc.untested.map(p => p.label).join(' and ')} contribute nothing to the number above, and the missing ${100 - rc.testedWeight}% is not redistributed. Spreading it across the other pillars would score them as examined and average; leaving it out keeps the score an honest average of what was measured.`));
 
   rc.gates.forEach(g => rcCard.append(el('div', { class: 'note', style: 'margin-top:var(--md)' }, [
-    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:12.5px' },
+    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
       g.state === 'manual_review' ? 'Governance: manual review required' : 'No aggregate classification'),
     el('p', { class: 'metaline' }, g.why),
   ])));
@@ -8292,8 +8363,8 @@ function tabSnapshot(r) {
     [['Bear', val.vals.bear, val.mos?.bear], ['Base', val.vals.base, val.mos?.base], ['Bull', val.vals.bull, val.mos?.bull]].forEach(([label, v, mos]) => {
       const p = el('div', { class: 'panel' });
       p.append(el('div', { class: 'stat-label' }, `${label} case`));
-      p.append(el('div', { class: 'num', style: 'font-size:18px;font-weight:640;margin:2px 0' }, fmtMoney(v, c.ccy)));
-      p.append(el('div', { class: 'num ' + diffClass(mos), style: 'font-size:12px;font-weight:580' },
+      p.append(el('div', { class: 'num', style: 'font-size:18px;font-weight:700;margin:2px 0' }, fmtMoney(v, c.ccy)));
+      p.append(el('div', { class: 'num ' + diffClass(mos), style: 'font-size:12px;font-weight:600' },
         isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
       g.append(p);
     });
@@ -8318,7 +8389,7 @@ function tabSnapshot(r) {
     req.append(row);
     if (isNum(cur) && isNum(val.mos?.base)) {
       const meets = val.mos.base >= cur;
-      req.append(el('p', { class: 'body', style: 'margin-top:8px;font-size:12.5px' },
+      req.append(el('p', { class: 'body', style: 'margin-top:8px;font-size:13px' },
         meets
           ? `The base case sits ${withSign(val.mos.base, 0)} from the price, which clears the ${fmtPct(cur, 0)} you asked for. That is your rule applied to this model, not a view on the company.`
           : `The base case sits ${withSign(val.mos.base, 0)} from the price, short of the ${fmtPct(cur, 0)} you asked for.`));
@@ -8338,7 +8409,7 @@ function tabSnapshot(r) {
   tc.append(cardHead('Trend context',
     'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.'));
   if (!real) {
-    tc.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    tc.append(el('p', { class: 'body', style: 'font-size:13px' },
       `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`));
     tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `Add closes for ${c.tk} under My Investments → Your data to enable this. They stay in this browser.`));
@@ -8369,7 +8440,7 @@ function tabSnapshot(r) {
   if (!hist) {
     /* Fundamentals without a feed. Say so rather than draw an empty chart. */
     pc.append(cardHead('Price history', 'Not available for this company.'));
-    pc.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    pc.append(el('p', { class: 'body', style: 'font-size:13px' },
       c.real
         ? 'This company was loaded from SEC filings, which carry statements and not market data. A price series needs a licensed feed. Everything above that does not depend on a price — statements, quality, the valuation itself — is computed from the filings as normal.'
         : 'No price series is attached to this company.'));
@@ -8446,7 +8517,7 @@ function tabSnapshot(r) {
   momRow.append(el('div', { class: 'row' }, [
     el('span', { class: 'sr-name' }, 'Momentum / change'),
     el('span', { class: 'spacer' }),
-    el('span', { class: 'num', style: 'font-size:13px;font-weight:620' }, isNum(r.mom.score) ? String(r.mom.score) : '—'),
+    el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, isNum(r.mom.score) ? String(r.mom.score) : '—'),
   ]));
   const momMeter = el('div', { class: 'meter', style: 'margin-top:5px' });
   momMeter.append(el('i', { style: `width:${r.mom.score ?? 0}%;background:var(--s3)` }));
@@ -8471,7 +8542,7 @@ function tabSnapshot(r) {
   if (!notable.length) rk.append(el('p', { class: 'caption' }, 'No flag triggered by the current thresholds.'));
   notable.forEach(f => {
     rk.append(el('div', { style: 'padding:7px 0;border-bottom:1px solid var(--grid)' }, [
-      el('div', { class: 'row', style: 'gap:6px;margin-bottom:2px' }, [sevChip(f.sev), el('span', { style: 'font-size:12.5px;font-weight:560' }, f.title)]),
+      el('div', { class: 'row', style: 'gap:6px;margin-bottom:2px' }, [sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:600' }, f.title)]),
       el('p', { class: 'caption' }, f.detail),
     ]));
   });
@@ -8494,9 +8565,9 @@ function tabBusiness(r) {
   (c.seg || []).forEach((s, i) => {
     legend.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
       el('span', { class: 'legend-key', style: `background:var(${SERIES[i % 8]})` }),
-      el('span', { style: 'font-size:12.5px;color:var(--ink-2)' }, s[0]),
+      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, s[0]),
       el('span', { class: 'spacer' }),
-      el('span', { class: 'num', style: 'font-size:12.5px;font-weight:600' }, `${s[1]}%`),
+      el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, `${s[1]}%`),
       el('span', { class: 'metaline' }, fmtCap(last(d.rev) * s[1] / 100, c.ccy)),
     ]));
   });
@@ -8515,7 +8586,7 @@ function tabBusiness(r) {
      : `${fmtNum(last(d.sh), 3)}bn (${withSign(m.dilution, 2)} a year)`],
   ].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, String(v))); });
   prof.append(kv);
-  prof.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:12.5px' }, c.desc));
+  prof.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:13px' }, c.desc));
   wrap.append(prof);
 
   /* ---------- competitive position ---------- */
@@ -8627,7 +8698,7 @@ function tabFinancials(r) {
   const tb = el('tbody');
   lines.forEach(([label, arr, derivedLine]) => {
     const tr = el('tr');
-    tr.append(el('td', { class: 'pin ident', html: esc(label) + (derivedLine ? ' <span class="chip" style="height:16px;font-size:9.5px;padding:0 5px">derived</span>' : '') }));
+    tr.append(el('td', { class: 'pin ident', html: esc(label) + (derivedLine ? ' <span class="chip" style="height:16px;font-size:11px;padding:0 5px">derived</span>' : '') }));
     arr.forEach(v => tr.append(el('td', { html: isNum(v) ? fmtNum(v, Math.abs(v) < 10 ? (Math.abs(v) < 1 ? 3 : 2) : 1) : NA })));
     const g = cagr(arr);
     tr.append(el('td', { class: signClass(g), html: isNum(g) ? withSign(g, 1) : '<span class="caption">n/m</span>' }));
@@ -8678,7 +8749,7 @@ function tabQuality(r) {
     'Against the five-pillar framework, each weighted a fifth. Every factor scored here comes from the financial statements; nothing scored here tests a moat, an owner or a board.'));
   const notScored = SCORECARD_COVERAGE.filter(p => p.state === 'not scored').length;
   const partial   = SCORECARD_COVERAGE.filter(p => p.state === 'partial').length;
-  cov.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-bottom:var(--md)' },
+  cov.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--md)' },
     `${SCORECARD_COVERAGE.length - notScored - partial} of ${SCORECARD_COVERAGE.length} pillars are tested in full, ${partial} in part, and ${notScored} not at all. A high score is evidence about the statements and nothing more.`));
 
   const ct = el('table', { class: 'dt' });
@@ -8687,7 +8758,7 @@ function tabQuality(r) {
   const cb = el('tbody');
   SCORECARD_COVERAGE.forEach(p => {
     const tr = el('tr', {});
-    tr.append(el('td', { style: 'font-weight:560' }, p.pillar));
+    tr.append(el('td', { style: 'font-weight:600' }, p.pillar));
     tr.append(el('td', { class: 'num' }, `${p.weight}%`));
     tr.append(el('td', {}, el('span', {
       class: 'chip ' + (p.state === 'tested' ? 'chip-ok' : p.state === 'partial' ? 'chip-bronze' : 'chip-warn') },
@@ -8718,7 +8789,7 @@ function tabQuality(r) {
       el('p', { class: 'metaline', style: 'margin-top:2px' }, `Weighted from ${p.parts.filter(x => isNum(x.score)).length} of ${p.parts.length} inputs · input coverage ${p.coverage}%`),
     ]));
     hd.append(el('div', { style: 'text-align:right' }, [
-      el('div', { class: 'num', style: 'font-size:24px;font-weight:660' }, isNum(p.score) ? p.score : '—'),
+      el('div', { class: 'num', style: 'font-size:24px;font-weight:700' }, isNum(p.score) ? p.score : '—'),
       el('div', { class: 'metaline' }, isNum(r.pct[k]) ? `${ord(r.pct[k])} percentile` : 'no percentile'),
     ]));
     card.append(hd);
@@ -8764,7 +8835,7 @@ function tabQuality(r) {
       'Kept separate from every pillar above. Momentum describes what the market and the latest reported period have done — it is not evidence about business quality, and combining the two would hide exactly the trade-off worth seeing.'),
   ]));
   mh.append(el('div', { style: 'text-align:right' }, [
-    el('div', { class: 'num', style: 'font-size:24px;font-weight:660' }, isNum(r.mom.score) ? r.mom.score : '—'),
+    el('div', { class: 'num', style: 'font-size:24px;font-weight:700' }, isNum(r.mom.score) ? r.mom.score : '—'),
     el('div', { class: 'metaline' }, `cohort median ${withSign(r.mom.cohortMedian, 1)} over 12m`),
   ]));
   mc.append(mh);
@@ -8799,12 +8870,12 @@ function tabMoat(r) {
 
   card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Supporting evidence'));
   const s = el('div', { style: 'display:flex;flex-direction:column;gap:8px;margin-bottom:var(--md)' });
-  c.moat.support.forEach(x => s.append(el('div', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
+  c.moat.support.forEach(x => s.append(el('div', { class: 'evidence support', style: 'font-size:13px' }, x)));
   card.append(s);
 
   card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Counter-evidence'));
   const cn = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
-  c.moat.counter.forEach(x => cn.append(el('div', { class: 'evidence counter', style: 'font-size:12.5px' }, x)));
+  c.moat.counter.forEach(x => cn.append(el('div', { class: 'evidence counter', style: 'font-size:13px' }, x)));
   card.append(cn);
   wrap.append(card);
 
@@ -8861,11 +8932,11 @@ function tabRisks(r) {
   r.flags.forEach(f => {
     const item = el('div', { class: 'panel' });
     item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [
-      sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:580' }, f.title),
+      sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:600' }, f.title),
       el('span', { class: 'spacer' }),
       f.metric ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => FIELD_BY_K[f.metric] ? openMetricInfo(FIELD_BY_K[f.metric]) : toast('Derived flag — see the statements tab') }, 'Check the input') : null,
     ]));
-    item.append(el('p', { class: 'body', style: 'font-size:12.5px' }, f.detail));
+    item.append(el('p', { class: 'body', style: 'font-size:13px' }, f.detail));
     l.append(item);
   });
   list.append(l);
@@ -8918,7 +8989,7 @@ function tabOwnership(r) {
   if (m.shareSeriesBreak) {
     const b = m.shareSeriesBreak;
     act.append(el('div', { class: 'note', style: 'margin-top:var(--md);border-left:3px solid var(--warn)' },
-      el('p', { class: 'body', style: 'font-size:12.5px' },
+      el('p', { class: 'body', style: 'font-size:13px' },
         `Share count CAGR and net buyback yield are withheld for this company. The series moves from `
         + `${fmtNum(b.from, 3)}bn to ${fmtNum(b.to, 3)}bn between two consecutive years — a factor of ${b.ratio}× — `
         + `which is a corporate action rather than a financing decision, since no issuance or buyback moves a share `
@@ -8976,7 +9047,7 @@ function tabFilings(r) {
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential thesis impacts'));
       const imp = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
       const drivers = driverImpact(c, r.d, r.inputs).slice(0, 3);
-      drivers.forEach(dr => imp.append(el('div', { class: 'evidence', style: 'font-size:12.5px' },
+      drivers.forEach(dr => imp.append(el('div', { class: 'evidence', style: 'font-size:13px' },
         `${dr.label} is the ${drivers.indexOf(dr) === 0 ? 'largest' : 'next largest'} driver of the valuation range — a ${dr.unit === 'pp' ? fmtNum(dr.step, 2) + ' point' : dr.unit} change moves the base-case model estimate about ${fmtNum(dr.span, 1)}%.`)));
       card.append(imp);
       card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -9104,7 +9175,7 @@ function tabValuation(r) {
       'Not a low estimate, and not a wide range — no estimate at all.'));
     card.append(el('p', { class: 'body', style: 'font-size:13px' },
       r.val?.err || 'The statements held for this company do not support any of the models in the router.'));
-    card.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:10px' },
+    card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:10px' },
       'Everything else on this company still works: the reported statements, the scorecard over the inputs that could be computed, and the risk flags. Only the valuation is absent, and it is absent rather than approximated because a discounted-cash-flow estimate built on a substituted cash flow would be an opinion about the substitution rather than about the company.'));
     if (c.gaps?.length) {
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Statement lines not reported'));
@@ -9290,14 +9361,14 @@ function studioOutputs(r, inputs, redraw) {
   [['Bear', run.vals.bear, run.mos?.bear], ['Base', run.vals.base, run.mos?.base], ['Bull', run.vals.bull, run.mos?.bull]].forEach(([label, v, mos]) => {
     const p = el('div', { class: 'panel' });
     p.append(el('div', { class: 'stat-label' }, `${label} case`));
-    p.append(el('div', { class: 'num', style: 'font-size:19px;font-weight:650;margin:2px 0' }, fmtMoney(v, c.ccy)));
-    p.append(el('div', { class: 'num ' + diffClass(mos), style: 'font-size:12px;font-weight:580' },
+    p.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0' }, fmtMoney(v, c.ccy)));
+    p.append(el('div', { class: 'num ' + diffClass(mos), style: 'font-size:12px;font-weight:600' },
         isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
     grid.append(p);
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
   pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : 'Market price'));
-  pp.append(el('div', { class: 'num', style: 'font-size:19px;font-weight:650;margin:2px 0;color:var(--s2)' }, fmtMoney(c.px.p, c.ccy)));
+  pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2)' }, fmtMoney(c.px.p, c.ccy)));
   pp.append(el('div', { class: 'metaline' },
     c.px?.eod && c.px.asOf ? `${c.px.asOf} close`
     : c.px?.manual ? 'entered by you'
@@ -9496,7 +9567,7 @@ function studioOutputs(r, inputs, redraw) {
   notes.append(cross);
   notes.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Limitations of this pack'));
   const lim = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
-  run.pack.limits.forEach(l => lim.append(el('div', { class: 'evidence counter', style: 'font-size:12.5px' }, l)));
+  run.pack.limits.forEach(l => lim.append(el('div', { class: 'evidence counter', style: 'font-size:13px' }, l)));
   notes.append(lim);
   notes.append(el('div', { style: 'margin-top:var(--md)' }, provenance(r, [`<b>Run</b> ${MODEL_VERSION.split('·')[2].trim()}`])));
   nodes.push(notes);
@@ -9554,7 +9625,7 @@ function openSavedRun(t) {
   body.append(kv);
 
   body.append(el('div', { class: run.model === MODEL_VERSION ? 'evidence support' : 'guardrail',
-    style: 'font-size:12.5px' },
+    style: 'font-size:13px' },
     run.model === MODEL_VERSION
       ? 'The model version is unchanged since this run was saved, so replaying these inputs reproduces the saved output exactly.'
       : `This run was saved under ${run.model}; the current version is ${MODEL_VERSION}. The values above are the stored inputs replayed through the current model, so they may differ from what was originally saved.`));
@@ -9783,7 +9854,7 @@ function sevenStepCard(r, t) {
     const row = el('div', { class: 'row row-wrap', style: `gap:10px;padding:9px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
     row.append(el('span', { style: `width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;background:${s.ok ? 'color-mix(in srgb, var(--ok) 16%, transparent)' : 'var(--surface-sunk)'};color:${s.ok ? 'var(--ok-text)' : 'var(--ink-3)'}` }, String(s.n)));
     const body = el('div', { style: 'flex:1 1 260px;min-width:0' });
-    body.append(el('div', { style: 'font-size:12.5px;font-weight:580' }, s.title));
+    body.append(el('div', { style: 'font-size:13px;font-weight:600' }, s.title));
     body.append(el('p', { class: 'caption', style: 'margin-top:1px' }, s.note));
     row.append(body);
     row.append(s.ok ? sevChip('good', 'Satisfied') : sevChip('warning', 'Open'));
@@ -9833,16 +9904,16 @@ function thesisCard(t, expanded) {
   const g = el('div', { class: 'grid g-2', style: 'margin-bottom:var(--md)' });
   const left = el('div');
   left.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Why the business'));
-  left.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-bottom:var(--md)' }, t.quality || '—'));
+  left.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--md)' }, t.quality || '—'));
   left.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Catalysts'));
   const cl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  (t.catalysts.length ? t.catalysts : ['—']).forEach(x => cl.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
+  (t.catalysts.length ? t.catalysts : ['—']).forEach(x => cl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   left.append(cl);
   g.append(left);
 
   const right = el('div');
   right.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Valuation case'));
-  right.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-bottom:8px' }, t.valCase || '—'));
+  right.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:8px' }, t.valCase || '—'));
   /* The blueprint's thesis template requires a link to the saved valuation run,
      so the case references a reproducible artefact rather than a remembered number. */
   const linkedRun = t.runRef ? (store.read('runs', []) || []).find(x => x.runId === t.runRef) : null;
@@ -9853,7 +9924,7 @@ function thesisCard(t, expanded) {
         'No valuation run linked yet. Save a run in the Valuation Studio and it attaches to this thesis automatically.')));
   right.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Key risks'));
   const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  (t.risks.length ? t.risks : ['—']).forEach(x => rl.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' }, x)));
+  (t.risks.length ? t.risks : ['—']).forEach(x => rl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
   right.append(rl);
   g.append(right);
   card.append(g);
@@ -9914,7 +9985,7 @@ function thesisCard(t, expanded) {
   if (t.questions?.length) {
     card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Unanswered questions'));
     const ql = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-    t.questions.forEach(q => ql.append(el('li', { class: 'evidence', style: 'font-size:12.5px' }, q)));
+    t.questions.forEach(q => ql.append(el('li', { class: 'evidence', style: 'font-size:13px' }, q)));
     card.append(ql);
   }
 
@@ -9998,12 +10069,12 @@ function openReview(t) {
     const pl = el('div', { style: 'display:flex;flex-direction:column;gap:8px;margin-bottom:var(--lg)' });
     past.slice().reverse().forEach(rev => {
       const p = el('details', { class: 'panel' });
-      p.append(el('summary', { style: 'cursor:pointer;font-size:12.5px;font-weight:560' },
+      p.append(el('summary', { style: 'cursor:pointer;font-size:13px;font-weight:600' },
         `${rev.date} · ${rev.breaches} condition${rev.breaches === 1 ? '' : 's'} breached at the time`));
       rev.answers.forEach(a => {
         if (!a.answer) return;
         p.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, a.question));
-        p.append(el('p', { class: 'body', style: 'font-size:12.5px' }, a.answer));
+        p.append(el('p', { class: 'body', style: 'font-size:13px' }, a.answer));
       });
       pl.append(p);
     });
@@ -10248,7 +10319,7 @@ VIEWS.compare = () => {
   const packNote = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   packNote.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
     el('span', { class: 'chip chip-brand' }, pack.name),
-    el('p', { class: 'body', style: 'flex:1 1 320px;font-size:12.5px;margin:0' }, pack.why),
+    el('p', { class: 'body', style: 'flex:1 1 320px;font-size:13px;margin:0' }, pack.why),
   ]));
   if (pack.id === 'general' && kinds.length > 1) packNote.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `The selection mixes ${kinds.join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
@@ -10279,14 +10350,14 @@ VIEWS.compare = () => {
   const t = el('table', { class: 'dt dt-pagesticky' });
   const thr = el('tr');
   thr.append(el('th', { class: 'pin' }, 'Measure'));
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}<br><span style="font-weight:420;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   METRIC_ROWS.forEach(([label, get]) => {
     if (!get) {
       const tr = el('tr');
       tr.append(el('td', { class: 'pin ident', colspan: rows.length + 1,
-        style: 'background:var(--surface-sunk);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:640' },
+        style: 'background:var(--surface-sunk);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700' },
         label.replace(/—/g, '').trim()));
       tb.append(tr); return;
     }
@@ -10392,7 +10463,7 @@ function sampleBanner() {
   const b = el('div', { class: 'note', style: 'border-left:3px solid var(--bronze);margin-bottom:var(--md)' });
   b.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
-    el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 300px;margin:0' },
+    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 300px;margin:0' },
       'These holdings and investment cases were written into this browser so the views have something to show. They are not yours, nobody holds them, and every figure derived from them is illustrative.'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: clearSeededData }, 'Clear and start my own'),
   ]));
@@ -10548,9 +10619,9 @@ VIEWS.portfolio = () => {
     const l = el('div');
     entries.forEach(([k, v], i) => l.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
       el('span', { class: 'legend-key', style: `background:var(${SERIES[i % 8]})` }),
-      el('span', { style: 'font-size:12.5px;color:var(--ink-2)' }, k),
+      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, k),
       el('span', { class: 'spacer' }),
-      el('span', { class: 'num', style: 'font-size:12.5px;font-weight:600' }, fmtPct(v / totalVal * 100, 1)),
+      el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtPct(v / totalVal * 100, 1)),
     ])));
     card.append(l);
     ex.append(card);
@@ -10701,9 +10772,9 @@ VIEWS.portfolio = () => {
     const pl2 = el('div');
     parts.forEach(([label, v, cvar]) => pl2.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
       el('span', { class: 'legend-key', style: `background:var(${cvar})` }),
-      el('span', { style: 'font-size:12.5px;color:var(--ink-2)' }, label),
+      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, label),
       el('span', { class: 'spacer' }),
-      el('span', { class: 'num', style: 'font-size:12.5px;font-weight:600' }, fmtAmount(v, State.baseCcy)),
+      el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtAmount(v, State.baseCcy)),
       el('span', { class: 'metaline', style: 'min-width:52px;text-align:right' }, fmtPct(netWorth ? v / netWorth * 100 : 0, 1)),
     ])));
     xa.append(pl2);
@@ -11018,7 +11089,7 @@ VIEWS.onboarding = () => {
   wrap.append(dots);
 
   wrap.append(el('p', { class: 'eyebrow' }, `Step ${i + 1} of ${OB_STEPS.length + 1}`));
-  wrap.append(el('h1', { class: 'h-display', style: 'font-size:26px;margin:4px 0 6px' }, step.q));
+  wrap.append(el('h1', { class: 'h-display', style: 'font-size:24px;margin:4px 0 6px' }, step.q));
   wrap.append(el('p', { class: 'body' }, step.note));
 
   const opts = el('div', { class: 'ob-options' });
@@ -11226,9 +11297,9 @@ VIEWS.marketing = () => {
   [PRICING.free, PRICING.founding, PRICING.property].forEach(t => {
     const card = el('div', { class: 'card' });
     card.append(el('h3', { class: 'h-card' }, t.name));
-    card.append(el('div', { style: 'font-size:26px;font-weight:680;margin:4px 0 2px' }, t.price));
+    card.append(el('div', { style: 'font-size:24px;font-weight:700;margin:4px 0 2px' }, t.price));
     if (t.period) card.append(el('div', { class: 'metaline' }, t.period));
-    card.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px' }, t.line));
+    card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' }, t.line));
     pg.append(card);
   });
   pricing.append(pg);
@@ -11312,7 +11383,7 @@ VIEWS.userdata = () => {
     } }, 'Remove all'));
     status.append(exp);
   } else {
-    status.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    status.append(el('p', { class: 'body', style: 'font-size:13px' },
       'Without prices, anything price-derived is shown as unavailable rather than estimated: market capitalisation, multiples, dividend yield, the difference to a model estimate, and every trend indicator. The statements, scorecards and risk flags all work without them.'));
   }
   wrap.append(status);
@@ -11391,7 +11462,7 @@ VIEWS.userdata = () => {
 
     /* Both halves reported, always. A partial import that only announces its
        successes is how a reader ends up trusting a series with holes in it. */
-    const summary = el('p', { class: 'body', style: 'font-size:12.5px' },
+    const summary = el('p', { class: 'body', style: 'font-size:13px' },
       `${res.accepted} close${res.accepted === 1 ? '' : 's'} read across ${res.symbols.length} symbol${res.symbols.length === 1 ? '' : 's'}`
       + (res.rejected.length ? `, and ${res.rejected.length} row${res.rejected.length === 1 ? '' : 's'} could not be read.` : '.'));
     report.append(summary);
@@ -11581,7 +11652,7 @@ function openTrendDrawer(row, t) {
       el('span', { class: 'metaline', style: 'margin-left:auto' }, `v${s.version}`),
     ]));
     if (res) {
-      card.append(el('p', { style: 'margin:6px 0 2px;font-weight:560' }, res.state));
+      card.append(el('p', { style: 'margin:6px 0 2px;font-weight:600' }, res.state));
       card.append(el('p', { class: 'metaline' }, res.detail));
     } else {
       const missing = s.requires.map(id => t.pending.find(x => x.id === id)).filter(Boolean);
@@ -11781,7 +11852,7 @@ VIEWS.terms = () => trustPage('Terms',
 VIEWS.notfound = () => {
   const wrap = el('div', { class: 'stack' });
   const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxxl) var(--lg)' });
-  card.append(el('div', { class: 'num', style: 'font-size:44px;font-weight:660' }, '404'));
+  card.append(el('div', { class: 'num', style: 'font-size:44px;font-weight:700' }, '404'));
   card.append(el('h1', { class: 'h-section', style: 'margin-top:6px' },
     State.notFoundWhat ? `No ${State.notFoundWhat}` : 'That page does not exist'));
   card.append(el('p', { class: 'metaline', style: 'margin:10px auto 16px;max-width:54ch' },
@@ -12247,7 +12318,7 @@ VIEWS.tracked = () => {
     const tCell = el('td');
     const ctx = TREND_STRATEGIES[0].evaluate(t);
     if (ctx) {
-      tCell.append(el('div', { style: 'font-size:12px;font-weight:560' }, ctx.state));
+      tCell.append(el('div', { style: 'font-size:12px;font-weight:600' }, ctx.state));
       tCell.append(el('div', { class: 'metaline' },
         isNum(t.values.dist200) ? `${withSign(t.values.dist200, 1)} vs 200-day` : ''));
     } else {
@@ -12335,10 +12406,10 @@ VIEWS.alerts = () => {
     item.append(el('span', { class: 'ni-icon', style: `background:color-mix(in srgb, var(${s.v}) 15%, transparent);color:var(${s.v})`, html: icon(s.icon, 13) }));
     const b = el('div', { style: 'flex:1;min-width:0' });
     b.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-      el('span', { style: 'font-size:13px;font-weight:580' }, a.title),
+      el('span', { style: 'font-size:13px;font-weight:600' }, a.title),
       el('span', { class: 'chip' }, ALERT_KINDS.find(k => k.id === a.kind)?.label || a.kind),
     ]));
-    b.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:2px' }, a.what));
+    b.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:2px' }, a.what));
     b.append(el('p', { class: 'caption', style: 'margin-top:2px' }, a.detail));
     b.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px' }, [
       el('span', { class: 'metaline' }, a.source),
@@ -12379,7 +12450,7 @@ VIEWS.alerts = () => {
     const r = BY_ID.get(pa.ticker);
     const hit = r && (pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price);
     const row = el('div', { class: 'row row-wrap', style: `gap:8px;padding:8px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
-    row.append(el('span', { style: 'font-size:12.5px;font-weight:600;min-width:74px' }, pa.ticker));
+    row.append(el('span', { style: 'font-size:13px;font-weight:600;min-width:74px' }, pa.ticker));
     row.append(el('span', { class: 'metaline' }, `${pa.op} ${r ? fmtMoney(pa.price, r.c.ccy) : pa.price}`));
     row.append(el('span', { class: 'spacer' }));
     row.append(hit ? sevChip('info', 'Crossed') : el('span', { class: 'chip' }, 'Waiting'));
@@ -12396,7 +12467,7 @@ VIEWS.alerts = () => {
     const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
     lab.append(el('input', { type: 'checkbox', checked: k.id !== 'price' ? '' : null, style: 'margin-top:3px' }));
     const tx = el('div');
-    tx.append(el('div', { style: 'font-size:12.5px;color:var(--ink);font-weight:540' }, k.label));
+    tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
     tx.append(el('div', { class: 'metaline' }, k.note));
     lab.append(tx);
     rules.append(lab);
@@ -12491,7 +12562,7 @@ function learnScoring() {
     'Sector-specific input sets are used only where they are economically justified — banks and REITs have their own.',
     'Every score publishes its version, calculation date, source periods and coverage ratio.'];
   const ul = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px' });
-  rules.forEach(x => ul.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
+  rules.forEach(x => ul.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   intro.append(ul);
   wrap.append(intro);
 
@@ -12558,7 +12629,7 @@ function learnModels() {
    ['Embedded value is not modelled', 'The insurer pack uses residual income with a combined-ratio check. A life insurer’s embedded value is not disclosed in this dataset, so an embedded-value model cannot be run and is not approximated.'],
    ['Sum of the parts is not a true SOTP', 'The holding-company pack values consolidated cash flow and applies an explicit discount, because segment-level earnings and capital are not carried here.'],
    ['Routing is a default, not a verdict', 'Every pack’s assumptions are editable, and all nine methods are computed on every company regardless of which pack was selected.']]
-    .forEach(([n, why], i) => nb.append(el('div', { class: i === 0 ? 'evidence support' : 'evidence counter', style: 'font-size:12.5px' },
+    .forEach(([n, why], i) => nb.append(el('div', { class: i === 0 ? 'evidence support' : 'evidence counter', style: 'font-size:13px' },
       el('span', {}, [el('b', {}, n + ' — '), why]))));
   intro.append(nb);
   wrap.append(intro);
@@ -12568,7 +12639,7 @@ function learnModels() {
     card.append(cardHead(p.name, p.why));
     card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Limitations'));
     const ul = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-    p.limits.forEach(x => ul.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' }, x)));
+    p.limits.forEach(x => ul.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
     card.append(ul);
     wrap.append(card);
   });
@@ -12582,7 +12653,7 @@ function learnModels() {
    'For banks, long-run growth above what retained earnings can fund at the assumed ROE and payout raises a warning.',
    'For REITs, modelling growth from a distribution that recurring income does not cover raises a warning.',
    'Data completeness below 80% reduces the confidence grade rather than being filled in.'].forEach(x =>
-    gl.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
+    gl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   guards.append(gl);
   wrap.append(guards);
   return wrap;
@@ -12605,7 +12676,7 @@ function learnData() {
     ['5', 'AI-derived qualitative claims', 'Moat structuring and change summaries', 'Authored, evidence-linked templates only'],
   ].map(r => el('tr', {}, r.map((c, i) => el('td', { class: i === 0 ? 'ident' : '', style: i > 0 ? 'text-align:left;white-space:normal' : '' }, c))))));
   tw.append(t); src.append(tw);
-  src.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:12.5px' },
+  src.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:13px' },
     'Bursa Malaysia data is licensed, not free. Information-service licensing terms, a published price list and redistribution rights make the data workstream a commercial prerequisite — it has to be settled before the feature architecture is locked, not after.'));
   wrap.append(src);
 
@@ -12631,7 +12702,7 @@ function learnData() {
   [`${coverage().us} US companies and ${coverage().my} Bursa companies`,
    'Five reported years per company, with every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
-   'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
+   'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
   const lack = el('div');
   lack.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Absent by design'));
@@ -12653,7 +12724,7 @@ function learnData() {
       of different things — there is no SERVER entitlement, and there is a local
       one — and the sentence collapsed them into a claim a reader could disprove
       in two clicks. */
-   'Server-side entitlement — plan tiers are enforced in this browser only, for inspection. Switching plan on the pricing page does change what renders, including the full property report and the cross-asset view. There is no identity, no payment, no subscription record and no production access control behind it'].forEach(x => ll.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' }, x)));
+   'Server-side entitlement — plan tiers are enforced in this browser only, for inspection. Switching plan on the pricing page does change what renders, including the full property report and the cross-asset view. There is no identity, no payment, no subscription record and no production access control behind it'].forEach(x => ll.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
   lack.append(ll); g.append(lack);
   cov.append(g);
   wrap.append(cov);
@@ -12673,14 +12744,14 @@ function learnTrust() {
   ['Factual and analytical outputs', 'Published formulas and linked evidence', 'User-controlled assumptions',
    'No suitability questionnaire', 'No action recommendation', 'No target allocation',
    'Themes described as rule-based research universes', 'Alerts describe changed facts and conditions'].forEach(x =>
-    rl.append(el('li', { style: 'font-size:12.5px;color:var(--ink-2)' }, `✓ ${x}`)));
+    rl.append(el('li', { style: 'font-size:13px;color:var(--ink-2)' }, `✓ ${x}`)));
   rm.append(rl); g.append(rm);
   const am = el('div', { class: 'panel', style: 'opacity:.72' });
   am.append(el('div', { class: 'row', style: 'gap:6px;margin-bottom:8px' }, [el('span', { class: 'chip' }, 'Not built'), el('h4', { class: 'h-card' }, 'Licensed advisory mode')]));
   const al = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   ['Suitability and risk profiling', 'Representative oversight and governance', 'Advice rationale and record keeping',
    'Conflict and compensation disclosure', 'Controlled recommendation language', 'Policy approvals and surveillance'].forEach(x =>
-    al.append(el('li', { style: 'font-size:12.5px;color:var(--ink-3)' }, `· ${x}`)));
+    al.append(el('li', { style: 'font-size:13px;color:var(--ink-3)' }, `· ${x}`)));
   am.append(al); g.append(am);
   modes.append(g);
   modes.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
@@ -14331,9 +14402,9 @@ function affordabilityPanel(cityName) {
   const card = el('div', { class: 'panel' });
   card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, `${cityName} district household income`));
   card.append(el('div', { class: 'row', style: 'gap:var(--lg);flex-wrap:wrap' }, [
-    el('div', {}, [el('div', { style:'font-size:20px;font-weight:660' }, `RM${latest.median.toLocaleString()}`),
+    el('div', {}, [el('div', { style:'font-size:20px;font-weight:700' }, `RM${latest.median.toLocaleString()}`),
                    el('div', { class:'metaline' }, `median, ${latest.year}`)]),
-    el('div', {}, [el('div', { style:'font-size:20px;font-weight:660' }, `RM${latest.mean.toLocaleString()}`),
+    el('div', {}, [el('div', { style:'font-size:20px;font-weight:700' }, `RM${latest.mean.toLocaleString()}`),
                    el('div', { class:'metaline' }, `mean, ${latest.year}`)]),
   ]));
 
@@ -14342,7 +14413,7 @@ function affordabilityPanel(cityName) {
      only rent-shaped number any source here supports. */
   const lo = Math.round(latest.median * 0.25 / 10) * 10;
   const hi = Math.round(latest.median * 0.30 / 10) * 10;
-  card.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:10px' },
+  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:10px' },
     `A household on the median here sustains roughly RM${lo.toLocaleString()}–${hi.toLocaleString()} a month in rent.`));
   card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     'Derived from published income at a quarter to a third of it — a convention, not a measurement, and not an observed rent. No source consulted carries transacted rents for Sarawak. It describes the whole district, so it cannot tell one area here from another.'));
@@ -15371,9 +15442,9 @@ VIEWS.sarawak = () => {
   const why = el('div', { class: 'card' });
   why.append(cardHead('What is here, and what is not',
     'The names are identified. The exposure is not.'));
-  why.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+  why.append(el('p', { class: 'body', style: 'font-size:13px' },
     'Which companies operate in Sarawak is checkable, and they are listed below — each listing code resolved against a live quote and the returned company name checked against the one recorded here. What share of a company’s order book is state contracts, which concessions it depends on, how concentrated its state customer base is: none of that is carried by any source this product can reach.'));
-  why.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px' },
+  why.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
     'So the two are kept apart. Identifying a company is not researching it, and a list of familiar names with pre-filled exposure fields would look like the second while only being the first. The fields stay empty until someone fills them from a document they have read.'));
   why.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'Records are stored in this browser, are never sent anywhere, and carry no redistribution right.'));
@@ -15389,7 +15460,7 @@ VIEWS.sarawak = () => {
       el('span', { class: 'metaline', style: 'margin-left:auto' },
         n ? `${n} recorded` : 'none yet'),
     ]));
-    card.append(el('p', { class: 'body', style: 'font-size:12.5px' }, t.note));
+    card.append(el('p', { class: 'body', style: 'font-size:13px' }, t.note));
     tg.append(card);
   });
   wrap.append(tg);
@@ -15606,7 +15677,7 @@ VIEWS.property = () => {
   const disc = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
   disc.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
     el('span', { class: 'chip chip-bronze' }, 'Not a valuation'),
-    el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px' }, [
+    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' }, [
       'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.',
       el('span', { class: 'disclosure-long' },
         ' This is an investment estimate built from your inputs and sample transaction data. Figures are scenarios, not predictions.'),
@@ -15637,7 +15708,7 @@ VIEWS.property = () => {
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—']]
     .forEach(([k, v], i) => strip.append(el('div', {}, [
       el('span', { class: 'eyebrow', style: 'display:block;margin-bottom:2px' }, k),
-      el('span', { class: 'num', style: `font-size:19px;font-weight:680${i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? ';color:var(--dn-text)' : ''}` }, v),
+      el('span', { class: 'num', style: `font-size:20px;font-weight:700${i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? ';color:var(--dn-text)' : ''}` }, v),
     ])));
   onePage.append(strip);
 
@@ -15645,8 +15716,8 @@ VIEWS.property = () => {
     el('div', {}, [
       el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
-        el('span', { class: 'num', style: `font-size:34px;font-weight:700;color:var(${gradeTone})` }, g.grade),
-        el('span', { style: 'font-size:15px;font-weight:560' }, g.verdict),
+        el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${gradeTone})` }, g.grade),
+        el('span', { style: 'font-size:15px;font-weight:600' }, g.verdict),
       ]),
     ]),
     el('div', { style: 'margin-left:auto;text-align:right' }, [
@@ -15686,14 +15757,14 @@ VIEWS.property = () => {
      not yet said what is being caveated. */
 
   /* The owner subsidy stated as a commitment rather than a monthly minus. */
-  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:var(--md);color:var(--dn-text)' },
+  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);color:var(--dn-text)' },
     `This property does not pay for itself. Holding it costs ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
 
   if (g.gates.length) {
     onePage.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' },
       g.grade === 'U' ? 'Why this cannot be graded' : 'Why this is conditional'));
     const gl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px' });
-    g.gates.forEach(x => gl.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' },
+    g.gates.forEach(x => gl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' },
       x.text + (x.who ? ` Confirm with: ${x.who}.` : ''))));
     onePage.append(gl);
   }
@@ -15705,7 +15776,7 @@ VIEWS.property = () => {
     const warn = el('div', { style: 'margin-top:var(--md);padding:10px 12px;border-left:3px solid var(--bronze);background:var(--surface-2)' });
     warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
       el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
-      el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px;margin:0' },
+      el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px;margin:0' },
         `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on anything below.`),
     ]));
     if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -15767,7 +15838,7 @@ VIEWS.property = () => {
   finCard.append(trio);
 
   /* The sentence this section exists to make unmissable. */
-  finCard.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:var(--md)' },
+  finCard.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md)' },
     b.assessed && isNum(lr.score)
       ? `Loan Readiness ${lr.score}/100 is a diagnostic score, not a ${lr.score}% chance of approval. No approval probability is offered anywhere in this product, because calculating one honestly would need a lender's own record of applications and outcomes, and nobody outside a lender has that. Each lender applies its own credit policy and its own final assessment.`
       : 'Loan readiness has not been assessed. That is shown as unassessed rather than as a favourable default — an unanswered affordability question is not a passed one.'));
@@ -15886,7 +15957,7 @@ VIEWS.property = () => {
      the reader who has just modelled a deal is precisely the one who wants to
      record it. A real anchor, so it can be opened in a new tab. */
   wrap.append(el('div', { class: 'note', style: 'display:flex;flex-wrap:wrap;gap:10px;align-items:center' }, [
-    el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px;margin:0' },
+    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px;margin:0' },
       'Modelling one deal answers what it would do. Recording several answers which ones exist and what you actually know about each — the register keeps the source, the availability date, four separate prices and a next action with an owner.'),
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/opportunities'),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/opportunities'); } },
@@ -15979,7 +16050,7 @@ VIEWS.property = () => {
       `What you have recorded — ${d.district}`));
 
     if (!obs.total) {
-      oc.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+      oc.append(el('p', { class: 'body', style: 'font-size:13px' },
         'Nothing yet for this area. No source publishes neighbourhood rents or transactions for Sarawak, so the only way this becomes known is one observation at a time.'));
     } else {
       const ot = el('table', { class: 'dt' });
@@ -16071,7 +16142,7 @@ VIEWS.property = () => {
      lawfully hold the title, and getting it wrong is not a modelling error —
      it is a void transfer. */
   titleField.append(el('div', { class: 'note', style: 'margin-top:8px' }, [
-    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:12.5px' }, 'Title classification recorded from your input'),
+    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' }, 'Title classification recorded from your input'),
     el('p', { class: 'metaline' },
       'Eligibility has not been verified. Nothing here confirms that a transfer is permitted, and this selection changes only how the tool describes the property to you. Confirm with a Sarawak property lawyer and the Land and Survey Department before relying on it.'),
   ]));
@@ -16304,9 +16375,9 @@ VIEWS.property = () => {
           it[0],
           /* Marked at every appearance. A placeholder is plausible, which is
              precisely why it cannot be left to look like a checked figure. */
-          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:10px',
+          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:11px',
             title: it[2]?.line?.note || 'A commonly-quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder') : null,
-          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:10px',
+          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:11px',
             title: 'A working figure nobody has checked against the cited source.' }, 'unverified') : null,
         ]),
         isNum(it[1])
@@ -16322,9 +16393,9 @@ VIEWS.property = () => {
   });
   const nMissing = (m.missingCostLines || []).length;
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
-    el('td', { style: 'font-weight:680' },
+    el('td', { style: 'font-weight:700' },
       nMissing ? 'Total initial cash so far' : 'Total initial cash'),
-    el('td', { class: 'num', style: 'font-weight:680' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
+    el('td', { class: 'num', style: 'font-weight:700' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
   /* The total names its own incompleteness in the row beneath it, because a
      bold figure at the foot of a ledger is read as the answer. */
   if (nMissing) cashB.append(el('tr', {}, [
@@ -16347,7 +16418,7 @@ VIEWS.property = () => {
   const fin = el('div', { style: 'margin-top:var(--md);padding-top:var(--md);border-top:1px solid var(--line)' });
   fin.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'What the loan is calculated against'));
   if (!m.financingBasisConfirmed) {
-    fin.append(el('p', { class: 'body', style: 'font-size:12.5px;color:var(--bronze)' },
+    fin.append(el('p', { class: 'body', style: 'font-size:13px;color:var(--bronze)' },
       'Financing basis is modelled, not lender-confirmed. No bank or valuer estimate has been entered, so the loan below is calculated against the purchase price — which assumes a valuation at least equal to what you agreed to pay. Where a valuation comes in lower, the shortfall becomes cash you must find at completion, and this figure would understate what the purchase takes.'));
   } else {
     const kv = el('dl', { class: 'kv' });
@@ -16359,7 +16430,7 @@ VIEWS.property = () => {
      ['Share of the price this funds', fmtPct(m.financingCoverageOfPrice, 1)]]
       .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
     fin.append(kv);
-    if (m.valuationGapCash > 0) fin.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px;color:var(--dn-text)' },
+    if (m.valuationGapCash > 0) fin.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;color:var(--dn-text)' },
       `The valuation is ${fmtAmount(m.valuationGapCash, 'MYR')} below the price, so a ${fmtPct(m.marginOfFinancePct, 0)} margin of finance funds ${fmtPct(m.financingCoverageOfPrice, 1)} of what you are paying, not ${fmtPct(m.marginOfFinancePct, 0)}. That difference is cash, it is due on completion day, and it is listed above as valuation-gap cash.`));
     else fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The estimate is at or above the price, so there is no valuation gap on this scenario.'));
@@ -16373,7 +16444,7 @@ VIEWS.property = () => {
   m.financingScenarios.forEach(s => {
     const isCurrent = Math.abs(s.mof - m.marginOfFinancePct) < 1e-9;
     scB.append(el('tr', { style: isCurrent ? 'background:var(--surface-sunk)' : '' }, [
-      el('td', { style: 'text-align:left' }, [`${s.mof}%`, isCurrent ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:10px' }, 'entered') : null]),
+      el('td', { style: 'text-align:left' }, [`${s.mof}%`, isCurrent ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:11px' }, 'entered') : null]),
       el('td', { class: 'num' }, fmtAmount(s.loan, 'MYR')),
       el('td', { class: 'num' }, fmtAmount(s.cashEquity, 'MYR')),
       el('td', { class: 'num' }, fmtAmount(s.instalment, 'MYR')),
@@ -16459,7 +16530,7 @@ VIEWS.property = () => {
   ordered.forEach(c => {
     const row = el('div', { style: 'padding:10px 0;border-top:1px solid var(--line)' });
     row.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:flex-start' }, [
-      el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:530;margin:0' }, ptr(`chk.${c.id}`, c.q)),
+      el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:500;margin:0' }, ptr(`chk.${c.id}`, c.q)),
       el('div', { class: 'segmented', style: 'flex:none' }, ['yes', 'no', 'unknown'].map(v =>
         el('button', { 'aria-selected': d.checks?.[c.id] === v ? 'true' : 'false',
           onclick: () => { d.checks = { ...(d.checks || {}), [c.id]: v }; saveDeal(); render(); } },
@@ -16610,7 +16681,7 @@ VIEWS.property = () => {
   if (isNum(m.impliedVacancyPct)) {
     const gap = Math.abs(m.impliedVacancyPct - num0(d.vacancyPct));
     ops.append(el('div', { class: 'note', style: `margin-top:var(--md);border-left:3px solid var(${gap > 2 ? '--warn' : '--line'})` },
-      el('p', { class: 'body', style: 'font-size:12.5px' },
+      el('p', { class: 'body', style: 'font-size:13px' },
         `Placing a tenant in ${num0(d.daysToFirstTenant)} days on a ${m.monthsPerCycle}-month tenancy implies `
         + `${fmtPct(m.impliedVacancyPct, 1)} vacancy. You have entered ${fmtPct(num0(d.vacancyPct), 1)}, and that is the figure every output above uses. `
         + (gap > 2
@@ -16726,8 +16797,8 @@ VIEWS.property = () => {
   exRows.forEach(([label, get], i) => {
     const strong = i >= exRows.length - 2;
     exBody.append(el('tr', {}, [
-      el('td', { style: strong ? 'font-weight:620' : '' }, label),
-      ...m.exits.map(e => el('td', { class: 'num', style: strong ? 'font-weight:620' : '' }, get(e))),
+      el('td', { style: strong ? 'font-weight:600' : '' }, label),
+      ...m.exits.map(e => el('td', { class: 'num', style: strong ? 'font-weight:600' : '' }, get(e))),
     ]));
   });
   exTable.append(exBody);
@@ -16745,7 +16816,7 @@ VIEWS.property = () => {
        says which of the two it is. */
     comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
       'None held for this location.'));
-    comps.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    comps.append(el('p', { class: 'body', style: 'font-size:13px' },
       `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
     comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       /* This said "Every figure above came from you" while the provenance table
@@ -16863,8 +16934,8 @@ VIEWS.property = () => {
   const fl = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
   flags.forEach(f => {
     const item = el('div', { class: 'panel' });
-    item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:580' }, f.t)]));
-    item.append(el('p', { class: 'body', style: 'font-size:12.5px' }, f.n));
+    item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:600' }, f.t)]));
+    item.append(el('p', { class: 'body', style: 'font-size:13px' }, f.n));
     fl.append(item);
   });
   rf.append(fl);
@@ -16936,8 +17007,15 @@ const CAPABILITY_REGISTER = [
     now:'Reproducible filters, cohort medians and a reporting-currency selector.' },
   { name:'Company research', status:'maintenance', path:'/research',
     now:'Statements, scorecards, valuation router and risk flags.' },
-  { name:'Equity Strategy Lens', status:'queued', path:null,
-    gate:'P1. Asset type, return role, separate fit grades, staged entry and leverage stress.' },
+  /* Was listed as queued with no route while it had been live on every company
+     page for weeks. One row was describing two things — the classifier that
+     ships and the saved strategy plan that does not — so shipping half of it
+     left the row wrong about both. Split. */
+  { name:'Equity Strategy Lens', status:'active-core', path:'/research',
+    now:'On every company page: instrument type, business archetype, return role, and eight fit grades that separate graded from unassessed, not applicable, not built and illustrative.',
+    gate:'Grades describe how far the evidence meets a strategy’s requirements. They are not an entry plan and imply no allocation.' },
+  { name:'Saved strategy plans and leverage stress', status:'queued', path:null,
+    gate:'P1. Staged entry tranches, invalidation conditions, leverage stress and outcome review, saved against a company and a model version. The Lens grades the underlying; it does not record what you decided to do about it.' },
   { name:'Bursa universe', status:'data-gated', path:'/research',
     gate:() => `${coverage().illustrative} companies carry illustrative figures — ${coverage().my} Bursa`
        + (coverage().usIllustrative ? ` and ${coverage().usIllustrativeNames.join(', ')} on the US side` : '')
@@ -17054,7 +17132,7 @@ VIEWS.wheel = () => {
       el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'Wheel fit'),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
         el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${tone})` }, fit.grade),
-        el('span', { style: 'font-size:14px;font-weight:540' },
+        el('span', { style: 'font-size:14px;font-weight:500' },
           fit.grade === 'U' ? 'Not assessable' : 'Meets the criteria you selected'),
       ]),
     ]),
@@ -17222,7 +17300,7 @@ VIEWS.wheel = () => {
        ['Maximum loss if it goes to zero', isNum(m.coveredCallMaxLoss) ? fmtMoney(m.coveredCallMaxLoss, 'USD') : '—']]
         .forEach(([k, v]) => { ck.append(el('dt', {}, k)); ck.append(el('dd', {}, v)); });
       cc.append(ck);
-      if (m.callBelowBasis) cc.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px;color:var(--dn-text)' },
+      if (m.callBelowBasis) cc.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;color:var(--dn-text)' },
         `The call strike is below your economic basis. If assigned, this locks in a loss of ${fmtMoney(m.lockedInLossIfCalled, 'USD')} after the premium. The premium is not income in that case — it reduces a loss you have agreed to take.`));
       cc.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
         'Above the strike the shares are sold and further upside is not captured. American-style short calls can be assigned before expiry, and attention rises near an ex-dividend date.'));
@@ -17437,7 +17515,7 @@ VIEWS.wheel = () => {
       .forEach(([k, v]) => { tk.append(el('dt', {}, k)); tk.append(el('dd', {}, v)); });
     cyc.append(tk);
     if (!led.reconciles) cyc.append(el('div', { class: 'note', style: 'margin-top:var(--md);border-left:3px solid var(--dn-text)' },
-      el('p', { class: 'body', style: 'font-size:12.5px' },
+      el('p', { class: 'body', style: 'font-size:13px' },
         `These two totals disagree by ${fmtMoney(led.reconciliationGap, 'USD')}. On a closed cycle they cannot: `
         + `one is built from each leg's own result, the other from cash that actually moved, and both describe the `
         + `same cycle. A difference means a figure has been counted twice or not at all, so neither total should be `
@@ -17955,7 +18033,7 @@ VIEWS.tradingIndex = () => {
   const big = (label, val, suffix, tone, sub) => el('div', {}, [
     el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, label),
     el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
-      el('span', { class: 'num', style: `font-size:30px;font-weight:700;color:var(${val == null ? '--ink-2' : tone})` },
+      el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${val == null ? '--ink-2' : tone})` },
         val == null ? '—' : String(val)),
       el('span', { class: 'metaline' }, val == null ? 'not assessable' : suffix),
     ]),
@@ -18041,7 +18119,7 @@ VIEWS.tradingIndex = () => {
 
   if (r.ext.length) {
     const e = el('div', { class: 'note', style: 'border-left:3px solid var(--warn)' });
-    e.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    e.append(el('p', { class: 'body', style: 'font-size:13px' },
       `Extension risk: ${r.ext.join(' ')} A high trend score can sit at a poor entry, so this is flagged separately rather than deducted from the score.`));
     wrap.append(e);
   }
@@ -18330,7 +18408,7 @@ VIEWS.opportunities = () => {
   if (!list.length) {
     const empty = el('div', { class: 'card' });
     empty.append(cardHead('No properties recorded yet', 'This is a register, not a feed — it holds what you put in it.'));
-    empty.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+    empty.append(el('p', { class: 'body', style: 'font-size:13px' },
       'Quantum Tradeworks holds no property listings and does not source them. There is no permitted feed of Sarawak listings this product can republish, and inventing candidates would be worse than an empty page. Add a property you are actually looking at, and the underwriting engine will model it and grade it on whatever evidence you have.'));
     wrap.append(empty);
   }
@@ -18784,7 +18862,7 @@ VIEWS.status = () => {
       el('th', { style: 'text-align:left' }, h)))));
     const tb = el('tbody');
     rows.forEach(c => tb.append(el('tr', {}, [
-      el('td', { style: 'text-align:left;white-space:normal;font-weight:560' }, c.name),
+      el('td', { style: 'text-align:left;white-space:normal;font-weight:600' }, c.name),
       el('td', { style: 'text-align:left' }, c.path
         ? el('a', { href: href(c.path), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(c.path); } }, c.path)
         : el('span', { class: 'caption' }, 'no route yet')),
@@ -18806,7 +18884,7 @@ VIEWS.status = () => {
   const foot = el('div', { class: 'card' });
   foot.append(cardHead('Why a gate is named rather than hidden',
     'A capability that quietly vanishes is indistinguishable from one that never worked.'));
-  foot.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+  foot.append(el('p', { class: 'body', style: 'font-size:13px' },
     'Three things here are blocked by something no amount of engineering resolves: the Malaysian financial statements need a data licence, the paid tiers need a registered operating entity, and advice mode needs Securities Commission authorisation. Naming them is more useful than a progress bar, because it tells a reader which of these is a matter of time and which is a matter of decision.'));
   wrap.append(foot);
   return wrap;
@@ -18825,9 +18903,9 @@ VIEWS.boundaries = () => {
   const legal = el('div', { class: 'card' });
   legal.append(cardHead('Why the absent list is not a roadmap',
     'It is a licensing boundary, not a set of features waiting their turn.'));
-  legal.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+  legal.append(el('p', { class: 'body', style: 'font-size:13px' },
     'Advising on securities to specific people is a regulated activity in Malaysia under the Capital Markets and Services Act. A disclaimer does not change what a feature does: a screen that ranks companies by attractiveness and calls the result a "top pick" is making a recommendation whatever the footer says.'));
-  legal.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-top:8px' },
+  legal.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
     'So the boundary is built into the product rather than applied to it afterwards. There are no ratings to suppress, no target prices to caveat, and no suitability questions to disclaim — the question does not arise. That is a harder constraint to work inside and a much easier one to be honest about.'));
   wrap.append(legal);
 
@@ -18855,7 +18933,7 @@ function scopeCard() {
    'Published screen rules you can run, change and save',
    'Alerts that state a changed fact and its source',
    'A place to write your own thesis and record how the decision turned out'].forEach(x =>
-    il.append(el('li', { class: 'evidence support', style: 'font-size:12.5px' }, x)));
+    il.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   inc.append(il); g.append(inc);
 
   const exc = el('div');
@@ -18868,7 +18946,7 @@ function scopeCard() {
    'Output that differs from one user to another — everyone sees the same analysis',
    'Portfolio construction, allocation guidance or rebalancing instructions',
    'Trade execution, brokerage connection or order routing'].forEach(x =>
-    el2.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' }, x)));
+    el2.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
   exc.append(el2); g.append(exc);
   card.append(g);
 
@@ -18895,7 +18973,7 @@ VIEWS.plans = () => {
   const bar = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
   bar.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
     el('span', { class: 'chip chip-bronze' }, 'Prototype'),
-    el('p', { class: 'body', style: 'font-size:12.5px;flex:1 1 320px' },
+    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' },
       'No payment is processed anywhere in this build. There is no checkout, no card capture, no trial clock and no renewal. The switcher below changes your entitlements locally so both sides of the free-to-paid boundary can be inspected — that is all it does.'),
   ]));
   wrap.append(bar);
@@ -18911,12 +18989,12 @@ VIEWS.plans = () => {
     ]));
     card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, pl.tagline));
     card.append(el('div', { class: 'row', style: 'gap:6px;align-items:baseline;margin-bottom:2px' }, [
-      el('span', { style: 'font-size:26px;font-weight:660;letter-spacing:-.02em' }, pl.priceMo ? `RM${pl.priceMo}` : 'RM0'),
+      el('span', { style: 'font-size:24px;font-weight:700;letter-spacing:-.02em' }, pl.priceMo ? `RM${pl.priceMo}` : 'RM0'),
       el('span', { class: 'metaline' }, pl.priceMo ? '/month' : 'forever'),
     ]));
     if (pl.priceYr) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' },
       `or RM${pl.priceYr} a year${pl.founding ? ` · founding offer RM${pl.founding} for the first year, ${pl.foundingSeats} seats` : ''}`));
-    card.append(el('p', { class: 'body', style: 'font-size:12.5px;margin-bottom:var(--md)' }, pl.blurb));
+    card.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--md)' }, pl.blurb));
     /* The size of what is being sold, taken from the universe on screen rather
        than written into the copy, so it cannot be left behind when the universe
        changes. */
@@ -18975,7 +19053,7 @@ VIEWS.plans = () => {
   const mp = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   /* One line where the argument used to be, with the argument a click away. */
   const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
-  boundaryLine.append(el('p', { class: 'body', style: 'font-size:12.5px' },
+  boundaryLine.append(el('p', { class: 'body', style: 'font-size:13px' },
     'What you are paying for is research: analysis, evidence and tools that let you reach your own conclusion — not a conclusion. There are no ratings, no target prices and no suitability questions, and that is a product boundary rather than a backlog.'));
   boundaryLine.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', href: href('/learn/product-boundaries'),
     onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/learn/product-boundaries'); } },
@@ -18993,7 +19071,7 @@ VIEWS.plans = () => {
    'Advertising inside a valuation or a research report',
    'Copy trading or automated buy-now signals',
    'Selling user portfolio data, or publishing crowd positioning as a signal'].forEach(x =>
-    nl.append(el('li', { class: 'evidence counter', style: 'font-size:12.5px' }, x)));
+    nl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
   never.append(nl); g2.append(never);
   const later = el('div');
   later.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Possible later, with disclosure and after legal review'));
@@ -19001,7 +19079,7 @@ VIEWS.plans = () => {
   ['Mortgage eligibility introductions', 'Licensed broker introductions',
    'Valuer and inspection bookings', 'Team and investment-club accounts',
    'White-label reports and education partnerships'].forEach(x =>
-    ll2.append(el('li', { class: 'evidence', style: 'font-size:12.5px' }, x)));
+    ll2.append(el('li', { class: 'evidence', style: 'font-size:13px' }, x)));
   later.append(ll2); g2.append(later);
   mp.append(g2);
   mp.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
@@ -19039,12 +19117,12 @@ function runSearch(q) {
     b.addEventListener('pointerleave', () => b.style.background = 'none');
     const nm = el('div', { style: 'min-width:0;flex:1' });
     nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
-      el('span', { style: 'font-size:13px;font-weight:620' }, r.c.tk), marketChip(r.c.mkt),
+      el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), marketChip(r.c.mkt),
       el('span', { class: 'metaline' }, r.c.exch)]));
     nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${r.c.name} · ${r.c.sector}`));
     b.append(nm);
-    b.append(el('span', { class: 'num', style: 'font-size:12.5px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
-    b.append(el('span', { class: 'num ' + signClass(r.c.px.d1), style: 'font-size:11.5px;min-width:48px;text-align:right' }, withSign(r.c.px.d1, 2)));
+    b.append(el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
+    b.append(el('span', { class: 'num ' + signClass(r.c.px.d1), style: 'font-size:12px;min-width:48px;text-align:right' }, withSign(r.c.px.d1, 2)));
     return b;
   }) : []));
 
@@ -19068,7 +19146,7 @@ function runSearch(q) {
       a.addEventListener('pointerenter', () => a.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
       a.addEventListener('pointerleave', () => a.style.background = 'none');
       a.append(el('div', { style: 'min-width:0;flex:1' }, [
-        el('div', { style: 'font-size:13px;font-weight:620' }, rt.title),
+        el('div', { style: 'font-size:13px;font-weight:600' }, rt.title),
         el('div', { class: 'metaline' }, rt.path),
       ]));
       searchResults.append(a);
