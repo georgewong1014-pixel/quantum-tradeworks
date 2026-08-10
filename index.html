@@ -4684,6 +4684,168 @@ function payoffChart(container, m, p) {
   });
 }
 
+/* WHERE THE CASH TO BUY ACTUALLY GOES.
+   ---------------------------------------------------------------------------
+   The calculator listed every cost line honestly and totalled them correctly,
+   and the reader still could not see the thing that decides the purchase: the
+   cash needed to COMPLETE and the cash needed to be SAFE are not the same
+   number. Here they are RM95,254 and RM130,142 — a 37% difference hidden
+   between two rows of a table, which is exactly the gap that empties a bank
+   account three months after the keys are handed over.
+
+   A build-up waterfall says it in one shape. Each group floats from the
+   running total to the new one, so its own magnitude is a length, and the
+   summary bar underneath splits at the completion figure.
+
+   COLOUR: the two tiers are ORDERED, not categorical — everything you must
+   find to complete is also part of what you must find to be safe. So a
+   sequential pair from one hue, not two invented hues. Measured on --seq-6
+   against --seq-4: ΔE 19.9 deutan / 20.0 normal in light, 19.5 / 19.6 in dark,
+   and both steps clear 3:1 against their own surface in both modes. The ramp
+   is mode-aware, so the same two tokens are correct in each.
+
+   Rows rather than columns because "Initial improvement costs" does not fit
+   under a 60px column at 390px, and rotated axis labels are not an answer. */
+function cashWaterfall(container, m) {
+  const groups = (m.costGroups || []).map(g => ({
+    label: g.label,
+    value: g.items.reduce((s, it) => s + (isNum(it[1]) ? it[1] : 0), 0),
+    unpriced: g.items.filter(it => !isNum(it[1])).length,
+  })).filter(g => g.value > 0);
+  const total = groups.reduce((s, g) => s + g.value, 0);
+  if (groups.length < 2 || !(total > 0)) return;
+
+  /* The tier boundary is DERIVED, not hardcoded to two group ids. Groups are
+     accumulated in order and the split is placed where the running total
+     reaches transactionCash. If it never lands on a group boundary — because a
+     group was added, split or reordered — the chart falls back to one tier
+     rather than drawing a division that has quietly stopped being true. */
+  const toComplete = num0(m.transactionCash);
+  let acc = 0, splitAfter = -1;
+  groups.forEach((g, i) => { acc += g.value; if (Math.abs(acc - toComplete) < 0.01) splitAfter = i; });
+  const twoTier = splitAfter >= 0 && splitAfter < groups.length - 1;
+
+  chartHost(container, (w) => {
+    const rowH = 44, barH = 14, sumH = 52;
+    const h = groups.length * rowH + sumH;
+    const X = (v) => (v / total) * w;
+    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
+      'aria-label': `Cash needed to buy, built up in ${groups.length} groups totalling `
+        + `${fmtMoney(total, 'MYR')}. ` + (twoTier
+          ? `${fmtMoney(toComplete, 'MYR')} of that is needed to complete the purchase; `
+            + `${fmtMoney(total - toComplete, 'MYR')} is needed afterwards to be safe.`
+          : '') });
+
+    let run = 0;
+    groups.forEach((grp, i) => {
+      const top = i * rowH;
+      const strong = twoTier && i <= splitAfter;
+      const fill = strong ? 'var(--seq-6)' : 'var(--seq-4)';
+
+      g.append(sv('text', { x: 0, y: top + 12, class: 'dl', fill: 'var(--ink-2)' }, grp.label));
+      g.append(sv('text', { x: w, y: top + 12, class: 'dl', fill: 'var(--ink)',
+        'text-anchor': 'end' }, fmtAmount(grp.value, 'MYR')));
+
+      /* A track, so a step reads as a share of the total and not just as a bar
+         of some length. --grid rather than --surface-sunk: sunk is #0d100f
+         against a #111413 dark surface, which is invisible, and a track nobody
+         can see removes the only thing that made the step a proportion. */
+      g.append(sv('rect', { x: 0, y: top + 20, width: w, height: barH, rx: 3,
+        fill: 'var(--grid)' }));
+      const x0 = X(run), x1 = X(run + grp.value);
+      g.append(sv('rect', { x: x0, y: top + 20, width: Math.max(2, x1 - x0), height: barH,
+        rx: 3, fill }));
+
+      run += grp.value;
+      /* The connector that makes it a waterfall rather than four bars: it
+         carries the running total down into the next step's starting edge. */
+      if (i < groups.length - 1) g.append(sv('line', { x1: X(run), x2: X(run),
+        y1: top + 20 + barH, y2: top + rowH + 20, stroke: 'var(--line-2)',
+        'stroke-width': 1, 'stroke-dasharray': '2 2' }));
+    });
+
+    /* The summary bar: the same total, split where completion ends. */
+    const sy = groups.length * rowH + 6;
+    g.append(sv('text', { x: 0, y: sy + 12, class: 'dl', fill: 'var(--ink)' }, 'Total cash to be safe'));
+    g.append(sv('text', { x: w, y: sy + 12, class: 'dl', fill: 'var(--ink)',
+      'text-anchor': 'end' }, fmtAmount(total, 'MYR')));
+    if (twoTier) {
+      const xc = X(toComplete);
+      /* 2px surface gap between the two fills, per the mark spec — abutting
+         fills of one hue otherwise read as a single bar. */
+      g.append(sv('rect', { x: 0, y: sy + 20, width: Math.max(2, xc - 1), height: barH,
+        rx: 3, fill: 'var(--seq-6)' }));
+      g.append(sv('rect', { x: xc + 1, y: sy + 20, width: Math.max(2, w - xc - 1), height: barH,
+        rx: 3, fill: 'var(--seq-4)' }));
+    } else {
+      g.append(sv('rect', { x: 0, y: sy + 20, width: w, height: barH, rx: 3, fill: 'var(--seq-6)' }));
+    }
+    return g;
+  });
+}
+
+/* IS THE RENT ENOUGH? ONE BAR AGAINST ONE THRESHOLD.
+   ---------------------------------------------------------------------------
+   Two of the four headline tiles are "Monthly cash flow" and "Break-even rent".
+   Both are correct and neither shows the relationship between them, which is
+   the entire question the reader came with: RM1,850 against RM3,234 is not a
+   thin margin, it is a rent that would have to rise by three quarters.
+
+   breakEvenRent is the gross monthly asking rent at which fixed costs and debt
+   service are covered once vacancy and the rent-linked costs are taken out, so
+   it is directly comparable to the entered rent. Nothing is rescaled here.
+
+   Polarity, so --pol-pos / --pol-neg rather than the series ramp: the only
+   question is which side of the line the bar lands on. Labels are stacked on
+   separate rows for the reason the payoff chart's were — when the rent is near
+   break-even the two marks are pixels apart, and that is precisely the case
+   where the reader most needs to read both. */
+function breakEvenRentBar(container, rentMonthly, breakEven) {
+  if (!isNum(breakEven) || !(breakEven > 0) || !isNum(rentMonthly)) return;
+  const covers = rentMonthly >= breakEven;
+
+  chartHost(container, (w) => {
+    const h = 76, barY = 10, barH = 22, padR = 2;
+    const iw = Math.max(40, w - padR);
+    const scale = Math.max(rentMonthly, breakEven) * 1.12 || 1;
+    const X = (v) => (v / scale) * iw;
+
+    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
+      'aria-label': `Entered rent ${fmtMoney(rentMonthly, 'MYR')} a month against a break-even rent of `
+        + `${fmtMoney(breakEven, 'MYR')} a month. `
+        + (covers ? `The rent covers costs and the loan by ${fmtMoney(rentMonthly - breakEven, 'MYR')} a month.`
+                  : `The rent is ${fmtMoney(breakEven - rentMonthly, 'MYR')} a month short.`) });
+
+    g.append(sv('rect', { x: 0, y: barY, width: iw, height: barH, rx: 3, fill: 'var(--grid)' }));
+    g.append(sv('rect', { x: 0, y: barY, width: Math.max(2, X(rentMonthly)), height: barH, rx: 3,
+      fill: covers ? 'var(--pol-pos)' : 'var(--pol-neg)' }));
+
+    /* The threshold, drawn over the bar and ringed in the surface colour so it
+       stays legible whichever side of it the fill ends on. */
+    const bx = X(breakEven);
+    g.append(sv('line', { x1: bx, x2: bx, y1: barY - 4, y2: barY + barH + 4,
+      stroke: 'var(--surface)', 'stroke-width': 4 }));
+    g.append(sv('line', { x1: bx, x2: bx, y1: barY - 4, y2: barY + barH + 4,
+      stroke: 'var(--ink)', 'stroke-width': 2 }));
+
+    const put = (x, y, text, colour) => {
+      const flip = x > iw * 0.62;
+      g.append(sv('text', { x: flip ? x - 6 : x + 6, y, class: 'dl', fill: colour,
+        'text-anchor': flip ? 'end' : 'start' }, text));
+    };
+    /* Exact to the ringgit, not fmtAmount's abbreviation. A rent of RM1,850
+       against RM3,234 is the whole comparison; rendered as "RM1.9k" against
+       "RM3.2k" it loses a hundred ringgit at each end and the reader cannot
+       tell how far short they actually are. The waterfall abbreviates because
+       there the figures are axis furniture and proportion is the message —
+       here the figures ARE the message. */
+    put(bx, barY + barH + 20, `break-even ${fmtMoney(breakEven, 'MYR', 0)}`, 'var(--ink)');
+    put(X(rentMonthly), barY + barH + 34, `your rent ${fmtMoney(rentMonthly, 'MYR', 0)}`,
+      covers ? 'var(--pol-pos)' : 'var(--pol-neg)');
+    return g;
+  });
+}
+
 /* A collapsible table beneath a chart — the WCAG-clean equivalent. */
 function tableTwin(caption, headers, rows) {
   const det = el('details', { class: 'caption', style: 'margin-top:var(--sm)' });
@@ -16789,6 +16951,51 @@ VIEWS.property = () => {
     { sub: 'After costs, vacancy and the loan', tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
   fg.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
   free.append(fg);
+
+  /* The two rent tiles above, drawn against each other. One series, so no
+     legend — the title names it and both marks are directly labelled. */
+  if (isNum(m.breakEvenRent) && m.breakEvenRent > 0 && isNum(d.rent)) {
+    const rb = el('div', { style: 'margin-top:var(--lg)' });
+    rb.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+      'Rent against break-even'));
+    const rbHost = el('div', { style: 'margin-top:var(--sm)' });
+    rb.append(rbHost);
+    breakEvenRentBar(rbHost, d.rent, m.breakEvenRent);
+    const short = m.breakEvenRent - d.rent;
+    rb.append(el('p', { class: 'metaline', style: 'margin-top:var(--xs)' },
+      short > 0
+        ? `At ${fmtMoney(d.rent, 'MYR')} the rent is ${fmtMoney(short, 'MYR')} a month below the rent that would cover `
+          + `fixed costs and the loan, which is a rise of ${fmtPct((short / d.rent) * 100, 0)}. `
+          + 'Break-even rent is a gross asking rent, measured after vacancy and the rent-linked costs.'
+        : `At ${fmtMoney(d.rent, 'MYR')} the rent covers fixed costs and the loan with `
+          + `${fmtMoney(-short, 'MYR')} a month over. Break-even rent is a gross asking rent, `
+          + 'measured after vacancy and the rent-linked costs.'));
+    free.append(rb);
+  }
+
+  /* The same build-up as a picture, above the table that itemises it. Two
+     tiers means a legend is not optional — identity may never rest on colour
+     alone, and here the colour carries the one distinction that matters. */
+  if ((m.costGroups || []).length >= 2) {
+    const wf = el('div', { style: 'margin-top:var(--lg)' });
+    wf.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+      'What the cash is for'));
+    const swatch = (tok, text) => el('span', { class: 'caption',
+      style: 'display:inline-flex;align-items:center;gap:6px' }, [
+      el('span', { 'aria-hidden': 'true', style: `width:10px;height:10px;border-radius:3px;background:var(${tok})` }),
+      text]);
+    wf.append(el('div', { style: 'display:flex;flex-wrap:wrap;gap:var(--md);margin:6px 0 var(--md)' }, [
+      swatch('--seq-6', 'Needed to complete the purchase'),
+      swatch('--seq-4', 'Needed afterwards, to be safe'),
+    ]));
+    const wfHost = el('div');
+    wf.append(wfHost);
+    cashWaterfall(wfHost, m);
+    wf.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+      'Completing and being safe are different amounts of money. The table below itemises every line in each group.'));
+    free.append(wf);
+  }
+
   /* A table rather than a sentence, because a sentence that lists four
      components and totals five is not a rounding problem — it is a number the
      reader cannot check. Each group subtotals and the groups sum to the total. */
