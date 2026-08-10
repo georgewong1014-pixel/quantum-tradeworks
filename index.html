@@ -140,6 +140,16 @@
   --critical: #d03b3b;
   --ok-text:  #0a6b32;
   --dn-text:  #a03a20;
+  /* POLARITY FOR CHARTS, WHICH IS NOT THE SAME AS THE STATUS PALETTE.
+     The obvious choice for a payoff chart is the product's own green and rust.
+     Measured, that pair separates by ΔE 5.3 under deuteranopia — below even the
+     6–8 floor that secondary encoding can rescue. A deuteranope reading the
+     Cash Wheel's payoff could not tell the profit region from the loss one.
+     Blue against the same rust measures 22.8, and every other check passes.
+     Position relative to the zero line still does the primary work; colour
+     reinforces it rather than carrying it alone. */
+  --pol-pos:  #1a5fb4;
+  --pol-neg:  #a03a20;
   /* The severity colours are chosen to read as fills and borders. As TEXT on
      their own 12% wash, --critical measures 4.36:1 — under the 4.5:1 normal
      text needs, on the chip that marks the most serious thing the product can
@@ -183,7 +193,7 @@
     --mid: #2a2e2c;
     --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
     --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
-    --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a;
+    --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a; --pol-pos:#4f86d4; --pol-neg:#cf6f4e;
     --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
     --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
     --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
@@ -203,7 +213,7 @@
   --mid: #2a2e2c;
   --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
   --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
-  --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a;
+  --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a; --pol-pos:#4f86d4; --pol-neg:#cf6f4e;
   --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
   --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
   --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
@@ -1347,7 +1357,17 @@ function fmtCap(v, ccy) {
 function fmtMoney(v, ccy, dp = 2) {
   if (!isNum(v)) return '—';
   const sym = ccy === 'MYR' ? 'RM' : '$';
-  return `${sym}${v.toFixed(dp)}`;
+  /* Group thousands, and carry the sign ahead of the symbol. This used to be a
+     bare toFixed, which printed the worst case of a cash-secured put as
+     "$-4891.00": no separator, so a four-figure obligation is read digit by
+     digit, and a minus wedged between the currency and the number, where it
+     reads as part of the symbol rather than as the sign of the quantity.
+     Rounding to the displayed precision FIRST, so a value that lands on zero
+     prints "$0.00" rather than "−$0.00" — the payoff crosses zero at the
+     break-even by construction, and floating point put it a hair below. */
+  const r = Math.abs(v) < 0.5 / 10 ** dp ? 0 : v;
+  return `${r < 0 ? '−' : ''}${sym}${Math.abs(r).toLocaleString('en-US',
+    { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
 }
 function signClass(v) { return !isNum(v) || Math.abs(v) < 0.005 ? '' : (v > 0 ? 'pos' : 'neg'); }
 
@@ -4500,9 +4520,12 @@ function hideTip() { TIP.dataset.show = '0'; }
 document.addEventListener('scroll', hideTip, true);
 
 const SVGNS = 'http://www.w3.org/2000/svg';
-function sv(tag, attrs = {}) {
+/* The optional third argument sets text content, so a <text> node is one call
+   rather than two. Existing callers pass two arguments and are unaffected. */
+function sv(tag, attrs = {}, text) {
   const n = document.createElementNS(SVGNS, tag);
   for (const [k, v] of Object.entries(attrs)) if (v != null) n.setAttribute(k, v);
+  if (text != null) n.textContent = text;
   return n;
 }
 
@@ -4538,6 +4561,127 @@ function chartHost(container, draw) {
     RESIZERS.get(container).__draw = run;
   }
   container.__redraw = run;
+}
+
+/* PAYOFF OF A CASH-SECURED PUT, AT EXPIRY.
+   ---------------------------------------------------------------------------
+   The Wheel showed maximum downside as a single figure. A number says how bad
+   it gets; the shape says where it turns, how fast, and how much of the range
+   is the flat part where the premium is the whole result — which is the thing a
+   first-time seller most often has not pictured.
+
+   Polarity is carried by POSITION against the zero line first. Colour
+   reinforces it, and the pair is the validated one rather than the product's
+   green and rust, which a deuteranope cannot separate.
+
+   Everything drawn is arithmetic on figures the reader entered: strike,
+   premium, multiplier, contracts. Nothing is a forecast, no probability is
+   implied, and the x-axis is the underlying price rather than time. */
+function payoffChart(container, m, p) {
+  const shares = num0(m.deliverableShares);
+  const strike = num0(p.putStrike);
+  if (!(shares > 0) || !(strike > 0)) return;
+  const prem = num0(m.putPremiumCashReceived);
+  const feesAtAssign = num0(p.assignmentFees);
+
+  chartHost(container, (w) => {
+    const h = 210, padL = 56, padR = 14, padT = 12, padB = 30;
+    const iw = Math.max(40, w - padL - padR), ih = h - padT - padB;
+    /* Zero to twice the strike shows the whole shape: the flat premium ceiling,
+       the hinge at the strike, and the loss running to a floor. */
+    const xMax = strike * 2;
+    const pnlAt = (px) => (px >= strike ? prem : prem - (strike - px) * shares - feesAtAssign);
+    const yMin = pnlAt(0), rawMax = prem;
+    /* Headroom, so the premium ceiling is a line the eye can see rather than
+       the top edge of the plot. The premium is a sliver against the downside
+       here — 109 against 4,891 — and that compression IS the message, but the
+       sliver still has to be visible. */
+    const yMax = rawMax + (rawMax - yMin) * 0.08;
+    const span = (yMax - yMin) || 1;
+    const X = (px) => padL + (px / xMax) * iw;
+    const Y = (v) => padT + (1 - (v - yMin) / span) * ih;
+
+    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
+      'aria-label': `Payoff at expiry for one cash-secured put struck at ${fmtMoney(strike, 'USD')}. `
+        + `Maximum result ${fmtMoney(rawMax, 'USD')} above the strike, worst case ${fmtMoney(yMin, 'USD')} at zero.` });
+
+    /* Recessive grid, then the zero line, which is the only emphatic rule. */
+    [0.25, 0.5, 0.75].forEach(f => g.append(sv('line',
+      { x1: padL, x2: padL + iw, y1: padT + f * ih, y2: padT + f * ih, stroke: 'var(--grid)', 'stroke-width': 1 })));
+
+    const zeroY = Y(0);
+    const pts = [];
+    for (let i = 0; i <= 120; i++) { const px = (i / 120) * xMax; pts.push([X(px), Y(pnlAt(px))]); }
+
+    /* Two washes, clipped at zero by construction rather than by opacity. */
+    const area = (from, to, fill) => {
+      const seg = pts.filter(([, y]) => (from === 'above' ? y <= zeroY : y >= zeroY));
+      if (seg.length < 2) return;
+      const d = `M ${seg[0][0]} ${zeroY} ` + seg.map(([x, y]) => `L ${x} ${y}`).join(' ')
+        + ` L ${seg[seg.length - 1][0]} ${zeroY} Z`;
+      g.append(sv('path', { d, fill, opacity: 0.16 }));
+    };
+    area('above', 0, 'var(--pol-pos)');
+    area('below', 0, 'var(--pol-neg)');
+
+    g.append(sv('line', { x1: padL, x2: padL + iw, y1: zeroY, y2: zeroY,
+      stroke: 'var(--ink-3)', 'stroke-width': 1.5 }));
+
+    /* The payoff itself: 2px, round joins, drawn over the washes. */
+    g.append(sv('path', { d: 'M ' + pts.map(([x, y]) => `${x} ${y}`).join(' L '),
+      fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+
+    /* TWO MARKS, ENCODED DIFFERENTLY ON PURPOSE.
+       -----------------------------------------------------------------------
+       The first draft drew both as vertical dashed rules. On a sensibly struck
+       put they land about one premium apart — $50.00 and $48.91 here, 1.1% of
+       a 0–2× axis, three pixels — so they render as a single line with two
+       labels beside it, which invites the reader to believe they can see a gap
+       that is not there.
+       The break-even is BY DEFINITION the price where the payoff crosses zero,
+       so a dot on the crossing says it exactly, sits on a curve the eye is
+       already following, and cannot be confused with the strike rule however
+       close the two prices are. */
+    /* Each label sits against the mark it names. Putting both along the bottom
+       read cleanly and said the wrong thing: "break-even" ended up beside the
+       strike rule, 140px from the dot it belongs to, so it named the line. */
+    const label = (x, y, text, colour) => {
+      const flip = x + 76 > padL + iw;
+      g.append(sv('text', { x: flip ? x - 12 : x + 6, y, class: 'dl', fill: colour,
+        'text-anchor': flip ? 'end' : 'start' }, text));
+    };
+
+    if (strike >= 0 && strike <= xMax) {
+      g.append(sv('line', { x1: X(strike), x2: X(strike), y1: padT, y2: padT + ih,
+        stroke: 'var(--ink-3)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
+      /* Along the bottom of its own rule, not the top: the premium ceiling runs
+         across the top of the plot and a label there sat on the line. */
+      label(X(strike), padT + ih - 6, 'strike', 'var(--ink-3)');
+    }
+    const be = m.putBreakEven;
+    if (isNum(be) && be > 0 && be <= xMax) {
+      /* 2px surface ring, because the dot sits on the payoff path. */
+      g.append(sv('circle', { cx: X(be), cy: zeroY, r: 5,
+        fill: 'var(--pol-neg)', stroke: 'var(--surface)', 'stroke-width': 2 }));
+      /* Below and right of the dot — the one quadrant that is always empty,
+         since right of the strike the payoff is flat along the top. */
+      label(X(be), zeroY + 17, 'break-even', 'var(--pol-neg)');
+    }
+
+    /* Axis: the two figures that bound the outcome, and the price scale. The
+       zero label is dropped when the premium ceiling sits on top of it — which
+       it does whenever the premium is small against the downside, i.e. always
+       on a sensibly struck put. Two labels in the same 6px is worse than one. */
+    const maxY = Y(rawMax), minY = Y(yMin);
+    g.append(sv('text', { x: padL - 6, y: maxY + 4, class: 'ax-label', 'text-anchor': 'end' }, fmtAmount(rawMax, 'USD')));
+    g.append(sv('text', { x: padL - 6, y: minY + 4, class: 'ax-label', 'text-anchor': 'end' }, fmtAmount(yMin, 'USD')));
+    if (Math.abs(zeroY - maxY) > 14 && Math.abs(zeroY - minY) > 14)
+      g.append(sv('text', { x: padL - 6, y: zeroY + 4, class: 'ax-label', 'text-anchor': 'end' }, '0'));
+    [0, strike, xMax].forEach(px => g.append(sv('text',
+      { x: X(px), y: h - 10, class: 'ax-label', 'text-anchor': px === 0 ? 'start' : (px === xMax ? 'end' : 'middle') },
+      fmtAmount(px, 'USD'))));
+    return g;
+  });
 }
 
 /* A collapsible table beneath a chart — the WCAG-clean equivalent. */
@@ -17482,6 +17626,25 @@ VIEWS.wheel = () => {
         ? `Fully secured, with ${fmtMoney(have - req, 'USD')} beyond the obligation. The premium is not part of this and never reduces it.`
         : `Short by ${fmtMoney(short, 'USD')}. A put is not cash-secured below 100%, and the premium received does not count toward it.`));
     head.append(bar);
+  }
+
+  /* The shape of the obligation, once there is one to draw. */
+  if (num0(p.putStrike) > 0 && m.deliverableShares > 0) {
+    const pay = el('div', { class: 'card', style: 'margin-top:var(--md)' });
+    pay.append(cardHead('What this pays, at expiry',
+      'Arithmetic on the strike, premium and multiplier you entered. Not a forecast, and no probability is implied — the horizontal axis is the underlying price, not time.'));
+    const host = el('div', { style: 'margin-top:var(--md)' });
+    pay.append(host);
+    payoffChart(host, m, p);
+    pay.append(tableTwin('The same figures as a table', ['Underlying at expiry', 'Result'],
+      [0, num0(p.putStrike) * 0.5, m.putBreakEven, num0(p.putStrike), num0(p.putStrike) * 1.5]
+        .filter(isNum).map(px => [fmtMoney(px, 'USD'),
+          fmtMoney(px >= num0(p.putStrike) ? m.putPremiumCashReceived
+            : m.putPremiumCashReceived - (num0(p.putStrike) - px) * m.deliverableShares - num0(p.assignmentFees), 'USD')])));
+    pay.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      'The flat section is every price at or above the strike, where the premium is the entire result. '
+      + 'Everything left of the strike is the shares being put to you at a price the market has left behind.'));
+    wrap.append(pay);
   }
 
   /* Obligation and downside first. Deliberately before any premium figure. */
