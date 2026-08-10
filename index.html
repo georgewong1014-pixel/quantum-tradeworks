@@ -13965,6 +13965,67 @@ function observationStanding(o) {
            why:`Sourced, at ${ev.label.toLowerCase()}, and checked against the source by ${o.reviewedBy}.` };
 }
 
+/* WHICH RECORDED EVIDENCE ACTUALLY SPEAKS TO THIS DEAL.
+   ---------------------------------------------------------------------------
+   observationsFor below matches on city and district only, which is right for
+   the district panel's summary and far too loose to move a grade. A shophouse
+   sale and a condominium sale in the same district would otherwise clear the
+   same gate, and a 2019 transaction would count like last month's.
+
+   For anything that changes a grade, a comparable has to be the same property
+   type, in the same district, dated inside the window, and VERIFIED — sourced,
+   at a class that can carry it, and checked against that source by a named
+   person. Everything weaker is reported beside it and clears nothing.
+
+   COMPARABLE_WINDOW_MONTHS is stated on the page rather than buried, because a
+   reader is entitled to disagree with it. */
+const COMPARABLE_WINDOW_MONTHS = 24;
+
+function comparableSupport(d) {
+  const all = State.observations || [];
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - COMPARABLE_WINDOW_MONTHS);
+
+  const matches = all.filter(o =>
+    o.city === d.city && o.area === d.district &&
+    o.propertyType && o.propertyType === d.propertyType &&
+    o.date && new Date(o.date) >= cutoff);
+
+  const pick = (kind) => {
+    const rows = matches.filter(o => o.kind === kind);
+    const verified = rows.filter(o => observationStanding(o).id === 'verified');
+    const vals = verified.map(o => o.value).filter(isNum).sort((a, b) => a - b);
+    return {
+      all: rows.length, verified: verified.length,
+      median: vals.length ? (vals.length % 2 ? vals[(vals.length - 1) / 2]
+              : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2) : null,
+      lo: vals.length ? vals[0] : null, hi: vals.length ? vals[vals.length - 1] : null,
+    };
+  };
+
+  const price = pick('sold-price');
+  const rent = pick('let-rent');
+  /* Excluded by kind, not by accident: an asking figure is what somebody hoped
+     for. It is recorded, it is summarised in the district panel, and it never
+     supports a grade. */
+  const askingSeen = matches.filter(o => OBS_BY_ID[o.kind] && OBS_BY_ID[o.kind].asking).length;
+
+  return {
+    windowMonths: COMPARABLE_WINDOW_MONTHS,
+    matched: matches.length, askingSeen,
+    price, rent,
+    hasVerifiedPrice: price.verified > 0,
+    hasVerifiedRent: rent.verified > 0,
+    /* Where the entered figures sit against what was actually recorded. Null
+       when there is nothing to compare against — never zero, which would read
+       as "exactly on the median". */
+    priceVsMedian: isNum(price.median) && price.median > 0 && isNum(d.price)
+      ? (d.price - price.median) / price.median * 100 : null,
+    rentVsMedian: isNum(rent.median) && rent.median > 0 && isNum(d.rent)
+      ? (d.rent - rent.median) / rent.median * 100 : null,
+  };
+}
+
 /* Summarised per area and per kind, never across kinds. Returns the median
    rather than the mean: with a handful of observations one unusual figure
    moves a mean and does not move a median. */
@@ -14352,10 +14413,25 @@ function propertyGrade(d, m) {
     gates.push({ id:'no-reserve', severity:'serious',
       text:'No safe reserve is held after completion. A single vacancy or major repair would have to be funded by new borrowing.',
       caps:'B' });
-  if (m.proj?.custom)
+  /* Recorded evidence now clears this. It used to fire purely on whether a
+     sample project was selected, so a reader who had sourced twenty verified
+     transactions for their own district still read "no transacted price or
+     rental evidence is held for this location" — the register recorded evidence
+     and nothing consumed it, which made the sourcing pointless. */
+  const cmp = comparableSupport(d);
+  if (m.proj?.custom && !cmp.hasVerifiedPrice)
     gates.push({ id:'no-comparable', severity:'warning',
-      text:'No transacted price or rental evidence is held for this location, so nothing here has been checked against a market.',
+      text: cmp.price.all
+        ? `${cmp.price.all} transacted comparable${cmp.price.all === 1 ? '' : 's'} recorded for this district and property type, but none is verified — each needs a source reference and a check against it before it can support a grade.`
+        : 'No transacted price or rental evidence is held for this location, so nothing here has been checked against a market.',
       caps:'B' });
+
+  /* A comparable set that disagrees with the entered price is a finding, not a
+     footnote — and it is only available once somebody has done the sourcing. */
+  if (cmp.hasVerifiedPrice && isNum(cmp.priceVsMedian) && Math.abs(cmp.priceVsMedian) > 15)
+    gates.push({ id:'price-vs-comparables', severity:'warning',
+      text:`The entered price is ${fmtPct(Math.abs(cmp.priceVsMedian), 0)} ${cmp.priceVsMedian > 0 ? 'above' : 'below'} the median of ${cmp.price.verified} verified transacted comparable${cmp.price.verified === 1 ? '' : 's'} for this district and property type (${fmtAmount(cmp.price.lo, 'MYR')}–${fmtAmount(cmp.price.hi, 'MYR')}). That can be right — condition, floor, tenure and timing all move a price — but it is the difference to explain before relying on the return figures.`,
+      caps:null });
 
   const untouchedDrivers = EVIDENCE_DRIVERS.filter(k => shownEvidence(d, k) === 'illustrative_default');
   if (untouchedDrivers.length)
@@ -14363,10 +14439,16 @@ function propertyGrade(d, m) {
       text:`${untouchedDrivers.length} of the figures driving every output — ${untouchedDrivers.join(', ')} — are still this tool's starting numbers rather than yours.`,
       caps:'U' });
 
+  /* An ACHIEVED rent comparable is an executed tenancy by definition, so it is
+     exactly the evidence this gate asks for. A verified one in the same
+     district and property type clears it whatever the dropdown says; an asking
+     rent never does, however many are recorded. */
   const rentEvidence = evidenceOf(shownEvidence(d, 'rent'));
-  if (rentEvidence.rank < 3)
+  if (rentEvidence.rank < 3 && !cmp.hasVerifiedRent)
     gates.push({ id:'unverified-rent', severity:'warning',
-      text:'The rent is not supported by an executed tenancy or a transacted comparable, so every return figure below is assumption-driven.',
+      text: cmp.rent.all
+        ? `${cmp.rent.all} achieved-rent comparable${cmp.rent.all === 1 ? '' : 's'} recorded for this district and property type, but none is verified, so every return figure below is still assumption-driven.`
+        : 'The rent is not supported by an executed tenancy or a transacted comparable, so every return figure below is assumption-driven.',
       caps:null, capsPillar:'evidence' });
 
   /* ---- pillars -------------------------------------------------------- */
@@ -18202,6 +18284,43 @@ VIEWS.comparables = () => {
     wrap.append(el('div', { class: 'card' }, el('div', { class: 'tablewrap' }, t)));
   }
 
+  /* THE WORK HAS TO BE ABLE TO LEAVE THE MACHINE IT WAS DONE ON.
+     Records live in this browser's localStorage. Somebody sourcing a district's
+     transactions builds a week of work that a cleared browser, a second laptop
+     or a different profile destroys with no copy anywhere — and there was no
+     way to hand it to anyone either. */
+  const io = el('div', { class: 'card' });
+  io.append(cardHead('Move this evidence',
+    'Records are held in this browser only. Export is how the work survives a cleared browser, and how it reaches somebody else.'));
+
+  const dl = (name, text, type) => {
+    const blob = new Blob([text], { type });
+    const a = el('a', { href: URL.createObjectURL(blob), download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const CSV_COLS = ['id', 'city', 'area', 'propertyType', 'address', 'kind', 'value', 'unit',
+                    'date', 'evidence', 'sourceRef', 'reviewedBy', 'sqft', 'standing'];
+  const csvCell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+
+  io.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      if (!rows.length) { toast('Nothing to export yet'); return; }
+      dl('quantum-comparables.json', JSON.stringify(rows, null, 2), 'application/json');
+    } }, `Export JSON${rows.length ? ` — ${rows.length}` : ''}`),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      if (!rows.length) { toast('Nothing to export yet'); return; }
+      const lines = [CSV_COLS.join(',')].concat(rows.map(o => CSV_COLS.map(c =>
+        csvCell(c === 'unit' ? (OBS_BY_ID[o.kind] || {}).unit
+              : c === 'standing' ? observationStanding(o).id : o[c])).join(',')));
+      dl('quantum-comparables.csv', lines.join('\n'), 'text/csv');
+    } }, 'Export CSV'),
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => openComparableImport() }, 'Import'),
+  ]));
+  io.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'CSV is for reading; JSON round-trips exactly. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));
+  wrap.append(io);
+
   const rules = el('div', { class: 'card' });
   rules.append(cardHead('What this register will not do', 'Named, because each one is a way a comparables list normally goes wrong.'));
   const rl = el('ul', { class: 'ticklist blocklist' });
@@ -18217,6 +18336,110 @@ VIEWS.comparables = () => {
   wrap.append(rules);
   return wrap;
 };
+
+/* Bulk entry. A district's worth of transactions through a seven-control inline
+   form is an afternoon of clicking and a reliable source of typing errors. */
+function openComparableImport() {
+  const body = el('div');
+  body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
+    'Paste JSON exported from this register, or a CSV whose first row names the columns. Nothing is written until you have seen what would be added.'));
+  body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
+    `CSV columns: city, area, propertyType, address, kind, value, date, evidence, sourceRef, reviewedBy, sqft. `
+    + `kind is one of ${OBSERVATION_KINDS.map(k => k.id).join(', ')}. date is YYYY-MM-DD. `
+    + `A row with no sourceRef imports as a note, not as evidence.`));
+  const ta = el('textarea', { class: 'input', style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px',
+    placeholder: 'Paste JSON or CSV here' });
+  body.append(ta);
+  const report = el('div', { style: 'margin-top:var(--md)' });
+  body.append(report);
+
+  const parse = (text) => {
+    const t = text.trim();
+    if (!t) return { rows: [], errors: ['Nothing pasted.'] };
+    if (t.startsWith('[') || t.startsWith('{')) {
+      try {
+        const j = JSON.parse(t);
+        return { rows: Array.isArray(j) ? j : [j], errors: [] };
+      } catch (e) { return { rows: [], errors: [`That is not valid JSON — ${e.message}`] }; }
+    }
+    /* CSV. Quoted fields with embedded commas are handled; anything more exotic
+       belongs in the JSON path rather than in a parser nobody can audit. */
+    const lines = t.split(/\r?\n/).filter(l => l.trim());
+    const split = (line) => {
+      const out = []; let cur = '', q = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (q) { if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; }
+        else if (ch === '"') q = true;
+        else if (ch === ',') { out.push(cur); cur = ''; }
+        else cur += ch;
+      }
+      out.push(cur); return out.map(s => s.trim());
+    };
+    const head = split(lines[0]).map(h => h.replace(/^﻿/, ''));
+    return { rows: lines.slice(1).map(l => {
+      const cells = split(l); const o = {};
+      head.forEach((h, i) => { if (cells[i] !== undefined && cells[i] !== '') o[h] = cells[i]; });
+      return o;
+    }), errors: [] };
+  };
+
+  const normalise = (r) => {
+    const kind = String(r.kind || '').trim();
+    const value = Number(r.value);
+    if (!OBS_BY_ID[kind]) return { err: `kind "${r.kind}" is not one of ${OBSERVATION_KINDS.map(k => k.id).join(', ')}` };
+    if (!Number.isFinite(value) || value <= 0) return { err: `value "${r.value}" is not a number above zero` };
+    if (!r.city) return { err: 'no city' };
+    if (!r.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))) return { err: `date "${r.date}" is not YYYY-MM-DD` };
+    const ev = String(r.evidence || 'user');
+    if (!EVIDENCE.some(e => e.id === ev)) return { err: `evidence "${ev}" is not a known source class` };
+    return { ok: { city: String(r.city), area: String(r.area || ''), kind, value,
+                   date: String(r.date), evidence: ev,
+                   propertyType: String(r.propertyType || ''), address: String(r.address || ''),
+                   sourceRef: String(r.sourceRef || ''), reviewedBy: String(r.reviewedBy || ''),
+                   sqft: Number.isFinite(Number(r.sqft)) && r.sqft !== '' ? Number(r.sqft) : null } };
+  };
+
+  const isDup = (a, b) => a.city === b.city && a.area === b.area && a.kind === b.kind
+                       && Number(a.value) === Number(b.value) && a.date === b.date;
+
+  body.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+      const { rows: raw, errors } = parse(ta.value);
+      report.replaceChildren();
+      if (errors.length) { report.append(el('p', { class: 'body', style: 'color:var(--dn-text)' }, errors[0])); return; }
+      const ok = [], bad = [], dup = [];
+      raw.forEach((r, i) => {
+        const n = normalise(r);
+        if (n.err) { bad.push(`Row ${i + 1}: ${n.err}`); return; }
+        if ((State.observations || []).some(x => isDup(x, n.ok)) || ok.some(x => isDup(x, n.ok))) { dup.push(n.ok); return; }
+        ok.push(n.ok);
+      });
+      const sum = el('ul', { class: 'ticklist' });
+      sum.append(el('li', {}, `${ok.length} would be added.`));
+      if (dup.length) sum.append(el('li', {}, `${dup.length} already held and would be skipped.`));
+      report.append(sum);
+      if (bad.length) {
+        const bl = el('ul', { class: 'ticklist blocklist', style: 'margin-top:8px' });
+        bad.slice(0, 8).forEach(x => bl.append(el('li', {}, x)));
+        if (bad.length > 8) bl.append(el('li', {}, `…and ${bad.length - 8} more.`));
+        report.append(bl);
+        report.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+          'Rejected rows are not imported and not partially imported. Fix them and paste again.'));
+      }
+      if (!ok.length) return;
+      const unsourced = ok.filter(x => !x.sourceRef).length;
+      if (unsourced) report.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+        `${unsourced} of these carry no source reference and will be held as notes rather than evidence.`));
+      report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)', onclick: () => {
+        ok.forEach(x => addObservation(x));
+        closeDrawer(); render();
+        toast(`${ok.length} record${ok.length === 1 ? '' : 's'} imported${dup.length ? `, ${dup.length} skipped` : ''}`);
+      } }, `Import ${ok.length} record${ok.length === 1 ? '' : 's'}`));
+    } }, 'Check this paste'),
+  ]));
+  openDrawer('Import comparables', body);
+}
 
 /* One record, with the fields the calculator's compact form has no room for. */
 function openObservationDrawer(o) {
