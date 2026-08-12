@@ -8221,6 +8221,32 @@ State.wheel = store.read('wheelPlan', null) || {
 };
 const saveWheel = () => store.write('wheelPlan', State.wheel);
 
+/* THE WORKED CONTRACT, AND THE WAY BACK OUT OF IT.
+   ---------------------------------------------------------------------------
+   Round numbers on no particular company, deliberately. A worked example that
+   named a real ticker would have to carry a strike and a premium for it, and
+   the moment those appear beside the company's name they read as a quote —
+   which this build has no chain data to support and no right to imply. A $50
+   strike against 100 shares and $5,000 of collateral is transparently a
+   teaching case and reconciles exactly: $109 of premium against $4,891 of
+   downside, the same pair the homepage states.
+
+   WHEEL_BLANK_CONTRACT is the same keys with the contract emptied, so clearing
+   restores a genuinely blank tool rather than leaving fragments of the example
+   behind for the reader's own figures to be mixed into. */
+const WHEEL_WORKED_EXAMPLE = {
+  symbol: '', contractMultiplier: 100, contracts: 1,
+  putStrike: 50, putCredit: 1.10,
+  openCommission: 1, openFees: 0, assignmentFees: 0,
+  eligibleCashUsd: 5000, myrPerUsd: 4.42, fxBufferPct: 5, calendarDaysOpen: 30,
+  quoteTimestamp: '',
+};
+const WHEEL_BLANK_CONTRACT = {
+  putStrike: 0, putCredit: 0, contracts: 0,
+  openCommission: 0, openFees: 0, assignmentFees: 0,
+  eligibleCashUsd: 0, calendarDaysOpen: 0, quoteTimestamp: '',
+};
+
 /* Directive 7.9. The tier decides what may be shown at all, and it is decided
    by the data rather than by the company. */
 function coverageTier(r) {
@@ -17974,6 +18000,58 @@ VIEWS.wheel = () => {
   const wLink = workspaceLinkBanner('wheel', p, () => { saveWheel(); render(); });
   if (wLink) wrap.append(wLink);
 
+  /* NOTHING ENTERED YET IS A STATE, NOT AN ABSENCE.
+     -----------------------------------------------------------------------
+     The collateral bar and the expiry payoff are the two things this tool has
+     that a spreadsheet does not, and both are computed from a contract — so
+     until one is entered, neither exists. A first-time visitor therefore met a
+     long empty form and no demonstration that anything would happen, which is
+     how an external audit came to report the Cash Wheel as lacking the very
+     graphics it contains. Checked on production: a fresh visit renders neither.
+
+     Two named paths, because they are genuinely different intentions and the
+     worked one must never be mistaken for the reader's own figures. It is
+     stamped illustrative in the plan itself, not just in this copy. */
+  if (!(num0(p.putStrike) > 0)) {
+    const start = el('div', { class: 'card' });
+    start.append(cardHead('Nothing entered yet',
+      'This tool computes a collateral position and an expiry payoff from one contract. Enter yours, or load a worked one to see what it returns first.'));
+    start.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+      el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+        State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true };
+        saveWheel(); render(); toast('Worked contract loaded — illustrative figures');
+      } }, 'Load a worked contract'),
+      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+        const f = document.querySelector('#wheel-inputs input');
+        if (f) { f.closest('.card')?.scrollIntoView({ block: 'start' }); f.focus(); }
+      } }, 'Enter my own contract'),
+    ]));
+    start.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+      'The worked contract uses round illustrative numbers on no particular company. It is not a quote, not a recommended contract, and no chain data is connected to this build.'));
+    wrap.append(start);
+  }
+
+  /* Loaded sample figures that stop announcing themselves become the reader's
+     figures by default, which is the failure this whole product is built
+     against. The banner stays until they are replaced or cleared. */
+  if (p.isWorkedExample) {
+    const note = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze)' });
+    note.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
+      el('span', { class: 'chip chip-bronze' }, 'Illustrative'),
+      /* Precise rather than reassuring. The flag survives an edit on purpose:
+         changing one field leaves the other five illustrative, and a banner
+         that vanished on the first keystroke would certify a contract that is
+         still mostly the example. */
+      el('span', { style: 'font-size:14px' },
+        'Loaded from the worked contract. Any field you have not changed is still an illustrative figure.'),
+      el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto', onclick: () => {
+        State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, isWorkedExample: false };
+        saveWheel(); render(); toast('Contract cleared');
+      } }, 'Clear and enter my own'),
+    ]));
+    wrap.append(note);
+  }
+
   /* Fit and phase, then the two numbers 41A.15 requires above any yield. */
   const tone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[fit.grade];
   const head = el('div', { class: 'card', style: `border-left:3px solid var(${tone})` });
@@ -18106,7 +18184,7 @@ VIEWS.wheel = () => {
   }
 
   /* Inputs. */
-  const inputs = el('div', { class: 'card' });
+  const inputs = el('div', { class: 'card', id: 'wheel-inputs' });
   inputs.append(cardHead('The contract and your cover', 'Entered by you. This build carries no option-chain data.'));
   const nf = (k, label, step) => {
     const f = el('div', { class: 'assumption' });
