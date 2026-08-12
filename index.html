@@ -816,6 +816,34 @@ table.dt tfoot td.pin { z-index: 3; }
 
 /* Header row pinned under the top bar for full-page tables. */
 table.dt-pagesticky thead th { top: var(--topbar-h); }
+/* AT PHONE WIDTH, WRAP RATHER THAN HIDE.
+   ---------------------------------------------------------------------------
+   Two strips scroll horizontally with the scrollbar suppressed and no fade,
+   arrow or any other sign that more exists. Measured at 390px:
+
+     .mainnav    55px hidden — the whole of "Learn" at 0px visible
+     .segmented  94px hidden on the screener's density toggle — the whole of
+                 "Compact" at 0px visible, confirmed by hit-testing eight
+                 points across its box and self-hitting none of them
+
+   .subnav already carries scroll shadows for exactly this reason, added when
+   ten company tabs were found scrolled out of sight on a DESKTOP viewport. But
+   a shadow only tells a reader that something is there; it still costs them a
+   swipe to find out what, and on the company report it hid Risks, Ownership &
+   actions, Filings and Thesis — four of the ten reasons to open the page.
+
+   All three wrap below 768px. Measured, the company tabs need 680px against
+   343px available, so they take exactly two rows rather than the three the
+   earlier note assumed: 43px of vertical space on a page that is 8,000px long,
+   in exchange for nothing being hidden. Above 768px none of the three overflow
+   at all, so the shadows stay for the one case that still scrolls and this
+   rule never fires. */
+@media (max-width: 768px) {
+  .mainnav, .segmented, .subnav { flex-wrap: wrap; overflow-x: visible; }
+  .segmented, .mainnav { row-gap: 2px; }
+  .subnav { row-gap: 0; }
+}
+
 /* 44px TOUCH TARGETS, WHERE A TOUCH ACTUALLY HAPPENS.
    ---------------------------------------------------------------------------
    The audit measured, at 390px: number inputs 78x28, chip buttons 22px tall,
@@ -1189,6 +1217,27 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 @media (max-width: 900px) { .ticker-sticky { margin: 0 calc(var(--lg) * -1) var(--lg); padding: 0 var(--lg); } }
 @media (max-width: 560px) { .ticker-sticky { margin: 0 calc(var(--md) * -1) var(--lg); padding: 0 var(--md); } }
 @media (max-width: 780px) { .ticker-sticky { top: 0; } }
+.ts-jump { margin-left: auto; }
+.ts-jump .select { max-width: 210px; }
+@media (max-width: 560px) {
+  /* Its own line on a phone, because the ticker, name, price and change
+     already fill the row and squeezing a sixth item in would truncate the
+     company's name to make room for a control about where to scroll. */
+  .ts-jump { margin-left: 0; flex-basis: 100%; }
+  .ts-jump .select { max-width: none; width: 100%; }
+}
+/* Scrolled-to headings must clear the topbar and this strip, or the section a
+   reader jumped to arrives underneath the thing they jumped from.
+
+   --sticky-h is measured at runtime rather than written as a constant. The
+   first attempt hardcoded 150px and landed the heading 14px UNDER the strip on
+   a phone, because the tab bar now wraps to two rows there — and any constant
+   picked to fix that would be wrong again at the next breakpoint, or on a
+   narrow phone where the tabs take three rows. The fallback covers the moment
+   before the observer first fires. */
+h3.h-card[id], h2.h-section[id] {
+  scroll-margin-top: calc(var(--sticky-h, 150px) + 14px);
+}
 
 .ts-ident {
   display: flex; align-items: baseline; gap: 10px;
@@ -1215,6 +1264,13 @@ details > summary::marker { content: ''; }
 .assumption + .assumption { border-top: 1px solid var(--grid); }
 .assumption > label { font-size: 14px; line-height: 20px; color: var(--ink-2); }
 .assumption .a-range { grid-column: 1 / -1; }
+/* Free text on its own full-width row. The value column is 78px because it was
+   built for numbers, and a sentence dropped into it showed 15% of itself —
+   "Several proprietary shapes and coloured markers are unnamed and are not
+   scored." rendered as 76px of a 524px value, with the rest reachable only by
+   dragging inside the field. A contract name and a screenshot filename fared
+   little better at 37% and 25%. */
+.assumption .a-text { grid-column: 1 / -1; width: 100%; }
 .assumption .a-note { grid-column: 1 / -1; font-size:12px; color: var(--ink-3); margin-top: -4px; }
 
 .guardrail {
@@ -1422,7 +1478,9 @@ details > summary::marker { content: ''; }
 <div class="modal" id="searchModal" role="dialog" aria-modal="true" aria-label="Search companies" hidden>
   <div style="padding:var(--sm) var(--md);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:var(--xs)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--ink-3);flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    <input class="input" id="searchInput" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
+    <!-- A placeholder is not a label: it disappears the moment anything is
+         typed, and several screen readers do not announce it at all. -->
+    <input class="input" id="searchInput" aria-label="Search companies by ticker, name or Bursa code" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
     <span class="kbd">Esc</span>
   </div>
   <div id="searchResults" style="overflow-y:auto;padding:var(--xs)"></div>
@@ -6254,6 +6312,7 @@ function buildNav() {
 }
 
 let stickyObserver = null;
+let stickySizer = null;
 /* THE FIRST PAINT WAS A DIFFERENT PRODUCT
    ---------------------------------------------------------------------------
    Filings load asynchronously, and the first paint used to happen on the sample
@@ -6337,6 +6396,7 @@ function render() {
 
   /* Reveal the compact ticker identity only once the full header is gone. */
   stickyObserver?.disconnect();
+  stickySizer?.disconnect();
   const strip = $('.ticker-sticky', section);
   if (strip) {
     const sentinel = strip.previousElementSibling;
@@ -6346,6 +6406,27 @@ function render() {
       }, { rootMargin: `-${parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) + 8}px 0px 0px 0px`, threshold: 0 });
       stickyObserver.observe(sentinel);
     }
+    /* How much vertical space is stuck to the top of the viewport, published
+       as --sticky-h so scroll-margin-top can clear it. Observed rather than
+       computed: the tab strip inside this element wraps to two rows below
+       768px and could take three on a narrower phone, and the topbar is only
+       part of the stack at some widths. */
+    /* The strip's own `top` already says where it comes to rest, and adding
+       the topbar height to it double-counts: below 780px the strip sticks at
+       top:0 and sits OVER the topbar rather than under it, so summing the two
+       overshot the jump by 180px on a phone — a third of the screen of blank
+       space above the section the reader asked for. top + height is the
+       stuck bottom edge in both arrangements. */
+    const publish = () => {
+      const top = parseFloat(getComputedStyle(strip).top) || 0;
+      document.documentElement.style.setProperty('--sticky-h',
+        `${Math.round(top + strip.getBoundingClientRect().height)}px`);
+    };
+    publish();
+    stickySizer = new ResizeObserver(publish);
+    stickySizer.observe(strip);
+  } else {
+    document.documentElement.style.removeProperty('--sticky-h');
   }
 }
 
@@ -9246,6 +9327,13 @@ VIEWS.research = () => {
   ident.append(el('span', { class: 'ts-name' }, c.name));
   ident.append(el('span', { class: 'ts-px num' }, fmtMoney(c.px.p, c.ccy)));
   ident.append(el('span', { class: 'ts-chg num ' + signClass(c.px.d1) }, withSign(c.px.d1, 2)));
+  /* Filled in below, once the panel exists and its headings can be read.
+     Placed on the identity row rather than a row of its own: the topbar, this
+     strip and the tab bar are already stuck to the top of a phone, and a
+     fourth band would take more of the viewport than the section it navigates
+     to. */
+  const jump = el('div', { class: 'ts-jump' });
+  ident.append(jump);
   stick.append(ident);
   const sub = el('div', { class: 'subnav' });
   RESEARCH_TABS.forEach(t => sub.append(el('button', {
@@ -9266,7 +9354,36 @@ VIEWS.research = () => {
     valuation: tabValuation, moat: tabMoat, risks: tabRisks, ownership: tabOwnership,
     filings: tabFilings, thesis: tabThesisFor,
   }[State.researchTab] || tabSnapshot;
-  wrap.append(panel(r));
+
+  /* THE SECTION NAVIGATOR.
+     -----------------------------------------------------------------------
+     Measured at 390px, this report is 8,083px — nine and a half screens — with
+     thirteen headings and no way to reach any of them but scrolling. The tab
+     strip switches panels; it does nothing for the distance inside one.
+
+     A <select> rather than a chip row or a rail: it is one control high at
+     every viewport, it is keyboard and screen-reader navigable without any
+     code from me, and the strip it lives in is already carrying the ticker and
+     ten tabs. A row of section chips would have needed its own band and would
+     itself have scrolled sideways on a phone — reintroducing the problem this
+     is meant to solve one level down. */
+  const panelNode = panel(r);
+  const heads = [...panelNode.querySelectorAll('h3.h-card, h2.h-section')]
+    .filter(h => (h.textContent || '').trim());
+  if (heads.length >= 4) {
+    heads.forEach((h, i) => { if (!h.id) h.id = `sec-${i}-${slug(h.textContent).slice(0, 28)}`; });
+    const s = el('select', { class: 'select select-sm', 'aria-label': 'Jump to a section of this report',
+      onchange: (e) => {
+        const t = document.getElementById(e.target.value);
+        if (t) { t.scrollIntoView({ block: 'start' }); t.focus?.(); }
+        e.target.selectedIndex = 0;
+      } });
+    s.append(el('option', { value: '' }, `Jump to… (${heads.length})`));
+    heads.forEach(h => s.append(el('option', { value: h.id }, h.textContent.trim().slice(0, 46))));
+    jump.append(s);
+  }
+
+  wrap.append(panelNode);
   return wrap;
 };
 
@@ -18014,7 +18131,14 @@ VIEWS.property = () => {
   /* A table rather than a sentence, because a sentence that lists four
      components and totals five is not a rounding problem — it is a number the
      reader cannot check. Each group subtotals and the groups sum to the total. */
-  const cash = el('div', { style: 'margin-top:var(--md);overflow-x:auto' });
+  /* NO overflow-x HERE. This div was given one for its own cost-group table,
+     and then grew into the container for everything below it — the financing
+     block, the three cash tiles, the reserve rows. The financing block carries
+     its own .tablewrap, so at 390px the reader met two horizontal scrollbars
+     stacked on the same content: an outer with 166px of travel and an inner
+     with 430px, and a swipe moved whichever one the finger happened to land
+     on. Each table now scrolls in its own wrapper and this is a plain block. */
+  const cash = el('div', { style: 'margin-top:var(--md)' });
   const cashT = el('table', { class: 'dt' });
   const cashB = el('tbody');
   m.costGroups.forEach(g => {
@@ -18068,7 +18192,7 @@ VIEWS.property = () => {
             ? `${m.placeholderCostLines.length} ${m.placeholderCostLines.length === 1 ? 'is a placeholder' : 'are placeholders'}: approximations entered so the workflow runs, not quotations. Replace them with real quotes before this figure means anything.`
             : 'They compute, and they are not evidence.'))]));
   cashT.append(cashB);
-  cash.append(cashT);
+  cash.append(el('div', { class: 'tablewrap' }, cashT));
 
   /* ---- financing basis (specification 29.2) ---------------------------- */
   const fin = el('div', { style: 'margin-top:var(--md);padding-top:var(--md);border-top:1px solid var(--line)' });
@@ -19998,17 +20122,38 @@ VIEWS.tradingIndex = () => {
   /* ---------- inputs: identity ---------- */
   const idc = el('div', { class: 'card' });
   idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted — screenshot extraction is phase 2 and is not built.'));
-  const txt = (k, label, ph) => {
+  /* `lines` makes it a textarea. A single-line input scrolls its own content,
+     which is fine for a ticker and wrong for a sentence: at 390px the
+     unidentified-indicators note showed 55% of itself even at full width, and
+     the rest was reachable only by dragging inside the field. Prose wraps. */
+  const txt = (k, label, ph, lines) => {
     const f = el('div', { class: 'assumption' });
     f.append(el('label', { for: `q-${k}` }, label));
-    f.append(el('input', { class: 'input input-inline', id: `q-${k}`, type: 'text', value: p[k] ?? '', placeholder: ph || '',
-      onchange: e => { p[k] = e.target.value; save(); } }));
+    const common = { class: 'input a-text', id: `q-${k}`, placeholder: ph || '',
+      onchange: e => { p[k] = e.target.value; save(); } };
+    if (lines) {
+      const ta = el('textarea', { ...common, rows: String(lines), style: 'min-height:0' });
+      ta.value = p[k] ?? '';
+      f.append(ta);
+    } else {
+      f.append(el('input', { ...common, type: 'text', value: p[k] ?? '' }));
+    }
     return f;
   };
+  /* The <label> and the <select> were siblings with nothing joining them — no
+     `for`, no id, no aria-label — so five of these read out as an unnamed
+     combobox. Chrome's own accessibility tree reported name:"" with
+     nameFrom:[] on every one of them: sighted readers saw a label, screen
+     reader users heard "combobox" and nothing else, on the controls that set
+     the entry template and the margin mode.
+     aria-label rather than for/id, because these are built in a loop with no
+     stable identifier to hang an id on and a generated one would only be
+     unique by luck. */
   const sel = (label, cur, opts, on) => {
     const f = el('div', { class: 'assumption' });
     f.append(el('label', {}, label));
-    const s = el('select', { class: 'input input-inline', onchange: e => { on(e.target.value); save(); } });
+    const s = el('select', { class: 'input input-inline', 'aria-label': label,
+      onchange: e => { on(e.target.value); save(); } });
     opts.forEach(o => s.append(el('option', { value: o.id, selected: cur === o.id ? '' : null }, o.label)));
     f.append(s);
     return f;
@@ -20111,7 +20256,7 @@ VIEWS.tradingIndex = () => {
       } }));
     cc.append(f);
   });
-  cc.append(txt('unknownIndicators', 'Indicators you could not identify'));
+  cc.append(txt('unknownIndicators', 'Indicators you could not identify', '', 2));
   cc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     'An unidentified indicator is listed and ignored. Its identity and settings are not inferred from colour, and a proprietary signal is never scored.'));
   wrap.append(cc);
