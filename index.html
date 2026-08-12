@@ -84,7 +84,12 @@
      from. The recessive ones were the ones carrying the reasoning.
      #74746b measures 4.78:1 on white — over the line with margin, and still
      clearly secondary to --ink-2 beside it. */
-  --ink-3:        #74746b;
+  /* 4.61:1 against --surface-sunk, the darkest light surface it is used on.
+     #74746b measured 3.96:1 there, 4.18:1 on --plane and 4.45:1 on --surface —
+     three failures of the 4.5 floor, on the token that paints every metaline,
+     caption, eyebrow, axis label and footer line in the product. It passed
+     only against pure white, which is where it had been checked. */
+  --ink-3:        #6a6a61;
   --ink-inv:      #f4f1ea;
 
   /* --- lines ---------------------------------------------------------- */
@@ -111,12 +116,23 @@
   --brand:        #1B4FCC;
   --brand-hi:     #2E68E4;
   --brand-wash:   #E7EEFD;
-  --bronze:       #9a6f22;
+  /* 4.63:1 on --bronze-wash, where #9a6f22 measured 3.83:1. The bronze chip is
+     the product's "this is a placeholder / not verified" marker, so it is worn
+     by exactly the text a reader must not skim past. Dark mode uses #d3a44e
+     and already measures 5.99:1, so only the light value moves. */
+  --bronze:       #89631e;
   --bronze-wash:  #f4ecdb;
 
   /* --- categorical chart slots (validated) ---------------------------- */
   --s1: #00806a;  /* teal    */
   --s2: #b8862b;  /* brass   */
+  /* A SERIES COLOUR AS TEXT IS A DIFFERENT CONTRAST PROBLEM FROM A MARK.
+     --s2 paints the price marker on the valuation range, and the label beside
+     it was set to the same token: 3.05:1 at 12px, well under the 4.5 floor,
+     while the mark itself only ever needed 3:1. Moving --s2 would repaint every
+     chart that uses it, so the text gets its own step off the same hue.
+     Dark mode already measures 5.99:1, so only light needs it. */
+  --s2-text: #916a22;
   --s3: #4a5fa5;  /* slate   */
   --s4: #c0562e;  /* rust    */
   --s5: #7d4f8a;  /* plum    */
@@ -188,7 +204,7 @@
     --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #94968c; --ink-inv: #141a18;
     --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
     --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
-    --s1:#1f9c81; --s2:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
+    --s1:#1f9c81; --s2:#bb8a2e; --s2-text:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
     --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
     --mid: #2a2e2c;
     --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
@@ -208,7 +224,7 @@
   --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #94968c; --ink-inv: #141a18;
   --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
   --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
-  --s1:#1f9c81; --s2:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
+  --s1:#1f9c81; --s2:#bb8a2e; --s2-text:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
   --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
   --mid: #2a2e2c;
   --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
@@ -448,7 +464,14 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .chip-brand   { background: var(--brand-wash); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
 .chip-bronze  { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
 .chip-us      { background: color-mix(in srgb, var(--s3) 12%, transparent); color: var(--s3); border-color: color-mix(in srgb, var(--s3) 28%, transparent); }
-.chip-my      { background: color-mix(in srgb, var(--s1) 12%, transparent); color: var(--s1); border-color: color-mix(in srgb, var(--s1) 28%, transparent); }
+/* The FILL stays --s1 so the chip still reads as the Bursa colour; only the
+   TEXT darkens. --s1 is a chart series token, and moving it to fix a 12px chip
+   label would repaint every plot that uses it — the mark and the text on top of
+   it have different jobs and different contrast floors. 3.93:1 -> 4.61:1.
+   --s3 was checked the same way and already measures 4.84:1, so it is left. */
+.chip-my      { background: color-mix(in srgb, var(--s1) 12%, transparent); color: #007460; border-color: color-mix(in srgb, var(--s1) 28%, transparent); }
+:root[data-theme="dark"] .chip-my, html:where(:not([data-theme="light"])) .chip-my { color: var(--s1); }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .chip-my { color: var(--s1); } }
 .chip-ok      { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
 .chip-warn    { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
 .chip-critical{ background: color-mix(in srgb, var(--critical) 12%, transparent); color: var(--critical-text); border-color: color-mix(in srgb, var(--critical) 32%, transparent); }
@@ -5734,7 +5757,7 @@ function rangeStrip(bear, base, bull, price, ccy) {
     hasPx ? el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
       `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }) : null,
     ...labels,
-    hasPx ? el('div', { class: 'metaline', style: `position:absolute;left:${at(price)}%;top:0;transform:${anchor(at(price))};color:var(--s2);font-weight:600;white-space:nowrap` }, `Price ${fmtMoney(price, ccy)}`) : null,
+    hasPx ? el('div', { class: 'metaline', style: `position:absolute;left:${at(price)}%;top:0;transform:${anchor(at(price))};color:var(--s2-text);font-weight:600;white-space:nowrap` }, `Price ${fmtMoney(price, ccy)}`) : null,
   ]);
 }
 
@@ -10333,7 +10356,7 @@ function studioOutputs(r, inputs, redraw) {
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
   pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : 'Market price'));
-  pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2)' }, fmtMoney(c.px.p, c.ccy)));
+  pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2-text)' }, fmtMoney(c.px.p, c.ccy)));
   pp.append(el('div', { class: 'metaline' },
     c.px?.eod && c.px.asOf ? `${c.px.asOf} close`
     : c.px?.manual ? 'entered by you'
