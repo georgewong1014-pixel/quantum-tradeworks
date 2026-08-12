@@ -500,7 +500,7 @@ body[data-surface="public"] .disclosure-long { display: none; }
 /* ---- layout primitives used by the public pages and the personal surfaces */
 /* A select sized to sit in an assumption row beside its label, matching the
    inline number inputs it appears alongside. */
-.select-sm { height: 30px; padding: 0 26px 0 8px; font-size: 12px; max-width: 190px; }
+.select-sm { height: 32px; padding: 0 26px 0 8px; font-size: 14px; line-height:20px; max-width: 190px; }
 
 /* A metric label you can ask about. Inherits the surrounding type so it does
    not read as a link, but is a real button for keyboard and screen readers. */
@@ -746,12 +746,12 @@ body[data-surface="public"] .disclosure-long { display: none; }
 
 /* --------------------------------------------------------------- inputs */
 .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.field > label { font-size:12px; font-weight:600; color: var(--ink-2); }
+.field > label { font-size:14px; line-height:20px; font-weight:600; color: var(--ink-2); }
 .input, .select {
   height: 34px; padding: 0 10px; width: 100%;
   background: var(--surface-2); color: var(--ink);
   border: 1px solid var(--line); border-radius: var(--r-sm);
-  font-size: 13px; font-variant-numeric: tabular-nums;
+  font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 .input:hover, .select:hover { border-color: var(--line-2); }
@@ -763,11 +763,11 @@ textarea.input { height: auto; padding: 8px 10px; resize: vertical; min-height: 
   background-position: calc(100% - 14px) 14px, calc(100% - 9px) 14px;
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
 }
-.input-inline { height: 28px; font-size:13px; padding: 0 7px; }
+.input-inline { height: 32px; font-size:14px; line-height:20px; padding: 0 7px; }
 
 .checkline { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 3px 0; min-height: 26px; }
 .checkline input { width: 15px; height: 15px; accent-color: var(--brand); cursor: pointer; flex: none; }
-.checkline span { font-size:13px; color: var(--ink-2); }
+.checkline span { font-size:14px; line-height:20px; color: var(--ink-2); }
 .checkline:hover span { color: var(--ink); }
 
 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; background: none; cursor: pointer; }
@@ -785,7 +785,7 @@ input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius
 
 /* --------------------------------------------------------------- tables */
 .tablewrap { overflow-x: auto; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); }
-table.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size:13px; }
+table.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size:14px; line-height:20px; }
 table.dt th, table.dt td { padding: 9px 12px; text-align: right; white-space: nowrap; }
 table.dt th:first-child, table.dt td:first-child { text-align: left; }
 table.dt thead th {
@@ -816,6 +816,65 @@ table.dt tfoot td.pin { z-index: 3; }
 
 /* Header row pinned under the top bar for full-page tables. */
 table.dt-pagesticky thead th { top: var(--topbar-h); }
+/* 44px TOUCH TARGETS, WHERE A TOUCH ACTUALLY HAPPENS.
+   ---------------------------------------------------------------------------
+   The audit measured, at 390px: number inputs 78x28, chip buttons 22px tall,
+   segmented buttons 32px, the search and theme buttons 37x34 and 34x34, and 17
+   footer links at 17px tall. All well under the 44x44 floor.
+
+   Applied on coarse pointers and at phone width rather than everywhere. 44px
+   is a finger requirement — it exists because a fingertip contact patch is
+   about that wide — and a mouse resolves a 28px field precisely. Forcing every
+   desktop control to 44px would inflate a nine-group form by hundreds of
+   pixels to satisfy a constraint that is not present, which trades a real
+   density cost for no accessibility gain. Both queries are here because
+   neither alone is right: a phone-width browser window on a laptop is not a
+   touch device, and a 1024px tablet is.
+
+   min-height, not height, so nothing clips when a label wraps inside it. */
+@media (pointer: coarse), (max-width: 768px) {
+  .input, .select, .input-inline, .select-sm, textarea.input,
+  .segmented button, .segmented a,
+  button.chip, .btn, .searchbtn, .iconbtn, .linklike {
+    min-height: 44px;
+  }
+  /* An inline explainer button inside a sentence keeps its natural size.
+     WCAG exempts a target that is part of a block of text, and padding one out
+     to 44px would break the paragraph it belongs to. */
+  p .linklike, .body .linklike, .metric-label { min-height: 0; }
+  .searchbtn, .iconbtn { min-width: 44px; }
+  /* Inline links in running prose are exempt — WCAG does not require a 44px
+     target for a link inside a sentence, and padding them apart would break
+     the paragraph they sit in. The footer's are a LIST of links, not prose,
+     so they get the height. */
+  .footer a { display: inline-flex; align-items: center; min-height: 44px; }
+  .checkline { min-height: 44px; }
+  /* The checkbox itself stays small; the whole 44px row is the target,
+     because .checkline is the <label> that wraps it. */
+  .checkline input { width: 20px; height: 20px; }
+  .navlink, .brand, .skip-link, .tickerbtn, .subnav button, .subnav a {
+    min-height: 44px; display: inline-flex; align-items: center;
+  }
+  /* height:34px would otherwise win the box calculation over min-height on
+     some of these and leave the field a hair under the floor. */
+  .input, .select, .input-inline, .select-sm { height: auto; }
+  /* Width matters as much as height on a short label. "Moat", "Risks",
+     "Terms" and "All" all measured 32-40px wide beside neighbours a thumb
+     away. Padding rather than a bare min-width so the text stays centred in
+     the target it claims. */
+  .subnav button, .subnav a, .btn, button.chip { min-width: 44px; }
+  .footer a { padding-inline: 6px; min-width: 44px; justify-content: center; }
+  /* A range input is 20px tall and the thumb is the target. The track stays
+     thin — the browser centres it — and the element grows to give the thumb
+     somewhere to be caught. The data-completeness slider gates which companies
+     can pass a screen at all, so a thumb a finger keeps missing is not cosmetic. */
+  input[type="range"] { height: 44px; }
+  /* Width as well as height. "Yes" and "No" measured 40px wide against a 44px
+     floor — a hair under, and the two sit side by side, which is exactly where
+     a mis-tap costs the reader an answer they did not give. */
+  .segmented button, .segmented a { min-width: 44px; justify-content: center; }
+}
+
 /* THE DECISION DOCK.
    ---------------------------------------------------------------------------
    These tools are long. The Property calculator alone runs to nine numbered
@@ -1154,7 +1213,7 @@ details > summary::marker { content: ''; }
 
 .assumption { display: grid; grid-template-columns: 1fr 78px; gap: var(--xs) var(--sm); align-items: center; padding: 9px 0; }
 .assumption + .assumption { border-top: 1px solid var(--grid); }
-.assumption > label { font-size: 12px; color: var(--ink-2); }
+.assumption > label { font-size: 14px; line-height: 20px; color: var(--ink-2); }
 .assumption .a-range { grid-column: 1 / -1; }
 .assumption .a-note { grid-column: 1 / -1; font-size:12px; color: var(--ink-3); margin-top: -4px; }
 
@@ -7240,8 +7299,12 @@ function renderScreener() {
        ['Value', String(r.scores.value.score)],
        ['Yield', isNum(r.m.dy) ? fmtPct(r.m.dy, 2) : '—'],
        ['Completeness', `${r.m.coverage}%`]].forEach(([k, v]) => {
+        /* Not `metaline`. On desktop these four are table column headings; in
+           the phone card they are the label half of a labelled value the
+           reader acts on, so they take the 14/20 decision floor rather than
+           the 12/16 metadata one. The value beside them was already 14. */
         mini.append(el('div', {}, [
-          el('div', { class: 'metaline' }, k),
+          el('div', { style: 'font-size:14px;line-height:20px;color:var(--ink-3)' }, k),
           el('div', { class: 'num', style: 'font-weight:600;font-size:14px' }, v),
         ]));
       });
@@ -15287,6 +15350,17 @@ function cityMap(cityId, selectedArea, onPick) {
         'aria-label': name + '. ' + cf.label + '. '
           + (State.observations || []).filter(o => o.city === cityId && o.area === name).length
           + ' observation(s) recorded. ' + (on ? 'Currently selected.' : 'Select this area.') });
+
+      /* AN INVISIBLE HIT CIRCLE, FIRST IN THE GROUP.
+         The visible point is 6.5px and the whole group measured 11x11 — a
+         target a fingertip cannot reliably land on, and there are eight of
+         them packed into one map. Enlarging the mark would turn a locality map
+         into a scatter of blobs and destroy the spatial reading it exists for,
+         so the target grows and the mark does not: r=22 gives the 44px
+         diameter the standard asks for. Painted first so it sits beneath the
+         real circles, and fill 'transparent' rather than 'none' because a hit
+         test ignores an unfilled shape. */
+      g.append(mk('circle', { cx, cy, r:22, fill:'transparent', stroke:'none' }));
 
       /* A ring behind the selected point rather than a colour change, so the
          selection survives a colourblind reading. */
