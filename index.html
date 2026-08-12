@@ -2530,6 +2530,23 @@ const waitlistReady = () => !!(LAUNCH.waitlistEndpoint || LAUNCH.contactEmail);
    Counting is now done here and nowhere else, and every statement names its
    axis. A count computed at the call site is a count that will disagree with
    the next one. */
+/* COVERAGE IS NOT KNOWN UNTIL THE AUDITED UNIVERSE HAS LANDED.
+   ---------------------------------------------------------------------------
+   U holds the 36-company sample set until loadRealData() resolves, so for the
+   first few hundred milliseconds every count below is computable, confident
+   and wrong. Measured on production: for 313ms the Build Status page — the one
+   page whose entire job is reporting what this build contains — stated "0 US
+   companies with audited SEC filings, of 18 US listings held" and "36
+   companies carry illustrative figures", then replaced both with 119 of 120
+   and 19.
+
+   Two false figures for a third of a second is not a rendering nicety. This
+   product's claim is that it says so when it cannot work something out rather
+   than filling the gap, and a stale count fills the gap with the most
+   convincing thing there is: a specific number.
+
+   So `resolved` is part of the manifest, and covText() below is the only
+   sanctioned way to print a figure derived from it. */
 function coverage() {
   const rows = typeof U !== 'undefined' ? U : [];
   const filed = rows.filter(r => r.c.real);
@@ -2539,6 +2556,9 @@ function coverage() {
   const usIllus = us.filter(r => !r.c.real);
   const priced = rows.filter(r => isNum(r.c.px?.p));
   return {
+    /* False while the audited set is still in flight, and false if the
+       universe is empty — an empty universe yields zeroes that read as facts. */
+    resolved: !(typeof realPending !== 'undefined' && realPending) && rows.length > 0,
     total: rows.length,
     filed: filed.length, illustrative: illus.length,
     us: us.length, my: my.length,
@@ -2549,10 +2569,24 @@ function coverage() {
   };
 }
 
+/* PRINT A COVERAGE FIGURE, OR SAY YOU ARE STILL COUNTING.
+   The single sanctioned way to render anything derived from coverage(). Read
+   the manifest directly for a count you are about to display and you reproduce
+   the flash this exists to stop; the failure is silent, because the wrong
+   number is replaced by the right one before anyone looks twice.
+   coverage-frames.mjs fails the build if any route ever shows two different
+   answers to the same question. */
+const COVERAGE_PENDING = 'Checking coverage';
+function covText(fn, pending = COVERAGE_PENDING) {
+  const k = coverage();
+  return k.resolved ? fn(k) : pending;
+}
+
 /* The same fact as a sentence, so two surfaces cannot word it differently.
    `axis` picks which split leads; both are always reachable from the other. */
 function coverageSentence(axis) {
   const k = coverage();
+  if (!k.resolved) return `${COVERAGE_PENDING} — the audited set is still loading.`;
   if (!k.total) return 'The universe is still loading.';
   const bySource = `${k.filed} carry audited statements filed with the SEC and ${k.illustrative} carry illustrative figures that are synthetic`;
   const byMarket = `${k.us} are US-listed and ${k.my} are Bursa-listed`;
@@ -13380,7 +13414,7 @@ function learnData() {
   const have = el('div');
   have.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Present'));
   const hl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  [`${coverage().us} US companies and ${coverage().my} Bursa companies`,
+  [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
    'Five reported years per company, with every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
    'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
@@ -13724,7 +13758,12 @@ function openReportError() {
       route: location.pathname + location.search,
       status: 'recorded — not sent',
       modelVersion: MODEL_VERSION, asOf: AS_OF,
-      coverage: `${k.total} companies, ${k.filed} filed, ${k.illustrative} illustrative`,
+      /* A case is evidence. Recording the sample counts against it because the
+         audited set had not landed yet would file a case that misdescribes the
+         build it was raised against. */
+      coverage: k.resolved
+        ? `${k.total} companies, ${k.filed} filed, ${k.illustrative} illustrative`
+        : 'coverage not resolved when this case was recorded',
       ...state,
     };
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
@@ -17826,11 +17865,13 @@ const CAPABILITY_REGISTER = [
   { name:'Saved strategy plans and leverage stress', status:'queued', path:null,
     gate:'P1. Staged entry tranches, invalidation conditions, leverage stress and outcome review, saved against a company and a model version. The Lens grades the underlying; it does not record what you decided to do about it.' },
   { name:'Bursa universe', status:'data-gated', path:'/research',
-    gate:() => `${coverage().illustrative} companies carry illustrative figures — ${coverage().my} Bursa`
-       + (coverage().usIllustrative ? ` and ${coverage().usIllustrativeNames.join(', ')} on the US side` : '')
-       + '. No investable grade is offered for any of them.' },
+    gate:() => covText(k => `${k.illustrative} companies carry illustrative figures — ${k.my} Bursa`
+       + (k.usIllustrative ? ` and ${k.usIllustrativeNames.join(', ')} on the US side` : '')
+       + '. No investable grade is offered for any of them.',
+       `${COVERAGE_PENDING} — how many companies carry illustrative figures is not known until the audited set has loaded. No investable grade is offered for any of them either way.`) },
   { name:'US equities', status:'maintenance', path:'/research',
-    now:() => `${coverage().usFiled} US companies with audited SEC filings, of ${coverage().us} US listings held.` },
+    now:() => covText(k => `${k.usFiled} US companies with audited SEC filings, of ${k.us} US listings held.`,
+      `${COVERAGE_PENDING} — the audited US set is still loading. This row states a count only once it can state the right one.`) },
   { name:'US Options Cash Wheel', status:'data-gated', path:'/us-options/wheel',
     now:'Cash-secured put and covered-call arithmetic, collateral gates, downside scenarios and the full risk card, from figures you enter.',
     gate:'No authorised option-chain data, so contracts are entered by hand. Live chains, any recommended contract, broker routing and execution stay Compliance Gated and are not built.' },
@@ -20161,6 +20202,17 @@ const refreshDisclosure = () => {
   /* Counted by the manifest, not here. This banner sits on every page, so a
      count of its own would be the one most likely to disagree with the rest. */
   const k = coverage();
+  /* The banner sits on every page, so while the audited set is in flight it is
+     the single largest source of wrong counts on the site — five of them, on
+     whatever route the reader happened to open. The warning itself does not
+     depend on the counts, so it is stated in full and the arithmetic waits. */
+  if (!k.resolved) {
+    node.innerHTML =
+      `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
+      `<span class="disclosure-long"> ${COVERAGE_PENDING} — this build mixes audited SEC filings with illustrative figures, `
+      + `and the exact split is stated here once the audited set has loaded. Every company page states which it is.</span>`;
+    return;
+  }
   node.innerHTML =
     `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
     `<span class="disclosure-long"> ${k.filed} ${k.filed === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
