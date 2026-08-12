@@ -5979,6 +5979,7 @@ const ROUTES = [
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
+  { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data' },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   { path: '/property',            view: 'property',  title: 'Property' },
@@ -12184,6 +12185,24 @@ VIEWS.marketing = () => {
   const wl = waitlistCard();
   if (wl) wrap.append(wl);
 
+  /* -- 1b. start with a goal --------------------------------------------
+     Directly beneath the hero, above the task grid. The grid below is five
+     links, which serves a reader who already knows which tool they want; this
+     serves the one who has a question and does not know that the answer lives
+     behind a nav item called Discover. */
+  const startCard = el('section', { class: 'card', style: 'border-left:3px solid var(--brand)' });
+  startCard.append(el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center' }, [
+    el('div', { style: 'flex:1 1 320px;min-width:0' }, [
+      el('h2', { class: 'h-card' }, 'Not sure where to start?'),
+      el('p', { class: 'body', style: 'font-size:14px;margin-top:6px' },
+        'Answer up to three questions and the right tool opens with your answers already filled in. '
+        + 'It routes a workflow — it is not a suitability assessment and it recommends nothing.'),
+    ]),
+    el('a', { class: 'btn btn-primary', style: 'flex:0 0 auto', href: href('/start'),
+      onclick: (e) => { e.preventDefault(); navigate('/start'); } }, 'Start with my goal'),
+  ]));
+  wrap.append(startCard);
+
   /* -- 2. choose what you want to do ------------------------------------ */
   const tasks = el('section');
   tasks.append(el('h2', { class: 'h-section' }, 'Choose what you want to do'));
@@ -12335,6 +12354,204 @@ VIEWS.marketing = () => {
     'No payment is processed anywhere in this build. Billing, trials, renewal and cancellation are not implemented — see Plans for what that means.'));
   wrap.append(pricing);
 
+  return wrap;
+};
+
+/* ==========================================================================
+   START WITH MY GOAL — ROUTING, NOT ADVICE.
+   ==========================================================================
+   The homepage already had a task grid, and it was five links. A link grid
+   answers "where is the thing" for someone who already knows which thing they
+   want. It does nothing for the reader this product actually has to serve: one
+   who has a question about a property or a contract and no idea that the
+   answer lives behind a nav item called Discover.
+
+   So: pick a goal, answer at most three more questions, and land in the right
+   tool with what you said already filled in.
+
+   THE LINE THIS MUST NOT CROSS. This routes a workflow. It does not ask what
+   the reader wants to achieve financially, does not score their answers, and
+   does not select an instrument for them — the questions only decide which
+   tool opens and which fields are pre-set, and every one of them is a fact
+   about the task rather than about the person. "Which city" is routing.
+   "What return do you need" would not be, and is not asked.
+
+   Both paths are named. "Use my own figures" and "Open a worked example" are
+   different intentions and the second must never be mistaken for the first, so
+   the destination keeps saying which it is — the property review queue, the
+   Wheel's illustrative banner, the Trading Index coverage notes. */
+/* Answers persist, the chosen goal does not. Returning to a page called "Start"
+   and landing halfway through a form you filled in last week is a small
+   surprise with no upside — the menu is the predictable entry. Re-picking the
+   goal restores everything you said, which is what "Back preserves answers"
+   actually asks for. */
+State.launcher = { goal: null, a: store.read('launcherAnswers', {}) };
+const saveLauncher = () => store.write('launcherAnswers', State.launcher.a);
+
+const LAUNCH_GOALS = [
+  { id:'property', label:'Check a Sarawak property',
+    blurb:'What it costs to complete, what it costs to hold, and what would have to be true for it to pay for itself.',
+    tool:'Property deal calculator' },
+  { id:'company', label:'Research a US company',
+    blurb:'Audited SEC filings, with every metric showing its formula, its period and what could not be computed.',
+    tool:'Company report' },
+  { id:'wheel', label:'Model options cash flow',
+    blurb:'A cash-secured put and covered call cycle, from a contract you enter. No chain data is connected.',
+    tool:'Options Cash Wheel' },
+  { id:'trading', label:'Assess trend and first tranche',
+    blurb:'A multi-timeframe reading and a test of your own entry rules, from chart evidence you record.',
+    tool:'QT Trading Index' },
+  { id:'screen', label:'Screen a market',
+    blurb:'Narrow the universe on quality, financial risk or valuation evidence before reading anything in depth.',
+    tool:'Stock screener' },
+];
+
+VIEWS.launcher = () => {
+  const L = State.launcher;
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Start here'),
+    el('h1', {}, 'Start with your goal'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Five things this product does. Pick one and it opens the right tool with what you tell it already filled in. '
+      + 'These questions route a workflow — they are not a suitability assessment and nothing here recommends an investment.'),
+  ])));
+
+  /* ---- step 1: the goal ---- */
+  if (!L.goal) {
+    const grid = el('div', { class: 'grid g-2' });
+    LAUNCH_GOALS.forEach(g => {
+      const c = el('button', { class: 'card', style: 'text-align:left;cursor:pointer;border:1px solid var(--line);width:100%',
+        onclick: () => { L.goal = g.id; saveLauncher(); render(); } });
+      c.append(el('h3', { class: 'h-card' }, g.label));
+      c.append(el('p', { class: 'body', style: 'font-size:14px;margin-top:6px' }, g.blurb));
+      c.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Opens the ${g.tool}`));
+      grid.append(c);
+    });
+    wrap.append(grid);
+    return wrap;
+  }
+
+  const goal = LAUNCH_GOALS.find(g => g.id === L.goal);
+  const a = (L.a[L.goal] = L.a[L.goal] || {});
+  const set = (k, v) => { a[k] = v; saveLauncher(); render(); };
+
+  const card = el('div', { class: 'card' });
+  card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
+    el('h2', { class: 'h-card' }, goal.label),
+    /* Back clears the goal and NOT the answers — a reader who changes their
+       mind and comes back should not retype what they already told us. */
+    el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto',
+      onclick: () => { L.goal = null; saveLauncher(); render(); } }, 'Back'),
+  ]));
+
+  const q = (label, hint) => {
+    card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' }, label));
+    if (hint) card.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, hint));
+  };
+  const seg = (k, opts, dflt) => {
+    const cur = a[k] ?? dflt;
+    card.append(el('div', { class: 'segmented', style: 'flex-wrap:wrap' }, opts.map(([v, lab]) =>
+      el('button', { 'aria-selected': cur === v ? 'true' : 'false', onclick: () => set(k, v) }, lab))));
+    return cur;
+  };
+
+  let open = null;
+
+  if (L.goal === 'property') {
+    q('Which town or city?', 'Sample projects are held for some of these and not others. The tool says which, and never borrows a comparable from a different market.');
+    const city = seg('city', SARAWAK_CITIES.map(c => [c.id, c.name]), 'kuching');
+    q('Start from what?');
+    const mode = seg('mode', [['own', 'My own figures'], ['example', 'A worked example']], 'example');
+    open = () => {
+      State.deal = { ...PROPERTY_DEFAULT_DEAL, city,
+        district: (SARAWAK_CITIES.find(c => c.id === city)?.districts || [''])[0],
+        projectId: (projectsForCity(city)[0] || {}).id || customProjectId(city),
+        touched: {}, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
+        checks: { ...PROPERTY_DEFAULT_DEAL.checks } };
+      /* "My own figures" does not blank the model — it cannot, or nothing
+         computes. It opens the review queue instead, which is the honest
+         version of the same intention: here is every figure that is still
+         ours, replace them. */
+      saveDeal();
+      navigate('/property/calculator');
+      if (mode === 'own') setTimeout(() => {
+        const det = [...document.querySelectorAll('details')]
+          .find(x => /Review \d+ sample input/.test(x.querySelector('summary')?.textContent || ''));
+        if (det) { det.open = true; det.scrollIntoView({ block: 'center' }); }
+      }, 400);
+    };
+  }
+
+  if (L.goal === 'company') {
+    q('Which company?', 'Only companies with audited statements filed with the SEC are listed here. Bursa figures in this build are illustrative and are not offered as a research destination.');
+    const filed = (typeof U !== 'undefined' ? U : []).filter(r => r.c.real && r.c.mkt === 'US')
+      .sort((x, y) => String(x.c.name).localeCompare(String(y.c.name)));
+    if (!filed.length) {
+      card.append(el('p', { class: 'body' }, `${COVERAGE_PENDING} — the audited set is still loading.`));
+    } else {
+      const cur = a.company || filed[0].c.id;
+      const sel = el('select', { class: 'select', 'aria-label': 'Company',
+        onchange: e => set('company', e.target.value) });
+      filed.forEach(r => sel.append(el('option', { value: r.c.id, selected: r.c.id === cur ? '' : null },
+        `${r.c.tk} — ${r.c.name}`)));
+      card.append(sel);
+      open = () => {
+        const row = BY_ID.get(cur) || filed[0];
+        navigate(companyPath(row.c));
+      };
+    }
+  }
+
+  if (L.goal === 'wheel') {
+    q('Start from what?', 'This build carries no option-chain data, so a contract is entered by hand either way.');
+    const mode = seg('mode', [['own', 'My own contract'], ['example', 'A worked contract']], 'example');
+    open = () => {
+      State.wheel = mode === 'example'
+        ? { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true }
+        : { ...State.wheel, ...WHEEL_BLANK_CONTRACT, isWorkedExample: false };
+      saveWheel();
+      navigate('/wheel');
+    };
+  }
+
+  if (L.goal === 'trading') {
+    q('Start from what?', 'Phase 1 reads nothing from your screenshot — every panel is transcribed by you.');
+    const mode = seg('mode', [['own', 'My own chart evidence'], ['example', 'The §14 worked example']], 'example');
+    open = () => {
+      if (mode === 'example') State.qtti = qttiWorkedExample();
+      else State.qtti = { ...State.qtti, symbol:'',
+        timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
+        confidence:{ metadata:null, panels:null, indicators:null, legibility:null, recency:null },
+        entryLocation:'unknown', identityConsistent:false, capturedAt:'', triggerComplete:false };
+      saveQtti();
+      navigate('/trading-index');
+    };
+  }
+
+  if (L.goal === 'screen') {
+    q('Which market?');
+    const universe = seg('universe', [['all', 'All markets'], ['US', 'US listings'], ['MY', 'Bursa']], 'all');
+    q('Which measures?', 'A preset chooses which columns are on screen. It does not filter, sort or rank anything.');
+    const preset = seg('preset', COL_PRESETS.map(p => [p.id, p.label]), 'essentials');
+    open = () => {
+      const p = COL_PRESETS.find(x => x.id === preset) || COL_PRESETS[0];
+      State.screen = { ...blankScreen(), universe, cols: [...p.cols] };
+      store.write('screen', State.screen);
+      State.appliedTemplate = null;
+      navigate('/discover/screener');
+    };
+  }
+
+  if (open) {
+    card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--xl)' }, [
+      el('button', { class: 'btn btn-primary', onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
+    ]));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      'The tool will say which of its figures are still samples and which are yours.'));
+  }
+  wrap.append(card);
   return wrap;
 };
 
