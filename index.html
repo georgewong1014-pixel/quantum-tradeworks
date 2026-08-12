@@ -793,6 +793,51 @@ table.dt tfoot td.pin { z-index: 3; }
 
 /* Header row pinned under the top bar for full-page tables. */
 table.dt-pagesticky thead th { top: var(--topbar-h); }
+/* THE DECISION DOCK.
+   ---------------------------------------------------------------------------
+   These tools are long. The Property calculator alone runs to nine numbered
+   input groups, and the figures that decide the question — safe cash, monthly
+   position, the grade and its principal blocker — sit at the top, above all of
+   them. So the reader spends the entire working session scrolled away from
+   the answer they are working on, and has to scroll back to find out whether
+   the last change helped.
+
+   Fixed to the bottom, one row, collapsible. z-index 35 puts it above the page
+   and the sticky sub-nav at 25, and below the topbar at 40, the drawer at 61,
+   the modal at 62 and the toast at 70 — a summary that covered a dialog would
+   be worse than no summary. #views carries the bottom padding so the dock can
+   never sit on top of the last card; padding the body would leave the footer
+   underneath it instead. */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+  background: var(--surface-2); border-top: 1px solid var(--line-2);
+  box-shadow: 0 -14px 34px -20px var(--ring);
+  padding: 10px var(--md) calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.dock-inner { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: var(--md); flex-wrap: wrap; }
+.dock-figs { display: flex; gap: var(--lg); flex-wrap: wrap; min-width: 0; }
+.dock-fig { display: flex; flex-direction: column; min-width: 0; }
+.dock-fig-v { font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+.dock-fig-k { font-size: 12px; line-height: 16px; color: var(--ink-3); }
+/* Clamped, because blocker text is not length-controlled and the dock is. The
+   Trading Index thesis gate runs to four lines, which on a 390px screen turned
+   a summary bar into two thirds of the viewport. The full sentence is in the
+   page body, which is where the reader is going anyway. */
+.dock-blocker {
+  font-size: 14px; line-height: 20px; flex: 1 1 260px; min-width: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.dock-acts { display: flex; gap: 8px; margin-left: auto; }
+#views[data-dock="1"] { padding-bottom: 132px; }
+@media (max-width: 720px) {
+  /* On a phone the figures wrap to two rows and the actions need their own,
+     so the reserved space grows with it. */
+  #views[data-dock="1"] { padding-bottom: 188px; }
+  .dock-figs { gap: var(--md); width: 100%; }
+  .dock-acts { margin-left: 0; width: 100%; }
+  .dock-acts .btn { flex: 1 1 0; }
+}
+
 /* .render-block is a MARKER AND CARRIES NO STYLE, deliberately.
    renders.mjs crops a published frame to it, so a frame is the chart plus the
    caption that qualifies it rather than whatever card happens to contain them.
@@ -4975,6 +5020,50 @@ function timeframeScoreBars(container, tfs, floors) {
   container.append(notes);
 }
 
+/* THE CURRENT RESULT, ITS BLOCKER AND THE NEXT ACTION — ALWAYS ON SCREEN.
+   ---------------------------------------------------------------------------
+   `figs` are the two to four numbers that answer the tool's question. `blocker`
+   is the single thing most in the way of a usable answer, or null when nothing
+   is. `next` is one button that goes to it.
+
+   Three rules this must not break, all of them the product's own:
+     - it states results, never a recommendation. No Buy/Hold/Sell vocabulary
+       reaches it, and it never renders a suggestion about what to do with an
+       instrument — only what is missing from the calculation.
+     - a withheld figure shows as an em dash, never as zero. A dock that
+       reported "RM0" for a rent nobody entered would be the most-read wrong
+       number on the page.
+     - it is a summary of what is already on screen, so it introduces no
+       figure the reader cannot scroll up and check. */
+function decisionDock({ figs, blocker, next }) {
+  const dock = el('div', { class: 'dock', role: 'complementary', 'aria-label': 'Current result and next action' });
+  const inner = el('div', { class: 'dock-inner' });
+
+  const fg = el('div', { class: 'dock-figs' });
+  (figs || []).forEach(f => {
+    if (!f) return;
+    const box = el('div', { class: 'dock-fig' });
+    box.append(el('span', { class: 'dock-fig-v', style: f.tone ? `color:var(${f.tone})` : null },
+      f.value == null || f.value === '' ? '—' : f.value));
+    box.append(el('span', { class: 'dock-fig-k' }, f.label));
+    fg.append(box);
+  });
+  inner.append(fg);
+
+  if (blocker) inner.append(el('div', { class: 'dock-blocker' }, [
+    el('span', { class: 'chip chip-bronze', style: 'margin-right:8px' }, 'Blocker'),
+    el('span', {}, blocker),
+  ]));
+
+  if (next) {
+    const acts = el('div', { class: 'dock-acts' });
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: next.onclick }, next.label));
+    inner.append(acts);
+  }
+  dock.append(inner);
+  return dock;
+}
+
 /* A collapsible table beneath a chart — the WCAG-clean equivalent. */
 function tableTwin(caption, headers, rows) {
   const det = el('details', { class: 'caption', style: 'margin-top:var(--sm)' });
@@ -5957,6 +6046,20 @@ function render() {
     : (VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found'));
   const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
+
+  /* The dock is mounted at body level, not inside the view. A fixed element is
+     positioned against the viewport only while no ancestor establishes a
+     containing block, and any future transform, filter or `contain` on a view
+     wrapper would silently turn it into an absolutely positioned box halfway
+     down the page. Mounting it outside removes the possibility rather than
+     relying on nobody adding one.
+
+     Skipped while the universe is loading: a dock is a summary of the page
+     below it, and there is no page below a skeleton yet. */
+  document.querySelectorAll('.dock').forEach(n => n.remove());
+  const dockSpec = (!realPending || !UNIVERSE_VIEWS.has(State.view)) ? DOCKS[State.view]?.() : null;
+  if (dockSpec) { document.body.append(decisionDock(dockSpec)); viewRoot.dataset.dock = '1'; }
+  else delete viewRoot.dataset.dock;
   /* The title is set by setDocumentMeta, which knows the route and the company
      on it. Setting it here as well overwrote that with a generic view label —
      so a company page announced itself as "Research" and every shared link
@@ -20460,6 +20563,88 @@ function fromHash() {
   navigate(path, { replace: true });
   return true;
 }
+
+/* WHICH VIEWS CARRY A DOCK, AND WHAT IT SAYS.
+   ---------------------------------------------------------------------------
+   Only the long ones. A dock on a page the reader can already see in full is
+   an extra 130px of chrome buying nothing, so Learn, Status and the trust
+   pages have none.
+
+   Every figure here is recomputed from the same engine the page body used, so
+   the dock cannot drift from the card above it — and every one of them is
+   withheld rather than zeroed when the input is absent. `blocker` is the
+   single most severe open item, not a count of them: a reader who is told
+   there are four problems still has to go and find out which one matters. */
+const DOCKS = {
+  property: () => {
+    const d = State.deal, m = dealModel(d), g = propertyGrade(d, m);
+    const worst = (g.gates || []).slice().sort((a, b) =>
+      (b.severity === 'critical') - (a.severity === 'critical'))[0];
+    const queue = propertyReviewQueue(d);
+    return {
+      figs: [
+        { label: 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
+        { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
+          tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
+        { label: g.verdict || 'Grade', value: g.grade },
+      ],
+      blocker: worst ? worst.text : null,
+      next: queue.length ? {
+        label: `Review ${queue.length} sample input${queue.length === 1 ? '' : 's'}`,
+        onclick: () => {
+          const det = [...document.querySelectorAll('details')]
+            .find(x => /Review \d+ sample input/.test(x.querySelector('summary')?.textContent || ''));
+          if (!det) return;
+          det.open = true;
+          det.scrollIntoView({ block: 'center' });
+        },
+      } : null,
+    };
+  },
+
+  wheel: () => {
+    const p = State.wheel, m = wheelMath(p), fit = wheelFit(p, m, null);
+    const entered = num0(p.putStrike) > 0;
+    const buffer = entered ? num0(p.eligibleCashUsd) - num0(m.requiredAssignmentCash) : null;
+    return {
+      figs: [
+        { label: 'Assignment cash', value: entered ? fmtAmount(m.requiredAssignmentCash, 'USD') : null },
+        { label: 'Cash buffer', value: buffer == null ? null : fmtAmount(buffer, 'USD'),
+          tone: buffer == null ? null : (buffer < 0 ? '--dn-text' : '--ok-text') },
+        { label: 'Worst case at zero', value: entered ? fmtAmount(m.putMaxLossIfZero, 'USD') : null, tone: '--dn-text' },
+        { label: 'Phase', value: p.phase === 'call' ? 'Covered call' : 'Cash-secured put' },
+      ],
+      blocker: entered ? (fit.gates && fit.gates[0]) || null : 'No contract entered, so nothing is calculated yet.',
+      next: entered ? null : {
+        label: 'Load a worked contract',
+        onclick: () => {
+          State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true };
+          saveWheel(); render(); toast('Worked contract loaded — illustrative figures');
+        },
+      },
+    };
+  },
+
+  tradingIndex: () => {
+    const r = qttiRun(State.qtti);
+    return {
+      figs: [
+        { label: 'Trend regime', value: r.assessable ? String(r.regime) : null },
+        { label: 'First-tranche readiness', value: r.assessable ? String(r.tranche) : null },
+        { label: 'Screenshot confidence', value: r.assessable ? String(r.confidence) : null },
+      ],
+      /* reject[] is what makes a run unassessable at all, so it outranks the
+         gates that merely block a tranche. Both are arrays of STRINGS — the
+         first draft read `.text` off them and silently produced no blocker at
+         all on the worked example, which shows fifteen open gates and a tranche
+         state of "Criteria blocked". A dock that quietly reports nothing wrong
+         is worse than one that is absent. */
+      blocker: (r.reject && r.reject[0]) || (r.gates && r.gates[0])
+        || (!r.assessable ? 'Evidence is incomplete, so no output is produced.' : null),
+      next: null,
+    };
+  },
+};
 
 window.addEventListener('popstate', () => applyRoute());
 /* Anything else that still sets a hash keeps working. */
