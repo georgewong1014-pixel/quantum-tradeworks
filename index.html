@@ -13994,6 +13994,53 @@ function markTouched(d, k) {
    own evidence assessment. */
 const EVIDENCE_DRIVERS = ['price', 'rent', 'maintenance', 'sqft'];
 
+/* THE REVIEW QUEUE — ONE LIST, NOT TWENTY SCATTERED WARNINGS.
+   ---------------------------------------------------------------------------
+   Every seeded figure was already marked at the input and in the evidence card,
+   which answers "is this one mine?" wherever a reader happens to be looking.
+   It does not answer the question they actually arrive with, which is "how much
+   of this answer is still the tool's?" — and that one cannot be answered by
+   scrolling, because the fields are spread across nine numbered groups.
+
+   `affects` is the point of each row. Knowing a figure is a sample is not
+   useful on its own; knowing that the vacancy rate is a sample AND that it sets
+   the break-even rent tells the reader whether to fix it before reading the
+   result. Rows are ordered by how hard the figure pushes the outputs. */
+/* `fmt` carries the unit. A bare "572000" beside "4.3" beside "9" is three
+   numbers the reader has to decode before they can judge any of them, and the
+   whole purpose of this list is to be judged at a glance. Maintenance is per
+   month here because that is how it is entered — dealModel multiplies by 12. */
+const PROPERTY_REVIEW = [
+  { k:'price',       label:'Purchase price',   fmt:v => fmtMoney(v, 'MYR', 0),
+    affects:'Every cash figure, the loan, the duty and the yield.' },
+  { k:'rent',        label:'Expected rent',    fmt:v => `${fmtMoney(v, 'MYR', 0)} a month`,
+    affects:'Monthly position, break-even rent and the whole income case.' },
+  { k:'sqft',        label:'Built-up area',    fmt:v => `${fmtNum(v, 0)} sq ft`,
+    affects:'Price per square foot and the maintenance charge derived from it.' },
+  { k:'maintenance', label:'Maintenance',      fmt:v => `${fmtMoney(v, 'MYR', 0)} a month`,
+    affects:'Monthly position and break-even rent.' },
+  { k:'ratePct',     label:'Interest rate',    fmt:v => fmtPct(v, 2),
+    affects:'The instalment, and through it the break-even rent and cover.' },
+  { k:'vacancyPct',  label:'Vacancy',          fmt:v => fmtPct(v, 0),
+    affects:'Effective rent and the rent needed to break even.' },
+  { k:'downPct',     label:'Deposit',          fmt:v => `${fmtPct(v, 0)} of price`,
+    affects:'Cash to complete, the loan and the margin of finance.' },
+  { k:'apprecPct',   label:'Appreciation',     fmt:v => `${fmtPct(v, 1)} a year`,
+    affects:'The exit value and every ten-year return figure.' },
+  { k:'tenureYears', label:'Loan tenure',      fmt:v => `${fmtNum(v, 0)} years`,
+    affects:'The instalment and the total interest paid.' },
+  { k:'holdYears',   label:'Holding period',   fmt:v => `${fmtNum(v, 0)} years`,
+    affects:'The exit case and the annualised return.' },
+];
+
+/* A field is on the queue when the reader has not touched it. Deliberately not
+   "when it differs from the default" — a reader who types the seeded number
+   themselves has made a decision about it, and a queue that kept nagging them
+   would train them to ignore it. */
+function propertyReviewQueue(d) {
+  return PROPERTY_REVIEW.filter(f => !isTouched(d, f.k));
+}
+
 /* What to show for a figure the reader has not touched: what it actually is. */
 const shownEvidence = (d, k) =>
   (EVIDENCE_DRIVERS.includes(k) && !isTouched(d, k) && !d?.userStarted)
@@ -17163,6 +17210,47 @@ VIEWS.property = () => {
   summary.append(el('div', { style: 'overflow-x:auto' }, sumT));
   summary.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, sc.note));
   free.append(summary);
+
+  /* THE REVIEW QUEUE, ABOVE THE RESULT IT QUALIFIES.
+     Below the four headline figures it would be a footnote on a number the
+     reader has already taken. */
+  const queue = propertyReviewQueue(d);
+  if (queue.length) {
+    const q = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze);margin-bottom:var(--md)' });
+    const det = el('details');
+    const sum = el('summary', { style: 'cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap' });
+    sum.append(el('span', { class: 'chip chip-bronze' }, `${queue.length} sample input${queue.length === 1 ? '' : 's'}`));
+    sum.append(el('span', { style: 'font-size:16px;font-weight:600' },
+      `Review ${queue.length} sample input${queue.length === 1 ? '' : 's'}`));
+    sum.append(el('span', { class: 'metaline', style: 'flex-basis:100%' },
+      'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.'));
+    det.append(sum);
+
+    const list = el('div', { style: 'margin-top:var(--md);display:flex;flex-direction:column;gap:2px' });
+    queue.forEach(f => {
+      const row = el('div', { class: 'row row-wrap',
+        style: 'gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--grid)' });
+      row.append(el('span', { style: 'font-size:14px;font-weight:600;min-width:150px' }, f.label));
+      row.append(el('span', { class: 'num', style: 'font-size:14px;min-width:120px' },
+        isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'));
+      row.append(el('span', { class: 'metaline', style: 'flex:1 1 260px' }, f.affects));
+      row.append(el('button', {
+        class: 'btn btn-quiet btn-sm', style: 'margin-left:auto',
+        onclick: () => {
+          const input = document.querySelector(`#d-${f.k}`);
+          if (!input) return;
+          input.closest('.assumption')?.scrollIntoView({ block: 'center' });
+          input.focus(); input.select?.();
+        } }, 'Go to it'));
+      list.append(row);
+    });
+    det.append(list);
+    det.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+      'A figure leaves this list when you change it, or when you grade it under Evidence quality. '
+      + 'Typing the same number yourself still counts — that is a decision about it.'));
+    q.append(det);
+    free.append(q);
+  }
 
   free.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.'));
   const fg = el('div', { class: 'grid g-4' });
