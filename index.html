@@ -2522,6 +2522,129 @@ const RAW = [
 const MODEL_VERSION = 'metrics 1.4.0 · scores 1.2.0 · valuation 1.3.0';
 const AS_OF = '30 Jul 2026';
 
+/* SAVED WORK — NAMED, VERSIONED, AND HONESTLY LOCATED.
+   ---------------------------------------------------------------------------
+   Every tool here already autosaves: change a field and it is written to local
+   storage immediately. What did not exist is a way to keep MORE THAN ONE of
+   anything. A reader modelling a second property had to overwrite the first,
+   so the tool quietly punished the exact behaviour it is for — comparing two
+   candidates — and any session's work was one stray edit from gone.
+
+   A record is a named snapshot of the keys one tool owns, stamped with the
+   model version, the data date and when it was taken, because a result whose
+   inputs you cannot reproduce is an anecdote.
+
+   WHAT THIS IS NOT. It is not accounts and it is not a server. Records live in
+   the same browser as everything else and die with it, so the label says "this
+   browser only" wherever they appear and a full backup is one click away. The
+   audit asks for "last editor" on every saved result; there is no identity in
+   this build to record, and inventing one would be worse than the gap, so the
+   field says "this browser" and means it. */
+const WORK_KINDS = {
+  property: { label:'Property deal',        keys:['deal'],
+              name:() => `${(State.deal?.district || 'Property')} — ${fmtAmount(num0(State.deal?.price), 'MYR')}` },
+  wheel:    { label:'Cash Wheel contract',  keys:['wheelPlan', 'wheelLegs'],
+              name:() => `${State.wheel?.symbol || 'Contract'} — ${fmtMoney(num0(State.wheel?.putStrike), 'USD', 0)} put` },
+  trading:  { label:'Trading Index run',    keys:['qttiPlan'],
+              name:() => `${State.qtti?.symbol || 'Run'} — ${new Date().toISOString().slice(0, 10)}` },
+};
+
+const loadWork = () => store.read('savedWork', []);
+const persistWork = (list) => store.write('savedWork', list);
+
+/* A monotonic counter, because timestamps collide.
+   The first version keyed records on Date.now() plus a sub-millisecond figure
+   that only advances once per millisecond, so two saves in the same tick got
+   the SAME id — and every lookup is a .find() on id, which returns the first
+   match. Resuming one record restored the other; duplicating "Deal A" produced
+   "Deal B (copy)". Caught in a round-trip test, not by reading the code, and it
+   would have been near-impossible to reproduce by hand. */
+let WORK_SEQ = 0;
+const nextWorkId = (kind) => `w-${kind}-${Date.now().toString(36)}-${(WORK_SEQ++).toString(36)}`;
+
+function saveWork(kind, nameOverride) {
+  const def = WORK_KINDS[kind];
+  if (!def) return null;
+  const payload = {};
+  def.keys.forEach(k => { payload[k] = store.read(k, null); });
+  const rec = {
+    id: nextWorkId(kind),
+    kind,
+    name: (nameOverride || def.name() || def.label).slice(0, 80),
+    savedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+    modelVersion: MODEL_VERSION,
+    asOf: AS_OF,
+    editor: 'this browser',
+    payload,
+  };
+  persistWork([rec, ...loadWork()]);
+  return rec;
+}
+
+/* Resume writes the record's keys back and re-reads State from them, so the
+   page reflects the record rather than whatever was on screen a moment ago. */
+function resumeWork(id) {
+  const rec = loadWork().find(r => r.id === id);
+  if (!rec) return false;
+  Object.entries(rec.payload || {}).forEach(([k, v]) => { if (v != null) store.write(k, v); });
+  if (rec.payload.deal) State.deal = rec.payload.deal;
+  if (rec.payload.wheelPlan) State.wheel = rec.payload.wheelPlan;
+  if (rec.payload.wheelLegs) State.wheelLegs = rec.payload.wheelLegs;
+  if (rec.payload.qttiPlan) State.qtti = rec.payload.qttiPlan;
+  return true;
+}
+
+function duplicateWork(id) {
+  const rec = loadWork().find(r => r.id === id);
+  if (!rec) return null;
+  const copy = { ...rec, id: nextWorkId(rec.kind),
+    name: `${rec.name} (copy)`.slice(0, 80),
+    savedAt: new Date().toISOString().replace('T', ' ').slice(0, 16) };
+  persistWork([copy, ...loadWork()]);
+  return copy;
+}
+
+const deleteWork = (id) => persistWork(loadWork().filter(r => r.id !== id));
+
+/* A FULL BACKUP ENUMERATES STORAGE, IT DOES NOT LIST KEYS FROM MEMORY.
+   There are 36 persisted keys today. A hardcoded list would be correct on the
+   day it was written and silently incomplete from the next key onwards — and
+   the failure only surfaces when somebody restores a backup and finds their
+   watchlists missing. Reading the prefix back off localStorage cannot go
+   stale, because it is the same source of truth the app writes to. */
+const STORE_PREFIX = 'vl.';
+function backupPayload() {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(STORE_PREFIX)) continue;
+    try { data[k.slice(STORE_PREFIX.length)] = JSON.parse(localStorage.getItem(k)); }
+    catch { /* a value this app did not write; skipped rather than corrupted */ }
+  }
+  return {
+    format: 'quantum-tradeworks-backup',
+    version: 1,
+    takenAt: new Date().toISOString(),
+    modelVersion: MODEL_VERSION,
+    asOf: AS_OF,
+    note: 'Everything this browser holds for Quantum Tradeworks. No account, no server — this file is the only copy.',
+    keys: Object.keys(data).length,
+    data,
+  };
+}
+
+/* Returns {ok, restored, error}. Refuses anything that is not one of our own
+   backups rather than writing arbitrary JSON into the app's storage. */
+function restoreBackup(text) {
+  let obj;
+  try { obj = JSON.parse(text); } catch { return { ok:false, error:'That file is not valid JSON.' }; }
+  if (!obj || obj.format !== 'quantum-tradeworks-backup' || !obj.data || typeof obj.data !== 'object')
+    return { ok:false, error:'That file is not a Quantum Tradeworks backup.' };
+  let restored = 0;
+  Object.entries(obj.data).forEach(([k, v]) => { store.write(k, v); restored++; });
+  return { ok:true, restored };
+}
+
 /* LAUNCH CONFIGURATION — the two things a campaign needs that code cannot supply.
    ---------------------------------------------------------------------------
    Both are empty, and both surfaces stay HIDDEN while they are. That is
@@ -5062,6 +5185,64 @@ function decisionDock({ figs, blocker, next }) {
   }
   dock.append(inner);
   return dock;
+}
+
+/* SAVE · DUPLICATE · RESET, IN THE SAME PLACE ON EVERY TOOL.
+   ---------------------------------------------------------------------------
+   One component so the controls cannot drift apart between three surfaces, and
+   directly under the page heading on all of them so a returning reader looks in
+   one place. `onReset` is passed in rather than derived: what "empty" means is
+   the tool's business, and a generic reset that guessed would eventually clear
+   the wrong keys. */
+function workBar(kind, onReset) {
+  const def = WORK_KINDS[kind];
+  if (!def) return null;
+  const saved = loadWork().filter(r => r.kind === kind);
+
+  const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
+  const row = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' });
+
+  row.append(el('span', { class: 'eyebrow', style: 'margin-right:2px' }, 'This browser only'));
+
+  row.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+    const suggested = def.name();
+    const name = prompt(`Name this ${def.label.toLowerCase()}`, suggested);
+    if (name === null) return;
+    const rec = saveWork(kind, name.trim() || suggested);
+    render(); toast(rec ? `Saved "${rec.name}"` : 'Could not save');
+  } }, 'Save'));
+
+  if (saved.length) {
+    const sel = el('select', { class: 'select select-sm', 'aria-label': `Resume a saved ${def.label.toLowerCase()}`,
+      onchange: e => {
+        const id = e.target.value;
+        if (!id) return;
+        if (resumeWork(id)) { render(); toast('Resumed'); }
+      } });
+    sel.append(el('option', { value: '' }, `Resume… (${saved.length})`));
+    saved.forEach(r => sel.append(el('option', { value: r.id }, `${r.name} · ${r.savedAt}`)));
+    row.append(sel);
+
+    row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+      const copy = duplicateWork(saved[0].id);
+      render(); toast(copy ? `Duplicated "${saved[0].name}"` : 'Nothing to duplicate');
+    } }, 'Duplicate latest'));
+  }
+
+  row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+    if (!confirm('Clear the figures currently on screen? Anything you saved stays saved.')) return;
+    onReset(); render(); toast('Cleared');
+  } }, 'Reset'));
+
+  row.append(el('a', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto',
+    href: href('/my/data'), onclick: (e) => { e.preventDefault(); navigate('/my/data'); } }, 'Back up everything'));
+
+  bar.append(row);
+  bar.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    saved.length
+      ? `${saved.length} saved in this browser. Each carries the model version and data date it was taken against. Clearing browser data deletes them — download a backup if the work mattered.`
+      : 'Nothing saved yet. Saving keeps a named copy so a second candidate does not overwrite the first.'));
+  return bar;
 }
 
 /* A collapsible table beneath a chart — the WCAG-clean equivalent. */
@@ -12184,6 +12365,77 @@ VIEWS.userdata = () => {
   ]));
   wrap.append(why);
 
+  /* ---------- backup, restore and saved work ----------
+     This page already explained that everything lives in this browser and dies
+     with it, and then offered no way to act on that. A warning without a remedy
+     is just an apology in advance. */
+  const bk = el('div', { class: 'card' });
+  bk.append(cardHead('Back up everything in this browser',
+    'One file with every calculation, saved deal, watchlist, screen and correction case this browser holds. There is no server copy, so this file is the only copy.'));
+
+  const bkRow = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
+  bkRow.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    const payload = backupPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = el('a', { href: URL.createObjectURL(blob),
+      download: `quantum-tradeworks-backup-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a); a.click(); a.remove();
+    toast(`Downloaded ${payload.keys} stored item${payload.keys === 1 ? '' : 's'}`);
+  } }, 'Download a backup'));
+
+  /* A hidden input behind a button, because the native file control cannot be
+     styled and reads as a browser artefact rather than part of the page. */
+  const fileIn = el('input', { type: 'file', accept: 'application/json,.json', style: 'display:none',
+    onchange: async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const res = restoreBackup(await file.text());
+      e.target.value = '';
+      if (!res.ok) { toast(res.error); return; }
+      toast(`Restored ${res.restored} item${res.restored === 1 ? '' : 's'} — reloading`);
+      /* A reload rather than a re-render: State was populated from storage at
+         boot, and half the app would still be holding the pre-restore values. */
+      setTimeout(() => location.reload(), 700);
+    } });
+  bkRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => fileIn.click() },
+    'Restore from a backup'));
+  bkRow.append(fileIn);
+  bk.append(bkRow);
+  bk.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Restoring overwrites what this browser currently holds for any key present in the file, then reloads. '
+    + 'Nothing is merged, because a half-merged calculation is a figure nobody entered.'));
+  wrap.append(bk);
+
+  /* Saved records, listed once in a place that is about storage. */
+  const recs = loadWork();
+  const sw = el('div', { class: 'card' });
+  sw.append(cardHead(`Saved work — ${recs.length}`,
+    recs.length ? 'Named snapshots you took inside the tools. Each carries the model version and data date it was taken against.'
+                : 'Nothing saved yet. The Property, Cash Wheel and Trading Index tools each have a Save control.'));
+  if (recs.length) {
+    const tw2 = el('div', { class: 'tablewrap' });
+    const t2 = el('table', { class: 'dt' });
+    t2.append(el('thead', {}, el('tr', {}, ['Name', 'Kind', 'Saved', 'Model version', ''].map((h, i) =>
+      el('th', { style: i ? null : 'text-align:left' }, h)))));
+    const tb2 = el('tbody');
+    recs.forEach(r => {
+      tb2.append(el('tr', {}, [
+        el('td', { style: 'text-align:left' }, r.name),
+        el('td', {}, WORK_KINDS[r.kind]?.label || r.kind),
+        el('td', {}, r.savedAt),
+        el('td', { class: 'metaline' }, `${r.modelVersion} · data ${r.asOf} · ${r.editor}`),
+        el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+          if (!confirm(`Delete "${r.name}"?`)) return;
+          deleteWork(r.id); render(); toast('Deleted');
+        } }, 'Delete')),
+      ]));
+    });
+    t2.append(tb2);
+    tw2.append(t2);
+    sw.append(tw2);
+  }
+  wrap.append(sw);
+
   /* ---------- what is loaded now ---------- */
   const have = userSeriesCount();
   const status = el('div', { class: 'card' });
@@ -14150,7 +14402,11 @@ const shownEvidence = (d, k) =>
     ? 'illustrative_default'
     : (d.evidence?.[k] || 'assumed');
 
-State.deal = store.read('deal', null) || {
+/* Named rather than inline, so Reset restores exactly what a first visit sees.
+   These are the seeded figures the review queue lists and the evidence card
+   calls illustrative defaults — the two must not be able to disagree about
+   what "default" is, which they would the moment there were two copies. */
+const PROPERTY_DEFAULT_DEAL = {
   /* where */
   city:'kuching', district:'Tabuan', projectId:'p1',
   propertyType:'Condominium', titleType:'strata', remainingLease:88,
@@ -14183,6 +14439,14 @@ State.deal = store.read('deal', null) || {
               apprecPct:'assumed', sqft:'developer', titleType:'assumed' },
   /* answers to the Sarawak checklist, keyed by check id */
   checks: {},
+};
+/* A deep-ish copy on boot: `evidence` and `checks` are objects, and handing the
+   live default out by reference would let the first edit rewrite the constant
+   that Reset restores from. */
+State.deal = store.read('deal', null) || {
+  ...PROPERTY_DEFAULT_DEAL,
+  evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
+  checks: { ...PROPERTY_DEFAULT_DEAL.checks },
 };
 const saveDeal = () => store.write('deal', State.deal);
 
@@ -16597,6 +16861,19 @@ VIEWS.property = () => {
   ]));
   wrap.append(disc);
 
+  /* Reset restores the seeded defaults rather than blanking every field: a
+     property calculator with no price, rent or tenure is not a fresh start, it
+     is a broken model that produces nothing until twenty numbers are typed.
+     `touched` and `evidence` are cleared with them, so the restored figures go
+     back to being honestly labelled illustrative defaults rather than
+     inheriting the previous reader's provenance. */
+  wrap.append(workBar('property', () => {
+    State.deal = { ...PROPERTY_DEFAULT_DEAL, touched: {},
+      evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
+      checks: { ...PROPERTY_DEFAULT_DEAL.checks } };
+    saveDeal();
+  }));
+
   /* Stated once, at the top, while any figure that drives the model is still a
      seeded number. "Built from your inputs" in the line above is only true once
      the inputs are the reader's. */
@@ -18191,6 +18468,12 @@ VIEWS.wheel = () => {
   const wLink = workspaceLinkBanner('wheel', p, () => { saveWheel(); render(); });
   if (wLink) wrap.append(wLink);
 
+  wrap.append(workBar('wheel', () => {
+    State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, isWorkedExample: false };
+    State.wheelLegs = [];
+    saveWheel(); saveWheelLegs();
+  }));
+
   /* NOTHING ENTERED YET IS A STATE, NOT AN ABSENCE.
      -----------------------------------------------------------------------
      The collateral bar and the expiry payoff are the two things this tool has
@@ -19226,6 +19509,17 @@ VIEWS.tradingIndex = () => {
 
   const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); });
   if (qLink) wrap.append(qLink);
+
+  /* Reset here means a blank evidence set, which for this tool IS the useful
+     starting point — every panel is the reader's own transcription and there is
+     no default reading to fall back to. */
+  wrap.append(workBar('trading', () => {
+    State.qtti = { ...State.qtti, symbol:'',
+      timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
+      confidence:{ metadata:null, panels:null, indicators:null, legibility:null, recency:null },
+      entryLocation:'unknown', identityConsistent:false, capturedAt:'', triggerComplete:false };
+    saveQtti();
+  }));
 
   /* THE STEPPER.
      Six things have to be recorded and they were a vertical stack of cards a
