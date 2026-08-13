@@ -15395,16 +15395,61 @@ async function loadSarawakLayers() {
    how a purchaser can actually establish the fact — a DID/JPS record, a
    council record, an insurer's terms, or the neighbours' account of the last
    three events — not from a hazard model this product has no right to imply. */
+/* ORDINAL CLASSES SHARE ONE COLOUR CONVENTION: DARKER IS MORE TO WORRY ABOUT.
+   The tone is written on each class rather than derived from its position in
+   the list, so a list can read in its natural order — none known, proposed,
+   under construction, completed — while the shading still runs the way a
+   reader's eye expects. Deriving tone from index would have forced drainage to
+   be listed backwards to avoid shading "completed" as though it were a
+   problem. */
 const AREA_FLOOD = [
-  { id:'none',       label:'No known history',  rank:0, seq:'--seq-2',
+  { id:'none',       label:'No known history',  rank:0, tone:'--seq-2',
     note:'Checked, and no flood record or local account of flooding was found.' },
-  { id:'occasional', label:'Occasional',        rank:1, seq:'--seq-4',
+  { id:'occasional', label:'Occasional',        rank:1, tone:'--seq-4',
     note:'Flooding has happened, but not on a recurring or recent basis.' },
-  { id:'recurrent',  label:'Recurrent',         rank:2, seq:'--seq-6',
+  { id:'recurrent',  label:'Recurrent',         rank:2, tone:'--seq-6',
     note:'Floods repeatedly, on a timescale a landlord would plan around.' },
-  { id:'severe',     label:'Severe or deep',    rank:3, seq:'--seq-7',
+  { id:'severe',     label:'Severe or deep',    rank:3, tone:'--seq-7',
     note:'Depth or duration sufficient to affect insurance, tenancy or resale.' },
 ];
+
+const AREA_DRAINAGE = [
+  { id:'none',     label:'None known',        rank:3, tone:'--seq-7',
+    note:'No drainage or flood-mitigation scheme is known for this locality.' },
+  { id:'proposed', label:'Proposed',          rank:2, tone:'--seq-6',
+    note:'Announced or gazetted, but not started. A proposal is not a defence.' },
+  { id:'building', label:'Under construction',rank:1, tone:'--seq-4',
+    note:'Works have started. Disruption now, protection only when complete.' },
+  { id:'done',     label:'Completed',         rank:0, tone:'--seq-2',
+    note:'Works completed and in service. Record which scheme and when.' },
+];
+
+const AREA_INSURANCE = [
+  { id:'ready',      label:'Readily available',   rank:0, tone:'--seq-2',
+    note:'Flood cover quoted on ordinary terms.' },
+  { id:'loaded',     label:'Available, loaded',   rank:1, tone:'--seq-4',
+    note:'Quoted with a premium loading, a higher excess, or both.' },
+  { id:'restricted', label:'Restricted',          rank:2, tone:'--seq-6',
+    note:'Cover offered only with material exclusions or limits.' },
+  { id:'declined',   label:'Declined',            rank:3, tone:'--seq-7',
+    note:'An insurer declined flood cover for this locality. Lenders often ask.' },
+];
+
+/* TITLE CLASS IS NOMINAL, NOT ORDERED.
+   Mixed Zone is not "more" than Native Area — they are different classes with
+   different transfer restrictions, and a sequential ramp would invent a
+   severity ordering the Sarawak Land Code does not have. So a categorical
+   theme, validated for this exact five-slot subset: all six checks pass in
+   both modes, worst adjacent CVD separation dE 11.3 protan in light and 9.8 in
+   dark, every slot clearing 3:1 against its surface.
+
+   `restricted` is carried as data and shown as text in the legend and the
+   table. Restriction is a legal fact and may not rest on a hue. */
+const AREA_TITLE = TITLE_TYPES.filter(t => t.id !== 'unknown').map((t, i) => ({
+  id: t.id, label: t.label, note: t.note, restricted: !!t.restricted,
+  tone: `--s${i + 1}`,
+}));
+
 const FLOOD_BY_ID = Object.fromEntries(AREA_FLOOD.map(f => [f.id, f]));
 
 /* Where an area fact can legitimately come from. Anything else is hearsay and
@@ -15421,20 +15466,43 @@ const AREA_SOURCES = [
 ];
 const AREA_SOURCE_BY_ID = Object.fromEntries(AREA_SOURCES.map(s => [s.id, s]));
 
+/* THE FIVE RECORDABLE FACTS ABOUT A LOCALITY.
+   Each is stored the same way — a class or a number, a source, a date, a
+   reference — so the recorder, the map, the table and the filters are written
+   once rather than five times, and a sixth attribute is a row here rather than
+   a new subsystem. `caveat` prints wherever the attribute is shown; the title
+   one is not optional wording. */
+const AREA_ATTRS = [
+  { id:'flood', label:'Flood exposure', short:'Flood', kind:'class', classes:AREA_FLOOD,
+    why:'Recorded from a DID/JPS record, a council record, an insurer or a site account. Nothing is inferred.' },
+  { id:'title', label:'Predominant title class', short:'Title', kind:'class', classes:AREA_TITLE,
+    why:'The class most of this locality is held under. Individual titles vary and only the title document is authoritative.',
+    caveat:'Title classification recorded from user input. Eligibility has not been verified. Confirm with a Sarawak property lawyer and the Land and Survey Department.' },
+  { id:'drainage', label:'Drainage or mitigation works', short:'Drainage', kind:'class', classes:AREA_DRAINAGE,
+    why:'Whether a drainage or flood-mitigation scheme exists for this locality, and how far along it is.' },
+  { id:'insurance', label:'Flood cover appetite', short:'Insurance', kind:'class', classes:AREA_INSURANCE,
+    why:'What an insurer actually quoted for this locality. Record the insurer and the date — appetite moves after a flood year.' },
+  { id:'lease', label:'Typical remaining lease', short:'Lease', kind:'number', unit:'years', invert:true,
+    why:'Years remaining on the predominant title in this locality. Shorter terms shade darker, because a short residue affects both financing and resale.' },
+];
+const ATTR_BY_ID = Object.fromEntries(AREA_ATTRS.map(a => [a.id, a]));
+const attrClass = (attr, id) => (attr.classes || []).find(c => c.id === id) || null;
+
 State.areaProfiles = store.read('areaProfiles', {});
 const saveAreaProfiles = () => store.write('areaProfiles', State.areaProfiles);
 const areaKey = (city, area) => `${city}|${area}`;
 const areaProfile = (city, area) => State.areaProfiles[areaKey(city, area)] || null;
+const areaAttr = (city, area, attrId) => areaProfile(city, area)?.[attrId] || null;
 
-function setAreaFlood(city, area, rec) {
+/* One writer for all five. `rec` null removes the attribute, and an area whose
+   last attribute is removed leaves no empty husk behind in storage. */
+function setAreaAttr(city, area, attrId, rec) {
   const k = areaKey(city, area);
-  const prev = State.areaProfiles[k] || {};
-  State.areaProfiles[k] = { ...prev, flood: rec ? {
-    ...rec,
-    recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-  } : undefined };
-  if (!State.areaProfiles[k].flood) delete State.areaProfiles[k].flood;
-  if (!Object.keys(State.areaProfiles[k]).length) delete State.areaProfiles[k];
+  const prev = { ...(State.areaProfiles[k] || {}) };
+  if (rec) prev[attrId] = { ...rec, recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' ') };
+  else delete prev[attrId];
+  if (Object.keys(prev).length) State.areaProfiles[k] = prev;
+  else delete State.areaProfiles[k];
   saveAreaProfiles();
 }
 
@@ -15472,11 +15540,18 @@ function areaMetrics(city, area) {
    which the map draws as an outline and the table prints as a dash — the two
    renderings of the same absence. */
 const AREA_LAYERS = [
-  { id:'flood', label:'Flood exposure', kind:'ordinal',
-    unit:'', why:'Recorded from a DID/JPS record, a council record, an insurer or a site account. Nothing is inferred.',
-    value:(c, a) => { const f = areaProfile(c, a)?.flood; return f && FLOOD_BY_ID[f.class] ? FLOOD_BY_ID[f.class].rank : null; },
-    text:(c, a) => { const f = areaProfile(c, a)?.flood; return f && FLOOD_BY_ID[f.class] ? FLOOD_BY_ID[f.class].label : null; },
-    max:() => 3 },
+  /* The recorded attributes, in registry order, so adding one adds a layer. */
+  ...AREA_ATTRS.map(attr => attr.kind === 'class' ? {
+    id: attr.id, label: attr.label, kind:'class', attr, unit:'',
+    why: attr.why, caveat: attr.caveat,
+    value:(c, a) => areaAttr(c, a, attr.id)?.class || null,
+    text:(c, a) => attrClass(attr, areaAttr(c, a, attr.id)?.class)?.label || null,
+  } : {
+    id: attr.id, label: attr.label, kind:'quantity', attr, unit: attr.unit,
+    invert: attr.invert, why: attr.why, caveat: attr.caveat,
+    value:(c, a) => { const v = areaAttr(c, a, attr.id)?.value; return isNum(v) ? v : null; },
+    text:(c, a) => { const v = areaAttr(c, a, attr.id)?.value; return isNum(v) ? `${fmtNum(v, 0)} ${attr.unit}` : null; },
+  }),
   { id:'achievedRent', label:'Achieved rent, median', kind:'quantity',
     unit:'RM/month', why:'Median of the achieved rents you have recorded for this area. Asking rents are excluded.',
     value:(c, a) => areaMetrics(c, a).achievedRent,
@@ -15501,18 +15576,23 @@ const LAYER_BY_ID = Object.fromEntries(AREA_LAYERS.map(l => [l.id, l]));
    different in Kuching and in Bintulu, and the map is read one city at a time. */
 const SEQ_STEPS = ['--seq-2', '--seq-3', '--seq-4', '--seq-6', '--seq-7'];
 function layerBands(layer, cityId, areaNames) {
+  if (layer.kind === 'class') return { kind:'class' };
   const vals = areaNames.map(n => layer.value(cityId, n)).filter(isNum);
   if (!vals.length) return null;
-  if (layer.kind === 'ordinal') return { kind:'ordinal' };
   const lo = Math.min(...vals), hi = Math.max(...vals);
   return { kind:'quantity', lo, hi };
 }
 function layerColour(layer, bands, v) {
-  if (!isNum(v) || !bands) return null;
-  if (bands.kind === 'ordinal') {
-    const f = AREA_FLOOD.find(x => x.rank === v);
-    return f ? `var(${f.seq})` : null;
+  if (v == null || !bands) return null;
+  /* A class carries its own tone, whether it came from the sequential ramp
+     (flood, drainage, insurance) or the categorical theme (title). One lookup
+     for both, because the difference between them is which tokens the class
+     list was given, not how a colour is found. */
+  if (bands.kind === 'class') {
+    const c = attrClass(layer.attr, v);
+    return c ? `var(${c.tone})` : null;
   }
+  if (!isNum(v)) return null;
   const span = bands.hi - bands.lo;
   let t = span > 0 ? (v - bands.lo) / span : 0.5;
   if (layer.invert) t = 1 - t;
@@ -20746,7 +20826,10 @@ VIEWS.opportunities = () => {
 /* ==========================================================================
    AREA SCREEN — MAP AND FILTERS OVER RECORDED AREA EVIDENCE
    ========================================================================== */
-State.areaScreen = { city:'kuching', layer:'flood', flood:[], minRecords:0, maxWeeks:null, editing:null };
+/* `classes` holds one selected-id array per class attribute, so a filter on
+   title and a filter on flood are the same code path. */
+State.areaScreen = { city:'kuching', layer:'flood', classes:{}, minRecords:0, maxWeeks:null,
+  minLease:null, editing:null };
 
 VIEWS.areas = () => {
   const S = State.areaScreen;
@@ -20781,18 +20864,20 @@ VIEWS.areas = () => {
   row.append(seg('Shade by', 'layer', AREA_LAYERS.map(l => [l.id, l.label.replace(/,.*$/, '')])));
   bar.append(row);
 
-  const row2 = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--grid)' });
-  row2.append(el('span', { class: 'caption', style: 'font-weight:600' }, 'Flood class'));
-  AREA_FLOOD.forEach(f => {
-    const on = S.flood.includes(f.id);
-    row2.append(el('button', { class: `chip${on ? ' chip-brand' : ''}`, 'aria-pressed': on ? 'true' : 'false',
-      style: 'cursor:pointer', onclick: () => {
-        S.flood = on ? S.flood.filter(x => x !== f.id) : [...S.flood, f.id]; render();
-      } }, f.label));
+  /* One filter row per class attribute, generated from the registry. */
+  AREA_ATTRS.filter(a => a.kind === 'class').forEach(attr => {
+    const sel = S.classes[attr.id] || [];
+    const r = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--grid)' });
+    r.append(el('span', { class: 'caption', style: 'font-weight:600;min-width:92px' }, attr.short));
+    attr.classes.forEach(c => {
+      const on = sel.includes(c.id);
+      r.append(el('button', { class: `chip${on ? ' chip-brand' : ''}`, 'aria-pressed': on ? 'true' : 'false',
+        title: c.note, style: 'cursor:pointer', onclick: () => {
+          S.classes[attr.id] = on ? sel.filter(x => x !== c.id) : [...sel, c.id]; render();
+        } }, c.label + (c.restricted ? ' · restricted' : '')));
+    });
+    bar.append(r);
   });
-  row2.append(el('button', { class: 'chip', style: 'cursor:pointer',
-    onclick: () => { S.flood = []; S.minRecords = 0; S.maxWeeks = null; render(); } }, 'Clear filters'));
-  bar.append(row2);
 
   const row3 = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center;margin-top:8px' });
   const numFilter = (label, key, ph) => {
@@ -20805,6 +20890,10 @@ VIEWS.areas = () => {
   };
   row3.append(numFilter('Minimum records held', 'minRecords', '0'));
   row3.append(numFilter('Weeks vacant at most', 'maxWeeks', 'any'));
+  row3.append(numFilter('Lease years at least', 'minLease', 'any'));
+  row3.append(el('button', { class: 'chip', style: 'cursor:pointer',
+    onclick: () => { S.classes = {}; S.minRecords = 0; S.maxWeeks = null; S.minLease = null; render(); } },
+    'Clear filters'));
   bar.append(row3);
   wrap.append(bar);
 
@@ -20817,11 +20906,22 @@ VIEWS.areas = () => {
 
   /* ---- apply the filters ---- */
   const layer = LAYER_BY_ID[S.layer] || AREA_LAYERS[0];
+  /* A filter on an attribute excludes areas with nothing recorded, and that is
+     the intended reading: "show me the recurrent-flood areas" cannot honestly
+     include the ones nobody has checked. The unfiltered view is where absence
+     is visible, and it is the default. */
   const passes = (n) => {
-    const p = areaProfile(S.city, n), m = areaMetrics(S.city, n);
-    if (S.flood.length && !(p?.flood && S.flood.includes(p.flood.class))) return false;
+    const m = areaMetrics(S.city, n);
+    for (const attr of AREA_ATTRS) {
+      const want = S.classes[attr.id];
+      if (want && want.length && !want.includes(areaAttr(S.city, n, attr.id)?.class)) return false;
+    }
     if (S.minRecords && m.total < S.minRecords) return false;
     if (S.maxWeeks != null && !(isNum(m.lettingWeeks) && m.lettingWeeks <= S.maxWeeks)) return false;
+    if (S.minLease != null) {
+      const l = areaAttr(S.city, n, 'lease')?.value;
+      if (!(isNum(l) && l >= S.minLease)) return false;
+    }
     return true;
   };
   const shown = names.filter(passes);
@@ -20849,7 +20949,8 @@ VIEWS.areas = () => {
     el('span', { 'aria-hidden': 'true', style: `width:12px;height:12px;border-radius:50%;`
       + (dashed ? 'border:1.4px dashed var(--ink-3)' : `background:${fill}`) }),
     text]);
-  if (layer.kind === 'ordinal') AREA_FLOOD.forEach(f => legend.append(swatch(`var(${f.seq})`, f.label)));
+  if (layer.kind === 'class') layer.attr.classes.forEach(c =>
+    legend.append(swatch(`var(${c.tone})`, c.label + (c.restricted ? ' · restricted' : ''))));
   else if (bands) {
     legend.append(swatch(`var(${SEQ_STEPS[layer.invert ? SEQ_STEPS.length - 1 : 0]})`,
       `${layer.text(S.city, shown.find(n => layer.value(S.city, n) === bands.lo)) || fmtNum(bands.lo, 0)} (lowest here)`));
@@ -20858,6 +20959,7 @@ VIEWS.areas = () => {
   }
   legend.append(swatch(null, 'Not recorded', true));
   mapCard.append(legend);
+  if (layer.caveat) mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' }, layer.caveat));
   mapCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     layer.kind === 'quantity'
       ? 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'
@@ -20865,21 +20967,33 @@ VIEWS.areas = () => {
   wrap.append(mapCard);
 
   /* ---- the same thing as a table, which is where the detail lives ---- */
+  const cols = ['Area', ...AREA_ATTRS.map(a => a.short), 'Achieved rent', 'Weeks vacant', 'RM/sq ft', 'Records', ''];
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {},
-    ['Area', 'Flood', 'Source', 'Achieved rent', 'Weeks vacant', 'RM/sq ft', 'Records', ''].map((h, i) =>
-      el('th', { style: i ? null : 'text-align:left' }, h)))));
+    cols.map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
   const tb = el('tbody');
   shown.forEach(n => {
-    const p = areaProfile(S.city, n), m = areaMetrics(S.city, n);
-    const f = p?.flood ? FLOOD_BY_ID[p.flood.class] : null;
-    const src = p?.flood ? AREA_SOURCE_BY_ID[p.flood.source] : null;
+    const m = areaMetrics(S.city, n);
+    const attrCells = AREA_ATTRS.map(attr => {
+      const rec = areaAttr(S.city, n, attr.id);
+      if (!rec) return el('td', {}, el('span', { class: 'caption' }, 'not recorded'));
+      const src = AREA_SOURCE_BY_ID[rec.source];
+      /* The source rides in the title, not a column of its own: five
+         attributes each needing a source column would be a fifteen-column
+         table nobody can read on a phone. */
+      const tip = `${src ? src.label : 'source not stated'}${rec.asOf ? ` · ${rec.asOf}` : ''}`
+        + `${src && !src.verified ? ' · unverified' : ''}${rec.ref ? ` · ${rec.ref}` : ''}`;
+      if (attr.kind === 'number') return el('td', { class: 'num', title: tip },
+        isNum(rec.value) ? `${fmtNum(rec.value, 0)}` : '—');
+      const c = attrClass(attr, rec.class);
+      return el('td', { title: tip }, c
+        ? el('span', { class: src && !src.verified ? 'chip chip-bronze' : 'chip' },
+            c.label + (c.restricted ? ' · restricted' : ''))
+        : el('span', { class: 'caption' }, 'not recorded'));
+    });
     tb.append(el('tr', {}, [
       el('td', { style: 'text-align:left;font-weight:600' }, n),
-      el('td', {}, f ? el('span', { class: 'chip' }, f.label) : el('span', { class: 'caption' }, 'not recorded')),
-      el('td', { class: 'metaline' }, src
-        ? `${src.label}${p.flood.asOf ? ` · ${p.flood.asOf}` : ''}${src.verified ? '' : ' · unverified'}`
-        : '—'),
+      ...attrCells,
       el('td', { class: 'num' }, isNum(m.achievedRent) ? `${fmtMoney(m.achievedRent, 'MYR', 0)}` : '—'),
       el('td', { class: 'num' }, isNum(m.lettingWeeks) ? fmtNum(m.lettingWeeks, 1) : '—'),
       el('td', { class: 'num' }, isNum(m.psf) ? fmtMoney(m.psf, 'MYR', 0) : '—'),
@@ -20888,7 +21002,8 @@ VIEWS.areas = () => {
         onclick: () => { S.editing = S.editing === n ? null : n; render(); } },
         S.editing === n ? 'Close' : 'Record')),
     ]));
-    if (S.editing === n) tb.append(el('tr', {}, el('td', { colspan: 8, style: 'padding:0' }, areaRecorder(S.city, n))));
+    if (S.editing === n) tb.append(el('tr', {},
+      el('td', { colspan: cols.length, style: 'padding:0' }, areaRecorder(S.city, n))));
   });
   t.append(tb);
   const tCard = el('div', { class: 'card' });
@@ -20907,6 +21022,8 @@ VIEWS.areas = () => {
       'Named, because a map is the most persuasive thing this product draws.'),
     el('ul', { class: 'ticklist blocklist' }, [
       el('li', {}, 'No flood hazard model, depth, return period or official flood zone is held here. A class appears only where somebody recorded one against a named source, and "no known history" means it was checked and nothing was found — not that the area is safe.'),
+      el('li', {}, 'Title classification recorded from user input. Eligibility has not been verified. Confirm with a Sarawak property lawyer and the Land and Survey Department. A predominant class is a description of a locality and says nothing certain about any individual title within it.'),
+      el('li', {}, 'Drainage works and insurer appetite are both dated facts that move. A scheme completes; an insurer withdraws after a flood year. The date beside each is part of the record, not decoration.'),
       el('li', {}, 'Rent, vacancy and price figures are medians of your own register. Where an area holds two records, the median is two records, and it will move.'),
       el('li', {}, 'Positions are geocoded approximations of a locality name. They are not parcel boundaries and cannot establish whether a specific title is affected.'),
       el('li', {}, 'Nothing here is a valuation, and nothing here is a recommendation to buy in one area over another.'),
@@ -20919,53 +21036,82 @@ VIEWS.areas = () => {
    verified — the register is only worth having if a later reader can tell a
    DID record from something a neighbour mentioned. */
 function areaRecorder(city, area) {
-  const cur = areaProfile(city, area)?.flood || null;
-  const draft = { class: cur?.class || '', source: cur?.source || 'unstated',
-    asOf: cur?.asOf || '', ref: cur?.ref || '' };
   const box = el('div', { class: 'sunk', style: 'margin:var(--sm)' });
-  box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, `Flood exposure — ${area}`));
+  box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, `Record for ${area}`));
+  box.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
+    'Each fact is saved on its own, with its own source and date — a title class established from the title '
+    + 'document and a flood account from a neighbour are not the same evidence and are never dated together.'));
 
-  const f1 = el('div', { class: 'assumption' });
-  f1.append(el('label', { for: 'ar-class' }, 'Classification'));
-  const sc = el('select', { class: 'select a-text', id: 'ar-class', 'aria-label': 'Flood classification',
-    onchange: e => { draft.class = e.target.value; } });
-  sc.append(el('option', { value: '' }, 'Not recorded'));
-  AREA_FLOOD.forEach(f => sc.append(el('option', { value: f.id, selected: draft.class === f.id ? '' : null },
-    `${f.label} — ${f.note}`)));
-  f1.append(sc); box.append(f1);
+  AREA_ATTRS.forEach(attr => {
+    const cur = areaAttr(city, area, attr.id);
+    const draft = { class: cur?.class || '', value: isNum(cur?.value) ? cur.value : null,
+      source: cur?.source || 'unstated', asOf: cur?.asOf || '', ref: cur?.ref || '' };
 
-  const f2 = el('div', { class: 'assumption' });
-  f2.append(el('label', { for: 'ar-src' }, 'Established from'));
-  const ss = el('select', { class: 'select a-text', id: 'ar-src', 'aria-label': 'Source of the flood classification',
-    onchange: e => { draft.source = e.target.value; } });
-  AREA_SOURCES.forEach(s => ss.append(el('option', { value: s.id, selected: draft.source === s.id ? '' : null },
-    s.label + (s.verified ? '' : ' (unverified)'))));
-  f2.append(ss); box.append(f2);
+    const sec = el('div', { style: 'padding:var(--md) 0;border-top:1px solid var(--grid)' });
+    sec.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:baseline' }, [
+      el('h5', { style: 'font-size:14px;font-weight:600;margin:0' }, attr.label),
+      cur ? el('span', { class: 'chip chip-ok', style: 'margin-left:auto' }, 'recorded') : null,
+    ]));
+    if (attr.caveat) sec.append(el('p', { class: 'metaline', style: 'margin-top:4px;color:var(--bronze)' }, attr.caveat));
 
-  const f3 = el('div', { class: 'assumption' });
-  f3.append(el('label', { for: 'ar-asof' }, 'As at'));
-  f3.append(el('input', { class: 'input a-text', id: 'ar-asof', type: 'date', value: draft.asOf,
-    'aria-label': 'Date the flood record was established', onchange: e => { draft.asOf = e.target.value; } }));
-  box.append(f3);
+    const uid = `ar-${attr.id}`;
+    const f1 = el('div', { class: 'assumption' });
+    if (attr.kind === 'class') {
+      f1.append(el('label', { for: uid }, 'Classification'));
+      const sc = el('select', { class: 'select a-text', id: uid, 'aria-label': `${attr.label} classification`,
+        onchange: e => { draft.class = e.target.value; } });
+      sc.append(el('option', { value: '' }, 'Not recorded'));
+      attr.classes.forEach(c => sc.append(el('option', { value: c.id, selected: draft.class === c.id ? '' : null },
+        `${c.label} — ${c.note}`)));
+      f1.append(sc);
+    } else {
+      f1.append(el('label', { for: uid }, `Value (${attr.unit})`));
+      f1.append(el('input', { class: 'input a-text', id: uid, type: 'number', min: '0',
+        value: draft.value == null ? '' : String(draft.value), 'aria-label': `${attr.label} in ${attr.unit}`,
+        onchange: e => { draft.value = e.target.value === '' ? null : num0(e.target.value); } }));
+    }
+    sec.append(f1);
 
-  const f4 = el('div', { class: 'assumption' });
-  f4.append(el('label', { for: 'ar-ref' }, 'Reference'));
-  f4.append(el('input', { class: 'input a-text', id: 'ar-ref', type: 'text', value: draft.ref,
-    placeholder: 'Document, map sheet, file number or who said it',
-    'aria-label': 'Reference for the flood record', onchange: e => { draft.ref = e.target.value; } }));
-  box.append(f4);
+    const f2 = el('div', { class: 'assumption' });
+    f2.append(el('label', { for: `${uid}-src` }, 'Established from'));
+    const ss = el('select', { class: 'select a-text', id: `${uid}-src`, 'aria-label': `Source for ${attr.label}`,
+      onchange: e => { draft.source = e.target.value; } });
+    AREA_SOURCES.forEach(s => ss.append(el('option', { value: s.id, selected: draft.source === s.id ? '' : null },
+      s.label + (s.verified ? '' : ' (unverified)'))));
+    f2.append(ss); sec.append(f2);
 
-  box.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
-      if (!draft.class) { toast('Choose a classification, or use Remove to clear it'); return; }
-      setAreaFlood(city, area, draft);
-      State.areaScreen.editing = null; render(); toast(`Recorded for ${area}`);
-    } }, 'Save'),
-    cur ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
-      setAreaFlood(city, area, null);
-      State.areaScreen.editing = null; render(); toast(`Cleared for ${area}`);
-    } }, 'Remove') : null,
-  ]));
+    const f3 = el('div', { class: 'assumption' });
+    f3.append(el('label', { for: `${uid}-asof` }, 'As at'));
+    f3.append(el('input', { class: 'input a-text', id: `${uid}-asof`, type: 'date', value: draft.asOf,
+      'aria-label': `Date ${attr.label} was established`, onchange: e => { draft.asOf = e.target.value; } }));
+    sec.append(f3);
+
+    const f4 = el('div', { class: 'assumption' });
+    f4.append(el('label', { for: `${uid}-ref` }, 'Reference'));
+    f4.append(el('input', { class: 'input a-text', id: `${uid}-ref`, type: 'text', value: draft.ref,
+      placeholder: 'Document, map sheet, policy or file number, or who said it',
+      'aria-label': `Reference for ${attr.label}`, onchange: e => { draft.ref = e.target.value; } }));
+    sec.append(f4);
+
+    sec.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
+      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+        const empty = attr.kind === 'class' ? !draft.class : !isNum(draft.value);
+        if (empty) { toast(`Enter a value for ${attr.short.toLowerCase()}, or use Remove`); return; }
+        setAreaAttr(city, area, attr.id, draft);
+        render(); toast(`${attr.short} recorded for ${area}`);
+      } }, 'Save'),
+      cur ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+        setAreaAttr(city, area, attr.id, null);
+        render(); toast(`${attr.short} cleared for ${area}`);
+      } }, 'Remove') : null,
+    ]));
+    box.append(sec);
+  });
+
+  box.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+      State.areaScreen.editing = null; render();
+    } }, 'Close')));
   box.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'Held in this browser only, alongside the comparables register. Back it up from Your data.'));
   return box;
