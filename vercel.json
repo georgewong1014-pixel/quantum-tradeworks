@@ -1,7 +1,4 @@
 {
-  "installCommand": "",
-  "buildCommand": "node build.mjs --check",
-  "outputDirectory": ".",
   "rewrites": [
     {
       "source": "/((?!_vercel/|data/|.*\\..*).*)",

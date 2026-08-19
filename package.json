@@ -5,7 +5,7 @@
   "description": "Quantum Tradeworks — Malaysia-first cross-asset research prototype for US and Bursa equities and Malaysian property. Research only; all data is synthetic. The deployed site is one static self-contained index.html with no runtime dependencies; it is assembled from src/ by build.mjs and committed, so the host still serves it with no build step.",
   "scripts": {
     "dev": "node serve.mjs",
-    "build": "node build.mjs",
+    "assemble": "node build.mjs",
     "check": "node syntax.mjs && node build.mjs --check",
     "sweep": "node sweep.mjs http://localhost:8123",
     "frames": "node coverage-frames.mjs http://localhost:8123",

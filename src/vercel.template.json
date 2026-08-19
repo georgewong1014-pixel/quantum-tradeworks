@@ -7,26 +7,6 @@
     "the failure that would otherwise take the whole site down in production",
     "while every local check still passed."
   ],
-  "$comment2": [
-    "WHY THESE THREE FIELDS EXIST.",
-    "Adding a \"build\" script to package.json changed how this project deploys.",
-    "Vercel auto-detects one, runs it, and then looks for a build output",
-    "directory — which this project does not have and never will, because the",
-    "artefact is index.html at the repo root and it is committed. Four",
-    "consecutive deployments failed that way while every local check and all of",
-    "CI stayed green.",
-    "",
-    "So the behaviour is stated rather than inferred. installCommand is empty",
-    "because build.mjs imports nothing outside node builtins, and skipping it",
-    "avoids downloading sharp's binaries on every deploy for no reason.",
-    "buildCommand verifies rather than builds: if index.html has drifted from",
-    "the src/ it claims to come from, the DEPLOY fails, not just CI.",
-    "outputDirectory is the repo root — exactly what was served before any of",
-    "this, so nothing new becomes reachable."
-  ],
-  "installCommand": "",
-  "buildCommand": "node build.mjs --check",
-  "outputDirectory": ".",
   "rewrites": [
     {
       "source": "/((?!_vercel/|data/|.*\\..*).*)",
