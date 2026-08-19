@@ -16,6 +16,15 @@ name: checks
 # browser and two minutes. There is no point paying for the browser if the file
 # does not parse.
 
+# Action versions are pinned to majors that target Node 24. v4 of checkout and
+# setup-node target Node 20, which GitHub deprecated: the runner force-ran them
+# on 24 and warned on every job, green or not. A warning that appears on every
+# run is a warning nobody reads, so it is removed rather than lived with.
+#
+# setup-node is held at v5 rather than v7 on purpose — v6 changed the default
+# resolution of a bare major and v7 is newer than anything this has been run
+# against. v5 targets Node 24, which is the whole point of the bump.
+
 on:
   push:
     branches: ['**']
@@ -33,8 +42,8 @@ jobs:
     name: parses, and matches its source
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -97,18 +106,26 @@ jobs:
     needs: static
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
 
-      # The tools drive Chrome over CDP directly and take no dependency on it
-      # being installed at a particular path, so the runner's own browser is
-      # what they find.
+      # The tools resolve a browser from CHROME_PATH first, then a list of known
+      # locations. Relying on the list is relying on where this action happens to
+      # install today — it already caught us once, when a Windows-only list met a
+      # Linux runner. So the path the action reports is exported explicitly and
+      # nothing has to guess.
       - name: install Chrome
-        uses: browser-actions/setup-chrome@v1
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
         with:
           chrome-version: stable
+
+      - name: point the tools at it
+        run: |
+          echo "CHROME_PATH=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+          "${{ steps.chrome.outputs.chrome-path }}" --version
 
       # serve.mjs applies the generated headers, so the sweep runs under the
       # real Content-Security-Policy rather than a permissive local one.
