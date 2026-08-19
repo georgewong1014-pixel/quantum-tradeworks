@@ -329,12 +329,11 @@ VIEWS.wheel = () => {
       'Arithmetic on the strike, premium and multiplier you entered. Not a forecast, and no probability is implied — the horizontal axis is the underlying price, not time.'));
     const host = el('div', { style: 'margin-top:var(--md)' });
     pay.append(host);
+    /* payoffChart appends its own table view — the rows are derived beside the
+       marks they describe, so they cannot drift from them. The copy that used to
+       be built here rendered a second table of the same figures directly beneath
+       the first, and computed the payoff a second time to fill it. */
     payoffChart(host, m, p);
-    pay.append(tableTwin('The same figures as a table', ['Underlying at expiry', 'Result'],
-      [0, num0(p.putStrike) * 0.5, m.putBreakEven, num0(p.putStrike), num0(p.putStrike) * 1.5]
-        .filter(isNum).map(px => [fmtMoney(px, 'USD'),
-          fmtMoney(px >= num0(p.putStrike) ? m.putPremiumCashReceived
-            : m.putPremiumCashReceived - (num0(p.putStrike) - px) * m.deliverableShares - num0(p.assignmentFees), 'USD')])));
     pay.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The flat section is every price at or above the strike, where the premium is the entire result. '
       + 'Everything left of the strike is the shares being put to you at a price the market has left behind.'));

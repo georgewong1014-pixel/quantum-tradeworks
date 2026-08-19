@@ -153,6 +153,19 @@ VIEWS.areas = () => {
     layer.kind === 'quantity'
       ? 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'
       : 'Positions are geocoded approximations of the locality, not parcel boundaries. Confirm any address against the title and the Land and Survey Department.'));
+  if (hasWorkedExample()) {
+    const n = sampleObservations().length;
+    const warn = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
+    warn.append(el('p', { class: 'body', style: 'font-weight:600;margin:0' },
+      'The worked example is loaded — the shading and the medians below include invented figures.'));
+    warn.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `${n} of the records behind this map were typed to demonstrate the tool. There is no property, no `
+      + 'document and no transaction behind any of them. Districts carrying them are marked in the table. '
+      + 'Remove the example before reading anything here as evidence.'));
+    warn.append(workedExampleControls({ compact: true }));
+    wrap.insertBefore(warn, wrap.firstChild.nextSibling);
+  }
+
   wrap.append(mapCard);
 
   /* ---- the same thing as a table, which is where the detail lives ---- */
@@ -186,7 +199,12 @@ VIEWS.areas = () => {
       el('td', { class: 'num' }, isNum(m.achievedRent) ? `${fmtMoney(m.achievedRent, 'MYR', 0)}` : '—'),
       el('td', { class: 'num' }, isNum(m.lettingWeeks) ? fmtNum(m.lettingWeeks, 1) : '—'),
       el('td', { class: 'num' }, isNum(m.psf) ? fmtMoney(m.psf, 'MYR', 0) : '—'),
-      el('td', { class: 'num' }, String(m.total)),
+      el('td', { class: 'num', title: m.sampleN
+        ? `${m.sampleN} of these ${m.sampleN === 1 ? 'is a' : 'are'} worked-example record${m.sampleN === 1 ? '' : 's'}`
+        : null },
+        m.sampleN
+          ? el('span', { class: 'chip chip-bronze' }, `${m.total} · ${m.sampleN} example`)
+          : String(m.total)),
       el('td', {}, el('button', { class: 'btn btn-quiet btn-sm',
         onclick: () => { S.editing = S.editing === n ? null : n; render(); } },
         S.editing === n ? 'Close' : 'Record')),
@@ -343,6 +361,16 @@ VIEWS.comparables = () => {
     'Undo last change');
   actorRow.append(undoBtn);
   admin.append(actorRow);
+  /* The integrity line. A history that cannot account for the figures beside
+     it is worse than no history, because it invites trust it has not earned. */
+  const integ = registerIntegrity();
+  admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    integ.state === 'ok'
+      ? `History checked: replaying all ${integ.events} events reproduces every one of the ${integ.held} record${integ.held === 1 ? '' : 's'} held, exactly.`
+      : integ.state === 'unverifiable'
+        ? `History cannot be fully checked — ${integ.why}. The ${integ.held} record${integ.held === 1 ? '' : 's'} held ${integ.held === 1 ? 'is' : 'are'} still correct; only the trail behind the oldest is incomplete.`
+        : `History does not account for what is held: ${integ.missing} record${integ.missing === 1 ? '' : 's'} with no events, ${integ.extra} in the log but not held, ${integ.differing} differing. Something wrote around the recorder — export before making further changes.`));
+
   admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     logN ? `${logN} change${logN === 1 ? '' : 's'} recorded. Corrections and deletions are kept as entries rather than erasing what they replaced, so a figure can always be traced back.`
          : 'No changes recorded yet. From the first one, every correction and deletion is kept as an entry rather than erasing what it replaced.'));

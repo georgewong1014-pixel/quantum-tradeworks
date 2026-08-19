@@ -161,7 +161,7 @@ function decisionRecordWheel() {
   const out = el('div', { class: 'decision-record' });
   out.append(el('div', { class: 'dr-head' }, [
     el('p', { class: 'eyebrow' }, 'Decision record · options cash wheel'),
-    el('h1', {}, `${p.ticker || 'Contract'} — cash-secured put and covered call`),
+    el('h1', {}, `${(p.symbol || '').trim() || 'Unnamed contract'} — cash-secured put and covered call`),
     el('p', { class: 'metaline' },
       `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${MODEL_VERSION} · research only, not advice`),
   ]));
@@ -172,8 +172,8 @@ function decisionRecordWheel() {
 
   const figs = el('div', { class: 'dr-figs' });
   [['Cash to secure', isNum(m.requiredAssignmentCash) ? fmtMoney(m.requiredAssignmentCash, 'USD') : null],
-   ['Premium received', isNum(m.netPremium) ? fmtMoney(m.netPremium, 'USD') : null],
-   ['Break-even', isNum(m.breakEven) ? fmtMoney(m.breakEven, 'USD') : null],
+   ['Premium received', isNum(m.putPremiumCashReceived) ? fmtMoney(m.putPremiumCashReceived, 'USD') : null],
+   ['Break-even', isNum(m.putBreakEven) ? fmtMoney(m.putBreakEven, 'USD') : null],
    ['Worst case at zero', isNum(m.putMaxLossIfZero) ? fmtMoney(m.putMaxLossIfZero, 'USD') : null]]
     .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
       el('div', { class: 'caption' }, k),

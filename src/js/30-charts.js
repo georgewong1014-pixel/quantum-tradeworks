@@ -190,13 +190,18 @@ function payoffChart(container, m, p) {
   /* Five points that define the shape: the floor, the hinge, the break-even and
      the ceiling. A reader who cannot see the plot needs the turning points,
      not a sample of the line at fifty prices. */
-  const be = strike - (prem - feesAtAssign) / shares;
+  /* From the model, not re-derived. The dot on the plot reads m.putBreakEven
+     and the row beneath it must be the same number, not a second opinion that
+     happens to agree today. */
+  const be = m.putBreakEven;
   container.append(tableTwin('Show the table view',
     ['Price at expiry', 'Result', 'What happens there'],
     [[fmtAmount(0, 'USD'), fmtAmount(pnlAt(0), 'USD'), 'The shares go to zero — the worst case'],
-     [fmtAmount(be, 'USD'), fmtAmount(pnlAt(be), 'USD'), 'Break-even: the premium exactly offsets the loss'],
+     /* Withheld rather than guessed if the model did not produce one. */
+     isNum(be) ? [fmtAmount(be, 'USD'), fmtAmount(pnlAt(be), 'USD'), 'Break-even: the premium exactly offsets the loss'] : null,
      [fmtAmount(strike, 'USD'), fmtAmount(pnlAt(strike), 'USD'), 'At the strike — assignment begins below this'],
-     [fmtAmount(xMaxOut, 'USD'), fmtAmount(prem, 'USD'), 'Above the strike the premium is the whole result']]));
+     [fmtAmount(xMaxOut, 'USD'), fmtAmount(prem, 'USD'), 'Above the strike the premium is the whole result'],
+    ].filter(Boolean)));
 }
 
 /* WHERE THE CASH TO BUY ACTUALLY GOES.

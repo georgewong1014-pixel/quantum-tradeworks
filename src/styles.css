@@ -1145,6 +1145,25 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 }
 .toast[data-show="1"] { opacity: 1; transform: translate(-50%, 0); }
 
+/* LONG MACHINE IDENTIFIERS IN PROSE.
+   ---------------------------------------------------------------------------
+   The provenance line for a metric assembled from several XBRL tags prints the
+   tag names, and "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"
+   is 62 characters with nowhere to break. At 390px it pushed the page 13px
+   sideways — not the card, the PAGE — on every company whose figures happen to
+   be assembled that way. Only one company in the route list is, which is why
+   this survived a full-width audit of every route: the defect is in the data,
+   not the layout.
+
+   'anywhere' rather than 'break-word' because only 'anywhere' also reduces the
+   min-content width, which is what stops the same string forcing a flex or grid
+   track wider than its container. It breaks a word ONLY when the word cannot
+   otherwise fit, so ordinary prose is untouched. */
+.metaline, .caption, .body, .body-lg { overflow-wrap: anywhere; }
+/* Numeric cells are exempt: a figure broken across two lines is unreadable, and
+   they are short enough never to need it. */
+table.dt .num, .num { overflow-wrap: normal; }
+
 /* --------------------------------------------------------- register log */
 /* Deliberately NOT .ticklist: a tick means done or good, and "price corrected
    from 480,000 to 460,000" is neither. A rule down the left says these entries
@@ -1337,5 +1356,15 @@ details > summary::marker { content: ''; }
   .decision-record .chart-host, .decision-record .chartwrap { margin: 0 !important; }
   .decision-record h2 + div { margin-top: 6px; }
   .ticklist, .dr-warn { break-inside: avoid; }
+  /* A COLLAPSED PANEL IS NOT ON THE PAGE.
+     The chart table views are <details>, and on paper their summary printed as
+     "Show the table view" — an instruction to click something that cannot be
+     clicked, naming a table that is not there. A panel the reader has not
+     opened is not visible on screen either, so not printing it matches what
+     they chose; the charts carry their figures as direct labels regardless.
+     An OPEN panel still prints, with its summary reading as the heading it
+     effectively is. */
+  details:not([open]) { display: none !important; }
+  details[open] > summary { font-weight: 600; color: var(--ink-1); list-style: none; }
   @page { margin: 16mm 14mm; }
 }

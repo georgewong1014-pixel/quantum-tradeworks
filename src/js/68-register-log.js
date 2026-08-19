@@ -177,6 +177,37 @@ function replayRegister() {
   return { ok: true, observations: [...obs.values()], areaProfiles: areas };
 }
 
+/* REPLAY, COMPARED — the check the file header promises.
+   replayRegister() rebuilt the projection and nothing called it, so "the log is
+   the record" was a claim that existed only in a comment. This is what makes it
+   answerable on screen: a reader can see whether the history actually accounts
+   for every figure they are looking at.
+
+   Compared by id and by field, NOT by serialising both sides: the log replays in
+   the order events happened and the projection prepends, so two identical
+   registers stringify differently and a JSON comparison would report a mismatch
+   on every healthy install. */
+function registerIntegrity() {
+  const r = replayRegister();
+  const held = State.observations || [];
+  if (!r.ok) return { state: 'unverifiable', why: r.why, held: held.length };
+
+  const byId = new Map(r.observations.map(o => [o.id, o]));
+  const missing = held.filter(o => !byId.has(o.id));
+  const extra = r.observations.filter(o => !held.some(h => h.id === o.id));
+  /* Only the fields a record is made of. recordedAt is stamped at write time and
+     is carried through the log unchanged, so it is compared like any other. */
+  const differing = held.filter(o => {
+    const b = byId.get(o.id);
+    return b && Object.keys(o).some(k => JSON.stringify(o[k]) !== JSON.stringify(b[k]));
+  });
+
+  if (!missing.length && !extra.length && !differing.length)
+    return { state: 'ok', held: held.length, events: registerLog().length };
+  return { state: 'mismatch', held: held.length,
+    missing: missing.length, extra: extra.length, differing: differing.length };
+}
+
 /* One line of prose for an event, for the history list in a record's drawer. */
 function registerEventText(e) {
   const who = e.actor ? ` by ${e.actor}` : '';

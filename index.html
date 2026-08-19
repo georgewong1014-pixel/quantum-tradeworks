@@ -1179,6 +1179,25 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 }
 .toast[data-show="1"] { opacity: 1; transform: translate(-50%, 0); }
 
+/* LONG MACHINE IDENTIFIERS IN PROSE.
+   ---------------------------------------------------------------------------
+   The provenance line for a metric assembled from several XBRL tags prints the
+   tag names, and "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations"
+   is 62 characters with nowhere to break. At 390px it pushed the page 13px
+   sideways — not the card, the PAGE — on every company whose figures happen to
+   be assembled that way. Only one company in the route list is, which is why
+   this survived a full-width audit of every route: the defect is in the data,
+   not the layout.
+
+   'anywhere' rather than 'break-word' because only 'anywhere' also reduces the
+   min-content width, which is what stops the same string forcing a flex or grid
+   track wider than its container. It breaks a word ONLY when the word cannot
+   otherwise fit, so ordinary prose is untouched. */
+.metaline, .caption, .body, .body-lg { overflow-wrap: anywhere; }
+/* Numeric cells are exempt: a figure broken across two lines is unreadable, and
+   they are short enough never to need it. */
+table.dt .num, .num { overflow-wrap: normal; }
+
 /* --------------------------------------------------------- register log */
 /* Deliberately NOT .ticklist: a tick means done or good, and "price corrected
    from 480,000 to 460,000" is neither. A rule down the left says these entries
@@ -1371,6 +1390,16 @@ details > summary::marker { content: ''; }
   .decision-record .chart-host, .decision-record .chartwrap { margin: 0 !important; }
   .decision-record h2 + div { margin-top: 6px; }
   .ticklist, .dr-warn { break-inside: avoid; }
+  /* A COLLAPSED PANEL IS NOT ON THE PAGE.
+     The chart table views are <details>, and on paper their summary printed as
+     "Show the table view" — an instruction to click something that cannot be
+     clicked, naming a table that is not there. A panel the reader has not
+     opened is not visible on screen either, so not printing it matches what
+     they chose; the charts carry their figures as direct labels regardless.
+     An OPEN panel still prints, with its summary reading as the heading it
+     effectively is. */
+  details:not([open]) { display: none !important; }
+  details[open] > summary { font-weight: 600; color: var(--ink-1); list-style: none; }
   @page { margin: 16mm 14mm; }
 }
 </style>
@@ -5155,13 +5184,18 @@ function payoffChart(container, m, p) {
   /* Five points that define the shape: the floor, the hinge, the break-even and
      the ceiling. A reader who cannot see the plot needs the turning points,
      not a sample of the line at fifty prices. */
-  const be = strike - (prem - feesAtAssign) / shares;
+  /* From the model, not re-derived. The dot on the plot reads m.putBreakEven
+     and the row beneath it must be the same number, not a second opinion that
+     happens to agree today. */
+  const be = m.putBreakEven;
   container.append(tableTwin('Show the table view',
     ['Price at expiry', 'Result', 'What happens there'],
     [[fmtAmount(0, 'USD'), fmtAmount(pnlAt(0), 'USD'), 'The shares go to zero — the worst case'],
-     [fmtAmount(be, 'USD'), fmtAmount(pnlAt(be), 'USD'), 'Break-even: the premium exactly offsets the loss'],
+     /* Withheld rather than guessed if the model did not produce one. */
+     isNum(be) ? [fmtAmount(be, 'USD'), fmtAmount(pnlAt(be), 'USD'), 'Break-even: the premium exactly offsets the loss'] : null,
      [fmtAmount(strike, 'USD'), fmtAmount(pnlAt(strike), 'USD'), 'At the strike — assignment begins below this'],
-     [fmtAmount(xMaxOut, 'USD'), fmtAmount(prem, 'USD'), 'Above the strike the premium is the whole result']]));
+     [fmtAmount(xMaxOut, 'USD'), fmtAmount(prem, 'USD'), 'Above the strike the premium is the whole result'],
+    ].filter(Boolean)));
 }
 
 /* WHERE THE CASH TO BUY ACTUALLY GOES.
@@ -15024,6 +15058,37 @@ function replayRegister() {
   return { ok: true, observations: [...obs.values()], areaProfiles: areas };
 }
 
+/* REPLAY, COMPARED — the check the file header promises.
+   replayRegister() rebuilt the projection and nothing called it, so "the log is
+   the record" was a claim that existed only in a comment. This is what makes it
+   answerable on screen: a reader can see whether the history actually accounts
+   for every figure they are looking at.
+
+   Compared by id and by field, NOT by serialising both sides: the log replays in
+   the order events happened and the projection prepends, so two identical
+   registers stringify differently and a JSON comparison would report a mismatch
+   on every healthy install. */
+function registerIntegrity() {
+  const r = replayRegister();
+  const held = State.observations || [];
+  if (!r.ok) return { state: 'unverifiable', why: r.why, held: held.length };
+
+  const byId = new Map(r.observations.map(o => [o.id, o]));
+  const missing = held.filter(o => !byId.has(o.id));
+  const extra = r.observations.filter(o => !held.some(h => h.id === o.id));
+  /* Only the fields a record is made of. recordedAt is stamped at write time and
+     is carried through the log unchanged, so it is compared like any other. */
+  const differing = held.filter(o => {
+    const b = byId.get(o.id);
+    return b && Object.keys(o).some(k => JSON.stringify(o[k]) !== JSON.stringify(b[k]));
+  });
+
+  if (!missing.length && !extra.length && !differing.length)
+    return { state: 'ok', held: held.length, events: registerLog().length };
+  return { state: 'mismatch', held: held.length,
+    missing: missing.length, extra: extra.length, differing: differing.length };
+}
+
 /* One line of prose for an event, for the history list in a record's drawer. */
 function registerEventText(e) {
   const who = e.actor ? ` by ${e.actor}` : '';
@@ -15980,6 +16045,9 @@ function areaMetrics(city, area) {
     soldN: sold.length, psf: med(psf), psfN: psf.length,
     lettingWeeks: med(weeks), lettingN: weeks.length,
     verifiedN: rows.filter(o => observationStanding(o).id === 'verified').length,
+    /* How many of the rows behind these medians are worked-example figures.
+       The area screen shades a map from them, so it has to be able to say. */
+    sampleN: rows.filter(o => o.sample).length,
   };
 }
 
@@ -19771,12 +19839,11 @@ VIEWS.wheel = () => {
       'Arithmetic on the strike, premium and multiplier you entered. Not a forecast, and no probability is implied — the horizontal axis is the underlying price, not time.'));
     const host = el('div', { style: 'margin-top:var(--md)' });
     pay.append(host);
+    /* payoffChart appends its own table view — the rows are derived beside the
+       marks they describe, so they cannot drift from them. The copy that used to
+       be built here rendered a second table of the same figures directly beneath
+       the first, and computed the payoff a second time to fill it. */
     payoffChart(host, m, p);
-    pay.append(tableTwin('The same figures as a table', ['Underlying at expiry', 'Result'],
-      [0, num0(p.putStrike) * 0.5, m.putBreakEven, num0(p.putStrike), num0(p.putStrike) * 1.5]
-        .filter(isNum).map(px => [fmtMoney(px, 'USD'),
-          fmtMoney(px >= num0(p.putStrike) ? m.putPremiumCashReceived
-            : m.putPremiumCashReceived - (num0(p.putStrike) - px) * m.deliverableShares - num0(p.assignmentFees), 'USD')])));
     pay.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The flat section is every price at or above the strike, where the premium is the entire result. '
       + 'Everything left of the strike is the shares being put to you at a price the market has left behind.'));
@@ -21426,6 +21493,19 @@ VIEWS.areas = () => {
     layer.kind === 'quantity'
       ? 'Shading is banded against the range present in this town, not an absolute scale — RM1,800 does not mean the same thing in Kuching and Bintulu, and the map is read one town at a time.'
       : 'Positions are geocoded approximations of the locality, not parcel boundaries. Confirm any address against the title and the Land and Survey Department.'));
+  if (hasWorkedExample()) {
+    const n = sampleObservations().length;
+    const warn = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
+    warn.append(el('p', { class: 'body', style: 'font-weight:600;margin:0' },
+      'The worked example is loaded — the shading and the medians below include invented figures.'));
+    warn.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `${n} of the records behind this map were typed to demonstrate the tool. There is no property, no `
+      + 'document and no transaction behind any of them. Districts carrying them are marked in the table. '
+      + 'Remove the example before reading anything here as evidence.'));
+    warn.append(workedExampleControls({ compact: true }));
+    wrap.insertBefore(warn, wrap.firstChild.nextSibling);
+  }
+
   wrap.append(mapCard);
 
   /* ---- the same thing as a table, which is where the detail lives ---- */
@@ -21459,7 +21539,12 @@ VIEWS.areas = () => {
       el('td', { class: 'num' }, isNum(m.achievedRent) ? `${fmtMoney(m.achievedRent, 'MYR', 0)}` : '—'),
       el('td', { class: 'num' }, isNum(m.lettingWeeks) ? fmtNum(m.lettingWeeks, 1) : '—'),
       el('td', { class: 'num' }, isNum(m.psf) ? fmtMoney(m.psf, 'MYR', 0) : '—'),
-      el('td', { class: 'num' }, String(m.total)),
+      el('td', { class: 'num', title: m.sampleN
+        ? `${m.sampleN} of these ${m.sampleN === 1 ? 'is a' : 'are'} worked-example record${m.sampleN === 1 ? '' : 's'}`
+        : null },
+        m.sampleN
+          ? el('span', { class: 'chip chip-bronze' }, `${m.total} · ${m.sampleN} example`)
+          : String(m.total)),
       el('td', {}, el('button', { class: 'btn btn-quiet btn-sm',
         onclick: () => { S.editing = S.editing === n ? null : n; render(); } },
         S.editing === n ? 'Close' : 'Record')),
@@ -21616,6 +21701,16 @@ VIEWS.comparables = () => {
     'Undo last change');
   actorRow.append(undoBtn);
   admin.append(actorRow);
+  /* The integrity line. A history that cannot account for the figures beside
+     it is worse than no history, because it invites trust it has not earned. */
+  const integ = registerIntegrity();
+  admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    integ.state === 'ok'
+      ? `History checked: replaying all ${integ.events} events reproduces every one of the ${integ.held} record${integ.held === 1 ? '' : 's'} held, exactly.`
+      : integ.state === 'unverifiable'
+        ? `History cannot be fully checked — ${integ.why}. The ${integ.held} record${integ.held === 1 ? '' : 's'} held ${integ.held === 1 ? 'is' : 'are'} still correct; only the trail behind the oldest is incomplete.`
+        : `History does not account for what is held: ${integ.missing} record${integ.missing === 1 ? '' : 's'} with no events, ${integ.extra} in the log but not held, ${integ.differing} differing. Something wrote around the recorder — export before making further changes.`));
+
   admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     logN ? `${logN} change${logN === 1 ? '' : 's'} recorded. Corrections and deletions are kept as entries rather than erasing what they replaced, so a figure can always be traced back.`
          : 'No changes recorded yet. From the first one, every correction and deletion is kept as an entry rather than erasing what it replaced.'));
@@ -22830,7 +22925,7 @@ function decisionRecordWheel() {
   const out = el('div', { class: 'decision-record' });
   out.append(el('div', { class: 'dr-head' }, [
     el('p', { class: 'eyebrow' }, 'Decision record · options cash wheel'),
-    el('h1', {}, `${p.ticker || 'Contract'} — cash-secured put and covered call`),
+    el('h1', {}, `${(p.symbol || '').trim() || 'Unnamed contract'} — cash-secured put and covered call`),
     el('p', { class: 'metaline' },
       `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${MODEL_VERSION} · research only, not advice`),
   ]));
@@ -22841,8 +22936,8 @@ function decisionRecordWheel() {
 
   const figs = el('div', { class: 'dr-figs' });
   [['Cash to secure', isNum(m.requiredAssignmentCash) ? fmtMoney(m.requiredAssignmentCash, 'USD') : null],
-   ['Premium received', isNum(m.netPremium) ? fmtMoney(m.netPremium, 'USD') : null],
-   ['Break-even', isNum(m.breakEven) ? fmtMoney(m.breakEven, 'USD') : null],
+   ['Premium received', isNum(m.putPremiumCashReceived) ? fmtMoney(m.putPremiumCashReceived, 'USD') : null],
+   ['Break-even', isNum(m.putBreakEven) ? fmtMoney(m.putBreakEven, 'USD') : null],
    ['Worst case at zero', isNum(m.putMaxLossIfZero) ? fmtMoney(m.putMaxLossIfZero, 'USD') : null]]
     .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
       el('div', { class: 'caption' }, k),

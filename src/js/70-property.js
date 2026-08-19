@@ -939,6 +939,9 @@ function areaMetrics(city, area) {
     soldN: sold.length, psf: med(psf), psfN: psf.length,
     lettingWeeks: med(weeks), lettingN: weeks.length,
     verifiedN: rows.filter(o => observationStanding(o).id === 'verified').length,
+    /* How many of the rows behind these medians are worked-example figures.
+       The area screen shades a map from them, so it has to be able to say. */
+    sampleN: rows.filter(o => o.sample).length,
   };
 }
 
