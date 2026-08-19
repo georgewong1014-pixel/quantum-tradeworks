@@ -114,11 +114,11 @@ export function build() {
      src/vercel.template.json, which nothing but this script ever reads. */
   const stripComments = (v) => Array.isArray(v) ? v.map(stripComments)
     : (v && typeof v === 'object'
-        ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== '$comment').map(([k, x]) => [k, stripComments(x)]))
+        ? Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('$comment')).map(([k, x]) => [k, stripComments(x)]))
         : v);
   const parsed = JSON.parse(cfgTemplate.replace(CSP_MARKER, () => cspHash));
   const vercel = JSON.stringify(stripComments(parsed), null, 2) + String.fromCharCode(10);
-  if (vercel.includes('$comment')) throw new Error('a $comment survived into vercel.json');
+  if (vercel.includes('"$comment')) throw new Error('a $comment survived into vercel.json');
 
   return { html, vercel, modules, versions, cspHash };
 }
