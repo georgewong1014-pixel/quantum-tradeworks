@@ -3,7 +3,41 @@
 //   node serve.mjs [--port 3000] [--root .]
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
+import { readFileSync, statSync } from 'node:fs';
 import { join, extname, resolve, normalize, sep } from 'node:path';
+
+/* The production headers, applied locally. Without this the Content-Security-
+   Policy only ever ran in production — and a CSP that blocks the app's own
+   inline script does not degrade, it shows a blank page. The whole point of the
+   generated policy is that it can be wrong; it has to be wrong HERE first. */
+const CONFIG = new URL('./vercel.json', import.meta.url);
+
+/* Re-read per request rather than at startup. The CSP hash is derived from the
+   built script, so every `node build.mjs` changes it — and a server holding the
+   previous hash serves a policy that blocks the app it is serving. That looks
+   exactly like a code bug: a blank page, one console line, and a build that
+   passes every check. Rebuilding is the common case during development, so the
+   config has to be as fresh as the file. A stat-and-parse per request is
+   nothing next to reading a 1.3MB page off disk. */
+let cachedMtime = 0, cachedRules = [];
+function headerRules() {
+  try {
+    const m = statSync(CONFIG).mtimeMs;
+    if (m !== cachedMtime) {
+      cachedMtime = m;
+      cachedRules = (JSON.parse(readFileSync(CONFIG, 'utf8')).headers || [])
+        .map(g => ({ re: new RegExp('^' + g.source + '$'), headers: g.headers }));
+    }
+  } catch { /* no config, or mid-write: keep the last good rules */ }
+  return cachedRules;
+}
+const configuredHeaders = (pathname) => {
+  const out = {};
+  for (const rule of headerRules()) {
+    if (rule.re.test(pathname)) rule.headers.forEach(h => { out[h.key.toLowerCase()] = h.value; });
+  }
+  return out;
+};
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -84,6 +118,7 @@ const server = createServer(async (req, res) => {
       'content-type': MIME[extname(file).toLowerCase()] || 'application/octet-stream',
       'cache-control': 'no-cache, no-store, must-revalidate',
       'content-length': body.length,
+      ...configuredHeaders(url.pathname),
     });
     res.end(req.method === 'HEAD' ? undefined : body);
   } catch (err) {
@@ -103,4 +138,5 @@ server.on('error', (err) => {
 server.listen(PORT, () => {
   console.log(`serving ${ROOT}`);
   console.log(`http://localhost:${PORT}`);
+  console.log(`applying ${headerRules().length} header rule(s) from vercel.json, re-read on change`);
 });

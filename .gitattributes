@@ -1,0 +1,22 @@
+# LINE ENDINGS ARE PART OF THE BUILD OUTPUT HERE, NOT A PREFERENCE.
+#
+# vercel.json carries a SHA-256 of the inline <script> exactly as it ships. On a
+# Windows clone with core.autocrlf=true the working copy is CRLF, so build.mjs
+# would hash CRLF text — while git stores, and Vercel serves, LF. The committed
+# hash would then describe a file that does not exist anywhere, the browser
+# would refuse the script, and the site would be blank in production while every
+# local check passed.
+#
+# build.mjs also normalises its inputs, so this is the second of two defences
+# rather than the only one. Both are cheap; neither alone is comfortable.
+* text=auto eol=lf
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.pdf  binary
+*.ico  binary
+*.woff  binary
+*.woff2 binary

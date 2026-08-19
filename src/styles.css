@@ -1,0 +1,1335 @@
+/* ==========================================================================
+   Quantum Tradeworks design system
+   Palette: deep green / ivory / bronze. Chart slots validated against the
+   dataviz six checks in both modes (adjacent + all-pairs for scatter).
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* --- type scale ------------------------------------------------------
+     The file carried 26 distinct font sizes and 16 weights, including 9px,
+     9.5px and 10.5px text, and weights of 530, 630 and 660 that no reader
+     could tell apart from their neighbours. It was not a system, it was a
+     sediment — each value defensible where it was written and inconsistent
+     with the one beside it.
+
+     Everything is now on this scale. Weights are four, and the collapse was
+     chosen so existing hierarchy survived it: what was lighter stayed lighter.
+     Nothing decision-relevant sits below 12px, and nothing at all below 11px.
+
+     Add a value here before using it, or the sediment starts again. */
+  --text-micro:   11px;   /* eyebrows and tracked uppercase labels only */
+  --text-label:   12px;   /* metadata, timestamps, chips */
+  --text-sm:      13px;   /* the workhorse: captions, table cells, notes */
+  --text-body:    14px;   /* body copy that has to be read to use the tool */
+  --text-lead:    16px;   /* standfirsts */
+  --text-card:    20px;   /* card headings */
+  --text-h1:      24px;   /* page headings */
+  --text-display: 32px;   /* marketing display */
+
+  --weight-body:     400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
+  /* --- surfaces ------------------------------------------------------- */
+  --plane:        #f4f1ea;
+  --surface:      #faf8f4;
+  --surface-2:    #ffffff;
+  --surface-sunk: #efebe2;
+  --surface-inv:  #141a18;
+
+  /* --- ink ------------------------------------------------------------ */
+  --ink:          #16191a;
+  --ink-2:        #55574f;
+  /* Was #85857c, which measures 3.5:1 on white and 4.23:1 as rendered — under
+     the 4.5:1 normal text requires, on every caption, metaline, stat label and
+     eyebrow in the product. That is most of the explanatory copy: the sentences
+     saying why a figure is withheld, what a gate means, where a number came
+     from. The recessive ones were the ones carrying the reasoning.
+     #74746b measures 4.78:1 on white — over the line with margin, and still
+     clearly secondary to --ink-2 beside it. */
+  /* 4.61:1 against --surface-sunk, the darkest light surface it is used on.
+     #74746b measured 3.96:1 there, 4.18:1 on --plane and 4.45:1 on --surface —
+     three failures of the 4.5 floor, on the token that paints every metaline,
+     caption, eyebrow, axis label and footer line in the product. It passed
+     only against pure white, which is where it had been checked. */
+  --ink-3:        #6a6a61;
+  --ink-inv:      #f4f1ea;
+
+  /* --- lines ---------------------------------------------------------- */
+  --line:         #e2ddd2;
+  --line-2:       #d3ccbe;
+  --grid:         #e6e1d7;
+  --ring:         rgba(20, 25, 22, 0.10);
+
+  /* --- logo -----------------------------------------------------------
+     Taken from the Quantum Tradeworks mark: navy ring, teal chart and tail,
+     gold building. The ring flips to a light tint in dark mode so the mark
+     stays visible; teal and gold are mode-invariant, as in the original. */
+  --logo-blue:  #2764E7;   /* the ring */
+  --logo-navy:  #14284B;   /* "Quantum" */
+  --logo-teal:  #21C1A2;   /* mosaic + handle + "Tradeworks" */
+  --logo-amber: #FBB040;   /* mosaic grid */
+  /* The brand teal is a graphic colour. It clears the 3:1 bar for a mark but
+     measures about 1.8:1 as text on this surface, far under the 4.5:1 needed,
+     so the wordmark uses a darker step of the same hue. */
+  --logo-teal-text: #0B7159;
+  --logo-word:      var(--logo-navy);
+
+  /* --- brand ---------------------------------------------------------- */
+  --brand:        #1B4FCC;
+  --brand-hi:     #2E68E4;
+  --brand-wash:   #E7EEFD;
+  /* 4.63:1 on --bronze-wash, where #9a6f22 measured 3.83:1. The bronze chip is
+     the product's "this is a placeholder / not verified" marker, so it is worn
+     by exactly the text a reader must not skim past. Dark mode uses #d3a44e
+     and already measures 5.99:1, so only the light value moves. */
+  --bronze:       #89631e;
+  --bronze-wash:  #f4ecdb;
+
+  /* --- categorical chart slots (validated) ---------------------------- */
+  --s1: #00806a;  /* teal    */
+  --s2: #b8862b;  /* brass   */
+  /* A SERIES COLOUR AS TEXT IS A DIFFERENT CONTRAST PROBLEM FROM A MARK.
+     --s2 paints the price marker on the valuation range, and the label beside
+     it was set to the same token: 3.05:1 at 12px, well under the 4.5 floor,
+     while the mark itself only ever needed 3:1. Moving --s2 would repaint every
+     chart that uses it, so the text gets its own step off the same hue.
+     Dark mode already measures 5.99:1, so only light needs it. */
+  --s2-text: #916a22;
+  --s3: #4a5fa5;  /* slate   */
+  --s4: #c0562e;  /* rust    */
+  --s5: #7d4f8a;  /* plum    */
+  --s6: #6b7a2f;  /* olive   */
+  --s7: #4a3aa7;  /* violet  */
+  --s8: #c23b47;  /* crimson */
+
+  /* --- diverging: up (cool/teal) <-> down (warm/rust) ------------------ */
+  --up-5: #0b6a55; --up-4: #1f8e74; --up-3: #63b39d; --up-2: #a8d3c6; --up-1: #d9ebe4;
+  --mid:  #e8e4dc;
+  --dn-1: #f6e0d6; --dn-2: #e8b6a4; --dn-3: #d4846a; --dn-4: #bc5537; --dn-5: #8f3a22;
+
+  /* --- sequential (single hue, magnitude) ----------------------------- */
+  --seq-1: #dcece7; --seq-2: #b3d7cc; --seq-3: #7cbcac; --seq-4: #3f9a85;
+  --seq-5: #1a7a66; --seq-6: #0d5c4d; --seq-7: #094137;
+
+  /* --- status (fixed, never themed; always icon + label) -------------- */
+  --ok:       #0ca30c;
+  --warn:     #fab219;
+  --serious:  #ec835a;
+  --critical: #d03b3b;
+  --ok-text:  #0a6b32;
+  --dn-text:  #a03a20;
+  /* POLARITY FOR CHARTS, WHICH IS NOT THE SAME AS THE STATUS PALETTE.
+     The obvious choice for a payoff chart is the product's own green and rust.
+     Measured, that pair separates by ΔE 5.3 under deuteranopia — below even the
+     6–8 floor that secondary encoding can rescue. A deuteranope reading the
+     Cash Wheel's payoff could not tell the profit region from the loss one.
+     Blue against the same rust measures 22.8, and every other check passes.
+     Position relative to the zero line still does the primary work; colour
+     reinforces it rather than carrying it alone. */
+  --pol-pos:  #1a5fb4;
+  --pol-neg:  #a03a20;
+  /* The severity colours are chosen to read as fills and borders. As TEXT on
+     their own 12% wash, --critical measures 4.36:1 — under the 4.5:1 normal
+     text needs, on the chip that marks the most serious thing the product can
+     say. --ok-text and --dn-text already exist for exactly this reason; this
+     completes the set rather than darkening --critical itself, which would
+     also change every fill and border using it. 5.37:1. */
+  --critical-text: #b3261e;
+
+  /* --- depth ---------------------------------------------------------- */
+  --lift-1: 0 1px 2px rgba(20, 25, 22, .05), 0 0 0 1px var(--ring);
+  --lift-2: 0 10px 30px -12px rgba(20, 25, 22, .16), 0 2px 6px rgba(20, 25, 22, .05), 0 0 0 1px var(--ring);
+  --lift-3: 0 28px 70px -24px rgba(20, 25, 22, .26), 0 6px 16px rgba(20, 25, 22, .07), 0 0 0 1px var(--ring);
+  --lift-4: 0 44px 110px -30px rgba(10, 14, 12, .40), 0 10px 26px rgba(10, 14, 12, .12), 0 0 0 1px var(--ring);
+
+  /* --- space ---------------------------------------------------------- */
+  --xs: 8px; --sm: 12px; --md: 16px; --lg: 24px; --xl: 32px;
+  --xxl: 48px; --xxxl: 64px; --x4: 96px;
+
+  --r-xs: 4px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px;
+
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+
+  --shell-max: 1280px;
+  --topbar-h: 60px;
+}
+
+:root[data-theme="dark"], html:where(:not([data-theme="light"])) {
+  /* placeholder so the cascade order below stays predictable */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --plane: #0b0d0c; --surface: #111413; --surface-2: #171b19; --surface-sunk: #0d100f; --surface-inv: #f4f1ea;
+    --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #94968c; --ink-inv: #141a18;
+    --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
+    --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
+    --s1:#1f9c81; --s2:#bb8a2e; --s2-text:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
+    --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
+    --mid: #2a2e2c;
+    --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
+    --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
+    --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a; --pol-pos:#4f86d4; --pol-neg:#cf6f4e;
+    --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
+    --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
+    --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
+    --lift-3: 0 28px 70px -24px rgba(0,0,0,.7), 0 6px 16px rgba(0,0,0,.35), 0 0 0 1px var(--ring);
+    --lift-4: 0 44px 110px -30px rgba(0,0,0,.8), 0 10px 26px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #0b0d0c; --surface: #111413; --surface-2: #171b19; --surface-sunk: #0d100f; --surface-inv: #f4f1ea;
+  --ink: #f2f0ea; --ink-2: #a9aa9f; --ink-3: #94968c; --ink-inv: #141a18;
+  --line: #242927; --line-2: #323834; --grid: #1e2321; --ring: rgba(255,255,255,.10);
+  --brand: #6D9BF6; --brand-hi: #8AB4F9; --brand-wash: #12213F; --bronze: #d3a44e; --bronze-wash: #241d0f;
+  --s1:#1f9c81; --s2:#bb8a2e; --s2-text:#bb8a2e; --s3:#7188d0; --s4:#d66a3e; --s5:#b378c0; --s6:#84942f; --s7:#9085e9; --s8:#e4646f;
+  --up-5:#5fd3b5; --up-4:#31ab8d; --up-3:#1f8770; --up-2:#155d4d; --up-1:#10382f;
+  --mid: #2a2e2c;
+  --dn-1:#3a241c; --dn-2:#5e3323; --dn-3:#94502f; --dn-4:#cf6d40; --dn-5:#ec9670;
+  --seq-1:#10302a; --seq-2:#14473c; --seq-3:#1a6151; --seq-4:#238069; --seq-5:#31a184; --seq-6:#57bfa4; --seq-7:#8ad8c3;
+  --ok-text:#4dc46c; --dn-text:#e8a184; --critical-text:#f0968a; --pol-pos:#4f86d4; --pol-neg:#cf6f4e;
+  --logo-navy: #E7EDF3; --logo-teal-text: #35D6B6; --logo-word: var(--ink);
+  --lift-1: 0 1px 2px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
+  --lift-2: 0 10px 30px -12px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.3), 0 0 0 1px var(--ring);
+  --lift-3: 0 28px 70px -24px rgba(0,0,0,.7), 0 6px 16px rgba(0,0,0,.35), 0 0 0 1px var(--ring);
+  --lift-4: 0 44px 110px -30px rgba(0,0,0,.8), 0 10px 26px rgba(0,0,0,.4), 0 0 0 1px var(--ring);
+}
+
+/* ---------------------------------------------------------------- reset */
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--plane);
+  background-image:
+    radial-gradient(1100px 520px at 88% -8%, rgba(154, 111, 34, .10), transparent 60%),
+    radial-gradient(900px 480px at -4% 0%, rgba(0, 84, 74, .09), transparent 58%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+img, svg { display: block; max-width: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+h1, h2, h3, h4, h5 { font-weight:600; line-height: 1.22; letter-spacing: -0.012em; }
+a { color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--brand-hi);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* White on the brand blue measures 2.74:1. A skip link is reached only by
+   keyboard, so the people who use it are precisely those most likely to need
+   the contrast — and it was the worst ratio in the product. Dark ground,
+   light text: 14:1. */
+.skip-link {
+  position: absolute; left: var(--md); top: -60px; z-index: 100;
+  background: var(--surface-inv); color: var(--ink-inv); padding: 10px 16px;
+  border-radius: var(--r-md); font-weight: 600;
+  transition: top 180ms ease;
+}
+.skip-link:focus { top: var(--md); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ------------------------------------------------------------- typography */
+.eyebrow {
+  font-size:12px; font-weight:700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.h-display { font-size: clamp(28px, 3.4vw, 40px); font-weight:700; letter-spacing: -.022em; }
+.h-section { font-size:20px; font-weight:700; letter-spacing: -.014em; }
+.h-card    { font-size: 15px; font-weight:600; letter-spacing: -.008em; }
+.body-lg   { font-size: 15px; color: var(--ink-2); line-height: 1.62; max-width: 68ch; }
+/* 14/21, not 13/20.8. This class carries every gate reason, refusal,
+   provenance note and gate explanation — the prose a reader must actually read
+   to use the tool safely, which is the definition of decision copy. It was the
+   smallest thing on the page doing the most important job. */
+.body      { font-size:14px; color: var(--ink-2); line-height: 1.5; max-width: 72ch; }
+.caption   { font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+.metaline  { font-size:12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.num       { font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------------ shell */
+.shell { max-width: var(--shell-max); margin: 0 auto; padding: 0 var(--xl); }
+@media (max-width: 900px) { .shell { padding: 0 var(--lg); } }
+@media (max-width: 560px) { .shell { padding: 0 var(--md); } }
+
+.topbar {
+  position: sticky; top: 0; z-index: 40;
+  background: color-mix(in srgb, var(--plane) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-in {
+  height: var(--topbar-h);
+  display: flex; align-items: center; gap: var(--lg);
+  max-width: var(--shell-max); margin: 0 auto; padding: 0 var(--xl);
+}
+@media (max-width: 900px) { .topbar-in { padding: 0 var(--lg); gap: var(--md); } }
+@media (max-width: 560px) { .topbar-in { padding: 0 var(--md); } }
+
+
+.brand { display: flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
+/* The mark is the naked octagonal Q, as in the primary lockup — no container. */
+.brand-mark { width: 30px; height: 30px; flex: none; display: block; }
+.brand-mark svg { width: 100%; height: 100%; display: block; }
+.brand-name {
+  font-size: 15px; font-weight: 700; letter-spacing: -.01em;
+  white-space: nowrap; color: var(--logo-word);
+  display: flex; align-items: baseline; gap: 6px;
+}
+.brand-name span { color: var(--logo-teal-text); font-weight: 700; letter-spacing: -.01em; }
+@media (max-width: 520px) { .brand-name span { display: none; } }
+.brand-tagline {
+  font-size:12px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-3); margin-top: 5px; font-weight:600;
+}
+.brand-tagline i { color: var(--logo-teal); font-style: normal; }
+.brand-tagline i.amber { color: var(--logo-amber); }
+
+.mainnav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.mainnav::-webkit-scrollbar { display: none; }
+.navlink {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  padding: 7px 9px; border-radius: var(--r-sm);
+  font-size:13px; font-weight:500; color: var(--ink-2); white-space: nowrap;
+  transition: color 160ms ease, background-color 160ms ease;
+  /* Nav items and buttons became real anchors so the browser contract works —
+     middle-click, open in new tab, copy link address. Anchors bring a default
+     underline that these never had. */
+  text-decoration: none;
+}
+.btn, a.btn, .task-card, a.task-card { text-decoration: none; }
+.navlink:focus-visible, .btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.navlink:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.navlink[aria-current="page"] { color: var(--ink); background: var(--surface-2); box-shadow: var(--lift-1); font-weight: 600; }
+
+.topbar-actions { display: flex; align-items: center; gap: var(--xs); flex: none; }
+
+.searchbtn {
+  display: flex; align-items: center; gap: var(--xs);
+  height: 34px; padding: 0 10px 0 11px; min-width: 172px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  color: var(--ink-3); font-size: 13px; cursor: pointer; text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+.searchbtn:hover { border-color: var(--line-2); color: var(--ink-2); box-shadow: var(--lift-1); }
+.searchbtn .kbd { margin-left: auto; }
+@media (max-width: 1080px) { .searchbtn { min-width: 0; } .searchbtn-label, .searchbtn .kbd { display: none; } }
+
+/* With ten primary areas the nav can no longer share a row with the brand and
+   the actions on a narrow laptop without silently clipping the last item, so it
+   takes its own full-width row well before tablet widths.
+   Declared after the base .mainnav rule so the flex override actually wins. */
+@media (max-width: 1220px) {
+  .topbar-in { height: auto; flex-wrap: wrap; padding-top: 10px; row-gap: 0; }
+  .brand { flex: 1 1 auto; }
+  .topbar-actions { order: 2; }
+  .mainnav {
+    order: 3; flex: 0 0 100%; width: 100%;
+    margin-top: 8px; padding-top: 7px; padding-bottom: 6px;
+    border-top: 1px solid var(--line);
+  }
+  .navlink { padding: 7px 11px; }
+}
+
+.kbd {
+  font-family: var(--mono); font-size:12px; color: var(--ink-3);
+  border: 1px solid var(--line); border-radius: var(--r-xs);
+  padding: 1px 5px; background: var(--surface); line-height: 1.5;
+}
+
+.iconbtn {
+  width: 34px; height: 34px; display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  color: var(--ink-2); cursor: pointer;
+  transition: color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.iconbtn:hover { color: var(--ink); border-color: var(--line-2); box-shadow: var(--lift-1); }
+.iconbtn svg { width: 16px; height: 16px; }
+
+/* ------------------------------------------------------- disclosure strip */
+.disclosure {
+  background: var(--bronze-wash);
+  border-bottom: 1px solid color-mix(in srgb, var(--bronze) 26%, transparent);
+}
+.disclosure-in {
+  max-width: var(--shell-max); margin: 0 auto; padding: 8px var(--xl);
+  display: flex; align-items: center; gap: var(--sm); flex-wrap: wrap;
+  font-size: 12px; color: var(--ink-2);
+}
+@media (max-width: 900px) { .disclosure-in { padding: 8px var(--lg); } }
+@media (max-width: 560px) { .disclosure-in { padding: 8px var(--md); } }
+.disclosure svg { width: 14px; height: 14px; flex: none; color: var(--bronze); }
+.disclosure strong { color: var(--ink); font-weight:600; }
+
+/* On the public page the disclosure collapses to one compact line: the warning
+   still appears above the fold, but it no longer occupies four lines in front
+   of the headline. The full text stays in the markup for assistive technology
+   and for anyone who reads the source; only the elaboration is hidden. */
+body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size:12px; }
+body[data-surface="public"] .disclosure-in .chip { display: none; }
+body[data-surface="public"] .disclosure-long { display: none; }
+
+/* THE WARNING WAS EATING HALF THE PHONE.
+   ---------------------------------------------------------------------------
+   At 390px the banner ran to six lines and took ~390 of 844px before the page
+   had said anything. Every workspace then opened below the fold, so the answer
+   a reader came for was never the first thing they saw.
+
+   The material sentence — beta preview, do not use these figures for investment
+   decisions — is never hidden, at any width. What collapses is the source
+   breakdown, behind a control that says what it holds. A warning nobody reaches
+   is not a warning, and neither is one that pushes the page off the screen.
+
+   The button hides itself where the long text already shows, so there is never
+   a control that expands something already visible. */
+#disclosureMore { display: none; font-size: 12px; }
+@media (max-width: 760px) {
+  body:not([data-surface="public"]) .disclosure-long { display: none; }
+  body:not([data-surface="public"]) #disclosureMore { display: inline; }
+  body[data-disclosure="open"] .disclosure-long { display: inline; }
+  body[data-surface="public"] #disclosureMore { display: none; }
+  .disclosure-in .chip { font-size:12px; }
+}
+.disclosure a { color: var(--ink); text-underline-offset: 3px; }
+
+/* ------------------------------------------------------------------ chips */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 8px; border-radius: 999px;
+  font-size:12px; font-weight:600; letter-spacing: .005em;
+  background: var(--surface-sunk); color: var(--ink-2);
+  border: 1px solid var(--line); white-space: nowrap;
+}
+.chip svg { width: 11px; height: 11px; }
+.chip-brand   { background: var(--brand-wash); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
+.chip-bronze  { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
+.chip-us      { background: color-mix(in srgb, var(--s3) 12%, transparent); color: var(--s3); border-color: color-mix(in srgb, var(--s3) 28%, transparent); }
+/* The FILL stays --s1 so the chip still reads as the Bursa colour; only the
+   TEXT darkens. --s1 is a chart series token, and moving it to fix a 12px chip
+   label would repaint every plot that uses it — the mark and the text on top of
+   it have different jobs and different contrast floors. 3.93:1 -> 4.61:1.
+   --s3 was checked the same way and already measures 4.84:1, so it is left. */
+.chip-my      { background: color-mix(in srgb, var(--s1) 12%, transparent); color: #007460; border-color: color-mix(in srgb, var(--s1) 28%, transparent); }
+:root[data-theme="dark"] .chip-my, html:where(:not([data-theme="light"])) .chip-my { color: var(--s1); }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .chip-my { color: var(--s1); } }
+.chip-ok      { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.chip-warn    { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.chip-critical{ background: color-mix(in srgb, var(--critical) 12%, transparent); color: var(--critical-text); border-color: color-mix(in srgb, var(--critical) 32%, transparent); }
+.chip-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+
+/* ----------------------------------------------------------------- cards */
+.card {
+  background: var(--surface); border-radius: var(--r-lg);
+  box-shadow: var(--lift-2); padding: var(--lg);
+}
+.card-flush { padding: 0; overflow: hidden; }
+.card-hd {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--md); margin-bottom: var(--md); flex-wrap: wrap;
+}
+.card-hd > *:first-child { flex: 1 1 240px; min-width: 0; }
+.card-hd-tight { margin-bottom: var(--sm); }
+.panel {
+  background: var(--surface-2); border-radius: var(--r-md);
+  border: 1px solid var(--line); padding: var(--md);
+}
+.sunk { background: var(--surface-sunk); border-radius: var(--r-md); padding: var(--md); }
+
+.grid { display: grid; gap: var(--md); }
+
+/* ---- layout primitives used by the public pages and the personal surfaces */
+/* A select sized to sit in an assumption row beside its label, matching the
+   inline number inputs it appears alongside. */
+.select-sm { height: 32px; padding: 0 26px 0 8px; font-size: 14px; line-height:20px; max-width: 190px; }
+
+/* A metric label you can ask about. Inherits the surrounding type so it does
+   not read as a link, but is a real button for keyboard and screen readers. */
+.metric-label {
+  appearance: none; background: none; border: 0; padding: 0; cursor: help;
+  font: inherit; color: inherit; text-align: left;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.metric-label-q {
+  width: 13px; height: 13px; border-radius: 50%; flex: none;
+  display: inline-grid; place-items: center;
+  font-size:12px; font-weight: 700; line-height: 1;
+  background: var(--surface-2); color: var(--ink-3); border: 1px solid var(--line);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.metric-label:hover .metric-label-q { background: var(--brand-wash); color: var(--brand); border-color: transparent; }
+.metric-label:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 3px; }
+
+/* Onboarding is a full-surface sequence rather than a modal: it is the first
+   thing rather than an interruption to something else. */
+.ob-wrap { max-width: 42rem; margin: 0 auto; padding: var(--xxl) 0; }
+.ob-steps { display: flex; gap: 6px; margin-bottom: var(--xl); }
+.ob-dot { height: 3px; flex: 1; border-radius: 999px; background: var(--line); }
+.ob-dot[data-done="1"] { background: var(--brand); }
+.ob-options { display: grid; gap: 10px; margin-top: var(--lg); }
+.ob-option {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 14px 16px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line); font: inherit; color: inherit;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+.ob-option:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+.ob-option:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.ob-option[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-wash); box-shadow: var(--lift-1); }
+.ob-option-t { font-weight: 600; font-size: 14px; }
+.ob-option-n { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+
+/* The screener renders both a table and a card list; the viewport decides
+   which is shown. Cards below 768px, table above — a wide table on a phone
+   either overflows or shrinks the type past reading size. */
+/* A cell whose source can be opened. The affordance is deliberately quiet —
+   every metric cell has it, so a loud one would make the table unreadable. */
+.cell-sourced { cursor: pointer; position: relative; }
+.cell-sourced:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.cell-sourced:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.cell-sourced::after {
+  content: ''; position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 3px; border-radius: 50%; background: var(--ink-3); opacity: 0;
+  transition: opacity 160ms ease;
+}
+.cell-sourced:hover::after { opacity: .5; }
+
+/* Density. Comfortable is the default; compact fits roughly a third more rows
+   on screen for someone scanning a long result set. */
+.dt[data-density="compact"] td, .dt[data-density="compact"] th { padding-top: 4px; padding-bottom: 4px; font-size: 12px; }
+
+.screener-cards { display: none; }
+.screener-card { display: block; text-decoration: none; color: inherit; padding: 12px 14px; }
+.screener-card + .screener-card { margin-top: 8px; }
+.screener-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.screener-card-metrics {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px;
+}
+@media (max-width: 768px) {
+  .screener-cards { display: block; padding: 10px; }
+  .screener-cards + table, table.dt.screener-table { display: none; }
+  .tablewrap:has(.screener-cards) > table { display: none; }
+  /* 16px is the minimum body size on a phone, and 44px the minimum tap target. */
+  .screener-card { min-height: 44px; }
+  .screener-card .num { font-size: 16px; }
+}
+
+.stack    { display: flex; flex-direction: column; gap: var(--lg); }
+.stack-lg { display: flex; flex-direction: column; gap: var(--xxxl); }
+.link { color: var(--brand); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); }
+.link:hover { border-bottom-color: var(--brand); }
+.link:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 2px; }
+
+/* Auto-fit rather than fixed counts, so a row reflows instead of overflowing
+   and no separate mobile rule is needed to stop horizontal scroll. */
+.grid-tasks { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.grid-3     { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.grid-4     { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.grid-5     { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+
+/* TWO COLUMNS, AND THE RIGHT ONE IS THE PRODUCT.
+   ---------------------------------------------------------------------------
+   The hero was one 46rem column with an empty right half and no product proof
+   anywhere on the page — a research tool asking to be trusted while showing
+   nothing it produces.
+
+   What sits there is not a screenshot and not an illustration. It is the real
+   render path: dealModel, wheelMath and qttiRun called on deterministic
+   fixtures, drawn with the same components the workspaces use. It cannot drift
+   from what the product actually outputs, it inherits the theme, it stays
+   readable at any zoom, and a screen reader reads it as the figures it is.
+
+   min-height reserves the space so nothing moves when it paints. */
+.hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: var(--xxl); align-items: center; }
+@media (max-width: 940px) { .hero-grid { grid-template-columns: 1fr; gap: var(--xl); } }
+.hero-proof { display: flex; flex-direction: column; gap: var(--md); min-height: 380px; }
+@media (max-width: 940px) { .hero-proof { min-height: 0; } }
+.proof-card {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg);
+  padding: var(--md) var(--lg); box-shadow: var(--lift-1);
+}
+.proof-card .proof-hd { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sm); }
+.proof-card .proof-src { font-size: 12px; color: var(--ink-3); }
+/* Labels on one row, values on the next, as siblings in the same grid — so a
+   label that wraps to two lines pushes ALL three values down together instead
+   of dropping its own out of line with the others. Wrapping one cell of a
+   three-column figure row is the normal case on a phone, not the exception. */
+.proof-row {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px var(--md); margin-top: 10px; align-items: end;
+}
+.proof-row .pv { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.proof-row .pk { font-size: 12px; color: var(--ink-3); align-self: end; }
+@media (max-width: 420px) { .proof-row .pv { font-size: 17px; } }
+
+.hero { padding: var(--xxxl) 0 var(--xl); }
+/* On a phone the top padding was pushing the headline a third of the way down
+   the first screen, under a warning banner that already takes a quarter of it. */
+@media (max-width: 940px) { .hero { padding: var(--xl) 0 var(--lg); } }
+.hero-h1 {
+  font-size: clamp(30px, 4.2vw, 46px); font-weight:700; letter-spacing: -0.022em;
+  line-height: 1.12; margin: 0; text-wrap: balance;
+}
+.hero-lede { font-size: clamp(15px, 1.4vw, 17px); color: var(--ink-2); line-height: 1.55; margin: var(--md) 0 0; max-width: 42rem; }
+
+.task-card { display: block; text-decoration: none; color: inherit; }
+.task-card:hover { border-color: color-mix(in srgb, var(--brand) 34%, var(--line)); }
+.task-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.task-cta { display: inline-block; font-size: 12px; font-weight: 600; color: var(--brand); }
+.task-cta::after { content: ' →'; }
+
+.step-n {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--brand-wash); color: var(--brand); font-size: 12px; font-weight:700;
+}
+.ticklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+/* The blocker and refusal lists. Same reasoning as .body. */
+.ticklist li { font-size: 14px; line-height: 1.5; color: var(--ink-2); padding-left: 18px; position: relative; }
+.ticklist li::before { content: '✓'; position: absolute; left: 0; color: var(--ok-text); font-weight: 700; }
+/* Same list, opposite meaning. A blocked condition rendered with a green tick
+   reads as "done" — which is the exact reverse of what a gate list says, and
+   it was doing that everywhere gates are shown. */
+.blocklist li::before { content: '×'; color: var(--dn-text); font-size: 15px; line-height: 1; }
+.g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1080px) { .g-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px)  { .g-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px)  { .g-2, .g-3, .g-4 { grid-template-columns: minmax(0, 1fr); } }
+
+.row { display: flex; align-items: center; gap: var(--xs); }
+.row-wrap { flex-wrap: wrap; }
+.spacer { flex: 1; }
+
+/* --------------------------------------------------------------- buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 36px; padding: 0 14px; border-radius: var(--r-md);
+  font-size: 13px; font-weight:600; cursor: pointer;
+  border: 1px solid transparent; background: none; color: var(--ink);
+  transition: transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+.btn svg { width: 15px; height: 15px; flex: none; }
+.btn-primary {
+  background: linear-gradient(180deg, var(--brand-hi), var(--brand));
+  color: #fff; box-shadow: 0 1px 2px rgba(27,79,204,.30), 0 6px 18px -8px rgba(27,79,204,.5);
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(27,79,204,.32), 0 14px 28px -10px rgba(27,79,204,.55); }
+.btn-primary:active { transform: translateY(0); }
+:root[data-theme="dark"] .btn-primary, html:where(:not([data-theme="light"])) .btn-primary { color: #0A1A33; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .btn-primary { color: #0A1A33; } }
+
+.btn-ghost { background: var(--surface-2); border-color: var(--line); color: var(--ink-2); }
+.btn-ghost:hover { color: var(--ink); border-color: var(--line-2); box-shadow: var(--lift-1); transform: translateY(-1px); }
+.btn-ghost:active { transform: translateY(0); }
+.btn-quiet { color: var(--ink-2); padding: 0 8px; min-height: 30px; }
+.btn-quiet:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.btn-sm { min-height: 30px; padding: 0 10px; font-size:13px; border-radius: var(--r-sm); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+/* -------------------------------------------------------- segmented tabs */
+.segmented {
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--surface-sunk); border: 1px solid var(--line);
+  border-radius: var(--r-md); overflow-x: auto; scrollbar-width: none; max-width: 100%;
+}
+.segmented::-webkit-scrollbar { display: none; }
+/* Anchors as well as buttons. mySubnav builds real links — so they survive a
+   new tab, a copy, and a screen reader asking what they are — but every rule
+   here was scoped to `button`, so the strip rendered as six underlined words
+   run together with no padding or active state. It was only ever shown on the
+   two pages nothing linked to, which is why it went unnoticed; it now appears
+   on all six. */
+.segmented button, .segmented a {
+  appearance: none; border: 0; background: none; cursor: pointer; text-decoration: none;
+  padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;
+  font-size:13px; font-weight:500; color: var(--ink-2);
+  transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+.segmented button:hover, .segmented a:hover { color: var(--ink); }
+.segmented button[aria-selected="true"], .segmented a[aria-selected="true"] {
+  background: var(--surface-2); color: var(--ink); font-weight:600; box-shadow: var(--lift-1);
+}
+
+/* Ten company tabs at a 24px gap needed 752px inside a 701px strip at 1280px —
+   so half the information architecture was scrolled out of sight on a DESKTOP
+   viewport, with the scrollbar hidden and no fade, arrow or any other sign
+   that the rest existed. Two changes: a 16px gap, which recovers 72px and puts
+   the full set inside the strip at desktop; and a scroll shadow for the widths
+   where it genuinely cannot fit, so the affordance is visible instead of the
+   content merely being gone.
+
+   The shadow is the layered-gradient technique: the two `local` cover layers
+   travel with the content and hide the `scroll` shadow layers when the strip
+   is at that end, so each shadow appears only on the side that has more to
+   show. No JS, no resize observer, and nothing to keep in sync. */
+.subnav {
+  display: flex; gap: var(--md); border-bottom: 1px solid var(--line);
+  overflow-x: auto; scrollbar-width: none;
+  background:
+    /* The cover stays fully opaque past the shadow's full width (70% of 24px is
+       16.8px against a 12px shadow), so a strip that does not overflow shows no
+       edge at all rather than a faint permanent smudge. */
+    linear-gradient(to right, var(--plane) 70%, transparent) left center / 24px 100% no-repeat local,
+    linear-gradient(to left,  var(--plane) 70%, transparent) right center / 24px 100% no-repeat local,
+    linear-gradient(to right, rgba(20, 20, 20, 0.16), transparent) left center / 12px 100% no-repeat scroll,
+    linear-gradient(to left,  rgba(20, 20, 20, 0.16), transparent) right center / 12px 100% no-repeat scroll;
+}
+.subnav::-webkit-scrollbar { display: none; }
+.subnav button {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  padding: 10px 1px 11px; font-size: 13px; font-weight:500; color: var(--ink-3);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+  transition: color 160ms ease, border-color 160ms ease;
+}
+.subnav button:hover { color: var(--ink); }
+.subnav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); font-weight:600; }
+
+/* --------------------------------------------------------------- inputs */
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.field > label { font-size:14px; line-height:20px; font-weight:600; color: var(--ink-2); }
+.input, .select {
+  height: 34px; padding: 0 10px; width: 100%;
+  background: var(--surface-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.input:hover, .select:hover { border-color: var(--line-2); }
+.input:focus, .select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+textarea.input { height: auto; padding: 8px 10px; resize: vertical; min-height: 76px; line-height: 1.55; }
+.select {
+  appearance: none; padding-right: 26px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 14px) 14px, calc(100% - 9px) 14px;
+  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+}
+.input-inline { height: 32px; font-size:14px; line-height:20px; padding: 0 7px; }
+
+.checkline { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 3px 0; min-height: 26px; }
+.checkline input { width: 15px; height: 15px; accent-color: var(--brand); cursor: pointer; flex: none; }
+.checkline span { font-size:14px; line-height:20px; color: var(--ink-2); }
+.checkline:hover span { color: var(--ink); }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; background: none; cursor: pointer; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--surface-sunk); border: 1px solid var(--line); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; margin-top: -7px;
+  background: var(--surface-2); border: 2px solid var(--brand);
+  box-shadow: 0 1px 4px rgba(20,25,22,.28);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 24%, transparent); }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 999px; background: var(--surface-sunk); border: 1px solid var(--line); }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--surface-2); border: 2px solid var(--brand); }
+
+/* --------------------------------------------------------------- tables */
+.tablewrap { overflow-x: auto; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); }
+table.dt { width: 100%; border-collapse: separate; border-spacing: 0; font-size:14px; line-height:20px; }
+table.dt th, table.dt td { padding: 9px 12px; text-align: right; white-space: nowrap; }
+table.dt th:first-child, table.dt td:first-child { text-align: left; }
+table.dt thead th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface-sunk); color: var(--ink-2);
+  font-weight: 600; font-size:12px; letter-spacing: .03em; text-transform: uppercase;
+  border-bottom: 1px solid var(--line); user-select: none;
+}
+table.dt thead th.sortable { cursor: pointer; }
+table.dt thead th.sortable:hover { color: var(--ink); }
+table.dt thead th .sort-ind { opacity: .4; margin-left: 3px; }
+table.dt thead th[aria-sort] .sort-ind { opacity: 1; color: var(--brand); }
+table.dt tbody td, table.dt tbody th { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+/* A row header is not a column header: it keeps the body's weight and case, and
+   only the identity styling below distinguishes it. */
+table.dt tbody th { font-weight: 600; font-size: 14px; letter-spacing: 0; text-transform: none;
+  position: sticky; background: var(--surface-2); color: var(--ink); }
+table.dt tbody tr:last-child td, table.dt tbody tr:last-child th { border-bottom: 0; }
+table.dt tbody tr { transition: background-color 140ms ease; }
+table.dt tbody tr:hover { background: color-mix(in srgb, var(--brand) 5%, transparent); }
+table.dt td.ident, table.dt th.ident { color: var(--ink); font-weight:600; }
+/* THE GRID'S FOCUS RING.
+   A dense table gives focus almost nowhere to show itself — an outline on the
+   cell edge disappears under the next cell's border. Inset, so it reads as the
+   cell being selected rather than as a stray line between two of them. */
+table.dt[role="grid"] td:focus-visible, table.dt[role="grid"] th:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 2px; }
+/* A chart is a single figure, so the ring goes round the whole of it. */
+.chart-focusable:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: var(--r-sm, 4px); }
+/* Median rows stay pinned to the bottom of a scrolling result set — a
+   comparison baseline is useless if you have to scroll past 28 rows to see it. */
+table.dt tfoot td { position: sticky; z-index: 2; height: 34px; border-bottom: 0; }
+/* Each pinned row is offset by the height of the ones below it, otherwise they
+   all stick to the same edge and only the last is visible. */
+table.dt tfoot tr:nth-last-child(1) td { bottom: 0; }
+table.dt tfoot tr:nth-last-child(2) td { bottom: 34px; }
+table.dt tfoot tr:nth-last-child(3) td { bottom: 68px; }
+table.dt tfoot tr:first-child td { border-top: 1px solid var(--line-2); }
+table.dt tfoot td.pin { z-index: 3; }
+
+/* Header row pinned under the top bar for full-page tables. */
+table.dt-pagesticky thead th { top: var(--topbar-h); }
+/* AT PHONE WIDTH, WRAP RATHER THAN HIDE.
+   ---------------------------------------------------------------------------
+   Two strips scroll horizontally with the scrollbar suppressed and no fade,
+   arrow or any other sign that more exists. Measured at 390px:
+
+     .mainnav    55px hidden — the whole of "Learn" at 0px visible
+     .segmented  94px hidden on the screener's density toggle — the whole of
+                 "Compact" at 0px visible, confirmed by hit-testing eight
+                 points across its box and self-hitting none of them
+
+   .subnav already carries scroll shadows for exactly this reason, added when
+   ten company tabs were found scrolled out of sight on a DESKTOP viewport. But
+   a shadow only tells a reader that something is there; it still costs them a
+   swipe to find out what, and on the company report it hid Risks, Ownership &
+   actions, Filings and Thesis — four of the ten reasons to open the page.
+
+   All three wrap below 768px. Measured, the company tabs need 680px against
+   343px available, so they take exactly two rows rather than the three the
+   earlier note assumed: 43px of vertical space on a page that is 8,000px long,
+   in exchange for nothing being hidden. Above 768px none of the three overflow
+   at all, so the shadows stay for the one case that still scrolls and this
+   rule never fires. */
+@media (max-width: 768px) {
+  .mainnav, .segmented, .subnav { flex-wrap: wrap; overflow-x: visible; }
+  .segmented, .mainnav { row-gap: 2px; }
+  .subnav { row-gap: 0; }
+}
+
+/* 44px TOUCH TARGETS, WHERE A TOUCH ACTUALLY HAPPENS.
+   ---------------------------------------------------------------------------
+   The audit measured, at 390px: number inputs 78x28, chip buttons 22px tall,
+   segmented buttons 32px, the search and theme buttons 37x34 and 34x34, and 17
+   footer links at 17px tall. All well under the 44x44 floor.
+
+   Applied on coarse pointers and at phone width rather than everywhere. 44px
+   is a finger requirement — it exists because a fingertip contact patch is
+   about that wide — and a mouse resolves a 28px field precisely. Forcing every
+   desktop control to 44px would inflate a nine-group form by hundreds of
+   pixels to satisfy a constraint that is not present, which trades a real
+   density cost for no accessibility gain. Both queries are here because
+   neither alone is right: a phone-width browser window on a laptop is not a
+   touch device, and a 1024px tablet is.
+
+   min-height, not height, so nothing clips when a label wraps inside it. */
+@media (pointer: coarse), (max-width: 768px) {
+  .input, .select, .input-inline, .select-sm, textarea.input,
+  .segmented button, .segmented a,
+  button.chip, .btn, .searchbtn, .iconbtn, .linklike {
+    min-height: 44px;
+  }
+  /* An inline explainer button inside a sentence keeps its natural size.
+     WCAG exempts a target that is part of a block of text, and padding one out
+     to 44px would break the paragraph it belongs to. */
+  p .linklike, .body .linklike, .metric-label { min-height: 0; }
+  .searchbtn, .iconbtn { min-width: 44px; }
+  /* Inline links in running prose are exempt — WCAG does not require a 44px
+     target for a link inside a sentence, and padding them apart would break
+     the paragraph they sit in. The footer's are a LIST of links, not prose,
+     so they get the height. */
+  .footer a { display: inline-flex; align-items: center; min-height: 44px; }
+  .checkline { min-height: 44px; }
+  /* The checkbox itself stays small; the whole 44px row is the target,
+     because .checkline is the <label> that wraps it. */
+  .checkline input { width: 20px; height: 20px; }
+  .navlink, .brand, .skip-link, .tickerbtn, .subnav button, .subnav a {
+    min-height: 44px; display: inline-flex; align-items: center;
+  }
+  /* height:34px would otherwise win the box calculation over min-height on
+     some of these and leave the field a hair under the floor. */
+  .input, .select, .input-inline, .select-sm { height: auto; }
+  /* Width matters as much as height on a short label. "Moat", "Risks",
+     "Terms" and "All" all measured 32-40px wide beside neighbours a thumb
+     away. Padding rather than a bare min-width so the text stays centred in
+     the target it claims. */
+  .subnav button, .subnav a, .btn, button.chip { min-width: 44px; }
+  .footer a { padding-inline: 6px; min-width: 44px; justify-content: center; }
+  /* A range input is 20px tall and the thumb is the target. The track stays
+     thin — the browser centres it — and the element grows to give the thumb
+     somewhere to be caught. The data-completeness slider gates which companies
+     can pass a screen at all, so a thumb a finger keeps missing is not cosmetic. */
+  input[type="range"] { height: 44px; }
+  /* Width as well as height. "Yes" and "No" measured 40px wide against a 44px
+     floor — a hair under, and the two sit side by side, which is exactly where
+     a mis-tap costs the reader an answer they did not give. */
+  .segmented button, .segmented a { min-width: 44px; justify-content: center; }
+}
+
+/* THE DECISION DOCK.
+   ---------------------------------------------------------------------------
+   These tools are long. The Property calculator alone runs to nine numbered
+   input groups, and the figures that decide the question — safe cash, monthly
+   position, the grade and its principal blocker — sit at the top, above all of
+   them. So the reader spends the entire working session scrolled away from
+   the answer they are working on, and has to scroll back to find out whether
+   the last change helped.
+
+   Fixed to the bottom, one row, collapsible. z-index 35 puts it above the page
+   and the sticky sub-nav at 25, and below the topbar at 40, the drawer at 61,
+   the modal at 62 and the toast at 70 — a summary that covered a dialog would
+   be worse than no summary. #views carries the bottom padding so the dock can
+   never sit on top of the last card; padding the body would leave the footer
+   underneath it instead. */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
+  background: var(--surface-2); border-top: 1px solid var(--line-2);
+  box-shadow: 0 -14px 34px -20px var(--ring);
+  padding: 10px var(--md) calc(10px + env(safe-area-inset-bottom, 0px));
+}
+.dock-inner { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; gap: var(--md); flex-wrap: wrap; }
+.dock-figs { display: flex; gap: var(--lg); flex-wrap: wrap; min-width: 0; }
+.dock-fig { display: flex; flex-direction: column; min-width: 0; }
+.dock-fig-v { font-size: 16px; font-weight: 600; line-height: 20px; white-space: nowrap; }
+.dock-fig-k { font-size: 12px; line-height: 16px; color: var(--ink-3); }
+/* Clamped, because blocker text is not length-controlled and the dock is. The
+   Trading Index thesis gate runs to four lines, which on a 390px screen turned
+   a summary bar into two thirds of the viewport. The full sentence is in the
+   page body, which is where the reader is going anyway. */
+.dock-blocker {
+  font-size: 14px; line-height: 20px; flex: 1 1 260px; min-width: 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.dock-acts { display: flex; gap: 8px; margin-left: auto; }
+#views[data-dock="1"] { padding-bottom: 132px; }
+@media (max-width: 720px) {
+  /* On a phone the figures wrap to two rows and the actions need their own,
+     so the reserved space grows with it. */
+  #views[data-dock="1"] { padding-bottom: 188px; }
+  .dock-figs { gap: var(--md); width: 100%; }
+  .dock-acts { margin-left: 0; width: 100%; }
+  .dock-acts .btn { flex: 1 1 0; }
+}
+
+/* .render-block is a MARKER AND CARRIES NO STYLE, deliberately.
+   renders.mjs crops a published frame to it, so a frame is the chart plus the
+   caption that qualifies it rather than whatever card happens to contain them.
+   Without it the crop fell back to .card — and the property calculator's card
+   is some 2,700px tall, so the "break-even rent" render came out as a cost
+   table with a bar at the top, identical to the waterfall render beside it.
+   Give it declarations and it stops being free: a marker that changes what a
+   reader sees is no longer only a marker. */
+
+/* A FROZEN COLUMN NEEDS A VISIBLE EDGE.
+   The company column has been sticky for a while and had no boundary of any
+   kind, so with fourteen columns scrolled under it the reader saw a header
+   clipped mid-word — "…ED CAPITAL" hard against a company name — which reads
+   as broken text, not as a column that stays put. The hairline states the
+   boundary and the soft shadow says the rest of the table passes UNDER it. */
+table.dt .pin {
+  position: sticky; left: 0; z-index: 1; background: var(--surface-2);
+  box-shadow: 1px 0 0 var(--line-2), 8px 0 10px -8px var(--ring);
+}
+table.dt thead .pin { z-index: 3; background: var(--surface-sunk); }
+table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, var(--surface-2)); }
+
+.tickerbtn {
+  appearance: none; border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; font-weight:600; color: var(--ink); text-align: left;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.tickerbtn:hover .tk { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
+.tickerbtn .tk { font-size:13px; transition: color 160ms ease; }
+.tickerbtn .nm { font-size:12px; color: var(--ink-3); font-weight:500; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pos { color: var(--ok-text); }
+.neg { color: var(--dn-text); }
+
+/* A difference between price and a model estimate is not a gain or a loss. It
+   is a disagreement between the market and a set of assumptions someone chose,
+   and the market is frequently right. Colouring it green made every company
+   trading below its own model look like a recommendation the product does not
+   make — so model differences get a neutral tone, and green and red stay
+   reserved for things that factually improved or deteriorated.
+
+   Direction is still legible: the sign is always shown, and the two weights
+   differ enough to scan without implying good and bad. */
+.mdiff       { color: var(--ink-2); }
+.mdiff-below { color: var(--s3); font-weight:600; }   /* price under the estimate */
+.mdiff-above { color: var(--ink-3); }                  /* price over the estimate */
+
+/* ------------------------------------------------------------ stat tiles */
+.stat { display: flex; flex-direction: column; gap: 3px; }
+.stat-label { font-size:12px; color: var(--ink-3); font-weight:500; }
+.stat-value { font-size: 22px; font-weight:700; letter-spacing: -.02em; line-height: 1.15; }
+.stat-value.sm { font-size:18px; }
+.stat-delta { font-size:12px; font-weight:600; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 4px; }
+.stat-sub { font-size:12px; color: var(--ink-3); }
+
+/* --------------------------------------------------------------- meters */
+.meter { height: 6px; border-radius: 999px; background: var(--surface-sunk); overflow: hidden; border: 1px solid var(--line); }
+.meter > i { display: block; height: 100%; border-radius: 999px; background: var(--brand); transition: width 400ms ease; }
+
+.scorerow { display: grid; grid-template-columns: 132px 1fr 44px; gap: var(--sm); align-items: center; padding: 7px 0; }
+.scorerow + .scorerow { border-top: 1px solid var(--grid); }
+.scorerow .sr-name { font-size:13px; color: var(--ink-2); }
+.scorerow .sr-val { font-size: 13px; font-weight:600; text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 480px) { .scorerow { grid-template-columns: 108px 1fr 40px; } }
+
+/* --------------------------------------------------------------- charts */
+.chart { width: 100%; overflow: visible; }
+.chart text { font-family: var(--sans); font-variant-numeric: tabular-nums; }
+.ax-line { stroke: var(--line-2); stroke-width: 1; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.ax-label { fill: var(--ink-3); font-size:12px; }
+.dl { fill: var(--ink); font-size:12px; font-weight: 600; }
+
+.legend { display: flex; flex-wrap: wrap; gap: var(--md); align-items: center; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; font-size:12px; color: var(--ink-2); }
+.legend-key { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.legend-key.line { height: 2px; width: 14px; border-radius: 2px; }
+
+.viztip {
+  position: fixed; z-index: 70; pointer-events: none; opacity: 0;
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: var(--r-md);
+  box-shadow: var(--lift-3); padding: 9px 11px; font-size: 12px; max-width: 280px;
+  transition: opacity 140ms ease;
+}
+.viztip[data-show="1"] { opacity: 1; }
+.viztip .t-title { font-weight:600; color: var(--ink); margin-bottom: 4px; font-size:13px; }
+.viztip .t-row { display: flex; justify-content: space-between; gap: var(--md); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.viztip .t-row b { color: var(--ink); font-weight:600; }
+.viztip .t-note { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--grid); color: var(--ink-3); font-size:12px; }
+
+/* --------------------------------------------------------------- sparkline */
+.spark { width: 78px; height: 24px; display: block; }
+
+/* -------------------------------------------------------- provenance chip */
+.prov {
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size:12px; color: var(--ink-3);
+}
+.prov b { color: var(--ink-2); font-weight:600; }
+.prov .dotsep { width: 3px; height: 3px; border-radius: 50%; background: var(--line-2); flex: none; }
+
+/* ----------------------------------------------------------------- views */
+.view { display: none; padding: var(--xl) 0 var(--x4); }
+.view[data-active="1"] { display: block; animation: viewin 300ms ease both; }
+@keyframes viewin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) { .view { padding: var(--lg) 0 var(--xxl); } }
+
+.page-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--lg); flex-wrap: wrap; margin-bottom: var(--lg); }
+.page-hd h1 { font-size: 24px; font-weight:700; letter-spacing: -.02em; }
+.page-hd > div:first-child { flex: 1 1 560px; min-width: 0; }
+
+/* PROGRESSIVE DISCLOSURE ON THE PHONE.
+   ---------------------------------------------------------------------------
+   Each workspace opened with an eyebrow, a 24px heading and a four-to-six-line
+   standfirst explaining what the tool is — roughly 330px before a single figure.
+   Added to the warning banner above it, the first screen of a 390x844 phone was
+   entirely preamble, and the number the reader came for sat below the fold on
+   every one of the three workspaces.
+
+   On a narrow screen the standfirst clamps to two lines. It is not removed:
+   line-clamp keeps the whole sentence in the accessibility tree and in the page
+   for anyone who selects or searches it, and it returns in full above 760px
+   where there is room for it. Nothing that a reader must not miss lives here —
+   the refusals, gates and provenance notes are on the cards themselves. */
+/* The three figures that decide whether a reader can do the deal at all, across
+   the top of the grade card. Three columns on a phone, because two of them
+   wrapping under the third would put the holding cost back below the fold. */
+.capstrip {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--md);
+  padding-bottom: var(--md); border-bottom: 1px solid var(--line);
+}
+@media (max-width: 420px) { .capstrip { gap: var(--sm); } .capstrip .num { font-size: 16px !important; } }
+
+@media (max-width: 760px) {
+  .page-hd { margin-bottom: var(--md); }
+  .page-hd h1 { font-size:22px; }
+  .page-hd .body-lg {
+    font-size:13px; margin-top: 6px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* ---------------------------------------------------------------- drawer */
+.scrim {
+  position: fixed; inset: 0; z-index: 60; background: rgba(10, 14, 12, .5);
+  backdrop-filter: blur(3px); opacity: 0; pointer-events: none;
+  transition: opacity 220ms ease;
+}
+.scrim[data-open="1"] { opacity: 1; pointer-events: auto; }
+
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 61; width: min(440px, 100%);
+  background: var(--surface); box-shadow: var(--lift-4);
+  transform: translateX(100%); transition: transform 300ms cubic-bezier(.22,.61,.36,1);
+  display: flex; flex-direction: column;
+}
+.drawer[data-open="1"] { transform: none; }
+.drawer-hd { padding: var(--md) var(--lg); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: var(--sm); }
+.drawer-bd { padding: var(--lg); overflow-y: auto; flex: 1; }
+
+/* ---------------------------------------------------------------- modal */
+.modal {
+  position: fixed; z-index: 62; left: 50%; top: 12vh; transform: translate(-50%, -8px) scale(.98);
+  width: min(620px, calc(100% - 32px)); max-height: 74vh;
+  background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--lift-4);
+  opacity: 0; pointer-events: none; display: flex; flex-direction: column; overflow: hidden;
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.modal[data-open="1"] { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+
+/* --------------------------------------------------------------- misc UI */
+.emptystate { padding: var(--xxl) var(--lg); text-align: center; color: var(--ink-3); }
+.emptystate svg { width: 30px; height: 30px; margin: 0 auto var(--sm); opacity: .5; }
+
+.notelist { display: flex; flex-direction: column; gap: 1px; }
+.noteitem {
+  display: flex; gap: var(--sm); padding: var(--sm) var(--md);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md);
+  transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease;
+}
+.noteitem:hover { box-shadow: var(--lift-2); transform: translateY(-1px); border-color: var(--line-2); }
+.noteitem .ni-icon { width: 26px; height: 26px; border-radius: 7px; flex: none; display: grid; place-items: center; }
+.noteitem .ni-icon svg { width: 13px; height: 13px; }
+
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 5px var(--md); font-size:13px; }
+.kv dt { color: var(--ink-3); }
+.kv dd { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+
+.evidence {
+  border-left: 2px solid var(--line-2); padding: 2px 0 2px var(--sm);
+  font-size:13px; color: var(--ink-2);
+}
+.evidence.support { border-left-color: var(--s1); }
+.evidence.counter { border-left-color: var(--s4); }
+
+.srclink {
+  display: inline-flex; align-items: center; gap: 4px; font-size:12px;
+  color: var(--ink-3); text-decoration: none; border-bottom: 1px dotted var(--line-2);
+  transition: color 160ms ease, border-color 160ms ease;
+}
+.srclink:hover { color: var(--brand); border-color: var(--brand); }
+.srclink svg { width: 10px; height: 10px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 12px);
+  z-index: 80; background: var(--surface-inv); color: var(--ink-inv);
+  padding: 10px 16px; border-radius: var(--r-md); font-size: 13px; font-weight:500;
+  box-shadow: var(--lift-3); opacity: 0; pointer-events: none;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+.toast[data-show="1"] { opacity: 1; transform: translate(-50%, 0); }
+
+/* --------------------------------------------------------- register log */
+/* Deliberately NOT .ticklist: a tick means done or good, and "price corrected
+   from 480,000 to 460,000" is neither. A rule down the left says these entries
+   belong to one another and reads as a margin, not a verdict. */
+.log-list { list-style: none; padding: 0 0 0 12px; margin: 0;
+  border-left: 2px solid var(--grid); display: flex; flex-direction: column; gap: 6px; }
+.log-list li { margin: 0; }
+
+/* --------------------------------------------------------------- footer */
+.footer { border-top: 1px solid var(--line); background: var(--surface); padding: var(--xxl) 0 var(--xl); margin-top: var(--xxl); }
+.footer-grid { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: var(--lg); }
+@media (max-width: 1080px) { .footer-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 860px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .footer-grid { grid-template-columns: 1fr; } }
+.footer h4 { font-size:12px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; font-weight:700; }
+.footer ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.footer a { font-size:13px; color: var(--ink-2); text-decoration: none; transition: color 160ms ease; }
+.footer a:hover { color: var(--brand); }
+.footer-legal { margin-top: var(--xl); padding-top: var(--lg); border-top: 1px solid var(--line); font-size:12px; color: var(--ink-3); line-height: 1.65; max-width: 90ch; }
+
+/* ------------------------------------------------------- view-specific grids */
+.home-split { grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 940px) { .home-split { grid-template-columns: minmax(0, 1fr); } }
+
+/* Sticky side rails, disabled once the layout stacks. */
+.rail-sticky { align-self: start; position: sticky; top: calc(var(--topbar-h) + 12px); }
+@media (max-width: 1040px) { .rail-sticky { position: static; } }
+
+.screener-layout { display: grid; grid-template-columns: 288px minmax(0, 1fr); gap: var(--md); align-items: start; }
+@media (max-width: 1040px) {
+  .screener-layout { grid-template-columns: minmax(0, 1fr); }
+  .screener-layout > .card:first-child { position: static !important; }
+}
+
+.research-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--md); align-items: start; }
+@media (max-width: 1040px) { .research-layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* Company identity: price sits beside the name on wide screens, beneath it on
+   narrow ones, where a right-aligned column would be squeezed to nothing. */
+@media (max-width: 680px) {
+  .identity-row { flex-direction: column; align-items: stretch; }
+  /* flex-basis follows the main axis, so the horizontal basis has to be
+     cleared once the row becomes a column — otherwise it becomes a height. */
+  .identity-row > div { flex: 0 0 auto !important; width: 100%; text-align: left !important; }
+  .identity-row .row { justify-content: flex-start !important; }
+}
+
+.studio-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: var(--md); align-items: start; }
+@media (max-width: 1040px) { .studio-layout { grid-template-columns: minmax(0, 1fr); } }
+
+.thesis-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--md); align-items: start; }
+@media (max-width: 900px) { .thesis-layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* Sticky company identity + tabs on the research page. */
+.ticker-sticky {
+  position: sticky; top: calc(var(--topbar-h) - 1px); z-index: 25;
+  background: color-mix(in srgb, var(--plane) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  margin: 0 calc(var(--xl) * -1) var(--lg);
+  padding: 0 var(--xl);
+}
+@media (max-width: 900px) { .ticker-sticky { margin: 0 calc(var(--lg) * -1) var(--lg); padding: 0 var(--lg); } }
+@media (max-width: 560px) { .ticker-sticky { margin: 0 calc(var(--md) * -1) var(--lg); padding: 0 var(--md); } }
+@media (max-width: 780px) { .ticker-sticky { top: 0; } }
+.ts-jump { margin-left: auto; }
+.ts-jump .select { max-width: 210px; }
+@media (max-width: 560px) {
+  /* Its own line on a phone, because the ticker, name, price and change
+     already fill the row and squeezing a sixth item in would truncate the
+     company's name to make room for a control about where to scroll. */
+  .ts-jump { margin-left: 0; flex-basis: 100%; }
+  .ts-jump .select { max-width: none; width: 100%; }
+}
+/* Scrolled-to headings must clear the topbar and this strip, or the section a
+   reader jumped to arrives underneath the thing they jumped from.
+
+   --sticky-h is measured at runtime rather than written as a constant. The
+   first attempt hardcoded 150px and landed the heading 14px UNDER the strip on
+   a phone, because the tab bar now wraps to two rows there — and any constant
+   picked to fix that would be wrong again at the next breakpoint, or on a
+   narrow phone where the tabs take three rows. The fallback covers the moment
+   before the observer first fires. */
+h3.h-card[id], h2.h-section[id] {
+  scroll-margin-top: calc(var(--sticky-h, 150px) + 14px);
+}
+
+.ts-ident {
+  display: flex; align-items: baseline; gap: 10px;
+  max-height: 0; overflow: hidden; opacity: 0;
+  transition: max-height 200ms ease, opacity 200ms ease, padding 200ms ease;
+}
+/* Revealed only once the full identity card has scrolled out of view. */
+.ticker-sticky.is-stuck .ts-ident { max-height: 34px; opacity: 1; padding: 7px 0 3px; }
+.ts-tk { font-size: 14px; font-weight:700; letter-spacing: -.01em; }
+.ts-name { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.ts-px { font-size: 13px; font-weight:600; }
+.ts-chg { font-size: 12px; font-weight:600; }
+@media (max-width: 560px) { .ts-name { display: none; } }
+
+.masonry-2 { column-count: 2; column-gap: var(--md); }
+.masonry-2 > * { break-inside: avoid; margin-bottom: var(--md); display: block; }
+@media (max-width: 860px) { .masonry-2 { column-count: 1; } }
+
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::marker { content: ''; }
+
+.assumption { display: grid; grid-template-columns: 1fr 78px; gap: var(--xs) var(--sm); align-items: center; padding: 9px 0; }
+.assumption + .assumption { border-top: 1px solid var(--grid); }
+.assumption > label { font-size: 14px; line-height: 20px; color: var(--ink-2); }
+.assumption .a-range { grid-column: 1 / -1; }
+/* Free text on its own full-width row. The value column is 78px because it was
+   built for numbers, and a sentence dropped into it showed 15% of itself —
+   "Several proprietary shapes and coloured markers are unnamed and are not
+   scored." rendered as 76px of a 524px value, with the rest reachable only by
+   dragging inside the field. A contract name and a screenshot filename fared
+   little better at 37% and 25%. */
+.assumption .a-text { grid-column: 1 / -1; width: 100%; }
+.assumption .a-note { grid-column: 1 / -1; font-size:12px; color: var(--ink-3); margin-top: -4px; }
+
+.guardrail {
+  display: flex; gap: 8px; padding: 10px 12px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--critical) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--critical) 32%, transparent);
+  font-size:13px; color: var(--ink);
+}
+.guardrail svg { color: var(--critical); flex: none; }
+
+.pillbar { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-sunk); }
+.pillbar > i { display: block; height: 100%; }
+
+/* forced-colors / print safety */
+@media (forced-colors: active) {
+  .card, .panel, .noteitem { border: 1px solid CanvasText; }
+}
+/* --------------------------------------------------------- decision record */
+.decision-record .dr-head { border-bottom: 2px solid var(--ink-1); padding-bottom: var(--md); margin-bottom: var(--lg); }
+.decision-record .dr-head h1 { margin: 4px 0 6px; }
+.decision-record h2 { font-size: var(--text-lead); font-weight: var(--weight-semibold);
+  margin: var(--xl) 0 var(--sm); padding-bottom: 4px; border-bottom: 1px solid var(--grid); }
+.decision-record .dr-figs { display: grid; gap: var(--md);
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); margin-bottom: var(--lg); }
+.decision-record .dr-fig-v { font-size: 20px; font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums; margin-top: 2px; }
+.decision-record .dr-warn { color: var(--bronze); font-size: 13px; line-height: 1.55;
+  border-left: 2px solid var(--bronze); padding-left: 10px; margin-top: var(--md); }
+.decision-record .dr-table { margin-top: 0; }
+/* The reasoning column is prose and must wrap; the rest stay on one line so the
+   figures line up. */
+.decision-record .dr-table td:last-child, .decision-record .dr-table th:last-child {
+  white-space: normal; min-width: 200px; }
+@media print {
+  /* On paper there is no scroll to reveal what a fixed width hides. */
+  .decision-record .tablewrap { overflow: visible !important; border: 0 !important; }
+}
+
+/* --------------------------------------------------------------- printing */
+/* A record that only exists in a browser tab is not a record. This is the one
+   place the product produces an artefact somebody carries to a banker, a
+   solicitor or a spouse, so what prints is the evidence and its provenance and
+   nothing else — no navigation to a site the reader of the paper cannot click,
+   no dock, no controls that do nothing on paper.
+
+   It prints in light colours from either theme on purpose. A dark page costs a
+   cartridge and reads worse, and nobody has ever asked a printer for it. */
+@media print {
+  :root, :root[data-theme="dark"] {
+    --plane: #ffffff; --surface: #ffffff; --surface-sunk: #ffffff; --panel: #ffffff;
+    --ink-1: #16160f; --ink-2: #3a3a32; --ink-3: #55554c;
+    --line: #c9c7bd; --grid: #ddd9cf;
+  }
+  html, body { background: #fff !important; color: #16160f !important; }
+  .topbar, .mainnav, .subnav, .disclosure, .decision-dock, .footer,
+  .drawer, .drawer-scrim, .modal, .modal-scrim, .toast, .skip-link,
+  .dr-chrome, .segmented, .searchbtn, .iconbtn { display: none !important; }
+  /* The card frame is screen furniture; on paper the page IS the card. */
+  .card { border: none !important; box-shadow: none !important; padding: 0 !important;
+    background: #fff !important; }
+  main, .view, .app { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  a { color: inherit; text-decoration: none; }
+  /* A table that breaks mid-row, or a heading stranded at the foot of a page,
+     is how a printed record loses the line somebody was looking for. */
+  table { break-inside: auto; }
+  tr, .dr-fig { break-inside: avoid; }
+  thead { display: table-header-group; }
+  h1, h2 { break-after: avoid; }
+  .decision-record svg { max-width: 100% !important; display: block; }
+  /* The chart hosts reserve room for a hover layer and a caption that print
+     does not get, which left a hand's width of blank paper under each one. */
+  .decision-record .chart-host, .decision-record .chartwrap { margin: 0 !important; }
+  .decision-record h2 + div { margin-top: 6px; }
+  .ticklist, .dr-warn { break-inside: avoid; }
+  @page { margin: 16mm 14mm; }
+}

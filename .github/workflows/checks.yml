@@ -1,0 +1,140 @@
+name: checks
+
+# WHY THIS EXISTS
+#
+# Every check in this repo already existed and every one of them ran only when
+# somebody remembered. That is not a process, it is a habit, and the two failures
+# it has actually produced were both silent: a build whose committed index.html
+# no longer matched the source that claims to produce it, and a generated
+# Content-Security-Policy that would have blocked the app's own inline script in
+# production while passing locally against a stale copy of the config.
+#
+# Neither shows up in review. Both are one command away from being caught.
+#
+# The jobs are ordered by how fast they fail. syntax takes under a second and
+# names the line; build --check is a hash comparison; the route sweep needs a
+# browser and two minutes. There is no point paying for the browser if the file
+# does not parse.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A second push supersedes the first — nothing is learned from finishing a
+  # sweep against a commit that is already three behind.
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: parses, and matches its source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # A syntax error in a single-file app is total: nothing renders, on every
+      # route. Half a second here saves finding out from a blank page.
+      - name: JavaScript parses
+        run: node syntax.mjs
+
+      # The one failure mode the src/ split introduces. index.html and
+      # vercel.json are both committed build outputs; if either drifts from the
+      # source, what deploys is not what anybody reviewed.
+      - name: index.html and vercel.json match src/
+        run: node build.mjs --check
+
+      # The CSP names a hash of the inline script. If the two ever disagree the
+      # site is blank in production and fine everywhere else, so it is checked
+      # against the built file rather than trusted.
+      - name: CSP hash covers the script that shipped
+        run: |
+          node -e "
+            const { readFileSync } = require('fs');
+            const { createHash } = require('crypto');
+            const html = readFileSync('index.html', 'utf8');
+            const cfg = JSON.parse(readFileSync('vercel.json', 'utf8'));
+            const inline = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('<\/script>'));
+            const want = 'sha256-' + createHash('sha256').update(inline, 'utf8').digest('base64');
+            const csp = cfg.headers.flatMap(g => g.headers).find(h => h.key === 'Content-Security-Policy');
+            if (!csp) { console.error('no Content-Security-Policy in vercel.json'); process.exit(1); }
+            if (!csp.value.includes(want)) {
+              console.error('CSP does not cover the inline script.');
+              console.error('  needs  ' + want);
+              console.error('  has    ' + (csp.value.match(/sha256-[A-Za-z0-9+/=]+/) || ['(none)'])[0]);
+              process.exit(1);
+            }
+            console.log('CSP hash matches the shipped script.');
+          "
+
+      # The licensed lane must never reach a public checkout. This is the one
+      # check whose failure is not a bug but a disclosure.
+      - name: no licensed data is committed
+        run: |
+          node -e "
+            const { execSync } = require('child_process');
+            const BANNED = ['data/prices.json','data/personal-prices.json','data/price-history.json',
+                            'data/personal-fundamentals.json','data/sarawak-income.json',
+                            'watchlist-symbols.txt','qtti/observations.json'];
+            const tracked = execSync('git ls-files', { encoding: 'utf8' }).split('\n');
+            const bad = BANNED.filter(f => tracked.includes(f));
+            const shots = tracked.filter(f => /^watchlist-shots\//.test(f) || /^qtti\/screenshots\//.test(f));
+            if (bad.length || shots.length) {
+              console.error('licensed or personal data is tracked by git:');
+              [...bad, ...shots].forEach(f => console.error('  ' + f));
+              process.exit(1);
+            }
+            console.log('no licensed data tracked.');
+          "
+
+  runtime:
+    name: every route renders
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The tools drive Chrome over CDP directly and take no dependency on it
+      # being installed at a particular path, so the runner's own browser is
+      # what they find.
+      - name: install Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      # serve.mjs applies the generated headers, so the sweep runs under the
+      # real Content-Security-Policy rather than a permissive local one.
+      - name: serve
+        run: |
+          nohup node serve.mjs --port 8123 > /tmp/serve.log 2>&1 &
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null http://localhost:8123/ && break
+            sleep 0.25
+          done
+          curl -sI http://localhost:8123/ | grep -i content-security-policy
+
+      # Console errors, page exceptions, failed requests, CSP violations,
+      # NaN/undefined rendered as values, and horizontal overflow — per route.
+      - name: route sweep
+        run: node sweep.mjs http://localhost:8123
+
+      # A route may state one answer to a question, or none. This catches the
+      # class of bug where a page is briefly wrong before settling — invisible
+      # to any check that waits for the page to settle.
+      - name: no route contradicts itself
+        run: node coverage-frames.mjs http://localhost:8123
+
+      # 360 · 390 · 430 · 768 · 1024 · 1440. The sweep only ever looks at the
+      # default width, so a table that gained a column pushes the page sideways
+      # on a phone and every other check still passes — which is exactly how the
+      # decision record shipped 186px of overflow at 390.
+      - name: no horizontal overflow at any width
+        run: node mobile.mjs http://localhost:8123

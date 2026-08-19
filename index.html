@@ -798,11 +798,23 @@ table.dt thead th.sortable { cursor: pointer; }
 table.dt thead th.sortable:hover { color: var(--ink); }
 table.dt thead th .sort-ind { opacity: .4; margin-left: 3px; }
 table.dt thead th[aria-sort] .sort-ind { opacity: 1; color: var(--brand); }
-table.dt tbody td { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; color: var(--ink-2); }
-table.dt tbody tr:last-child td { border-bottom: 0; }
+table.dt tbody td, table.dt tbody th { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+/* A row header is not a column header: it keeps the body's weight and case, and
+   only the identity styling below distinguishes it. */
+table.dt tbody th { font-weight: 600; font-size: 14px; letter-spacing: 0; text-transform: none;
+  position: sticky; background: var(--surface-2); color: var(--ink); }
+table.dt tbody tr:last-child td, table.dt tbody tr:last-child th { border-bottom: 0; }
 table.dt tbody tr { transition: background-color 140ms ease; }
 table.dt tbody tr:hover { background: color-mix(in srgb, var(--brand) 5%, transparent); }
-table.dt td.ident { color: var(--ink); font-weight:600; }
+table.dt td.ident, table.dt th.ident { color: var(--ink); font-weight:600; }
+/* THE GRID'S FOCUS RING.
+   A dense table gives focus almost nowhere to show itself — an outline on the
+   cell edge disappears under the next cell's border. Inset, so it reads as the
+   cell being selected rather than as a stray line between two of them. */
+table.dt[role="grid"] td:focus-visible, table.dt[role="grid"] th:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 2px; }
+/* A chart is a single figure, so the ring goes round the whole of it. */
+.chart-focusable:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: var(--r-sm, 4px); }
 /* Median rows stay pinned to the bottom of a scrolling result set — a
    comparison baseline is useless if you have to scroll past 28 rows to see it. */
 table.dt tfoot td { position: sticky; z-index: 2; height: 34px; border-bottom: 0; }
@@ -1161,6 +1173,14 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 }
 .toast[data-show="1"] { opacity: 1; transform: translate(-50%, 0); }
 
+/* --------------------------------------------------------- register log */
+/* Deliberately NOT .ticklist: a tick means done or good, and "price corrected
+   from 480,000 to 460,000" is neither. A rule down the left says these entries
+   belong to one another and reads as a margin, not a verdict. */
+.log-list { list-style: none; padding: 0 0 0 12px; margin: 0;
+  border-left: 2px solid var(--grid); display: flex; flex-direction: column; gap: 6px; }
+.log-list li { margin: 0; }
+
 /* --------------------------------------------------------------- footer */
 .footer { border-top: 1px solid var(--line); background: var(--surface); padding: var(--xxl) 0 var(--xl); margin-top: var(--xxl); }
 .footer-grid { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: var(--lg); }
@@ -1287,6 +1307,65 @@ details > summary::marker { content: ''; }
 /* forced-colors / print safety */
 @media (forced-colors: active) {
   .card, .panel, .noteitem { border: 1px solid CanvasText; }
+}
+/* --------------------------------------------------------- decision record */
+.decision-record .dr-head { border-bottom: 2px solid var(--ink-1); padding-bottom: var(--md); margin-bottom: var(--lg); }
+.decision-record .dr-head h1 { margin: 4px 0 6px; }
+.decision-record h2 { font-size: var(--text-lead); font-weight: var(--weight-semibold);
+  margin: var(--xl) 0 var(--sm); padding-bottom: 4px; border-bottom: 1px solid var(--grid); }
+.decision-record .dr-figs { display: grid; gap: var(--md);
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); margin-bottom: var(--lg); }
+.decision-record .dr-fig-v { font-size: 20px; font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums; margin-top: 2px; }
+.decision-record .dr-warn { color: var(--bronze); font-size: 13px; line-height: 1.55;
+  border-left: 2px solid var(--bronze); padding-left: 10px; margin-top: var(--md); }
+.decision-record .dr-table { margin-top: 0; }
+/* The reasoning column is prose and must wrap; the rest stay on one line so the
+   figures line up. */
+.decision-record .dr-table td:last-child, .decision-record .dr-table th:last-child {
+  white-space: normal; min-width: 200px; }
+@media print {
+  /* On paper there is no scroll to reveal what a fixed width hides. */
+  .decision-record .tablewrap { overflow: visible !important; border: 0 !important; }
+}
+
+/* --------------------------------------------------------------- printing */
+/* A record that only exists in a browser tab is not a record. This is the one
+   place the product produces an artefact somebody carries to a banker, a
+   solicitor or a spouse, so what prints is the evidence and its provenance and
+   nothing else — no navigation to a site the reader of the paper cannot click,
+   no dock, no controls that do nothing on paper.
+
+   It prints in light colours from either theme on purpose. A dark page costs a
+   cartridge and reads worse, and nobody has ever asked a printer for it. */
+@media print {
+  :root, :root[data-theme="dark"] {
+    --plane: #ffffff; --surface: #ffffff; --surface-sunk: #ffffff; --panel: #ffffff;
+    --ink-1: #16160f; --ink-2: #3a3a32; --ink-3: #55554c;
+    --line: #c9c7bd; --grid: #ddd9cf;
+  }
+  html, body { background: #fff !important; color: #16160f !important; }
+  .topbar, .mainnav, .subnav, .disclosure, .decision-dock, .footer,
+  .drawer, .drawer-scrim, .modal, .modal-scrim, .toast, .skip-link,
+  .dr-chrome, .segmented, .searchbtn, .iconbtn { display: none !important; }
+  /* The card frame is screen furniture; on paper the page IS the card. */
+  .card { border: none !important; box-shadow: none !important; padding: 0 !important;
+    background: #fff !important; }
+  main, .view, .app { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  a { color: inherit; text-decoration: none; }
+  /* A table that breaks mid-row, or a heading stranded at the foot of a page,
+     is how a printed record loses the line somebody was looking for. */
+  table { break-inside: auto; }
+  tr, .dr-fig { break-inside: avoid; }
+  thead { display: table-header-group; }
+  h1, h2 { break-after: avoid; }
+  .decision-record svg { max-width: 100% !important; display: block; }
+  /* The chart hosts reserve room for a hover layer and a caption that print
+     does not get, which left a hand's width of blank paper under each one. */
+  .decision-record .chart-host, .decision-record .chartwrap { margin: 0 !important; }
+  .decision-record h2 + div { margin-top: 6px; }
+  .ticklist, .dr-warn { break-inside: avoid; }
+  @page { margin: 16mm 14mm; }
 }
 </style>
 <!--
@@ -1498,6 +1577,19 @@ details > summary::marker { content: ''; }
    and every ratio is derived at runtime, so the metric dictionary can show the
    real formula and the exact inputs behind each number.
    ========================================================================== */
+
+/* --------------------------------------------------------- data versions */
+/* Content hashes of the data files that ship with this build, stamped in by
+   build.mjs. dataUrl() turns each one into ?v=<hash>, which makes every data URL
+   content-addressed: the bytes behind a URL can never change, so the CDN and the
+   browser may hold it for a year, and a data update simply arrives as a new URL.
+
+   Before this, fetchJson sent cache: 'no-store' for everything and us.json —
+   1.4MB — was re-downloaded on every single navigation.
+
+   Files absent from this table are the licensed lane. They are git-ignored, they
+   exist only on the reader's own machine, and they keep no-store. */
+const DATA_VERSIONS = {"us.json":"a6357561dc5f","instruments.json":"fdb990b086d0","sarawak-geo.json":"455742df447a"};
 
 /* ------------------------------------------------------------------ utils */
 const $  = (sel, root = document) => root.querySelector(sel);
@@ -1774,6 +1866,12 @@ const PORTABLE_KEYS = [
   { k:'theses',       label:'Investment cases' },
   { k:'watchlists',   label:'Watchlists' },
   { k:'observations', label:'Property comparables' },
+  { k:'areaProfiles', label:'Area attributes' },
+  /* The history travels WITH the figures. An export holding only the current
+     values is a register that arrives on the other machine unauditable — and
+     it is also what makes an import mergeable rather than a replacement. */
+  { k:'registerLog',  label:'Register history' },
+  { k:'registerActor',label:'Who is recording' },
   { k:'corrections',  label:'Correction cases' },
   { k:'deal',         label:'Property deal inputs' },
   { k:'opportunities',label:'Opportunity register' },
@@ -4944,7 +5042,12 @@ function payoffChart(container, m, p) {
   const prem = num0(m.putPremiumCashReceived);
   const feesAtAssign = num0(p.assignmentFees);
 
-  chartHost(container, (w) => {
+  const xMaxOut = strike * 2;
+  const pnlAt = (px) => (px >= strike ? prem : prem - (strike - px) * shares - feesAtAssign);
+
+  const host = el('div');
+  container.append(host);
+  chartHost(host, (w) => {
     const h = 210, padL = 56, padR = 14, padT = 12, padB = 30;
     const iw = Math.max(40, w - padL - padR), ih = h - padT - padB;
     /* Zero to twice the strike shows the whole shape: the flat premium ceiling,
@@ -4961,7 +5064,7 @@ function payoffChart(container, m, p) {
     const X = (px) => padL + (px / xMax) * iw;
     const Y = (v) => padT + (1 - (v - yMin) / span) * ih;
 
-    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
+    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img', tabindex: '0', class: 'chart-focusable',
       'aria-label': `Payoff at expiry for one cash-secured put struck at ${fmtMoney(strike, 'USD')}. `
         + `Maximum result ${fmtMoney(rawMax, 'USD')} above the strike, worst case ${fmtMoney(yMin, 'USD')} at zero.` });
 
@@ -5042,6 +5145,17 @@ function payoffChart(container, m, p) {
       fmtAmount(px, 'USD'))));
     return g;
   });
+
+  /* Five points that define the shape: the floor, the hinge, the break-even and
+     the ceiling. A reader who cannot see the plot needs the turning points,
+     not a sample of the line at fifty prices. */
+  const be = strike - (prem - feesAtAssign) / shares;
+  container.append(tableTwin('Show the table view',
+    ['Price at expiry', 'Result', 'What happens there'],
+    [[fmtAmount(0, 'USD'), fmtAmount(pnlAt(0), 'USD'), 'The shares go to zero — the worst case'],
+     [fmtAmount(be, 'USD'), fmtAmount(pnlAt(be), 'USD'), 'Break-even: the premium exactly offsets the loss'],
+     [fmtAmount(strike, 'USD'), fmtAmount(pnlAt(strike), 'USD'), 'At the strike — assignment begins below this'],
+     [fmtAmount(xMaxOut, 'USD'), fmtAmount(prem, 'USD'), 'Above the strike the premium is the whole result']]));
 }
 
 /* WHERE THE CASH TO BUY ACTUALLY GOES.
@@ -5085,11 +5199,13 @@ function cashWaterfall(container, m) {
   groups.forEach((g, i) => { acc += g.value; if (Math.abs(acc - toComplete) < 0.01) splitAfter = i; });
   const twoTier = splitAfter >= 0 && splitAfter < groups.length - 1;
 
-  chartHost(container, (w) => {
+  const host = el('div');
+  container.append(host);
+  chartHost(host, (w) => {
     const rowH = 44, barH = 14, sumH = 52;
     const h = groups.length * rowH + sumH;
     const X = (v) => (v / total) * w;
-    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
+    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img', tabindex: '0', class: 'chart-focusable',
       'aria-label': `Cash needed to buy, built up in ${groups.length} groups totalling `
         + `${fmtMoney(total, 'MYR')}. ` + (twoTier
           ? `${fmtMoney(toComplete, 'MYR')} of that is needed to complete the purchase; `
@@ -5142,6 +5258,13 @@ function cashWaterfall(container, m) {
     }
     return g;
   });
+
+  container.append(tableTwin('Show the table view',
+    ['Group', 'Amount', twoTier ? 'When it is needed' : 'Unpriced lines'],
+    groups.map((g2, i) => [g2.label, fmtMoney(g2.value, 'MYR', 0),
+      twoTier ? (i <= splitAfter ? 'To complete the purchase' : 'Afterwards, to be safe')
+              : (g2.unpriced ? `${g2.unpriced} line(s) not priced` : '—')])
+      .concat([['Total', fmtMoney(total, 'MYR', 0), twoTier ? `${fmtMoney(toComplete, 'MYR', 0)} of it to complete` : '']])));
 }
 
 /* ONE VALUE AGAINST ONE THRESHOLD — THE PRODUCT'S SECOND CHART GRAMMAR.
@@ -5166,13 +5289,15 @@ function thresholdBar(container, o) {
   if (!isNum(threshold) || !(threshold > 0) || !isNum(value)) return;
   const covers = value >= threshold;
 
-  chartHost(container, (w) => {
+  const host = el('div');
+  container.append(host);
+  chartHost(host, (w) => {
     const h = 76, barY = 10, barH = 22, padR = 2;
     const iw = Math.max(40, w - padR);
     const scale = Math.max(value, threshold) * 1.12 || 1;
     const X = (v) => (v / scale) * iw;
 
-    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
+    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img', tabindex: '0', class: 'chart-focusable',
       'aria-label': o.aria(covers, Math.abs(value - threshold)) });
 
     g.append(sv('rect', { x: 0, y: barY, width: iw, height: barH, rx: 3, fill: 'var(--grid)' }));
@@ -5203,6 +5328,12 @@ function thresholdBar(container, o) {
       covers ? 'var(--pol-pos)' : 'var(--pol-neg)');
     return g;
   });
+
+  container.append(tableTwin('Show the table view', ['', 'Amount'], [
+    [o.valueLabel, fmtMoney(value, ccy, 0)],
+    [o.thresholdLabel, fmtMoney(threshold, ccy, 0)],
+    [covers ? 'Over' : 'Short by', fmtMoney(Math.abs(value - threshold), ccy, 0)],
+  ]));
 }
 
 /* THREE TIMEFRAMES AGAINST THE FLOOR EACH HAS TO CLEAR.
@@ -5236,7 +5367,7 @@ function timeframeScoreBars(container, tfs, floors) {
   chartHost(host, (w) => {
     const rowH = 44, barH = 16, h = rows.length * rowH;
     const X = (v) => (clamp(v, 0, 100) / 100) * w;
-    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img',
+    const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img', tabindex: '0', class: 'chart-focusable',
       'aria-label': 'Timeframe scores against the floor each must clear for this template. '
         + rows.map(r => `${r.t.label} ${Math.round(r.x.score)} against a floor of ${r.floor}, `
           + `${r.x.score >= r.floor ? 'clear' : 'short'}, coverage ${Math.round(r.x.coverage * 100)}%.`).join(' ') });
@@ -5281,6 +5412,12 @@ function timeframeScoreBars(container, tfs, floors) {
         + 'not recorded, counted at a neutral 50 rather than as a zero.'));
   });
   container.append(notes);
+
+  container.append(tableTwin('Show the table view',
+    ['Timeframe', 'Weight', 'Score', 'Floor', 'Clears', 'Coverage'],
+    rows.map(r => [r.t.label, `${Math.round(r.t.w * 100)}%`, String(Math.round(r.x.score)),
+      String(r.floor), r.x.score >= r.floor ? 'yes' : 'no',
+      `${Math.round(r.x.coverage * 100)}%`])));
 }
 
 /* THE CURRENT RESULT, ITS BLOCKER AND THE NEXT ACTION — ALWAYS ON SCREEN.
@@ -5434,7 +5571,7 @@ function columnChart(container, { cats, series, fmt = v => fmtNum(v, 1), title =
     const widestLabel = Math.max(...cats.map(c2 => String(c2).length)) * 5.6 + 8;
     const labelEvery = Math.max(1, Math.ceil(widestLabel / band));
 
-    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': title || 'Column chart' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': title || 'Column chart' });
 
     /* hairline solid gridlines on clean tick values */
     nt.ticks.forEach(v => {
@@ -5491,7 +5628,7 @@ function lineChart(container, { values, labels, fmt = v => fmtNum(v, 2), varName
     const lo = nt.lo, span = (nt.hi - nt.lo) || 1;
     const y = v => padT + ih - ((v - lo) / span) * ih;
     const x = i => padL + (i / (values.length - 1)) * iw;
-    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': title || 'Line chart' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': title || 'Line chart' });
 
     nt.ticks.forEach(v => {
       s.append(sv('line', { class: 'gridline', x1: padL, x2: W - padR, y1: y(v), y2: y(v) }));
@@ -5548,7 +5685,7 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
     const maxCap = Math.max(...points.map(p => p.size));
     const R = v => (narrow ? 3.5 : 5) + Math.sqrt(v / maxCap) * (narrow ? 11 : 20);
 
-    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Valuation against quality, one mark per company' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Valuation against quality, one mark per company' });
 
     for (let i = 0; i <= 4; i++) {
       const v = ylo + (yhi - ylo) * i / 4;
@@ -5661,7 +5798,7 @@ function squarify(items, x, y, w, h) {
 function treemap(container, { items, valueFmt, onPick, full = 8 }) {
   chartHost(container, (W) => {
     const H = Math.max(320, Math.min(520, W * 0.5));
-    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Market heatmap, tile area is market capitalisation' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Market heatmap, tile area is market capitalisation' });
     const laid = squarify([...items].sort((a, b) => b.value - a.value), 0, 0, W, H);
     const GAP = 2;                                   /* surface gap, not a border */
     laid.forEach(t => {
@@ -5702,7 +5839,7 @@ function matrixChart(container, { grid, xSteps, ySteps, xLabel, yLabel, base, pr
     const cellW = Math.max(56, Math.min(110, (W - 96) / xSteps.length));
     const cellH = 40, padL = 92, padT = 42;
     const H = padT + ySteps.length * cellH + 14;
-    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Sensitivity of value per share to two assumptions' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Sensitivity of value per share to two assumptions' });
 
     const xt = sv('text', { class: 'ax-label', x: padL + xSteps.length * cellW / 2, y: 13, 'text-anchor': 'middle', 'font-weight': 600 });
     xt.textContent = xLabel; s.append(xt);
@@ -5752,7 +5889,7 @@ function tornadoChart(container, { drivers, fmt = v => withSign(v) }) {
     const H = padT + drivers.length * rowH + 8;
     const iw = W - padL - padR, cx = padL + iw / 2;
     const max = Math.max(...drivers.map(d => d.span), 1);
-    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Change in value per share for a step in each assumption' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Change in value per share for a step in each assumption' });
     s.append(sv('line', { class: 'ax-line', x1: cx, x2: cx, y1: padT, y2: H - 8 }));
 
     drivers.forEach((d, i) => {
@@ -5803,7 +5940,7 @@ function waterfallChart(container, { steps, fmt, ccy }) {
     const nt = niceTicks(Math.min(...allV, 0), Math.max(...allV, 0) * 1.1, 4);
     const y = v => padT + ih - ((v - nt.lo) / ((nt.hi - nt.lo) || 1)) * ih;
     const band = iw / marks.length, barW = Math.min(24, band - 16);
-    const s = sv('svg', { class: 'chart', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Composition of the base-case model estimate per share' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Composition of the base-case model estimate per share' });
 
     nt.ticks.forEach(v => {
       s.append(sv('line', { class: 'gridline', x1: padL, x2: W - padR, y1: y(v), y2: y(v) }));
@@ -6148,6 +6285,7 @@ const ROUTES = [
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
   { path: '/status',              view: 'status',    title: 'Build status' },
+  { path: '/decision-record',     view: 'decisionRecord', title: 'Decision record' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
   { path: '/pricing',             view: 'plans',     title: 'Pricing' },
   { path: '/about',               view: 'about',     title: 'About' },
@@ -6182,13 +6320,24 @@ const href = (path) => `${BASE}${path}` || '/';
    relative 'data/x.json' worked only while every URL was the root; on
    /my/tracked it resolves to /my/data/x.json and 404s, which silently disabled
    real data on every nested route. */
-const dataUrl = (file) => `${BASE}/data/${file}`;
+/* A versioned file gets its content hash in the query string; the host serves
+   /data/* as immutable, so that hash is what makes a year of caching correct
+   rather than reckless. An unversioned file — the licensed lane — is requested
+   bare and fetchJson keeps it out of every cache. */
+const dataUrl = (file) => {
+  const v = DATA_VERSIONS[file];
+  return `${BASE}/data/${file}${v ? `?v=${v}` : ''}`;
+};
+const isVersioned = (url) => /[?&]v=[0-9a-f]{6,}$/.test(url);
 
 /* Returns the parsed body, or null when the file is genuinely absent. A host
    configured with a catch-all rewrite answers 200 and text/html for a missing
    path, so status alone cannot distinguish "not deployed" from "here it is". */
 async function fetchJson(url) {
-  const r = await fetch(url, { cache: 'no-store' });
+  /* no-store ONLY where the URL cannot prove what it holds. A ?v= URL is
+     content-addressed, so the default cache is not merely safe there — it is the
+     entire point of stamping the hash in. */
+  const r = await fetch(url, isVersioned(url) ? { cache: 'default' } : { cache: 'no-store' });
   if (!r.ok) return null;
   const ct = r.headers.get('content-type') || '';
   if (!/json/i.test(ct)) return null;      /* an HTML fallback, not the file */
@@ -6443,6 +6592,84 @@ document.addEventListener('click', e => {
   if (act) { e.preventDefault(); openReportError(); }
 });
 
+/* KEYBOARD NAVIGATION FOR A DENSE TABLE.
+   ---------------------------------------------------------------------------
+   The screener's metric cells were already focusable — each one carries
+   tabindex, a role and a label, and Enter opens its source drawer. That made
+   the table technically reachable and practically unusable: twelve columns by
+   forty rows is close to five hundred tab stops between the filters above the
+   table and the pagination below it. "Reachable" and "usable" are not the same
+   claim and only the second one is worth making.
+
+   So the table becomes a grid with ONE tab stop. Tab moves into it and out of
+   it; arrows move between cells; Home and End go to the ends of a row and, with
+   Ctrl, to the ends of the table. The cell that was last visited keeps the tab
+   stop, so returning to the table returns to where the reader was.
+
+   The company column is a row header rather than a cell, which is what makes a
+   screen reader announce "Maybank, return on capital, 12.4%" instead of reading
+   out a number with nothing attached to it. */
+function gridKeyboard(table, label) {
+  table.setAttribute('role', 'grid');
+  if (label) table.setAttribute('aria-label', label);
+
+  /* Read live rather than captured: sorting, filtering and the median rows all
+     rebuild the body underneath this listener. */
+  const grid = () => [...table.rows].map(r => [...r.cells]);
+  grid().flat().forEach(c => { c.tabIndex = -1; });
+  const first = grid()[0]?.[0];
+  if (first) first.tabIndex = 0;
+
+  const go = (r, c) => {
+    const g = grid();
+    if (!g.length) return;
+    r = clamp(r, 0, g.length - 1);
+    c = clamp(c, 0, (g[r] || []).length - 1);
+    const cell = g[r]?.[c];
+    if (!cell) return;
+    g.flat().forEach(x => { x.tabIndex = -1; });
+    cell.tabIndex = 0;
+    cell.focus();
+    /* A sticky header and two sticky median rows can hide the cell that just
+       took focus, which looks exactly like focus having gone nowhere. */
+    cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
+
+  table.addEventListener('keydown', (e) => {
+    if (e.altKey || e.metaKey) return;
+    const cell = e.target.closest && e.target.closest('td, th');
+    if (!cell || !table.contains(cell)) return;
+    const g = grid();
+    const r = g.findIndex(row => row.includes(cell));
+    if (r < 0) return;
+    const c = g[r].indexOf(cell);
+    let done = true;
+    switch (e.key) {
+      case 'ArrowRight': go(r, c + 1); break;
+      case 'ArrowLeft':  go(r, c - 1); break;
+      case 'ArrowDown':  go(r + 1, c); break;
+      case 'ArrowUp':    go(r - 1, c); break;
+      case 'Home':       go(e.ctrlKey ? 0 : r, 0); break;
+      case 'End':        go(e.ctrlKey ? g.length - 1 : r, g[r].length - 1); break;
+      case 'PageDown':   go(Math.min(r + 10, g.length - 1), c); break;
+      case 'PageUp':     go(Math.max(r - 10, 0), c); break;
+      default: done = false;
+    }
+    /* Enter and Space are deliberately NOT handled here — the sourced cells
+       already bind them to open their own drawer, and intercepting them would
+       take that away. */
+    if (done) { e.preventDefault(); e.stopPropagation(); }
+  });
+
+  /* Clicking a cell moves the tab stop there too, so mouse and keyboard do not
+     end up disagreeing about where the reader is. */
+  table.addEventListener('focusin', (e) => {
+    const cell = e.target.closest && e.target.closest('td, th');
+    if (!cell || !table.contains(cell)) return;
+    grid().flat().forEach(x => { if (x !== cell) x.tabIndex = -1; });
+    cell.tabIndex = 0;
+  });
+}
 /* ==========================================================================
    VIEW — HOME
    ========================================================================== */
@@ -7287,7 +7514,10 @@ function renderScreener() {
     sorted.forEach(r => {
       const tr = el('tr');
       cols.forEach(c2 => {
-        if (c2.k === 'ident') { const td = el('td', { class: 'pin ident' }); td.append(tickerCell(r)); tr.append(td); return; }
+        if (c2.k === 'ident') {
+          const th = el('th', { class: 'pin ident', scope: 'row' });
+          th.append(tickerCell(r)); tr.append(th); return;
+        }
         const v = c2.get(r);
         const td = el('td', { html: c2.fmt(v, r) });
         /* Any metric cell opens its own source drawer: what it is, the formula,
@@ -7297,7 +7527,6 @@ function renderScreener() {
         const fld = FIELD_BY_K[c2.k];
         if (fld && isNum(v)) {
           td.classList.add('cell-sourced');
-          td.setAttribute('tabindex', '0');
           td.setAttribute('role', 'button');
           td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${fld.fmt(v)} — show source`);
           td.addEventListener('click', () => openSourceDrawer(r, fld));
@@ -7340,6 +7569,10 @@ function renderScreener() {
       table.append(tf);
     }
 
+    /* One tab stop for the whole table, arrows inside it. Called after the
+       body, the median rows and the header all exist. */
+    gridKeyboard(table, `Screener results, ${sorted.length} companies by ${cols.length} measures. `
+      + 'Use the arrow keys to move between cells and Enter on a measure to see where it came from.');
     tw.append(table);
 
     /* What was converted and what was not, stated where the mixed table is
@@ -12634,6 +12867,17 @@ VIEWS.launcher = () => {
       grid.append(c);
     });
     wrap.append(grid);
+
+    /* THE THIRTY-SECOND PATH, offered beside the five goals rather than instead
+       of them. Somebody who has not decided which of the five they want is
+       exactly the person who should be allowed to look at a filled-in one
+       first — and the honest empty states this product is built on are the
+       reason that person otherwise sees nothing at all. */
+    const demo = el('div', { class: 'card', style: 'margin-top:var(--md)' });
+    demo.append(cardHead(hasWorkedExample() ? 'The worked example is loaded' : 'Or look at a filled-in one first',
+      WORKED_EXAMPLE_NOTE));
+    demo.append(workedExampleControls());
+    wrap.append(demo);
     return wrap;
   }
 
@@ -14596,6 +14840,200 @@ function openReportError() {
 }
 
 /* ==========================================================================
+   REGISTER LOG — WHAT CHANGED, WHEN, AND WHO SAYS SO
+   --------------------------------------------------------------------------
+   Every recorded figure in this product used to be stored by overwriting it.
+   `State.observations[i] = {...}` and `State.areaProfiles[k] = {...}` were the
+   whole persistence model, so a corrected transacted price left no trace of the
+   figure it corrected, a mistyped digit could only be found by remembering it,
+   and two people keying evidence into two browsers had no way to reconcile.
+
+   That is tolerable while one person records a handful of rows for themselves.
+   It stops being tolerable the moment somebody is paid to key in transacted
+   prices, because then the register is evidence about other people's property
+   and "who changed this, and from what" is a question that will be asked.
+
+   So writes go through here first. The log is append-only: a correction is a
+   new event, a deletion is a new event, and an undo is a new event carrying the
+   inverse. Nothing in this file ever rewrites or removes a past entry, because
+   a history that can be edited is not a history.
+
+   THE PROJECTION IS A CACHE, THE LOG IS THE RECORD.
+
+   State.observations and State.areaProfiles remain exactly as they were, and
+   every reader still reads them. They are the current state folded up for fast
+   access. If the two ever disagreed, the log is right — replayRegister()
+   rebuilds the projection from nothing and is the definition of correct.
+
+   AND IT IS THE SYNC PAYLOAD.
+
+   When there is a server, this is what gets sent: an ordered list of typed
+   events with a monotonic sequence and an actor. Merging two append-only logs
+   is a solved problem; merging two overwritten snapshots is a guess.
+   ========================================================================== */
+
+const REGISTER_LOG_CAP = 3000;   /* localStorage is ~5MB total across all keys */
+
+/* Sequence is monotonic WITHIN a browser and never derived from the clock. A
+   timestamp is what happened when; a sequence is what happened after what, and
+   two events in the same millisecond still have an order. */
+let REG_SEQ = 0;
+
+/* Who is keying this in. Unset is honest and common — one person recording for
+   themselves does not need to name themselves. It matters when an agent is paid
+   to enter transacted prices and someone later asks whose figure this was. */
+const registerActor = () => (store.read('registerActor', '') || '').trim();
+const setRegisterActor = (name) => store.write('registerActor', String(name || '').trim());
+
+const registerLog = () => store.read('registerLog', []);
+
+function loadRegisterLog() {
+  REG_SEQ = registerLog().reduce((m, e) => Math.max(m, e.seq || 0), 0);
+}
+
+/* Appends and returns the event. The ONLY function in the codebase that writes
+   the log — everything else calls a recorder below. */
+function logRegister(entity, op, id, detail) {
+  const log = registerLog();
+  const ev = {
+    seq: ++REG_SEQ,
+    at: new Date().toISOString(),
+    actor: registerActor() || null,
+    entity, op, id, ...detail,
+  };
+  log.push(ev);
+  /* Trimming loses history, so it is stated rather than done quietly: the
+     survivor carries the count of what was dropped, and the log is never
+     silently shorter than it claims to be. */
+  if (log.length > REGISTER_LOG_CAP) {
+    const dropped = log.length - REGISTER_LOG_CAP;
+    const kept = log.slice(dropped);
+    kept[0] = { ...kept[0], trimmedBefore: (kept[0].trimmedBefore || 0) + dropped };
+    store.write('registerLog', kept);
+  } else {
+    store.write('registerLog', log);
+  }
+  return ev;
+}
+
+/* History for one record, newest first. */
+const registerHistory = (entity, id) =>
+  registerLog().filter(e => e.entity === entity && e.id === id).reverse();
+
+/* ---------------------------------------------------------------- recorders */
+
+const recordObservationAdded = (o) => logRegister('observation', 'add', o.id, { after: o });
+const recordObservationEdited = (id, field, from, to) =>
+  logRegister('observation', 'edit', id, { field, from: from ?? null, to: to ?? null });
+const recordObservationDeleted = (o) => logRegister('observation', 'delete', o.id, { before: o });
+const recordAreaAttr = (key, attrId, from, to) =>
+  logRegister('areaAttr', to ? (from ? 'edit' : 'add') : 'delete', key,
+    { field: attrId, from: from ?? null, to: to ?? null });
+
+/* ------------------------------------------------------------------- undo */
+
+/* The newest event that has not itself been reversed, and is not a reversal. */
+function lastUndoableEvent() {
+  const log = registerLog();
+  const undone = new Set(log.filter(e => e.undoOf).map(e => e.undoOf));
+  for (let i = log.length - 1; i >= 0; i--) {
+    const e = log[i];
+    if (e.undoOf || undone.has(e.seq)) continue;
+    return e;
+  }
+  return null;
+}
+
+const canUndoRegister = () => !!lastUndoableEvent();
+
+/* Reverses the most recent change and RECORDS THE REVERSAL. The undone event
+   stays in the log with its original sequence — it did happen. Returns a short
+   human description, or null when there is nothing to undo. */
+function undoLastRegisterChange() {
+  const e = lastUndoableEvent();
+  if (!e) return null;
+
+  if (e.entity === 'observation') {
+    if (e.op === 'add') {
+      State.observations = State.observations.filter(x => x.id !== e.id);
+      saveObservations();
+      logRegister('observation', 'delete', e.id, { before: e.after, undoOf: e.seq });
+      return 'Undid: record added';
+    }
+    if (e.op === 'delete') {
+      State.observations = [e.before, ...State.observations];
+      saveObservations();
+      logRegister('observation', 'add', e.id, { after: e.before, undoOf: e.seq });
+      return 'Undid: record deleted';
+    }
+    if (e.op === 'edit') {
+      const k = State.observations.findIndex(x => x.id === e.id);
+      if (k > -1) {
+        State.observations[k] = { ...State.observations[k], [e.field]: e.from };
+        saveObservations();
+      }
+      logRegister('observation', 'edit', e.id, { field: e.field, from: e.to, to: e.from, undoOf: e.seq });
+      return `Undid: ${e.field} changed`;
+    }
+  }
+
+  if (e.entity === 'areaAttr') {
+    const prev = { ...(State.areaProfiles[e.id] || {}) };
+    if (e.from) prev[e.field] = e.from; else delete prev[e.field];
+    if (Object.keys(prev).length) State.areaProfiles[e.id] = prev;
+    else delete State.areaProfiles[e.id];
+    saveAreaProfiles();
+    logRegister('areaAttr', e.from ? 'edit' : 'delete', e.id,
+      { field: e.field, from: e.to, to: e.from, undoOf: e.seq });
+    return 'Undid: area attribute changed';
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ replay */
+
+/* Rebuilds both projections from the log alone. This is what makes the claim
+   "the log is the record" checkable rather than decorative: if a replay and the
+   stored projection disagree, something wrote around the recorder. A trimmed
+   log cannot replay to a complete state and says so, rather than returning a
+   partial answer that looks complete. */
+function replayRegister() {
+  const log = registerLog();
+  if (log.some(e => e.trimmedBefore))
+    return { ok: false, why: 'the log has been trimmed, so it no longer holds every event' };
+
+  const obs = new Map();
+  const areas = {};
+  for (const e of log) {
+    if (e.entity === 'observation') {
+      if (e.op === 'add') obs.set(e.id, { ...e.after });
+      else if (e.op === 'delete') obs.delete(e.id);
+      else if (e.op === 'edit' && obs.has(e.id)) obs.set(e.id, { ...obs.get(e.id), [e.field]: e.to });
+    } else if (e.entity === 'areaAttr') {
+      const cur = { ...(areas[e.id] || {}) };
+      if (e.to) cur[e.field] = e.to; else delete cur[e.field];
+      if (Object.keys(cur).length) areas[e.id] = cur; else delete areas[e.id];
+    }
+  }
+  return { ok: true, observations: [...obs.values()], areaProfiles: areas };
+}
+
+/* One line of prose for an event, for the history list in a record's drawer. */
+function registerEventText(e) {
+  const who = e.actor ? ` by ${e.actor}` : '';
+  const when = String(e.at || '').slice(0, 16).replace('T', ' ');
+  const val = (v) => v == null || v === '' ? 'nothing'
+    : typeof v === 'object' ? (v.label || v.value || JSON.stringify(v).slice(0, 40)) : String(v);
+  if (e.op === 'add') return `${when}${who} — recorded`;
+  if (e.op === 'delete') return `${when}${who} — deleted`;
+  return `${when}${who} — ${e.field}: ${val(e.from)} → ${val(e.to)}`;
+}
+
+/* Resume the sequence at load. Without this a reload restarts REG_SEQ at 0 and
+   two events in the same log share a sequence number — which is the one thing
+   the sequence exists to prevent. */
+loadRegisterLog();
+/* ==========================================================================
    PROPERTY — Quantum Property Deal Check
    A property turned into an investor-grade financial model: true acquisition
    cost, financing, rent, vacancy, maintenance, cash flow, yield, exit costs
@@ -15499,8 +15937,13 @@ const areaAttr = (city, area, attrId) => areaProfile(city, area)?.[attrId] || nu
 function setAreaAttr(city, area, attrId, rec) {
   const k = areaKey(city, area);
   const prev = { ...(State.areaProfiles[k] || {}) };
+  const was = prev[attrId] || null;
   if (rec) prev[attrId] = { ...rec, recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' ') };
   else delete prev[attrId];
+  /* Logged BEFORE the projection is written. If the write throws — a full
+     localStorage quota is the realistic case — the history still says what was
+     attempted, which is the more useful of the two records to keep. */
+  recordAreaAttr(k, attrId, was, rec ? prev[attrId] : null);
   if (Object.keys(prev).length) State.areaProfiles[k] = prev;
   else delete State.areaProfiles[k];
   saveAreaProfiles();
@@ -15649,6 +16092,10 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     svg.setAttribute('width', String(contentW)); svg.setAttribute('height', String(H));
     svg.setAttribute('style', 'display:block;margin:0 auto;max-width:100%');
     svg.setAttribute('role', 'img');
+    /* Built by hand rather than through the chart layer, so it needed the tab
+       stop adding separately — and did not have one. */
+    svg.setAttribute('tabindex', '0');
+    svg.classList.add('chart-focusable');
     svg.setAttribute('aria-label',
       `Relative positions of ${areas.length} areas in ${city.name}. The table below lists the same information.`);
 
@@ -16132,18 +16579,27 @@ const saveObservations = () => store.write('observations', State.observations);
    lost — but it can never be verified evidence, and the register says which of
    the two it is rather than presenting a list of equals. */
 function addObservation(o) {
-  State.observations = [{
+  const rec = {
     address:'', propertyType:'', sqft:null, sourceRef:'', reviewedBy:'', reviewedAt:'',
     ...o,
     id: `obs-${State.observations.length + 1}-${o.date}-${Math.floor(performance.now())}`,
     recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-  }, ...State.observations];
+  };
+  recordObservationAdded(rec);
+  State.observations = [rec, ...State.observations];
   saveObservations();
+  return rec;
 }
 
 /* Three states, because "verified" and "recorded" are different claims and a
    register that shows them as one list is not evidence, it is a pile. */
 function observationStanding(o) {
+  /* FIRST, and deliberately so. A worked-example row is complete in every field
+     a real one has, which means every other test below would pass it and hand a
+     figure nobody observed the same standing as a transaction someone saw. */
+  if (o.sample)
+    return { id:'sample', label:'Worked example', tone:'chip chip-bronze',
+             why:'Part of the worked example. This figure was invented to demonstrate the tool — there is no property, no document and no transaction behind it. Remove the worked example from the comparables register when you no longer need it.' };
   const ev = evidenceOf(o.evidence);
   if (!o.sourceRef || !String(o.sourceRef).trim())
     return { id:'unsourced', label:'No source recorded', tone:'chip chip-bronze',
@@ -21126,6 +21582,38 @@ VIEWS.comparables = () => {
       'Transacted prices and achieved rents you have recorded, with what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.'),
   ])));
 
+  /* WHO IS RECORDING, AND UNDO.
+     Both belong here rather than in a settings page: this is the screen someone
+     sits on while keying in forty transactions, and a name they have to go
+     somewhere else to set is a name that stays blank. */
+  const admin = el('div', { class: 'card' });
+  admin.append(cardHead('Recording as',
+    'Every change is logged with this name. Leave it blank if you are the only one recording — the history still works, it simply says nobody in particular.'));
+  const actorRow = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:flex-end' });
+  const actorField = el('div', { class: 'field', style: 'flex:1 1 220px;margin:0' });
+  actorField.append(el('label', { for: 'registerActorInput' }, 'Name or initials'));
+  const actorInput = el('input', { class: 'input', id: 'registerActorInput', type: 'text',
+    value: registerActor(), placeholder: 'e.g. AL — sourcing agent' });
+  actorInput.addEventListener('change', e => { setRegisterActor(e.target.value); toast(e.target.value.trim() ? `Recording as ${e.target.value.trim()}` : 'Recording without a name'); });
+  actorField.append(actorInput);
+  actorRow.append(actorField);
+
+  if (hasWorkedExample()) {
+    admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--md);color:var(--bronze)' },
+      `${sampleObservations().length} of the records below are the worked example — invented figures, marked on every row. They are counted in the medians on the area screen, which is what makes the demonstration work and what makes removing them the first thing to do before relying on anything.`));
+    admin.append(workedExampleControls({ compact: true }));
+  }
+
+  const logN = registerLog().length;
+  const undoBtn = el('button', { class: 'btn btn-ghost btn-sm', disabled: !canUndoRegister() ? '' : null,
+    onclick: () => { const what = undoLastRegisterChange(); render(); toast(what || 'Nothing left to undo'); } },
+    'Undo last change');
+  actorRow.append(undoBtn);
+  admin.append(actorRow);
+  admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    logN ? `${logN} change${logN === 1 ? '' : 's'} recorded. Corrections and deletions are kept as entries rather than erasing what they replaced, so a figure can always be traced back.`
+         : 'No changes recorded yet. From the first one, every correction and deletion is kept as an entry rather than erasing what it replaced.'));
+
   const rows = State.observations || [];
   const stand = rows.map(o => ({ o, s: observationStanding(o) }));
   const counts = stand.reduce((a, x) => { a[x.s.id] = (a[x.s.id] || 0) + 1; return a; }, {});
@@ -21142,8 +21630,10 @@ VIEWS.comparables = () => {
   } else {
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
       'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it from the district panel on the calculator, where the city and district are already set.'));
+    head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
+    head.append(workedExampleControls());
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-      el('a', { class: 'btn btn-primary btn-sm', href: href('/property/calculator'),
+      el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/calculator'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
         'Open the calculator to record one'),
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/data-sources'),
@@ -21178,6 +21668,8 @@ VIEWS.comparables = () => {
     wrap.append(el('div', { class: 'card' }, el('div', { class: 'tablewrap' }, t)));
   }
 
+  wrap.append(admin);
+
   /* THE WORK HAS TO BE ABLE TO LEAVE THE MACHINE IT WAS DONE ON.
      Records live in this browser's localStorage. Somebody sourcing a district's
      transactions builds a week of work that a cleared browser, a second laptop
@@ -21200,7 +21692,14 @@ VIEWS.comparables = () => {
   io.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!rows.length) { toast('Nothing to export yet'); return; }
-      dl('quantum-comparables.json', JSON.stringify(rows, null, 2), 'application/json');
+      dl('quantum-comparables.json', JSON.stringify({
+        format: 'quantum-tradeworks/comparables', version: 2,
+        exportedAt: new Date().toISOString(),
+        records: rows,
+        /* Only the events about these records. A whole-log dump would carry area
+           attributes and other districts into a file labelled comparables. */
+        history: registerLog().filter(e => e.entity === 'observation'),
+      }, null, 2), 'application/json');
     } }, `Export JSON${rows.length ? ` — ${rows.length}` : ''}`),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!rows.length) { toast('Nothing to export yet'); return; }
@@ -21212,7 +21711,7 @@ VIEWS.comparables = () => {
     el('button', { class: 'btn btn-primary btn-sm', onclick: () => openComparableImport() }, 'Import'),
   ]));
   io.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'CSV is for reading; JSON round-trips exactly. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));
+    'CSV is for reading; JSON round-trips exactly and carries the change history with it. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));
   wrap.append(io);
 
   const rules = el('div', { class: 'card' });
@@ -21253,7 +21752,14 @@ function openComparableImport() {
     if (t.startsWith('[') || t.startsWith('{')) {
       try {
         const j = JSON.parse(t);
-        return { rows: Array.isArray(j) ? j : [j], errors: [] };
+        /* Three shapes, because all three exist in the wild now: a bare array
+           (what this register exported before it carried history), the v2
+           envelope it exports today, and a single record someone pasted by
+           hand. Missing the envelope would read {format, records, history} as
+           one malformed row and reject a file this very screen produced. */
+        if (Array.isArray(j)) return { rows: j, errors: [] };
+        if (Array.isArray(j.records)) return { rows: j.records, errors: [] };
+        return { rows: [j], errors: [] };
       } catch (e) { return { rows: [], errors: [`That is not valid JSON — ${e.message}`] }; }
     }
     /* CSV. Quoted fields with embedded commas are handled; anything more exotic
@@ -21352,7 +21858,11 @@ function openObservationDrawer(o) {
     node.addEventListener('change', e => {
       const v = kind === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value;
       const i = State.observations.findIndex(x => x.id === o.id);
-      if (i > -1) { State.observations[i] = { ...State.observations[i], [key]: v }; saveObservations(); }
+      if (i > -1) {
+        recordObservationEdited(o.id, key, State.observations[i][key], v);
+        State.observations[i] = { ...State.observations[i], [key]: v };
+        saveObservations();
+      }
       o[key] = v;
       render();
     });
@@ -21371,9 +21881,24 @@ function openObservationDrawer(o) {
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
   body.append(kv);
 
+  /* WHAT HAPPENED TO THIS RECORD.
+     A register that only shows the current figure asks the reader to trust that
+     it was always that figure. This is the whole reason the log exists, so it
+     is shown where the figure is edited rather than filed away in a settings
+     page nobody opens. */
+  const hist = registerHistory('observation', o.id);
+  if (hist.length) {
+    body.append(el('h3', { class: 'h-card', style: 'margin-top:var(--lg)' }, 'History'));
+    const ul = el('ul', { class: 'log-list' });
+    hist.slice(0, 12).forEach(e => ul.append(el('li', { class: 'metaline' }, registerEventText(e))));
+    if (hist.length > 12) ul.append(el('li', { class: 'metaline' }, `… and ${hist.length - 12} earlier change${hist.length - 12 === 1 ? '' : 's'}`));
+    body.append(ul);
+  }
+
   body.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--md)', onclick: () => {
+    recordObservationDeleted(State.observations.find(x => x.id === o.id) || o);
     State.observations = State.observations.filter(x => x.id !== o.id);
-    saveObservations(); closeDrawer(); render(); toast('Record deleted');
+    saveObservations(); closeDrawer(); render(); toast('Record deleted — undo from the register');
   } }, 'Delete this record'));
   openDrawer(`${OBS_BY_ID[o.kind] ? OBS_BY_ID[o.kind].label : 'Observation'} · ${fmtNum(o.value, 0)}`, body);
 }
@@ -21635,6 +22160,190 @@ VIEWS.plans = () => {
   return wrap;
 };
 
+/* ==========================================================================
+   WORKED EXAMPLE — A FULL DISTRICT, EVERY FIGURE MARKED AS INVENTED
+   --------------------------------------------------------------------------
+   A first-time visitor met honest empty states everywhere: an area screen with
+   nine layers and nothing in them, a comparables register saying the register
+   is empty, a wheel with no contract. All of that is correct — it is the true
+   state of the evidence and it should not be dressed up. It is also completely
+   unpersuasive, because nobody can tell the difference between a product that
+   is empty and a product that does nothing.
+
+   So there is one button that fills a district, and the rule governing it is
+   the same rule the rest of the product runs on: SAY WHERE EVERY FIGURE CAME
+   FROM. These came from nowhere. They are not scraped, not modelled, not a
+   real Kuching transaction with the address filed off — they were typed to
+   demonstrate the shape of the tool, and every one of them says so:
+
+     · every record carries sample:true, and observationStanding() checks that
+       FIRST, so a seeded row can never present as Verified however complete
+       its fields look
+     · the source reference on every row is the sentence "Worked example — no
+       document exists", which is unmistakable in an export or a CSV
+     · the area attributes are recorded with source class "unstated"
+     · the whole set is removable in one action, and removing it takes nothing
+       the reader entered
+
+   Seeding goes through the same recorders as manual entry, so the events land
+   in the register log with their own actor and the reader can see, in the
+   history, that these are not theirs.
+   ========================================================================== */
+
+const SAMPLE_ACTOR = 'Worked example';
+const SAMPLE_REF = 'Worked example — no document exists';
+const SAMPLE_CITY = 'kuching';
+
+/* Three districts of one city, chosen to be different from each other rather
+   than flattering: one with a flood history and thin cover, one clean and
+   dearer, one mid. A demo where every district looks the same demonstrates
+   nothing, and a demo where every district looks good is a brochure. */
+const SAMPLE_AREAS = [
+  {
+    area: 'Tabuan',
+    attrs: {
+      flood: { class: 'occasional' }, title: { class: 'strata' },
+      drainage: { class: 'building' }, insurance: { class: 'loaded' },
+      lease: { value: 78 },
+    },
+    records: [
+      { kind: 'sold-price', value: 565000, date: '2026-02-11', sqft: 1050, propertyType: 'Condominium', address: 'Riveria-style block, Jalan Tabuan' },
+      { kind: 'sold-price', value: 598000, date: '2026-04-27', sqft: 1120, propertyType: 'Condominium', address: 'Same scheme, higher floor' },
+      { kind: 'let-rent',   value: 1850,   date: '2026-05-02', sqft: 1050, propertyType: 'Condominium', address: 'Two-bedroom, furnished' },
+      { kind: 'vacancy',    value: 7,      date: '2026-05-02', propertyType: 'Condominium', address: 'Weeks between tenancies' },
+    ],
+  },
+  {
+    area: 'Stutong',
+    attrs: {
+      flood: { class: 'none' }, title: { class: 'strata' },
+      drainage: { class: 'complete' }, insurance: { class: 'ready' },
+      lease: { value: 91 },
+    },
+    records: [
+      { kind: 'sold-price', value: 712000, date: '2026-03-19', sqft: 1180, propertyType: 'Condominium', address: 'Corner unit, Jalan Stutong' },
+      { kind: 'let-rent',   value: 2250,   date: '2026-04-08', sqft: 1180, propertyType: 'Condominium', address: 'Three-bedroom, partly furnished' },
+      { kind: 'vacancy',    value: 3,      date: '2026-04-08', propertyType: 'Condominium', address: 'Weeks between tenancies' },
+    ],
+  },
+  {
+    area: 'Batu Kawa',
+    attrs: {
+      flood: { class: 'recurrent' }, title: { class: 'leasehold' },
+      drainage: { class: 'proposed' }, insurance: { class: 'restricted' },
+      lease: { value: 61 },
+    },
+    records: [
+      { kind: 'sold-price', value: 438000, date: '2026-01-23', sqft: 1400, propertyType: 'Terrace', address: 'Intermediate terrace, Batu Kawa' },
+      { kind: 'let-rent',   value: 1400,   date: '2026-03-30', sqft: 1400, propertyType: 'Terrace', address: 'Unfurnished, annual tenancy' },
+      { kind: 'vacancy',    value: 14,     date: '2026-03-30', propertyType: 'Terrace', address: 'Weeks between tenancies' },
+    ],
+  },
+];
+
+const sampleObservations = () => (State.observations || []).filter(o => o.sample);
+const hasWorkedExample = () => sampleObservations().length > 0;
+
+/* Every seeded record, built the same way manual entry builds one so the two
+   cannot drift apart in shape. `evidence: 'assumed'` rather than a class that
+   would let it lift a grade — and standing overrides it anyway. */
+function seedWorkedExample() {
+  if (hasWorkedExample()) return { added: 0, why: 'already loaded' };
+
+  let added = 0;
+  SAMPLE_AREAS.forEach(({ area, attrs, records }) => {
+    Object.entries(attrs).forEach(([attrId, rec]) => {
+      const k = areaKey(SAMPLE_CITY, area);
+      const was = (State.areaProfiles[k] || {})[attrId] || null;
+      if (was) return;                    /* never overwrite what the reader recorded */
+      const full = { class: '', value: null, source: 'unstated', asOf: '', ref: SAMPLE_REF,
+                     sample: true, ...rec };
+      const prev = { ...(State.areaProfiles[k] || {}) };
+      prev[attrId] = { ...full, recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' ') };
+      /* actor in the detail overrides the reader's own name — these events are
+         not theirs and the history must not say they are. */
+      logRegister('areaAttr', 'add', k, { field: attrId, from: null, to: prev[attrId], actor: SAMPLE_ACTOR });
+      State.areaProfiles[k] = prev;
+    });
+    saveAreaProfiles();
+
+    records.forEach(r => {
+      const rec = {
+        address: '', propertyType: '', sqft: null, reviewedBy: '', reviewedAt: '',
+        city: SAMPLE_CITY, area, evidence: 'assumed', sourceRef: SAMPLE_REF,
+        ...r,
+        sample: true,
+        id: `obs-sample-${area.toLowerCase().replace(/\W+/g, '')}-${r.kind}-${r.date}-${added}`,
+        recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      };
+      logRegister('observation', 'add', rec.id, { after: rec, actor: SAMPLE_ACTOR });
+      State.observations = [rec, ...State.observations];
+      added++;
+    });
+  });
+  saveObservations();
+
+  /* The other two surfaces, so the example is the whole product rather than one
+     screen of it. Neither overwrites work in progress. */
+  if (!State.wheel?.strike) {
+    State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true };
+    saveWheel();
+  }
+  if (State.screen && samePreset(State.screen.cols, COL_PRESETS[0])) {
+    State.screen.cols = [...COL_PRESETS[1].cols];    /* business quality */
+  }
+
+  return { added, areas: SAMPLE_AREAS.length };
+}
+
+/* Removes ONLY what was seeded. A reader who recorded three real transactions
+   next to the example keeps all three — which is the difference between a demo
+   you can clear and a demo you have to reinstall the browser to escape. */
+function clearWorkedExample() {
+  const gone = sampleObservations();
+  gone.forEach(o => logRegister('observation', 'delete', o.id, { before: o, actor: SAMPLE_ACTOR }));
+  State.observations = (State.observations || []).filter(o => !o.sample);
+  saveObservations();
+
+  Object.entries(State.areaProfiles).forEach(([k, prof]) => {
+    const kept = Object.fromEntries(Object.entries(prof).filter(([, v]) => !v.sample));
+    Object.entries(prof).filter(([, v]) => v.sample).forEach(([attrId, v]) =>
+      logRegister('areaAttr', 'delete', k, { field: attrId, from: v, to: null, actor: SAMPLE_ACTOR }));
+    if (Object.keys(kept).length) State.areaProfiles[k] = kept;
+    else delete State.areaProfiles[k];
+  });
+  saveAreaProfiles();
+
+  if (State.wheel?.isWorkedExample) {
+    State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, isWorkedExample: false };
+    saveWheel();
+  }
+  return gone.length;
+}
+
+/* The control, wherever an empty state would otherwise be the whole screen. */
+function workedExampleControls({ compact = false } = {}) {
+  const row = el('div', { class: 'row row-wrap', style: `gap:8px;${compact ? '' : 'margin-top:var(--md)'}` });
+  if (hasWorkedExample()) {
+    row.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      const n = clearWorkedExample();
+      render(); toast(`Worked example removed — ${n} record${n === 1 ? '' : 's'}. Anything you recorded is untouched.`);
+    } }, 'Remove the worked example'));
+  } else {
+    row.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+      const r = seedWorkedExample();
+      render(); toast(`${r.added} illustrative records loaded across ${r.areas} districts. Every one is marked as invented.`);
+    } }, 'Load the worked example'));
+  }
+  return row;
+}
+
+/* One sentence, used beside every control above, so the offer is never made
+   without the warning attached to it. */
+const WORKED_EXAMPLE_NOTE =
+  'Three Kuching districts with invented transactions, rents, vacancy, flood, title, '
+  + 'drainage and insurance records — enough to see what the tool does before recording anything real. '
+  + 'Nothing in it is a real property or a real figure, every row is marked, and removing it leaves your own records alone.';
 /* ==========================================================================
    SEARCH · THEME · BOOT
    ========================================================================== */
@@ -21952,6 +22661,291 @@ window.addEventListener('hashchange', () => { if (fromHash()) history.replaceSta
 if (!fromHash()) applyRoute();
 
 console.info('Quantum Tradeworks prototype — synthetic data only. %d companies, %s', U.length, MODEL_VERSION);
+/* ==========================================================================
+   DECISION RECORD — THE PAGE THAT LEAVES THE BROWSER
+   --------------------------------------------------------------------------
+   An hour of work in this tool produced a browser tab. The tab is where the
+   thinking happened and it is the wrong artefact for what comes next, because
+   what comes next is a conversation with a spouse, a banker, a lawyer or a
+   business partner — none of whom are sitting at this laptop, and all of whom
+   will ask the same two questions: what did you assume, and what does it turn
+   on.
+
+   So this is one page, built to be printed or saved as PDF, holding exactly
+   the things a person would be embarrassed not to have if challenged:
+
+     · the figures, recomputed from the same engine the app used
+     · EVERY driving input with what it actually is — a figure the reader
+       entered, one this tool seeded, or one nobody has looked at
+     · the two pictures that carry the decision
+     · every open gate, not the worst one — the dock shows the worst because a
+       screen has to prioritise; a record has to be complete
+     · what the product does not know, and the date it was true
+
+   The provenance column is the reason this is worth printing at all. A page of
+   numbers with no provenance is what every other spreadsheet already produces.
+   A page that says "the rent is a figure this tool invented and nobody has
+   replaced" is a different document, and it is the honest one.
+   ========================================================================== */
+
+const DECISION_SUBJECTS = [
+  { id: 'property', label: 'Property deal', ready: () => !!State.deal },
+  { id: 'wheel', label: 'Options cash wheel', ready: () => num0(State.wheel?.putStrike) > 0 },
+  { id: 'tradingIndex', label: 'Trading Index', ready: () => qttiRun(State.qtti).assessable },
+];
+
+/* The provenance word for one property input, in the reader's terms rather than
+   the storage layer's. "Missing" is a real answer and gets said. */
+function inputProvenance(d, k) {
+  const ev = shownEvidence(d, k);
+  if (!isNum(d[k]) && !d[k]) return { word: 'Missing', why: 'Nothing has been entered.', tone: '--dn-text' };
+  if (ev === 'illustrative_default')
+    return { word: 'Sample', tone: '--bronze',
+             why: 'Carried by this tool as a starting number. Nobody chose it for this property.' };
+  if (isTouched(d, k))
+    return { word: evidenceOf(ev).rank >= 4 ? 'Verified' : 'User entered', tone: null,
+             why: evidenceOf(ev).note };
+  return { word: evidenceOf(ev).label, tone: null, why: evidenceOf(ev).note };
+}
+
+function decisionRecordProperty() {
+  const d = State.deal, m = dealModel(d), g = propertyGrade(d, m);
+  const out = el('div', { class: 'decision-record' });
+
+  const where = [d.district, SARAWAK_CITIES.find(c => c.id === d.city)?.name].filter(Boolean).join(', ');
+  out.append(el('div', { class: 'dr-head' }, [
+    el('p', { class: 'eyebrow' }, 'Decision record · property'),
+    el('h1', {}, `${d.propertyType || 'Property'}${where ? ` — ${where}` : ''}`),
+    el('p', { class: 'metaline' },
+      `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${MODEL_VERSION} · research only, not advice`),
+  ]));
+
+  /* ---- what it comes to ------------------------------------------------ */
+  const figs = el('div', { class: 'dr-figs' });
+  [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null],
+   ['Safe cash', isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null],
+   ['Monthly position', isNum(m.cashflowMonthly) ? fmtMoney(m.cashflowMonthly, 'MYR', 0) : null],
+   ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : null],
+   ['Grade', g.grade || null]]
+    .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
+      el('div', { class: 'caption' }, k),
+      /* A withheld figure is printed as a withheld figure. An em dash in a
+         document somebody carries into a bank is better than a zero. */
+      el('div', { class: 'dr-fig-v' }, v ?? 'Not computed'),
+    ])));
+  out.append(figs);
+
+  /* ---- what it rests on ------------------------------------------------ */
+  out.append(el('h2', {}, 'What these figures rest on'));
+  out.append(el('p', { class: 'body' },
+    'Every input that moves an output above, and where each one came from. A figure marked Sample was '
+    + 'carried by this tool, not chosen for this property.'));
+  const t = el('table', { class: 'dt dr-table' });
+  t.append(el('thead', {}, el('tr', {}, ['Input', 'Value', 'Where it came from', 'What it affects']
+    .map(h => el('th', { style: 'text-align:left' }, h)))));
+  const tb = el('tbody');
+  PROPERTY_REVIEW.forEach(f => {
+    const p = inputProvenance(d, f.k);
+    tb.append(el('tr', {}, [
+      el('td', { style: 'text-align:left' }, f.label),
+      el('td', { class: 'num', style: 'text-align:left' }, isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'),
+      el('td', { style: `text-align:left${p.tone ? `;color:var(${p.tone})` : ''}`, title: p.why }, p.word),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, f.affects),
+    ]));
+  });
+  t.append(tb);
+  const tw = el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' });
+  tw.append(t);
+  out.append(tw);
+  gridKeyboard(t, 'What these figures rest on. Use the arrow keys to move between cells.');
+
+  const unreviewed = propertyReviewQueue(d);
+  if (unreviewed.length) out.append(el('p', { class: 'dr-warn' },
+    `${unreviewed.length} of these ${unreviewed.length === 1 ? 'is' : 'are'} still the figure this tool seeded: `
+    + `${unreviewed.map(f => f.label.toLowerCase()).join(', ')}. `
+    + 'Nobody has replaced them with anything observed, so every output above inherits that.'));
+
+  /* ---- the two pictures ------------------------------------------------ */
+  if (isNum(m.breakEvenRent) && m.breakEvenRent > 0 && isNum(d.rent)) {
+    out.append(el('h2', {}, 'Rent against break-even'));
+    const host = el('div');
+    out.append(host);
+    thresholdBar(host, {
+      value: d.rent, valueLabel: 'your rent',
+      threshold: m.breakEvenRent, thresholdLabel: 'break-even', ccy: 'MYR',
+      aria: (covers, gap) => `Entered rent ${fmtMoney(d.rent, 'MYR')} a month against a break-even rent of `
+        + `${fmtMoney(m.breakEvenRent, 'MYR')} a month. `
+        + (covers ? `The rent covers costs and the loan by ${fmtMoney(gap, 'MYR')} a month.`
+                  : `The rent is ${fmtMoney(gap, 'MYR')} a month short.`),
+    });
+  }
+  if ((m.costGroups || []).length >= 2) {
+    out.append(el('h2', {}, 'What the cash is for'));
+    const host = el('div');
+    out.append(host);
+    cashWaterfall(host, m);
+  }
+
+  /* ---- what is open ---------------------------------------------------- */
+  out.append(el('h2', {}, 'What is unresolved'));
+  const gates = g.gates || [];
+  if (!gates.length) {
+    out.append(el('p', { class: 'body' }, 'No gate is open on the figures as entered. That is a statement about '
+      + 'the inputs above, not about the property.'));
+  } else {
+    const ul = el('ul', { class: 'ticklist blocklist' });
+    gates.forEach(x => ul.append(el('li', {},
+      `${x.severity === 'critical' ? 'Critical — ' : ''}${x.text || x}`)));
+    out.append(ul);
+  }
+
+  out.append(el('h2', {}, 'What this record does not tell you'));
+  const lim = el('ul', { class: 'ticklist blocklist' });
+  [
+    'No valuation of the property. Nothing here is a price opinion, a target price or a recommendation.',
+    (() => {
+      const own = (State.observations || []).filter(o => !o.sample).length;
+      return 'No comparables beyond what has been recorded in this browser. The register holds '
+        + (own ? `${own} record${own === 1 ? '' : 's'} of your own` : 'nothing of your own')
+        + ', so nothing above has been checked against a transaction anyone else can see.';
+    })(),
+    'Title, tenure and eligibility are recorded from user input and have not been verified. Confirm with a '
+      + 'Sarawak property lawyer and the Land and Survey Department.',
+    'Costs, duties and fees follow the registry in this build and change without notice. Confirm every figure '
+      + 'with the lender, the solicitor and the local authority before committing.',
+  ].forEach(x => lim.append(el('li', {}, x)));
+  out.append(lim);
+
+  return out;
+}
+
+function decisionRecordWheel() {
+  const p = State.wheel, m = wheelMath(p), fit = wheelFit(p, m, null);
+  const out = el('div', { class: 'decision-record' });
+  out.append(el('div', { class: 'dr-head' }, [
+    el('p', { class: 'eyebrow' }, 'Decision record · options cash wheel'),
+    el('h1', {}, `${p.ticker || 'Contract'} — cash-secured put and covered call`),
+    el('p', { class: 'metaline' },
+      `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${MODEL_VERSION} · research only, not advice`),
+  ]));
+
+  if (p.isWorkedExample) out.append(el('p', { class: 'dr-warn' },
+    'This is the worked contract this tool carries as an illustration. The strike, premium and expiry were not '
+    + 'quoted by any broker and no chain data is connected.'));
+
+  const figs = el('div', { class: 'dr-figs' });
+  [['Cash to secure', isNum(m.requiredAssignmentCash) ? fmtMoney(m.requiredAssignmentCash, 'USD') : null],
+   ['Premium received', isNum(m.netPremium) ? fmtMoney(m.netPremium, 'USD') : null],
+   ['Break-even', isNum(m.breakEven) ? fmtMoney(m.breakEven, 'USD') : null],
+   ['Worst case at zero', isNum(m.putMaxLossIfZero) ? fmtMoney(m.putMaxLossIfZero, 'USD') : null]]
+    .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
+      el('div', { class: 'caption' }, k),
+      el('div', { class: 'dr-fig-v' }, v ?? 'Not computed'),
+    ])));
+  out.append(figs);
+
+  out.append(el('h2', {}, 'Payoff at expiry'));
+  const host = el('div');
+  out.append(host);
+  payoffChart(host, m, p);
+
+  out.append(el('h2', {}, 'What is unresolved'));
+  const gates = fit.gates || [];
+  if (!gates.length) out.append(el('p', { class: 'body' }, 'No gate is open on the contract as entered.'));
+  else {
+    const ul = el('ul', { class: 'ticklist blocklist' });
+    gates.forEach(x => ul.append(el('li', {}, typeof x === 'string' ? x : x.text)));
+    out.append(ul);
+  }
+
+  out.append(el('h2', {}, 'What this record does not tell you'));
+  const lim = el('ul', { class: 'ticklist blocklist' });
+  ['No live option chain is connected. Every contract figure is one you entered.',
+   'No assessment of whether this trade suits you. This product does not ask about your circumstances and could not answer that if it did.',
+   'Assignment, early exercise, dividends and corporate actions are modelled simply and will differ from a broker’s treatment.',
+  ].forEach(x => lim.append(el('li', {}, x)));
+  out.append(lim);
+  return out;
+}
+
+VIEWS.decisionRecord = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+
+  const ready = DECISION_SUBJECTS.filter(s => { try { return s.ready(); } catch { return false; } });
+  const want = State.decisionSubject && ready.some(s => s.id === State.decisionSubject)
+    ? State.decisionSubject : (ready[0]?.id || null);
+
+  /* The chrome above the record — not part of what prints. */
+  const bar = el('div', { class: 'card dr-chrome' });
+  bar.append(cardHead('Decision record',
+    'One page holding the figures, every input with where it came from, the pictures and everything still open. '
+    + 'Print it or save it as PDF — this is the version that leaves the browser.'));
+  if (ready.length > 1) {
+    const seg = el('div', { class: 'segmented', style: 'margin-top:var(--md)', role: 'tablist' });
+    ready.forEach(s => seg.append(el('button', {
+      role: 'tab', 'aria-selected': s.id === want ? 'true' : 'false',
+      class: s.id === want ? 'is-on' : '',
+      onclick: () => { State.decisionSubject = s.id; render(); },
+    }, s.label)));
+    bar.append(seg);
+  }
+  bar.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => window.print() }, 'Print or save as PDF'),
+  ]));
+  bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Printing hides the navigation, the dock and these controls. The record itself prints in light colours '
+    + 'whatever theme the screen is using, because a dark page is not what a printer should be asked to do.'));
+  wrap.append(bar);
+
+  if (!want) {
+    const empty = el('div', { class: 'card' });
+    empty.append(cardHead('Nothing to record yet',
+      'A record is made of the work behind it. Model a property, enter a contract, or record trend evidence, '
+      + 'and this page fills in from what the engine already computed.'));
+    empty.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' },
+      ['/property/calculator', '/us-options/wheel', '/research/trading-index'].map((h, i) =>
+        el('a', { class: i ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm', href: href(h),
+          onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(h); } },
+          ['Property calculator', 'Cash wheel', 'Trading Index'][i]))));
+    wrap.append(empty);
+    return wrap;
+  }
+
+  const card = el('div', { class: 'card' });
+  if (want === 'property') card.append(decisionRecordProperty());
+  else if (want === 'wheel') card.append(decisionRecordWheel());
+  else {
+    /* The Trading Index states its own evidence rather than a modelled figure,
+       so its record is its evidence table — reusing the view's own renderer
+       rather than a second copy that could disagree with it. */
+    const r = qttiRun(State.qtti);
+    const out = el('div', { class: 'decision-record' });
+    out.append(el('div', { class: 'dr-head' }, [
+      el('p', { class: 'eyebrow' }, 'Decision record · Trading Index'),
+      el('h1', {}, `${State.qtti?.symbol || 'Instrument'} — trend evidence`),
+      el('p', { class: 'metaline' },
+        `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · research only, not advice`),
+    ]));
+    const figs = el('div', { class: 'dr-figs' });
+    [['Trend regime', r.assessable ? String(r.regime) : null],
+     ['First-tranche readiness', r.assessable ? String(r.tranche) : null],
+     ['Screenshot confidence', r.assessable ? String(r.confidence) : null]]
+      .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
+        el('div', { class: 'caption' }, k), el('div', { class: 'dr-fig-v' }, v ?? 'Not computed')])));
+    out.append(figs);
+    out.append(el('h2', {}, 'What is unresolved'));
+    const all = [...(r.reject || []), ...(r.gates || [])];
+    if (!all.length) out.append(el('p', { class: 'body' }, 'No gate is open on the evidence recorded.'));
+    else {
+      const ul = el('ul', { class: 'ticklist blocklist' });
+      all.forEach(x => ul.append(el('li', {}, typeof x === 'string' ? x : x.text)));
+      out.append(ul);
+    }
+    card.append(out);
+  }
+  wrap.append(card);
+  return wrap;
+};
 </script>
 </body>
 </html>
