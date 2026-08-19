@@ -74,6 +74,10 @@ const CANDIDATES = [
   '/usr/bin/chromium', '/usr/bin/chromium-browser',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ].filter(Boolean);
+const CI_FLAGS = process.env.CI
+  ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+  : [];
+
 const bin = CANDIDATES.find(existsSync);
 if (!bin) { console.error('no Chrome or Edge found'); process.exit(1); }
 
@@ -82,7 +86,7 @@ const profile = join(tmpdir(), `qt-frames-${process.pid}`);
 const port = 9950 + (process.pid % 40);
 const proc = spawn(bin, [`--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
   '--headless=new', '--no-first-run', '--no-default-browser-check',
-  '--disable-extensions', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
+  '--disable-extensions', '--disable-gpu', 'about:blank', ...CI_FLAGS], { stdio: 'ignore' });
 
 let ws;
 try {

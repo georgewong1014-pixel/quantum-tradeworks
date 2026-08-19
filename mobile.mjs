@@ -32,12 +32,16 @@ const CANDIDATES = [
   '/usr/bin/chromium', '/usr/bin/chromium-browser',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ].filter(Boolean);
+const CI_FLAGS = process.env.CI
+  ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+  : [];
+
 const bin = CANDIDATES.find(existsSync);
 if (!bin) { console.error('no Chrome or Edge found — set CHROME_PATH'); process.exit(1); }
 const profile = join(tmpdir(), `cdp-mob-${process.pid}`);
 const port = 9600 + (process.pid % 150);
 const proc = spawn(bin, [`--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
-  '--headless=new', '--no-first-run', '--disable-gpu', 'about:blank'], { stdio: 'ignore' });
+  '--headless=new', '--no-first-run', '--disable-gpu', 'about:blank', ...CI_FLAGS], { stdio: 'ignore' });
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function wsUrl() {
