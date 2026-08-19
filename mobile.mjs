@@ -81,7 +81,10 @@ for (const w of WIDTHS) {
         if (n.getBoundingClientRect().width <= window.innerWidth + 1) return false;
         for (let p = n.parentElement; p; p = p.parentElement) {
           const ov = getComputedStyle(p).overflowX;
-          if (ov === 'auto' || ov === 'scroll' || ov === 'hidden') return false;
+          /* 'hidden' is NOT containment — it clips, so the content is simply
+             unreachable, which is a worse outcome than a scrollbar rather than
+             an acceptable one. Only a scrollable ancestor excuses a wide child. */
+          if (ov === 'auto' || ov === 'scroll') return false;
         }
         return true;
       }).slice(0, 3).map(n => n.tagName.toLowerCase() + (n.className ? '.' + String(n.className).split(' ')[0] : ''));
@@ -93,9 +96,18 @@ for (const w of WIDTHS) {
       return { over, culprits, small };
     })()` }, sessionId);
     const v = r.result?.result?.value || {};
-    const fail = v.over > 2 && v.culprits.length;
-    if (fail) { bad++; console.log(`FAIL ${w}px ${route} — overflow ${v.over}px via ${v.culprits.join(', ')}`); }
-    else if (v.over > 2) console.log(`note ${w}px ${route} — ${v.over}px, all inside scroll containers`);
+    /* IF THE DOCUMENT SCROLLS SIDEWAYS, IT FAILS.
+       The culprit list is a diagnosis, not a licence to downgrade: this reported
+       "330px, all inside scroll containers" for a layer picker that was pushing
+       the page sideways at 1024px with nothing scrollable above it. A measurement
+       that says the page overflows and a verdict that says it does not cannot
+       both stand, and the measurement is the one that matches what a reader
+       sees. */
+    if (v.over > 2) {
+      bad++;
+      console.log(`FAIL ${w}px ${route} — overflow ${v.over}px`
+        + (v.culprits.length ? ` via ${v.culprits.join(', ')}` : ' (no single element wider than the viewport — check a margin, a gap or a fixed width)'));
+    }
   }
 }
 console.log(bad ? `\n${bad} genuine overflow issues` : '\nno horizontal overflow at any width');

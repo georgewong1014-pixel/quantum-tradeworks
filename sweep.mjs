@@ -89,6 +89,13 @@ const { result: { sessionId } } = await send('Target.attachToTarget', { targetId
 await send('Runtime.enable', {}, sessionId);
 await send('Page.enable', {}, sessionId);
 await send('Network.enable', {}, sessionId);
+/* AN EXPLICIT VIEWPORT, BECAUSE THE DEFAULT IS NOT THE SAME EVERYWHERE.
+   This ran clean on a developer's machine and failed on a runner, on a real
+   layout defect, purely because the two headless windows are different sizes.
+   A check whose result depends on the machine is not a check. 1280 is pinned
+   here; mobile.mjs is what covers 360 through 1440. */
+await send('Emulation.setDeviceMetricsOverride',
+  { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
 /* A Content-Security-Policy that blocks the app's own inline script does not
    degrade — it renders nothing, on every route, with one console line. The
    policy is generated from the build, so it CAN be wrong; this makes it loud. */

@@ -659,6 +659,12 @@ body[data-surface="public"] .disclosure-long { display: none; }
   border-radius: var(--r-md); overflow-x: auto; scrollbar-width: none; max-width: 100%;
 }
 .segmented::-webkit-scrollbar { display: none; }
+/* A .segmented inside a flex row can only scroll if the row lets it shrink.
+   Without this the strip reports its full intrinsic width, max-width:100%
+   resolves against a parent that is already too wide, and the PAGE scrolls
+   sideways instead of the strip. */
+.seg-group { min-width: 0; }
+.seg-group > .segmented { min-width: 0; flex: 0 1 auto; }
 /* Anchors as well as buttons. mySubnav builds real links — so they survive a
    new tab, a copy, and a screen reader asking what they are — but every rule
    here was scoped to `button`, so the strip rendered as six underlined words

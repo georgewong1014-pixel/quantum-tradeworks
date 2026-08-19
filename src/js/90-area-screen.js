@@ -42,7 +42,7 @@ VIEWS.areas = () => {
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center' });
   const seg = (label, key, opts) => {
-    const g = el('div', { class: 'row', style: 'gap:8px;align-items:center' });
+    const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
     g.append(el('div', { class: 'segmented' }, opts.map(([v, l]) =>
       el('button', { 'aria-selected': S[key] === v ? 'true' : 'false',
