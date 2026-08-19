@@ -105,8 +105,20 @@ export function build() {
 
   const cfgTemplate = lf(readFileSync(src('vercel.template.json'), 'utf8'));
   if (!cfgTemplate.includes(CSP_MARKER)) throw new Error('vercel template lost its CSP marker');
-  const vercel = cfgTemplate.replace(CSP_MARKER, () => cspHash);
-  JSON.parse(vercel);                       /* refuse to emit config that will not parse */
+  /* THE TEMPLATE IS COMMENTED; THE OUTPUT MUST NOT BE.
+     vercel.json is validated against a strict schema and an unknown property is
+     not ignored — it fails the deployment. The first version of this file
+     carried "$comment" keys explaining each header straight through into the
+     output, and production sat five days behind HEAD as a result: three commits
+     pushed, CI green on all of them, and no build. Comments belong in
+     src/vercel.template.json, which nothing but this script ever reads. */
+  const stripComments = (v) => Array.isArray(v) ? v.map(stripComments)
+    : (v && typeof v === 'object'
+        ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== '$comment').map(([k, x]) => [k, stripComments(x)]))
+        : v);
+  const parsed = JSON.parse(cfgTemplate.replace(CSP_MARKER, () => cspHash));
+  const vercel = JSON.stringify(stripComments(parsed), null, 2) + String.fromCharCode(10);
+  if (vercel.includes('$comment')) throw new Error('a $comment survived into vercel.json');
 
   return { html, vercel, modules, versions, cspHash };
 }
