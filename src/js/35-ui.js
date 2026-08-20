@@ -269,6 +269,7 @@ const ROUTES = [
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
   { path: '/status',              view: 'status',    title: 'Build status' },
   { path: '/decision-record',     view: 'decisionRecord', title: 'Decision record' },
+  { path: '/methodology/ips',     view: 'ips',       title: 'Investment Policy Statement' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
   { path: '/pricing',             view: 'plans',     title: 'Pricing' },
   { path: '/about',               view: 'about',     title: 'About' },

@@ -2116,6 +2116,13 @@ VIEWS.property = () => {
 
      Every tile is the same price over a different area. Nothing is converted
      twice and no rate is stored, so they cannot drift apart. */
+  /* IPS §3, §6.5, §6.7 and §6.8 — the four that had no implementation. The
+     gate panel goes first because it is the summary the rest explains. */
+  free.append(ipsGatePanel(propertyIps(d, m, g), { title: 'Against the methodology' }));
+  free.append(demandPanel(d.city, d.district));
+  free.append(environmentalPanel(d));
+  free.append(rentVersusBuyPanel(d, m));
+
   const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
   unitCard.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
     'What you are paying, per unit'));

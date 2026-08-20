@@ -19,7 +19,8 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 /* Added after the decision record shipped 186px of overflow at 390:
                    four columns of nowrap text in a bare div rather than a
                    .tablewrap. Nothing else in the suite looks below 1440. */
-                '/decision-record', '/property/comparables', '/property/areas', '/start'];
+                '/decision-record', '/property/comparables', '/property/areas', '/start',
+                '/methodology/ips'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,

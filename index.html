@@ -3657,6 +3657,203 @@ function riskGrade(flags) {
 }
 
 /* ==========================================================================
+   THE INVESTMENT POLICY STATEMENT — THE GOVERNING DOCUMENT
+   --------------------------------------------------------------------------
+   Until now this product had several methodology backbones and no master. The
+   property grade, the research composite, the wheel fit and the trading index
+   each carried their own idea of what a gate was, what evidence meant and what
+   a refusal was for. They mostly agreed, which is worse than disagreeing — it
+   meant nobody had to check.
+
+   This is the spine. Every asset is assessed against the SAME eight gates in
+   the same order, and each asset's own engine supplies the answers. When the
+   property calculator and the equity scorecard both say "capital requirement",
+   they now mean the same question.
+
+   ONE DEVIATION FROM THE IPS AS WRITTEN, AND IT IS DELIBERATE.
+
+   Section 8 of the IPS requires every decision to state "Buy, Watch/Hold or
+   Reject", and section 10 calls the output a recommendation. This product
+   cannot publish either. It is research only: it holds no licence to advise, it
+   asks no suitability question, and the disclosure on every page, the pricing
+   page and the product-boundaries page all rest on that. A Buy button would
+   make those pages false.
+
+   The SUBSTANCE is kept in full and only the verb changes:
+
+     IPS "Reject"       -> a hard gate that refuses to produce an assessment.
+                           Already how this product works. Refusing to answer is
+                           not advice; it is the absence of one.
+     IPS "Buy"          -> "Meets every condition in the methodology." A
+                           statement about the analysis, not an instruction to
+                           the reader. Same information, no directive.
+     IPS "Watch/Hold"   -> "Conditions not yet met — N outstanding", naming them.
+
+   Nothing is softened. A reader learns exactly what the IPS would have told
+   them; they are simply told it about the evidence rather than about
+   themselves, which is the only form this product is entitled to use.
+   ========================================================================== */
+
+const IPS_VERSION = 'IPS 1.0 · 20 August 2026';
+
+/* ---- §2 core philosophy, in the order the IPS states it ---- */
+const IPS_PRINCIPLES = [
+  { n: 1, t: 'Capital preservation before return maximisation',
+    d: 'Avoid permanent impairment before pursuing upside.' },
+  { n: 2, t: 'Evidence before narrative',
+    d: 'Claims must rest on financial statements, filings, market data, verified transactions or authoritative public data.' },
+  { n: 3, t: 'Value is future economics, not a previous high price',
+    d: 'A large historical decline does not by itself create a bargain.' },
+  { n: 4, t: 'Cash flow is net of realistic costs',
+    d: 'Headline yield and gross profit are insufficient.' },
+  { n: 5, t: 'Real demand must exist',
+    d: 'Durable customer demand and business economics for equities; occupier, tenant and resale demand for property.' },
+  { n: 6, t: 'Entry price matters',
+    d: 'A good asset can be a poor investment bought without a margin of safety.' },
+  { n: 7, t: 'Liquidity and exit are analysed before entry',
+    d: 'Who the future buyer may be, and what would trigger a sale.' },
+  { n: 8, t: 'Risk is managed by rejection, sizing, tranches and diversification',
+    d: 'Not by confidence.' },
+  { n: 9, t: 'Every position requires an invalidation condition',
+    d: 'If the thesis breaks, it is reassessed.' },
+  { n: 10, t: 'All investments compete for capital',
+    d: 'Property is compared with equities and cash on risk-adjusted, after-cost returns.' },
+];
+
+/* ---- §3 the universal decision process ----
+   Eight gates, one order, every asset. `ask` is the question in the reader's
+   words; an asset engine answers it with a verdict, not a score. */
+const IPS_GATES = [
+  { id: 'eligibility', n: 1, label: 'Eligibility and investability',
+    ask: 'Is the asset lawful, understandable, financeable and practically investable?' },
+  { id: 'capital', n: 2, label: 'Capital requirement',
+    ask: 'How much cash, financing capacity and liquidity buffer does it need?' },
+  { id: 'demand', n: 3, label: 'Demand and quality',
+    ask: 'What produces durable demand, revenue, rent or resale interest?' },
+  { id: 'engine', n: 4, label: 'Return engine',
+    ask: 'What actually generates the return?' },
+  { id: 'net', n: 5, label: 'Net economics',
+    ask: 'What is left after financing, tax, vacancy, fees, maintenance and dilution?' },
+  { id: 'margin', n: 6, label: 'Valuation and margin of safety',
+    ask: 'Is the entry price sufficiently below a conservatively estimated value?' },
+  { id: 'execution', n: 7, label: 'Execution plan',
+    ask: 'Entry level, tranches, position size, risk limit and monitoring conditions?' },
+  { id: 'exit', n: 8, label: 'Exit and liquidity',
+    ask: 'Who may buy later, how liquid is the market, and what triggers a change?' },
+];
+const IPS_GATE_BY_ID = Object.fromEntries(IPS_GATES.map(g => [g.id, g]));
+
+/* A gate verdict. Four states and no fifth, because "probably fine" is the
+   state that lets an unexamined asset through. */
+const IPS_VERDICTS = {
+  pass:      { id: 'pass',      label: 'Answered',      tone: 'chip chip-ok',     rank: 3 },
+  partial:   { id: 'partial',   label: 'Partly answered', tone: 'chip',           rank: 2 },
+  unknown:   { id: 'unknown',   label: 'Not established', tone: 'chip chip-bronze', rank: 1 },
+  fail:      { id: 'fail',      label: 'Fails',         tone: 'chip chip-critical',     rank: 0 },
+};
+
+/* Build one gate's answer. `why` must always be present: a verdict without a
+   reason is a rating, and this product does not publish those. */
+const ipsAnswer = (id, verdict, why, detail) =>
+  ({ gate: IPS_GATE_BY_ID[id], id, verdict: IPS_VERDICTS[verdict] || IPS_VERDICTS.unknown, why, detail: detail || null });
+
+/* THE ASSESSMENT. Not a score, and deliberately not a recommendation.
+
+   `state` is the IPS section 8 decision expressed in this product's vocabulary:
+     refused   — a hard gate failed. The IPS calls this Reject.
+     met       — every gate answered, none failing. The IPS calls this Buy.
+     open      — gates outstanding. The IPS calls this Watch/Hold.
+
+   The count of unanswered gates is the headline rather than a total, because a
+   total lets four unanswered questions average away against four answered ones. */
+function ipsAssess(answers) {
+  const list = IPS_GATES.map(g => answers.find(a => a.id === g.id)
+    || ipsAnswer(g.id, 'unknown', 'No engine supplied an answer to this gate for this asset.'));
+  const failing = list.filter(a => a.verdict.id === 'fail');
+  const open = list.filter(a => a.verdict.id === 'unknown' || a.verdict.id === 'partial');
+
+  const state = failing.length ? 'refused' : (open.length ? 'open' : 'met');
+  const sentence = failing.length
+    ? `Refused at ${failing.length === 1 ? 'one gate' : `${failing.length} gates`}: `
+      + `${failing.map(f => f.gate.label.toLowerCase()).join(', ')}. `
+      + 'A failing gate is not a deduction. No assessment is produced while it stands.'
+    : open.length
+      ? `${8 - open.length} of 8 gates answered. Outstanding: `
+        + `${open.map(o => o.gate.label.toLowerCase()).join(', ')}.`
+      : 'All eight gates answered and none failing. This asset meets every condition in the methodology.';
+
+  return {
+    answers: list, failing, open, state, sentence,
+    answered: list.filter(a => a.verdict.id === 'pass').length,
+    /* Deliberately NOT a 0-100 number. See the file header. */
+  };
+}
+
+/* ---- §4 the evidence hierarchy, and how this product's ladder maps onto it ----
+   The IPS names five tiers. This product already grades every figure it holds;
+   this states which IPS tier each of its grades belongs to, so a reader can
+   check the mapping rather than take it on trust. */
+const IPS_EVIDENCE_TIERS = [
+  { tier: 1, label: 'Regulatory filings, audited statements, official transaction data, legal documents',
+    maps: ['verified'], note: 'In this product: SEC-filed statements, and a transacted price or signed tenancy you have seen.' },
+  { tier: 2, label: 'Authoritative sources — Bursa, SEC, investor relations, BNM, NAPIC, JPPH',
+    maps: ['public'], note: 'Published by an authority or a listed source. NAPIC and JPPH transaction data is named in the IPS and is not licensed to this product — see the data-sources page.' },
+  { tier: 3, label: 'Reputable market-data providers and independently verified industry data',
+    maps: [], note: 'No provider is licensed to this product. This tier is empty here, and saying so is more useful than implying it is full.' },
+  { tier: 4, label: 'Agent, developer, management or channel checks — only with verification',
+    maps: ['developer', 'user'], note: 'Quoted by a seller or their agent, or entered from your own knowledge.' },
+  { tier: 5, label: 'Social media, promotional content, anecdote — leads, not proof',
+    maps: ['estimated', 'assumed', 'illustrative_default'], note: 'Derived, defaulted or carried by this tool. Never evidence.' },
+];
+
+/* ---- §6.1 the mandatory property screening order ----
+   The order is the control. An attractive price cannot hide an unfinanceable
+   asset if financeability is answered first, and the whole point of fixing the
+   sequence is that a reader cannot skip to the yield. */
+const IPS_PROPERTY_ORDER = [
+  { n: 1, id: 'loanability', label: 'Loanability and bank valuation',
+    why: 'An asset a bank will not lend against at the price agreed is not cheap; it is unfinanceable. This is first because everything below is void if it fails.' },
+  { n: 2, id: 'budget', label: 'Cash budget and financing capacity',
+    why: 'What must actually be found in cash, and whether the borrower can carry it.' },
+  { n: 3, id: 'demand', label: 'Real location demand',
+    why: 'Who has a recurring reason to occupy or buy here.' },
+  { n: 4, id: 'yield', label: 'Rental yield',
+    why: 'Gross first, so the gap to net is visible rather than assumed away.' },
+  { n: 5, id: 'netcash', label: 'Net cash flow',
+    why: 'After every cost that actually recurs.' },
+  { n: 6, id: 'discount', label: 'Buy-in discount and margin of safety',
+    why: 'How far below a conservative value the entry price sits.' },
+  { n: 7, id: 'valueadd', label: 'Renovation or value-add feasibility',
+    why: 'Only value-add if the rent or resale benefit exceeds its full cost and risk.' },
+  { n: 8, id: 'exit', label: 'Exit strategy and subsale liquidity',
+    why: 'Who buys it next, and how long that takes.' },
+];
+
+/* ---- §6.9 the auto-reject conditions, verbatim in substance ----
+   Held here rather than inside the property engine so the published list and
+   the enforced list are one list. */
+const IPS_PROPERTY_REJECTS = [
+  { id: 'negcash', label: 'Severe or persistent negative cash flow' },
+  { id: 'nodemand', label: 'Weak real tenant and owner-occupier demand' },
+  { id: 'oversupply', label: 'Severe oversupply or excessive substitutability' },
+  { id: 'management', label: 'Poor management or deteriorating common property' },
+  { id: 'legal', label: 'Material legal, title or compliance complexity' },
+  { id: 'valuation', label: 'Insufficient bank valuation or weak loanability' },
+  { id: 'noexit', label: 'No credible exit market' },
+  { id: 'apprec', label: 'Dependence on unsupported appreciation assumptions' },
+  { id: 'promo', label: 'A promotional yield that cannot be independently verified' },
+];
+
+/* ---- §11 ---- */
+/* The IPS states this as an imperative — "Buy only when…". Published here as
+   the condition it describes rather than the instruction it gives, for the same
+   reason section 8's decision is: this product may state what is true of an
+   asset and may not tell a reader what to do about it. Every one of the five
+   requirements survives the change; only the mood does. */
+const IPS_ONE_SENTENCE =
+  'An asset meets this methodology only when verified quality and real demand, conservative net economics, '
+  + 'a sufficient margin of safety, manageable downside and a credible exit all exist at the same time.';
+/* ==========================================================================
    VALUATION STUDIO — model router
    Unlike businesses are routed to different model packs. Each pack publishes
    its selection reason, its assumptions, and its limitations.
@@ -6326,6 +6523,7 @@ const ROUTES = [
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
   { path: '/status',              view: 'status',    title: 'Build status' },
   { path: '/decision-record',     view: 'decisionRecord', title: 'Decision record' },
+  { path: '/methodology/ips',     view: 'ips',       title: 'Investment Policy Statement' },
   { path: '/corrections',         view: 'learn',     tab: 'trust',     title: 'Corrections log' },
   { path: '/pricing',             view: 'plans',     title: 'Pricing' },
   { path: '/about',               view: 'about',     title: 'About' },
@@ -19490,6 +19688,13 @@ VIEWS.property = () => {
 
      Every tile is the same price over a different area. Nothing is converted
      twice and no rate is stored, so they cannot drift apart. */
+  /* IPS §3, §6.5, §6.7 and §6.8 — the four that had no implementation. The
+     gate panel goes first because it is the summary the rest explains. */
+  free.append(ipsGatePanel(propertyIps(d, m, g), { title: 'Against the methodology' }));
+  free.append(demandPanel(d.city, d.district));
+  free.append(environmentalPanel(d));
+  free.append(rentVersusBuyPanel(d, m));
+
   const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
   unitCard.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
     'What you are paying, per unit'));
@@ -20170,6 +20375,689 @@ VIEWS.property = () => {
   return wrap;
 };
 
+/* ==========================================================================
+   IPS §6.5, §6.7 AND §6.8 — THE THREE PROPERTY TESTS THAT DID NOT EXIST
+   --------------------------------------------------------------------------
+   The calculator already did the arithmetic the IPS asks for: full acquisition
+   cost, net rental economics after every recurring line, a stress test, a
+   grade with hard gates. Three tests in section 6 had no implementation at all,
+   and each of them is the kind that changes an answer rather than refining it.
+   ========================================================================== */
+
+/* ---- §6.5 THE DEMAND TEST -------------------------------------------------
+   "Identify who has a recurring reason to occupy or buy the property."
+
+   The IPS names six sources and then says something sharper than the list:
+   CONCENTRATION IS PENALISED, and specifically demand that depends on
+   investors, tourists, or infrastructure that has not been built.
+
+   That last clause is the one worth engineering for. Every Malaysian project
+   that has gone badly wrong in the last two decades was sold on a demand story
+   that had not happened yet — the airport extension, the university campus, the
+   industrial park. So a promised source is recorded as promised and never
+   counts as demand until it is operating. */
+const DEMAND_SOURCES = [
+  { id: 'employment', label: 'Employment and industry',
+    ask: 'Employers within commuting distance whose staff need to live here.' },
+  { id: 'education', label: 'Education and students',
+    ask: 'A school, college or university with enrolment that has actually started.' },
+  { id: 'healthcare', label: 'Healthcare',
+    ask: 'A hospital or clinic drawing staff, patients and their families.' },
+  { id: 'family', label: 'Family and owner-occupier',
+    ask: 'People buying to live here themselves. The deepest and most durable source, and the hardest to fake.' },
+  { id: 'government', label: 'Government or institutional',
+    ask: 'Administrative offices, forces or an institution with posted staff.' },
+  { id: 'tourism', label: 'Tourism and short-stay',
+    ask: 'Visitor demand. Seasonal by nature and the first to disappear.',
+    fragile: true },
+  { id: 'investor', label: 'Investor and speculative',
+    ask: 'Buyers purchasing to resell or to let. Not occupier demand — it is the same units coming back to the market.',
+    fragile: true, notDemand: true },
+];
+
+const DEMAND_STATES = [
+  { id: 'operating', label: 'Operating now', counts: true,
+    note: 'Exists and is running today. The only state that counts as demand.' },
+  { id: 'declining', label: 'Operating but declining', counts: true,
+    note: 'Still here, and shrinking. Counts, with the direction recorded.' },
+  { id: 'promised', label: 'Announced or under construction', counts: false,
+    note: 'Not yet operating. Records the promise without letting it count — this is the state that has carried the most Malaysian off-plan losses.' },
+  { id: 'none', label: 'Not present', counts: false, note: 'Checked, and absent.' },
+];
+const DEMAND_STATE_BY_ID = Object.fromEntries(DEMAND_STATES.map(s => [s.id, s]));
+
+const demandKey = (city, area) => `${city}|${area}`;
+State.demand = store.read('demand', {});
+const saveDemand = () => store.write('demand', State.demand);
+const demandRecord = (city, area) => State.demand[demandKey(city, area)] || {};
+
+function setDemand(city, area, sourceId, rec) {
+  const k = demandKey(city, area);
+  const prev = { ...(State.demand[k] || {}) };
+  const was = prev[sourceId] || null;
+  if (rec) prev[sourceId] = { ...rec, recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' ') };
+  else delete prev[sourceId];
+  logRegister('demand', rec ? (was ? 'edit' : 'add') : 'delete', k,
+    { field: sourceId, from: was, to: rec ? prev[sourceId] : null });
+  if (Object.keys(prev).length) State.demand[k] = prev; else delete State.demand[k];
+  saveDemand();
+}
+
+/* The verdict. Concentration is the finding, not the count. */
+function demandTest(city, area) {
+  const rec = demandRecord(city, area);
+  const items = DEMAND_SOURCES.map(s => {
+    const r = rec[s.id];
+    const st = r ? DEMAND_STATE_BY_ID[r.state] : null;
+    return { source: s, recorded: !!r, state: st, note: r?.note || '', asOf: r?.asOf || '',
+             counts: !!(st && st.counts && !s.notDemand) };
+  });
+  const counting = items.filter(i => i.counts);
+  const promised = items.filter(i => i.state && i.state.id === 'promised');
+  const fragileOnly = counting.length > 0 && counting.every(i => i.source.fragile);
+  const investorLed = items.some(i => i.source.id === 'investor' && i.state && i.state.counts);
+  const unrecorded = items.filter(i => !i.recorded);
+
+  let verdict, why;
+  if (unrecorded.length === items.length) {
+    verdict = 'unknown';
+    why = 'Nobody has recorded what produces demand here. The IPS makes this a required test, not an optional one — an area with unexamined demand is not an area with adequate demand.';
+  } else if (!counting.length) {
+    verdict = 'fail';
+    why = promised.length
+      ? `The only demand recorded here is ${promised.map(p => p.source.label.toLowerCase()).join(' and ')}, and it is announced rather than operating. `
+        + 'The IPS rejects dependence on demand that has not started.'
+      : 'No operating source of demand has been recorded. This is an auto-reject condition under IPS §6.9.';
+  } else if (fragileOnly) {
+    verdict = 'partial';
+    why = `Demand rests only on ${counting.map(c => c.source.label.toLowerCase()).join(' and ')}, which the IPS treats as concentrated and fragile. `
+      + 'One source that can stop is not a demand base.';
+  } else if (counting.length === 1) {
+    verdict = 'partial';
+    why = `A single operating source: ${counting[0].source.label.toLowerCase()}. Concentrated demand is penalised — if it closes, so does the market for this property.`;
+  } else {
+    verdict = 'pass';
+    why = `${counting.length} operating sources of demand recorded: ${counting.map(c => c.source.label.toLowerCase()).join(', ')}.`;
+  }
+
+  return { items, counting, promised, unrecorded, investorLed, verdict, why,
+    warnings: [
+      investorLed ? 'Investor demand is recorded as operating. It is counted separately and never as occupier demand: those units return to the market rather than leaving it.' : null,
+      promised.length && counting.length ? `${promised.length} announced source(s) are recorded and deliberately excluded from the count until they operate.` : null,
+    ].filter(Boolean) };
+}
+
+/* ---- §6.7 ENVIRONMENTAL DEPRECIATION -------------------------------------
+   "For coastal, flood-prone, highly humid or otherwise harsh environments,
+   include recurring allowances for..."
+
+   This is a genuine hole in the calculator, and a Sarawak-shaped one. Every
+   coastal town in the state is humid, salt-laden and monsoon-exposed, and the
+   maintenance line in a standard yield model was written for a dry inland
+   apartment. A building on the Miri or Mukah coast does not cost the same to
+   keep as one in Kuching city centre, and treating them as the same is how a
+   6% gross yield becomes a 2% net one over ten years.
+
+   ALLOWANCES ARE DERIVED FROM WHAT WAS RECORDED, NEVER FROM THE TOWN NAME.
+   The exposure comes from the coastal and flood attributes on the locality —
+   facts somebody recorded — so an unexamined area gets no allowance and says
+   so, rather than being quietly charged for a coast nobody has confirmed. */
+const ENV_ALLOWANCES = [
+  { id: 'corrosion', label: 'Corrosion and salt exposure',
+    triggers: { coastal: ['saline', 'erosion', 'tidal'] },
+    pctOfValue: 0.15,
+    note: 'Railings, grilles, gates, air-conditioner coils and exposed fixings in a salt-laden atmosphere. Replacement rather than repair, on a shorter cycle.' },
+  { id: 'waterproofing', label: 'Waterproofing, leakage and mould',
+    triggers: { flood: ['occasional', 'recurrent'], coastal: ['tidal'] },
+    pctOfValue: 0.20,
+    note: 'Roof and wet-area membranes, and the internal damage when they fail. Humidity keeps mould live between events.' },
+  { id: 'paint', label: 'Paint and external surfaces',
+    triggers: { coastal: ['saline', 'tidal', 'erosion'], flood: ['occasional', 'recurrent'] },
+    pctOfValue: 0.12,
+    note: 'External repainting on a materially shorter cycle than an inland building.' },
+  { id: 'fittings', label: 'Windows, doors, air-conditioners and appliances',
+    triggers: { coastal: ['saline', 'tidal'] },
+    pctOfValue: 0.18,
+    note: 'Mechanisms, seals and compressors fail earlier in humid, salt-laden air.' },
+  { id: 'storm', label: 'Storm exposure',
+    triggers: { coastal: ['erosion', 'tidal'] },
+    pctOfValue: 0.08,
+    note: 'Monsoon damage to roofing, glazing and external works.' },
+  { id: 'fitout', label: 'Furniture and fit-out replacement',
+    triggers: { coastal: ['saline', 'tidal'], flood: ['recurrent'] },
+    pctOfValue: 0.15,
+    note: 'Furnished lettings in this environment replace fit-out sooner. Applies only where the letting is furnished.' },
+  { id: 'settlement', label: 'Ground settlement remediation',
+    triggers: { ground: ['peat-deep', 'peat-shallow', 'fill'], coastal: ['settling'] },
+    pctOfValue: 0.25,
+    note: 'Re-levelling aprons and drives, re-laying drainage falls, and repairing service connections pulled apart as unpiled ground consolidates. The building is piled; nothing around it is.' },
+];
+
+/* Returns the recurring annual allowance this locality's RECORDED exposure
+   justifies, itemised, plus what is unexamined. Percentages are of the
+   property's value per year and are stated as the rough planning figures they
+   are — no survey underlies them and the panel says so. */
+function environmentalAllowance(d) {
+  const city = d.city, area = d.district;
+  const cls = (attrId) => areaAttr(city, area, attrId)?.class || null;
+  const recorded = { coastal: cls('coastal'), flood: cls('flood'), ground: cls('ground') };
+  const anyRecorded = Object.values(recorded).some(Boolean);
+
+  const items = ENV_ALLOWANCES.map(a => {
+    const hit = Object.entries(a.triggers).find(([attr, classes]) =>
+      recorded[attr] && classes.includes(recorded[attr]));
+    if (!hit) return null;
+    /* Fit-out only bites on a furnished letting, and this product has no field
+       saying whether it is one — so it is offered rather than applied. */
+    const annual = num0(d.price) * (a.pctOfValue / 100);
+    return { ...a, triggeredBy: hit[0], triggeredByClass: recorded[hit[0]], annual };
+  }).filter(Boolean);
+
+  const annual = items.reduce((s, i) => s + i.annual, 0);
+  return {
+    items, annual, monthly: annual / 12, recorded, anyRecorded,
+    /* What has NOT been established, because an absent allowance because
+       nothing was recorded is a different statement from one because the
+       locality is dry and inland. */
+    unexamined: ['coastal', 'flood', 'ground'].filter(k => !recorded[k]),
+    why: !anyRecorded
+      ? 'No coastal, flood or ground record exists for this locality, so no environmental allowance is computed. That is an absence of evidence, not an absence of exposure.'
+      : items.length
+        ? `${items.length} allowance${items.length === 1 ? '' : 's'} triggered by what has been recorded here.`
+        : 'The recorded exposure does not trigger any environmental allowance.',
+  };
+}
+
+/* ---- §6.8 RENT VERSUS BUY ------------------------------------------------
+   "For lifestyle, holiday or low-occupancy property, compare price-to-rent and
+   the owner's annual carrying cost with the cost of renting only for the
+   intended period of use. If renting provides similar use at a fraction of the
+   capital commitment, classify the purchase as lifestyle consumption rather
+   than an income investment."
+
+   The classification is the output, and it is the most useful sentence this
+   product can produce for a certain kind of buyer. Nothing about it is a
+   recommendation: it says which of two things the transaction IS, and a
+   purchase can be perfectly rational as consumption. It simply must not be
+   modelled as income when it is not producing any. */
+function rentVersusBuy(d, m, weeksOfOwnUsePerYear) {
+  const price = num0(d.price);
+  const annualRent = num0(d.rent) * 12;
+  if (!(price > 0) || !(annualRent > 0)) {
+    return { ok: false, why: 'A price and a market rent are both needed before the two can be compared.' };
+  }
+  const priceToRent = price / annualRent;
+
+  /* The owner's true annual carrying cost: everything that recurs, plus the
+     return the deposit is not earning elsewhere. Leaving out opportunity cost
+     is what makes ownership look free. */
+  /* opex, not a field called annualOperatingCost — which the model does not
+     produce. The first version of this read that name, got zero, and quietly
+     compared renting against debt service alone with every maintenance,
+     assessment, insurance and management cost missing. It made owning look
+     cheaper than it is, on the one test whose whole job is the opposite. */
+  const carrying = num0(m.opex) + num0(m.annualDebtService);
+  const equity = num0(m.totalInitialCash);
+  const opportunity = equity * (num0(d.equityReturnPct) / 100);
+  const trueCarrying = carrying + opportunity;
+
+  const weeks = isNum(weeksOfOwnUsePerYear) ? clamp(weeksOfOwnUsePerYear, 0, 52) : null;
+  /* Renting the same use, at the same market rent, for only the weeks it is
+     actually wanted. A short-stay premium would make renting look worse and is
+     not assumed — the comparison uses the rent this property itself commands. */
+  const rentInstead = isNum(weeks) ? (annualRent / 52) * weeks : null;
+  const ratio = isNum(rentInstead) && trueCarrying > 0 ? rentInstead / trueCarrying : null;
+
+  /* The IPS threshold is qualitative — "a fraction of the capital commitment".
+     A quarter is the line used here and it is stated rather than hidden, so a
+     reader who disagrees can see exactly what they are disagreeing with. */
+  const consumption = isNum(ratio) && ratio < 0.25;
+
+  return {
+    ok: true, priceToRent, carrying, opportunity, trueCarrying, rentInstead, ratio, weeks, consumption,
+    classification: !isNum(weeks)
+      ? 'Not classified — enter the weeks a year you would actually use it.'
+      : consumption
+        ? 'Lifestyle consumption, not an income investment.'
+        : 'Use is high enough that the comparison does not by itself reclassify this as consumption.',
+    why: !isNum(weeks)
+      ? 'The test needs one number this product cannot infer: how many weeks a year you would use the property yourself.'
+      : consumption
+        ? `Renting this same property for the ${fmtNum(weeks, 0)} week${weeks === 1 ? '' : 's'} a year you would use it costs about `
+          + `${fmtMoney(rentInstead, 'MYR', 0)}, against ${fmtMoney(trueCarrying, 'MYR', 0)} a year to own it — `
+          + `${fmtPct(ratio * 100, 0)} of the cost, without the capital committed. `
+          + 'That can still be the right purchase. It is not an income investment, and modelling it as one would overstate what it returns.'
+        : `Renting for ${fmtNum(weeks, 0)} weeks would cost ${fmtMoney(rentInstead, 'MYR', 0)} against `
+          + `${fmtMoney(trueCarrying, 'MYR', 0)} to own — ${fmtPct(ratio * 100, 0)} of the cost. `
+          + 'Above the quarter threshold this test uses, so it does not reclassify the purchase on its own.',
+  };
+}
+
+/* ==========================================================================
+   THE PROPERTY ENGINE, ANSWERING THE EIGHT UNIVERSAL GATES
+   --------------------------------------------------------------------------
+   Nothing here computes anything new. Every answer is read out of the model,
+   the grade or a test that already exists, and the only work this does is
+   decide which of the four verdicts each gate has earned and say why.
+
+   That is the point of a spine: if the property engine and the equity engine
+   both had to invent their own idea of "answered", the two would drift, and a
+   reader comparing a shophouse against a bank would be comparing two different
+   standards wearing the same words.
+   ========================================================================== */
+function propertyIpsAnswers(d, m, g) {
+  const A = [];
+  const gates = g.gates || [];
+  const critical = gates.filter(x => x.severity === 'critical');
+  const title = TITLE_TYPES.find(t => t.id === d.titleType);
+
+  /* 1 — ELIGIBILITY. Title first: a restricted class is not a price question,
+     and the IPS puts lawfulness above everything below it. */
+  if (!d.titleType || d.titleType === 'unknown') {
+    A.push(ipsAnswer('eligibility', 'unknown',
+      'The title class has not been established. Until it is, nothing below is actionable — this is the first gate for that reason.'));
+  } else if (title && title.restricted) {
+    A.push(ipsAnswer('eligibility', 'fail',
+      `${title.label}. ${title.note} Eligibility is a question of status, not of price, and no figure below can answer it.`));
+  } else {
+    A.push(ipsAnswer('eligibility', 'pass',
+      `${title.label}, recorded. Confirm against the title document itself and with the Land and Survey Department before committing.`));
+  }
+
+  /* 2 — CAPITAL. The model knows what must be found and whether a reserve
+     survives it. */
+  const safe = num0(m.safeCashRequired), reserve = num0(m.reserveCash);
+  A.push(safe > 0
+    ? ipsAnswer('capital', reserve > 0 ? 'pass' : 'partial',
+        `${fmtMoney(safe, 'MYR', 0)} to complete and be safe, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve. `
+        + (reserve > 0
+          ? 'The IPS requires at least six months of instalments, maintenance, repairs and vacancy exposure held back.'
+          : 'No liquidity reserve is carried. The IPS requires at least six months of obligations held back before this gate is answered.'))
+    : ipsAnswer('capital', 'unknown', 'Not computed — the purchase figures are incomplete.'));
+
+  /* 3 — DEMAND. §6.5, and the one gate this product could not answer at all
+     until the demand test existed. */
+  const dem = demandTest(d.city, d.district);
+  A.push(ipsAnswer('demand', dem.verdict, dem.why));
+
+  /* 4 — RETURN ENGINE. Named rather than scored: rent, value-add or
+     appreciation, and the IPS is explicit that unsupported appreciation is an
+     auto-reject rather than an engine. */
+  const noi = num0(m.noi), reno = num0(d.renovation);
+  const apprecOnly = noi <= 0 && reno <= 0;
+  A.push(apprecOnly
+    ? ipsAnswer('engine', 'fail',
+        'Net operating income is not positive and no value-add is planned, which leaves appreciation as the only return engine. '
+        + 'IPS §6.9 treats dependence on unsupported appreciation as an auto-reject condition.')
+    : ipsAnswer('engine', 'pass',
+        [noi > 0 ? `Net rent of ${fmtMoney(noi, 'MYR', 0)} a year` : null,
+         reno > 0 ? `value-add of ${fmtMoney(reno, 'MYR', 0)}` : null].filter(Boolean).join(' and ')
+        + `. Appreciation is assumed at ${fmtPct(num0(d.apprecPct), 1)} a year and is not counted as an engine.`));
+
+  /* 5 — NET ECONOMICS. Positive or not, and the environmental allowance the
+     IPS requires in a harsh environment is applied here rather than left to a
+     footnote. */
+  const env = environmentalAllowance(d);
+  const monthly = num0(m.cashflowMonthly);
+  const afterEnv = monthly - env.monthly;
+  A.push(monthly < 0
+    ? ipsAnswer('net', 'fail',
+        `Monthly position is ${fmtMoney(monthly, 'MYR', 0)} before any environmental allowance. `
+        + 'Severe or persistent negative cash flow is an auto-reject condition under IPS §6.9.')
+    : ipsAnswer('net', env.annual > 0 && afterEnv < 0 ? 'fail' : 'pass',
+        `Monthly position ${fmtMoney(monthly, 'MYR', 0)}`
+        + (env.annual > 0
+          ? `, and ${fmtMoney(afterEnv, 'MYR', 0)} once the ${fmtMoney(env.annual, 'MYR', 0)} a year of environmental allowance this locality's recorded exposure justifies is taken out.`
+          : `. ${env.why}`)));
+
+  /* 6 — MARGIN OF SAFETY. This product publishes no valuation of a property
+     and will not invent one, so the honest answer is that the gate is
+     unanswered unless a bank valuation was entered. */
+  const bv = num0(d.bankValuation);
+  A.push(bv > 0
+    ? ipsAnswer('margin', bv >= num0(d.price) ? 'pass' : 'fail',
+        bv >= num0(d.price)
+          ? `Bank valuation ${fmtMoney(bv, 'MYR', 0)} against a price of ${fmtMoney(d.price, 'MYR', 0)} — the valuation supports the price.`
+          : `Bank valuation ${fmtMoney(bv, 'MYR', 0)} is below the price of ${fmtMoney(d.price, 'MYR', 0)}. `
+            + `The shortfall of ${fmtMoney(num0(d.price) - bv, 'MYR', 0)} is cash you must find, and IPS §6.9 treats insufficient valuation as an auto-reject.`)
+    : ipsAnswer('margin', 'unknown',
+        'No bank valuation entered. This product publishes no valuation of a property and will not estimate one — '
+        + 'the margin of safety cannot be established from a price alone.'));
+
+  /* 7 — EXECUTION. A property is a single indivisible purchase, so the IPS's
+     tranche language does not apply; what does is whether the borrower can
+     carry it under stress. */
+  /* borrowerAffordability, taking the stored borrower profile — there is no
+     borrowerReadiness(). The engine keeps the borrower separate from the
+     property on purpose: a strong borrower can face an unfinanceable property
+     and the reverse, and this gate is about the borrower's half. */
+  const b = borrowerAffordability(State.borrower, m);
+  A.push(isNum(b?.stressedDSR)
+    ? ipsAnswer('execution', b.stressedDSR <= 70 ? 'pass' : 'fail',
+        `Debt service ratio ${fmtPct(b.baseDSR, 0)} at the entered rate and ${fmtPct(b.stressedDSR, 0)} stressed. `
+        + 'A property cannot be bought in tranches, so the execution question here is whether the instalment survives a rate move.')
+    : ipsAnswer('execution', 'unknown',
+        'Income and existing commitments have not been entered, so the instalment cannot be tested against what carries it.'));
+
+  /* 8 — EXIT. Recorded transactions are the only evidence of a resale market
+     this product holds, and their absence is the finding. */
+  const mx = areaMetrics(d.city, d.district);
+  const sales = (mx.soldN || 0) + (mx.lastLand ? 1 : 0);
+  A.push(sales >= 3
+    ? ipsAnswer('exit', 'pass',
+        `${sales} transactions recorded in ${d.district}. The most recent is ${mx.lastSold ? mx.lastSold.date : mx.lastLand.date}.`)
+    : sales > 0
+      ? ipsAnswer('exit', 'partial',
+          `${sales} transaction${sales === 1 ? '' : 's'} recorded in ${d.district}. `
+          + 'One or two sales is not a resale market; it is an anecdote about a resale market.')
+      : ipsAnswer('exit', 'unknown',
+          `No transactions recorded in ${d.district}. `
+          + 'IPS §6.9 makes the absence of a credible exit market an auto-reject, and this product holds no licensed transaction source that could answer it for you.'));
+
+  return A;
+}
+
+/* The full property assessment against the IPS, in one call. */
+const propertyIps = (d, m, g) => ipsAssess(propertyIpsAnswers(d, m, g));
+/* ==========================================================================
+   THE IPS ON SCREEN — THE DOCUMENT, THE GATES AND THE THREE NEW TESTS
+   ========================================================================== */
+
+/* ---- the eight gates, for whichever asset supplied the answers ---- */
+function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
+  const a = assessment;
+  const card = el('div', { class: 'card' });
+  card.append(cardHead(title,
+    `The eight gates every asset passes through, in the order IPS §3 fixes them. `
+    + 'A gate is answered, partly answered, not established, or failing — there is no fifth state, because "probably fine" is what lets an unexamined asset through.'));
+
+  card.append(el('p', { class: 'body', style: 'font-weight:600;margin-top:var(--md)' }, a.sentence));
+
+  const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  t.append(el('thead', {}, el('tr', {}, ['#', 'Gate', 'State', 'Why'].map((h, i) =>
+    el('th', { style: i === 3 ? 'text-align:left' : (i ? null : 'text-align:left') }, h)))));
+  const tb = el('tbody');
+  a.answers.forEach(x => {
+    tb.append(el('tr', {}, [
+      el('th', { scope: 'row', style: 'text-align:left' }, String(x.gate.n)),
+      el('td', { style: 'text-align:left', title: x.gate.ask }, x.gate.label),
+      el('td', { style: 'text-align:left' }, el('span', { class: x.verdict.tone }, x.verdict.label)),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, x.why),
+    ]));
+  });
+  t.append(tb);
+  card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
+  gridKeyboard(t, 'Assessment against the eight IPS gates. Arrow keys move between cells.');
+
+  /* THE LINE THAT KEEPS THIS HONEST. */
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'This states what is true of the evidence. It is not a recommendation, a rating or a suitability assessment, '
+    + 'and no part of it tells you what to do — this product holds no licence to advise and asks nothing about your circumstances. '
+    + `Governing document: ${IPS_VERSION}.`));
+  return card;
+}
+
+/* ---- §6.5 demand ---- */
+function demandPanel(city, area) {
+  const test = demandTest(city, area);
+  const card = el('div', { class: 'card' });
+  card.append(cardHead(`Demand — ${area}`,
+    'Who has a recurring reason to occupy or buy here. IPS §6.5 makes this a required test and penalises concentration: '
+    + 'one source that can stop is not a demand base.'));
+
+  const v = IPS_VERDICTS[test.verdict] || IPS_VERDICTS.unknown;
+  card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [
+    el('span', { class: v.tone }, v.label),
+    el('span', { class: 'body', style: 'font-size:13px' }, test.why),
+  ]));
+
+  const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts', 'Note', ''].map((h, i) =>
+    el('th', { style: i ? null : 'text-align:left' }, h)))));
+  const tb = el('tbody');
+  test.items.forEach(i => {
+    const sel = el('select', { class: 'select select-sm', 'aria-label': `State of ${i.source.label} demand`,
+      onchange: e => {
+        setDemand(city, area, i.source.id, e.target.value ? { state: e.target.value, asOf: new Date().toISOString().slice(0, 10) } : null);
+        render();
+      } });
+    sel.append(el('option', { value: '' }, 'Not recorded'));
+    DEMAND_STATES.forEach(s => sel.append(el('option', { value: s.id, title: s.note,
+      selected: i.state && i.state.id === s.id ? '' : null }, s.label)));
+    tb.append(el('tr', {}, [
+      el('th', { scope: 'row', style: 'text-align:left' }, [
+        i.source.label,
+        i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'not occupier demand') : null,
+        i.source.fragile && !i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'fragile') : null,
+      ].filter(Boolean)),
+      el('td', { style: 'text-align:left' }, sel),
+      el('td', { style: 'text-align:left' }, i.counts
+        ? el('span', { class: 'chip chip-ok' }, 'yes')
+        : el('span', { class: 'caption' }, i.state ? 'no' : '—')),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+        i.state ? i.state.note : i.source.ask),
+      el('td', {}, ''),
+    ]));
+  });
+  t.append(tb);
+  card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
+  test.warnings.forEach(w => card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' }, w)));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'An announced source is recorded and never counted until it operates. That single rule is the one this product would keep '
+    + 'if it could keep only one: the demand story that has not happened yet has carried more Malaysian off-plan losses than any other.'));
+  return card;
+}
+
+/* ---- §6.7 environmental depreciation ---- */
+function environmentalPanel(d) {
+  const env = environmentalAllowance(d);
+  const card = el('div', { class: 'card' });
+  card.append(cardHead('Environmental allowance',
+    'IPS §6.7 requires recurring allowances in coastal, flood-prone or humid environments. '
+    + 'Every one below is triggered by something recorded against this locality — nothing is inferred from the town.'));
+
+  if (!env.anyRecorded) {
+    card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, env.why));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `Record coastal exposure, flood history or ground conditions for ${d.district} on the area screen and this fills in.`));
+    return card;
+  }
+
+  const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  t.append(el('thead', {}, el('tr', {}, ['Allowance', 'Triggered by', '% of value a year', 'Per year', 'What it covers']
+    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+  const tb = el('tbody');
+  env.items.forEach(i => {
+    tb.append(el('tr', {}, [
+      el('th', { scope: 'row', style: 'text-align:left' }, i.label),
+      el('td', { class: 'caption', style: 'text-align:left' },
+        `${ATTR_BY_ID[i.triggeredBy] ? ATTR_BY_ID[i.triggeredBy].short : i.triggeredBy}: ${i.triggeredByClass}`),
+      el('td', { class: 'num' }, fmtPct(i.pctOfValue, 2)),
+      el('td', { class: 'num' }, fmtMoney(i.annual, 'MYR', 0)),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, i.note),
+    ]));
+  });
+  tb.append(el('tr', { style: 'background:var(--surface-sunk)' }, [
+    el('th', { scope: 'row', style: 'text-align:left;font-weight:600' }, 'Total'),
+    el('td', {}, ''), el('td', {}, ''),
+    el('td', { class: 'num', style: 'font-weight:600' }, fmtMoney(env.annual, 'MYR', 0)),
+    el('td', { class: 'caption', style: 'text-align:left' }, `${fmtMoney(env.monthly, 'MYR', 0)} a month`),
+  ]));
+  t.append(tb);
+  card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
+  gridKeyboard(t, 'Environmental allowances. Arrow keys move between cells.');
+
+  if (env.unexamined.length) card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+    `${env.unexamined.map(u => (ATTR_BY_ID[u] || {}).short || u).join(', ')} ${env.unexamined.length === 1 ? 'has' : 'have'} not been recorded for this locality, `
+    + 'so any allowance those would trigger is missing from the total. The figure below is a floor, not an estimate.'));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'These percentages are planning figures, not survey results. No condition report underlies them and they are stated so they can be replaced: '
+    + 'a quantity surveyor who has seen the building will produce better ones, and this exists so the line is not simply absent.'));
+  return card;
+}
+
+/* ---- §6.8 rent versus buy ---- */
+function rentVersusBuyPanel(d, m) {
+  const card = el('div', { class: 'card' });
+  card.append(cardHead('Rent, or buy',
+    'IPS §6.8. For a property you would use yourself rather than let, the comparison is between owning it all year '
+    + 'and renting it for the weeks you actually want it.'));
+
+  const weeks = num0(State.deal.ownUseWeeks);
+  const f = el('div', { class: 'assumption', style: 'margin-top:var(--md)' });
+  f.append(el('label', { for: 'ownUseWeeks' }, 'Weeks a year you would use it yourself'));
+  f.append(el('input', { class: 'input a-text', id: 'ownUseWeeks', type: 'number', min: '0', max: '52',
+    value: weeks > 0 ? String(weeks) : '',
+    placeholder: 'e.g. 4',
+    'aria-label': 'Weeks a year of your own use',
+    onchange: e => { State.deal.ownUseWeeks = Number(e.target.value) || 0; saveDeal(); render(); } }));
+  card.append(f);
+
+  const r = rentVersusBuy(d, m, weeks > 0 ? weeks : null);
+  if (!r.ok) { card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, r.why)); return card; }
+
+  const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
+  g.append(el('div', { class: 'panel' }, statTile('Price to rent', `${fmtNum(r.priceToRent, 1)}×`,
+    { sub: 'Purchase price over one year of market rent' })));
+  g.append(el('div', { class: 'panel' }, statTile('True cost to own', fmtMoney(r.trueCarrying, 'MYR', 0),
+    { sub: `A year, including ${fmtMoney(r.opportunity, 'MYR', 0)} the deposit is not earning elsewhere` })));
+  g.append(el('div', { class: 'panel' }, statTile('Cost to rent instead',
+    isNum(r.rentInstead) ? fmtMoney(r.rentInstead, 'MYR', 0) : '—',
+    { sub: isNum(r.weeks) ? `${fmtNum(r.weeks, 0)} weeks at this property's own rent` : 'Enter your weeks of use' })));
+  card.append(g);
+
+  card.append(el('p', { class: 'body', style: 'font-weight:600;margin-top:var(--md)' }, r.classification));
+  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:6px' }, r.why));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'Classifying a purchase as consumption is not a judgement about whether to make it. People buy things they enjoy, and that is a '
+    + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns, '
+    + 'and every figure elsewhere in this report would inherit that.'));
+  return card;
+}
+
+/* ---- the published governing document ---- */
+VIEWS.ips = () => {
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Methodology'),
+    el('h1', {}, 'Investment Policy Statement'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'The governing document. Everything this product computes is an execution of what is written here, and where the two '
+      + 'ever disagree, this page is what is wrong — not the code.'),
+    el('p', { class: 'metaline', style: 'margin-top:6px' }, IPS_VERSION),
+  ])));
+
+  /* The deviation, stated at the top rather than buried. */
+  const dev = el('div', { class: 'card', style: 'border-color:var(--bronze)' });
+  dev.append(cardHead('One deviation from the IPS as written',
+    'Section 8 requires every decision to state Buy, Watch/Hold or Reject, and section 10 calls the output a recommendation. '
+    + 'This product publishes neither, and the reason is not stylistic.'));
+  dev.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
+    'It is research only. It holds no licence to advise, it asks nothing about your circumstances, and the disclosure on every '
+    + 'page rests on that. The substance of section 8 is kept in full; only the verb changes.'));
+  const dl = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  dl.append(el('thead', {}, el('tr', {}, ['IPS §8 says', 'This product says', 'Why it is the same information']
+    .map(h => el('th', { style: 'text-align:left' }, h)))));
+  dl.append(el('tbody', {}, [
+    ['Reject', 'A hard gate refuses; no assessment is produced',
+     'Already how this works. Refusing to answer is the absence of advice, not a form of it.'],
+    ['Buy', '"Meets every condition in the methodology"',
+     'A statement about the analysis rather than an instruction to the reader. Nothing is withheld.'],
+    ['Watch / Hold', '"Conditions not yet met", naming each one',
+     'The outstanding gates are listed, which is more than a Hold would have told you.'],
+  ].map(r => el('tr', {}, r.map((c, i) =>
+    el(i ? 'td' : 'th', { scope: i ? null : 'row', class: i === 2 ? 'caption' : '', style: 'text-align:left;white-space:normal' }, c))))));
+  dev.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, dl));
+  wrap.append(dev);
+
+  /* §2 */
+  const phil = el('div', { class: 'card' });
+  phil.append(cardHead('The ten principles', 'IPS §2. Malaysia-first, cross-asset, evidence-based.'));
+  const pl = el('ol', { style: 'margin:var(--md) 0 0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px' });
+  IPS_PRINCIPLES.forEach(p => pl.append(el('li', {}, [
+    el('span', { style: 'font-weight:600' }, p.t),
+    el('span', { class: 'caption', style: 'display:block' }, p.d),
+  ])));
+  phil.append(pl);
+  phil.append(el('p', { class: 'body', style: 'font-weight:600;margin-top:var(--lg)' }, IPS_ONE_SENTENCE));
+  phil.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    'IPS §11 states this as an instruction. It is published here as the condition it describes, for the same reason section 8 is.'));
+  wrap.append(phil);
+
+  /* §3 */
+  const gates = el('div', { class: 'card' });
+  gates.append(cardHead('The eight gates', 'IPS §3. Every asset, same order. A high score does not carry an asset past a failing gate.'));
+  const gt = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  gt.append(el('thead', {}, el('tr', {}, ['#', 'Gate', 'The question it asks'].map((h, i) =>
+    el('th', { style: i ? 'text-align:left' : 'text-align:left' }, h)))));
+  gt.append(el('tbody', {}, IPS_GATES.map(g => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left' }, String(g.n)),
+    el('td', { style: 'text-align:left' }, g.label),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, g.ask),
+  ]))));
+  gates.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, gt));
+  wrap.append(gates);
+
+  /* §4 — and the honest admission that tier 3 is empty here. */
+  const ev = el('div', { class: 'card' });
+  ev.append(cardHead('The evidence hierarchy, and where this product actually sits',
+    'IPS §4 names five tiers. This states which of them each grade in this product belongs to, so the mapping can be checked rather than trusted.'));
+  const et = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  et.append(el('thead', {}, el('tr', {}, ['Tier', 'IPS description', 'Grades in this product', 'Note']
+    .map((h, i) => el('th', { style: i ? 'text-align:left' : null }, h)))));
+  et.append(el('tbody', {}, IPS_EVIDENCE_TIERS.map(t => el('tr', {}, [
+    el('th', { scope: 'row', class: 'num' }, String(t.tier)),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, t.label),
+    el('td', { style: 'text-align:left' }, t.maps.length
+      ? t.maps.map(id => el('span', { class: 'chip', style: 'margin-right:4px' },
+          (EVIDENCE.find(e => e.id === id) || { label: id }).label))
+      : el('span', { class: 'chip chip-bronze' }, 'empty here')),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, t.note),
+  ]))));
+  ev.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, et));
+  wrap.append(ev);
+
+  /* §6.1 */
+  const ord = el('div', { class: 'card' });
+  ord.append(cardHead('The property screening order', 'IPS §6.1. Fixed, and the order is the control.'));
+  ord.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
+    'Financeability is answered first so that an attractive price cannot hide an asset a bank will not lend against, '
+    + 'and yield comes fourth so that nobody reaches it before establishing who would rent the place.'));
+  const ol = el('ol', { style: 'margin:var(--md) 0 0;padding-left:1.3em;display:flex;flex-direction:column;gap:8px' });
+  IPS_PROPERTY_ORDER.forEach(o => ol.append(el('li', {}, [
+    el('span', { style: 'font-weight:600' }, o.label),
+    el('span', { class: 'caption', style: 'display:block' }, o.why),
+  ])));
+  ord.append(ol);
+  wrap.append(ord);
+
+  /* §6.9 */
+  const rej = el('div', { class: 'card' });
+  rej.append(cardHead('Auto-reject conditions', 'IPS §6.9. Any one of these refuses regardless of every other figure.'));
+  const rl = el('ul', { class: 'ticklist blocklist', style: 'margin-top:var(--md)' });
+  IPS_PROPERTY_REJECTS.forEach(r => rl.append(el('li', {}, r.label)));
+  rej.append(rl);
+  rej.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'These are enforced, not listed. A refusal produces no assessment at all rather than a lower one — a deduction can be '
+    + 'outweighed by a good number somewhere else, and that is exactly what must not happen here.'));
+  wrap.append(rej);
+
+  wrap.append(el('div', { class: 'card' }, [
+    cardHead('What is not implemented', 'Stated because a published methodology that overstates its own coverage is worse than none.'),
+    (() => {
+      const ul = el('ul', { class: 'ticklist blocklist', style: 'margin-top:var(--md)' });
+      [
+        'IPS §4 tier 3 — no market-data provider is licensed to this product. NAPIC and JPPH transaction data, which §6.2 names, cannot be redistributed here.',
+        'IPS §5 — the equity engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
+        'IPS §7 — cross-asset comparison of after-cost risk-adjusted forward return is not built.',
+        'IPS §9 — portfolio-level correlation, concentration and stress testing across positions is not built.',
+        'IPS §6.2 — the mortgage stress test here uses three percentage points, not the one point the IPS specifies. The more conservative figure was already in place and has been kept; this is a deliberate departure and not an oversight.',
+      ].forEach(x => ul.append(el('li', {}, x)));
+      return ul;
+    })(),
+  ]));
+  return wrap;
+};
 /* ==========================================================================
    VIEW — PLANS
    ========================================================================== */

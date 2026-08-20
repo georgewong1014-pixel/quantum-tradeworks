@@ -24,7 +24,7 @@ const ROUTES = [
   '/property/calculator?city=miri&district=lutong&type=shophouse',
   '/property/calculator?city=bintulu', '/learn', '/learn/glossary', '/methodology',
   '/data-sources', '/corrections', '/status', '/learn/product-boundaries', '/pricing', '/about', '/contact', '/privacy', '/terms',
-  '/decision-record',
+  '/decision-record', '/methodology/ips',
 ];
 
 const CANDIDATES = [
