@@ -13,12 +13,15 @@
     "shot": "node screenshot.mjs http://localhost:3000",
     "renders": "node renders.mjs",
     "deploy-check": "node deploy-check.mjs --wait",
-    "register": "node register-test.mjs http://localhost:8123"
+    "register": "node register-test.mjs http://localhost:8123",
+    "napic": "node napic-ingest.mjs",
+    "wording": "node wording-check.mjs"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "xlsx": "^0.18.5"
   }
 }

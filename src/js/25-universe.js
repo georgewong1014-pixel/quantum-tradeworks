@@ -695,6 +695,9 @@ async function loadRealData() {
      say, and nothing else in the app depends on either. */
   try { instruments = await fetchJson(dataUrl('instruments.json')); }
   catch { /* no registry */ }
+  /* Official NAPIC aggregates and benchmarks. Optional: absent is a normal
+     state and every panel that reads it says so rather than rendering blank. */
+  try { await loadNapic(); } catch { /* the panel reports it */ }
   try { trackedHistory = await fetchJson(dataUrl('price-history.json')); }
   catch { /* no history yet */ }
   /* Outside the try, because the deployed site has no history file at all and

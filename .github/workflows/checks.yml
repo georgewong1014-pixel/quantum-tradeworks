@@ -83,6 +83,18 @@ jobs:
 
       # The licensed lane must never reach a public checkout. This is the one
       # check whose failure is not a bug but a disclosure.
+      # Section 13 of the NAPIC extraction spec bans phrases the licensed data
+      # cannot support. "Last transacted price" is the natural thing to type and
+      # wrong for a reason invisible in the sentence, so it is checked.
+      - name: no banned claim wording
+        run: node wording-check.mjs
+
+      # The extraction must still reconcile to the published Sarawak totals.
+      - name: NAPIC extract reconciles
+        run: |
+          if [ -d property-data/raw ]; then node napic-ingest.mjs --check; else
+          echo "raw NAPIC sources are not in this checkout (they are licence-pending and git-ignored) — skipping"; fi
+
       - name: no licensed data is committed
         run: |
           node -e "

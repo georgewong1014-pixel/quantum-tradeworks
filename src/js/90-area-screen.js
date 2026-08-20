@@ -264,7 +264,10 @@ VIEWS.areas = () => {
       const v = rateInUnit(perSqft, unit);
       return isNum(v) ? fmtMoney(v, 'MYR', dp) : '—';
     };
-    /* The last transacted price, with WHEN. An amount without a date is the
+    /* The most recent transaction THE READER RECORDED, with WHEN. Their own
+       records are the only dated ones this product holds — NAPIC publishes no
+       transaction dates — so this column can exist here and nowhere else.
+       An amount without a date is the
        most misleading figure a property register can print: RM620,000 reads as
        current until you learn it was 2017. Both, or neither. */
     const last = m.lastSold || m.lastLand;
@@ -318,6 +321,7 @@ VIEWS.areas = () => {
      needs — "peat, 3 m or deeper" is a fact, "deep piling dominates build cost"
      is the reason to care. */
   if (S.editing) {
+    wrap.append(officialBenchmarkPanel(S.city, S.editing));
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));
   }
@@ -1140,9 +1144,11 @@ function localityTransactions(city, area, { splitBand = true } = {}) {
 function localityTransactionPanel(city, area) {
   const cohorts = localityTransactions(city, area);
   const card = el('div', { class: 'card' });
-  card.append(cardHead(`Latest recorded transactions — ${area}`,
-    'By locality, category, subtype, tenure and area band. A single "last price" for a locality is not a useful figure: '
-    + 'the most recent sale in a district is as likely to be agricultural land as the property you are asking about.'));
+  card.append(cardHead(`Your own recorded transactions — ${area}`,
+    'Transactions you recorded, by category, subtype, tenure and area band. These are the only dated transactions this '
+    + 'product holds — NAPIC publishes no transaction dates, so nothing above this panel can contribute to a latest sale. '
+    + 'A single "last price" for a locality would not be useful anyway: the most recent sale in a district is as likely to '
+    + 'be agricultural land as the property you are asking about.'));
 
   if (!cohorts.length) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },

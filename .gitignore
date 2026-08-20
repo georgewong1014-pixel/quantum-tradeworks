@@ -57,3 +57,20 @@ qtti/observations.json
 qtti/observations.draft.json
 qtti/screenshots/
 qtti/out/
+
+# NAPIC / JPPH source files and the full extract taken from them.
+#
+# This repository is PUBLIC. Section 14 of the extraction specification keeps
+# raw source files private and bulk export of NAPIC rows disabled until JPPH
+# confirms commercial redistribution rights, and committing them here would be
+# publishing them to the world — the single most consequential way this product
+# could get the licence question wrong.
+#
+# What IS committed is data/napic-h1-2025.json: derived division-level summaries
+# and the published benchmark ranges, with attribution. That is the
+# "QT-generated analysis and derived summaries" the specification permits, and
+# it is 987kB rather than 11MB.
+property-data/raw/
+property-data/staging/
+property-data/normalized/
+property-data/rejects/

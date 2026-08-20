@@ -50,7 +50,7 @@ const CSP_MARKER = '@CSP_HASH';
    are git-ignored, exist only on the reader's own machine, and publishing a hash
    of them in a public repo would leak a fingerprint of licensed data. They keep
    plain URLs and no-store, which is what fetchJson falls back to. */
-const VERSIONED = ['us.json', 'instruments.json', 'sarawak-geo.json'];
+const VERSIONED = ['us.json', 'instruments.json', 'sarawak-geo.json', 'napic-h1-2025.json'];
 
 function dataVersions() {
   const out = {};
