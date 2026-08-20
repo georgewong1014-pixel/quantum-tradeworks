@@ -12,7 +12,8 @@
     "mobile": "node mobile.mjs http://localhost:8123",
     "shot": "node screenshot.mjs http://localhost:3000",
     "renders": "node renders.mjs",
-    "deploy-check": "node deploy-check.mjs --wait"
+    "deploy-check": "node deploy-check.mjs --wait",
+    "register": "node register-test.mjs http://localhost:8123"
   },
   "engines": {
     "node": ">=22"

@@ -149,6 +149,14 @@ jobs:
       - name: no route contradicts itself
         run: node coverage-frames.mjs http://localhost:8123
 
+      # Record, edit, undo and replay across every logged entity. The other
+      # checks all look at a PAGE; this looks at a SEQUENCE, which is where one
+      # feature meeting another written on a different day goes wrong. A demand
+      # record silently disabled undo for the whole register and every check
+      # here stayed green through three commits.
+      - name: the register survives record, edit, undo and replay
+        run: node register-test.mjs http://localhost:8123
+
       # 360 · 390 · 430 · 768 · 1024 · 1440. The sweep only ever looks at the
       # default width, so a table that gained a column pushes the page sideways
       # on a phone and every other check still passes — which is exactly how the
