@@ -299,6 +299,11 @@ const PORTABLE_KEYS = [
   /* The history travels WITH the figures. An export holding only the current
      values is a register that arrives on the other machine unauditable — and
      it is also what makes an import mergeable rather than a replacement. */
+  /* Added with the demand test. Its absence meant a backup carried the
+     observations and the area attributes and silently dropped every demand
+     record — the reader would have restored on a new machine and found IPS §6.5
+     unanswered for every locality, with nothing saying why. */
+  { k:'demand',       label:'Demand sources' },
   { k:'registerLog',  label:'Register history' },
   { k:'registerActor',label:'Who is recording' },
   { k:'corrections',  label:'Correction cases' },

@@ -1905,6 +1905,11 @@ const PORTABLE_KEYS = [
   /* The history travels WITH the figures. An export holding only the current
      values is a register that arrives on the other machine unauditable — and
      it is also what makes an import mergeable rather than a replacement. */
+  /* Added with the demand test. Its absence meant a backup carried the
+     observations and the area attributes and silently dropped every demand
+     record — the reader would have restored on a new machine and found IPS §6.5
+     unanswered for every locality, with nothing saying why. */
+  { k:'demand',       label:'Demand sources' },
   { k:'registerLog',  label:'Register history' },
   { k:'registerActor',label:'Who is recording' },
   { k:'corrections',  label:'Correction cases' },
@@ -15273,13 +15278,102 @@ const recordAreaAttr = (key, attrId, from, to) =>
 
 /* ------------------------------------------------------------------- undo */
 
-/* The newest event that has not itself been reversed, and is not a reversal. */
+/* WHAT AN ENTITY IS, IN ONE PLACE.
+   ---------------------------------------------------------------------------
+   Undo and replay used to be two switch statements listing the same entity
+   names, and adding a third entity meant remembering both. The demand register
+   was added and neither was touched, which produced a failure worth describing
+   because it is the kind that looks like nothing:
+
+   setDemand logged a 'demand' event. lastUndoableEvent found it and reported
+   that undo was available. undoLastRegisterChange did not recognise the entity,
+   returned null, and — this is the part that mattered — never wrote a reversal.
+   So the event stayed the newest un-reversed entry forever. The Undo button
+   stayed enabled, did nothing every time it was pressed, said "Nothing left to
+   undo", and no earlier change could ever be reached again. One demand record
+   permanently disabled undo for the whole register.
+
+   Two changes stop it recurring. Entities are declared here, once, with both
+   their undo and their replay; and lastUndoableEvent SKIPS an entity it has no
+   handler for instead of stopping on it, so an unregistered entity degrades to
+   "not undoable" rather than jamming everything behind it. */
+const REGISTER_ENTITIES = {
+  observation: {
+    undo(e) {
+      if (e.op === 'add') {
+        State.observations = State.observations.filter(x => x.id !== e.id);
+        saveObservations();
+        logRegister('observation', 'delete', e.id, { before: e.after, undoOf: e.seq });
+        return 'Undid: record added';
+      }
+      if (e.op === 'delete') {
+        State.observations = [e.before, ...State.observations];
+        saveObservations();
+        logRegister('observation', 'add', e.id, { after: e.before, undoOf: e.seq });
+        return 'Undid: record deleted';
+      }
+      const k = State.observations.findIndex(x => x.id === e.id);
+      if (k > -1) {
+        State.observations[k] = { ...State.observations[k], [e.field]: e.from };
+        saveObservations();
+      }
+      logRegister('observation', 'edit', e.id, { field: e.field, from: e.to, to: e.from, undoOf: e.seq });
+      return `Undid: ${e.field} changed`;
+    },
+    replay(acc, e) {
+      if (e.op === 'add') acc.obs.set(e.id, { ...e.after });
+      else if (e.op === 'delete') acc.obs.delete(e.id);
+      else if (e.op === 'edit' && acc.obs.has(e.id)) acc.obs.set(e.id, { ...acc.obs.get(e.id), [e.field]: e.to });
+    },
+  },
+
+  areaAttr: {
+    undo(e) {
+      const prev = { ...(State.areaProfiles[e.id] || {}) };
+      if (e.from) prev[e.field] = e.from; else delete prev[e.field];
+      if (Object.keys(prev).length) State.areaProfiles[e.id] = prev;
+      else delete State.areaProfiles[e.id];
+      saveAreaProfiles();
+      logRegister('areaAttr', e.from ? 'edit' : 'delete', e.id,
+        { field: e.field, from: e.to, to: e.from, undoOf: e.seq });
+      return 'Undid: area attribute changed';
+    },
+    replay(acc, e) {
+      const cur = { ...(acc.areas[e.id] || {}) };
+      if (e.to) cur[e.field] = e.to; else delete cur[e.field];
+      if (Object.keys(cur).length) acc.areas[e.id] = cur; else delete acc.areas[e.id];
+    },
+  },
+
+  demand: {
+    undo(e) {
+      const prev = { ...(State.demand[e.id] || {}) };
+      if (e.from) prev[e.field] = e.from; else delete prev[e.field];
+      if (Object.keys(prev).length) State.demand[e.id] = prev;
+      else delete State.demand[e.id];
+      saveDemand();
+      logRegister('demand', e.from ? 'edit' : 'delete', e.id,
+        { field: e.field, from: e.to, to: e.from, undoOf: e.seq });
+      return 'Undid: demand source changed';
+    },
+    replay(acc, e) {
+      const cur = { ...(acc.demand[e.id] || {}) };
+      if (e.to) cur[e.field] = e.to; else delete cur[e.field];
+      if (Object.keys(cur).length) acc.demand[e.id] = cur; else delete acc.demand[e.id];
+    },
+  },
+};
+
+/* The newest event that has not itself been reversed, is not a reversal, and
+   belongs to an entity this file knows how to reverse. That last clause is what
+   stops one unhandled entity burying every change behind it. */
 function lastUndoableEvent() {
   const log = registerLog();
   const undone = new Set(log.filter(e => e.undoOf).map(e => e.undoOf));
   for (let i = log.length - 1; i >= 0; i--) {
     const e = log[i];
     if (e.undoOf || undone.has(e.seq)) continue;
+    if (!REGISTER_ENTITIES[e.entity]) continue;
     return e;
   }
   return null;
@@ -15293,70 +15387,31 @@ const canUndoRegister = () => !!lastUndoableEvent();
 function undoLastRegisterChange() {
   const e = lastUndoableEvent();
   if (!e) return null;
-
-  if (e.entity === 'observation') {
-    if (e.op === 'add') {
-      State.observations = State.observations.filter(x => x.id !== e.id);
-      saveObservations();
-      logRegister('observation', 'delete', e.id, { before: e.after, undoOf: e.seq });
-      return 'Undid: record added';
-    }
-    if (e.op === 'delete') {
-      State.observations = [e.before, ...State.observations];
-      saveObservations();
-      logRegister('observation', 'add', e.id, { after: e.before, undoOf: e.seq });
-      return 'Undid: record deleted';
-    }
-    if (e.op === 'edit') {
-      const k = State.observations.findIndex(x => x.id === e.id);
-      if (k > -1) {
-        State.observations[k] = { ...State.observations[k], [e.field]: e.from };
-        saveObservations();
-      }
-      logRegister('observation', 'edit', e.id, { field: e.field, from: e.to, to: e.from, undoOf: e.seq });
-      return `Undid: ${e.field} changed`;
-    }
-  }
-
-  if (e.entity === 'areaAttr') {
-    const prev = { ...(State.areaProfiles[e.id] || {}) };
-    if (e.from) prev[e.field] = e.from; else delete prev[e.field];
-    if (Object.keys(prev).length) State.areaProfiles[e.id] = prev;
-    else delete State.areaProfiles[e.id];
-    saveAreaProfiles();
-    logRegister('areaAttr', e.from ? 'edit' : 'delete', e.id,
-      { field: e.field, from: e.to, to: e.from, undoOf: e.seq });
-    return 'Undid: area attribute changed';
-  }
-  return null;
+  return REGISTER_ENTITIES[e.entity].undo(e) || null;
 }
 
 /* ------------------------------------------------------------------ replay */
 
-/* Rebuilds both projections from the log alone. This is what makes the claim
+/* Rebuilds every projection from the log alone. This is what makes the claim
    "the log is the record" checkable rather than decorative: if a replay and the
    stored projection disagree, something wrote around the recorder. A trimmed
    log cannot replay to a complete state and says so, rather than returning a
-   partial answer that looks complete. */
+   partial answer that looks complete.
+
+   Driven by REGISTER_ENTITIES, so an entity added there is replayed here
+   without a second edit — which is precisely what did not happen when the
+   demand register arrived. */
 function replayRegister() {
   const log = registerLog();
   if (log.some(e => e.trimmedBefore))
     return { ok: false, why: 'the log has been trimmed, so it no longer holds every event' };
 
-  const obs = new Map();
-  const areas = {};
+  const acc = { obs: new Map(), areas: {}, demand: {} };
   for (const e of log) {
-    if (e.entity === 'observation') {
-      if (e.op === 'add') obs.set(e.id, { ...e.after });
-      else if (e.op === 'delete') obs.delete(e.id);
-      else if (e.op === 'edit' && obs.has(e.id)) obs.set(e.id, { ...obs.get(e.id), [e.field]: e.to });
-    } else if (e.entity === 'areaAttr') {
-      const cur = { ...(areas[e.id] || {}) };
-      if (e.to) cur[e.field] = e.to; else delete cur[e.field];
-      if (Object.keys(cur).length) areas[e.id] = cur; else delete areas[e.id];
-    }
+    const handler = REGISTER_ENTITIES[e.entity];
+    if (handler) handler.replay(acc, e);
   }
-  return { ok: true, observations: [...obs.values()], areaProfiles: areas };
+  return { ok: true, observations: [...acc.obs.values()], areaProfiles: acc.areas, demand: acc.demand };
 }
 
 /* REPLAY, COMPARED — the check the file header promises.
