@@ -42,13 +42,16 @@ const SAMPLE_AREAS = [
     attrs: {
       flood: { class: 'occasional' }, title: { class: 'strata' },
       drainage: { class: 'building' }, insurance: { class: 'loaded' },
+      ground: { class: 'alluvial' }, coastal: { class: 'tidal' },
       lease: { value: 78 },
     },
     records: [
-      { kind: 'sold-price', value: 565000, date: '2026-02-11', sqft: 1050, propertyType: 'Condominium', address: 'Riveria-style block, Jalan Tabuan' },
-      { kind: 'sold-price', value: 598000, date: '2026-04-27', sqft: 1120, propertyType: 'Condominium', address: 'Same scheme, higher floor' },
+      { kind: 'sold-price', value: 565000, date: '2026-02-11', sqft: 1050, titleType: 'strata', propertyType: 'Condominium', address: 'Riveria-style block, Jalan Tabuan' },
+      { kind: 'sold-price', value: 598000, date: '2026-04-27', sqft: 1120, titleType: 'strata', propertyType: 'Condominium', address: 'Same scheme, higher floor' },
       { kind: 'let-rent',   value: 1850,   date: '2026-05-02', sqft: 1050, propertyType: 'Condominium', address: 'Two-bedroom, furnished' },
       { kind: 'vacancy',    value: 7,      date: '2026-05-02', propertyType: 'Condominium', address: 'Weeks between tenancies' },
+      { kind: 'mgmt-fee',   value: 336,    date: '2026-05-02', sqft: 1050, propertyType: 'Condominium', address: 'Monthly service charge' },
+      { kind: 'land-sold',  value: 396000, date: '2026-01-19', landSqft: 3484.8, landUnit: 'point', propertyType: 'Vacant lot', address: 'Eight points, road frontage' },
     ],
   },
   {
@@ -56,12 +59,15 @@ const SAMPLE_AREAS = [
     attrs: {
       flood: { class: 'none' }, title: { class: 'strata' },
       drainage: { class: 'complete' }, insurance: { class: 'ready' },
+      ground: { class: 'residual' }, coastal: { class: 'none' },
       lease: { value: 91 },
     },
     records: [
-      { kind: 'sold-price', value: 712000, date: '2026-03-19', sqft: 1180, propertyType: 'Condominium', address: 'Corner unit, Jalan Stutong' },
+      { kind: 'sold-price', value: 712000, date: '2026-03-19', sqft: 1180, titleType: 'strata', propertyType: 'Condominium', address: 'Corner unit, Jalan Stutong' },
       { kind: 'let-rent',   value: 2250,   date: '2026-04-08', sqft: 1180, propertyType: 'Condominium', address: 'Three-bedroom, partly furnished' },
       { kind: 'vacancy',    value: 3,      date: '2026-04-08', propertyType: 'Condominium', address: 'Weeks between tenancies' },
+      { kind: 'mgmt-fee',   value: 425,    date: '2026-04-08', sqft: 1180, propertyType: 'Condominium', address: 'Monthly service charge' },
+      { kind: 'land-sold',  value: 612000, date: '2026-02-25', landSqft: 4356, landUnit: 'point', propertyType: 'Vacant lot', address: 'Ten points, corner' },
     ],
   },
   {
@@ -69,12 +75,15 @@ const SAMPLE_AREAS = [
     attrs: {
       flood: { class: 'recurrent' }, title: { class: 'leasehold' },
       drainage: { class: 'proposed' }, insurance: { class: 'restricted' },
+      ground: { class: 'peat-deep' }, coastal: { class: 'settling' },
       lease: { value: 61 },
     },
     records: [
-      { kind: 'sold-price', value: 438000, date: '2026-01-23', sqft: 1400, propertyType: 'Terrace', address: 'Intermediate terrace, Batu Kawa' },
+      { kind: 'sold-price', value: 438000, date: '2026-01-23', sqft: 1400, titleType: 'mixed-zone', propertyType: 'Terrace', address: 'Intermediate terrace, Batu Kawa' },
       { kind: 'let-rent',   value: 1400,   date: '2026-03-30', sqft: 1400, propertyType: 'Terrace', address: 'Unfurnished, annual tenancy' },
       { kind: 'vacancy',    value: 14,     date: '2026-03-30', propertyType: 'Terrace', address: 'Weeks between tenancies' },
+      { kind: 'mgmt-fee',   value: 90,     date: '2026-03-30', sqft: 1400, propertyType: 'Terrace', address: 'Monthly estate charge' },
+      { kind: 'land-sold',  value: 174000, date: '2025-11-08', landSqft: 3484.8, landUnit: 'point', propertyType: 'Vacant lot', address: 'Eight points, interior' },
     ],
   },
 ];
@@ -180,5 +189,6 @@ function workedExampleControls({ compact = false } = {}) {
    without the warning attached to it. */
 const WORKED_EXAMPLE_NOTE =
   'Three Kuching districts with invented transactions, rents, vacancy, flood, title, '
-  + 'drainage and insurance records — enough to see what the tool does before recording anything real. '
+  + 'drainage, insurance, ground conditions and coastal exposure — plus land sales in points and service '
+  + 'charges, so every rate the tool derives has something to divide. Enough to see what it does before recording anything real. '
   + 'Nothing in it is a real property or a real figure, every row is marked, and removing it leaves your own records alone.';

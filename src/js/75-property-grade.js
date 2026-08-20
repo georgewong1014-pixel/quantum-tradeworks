@@ -681,6 +681,15 @@ function dealModel(d) {
   const annualOwnerSubsidy = isNum(noi) && isNum(annualDebtService) && (noi - annualDebtService) < 0
     ? annualDebtService - noi : 0;
   const psf = d.sqft > 0 ? d.price / d.sqft : null;
+  /* Land is a separate divisor, not a conversion of the floor rate: a terrace
+     on 4 points with 1,400 sq ft of floor has both, and they answer different
+     questions. Null where no land area was entered, because a price per point
+     of a parcel nobody measured is unanswerable rather than large. */
+  const landPsf = num0(d.landSqft) > 0 ? d.price / d.landSqft : null;
+  /* Service charge per unit of floor, monthly — the figure that most often
+     turns a yield calculation wrong after completion, and the one a buyer is
+     quoted per square foot without being told what it is per month. */
+  const maintPsf = d.sqft > 0 && isNum(d.maintenance) ? d.maintenance / d.sqft : null;
 
   /* Exit at the chosen holding period. Selling is not instantaneous: the
      property is carried, unlet, for however long the sale takes, and in a
@@ -931,7 +940,7 @@ function dealModel(d) {
            monthsPerCycle, cyclesPerYear,
            cashflowMonthly, cashOnCash, dscr, breakEvenRent,
            breakEvenRate, breakEvenRateWhy, breakEvenVacancy, breakEvenVacancyWhy, negativeAtBest,
-           psf, exitValue, outstanding, agentFee, exitLegal, carryWhileSelling,
+           psf, landPsf, maintPsf, exitValue, outstanding, agentFee, exitLegal, carryWhileSelling,
            gain, rpgt, rpgtPct: rpgtRate(d.holdYears), netExitProceeds,
            cumCash, path, totalProfit, multiple, irrApprox, stress, exits, equity };
 }
@@ -1710,12 +1719,58 @@ VIEWS.property = () => {
         'A median of a handful of readings is those readings, not the market. Asking and achieved are never combined — a quoted rent and a signed tenancy are different facts.'));
     }
 
-    /* The form. Deliberately small: a record nobody makes is worth nothing. */
+    /* THE FORM CAPTURED NO AREA, SO NO RATE COULD EVER BE DERIVED FROM IT.
+       The register has carried a price-per-square-foot measure for a while and
+       this — the recorder a reader actually uses, sitting on the calculator —
+       never asked for the floor area, so every record it made was incapable of
+       contributing to it. The rate only ever worked for rows pasted in through
+       the CSV importer, which is the path nobody takes first. A measure that can
+       only be fed by the route people do not use is a measure that reads as
+       empty and gets blamed on there being no data.
+
+       The area field is now here, it knows which unit it is in, and it appears
+       only for the kinds that need one — a weeks-vacant record has no area and
+       asking for one would be noise. */
     const form = el('div', { style: 'margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;align-items:end' });
     const kindSel = el('select', { class:'select select-sm', 'aria-label':'What you observed' });
     OBSERVATION_KINDS.forEach(k => kindSel.append(el('option', { value:k.id }, `${k.label} (${k.unit})`)));
     const valInp = el('input', { class:'input input-sm', type:'number', inputmode:'decimal',
       placeholder:'Amount', 'aria-label':'Observed value' });
+
+    /* Area, plus the unit it was typed in. Both are kept: a parcel entered as
+       4 points is redisplayed as 4 points, never as 1,742.4 square feet. */
+    const areaWrap = el('div', { class:'row', style:'gap:4px;align-items:center' });
+    const areaInp = el('input', { class:'input input-sm', type:'number', inputmode:'decimal',
+      style:'min-width:0', placeholder:'Area', 'aria-label':'Area of the property' });
+    const unitSel = el('select', { class:'select select-sm', style:'max-width:5.5rem', 'aria-label':'Unit the area is in' });
+    areaWrap.append(areaInp, unitSel);
+
+    /* Ownership type on the RECORD, not only on the locality. A district whose
+       transactions are all native area land is telling you something a single
+       locality-level classification cannot. */
+    const titleSel = el('select', { class:'select select-sm', 'aria-label':'Ownership type' });
+    titleSel.append(el('option', { value:'' }, 'Ownership — not stated'));
+    TITLE_TYPES.filter(t => t.id !== 'unknown').forEach(t =>
+      titleSel.append(el('option', { value:t.id, title:t.note }, t.label)));
+
+    /* Which units are offered, and whether an area is asked for at all, follow
+       the selected kind rather than being fixed. */
+    const syncKind = () => {
+      const k = OBS_BY_ID[kindSel.value] || {};
+      const wantsArea = !!k.area;
+      areaWrap.style.display = wantsArea ? '' : 'none';
+      titleSel.style.display = k.family === 'price' || k.family === 'land' ? '' : 'none';
+      if (!wantsArea) return;
+      const ids = k.area === 'land' ? LAND_UNITS : BUILT_UP_UNITS;
+      const keep = unitSel.value;
+      unitSel.replaceChildren();
+      ids.forEach(id => unitSel.append(el('option', { value:id, title:areaUnit(id).why }, areaUnit(id).short)));
+      unitSel.value = ids.includes(keep) ? keep : ids[0];
+      areaInp.setAttribute('aria-label', k.area === 'land' ? 'Land area' : 'Floor area');
+      areaInp.placeholder = k.area === 'land' ? 'Land area' : 'Floor area';
+    };
+    kindSel.addEventListener('change', syncKind);
+
     const evSel = el('select', { class:'select select-sm', 'aria-label':'Evidence quality' });
     /* Every class except the tool's own seeded default. Offering only rank 2 and
        above meant the weakest thing a reader could say about a number they half
@@ -1734,14 +1789,26 @@ VIEWS.property = () => {
     const addBtn = el('button', { class:'btn btn-sm', onclick: () => {
       const v = Number(valInp.value);
       if (!Number.isFinite(v) || v <= 0) { toast('Enter an amount above zero'); return; }
+      const k = OBS_BY_ID[kindSel.value] || {};
+      const rawArea = Number(areaInp.value);
+      const hasArea = k.area && Number.isFinite(rawArea) && rawArea > 0;
+      /* Stored in square feet, with the unit that was typed kept beside it. */
+      const sqftValue = hasArea ? toSqft(rawArea, unitSel.value) : null;
       addObservation({ city:d.city, area:d.district, kind:kindSel.value, value:v,
                        evidence:evSel.value, date:dateInp.value,
                        sourceRef:srcInp.value.trim(), address:addrInp.value.trim(),
-                       propertyType:d.propertyType });
-      toast(srcInp.value.trim() ? `Recorded for ${d.district}` : `Recorded for ${d.district} — no source, so it counts as a note`);
+                       propertyType:d.propertyType,
+                       titleType: titleSel.value || '',
+                       ...(k.area === 'land'
+                         ? { landSqft: sqftValue, landUnit: unitSel.value }
+                         : { sqft: sqftValue, areaUnit: unitSel.value }) });
+      toast(srcInp.value.trim()
+        ? `Recorded for ${d.district}${hasArea ? '' : ' — no area, so no price per unit from this one'}`
+        : `Recorded for ${d.district} — no source, so it counts as a note`);
       render();
     } }, 'Record');
-    [kindSel, valInp, evSel, dateInp, addrInp, srcInp, addBtn].forEach(x => form.append(x));
+    [kindSel, valInp, areaWrap, titleSel, evSel, dateInp, addrInp, srcInp, addBtn].forEach(x => form.append(x));
+    syncKind();
     oc.append(form);
     oc.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'Stored in this browser only. It is never sent anywhere, it is not published with the site, and it carries no redistribution right — the same position as every other figure you supply here.'));
@@ -2039,6 +2106,41 @@ VIEWS.property = () => {
     { sub: 'After costs, vacancy and the loan', tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
   fg.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
   free.append(fg);
+
+  /* THE SAME PRICE, IN THE UNITS IT WILL BE ARGUED IN.
+     A Sarawak land negotiation happens in points, a valuer's report in square
+     metres, and a brochure in square feet. Converting between them by hand is
+     where a decimal goes missing, so the three are shown together and the
+     reader can check the figure they were quoted against the one they think
+     they are paying.
+
+     Every tile is the same price over a different area. Nothing is converted
+     twice and no rate is stored, so they cannot drift apart. */
+  const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
+  unitCard.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+    'What you are paying, per unit'));
+  const unitTile = (label, perSqft, unit, dp, sub) => {
+    const v = rateInUnit(perSqft, unit);
+    return el('div', { class: 'panel' }, statTile(label,
+      isNum(v) ? `${fmtMoney(v, 'MYR', dp)}/${areaUnit(unit).short}` : '—',
+      { sub: isNum(v) ? sub : 'No area entered, so this cannot be computed' }));
+  };
+  const ug = el('div', { class: 'grid g-3', style: 'margin-top:var(--sm)' });
+  ug.append(unitTile('Floor area', m.psf, 'sqft', 0,
+    num0(d.sqft) > 0 ? `${fmtNum(d.sqft, 0)} sq ft of built-up` : ''));
+  ug.append(unitTile('Floor area', m.psf, 'sqm', 0,
+    num0(d.sqft) > 0 ? `${fmtArea(convertArea(d.sqft, 'sqft', 'sqm'), 'sqm')} of built-up` : ''));
+  ug.append(unitTile('Land', m.landPsf, 'point', 0,
+    num0(d.landSqft) > 0 ? `${fmtArea(convertArea(d.landSqft, 'sqft', 'point'), 'point')} of land` : ''));
+  unitCard.append(ug);
+  const ug2 = el('div', { class: 'grid g-3', style: 'margin-top:var(--sm)' });
+  ug2.append(unitTile('Land', m.landPsf, 'acre', 0,
+    num0(d.landSqft) > 0 ? `${fmtArea(convertArea(d.landSqft, 'sqft', 'acre'), 'acre')} of land` : ''));
+  ug2.append(unitTile('Maintenance, monthly', m.maintPsf, 'sqft', 2, 'Service charge per sq ft per month'));
+  ug2.append(unitTile('Maintenance, monthly', m.maintPsf, 'sqm', 2, 'Service charge per m² per month'));
+  unitCard.append(ug2);
+  unitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, POINT_DEFINITION));
+  free.append(unitCard);
 
   /* The two rent tiles above, drawn against each other. One series, so no
      legend — the title names it and both marks are directly labelled. */

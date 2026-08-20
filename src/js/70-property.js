@@ -86,30 +86,123 @@ function activeProject(d) {
    The factors are prompts, not assumptions. Nothing here adjusts a number on
    the user's behalf; they are the questions a local buyer would ask and an
    out-of-state model would miss. */
+/* EVERY DIVISION, NOT FOUR TOWNS AND A SHRUG.
+   ---------------------------------------------------------------------------
+   This list held Kuching, Sibu, Miri, Bintulu and one entry called "Other
+   Sarawak" whose districts were seven whole towns — Sri Aman, Kapit, Limbang,
+   Mukah, Betong, Sarikei and "Elsewhere". A landowner in Mukah was being asked
+   to file their property under Elsewhere, and every figure they recorded landed
+   in a bucket shared with four other divisions, which makes a median of it
+   meaningless.
+
+   So the twelve administrative divisions are all here. That structure is public
+   administrative fact, not market data: divisions and their districts are
+   gazetted, and nothing about a town appearing in this list says a property
+   market exists there.
+
+   TWO KINDS OF `districts`, AND THE DIFFERENCE IS STATED.
+
+   Kuching, Sibu, Miri and Bintulu carry NEIGHBOURHOOD names, because that is
+   the granularity at which their property is actually discussed and it is what
+   was already recorded against them. The rest carry the division's
+   ADMINISTRATIVE DISTRICTS, because inventing neighbourhood names for towns
+   whose streets this tool has never seen would be fabricating the one thing it
+   promises not to. `localityKind` says which a given list is, and the recorder
+   lets a reader add a locality of their own either way — a register has to be
+   able to hold a place the list does not.
+
+   `other-swk` stays, deprecated. Records already filed under it must keep
+   resolving; nothing new should be filed there. */
 const SARAWAK_CITIES = [
-  { id:'kuching', name:'Kuching',
+  { id:'kuching', name:'Kuching', division:'Kuching', localityKind:'neighbourhood',
     districts:['City centre','Tabuan','Stutong','Batu Kawa','Matang','Petra Jaya','Samarahan','Kota Samarahan'],
     factors:['Government employment','University demand','Medical and professional employment',
              'New suburban supply','Traffic and parking'] },
-  { id:'sibu', name:'Sibu',
+  { id:'bau', name:'Bau', division:'Kuching', localityKind:'district',
+    districts:['Bau town','Krokong','Jagoi','Tondong','Buso'],
+    factors:['Commuter distance to Kuching','Former mining ground','Limestone terrain','Thin transaction record'] },
+  { id:'lundu', name:'Lundu', division:'Kuching', localityKind:'district',
+    districts:['Lundu town','Sematan','Gunung Gading','Biawak'],
+    factors:['Coastal frontage','Tourism seasonality','Distance from Kuching','Thin transaction record'] },
+
+  { id:'kota-samarahan', name:'Kota Samarahan', division:'Samarahan', localityKind:'district',
+    districts:['Samarahan town','Muara Tuang','Asajaya','Simunjan','Sebuyau'],
+    factors:['University and teaching-hospital employment','Student rental demand',
+             'Kuching commuter overflow','New suburban supply'] },
+
+  { id:'serian', name:'Serian', division:'Serian', localityKind:'district',
+    districts:['Serian town','Tebedu','Balai Ringin','Tarat'],
+    factors:['Trunk-road position','Agricultural employment','Border trade at Tebedu','Thin transaction record'] },
+
+  { id:'sri-aman', name:'Sri Aman', division:'Sri Aman', localityKind:'district',
+    districts:['Sri Aman town','Lubok Antu','Engkilili','Pantu'],
+    factors:['Batang Lupar tidal bore','Administrative employment','Thin transaction record','Financing availability'] },
+
+  { id:'betong', name:'Betong', division:'Betong', localityKind:'district',
+    districts:['Betong town','Saratok','Pusa','Kabong','Debak','Spaoh'],
+    factors:['Coastal and riverine exposure','Agricultural employment','Thin transaction record'] },
+
+  { id:'sarikei', name:'Sarikei', division:'Sarikei', localityKind:'district',
+    districts:['Sarikei town','Meradong (Bintangor)','Julau','Pakan','Repok'],
+    factors:['Rajang delta position','Agricultural processing','Shophouse liquidity','Thin transaction record'] },
+
+  { id:'sibu', name:'Sibu', division:'Sibu', localityKind:'neighbourhood',
     districts:['Town centre','Rejang Park','Ulu Sungai Merah','Jalan Salim','Jalan Teku','Permai','Lanang','Sibujaya'],
     factors:['Flood history','River and drainage exposure','Shophouse liquidity','Population growth',
              'Local family rental demand','Lower transaction liquidity'] },
-  { id:'miri', name:'Miri',
-    districts:['City centre','Marina','Pujut','Lutong','Permyjaya','Senadin','Tudan','Taman Tunku'],
-    factors:['Oil and gas employment','Curtin student demand','Brunei-related activity','Rotation staff',
-             'Industry-cycle vacancy'] },
-  { id:'bintulu', name:'Bintulu',
+  { id:'kanowit', name:'Kanowit', division:'Sibu', localityKind:'district',
+    districts:['Kanowit town','Ngemah','Machan'],
+    factors:['River access','Timber and agriculture','Very thin transaction record'] },
+
+  { id:'mukah', name:'Mukah', division:'Mukah', localityKind:'district',
+    districts:['Mukah town','Dalat','Daro','Matu','Igan','Tanjung Manis','Balingian'],
+    factors:['Deep peat ground conditions','Coastal exposure','Administrative-centre construction',
+             'Tanjung Manis port activity','Thin transaction record'] },
+
+  { id:'bintulu', name:'Bintulu', division:'Bintulu', localityKind:'neighbourhood',
     districts:['Town centre','Tanjung Batu','Kidurong','Samalaju','Jepak','Kemena','Parkcity','Sibiew'],
     factors:['LNG and industrial employment','Samalaju activity','Project-completion vacancy',
              'Contractor housing','Heavy-industry concentration'] },
-  { id:'other-swk', name:'Other Sarawak',
+  { id:'tatau', name:'Tatau', division:'Bintulu', localityKind:'district',
+    districts:['Tatau town','Sebauh','Kuala Tatau'],
+    factors:['Plantation employment','Bintulu commuter distance','Very thin transaction record'] },
+
+  { id:'miri', name:'Miri', division:'Miri', localityKind:'neighbourhood',
+    districts:['City centre','Marina','Pujut','Lutong','Permyjaya','Senadin','Tudan','Taman Tunku'],
+    factors:['Oil and gas employment','Curtin student demand','Brunei-related activity','Rotation staff',
+             'Industry-cycle vacancy'] },
+  { id:'marudi', name:'Marudi', division:'Miri', localityKind:'district',
+    districts:['Marudi town','Beluru','Bekenu','Niah','Sibuti'],
+    factors:['Baram river access','Agricultural employment','Road connection to Miri','Very thin transaction record'] },
+
+  { id:'limbang', name:'Limbang', division:'Limbang', localityKind:'district',
+    districts:['Limbang town','Nanga Medamit','Batu Danau'],
+    factors:['Brunei border trade','Two-border road access','Cross-border wage exposure','Thin transaction record'] },
+  { id:'lawas', name:'Lawas', division:'Limbang', localityKind:'district',
+    districts:['Lawas town','Trusan','Sundar','Merapok'],
+    factors:['Sabah and Brunei border position','Coastal exposure','Very thin transaction record'] },
+
+  { id:'kapit', name:'Kapit', division:'Kapit', localityKind:'district',
+    districts:['Kapit town','Song','Belaga','Bukit Mabong','Nanga Merit'],
+    factors:['River-only access for part of the year','Timber employment','Bakun catchment',
+             'Financing availability','Very thin transaction record'] },
+
+  /* DEPRECATED, KEPT SO OLD RECORDS RESOLVE. Anything filed here predates the
+     division list above and should be refiled against a town. */
+  { id:'other-swk', name:'Elsewhere in Sarawak (unfiled)', division:'—', localityKind:'legacy', deprecated:true,
     districts:['Sri Aman','Kapit','Limbang','Mukah','Betong','Sarikei','Elsewhere in Sarawak'],
     factors:['Thin transaction record','Financing availability','Local employment base'] },
-  { id:'outside', name:'Outside Sarawak',
+
+  { id:'outside', name:'Outside Sarawak', division:'—', localityKind:'legacy',
     districts:['Peninsular Malaysia','Sabah','Labuan'],
     factors:['The Sarawak Land Code does not apply outside Sarawak — title questions here follow the National Land Code'] },
 ];
+/* Towns grouped by division, for a picker that would otherwise be twenty flat
+   entries. Derived, so adding a town above needs no second edit here. */
+const SARAWAK_DIVISIONS = SARAWAK_CITIES.reduce((m, c) => {
+  if (c.division && c.division !== '—') (m[c.division] = m[c.division] || []).push(c);
+  return m;
+}, {});
 
 /* Sarawak land is classified under its own Land Code, not the National Land
    Code, and the class governs who may hold the title. This is the single most
@@ -848,6 +941,71 @@ const AREA_INSURANCE = [
 
    `restricted` is carried as data and shown as text in the legend and the
    table. Restriction is a legal fact and may not rest on a hue. */
+/* GROUND CONDITIONS — THE COST NOBODY PUTS IN THE SPREADSHEET.
+   ---------------------------------------------------------------------------
+   Roughly an eighth of Sarawak is peat, almost all of it in the coastal belt
+   that runs from Kuching through Sarikei and Mukah to Bintulu — which is also
+   where most of the state's people and most of its buildable land are. On deep
+   peat a building is piled to a competent stratum and stands still; everything
+   NOT piled — the driveway, the apron, the drains, the boundary wall, the
+   service connections — sits on ground that keeps consolidating for decades
+   after the drains go in.
+
+   That is not a hazard in the flood sense. It is a cost, and it lands years
+   after completion, on the exact line items a rental model treats as trivial.
+   A calculator that models a 4.3% interest rate to two decimal places and says
+   nothing about whether the plot needs 18-metre piles is precise about the
+   wrong thing.
+
+   The classes are what a soil investigation report says, in the words it says
+   them. Nothing here is inferred from the map: a locality's ground is recorded
+   from a borehole log, a neighbour's piling record, or the engineer who did the
+   scheme next door, and until somebody records it the answer is that nobody
+   here knows. */
+const AREA_GROUND = [
+  { id:'rock',        label:'Rock or dense residual', rank:0, tone:'--seq-2',
+    note:'Competent stratum near the surface. Conventional footings; no settlement expected.' },
+  { id:'residual',    label:'Residual soil',          rank:1, tone:'--seq-3',
+    note:'Weathered in place, typically on higher ground. Conventional foundations usually adequate; slope stability becomes the question instead.' },
+  { id:'alluvial',    label:'Soft alluvial clay',     rank:2, tone:'--seq-4',
+    note:'River or coastal deposit. Piling generally required for anything above a single storey, and long-term settlement of unpiled ground is normal.' },
+  { id:'peat-shallow',label:'Peat, under 3 m',        rank:3, tone:'--seq-5',
+    note:'Piled through to a competent stratum. The building stands; aprons, drives, drains and boundary walls settle around it and need re-levelling.' },
+  { id:'peat-deep',   label:'Peat, 3 m or deeper',    rank:4, tone:'--seq-7',
+    note:'Deep piling, and it is the dominant cost of building. Surrounding ground consolidates for decades after drainage; service connections and drainage falls are recurring maintenance, not one-off defects.' },
+  { id:'fill',        label:'Filled or reclaimed',    rank:4, tone:'--seq-6',
+    note:'Made ground of unrecorded origin and compaction. Until the fill is characterised, nothing about foundation cost can be assumed — this is the class that most often turns out worse than expected.' },
+];
+
+/* COASTAL AND SUBSIDENCE EXPOSURE — WHAT IS OBSERVED, NOT WHAT IS FORECAST.
+   ---------------------------------------------------------------------------
+   Deliberately separate from ground conditions, because the two answer
+   different questions and a reader needs both. Ground conditions say what the
+   soil IS. This says what is currently happening to the site because of where
+   it sits: tide, shoreline, salt, or ground going down.
+
+   Sarawak's subsidence is overwhelmingly peat consolidation following drainage,
+   not tectonic movement — which matters, because it means the cause is usually
+   a drainage scheme somebody built, the rate is highest in the first years
+   after it, and it is a thing a neighbour can describe. So it is recorded as an
+   observation with a date, and the date is load-bearing: "settling" in 2009 and
+   "settling" in 2026 are different statements about the same plot.
+
+   No forecast is offered and none should be inferred. This product holds no
+   subsidence model, no sea-level projection and no shoreline survey. */
+const AREA_COASTAL = [
+  { id:'none',      label:'None known',           rank:0, tone:'--seq-2',
+    note:'Checked, and no tidal influence, shoreline retreat, salinity or settlement was found or reported.' },
+  { id:'tidal',     label:'Tidal influence',      rank:1, tone:'--seq-4',
+    note:'Tide backs up the drainage on spring tides, whether or not the site has ever flooded. Sets a floor under how well the site can ever drain.' },
+  { id:'saline',    label:'Saline intrusion',     rank:2, tone:'--seq-5',
+    note:'Salt in groundwater or supply. Attacks reinforcement and shortens the life of concrete and buried services; a durability cost rather than an event.' },
+  { id:'settling',  label:'Ground settling',      rank:3, tone:'--seq-6',
+    note:'Ground movement observed — stepped cracking, doors out of square, aprons parting from the building, services pulled apart. Record when it was observed; the rate matters more than the fact.' },
+  { id:'erosion',   label:'Shoreline or bank erosion', rank:4, tone:'--seq-7',
+    note:'Active loss of land at the coast or riverbank. The only class here where the parcel itself can shrink, and the one to verify against a survey rather than an account.' },
+];
+
 const AREA_TITLE = TITLE_TYPES.filter(t => t.id !== 'unknown').map((t, i) => ({
   id: t.id, label: t.label, note: t.note, restricted: !!t.restricted,
   tone: `--s${i + 1}`,
@@ -864,6 +1022,16 @@ const AREA_SOURCES = [
   { id:'insurer',   label:'Insurer terms or quote', verified:true },
   { id:'valuer',    label:'Valuer or agent report', verified:true },
   { id:'site',      label:'Own site visit',         verified:true },
+  /* ADDED WITH GROUND CONDITIONS AND TITLE, BECAUSE NEITHER HAD A SOURCE TO
+     NAME. The list was written for flood and insurance and covered those well;
+     a borehole log had to be filed as "own site visit" and a title search as a
+     "local council record", which is not where either comes from. A provenance
+     ladder that cannot name the actual authority quietly turns every reading
+     into an approximation of itself. */
+  { id:'landsurvey', label:'Land and Survey Department', verified:true },
+  { id:'soil',      label:'Soil investigation or borehole log', verified:true },
+  { id:'engineer',  label:'Engineer or piling contractor record', verified:true },
+  { id:'surveyor',  label:'Licensed land surveyor',   verified:true },
   { id:'neighbour', label:'Neighbour or occupier account', verified:false },
   { id:'unstated',  label:'Not stated',             verified:false },
 ];
@@ -885,6 +1053,11 @@ const AREA_ATTRS = [
     why:'Whether a drainage or flood-mitigation scheme exists for this locality, and how far along it is.' },
   { id:'insurance', label:'Flood cover appetite', short:'Insurance', kind:'class', classes:AREA_INSURANCE,
     why:'What an insurer actually quoted for this locality. Record the insurer and the date — appetite moves after a flood year.' },
+  { id:'ground', label:'Ground conditions', short:'Ground', kind:'class', classes:AREA_GROUND,
+    why:'Recorded from a soil investigation report, a piling record, or the engineer on a neighbouring scheme. Never inferred from the map.',
+    caveat:'Ground conditions are recorded from user input and have not been verified. A soil investigation is the only authority on what a site will cost to build on.' },
+  { id:'coastal', label:'Coastal and subsidence exposure', short:'Coastal', kind:'class', classes:AREA_COASTAL,
+    why:'What is observed at the site now — tide, salt, settlement or erosion. This product holds no subsidence model and no shoreline survey, and offers no forecast.' },
   { id:'lease', label:'Typical remaining lease', short:'Lease', kind:'number', unit:'years', invert:true,
     why:'Years remaining on the predominant title in this locality. Shorter terms shade darker, because a short residue affects both financing and resale.' },
 ];
@@ -930,13 +1103,50 @@ function areaMetrics(city, area) {
   const asking   = nums('ask-rent', o => o.value);
   const sold     = nums('sold-price', o => o.value);
   const weeks    = nums('vacancy', o => o.value);
-  const psf      = rows.filter(o => o.kind === 'sold-price' && isNum(o.value) && isNum(o.sqft) && o.sqft > 0)
-    .map(o => o.value / o.sqft);
+
+  /* RATES ARE HELD IN SQUARE FEET AND CONVERTED AT DISPLAY.
+     One stored rate per measure, converted by the reader's chosen unit, so
+     RM/m² and RM/sq ft can never disagree by a rounding step — they are the
+     same number seen twice. */
+  const perSqft = (kind, areaField) => rows
+    .filter(o => o.kind === kind && isNum(o.value) && isNum(o[areaField]) && o[areaField] > 0)
+    .map(o => o.value / o[areaField]);
+
+  const psf      = perSqft('sold-price', 'sqft');          /* built-up, transacted */
+  const landPsf  = perSqft('land-sold', 'landSqft');       /* land, transacted */
+  /* A service charge is monthly, so its rate is monthly too. Stated in the
+     column heading rather than folded into the number. */
+  const mgmtPsf  = perSqft('mgmt-fee', 'sqft');
+
+  /* THE LAST TRANSACTED PRICE — the one figure an owner asks for first.
+     Chosen by the date the transaction happened, not the date it was keyed in:
+     a record entered today about a 2019 sale is not the latest transaction, and
+     sorting by recordedAt would say it was. Asking prices are excluded on
+     purpose; a quote is not a transaction. */
+  const lastOf = (kind) => rows
+    .filter(o => o.kind === kind && isNum(o.value) && o.date)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null;
+  const lastSold = lastOf('sold-price');
+  const lastLand = lastOf('land-sold');
+
+  /* Which ownership classes the records themselves carry, as opposed to the one
+     class recorded for the locality as a whole. A district recorded as mixed
+     zone whose transactions are all native area land is telling you something
+     the locality-level attribute cannot. */
+  const titleMix = rows.reduce((m, o) => {
+    if (o.titleType) m[o.titleType] = (m[o.titleType] || 0) + 1;
+    return m;
+  }, {});
+
   return {
     total: rows.length,
     achievedRent: med(achieved), achievedN: achieved.length,
     askingRent: med(asking), askingN: asking.length,
     soldN: sold.length, psf: med(psf), psfN: psf.length,
+    landPsf: med(landPsf), landPsfN: landPsf.length,
+    mgmtPsf: med(mgmtPsf), mgmtPsfN: mgmtPsf.length,
+    lastSold, lastLand,
+    titleMix,
     lettingWeeks: med(weeks), lettingN: weeks.length,
     verifiedN: rows.filter(o => observationStanding(o).id === 'verified').length,
     /* How many of the rows behind these medians are worked-example figures.
@@ -950,6 +1160,27 @@ function areaMetrics(city, area) {
    disagree about what an area is. `value` returns null for "nothing recorded",
    which the map draws as an outline and the table prints as a dash — the two
    renderings of the same absence. */
+/* WHICH UNIT RATES ARE READ IN.
+   Two preferences, not one: floor area is discussed in square feet or square
+   metres and land in points or acres, and a single control forcing both to the
+   same unit would produce "0.06 points of floor area", which is true and
+   useless. Persisted, because a reader who thinks in points thinks in points
+   every time they open the page. */
+State.rateUnits = {
+  built: store.read('rateUnitBuilt', 'sqft'),
+  land: store.read('rateUnitLand', 'point'),
+};
+const setRateUnit = (which, id) => {
+  State.rateUnits[which] = id;
+  store.write(which === 'built' ? 'rateUnitBuilt' : 'rateUnitLand', id);
+};
+const builtUnit = () => State.rateUnits.built;
+const landUnit = () => State.rateUnits.land;
+
+/* A rate stored per square foot, shown per whatever unit is selected. The
+   stored figure never changes; only the divisor does. */
+const rateInUnit = (perSqft, unit) => (isNum(perSqft) ? perSqft * areaUnit(unit).per : null);
+
 const AREA_LAYERS = [
   /* The recorded attributes, in registry order, so adding one adds a layer. */
   ...AREA_ATTRS.map(attr => attr.kind === 'class' ? {
@@ -971,15 +1202,56 @@ const AREA_LAYERS = [
     unit:'weeks', why:'Median weeks vacant from your own records. This is how long places actually stood empty — it is not a demand score, and no model produces one here.',
     value:(c, a) => areaMetrics(c, a).lettingWeeks,
     text:(c, a) => { const v = areaMetrics(c, a).lettingWeeks; return isNum(v) ? `${fmtNum(v, 1)} wks` : null; } },
-  { id:'psf', label:'Transacted price per sq ft, median', kind:'quantity',
-    unit:'RM/sq ft', why:'Median of transacted prices divided by recorded floor area. Asking prices are excluded, and a record without a floor area cannot contribute.',
-    value:(c, a) => areaMetrics(c, a).psf,
-    text:(c, a) => { const v = areaMetrics(c, a).psf; return isNum(v) ? fmtMoney(v, 'MYR', 0) : null; } },
+
+  /* BUILT-UP PRICE, in whichever floor-area unit is selected. */
+  { id:'psf', label:'Transacted price per unit of floor', kind:'quantity', rateUnit:'built',
+    unit:'', why:'Median of transacted prices divided by recorded floor area. Asking prices are excluded, and a record with no floor area cannot contribute.',
+    value:(c, a) => rateInUnit(areaMetrics(c, a).psf, builtUnit()),
+    text:(c, a) => { const v = rateInUnit(areaMetrics(c, a).psf, builtUnit());
+      return isNum(v) ? `${fmtMoney(v, 'MYR', rateDp(builtUnit()))}/${areaUnit(builtUnit()).short}` : null; } },
+
+  /* LAND PRICE, in whichever land unit is selected — points by default, which
+     is the unit the transaction was almost certainly negotiated in. */
+  { id:'landPsf', label:'Transacted land price per unit', kind:'quantity', rateUnit:'land',
+    unit:'', why:'Median of transacted LAND prices divided by recorded land area. A separate measure from the floor-area rate above, not a conversion of it — a shophouse has both and they are different numbers.',
+    value:(c, a) => rateInUnit(areaMetrics(c, a).landPsf, landUnit()),
+    text:(c, a) => { const v = rateInUnit(areaMetrics(c, a).landPsf, landUnit());
+      return isNum(v) ? `${fmtMoney(v, 'MYR', rateDp(landUnit()))}/${areaUnit(landUnit()).short}` : null; } },
+
+  /* MANAGEMENT CHARGE, per unit of floor per month. */
+  { id:'mgmtPsf', label:'Management charge per unit of floor', kind:'quantity', invert:true, rateUnit:'built',
+    unit:'', why:'Median monthly service charge divided by recorded floor area. Higher shades darker: this is a cost, and the one that most often makes a yield calculation wrong after completion.',
+    value:(c, a) => rateInUnit(areaMetrics(c, a).mgmtPsf, builtUnit()),
+    text:(c, a) => { const v = rateInUnit(areaMetrics(c, a).mgmtPsf, builtUnit());
+      return isNum(v) ? `${fmtMoney(v, 'MYR', 2)}/${areaUnit(builtUnit()).short}/mo` : null; } },
+
+  /* WHEN, not how much — the map shades by how stale the newest transaction is.
+     An area whose last recorded sale was in 2019 is not comparable to one that
+     transacted last month, and a price column alone hides that entirely. */
+  { id:'lastSoldAge', label:'Age of the last transacted price', kind:'quantity', invert:true,
+    unit:'months', why:'Months since the most recent transaction you have recorded, by the date it happened rather than the date it was keyed in. Nothing recorded means unexamined, not current.',
+    value:(c, a) => { const m = areaMetrics(c, a); const l = m.lastSold || m.lastLand;
+      return l ? monthsSince(l.date) : null; },
+    text:(c, a) => { const m = areaMetrics(c, a); const l = m.lastSold || m.lastLand;
+      if (!l) return null; const n = monthsSince(l.date);
+      return isNum(n) ? `${fmtNum(n, 0)} mo` : null; } },
+
   { id:'evidence', label:'Records held', kind:'quantity',
     unit:'records', why:'How much evidence you hold for this area at all. An area with none is not a low-risk area; it is an unexamined one.',
     value:(c, a) => areaMetrics(c, a).total || null,
     text:(c, a) => { const v = areaMetrics(c, a).total; return v ? `${v}` : null; } },
 ];
+
+/* Whole months between a recorded date and today. Null for an unparseable or
+   future date rather than a negative age, which would shade a typo as the
+   freshest evidence on the map. */
+function monthsSince(iso) {
+  if (!iso) return null;
+  const then = new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(then.getTime())) return null;
+  const months = (Date.now() - then.getTime()) / (1000 * 60 * 60 * 24 * 30.4375);
+  return months < 0 ? null : months;
+}
 const LAYER_BY_ID = Object.fromEntries(AREA_LAYERS.map(l => [l.id, l]));
 
 /* Five steps of one hue. A quantity is banded against the range PRESENT IN
@@ -1513,12 +1785,29 @@ function exposureStale(rec) {
    anywhere, and it carries no redistribution right — the same position as
    every other screen-derived figure in this product.
    ========================================================================== */
+/* WHAT CAN BE RECORDED ABOUT A PLACE.
+   ---------------------------------------------------------------------------
+   `area` says which area field a record's rate is derived against — 'built' for
+   floor area, 'land' for the parcel. That distinction is the whole reason
+   RM/point and RM/m² can coexist without lying: a shophouse transacted at
+   RM900,000 on 4 points of land with 3,000 sq ft of floor is RM225,000 a point
+   AND RM3,229 a square metre, and neither figure is the other one converted.
+
+   A management charge is stored as the MONTHLY AMOUNT, not as a rate. Malaysian
+   service charges are quoted per square foot per month, the question asked here
+   was per square metre, and a register that stores whichever unit was typed can
+   answer neither reliably. Storing the charge and the area separately means both
+   rates are derived, both are right, and the reader can be shown the one they
+   asked for. */
 const OBSERVATION_KINDS = [
-  { id:'ask-rent',  label:'Asking rent',       unit:'RM/month', family:'rent',  asking:true },
-  { id:'let-rent',  label:'Achieved rent',     unit:'RM/month', family:'rent',  asking:false },
-  { id:'ask-price', label:'Asking price',      unit:'RM',       family:'price', asking:true },
-  { id:'sold-price',label:'Transacted price',  unit:'RM',       family:'price', asking:false },
-  { id:'vacancy',   label:'Weeks vacant',      unit:'weeks',    family:'other', asking:false },
+  { id:'ask-rent',   label:'Asking rent',          unit:'RM/month', family:'rent',  asking:true },
+  { id:'let-rent',   label:'Achieved rent',        unit:'RM/month', family:'rent',  asking:false },
+  { id:'ask-price',  label:'Asking price',         unit:'RM',       family:'price', asking:true,  area:'built' },
+  { id:'sold-price', label:'Transacted price',     unit:'RM',       family:'price', asking:false, area:'built' },
+  { id:'land-ask',   label:'Asking land price',    unit:'RM',       family:'land',  asking:true,  area:'land' },
+  { id:'land-sold',  label:'Transacted land price',unit:'RM',       family:'land',  asking:false, area:'land' },
+  { id:'mgmt-fee',   label:'Management or service charge', unit:'RM/month', family:'cost', asking:false, area:'built' },
+  { id:'vacancy',    label:'Weeks vacant',         unit:'weeks',    family:'other', asking:false },
 ];
 const OBS_BY_ID = Object.fromEntries(OBSERVATION_KINDS.map(k => [k.id, k]));
 const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map(e => [e.id, e]));
@@ -1549,6 +1838,11 @@ const saveObservations = () => store.write('observations', State.observations);
 function addObservation(o) {
   const rec = {
     address:'', propertyType:'', sqft:null, sourceRef:'', reviewedBy:'', reviewedAt:'',
+    /* Land area is a separate field from built-up, not a reinterpretation of
+       it: a shophouse has both and they are different numbers. areaUnit keeps
+       whatever the reader typed in, so 4 points comes back as 4 points rather
+       than 1,742.4 square feet. */
+    landSqft:null, areaUnit:'sqft', landUnit:'point', titleType:'',
     ...o,
     id: `obs-${State.observations.length + 1}-${o.date}-${Math.floor(performance.now())}`,
     recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),

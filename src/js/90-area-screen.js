@@ -36,22 +36,67 @@ VIEWS.areas = () => {
 
   const city = SARAWAK_CITIES.find(c => c.id === S.city) || SARAWAK_CITIES[0];
   const geoAreas = sarawakGeo?.cities?.[S.city]?.areas || {};
-  const names = Object.keys(geoAreas);
+  const mapped = Object.keys(geoAreas);
+  /* Geocoded localities first, then any gazetted district the geocode does not
+     cover, then anything the reader has recorded against a locality of their
+     own — a register has to be able to hold a place no list anticipated. */
+  const recorded = [...new Set((State.observations || [])
+    .filter(o => o.city === S.city && o.area).map(o => o.area))];
+  const names = [...new Set([...mapped, ...(city.districts || []), ...recorded])];
+  const canMap = mapped.length > 0;
 
   /* ---- filters, one row above everything they scope ---- */
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center' });
-  const seg = (label, key, opts) => {
+  const seg = (label, key, opts, onPick) => {
     const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
     g.append(el('div', { class: 'segmented' }, opts.map(([v, l]) =>
       el('button', { 'aria-selected': S[key] === v ? 'true' : 'false',
-        onclick: () => { S[key] = v; render(); } }, l))));
+        onclick: () => { if (onPick) onPick(v); else S[key] = v; render(); } }, l))));
     return g;
   };
-  row.append(seg('Town', 'city', SARAWAK_CITIES.filter(c => sarawakGeo?.cities?.[c.id]).map(c => [c.id, c.name])));
+
+  /* TWENTY TOWNS IS A SELECT, NOT A STRIP.
+     A segmented control is right for four options and wrong for twenty — it
+     becomes a horizontally scrolling strip where most of the state is off
+     screen. Grouped by division, because that is how the places relate to each
+     other and how somebody looking for Dalat will go looking for it. */
+  const townField = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
+  townField.append(el('label', { class: 'caption', style: 'font-weight:600', for: 'areaTown' }, 'Town'));
+  const townSel = el('select', { class: 'select select-sm', id: 'areaTown',
+    onchange: e => { S.city = e.target.value; S.editing = null; render(); } });
+  Object.entries(SARAWAK_DIVISIONS).forEach(([division, towns]) => {
+    const grp = el('optgroup', { label: `${division} Division` });
+    towns.forEach(c => grp.append(el('option', { value: c.id, selected: S.city === c.id ? '' : null },
+      /* Say which towns can be drawn, rather than letting a reader pick one and
+         find the map missing with no explanation. */
+      `${c.name}${sarawakGeo?.cities?.[c.id] ? '' : ' — table only'}`)));
+    townSel.append(grp);
+  });
+  townField.append(townSel);
+  row.append(townField);
+
   row.append(seg('Shade by', 'layer', AREA_LAYERS.map(l => [l.id, l.label.replace(/,.*$/, '')])));
   bar.append(row);
+
+  /* ---- the units rates are read in ---- */
+  const unitRow = el('div', { class: 'row row-wrap',
+    style: 'gap:var(--md);align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--grid)' });
+  const unitSeg = (label, which, ids) => {
+    const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
+    g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
+    g.append(el('div', { class: 'segmented' }, ids.map(id =>
+      el('button', { 'aria-selected': State.rateUnits[which] === id ? 'true' : 'false',
+        title: areaUnit(id).why,
+        onclick: () => { setRateUnit(which, id); render(); } }, areaUnit(id).short))));
+    return g;
+  };
+  unitRow.append(unitSeg('Floor area in', 'built', BUILT_UP_UNITS));
+  unitRow.append(unitSeg('Land in', 'land', LAND_UNITS.filter(u => u !== 'sqm')));
+  bar.append(unitRow);
+  bar.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    `${POINT_DEFINITION} Rates are held per square foot and converted for display, so the same transaction reads the same in every unit.`));
 
   /* One filter row per class attribute, generated from the registry. */
   AREA_ATTRS.filter(a => a.kind === 'class').forEach(attr => {
@@ -166,13 +211,32 @@ VIEWS.areas = () => {
     wrap.insertBefore(warn, wrap.firstChild.nextSibling);
   }
 
-  wrap.append(mapCard);
+  if (canMap) wrap.append(mapCard);
+  else {
+    /* NO GUESSED POSITIONS. Coordinates were retrieved for four towns; drawing
+       the other sixteen from invented positions would put a locality on the
+       wrong side of a river and shade it with real recorded evidence, which is
+       a worse failure than having no picture at all. */
+    const noMap = el('div', { class: 'card' });
+    noMap.append(cardHead(`${city.name} — no map`,
+      `Coordinates were retrieved for Kuching, Sibu, Miri and Bintulu only. Everything below works for ${city.name} exactly as it does for them; there is simply no geocoded point to shade, and a diagram of guessed positions would be worse than none.`));
+    noMap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+      `Localities listed for ${city.name} are the gazetted administrative districts of the ${city.division} Division, plus any locality you have recorded yourself. They are not neighbourhood boundaries, and none of them implies a property market exists there.`));
+    wrap.append(noMap);
+  }
 
   /* ---- the same thing as a table, which is where the detail lives ---- */
-  const cols = ['Area', ...AREA_ATTRS.map(a => a.short), 'Achieved rent', 'Weeks vacant', 'RM/sq ft', 'Records', ''];
+  /* Headers carry the CURRENT unit rather than a fixed one. "RM/sq ft" printed
+     above a column of square-metre rates is the kind of mislabelling that
+     survives review because the numbers all look plausible. */
+  const bu = areaUnit(builtUnit()).short, lu = areaUnit(landUnit()).short;
+  const cols = ['Area', ...AREA_ATTRS.map(a => a.short),
+    'Achieved rent', 'Weeks vacant',
+    `Floor RM/${bu}`, `Land RM/${lu}`, `Charge RM/${bu}/mo`,
+    'Last transacted', 'Records', ''];
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {},
-    cols.map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+    cols.map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
   const tb = el('tbody');
   shown.forEach(n => {
     const m = areaMetrics(S.city, n);
@@ -193,12 +257,41 @@ VIEWS.areas = () => {
             c.label + (c.restricted ? ' · restricted' : ''))
         : el('span', { class: 'caption' }, 'not recorded'));
     });
+    /* A rate is null when nothing supports it, and prints as a dash. A locality
+       with transactions but no recorded areas genuinely has no price per unit,
+       and showing one would mean inventing the divisor. */
+    const rate = (perSqft, unit, dp) => {
+      const v = rateInUnit(perSqft, unit);
+      return isNum(v) ? fmtMoney(v, 'MYR', dp) : '—';
+    };
+    /* The last transacted price, with WHEN. An amount without a date is the
+       most misleading figure a property register can print: RM620,000 reads as
+       current until you learn it was 2017. Both, or neither. */
+    const last = m.lastSold || m.lastLand;
+    const lastCell = () => {
+      if (!last) return el('span', { class: 'caption' }, 'none recorded');
+      const age = monthsSince(last.date);
+      const isLand = last === m.lastLand && !m.lastSold;
+      return el('span', { title: `${OBS_BY_ID[last.kind] ? OBS_BY_ID[last.kind].label : last.kind}`
+        + `${last.address ? ` · ${last.address}` : ''} · ${observationStanding(last).label}` }, [
+        el('span', {}, fmtMoney(last.value, 'MYR', 0)),
+        el('span', { class: 'metaline', style: 'display:block' },
+          `${last.date}${isNum(age) ? ` · ${fmtNum(age, 0)} mo ago` : ''}${isLand ? ' · land' : ''}`),
+      ]);
+    };
+
     tb.append(el('tr', {}, [
-      el('td', { style: 'text-align:left;font-weight:600' }, n),
+      el('th', { class: 'pin ident', scope: 'row', style: 'text-align:left' }, n),
       ...attrCells,
       el('td', { class: 'num' }, isNum(m.achievedRent) ? `${fmtMoney(m.achievedRent, 'MYR', 0)}` : '—'),
       el('td', { class: 'num' }, isNum(m.lettingWeeks) ? fmtNum(m.lettingWeeks, 1) : '—'),
-      el('td', { class: 'num' }, isNum(m.psf) ? fmtMoney(m.psf, 'MYR', 0) : '—'),
+      el('td', { class: 'num', title: m.psfN ? `${m.psfN} transacted price(s) with a recorded floor area` : null },
+        rate(m.psf, builtUnit(), rateDp(builtUnit()))),
+      el('td', { class: 'num', title: m.landPsfN ? `${m.landPsfN} transacted land price(s) with a recorded land area` : null },
+        rate(m.landPsf, landUnit(), rateDp(landUnit()))),
+      el('td', { class: 'num', title: m.mgmtPsfN ? `${m.mgmtPsfN} service charge(s) with a recorded floor area` : null },
+        rate(m.mgmtPsf, builtUnit(), 2)),
+      el('td', { style: 'text-align:left' }, lastCell()),
       el('td', { class: 'num', title: m.sampleN
         ? `${m.sampleN} of these ${m.sampleN === 1 ? 'is a' : 'are'} worked-example record${m.sampleN === 1 ? '' : 's'}`
         : null },
@@ -218,7 +311,13 @@ VIEWS.areas = () => {
     shown.length === names.length
       ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
       : 'Filtered. The map shades the same set.'));
+  gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   tCard.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
+  /* Sixteen columns can say what a locality is classified as. They cannot say
+     what the classification MEANS, and the consequence is the half a buyer
+     needs — "peat, 3 m or deeper" is a fact, "deep piling dominates build cost"
+     is the reason to care. */
+  if (S.editing) wrap.append(landRiskPanel(S.city, S.editing));
   tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'Rent, vacancy and price columns are medians over the comparables register and move as you add to it. '
     + 'A dash is an absence of evidence, never a zero.'));
@@ -406,17 +505,44 @@ VIEWS.comparables = () => {
 
   if (rows.length) {
     const t = el('table', { class: 'dt' });
-    t.append(el('thead', {}, el('tr', {}, ['Standing', 'What', 'Amount', 'Where', 'Address or project', 'Dated', 'Source', ''].map(h =>
+    t.append(el('thead', {}, el('tr', {}, ['Standing', 'What', 'Amount', 'Area', 'Rate', 'Ownership',
+      'Where', 'Address or project', 'Dated', 'Source', ''].map(h =>
       el('th', { style: 'text-align:left' }, h)))));
     const tb = el('tbody');
     stand.forEach(({ o, s }) => {
       const kind = OBS_BY_ID[o.kind];
+      /* A record's area is shown in the unit it was TYPED in, not the unit it
+         is stored in. Somebody who entered eight points should not have to
+         recognise their own parcel as 3,484.8 square feet. */
+      const isLand = kind && kind.area === 'land';
+      const storedSqft = isLand ? o.landSqft : o.sqft;
+      const typedUnit = isLand ? (o.landUnit || 'point') : (o.areaUnit || 'sqft');
+      const areaCell = isNum(storedSqft) && storedSqft > 0
+        ? fmtArea(fromSqft(storedSqft, typedUnit), typedUnit)
+        : '—';
+      /* A cost per unit needs two decimals and a price does not: a service
+         charge of RM0.06 a square foot rounds to RM0.1 at one decimal, which
+         reads as nearly double and answers a different question from the one
+         asked.
+         The rate, in the same unit the area was given in — so a point purchase
+         reads per point and a condominium reads per square foot, without the
+         reader setting anything. */
+      const rateCell = kind && kind.area && isNum(storedSqft) && storedSqft > 0 && isNum(o.value)
+        ? `${fmtMoney(o.value / fromSqft(storedSqft, typedUnit), 'MYR', kind.family === 'cost' ? 2 : rateDp(typedUnit))}/${areaUnit(typedUnit).short}`
+          + (kind.family === 'cost' ? '/mo' : '')
+        : '—';
+      const title = TITLE_TYPES.find(x => x.id === o.titleType);
       tb.append(el('tr', {}, [
         el('td', { style: 'text-align:left' }, el('span', { class: s.tone, title: s.why }, s.label)),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
           `${kind ? kind.label : o.kind}${kind && kind.asking ? ' · quoted, not achieved' : ''}`),
         el('td', { class: 'num', style: 'text-align:left' },
           `${fmtNum(o.value, 0)}${kind ? ` ${kind.unit.replace('RM', '').trim()}` : ''}`),
+        el('td', { class: 'num', style: 'text-align:left' }, areaCell),
+        el('td', { class: 'num', style: 'text-align:left' }, rateCell),
+        el('td', { style: 'text-align:left' }, title
+          ? el('span', { class: title.restricted ? 'chip chip-bronze' : 'chip', title: title.note }, title.label)
+          : el('span', { class: 'caption' }, '—')),
         el('td', { class: 'caption', style: 'text-align:left' }, `${o.area || '—'}, ${o.city || '—'}`),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.address || '—'),
         el('td', { class: 'caption', style: 'text-align:left' }, o.date || '—'),
@@ -426,6 +552,7 @@ VIEWS.comparables = () => {
       ]));
     });
     t.append(tb);
+    gridKeyboard(t, 'Comparables register. Arrow keys move between cells.');
     wrap.append(el('div', { class: 'card' }, el('div', { class: 'tablewrap' }, t)));
   }
 
@@ -447,7 +574,8 @@ VIEWS.comparables = () => {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   const CSV_COLS = ['id', 'city', 'area', 'propertyType', 'address', 'kind', 'value', 'unit',
-                    'date', 'evidence', 'sourceRef', 'reviewedBy', 'sqft', 'standing'];
+                    'date', 'evidence', 'sourceRef', 'reviewedBy', 'sqft', 'areaUnit',
+                    'landSqft', 'landUnit', 'titleType', 'standing'];
   const csvCell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 
   io.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
