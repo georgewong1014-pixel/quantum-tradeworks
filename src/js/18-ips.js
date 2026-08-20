@@ -139,7 +139,7 @@ const IPS_EVIDENCE_TIERS = [
   { tier: 1, label: 'Regulatory filings, audited statements, official transaction data, legal documents',
     maps: ['verified'], note: 'In this product: SEC-filed statements, and a transacted price or signed tenancy you have seen.' },
   { tier: 2, label: 'Authoritative sources — Bursa, SEC, investor relations, BNM, NAPIC, JPPH',
-    maps: ['public'], note: 'Published by an authority or a listed source. NAPIC and JPPH transaction data is named in the IPS and is not licensed to this product — see the data-sources page.' },
+    maps: ['public'], note: 'Published by an authority or a listed source. NAPIC and JPPH Sarawak transaction data is reachable and can be analysed here; republishing records to subscribers needs a licence NAPIC has not granted, so anything sourced that way is held as licence-pending. The data-sources page states where each request stands.' },
   { tier: 3, label: 'Reputable market-data providers and independently verified industry data',
     maps: [], note: 'No provider is licensed to this product. This tier is empty here, and saying so is more useful than implying it is full.' },
   { tier: 4, label: 'Agent, developer, management or channel checks — only with verification',

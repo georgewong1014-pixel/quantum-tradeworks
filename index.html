@@ -3802,7 +3802,7 @@ const IPS_EVIDENCE_TIERS = [
   { tier: 1, label: 'Regulatory filings, audited statements, official transaction data, legal documents',
     maps: ['verified'], note: 'In this product: SEC-filed statements, and a transacted price or signed tenancy you have seen.' },
   { tier: 2, label: 'Authoritative sources — Bursa, SEC, investor relations, BNM, NAPIC, JPPH',
-    maps: ['public'], note: 'Published by an authority or a listed source. NAPIC and JPPH transaction data is named in the IPS and is not licensed to this product — see the data-sources page.' },
+    maps: ['public'], note: 'Published by an authority or a listed source. NAPIC and JPPH Sarawak transaction data is reachable and can be analysed here; republishing records to subscribers needs a licence NAPIC has not granted, so anything sourced that way is held as licence-pending. The data-sources page states where each request stands.' },
   { tier: 3, label: 'Reputable market-data providers and independently verified industry data',
     maps: [], note: 'No provider is licensed to this product. This tier is empty here, and saying so is more useful than implying it is full.' },
   { tier: 4, label: 'Agent, developer, management or channel checks — only with verification',
@@ -3858,6 +3858,261 @@ const IPS_PROPERTY_REJECTS = [
 const IPS_ONE_SENTENCE =
   'An asset meets this methodology only when verified quality and real demand, conservative net economics, '
   + 'a sufficient margin of safety, manageable downside and a credible exit all exist at the same time.';
+/* ==========================================================================
+   DATA LICENCE — WHAT MAY BE DONE WITH A FIGURE, WHICH IS NOT HOW GOOD IT IS
+   --------------------------------------------------------------------------
+   This product has graded every figure by EVIDENCE since it was built: is this
+   a transacted price somebody saw, a published record, a recollection, or a
+   default the tool carried. That ladder answers "how much should I believe it".
+
+   It never answered the other question, and the two are orthogonal. A NAPIC
+   transaction record is tier-one evidence AND may not be republished to
+   subscribers without a licence. A figure the reader typed themselves is weak
+   evidence AND is entirely theirs to do as they like with. Grading only one
+   axis meant the second was carried in prose, in a source-review document, and
+   in the memory of whoever last read it.
+
+   A CORRECTION THIS FILE EXISTS TO MAKE.
+
+   The area-observations header said "there is no neighbourhood-level rental or
+   transaction dataset for Sarawak — NAPIC would not respond". That was wrong,
+   and wrong in the direction that costs the most: it wrote off a real source.
+
+   NAPIC publishes Open Sales Data, quarterly Sarawak transaction tables, and
+   record-level data through PRISM e-Data, which was opened to public access on
+   1 February 2026. The correct position is narrower and it is about rights, not
+   existence:
+
+     QT CAN source and analyse official Sarawak transaction evidence through
+     NAPIC. RECORD-LEVEL REPUBLICATION stays restricted until NAPIC or another
+     licensed provider grants commercial redistribution rights.
+
+   So a record now carries a licence state, the state decides what the product
+   will do with it, and "we hold this but may not show it to you" is a thing the
+   software can express instead of a thing someone has to remember.
+   ========================================================================== */
+
+const DATA_LICENCES = [
+  { id: 'own', label: 'Your own record', rank: 3,
+    show: true, export: true, publish: false,
+    note: 'Recorded by you, held in your browser. Yours to keep, edit and export. It carries no redistribution right, because a figure you observed is not a dataset you may licence on.' },
+
+  { id: 'public-domain', label: 'Public domain', rank: 3,
+    show: true, export: true, publish: true,
+    note: 'No rights reserved by the publisher. SEC EDGAR company facts sit here.' },
+
+  { id: 'open-attrib', label: 'Open, with attribution', rank: 3,
+    show: true, export: true, publish: true,
+    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap geocoding sits here, under ODbL.' },
+
+  { id: 'licence-pending', label: 'Held — licence pending', rank: 2,
+    show: true, export: true, publish: false,
+    note: 'Sourced from an official publisher whose reuse terms have not yet been confirmed in writing. Usable as internal evidence and for your own analysis; not republished, and excluded from anything this product would show to another subscriber.' },
+
+  { id: 'derived-only', label: 'Derived statistics only', rank: 2,
+    show: true, export: false, publish: true,
+    note: 'The underlying records may not be republished, but statistics derived from them may — subject to the publisher confirming it. A median is published; the transactions behind it are not.' },
+
+  { id: 'licensed', label: 'Licensed for redistribution', rank: 3,
+    show: true, export: true, publish: true,
+    note: 'A commercial agreement is in place and its terms are recorded. Nothing in this product holds this state yet.' },
+
+  { id: 'restricted', label: 'Restricted — do not republish', rank: 1,
+    show: true, export: false, publish: false,
+    note: 'Terms expressly forbid extracting or redistributing. Portal listings sit here, and so does anything obtained by scraping — which this product does not do.' },
+];
+const LICENCE_BY_ID = Object.fromEntries(DATA_LICENCES.map(l => [l.id, l]));
+
+/* A record with no licence recorded is the reader's own, because until NAPIC
+   import exists that is the only way anything gets in. Stated rather than
+   assumed silently, so the default can be found and changed. */
+const licenceOf = (rec) => LICENCE_BY_ID[rec?.licence] || LICENCE_BY_ID.own;
+const mayPublish = (rec) => licenceOf(rec).publish;
+const mayExport = (rec) => licenceOf(rec).export;
+
+/* ---- THE SOURCES, AND WHERE EACH ONE ACTUALLY STANDS ---------------------
+   Published on the data-sources page. The `position` column is the point: a
+   source being publicly accessible is not the same as being redistributable,
+   and this product has one page where that difference is written down. */
+const SARAWAK_TRANSACTION_SOURCES = [
+  { name: 'NAPIC Open Sales Data', url: 'https://napic.jpph.gov.my/en/open-sales-data',
+    gives: 'Official residential, commercial and industrial transaction records.',
+    use: 'Primary transaction lookup, by state, district, mukim, category and date.',
+    licence: 'licence-pending',
+    position: 'Publicly accessible. Written permission is needed before bulk commercial republication.' },
+
+  { name: 'NAPIC Data Visualisation', url: 'https://napic.jpph.gov.my/en/data-visualization',
+    gives: 'Transactions by state, district, property type and price range, with medians and averages.',
+    use: 'Town and district market context.',
+    licence: 'derived-only',
+    position: 'Cite or link, or publish derived analysis. Reuse terms to be confirmed before either.' },
+
+  { name: 'NAPIC quarterly publications', url: 'https://napic.jpph.gov.my/en/latest-publication',
+    gives: 'Downloadable quarterly tables, including the Sarawak property transaction table.',
+    use: 'Historical backfill and volume, value and price-range trends by district.',
+    licence: 'derived-only',
+    position: 'A sound research source. Confirm permission before republishing extracted tables.' },
+
+  { name: 'NAPIC e-Data / PRISM 2.0', url: 'https://napic.jpph.gov.my/en/services/e-data',
+    gives: 'Purchasable bulk, single-property, map and customised transaction data. Public access opened 1 February 2026; a month becomes purchasable after the 15th of the following month.',
+    use: 'The correct route to a record-level database, if the rights are granted.',
+    licence: 'licence-pending',
+    position: 'Request a commercial data and republication licence. prismsupport@jpph.gov.my.' },
+
+  { name: 'Sarawak Land and Survey — title search', url: 'https://elasis.sarawak.gov.my/page-0-9-19-Land-Strata-Title.html',
+    gives: 'Parcel and title-level verification.',
+    use: 'Verifying title, ownership and land particulars for one property.',
+    licence: 'restricted',
+    position: 'Individual due diligence. The site states its material may not be copied, distributed or commercially dealt with without written consent, and it is not a statewide pricing feed.' },
+
+  { name: 'Brickz', url: 'https://www.brickz.my/transactions/residential/sarawak/',
+    gives: 'Searchable project and township transactions, sourced from JPPH.',
+    use: 'Quick verification of a single comparable.',
+    licence: 'restricted',
+    position: 'Useful to check a figure against. Negotiate a data licence rather than copying the site; do not scrape.' },
+
+  { name: 'EdgeProp past transactions', url: 'https://www.edgeprop.my/past-transaction',
+    gives: 'Searchable residential, commercial, industrial and land transactions.',
+    use: 'Secondary cross-check.',
+    licence: 'restricted',
+    position: 'Terms permit analytics for internal use and prohibit constructing or redistributing a database.' },
+];
+
+/* The questions that have to be answered before record-level NAPIC data can be
+   shown to a subscriber. Published, so the licence position is checkable rather
+   than asserted — and so it is obvious which of them is still open. */
+const NAPIC_LICENCE_QUESTIONS = [
+  'Store the records in a database',
+  'Normalise and geocode them',
+  'Display individual transaction prices',
+  'Display derived median, P25 and P75 statistics',
+  'Provide the information to paying subscribers',
+  'Allow exports or API access',
+  'Retain historical records after a subscription ends',
+];
+
+/* ---- NAPIC GEOGRAPHY IS NOT THIS PRODUCT'S GEOGRAPHY ---------------------
+   NAPIC files a transaction under district, mukim, town and scheme. This
+   product files one under town and locality. The two do not line up, and
+   pretending they do is how a Kota Samarahan transaction ends up counted in
+   Kuching — the district contains both, and the market does not.
+
+   So the mapping is explicit and incomplete on purpose: a NAPIC district with
+   no entry here imports as unmapped and is held for a human to place, rather
+   than being guessed into the nearest town. */
+const NAPIC_DISTRICT_MAP = {
+  /* NAPIC district -> this product's town id */
+  'KUCHING': 'kuching',
+  'BAU': 'bau',
+  'LUNDU': 'lundu',
+  'SAMARAHAN': 'kota-samarahan',
+  'KOTA SAMARAHAN': 'kota-samarahan',
+  'ASAJAYA': 'kota-samarahan',
+  'SIMUNJAN': 'kota-samarahan',
+  'SERIAN': 'serian',
+  'TEBEDU': 'serian',
+  'SRI AMAN': 'sri-aman',
+  'LUBOK ANTU': 'sri-aman',
+  'BETONG': 'betong',
+  'SARATOK': 'betong',
+  'KABONG': 'betong',
+  'PUSA': 'betong',
+  'SARIKEI': 'sarikei',
+  'MERADONG': 'sarikei',
+  'JULAU': 'sarikei',
+  'PAKAN': 'sarikei',
+  'SIBU': 'sibu',
+  'KANOWIT': 'kanowit',
+  'SELANGAU': 'sibu',
+  'MUKAH': 'mukah',
+  'DALAT': 'mukah',
+  'DARO': 'mukah',
+  'MATU': 'mukah',
+  'TANJUNG MANIS': 'mukah',
+  'BINTULU': 'bintulu',
+  'TATAU': 'tatau',
+  'SEBAUH': 'tatau',
+  'MIRI': 'miri',
+  'MARUDI': 'marudi',
+  'BELURU': 'marudi',
+  'SUBIS': 'marudi',
+  'LIMBANG': 'limbang',
+  'LAWAS': 'lawas',
+  'KAPIT': 'kapit',
+  'SONG': 'kapit',
+  'BELAGA': 'kapit',
+  'BUKIT MABONG': 'kapit',
+};
+
+/* Returns the town id, or null. Null is a real answer: an unmapped district is
+   held rather than placed. */
+const napicTown = (district) => NAPIC_DISTRICT_MAP[String(district || '').trim().toUpperCase()] || null;
+
+/* ---- THE NAPIC RECORD SHAPE ---------------------------------------------
+   The fields a NAPIC transaction actually carries, so records import without
+   being reshaped and a locality summary can break down the way the data does.
+   Category and tenure are theirs; the area bands are this product's, because
+   NAPIC gives an exact area and a band is what makes two transactions
+   comparable. */
+const PROPERTY_CATEGORIES = [
+  { id: 'residential', label: 'Residential',
+    subtypes: ['Terraced', 'Semi-detached', 'Detached', 'Cluster', 'Town house',
+               'Low-cost house', 'Condominium/Apartment', 'Low-cost flat', 'Service apartment'] },
+  { id: 'commercial', label: 'Commercial',
+    subtypes: ['Shop', 'Shop-office', 'Office', 'Retail lot', 'Hotel', 'Service centre'] },
+  { id: 'industrial', label: 'Industrial',
+    subtypes: ['Terraced factory', 'Semi-detached factory', 'Detached factory', 'Flatted factory', 'Warehouse'] },
+  { id: 'agricultural', label: 'Agricultural',
+    subtypes: ['Oil palm', 'Rubber', 'Paddy', 'Mixed cultivation', 'Vacant agricultural'] },
+  { id: 'development', label: 'Development land',
+    subtypes: ['Residential land', 'Commercial land', 'Industrial land', 'Mixed development land'] },
+];
+const CATEGORY_BY_ID = Object.fromEntries(PROPERTY_CATEGORIES.map(c => [c.id, c]));
+
+const TENURES = [
+  { id: 'freehold', label: 'Freehold' },
+  { id: 'leasehold', label: 'Leasehold' },
+  { id: 'native', label: 'Native title' },
+  { id: 'unknown', label: 'Not stated' },
+];
+
+/* Bands, not exact areas, for grouping. An exact figure stays on the record;
+   this is only how two of them are judged comparable. */
+const AREA_BANDS = [
+  { id: 'lt700', label: 'under 700 sq ft', lo: 0, hi: 700 },
+  { id: '700-1000', label: '700–1,000 sq ft', lo: 700, hi: 1000 },
+  { id: '1000-1400', label: '1,000–1,400 sq ft', lo: 1000, hi: 1400 },
+  { id: '1400-2000', label: '1,400–2,000 sq ft', lo: 1400, hi: 2000 },
+  { id: '2000-3000', label: '2,000–3,000 sq ft', lo: 2000, hi: 3000 },
+  { id: 'gte3000', label: '3,000 sq ft and above', lo: 3000, hi: Infinity },
+];
+const areaBand = (sqft) => (isNum(sqft) && sqft > 0
+  ? AREA_BANDS.find(b => sqft >= b.lo && sqft < b.hi) || AREA_BANDS[AREA_BANDS.length - 1]
+  : null);
+
+/* ---- QUANTILES ----------------------------------------------------------
+   P25 and P75 by linear interpolation between order statistics, which is the
+   ordinary definition and the one a reader checking against a spreadsheet will
+   reproduce. Fewer than four values returns nulls: a quartile of three numbers
+   is arithmetic performed on an opinion. */
+function quantile(sorted, q) {
+  if (!sorted.length) return null;
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos), hi = Math.ceil(pos);
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+function spread(values) {
+  const s = (values || []).filter(isNum).slice().sort((a, b) => a - b);
+  if (!s.length) return { n: 0, median: null, p25: null, p75: null, lo: null, hi: null };
+  return {
+    n: s.length,
+    median: quantile(s, 0.5),
+    /* Withheld below four readings rather than computed on two. */
+    p25: s.length >= 4 ? quantile(s, 0.25) : null,
+    p75: s.length >= 4 ? quantile(s, 0.75) : null,
+    lo: s[0], hi: s[s.length - 1],
+  };
+}
 /* ==========================================================================
    VALUATION STUDIO — model router
    Unlike businesses are routed to different model packs. Each pack publishes
@@ -14684,6 +14939,77 @@ function learnData() {
     'Bursa Malaysia data is licensed, not free. Information-service licensing terms, a published price list and redistribution rights make the data workstream a commercial prerequisite — it has to be settled before the feature architecture is locked, not after.'));
   wrap.append(src);
 
+  /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
+     This page previously implied no Sarawak transaction source existed. It
+     does; what does not yet exist is the right to republish it. Those are
+     different statements and only one of them is true. */
+  const nap = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  nap.append(cardHead('Sarawak transaction evidence',
+    'Official transaction data for Sarawak exists and is publicly reachable. What has not been granted is the right to '
+    + 'republish records to subscribers. This product may source and analyse; it may not redistribute.'));
+  nap.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:13px' }, [
+    el('strong', {}, 'The position, stated once: '),
+    'Quantum Tradeworks can source and analyse official transaction evidence for Sarawak through NAPIC. '
+    + 'Record-level republication remains restricted until NAPIC or another licensed provider grants commercial '
+    + 'redistribution rights. Nothing sourced that way is shown to anyone but the person who loaded it.',
+  ]));
+  const nt = el('table', { class: 'dt' });
+  nt.append(el('thead', {}, el('tr', {}, ['Source', 'What it provides', 'Best use here', 'Licence position']
+    .map((h, i) => el('th', { style: i ? 'text-align:left' : 'text-align:left' }, h)))));
+  nt.append(el('tbody', {}, SARAWAK_TRANSACTION_SOURCES.map(s2 => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left;white-space:normal' },
+      el('a', { href: s2.url, target: '_blank', rel: 'noopener noreferrer' }, s2.name)),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, s2.gives),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, s2.use),
+    el('td', { style: 'text-align:left;white-space:normal' }, [
+      el('span', { class: LICENCE_BY_ID[s2.licence].publish ? 'chip' : 'chip chip-bronze',
+        title: LICENCE_BY_ID[s2.licence].note }, LICENCE_BY_ID[s2.licence].label),
+      el('span', { class: 'caption', style: 'display:block;margin-top:4px' }, s2.position),
+    ]),
+  ]))));
+  nap.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, nt));
+
+  nap.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' },
+    'What NAPIC has to confirm before a record reaches a subscriber'));
+  const nq = el('ul', { class: 'ticklist blocklist' });
+  NAPIC_LICENCE_QUESTIONS.forEach(q => nq.append(el('li', {}, q)));
+  nap.append(nq);
+  nap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Every one of these is open. Until each is answered in writing, record-level NAPIC data is held as '
+    + '"licence pending": usable as your own evidence, excluded from export and never republished. '
+    + 'Requests go to prismsupport@jpph.gov.my.'));
+
+  nap.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' }, 'What is not done, and will not be'));
+  const nx = el('ul', { class: 'ticklist blocklist' });
+  ['Portal scraping. EdgeProp permits analytics for internal use and prohibits constructing, extracting or '
+   + 'redistributing a database. Brickz sources from JPPH and is for verifying a figure, not for copying.',
+   'Copying Sarawak Land and Survey material, which may not be distributed or commercially dealt with without written consent.',
+   'Presenting a district-level figure as a locality figure. NAPIC files by district, mukim, town and scheme; '
+   + 'this product files by town and locality, and an unmapped district is held for a person to place rather than guessed into the nearest town.',
+  ].forEach(x => nx.append(el('li', {}, x)));
+  nap.append(nx);
+  wrap.append(nap);
+
+  /* The licence ladder itself, because it is new and orthogonal to the evidence
+     ladder a reader already knows. */
+  const lic = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  lic.append(cardHead('Licence, which is not the same question as evidence',
+    'Every figure here carries two grades. Evidence says how far to believe it. Licence says what may be done with it. '
+    + 'A NAPIC transaction is strong evidence that may not be republished; a figure you typed is weak evidence that is entirely yours.'));
+  const lt = el('table', { class: 'dt' });
+  lt.append(el('thead', {}, el('tr', {}, ['State', 'Shown to you', 'In an export', 'Republished', 'What it means']
+    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+  lt.append(el('tbody', {}, DATA_LICENCES.map(l => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left' },
+      el('span', { class: l.publish ? 'chip' : 'chip chip-bronze' }, l.label)),
+    el('td', {}, l.show ? 'yes' : 'no'),
+    el('td', {}, l.export ? 'yes' : 'no'),
+    el('td', {}, l.publish ? 'yes' : 'no'),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, l.note),
+  ]))));
+  lic.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, lt));
+  wrap.append(lic);
+
   const pit = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   pit.append(cardHead('Point-in-time policy', 'Screens and backtests must query what was known on the selected date, not the latest corrected database. Without this, historical results are not credible.'));
   const kv = el('dl', { class: 'kv' });
@@ -17224,11 +17550,26 @@ function exposureStale(rec) {
 /* ==========================================================================
    AREA OBSERVATIONS
 
-   The layer no source can supply. There is no neighbourhood-level rental or
-   transaction dataset for Sarawak — NAPIC would not respond, listing sites
-   carry asking prices under terms that forbid scraping, and asking is not
-   achieved in any case. So the only route to that data is to record it, one
-   observation at a time, from what a buyer actually sees.
+   CORRECTED. This header used to say "there is no neighbourhood-level rental
+   or transaction dataset for Sarawak — NAPIC would not respond". That was
+   wrong, and wrong in the expensive direction: it wrote off a real source on
+   the strength of one unanswered enquiry.
+
+   NAPIC publishes Open Sales Data, quarterly Sarawak transaction tables, and
+   record-level data through PRISM e-Data, which opened to public access on
+   1 February 2026. The true position is narrower and it concerns RIGHTS rather
+   than existence: this product may source and analyse that evidence, and may
+   not republish records without a licence NAPIC has not yet granted. See
+   DATA_LICENCES and the data-sources page.
+
+   RENTS ARE STILL UNPUBLISHED BY ANYONE. NAPIC records transactions, not
+   tenancies, so achieved rent and weeks vacant remain things only a person who
+   watched them can supply. Listing sites carry asking prices under terms that
+   forbid extraction, and asking is not achieved in any case.
+
+   So this register holds two kinds of row: what the reader observed, and — once
+   the licence question is settled — what an authority recorded. Both carry a
+   licence state saying what may be done with them.
 
    Three rules make the difference between a dataset and a pile of numbers:
 
@@ -17305,6 +17646,11 @@ function addObservation(o) {
        whatever the reader typed in, so 4 points comes back as 4 points rather
        than 1,742.4 square feet. */
     landSqft:null, areaUnit:'sqft', landUnit:'point', titleType:'',
+    /* The NAPIC transaction shape, so an imported record needs no reshaping and
+       a locality can be summarised the way the source actually breaks down.
+       licence says what may be DONE with the row, which is a different question
+       from evidence, which says how far it should be believed. */
+    category:'', subtype:'', tenure:'', licence:'own', sourceName:'',
     ...o,
     id: `obs-${State.observations.length + 1}-${o.date}-${Math.floor(performance.now())}`,
     recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -21102,7 +21448,7 @@ VIEWS.ips = () => {
     (() => {
       const ul = el('ul', { class: 'ticklist blocklist', style: 'margin-top:var(--md)' });
       [
-        'IPS §4 tier 3 — no market-data provider is licensed to this product. NAPIC and JPPH transaction data, which §6.2 names, cannot be redistributed here.',
+        'IPS §4 tier 3 — no market-data provider is licensed to this product. NAPIC transaction data can be sourced and analysed; record-level republication is licence-pending, and the data-sources page lists the seven permissions still to be confirmed.',
         'IPS §5 — the equity engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
         'IPS §7 — cross-asset comparison of after-cost risk-adjusted forward return is not built.',
         'IPS §9 — portfolio-level correlation, concentration and stress testing across positions is not built.',
@@ -23262,7 +23608,10 @@ VIEWS.areas = () => {
      what the classification MEANS, and the consequence is the half a buyer
      needs — "peat, 3 m or deeper" is a fact, "deep piling dominates build cost"
      is the reason to care. */
-  if (S.editing) wrap.append(landRiskPanel(S.city, S.editing));
+  if (S.editing) {
+    wrap.append(localityTransactionPanel(S.city, S.editing));
+    wrap.append(landRiskPanel(S.city, S.editing));
+  }
   tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'Rent, vacancy and price columns are medians over the comparables register and move as you add to it. '
     + 'A dash is an absence of evidence, never a zero.'));
@@ -23994,6 +24343,151 @@ VIEWS.plans = () => {
   return wrap;
 };
 
+
+/* ==========================================================================
+   LATEST RECORDED TRANSACTIONS BY LOCALITY AND PROPERTY TYPE
+   --------------------------------------------------------------------------
+   The feature this replaces was called "last transacted price", and the name
+   was the defect. A single last price for a locality is close to meaningless:
+   the most recent transaction in a Sarawak district is as likely to be
+   agricultural land or a low-cost flat as the terrace somebody is actually
+   asking about, and printing one figure invites the reader to compare their
+   condominium against a paddy field.
+
+   So the unit of answer is a COHORT — locality, category, subtype, tenure and
+   area band — and every cohort carries the count behind it, the spread, the
+   period it covers and where it came from. A median of two is shown as a median
+   of two, and a quartile of two is not shown at all.
+   ========================================================================== */
+
+/* Every distinct cohort held for a locality, newest transaction first. */
+function localityTransactions(city, area, { splitBand = true } = {}) {
+  const rows = (State.observations || []).filter(o =>
+    o.city === city && o.area === area
+    && (o.kind === 'sold-price' || o.kind === 'land-sold')
+    && isNum(o.value) && o.date);
+
+  const keyOf = (o) => [
+    o.category || 'uncategorised',
+    o.subtype || (o.propertyType || 'unspecified'),
+    o.tenure || 'unknown',
+    splitBand ? (areaBand(o.kind === 'land-sold' ? o.landSqft : o.sqft)?.id || 'unbanded') : 'all',
+  ].join('|');
+
+  const groups = new Map();
+  rows.forEach(o => {
+    const k = keyOf(o);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(o);
+  });
+
+  const out = [...groups.entries()].map(([k, list]) => {
+    const [cat, sub, ten, band] = k.split('|');
+    const sorted = list.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const latest = sorted[0];
+    const isLand = latest.kind === 'land-sold';
+    const areaField = isLand ? 'landSqft' : 'sqft';
+
+    const prices = spread(list.map(o => o.value));
+    /* Per-square-foot spread over only the rows that carry an area. The count
+       differs from the price count and is reported separately, because a median
+       PSF over three of nine transactions is not a median over nine. */
+    const withArea = list.filter(o => isNum(o[areaField]) && o[areaField] > 0);
+    const psfs = spread(withArea.map(o => o.value / o[areaField]));
+
+    const dates = list.map(o => String(o.date)).sort();
+    /* Licence is the WEAKEST in the cohort — a summary containing one
+       licence-pending record is itself licence-pending, because publishing it
+       would publish that record's contribution. */
+    const licences = [...new Set(list.map(o => licenceOf(o).id))];
+    const weakest = DATA_LICENCES
+      .filter(l => licences.includes(l.id))
+      .sort((a, b) => (a.publish === b.publish ? a.rank - b.rank : (a.publish ? 1 : -1)))[0]
+      || LICENCE_BY_ID.own;
+
+    return {
+      key: k,
+      category: CATEGORY_BY_ID[cat]?.label || (cat === 'uncategorised' ? 'Not categorised' : cat),
+      subtype: sub === 'unspecified' ? '—' : sub,
+      tenure: (TENURES.find(t => t.id === ten) || { label: 'Not stated' }).label,
+      band: band === 'all' ? null : (AREA_BANDS.find(b => b.id === band)?.label
+              || (band === 'unbanded' ? 'no area recorded' : band)),
+      isLand,
+      latest, latestDate: latest.date, ageMonths: monthsSince(latest.date),
+      prices, psfs, psfN: psfs.n,
+      periodFrom: dates[0], periodTo: dates[dates.length - 1],
+      lastUpdate: list.map(o => o.recordedAt || '').sort().pop() || '',
+      licence: weakest,
+      sampleN: list.filter(o => o.sample).length,
+      n: list.length,
+    };
+  });
+
+  return out.sort((a, b) => String(b.latestDate).localeCompare(String(a.latestDate)));
+}
+
+/* The panel. Every column the correct wording requires, and the count beside
+   every summary figure. */
+function localityTransactionPanel(city, area) {
+  const cohorts = localityTransactions(city, area);
+  const card = el('div', { class: 'card' });
+  card.append(cardHead(`Latest recorded transactions — ${area}`,
+    'By locality, category, subtype, tenure and area band. A single "last price" for a locality is not a useful figure: '
+    + 'the most recent sale in a district is as likely to be agricultural land as the property you are asking about.'));
+
+  if (!cohorts.length) {
+    card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
+      `No transactions recorded for ${area}.`));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      'NAPIC publishes Sarawak transaction records through Open Sales Data, its quarterly tables and PRISM e-Data. '
+      + 'This product can source and analyse them; it may not republish records until NAPIC grants redistribution rights, '
+      + 'so nothing is loaded here. The data-sources page states where that stands.'));
+    return card;
+  }
+
+  const t = el('table', { class: 'dt' });
+  t.append(el('thead', {}, el('tr', {}, ['Category', 'Subtype', 'Tenure', 'Area band',
+    'Latest', 'Dated', 'Median', 'Median PSF', 'P25–P75', 'n', 'Period', 'Source', 'Licence']
+    .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
+  const tb = el('tbody');
+  cohorts.forEach(c => {
+    const money = (v) => (isNum(v) ? fmtMoney(v, 'MYR', 0) : '—');
+    tb.append(el('tr', {}, [
+      el('th', { class: 'pin ident', scope: 'row', style: 'text-align:left' },
+        [c.category, c.sampleN ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'example') : null].filter(Boolean)),
+      el('td', { style: 'text-align:left' }, c.subtype),
+      el('td', { style: 'text-align:left' }, c.tenure),
+      el('td', { class: 'caption', style: 'text-align:left' }, c.band || '—'),
+      el('td', { class: 'num' }, money(c.latest.value)),
+      el('td', { class: 'caption', style: 'text-align:left' },
+        `${c.latestDate}${isNum(c.ageMonths) ? ` · ${fmtNum(c.ageMonths, 0)} mo` : ''}`),
+      el('td', { class: 'num' }, money(c.prices.median)),
+      el('td', { class: 'num', title: c.psfN ? `${c.psfN} of ${c.n} carry an area` : 'no areas recorded' },
+        c.psfs.median != null ? `${fmtMoney(c.psfs.median, 'MYR', c.isLand ? 0 : 1)}` : '—'),
+      el('td', { class: 'num', title: c.n < 4 ? 'Quartiles are withheld below four transactions' : null },
+        c.prices.p25 != null ? `${money(c.prices.p25)}–${money(c.prices.p75)}` : '—'),
+      el('td', { class: 'num' }, String(c.n)),
+      el('td', { class: 'caption', style: 'text-align:left' },
+        c.periodFrom === c.periodTo ? c.periodFrom : `${c.periodFrom} to ${c.periodTo}`),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+        c.latest.sourceName || c.latest.sourceRef || '—'),
+      el('td', { style: 'text-align:left' },
+        el('span', { class: c.licence.publish ? 'chip' : 'chip chip-bronze', title: c.licence.note }, c.licence.label)),
+    ]));
+  });
+  t.append(tb);
+  card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
+  gridKeyboard(t, `Recorded transactions for ${area}, by cohort. Arrow keys move between cells.`);
+
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Median PSF is computed only over the transactions that carry an area, and its count is in the column tooltip — '
+    + 'a median over three of nine is not a median over nine. Quartiles are withheld below four transactions, '
+    + 'because a quartile of two numbers is arithmetic performed on an opinion.'));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    'A cohort takes the weakest licence of any record in it: a summary containing one record that may not be republished '
+    + 'may not be republished either.'));
+  return card;
+}
 /* ==========================================================================
    WORKED EXAMPLE — A FULL DISTRICT, EVERY FIGURE MARKED AS INVENTED
    --------------------------------------------------------------------------

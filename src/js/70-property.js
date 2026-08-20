@@ -1762,11 +1762,26 @@ function exposureStale(rec) {
 /* ==========================================================================
    AREA OBSERVATIONS
 
-   The layer no source can supply. There is no neighbourhood-level rental or
-   transaction dataset for Sarawak — NAPIC would not respond, listing sites
-   carry asking prices under terms that forbid scraping, and asking is not
-   achieved in any case. So the only route to that data is to record it, one
-   observation at a time, from what a buyer actually sees.
+   CORRECTED. This header used to say "there is no neighbourhood-level rental
+   or transaction dataset for Sarawak — NAPIC would not respond". That was
+   wrong, and wrong in the expensive direction: it wrote off a real source on
+   the strength of one unanswered enquiry.
+
+   NAPIC publishes Open Sales Data, quarterly Sarawak transaction tables, and
+   record-level data through PRISM e-Data, which opened to public access on
+   1 February 2026. The true position is narrower and it concerns RIGHTS rather
+   than existence: this product may source and analyse that evidence, and may
+   not republish records without a licence NAPIC has not yet granted. See
+   DATA_LICENCES and the data-sources page.
+
+   RENTS ARE STILL UNPUBLISHED BY ANYONE. NAPIC records transactions, not
+   tenancies, so achieved rent and weeks vacant remain things only a person who
+   watched them can supply. Listing sites carry asking prices under terms that
+   forbid extraction, and asking is not achieved in any case.
+
+   So this register holds two kinds of row: what the reader observed, and — once
+   the licence question is settled — what an authority recorded. Both carry a
+   licence state saying what may be done with them.
 
    Three rules make the difference between a dataset and a pile of numbers:
 
@@ -1843,6 +1858,11 @@ function addObservation(o) {
        whatever the reader typed in, so 4 points comes back as 4 points rather
        than 1,742.4 square feet. */
     landSqft:null, areaUnit:'sqft', landUnit:'point', titleType:'',
+    /* The NAPIC transaction shape, so an imported record needs no reshaping and
+       a locality can be summarised the way the source actually breaks down.
+       licence says what may be DONE with the row, which is a different question
+       from evidence, which says how far it should be believed. */
+    category:'', subtype:'', tenure:'', licence:'own', sourceName:'',
     ...o,
     id: `obs-${State.observations.length + 1}-${o.date}-${Math.floor(performance.now())}`,
     recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),

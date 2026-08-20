@@ -190,6 +190,77 @@ function learnData() {
     'Bursa Malaysia data is licensed, not free. Information-service licensing terms, a published price list and redistribution rights make the data workstream a commercial prerequisite — it has to be settled before the feature architecture is locked, not after.'));
   wrap.append(src);
 
+  /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
+     This page previously implied no Sarawak transaction source existed. It
+     does; what does not yet exist is the right to republish it. Those are
+     different statements and only one of them is true. */
+  const nap = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  nap.append(cardHead('Sarawak transaction evidence',
+    'Official transaction data for Sarawak exists and is publicly reachable. What has not been granted is the right to '
+    + 'republish records to subscribers. This product may source and analyse; it may not redistribute.'));
+  nap.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:13px' }, [
+    el('strong', {}, 'The position, stated once: '),
+    'Quantum Tradeworks can source and analyse official transaction evidence for Sarawak through NAPIC. '
+    + 'Record-level republication remains restricted until NAPIC or another licensed provider grants commercial '
+    + 'redistribution rights. Nothing sourced that way is shown to anyone but the person who loaded it.',
+  ]));
+  const nt = el('table', { class: 'dt' });
+  nt.append(el('thead', {}, el('tr', {}, ['Source', 'What it provides', 'Best use here', 'Licence position']
+    .map((h, i) => el('th', { style: i ? 'text-align:left' : 'text-align:left' }, h)))));
+  nt.append(el('tbody', {}, SARAWAK_TRANSACTION_SOURCES.map(s2 => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left;white-space:normal' },
+      el('a', { href: s2.url, target: '_blank', rel: 'noopener noreferrer' }, s2.name)),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, s2.gives),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, s2.use),
+    el('td', { style: 'text-align:left;white-space:normal' }, [
+      el('span', { class: LICENCE_BY_ID[s2.licence].publish ? 'chip' : 'chip chip-bronze',
+        title: LICENCE_BY_ID[s2.licence].note }, LICENCE_BY_ID[s2.licence].label),
+      el('span', { class: 'caption', style: 'display:block;margin-top:4px' }, s2.position),
+    ]),
+  ]))));
+  nap.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, nt));
+
+  nap.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' },
+    'What NAPIC has to confirm before a record reaches a subscriber'));
+  const nq = el('ul', { class: 'ticklist blocklist' });
+  NAPIC_LICENCE_QUESTIONS.forEach(q => nq.append(el('li', {}, q)));
+  nap.append(nq);
+  nap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Every one of these is open. Until each is answered in writing, record-level NAPIC data is held as '
+    + '"licence pending": usable as your own evidence, excluded from export and never republished. '
+    + 'Requests go to prismsupport@jpph.gov.my.'));
+
+  nap.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' }, 'What is not done, and will not be'));
+  const nx = el('ul', { class: 'ticklist blocklist' });
+  ['Portal scraping. EdgeProp permits analytics for internal use and prohibits constructing, extracting or '
+   + 'redistributing a database. Brickz sources from JPPH and is for verifying a figure, not for copying.',
+   'Copying Sarawak Land and Survey material, which may not be distributed or commercially dealt with without written consent.',
+   'Presenting a district-level figure as a locality figure. NAPIC files by district, mukim, town and scheme; '
+   + 'this product files by town and locality, and an unmapped district is held for a person to place rather than guessed into the nearest town.',
+  ].forEach(x => nx.append(el('li', {}, x)));
+  nap.append(nx);
+  wrap.append(nap);
+
+  /* The licence ladder itself, because it is new and orthogonal to the evidence
+     ladder a reader already knows. */
+  const lic = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  lic.append(cardHead('Licence, which is not the same question as evidence',
+    'Every figure here carries two grades. Evidence says how far to believe it. Licence says what may be done with it. '
+    + 'A NAPIC transaction is strong evidence that may not be republished; a figure you typed is weak evidence that is entirely yours.'));
+  const lt = el('table', { class: 'dt' });
+  lt.append(el('thead', {}, el('tr', {}, ['State', 'Shown to you', 'In an export', 'Republished', 'What it means']
+    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+  lt.append(el('tbody', {}, DATA_LICENCES.map(l => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left' },
+      el('span', { class: l.publish ? 'chip' : 'chip chip-bronze' }, l.label)),
+    el('td', {}, l.show ? 'yes' : 'no'),
+    el('td', {}, l.export ? 'yes' : 'no'),
+    el('td', {}, l.publish ? 'yes' : 'no'),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, l.note),
+  ]))));
+  lic.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, lt));
+  wrap.append(lic);
+
   const pit = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   pit.append(cardHead('Point-in-time policy', 'Screens and backtests must query what was known on the selected date, not the latest corrected database. Without this, historical results are not credible.'));
   const kv = el('dl', { class: 'kv' });

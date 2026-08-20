@@ -286,7 +286,7 @@ VIEWS.ips = () => {
     (() => {
       const ul = el('ul', { class: 'ticklist blocklist', style: 'margin-top:var(--md)' });
       [
-        'IPS §4 tier 3 — no market-data provider is licensed to this product. NAPIC and JPPH transaction data, which §6.2 names, cannot be redistributed here.',
+        'IPS §4 tier 3 — no market-data provider is licensed to this product. NAPIC transaction data can be sourced and analysed; record-level republication is licence-pending, and the data-sources page lists the seven permissions still to be confirmed.',
         'IPS §5 — the equity engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
         'IPS §7 — cross-asset comparison of after-cost risk-adjusted forward return is not built.',
         'IPS §9 — portfolio-level correlation, concentration and stress testing across positions is not built.',

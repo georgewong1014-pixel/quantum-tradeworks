@@ -317,7 +317,10 @@ VIEWS.areas = () => {
      what the classification MEANS, and the consequence is the half a buyer
      needs — "peat, 3 m or deeper" is a fact, "deep piling dominates build cost"
      is the reason to care. */
-  if (S.editing) wrap.append(landRiskPanel(S.city, S.editing));
+  if (S.editing) {
+    wrap.append(localityTransactionPanel(S.city, S.editing));
+    wrap.append(landRiskPanel(S.city, S.editing));
+  }
   tCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'Rent, vacancy and price columns are medians over the comparables register and move as you add to it. '
     + 'A dash is an absence of evidence, never a zero.'));
@@ -1049,3 +1052,148 @@ VIEWS.plans = () => {
   return wrap;
 };
 
+
+/* ==========================================================================
+   LATEST RECORDED TRANSACTIONS BY LOCALITY AND PROPERTY TYPE
+   --------------------------------------------------------------------------
+   The feature this replaces was called "last transacted price", and the name
+   was the defect. A single last price for a locality is close to meaningless:
+   the most recent transaction in a Sarawak district is as likely to be
+   agricultural land or a low-cost flat as the terrace somebody is actually
+   asking about, and printing one figure invites the reader to compare their
+   condominium against a paddy field.
+
+   So the unit of answer is a COHORT — locality, category, subtype, tenure and
+   area band — and every cohort carries the count behind it, the spread, the
+   period it covers and where it came from. A median of two is shown as a median
+   of two, and a quartile of two is not shown at all.
+   ========================================================================== */
+
+/* Every distinct cohort held for a locality, newest transaction first. */
+function localityTransactions(city, area, { splitBand = true } = {}) {
+  const rows = (State.observations || []).filter(o =>
+    o.city === city && o.area === area
+    && (o.kind === 'sold-price' || o.kind === 'land-sold')
+    && isNum(o.value) && o.date);
+
+  const keyOf = (o) => [
+    o.category || 'uncategorised',
+    o.subtype || (o.propertyType || 'unspecified'),
+    o.tenure || 'unknown',
+    splitBand ? (areaBand(o.kind === 'land-sold' ? o.landSqft : o.sqft)?.id || 'unbanded') : 'all',
+  ].join('|');
+
+  const groups = new Map();
+  rows.forEach(o => {
+    const k = keyOf(o);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(o);
+  });
+
+  const out = [...groups.entries()].map(([k, list]) => {
+    const [cat, sub, ten, band] = k.split('|');
+    const sorted = list.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const latest = sorted[0];
+    const isLand = latest.kind === 'land-sold';
+    const areaField = isLand ? 'landSqft' : 'sqft';
+
+    const prices = spread(list.map(o => o.value));
+    /* Per-square-foot spread over only the rows that carry an area. The count
+       differs from the price count and is reported separately, because a median
+       PSF over three of nine transactions is not a median over nine. */
+    const withArea = list.filter(o => isNum(o[areaField]) && o[areaField] > 0);
+    const psfs = spread(withArea.map(o => o.value / o[areaField]));
+
+    const dates = list.map(o => String(o.date)).sort();
+    /* Licence is the WEAKEST in the cohort — a summary containing one
+       licence-pending record is itself licence-pending, because publishing it
+       would publish that record's contribution. */
+    const licences = [...new Set(list.map(o => licenceOf(o).id))];
+    const weakest = DATA_LICENCES
+      .filter(l => licences.includes(l.id))
+      .sort((a, b) => (a.publish === b.publish ? a.rank - b.rank : (a.publish ? 1 : -1)))[0]
+      || LICENCE_BY_ID.own;
+
+    return {
+      key: k,
+      category: CATEGORY_BY_ID[cat]?.label || (cat === 'uncategorised' ? 'Not categorised' : cat),
+      subtype: sub === 'unspecified' ? '—' : sub,
+      tenure: (TENURES.find(t => t.id === ten) || { label: 'Not stated' }).label,
+      band: band === 'all' ? null : (AREA_BANDS.find(b => b.id === band)?.label
+              || (band === 'unbanded' ? 'no area recorded' : band)),
+      isLand,
+      latest, latestDate: latest.date, ageMonths: monthsSince(latest.date),
+      prices, psfs, psfN: psfs.n,
+      periodFrom: dates[0], periodTo: dates[dates.length - 1],
+      lastUpdate: list.map(o => o.recordedAt || '').sort().pop() || '',
+      licence: weakest,
+      sampleN: list.filter(o => o.sample).length,
+      n: list.length,
+    };
+  });
+
+  return out.sort((a, b) => String(b.latestDate).localeCompare(String(a.latestDate)));
+}
+
+/* The panel. Every column the correct wording requires, and the count beside
+   every summary figure. */
+function localityTransactionPanel(city, area) {
+  const cohorts = localityTransactions(city, area);
+  const card = el('div', { class: 'card' });
+  card.append(cardHead(`Latest recorded transactions — ${area}`,
+    'By locality, category, subtype, tenure and area band. A single "last price" for a locality is not a useful figure: '
+    + 'the most recent sale in a district is as likely to be agricultural land as the property you are asking about.'));
+
+  if (!cohorts.length) {
+    card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
+      `No transactions recorded for ${area}.`));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      'NAPIC publishes Sarawak transaction records through Open Sales Data, its quarterly tables and PRISM e-Data. '
+      + 'This product can source and analyse them; it may not republish records until NAPIC grants redistribution rights, '
+      + 'so nothing is loaded here. The data-sources page states where that stands.'));
+    return card;
+  }
+
+  const t = el('table', { class: 'dt' });
+  t.append(el('thead', {}, el('tr', {}, ['Category', 'Subtype', 'Tenure', 'Area band',
+    'Latest', 'Dated', 'Median', 'Median PSF', 'P25–P75', 'n', 'Period', 'Source', 'Licence']
+    .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
+  const tb = el('tbody');
+  cohorts.forEach(c => {
+    const money = (v) => (isNum(v) ? fmtMoney(v, 'MYR', 0) : '—');
+    tb.append(el('tr', {}, [
+      el('th', { class: 'pin ident', scope: 'row', style: 'text-align:left' },
+        [c.category, c.sampleN ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'example') : null].filter(Boolean)),
+      el('td', { style: 'text-align:left' }, c.subtype),
+      el('td', { style: 'text-align:left' }, c.tenure),
+      el('td', { class: 'caption', style: 'text-align:left' }, c.band || '—'),
+      el('td', { class: 'num' }, money(c.latest.value)),
+      el('td', { class: 'caption', style: 'text-align:left' },
+        `${c.latestDate}${isNum(c.ageMonths) ? ` · ${fmtNum(c.ageMonths, 0)} mo` : ''}`),
+      el('td', { class: 'num' }, money(c.prices.median)),
+      el('td', { class: 'num', title: c.psfN ? `${c.psfN} of ${c.n} carry an area` : 'no areas recorded' },
+        c.psfs.median != null ? `${fmtMoney(c.psfs.median, 'MYR', c.isLand ? 0 : 1)}` : '—'),
+      el('td', { class: 'num', title: c.n < 4 ? 'Quartiles are withheld below four transactions' : null },
+        c.prices.p25 != null ? `${money(c.prices.p25)}–${money(c.prices.p75)}` : '—'),
+      el('td', { class: 'num' }, String(c.n)),
+      el('td', { class: 'caption', style: 'text-align:left' },
+        c.periodFrom === c.periodTo ? c.periodFrom : `${c.periodFrom} to ${c.periodTo}`),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+        c.latest.sourceName || c.latest.sourceRef || '—'),
+      el('td', { style: 'text-align:left' },
+        el('span', { class: c.licence.publish ? 'chip' : 'chip chip-bronze', title: c.licence.note }, c.licence.label)),
+    ]));
+  });
+  t.append(tb);
+  card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
+  gridKeyboard(t, `Recorded transactions for ${area}, by cohort. Arrow keys move between cells.`);
+
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Median PSF is computed only over the transactions that carry an area, and its count is in the column tooltip — '
+    + 'a median over three of nine is not a median over nine. Quartiles are withheld below four transactions, '
+    + 'because a quartile of two numbers is arithmetic performed on an opinion.'));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    'A cohort takes the weakest licence of any record in it: a summary containing one record that may not be republished '
+    + 'may not be republished either.'));
+  return card;
+}
