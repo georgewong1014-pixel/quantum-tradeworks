@@ -113,6 +113,29 @@ function decisionRecordProperty() {
     + `${unreviewed.map(f => f.label.toLowerCase()).join(', ')}. `
     + 'Nobody has replaced them with anything observed, so every output above inherits that.'));
 
+  /* WHICH ONE MATTERS, not just how many are unverified.
+     The line above counts the seeded figures. It cannot say which of them the
+     answer actually rests on, and those are different facts: a seeded loan
+     tenure moves this deal 0.07 points, a seeded appreciation rate moves it
+     3.48. The equity decision record has named its largest driver since it was
+     built; this is the property side catching up. */
+  {
+    const sens = propertySensitivity(d);
+    if (sens.ok && sens.drivers.length) {
+      const t0 = sens.drivers[0];
+      const weak = t0.ev && t0.ev.rank <= 1;
+      out.append(el('p', { class: weak ? 'dr-warn' : 'metaline', style: 'margin-top:var(--sm)' },
+        `This answer rests on ${t0.label.toLowerCase()} more than on anything else: one step moves the rate of `
+        + `return ${t0.span.toFixed(2)} percentage points, against ${sens.drivers[sens.drivers.length - 1].span.toFixed(2)} `
+        + `for ${sens.drivers[sens.drivers.length - 1].label.toLowerCase()}. `
+        + (weak
+          ? `It is graded "${t0.ev.label}", so the figure this record depends on most is the one with the least behind it.`
+          : t0.ev
+            ? `It is graded "${t0.ev.label}".`
+            : 'It is a rate quoted to you or a term you chose, not an observation, so it carries no evidence grade.')));
+    }
+  }
+
   /* ---- the two pictures ------------------------------------------------ */
   if (isNum(m.breakEvenRent) && m.breakEvenRent > 0 && isNum(d.rent)) {
     out.append(el('h2', {}, 'Rent against break-even'));

@@ -2176,6 +2176,9 @@ VIEWS.property = () => {
   /* IPS §3, §6.5, §6.7 and §6.8 — the four that had no implementation. The
      gate panel goes first because it is the summary the rest explains. */
   free.append(returnsAndTaxPanel(d, m));
+  /* Directly after the return, because it answers the question the return
+     provokes: which of these forty inputs did that number come from. */
+  free.append(propertySensitivityPanel(d, m));
   free.append(ipsGatePanel(propertyIps(d, m, g), { title: 'Against the methodology' }));
   free.append(demandPanel(d.city, d.district));
   free.append(environmentalPanel(d));

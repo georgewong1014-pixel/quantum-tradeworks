@@ -168,6 +168,16 @@ jobs:
       # here stayed green through three commits.
       - name: the register survives record, edit, undo and replay
         run: node register-test.mjs http://localhost:8123
+      # register-test drives a SEQUENCE; this drives ARITHMETIC. Every check in
+      # it is a definition rather than an expected value — the NPV of the
+      # published flows at the published IRR must be zero, the break-even rent
+      # must be a true zero of the monthly position — so it does not go stale
+      # when a default is tuned, and it fails only when a figure stops being
+      # the quantity its label claims. That is the failure this product can
+      # least afford: a number that is plausible, sits in the right place and
+      # moves the right way, and is not what it says it is.
+      - name: every published figure is the quantity its label claims
+        run: node model-test.mjs http://localhost:8123
 
       # 360 · 390 · 430 · 768 · 1024 · 1440. The sweep only ever looks at the
       # default width, so a table that gained a column pushes the page sideways

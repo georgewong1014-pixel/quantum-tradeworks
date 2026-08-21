@@ -929,13 +929,19 @@ function matrixChart(container, { grid, xSteps, ySteps, xLabel, yLabel, base, pr
 }
 
 /* -------------------------------------------------- driver impact (tornado) */
-function tornadoChart(container, { drivers, fmt = v => withSign(v) }) {
+function tornadoChart(container, { drivers, fmt = v => withSign(v),
+  /* Three strings here were written for the equity studio and read as
+     errors anywhere else. Each defaults to exactly what it already said,
+     so the valuation tornado renders unchanged. */
+  aria = 'Change in value per share for a step in each assumption',
+  note = 'Change in base-case model estimate per share',
+  spanFmt = (v) => `\u00b1${fmtNum(v, 1)}%` }) {
   chartHost(container, (W) => {
     const rowH = 34, padL = Math.min(190, W * 0.38), padR = 46, padT = 8;
     const H = padT + drivers.length * rowH + 8;
     const iw = W - padL - padR, cx = padL + iw / 2;
     const max = Math.max(...drivers.map(d => d.span), 1);
-    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Change in value per share for a step in each assumption' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': aria });
     s.append(sv('line', { class: 'ax-line', x1: cx, x2: cx, y1: padT, y2: H - 8 }));
 
     drivers.forEach((d, i) => {
@@ -957,14 +963,14 @@ function tornadoChart(container, { drivers, fmt = v => withSign(v) }) {
       const lbl = sv('text', { class: 'ax-label', x: padL - 12, y: y + 12, 'text-anchor': 'end', fill: cssVar('--ink-2'), 'font-size': 11.5 });
       lbl.textContent = d.label; s.append(lbl);
       const val = sv('text', { class: 'ax-label', x: W - 8, y: y + 12, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600 });
-      val.textContent = `±${fmtNum(d.span, 1)}%`; s.append(val);
+      val.textContent = spanFmt(d.span); s.append(val);
 
       const hit = sv('rect', { x: 0, y: y - 6, width: W, height: rowH - 2, fill: 'transparent' });
       hit.addEventListener('pointermove', e => showTip(
         `<div class="t-title">${esc(d.label)}</div>
-         <div class="t-row"><span>+${d.unit === 'pp' ? fmtNum(d.step, 2) + ' pp' : d.unit}</span><b>${fmt(d.hi)}</b></div>
-         <div class="t-row"><span>−${d.unit === 'pp' ? fmtNum(d.step, 2) + ' pp' : d.unit}</span><b>${fmt(d.lo)}</b></div>
-         <div class="t-note">Change in base-case model estimate per share</div>`, e.clientX, e.clientY));
+         <div class="t-row"><span>+${esc(d.stepLabel || (d.unit === 'pp' ? fmtNum(d.step, 2) + ' pp' : d.unit))}</span><b>${fmt(d.hi)}</b></div>
+         <div class="t-row"><span>−${esc(d.stepLabel || (d.unit === 'pp' ? fmtNum(d.step, 2) + ' pp' : d.unit))}</span><b>${fmt(d.lo)}</b></div>
+         <div class="t-note">${esc(note)}</div>`, e.clientX, e.clientY));
       hit.addEventListener('pointerleave', hideTip);
       s.append(hit);
     });
