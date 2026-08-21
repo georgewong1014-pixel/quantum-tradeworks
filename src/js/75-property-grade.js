@@ -704,23 +704,55 @@ function dealModel(d) {
   const rpgt = gain * rpgtRate(d.holdYears) / 100;
   const netExitProceeds = exitValue - outstanding - agentFee - exitLegal - rpgt - carryWhileSelling;
 
-  /* Cumulative rental cash flow across the hold, with rent growth. */
-  let cumCash = 0;
+  /* Cumulative rental cash flow across the hold, with rent growth, now after
+     tax on the rent. */
+  let cumCash = 0, cumTax = 0, cumPreTax = 0;
   const path = [];
   for (let y = 1; y <= d.holdYears; y++) {
     const rentY = grossAnnualRent * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
     const effY = rentY * (1 - d.vacancyPct / 100);
     const opexY = opex * Math.pow(1.02, y - 1);
-    const cf = effY - opexY - annualDebtService;
-    cumCash += cf;
-    path.push({ y, rent: effY, opex: opexY, debt: annualDebtService, cf, cum: cumCash,
+
+    /* WHAT THE REVENUE OFFICE ALLOWS IS NOT WHAT LEFT THE BANK ACCOUNT.
+       Two differences, and both run the same way — they make the taxable figure
+       HIGHER than the cash figure, so an owner who nets them off is under-
+       providing for tax:
+
+         the instalment is not deductible, only the interest inside it
+         the fee for the FIRST tenant is capital and never deductible
+
+       Everything else in opex is an outgoing incurred to produce the rent and
+       is allowed. The reserve for repairs is treated as allowed on the basis
+       that it is spent; if it is genuinely banked and not spent, the deduction
+       belongs in the year it is finally used. */
+    const scale = Math.pow(1.02, y - 1);
+    const firstTenancyFee = y === 1 ? placementAnnual * scale : 0;
+    const deductibleOpexY = opexY - firstTenancyFee;
+    const interestY = interestInYear(loan, d.ratePct, d.tenureYears, y);
+    const taxY = rentalTaxYear({
+      effectiveRent: effY, deductibleOpex: deductibleOpexY,
+      interest: interestY, marginalTaxPct: d.marginalTaxPct,
+    });
+
+    const cfPreTax = effY - opexY - annualDebtService;
+    const cf = cfPreTax - taxY.tax;
+    cumPreTax += cfPreTax; cumCash += cf; cumTax += taxY.tax;
+    path.push({ y, rent: effY, opex: opexY, debt: annualDebtService,
+                interest: interestY, principal: Math.max(0, annualDebtService - interestY),
+                taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
+                cfPreTax, cf, cum: cumCash,
                 value: d.price * Math.pow(1 + d.apprecPct / 100, y),
                 balance: balanceAfter(loan, d.ratePct, d.tenureYears, y * 12) });
   }
+  const taxComputed = isNum(d.marginalTaxPct) && d.marginalTaxPct > 0;
   const totalProfit = cumCash + netExitProceeds - acquisitionCost;
-  /* Annualised return on the cash actually put in. */
   const multiple = acquisitionCost > 0 ? (cumCash + netExitProceeds) / acquisitionCost : null;
-  const irrApprox = isNum(multiple) && multiple > 0 ? (Math.pow(multiple, 1 / d.holdYears) - 1) * 100 : null;
+
+  /* Kept, renamed, and no longer presented as a rate of return: it is the
+     annualised multiple, which is a much cruder statement. The real internal
+     rate is computed below, once the committed equity is known. */
+  const annualisedMultiplePct = isNum(multiple) && multiple > 0
+    ? (Math.pow(multiple, 1 / d.holdYears) - 1) * 100 : null;
 
   /* ---- stress tests ---------------------------------------------------- */
   /* Each re-runs the monthly position with one assumption moved, because the
@@ -889,6 +921,8 @@ function dealModel(d) {
 
      Derived from the ledger groups rather than recomputed, so a line added to a
      group cannot be left out of its own total. */
+  /* Derived from the ledger groups rather than recomputed, so a line added to
+     a group cannot be left out of its own total. */
   const groupTotal = (id) => sumPriced((costGroups.find(g => g.id === id)?.items || []).map(it => it[1]));
   const transactionCash = groupTotal('acquisition') + groupTotal('financing');
   const improvementCash = groupTotal('improvement');
@@ -910,6 +944,26 @@ function dealModel(d) {
   /* Kept: existing callers read these, and both remain true — completion cash
      is everything but the reserve. */
   const totalInitialCash = safeCashRequired;
+
+  /* ---- the actual internal rate of return ------------------------------
+     The equity is every ringgit committed at the start, INCLUDING the reserve —
+     it is capital the owner cannot use elsewhere while the property is held.
+     It comes back at the exit, so the reserve neither flatters nor penalises
+     the rate; it simply sits at its correct place in time, which is the whole
+     point of doing this properly rather than annualising a multiple. */
+  const equityOut = num0(totalInitialCash) > 0 ? num0(totalInitialCash) : num0(acquisitionCost);
+  const flows = [-equityOut];
+  path.forEach((p, i) => {
+    const last = i === path.length - 1;
+    flows.push(p.cf + (last ? netExitProceeds + num0(reserveCash) : 0));
+  });
+  const irrResult = irrOf(flows);
+  const irrPct = irrResult.rate;
+  /* NPV at the return the reader says their capital could earn elsewhere —
+     already collected for the opportunity-cost comparison and never used for
+     this. Positive means the deal beats that alternative after tax. */
+  const hurdlePct = num0(d.equityReturnPct);
+  const npvAtHurdle = hurdlePct > 0 ? npvAt(hurdlePct / 100, flows) : null;
 
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
            costGroups, missingCostLines, unconfirmedCost, placeholderCostLines,
@@ -942,7 +996,10 @@ function dealModel(d) {
            breakEvenRate, breakEvenRateWhy, breakEvenVacancy, breakEvenVacancyWhy, negativeAtBest,
            psf, landPsf, maintPsf, exitValue, outstanding, agentFee, exitLegal, carryWhileSelling,
            gain, rpgt, rpgtPct: rpgtRate(d.holdYears), netExitProceeds,
-           cumCash, path, totalProfit, multiple, irrApprox, stress, exits, equity };
+           cumCash, cumPreTax, cumTax, taxComputed, path, totalProfit, multiple,
+           irrPct, irrWhy: irrResult.why, irrSignChanges: irrResult.signChanges,
+           npvAtHurdle, hurdlePct, annualisedMultiplePct, equityOut, flows,
+           stress, exits, equity };
 }
 
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
@@ -2118,6 +2175,7 @@ VIEWS.property = () => {
      twice and no rate is stored, so they cannot drift apart. */
   /* IPS §3, §6.5, §6.7 and §6.8 — the four that had no implementation. The
      gate panel goes first because it is the summary the rest explains. */
+  free.append(returnsAndTaxPanel(d, m));
   free.append(ipsGatePanel(propertyIps(d, m, g), { title: 'Against the methodology' }));
   free.append(demandPanel(d.city, d.district));
   free.append(environmentalPanel(d));
@@ -2759,9 +2817,12 @@ VIEWS.property = () => {
   const eq2 = el('div', { class: 'card' });
   eq2.append(cardHead('The same cash in equities',
     `What ${fmtAmount(m.acquisitionCost, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`));
-  const need = isNum(m.irrApprox) ? m.irrApprox : null;
+  /* The real rate, not the annualised multiple. Comparing a property against
+     a compounding alternative on a figure that ignores timing was the least
+     defensible place the old approximation appeared. */
+  const need = isNum(m.irrPct) ? m.irrPct : null;
   const eg = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
-  eg.append(el('div', { class: 'panel' }, statTile('Property, annualised on cash', isNum(need) ? fmtPct(need, 2) : '—',
+  eg.append(el('div', { class: 'panel' }, statTile('Property, internal rate of return', isNum(need) ? fmtPct(need, 2) : '—',
     { sub: `Including leverage, costs and ${m.rpgtPct}% RPGT` })));
   eg.append(el('div', { class: 'panel' }, statTile('Cash committed', fmtAmount(m.acquisitionCost, 'MYR'), { sub: 'Deposit plus entry costs' })));
   eg.append(el('div', { class: 'panel' }, statTile('Monthly commitment', fmtAmount(Math.max(0, -m.cashflowMonthly), 'MYR'),

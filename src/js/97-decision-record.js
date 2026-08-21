@@ -63,6 +63,7 @@ function decisionRecordProperty() {
    ['Safe cash', isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtMoney(m.cashflowMonthly, 'MYR', 0) : null],
    ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : null],
+   ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null],
    ['Grade', g.grade || null]]
     .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
       el('div', { class: 'caption' }, k),
@@ -95,6 +96,16 @@ function decisionRecordProperty() {
   tw.append(t);
   out.append(tw);
   gridKeyboard(t, 'What these figures rest on. Use the arrow keys to move between cells.');
+
+  /* PRE-TAX OR AFTER-TAX IS NOT A FOOTNOTE.
+     Every figure above changes when a marginal rate is entered, and a reader
+     carrying this to a lender needs to know which they are holding. */
+  out.append(el('p', { class: m.taxComputed ? 'metaline' : 'dr-warn', style: 'margin-top:var(--sm)' },
+    m.taxComputed
+      ? `Figures are after tax on the rent at ${fmtPct(d.marginalTaxPct, 0)}, totalling ${fmtMoney(m.cumTax, 'MYR', 0)} `
+        + `across the hold. Loan interest is deducted and principal is not. Nothing here is tax advice.`
+      : 'Every figure in this record is BEFORE tax on the rent. No marginal rate has been entered, so no tax has been '
+        + 'computed — the cash figures show what the property produces, not what an owner keeps.'));
 
   const unreviewed = propertyReviewQueue(d);
   if (unreviewed.length) out.append(el('p', { class: 'dr-warn' },

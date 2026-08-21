@@ -351,6 +351,11 @@ const PROPERTY_DEFAULT_DEAL = {
   holdYears:10, apprecPct:3.0, sellMonths:6, agentPct:2.0, exitLegalPct:0.5,
   /* comparison */
   equityReturnPct:7.0,
+  /* The owner's top marginal band. Null means not stated, and every figure
+     derived from it then reads as pre-tax rather than quietly as net. This
+     product holds no schedule of Malaysian personal rates: they are set each
+     Budget, and a stale table stated confidently is worse than none. */
+  marginalTaxPct:null,
   /* provenance per figure */
   evidence: { price:'user', rent:'estimated', maintenance:'developer', vacancyPct:'assumed',
               apprecPct:'assumed', sqft:'developer', titleType:'assumed' },
