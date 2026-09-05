@@ -16150,6 +16150,9 @@ const PROPERTY_DEFAULT_DEAL = {
   equityReturnPct:7.0,
   /* Quotes the reader has been given, not assumptions this tool makes.
      Null until entered, so nothing appears until there is something real. */
+  /* Who is selling. The exit charge genuinely differs, and the old model
+     assumed this silently while saying so on only one screen. */
+  disposerCategory:'citizen',
   flatQuotePct:null, flatQuoteAmount:null, flatQuoteYears:null,
   mrtaPremium:null, mltaPremiumAnnual:null,
   /* The owner's top marginal band. Null means not stated, and every figure
@@ -16628,11 +16631,120 @@ const legalFeesBuy = (price) => {
 };
 
 /* RPGT for an individual Malaysian citizen, by completed years of holding. */
-function rpgtRate(years) {
-  if (years <= 3) return 30;
-  if (years === 4) return 20;
-  if (years === 5) return 15;
-  return 0;
+/* ==========================================================================
+   THE GAINS TAX ON SELLING, MOVED UNDER THE SAME GOVERNANCE AS EVERY FEE
+   --------------------------------------------------------------------------
+   This was four hardcoded numbers with no source, no effective date and no
+   review owner, sitting beside a fee table where every line carries all three.
+   It was also the largest single charge in the exit, and it silently assumed
+   one kind of seller — an assumption the product stated in prose on one screen
+   and nowhere else.
+
+   It now assumes nothing. Who is selling is an input, because the rate genuinely
+   differs, and it differs most in the years people actually sell.
+
+   STILL UNVERIFIED, and marked so. Moving a number into a registry does not
+   check it. What changes is that the number can now be checked, dated and
+   owned, and that it says out loud that nobody has done so yet. */
+const RPGT_SCHEDULE = {
+  status: 'unverified',
+  source: 'Real Property Gains Tax Act 1976, Schedule 5',
+  sourceUrl: null,
+  effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+  reviewOwner: null, nextReviewDue: null,
+  note: 'Rates are set by Schedule 5 and amended at Budget. Confirm the current schedule, '
+      + 'the disposer category that applies, and any exemption order in force before relying on this.',
+
+  /* Rate by completed years between acquisition and disposal. The final entry
+     applies to every later year. */
+  categories: {
+    citizen: {
+      label: 'An individual who is a Malaysian citizen or permanent resident',
+      short: 'Citizen or PR',
+      individual: true,
+      rates: [[1, 30], [2, 30], [3, 30], [4, 20], [5, 15], [Infinity, 0]],
+    },
+    company: {
+      label: 'A company incorporated in Malaysia',
+      short: 'Malaysian company',
+      individual: false,
+      rates: [[1, 30], [2, 30], [3, 30], [4, 20], [5, 15], [Infinity, 10]],
+      note: 'A company does not reach a nil rate however long it holds. This is one of the '
+          + 'costs of the corporate structure that is easy to miss at the point of incorporating.',
+    },
+    foreign: {
+      label: 'An individual who is not a citizen or permanent resident, or a foreign company',
+      short: 'Non-citizen',
+      individual: false,
+      rates: [[1, 30], [2, 30], [3, 30], [4, 30], [5, 30], [Infinity, 10]],
+    },
+  },
+
+  /* Schedule 4 relief, available to an individual only. Applied because leaving
+     it out overstates the charge on exactly the disposals where the charge
+     bites — the early years. */
+  individualRelief: {
+    label: 'Schedule 4 exemption',
+    basis: 'greaterOf',
+    fixed: 10000,
+    percentOfGain: 10,
+    status: 'unverified',
+    source: 'Real Property Gains Tax Act 1976, Schedule 4',
+    sourceUrl: null,
+    effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+    note: 'Available to an individual, not to a company. Once per disposal.',
+  },
+};
+
+const RPGT_CATEGORY_IDS = Object.keys(RPGT_SCHEDULE.categories);
+const rpgtCategory = (id) => RPGT_SCHEDULE.categories[id] || RPGT_SCHEDULE.categories.citizen;
+
+/* The rate alone, for the places that only need to label a band. */
+function rpgtRate(years, categoryId = 'citizen') {
+  const c = rpgtCategory(categoryId);
+  const y = Math.max(1, Math.ceil(num0(years)));
+  for (const [upTo, rate] of c.rates) if (y <= upTo) return rate;
+  return c.rates[c.rates.length - 1][1];
+}
+
+/* The whole charge, computed the way the Act computes it: a chargeable gain
+   after allowable costs, then relief, then the rate. Not a percentage of
+   appreciation, which is what a shortcut here would silently become. */
+function rpgtCharge({ disposalPrice, acquisitionPrice, acquisitionCosts = 0,
+                      disposalCosts = 0, enhancementCosts = 0,
+                      holdYears, categoryId = 'citizen' }) {
+  const c = rpgtCategory(categoryId);
+  const rate = rpgtRate(holdYears, categoryId);
+
+  const allowable = num0(acquisitionCosts) + num0(disposalCosts) + num0(enhancementCosts);
+  const rawGain = num0(disposalPrice) - num0(acquisitionPrice) - allowable;
+  const chargeableGain = Math.max(0, rawGain);
+
+  /* A loss is not a negative charge. It carries its own treatment, which this
+     tool does not model, so it is reported as nil and said to be nil. */
+  if (chargeableGain <= 0) {
+    return { rate, chargeableGain: 0, relief: 0, taxable: 0, tax: 0, rawGain,
+             allowable, category: c, categoryId,
+             why: rawGain < 0
+               ? 'Sold for less than it cost after allowable expenses, so there is no gain to charge. Relief for a loss is not modelled here.'
+               : 'No chargeable gain.' };
+  }
+
+  const r = RPGT_SCHEDULE.individualRelief;
+  const relief = c.individual
+    ? Math.min(chargeableGain, Math.max(num0(r.fixed), chargeableGain * num0(r.percentOfGain) / 100))
+    : 0;
+  const taxable = Math.max(0, chargeableGain - relief);
+  const tax = taxable * rate / 100;
+
+  return {
+    rate, chargeableGain, relief, taxable, tax, rawGain, allowable, category: c, categoryId,
+    why: rate === 0
+      ? `Held ${Math.ceil(num0(holdYears))} years, which reaches the nil rate for ${c.short.toLowerCase()}.`
+      : c.individual
+        ? `${fmtPct(rate, 0)} on the gain after allowable costs, less the exemption of ${fmtAmount(relief, 'MYR')}.`
+        : `${fmtPct(rate, 0)} on the gain after allowable costs. No individual exemption applies to ${c.short.toLowerCase()}.`,
+  };
 }
 
 function monthlyInstalment(principal, annualRatePct, years) {
@@ -18162,6 +18274,39 @@ function returnsAndTaxPanel(d, m) {
     `The cash flow changes direction ${m.irrSignChanges} times over the hold, so more than one rate can satisfy it. `
     + 'The figure shown is the first one found and should be read alongside the year-by-year table rather than on its own.'));
 
+  /* ---- who is selling ----
+     The exit charge differs by seller, and the model used to assume one kind
+     while saying so on a single screen. It is an input now. */
+  const who = el('div', { class: 'assumption', style: 'margin-top:var(--lg)' });
+  who.append(el('label', { for: 'disposerCategory' }, 'Who would be selling'));
+  const sel = el('select', { class: 'input a-text', id: 'disposerCategory',
+    'aria-label': 'Who would be selling the property',
+    onchange: e => {
+      State.deal.disposerCategory = e.target.value;
+      markTouched(State.deal, 'disposerCategory'); saveDeal(); render();
+    } });
+  RPGT_CATEGORY_IDS.forEach(id => {
+    const c = RPGT_SCHEDULE.categories[id];
+    sel.append(el('option', { value: id, selected: (d.disposerCategory || 'citizen') === id ? 'selected' : null }, c.label));
+  });
+  who.append(sel);
+  card.append(who);
+
+  if (m.rpgtResult) {
+    const rr = m.rpgtResult;
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `Selling in year ${d.holdYears}: ${rr.why} `
+      + (rr.tax > 0
+          ? `That is ${fmtMoney(rr.tax, 'MYR', 0)} on a gain of ${fmtMoney(rr.chargeableGain, 'MYR', 0)} after ${fmtMoney(rr.allowable, 'MYR', 0)} of allowable costs.`
+          : 'Nothing is charged on this scenario.')));
+    if (!rr.category.individual && rr.rate > 0) card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+      'A company never reaches the nil rate however long it holds, and the individual exemption does not apply to it. '
+      + 'That is a cost of the corporate structure which is easy to miss at the point of incorporating.'));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current '
+      + 'schedule or any exemption order in force. Confirm before relying on the figure.'));
+  }
+
   /* ---- the rate the reader pays ---- */
   const f = el('div', { class: 'assumption', style: 'margin-top:var(--lg)' });
   f.append(el('label', { for: 'marginalTaxPct' }, 'Your marginal tax rate (%)'));
@@ -18945,8 +19090,17 @@ function dealModel(d) {
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
   const sellMonths = num0(d.sellMonths);
   const carryWhileSelling = sellMonths * (instalment + (opex / 12));
-  const gain = Math.max(0, exitValue - d.price - duty - legal - agentFee - exitLegal);
-  const rpgt = gain * rpgtRate(d.holdYears) / 100;
+  /* Renovation that is still reflected in the property at disposal is an
+     allowable enhancement cost. Leaving it out overstated the gain by whatever
+     was spent improving the asset. */
+  const rpgtResult = rpgtCharge({
+    disposalPrice: exitValue, acquisitionPrice: d.price,
+    acquisitionCosts: duty + legal, disposalCosts: agentFee + exitLegal,
+    enhancementCosts: num0(d.renovation),
+    holdYears: d.holdYears, categoryId: d.disposerCategory,
+  });
+  const gain = rpgtResult.chargeableGain;
+  const rpgt = rpgtResult.tax;
   const netExitProceeds = exitValue - outstanding - agentFee - exitLegal - rpgt - carryWhileSelling;
 
   /* Cumulative rental cash flow across the hold, with rent growth, now after
@@ -19077,8 +19231,13 @@ function dealModel(d) {
     const agent = val * num0(d.agentPct) / 100;
     const lg = Math.max(500, val * num0(d.exitLegalPct) / 100);
     const carry = sellMonths * (instalment + (opex / 12));
-    const gn = Math.max(0, val - d.price - duty - legal - agent - lg);
-    const tax = gn * rpgtRate(yrs) / 100;
+    const rc = rpgtCharge({
+      disposalPrice: val, acquisitionPrice: d.price,
+      acquisitionCosts: duty + legal, disposalCosts: agent + lg,
+      enhancementCosts: num0(d.renovation),
+      holdYears: yrs, categoryId: d.disposerCategory,
+    });
+    const tax = rc.tax;
     const net = val - bal - agent - lg - tax - carry;
     let cum = 0;
     for (let y = 1; y <= yrs; y++) {
@@ -19089,7 +19248,7 @@ function dealModel(d) {
     const profit = cum + net - acquisitionCost;
     const mult = acquisitionCost > 0 ? (cum + net) / acquisitionCost : null;
     return { yrs, value: val, outstanding: bal, agentFee: agent, exitLegal: lg, carry,
-             rpgtPct: rpgtRate(yrs), rpgt: tax, sellingCosts: agent + lg + tax + carry,
+             rpgtPct: rc.rate, rpgtRelief: rc.relief, rpgt: tax, sellingCosts: agent + lg + tax + carry,
              net, cumCash: cum, profit,
              annualised: isNum(mult) && mult > 0 ? (Math.pow(mult, 1 / yrs) - 1) * 100 : null };
   };
@@ -19240,7 +19399,7 @@ function dealModel(d) {
            cashflowMonthly, cashOnCash, dscr, breakEvenRent,
            breakEvenRate, breakEvenRateWhy, breakEvenVacancy, breakEvenVacancyWhy, negativeAtBest,
            psf, landPsf, maintPsf, exitValue, outstanding, agentFee, exitLegal, carryWhileSelling,
-           gain, rpgt, rpgtPct: rpgtRate(d.holdYears), netExitProceeds,
+           gain, rpgt, rpgtPct: rpgtResult.rate, rpgtResult, netExitProceeds,
            cumCash, cumPreTax, cumTax, taxComputed, path, totalProfit, multiple,
            irrPct, irrWhy: irrResult.why, irrSignChanges: irrResult.signChanges,
            npvAtHurdle, hurdlePct, annualisedMultiplePct, equityOut, flows,
@@ -19271,7 +19430,7 @@ function propertyRiskFlags(d, m) {
   if (m.proj.custom) out.push({ sev:'warning', t:'No comparable attached',
     n:`This tool holds no transacted price, rental band or vacancy observation for ${m.proj.area}. The price, rent and vacancy below are entirely yours, and none of them has been checked against a market.` });
   if (d.holdYears <= 5) out.push({ sev:'warning', t:'Real property gains tax applies at this holding period',
-    n:`Selling in year ${d.holdYears} attracts RPGT at ${m.rpgtPct}% for an individual Malaysian citizen, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
+    n:`Selling in year ${d.holdYears} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.short.toLowerCase()}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
   if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
     n:'Financing and resale liquidity both tighten as the remaining lease shortens. Check the balance term before committing.' });
   /* Title class outranks everything financial. A restricted class is not a

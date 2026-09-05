@@ -700,8 +700,17 @@ function dealModel(d) {
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
   const sellMonths = num0(d.sellMonths);
   const carryWhileSelling = sellMonths * (instalment + (opex / 12));
-  const gain = Math.max(0, exitValue - d.price - duty - legal - agentFee - exitLegal);
-  const rpgt = gain * rpgtRate(d.holdYears) / 100;
+  /* Renovation that is still reflected in the property at disposal is an
+     allowable enhancement cost. Leaving it out overstated the gain by whatever
+     was spent improving the asset. */
+  const rpgtResult = rpgtCharge({
+    disposalPrice: exitValue, acquisitionPrice: d.price,
+    acquisitionCosts: duty + legal, disposalCosts: agentFee + exitLegal,
+    enhancementCosts: num0(d.renovation),
+    holdYears: d.holdYears, categoryId: d.disposerCategory,
+  });
+  const gain = rpgtResult.chargeableGain;
+  const rpgt = rpgtResult.tax;
   const netExitProceeds = exitValue - outstanding - agentFee - exitLegal - rpgt - carryWhileSelling;
 
   /* Cumulative rental cash flow across the hold, with rent growth, now after
@@ -832,8 +841,13 @@ function dealModel(d) {
     const agent = val * num0(d.agentPct) / 100;
     const lg = Math.max(500, val * num0(d.exitLegalPct) / 100);
     const carry = sellMonths * (instalment + (opex / 12));
-    const gn = Math.max(0, val - d.price - duty - legal - agent - lg);
-    const tax = gn * rpgtRate(yrs) / 100;
+    const rc = rpgtCharge({
+      disposalPrice: val, acquisitionPrice: d.price,
+      acquisitionCosts: duty + legal, disposalCosts: agent + lg,
+      enhancementCosts: num0(d.renovation),
+      holdYears: yrs, categoryId: d.disposerCategory,
+    });
+    const tax = rc.tax;
     const net = val - bal - agent - lg - tax - carry;
     let cum = 0;
     for (let y = 1; y <= yrs; y++) {
@@ -844,7 +858,7 @@ function dealModel(d) {
     const profit = cum + net - acquisitionCost;
     const mult = acquisitionCost > 0 ? (cum + net) / acquisitionCost : null;
     return { yrs, value: val, outstanding: bal, agentFee: agent, exitLegal: lg, carry,
-             rpgtPct: rpgtRate(yrs), rpgt: tax, sellingCosts: agent + lg + tax + carry,
+             rpgtPct: rc.rate, rpgtRelief: rc.relief, rpgt: tax, sellingCosts: agent + lg + tax + carry,
              net, cumCash: cum, profit,
              annualised: isNum(mult) && mult > 0 ? (Math.pow(mult, 1 / yrs) - 1) * 100 : null };
   };
@@ -995,7 +1009,7 @@ function dealModel(d) {
            cashflowMonthly, cashOnCash, dscr, breakEvenRent,
            breakEvenRate, breakEvenRateWhy, breakEvenVacancy, breakEvenVacancyWhy, negativeAtBest,
            psf, landPsf, maintPsf, exitValue, outstanding, agentFee, exitLegal, carryWhileSelling,
-           gain, rpgt, rpgtPct: rpgtRate(d.holdYears), netExitProceeds,
+           gain, rpgt, rpgtPct: rpgtResult.rate, rpgtResult, netExitProceeds,
            cumCash, cumPreTax, cumTax, taxComputed, path, totalProfit, multiple,
            irrPct, irrWhy: irrResult.why, irrSignChanges: irrResult.signChanges,
            npvAtHurdle, hurdlePct, annualisedMultiplePct, equityOut, flows,
@@ -1026,7 +1040,7 @@ function propertyRiskFlags(d, m) {
   if (m.proj.custom) out.push({ sev:'warning', t:'No comparable attached',
     n:`This tool holds no transacted price, rental band or vacancy observation for ${m.proj.area}. The price, rent and vacancy below are entirely yours, and none of them has been checked against a market.` });
   if (d.holdYears <= 5) out.push({ sev:'warning', t:'Real property gains tax applies at this holding period',
-    n:`Selling in year ${d.holdYears} attracts RPGT at ${m.rpgtPct}% for an individual Malaysian citizen, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
+    n:`Selling in year ${d.holdYears} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.short.toLowerCase()}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
   if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
     n:'Financing and resale liquidity both tighten as the remaining lease shortens. Check the balance term before committing.' });
   /* Title class outranks everything financial. A restricted class is not a

@@ -171,6 +171,39 @@ function returnsAndTaxPanel(d, m) {
     `The cash flow changes direction ${m.irrSignChanges} times over the hold, so more than one rate can satisfy it. `
     + 'The figure shown is the first one found and should be read alongside the year-by-year table rather than on its own.'));
 
+  /* ---- who is selling ----
+     The exit charge differs by seller, and the model used to assume one kind
+     while saying so on a single screen. It is an input now. */
+  const who = el('div', { class: 'assumption', style: 'margin-top:var(--lg)' });
+  who.append(el('label', { for: 'disposerCategory' }, 'Who would be selling'));
+  const sel = el('select', { class: 'input a-text', id: 'disposerCategory',
+    'aria-label': 'Who would be selling the property',
+    onchange: e => {
+      State.deal.disposerCategory = e.target.value;
+      markTouched(State.deal, 'disposerCategory'); saveDeal(); render();
+    } });
+  RPGT_CATEGORY_IDS.forEach(id => {
+    const c = RPGT_SCHEDULE.categories[id];
+    sel.append(el('option', { value: id, selected: (d.disposerCategory || 'citizen') === id ? 'selected' : null }, c.label));
+  });
+  who.append(sel);
+  card.append(who);
+
+  if (m.rpgtResult) {
+    const rr = m.rpgtResult;
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `Selling in year ${d.holdYears}: ${rr.why} `
+      + (rr.tax > 0
+          ? `That is ${fmtMoney(rr.tax, 'MYR', 0)} on a gain of ${fmtMoney(rr.chargeableGain, 'MYR', 0)} after ${fmtMoney(rr.allowable, 'MYR', 0)} of allowable costs.`
+          : 'Nothing is charged on this scenario.')));
+    if (!rr.category.individual && rr.rate > 0) card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+      'A company never reaches the nil rate however long it holds, and the individual exemption does not apply to it. '
+      + 'That is a cost of the corporate structure which is easy to miss at the point of incorporating.'));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current '
+      + 'schedule or any exemption order in force. Confirm before relying on the figure.'));
+  }
+
   /* ---- the rate the reader pays ---- */
   const f = el('div', { class: 'assumption', style: 'margin-top:var(--lg)' });
   f.append(el('label', { for: 'marginalTaxPct' }, 'Your marginal tax rate (%)'));

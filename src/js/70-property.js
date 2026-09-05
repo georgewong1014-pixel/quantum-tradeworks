@@ -353,6 +353,9 @@ const PROPERTY_DEFAULT_DEAL = {
   equityReturnPct:7.0,
   /* Quotes the reader has been given, not assumptions this tool makes.
      Null until entered, so nothing appears until there is something real. */
+  /* Who is selling. The exit charge genuinely differs, and the old model
+     assumed this silently while saying so on only one screen. */
+  disposerCategory:'citizen',
   flatQuotePct:null, flatQuoteAmount:null, flatQuoteYears:null,
   mrtaPremium:null, mltaPremiumAnnual:null,
   /* The owner's top marginal band. Null means not stated, and every figure
@@ -831,11 +834,120 @@ const legalFeesBuy = (price) => {
 };
 
 /* RPGT for an individual Malaysian citizen, by completed years of holding. */
-function rpgtRate(years) {
-  if (years <= 3) return 30;
-  if (years === 4) return 20;
-  if (years === 5) return 15;
-  return 0;
+/* ==========================================================================
+   THE GAINS TAX ON SELLING, MOVED UNDER THE SAME GOVERNANCE AS EVERY FEE
+   --------------------------------------------------------------------------
+   This was four hardcoded numbers with no source, no effective date and no
+   review owner, sitting beside a fee table where every line carries all three.
+   It was also the largest single charge in the exit, and it silently assumed
+   one kind of seller — an assumption the product stated in prose on one screen
+   and nowhere else.
+
+   It now assumes nothing. Who is selling is an input, because the rate genuinely
+   differs, and it differs most in the years people actually sell.
+
+   STILL UNVERIFIED, and marked so. Moving a number into a registry does not
+   check it. What changes is that the number can now be checked, dated and
+   owned, and that it says out loud that nobody has done so yet. */
+const RPGT_SCHEDULE = {
+  status: 'unverified',
+  source: 'Real Property Gains Tax Act 1976, Schedule 5',
+  sourceUrl: null,
+  effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+  reviewOwner: null, nextReviewDue: null,
+  note: 'Rates are set by Schedule 5 and amended at Budget. Confirm the current schedule, '
+      + 'the disposer category that applies, and any exemption order in force before relying on this.',
+
+  /* Rate by completed years between acquisition and disposal. The final entry
+     applies to every later year. */
+  categories: {
+    citizen: {
+      label: 'An individual who is a Malaysian citizen or permanent resident',
+      short: 'Citizen or PR',
+      individual: true,
+      rates: [[1, 30], [2, 30], [3, 30], [4, 20], [5, 15], [Infinity, 0]],
+    },
+    company: {
+      label: 'A company incorporated in Malaysia',
+      short: 'Malaysian company',
+      individual: false,
+      rates: [[1, 30], [2, 30], [3, 30], [4, 20], [5, 15], [Infinity, 10]],
+      note: 'A company does not reach a nil rate however long it holds. This is one of the '
+          + 'costs of the corporate structure that is easy to miss at the point of incorporating.',
+    },
+    foreign: {
+      label: 'An individual who is not a citizen or permanent resident, or a foreign company',
+      short: 'Non-citizen',
+      individual: false,
+      rates: [[1, 30], [2, 30], [3, 30], [4, 30], [5, 30], [Infinity, 10]],
+    },
+  },
+
+  /* Schedule 4 relief, available to an individual only. Applied because leaving
+     it out overstates the charge on exactly the disposals where the charge
+     bites — the early years. */
+  individualRelief: {
+    label: 'Schedule 4 exemption',
+    basis: 'greaterOf',
+    fixed: 10000,
+    percentOfGain: 10,
+    status: 'unverified',
+    source: 'Real Property Gains Tax Act 1976, Schedule 4',
+    sourceUrl: null,
+    effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+    note: 'Available to an individual, not to a company. Once per disposal.',
+  },
+};
+
+const RPGT_CATEGORY_IDS = Object.keys(RPGT_SCHEDULE.categories);
+const rpgtCategory = (id) => RPGT_SCHEDULE.categories[id] || RPGT_SCHEDULE.categories.citizen;
+
+/* The rate alone, for the places that only need to label a band. */
+function rpgtRate(years, categoryId = 'citizen') {
+  const c = rpgtCategory(categoryId);
+  const y = Math.max(1, Math.ceil(num0(years)));
+  for (const [upTo, rate] of c.rates) if (y <= upTo) return rate;
+  return c.rates[c.rates.length - 1][1];
+}
+
+/* The whole charge, computed the way the Act computes it: a chargeable gain
+   after allowable costs, then relief, then the rate. Not a percentage of
+   appreciation, which is what a shortcut here would silently become. */
+function rpgtCharge({ disposalPrice, acquisitionPrice, acquisitionCosts = 0,
+                      disposalCosts = 0, enhancementCosts = 0,
+                      holdYears, categoryId = 'citizen' }) {
+  const c = rpgtCategory(categoryId);
+  const rate = rpgtRate(holdYears, categoryId);
+
+  const allowable = num0(acquisitionCosts) + num0(disposalCosts) + num0(enhancementCosts);
+  const rawGain = num0(disposalPrice) - num0(acquisitionPrice) - allowable;
+  const chargeableGain = Math.max(0, rawGain);
+
+  /* A loss is not a negative charge. It carries its own treatment, which this
+     tool does not model, so it is reported as nil and said to be nil. */
+  if (chargeableGain <= 0) {
+    return { rate, chargeableGain: 0, relief: 0, taxable: 0, tax: 0, rawGain,
+             allowable, category: c, categoryId,
+             why: rawGain < 0
+               ? 'Sold for less than it cost after allowable expenses, so there is no gain to charge. Relief for a loss is not modelled here.'
+               : 'No chargeable gain.' };
+  }
+
+  const r = RPGT_SCHEDULE.individualRelief;
+  const relief = c.individual
+    ? Math.min(chargeableGain, Math.max(num0(r.fixed), chargeableGain * num0(r.percentOfGain) / 100))
+    : 0;
+  const taxable = Math.max(0, chargeableGain - relief);
+  const tax = taxable * rate / 100;
+
+  return {
+    rate, chargeableGain, relief, taxable, tax, rawGain, allowable, category: c, categoryId,
+    why: rate === 0
+      ? `Held ${Math.ceil(num0(holdYears))} years, which reaches the nil rate for ${c.short.toLowerCase()}.`
+      : c.individual
+        ? `${fmtPct(rate, 0)} on the gain after allowable costs, less the exemption of ${fmtAmount(relief, 'MYR')}.`
+        : `${fmtPct(rate, 0)} on the gain after allowable costs. No individual exemption applies to ${c.short.toLowerCase()}.`,
+  };
 }
 
 function monthlyInstalment(principal, annualRatePct, years) {
