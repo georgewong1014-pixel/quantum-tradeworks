@@ -351,6 +351,10 @@ const PROPERTY_DEFAULT_DEAL = {
   holdYears:10, apprecPct:3.0, sellMonths:6, agentPct:2.0, exitLegalPct:0.5,
   /* comparison */
   equityReturnPct:7.0,
+  /* Quotes the reader has been given, not assumptions this tool makes.
+     Null until entered, so nothing appears until there is something real. */
+  flatQuotePct:null, flatQuoteAmount:null, flatQuoteYears:null,
+  mrtaPremium:null, mltaPremiumAnnual:null,
   /* The owner's top marginal band. Null means not stated, and every figure
      derived from it then reads as pre-tax rather than quietly as net. This
      product holds no schedule of Malaysian personal rates: they are set each

@@ -2179,6 +2179,7 @@ VIEWS.property = () => {
   /* Directly after the return, because it answers the question the return
      provokes: which of these forty inputs did that number come from. */
   free.append(propertySensitivityPanel(d, m));
+  free.append(financingChoicesPanel(d, m));
   free.append(ipsGatePanel(propertyIps(d, m, g), { title: 'Against the methodology' }));
   free.append(demandPanel(d.city, d.district));
   free.append(environmentalPanel(d));
