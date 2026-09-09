@@ -294,6 +294,76 @@ try {
     else ok('tornadoChart with no overrides still renders the equity labels', r.texts.join(' / '));
   }
 
+  /* ------------------------------------------------------------------ CLASS
+     The property class used to be decoration: it was asked for, printed in the
+     heading, put in the URL — and never read by dealModel. These five hold it
+     to actually deciding something, and hold the residential answer still
+     while it does. */
+
+  /* 12 — the class reaches the model at all. */
+  {
+    const r = await evaluate(`(() => {
+      const land = dealModel({ ...window.__T.base, propertyType: 'Land' });
+      const cond = dealModel({ ...window.__T.base, propertyType: 'Condominium' });
+      return { landClass: land.propertyClass, condClass: cond.propertyClass,
+               identical: JSON.stringify(land) === JSON.stringify(cond) };
+    })()`);
+    if (r.identical) fail('a Land deal and a Condominium deal still produce identical models', r);
+    else if (r.landClass !== 'land' || r.condClass !== 'residential') fail('propertyType does not resolve to the expected class', r);
+    else ok('the property class reaches the model — Land and Condominium now differ', r);
+  }
+
+  /* 13 — a class without a tenancy withholds, rather than computing off zero. */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel({ ...window.__T.base, propertyType: 'Land' });
+      const withheld = ['effectiveRent','grossAnnualRent','noi','grossYield','netYield','dscr','breakEvenRent','cashOnCash'];
+      return { computed: withheld.filter(k => m[k] !== null), lets: m.letsToTenant };
+    })()`);
+    if (r.lets !== false) fail('Land is modelled as letting to a tenant', r);
+    else if (r.computed.length) fail('Land computes rent-derived figures instead of withholding them: ' + r.computed.join(', '), r);
+    else ok('Land withholds all eight rent-derived quantities rather than returning zero', r);
+  }
+
+  /* 14 — withholding must not blank the return panel. A null pushed into the
+         flow vector would trip irrOf's every(isNum) guard and report "a period
+         is missing a cash flow", which is false: a parcel's cash flow is not
+         missing, it is negative. */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel({ ...window.__T.base, propertyType: 'Land' });
+      return { finite: m.flows.every(isNum), n: m.flows.length,
+               pathFinite: m.path.every(p => isNum(p.cf) && isNum(p.cfPreTax)),
+               irr: m.irrPct, why: m.irrWhy };
+    })()`);
+    if (!r.finite || !r.pathFinite) fail('the Land cash-flow vector contains a non-number — the return panel would blank', r);
+    else ok('Land keeps a finite cash-flow vector over ' + r.n + ' periods', r);
+  }
+
+  /* 15 — no phantom rent offsetting the carrying cost. */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel({ ...window.__T.base, propertyType: 'Land' });
+      return { subsidy: m.annualOwnerSubsidy, debt: m.annualDebtService,
+               opex: m.opex, maint: m.maintenanceY, sinking: m.sinkingY };
+    })()`);
+    if (!(r.subsidy >= r.debt)) fail('Land shows an owner subsidy below its debt service — phantom rent is offsetting it', r);
+    else if (r.maint !== 0 || r.sinking !== 0) fail('Land is charged a strata service charge or sinking fund', r);
+    else ok('Land carries its whole debt service and outgoings — RM' + Math.round(r.subsidy) + ' a year', r);
+  }
+
+  /* 16 — the residential answer does not move. */
+  {
+    const r = await evaluate(`(() => {
+      const a = dealModel(window.__T.base);
+      const b = dealModel({ ...window.__T.base, propertyClassOverride: 'residential' });
+      return { a: a.irrPct, b: b.irrPct, cls: a.propertyClass, src: a.propertyClassSrc };
+    })()`);
+    if (r.cls !== 'residential') fail('the default deal no longer resolves as residential', r);
+    else if (Math.abs(r.a - r.b) > 1e-12) fail('an explicit residential override changes the residential answer', r);
+    else ok('the default residential deal is untouched — ' + r.a.toFixed(4) + '%, class from ' + r.src, r);
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

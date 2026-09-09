@@ -222,6 +222,73 @@ const PROPERTY_TYPES = ['Condominium', 'Serviced apartment', 'Apartment / flat',
   'Terrace (single storey)', 'Terrace (2 storey)', 'Semi-detached', 'Detached / bungalow',
   'Shophouse', 'Commercial lot', 'Land'];
 
+/* ==========================================================================
+   PROPERTY CLASS — THE FIELD THE MODEL NEVER HAD
+
+   The list above mixes two different things: the built form (a terrace, a
+   bungalow) and the class of asset (a home, a shop, a bare parcel). The tool
+   asked for it, printed it in the heading, put it in the URL and matched
+   comparables on it — and then threw it away. dealModel never read it. So
+   dealModel({...d, propertyType:'Land'}) and dealModel({...d, propertyType:
+   'Condominium'}) returned byte-identical objects, and a bare parcel was shown
+   a rental yield, a debt-service cover and a break-even rent.
+
+   WHY THIS IS ITS OWN VOCABULARY AND NOT NAPIC'S.
+
+   19-data-licence.js carries PROPERTY_CATEGORIES, and it would be tempting to
+   branch on those. It is the wrong join. That list is an import schema — its
+   own header says the fields are "the ones a NAPIC transaction actually
+   carries... Category and tenure are theirs" — so keying the financial model
+   to it would let an external record contract move the model. The mapping is
+   also not one-to-one where it matters most: 'Land' has no single counterpart
+   there, splitting across agricultural and four development subtypes that
+   differ on planning, conversion and premium. So the class is defined here,
+   and NAPIC's categories are mapped INTO it rather than the other way round.
+
+   WHAT THE CLASS IS ALLOWED TO DECIDE — AND WHAT IT IS NOT.
+
+   It decides whether a quantity EXISTS. It does not decide any rate. No fee,
+   duty or tax below differs by class yet; those lines are still resolved
+   identically for every class, which remains wrong and is recorded in the
+   review queue rather than papered over here. Inventing class-specific rates
+   would mean asserting figures nobody has verified, which is the one thing
+   this registry exists to prevent.
+   ========================================================================== */
+const PROPERTY_CLASSES = {
+  residential: { id:'residential', label:'Residential', letsToTenant:true, strataCharges:true,
+    note:'A dwelling let to an occupier. Every default in this tool was written for this class.' },
+  commercial:  { id:'commercial',  label:'Commercial',  letsToTenant:true, strataCharges:true,
+    note:'A shop, shophouse or commercial lot. Several fee and tax lines genuinely differ for this class and none of them are class-aware yet — the figures shown are the residential ones.' },
+  land:        { id:'land',        label:'Land',        letsToTenant:false, strataCharges:false,
+    note:'A bare parcel. It carries cost and it may appreciate, but it has no tenancy — so rent, vacancy, yield, debt-service cover and break-even rent are not quantities this asset has.' },
+};
+const PROPERTY_CLASS_IDS = ['residential', 'commercial', 'land'];
+
+const PROPERTY_TYPE_CLASS = {
+  'Condominium':'residential', 'Serviced apartment':'residential', 'Apartment / flat':'residential',
+  'Terrace (single storey)':'residential', 'Terrace (2 storey)':'residential',
+  'Semi-detached':'residential', 'Detached / bungalow':'residential',
+  'Shophouse':'commercial', 'Commercial lot':'commercial',
+  'Land':'land',
+};
+
+/* The reader can override the inferred class, because the built form does not
+   always settle it — a shophouse lived in is not a commercial letting, and a
+   bungalow run as a homestay is not a residential one. The override is stored
+   separately from the inference so that changing the property type does not
+   silently discard a decision the reader made. */
+function propertyClassOf(d) {
+  const o = d && d.propertyClassOverride;
+  if (o && PROPERTY_CLASSES[o]) return o;
+  return PROPERTY_TYPE_CLASS[d && d.propertyType] || 'residential';
+}
+/* Whether the class came from the reader or from the type, so the report can
+   say which. A fallback means the stored type is not one this build knows. */
+function propertyClassSource(d) {
+  if (d && d.propertyClassOverride && PROPERTY_CLASSES[d.propertyClassOverride]) return 'reader';
+  return PROPERTY_TYPE_CLASS[d && d.propertyType] ? 'type' : 'fallback';
+}
+
 /* Every input carries where its number came from. A figure a developer quoted
    and a figure taken from a transacted comparable are not the same evidence,
    and a report that presents them identically is overstating what it knows. */
@@ -265,6 +332,29 @@ function markTouched(d, k) {
 /* The figures whose provenance is displayed and whose grade drives the report's
    own evidence assessment. */
 const EVIDENCE_DRIVERS = ['price', 'rent', 'maintenance', 'sqft'];
+
+/* WHICH OF THOSE A CLASS ACTUALLY HAS.
+   ---------------------------------------------------------------------------
+   The list above is the residential set, and it was applied to everything. A
+   bare parcel was told that four figures drive its every output and that two
+   of them are rent and a service charge — for an asset the model now declines
+   to compute a rent or a service charge for. Naming a figure as load-bearing
+   and then withholding it is a worse position than either on its own.
+
+   An excluded driver leaves the DIVISOR too, at the call site below. Scoring
+   it as a zero would read as "no evidence for the rent" rather than "this
+   asset has no rent", and would cap the class's evidence score at half however
+   well sourced the figures it does have.
+
+   Land area is a known gap rather than an oversight: a parcel's size lives in
+   landSqft and the evidence vocabulary has no key for it, so a parcel's area
+   is currently unscored. Adding one means deciding how a figure quoted in
+   points is evidenced, which is its own piece of work. */
+function evidenceDriversFor(d) {
+  return PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant
+    ? EVIDENCE_DRIVERS
+    : EVIDENCE_DRIVERS.filter(k => k !== 'rent' && k !== 'maintenance');
+}
 
 /* THE REVIEW QUEUE — ONE LIST, NOT TWENTY SCATTERED WARNINGS.
    ---------------------------------------------------------------------------
@@ -356,6 +446,9 @@ const PROPERTY_DEFAULT_DEAL = {
   /* Who is selling. The exit charge genuinely differs, and the old model
      assumed this silently while saying so on only one screen. */
   disposerCategory:'citizen',
+  /* Null means "follow the property type". Set only when the reader overrides
+     the inferred class; kept separate so changing the type does not discard it. */
+  propertyClassOverride:null,
   flatQuotePct:null, flatQuoteAmount:null, flatQuoteYears:null,
   mrtaPremium:null, mltaPremiumAnnual:null,
   /* The owner's top marginal band. Null means not stated, and every figure

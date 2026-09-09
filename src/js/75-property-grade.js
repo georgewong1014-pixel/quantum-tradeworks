@@ -342,7 +342,7 @@ function propertyGrade(d, m) {
       text:`The entered price is ${fmtPct(Math.abs(cmp.priceVsMedian), 0)} ${cmp.priceVsMedian > 0 ? 'above' : 'below'} the median of ${cmp.price.verified} verified transacted comparable${cmp.price.verified === 1 ? '' : 's'} for this district and property type (${fmtAmount(cmp.price.lo, 'MYR')}–${fmtAmount(cmp.price.hi, 'MYR')}). That can be right — condition, floor, tenure and timing all move a price — but it is the difference to explain before relying on the return figures.`,
       caps:null });
 
-  const untouchedDrivers = EVIDENCE_DRIVERS.filter(k => shownEvidence(d, k) === 'illustrative_default');
+  const untouchedDrivers = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
   if (untouchedDrivers.length)
     gates.push({ id:'illustrative', severity:'critical',
       text:`${untouchedDrivers.length} of the figures driving every output — ${untouchedDrivers.join(', ')} — are still this tool's starting numbers rather than yours.`,
@@ -352,8 +352,11 @@ function propertyGrade(d, m) {
      exactly the evidence this gate asks for. A verified one in the same
      district and property type clears it whatever the dropdown says; an asking
      rent never does, however many are recorded. */
+  /* Only where there is a rent to evidence. Telling the buyer of a bare parcel
+     that "the rent is not supported by an executed tenancy" states a shortfall
+     in evidence for a figure the model has just declined to compute. */
   const rentEvidence = evidenceOf(shownEvidence(d, 'rent'));
-  if (rentEvidence.rank < 3 && !cmp.hasVerifiedRent)
+  if (m.letsToTenant !== false && rentEvidence.rank < 3 && !cmp.hasVerifiedRent)
     gates.push({ id:'unverified-rent', severity:'warning',
       text: cmp.rent.all
         ? `${cmp.rent.all} achieved-rent comparable${cmp.rent.all === 1 ? '' : 's'} recorded for this district and property type, but none is verified, so every return figure below is still assumption-driven.`
@@ -364,8 +367,13 @@ function propertyGrade(d, m) {
   /* Each returns 0–100 or null. Null is not zero: a pillar that could not be
      tested is excluded from the weighted score and reduces coverage instead,
      so a company cannot lose points for evidence nobody has. */
-  const evRanks = EVIDENCE_DRIVERS.map(k => evidenceOf(shownEvidence(d, k)).rank);
-  scores.evidence = Math.round(evRanks.reduce((a, b) => a + Math.max(0, b), 0) / (EVIDENCE_DRIVERS.length * 5) * 100);
+  /* Scoped to the class, and the divisor is scoped with it — an inapplicable
+     driver leaves the average rather than entering it as a zero. */
+  const evDrivers = evidenceDriversFor(d);
+  const evRanks = evDrivers.map(k => evidenceOf(shownEvidence(d, k)).rank);
+  scores.evidence = evDrivers.length
+    ? Math.round(evRanks.reduce((a, b) => a + Math.max(0, b), 0) / (evDrivers.length * 5) * 100)
+    : null;
   if (gates.some(g => g.capsPillar === 'evidence')) {
     scores.evidence = Math.min(scores.evidence, 50);
     notes.evidence = 'Capped at 50 because the rent has no transacted support.';
@@ -597,14 +605,41 @@ function dealModel(d) {
      so the two cannot be told apart from the value alone, and a zero rate cuts
      the instalment by roughly half. Flagged rather than guessed at. */
   const zeroRateModelled = num0(d.ratePct) === 0;
-  const grossAnnualRent = d.rent * 12;
-  const effectiveRent = grossAnnualRent * (1 - d.vacancyPct / 100);
+  /* WHICH QUANTITIES THIS ASSET ACTUALLY HAS.
+     ------------------------------------------------------------------------
+     The class was asked for, displayed and then discarded: this model never
+     read it, so a bare parcel was given a rental yield, a debt-service cover
+     and a break-even rent. Those are not small figures to invent — cover and
+     break-even are hard gates on the grade.
+
+     TWO VARIABLES PER QUANTITY, AND THE REASON IS THE CASH-FLOW VECTOR.
+     The reported figure is null where the class cannot carry it, because null
+     is the only honest answer and this file already treats null that way —
+     breakEvenOccupancy, landPsf and dscr all null out rather than return a
+     number. But the ARITHMETIC keeps a finite number, because path[] feeds
+     flows[] and irrOf() rejects a vector containing a non-number: pushing a
+     null through here would blank the entire return panel and report it as
+     "a period is missing a cash flow", which would be false. A parcel's cash
+     flow is not missing. It is negative, and that is the answer. */
+  const propertyClass = propertyClassOf(d);
+  const propertyClassSrc = propertyClassSource(d);
+  const letsToTenant = PROPERTY_CLASSES[propertyClass].letsToTenant;
+  const strataCharges = PROPERTY_CLASSES[propertyClass].strataCharges;
+
+  const grossAnnualRentN = letsToTenant ? num0(d.rent) * 12 : 0;
+  const effectiveRentN = grossAnnualRentN * (1 - num0(d.vacancyPct) / 100);
+  const grossAnnualRent = letsToTenant ? grossAnnualRentN : null;
+  const effectiveRent = letsToTenant ? effectiveRentN : null;
   /* Running costs, separated so each is visible and editable rather than
      folded into one figure the reader has to take on trust. A repair reserve
      is charged against rent because the repairs happen whether or not anyone
      budgeted for them. */
-  const maintenanceY = num0(d.maintenance) * 12;
-  const sinkingY = num0(d.sinkingFund) * 12;
+  /* A service charge and a sinking fund are strata obligations. A bare parcel
+     has neither — not "zero of them", none — so they leave the total rather
+     than entering it as a confident nought. Assessment, land rent and
+     insurance stay: those a parcel does carry. */
+  const maintenanceY = strataCharges ? num0(d.maintenance) * 12 : 0;
+  const sinkingY = strataCharges ? num0(d.sinkingFund) * 12 : 0;
   const statutoryY = num0(d.assessment) + num0(d.quitRent);
   const insuranceY = num0(d.insurance);
   /* MANAGEMENT, SPLIT THE WAY THE BREAK-EVEN NEEDS IT.
@@ -620,24 +655,30 @@ function dealModel(d) {
      tenant leaves at the end of every tenancy, which is the conservative case;
      the renewal figure is reported beside it so the better case is visible
      rather than assumed. */
-  const managed = !d.selfManaged;
+  /* No tenant, no letting agent. Management, placement and renewal all price a
+     tenancy that a non-letting class does not have. */
+  const managed = letsToTenant && !d.selfManaged;
   const monthsPerCycle = Math.max(1, num0(d.tenancyMonths));
   const cyclesPerYear = 12 / monthsPerCycle;
-  const mgmtY = managed ? effectiveRent * num0(d.mgmtPct) / 100 : 0;
+  const mgmtY = managed ? effectiveRentN * num0(d.mgmtPct) / 100 : 0;
   const mgmtMinAnnual = managed ? num0(d.mgmtMinMonthly) * 12 : 0;
   const mgmtMinTopUp = Math.max(0, mgmtMinAnnual - mgmtY);
   const placementAnnual = managed ? num0(d.leasingFeeMonths) * num0(d.rent) * cyclesPerYear : 0;
   const renewalAnnual = managed ? num0(d.renewalFeeMonths) * num0(d.rent) * cyclesPerYear : 0;
   const mgmtFixedAnnual = mgmtMinTopUp + placementAnnual;
-  const repairY = effectiveRent * num0(d.repairReservePct) / 100;
+  const repairY = letsToTenant ? effectiveRentN * num0(d.repairReservePct) / 100 : 0;
   const opex = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtY + mgmtFixedAnnual + repairY;
-  const noi = effectiveRent - opex;
+  const noiN = effectiveRentN - opex;
+  const noi = letsToTenant ? noiN : null;
   const annualDebtService = instalment * 12;
 
-  const grossYield = grossAnnualRent / d.price * 100;
-  const netYield = noi / d.price * 100;
-  const cashflowMonthly = (noi / 12) - instalment;
-  const cashOnCash = acquisitionCost > 0 ? (noi - annualDebtService) / acquisitionCost * 100 : null;
+  const grossYield = (letsToTenant && d.price > 0) ? grossAnnualRentN / d.price * 100 : null;
+  const netYield = (letsToTenant && d.price > 0) ? noiN / d.price * 100 : null;
+  /* Cash flow survives every class, and for a parcel it is the whole question:
+     what does holding this cost me each month while it appreciates. */
+  const cashflowMonthly = (noiN / 12) - instalment;
+  const cashOnCash = (letsToTenant && acquisitionCost > 0)
+    ? (noiN - annualDebtService) / acquisitionCost * 100 : null;
   /* Null when there is no debt, and null when the instalment could not be
      computed — those are different states and neither is 0.00x. It reported an
      exact 0.00x cover off a non-computable instalment, which reads as "the rent
@@ -662,7 +703,7 @@ function dealModel(d) {
      rent turns out to be. */
   const fixedOperatingCosts = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtFixedAnnual;
   const beDenominator = 12 * (1 - num0(d.vacancyPct) / 100) * (1 - variableCostRate);
-  const breakEvenRent = beDenominator > 0
+  const breakEvenRent = (letsToTenant && beDenominator > 0)
     ? (fixedOperatingCosts + annualDebtService) / beDenominator
     : null;
 
@@ -670,7 +711,7 @@ function dealModel(d) {
      31.5. Above 100% means it cannot break even at the entered rent however
      full it is — which is a different and more serious statement than a thin
      margin, and one of the grade's hard gates. */
-  const beOccDenominator = grossAnnualRent * (1 - variableCostRate);
+  const beOccDenominator = letsToTenant ? grossAnnualRentN * (1 - variableCostRate) : 0;
   const breakEvenOccupancy = beOccDenominator > 0
     ? (fixedOperatingCosts + annualDebtService) / beOccDenominator * 100
     : null;
@@ -678,8 +719,11 @@ function dealModel(d) {
      itself. Shown rather than buried in a negative cash-flow figure, because
      "minus RM1,200 a month" and "RM14,400 a year out of your pocket, RM72,000
      over five" land differently and the second is the commitment. */
-  const annualOwnerSubsidy = isNum(noi) && isNum(annualDebtService) && (noi - annualDebtService) < 0
-    ? annualDebtService - noi : 0;
+  /* For a non-letting class there is no income to offset, so the subsidy is the
+     whole of the debt service and the outgoings — which is the correct and
+     considerably larger answer. */
+  const annualOwnerSubsidy = isNum(noiN) && isNum(annualDebtService) && (noiN - annualDebtService) < 0
+    ? annualDebtService - noiN : 0;
   const psf = d.sqft > 0 ? d.price / d.sqft : null;
   /* Land is a separate divisor, not a conversion of the floor rate: a terrace
      on 4 points with 1,400 sq ft of floor has both, and they answer different
@@ -718,8 +762,8 @@ function dealModel(d) {
   let cumCash = 0, cumTax = 0, cumPreTax = 0;
   const path = [];
   for (let y = 1; y <= d.holdYears; y++) {
-    const rentY = grossAnnualRent * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
-    const effY = rentY * (1 - d.vacancyPct / 100);
+    const rentY = grossAnnualRentN * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
+    const effY = rentY * (1 - num0(d.vacancyPct) / 100);
     const opexY = opex * Math.pow(1.02, y - 1);
 
     /* WHAT THE REVENUE OFFICE ALLOWS IS NOT WHAT LEFT THE BANK ACCOUNT.
@@ -770,7 +814,7 @@ function dealModel(d) {
      renovation is the one that overruns. */
   const monthlyAt = ({ ratePct = d.ratePct, vacancyPct = d.vacancyPct } = {}) => {
     const inst = monthlyInstalment(loan, ratePct, d.tenureYears);
-    const eff = grossAnnualRent * (1 - vacancyPct / 100);
+    const eff = grossAnnualRentN * (1 - vacancyPct / 100);
     const ox = maintenanceY + sinkingY + statutoryY + insuranceY
              + (eff * num0(d.mgmtPct) / 100) + (eff * num0(d.repairReservePct) / 100);
     return ((eff - ox) / 12) - inst;
@@ -807,7 +851,8 @@ function dealModel(d) {
          total with the entered renovation swapped for the stressed one. */
       const cash = acquisitionCost - renovation + reno;
       return { label: over === 0 ? 'as budgeted' : `+${over}% over`, renovation: reno, cash,
-               cashOnCash: isNum(cash) && cash > 0 ? (noi - annualDebtService) / cash * 100 : null };
+               cashOnCash: (letsToTenant && isNum(cash) && cash > 0)
+                 ? (noiN - annualDebtService) / cash * 100 : null };
     }),
   };
   /* The point at which the monthly position crosses zero, by bisection.
@@ -851,8 +896,8 @@ function dealModel(d) {
     const net = val - bal - agent - lg - tax - carry;
     let cum = 0;
     for (let y = 1; y <= yrs; y++) {
-      const rentY = grossAnnualRent * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
-      const effY = rentY * (1 - d.vacancyPct / 100);
+      const rentY = grossAnnualRentN * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
+      const effY = rentY * (1 - num0(d.vacancyPct) / 100);
       cum += effY - (opex * Math.pow(1.02, y - 1)) - annualDebtService;
     }
     const profit = cum + net - acquisitionCost;
@@ -895,7 +940,7 @@ function dealModel(d) {
      contradicted cashflowMonthly on the same screen. */
   const rentLinkedMonthly = (mgmtY + repairY) / 12;
   const ownerFixedMonthly = instalment + (opex - mgmtY - repairY) / 12;
-  const stressedRentMonthly = effectiveRent / 12;
+  const stressedRentMonthly = effectiveRentN / 12;
   const burnWithRent = Math.max(0, ownerFixedMonthly + rentLinkedMonthly - stressedRentMonthly);
   const burnWithoutRent = ownerFixedMonthly;
   /* The larger of the two, at full value. An earlier draft of this line scaled
@@ -1013,6 +1058,7 @@ function dealModel(d) {
            cumCash, cumPreTax, cumTax, taxComputed, path, totalProfit, multiple,
            irrPct, irrWhy: irrResult.why, irrSignChanges: irrResult.signChanges,
            npvAtHurdle, hurdlePct, annualisedMultiplePct, equityOut, flows,
+           propertyClass, propertyClassSrc, letsToTenant, strataCharges,
            stress, exits, equity };
 }
 
@@ -1488,7 +1534,7 @@ VIEWS.property = () => {
 
   /* Whose numbers these are, beside the verdict they produced rather than in a
      card the reader reaches long after believing it. */
-  const untouched = EVIDENCE_DRIVERS.filter(k => shownEvidence(d, k) === 'illustrative_default');
+  const untouched = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
   if (untouched.length) {
     const warn = el('div', { style: 'margin-top:var(--md);padding:10px 12px;border-left:3px solid var(--bronze);background:var(--surface-2)' });
     warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
@@ -1909,6 +1955,36 @@ VIEWS.property = () => {
   PROPERTY_TYPES.forEach(x => typeSel.append(el('option', { value: x, selected: d.propertyType === x ? '' : null }, x)));
   typeField.append(typeSel);
   loc.append(typeField);
+
+  /* THE CLASS, SHOWN BECAUSE IT NOW DECIDES SOMETHING.
+     ------------------------------------------------------------------------
+     It is inferred from the type, which is right nearly always and not always:
+     a shophouse the owner lives above is not a commercial letting, and a
+     bungalow run as a homestay is not a residential one. So the inference is
+     visible and the reader can overrule it. The override is stored separately
+     from the type, so changing the type later does not silently discard a
+     decision somebody made deliberately. */
+  const classField = el('div', { class: 'field', style: 'margin-top:10px' });
+  classField.append(el('label', { for: 'dealClass' }, 'Asset class'));
+  const inferredClass = PROPERTY_TYPE_CLASS[d.propertyType] || 'residential';
+  const classSel = el('select', { class: 'select', id: 'dealClass',
+    onchange: e => {
+      d.propertyClassOverride = e.target.value || null;
+      markTouched(d, 'propertyClassOverride'); saveDeal(); render();
+    } });
+  classSel.append(el('option', { value: '', selected: d.propertyClassOverride ? null : '' },
+    `Follow the property type — ${PROPERTY_CLASSES[inferredClass].label}`));
+  PROPERTY_CLASS_IDS.forEach(id => classSel.append(el('option', { value: id,
+    selected: d.propertyClassOverride === id ? '' : null }, PROPERTY_CLASSES[id].label)));
+  classField.append(classSel);
+  loc.append(classField);
+
+  const activeClass = PROPERTY_CLASSES[propertyClassOf(d)];
+  loc.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, activeClass.note));
+  if (!activeClass.letsToTenant) loc.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+    'Because this class has no tenancy, rent, vacancy, yield, debt-service cover and break-even rent are withheld rather than '
+    + 'computed — working them out would mean deriving them from a rent nobody expects to receive. The carrying cost and the '
+    + 'exit are still modelled, because those are real: a parcel with a loan on it costs money every month.'));
 
   const titleField = el('div', { class: 'field', style: 'margin-top:10px' });
   titleField.append(el('label', { for: 'dealTitle' }, 'Title class'));
