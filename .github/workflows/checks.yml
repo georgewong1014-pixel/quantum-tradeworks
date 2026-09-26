@@ -58,6 +58,13 @@ jobs:
       - name: index.html and vercel.json match src/
         run: node build.mjs --check
 
+      # The SEC ingest's selection rule — which of a concept's many reported
+      # facts becomes the year's figure — on a fixture, with no network. It
+      # chose a quarter-end over the year-end for balance-sheet lines for as
+      # long as the file existed, and "the file parses" was the only check.
+      - name: the ingest picks the year-end balance
+        run: node ingest-test.mjs
+
       # The CSP names a hash of the inline script. If the two ever disagree the
       # site is blank in production and fine everywhere else, so it is checked
       # against the built file rather than trusted.

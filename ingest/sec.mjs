@@ -136,7 +136,7 @@ const ANNUAL_FORM = /^(10-K|10-K405|10-KT|20-F|40-F)(\/A)?$/;
  * number in the filing, and the three this pipeline used to read and throw
  * away.
  */
-function annualSeries(facts, kind, unitPref, fyEnds = null) {
+export function annualSeries(facts, kind, unitPref, fyEnds = null) {
   const units = facts?.units || {};
   const unitKey = Object.keys(units).find(u => u === unitPref)
     || Object.keys(units).find(u => u === 'USD')
@@ -175,7 +175,7 @@ function annualSeries(facts, kind, unitPref, fyEnds = null) {
  * is a genuine comparability risk — so every year records which tag supplied
  * it, and `mixedTags` is surfaced rather than hidden.
  */
-function resolveLine(allFacts, line, years, fyEnds = null) {
+export function resolveLine(allFacts, line, years, fyEnds = null) {
   const loaded = [];
   for (const concept of line.concepts) {
     const facts = allFacts?.[line.taxonomy]?.[concept];
