@@ -1050,7 +1050,12 @@ VIEWS.privacy = () => trustPage('Privacy',
   'What this build stores, where it stores it, and what leaves your device.',
   [
     ['What is stored',
-      ['Your watchlists, saved screens, investment cases, portfolio holdings, property inputs, theme and base currency are held in this browser’s local storage. They are not sent anywhere.',
+      /* The full list, because a privacy page that names some of what it
+         stores is worse than one that names none: it invites the reader to
+         assume the rest is not there. The borrower profile in particular —
+         income, commitments, credit conduct — is the most personal thing this
+         product holds and was not on this page. */
+      ['Your watchlists, saved screens, investment cases, portfolio holdings, property inputs and the evidence records behind them, the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), the name or initials you give the register log, any prices or statement lines you paste in, the data-error cases you record, your trading-index observations, saved property candidates, the plan you selected, theme and base currency are all held in this browser’s local storage. None of it is sent anywhere.',
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [

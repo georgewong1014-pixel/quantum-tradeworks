@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 /* Horizontal-overflow check at the widths the project targets. A table that
    gained a column is the usual cause, and it does not throw — it just pushes
-   the page sideways. */
+   the page sideways.
+
+   IT HAS TO BE ABLE TO FAIL. For as long as this script existed it printed
+   FAIL lines and exited 0, so the CI step named "no horizontal overflow at
+   any width" could not go red whatever it measured. It also counted tap
+   targets under the 44px floor and threw the count away. Overflow now sets
+   the exit code; small targets are reported per route on phone widths so the
+   number is at least seen. */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
@@ -20,7 +27,11 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                    four columns of nowrap text in a bare div rather than a
                    .tablewrap. Nothing else in the suite looks below 1440. */
                 '/decision-record', '/property/comparables', '/property/areas', '/start',
-                '/methodology/ips'];
+                '/methodology/ips',
+                /* The front door, the discover hub and two company pages — one
+                   filed, one illustrative — were never in this list, so the
+                   widest tables on the site were the ones never measured. */
+                '/', '/discover', '/company/MSFT-SEC', '/company/MAYBANK'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -67,6 +78,7 @@ await send('Page.enable', {}, sessionId);
 await send('Runtime.enable', {}, sessionId);
 
 let bad = 0;
+const smallTargets = [];
 for (const w of WIDTHS) {
   await send('Emulation.setDeviceMetricsOverride',
     { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
@@ -89,14 +101,24 @@ for (const w of WIDTHS) {
         }
         return true;
       }).slice(0, 3).map(n => n.tagName.toLowerCase() + (n.className ? '.' + String(n.className).split(' ')[0] : ''));
-      /* Tap targets below the 44px floor. */
-      const small = [...document.querySelectorAll('button,a.btn,select')].filter(n => {
+      /* Tap targets below the 44px floor — the count, and enough of the first
+         two to find them. A count alone was reported once and told nobody
+         which control to look at. */
+      const smallEls = [...document.querySelectorAll('button,a.btn,select')].filter(n => {
         const b = n.getBoundingClientRect();
         return b.width > 0 && b.height > 0 && b.height < 40;
-      }).length;
-      return { over, culprits, small };
+      });
+      const smallWho = smallEls.slice(0, 2).map(n => n.tagName.toLowerCase()
+        + (n.className ? '.' + String(n.className).split(' ')[0] : '')
+        + ' ' + Math.round(n.getBoundingClientRect().height) + 'px'
+        + (n.textContent.trim() ? ' “' + n.textContent.trim().slice(0, 24) + '”' : ''));
+      return { over, culprits, small: smallEls.length, smallWho };
     })()` }, sessionId);
     const v = r.result?.result?.value || {};
+    /* The 44px floor applies on a coarse pointer, which the stylesheet ties to
+       widths under 768. Reported, not failed: a count is a lead, and the
+       elements behind it need looking at before a rule is written. */
+    if (w < 768 && v.small > 0) smallTargets.push({ w, route, n: v.small, who: v.smallWho || [] });
     /* IF THE DOCUMENT SCROLLS SIDEWAYS, IT FAILS.
        The culprit list is a diagnosis, not a licence to downgrade: this reported
        "330px, all inside scroll containers" for a layer picker that was pushing
@@ -112,5 +134,12 @@ for (const w of WIDTHS) {
   }
 }
 console.log(bad ? `\n${bad} genuine overflow issues` : '\nno horizontal overflow at any width');
+if (smallTargets.length) {
+  console.log('\ntap targets under 40px tall on phone widths (reported, not failed):');
+  smallTargets.sort((a, b) => b.n - a.n).slice(0, 12)
+    .forEach(s => console.log(`  ${s.w}px ${s.route} — ${s.n}${s.who.length ? ': ' + s.who.join('; ') : ''}`));
+  if (smallTargets.length > 12) console.log(`  … and ${smallTargets.length - 12} more route/width pairs`);
+}
 ws.close(); proc.kill();
 await rm(profile, { recursive: true, force: true }).catch(() => {});
+process.exitCode = bad ? 1 : 0;

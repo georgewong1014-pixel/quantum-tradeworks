@@ -316,12 +316,12 @@ function studioOutputs(r, inputs, redraw) {
     grid.append(p);
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
-  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : 'Market price'));
+  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : c.real ? 'Market price' : 'Sample price'));
   pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2-text)' }, fmtMoney(c.px.p, c.ccy)));
-  pp.append(el('div', { class: 'metaline' },
-    c.px?.eod && c.px.asOf ? `${c.px.asOf} close`
-    : c.px?.manual ? 'entered by you'
-    : `${AS_OF} close`));
+  /* The same stamp the provenance strip uses, so one page cannot date a
+     price two ways — and a filed company with no price no longer gets a
+     "close" under a dash. */
+  pp.append(el('div', { class: 'metaline' }, priceAsOfLabel(c)));
   grid.append(pp);
   head.append(grid);
 

@@ -3279,8 +3279,10 @@ function derive(c) {
      absent line. */
   m.de     = isBank ? null : (isNum(debt[i]) && eq[i] > 0 ? debt[i] / eq[i] : null);
   m.netCash = (isBank || !isNum(netDebt)) ? null : netDebt < 0;
-  /* Interest expense is not a line in this sample dataset, so interest cover
-     genuinely cannot be computed. It is reported as missing, never imputed. */
+  /* Interest expense is not carried in the statement tuple — the ingest names
+     the line but the tuple has no slot for it — so interest cover genuinely
+     cannot be computed for any company. It is reported as missing, never
+     imputed. */
   m.icov = null;
 
   /* Net gearing — net debt against equity. Section 7.3 lists this separately
@@ -5190,6 +5192,15 @@ const MY_DOCS = [
 ];
 
 function documents(c) {
+  /* NO INVENTED DOCUMENTS FOR A FILED COMPANY. This list is a seeded fiction —
+     a 10-Q "for the period ended 30 June 2026", an 8-K, a Form 4 — written for
+     the illustrative set and labelled as a sample there. It was also being
+     produced for the 119 companies whose statements are real, which put a
+     fabricated filing, with a date, on the same page as audited figures, and
+     the Heatmap then cited that filing as a candidate explanation for a price
+     move. A filed company gets the real filing index, one link away, and no
+     stand-in for it. */
+  if (c.real) return [];
   const rnd = seeded(c.id + 'doc');
   const src = c.mkt === 'US' ? US_DOCS : MY_DOCS;
   const days = [4, 12, 23, 41, 96];
@@ -6659,6 +6670,10 @@ function priceAsOfLabel(c) {
   if (c?.px?.eod && c.px.asOf) return `${c.px.asOf} close`;
   if (isNum(c?.px?.p) && c.px.manual) return 'entered by you';
   if (!isNum(c?.px?.p)) return 'none supplied';
+  /* Only the illustrative set reaches here. Its prices are hand-written
+     figures, and stamping one "30 Jul 2026 17:00 MYT" dressed it as a market
+     close that happened. It is a sample figure with a date, and says so. */
+  if (!c.real) return `sample price, ${AS_OF}`;
   return `${AS_OF} 17:00 ${c.mkt === 'US' ? 'ET' : 'MYT'}`;
 }
 
@@ -6680,9 +6695,14 @@ function provenance(row, extra = []) {
 }
 
 function tickerCell(row) {
-  const b = el('button', { class: 'tickerbtn', onclick: () => openResearch(row.c.id) });
+  /* Filed and illustrative companies sit in the same screener, heatmap and
+     comparison rows. The company page says which is which; these rows did
+     not, so a synthetic Bursa company and an audited US filer were
+     indistinguishable in the one place they are ranked side by side. */
+  const b = el('button', { class: 'tickerbtn', onclick: () => openResearch(row.c.id),
+    title: row.c.real ? undefined : 'Illustrative figures — synthetic, created for interface demonstration.' });
   b.append(el('span', { class: 'tk' }, row.c.tk));
-  b.append(el('span', { class: 'nm' }, row.c.mkt === 'MY' ? `${row.c.code} · ${row.c.name}` : row.c.name));
+  b.append(el('span', { class: 'nm' }, (row.c.mkt === 'MY' ? `${row.c.code} · ${row.c.name}` : row.c.name) + (row.c.real ? '' : ' · illustrative')));
   return b;
 }
 
@@ -7277,7 +7297,7 @@ VIEWS.home = () => {
   hl.append(el('p', { class: 'eyebrow' }, 'Research queue'));
   hl.append(el('h1', {}, 'Research the company. Reach your own conclusion.'));
   hl.append(el('p', { class: 'body-lg', style: 'margin-top:8px' },
-    'Research, not recommendations. Everything below is derived from the sample statement data — no figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
+    'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
   hd.append(hl);
   const hr = el('div', { class: 'row', style: 'gap:8px' });
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
@@ -7588,7 +7608,7 @@ const FIELDS = [
   { g:'Growth and profitability', k:'dps5',      label:'Dividend CAGR (4y)',         fmt:v=>fmtPct(v),   formula:'compound growth of dividend per share' },
   { g:'Financial risk',        k:'ndEbit',    label:'Net debt / EBIT',            fmt:v=>fmtX(v),     formula:'(debt − cash) ÷ EBIT', miss:'Not applicable to banks.' },
   { g:'Financial risk',        k:'de',        label:'Debt / equity',              fmt:v=>fmtX(v,2),   formula:'total debt ÷ shareholders’ equity' },
-  { g:'Financial risk',        k:'icov',      label:'Interest cover',             fmt:v=>fmtX(v),     formula:'EBIT ÷ net interest expense', miss:'Interest expense is not a line in this sample dataset — reported missing, never estimated.' },
+  { g:'Financial risk',        k:'icov',      label:'Interest cover',             fmt:v=>fmtX(v),     formula:'EBIT ÷ net interest expense', miss:'Interest expense is not carried in the statement tuple, filed or illustrative — reported missing, never estimated.' },
   { g:'Valuation and income',  k:'pe',        label:'Price / earnings',           fmt:v=>fmtX(v),     formula:'price ÷ earnings per share', miss:'Null when earnings are negative.' },
   { g:'Valuation and income',  k:'pb',        label:'Price / book',               fmt:v=>fmtX(v,2),   formula:'price ÷ book value per share' },
   { g:'Valuation and income',  k:'evebit',    label:'EV / EBIT',                  fmt:v=>fmtX(v),     formula:'(market cap + net debt) ÷ EBIT', miss:'Enterprise value is not meaningful for banks.' },
@@ -8637,7 +8657,7 @@ function renderRadar() {
   timeRow.append(el('span', { class: 'metaline' },
     rr.yi === YEARS.length - 1
       ? 'Latest reported period, current price.'
-      : `Statements truncated to FY${YEARS[rr.yi]} and the price that applied then — the same models re-run, not today's answer replotted.`));
+      : `Statements truncated to FY${YEARS[rr.yi]}, priced from the illustrative set's sample series for that year — the same models re-run, not today's answer replotted. Filed companies carry no sample series and drop out of past snapshots.`));
   bar.append(timeRow);
   wrap.append(bar);
 
@@ -8677,7 +8697,7 @@ function renderRadar() {
   card.append(el('div', { style: 'margin-top:var(--sm)' },
     el('div', { class: 'prov', html: [
       `<b>Period</b> ${rr.yi === YEARS.length - 1 ? 'latest reported for each company' : `FY${YEARS[rr.yi]} reported`}`,
-      `<b>Price</b> ${rr.yi === YEARS.length - 1 ? AS_OF : `FY${YEARS[rr.yi]} close`}`,
+      `<b>Price</b> ${rr.yi === YEARS.length - 1 ? AS_OF : `sample series, FY${YEARS[rr.yi]}`}`,
       `<b>Cohort</b> ${rr.cohort === 'sector' ? 'sector-relative' : 'market-absolute'}`,
       `<b>Universe</b> ${rows.length} eligible`,
       `<b>Model</b> ${MODEL_VERSION}`,
@@ -8725,7 +8745,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   [['Model pack selected', r.val.pack.name],
    ['Selection reason', r.val.pack.why],
-   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${AS_OF}` : `FY${YEARS[yi]} reported · price FY${YEARS[yi]} close`],
+   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${AS_OF}` : `FY${YEARS[yi]} reported · price from the sample series for FY${YEARS[yi]}`],
    ['Price used', fmtMoney(r.price ?? r.c.px.p, r.c.ccy)],
    ['Confidence', `${r.val.confBand} (${r.val.conf}/100)`],
    ['Coverage', `${r.d.m.coverage}% of applicable metrics computable`]]
@@ -9044,9 +9064,12 @@ function openWhyMoved(id, mode) {
 
   body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Candidate explanations'));
   const evid = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
+  /* Only an illustrative company has a document here — documents() returns
+     nothing for a filed one — and the list it comes from is a labelled
+     sample. Cited as a prompt, then, not as evidence. */
   if (Math.abs(a.specific) > Math.abs(a.market) * 0.8 && a.doc) {
-    evid.append(el('div', { class: 'evidence support' },
-      `A ${a.doc.form} was published on ${a.doc.date}: “${a.doc.title}”. The company-specific residual is large enough that this document is worth reading before drawing a conclusion.`));
+    evid.append(el('div', { class: 'evidence' },
+      `The sample document list carries a ${a.doc.form} dated ${a.doc.date}: “${a.doc.title}”. That list is illustrative — nothing in it was retrieved from any exchange — so this is a prompt to check the real filing index, not evidence that anything was published.`));
   }
   const ch = changeSummary(r.c) || [];
   const big = ch.filter(x => Math.abs(x.v) > 8);
@@ -9899,6 +9922,11 @@ VIEWS.research = () => {
   const idBlock = el('div', { style: 'min-width:0;flex:1 1 320px' });
   idBlock.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
     marketChip(c.mkt),
+    /* Said at the top of the page, not only in the Strategy Lens and the data
+       confidence block further down. The identity header is the one part of
+       the page every reader sees. */
+    c.real ? null : el('span', { class: 'chip chip-bronze',
+      title: 'Financial figures for this company are synthetic — created for interface demonstration. They are not filed, and they are not real.' }, 'illustrative figures'),
     el('span', { class: 'chip' }, `${c.exch} · ${c.code}`),
     el('span', { class: 'chip' }, c.sector),
     /* Bursa publishes no industry classification below sector, so the two are
@@ -10712,11 +10740,22 @@ function tabFinancials(r) {
       + (split ? ` Per-share growth is withheld: the share count moves from ${fmtNum(split.from, 2)}bn to ${fmtNum(split.to, 2)}bn inside this window, which is a corporate action, and the filings are not restated for it.` : ''))));
   wrap.append(stmt);
 
-  /* derived quarterly */
+  /* Quarters, for the illustrative set only. They are annual figures split by
+     a seeded seasonal shape — one more piece of the same fiction, labelled as
+     such. Drawing them under audited annual statements put an invented
+     quarterly profile on a filed company; the ingest reads annual facts and
+     nothing else, and the page now says so instead. */
+  if (c.real) {
+    wrap.append(el('div', { class: 'card' },
+      [cardHead('Quarterly figures', 'Not carried in this build.'),
+       el('p', { class: 'body', style: 'font-size:13px' },
+         'The ingest reads annual XBRL facts — periods of a year — and no quarterly line is held for any filed company. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.')]));
+    return wrap;
+  }
   const q = quarters(c, d);
   const qc = el('div', { class: 'card' });
-  qc.append(cardHead('Quarterly shape (derived)',
-    'These quarters are apportioned from the two most recent reported years using a fixed company-specific seasonal profile. They are labelled derived because they are not separately reported in the sample dataset.'));
+  qc.append(cardHead('Quarterly shape (derived, illustrative)',
+    'These quarters are apportioned from the two most recent years using a fixed company-specific seasonal profile. They are labelled derived because they are not separately reported anywhere — this company’s figures are illustrative and so are these.'));
   const qh = el('div', { style: 'width:100%' });
   qc.append(qh);
   qc.append(tableTwin('Show the table view', ['Quarter', 'Revenue', 'Net profit'], q.map(x => [x.label, fmtNum(x.rev, 2), fmtNum(x.ni, 2)])));
@@ -11010,6 +11049,63 @@ function tabFilings(r) {
   const { c } = r;
   const docs = documents(c);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  const yrs = yearsOf(c), li = yrs.length - 1;
+
+  /* The change table is computed from the statements and is real for every
+     company; only the documents it used to hang off were invented. */
+  const changedTable = (changed) => {
+    const tw = el('div', { class: 'tablewrap' });
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, `FY${yrs[li - 1]}`), el('th', {}, `FY${yrs[li]}`), el('th', {}, 'Change')])));
+    const map = { 'Revenue':r.d.rev, 'Operating profit':r.d.ebit, 'Net profit':r.d.ni, 'Dividend per share':r.d.dps, 'Distribution per unit':r.d.dps, 'Shares in issue':r.d.sh };
+    t.append(el('tbody', {}, changed.map(x => el('tr', {}, [
+      el('td', { class: 'ident' }, x.label),
+      el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
+      el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
+      el('td', { class: signClass(x.v) }, withSign(x.v, 1)),
+    ]))));
+    tw.append(t);
+    return tw;
+  };
+
+  if (c.real) {
+    /* A filed company: the real index, and nothing standing in for it. */
+    const cik10 = String(c.cik).padStart(10, '0');
+    const ext = (href, label) => el('a', { class: 'btn btn-ghost btn-sm', href, target: '_blank', rel: 'noopener noreferrer', html: `${esc(label)} ${icon('ext', 10)}` });
+    const hd = el('div', { class: 'card' });
+    hd.append(cardHead('SEC filings',
+      'This build holds no filing index. The statements on this page are XBRL facts from EDGAR’s companyfacts record — the numbers, not the documents — and the documents themselves are one link away on SEC.gov. Nothing here stands in for them.'));
+    hd.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
+      el('span', { class: 'chip chip-brand' }, 'SEC-filed statements'),
+      el('span', { class: 'chip' }, `CIK ${c.cik}`),
+      el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
+    ]));
+    hd.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
+      ext(`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&type=10-K&dateb=&owner=include&count=40`, 'Annual reports on EDGAR'),
+      ext(`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&owner=include&count=40`, 'Every filing on EDGAR'),
+      ext(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, 'The companyfacts record this page was built from'),
+    ]));
+    wrap.append(hd);
+
+    const ch = changeSummary(c) || [];
+    if (ch.length) {
+      const card = el('div', { class: 'card' });
+      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'As reported, from the statement lines held for this company.'));
+      card.append(changedTable(ch));
+      const drivers = driverImpact(c, r.d, r.inputs).slice(0, 3);
+      if (drivers.length) {
+        card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential thesis impacts'));
+        const imp = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
+        drivers.forEach(dr => imp.append(el('div', { class: 'evidence', style: 'font-size:13px' },
+          `${dr.label} is the ${drivers.indexOf(dr) === 0 ? 'largest' : 'next largest'} driver of the valuation range — a ${dr.unit === 'pp' ? fmtNum(dr.step, 2) + ' point' : dr.unit} change moves the base-case model estimate about ${fmtNum(dr.span, 1)}%.`)));
+        card.append(imp);
+        card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+          'Uncertainty label: these are arithmetic consequences of the reported change, not a claim about what management will do next.'));
+      }
+      wrap.append(card);
+    }
+    return wrap;
+  }
 
   const hd = el('div', { class: 'card' });
   hd.append(cardHead(c.mkt === 'US' ? 'SEC filings' : 'Bursa announcements and company reports',
@@ -11017,7 +11113,7 @@ function tabFilings(r) {
       ? 'In production these would be retrieved from EDGAR with the filing index and the extracted facts linked to each claim.'
       : 'In production these would come from a licensed Bursa feed. Announcement content and redistribution rights are a commercial prerequisite, not a scraping exercise.'));
   hd.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-    sevChip('info', 'Sample document list'),
+    sevChip('info', 'Sample document list — illustrative, not retrieved from any exchange'),
     el('span', { class: 'chip' }, `${docs.length} documents`),
   ]));
   wrap.append(hd);
@@ -11035,18 +11131,7 @@ function tabFilings(r) {
 
     if (doc.changed) {
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--sm) 0 6px' }, 'What changed'));
-      const tw = el('div', { class: 'tablewrap' });
-      const t = el('table', { class: 'dt' });
-      const yrs = yearsOf(c), li = yrs.length - 1;
-      t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, `FY${yrs[li - 1]}`), el('th', {}, `FY${yrs[li]}`), el('th', {}, 'Change')])));
-      const map = { 'Revenue':r.d.rev, 'Operating profit':r.d.ebit, 'Net profit':r.d.ni, 'Dividend per share':r.d.dps, 'Distribution per unit':r.d.dps, 'Shares in issue':r.d.sh };
-      t.append(el('tbody', {}, doc.changed.map(x => el('tr', {}, [
-        el('td', { class: 'ident' }, x.label),
-        el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
-        el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
-        el('td', { class: signClass(x.v) }, withSign(x.v, 1)),
-      ]))));
-      tw.append(t); card.append(tw);
+      card.append(changedTable(doc.changed));
 
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential thesis impacts'));
       const imp = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
@@ -11385,12 +11470,12 @@ function studioOutputs(r, inputs, redraw) {
     grid.append(p);
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
-  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : 'Market price'));
+  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : c.real ? 'Market price' : 'Sample price'));
   pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2-text)' }, fmtMoney(c.px.p, c.ccy)));
-  pp.append(el('div', { class: 'metaline' },
-    c.px?.eod && c.px.asOf ? `${c.px.asOf} close`
-    : c.px?.manual ? 'entered by you'
-    : `${AS_OF} close`));
+  /* The same stamp the provenance strip uses, so one page cannot date a
+     price two ways — and a filed company with no price no longer gets a
+     "close" under a dash. */
+  pp.append(el('div', { class: 'metaline' }, priceAsOfLabel(c)));
   grid.append(pp);
   head.append(grid);
 
@@ -14189,7 +14274,12 @@ VIEWS.privacy = () => trustPage('Privacy',
   'What this build stores, where it stores it, and what leaves your device.',
   [
     ['What is stored',
-      ['Your watchlists, saved screens, investment cases, portfolio holdings, property inputs, theme and base currency are held in this browser’s local storage. They are not sent anywhere.',
+      /* The full list, because a privacy page that names some of what it
+         stores is worse than one that names none: it invites the reader to
+         assume the rest is not there. The borrower profile in particular —
+         income, commitments, credit conduct — is the most personal thing this
+         product holds and was not on this page. */
+      ['Your watchlists, saved screens, investment cases, portfolio holdings, property inputs and the evidence records behind them, the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), the name or initials you give the register log, any prices or statement lines you paste in, the data-error cases you record, your trading-index observations, saved property candidates, the plan you selected, theme and base currency are all held in this browser’s local storage. None of it is sent anywhere.',
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
@@ -15054,7 +15144,7 @@ function learnData() {
     ['2', 'Licensed market-data provider', 'Prices, corporate actions, reference data, redistribution rights',
       'Not connected, on either market. This is why every price-derived measure on a filed company reads as unavailable, and why share counts cannot be split-adjusted.'],
     ['3', 'Licensed estimates and news provider', 'Forward estimates, earnings calendar', 'Out of scope'],
-    ['4', 'Derived platform metrics', 'Every ratio shown in this product', 'Computed live from the stored sample lines'],
+    ['4', 'Derived platform metrics', 'Every ratio shown in this product', 'Computed live from the stored statement lines, filed or illustrative'],
     ['5', 'AI-derived qualitative claims', 'Moat structuring and change summaries', 'Authored, evidence-linked templates only'],
   ].map(r => el('tr', {}, r.map((c, i) => el('td', { class: i === 0 ? 'ident' : '', style: i > 0 ? 'text-align:left;white-space:normal' : '' }, c))))));
   tw.append(t); src.append(tw);
@@ -15153,7 +15243,7 @@ function learnData() {
   have.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Present'));
   const hl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
-   'Five reported years per company, with every ratio derived live',
+   'Ten fiscal years for each SEC-filed company; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
    'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
@@ -15257,14 +15347,49 @@ function learnTrust() {
   wrap.append(mineCard);
 
   const corr = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  corr.append(cardHead('Corrections log', 'Sample entries showing the format. Every correction records what was wrong, who was affected and what changed.'));
+  /* REAL ENTRIES, FROM THE CHANGE HISTORY OF THIS BUILD.
+     This table used to hold three invented rows labelled "sample entries
+     showing the format" — with specific dates, and one claiming that "owners
+     were notified" of a change on a product that has no accounts and nobody
+     to notify. A corrections log whose entries are made up is the one page on
+     the site that cannot be allowed to be. Every row below is a correction
+     that shipped, dated by its commit, and describes what was wrong and what
+     changed. Nothing here is illustrative. */
+  corr.append(cardHead('Corrections log', 'Drawn from the change history of this build. Every correction records what was wrong and what changed; the most recent is first.'));
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, ['Date', 'Scope', 'Issue', 'Resolution'].map(h => el('th', {}, h)))));
+  t.append(el('thead', {}, el('tr', {}, ['Date', 'Scope', 'What was wrong', 'What changed'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, [
-    ['24 Jul 2026', 'Metric engine', 'Dividend cover used dividends declared rather than dividends paid for two Bursa REITs.', 'Recomputed; affected screens re-run; three saved screens changed membership and their owners were notified.'],
-    ['11 Jul 2026', 'Score model 1.1.0 → 1.2.0', 'Capital Allocation over-weighted buybacks for companies with negative equity.', 'Weight re-based and the change published here. Note that this prototype does not retain prior score versions, so a screen saved before the change cannot be reproduced against the old model.'],
-    ['02 Jul 2026', 'Company identity', 'A Bursa ticker change was not mapped, splitting five years of history across two records.', 'Records merged; point-in-time history preserved under the new identifier.'],
+    ['26 Sep 2026', 'Statement display',
+      'Ten SEC filers whose fiscal year ends before December — Microsoft, Nvidia, Walmart, Oracle, Nike and five more — had every column labelled one year early: figures for fiscal 2026 were printed under FY2025.',
+      'Every label now reads the company’s own fiscal years, on the statement table, the source drawer, the provenance strip and the Value Map. No figure changed.'],
+    ['26 Sep 2026', 'Metric engine',
+      'A missing capital-expenditure, dividend or debt line was read as nought: the reinvestment rate published 0% on thirteen filers, the payout ratio 0% on twenty-one, and twelve filers with no debt line were valued as if debt-free.',
+      'Each measure now requires its inputs and reports unknown without them. The valuation reports itself unavailable, with the reason, rather than assuming a balance sheet.'],
+    ['26 Sep 2026', 'Metric engine',
+      'Earnings, book-value and dividend growth were computed across stock splits, so they measured the split rather than the company. Share-count growth had been withheld on the same evidence since 9 August; the other per-share lines had not.',
+      'Every per-share growth rate is withheld where the share series breaks, and the statement table says why.'],
+    ['26 Sep 2026', 'Property model',
+      'The five- and ten-year exit table totalled rent before tax while the year-by-year path beside it was after tax. The stress rows charged a management fee to a self-managed owner. A quoted MRTA premium never replaced the RM8,000 placeholder in the ledger.',
+      'One year’s cash flow is computed in one place and both surfaces call it. One composition of running costs serves the model and the stress tests. The reader’s quote takes the line, marked as a quote.'],
+    ['09 Sep 2026', 'Property model',
+      'The asset class was asked for and then ignored: a bare parcel was given a rental yield, a debt-service cover and a break-even rent, and graded on them.',
+      'Land withholds every rent-derived figure; the carrying cost and the exit remain. No residential figure moved.'],
+    ['05 Sep 2026', 'Property model',
+      'Real property gains tax used four unsourced rates and silently assumed an individual citizen was selling.',
+      'The rate follows the disposer category — citizen, company, non-citizen — and the holding year, computed on the chargeable gain with Schedule 4 relief. Every rate carries its citation and is marked unverified until someone checks it.'],
+    ['21 Aug 2026', 'Property model',
+      'The figure labelled IRR was the annualised total multiple, which ignores when cash arrives; on the default deal it overstated the return by more than a point (3.48% against 2.38%). Income tax on rent was not modelled at all.',
+      'A real internal rate of return, solved on the cash-flow vector and shown beside the multiple with the gap explained. Rental income tax with the interest deductible and the principal not.'],
+    ['21 Aug 2026', 'Property register',
+      'One demand record disabled undo for every earlier change in the register, silently. Backups dropped demand records.',
+      'Entities declare their undo and replay together; a backup carries every entity; a state-machine test now fails the build if undo jams.'],
+    ['09 Aug 2026', 'Score model',
+      'The valuation pillar substituted fixed scores for its three price-dependent inputs, so 115 companies with no price scored exactly 46 with coverage reported as 100%. Share-count growth across a split read Apple’s four-for-one as 12% a year of issuance.',
+      'The pillar scores over the inputs that were testable and returns no score when none were. Share-count growth and buyback yield are withheld across a split and the discontinuity is named on the page.'],
+    ['07 Aug 2026', 'Company pages',
+      'A company with filings and no price threw when viewed in another currency; the price-alert form prefilled RM0.00 for it; the Financial Strength scorecard printed a broken, non-numeric weight in its Weight column.',
+      'All three fixed. No score changed.'],
   ].map(r => el('tr', {}, r.map((c, i) => el('td', { class: i === 0 ? 'ident' : '', style: i > 1 ? 'text-align:left;white-space:normal;max-width:300px' : '' }, c))))));
   tw.append(t); corr.append(tw);
   wrap.append(corr);
@@ -23921,12 +24046,14 @@ function officialBenchmarkPanel(city, area) {
    exception — a judgement about the plan rather than a reading of the chart —
    so it stays an ordinal the user sets.
 
-   NO VISION, NO OCR, NO AUTOMATIC EXTRACTION
+   NO VISION, NO OCR, NO AUTOMATIC EXTRACTION — ON THIS PAGE
 
-   §22 puts screenshot extraction in phase 2 and this is phase 1. The
+   §22 puts screenshot extraction in phase 2 and this page is phase 1. The
    screenshot is evidence a person read; the states are what that person
-   recorded. Nothing here claims to have looked at an image, and the page says
-   so rather than implying a capability the build does not have.
+   recorded. The phase-2 script (qtti/extract.mjs) runs off-page, writes a
+   draft only, and nothing it produces is scored until a person has confirmed
+   it against the image. Nothing HERE claims to have looked at an image, and
+   the page says so rather than implying a capability it does not have.
    ========================================================================== */
 /* @qtti-engine-start — see the matching end marker. qtti/batch.mjs slices the
    file between these two and evaluates it, so the engine has exactly one
@@ -24755,7 +24882,7 @@ VIEWS.tradingIndex = () => {
   const bd = el('div', { class: 'card' });
   bd.append(cardHead('What this will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded; OCR and vision extraction are phase 2 and are not built.'),
+    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page (qtti/extract.mjs); it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
     el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs the point-in-time backtesting of §20, which this build cannot run without licensed history.'),
     el('li', {}, 'It carries 0% weight in the research composite. A trend reading never moves business quality or valuation.'),
     el('li', {}, 'It does not say buy, sell or hold, and it does not size a position from your income, wealth or risk tolerance. It reports whether the rules you declared are met.'),

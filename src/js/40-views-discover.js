@@ -19,7 +19,7 @@ VIEWS.home = () => {
   hl.append(el('p', { class: 'eyebrow' }, 'Research queue'));
   hl.append(el('h1', {}, 'Research the company. Reach your own conclusion.'));
   hl.append(el('p', { class: 'body-lg', style: 'margin-top:8px' },
-    'Research, not recommendations. Everything below is derived from the sample statement data — no figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
+    'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
   hd.append(hl);
   const hr = el('div', { class: 'row', style: 'gap:8px' });
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
@@ -330,7 +330,7 @@ const FIELDS = [
   { g:'Growth and profitability', k:'dps5',      label:'Dividend CAGR (4y)',         fmt:v=>fmtPct(v),   formula:'compound growth of dividend per share' },
   { g:'Financial risk',        k:'ndEbit',    label:'Net debt / EBIT',            fmt:v=>fmtX(v),     formula:'(debt − cash) ÷ EBIT', miss:'Not applicable to banks.' },
   { g:'Financial risk',        k:'de',        label:'Debt / equity',              fmt:v=>fmtX(v,2),   formula:'total debt ÷ shareholders’ equity' },
-  { g:'Financial risk',        k:'icov',      label:'Interest cover',             fmt:v=>fmtX(v),     formula:'EBIT ÷ net interest expense', miss:'Interest expense is not a line in this sample dataset — reported missing, never estimated.' },
+  { g:'Financial risk',        k:'icov',      label:'Interest cover',             fmt:v=>fmtX(v),     formula:'EBIT ÷ net interest expense', miss:'Interest expense is not carried in the statement tuple, filed or illustrative — reported missing, never estimated.' },
   { g:'Valuation and income',  k:'pe',        label:'Price / earnings',           fmt:v=>fmtX(v),     formula:'price ÷ earnings per share', miss:'Null when earnings are negative.' },
   { g:'Valuation and income',  k:'pb',        label:'Price / book',               fmt:v=>fmtX(v,2),   formula:'price ÷ book value per share' },
   { g:'Valuation and income',  k:'evebit',    label:'EV / EBIT',                  fmt:v=>fmtX(v),     formula:'(market cap + net debt) ÷ EBIT', miss:'Enterprise value is not meaningful for banks.' },
@@ -1379,7 +1379,7 @@ function renderRadar() {
   timeRow.append(el('span', { class: 'metaline' },
     rr.yi === YEARS.length - 1
       ? 'Latest reported period, current price.'
-      : `Statements truncated to FY${YEARS[rr.yi]} and the price that applied then — the same models re-run, not today's answer replotted.`));
+      : `Statements truncated to FY${YEARS[rr.yi]}, priced from the illustrative set's sample series for that year — the same models re-run, not today's answer replotted. Filed companies carry no sample series and drop out of past snapshots.`));
   bar.append(timeRow);
   wrap.append(bar);
 
@@ -1419,7 +1419,7 @@ function renderRadar() {
   card.append(el('div', { style: 'margin-top:var(--sm)' },
     el('div', { class: 'prov', html: [
       `<b>Period</b> ${rr.yi === YEARS.length - 1 ? 'latest reported for each company' : `FY${YEARS[rr.yi]} reported`}`,
-      `<b>Price</b> ${rr.yi === YEARS.length - 1 ? AS_OF : `FY${YEARS[rr.yi]} close`}`,
+      `<b>Price</b> ${rr.yi === YEARS.length - 1 ? AS_OF : `sample series, FY${YEARS[rr.yi]}`}`,
       `<b>Cohort</b> ${rr.cohort === 'sector' ? 'sector-relative' : 'market-absolute'}`,
       `<b>Universe</b> ${rows.length} eligible`,
       `<b>Model</b> ${MODEL_VERSION}`,
@@ -1467,7 +1467,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   [['Model pack selected', r.val.pack.name],
    ['Selection reason', r.val.pack.why],
-   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${AS_OF}` : `FY${YEARS[yi]} reported · price FY${YEARS[yi]} close`],
+   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${AS_OF}` : `FY${YEARS[yi]} reported · price from the sample series for FY${YEARS[yi]}`],
    ['Price used', fmtMoney(r.price ?? r.c.px.p, r.c.ccy)],
    ['Confidence', `${r.val.confBand} (${r.val.conf}/100)`],
    ['Coverage', `${r.d.m.coverage}% of applicable metrics computable`]]
@@ -1786,9 +1786,12 @@ function openWhyMoved(id, mode) {
 
   body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Candidate explanations'));
   const evid = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
+  /* Only an illustrative company has a document here — documents() returns
+     nothing for a filed one — and the list it comes from is a labelled
+     sample. Cited as a prompt, then, not as evidence. */
   if (Math.abs(a.specific) > Math.abs(a.market) * 0.8 && a.doc) {
-    evid.append(el('div', { class: 'evidence support' },
-      `A ${a.doc.form} was published on ${a.doc.date}: “${a.doc.title}”. The company-specific residual is large enough that this document is worth reading before drawing a conclusion.`));
+    evid.append(el('div', { class: 'evidence' },
+      `The sample document list carries a ${a.doc.form} dated ${a.doc.date}: “${a.doc.title}”. That list is illustrative — nothing in it was retrieved from any exchange — so this is a prompt to check the real filing index, not evidence that anything was published.`));
   }
   const ch = changeSummary(r.c) || [];
   const big = ch.filter(x => Math.abs(x.v) > 8);

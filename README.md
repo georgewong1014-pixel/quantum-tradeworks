@@ -129,9 +129,10 @@ discipline: a perfect daily 100 against a bearish monthly and weekly reaches
 54.25 and can never read "confirmed uptrend". It carries **0% weight in the
 research composite**.
 
-It does not read your screenshot. You record what you saw; OCR is phase 2 and is
-not built. No indicator here has been validated on point-in-time data, so none is
-claimed to work. The specification's worked example loads as a fixture and
+The page does not read your screenshot: you record what you saw. A phase-2
+extraction script exists (`qtti/extract.mjs`, below) and produces a draft that a
+person must confirm before anything is scored. No indicator here has been
+validated on point-in-time data, so none is claimed to work. The specification's worked example loads as a fixture and
 reproduces its published 38 / 35 / 77 exactly; 23 acceptance tests cover §21.
 
 ### Running a weekly batch

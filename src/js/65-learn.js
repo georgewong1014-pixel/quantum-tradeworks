@@ -182,7 +182,7 @@ function learnData() {
     ['2', 'Licensed market-data provider', 'Prices, corporate actions, reference data, redistribution rights',
       'Not connected, on either market. This is why every price-derived measure on a filed company reads as unavailable, and why share counts cannot be split-adjusted.'],
     ['3', 'Licensed estimates and news provider', 'Forward estimates, earnings calendar', 'Out of scope'],
-    ['4', 'Derived platform metrics', 'Every ratio shown in this product', 'Computed live from the stored sample lines'],
+    ['4', 'Derived platform metrics', 'Every ratio shown in this product', 'Computed live from the stored statement lines, filed or illustrative'],
     ['5', 'AI-derived qualitative claims', 'Moat structuring and change summaries', 'Authored, evidence-linked templates only'],
   ].map(r => el('tr', {}, r.map((c, i) => el('td', { class: i === 0 ? 'ident' : '', style: i > 0 ? 'text-align:left;white-space:normal' : '' }, c))))));
   tw.append(t); src.append(tw);
@@ -281,7 +281,7 @@ function learnData() {
   have.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Present'));
   const hl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
-   'Five reported years per company, with every ratio derived live',
+   'Ten fiscal years for each SEC-filed company; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
    'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
@@ -385,14 +385,49 @@ function learnTrust() {
   wrap.append(mineCard);
 
   const corr = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  corr.append(cardHead('Corrections log', 'Sample entries showing the format. Every correction records what was wrong, who was affected and what changed.'));
+  /* REAL ENTRIES, FROM THE CHANGE HISTORY OF THIS BUILD.
+     This table used to hold three invented rows labelled "sample entries
+     showing the format" — with specific dates, and one claiming that "owners
+     were notified" of a change on a product that has no accounts and nobody
+     to notify. A corrections log whose entries are made up is the one page on
+     the site that cannot be allowed to be. Every row below is a correction
+     that shipped, dated by its commit, and describes what was wrong and what
+     changed. Nothing here is illustrative. */
+  corr.append(cardHead('Corrections log', 'Drawn from the change history of this build. Every correction records what was wrong and what changed; the most recent is first.'));
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, ['Date', 'Scope', 'Issue', 'Resolution'].map(h => el('th', {}, h)))));
+  t.append(el('thead', {}, el('tr', {}, ['Date', 'Scope', 'What was wrong', 'What changed'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, [
-    ['24 Jul 2026', 'Metric engine', 'Dividend cover used dividends declared rather than dividends paid for two Bursa REITs.', 'Recomputed; affected screens re-run; three saved screens changed membership and their owners were notified.'],
-    ['11 Jul 2026', 'Score model 1.1.0 → 1.2.0', 'Capital Allocation over-weighted buybacks for companies with negative equity.', 'Weight re-based and the change published here. Note that this prototype does not retain prior score versions, so a screen saved before the change cannot be reproduced against the old model.'],
-    ['02 Jul 2026', 'Company identity', 'A Bursa ticker change was not mapped, splitting five years of history across two records.', 'Records merged; point-in-time history preserved under the new identifier.'],
+    ['26 Sep 2026', 'Statement display',
+      'Ten SEC filers whose fiscal year ends before December — Microsoft, Nvidia, Walmart, Oracle, Nike and five more — had every column labelled one year early: figures for fiscal 2026 were printed under FY2025.',
+      'Every label now reads the company’s own fiscal years, on the statement table, the source drawer, the provenance strip and the Value Map. No figure changed.'],
+    ['26 Sep 2026', 'Metric engine',
+      'A missing capital-expenditure, dividend or debt line was read as nought: the reinvestment rate published 0% on thirteen filers, the payout ratio 0% on twenty-one, and twelve filers with no debt line were valued as if debt-free.',
+      'Each measure now requires its inputs and reports unknown without them. The valuation reports itself unavailable, with the reason, rather than assuming a balance sheet.'],
+    ['26 Sep 2026', 'Metric engine',
+      'Earnings, book-value and dividend growth were computed across stock splits, so they measured the split rather than the company. Share-count growth had been withheld on the same evidence since 9 August; the other per-share lines had not.',
+      'Every per-share growth rate is withheld where the share series breaks, and the statement table says why.'],
+    ['26 Sep 2026', 'Property model',
+      'The five- and ten-year exit table totalled rent before tax while the year-by-year path beside it was after tax. The stress rows charged a management fee to a self-managed owner. A quoted MRTA premium never replaced the RM8,000 placeholder in the ledger.',
+      'One year’s cash flow is computed in one place and both surfaces call it. One composition of running costs serves the model and the stress tests. The reader’s quote takes the line, marked as a quote.'],
+    ['09 Sep 2026', 'Property model',
+      'The asset class was asked for and then ignored: a bare parcel was given a rental yield, a debt-service cover and a break-even rent, and graded on them.',
+      'Land withholds every rent-derived figure; the carrying cost and the exit remain. No residential figure moved.'],
+    ['05 Sep 2026', 'Property model',
+      'Real property gains tax used four unsourced rates and silently assumed an individual citizen was selling.',
+      'The rate follows the disposer category — citizen, company, non-citizen — and the holding year, computed on the chargeable gain with Schedule 4 relief. Every rate carries its citation and is marked unverified until someone checks it.'],
+    ['21 Aug 2026', 'Property model',
+      'The figure labelled IRR was the annualised total multiple, which ignores when cash arrives; on the default deal it overstated the return by more than a point (3.48% against 2.38%). Income tax on rent was not modelled at all.',
+      'A real internal rate of return, solved on the cash-flow vector and shown beside the multiple with the gap explained. Rental income tax with the interest deductible and the principal not.'],
+    ['21 Aug 2026', 'Property register',
+      'One demand record disabled undo for every earlier change in the register, silently. Backups dropped demand records.',
+      'Entities declare their undo and replay together; a backup carries every entity; a state-machine test now fails the build if undo jams.'],
+    ['09 Aug 2026', 'Score model',
+      'The valuation pillar substituted fixed scores for its three price-dependent inputs, so 115 companies with no price scored exactly 46 with coverage reported as 100%. Share-count growth across a split read Apple’s four-for-one as 12% a year of issuance.',
+      'The pillar scores over the inputs that were testable and returns no score when none were. Share-count growth and buyback yield are withheld across a split and the discontinuity is named on the page.'],
+    ['07 Aug 2026', 'Company pages',
+      'A company with filings and no price threw when viewed in another currency; the price-alert form prefilled RM0.00 for it; the Financial Strength scorecard printed a broken, non-numeric weight in its Weight column.',
+      'All three fixed. No score changed.'],
   ].map(r => el('tr', {}, r.map((c, i) => el('td', { class: i === 0 ? 'ident' : '', style: i > 1 ? 'text-align:left;white-space:normal;max-width:300px' : '' }, c))))));
   tw.append(t); corr.append(tw);
   wrap.append(corr);

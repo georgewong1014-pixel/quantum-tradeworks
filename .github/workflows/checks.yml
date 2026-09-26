@@ -179,6 +179,16 @@ jobs:
       - name: every published figure is the quantity its label claims
         run: node model-test.mjs http://localhost:8123
 
+      # The equities side had no arithmetic check at all, and 119 filed
+      # companies shipped for two months with ten of them labelled a year
+      # early and four places reading an absent line as nought. None of that
+      # throws or renders NaN, so the sweep passed. This asks the definitions:
+      # a derived line is null exactly when an input is, a split withholds
+      # every per-share rate, a label is the company's own — and pins three
+      # revenue figures to their filings, looked up by fiscal-year label.
+      - name: the filed statements are labelled and derived as they claim
+        run: node equity-test.mjs http://localhost:8123
+
       # 360 · 390 · 430 · 768 · 1024 · 1440. The sweep only ever looks at the
       # default width, so a table that gained a column pushes the page sideways
       # on a phone and every other check still passes — which is exactly how the

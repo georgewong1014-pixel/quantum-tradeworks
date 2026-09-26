@@ -50,12 +50,14 @@
    exception — a judgement about the plan rather than a reading of the chart —
    so it stays an ordinal the user sets.
 
-   NO VISION, NO OCR, NO AUTOMATIC EXTRACTION
+   NO VISION, NO OCR, NO AUTOMATIC EXTRACTION — ON THIS PAGE
 
-   §22 puts screenshot extraction in phase 2 and this is phase 1. The
+   §22 puts screenshot extraction in phase 2 and this page is phase 1. The
    screenshot is evidence a person read; the states are what that person
-   recorded. Nothing here claims to have looked at an image, and the page says
-   so rather than implying a capability the build does not have.
+   recorded. The phase-2 script (qtti/extract.mjs) runs off-page, writes a
+   draft only, and nothing it produces is scored until a person has confirmed
+   it against the image. Nothing HERE claims to have looked at an image, and
+   the page says so rather than implying a capability it does not have.
    ========================================================================== */
 /* @qtti-engine-start — see the matching end marker. qtti/batch.mjs slices the
    file between these two and evaluates it, so the engine has exactly one
@@ -884,7 +886,7 @@ VIEWS.tradingIndex = () => {
   const bd = el('div', { class: 'card' });
   bd.append(cardHead('What this will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded; OCR and vision extraction are phase 2 and are not built.'),
+    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page (qtti/extract.mjs); it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
     el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs the point-in-time backtesting of §20, which this build cannot run without licensed history.'),
     el('li', {}, 'It carries 0% weight in the research composite. A trend reading never moves business quality or valuation.'),
     el('li', {}, 'It does not say buy, sell or hold, and it does not size a position from your income, wealth or risk tolerance. It reports whether the rules you declared are met.'),

@@ -57,6 +57,10 @@ function priceAsOfLabel(c) {
   if (c?.px?.eod && c.px.asOf) return `${c.px.asOf} close`;
   if (isNum(c?.px?.p) && c.px.manual) return 'entered by you';
   if (!isNum(c?.px?.p)) return 'none supplied';
+  /* Only the illustrative set reaches here. Its prices are hand-written
+     figures, and stamping one "30 Jul 2026 17:00 MYT" dressed it as a market
+     close that happened. It is a sample figure with a date, and says so. */
+  if (!c.real) return `sample price, ${AS_OF}`;
   return `${AS_OF} 17:00 ${c.mkt === 'US' ? 'ET' : 'MYT'}`;
 }
 
@@ -78,9 +82,14 @@ function provenance(row, extra = []) {
 }
 
 function tickerCell(row) {
-  const b = el('button', { class: 'tickerbtn', onclick: () => openResearch(row.c.id) });
+  /* Filed and illustrative companies sit in the same screener, heatmap and
+     comparison rows. The company page says which is which; these rows did
+     not, so a synthetic Bursa company and an audited US filer were
+     indistinguishable in the one place they are ranked side by side. */
+  const b = el('button', { class: 'tickerbtn', onclick: () => openResearch(row.c.id),
+    title: row.c.real ? undefined : 'Illustrative figures — synthetic, created for interface demonstration.' });
   b.append(el('span', { class: 'tk' }, row.c.tk));
-  b.append(el('span', { class: 'nm' }, row.c.mkt === 'MY' ? `${row.c.code} · ${row.c.name}` : row.c.name));
+  b.append(el('span', { class: 'nm' }, (row.c.mkt === 'MY' ? `${row.c.code} · ${row.c.name}` : row.c.name) + (row.c.real ? '' : ' · illustrative')));
   return b;
 }
 

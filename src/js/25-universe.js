@@ -433,6 +433,15 @@ const MY_DOCS = [
 ];
 
 function documents(c) {
+  /* NO INVENTED DOCUMENTS FOR A FILED COMPANY. This list is a seeded fiction —
+     a 10-Q "for the period ended 30 June 2026", an 8-K, a Form 4 — written for
+     the illustrative set and labelled as a sample there. It was also being
+     produced for the 119 companies whose statements are real, which put a
+     fabricated filing, with a date, on the same page as audited figures, and
+     the Heatmap then cited that filing as a candidate explanation for a price
+     move. A filed company gets the real filing index, one link away, and no
+     stand-in for it. */
+  if (c.real) return [];
   const rnd = seeded(c.id + 'doc');
   const src = c.mkt === 'US' ? US_DOCS : MY_DOCS;
   const days = [4, 12, 23, 41, 96];

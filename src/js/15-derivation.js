@@ -462,8 +462,10 @@ function derive(c) {
      absent line. */
   m.de     = isBank ? null : (isNum(debt[i]) && eq[i] > 0 ? debt[i] / eq[i] : null);
   m.netCash = (isBank || !isNum(netDebt)) ? null : netDebt < 0;
-  /* Interest expense is not a line in this sample dataset, so interest cover
-     genuinely cannot be computed. It is reported as missing, never imputed. */
+  /* Interest expense is not carried in the statement tuple — the ingest names
+     the line but the tuple has no slot for it — so interest cover genuinely
+     cannot be computed for any company. It is reported as missing, never
+     imputed. */
   m.icov = null;
 
   /* Net gearing — net debt against equity. Section 7.3 lists this separately

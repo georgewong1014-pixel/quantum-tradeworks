@@ -812,6 +812,11 @@ VIEWS.research = () => {
   const idBlock = el('div', { style: 'min-width:0;flex:1 1 320px' });
   idBlock.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
     marketChip(c.mkt),
+    /* Said at the top of the page, not only in the Strategy Lens and the data
+       confidence block further down. The identity header is the one part of
+       the page every reader sees. */
+    c.real ? null : el('span', { class: 'chip chip-bronze',
+      title: 'Financial figures for this company are synthetic — created for interface demonstration. They are not filed, and they are not real.' }, 'illustrative figures'),
     el('span', { class: 'chip' }, `${c.exch} · ${c.code}`),
     el('span', { class: 'chip' }, c.sector),
     /* Bursa publishes no industry classification below sector, so the two are
@@ -1625,11 +1630,22 @@ function tabFinancials(r) {
       + (split ? ` Per-share growth is withheld: the share count moves from ${fmtNum(split.from, 2)}bn to ${fmtNum(split.to, 2)}bn inside this window, which is a corporate action, and the filings are not restated for it.` : ''))));
   wrap.append(stmt);
 
-  /* derived quarterly */
+  /* Quarters, for the illustrative set only. They are annual figures split by
+     a seeded seasonal shape — one more piece of the same fiction, labelled as
+     such. Drawing them under audited annual statements put an invented
+     quarterly profile on a filed company; the ingest reads annual facts and
+     nothing else, and the page now says so instead. */
+  if (c.real) {
+    wrap.append(el('div', { class: 'card' },
+      [cardHead('Quarterly figures', 'Not carried in this build.'),
+       el('p', { class: 'body', style: 'font-size:13px' },
+         'The ingest reads annual XBRL facts — periods of a year — and no quarterly line is held for any filed company. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.')]));
+    return wrap;
+  }
   const q = quarters(c, d);
   const qc = el('div', { class: 'card' });
-  qc.append(cardHead('Quarterly shape (derived)',
-    'These quarters are apportioned from the two most recent reported years using a fixed company-specific seasonal profile. They are labelled derived because they are not separately reported in the sample dataset.'));
+  qc.append(cardHead('Quarterly shape (derived, illustrative)',
+    'These quarters are apportioned from the two most recent years using a fixed company-specific seasonal profile. They are labelled derived because they are not separately reported anywhere — this company’s figures are illustrative and so are these.'));
   const qh = el('div', { style: 'width:100%' });
   qc.append(qh);
   qc.append(tableTwin('Show the table view', ['Quarter', 'Revenue', 'Net profit'], q.map(x => [x.label, fmtNum(x.rev, 2), fmtNum(x.ni, 2)])));
@@ -1923,6 +1939,63 @@ function tabFilings(r) {
   const { c } = r;
   const docs = documents(c);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  const yrs = yearsOf(c), li = yrs.length - 1;
+
+  /* The change table is computed from the statements and is real for every
+     company; only the documents it used to hang off were invented. */
+  const changedTable = (changed) => {
+    const tw = el('div', { class: 'tablewrap' });
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, `FY${yrs[li - 1]}`), el('th', {}, `FY${yrs[li]}`), el('th', {}, 'Change')])));
+    const map = { 'Revenue':r.d.rev, 'Operating profit':r.d.ebit, 'Net profit':r.d.ni, 'Dividend per share':r.d.dps, 'Distribution per unit':r.d.dps, 'Shares in issue':r.d.sh };
+    t.append(el('tbody', {}, changed.map(x => el('tr', {}, [
+      el('td', { class: 'ident' }, x.label),
+      el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
+      el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
+      el('td', { class: signClass(x.v) }, withSign(x.v, 1)),
+    ]))));
+    tw.append(t);
+    return tw;
+  };
+
+  if (c.real) {
+    /* A filed company: the real index, and nothing standing in for it. */
+    const cik10 = String(c.cik).padStart(10, '0');
+    const ext = (href, label) => el('a', { class: 'btn btn-ghost btn-sm', href, target: '_blank', rel: 'noopener noreferrer', html: `${esc(label)} ${icon('ext', 10)}` });
+    const hd = el('div', { class: 'card' });
+    hd.append(cardHead('SEC filings',
+      'This build holds no filing index. The statements on this page are XBRL facts from EDGAR’s companyfacts record — the numbers, not the documents — and the documents themselves are one link away on SEC.gov. Nothing here stands in for them.'));
+    hd.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
+      el('span', { class: 'chip chip-brand' }, 'SEC-filed statements'),
+      el('span', { class: 'chip' }, `CIK ${c.cik}`),
+      el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
+    ]));
+    hd.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
+      ext(`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&type=10-K&dateb=&owner=include&count=40`, 'Annual reports on EDGAR'),
+      ext(`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&owner=include&count=40`, 'Every filing on EDGAR'),
+      ext(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, 'The companyfacts record this page was built from'),
+    ]));
+    wrap.append(hd);
+
+    const ch = changeSummary(c) || [];
+    if (ch.length) {
+      const card = el('div', { class: 'card' });
+      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'As reported, from the statement lines held for this company.'));
+      card.append(changedTable(ch));
+      const drivers = driverImpact(c, r.d, r.inputs).slice(0, 3);
+      if (drivers.length) {
+        card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential thesis impacts'));
+        const imp = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
+        drivers.forEach(dr => imp.append(el('div', { class: 'evidence', style: 'font-size:13px' },
+          `${dr.label} is the ${drivers.indexOf(dr) === 0 ? 'largest' : 'next largest'} driver of the valuation range — a ${dr.unit === 'pp' ? fmtNum(dr.step, 2) + ' point' : dr.unit} change moves the base-case model estimate about ${fmtNum(dr.span, 1)}%.`)));
+        card.append(imp);
+        card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+          'Uncertainty label: these are arithmetic consequences of the reported change, not a claim about what management will do next.'));
+      }
+      wrap.append(card);
+    }
+    return wrap;
+  }
 
   const hd = el('div', { class: 'card' });
   hd.append(cardHead(c.mkt === 'US' ? 'SEC filings' : 'Bursa announcements and company reports',
@@ -1930,7 +2003,7 @@ function tabFilings(r) {
       ? 'In production these would be retrieved from EDGAR with the filing index and the extracted facts linked to each claim.'
       : 'In production these would come from a licensed Bursa feed. Announcement content and redistribution rights are a commercial prerequisite, not a scraping exercise.'));
   hd.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-    sevChip('info', 'Sample document list'),
+    sevChip('info', 'Sample document list — illustrative, not retrieved from any exchange'),
     el('span', { class: 'chip' }, `${docs.length} documents`),
   ]));
   wrap.append(hd);
@@ -1948,18 +2021,7 @@ function tabFilings(r) {
 
     if (doc.changed) {
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--sm) 0 6px' }, 'What changed'));
-      const tw = el('div', { class: 'tablewrap' });
-      const t = el('table', { class: 'dt' });
-      const yrs = yearsOf(c), li = yrs.length - 1;
-      t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, `FY${yrs[li - 1]}`), el('th', {}, `FY${yrs[li]}`), el('th', {}, 'Change')])));
-      const map = { 'Revenue':r.d.rev, 'Operating profit':r.d.ebit, 'Net profit':r.d.ni, 'Dividend per share':r.d.dps, 'Distribution per unit':r.d.dps, 'Shares in issue':r.d.sh };
-      t.append(el('tbody', {}, doc.changed.map(x => el('tr', {}, [
-        el('td', { class: 'ident' }, x.label),
-        el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
-        el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
-        el('td', { class: signClass(x.v) }, withSign(x.v, 1)),
-      ]))));
-      tw.append(t); card.append(tw);
+      card.append(changedTable(doc.changed));
 
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Potential thesis impacts'));
       const imp = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
