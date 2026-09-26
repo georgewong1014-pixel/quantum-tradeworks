@@ -101,36 +101,61 @@ const LINES = [
 const yearOf = (iso) => Number(String(iso).slice(0, 4));
 const days = (a, b) => (new Date(b) - new Date(a)) / 86400000;
 
+/* The forms an annual balance sheet is filed on. Used only as the fallback for
+   a year whose fiscal-year-end date is not known from the income statement. */
+const ANNUAL_FORM = /^(10-K|10-K405|10-KT|20-F|40-F)(\/A)?$/;
+
 /**
  * Reduce one concept's raw fact list to { fiscalYear: value }.
  *
- * Two decisions worth naming:
+ * Three decisions worth naming:
  *  - Annual duration facts are those spanning 330–400 days. A 10-K restates
  *    prior years, so the same period appears many times.
  *  - Where a period appears more than once, the most recently FILED value wins.
  *    That is a restatement policy: latest-known rather than as-first-reported.
  *    A point-in-time store would keep both; this flattens to latest.
+ *  - AN INSTANT IS THE BALANCE AT THE FISCAL YEAR-END, NOT AT ANY DATE IN THE
+ *    YEAR. This function used to bucket every balance-sheet fact by the
+ *    calendar year of its date and let the latest-filed one win — and a 10-Q
+ *    balance dated inside the year is filed later than the 10-K for the
+ *    year-end before it, so a March quarter-end could and did stand in for the
+ *    September year-end it followed. Equity, debt, cash and share count then
+ *    disagreed with the income statement beside them about which date they
+ *    described. The caller now supplies the fiscal year-end for each year,
+ *    taken from the revenue period that defines it, and only a fact dated
+ *    exactly there is accepted. Where no year-end is known the fallback is a
+ *    fact from an annual form; a quarterly form is never a source for an
+ *    annual balance.
+ *
+ * Also returns, per year, the date the fact describes, the date it was filed
+ * and the form it came from — the three things a reader needs to find the
+ * number in the filing, and the three this pipeline used to read and throw
+ * away.
  */
-function annualSeries(facts, kind, unitPref) {
+function annualSeries(facts, kind, unitPref, fyEnds = null) {
   const units = facts?.units || {};
   const unitKey = Object.keys(units).find(u => u === unitPref)
     || Object.keys(units).find(u => u === 'USD')
     || Object.keys(units)[0];
-  if (!unitKey) return { series: {}, unit: null };
+  if (!unitKey) return { series: {}, meta: {}, unit: null };
 
   const out = {};
   for (const f of units[unitKey]) {
     if (!f.end || f.val == null) continue;
+    const y = yearOf(f.end);
     if (kind === 'duration') {
       if (!f.start) continue;
       const d = days(f.start, f.end);
       if (d < 330 || d > 400) continue;              /* annual periods only */
+    } else {
+      const fye = fyEnds && fyEnds[y];
+      if (fye) { if (f.end !== fye) continue; }       /* the year-end balance, exactly */
+      else if (!ANNUAL_FORM.test(f.form || '')) continue;  /* never a quarter-end standing in */
     }
-    const y = yearOf(f.end);
     const prev = out[y];
-    if (!prev || (f.filed || '') > (prev.filed || '')) out[y] = { val: f.val, filed: f.filed, form: f.form };
+    if (!prev || (f.filed || '') > (prev.filed || '')) out[y] = { val: f.val, filed: f.filed, form: f.form, end: f.end };
   }
-  return { series: Object.fromEntries(Object.entries(out).map(([y, v]) => [y, v.val])), unit: unitKey };
+  return { series: Object.fromEntries(Object.entries(out).map(([y, v]) => [y, v.val])), meta: out, unit: unitKey };
 }
 
 /**
@@ -146,22 +171,24 @@ function annualSeries(facts, kind, unitPref) {
  * is a genuine comparability risk — so every year records which tag supplied
  * it, and `mixedTags` is surfaced rather than hidden.
  */
-function resolveLine(allFacts, line, years) {
+function resolveLine(allFacts, line, years, fyEnds = null) {
   const loaded = [];
   for (const concept of line.concepts) {
     const facts = allFacts?.[line.taxonomy]?.[concept];
     if (!facts) continue;
-    const { series, unit } = annualSeries(facts, line.kind, line.unit);
-    if (Object.keys(series).length) loaded.push({ concept, series, unit });
+    const { series, meta, unit } = annualSeries(facts, line.kind, line.unit, fyEnds);
+    if (Object.keys(series).length) loaded.push({ concept, series, meta, unit });
   }
   if (!loaded.length) return null;
 
-  const series = {}, byYear = {}, used = new Set();
+  const series = {}, byYear = {}, endByYear = {}, filedByYear = {}, formByYear = {}, used = new Set();
   for (const y of years) {
     for (const cand of loaded) {
       if (cand.series[y] != null) {
         series[y] = cand.series[y];
         byYear[y] = cand.concept;
+        const mt = cand.meta[y];
+        if (mt) { endByYear[y] = mt.end; filedByYear[y] = mt.filed; formByYear[y] = mt.form; }
         used.add(cand.concept);
         break;                                   /* chain order is priority */
       }
@@ -171,7 +198,7 @@ function resolveLine(allFacts, line, years) {
   if (!hits) return null;
   return {
     concept: [...used].join(' + '),
-    concepts: [...used], byYear, series, unit: loaded[0].unit,
+    concepts: [...used], byYear, endByYear, filedByYear, formByYear, series, unit: loaded[0].unit,
     coverage: hits / years.length,
     mixedTags: used.size > 1,
     weak: hits < Math.max(2, Math.ceil(years.length * 0.5)),
@@ -305,13 +332,22 @@ export async function ingestTicker(ticker, nYears) {
   const latest = Math.max(...Object.keys(probe.series).map(Number));
   const years = Array.from({ length: nYears }, (_, i) => latest - nYears + 1 + i);
 
+  /* The fiscal year-end of each year, from the revenue period that defines
+     it. The balance-sheet lines are resolved against these dates, so equity,
+     debt, cash and share count describe the same day the income statement
+     ends on — see annualSeries. Recorded on the company too, so a page can say
+     "FY2025, ended 27 Sep 2025" rather than leaving the label to imply
+     December. */
+  const periodEnds = Object.fromEntries(years.filter(y => probe.endByYear[y]).map(y => [y, probe.endByYear[y]]));
+
   const resolved = {}, provenance = {}, gaps = [];
   for (const line of LINES) {
-    const r = resolveLine(facts.facts, line, years);
+    const r = resolveLine(facts.facts, line, years, periodEnds);
     if (!r) { gaps.push({ line: line.key, reason: 'no concept in the fallback chain returned data' }); continue; }
     resolved[line.key] = r.series;
     provenance[line.key] = { concept: r.concept, unit: r.unit, coverage: +r.coverage.toFixed(2),
-                             weak: !!r.weak, mixedTags: !!r.mixedTags, byYear: r.byYear };
+                             weak: !!r.weak, mixedTags: !!r.mixedTags, byYear: r.byYear,
+                             endByYear: r.endByYear, filedByYear: r.filedByYear, formByYear: r.formByYear };
     if (r.mixedTags) gaps.push({ line: line.key, warning: 'series assembled from more than one XBRL tag', concepts: r.concepts });
     const missing = years.filter(y => r.series[y] == null);
     if (missing.length) gaps.push({ line: line.key, concept: r.concept, missingYears: missing });
@@ -352,7 +388,7 @@ export async function ingestTicker(ticker, nYears) {
 
   return {
     id: ticker.toUpperCase(), name: title, cik, exch: null, mkt: 'US', ccy: 'USD',
-    years, fin, provenance, gaps,
+    years, periodEnds, fin, provenance, gaps,
     completeness: +completeness.toFixed(3),
     ...cls,
     source: 'SEC EDGAR companyfacts', retrieved: new Date().toISOString().slice(0, 10),

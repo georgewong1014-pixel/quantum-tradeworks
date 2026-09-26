@@ -32,6 +32,15 @@ const yearsOf = (c) => {
   return n >= YEARS.length ? YEARS : YEARS.slice(YEARS.length - n);
 };
 const latestFy = (c) => { const y = yearsOf(c); return y[y.length - 1]; };
+/* The date a fiscal year actually ended, where the ingest recorded it — a
+   filer whose year ends in June or September is otherwise labelled as though
+   it ended in December. Null where the record predates that field. */
+const fyEndOf = (c, fy) => (c?.periodEnds && c.periodEnds[fy]) || null;
+const fmtFyEnd = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00Z');
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+};
 const AUTHORED_YEARS = 5;              /* the rows written out below, FY2021–FY2025 */
 
 /* Per-line annual growth bands used to reconstruct the earlier history.

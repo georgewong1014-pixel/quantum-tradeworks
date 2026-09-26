@@ -1071,7 +1071,7 @@ function openSourceDrawer(r, f) {
   const rows = [
     ['What it is', PROVENANCE[kind].note],
     ['Formula', f.formula],
-    ['Reporting period', `FY${latestFy(c)}, as reported`],
+    ['Reporting period', `FY${latestFy(c)}${fyEndOf(c, latestFy(c)) ? ` (ended ${fmtFyEnd(fyEndOf(c, latestFy(c)))})` : ''}, as reported`],
     ['Prior period', isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev)}` : 'not computable'],
     ['Currency', c.ccy],
     ['Source', c.real

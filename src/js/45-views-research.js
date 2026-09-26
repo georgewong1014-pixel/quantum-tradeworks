@@ -1561,8 +1561,13 @@ function tabFinancials(r) {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
   const chartCard = el('div', { class: 'card' });
+  /* "FY2026" means the year Microsoft calls fiscal 2026, which ended in June.
+     Where the ingest recorded the date, the caption says so, because a reader
+     who assumes December is a full half-year wrong about when these figures
+     stop. */
+  const fyEnd = fmtFyEnd(fyEndOf(c, last(yrs)));
   chartCard.append(cardHead('Revenue, operating profit and free cash flow',
-    `Reported ${c.ccy} billions, FY${yrs[0]}–FY${last(yrs)}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
+    `Reported ${c.ccy} billions, FY${yrs[0]}–FY${last(yrs)}${fyEnd ? ` — the latest fiscal year ended ${fyEnd}` : ''}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
     el('div', { class: 'segmented' }, [['abs', 'Reported'], ['idx', 'Indexed to 100']].map(([v, l]) =>
       el('button', { 'aria-selected': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
   const host = el('div', { style: 'width:100%' });

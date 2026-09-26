@@ -570,7 +570,7 @@ function realToCompany(r) {
     typeAssumed: !REAL_TYPES[r.id] && (r.assumed !== false),
     sic: r.sic || null, sicDescription: r.sicDescription || null,
     desc: `Audited annual statements retrieved from SEC EDGAR (CIK ${r.cik}) on ${r.retrieved}. SEC publishes filings, not market data — the price basis is stated separately below.`,
-    px, fin, years: r.years,
+    px, fin, years: r.years, periodEnds: r.periodEnds || null,
     real: true, cik: r.cik, provenance: r.provenance, gaps: r.gaps,
     completeness: r.completeness, retrieved: r.retrieved,
     seg: [], moat: { kind:'Not assessed', dur:'—', conf:'Low',
