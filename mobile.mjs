@@ -79,12 +79,33 @@ await send('Runtime.enable', {}, sessionId);
 
 let bad = 0;
 const smallTargets = [];
+/* Routes whose widest tables only exist once the filed set has loaded. A
+   fixed wait measured the boot skeleton on a slow runner — no tables, no
+   overflow, a pass for the pages this check was extended to cover. */
+const DATA_ROUTES = /^\/(company\/|discover|research|compare|$)/;
+try {
 for (const w of WIDTHS) {
   await send('Emulation.setDeviceMetricsOverride',
     { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
   for (const route of ROUTES) {
-    await send('Page.navigate', { url: BASE + route }, sessionId);
-    await sleep(2200);
+    /* A route that did not load cannot be overflow-free. With nothing served,
+       Chrome's error page measured as zero overflow and every route passed. */
+    const nav = await send('Page.navigate', { url: BASE + route }, sessionId);
+    if (nav.result?.errorText || nav.error) {
+      bad++; console.log(`FAIL ${w}px ${route} — did not load: ${nav.result?.errorText || nav.error?.message}`); continue;
+    }
+    await sleep(1500);
+    if (DATA_ROUTES.test(route)) {
+      let ready = false;
+      for (let i = 0; i < 40 && !ready; i++) {
+        const p = await send('Runtime.evaluate', { returnByValue: true, expression:
+          `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+        ready = p.result?.result?.value === true;
+        if (!ready) await sleep(500);
+      }
+      if (!ready) { bad++; console.log(`FAIL ${w}px ${route} — the filed set never arrived, so the page measured would be the skeleton`); continue; }
+      await sleep(300);
+    }
     const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(()=>{
       const de = document.documentElement;
       const over = de.scrollWidth - window.innerWidth;
@@ -101,20 +122,26 @@ for (const w of WIDTHS) {
         }
         return true;
       }).slice(0, 3).map(n => n.tagName.toLowerCase() + (n.className ? '.' + String(n.className).split(' ')[0] : ''));
-      /* Tap targets below the 44px floor — the count, and enough of the first
-         two to find them. A count alone was reported once and told nobody
-         which control to look at. */
+      /* Tap targets below the 44px floor, on either axis — the count, and
+         enough of the first two to find them. A count alone was reported
+         once and told nobody which control to look at; and the filter said
+         40px tall while the comments and CLAUDE.md said 44 square. */
       const smallEls = [...document.querySelectorAll('button,a.btn,select')].filter(n => {
         const b = n.getBoundingClientRect();
-        return b.width > 0 && b.height > 0 && b.height < 40;
+        return b.width > 0 && b.height > 0 && Math.min(b.width, b.height) < 44;
       });
       const smallWho = smallEls.slice(0, 2).map(n => n.tagName.toLowerCase()
         + (n.className ? '.' + String(n.className).split(' ')[0] : '')
-        + ' ' + Math.round(n.getBoundingClientRect().height) + 'px'
+        + ' ' + Math.round(n.getBoundingClientRect().width) + '×' + Math.round(n.getBoundingClientRect().height) + 'px'
         + (n.textContent.trim() ? ' “' + n.textContent.trim().slice(0, 24) + '”' : ''));
       return { over, culprits, small: smallEls.length, smallWho };
     })()` }, sessionId);
-    const v = r.result?.result?.value || {};
+    /* A probe that errored or returned nothing is not a clean page. `|| {}`
+       made every such route pass: `undefined > 2` is false. */
+    if (r.error || r.result?.exceptionDetails || !r.result?.result || typeof r.result.result.value?.over !== 'number') {
+      bad++; console.log(`FAIL ${w}px ${route} — the page could not be measured: ${r.error?.message || r.result?.exceptionDetails?.text || 'no result'}`); continue;
+    }
+    const v = r.result.result.value;
     /* The 44px floor applies on a coarse pointer, which the stylesheet ties to
        widths under 768. Reported, not failed: a count is a lead, and the
        elements behind it need looking at before a rule is written. */
@@ -133,13 +160,19 @@ for (const w of WIDTHS) {
     }
   }
 }
+} catch (e) {
+  /* An exception mid-loop is a failed run, and the browser must still die. */
+  bad++; console.log(`FAIL harness error — ${e.message}`);
+} finally {
+  try { ws.close(); } catch { /* closed */ }
+  proc.kill();
+  await rm(profile, { recursive: true, force: true }).catch(() => {});
+}
 console.log(bad ? `\n${bad} genuine overflow issues` : '\nno horizontal overflow at any width');
 if (smallTargets.length) {
-  console.log('\ntap targets under 40px tall on phone widths (reported, not failed):');
+  console.log('\ntap targets under 44px on either axis, on phone widths (reported, not failed):');
   smallTargets.sort((a, b) => b.n - a.n).slice(0, 12)
     .forEach(s => console.log(`  ${s.w}px ${s.route} — ${s.n}${s.who.length ? ': ' + s.who.join('; ') : ''}`));
   if (smallTargets.length > 12) console.log(`  … and ${smallTargets.length - 12} more route/width pairs`);
 }
-ws.close(); proc.kill();
-await rm(profile, { recursive: true, force: true }).catch(() => {});
 process.exitCode = bad ? 1 : 0;

@@ -364,6 +364,120 @@ try {
     else ok('the default residential deal is untouched — ' + r.a.toFixed(4) + '%, class from ' + r.src, r);
   }
 
+  /* ---------------------------------------------------------------------
+     17–23: the property corrections of 11e758d, each a definition. The
+     default deal is self-managed with no agent, so the very drift 17 exists
+     to catch evaluates to nought on it; a managed deal is used instead. */
+
+  /* 17 — the stress table's "as entered" row IS the model's monthly position.
+         Two implementations of one quantity once disagreed whenever an
+         agent was involved. */
+  {
+    const r = await evaluate(`(() => {
+      const managed = { ...window.__T.base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, leasingFeeMonths: 1 };
+      const m = dealModel(managed);
+      return { cash: m.cashflowMonthly, rate0: m.stress.rate[0].monthly, vac0: m.stress.vacancy[0].monthly };
+    })()`);
+    if (Math.abs(r.rate0 - r.cash) > 1e-9 || Math.abs(r.vac0 - r.cash) > 1e-9) fail('on a managed deal the stress rows disagree with cashflowMonthly', r);
+    else ok('on a managed deal the stress rows start from the model\'s own monthly position', r);
+  }
+
+  /* 18 — the exit table's rental cash IS the sum of the year-by-year path,
+         on the same side of tax. */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel(window.__T.taxed);
+      const out = [];
+      for (const e of m.exits) {
+        const yrs = Math.min(e.yrs, m.path.length);
+        if (yrs < e.yrs) { out.push({ yrs: e.yrs, skipped: 'hold shorter than exit' }); continue; }
+        const cf = m.path.slice(0, yrs).reduce((t, p) => t + p.cf, 0);
+        const pre = m.path.slice(0, yrs).reduce((t, p) => t + p.cfPreTax, 0);
+        out.push({ yrs: e.yrs, cum: e.cumCash, cf, cumPre: e.cumCashPreTax, pre, taxed: m.taxComputed });
+      }
+      return out;
+    })()`);
+    for (const x of r) {
+      if (x.skipped) { ok(`exit at year ${x.yrs} not compared — ${x.skipped}`, x); continue; }
+      if (Math.abs(x.cum - x.cf) > 1e-6 || Math.abs(x.cumPre - x.pre) > 1e-6) fail(`exit at year ${x.yrs} does not sum the path`, x);
+      else if (x.taxed && Math.abs(x.cum - x.cumPre) < 1e-6) fail(`exit at year ${x.yrs} shows no difference between pre- and after-tax rental cash on a taxed deal`, x);
+      else ok(`exit at year ${x.yrs} sums the path — after tax ${x.cum.toFixed(2)}, before ${x.cumPre.toFixed(2)}`, x);
+    }
+  }
+
+  /* 19 — a quoted MRTA premium takes the ledger line and is not "unconfirmed". */
+  {
+    const r = await evaluate(`(() => {
+      const a = dealModel(window.__T.base);
+      const b = dealModel({ ...window.__T.base, mrtaPremium: 4200 });
+      const line = (m) => m.costGroups.find(g => g.id === 'financing').items.find(it => /Mortgage/i.test(it[0]));
+      const la = line(a), lb = line(b);
+      return { before: { label: la[0], amount: la[1], status: la[2]?.status, unconfirmed: a.unconfirmedCost },
+               after: { label: lb[0], amount: lb[1], status: lb[2]?.status, unconfirmed: b.unconfirmedCost } };
+    })()`);
+    if (r.after.amount !== 4200 || r.after.status !== 'quote') fail('the MRTA quote did not take the ledger line', r);
+    else if (!(r.after.unconfirmed < r.before.unconfirmed)) fail('a quoted premium still counts as unconfirmed cost', r);
+    else ok('a quoted MRTA premium takes the ledger line, marked as a quote, and leaves the unconfirmed total', r);
+  }
+
+  /* 20 — every class the land-risk consequences and blockers name exists in
+         the attribute registry that records it. 'refused' did not. */
+  {
+    const r = await evaluate(`(() => {
+      const bad = [];
+      for (const [attrId, byClass] of Object.entries(RISK_CONSEQUENCE)) {
+        const attr = ATTR_BY_ID[attrId];
+        for (const cls of Object.keys(byClass)) if (!attr || !attrClass(attr, cls)) bad.push(attrId + ':' + cls);
+      }
+      const declinedIsBlocker = AREA_INSURANCE.some(x => x.id === 'declined');
+      return { bad, declinedIsBlocker };
+    })()`);
+    if (r.bad.length || !r.declinedIsBlocker) fail('a land-risk consequence names a class its registry does not record', r);
+    else ok('every land-risk consequence class exists in its registry, declined included', r);
+  }
+
+  /* 21 — the capital gate passes at six months of reserve and not below. */
+  {
+    const r = await evaluate(`(() => {
+      const answer = (deal) => {
+        const m = dealModel(deal), g = propertyGrade(deal, m);
+        const A = propertyIpsAnswers(deal, m, g);
+        return A.find(a => a.id === 'capital')?.verdict?.id || null;
+      };
+      return { six: answer({ ...window.__T.base, reserveMonths: 6 }), three: answer({ ...window.__T.base, reserveMonths: 3 }) };
+    })()`);
+    if (r.six !== 'pass') fail('six months of reserve does not pass the capital gate', r);
+    else if (r.three === 'pass') fail('three months of reserve passes a six-month gate', r);
+    else ok('the capital gate passes at six months of reserve and reads partial at three', r);
+  }
+
+  /* 22 — every class id the worked example seeds exists in its registry. */
+  {
+    const r = await evaluate(`(() => {
+      const bad = [];
+      for (const a of SAMPLE_AREAS) for (const [k, v] of Object.entries(a.attrs)) {
+        if (v.class == null) continue;
+        const attr = ATTR_BY_ID[k];
+        if (!attr || !attrClass(attr, v.class)) bad.push(a.area + ' ' + k + ':' + v.class);
+      }
+      return bad;
+    })()`);
+    if (r.length) fail('the worked example seeds a class id its registry does not know', r);
+    else ok('every class the worked example seeds resolves in its registry');
+  }
+
+  /* 23 — NAPIC categories map into the three classes, and the source says so. */
+  {
+    const r = await evaluate(`(() => ({
+      industrial: propertyClassOf({ category: 'industrial' }), agricultural: propertyClassOf({ category: 'agricultural' }),
+      development: propertyClassOf({ category: 'development' }), src: propertyClassSource({ category: 'development' }),
+      typeWins: propertyClassOf({ propertyType: 'Condominium', category: 'development' }),
+    }))()`);
+    if (r.industrial !== 'commercial' || r.agricultural !== 'land' || r.development !== 'land' || r.src !== 'category' || r.typeWins !== 'residential')
+      fail('NAPIC categories do not map into the classes as documented', r);
+    else ok('NAPIC categories map into the classes, the type wins where present, and the source is named', r);
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

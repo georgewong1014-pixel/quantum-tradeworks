@@ -89,11 +89,20 @@ const ok = (msg, detail) => {
    reports net sales of $391,035m. Microsoft's for the year ended 30 June 2025
    reports revenue of $281,724m. Nvidia's for the year ended 26 January 2025
    reports revenue of $130,497m. Looked up by label, never by row. */
+/* Equity too, because the ingest's instant rule is what a regeneration can
+   change and revenue is a duration fact it cannot touch. Apple's balance
+   sheet at 28 September 2024 reports total shareholders' equity of $56,950m;
+   Microsoft's at 30 June 2025 reports $343,479m. */
 const GOLDEN = [
-  { id: 'AAPL-SEC', fy: 2024, rev: 391.035 },
-  { id: 'MSFT-SEC', fy: 2025, rev: 281.724 },
+  { id: 'AAPL-SEC', fy: 2024, rev: 391.035, eq: 56.950 },
+  { id: 'MSFT-SEC', fy: 2025, rev: 281.724, eq: 343.479 },
   { id: 'NVDA-SEC', fy: 2025, rev: 130.497 },
 ];
+
+/* A hung evaluate() used to leave the job running to the runner's limit. */
+let closing = false;
+const watchdog = setTimeout(() => { console.error('FAIL  timed out after 240s'); process.exit(1); }, 240000);
+proc.on('exit', () => { if (!closing) { console.error('FAIL  the browser exited before the checks finished'); process.exit(1); } });
 
 let ws;
 try {
@@ -135,13 +144,30 @@ try {
 
   /* The filings load after first paint. Wait for the universe to hold them
      rather than for a fixed time, and say how many arrived. */
-  let real = 0;
-  for (let i = 0; i < 80 && real < 100; i++) {
+  /* Every company in the file, not "at least a hundred". loadRealData skips a
+     company whose shape breaks the engine, by name, in a console warning —
+     and the awkward shapes are exactly the ones the checks below exist to
+     examine. A gate at 100 let up to nineteen of them go missing unremarked,
+     and would have passed a regeneration that lost three tickers to a 429. */
+  const expected = (await (await fetch(`${BASE}/data/us.json`)).json()).results.length;
+  let real = 0, status = null;
+  for (let i = 0; i < 80 && real < expected; i++) {
     await sleep(500);
     try { real = await evaluate(`typeof U === 'undefined' ? 0 : U.filter(r => r.c.real).length`); } catch { /* not booted yet */ }
   }
-  if (real < 100) fail(`only ${real} filed companies loaded — the checks below need the SEC set`, { real });
-  else ok(`${real} filed companies loaded`, { real });
+  try { status = await evaluate(`typeof realStatus === 'undefined' || !realStatus ? null : { added: realStatus.added, broken: realStatus.broken || [] }`); } catch { /* absent */ }
+  if (real !== expected || (status && status.broken.length)) {
+    fail(`${real} of ${expected} filed companies loaded — the checks below need every one`, { real, expected, broken: status?.broken });
+    throw new Error('the filed set did not load in full; the remaining checks would be vacuous');
+  }
+  ok(`${real} filed companies loaded, all ${expected} in the file`, { real, expected });
+
+  /* An entitled session. The Free plan covers five distinct company reports
+     a month and this harness opens more than that; the sixth used to render
+     the "you have used all 5" card in place of the page under test, which is
+     the product working and the test not. The prototype's plan toggle takes
+     no payment; the profile is temporary. */
+  await evaluate(`State.plan = 'pro'; store.write('plan', 'pro'); true`);
 
   /* 1 — every fiscal-year label is the company's own. */
   {
@@ -166,12 +192,13 @@ try {
       const row = BY_ID.get(${JSON.stringify(g.id)});
       if (!row) return { missing: true };
       const y = yearsOf(row.c), k = y.indexOf(${g.fy});
-      return { k, rev: k < 0 ? null : row.c.fin[k][0], years: [y[0], y[y.length - 1]] };
+      return { k, rev: k < 0 ? null : row.c.fin[k][0], eq: k < 0 ? null : row.c.fin[k][5], years: [y[0], y[y.length - 1]] };
     })()`);
     if (r.missing) fail(`${g.id} is not in the universe`, r);
     else if (r.k < 0) fail(`${g.id} has no FY${g.fy} — window is FY${r.years[0]}–FY${r.years[1]}`, r);
     else if (Math.abs(r.rev - g.rev) > 1e-6) fail(`${g.id} FY${g.fy} revenue is ${r.rev}, filing says ${g.rev}`, r);
-    else ok(`${g.id} FY${g.fy} revenue ${r.rev}bn matches the filing, found under its own label`, r);
+    else if (g.eq != null && (!Number.isFinite(r.eq) || Math.abs(r.eq - g.eq) > 1e-6)) fail(`${g.id} FY${g.fy} equity is ${r.eq}, the balance sheet says ${g.eq}`, r);
+    else ok(`${g.id} FY${g.fy} revenue ${r.rev}bn${g.eq != null ? ` and equity ${r.eq}bn` : ''} match the filing, found under its own label`, r);
   }
 
   /* 3 — an absent input never becomes a figure. */
@@ -251,10 +278,31 @@ try {
       if (r.first !== r.want[0] || r.last !== r.want[1]) fail(`MSFT-SEC statement columns run ${r.first}–${r.last}, its years are ${r.want[0]}–${r.want[1]}`, r);
       else ok(`MSFT-SEC statement columns run ${r.first}–${r.last}, its own fiscal years`, r);
       if (r.negZero || r.nan) fail('MSFT-SEC statement table prints -0.000, NaN or undefined', r);
-      else ok('MSFT-SEC statement table prints no zero for an absent line');
+      else ok('MSFT-SEC statement table prints no NaN or undefined');
       if (!r.quarterly) fail('a filed company still shows an invented quarterly profile', r);
       else ok('a filed company shows no invented quarters — the page says they are not carried');
     }
+  }
+
+  /* 6b — an absent line reads n/a in the cell where it is absent, on a company
+          that actually has one. Microsoft has none, so the check above could
+          not fail on the defect it was written for. Ford carries no debt line
+          in its latest years; Dominion no capex line in its latest. */
+  for (const [id, label] of [['F-SEC', 'Net debt'], ['D-SEC', 'Capital expenditure'], ['D-SEC', 'Free cash flow']]) {
+    await evaluate(`openResearch(${JSON.stringify(id)}, 'financials'); true`);
+    await sleep(1200);
+    const r = await evaluate(`(() => {
+      const tables = [...document.querySelectorAll('table.dt')];
+      const stmt = tables.find(t => t.querySelector('thead th')?.textContent.trim() === 'Line' && /CAGR/.test(t.querySelector('thead')?.textContent || ''));
+      if (!stmt) return { missing: true };
+      const row = [...stmt.querySelectorAll('tbody tr')].find(tr => (tr.querySelector('td')?.textContent.trim() || '').startsWith(${JSON.stringify(label)}));
+      if (!row) return { noRow: true };
+      const cells = [...row.querySelectorAll('td')].map(td => td.textContent.trim());
+      return { latest: cells[cells.length - 2], cells: cells.slice(1) };
+    })()`);
+    if (r.missing || r.noRow) fail(`${id}: the ${label} row was not found on the Financials tab`, r);
+    else if (r.latest !== 'n/a' || /-0\.000/.test(r.cells.join(' '))) fail(`${id}: ${label} prints "${r.latest}" for an absent latest line, not n/a`, r);
+    else ok(`${id}: ${label} reads n/a where its input is absent`, r);
   }
 
   /* 7 — a filed company's Filings tab holds the real index and no sample list. */
@@ -262,14 +310,19 @@ try {
     await evaluate(`openResearch('MSFT-SEC', 'filings'); true`);
     await sleep(1200);
     const r = await evaluate(`(() => {
-      const t = document.querySelector('main')?.textContent || '';
-      const links = [...document.querySelectorAll('main a[href*="sec.gov"]')].map(a => a.href);
-      return { sample: /Sample document list/.test(t), cik: /CIK/.test(t), links: links.length,
+      const c = BY_ID.get('MSFT-SEC').c;
+      const cards = [...document.querySelectorAll('main .card')];
+      /* Scoped to the Filings card: the identity header and the provenance
+         strip also say "CIK", so a page-wide match could not fail. */
+      const card = cards.find(cd => /SEC filings/.test(cd.textContent));
+      const links = card ? [...card.querySelectorAll('a[href*="sec.gov"]')].map(a => a.href) : [];
+      return { hasCard: !!card, cik: card ? card.textContent.includes('CIK ' + c.cik) : false,
+               sample: cards.some(cd => /Sample document list/.test(cd.textContent)), links: links.length,
                edgar: links.some(h => /browse-edgar/.test(h)), facts: links.some(h => /companyfacts/.test(h)) };
     })()`);
     if (r.sample) fail('a filed company\'s Filings tab still carries the invented sample document list', r);
-    else if (!r.cik || !r.edgar || !r.facts) fail('a filed company\'s Filings tab does not link the real EDGAR index and companyfacts record', r);
-    else ok(`a filed company's Filings tab links EDGAR and its companyfacts record (${r.links} links), and invents nothing`, r);
+    else if (!r.hasCard || !r.cik || !r.edgar || !r.facts) fail('a filed company\'s Filings card does not carry its CIK and link the real EDGAR index and companyfacts record', r);
+    else ok(`a filed company's Filings card carries its CIK, links EDGAR and its companyfacts record (${r.links} links), and invents nothing`, r);
   }
 
   /* 8 — an illustrative company says so at the top of its page. */
@@ -287,31 +340,149 @@ try {
     else ok('an illustrative company\'s identity header says "illustrative figures"', r);
   }
 
-  /* 9 — the no-valuation card names the reason and prints no undefined. Ford
-         carries no resolved debt line, so its bridge cannot be made. */
+  /* 9 — the no-valuation card names the reason and prints no undefined, on
+         whichever company currently needs a bridge and lacks one. Chosen
+         from the data rather than named, so a dataset change cannot turn the
+         check into a fallback that passes. */
   {
-    const r = await evaluate(`(() => {
-      const row = BY_ID.get('F-SEC');
-      if (!row) return { missing: true };
-      return { err: row.val.err || null, netDebt: row.m.netDebt, pack: row.val.pack.id };
+    const pick = await evaluate(`(() => {
+      const r = U.find(r => r.c.real && r.c.type !== 'bank' && !isNum(r.m.netDebt) && ['dcf', 'dcfMid', 'scenario', 'sotp'].includes(r.val.pack.id));
+      return r ? { id: r.c.id, err: r.val.err || null, pack: r.val.pack.id } : null;
     })()`);
-    /* Number.isFinite, not the global: isFinite(null) is true, which is the
-       kind of coercion this whole file exists to catch. */
-    if (r.missing) ok('F-SEC not in the universe — bridge check covered by check 3');
-    else if (Number.isFinite(r.netDebt)) ok(`F-SEC now carries a net debt line (${r.netDebt}) — bridge check covered by check 3`, r);
-    else if (!r.err || !/Net debt could not be established/.test(r.err)) fail('F-SEC has no net debt and its valuation does not say so', r);
+    if (!pick) fail('no filed company needs a net-debt bridge and lacks one — the no-valuation card has no case to render');
+    else if (!pick.err || !/Net debt could not be established/.test(pick.err)) fail(`${pick.id} has no net debt and its valuation does not say so`, pick);
     else {
-      await evaluate(`openResearch('F-SEC', 'valuation'); true`);
+      await evaluate(`openResearch(${JSON.stringify(pick.id)}, 'valuation'); true`);
       await sleep(1200);
       const t = await evaluate(`document.querySelector('main')?.textContent || ''`);
-      if (/undefined/.test(t)) fail('F-SEC valuation tab prints "undefined"');
-      else if (!/Net debt could not be established/.test(t)) fail('F-SEC valuation tab does not state why no estimate is shown');
-      else ok('F-SEC valuation tab states that net debt could not be established, and prints no undefined');
+      if (/undefined/.test(t)) fail(`${pick.id} valuation tab prints "undefined"`);
+      else if (!/Net debt could not be established/.test(t)) fail(`${pick.id} valuation tab does not state why no estimate is shown`);
+      else ok(`${pick.id} valuation tab states that net debt could not be established, and prints no undefined`);
     }
+  }
+
+  /* 10 — fiscal-year labels on every tab, not only the statement table. The
+          original defect was a label from the global axis; any surface that
+          still reads it would print FY2016 for a 2017–2026 company. */
+  {
+    const bad = [];
+    for (const tab of ['snapshot', 'business', 'financials', 'quality', 'valuation', 'moat', 'risks', 'ownership', 'filings']) {
+      await evaluate(`openResearch('MSFT-SEC', ${JSON.stringify(tab)}); true`);
+      await sleep(900);
+      const r = await evaluate(`(() => { const t = document.querySelector('main')?.textContent || ''; return { fy2016: /FY2016\\b/.test(t), fy2026: /FY2026\\b/.test(t) }; })()`);
+      if (r.fy2016) bad.push(`${tab}: FY2016`);
+      if (['snapshot', 'financials', 'quality', 'ownership', 'filings'].includes(tab) && !r.fy2026) bad.push(`${tab}: no FY2026`);
+    }
+    if (bad.length) fail('a research tab still labels MSFT-SEC from the illustrative axis', bad);
+    else ok('every research tab labels MSFT-SEC with its own fiscal years — no FY2016 anywhere, FY2026 where the latest year is named');
+  }
+
+  /* 11 — the nine methods refuse a missing bridge or share count rather than
+          producing a number. */
+  {
+    /* FCFE (method 4) is an equity flow and needs no bridge — Schlumberger,
+       with debt but no cash line, legitimately carries one — so it is held
+       only to the share count; EPV and the peer multiple (7, 8) to both. */
+    const r = await evaluate(`(() => {
+      const leaks = [];
+      for (const r of U.filter(r => r.c.real && r.c.type !== 'bank' && r.c.type !== 'reit')) {
+        const noShares = !(last(r.d.sh) > 0), noBridge = !isNum(r.m.netDebt);
+        if (!noShares && !noBridge) continue;
+        for (const x of nineMethods(r)) {
+          const mustBeNull = (x.n === 4 && noShares) || ([7, 8].includes(x.n) && (noShares || noBridge));
+          if (mustBeNull && isNum(x.value)) leaks.push({ id: r.c.id, n: x.n, name: x.name, value: x.value });
+        }
+      }
+      return leaks;
+    })()`);
+    if (r.length) fail(`${r.length} nine-method values computed without a bridge or a share count`, r.slice(0, 6));
+    else ok('FCFE, EPV and the peer multiple report not applicable wherever the bridge or the share count is missing');
+  }
+
+  /* 12 — the statement table's per-share CAGR cell reads "withheld" across a
+          split, and a whole-company line keeps its rate. */
+  {
+    await evaluate(`openResearch('NVDA-SEC', 'financials'); true`);
+    await sleep(1200);
+    const r = await evaluate(`(() => {
+      const tables = [...document.querySelectorAll('table.dt')];
+      const stmt = tables.find(t => t.querySelector('thead th')?.textContent.trim() === 'Line' && /CAGR/.test(t.querySelector('thead')?.textContent || ''));
+      if (!stmt) return { noTable: true, where: location.pathname + location.search, view: State.view, tab: State.researchTab, heads: tables.map(t => t.querySelector('thead th')?.textContent.trim()), main: (document.querySelector('main')?.textContent || '').slice(0, 120) };
+      const lastCell = (label) => { const row = [...stmt.querySelectorAll('tbody tr')].find(tr => (tr.querySelector('td')?.textContent.trim() || '').startsWith(label)); const c = row ? [...row.querySelectorAll('td')] : []; return c.length ? c[c.length - 1].textContent.trim() : null; };
+      return { split: !!BY_ID.get('NVDA-SEC').m.shareSeriesBreak, eps: lastCell('Earnings per share'), rev: lastCell('Revenue') };
+    })()`);
+    if (r.noTable) fail('NVDA-SEC statement table not found on the Financials tab', r);
+    else if (!r.split) ok('NVDA-SEC no longer carries a share-series break — withheld cell covered by check 5', r);
+    else if (r.eps !== 'withheld' || !/^[+−-]\d/.test(r.rev)) fail('the statement table does not withhold the per-share CAGR across a split while keeping revenue\'s', r);
+    else ok(`NVDA-SEC's EPS CAGR reads withheld across its split while revenue keeps its rate (${r.rev})`, r);
+  }
+
+  /* 13 — no unpriced filed company is warned that a per-share input is "far
+          above the share price" of nought. */
+  {
+    const r = await evaluate(`(() => U.filter(r => r.c.real && !isNum(r.c.px?.p))
+      .flatMap(r => consistencyWarnings(r.c, r.d, r.inputs).map(w => ({ id: r.c.id, text: w.text })))
+      .filter(w => /far above the share price/.test(w.text)))()`);
+    if (r.length) fail(`${r.length} unpriced companies are warned against a share price of nought`, r.slice(0, 4));
+    else ok('no unpriced filed company is warned against a share price it does not have');
+  }
+
+  /* 14 — three small promises: the search finds a Bursa code, the saved-case
+          button's route exists, the analytics script is included once. */
+  {
+    const r = await evaluate(`(() => {
+      runSearch('1155');
+      const found = [...searchResults.querySelectorAll('button')].some(b => /MAYBANK|Malayan Banking/.test(b.textContent));
+      searchResults.replaceChildren();
+      return { found, theses: !!matchRoute('/my/theses'), insights: document.querySelectorAll('script[src*="_vercel/insights"]').length };
+    })()`);
+    if (!r.found) fail('searching the Bursa code 1155 does not list Maybank', r);
+    else if (!r.theses) fail('/my/theses does not resolve to a route', r);
+    else if (r.insights !== 1) fail(`the analytics script is included ${r.insights} times`, r);
+    else ok('the search finds a Bursa code, /my/theses resolves, and the analytics script is included once', r);
+  }
+
+  /* 15 — the tab is in the address, a foreign tab does not cross views, and
+          focus lands where the page changed. */
+  {
+    const r = await evaluate(`(async () => {
+      const out = {};
+      navigate('/company/msft-microsoft-corp?personal=1');
+      openResearch('MSFT-SEC', 'financials');
+      out.tabInAddress = location.search;
+      out.selectedTabFocused = document.activeElement?.getAttribute('role') === 'tab' && document.activeElement.getAttribute('aria-selected') === 'true';
+      go('discover', { tab: 'screener' });
+      out.screenerPath = location.pathname; out.screenerSearch = location.search;
+      out.mainFocused = document.activeElement === document.getElementById('main');
+      let threw = null;
+      try { navigate('/discover?tab=financials'); } catch (e) { threw = e.message; }
+      out.threw = threw; out.discoverTab = State.discoverTab; out.view = State.view;
+      out.rendered = /Stock Screener|Narrow the universe/.test(document.querySelector('main')?.textContent || '');
+      navigate('/company/msft-microsoft-corp?tab=valuation');
+      navigate('/learn');
+      out.learnSearch = location.search;
+      return out;
+    })()`);
+    const problems = [];
+    if (!/(^|[?&])tab=financials(&|$)/.test(r.tabInAddress)) problems.push(`tab not in address: ${r.tabInAddress}`);
+    if (!/(^|[?&])personal=1(&|$)/.test(r.tabInAddress)) problems.push(`?personal=1 dropped by a tab click: ${r.tabInAddress}`);
+    if (!r.selectedTabFocused) problems.push('focus did not return to the selected tab after a tab change');
+    /* The tab must leave the query; every other parameter — ?personal=1 from
+       the step before — must stay. That is the rule, not a leak. */
+    if (!/\/discover\/screener$/.test(r.screenerPath) || /(^|[?&])tab=/.test(r.screenerSearch)) problems.push(`go(discover, screener) went to ${r.screenerPath}${r.screenerSearch}`);
+    if (!/(^|[?&])personal=1(&|$)/.test(r.screenerSearch)) problems.push(`?personal=1 did not survive go(): ${r.screenerSearch}`);
+    if (!r.mainFocused) problems.push('focus did not land on main after a view change');
+    if (r.threw) problems.push(`/discover?tab=financials threw: ${r.threw}`);
+    if (r.view !== 'discover' || !r.rendered || !['screener', 'radar', 'ideas', 'heatmap'].includes(r.discoverTab)) problems.push(`a research tab reached the discover view: tab=${r.discoverTab} rendered=${r.rendered}`);
+    if (/tab=valuation/.test(r.learnSearch)) problems.push(`a research tab rode onto /learn: ${r.learnSearch}`);
+    if (problems.length) fail('the address, focus and cross-view tab rules do not hold', problems);
+    else ok('tabs live in the address, other parameters survive, a foreign tab never crosses views, and focus follows the page');
   }
 } catch (e) {
   fail('harness error', e.message);
 } finally {
+  closing = true;
+  clearTimeout(watchdog);
   try { ws?.close(); } catch { /* closed */ }
   proc.kill();
   await rm(profile, { recursive: true, force: true }).catch(() => {});
