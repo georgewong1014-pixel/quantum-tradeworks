@@ -272,6 +272,18 @@ const PROPERTY_TYPE_CLASS = {
   'Land':'land',
 };
 
+/* NAPIC's five categories, mapped INTO the three classes. The header above
+   promised this mapping and for one release it did not exist — the promise was
+   a comment with nothing under it. It is one-way and lossy on purpose: an
+   industrial unit lets to a tenant like a commercial one and is treated so;
+   agricultural and development land are both bare parcels for the purpose of
+   deciding which quantities exist. Nothing here sets a rate. */
+const NAPIC_CATEGORY_CLASS = {
+  residential:'residential', commercial:'commercial', industrial:'commercial',
+  agricultural:'land', development:'land',
+};
+const propertyClassOfCategory = (categoryId) => NAPIC_CATEGORY_CLASS[String(categoryId || '').toLowerCase()] || null;
+
 /* The reader can override the inferred class, because the built form does not
    always settle it — a shophouse lived in is not a commercial letting, and a
    bungalow run as a homestay is not a residential one. The override is stored
@@ -280,13 +292,16 @@ const PROPERTY_TYPE_CLASS = {
 function propertyClassOf(d) {
   const o = d && d.propertyClassOverride;
   if (o && PROPERTY_CLASSES[o]) return o;
-  return PROPERTY_TYPE_CLASS[d && d.propertyType] || 'residential';
+  /* Type first; a NAPIC category on the record second; residential last, which
+     is the class every default here was written for. */
+  return PROPERTY_TYPE_CLASS[d && d.propertyType] || propertyClassOfCategory(d && d.category) || 'residential';
 }
 /* Whether the class came from the reader or from the type, so the report can
    say which. A fallback means the stored type is not one this build knows. */
 function propertyClassSource(d) {
   if (d && d.propertyClassOverride && PROPERTY_CLASSES[d.propertyClassOverride]) return 'reader';
-  return PROPERTY_TYPE_CLASS[d && d.propertyType] ? 'type' : 'fallback';
+  if (PROPERTY_TYPE_CLASS[d && d.propertyType]) return 'type';
+  return propertyClassOfCategory(d && d.category) ? 'category' : 'fallback';
 }
 
 /* Every input carries where its number came from. A figure a developer quoted

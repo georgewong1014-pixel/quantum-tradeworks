@@ -289,12 +289,20 @@ function propertyIpsAnswers(d, m, g) {
 
   /* 2 — CAPITAL. The model knows what must be found and whether a reserve
      survives it. */
-  const safe = num0(m.safeCashRequired), reserve = num0(m.reserveCash);
+  /* The gate said six months and passed on any reserve above nothing, so the
+     calculator's three-month default cleared a six-month requirement every
+     time. The test now reads the months the reserve is actually set to. */
+  const IPS_RESERVE_MONTHS = 6;
+  const safe = num0(m.safeCashRequired), reserve = num0(m.reserveCash), months = num0(m.reserveMonths);
+  const meets = reserve > 0 && months >= IPS_RESERVE_MONTHS;
   A.push(safe > 0
-    ? ipsAnswer('capital', reserve > 0 ? 'pass' : 'partial',
-        `${fmtMoney(safe, 'MYR', 0)} to complete and be safe, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve. `
-        + (reserve > 0
-          ? 'The IPS requires at least six months of instalments, maintenance, repairs and vacancy exposure held back.'
+    ? ipsAnswer('capital', meets ? 'pass' : 'partial',
+        `${fmtMoney(safe, 'MYR', 0)} to complete and be safe, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve`
+        + (reserve > 0 ? ` — ${months} month${months === 1 ? '' : 's'} of instalment and owner-paid running costs. ` : '. ')
+        + (meets
+          ? 'The IPS requires at least six months of instalments, maintenance, repairs and vacancy exposure held back, and this reserve meets it.'
+          : reserve > 0
+          ? `The IPS requires at least six months held back; this reserve is set to ${months}. Raise the months of reserve on the calculator to meet the gate.`
           : 'No liquidity reserve is carried. The IPS requires at least six months of obligations held back before this gate is answered.'))
     : ipsAnswer('capital', 'unknown', 'Not computed — the purchase figures are incomplete.'));
 

@@ -48,7 +48,11 @@ const RISK_CONSEQUENCE = {
     'tidal': 'Sets a floor under how well the site can ever drain, whether or not it has flooded.',
   },
   insurance: {
-    'refused': 'If cover is refused, a lender will usually follow. Establish financeability before price.',
+    /* Keyed by the id the insurance attribute actually records. This said
+       'refused' while AREA_INSURANCE says 'declined', so the consequence never
+       showed and — worse — the blocker below never fired for the one class
+       that stops a transaction. */
+    'declined': 'If cover is declined, a lender will usually follow. Establish financeability before price.',
     'restricted': 'Cover with material exclusions changes what a loss actually pays out, and lenders read the exclusions.',
   },
 };
@@ -90,7 +94,7 @@ function landRiskProfile(city, area) {
   /* A blocker is a recorded class that stops the transaction rather than
      pricing it. These are stated separately because they are a different kind
      of statement from "this will cost more". */
-  const blockers = recorded.filter(i => i.restricted || i.class === 'refused');
+  const blockers = recorded.filter(i => i.restricted || i.class === 'declined');
   /* Everything else recorded at the top of its own scale — a cost, not a stop. */
   const material = recorded.filter(i => !blockers.includes(i) && isNum(i.rank) && i.rank >= 3);
   /* A hazard recorded from an unverified source is recorded, not established. */

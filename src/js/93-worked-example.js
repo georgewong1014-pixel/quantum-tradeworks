@@ -58,7 +58,7 @@ const SAMPLE_AREAS = [
     area: 'Stutong',
     attrs: {
       flood: { class: 'none' }, title: { class: 'strata' },
-      drainage: { class: 'complete' }, insurance: { class: 'ready' },
+      drainage: { class: 'done' }, insurance: { class: 'ready' },
       ground: { class: 'residual' }, coastal: { class: 'none' },
       lease: { value: 91 },
     },
@@ -73,7 +73,10 @@ const SAMPLE_AREAS = [
   {
     area: 'Batu Kawa',
     attrs: {
-      flood: { class: 'recurrent' }, title: { class: 'leasehold' },
+      /* Title is a Sarawak Land Code class, not a tenure. 'leasehold' is not
+         one and rendered as a dash; the 61-year lease below belongs to a
+         Mixed Zone title. */
+      flood: { class: 'recurrent' }, title: { class: 'mixed-zone' },
       drainage: { class: 'proposed' }, insurance: { class: 'restricted' },
       ground: { class: 'peat-deep' }, coastal: { class: 'settling' },
       lease: { value: 61 },

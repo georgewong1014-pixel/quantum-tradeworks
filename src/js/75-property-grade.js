@@ -552,7 +552,17 @@ function dealModel(d) {
         feeLine('loanStampDuty', { loan }),
         feeLine('loanLegal', { loan }),
         feeLine('valuationFee', { price: d.price }),
-        feeLine('mortgageProtection', {}),
+        /* The reader's own quote, when there is one. The financing panel asked
+           for the MRTA premium and used it to compare cover — and the ledger
+           beside it went on charging the RM8,000 placeholder, so a reader who
+           had typed RM4,200 from a real quote saw RM8,000 in their cash to
+           complete. A quoted figure is not verified against any schedule, but
+           it is not a placeholder either, and it is marked as what it is. */
+        isNum(d.mrtaPremium) && d.mrtaPremium > 0
+          ? ['Mortgage protection — your quote', d.mrtaPremium,
+             { status:'quote', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
+               why:null, note:'The one-off premium you entered on the financing panel. A quote from an insurer, not a figure from the fee registry.' }]
+          : feeLine('mortgageProtection', {}),
       ] },
     { id:'improvement', label:'Initial improvement costs', items:[
         ['Renovation and furnishing', renovation],
@@ -570,8 +580,10 @@ function dealModel(d) {
      placeholder total looks exactly like a finished one, so the proportion has
      to be computed and stated rather than left for the reader to work out from
      a scatter of markers. */
+  /* A figure the reader took from their own quotation is theirs to stand
+     behind; it is not one "nobody has checked". */
   const unconfirmedCost = costGroups.flatMap(g => g.items)
-    .filter(it => it[2] && it[2].status !== 'verified' && isNum(it[1]))
+    .filter(it => it[2] && it[2].status !== 'verified' && it[2].status !== 'quote' && isNum(it[1]))
     .reduce((t, it) => t + it[1], 0);
   const placeholderCostLines = costGroups.flatMap(g => g.items)
     .filter(it => it[2]?.status === 'placeholder' && isNum(it[1]))
@@ -667,7 +679,23 @@ function dealModel(d) {
   const renewalAnnual = managed ? num0(d.renewalFeeMonths) * num0(d.rent) * cyclesPerYear : 0;
   const mgmtFixedAnnual = mgmtMinTopUp + placementAnnual;
   const repairY = letsToTenant ? effectiveRentN * num0(d.repairReservePct) / 100 : 0;
-  const opex = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtY + mgmtFixedAnnual + repairY;
+  /* THE SAME OUTGOINGS AT ANY RENT, SO THE STRESS TESTS AGREE WITH THE MODEL.
+     The stress helper further down used to carry its own copy of this sum, and
+     the copy drifted: it charged the management percentage to a self-managed
+     owner and left out the minimum fee and placement fee entirely. So the
+     "what breaks it" rows and the solved break-even rate and vacancy disagreed
+     with cashflowMonthly on the same screen whenever an agent was involved —
+     two implementations of one quantity, which this repository has caught in
+     itself before. There is now one composition, evaluated at whatever
+     effective rent the caller supplies. The association of the terms is kept
+     identical to the former inline sum so `opex` is bit-for-bit what it was. */
+  const opexAt = (eff) => {
+    const mv = managed ? eff * num0(d.mgmtPct) / 100 : 0;
+    const topUp = Math.max(0, mgmtMinAnnual - mv);
+    const rep = letsToTenant ? eff * num0(d.repairReservePct) / 100 : 0;
+    return maintenanceY + sinkingY + statutoryY + insuranceY + mv + (topUp + placementAnnual) + rep;
+  };
+  const opex = opexAt(effectiveRentN);
   const noiN = effectiveRentN - opex;
   const noi = letsToTenant ? noiN : null;
   const annualDebtService = instalment * 12;
@@ -759,9 +787,14 @@ function dealModel(d) {
 
   /* Cumulative rental cash flow across the hold, with rent growth, now after
      tax on the rent. */
-  let cumCash = 0, cumTax = 0, cumPreTax = 0;
-  const path = [];
-  for (let y = 1; y <= d.holdYears; y++) {
+  /* ONE YEAR'S CASH, COMPUTED IN ONE PLACE.
+     The five- and ten-year exit table further down used to total the rent with
+     its own loop, and that loop was written before tax on the rent existed —
+     so once a marginal rate was entered, the year-by-year path was after tax
+     and the exit table's "rental cash over the hold" was still before it, on
+     the same page, under the same heading. A year's flow is now one function
+     and both surfaces call it. */
+  const yearFlow = (y) => {
     const rentY = grossAnnualRentN * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
     const effY = rentY * (1 - num0(d.vacancyPct) / 100);
     const opexY = opex * Math.pow(1.02, y - 1);
@@ -789,13 +822,19 @@ function dealModel(d) {
 
     const cfPreTax = effY - opexY - annualDebtService;
     const cf = cfPreTax - taxY.tax;
-    cumPreTax += cfPreTax; cumCash += cf; cumTax += taxY.tax;
-    path.push({ y, rent: effY, opex: opexY, debt: annualDebtService,
-                interest: interestY, principal: Math.max(0, annualDebtService - interestY),
-                taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
-                cfPreTax, cf, cum: cumCash,
-                value: d.price * Math.pow(1 + d.apprecPct / 100, y),
-                balance: balanceAfter(loan, d.ratePct, d.tenureYears, y * 12) });
+    return { y, rent: effY, opex: opexY, debt: annualDebtService,
+             interest: interestY, principal: Math.max(0, annualDebtService - interestY),
+             taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
+             cfPreTax, cf,
+             value: d.price * Math.pow(1 + d.apprecPct / 100, y),
+             balance: balanceAfter(loan, d.ratePct, d.tenureYears, y * 12) };
+  };
+  let cumCash = 0, cumTax = 0, cumPreTax = 0;
+  const path = [];
+  for (let y = 1; y <= d.holdYears; y++) {
+    const f = yearFlow(y);
+    cumPreTax += f.cfPreTax; cumCash += f.cf; cumTax += f.tax;
+    path.push({ ...f, cum: cumCash });
   }
   const taxComputed = isNum(d.marginalTaxPct) && d.marginalTaxPct > 0;
   const totalProfit = cumCash + netExitProceeds - acquisitionCost;
@@ -815,9 +854,7 @@ function dealModel(d) {
   const monthlyAt = ({ ratePct = d.ratePct, vacancyPct = d.vacancyPct } = {}) => {
     const inst = monthlyInstalment(loan, ratePct, d.tenureYears);
     const eff = grossAnnualRentN * (1 - vacancyPct / 100);
-    const ox = maintenanceY + sinkingY + statutoryY + insuranceY
-             + (eff * num0(d.mgmtPct) / 100) + (eff * num0(d.repairReservePct) / 100);
-    return ((eff - ox) / 12) - inst;
+    return ((eff - opexAt(eff)) / 12) - inst;
   };
   const stress = {
     rate: [0, 1, 2, 3].map(bump => ({
@@ -894,17 +931,14 @@ function dealModel(d) {
     });
     const tax = rc.tax;
     const net = val - bal - agent - lg - tax - carry;
-    let cum = 0;
-    for (let y = 1; y <= yrs; y++) {
-      const rentY = grossAnnualRentN * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
-      const effY = rentY * (1 - num0(d.vacancyPct) / 100);
-      cum += effY - (opex * Math.pow(1.02, y - 1)) - annualDebtService;
-    }
+    /* After tax on the rent, the same as the year-by-year path — see yearFlow. */
+    let cum = 0, cumPre = 0;
+    for (let y = 1; y <= yrs; y++) { const f = yearFlow(y); cum += f.cf; cumPre += f.cfPreTax; }
     const profit = cum + net - acquisitionCost;
     const mult = acquisitionCost > 0 ? (cum + net) / acquisitionCost : null;
     return { yrs, value: val, outstanding: bal, agentFee: agent, exitLegal: lg, carry,
              rpgtPct: rc.rate, rpgtRelief: rc.relief, rpgt: tax, sellingCosts: agent + lg + tax + carry,
-             net, cumCash: cum, profit,
+             net, cumCash: cum, cumCashPreTax: cumPre, profit,
              annualised: isNum(mult) && mult > 0 ? (Math.pow(mult, 1 / yrs) - 1) * 100 : null };
   };
   const exits = [5, 10].map(exitAt);
@@ -2388,6 +2422,8 @@ VIEWS.property = () => {
             title: it[2]?.line?.note || 'A commonly-quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder') : null,
           st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:12px',
             title: 'A working figure nobody has checked against the cited source.' }, 'unverified') : null,
+          st === 'quote' ? el('span', { class: 'chip chip-brand', style: 'margin-left:6px;font-size:12px',
+            title: it[2]?.note || 'A figure you entered from a quotation.' }, 'your quote') : null,
         ]),
         isNum(it[1])
           ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
@@ -2799,7 +2835,7 @@ VIEWS.property = () => {
     [`Carried while selling`, e => `−${fmtAmount(e.carry, 'MYR')}`],
     ['Real property gains tax', e => `−${fmtAmount(e.rpgt, 'MYR')} (${e.rpgtPct}%)`],
     ['Net proceeds', e => fmtAmount(e.net, 'MYR')],
-    ['Rental cash over the hold', e => fmtAmount(e.cumCash, 'MYR')],
+    [m.taxComputed ? 'Rental cash over the hold, after tax on the rent' : 'Rental cash over the hold, before tax', e => fmtAmount(e.cumCash, 'MYR')],
     ['Total profit on cash invested', e => fmtAmount(e.profit, 'MYR')],
     ['Annualised', e => isNum(e.annualised) ? fmtPct(e.annualised, 2) : '—'],
   ];
