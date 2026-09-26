@@ -1071,8 +1071,8 @@ function openSourceDrawer(r, f) {
   const rows = [
     ['What it is', PROVENANCE[kind].note],
     ['Formula', f.formula],
-    ['Reporting period', `FY${last(YEARS)}, as reported`],
-    ['Prior period', isNum(prev) ? `FY${YEARS[YEARS.length - 2]} · ${f.fmt(prev)}` : 'not computable'],
+    ['Reporting period', `FY${latestFy(c)}, as reported`],
+    ['Prior period', isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev)}` : 'not computable'],
     ['Currency', c.ccy],
     ['Source', c.real
       ? `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`
@@ -1102,7 +1102,8 @@ function openMetricInfo(f) {
   body.append(el('p', { class: 'eyebrow' }, f.g));
   body.append(el('h3', { class: 'h-section', style: 'margin:4px 0 var(--sm)' }, f.label));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  [['Formula', f.formula], ['Reporting period', `FY${last(YEARS)} (latest reported)`], ['Source', 'Sample statement lines held in this prototype'],
+  [['Formula', f.formula], ['Reporting period', 'The latest fiscal year each company reports — the year is stated on every company page and in the source drawer behind each cell'],
+   ['Source', 'Reported statement lines: SEC EDGAR companyfacts for the filed companies, synthetic sample lines for the illustrative ones. Each company page says which it is.'],
    ['Normalisation', 'None — the figure is computed directly from the stored lines'], ['Missing-data behaviour', f.miss || 'Reported as unavailable; never imputed and never passes a threshold.']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   body.append(kv);
@@ -1374,7 +1375,7 @@ function renderRadar() {
     style: 'max-width:260px', 'aria-label': 'Fiscal year the radar is drawn as of',
     oninput: e => { rr.yi = +e.target.value; render(); } });
   timeRow.append(slider);
-  timeRow.append(el('span', { class: 'chip chip-brand' }, `FY${YEARS[rr.yi]}`));
+  timeRow.append(el('span', { class: 'chip chip-brand' }, rr.yi === YEARS.length - 1 ? 'Latest' : `FY${YEARS[rr.yi]}`));
   timeRow.append(el('span', { class: 'metaline' },
     rr.yi === YEARS.length - 1
       ? 'Latest reported period, current price.'
@@ -1417,7 +1418,7 @@ function renderRadar() {
   card.append(leg);
   card.append(el('div', { style: 'margin-top:var(--sm)' },
     el('div', { class: 'prov', html: [
-      `<b>Period</b> FY${YEARS[rr.yi]} reported`,
+      `<b>Period</b> ${rr.yi === YEARS.length - 1 ? 'latest reported for each company' : `FY${YEARS[rr.yi]} reported`}`,
       `<b>Price</b> ${rr.yi === YEARS.length - 1 ? AS_OF : `FY${YEARS[rr.yi]} close`}`,
       `<b>Cohort</b> ${rr.cohort === 'sector' ? 'sector-relative' : 'market-absolute'}`,
       `<b>Universe</b> ${rows.length} eligible`,
@@ -1425,7 +1426,7 @@ function renderRadar() {
     ].join('<span class="dotsep"></span>') })));
 
   card.append(tableTwin('Show the table view of every plotted company',
-    ['Company', 'Market', `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
+    ['Company', 'Market', rr.yi === YEARS.length - 1 ? 'Price' : `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
     rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
       withSign(r.val.mos.base, 1), String(yOf(r)),
       fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy), esc(r.val.pack.name), r.val.confBand])));
@@ -1466,7 +1467,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   [['Model pack selected', r.val.pack.name],
    ['Selection reason', r.val.pack.why],
-   ['Data date', `FY${YEARS[yi]} reported · price ${latest ? AS_OF : `FY${YEARS[yi]} close`}`],
+   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${AS_OF}` : `FY${YEARS[yi]} reported · price FY${YEARS[yi]} close`],
    ['Price used', fmtMoney(r.price ?? r.c.px.p, r.c.ccy)],
    ['Confidence', `${r.val.confBand} (${r.val.conf}/100)`],
    ['Coverage', `${r.d.m.coverage}% of applicable metrics computable`]]
@@ -1540,7 +1541,7 @@ const THEMES = [
   { id:'recovery', name:'Recovery Watch', mkt:'Both',
     rules:['Revenue drawdown above 20% in the window', 'Latest-year operating profit improving', 'Free cash flow positive in the latest year'],
     excl:['Unresolved going-concern or PN17 status', 'Severe dilution above 3% a year'],
-    test:r => (r.m.revDD ?? 0) > 20 && r.d.ebit[LYI] > r.d.ebit[LYI - 1] && (r.m.fcf ?? -1) > 0 && !r.c.flags.pn17 && (r.m.dilution ?? 0) < 3,
+    test:r => (r.m.revDD ?? 0) > 20 && last(r.d.ebit) > r.d.ebit[r.d.ebit.length - 2] && (r.m.fcf ?? -1) > 0 && !r.c.flags.pn17 && (r.m.dilution ?? 0) < 3,
     rebalance:'Quarterly' },
   { id:'reit', name:'Bursa REIT Income', mkt:'MY',
     rules:['Malaysian REIT', 'Occupancy above 92%', 'Gearing below 40%', 'AFFO covers the distribution'],
@@ -1626,7 +1627,7 @@ function openThemeDetail(t, members) {
   body.append(exc);
 
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  [['Rebalance frequency', t.rebalance], ['Data timestamp', `${AS_OF}, FY${last(YEARS)} reported`],
+  [['Rebalance frequency', t.rebalance], ['Data timestamp', `${AS_OF}, latest reported fiscal year of each company`],
    ['Model version', MODEL_VERSION], ['Turnover', 'Not shown — this prototype holds a single point in time'],
    ['Backtest', 'Not shown. A return series without delisting, survivorship, lag, cost and rebalance assumptions would mislead.']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });

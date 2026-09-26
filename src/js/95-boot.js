@@ -16,8 +16,13 @@ function closeSearch() {
 }
 function runSearch(q) {
   const term = q.trim().toLowerCase();
+  /* The box promises "ticker, name, or Bursa code". addCompany moves a Bursa
+     company's numeric code into c.code and its short name into c.tk, so a
+     search that read only tk and id could never match 1155 to Maybank — the
+     placeholder described a field the filter did not look at. */
   const hits = U.filter(r => !term
     || r.c.tk.toLowerCase().includes(term) || r.c.id.toLowerCase().includes(term)
+    || (r.c.code && String(r.c.code).toLowerCase().includes(term))
     || r.c.name.toLowerCase().includes(term) || r.c.sector.toLowerCase().includes(term)
     || r.c.industry.toLowerCase().includes(term)).slice(0, 10);
   searchResults.replaceChildren(...(hits.length ? hits.map(r => {
@@ -28,6 +33,8 @@ function runSearch(q) {
     const nm = el('div', { style: 'min-width:0;flex:1' });
     nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
       el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), marketChip(r.c.mkt),
+      /* The code the reader may have typed, so a hit on it is visibly a hit. */
+      r.c.code && r.c.code !== r.c.tk ? el('span', { class: 'metaline' }, r.c.code) : null,
       el('span', { class: 'metaline' }, r.c.exch)]));
     nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${r.c.name} · ${r.c.sector}`));
     b.append(nm);

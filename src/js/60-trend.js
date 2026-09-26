@@ -495,7 +495,7 @@ VIEWS.alerts = () => {
       title:`${BY_ID.get(t.ticker).c.tk} — thesis condition breached`,
       what:b.label,
       detail:`Current value ${(b.type === 'val' ? fmtPct(b.actual, 1) : fmtFor(b.k)(b.actual))} against your threshold of ${b.op} ${b.type === 'val' ? fmtPct(b.v, 1) : fmtFor(b.k)(b.v)}.`,
-      source:`FY${last(YEARS)} reported · ${AS_OF}`,
+      source:`FY${latestFy(BY_ID.get(t.ticker).c)} reported · ${AS_OF}`,
     }));
   });
   /* Saved screens with alerting on: anything that entered or left since the
@@ -521,7 +521,25 @@ VIEWS.alerts = () => {
 
   FEED.filter(f => State.watchlist.includes(f.id) || State.theses.some(t => t.ticker === f.id)).slice(0, 8).forEach(f => {
     items.push({ sev:f.sev, kind:f.kind, id:f.id, title:f.title, what:f.detail,
-      detail:'Mapped to your watchlist. No thesis condition covers this yet.', source:`FY${last(YEARS)} reported · ${AS_OF}` });
+      detail:'Mapped to your watchlist. No thesis condition covers this yet.', source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${AS_OF}` });
+  });
+
+  /* User-set price thresholds, evaluated against the current price. Collected
+     HERE, before the feed is drawn — this block used to sit after the render
+     loop, so a crossed threshold was pushed into a list nobody would read
+     again and the feed never showed it. */
+  State.priceAlerts.forEach(pa => {
+    const r = BY_ID.get(pa.ticker);
+    if (!r || !isNum(r.c.px?.p)) return;
+    const hit = pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price;
+    if (!hit) return;
+    items.push({
+      sev:'info', kind:'price', id:pa.ticker,
+      title:`${r.c.tk} is ${pa.op === '>' ? 'above' : 'below'} ${fmtMoney(pa.price, r.c.ccy)}`,
+      what:pa.note || 'Price threshold you set has been crossed.',
+      detail:`Now ${fmtMoney(r.c.px.p, r.c.ccy)}. A price move on its own is not new information — check the "Why moved?" attribution or the latest filing before treating it as such.`,
+      source:`Price ${priceAsOfLabel(r.c)} · threshold set by you`,
+    });
   });
 
   const layout = el('div', { class: 'thesis-layout' });
@@ -551,21 +569,6 @@ VIEWS.alerts = () => {
   });
   feedCard.append(l);
   layout.append(feedCard);
-
-  /* User-set price thresholds, evaluated against the current price. */
-  State.priceAlerts.forEach(pa => {
-    const r = BY_ID.get(pa.ticker);
-    if (!r) return;
-    const hit = pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price;
-    if (!hit) return;
-    items.push({
-      sev:'info', kind:'price', id:pa.ticker,
-      title:`${r.c.tk} is ${pa.op === '>' ? 'above' : 'below'} ${fmtMoney(pa.price, r.c.ccy)}`,
-      what:pa.note || 'Price threshold you set has been crossed.',
-      detail:`Now ${fmtMoney(r.c.px.p, r.c.ccy)}. A price move on its own is not new information — check the "Why moved?" attribution or the latest filing before treating it as such.`,
-      source:`Price ${AS_OF} · threshold set by you`,
-    });
-  });
 
   const rail = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 

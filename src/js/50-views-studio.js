@@ -112,11 +112,25 @@ function tabValuation(r) {
       r.val?.err || 'The statements held for this company do not support any of the models in the router.'));
     card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:10px' },
       'Everything else on this company still works: the reported statements, the scorecard over the inputs that could be computed, and the risk flags. Only the valuation is absent, and it is absent rather than approximated because a discounted-cash-flow estimate built on a substituted cash flow would be an opinion about the substitution rather than about the company.'));
-    if (c.gaps?.length) {
+    /* Two gap shapes reach here. The SEC ingest writes {line, missingYears[]}
+       and {line, reason}; the Malaysian one writes {field, missingYears,
+       ofYears}. This read only the second and printed "undefined — absent in
+       undefined of undefined years" for every filed company that landed on
+       this card. Tag-drift warnings are a third shape and belong to the source
+       drawer, not to a list of lines that were not reported. */
+    const gaps = (c.gaps || []).filter(g => g.missingYears != null || g.reason);
+    if (gaps.length) {
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Statement lines not reported'));
       const ul = el('ul', { class: 'ticklist' });
-      c.gaps.forEach(g => ul.append(el('li', {},
-        `${g.field} — absent in ${g.missingYears} of ${g.ofYears} years retrieved`)));
+      const nYears = yearsOf(c).length;
+      gaps.forEach(g => {
+        const line = g.line || g.field;
+        const text = Array.isArray(g.missingYears)
+          ? `${line} — absent in ${g.missingYears.length} of ${nYears} years retrieved (${g.missingYears.join(', ')})`
+          : isNum(g.missingYears) ? `${line} — absent in ${g.missingYears} of ${g.ofYears ?? nYears} years retrieved`
+          : `${line} — ${g.reason}`;
+        ul.append(el('li', {}, text));
+      });
       card.append(ul);
     }
     gone.append(card);
@@ -240,7 +254,7 @@ function studioOutputs(r, inputs, redraw) {
       warnings.push({ sev:'critical', text:`Even in the success case the enterprise value does not cover the debt — the modelled equity value is nil, not merely low. Every scenario below is bounded at zero because a shareholder cannot owe more than the holding. Treat this as a restructuring outcome, not a valuation range.` });
     if (inputs.burn > 0 && inputs.cash / inputs.burn < 2)
       warnings.push({ sev:'critical', text:`Cash covers only ${fmtNum(inputs.cash / inputs.burn, 1)} years at the current burn. A raise is required well inside the forecast period, and the dilution assumed here prices it at today's share price — a real raise would very likely price lower.` });
-    if (r.d.eq[LYI] < 0)
+    if (last(r.d.eq) < 0)
       warnings.push({ sev:'critical', text:'Shareholders’ funds are negative. Equity is a residual claim behind the creditors, and a restructuring could leave it worth nothing regardless of what the operating model produces.' });
     if (r.c.flags?.pn17)
       warnings.push({ sev:'critical', text:'This company is classified under PN17. It is subject to a regularisation plan, and the outcome of that plan — not the discounted cash flows — determines what the equity is worth.' });
@@ -649,7 +663,9 @@ const CONDITION_STATES = {
 const STALE_AFTER_MONTHS = 18;
 
 function dataAgeMonths() {
-  const latest = YEARS[YEARS.length - 1];
+  /* The most recent fiscal year any loaded company reports, not the axis of
+     the illustrative set — ten filers run a year past it. */
+  const latest = U.length ? Math.max(...U.map(r => latestFy(r.c))) : YEARS[YEARS.length - 1];
   if (!Number.isFinite(latest)) return null;
   /* Fiscal years are recorded by year, so the end of the period is the end of
      that calendar year. Approximate by construction, and the threshold is wide

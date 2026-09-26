@@ -69,7 +69,7 @@ function provenance(row, extra = []) {
   const priceStamp = priceAsOfLabel(c);
   const bits = [
     `<b>Price</b> ${priceStamp}`,
-    `<b>Period</b> FY${last(YEARS)} reported`,
+    `<b>Period</b> FY${latestFy(c)} reported`,
     `<b>Currency</b> ${c.ccy}`,
     `<b>Coverage</b> <span title="Computable ÷ applicable metrics${m.inapplicable ? `. ${m.inapplicable} dictionary metrics do not apply to this business model and are excluded from the denominator rather than counted as missing.` : ''}">${m.coverage}%${m.inapplicable ? ` <span style="color:var(--ink-3)">(${m.inapplicable} n/a)</span>` : ''}</span>`,
     ...extra,

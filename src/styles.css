@@ -436,7 +436,12 @@ body[data-surface="public"] .disclosure-long { display: none; }
    it have different jobs and different contrast floors. 3.93:1 -> 4.61:1.
    --s3 was checked the same way and already measures 4.84:1, so it is left. */
 .chip-my      { background: color-mix(in srgb, var(--s1) 12%, transparent); color: #007460; border-color: color-mix(in srgb, var(--s1) 28%, transparent); }
-:root[data-theme="dark"] .chip-my, html:where(:not([data-theme="light"])) .chip-my { color: var(--s1); }
+/* Dark only: an explicit dark theme, or no theme chosen and the OS dark. The
+   earlier form of this rule also matched `html:not([data-theme="light"])`,
+   which is every visitor who has not picked a theme — including the default
+   light one — and it out-ranked the fix above, so light mode went straight
+   back to the 3.93:1 colour the comment says it left. */
+:root[data-theme="dark"] .chip-my { color: var(--s1); }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .chip-my { color: var(--s1); } }
 .chip-ok      { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
 .chip-warn    { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--ink); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }

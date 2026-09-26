@@ -772,7 +772,7 @@ VIEWS.researchHome = () => {
   if (th.length) {
     const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     th.slice(0, 8).forEach(t => row.append(el('button', { class: 'btn btn-ghost btn-sm',
-      onclick: () => navigate('/theses') }, t.ticker)));
+      onclick: () => navigate('/my/theses') }, t.ticker)));
     cases.append(row);
   } else cases.append(el('p', { class: 'metaline' }, 'No cases saved yet. A case records your own reasoning and the conditions that would change it.'));
   wrap.append(cases);
@@ -1431,7 +1431,7 @@ function tabSnapshot(r) {
   rail.append(sc);
 
   const chg = el('div', { class: 'card' });
-  chg.append(cardHead('What changed', `FY${YEARS[LYI - 1]} to FY${YEARS[LYI]}, as reported.`));
+  chg.append(cardHead('What changed', `FY${yearsOf(c)[yearsOf(c).length - 2]} to FY${latestFy(c)}, as reported.`));
   const ch = changeSummary(c) || [];
   const kv = el('dl', { class: 'kv' });
   ch.forEach(x => { kv.append(el('dt', {}, x.label)); kv.append(el('dd', { class: signClass(x.v) }, withSign(x.v, 1))); });
@@ -1550,11 +1550,12 @@ State.finMode = 'abs';
 function tabFinancials(r) {
   const { c, d, m } = r;
   const isBank = c.type === 'bank';
+  const yrs = yearsOf(c);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
   const chartCard = el('div', { class: 'card' });
   chartCard.append(cardHead('Revenue, operating profit and free cash flow',
-    `Reported ${c.ccy} billions, FY${YEARS[0]}–FY${last(YEARS)}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
+    `Reported ${c.ccy} billions, FY${yrs[0]}–FY${last(yrs)}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
     el('div', { class: 'segmented' }, [['abs', 'Reported'], ['idx', 'Indexed to 100']].map(([v, l]) =>
       el('button', { 'aria-selected': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
   const host = el('div', { style: 'width:100%' });
@@ -1571,10 +1572,10 @@ function tabFinancials(r) {
   series.forEach(s => leg.append(el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(${s.varName})"></span>${esc(s.label)}` })));
   chartCard.append(leg);
   chartCard.append(tableTwin('Show the table view',
-    ['Line', ...YEARS.map(y => `FY${y}`)],
+    ['Line', ...yrs.map(y => `FY${y}`)],
     series.map(s => [s.label, ...s.values.map(v => isNum(v) ? fmtNum(v, 2) : 'n/a')])));
   wrap.append(chartCard);
-  columnChart(host, { cats: YEARS.map(y => `FY${y}`), series, fmt: v => State.finMode === 'idx' ? fmtNum(v, 0) : fmtNum(v, Math.abs(v) < 10 ? 1 : 0), title: 'Reported financials' });
+  columnChart(host, { cats: yrs.map(y => `FY${y}`), series, fmt: v => State.finMode === 'idx' ? fmtNum(v, 0) : fmtNum(v, Math.abs(v) < 10 ? 1 : 0), title: 'Reported financials' });
 
   /* statement table */
   const stmt = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
@@ -1584,31 +1585,44 @@ function tabFinancials(r) {
     `All values in ${c.ccy} billions unless stated. Derived lines are marked — they are computed from the reported lines above them, not stored separately.`));
   stmt.append(sh);
 
+  /* Derived cells follow derive()'s own rule: both inputs or nothing. `-v` on a
+     missing capex printed "-0.000", and `v - cash` on a missing debt line
+     printed a net cash position — the table asserting, in a cell beside the
+     word "derived", the two things the engine had just declined to assert. */
+  const neg = (arr) => arr.map(v => isNum(v) ? -v : null);
+  const diff = (a, b) => a.map((v, i) => isNum(v) && isNum(b[i]) ? v - b[i] : null);
   const lines = [
     ['Revenue', d.rev, false], ['Operating profit', d.ebit, false], ['Net profit', d.ni, false],
-    ...(isBank ? [] : [['Operating cash flow', d.ocf, false], ['Capital expenditure', d.capex.map(v => -v), false], ['Free cash flow', d.fcf, true]]),
+    ...(isBank ? [] : [['Operating cash flow', d.ocf, false], ['Capital expenditure', neg(d.capex), false], ['Free cash flow', d.fcf, true]]),
     ['Shareholders’ equity', d.eq, false], [isBank ? 'Borrowings' : 'Total debt', d.debt, false],
-    ...(isBank ? [] : [['Cash and equivalents', d.cash, false], ['Net debt', d.debt.map((v, i) => v - d.cash[i]), true]]),
-    ['Shares in issue (bn)', d.sh, false],
-    [c.type === 'reit' ? 'Distribution per unit' : 'Dividend per share', d.dps, false],
-    ['Earnings per share', d.eps, true],
-    ['Book value per share', d.bvps, true],
+    ...(isBank ? [] : [['Cash and equivalents', d.cash, false], ['Net debt', diff(d.debt, d.cash), true]]),
+    ['Shares in issue (bn)', d.sh, false, true],
+    [c.type === 'reit' ? 'Distribution per unit' : 'Dividend per share', d.dps, false, true],
+    ['Earnings per share', d.eps, true, true],
+    ['Book value per share', d.bvps, true, true],
   ];
   const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, 'Line'), ...YEARS.map(y => el('th', {}, `FY${y}`)), el('th', {}, `${YEARS.length - 1}y CAGR`)])));
+  t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, 'Line'), ...yrs.map(y => el('th', {}, `FY${y}`)), el('th', {}, `${yrs.length - 1}y CAGR`)])));
   const tb = el('tbody');
-  lines.forEach(([label, arr, derivedLine]) => {
+  const split = m.shareSeriesBreak;
+  lines.forEach(([label, arr, derivedLine, perShare]) => {
     const tr = el('tr');
     tr.append(el('td', { class: 'pin ident', html: esc(label) + (derivedLine ? ' <span class="chip" style="height:16px;font-size:12px;padding:0 5px">derived</span>' : '') }));
     arr.forEach(v => tr.append(el('td', { html: isNum(v) ? fmtNum(v, Math.abs(v) < 10 ? (Math.abs(v) < 1 ? 3 : 2) : 1) : NA })));
-    const g = cagr(arr);
-    tr.append(el('td', { class: signClass(g), html: isNum(g) ? withSign(g, 1) : '<span class="caption">n/m</span>' }));
+    /* A per-share series that crosses a split has no growth rate — the same
+       withholding the corporate-actions card applies to the share count. */
+    const withheld = perShare && split;
+    const g = withheld ? null : cagr(arr);
+    tr.append(el('td', { class: signClass(g), html: isNum(g) ? withSign(g, 1)
+      : withheld ? '<span class="caption" title="The share count moves by a corporate action inside this window, so a growth rate over any per-share line would measure the split. Withheld.">withheld</span>'
+      : '<span class="caption">n/m</span>' }));
     tb.append(tr);
   });
   t.append(tb); tw.append(t); stmt.append(tw);
   stmt.append(el('div', { style: 'padding:var(--sm) var(--lg)' },
-    el('p', { class: 'metaline' }, 'CAGR is null where the base period is non-positive — shown as n/m rather than as a computed number that would not mean anything.')));
+    el('p', { class: 'metaline' }, 'CAGR is null where the base period is non-positive — shown as n/m rather than as a computed number that would not mean anything.'
+      + (split ? ` Per-share growth is withheld: the share count moves from ${fmtNum(split.from, 2)}bn to ${fmtNum(split.to, 2)}bn inside this window, which is a corporate action, and the filings are not restated for it.` : ''))));
   wrap.append(stmt);
 
   /* derived quarterly */
@@ -1638,7 +1652,7 @@ function tabQuality(r) {
   chips.append(el('span', { class: 'chip' }, `Model ${MODEL_VERSION}`));
   chips.append(el('span', { class: 'chip' }, `Cohort: ${r.c.mkt} market`));
   chips.append(el('span', { class: 'chip' }, `Calculated ${AS_OF}`));
-  chips.append(el('span', { class: 'chip' }, `Source periods FY${YEARS[0]}–FY${last(YEARS)}`));
+  chips.append(el('span', { class: 'chip' }, `Source periods FY${yearsOf(r.c)[0]}–FY${latestFy(r.c)}`));
   intro.append(chips);
   wrap.append(intro);
 
@@ -1872,7 +1886,7 @@ function tabOwnership(r) {
   act.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' },
     el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(--s1)"></span>Shares in issue (bn)` })));
   act.append(tableTwin('Show the table view', ['Year', 'Shares (bn)', 'Change'],
-    YEARS.map((y, i) => [`FY${y}`, fmtNum(d.sh[i], 3), i ? withSign((d.sh[i] - d.sh[i - 1]) / d.sh[i - 1] * 100, 2) : '—'])));
+    yearsOf(c).map((y, i) => [`FY${y}`, fmtNum(d.sh[i], 3), i && isNum(d.sh[i]) && isNum(d.sh[i - 1]) && d.sh[i - 1] ? withSign((d.sh[i] - d.sh[i - 1]) / d.sh[i - 1] * 100, 2) : '—'])));
   const kv2 = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
   [['Share count CAGR', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.dilution, 2)],
    ['Net buyback yield', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.buyback, 2)],
@@ -1900,7 +1914,7 @@ function tabOwnership(r) {
         + `The year-by-year counts above are as filed and remain correct on their own terms.`)));
   }
   wrap.append(act);
-  columnChart(host, { cats: YEARS.map(y => `FY${y}`), series: [{ key:'sh', label:'Shares in issue', values:d.sh, varName:'--s1' }], fmt: v => fmtNum(v, 2) });
+  columnChart(host, { cats: yearsOf(c).map(y => `FY${y}`), series: [{ key:'sh', label:'Shares in issue', values:d.sh, varName:'--s1' }], fmt: v => fmtNum(v, 2) });
   return wrap;
 }
 
@@ -1936,12 +1950,13 @@ function tabFilings(r) {
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--sm) 0 6px' }, 'What changed'));
       const tw = el('div', { class: 'tablewrap' });
       const t = el('table', { class: 'dt' });
-      t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, `FY${YEARS[LYI - 1]}`), el('th', {}, `FY${YEARS[LYI]}`), el('th', {}, 'Change')])));
+      const yrs = yearsOf(c), li = yrs.length - 1;
+      t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, `FY${yrs[li - 1]}`), el('th', {}, `FY${yrs[li]}`), el('th', {}, 'Change')])));
       const map = { 'Revenue':r.d.rev, 'Operating profit':r.d.ebit, 'Net profit':r.d.ni, 'Dividend per share':r.d.dps, 'Distribution per unit':r.d.dps, 'Shares in issue':r.d.sh };
       t.append(el('tbody', {}, doc.changed.map(x => el('tr', {}, [
         el('td', { class: 'ident' }, x.label),
-        el('td', {}, fmtNum(map[x.label]?.[LYI - 1] ?? 0, 2)),
-        el('td', {}, fmtNum(map[x.label]?.[LYI] ?? 0, 2)),
+        el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
+        el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
         el('td', { class: signClass(x.v) }, withSign(x.v, 1)),
       ]))));
       tw.append(t); card.append(tw);

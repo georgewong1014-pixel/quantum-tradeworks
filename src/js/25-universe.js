@@ -271,8 +271,8 @@ function momentumOf(r) {
   const pc = (a, b) => isNum(a) && isNum(b) && a !== 0 ? (b - a) / Math.abs(a) * 100 : null;
   const raw = {
     rel: isNum(r.c.px?.m12) ? r.c.px.m12 - medRs : null,
-    ebitDir: pc(r.d.ebit[LYI - 1], r.d.ebit[LYI]),
-    revDir: pc(r.d.rev[LYI - 1], r.d.rev[LYI]),
+    ebitDir: pc(r.d.ebit[r.d.ebit.length - 2], last(r.d.ebit)),
+    revDir: pc(r.d.rev[r.d.rev.length - 2], last(r.d.rev)),
   };
   let acc = 0, wsum = 0;
   const parts = MOM_INPUTS.map(i => {
@@ -372,7 +372,16 @@ function universeAsOf(yi) {
   if (_asOfCache.has(yi)) return _asOfCache.get(yi);
   const rows = U.map(r => {
     const c = r.c;
-    const shadow = { ...c, fin: c.fin.slice(0, yi + 1), px: { ...c.px, p: priceSeries(c)[yi] } };
+    /* Truncate by fiscal YEAR, not by row index. A company whose window runs
+       2017–2026 has FY2026 in row nine; slicing to row `yi` would keep it in a
+       snapshot labelled FY2025. At the top stop nothing is cut and the price is
+       whatever the company actually carries — an entered close included — so
+       "latest reported, current price" means exactly that for every row. */
+    const latest = yi === YEARS.length - 1;
+    const yrs = yearsOf(c);
+    const cut = latest ? c.fin.length : yrs.filter(y => y <= YEARS[yi]).length;
+    const shadow = { ...c, fin: c.fin.slice(0, cut), years: yrs.slice(0, cut),
+                     px: latest ? c.px : { ...c.px, p: priceSeries(c)[yi] } };
     const d = derive(shadow);
     const inputs = defaultInputs(shadow, d);
     const val = valuationRun(shadow, d, inputs);
@@ -395,11 +404,11 @@ function quarters(c, d) {
   const rnd = seeded(c.id + 'q');
   const shape = [0, 1, 2, 3].map(() => 0.85 + rnd() * 0.3);
   const norm = shape.map(s => s / sum(shape) * 4);
-  const out = [];
-  [LYI - 1, LYI].forEach((yi, k) => {
+  const out = [], n = d.rev.length, yrs = yearsOf(c);
+  [n - 2, n - 1].forEach((yi, k) => {
     for (let q = 0; q < 4; q++) {
       out.push({
-        label: `Q${q + 1} FY${YEARS[yi]}`,
+        label: `Q${q + 1} FY${yrs[yi]}`,
         rev: d.rev[yi] / 4 * norm[q],
         ni: d.ni[yi] / 4 * norm[(q + 1) % 4],
       });
@@ -443,7 +452,7 @@ function documents(c) {
    it is a diff, not a generated narrative. */
 function changeSummary(c) {
   const r = BY_ID.get(c.id); if (!r) return null;
-  const d = r.d, i = LYI;
+  const d = r.d, i = d.rev.length - 1;
   const pctChange = (a, b) => isNum(a) && isNum(b) && a !== 0 ? (b - a) / Math.abs(a) * 100 : null;
   return [
     { label:'Revenue',            v:pctChange(d.rev[i-1], d.rev[i]) },
@@ -552,7 +561,7 @@ function realToCompany(r) {
     typeAssumed: !REAL_TYPES[r.id] && (r.assumed !== false),
     sic: r.sic || null, sicDescription: r.sicDescription || null,
     desc: `Audited annual statements retrieved from SEC EDGAR (CIK ${r.cik}) on ${r.retrieved}. SEC publishes filings, not market data — the price basis is stated separately below.`,
-    px, fin,
+    px, fin, years: r.years,
     real: true, cik: r.cik, provenance: r.provenance, gaps: r.gaps,
     completeness: r.completeness, retrieved: r.retrieved,
     seg: [], moat: { kind:'Not assessed', dur:'—', conf:'Low',
@@ -593,7 +602,7 @@ function myFundamentalsToCompany(r) {
        say so rather than let a default read as a decision. */
     type: r.type || 'mature', typeAssumed: true,
     desc: `Annual statements for ${r.years[0]}–${r.years[r.years.length - 1]}, retrieved ${r.retrieved} for personal research. Not licensed market data and not redistributable. Bursa Malaysia publishes no machine-readable statements, so nothing equivalent is available to the deployed product.`,
-    px, fin,
+    px, fin, years: r.years,
     real: true, personal: true, provenance: 'personal-research',
     gaps: r.gaps, completeness: r.completeness, retrieved: r.retrieved,
     sarawak: !!r.sarawak, sarawakTheme: r.sarawakTheme || null,

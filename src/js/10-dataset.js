@@ -11,6 +11,27 @@
    ========================================================================== */
 const YEARS = [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
 const LYI = YEARS.length - 1;          /* index of the latest reported year */
+
+/* THE FISCAL YEAR BELONGS TO THE COMPANY, NOT TO THE DATASET.
+   ---------------------------------------------------------------------------
+   YEARS above is the axis of the illustrative set, and for a long time it was
+   the only axis there was. Filed companies arrived carrying their own `years`
+   array — and ten of them (Microsoft, Nvidia, Walmart, Oracle, Nike and five
+   more, every one with a fiscal year that ends before December) span 2017–2026
+   rather than 2016–2025. Every surface went on labelling their columns from
+   YEARS, so each of their figures sat under a heading one year too early: the
+   year Microsoft calls fiscal 2026 was printed as FY2025, and so on back.
+
+   The value was right and the label was wrong, which is the harder kind of
+   error to notice. Every label now asks the company. Where a record carries no
+   years of its own the window is the most recent slice of YEARS, which is what
+   the previous code silently assumed for everything. */
+const yearsOf = (c) => {
+  if (Array.isArray(c?.years) && c.years.length === c.fin?.length) return c.years;
+  const n = c?.fin?.length || YEARS.length;
+  return n >= YEARS.length ? YEARS : YEARS.slice(YEARS.length - n);
+};
+const latestFy = (c) => { const y = yearsOf(c); return y[y.length - 1]; };
 const AUTHORED_YEARS = 5;              /* the rows written out below, FY2021–FY2025 */
 
 /* Per-line annual growth bands used to reconstruct the earlier history.

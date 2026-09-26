@@ -85,9 +85,13 @@ function defaultInputs(c, d) {
              combined:c.ins?.combined ?? 100, solvency:c.ins?.solvency ?? 1.5, payout };
   }
   if (pack.id === 'early') {
+    /* The downside floor is net cash per share and the equity bridge is net
+       debt; neither exists without both balance-sheet lines. */
+    if (!isNum(m.netDebt) || !isNum(last(d.cash))) return { model:'unavailable', pack: pack.id,
+      reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt or cash line. A financing-adjusted estimate is not available, and no balance has been assumed.` };
     /* Years to break even, from the current loss and the assumed improvement. */
     const burn = c.early?.burn ?? Math.max(0.05, -last(d.fcf) || 0.2);
-    const cashNow = last(d.cash) || 0;
+    const cashNow = last(d.cash);
     return { model:'early',
       rev0:+last(d.rev).toFixed(3),
       revCagr:+clamp(isNum(m.rev5) ? m.rev5 * 0.5 : 12, 0, 40).toFixed(2),
@@ -127,6 +131,17 @@ function defaultInputs(c, d) {
      itself unavailable — which is the truthful outcome and the useful one. */
   if (!isNum(baseFcf)) return { model:'unavailable', pack: pack.id,
     reason: `No free cash flow could be computed for ${c.tk || c.code}: the statements carry no operating cash flow line for any year retrieved. A discounted-cash-flow estimate is not available, and no substitute has been assumed.` };
+  /* NET DEBT IS THE BRIDGE, AND A MISSING BRIDGE IS NOT A ZERO-LENGTH ONE.
+     ---------------------------------------------------------------------
+     `ev - (netDebt || 0)` valued twelve filers — Ford, General Motors and
+     Deere among them, each carrying tens of billions in borrowings — as if
+     they were debt-free, because the debt tags did not resolve. That is not a
+     conservative estimate or a rough one; it is a specific, large, wrong
+     claim about the balance sheet, produced by the absence of the line that
+     would have contradicted it. The same rule derive() applies to net gearing
+     applies here: both lines, or no bridge, and no bridge means no estimate. */
+  if (!isNum(m.netDebt)) return { model:'unavailable', pack: pack.id,
+    reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt line, no cash line, or neither. Enterprise value cannot be bridged to a value per share, so no estimate is shown and no balance has been assumed.` };
   /* Weighted average cost of capital from the company's own capital structure:
      equity at the cost of equity, debt at the risk-free rate plus a credit
      spread, after tax. Weights come from market value of equity and book debt. */
@@ -173,6 +188,7 @@ function valueDCF(inp) {
   const { fcf0, g1, gt, wacc, netDebt, shares, years, hold = 0 } = inp;
   const r = wacc / 100, gT = gt / 100;
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
+  if (!isNum(netDebt)) return { error: 'Net debt is not established, so enterprise value cannot be bridged to equity. No balance has been assumed.' };
   let f = fcf0, pvExplicit = 0;
   const flows = [];
   for (let t = 1; t <= years; t++) {
@@ -186,10 +202,10 @@ function valueDCF(inp) {
   const terminal = f * (1 + gT) / (r - gT);
   const pvTerminal = terminal / Math.pow(1 + r, years);
   const ev = pvExplicit + pvTerminal;
-  const equity = ev - (netDebt || 0);
+  const equity = ev - netDebt;
   const holdDiscount = equity * (hold / 100);
   return { perShare: (equity - holdDiscount) / shares, pvExplicit, pvTerminal, ev, equity,
-           netDebt: netDebt || 0, holdDiscount, hold, flows,
+           netDebt, holdDiscount, hold, flows,
            terminalShare: pvTerminal / ev * 100 };
 }
 
@@ -238,10 +254,10 @@ function valueScenario(inp) {
   const terminal = lastFcf * (1 + gT) / (r - gT);
   const pvTerminal = terminal / Math.pow(1 + r, years);
   const ev = pvExplicit + pvTerminal;
-  const equity = ev - (netDebt || 0);
+  const equity = ev - netDebt;
   const dilutedShares = shares * Math.pow(1 + (dilution || 0) / 100, years);
   return { perShare: equity / dilutedShares, pvExplicit, pvTerminal, ev, equity,
-           netDebt: netDebt || 0, flows, shares, dilutedShares,
+           netDebt, flows, shares, dilutedShares,
            undilutedPerShare: equity / shares,
            terminalRevenue: last(flows).rev, terminalShare: pvTerminal / ev * 100 };
 }
@@ -272,8 +288,12 @@ function consistencyWarnings(c, d, inputs) {
 
   /* Per-share inputs must stay in the same order of magnitude as the price. */
   const perShare = [['bvps', 'Book value per share'], ['dpu', 'Distribution per unit']];
+  /* Only where there is a price to compare against. With none, `c.px.p * 25`
+     is nought and every book value on every unpriced bank, REIT and insurer
+     tripped a "serious" warning about exceeding a share price that does not
+     exist. */
   for (const [k, label] of perShare) {
-    if (isNum(inputs[k]) && inputs[k] > c.px.p * 25)
+    if (isNum(inputs[k]) && isNum(c.px?.p) && c.px.p > 0 && inputs[k] > c.px.p * 25)
       flag(`${label} of ${fmtMoney(inputs[k], c.ccy)} is far above the share price of ${fmtMoney(c.px.p, c.ccy)}. This is usually a whole-company figure entered on a per-share input.`);
   }
   if (isNum(inputs.shares) && last(d.sh) > 0) {
@@ -300,6 +320,7 @@ function valueEarly(inp) {
   const { rev0, revCagr, termMargin, fcfConv, wacc, gt, years, burn, cash, pSuccess, shares, price, netDebt } = inp;
   const r = wacc / 100, gT = gt / 100;
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate.' };
+  if (!isNum(netDebt)) return { error: 'Net debt is not established, so neither the equity bridge nor the net-cash floor can be computed. No balance has been assumed.' };
   if (rev0 <= 0) return { error: 'Starting revenue must be positive.' };
   if (price <= 0) return { error: 'A financing need cannot be priced from a zero share price.' };
 
@@ -318,7 +339,7 @@ function valueEarly(inp) {
   const terminal = last(flows).fcf * (1 + gT) / (r - gT);
   const pvTerminal = terminal / Math.pow(1 + r, years);
   const ev = pv + pvTerminal;
-  const equity = ev - (netDebt || 0);
+  const equity = ev - netDebt;
 
   /* Financing: burn continues until the margin ramp turns cash flow positive.
      Whatever cash does not cover has to be raised, and is priced as dilution
@@ -337,12 +358,12 @@ function valueEarly(inp) {
   /* Downside floor: net cash per share, never below zero. netDebt is debt less
      cash, so net cash is simply its negative — and a company with more debt
      than cash has no floor left for equity holders. */
-  const floor = Math.max(0, -(netDebt || 0) / shares);
+  const floor = Math.max(0, -netDebt / shares);
   const p = clamp(pSuccess, 0, 100) / 100;
   const perShare = Math.max(0, p * successPerShare + (1 - p) * floor);
 
   return { perShare, successPerShare, rawSuccessPerShare, equityWipedOut, floor, need, newShares, yearsToBreakeven,
-           pvExplicit: pv, pvTerminal, ev, equity, netDebt: netDebt || 0, shares,
+           pvExplicit: pv, pvTerminal, ev, equity, netDebt, shares,
            dilution: newShares / shares * 100, flows,
            terminalShare: ev ? pvTerminal / ev * 100 : 0, p };
 }
@@ -384,7 +405,10 @@ function nineMethods(r) {
     if (c.type === 'bank') return na('Free cash flow is not meaningful for a deposit-taking balance sheet.');
     const ocf = last(d.ocf), capex = last(d.capex);
     if (!isNum(ocf)) return na('Operating cash flow is not carried for this company.');
-    const netBorrow = last(d.debt) - d.debt[d.debt.length - 2];
+    if (!isNum(capex)) return na('Capital expenditure is not carried for the latest year, so the equity flow cannot be computed.');
+    const debtNow = last(d.debt), debtPrev = d.debt[d.debt.length - 2];
+    if (!isNum(debtNow) || !isNum(debtPrev)) return na('Borrowings are not carried for both of the last two years, so net new borrowing — part of the equity flow — is unknown.');
+    const netBorrow = debtNow - debtPrev;
     const f0 = ocf - capex + netBorrow;
     if (f0 <= 0) return na('Equity free cash flow is negative in the latest year.');
     const rr = coeOf() / 100, g = clamp(isNum(m.rev5) ? m.rev5 * 0.5 : 2, 0, 4) / 100;
@@ -398,10 +422,15 @@ function nineMethods(r) {
      "what is this worth if it never grows again". */
   const epv = (() => {
     if (c.type === 'bank' || c.type === 'reit') return na('Not applied to financials or REITs, where operating profit is not the right base.');
-    const norm = sum(d.ebit.slice(-5)) / 5;
+    /* sum() reads a missing year as nought, so a five-year average over four
+       reported years was silently a four-fifths average. All five, or none. */
+    const window = d.ebit.slice(-5);
+    if (window.length < 5 || !window.every(isNum)) return na('Operating profit is not reported for each of the last five years, so no five-year average exists.');
+    if (!isNum(m.netDebt)) return na('Net debt is not established, so enterprise value cannot be bridged to a value per share.');
+    const norm = sum(window) / 5;
     if (norm <= 0) return na('Normalised operating profit is not positive.');
     const ev = norm * (1 - TAX[c.mkt]) / (wacc / 100);
-    return { value: (ev - (m.netDebt || 0)) / shares,
+    return { value: (ev - m.netDebt) / shares,
              why: `Five-year average operating profit of ${fmtCap(norm, c.ccy)} after tax, capitalised at ${fmtPct(wacc)} with no growth.` };
   })();
 
@@ -423,7 +452,8 @@ function nineMethods(r) {
     }
     const ee = median(peers.map(p => p.m.evebit));
     if (!isNum(ee) || last(d.ebit) <= 0) return na('Peer EV/EBIT or the company’s own operating profit is not usable.');
-    return { value: (ee * last(d.ebit) - (m.netDebt || 0)) / shares,
+    if (!isNum(m.netDebt)) return na('Net debt is not established, so an enterprise-value multiple cannot be bridged to a value per share.');
+    return { value: (ee * last(d.ebit) - m.netDebt) / shares,
              why: `Peer median EV/EBIT of ${fmtX(ee)} on operating profit of ${fmtCap(last(d.ebit), c.ccy)}.` };
   })();
 

@@ -334,7 +334,12 @@ function derive(c) {
   m.pb    = hasPx && isNum(m.bvps) && m.bvps > 0 ? price / m.bvps : null;
   m.pfcf  = hasPx && isNum(m.fcfps) && m.fcfps > 0 ? price / m.fcfps : null;
   m.evebit = isNum(ev) && ebit[i] > 0 ? ev / ebit[i] : null;
-  m.dy    = hasPx && price > 0 ? dps[i] / price * 100 : null;
+  /* A dividend line that is absent is not a dividend of nothing. Twenty-one of
+     the filers carry no latest-year DPS, and several of them pay one — the tag
+     simply did not resolve. Yield, payout and cover therefore require the line,
+     and report unknown without it, rather than publishing 0% and letting the
+     capital-allocation pillar score that as maximum retention. */
+  m.dy    = hasPx && price > 0 && isNum(dps[i]) ? dps[i] / price * 100 : null;
   m.fcfy  = isNum(m.fcf) && isNum(mcap) && mcap > 0 ? m.fcf / mcap * 100 : null;
   m.ey    = isNum(m.pe) ? 100 / m.pe : null;
 
@@ -500,6 +505,14 @@ function derive(c) {
     if (ratio > 1.5 || ratio < 0.67) { shBreak = { from: prev, to: cur, ratio: +ratio.toFixed(2) }; break; }
   }
   m.shareSeriesBreak = shBreak;
+  /* The split reaches every per-share series, not just the share count. Nvidia
+     reports 2.47bn shares one year and 24.6bn the next, and its earnings per
+     share fall to a tenth on the same day for the same reason; a growth rate
+     across that boundary measures the split. Apple's dividend reads 2.40 then
+     0.68. Earnings, book value and dividend growth are therefore withheld on
+     the same evidence that withholds share-count growth — the whole-company
+     lines (revenue, cash flow) are unaffected and keep their rates. */
+  if (shBreak) { m.eps5 = null; m.bv5 = null; m.dps5 = null; m.eps10 = null; m.dps10 = null; }
   const shCagr = shBreak ? null : cagr(sh);
   m.dilution = isNum(shCagr) ? shCagr : null;          /* +ve = issuing */
   m.buyback  = isNum(shCagr) ? -shCagr : null;         /* +ve = shrinking */
@@ -525,14 +538,17 @@ function derive(c) {
   m.perShareScaleBroken = perShareScaleBroken
     ? `A dividend of ${fmtNum(dps[i], 2)} a share against earnings of ${fmtNum(m.eps, 4)} a share is a ratio of ${Math.round(dps[i] / m.eps)}:1. No dividend policy produces that, so the two figures were built from inputs on different scales — most likely a reported value read at the wrong magnitude. Every earnings-derived ratio is withheld until the underlying lines agree.`
     : null;
-  m.payout   = isNum(m.eps) && m.eps > 0 && !perShareScaleBroken ? dps[i] / m.eps * 100 : null;
+  m.payout   = isNum(m.eps) && m.eps > 0 && isNum(dps[i]) && !perShareScaleBroken ? dps[i] / m.eps * 100 : null;
   /* Everything else that divides by the same earnings figure. Withheld here
      rather than at each computation above, because they run before the two
      per-share figures are both in hand — and a metric suppressed in one place
      and left standing in another is worse than either choice made throughout. */
   if (perShareScaleBroken) { m.nm = null; m.roe = null; m.pe = null; m.cashconv = null; }
-  m.cashPayout = isNum(m.fcf) && m.fcf > 0 ? (dps[i] * sh[i]) / m.fcf * 100 : null;
-  m.reinv    = isNum(ocf[i]) && ocf[i] > 0 ? capex[i] / ocf[i] * 100 : null;
+  m.cashPayout = isNum(m.fcf) && m.fcf > 0 && isNum(dps[i]) && isNum(sh[i]) ? (dps[i] * sh[i]) / m.fcf * 100 : null;
+  /* Same rule for the reinvestment rate: `capex[i] / ocf[i]` with no capex line
+     published 0% — "reinvests nothing" — on thirteen filers, among them oil
+     producers and utilities whose capital programme is most of what they do. */
+  m.reinv    = isNum(ocf[i]) && ocf[i] > 0 && isNum(capex[i]) ? capex[i] / ocf[i] * 100 : null;
 
   /* --- market ------------------------------------------------------------ */
   /* Momentum comes from observed closes or it does not exist.
