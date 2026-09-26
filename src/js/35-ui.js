@@ -81,15 +81,25 @@ function provenance(row, extra = []) {
   return el('div', { class: 'prov', html: bits.join('<span class="dotsep"></span>') });
 }
 
+/* The one word that separates a synthetic company from an audited one, for
+   every list that names companies by ticker. As an element beside the ticker
+   or as text after a name — never at the END of a span that truncates, which
+   is where the first version put it and where a 190px ellipsis ate it on
+   sixteen of eighteen illustrative rows. */
+const ILLUS_TITLE = 'Illustrative figures — synthetic, created for interface demonstration. Not filed, and not real.';
+const illusChip = (c) => c?.real ? null : el('span', { class: 'illus', title: ILLUS_TITLE }, 'illustrative');
+const illusText = (c) => c?.real ? '' : ' · illustrative';
+
 function tickerCell(row) {
   /* Filed and illustrative companies sit in the same screener, heatmap and
      comparison rows. The company page says which is which; these rows did
      not, so a synthetic Bursa company and an audited US filer were
-     indistinguishable in the one place they are ranked side by side. */
+     indistinguishable in the one place they are ranked side by side. The
+     marker sits on the ticker line, which does not truncate. */
   const b = el('button', { class: 'tickerbtn', onclick: () => openResearch(row.c.id),
-    title: row.c.real ? undefined : 'Illustrative figures — synthetic, created for interface demonstration.' });
-  b.append(el('span', { class: 'tk' }, row.c.tk));
-  b.append(el('span', { class: 'nm' }, (row.c.mkt === 'MY' ? `${row.c.code} · ${row.c.name}` : row.c.name) + (row.c.real ? '' : ' · illustrative')));
+    title: row.c.real ? undefined : ILLUS_TITLE });
+  b.append(el('span', { class: 'tk' }, [row.c.tk, illusChip(row.c)]));
+  b.append(el('span', { class: 'nm' }, row.c.mkt === 'MY' ? `${row.c.code} · ${row.c.name}` : row.c.name));
   return b;
 }
 
@@ -144,13 +154,24 @@ function openDrawer(title, node) {
   requestAnimationFrame(() => { drawer.dataset.open = '1'; scrim.dataset.open = '1'; });
   $$('[data-close-drawer]', drawer)[0]?.focus();
 }
-function closeDrawer() {
+/* Closes whichever is open. The scrim sits under both dialogs, so a click on
+   it with only the search box open used to run the drawer's close path too —
+   and 300ms later hand focus to whatever had opened the LAST drawer, undoing
+   the search box's own focus restore. A drawer that is not open has nothing
+   to close and no focus to give back. restore:false is for a navigation away
+   from the page the drawer belonged to, where the new page takes focus. */
+function closeDrawer({ restore = true } = {}) {
+  if (drawer.hidden) { closeSearch(); return; }
   drawer.dataset.open = '0'; scrim.dataset.open = '0';
-  setTimeout(() => { drawer.hidden = true; lastFocus?.focus(); }, 300);
+  const back = lastFocus; lastFocus = null;
+  setTimeout(() => {
+    drawer.hidden = true;
+    if (restore && back && back !== document.body && document.contains(back)) back.focus?.({ preventScroll: true });
+  }, 300);
   closeSearch();
 }
-scrim.addEventListener('click', closeDrawer);
-$$('[data-close-drawer]').forEach(b => b.addEventListener('click', closeDrawer));
+scrim.addEventListener('click', () => closeDrawer());
+$$('[data-close-drawer]').forEach(b => b.addEventListener('click', () => closeDrawer()));
 
 let toastTimer;
 function toast(msg) {
@@ -369,22 +390,73 @@ function setDocumentMeta(route) {
 }
 
 /* Navigate. push=false is for popstate, where the browser already moved. */
+/* "path?query" built from the current address: every parameter except `tab`
+   travels — ?personal=1 and ?real=0 are read at boot and by the home checkbox,
+   and a tab click must not strip them — and `tab` is set or dropped as the
+   caller says. navigate() strips a trailing "?" so an empty query is clean. */
+function withQuery(path, tab) {
+  const q = new URLSearchParams(location.search); q.delete('tab');
+  if (tab) q.set('tab', tab);
+  return `${path}?${q.toString()}`;
+}
+/* The tab the address currently names, if it is one of this view's. */
+const currentTabIn = (tabs) => { const t = new URLSearchParams(location.search).get('tab'); return t && tabs.some(x => x.id === t) ? t : null; };
+
+let lastPath = location.pathname;
 function navigate(path, { push = true, replace = false } = {}) {
-  /* A path with no query keeps the current one. A path ending in a bare "?"
-     means "and no query" — the one way a caller can drop a stale ?tab= when
-     it moves to a route that carries its tab in the path. */
-  const url = (href(path) + (path.includes('?') ? '' : location.search.replace(/^\?$/, ''))).replace(/\?$/, '');
+  /* A path with no query keeps the current one — MINUS a tab that belongs to
+     another view. A tab id means something only inside its own view, and a
+     research tab riding onto /discover reached a panel lookup with no such
+     panel and threw. It is also dropped when the target route names its own
+     tab in the path. A path ending in a bare "?" means "and no query". */
+  let url;
+  if (path.includes('?')) url = href(path);
+  else {
+    const target = matchRoute(path);
+    const q = new URLSearchParams(location.search);
+    if (!target || target.view !== State.view || target.tab) q.delete('tab');
+    const s = q.toString();
+    url = href(path) + (s ? `?${s}` : '');
+  }
+  url = url.replace(/\?$/, '');
   if (replace) history.replaceState({ path }, '', url);
   else if (push && (location.pathname + location.search) !== url) history.pushState({ path }, '', url);
   const before = State.view;
   applyRoute();
-  window.scrollTo({ top: 0, behavior: 'instant' });
-  /* A route change moved the page and told nobody. Focus lands on the main
-     landmark when the VIEW changes, so a screen reader starts at the new
-     content and the next Tab is the first control on it. Not on a tab change
-     within a view — the reader's focus is on the tab they just pressed and
-     taking it away would be worse than leaving it. */
-  if (State.view !== before) document.getElementById('main')?.focus({ preventScroll: true });
+  afterRoute(before);
+}
+
+/* What happens after the address changed and the page re-rendered — shared
+   by navigate() and the browser's Back/Forward, which used to get none of it.
+   A different page (view or path) scrolls to the top, closes a drawer that
+   belonged to the old page, and puts focus on the main landmark so a screen
+   reader starts at the new content and the next Tab is its first control. A
+   different TAB on the same page does not scroll — the tab strip is sticky so
+   it can be used far down the page — and puts focus back on the tab now
+   selected, because render() rebuilt the strip and destroyed the button that
+   had focus, which drops focus to <body>. */
+function afterRoute(beforeView) {
+  const pathChanged = location.pathname !== lastPath;
+  lastPath = location.pathname;
+  if (State.view !== beforeView || pathChanged) {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    if (drawer.dataset.open === '1') closeDrawer({ restore: false });
+    focusMain();
+  } else {
+    document.querySelector('.subnav [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+  }
+}
+
+/* The landmark takes tabindex only for the moment it is focused and drops it
+   on blur. Left in place, every mouse click on non-interactive content would
+   focus main, and the next Tab would start from the top of the page rather
+   than from where the reader clicked. */
+function focusMain() {
+  const main = document.getElementById('main');
+  if (!main) return;
+  main.setAttribute('tabindex', '-1');
+  main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
+  main.focus({ preventScroll: true });
 }
 
 function applyRoute() {
@@ -429,9 +501,13 @@ function applyRoute() {
     const t = qs.get('tab');
     State.researchTab = t && RESEARCH_TABS.some(x => x.id === t) ? t : 'snapshot';
   }
+  /* Validated against the view's own tabs, as research is above. An unknown
+     id leaves the view's tab as it was: a research tab that leaked onto
+     /discover once became State.discoverTab, and the panel lookup threw. */
   if (!route.tab && qs.get('tab')) {
-    if (route.view === 'discover') State.discoverTab = qs.get('tab');
-    if (route.view === 'learn') State.learnTab = qs.get('tab');
+    const t = qs.get('tab');
+    if (route.view === 'discover' && DISCOVER_TABS.some(x => x.id === t)) State.discoverTab = t;
+    if (route.view === 'learn' && (LEARN_TABS.some(x => x.id === t) || LEARN_TAB_ALIAS[t])) State.learnTab = t;
   }
   State.view = route.view;
   setDocumentMeta(route);
@@ -449,28 +525,28 @@ function go(view, opts = {}) {
   }
   if (view === 'research' && State.ticker && BY_ID.has(State.ticker)) {
     const c = BY_ID.get(State.ticker).c;
-    navigate(companyPath(c) + (opts.tab ? `?tab=${opts.tab}` : ''));
+    navigate(withQuery(companyPath(c), opts.tab || currentTabIn(RESEARCH_TABS)));
     return;
   }
   /* A route that carries the tab in its path is used when one exists; a tab
      with no route of its own rides on the view's base path as ?tab=. Either
-     way the stale ?tab= from wherever the reader came from is dropped. */
+     way the stale ?tab= from wherever the reader came from is dropped, and
+     every other parameter travels. */
   const exact = opts.tab ? ROUTES.find(x => x.view === view && x.tab === opts.tab) : null;
   const base = ROUTES.find(x => x.view === view && !x.tab && !x.path.includes(':'))
             || ROUTES.find(x => x.view === view && !x.path.includes(':'));
-  const keep = new URLSearchParams(location.search); keep.delete('tab');
-  if (opts.tab && !exact) keep.set('tab', opts.tab);
   const target = exact ? exact.path : base ? base.path : '/app';
-  navigate(`${target}?${keep.toString()}`);
+  navigate(withQuery(target, exact ? null : opts.tab));
 }
 function openResearch(id, tab) {
   State.ticker = id;
   const row = BY_ID.get(id);
-  /* A tab given explicitly — snapshot included — goes in the address, so the
-     page cannot inherit a ?tab= left over from the last company. No tab given
-     keeps whatever the address already says, which is what a reader moving
-     between companies on one tab expects. */
-  navigate(companyPath(row ? row.c : id) + (tab ? `?tab=${tab}` : ''));
+  /* A tab given explicitly — snapshot included — goes in the address. No tab
+     given keeps the one the address already names IF it is a research tab —
+     a reader moving between companies on the Financials tab stays on it —
+     and drops anything else, so a company link never carries ?tab=heatmap
+     from the view it was clicked on. */
+  navigate(withQuery(companyPath(row ? row.c : id), tab || currentTabIn(RESEARCH_TABS)));
 }
 
 function buildNav() {

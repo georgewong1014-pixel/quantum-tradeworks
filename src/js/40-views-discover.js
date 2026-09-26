@@ -1827,7 +1827,10 @@ VIEWS.discover = () => {
   hd.append(sub);
   wrap.append(hd);
 
-  const panel = { screener: renderScreener, radar: renderRadar, ideas: renderIdeas, heatmap: renderHeatmap }[State.discoverTab];
+  /* With a fallback: a tab id this view does not know renders the screener
+     rather than throwing out of render() and leaving the previous page on
+     screen under a /discover address. */
+  const panel = { screener: renderScreener, radar: renderRadar, ideas: renderIdeas, heatmap: renderHeatmap }[State.discoverTab] || renderScreener;
   wrap.append(panel());
   return wrap;
 };

@@ -18,16 +18,24 @@ function openSearch() {
   requestAnimationFrame(() => { searchModal.dataset.open = '1'; scrim.dataset.open = '1'; searchInput.focus(); searchInput.select(); });
   runSearch('');
 }
-function closeSearch() {
+function closeSearch({ restore = true } = {}) {
   /* closeDrawer calls this unconditionally; a search that is not open has no
      focus to give back and must not take any. */
   if (!searchOpen) return;
   searchOpen = false;
   searchModal.dataset.open = '0';
-  setTimeout(() => searchModal.hidden = true, 200);
+  /* Stale results were left in the box after it closed, and — because the
+     closed box is display:none only since the [hidden] rule below — they used
+     to sit in the page's tab order, invisible, after the footer. */
+  setTimeout(() => { searchModal.hidden = true; searchResults.replaceChildren(); }, 200);
   if (drawer.dataset.open !== '1') scrim.dataset.open = '0';
   const back = searchLastFocus; searchLastFocus = null;
-  if (back && back !== document.body && document.contains(back)) back.focus?.({ preventScroll: true });
+  if (!restore) return;
+  /* Back to the opener, or to the search button when the opener was the
+     document body (the "/" key with nothing focused) or has since been
+     destroyed by a render — never left inside the invisible box. */
+  const target = back && back !== document.body && document.contains(back) && back !== searchInput ? back : $('#openSearch');
+  target?.focus?.({ preventScroll: true });
 }
 function runSearch(q) {
   const term = q.trim().toLowerCase();
@@ -42,15 +50,19 @@ function runSearch(q) {
     || r.c.industry.toLowerCase().includes(term)).slice(0, 10);
   searchResults.replaceChildren(...(hits.length ? hits.map(r => {
     const b = el('button', { class: 'row', style: 'width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
-      onclick: () => { closeSearch(); openResearch(r.c.id); } });
+      /* No focus restore: the page is about to change and navigate() puts
+         focus on the new content, which is where a chosen result leads. */
+      onclick: () => { closeSearch({ restore: false }); openResearch(r.c.id); } });
     b.addEventListener('pointerenter', () => b.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
     b.addEventListener('pointerleave', () => b.style.background = 'none');
     const nm = el('div', { style: 'min-width:0;flex:1' });
     nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
-      el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), marketChip(r.c.mkt),
-      /* The code the reader may have typed, so a hit on it is visibly a hit. */
-      r.c.code && r.c.code !== r.c.tk ? el('span', { class: 'metaline' }, r.c.code) : null,
-      el('span', { class: 'metaline' }, r.c.exch)]));
+      el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
+      /* The code the reader may have typed, so a hit on it is visibly a hit.
+         A fixed-width numeric token: .metaline wraps anywhere, and inside a
+         nowrap flex row that broke "1155" into two lines at 360px. */
+      r.c.code && r.c.code !== r.c.tk ? el('span', { class: 'metaline', style: 'white-space:nowrap;flex:none' }, r.c.code) : null,
+      el('span', { class: 'metaline', style: 'white-space:nowrap;flex:none' }, r.c.exch)]));
     nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${r.c.name} · ${r.c.sector}`));
     b.append(nm);
     b.append(el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
@@ -99,7 +111,7 @@ document.addEventListener('keydown', e => {
      open, Tab and Shift+Tab cycle inside it. */
   const dialog = searchOpen ? searchModal : drawer.dataset.open === '1' ? drawer : null;
   if (dialog && e.key === 'Tab') {
-    const f = [...dialog.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+    const f = [...dialog.querySelectorAll('button,[href],input,select,textarea,summary,[tabindex]:not([tabindex="-1"])')]
       .filter(n => !n.disabled && n.offsetParent !== null);
     if (!f.length) return;
     const first = f[0], last = f[f.length - 1], inside = dialog.contains(document.activeElement);
@@ -355,7 +367,12 @@ const DOCKS = {
   },
 };
 
-window.addEventListener('popstate', () => applyRoute());
+/* Back and Forward are route changes too: the same scroll, drawer and focus
+   treatment as a click, which they used to get none of. */
+window.addEventListener('popstate', () => { const before = State.view; applyRoute(); afterRoute(before); });
+/* The skip link lands focus the same way a route change does — and with the
+   landmark's tabindex applied only for that moment. */
+$('.skip-link')?.addEventListener('click', (e) => { e.preventDefault(); focusMain(); });
 /* Anything else that still sets a hash keeps working. */
 window.addEventListener('hashchange', () => { if (fromHash()) history.replaceState(history.state, '', location.pathname + location.search); });
 

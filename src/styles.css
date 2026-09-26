@@ -970,7 +970,10 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
   display: flex; flex-direction: column; gap: 1px;
 }
 .tickerbtn:hover .tk { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
-.tickerbtn .tk { font-size:13px; transition: color 160ms ease; }
+.tickerbtn .tk { font-size:13px; transition: color 160ms ease; display: inline-flex; align-items: baseline; gap: 6px; }
+/* The provenance word, beside a ticker anywhere companies are listed. Small,
+   bronze like the placeholder chip, and never inside a truncating span. */
+.illus { font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--bronze); white-space: nowrap; }
 .tickerbtn .nm { font-size:12px; color: var(--ink-3); font-weight:500; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .pos { color: var(--ok-text); }
@@ -1112,6 +1115,10 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
   transition: opacity 200ms ease, transform 200ms ease;
 }
 .modal[data-open="1"] { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); }
+/* An author display beats the user-agent [hidden] rule, so a closed dialog
+   was an invisible display:flex box whose input, close button and stale
+   results were all still in the page's Tab order, after the footer. */
+.modal[hidden], .drawer[hidden] { display: none; }
 
 /* --------------------------------------------------------------- misc UI */
 .emptystate { padding: var(--xxl) var(--lg); text-align: center; color: var(--ink-3); }

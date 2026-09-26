@@ -3,6 +3,10 @@
    ========================================================================== */
 
 State.learnTab = 'dictionary';
+/* The public names of four tabs — the routes and the links use these; the
+   panels are keyed by the ids below. Module-level so the router can validate a
+   ?tab= against both without knowing the view's internals. */
+const LEARN_TAB_ALIAS = { glossary:'dictionary', methodology:'models', 'data-sources':'data', corrections:'trust' };
 const LEARN_TABS = [
   { id:'dictionary', label:'Metric dictionary' },
   { id:'scoring',    label:'Scoring architecture' },
@@ -25,7 +29,6 @@ VIEWS.learn = () => {
      page rendered its header, its tab strip and nothing else. Resolved before
      the strip is built so the correct tab is also the one highlighted, and
      aliased rather than renamed because these URLs are already in the wild. */
-  const LEARN_TAB_ALIAS = { glossary:'dictionary', methodology:'models', 'data-sources':'data', corrections:'trust' };
   const panels = { dictionary: learnDictionary, scoring: learnScoring, models: learnModels, data: learnData, trust: learnTrust };
   if (!panels[State.learnTab]) State.learnTab = LEARN_TAB_ALIAS[State.learnTab] || 'dictionary';
 

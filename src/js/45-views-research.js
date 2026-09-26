@@ -854,7 +854,7 @@ VIEWS.research = () => {
   const acts = el('div', { class: 'row', style: 'gap:6px;justify-content:flex-end;margin-top:10px' });
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => toggleWatch(c.id) },
     State.watchlist.includes(c.id) ? '✓ Watching' : '+ Watchlist'));
-  acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => { State.researchTab = 'valuation'; render(); } }, 'Valuation Studio'));
+  acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Valuation Studio'));
   pxBlock.append(acts);
   top.append(pxBlock);
   head.append(top);
@@ -1264,7 +1264,7 @@ function tabSnapshot(r) {
   /* valuation range */
   const vr = el('div', { class: 'card' });
   vr.append(cardHead('Valuation range', `${val.pack.name}. ${val.pack.why}`,
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { State.researchTab = 'valuation'; render(); } }, 'Adjust assumptions')));
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Adjust assumptions')));
   if (val.err) vr.append(el('div', { class: 'guardrail', html: `${icon('alert')}<span>${esc(val.err)}</span>` }));
   else {
     vr.append(rangeStrip(val.vals.bear, val.vals.base, val.vals.bull, c.px.p, c.ccy));
@@ -1411,7 +1411,7 @@ function tabSnapshot(r) {
 
   const sc = el('div', { class: 'card' });
   sc.append(cardHead('Scorecard', 'Pillars stay separate — trade-offs are not hidden inside one number.',
-    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.researchTab = 'quality'; render(); } }, 'Detail')));
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'quality') }, 'Detail')));
   [['quality', 'Business Quality'], ['growth', 'Growth Quality'], ['strength', 'Financial Strength'], ['capital', 'Capital Allocation'], ['value', 'Valuation']]
     .forEach(([k, label]) => sc.append(scoreBar(label, r.scores[k].score, r.pct[k])));
   const riskRow = el('div', { class: 'row', style: 'padding-top:10px;margin-top:6px;border-top:1px solid var(--grid)' });
