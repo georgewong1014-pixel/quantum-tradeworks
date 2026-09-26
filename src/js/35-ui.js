@@ -370,11 +370,21 @@ function setDocumentMeta(route) {
 
 /* Navigate. push=false is for popstate, where the browser already moved. */
 function navigate(path, { push = true, replace = false } = {}) {
-  const url = href(path) + (path.includes('?') ? '' : location.search.replace(/^\?$/, ''));
+  /* A path with no query keeps the current one. A path ending in a bare "?"
+     means "and no query" — the one way a caller can drop a stale ?tab= when
+     it moves to a route that carries its tab in the path. */
+  const url = (href(path) + (path.includes('?') ? '' : location.search.replace(/^\?$/, ''))).replace(/\?$/, '');
   if (replace) history.replaceState({ path }, '', url);
   else if (push && (location.pathname + location.search) !== url) history.pushState({ path }, '', url);
+  const before = State.view;
   applyRoute();
   window.scrollTo({ top: 0, behavior: 'instant' });
+  /* A route change moved the page and told nobody. Focus lands on the main
+     landmark when the VIEW changes, so a screen reader starts at the new
+     content and the next Tab is the first control on it. Not on a tab change
+     within a view — the reader's focus is on the tab they just pressed and
+     taking it away would be worse than leaving it. */
+  if (State.view !== before) document.getElementById('main')?.focus({ preventScroll: true });
 }
 
 function applyRoute() {
@@ -409,7 +419,20 @@ function applyRoute() {
     const ids = qs.get('companies').split(',').map(s => s.trim().toUpperCase()).filter(x => BY_ID.has(x));
     if (ids.length) State.compare = ids.slice(0, lim('compare'));
   }
-  if (route.view === 'research' && qs.get('tab')) State.researchTab = qs.get('tab');
+  /* THE TAB IS PART OF THE ADDRESS. Tab clicks used to change State and
+     re-render without touching the URL, so Back never restored a tab and a
+     shared link never carried one. Every tab strip now navigates, and the
+     tab is read back from the path where a route carries it and from ?tab=
+     where it does not. A company page with no tab in its address is on its
+     snapshot; anything unknown falls back the same way. */
+  if (route.view === 'research') {
+    const t = qs.get('tab');
+    State.researchTab = t && RESEARCH_TABS.some(x => x.id === t) ? t : 'snapshot';
+  }
+  if (!route.tab && qs.get('tab')) {
+    if (route.view === 'discover') State.discoverTab = qs.get('tab');
+    if (route.view === 'learn') State.learnTab = qs.get('tab');
+  }
   State.view = route.view;
   setDocumentMeta(route);
   render();
@@ -429,14 +452,25 @@ function go(view, opts = {}) {
     navigate(companyPath(c) + (opts.tab ? `?tab=${opts.tab}` : ''));
     return;
   }
-  const r = ROUTES.find(x => x.view === view && (!opts.tab || x.tab === opts.tab))
-         || ROUTES.find(x => x.view === view && !x.path.includes(':'));
-  navigate(r ? r.path : '/app');
+  /* A route that carries the tab in its path is used when one exists; a tab
+     with no route of its own rides on the view's base path as ?tab=. Either
+     way the stale ?tab= from wherever the reader came from is dropped. */
+  const exact = opts.tab ? ROUTES.find(x => x.view === view && x.tab === opts.tab) : null;
+  const base = ROUTES.find(x => x.view === view && !x.tab && !x.path.includes(':'))
+            || ROUTES.find(x => x.view === view && !x.path.includes(':'));
+  const keep = new URLSearchParams(location.search); keep.delete('tab');
+  if (opts.tab && !exact) keep.set('tab', opts.tab);
+  const target = exact ? exact.path : base ? base.path : '/app';
+  navigate(`${target}?${keep.toString()}`);
 }
 function openResearch(id, tab) {
   State.ticker = id;
   const row = BY_ID.get(id);
-  navigate(companyPath(row ? row.c : id) + (tab && tab !== 'snapshot' ? `?tab=${tab}` : ''));
+  /* A tab given explicitly — snapshot included — goes in the address, so the
+     page cannot inherit a ?tab= left over from the last company. No tab given
+     keeps whatever the address already says, which is what a reader moving
+     between companies on one tab expects. */
+  navigate(companyPath(row ? row.c : id) + (tab ? `?tab=${tab}` : ''));
 }
 
 function buildNav() {

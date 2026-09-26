@@ -281,6 +281,11 @@ a { color: inherit; }
   transition: top 180ms ease;
 }
 .skip-link:focus { top: var(--md); }
+/* The main landmark takes focus programmatically after a route change and
+   from the skip link, so reading starts at the new content. It is not a
+   control, and a ring drawn around the whole page is a border, not a focus
+   indicator; every control inside it keeps its own :focus-visible ring. */
+#main:focus { outline: none; }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
@@ -1478,7 +1483,7 @@ details > summary::marker { content: ''; }
   </div>
 </div>
 
-<main id="main">
+<main id="main" tabindex="-1">
   <div id="views"></div>
 </main>
 
@@ -1599,6 +1604,11 @@ details > summary::marker { content: ''; }
          typed, and several screen readers do not announce it at all. -->
     <input class="input" id="searchInput" aria-label="Search companies by ticker, name or Bursa code" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
     <span class="kbd">Esc</span>
+    <!-- A way out that does not require knowing a key or finding the dimmed
+         page behind the box. -->
+    <button class="iconbtn" id="closeSearch" aria-label="Close search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
   </div>
   <div id="searchResults" style="overflow-y:auto;padding:var(--xs)"></div>
 </div>
@@ -6983,11 +6993,21 @@ function setDocumentMeta(route) {
 
 /* Navigate. push=false is for popstate, where the browser already moved. */
 function navigate(path, { push = true, replace = false } = {}) {
-  const url = href(path) + (path.includes('?') ? '' : location.search.replace(/^\?$/, ''));
+  /* A path with no query keeps the current one. A path ending in a bare "?"
+     means "and no query" — the one way a caller can drop a stale ?tab= when
+     it moves to a route that carries its tab in the path. */
+  const url = (href(path) + (path.includes('?') ? '' : location.search.replace(/^\?$/, ''))).replace(/\?$/, '');
   if (replace) history.replaceState({ path }, '', url);
   else if (push && (location.pathname + location.search) !== url) history.pushState({ path }, '', url);
+  const before = State.view;
   applyRoute();
   window.scrollTo({ top: 0, behavior: 'instant' });
+  /* A route change moved the page and told nobody. Focus lands on the main
+     landmark when the VIEW changes, so a screen reader starts at the new
+     content and the next Tab is the first control on it. Not on a tab change
+     within a view — the reader's focus is on the tab they just pressed and
+     taking it away would be worse than leaving it. */
+  if (State.view !== before) document.getElementById('main')?.focus({ preventScroll: true });
 }
 
 function applyRoute() {
@@ -7022,7 +7042,20 @@ function applyRoute() {
     const ids = qs.get('companies').split(',').map(s => s.trim().toUpperCase()).filter(x => BY_ID.has(x));
     if (ids.length) State.compare = ids.slice(0, lim('compare'));
   }
-  if (route.view === 'research' && qs.get('tab')) State.researchTab = qs.get('tab');
+  /* THE TAB IS PART OF THE ADDRESS. Tab clicks used to change State and
+     re-render without touching the URL, so Back never restored a tab and a
+     shared link never carried one. Every tab strip now navigates, and the
+     tab is read back from the path where a route carries it and from ?tab=
+     where it does not. A company page with no tab in its address is on its
+     snapshot; anything unknown falls back the same way. */
+  if (route.view === 'research') {
+    const t = qs.get('tab');
+    State.researchTab = t && RESEARCH_TABS.some(x => x.id === t) ? t : 'snapshot';
+  }
+  if (!route.tab && qs.get('tab')) {
+    if (route.view === 'discover') State.discoverTab = qs.get('tab');
+    if (route.view === 'learn') State.learnTab = qs.get('tab');
+  }
   State.view = route.view;
   setDocumentMeta(route);
   render();
@@ -7042,14 +7075,25 @@ function go(view, opts = {}) {
     navigate(companyPath(c) + (opts.tab ? `?tab=${opts.tab}` : ''));
     return;
   }
-  const r = ROUTES.find(x => x.view === view && (!opts.tab || x.tab === opts.tab))
-         || ROUTES.find(x => x.view === view && !x.path.includes(':'));
-  navigate(r ? r.path : '/app');
+  /* A route that carries the tab in its path is used when one exists; a tab
+     with no route of its own rides on the view's base path as ?tab=. Either
+     way the stale ?tab= from wherever the reader came from is dropped. */
+  const exact = opts.tab ? ROUTES.find(x => x.view === view && x.tab === opts.tab) : null;
+  const base = ROUTES.find(x => x.view === view && !x.tab && !x.path.includes(':'))
+            || ROUTES.find(x => x.view === view && !x.path.includes(':'));
+  const keep = new URLSearchParams(location.search); keep.delete('tab');
+  if (opts.tab && !exact) keep.set('tab', opts.tab);
+  const target = exact ? exact.path : base ? base.path : '/app';
+  navigate(`${target}?${keep.toString()}`);
 }
 function openResearch(id, tab) {
   State.ticker = id;
   const row = BY_ID.get(id);
-  navigate(companyPath(row ? row.c : id) + (tab && tab !== 'snapshot' ? `?tab=${tab}` : ''));
+  /* A tab given explicitly — snapshot included — goes in the address, so the
+     page cannot inherit a ?tab= left over from the last company. No tab given
+     keeps whatever the address already says, which is what a reader moving
+     between companies on one tab expects. */
+  navigate(companyPath(row ? row.c : id) + (tab ? `?tab=${tab}` : ''));
 }
 
 function buildNav() {
@@ -9099,7 +9143,9 @@ VIEWS.discover = () => {
   const sub = el('div', { class: 'subnav' });
   DISCOVER_TABS.forEach(t => sub.append(el('button', {
     role: 'tab', 'aria-selected': State.discoverTab === t.id ? 'true' : 'false',
-    onclick: () => { State.discoverTab = t.id; render(); } }, t.label)));
+    /* Through the address: /discover/screener and /discover/value-map have
+       routes of their own, the other two ride on ?tab=. */
+    onclick: () => go('discover', { tab: t.id }) }, t.label)));
   hd.append(sub);
   wrap.append(hd);
 
@@ -10187,7 +10233,9 @@ VIEWS.research = () => {
   const sub = el('div', { class: 'subnav' });
   RESEARCH_TABS.forEach(t => sub.append(el('button', {
     role: 'tab', 'aria-selected': State.researchTab === t.id ? 'true' : 'false',
-    onclick: () => { State.researchTab = t.id; render(); } }, t.label)));
+    /* Through the address, so Back returns to the previous tab and a link
+       carries the one it was copied from. */
+    onclick: () => openResearch(State.ticker, t.id) }, t.label)));
   stick.append(sub);
   wrap.append(stick);
 
@@ -14992,8 +15040,12 @@ VIEWS.learn = () => {
   if (!panels[State.learnTab]) State.learnTab = LEARN_TAB_ALIAS[State.learnTab] || 'dictionary';
 
   const sub = el('div', { class: 'subnav', style: 'margin-bottom:var(--lg)' });
+  /* Through the address. Four of the five tabs are pages in their own right
+     (/learn/glossary, /methodology, /data-sources, /corrections) and the
+     routes name them by their public alias; the fifth rides on ?tab=. */
+  const LEARN_ROUTE_TAB = { dictionary: 'glossary' };
   LEARN_TABS.forEach(t => sub.append(el('button', { role: 'tab', 'aria-selected': State.learnTab === t.id ? 'true' : 'false',
-    onclick: () => { State.learnTab = t.id; render(); } }, t.label)));
+    onclick: () => go('learn', { tab: LEARN_ROUTE_TAB[t.id] || t.id }) }, t.label)));
   wrap.append(sub);
   wrap.append(panels[State.learnTab]());
   return wrap;
@@ -26475,15 +26527,30 @@ const WORKED_EXAMPLE_NOTE =
 
 const searchModal = $('#searchModal'), searchInput = $('#searchInput'), searchResults = $('#searchResults');
 
+/* Where focus was when the search opened, so closing it puts focus back —
+   on the search button, or wherever "/" was pressed — rather than dropping it
+   on the document body, where the next Tab starts from the top of the page. */
+let searchOpen = false, searchLastFocus = null;
 function openSearch() {
+  /* "/" pressed while the box is already open — with focus on a result, say —
+     used to reopen it and wipe the results. It now just returns to the box. */
+  if (searchOpen) { searchInput.focus(); return; }
+  searchOpen = true;
+  searchLastFocus = document.activeElement;
   searchModal.hidden = false;
   requestAnimationFrame(() => { searchModal.dataset.open = '1'; scrim.dataset.open = '1'; searchInput.focus(); searchInput.select(); });
   runSearch('');
 }
 function closeSearch() {
+  /* closeDrawer calls this unconditionally; a search that is not open has no
+     focus to give back and must not take any. */
+  if (!searchOpen) return;
+  searchOpen = false;
   searchModal.dataset.open = '0';
   setTimeout(() => searchModal.hidden = true, 200);
   if (drawer.dataset.open !== '1') scrim.dataset.open = '0';
+  const back = searchLastFocus; searchLastFocus = null;
+  if (back && back !== document.body && document.contains(back)) back.focus?.({ preventScroll: true });
 }
 function runSearch(q) {
   const term = q.trim().toLowerCase();
@@ -26545,9 +26612,34 @@ function runSearch(q) {
 }
 searchInput.addEventListener('input', e => runSearch(e.target.value));
 $('#openSearch').addEventListener('click', openSearch);
+$('#closeSearch')?.addEventListener('click', closeSearch);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSearch(); if (drawer.dataset.open === '1') closeDrawer(); }
-  if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); }
+  if (e.key === 'Escape') { closeSearch(); if (drawer.dataset.open === '1') closeDrawer(); return; }
+  if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); return; }
+
+  /* BOTH DIALOGS SAY aria-modal AND NEITHER WAS. Tab walked straight out of
+     the drawer and the search box into the page behind them. While one is
+     open, Tab and Shift+Tab cycle inside it. */
+  const dialog = searchOpen ? searchModal : drawer.dataset.open === '1' ? drawer : null;
+  if (dialog && e.key === 'Tab') {
+    const f = [...dialog.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+      .filter(n => !n.disabled && n.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1], inside = dialog.contains(document.activeElement);
+    if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+    return;
+  }
+
+  /* Arrow keys walk the results; Up from the first returns to the box. */
+  if (searchOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const items = [...searchResults.querySelectorAll('button,a')];
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement);
+    e.preventDefault();
+    if (e.key === 'ArrowDown') (i < 0 ? items[0] : items[Math.min(items.length - 1, i + 1)]).focus();
+    else (i <= 0 ? searchInput : items[i - 1]).focus();
+  }
 });
 
 /* ------------------------------------------------------------------ theme */

@@ -1077,7 +1077,9 @@ VIEWS.research = () => {
   const sub = el('div', { class: 'subnav' });
   RESEARCH_TABS.forEach(t => sub.append(el('button', {
     role: 'tab', 'aria-selected': State.researchTab === t.id ? 'true' : 'false',
-    onclick: () => { State.researchTab = t.id; render(); } }, t.label)));
+    /* Through the address, so Back returns to the previous tab and a link
+       carries the one it was copied from. */
+    onclick: () => openResearch(State.ticker, t.id) }, t.label)));
   stick.append(sub);
   wrap.append(stick);
 

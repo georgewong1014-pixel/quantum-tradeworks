@@ -4,15 +4,30 @@
 
 const searchModal = $('#searchModal'), searchInput = $('#searchInput'), searchResults = $('#searchResults');
 
+/* Where focus was when the search opened, so closing it puts focus back —
+   on the search button, or wherever "/" was pressed — rather than dropping it
+   on the document body, where the next Tab starts from the top of the page. */
+let searchOpen = false, searchLastFocus = null;
 function openSearch() {
+  /* "/" pressed while the box is already open — with focus on a result, say —
+     used to reopen it and wipe the results. It now just returns to the box. */
+  if (searchOpen) { searchInput.focus(); return; }
+  searchOpen = true;
+  searchLastFocus = document.activeElement;
   searchModal.hidden = false;
   requestAnimationFrame(() => { searchModal.dataset.open = '1'; scrim.dataset.open = '1'; searchInput.focus(); searchInput.select(); });
   runSearch('');
 }
 function closeSearch() {
+  /* closeDrawer calls this unconditionally; a search that is not open has no
+     focus to give back and must not take any. */
+  if (!searchOpen) return;
+  searchOpen = false;
   searchModal.dataset.open = '0';
   setTimeout(() => searchModal.hidden = true, 200);
   if (drawer.dataset.open !== '1') scrim.dataset.open = '0';
+  const back = searchLastFocus; searchLastFocus = null;
+  if (back && back !== document.body && document.contains(back)) back.focus?.({ preventScroll: true });
 }
 function runSearch(q) {
   const term = q.trim().toLowerCase();
@@ -74,9 +89,34 @@ function runSearch(q) {
 }
 searchInput.addEventListener('input', e => runSearch(e.target.value));
 $('#openSearch').addEventListener('click', openSearch);
+$('#closeSearch')?.addEventListener('click', closeSearch);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSearch(); if (drawer.dataset.open === '1') closeDrawer(); }
-  if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); }
+  if (e.key === 'Escape') { closeSearch(); if (drawer.dataset.open === '1') closeDrawer(); return; }
+  if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); return; }
+
+  /* BOTH DIALOGS SAY aria-modal AND NEITHER WAS. Tab walked straight out of
+     the drawer and the search box into the page behind them. While one is
+     open, Tab and Shift+Tab cycle inside it. */
+  const dialog = searchOpen ? searchModal : drawer.dataset.open === '1' ? drawer : null;
+  if (dialog && e.key === 'Tab') {
+    const f = [...dialog.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+      .filter(n => !n.disabled && n.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1], inside = dialog.contains(document.activeElement);
+    if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+    return;
+  }
+
+  /* Arrow keys walk the results; Up from the first returns to the box. */
+  if (searchOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const items = [...searchResults.querySelectorAll('button,a')];
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement);
+    e.preventDefault();
+    if (e.key === 'ArrowDown') (i < 0 ? items[0] : items[Math.min(items.length - 1, i + 1)]).focus();
+    else (i <= 0 ? searchInput : items[i - 1]).focus();
+  }
 });
 
 /* ------------------------------------------------------------------ theme */

@@ -1821,7 +1821,9 @@ VIEWS.discover = () => {
   const sub = el('div', { class: 'subnav' });
   DISCOVER_TABS.forEach(t => sub.append(el('button', {
     role: 'tab', 'aria-selected': State.discoverTab === t.id ? 'true' : 'false',
-    onclick: () => { State.discoverTab = t.id; render(); } }, t.label)));
+    /* Through the address: /discover/screener and /discover/value-map have
+       routes of their own, the other two ride on ?tab=. */
+    onclick: () => go('discover', { tab: t.id }) }, t.label)));
   hd.append(sub);
   wrap.append(hd);
 

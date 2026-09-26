@@ -104,7 +104,7 @@
   </div>
 </div>
 
-<main id="main">
+<main id="main" tabindex="-1">
   <div id="views"></div>
 </main>
 
@@ -225,6 +225,11 @@
          typed, and several screen readers do not announce it at all. -->
     <input class="input" id="searchInput" aria-label="Search companies by ticker, name or Bursa code" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
     <span class="kbd">Esc</span>
+    <!-- A way out that does not require knowing a key or finding the dimmed
+         page behind the box. -->
+    <button class="iconbtn" id="closeSearch" aria-label="Close search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
   </div>
   <div id="searchResults" style="overflow-y:auto;padding:var(--xs)"></div>
 </div>

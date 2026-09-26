@@ -30,8 +30,12 @@ VIEWS.learn = () => {
   if (!panels[State.learnTab]) State.learnTab = LEARN_TAB_ALIAS[State.learnTab] || 'dictionary';
 
   const sub = el('div', { class: 'subnav', style: 'margin-bottom:var(--lg)' });
+  /* Through the address. Four of the five tabs are pages in their own right
+     (/learn/glossary, /methodology, /data-sources, /corrections) and the
+     routes name them by their public alias; the fifth rides on ?tab=. */
+  const LEARN_ROUTE_TAB = { dictionary: 'glossary' };
   LEARN_TABS.forEach(t => sub.append(el('button', { role: 'tab', 'aria-selected': State.learnTab === t.id ? 'true' : 'false',
-    onclick: () => { State.learnTab = t.id; render(); } }, t.label)));
+    onclick: () => go('learn', { tab: LEARN_ROUTE_TAB[t.id] || t.id }) }, t.label)));
   wrap.append(sub);
   wrap.append(panels[State.learnTab]());
   return wrap;

@@ -249,6 +249,11 @@ a { color: inherit; }
   transition: top 180ms ease;
 }
 .skip-link:focus { top: var(--md); }
+/* The main landmark takes focus programmatically after a route change and
+   from the skip link, so reading starts at the new content. It is not a
+   control, and a ring drawn around the whole page is a border, not a focus
+   indicator; every control inside it keeps its own :focus-visible ring. */
+#main:focus { outline: none; }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
