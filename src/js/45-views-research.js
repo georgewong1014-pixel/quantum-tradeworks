@@ -704,7 +704,7 @@ VIEWS.researchHome = () => {
      .slice(0, 8)
      .forEach(r => results.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'justify-content:flex-start',
         onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } },
-        `${r.c.tk || r.c.code} — ${r.c.name}`)));
+        `${r.c.tk || r.c.code} — ${r.c.name}${illusText(r.c)}`)));
     if (!results.children.length) results.append(el('p', { class: 'metaline' }, `Nothing in the beta universe matches “${inp.value.trim()}”.`));
   };
   inp.addEventListener('input', runSearch);
@@ -761,7 +761,7 @@ VIEWS.researchHome = () => {
   if (recent.length) {
     const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     recent.forEach(r => row.append(el('button', { class: 'btn btn-ghost btn-sm',
-      onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } }, r.c.tk || r.c.code)));
+      onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } }, (r.c.tk || r.c.code) + illusText(r.c))));
     rc.append(row);
   } else rc.append(el('p', { class: 'metaline' }, 'Nothing yet. Companies you open will be listed here.'));
   wrap.append(rc);
@@ -1319,7 +1319,9 @@ function tabSnapshot(r) {
     'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.'));
   if (!real) {
     tc.append(el('p', { class: 'body', style: 'font-size:13px' },
-      `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`));
+      priceHistory(c)
+        ? `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`
+        : `No observed price history has been imported for ${c.tk}, and none is drawn: a chart generated to fit a stated return would be a series that never existed, and a 200-day average over it a confident figure for nothing.`));
     tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `Add closes for ${c.tk} under My Investments → Your data to enable this. They stay in this browser.`));
   } else {
@@ -1441,12 +1443,12 @@ function tabSnapshot(r) {
   chg.append(cardHead('What changed', `FY${yearsOf(c)[yearsOf(c).length - 2]} to FY${latestFy(c)}, as reported.`));
   const ch = changeSummary(c) || [];
   const kv = el('dl', { class: 'kv' });
-  ch.forEach(x => { kv.append(el('dt', {}, x.label)); kv.append(el('dd', { class: signClass(x.v) }, withSign(x.v, 1))); });
+  ch.forEach(x => { kv.append(el('dt', {}, x.label)); kv.append(el('dd', { class: signClass(x.v), title: x.withheld || null }, changeCell(x))); });
   chg.append(kv);
   rail.append(chg);
 
   const rk = el('div', { class: 'card' });
-  rk.append(cardHead('Open risk flags', null, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.researchTab = 'risks'; render(); } }, 'All')));
+  rk.append(cardHead('Open risk flags', null, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'risks') }, 'All')));
   const notable = r.flags.filter(f => f.sev !== 'good').slice(0, 3);
   if (!notable.length) rk.append(el('p', { class: 'caption' }, 'No flag triggered by the current thresholds.'));
   notable.forEach(f => {
@@ -1466,7 +1468,9 @@ function tabBusiness(r) {
   const wrap = el('div', { class: 'grid g-2' });
 
   const seg = el('div', { class: 'card' });
-  seg.append(cardHead('Revenue mix', 'Share of the latest reported year. Segment split is part of the sample dataset.'));
+  seg.append(cardHead('Revenue mix', c.seg?.length
+    ? 'Share of the latest reported year. This split is illustrative — it is authored, not filed.'
+    : 'No segment split is carried for a company loaded from filings; the XBRL facts read here are consolidated lines.'));
   const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
   (c.seg || []).forEach((s, i) => bar.append(el('i', { style: `width:${s[1]}%;background:var(${SERIES[i % 8]})`, title: `${s[0]} ${s[1]}%` })));
   seg.append(bar);
@@ -1503,9 +1507,9 @@ function tabBusiness(r) {
     (x.c.sector === c.sector || x.c.mkt === c.mkt)).slice(0, 6);
   const comp = el('div', { class: 'card', style: 'grid-column:1/-1' });
   comp.append(cardHead('Competitive position',
-    `Ranked against ${rivals.length} companies sharing this business model. Rank is computed from the sample universe, so it says where this company sits among the peers carried here — not among every listed competitor.`));
+    `Ranked against ${rivals.length} companies sharing this business model. Rank is computed from the universe carried here, so it says where this company sits among these peers — not among every listed competitor.`));
   if (!rivals.length) {
-    comp.append(el('p', { class: 'caption' }, 'No comparable peer of the same business model is carried in the sample universe.'));
+    comp.append(el('p', { class: 'caption' }, 'No comparable peer of the same business model is carried in the universe here.'));
   } else {
     const set = [r, ...rivals];
     const measures = c.type === 'bank'
@@ -1542,7 +1546,7 @@ function tabBusiness(r) {
     tw2.append(t2); comp.append(tw2);
     comp.append(el('div', { class: 'row row-wrap', style: 'gap:5px;margin-top:var(--sm)' },
       [el('span', { class: 'caption' }, 'Peer set:'), ...rivals.map(x =>
-        el('button', { class: 'chip', style: 'cursor:pointer', onclick: () => openResearch(x.c.id) }, x.c.tk))]));
+        el('button', { class: 'chip', style: 'cursor:pointer', onclick: () => openResearch(x.c.id) }, x.c.tk + illusText(x.c)))]));
     comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', onclick: () => {
       State.compare = [c.id, ...rivals.map(x => x.c.id)].slice(0, LIMITS.compare);
       store.write('compare', State.compare); go('compare');
@@ -1624,8 +1628,11 @@ function tabFinancials(r) {
     arr.forEach(v => tr.append(el('td', { html: isNum(v) ? fmtNum(v, Math.abs(v) < 10 ? (Math.abs(v) < 1 ? 3 : 2) : 1) : NA })));
     /* A per-share series that crosses a split has no growth rate — the same
        withholding the corporate-actions card applies to the share count. */
-    const withheld = perShare && split;
-    const g = withheld ? null : cagr(arr);
+    /* Withheld only where a rate would otherwise exist: a dividend line that
+       is empty throughout has nothing to withhold and reads n/m as before. */
+    const g0 = cagr(arr);
+    const withheld = perShare && split && isNum(g0);
+    const g = withheld ? null : g0;
     tr.append(el('td', { class: signClass(g), html: isNum(g) ? withSign(g, 1)
       : withheld ? '<span class="caption" title="The share count moves by a corporate action inside this window, so a growth rate over any per-share line would measure the split. Withheld.">withheld</span>'
       : '<span class="caption">n/m</span>' }));
@@ -1645,8 +1652,9 @@ function tabFinancials(r) {
   if (c.real) {
     wrap.append(el('div', { class: 'card' },
       [cardHead('Quarterly figures', 'Not carried in this build.'),
-       el('p', { class: 'body', style: 'font-size:13px' },
-         'The ingest reads annual XBRL facts — periods of a year — and no quarterly line is held for any filed company. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.')]));
+       el('p', { class: 'body', style: 'font-size:13px' }, c.cik
+         ? 'The ingest reads annual XBRL facts — periods of a year — and no quarterly line is held for any filed company. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.'
+         : 'Only annual statements were loaded for this company, so there is no quarterly line to draw and none is invented.')]));
     return wrap;
   }
   const q = quarters(c, d);
@@ -1674,7 +1682,7 @@ function tabQuality(r) {
   const chips = el('div', { class: 'row row-wrap', style: 'gap:6px' });
   chips.append(el('span', { class: 'chip' }, `Model ${MODEL_VERSION}`));
   chips.append(el('span', { class: 'chip' }, `Cohort: ${r.c.mkt} market`));
-  chips.append(el('span', { class: 'chip' }, `Calculated ${AS_OF}`));
+  chips.append(el('span', { class: 'chip' }, `Calculated at page load · ${dataDateLabel(r.c)}`));
   chips.append(el('span', { class: 'chip' }, `Source periods FY${yearsOf(r.c)[0]}–FY${latestFy(r.c)}`));
   intro.append(chips);
   wrap.append(intro);
@@ -1740,7 +1748,9 @@ function tabQuality(r) {
     p.parts.forEach(part => {
       const tr = el('tr');
       tr.append(el('td', { class: 'ident' }, part.label));
-      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : NA }));
+      /* A per-share growth input withheld for a split says so, rather than
+         reading as "not meaningful". */
+      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.shareSeriesBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }));
       tr.append(el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}${part.inv ? ' (inverted)' : ''}</span>` }));
       tr.append(el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }));
       tr.append(el('td', {}, `${Math.round(part.w * 100)}%`));
@@ -1775,7 +1785,7 @@ function tabQuality(r) {
   ]));
   mh.append(el('div', { style: 'text-align:right' }, [
     el('div', { class: 'num', style: 'font-size:24px;font-weight:700' }, isNum(r.mom.score) ? r.mom.score : '—'),
-    el('div', { class: 'metaline' }, `cohort median ${withSign(r.mom.cohortMedian, 1)} over 12m`),
+    el('div', { class: 'metaline' }, isNum(r.mom.cohortMedian) ? `cohort median ${withSign(r.mom.cohortMedian, 1)} over 12m` : 'no priced cohort to compare against'),
   ]));
   mc.append(mh);
   const mtw = el('div', { class: 'tablewrap' });
@@ -1783,7 +1793,7 @@ function tabQuality(r) {
   mt.append(el('thead', {}, el('tr', {}, ['Input', 'Raw value', 'Anchor range', 'Input score', 'Weight', 'Contribution'].map(h => el('th', {}, h)))));
   mt.append(el('tbody', {}, r.mom.parts.map(part => el('tr', {}, [
     el('td', { class: 'ident' }, part.label),
-    el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : NA }),
+    el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.shareSeriesBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }),
     el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}</span>` }),
     el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }),
     el('td', {}, `${Math.round(part.w * 100)}%`),
@@ -1803,7 +1813,10 @@ function tabMoat(r) {
     'Evidence is structured, not asserted. Supporting and counter-evidence are shown together with a durability horizon and a confidence grade.'));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   [['Moat type', c.moat.kind], ['Durability horizon', c.moat.dur], ['Confidence', c.moat.conf],
-   ['Evidence date', `FY${last(YEARS)} reported · reviewed ${AS_OF}`], ['Review status', 'Analyst-reviewed template']]
+   /* A company with no moat assessment has no review date and no review
+      status; printing one for it described a review that did not happen. */
+   ['Evidence date', c.moat?.kind === 'Not assessed' ? 'Not assessed — no review has been made' : `FY${latestFy(c)} reported · reviewed ${AS_OF}`],
+   ['Review status', c.moat?.kind === 'Not assessed' ? 'Not assessed' : 'Analyst-reviewed template']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   card.append(kv);
 
@@ -1820,26 +1833,30 @@ function tabMoat(r) {
 
   const corr = el('div', { class: 'card' });
   corr.append(cardHead('Quantitative corroboration', 'The numbers that would have to hold for the moat claim to be true. If these deteriorate, the claim weakens regardless of the narrative.'));
+  /* Each row carries the metric its percentile is taken from. The column
+     used to read the percentile by ROW POSITION from a fixed list of the
+     general metrics, so a bank's cost-to-income row showed the percentile of
+     operating margin and a REIT's occupancy row the percentile of ROIC. */
   const rows = c.type === 'bank'
-    ? [['Net interest margin', fmtPct(m.nim, 2), 'Pricing power on the funding base'],
-       ['Cost-to-income ratio', fmtPct(m.cir), 'Operating efficiency versus peers'],
-       ['Gross impaired loans', fmtPct(m.npl, 2), 'Underwriting quality'],
-       ['CET1 ratio', fmtPct(m.cet1), 'Capacity to lend through a downturn']]
+    ? [['Net interest margin', fmtPct(m.nim, 2), 'Pricing power on the funding base', 'nim', false],
+       ['Cost-to-income ratio', fmtPct(m.cir), 'Operating efficiency versus peers', 'cir', true],
+       ['Gross impaired loans', fmtPct(m.npl, 2), 'Underwriting quality', 'npl', true],
+       ['CET1 ratio', fmtPct(m.cet1), 'Capacity to lend through a downturn', 'cet1', false]]
     : c.type === 'reit'
-    ? [['Occupancy', fmtPct(m.occ), 'Genuine tenant demand'],
-       ['Weighted lease expiry', `${fmtNum(m.wale)} yrs`, 'Contracted income duration'],
-       ['Net property margin', fmtPct(m.om), 'Operating leverage on the assets'],
-       ['Gearing', fmtPct(m.gearing), 'Refinancing exposure']]
-    : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : 'n/a', 'Excess return over the cost of capital'],
-       ['Operating margin', fmtPct(m.om), 'Pricing power net of cost'],
-       ['Margin stability', isNum(m.revVol) ? `${fmtNum(m.revVol)} s.d.` : '—', 'Whether the advantage holds through the cycle'],
-       ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : 'n/a', 'Conversion of the advantage into cash']];
+    ? [['Occupancy', fmtPct(m.occ), 'Genuine tenant demand', 'occ', false],
+       ['Weighted lease expiry', `${fmtNum(m.wale)} yrs`, 'Contracted income duration', 'wale', false],
+       ['Net property margin', fmtPct(m.om), 'Operating leverage on the assets', 'om', false],
+       ['Gearing', fmtPct(m.gearing), 'Refinancing exposure', 'gearing', true]]
+    : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : 'n/a', 'Excess return over the cost of capital', 'roic', false],
+       ['Operating margin', fmtPct(m.om), 'Pricing power net of cost', 'om', false],
+       ['Margin stability', isNum(m.revVol) ? `${fmtNum(m.revVol)} s.d.` : '—', 'Whether the advantage holds through the cycle', 'revVol', true],
+       ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : 'n/a', 'Conversion of the advantage into cash', 'fcfm', false]];
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, 'Latest'), el('th', {}, 'Peer pct'), el('th', {}, 'Why it matters')])));
-  t.append(el('tbody', {}, rows.map(([label, v, why], i) => el('tr', {}, [
+  t.append(el('tbody', {}, rows.map(([label, v, why, key, inv]) => el('tr', {}, [
     el('td', { class: 'ident' }, label), el('td', {}, v),
-    el('td', {}, String(metricPct(r, ['roic', 'om', 'revVol', 'fcfm'][i] || 'roic', 'sector') ?? '—')),
+    el('td', {}, String(metricPct(r, key, 'sector', inv) ?? '—')),
     el('td', { style: 'text-align:left;white-space:normal;max-width:220px', class: 'caption' }, why),
   ]))));
   tw.append(t); corr.append(tw);
@@ -1889,9 +1906,14 @@ function tabOwnership(r) {
   const wrap = el('div', { class: 'grid g-2' });
 
   const own = el('div', { class: 'card' });
-  own.append(cardHead('Ownership', 'Substantial holders as recorded in the sample dataset.'));
+  own.append(cardHead('Ownership', c.real
+    ? 'Not held for a company loaded from filings — ownership is not among the XBRL facts read here.'
+    : 'Substantial holders as recorded in the illustrative set.'));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  [['Directors and insiders', fmtPct(c.own.insider, 2)], ['Institutional', fmtPct(c.own.inst, 1)], ['Free float (implied)', fmtPct(100 - c.own.inst - c.own.insider, 1)]]
+  /* `100 - null - null` is 100: a free float of exactly 100.0% was stated for
+     every filed company from two inputs shown as dashes on the same rows. */
+  [['Directors and insiders', fmtPct(c.own.insider, 2)], ['Institutional', fmtPct(c.own.inst, 1)],
+   ['Free float (implied)', isNum(c.own.inst) && isNum(c.own.insider) ? fmtPct(100 - c.own.inst - c.own.insider, 1) : '—']]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
   own.append(kv);
   const tw = el('div', { class: 'tablewrap' });
@@ -1913,7 +1935,7 @@ function tabOwnership(r) {
   const kv2 = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
   [['Share count CAGR', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.dilution, 2)],
    ['Net buyback yield', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.buyback, 2)],
-   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : 'n/m'],
+   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : m.shareSeriesBreak ? 'Withheld — see below' : 'n/m'],
    ['Payout ratio', isNum(m.payout) ? fmtPct(m.payout, 0) : 'n/m'],
    ['Dividends as % of free cash flow', isNum(m.cashPayout) ? fmtPct(m.cashPayout, 0) : 'n/a']]
    .forEach(([k, v]) => { kv2.append(el('dt', {}, k)); kv2.append(el('dd', {}, v)); });
@@ -1959,12 +1981,34 @@ function tabFilings(r) {
       el('td', { class: 'ident' }, x.label),
       el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
       el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
-      el('td', { class: signClass(x.v) }, withSign(x.v, 1)),
+      el('td', { class: signClass(x.v), title: x.withheld || null }, changeCell(x)),
     ]))));
     tw.append(t);
     return tw;
   };
 
+  /* Statements loaded for personal research — a Bursa company read from the
+     reader's own file, real but with no CIK and no EDGAR behind it. Keyed on
+     `real` alone this branch printed "SEC filings", "CIK undefined" and three
+     links to EDGAR for a Malaysian company. */
+  if (c.real && !c.cik) {
+    const hd = el('div', { class: 'card' });
+    hd.append(cardHead('Statements loaded for personal research',
+      'These annual statements were loaded from your own research file. No filing index is held for them and nothing here was retrieved from an exchange — Bursa Malaysia’s announcements are on its own site.'));
+    hd.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
+      el('span', { class: 'chip chip-brand' }, 'Personal research'),
+      c.retrieved ? el('span', { class: 'chip' }, `loaded ${c.retrieved}`) : null,
+    ]));
+    wrap.append(hd);
+    const ch = changeSummary(c) || [];
+    if (ch.length) {
+      const card = el('div', { class: 'card' });
+      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'From the statement lines you loaded.'));
+      card.append(changedTable(ch));
+      wrap.append(card);
+    }
+    return wrap;
+  }
   if (c.real) {
     /* A filed company: the real index, and nothing standing in for it. */
     const cik10 = String(c.cik).padStart(10, '0');

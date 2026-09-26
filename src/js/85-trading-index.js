@@ -635,7 +635,7 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- inputs: identity ---------- */
   const idc = el('div', { class: 'card' });
-  idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted — screenshot extraction is phase 2 and is not built.'));
+  idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted on this page; the phase-2 extraction script runs off-page, writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'));
   /* `lines` makes it a textarea. A single-line input scrolls its own content,
      which is fine for a ticker and wrong for a sentence: at 390px the
      unidentified-indicators note showed 55% of itself even at full width, and

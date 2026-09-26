@@ -267,10 +267,16 @@ const MOM_INPUTS = [
 
 function momentumOf(r) {
   const peers = U.filter(x => x.c.mkt === r.c.mkt);
-  const medRs = median(peers.map(x => x.c.px.m12)) ?? 0;
+  /* A cohort median needs a cohort. Once the illustrative US twins retire,
+     the only US row with a twelve-month return is one synthetic company, and
+     `median([19.7]) ?? 0` handed its hand-written figure to 119 filed
+     companies as "cohort median +19.7%". Fewer than five priced peers is no
+     cohort; the figure is null and the page says so. */
+  const priced = peers.map(x => x.c.px?.m12).filter(isNum);
+  const medRs = priced.length >= 5 ? median(priced) : null;
   const pc = (a, b) => isNum(a) && isNum(b) && a !== 0 ? (b - a) / Math.abs(a) * 100 : null;
   const raw = {
-    rel: isNum(r.c.px?.m12) ? r.c.px.m12 - medRs : null,
+    rel: isNum(r.c.px?.m12) && isNum(medRs) ? r.c.px.m12 - medRs : null,
     ebitDir: pc(r.d.ebit[r.d.ebit.length - 2], last(r.d.ebit)),
     revDir: pc(r.d.rev[r.d.rev.length - 2], last(r.d.rev)),
   };
@@ -329,7 +335,12 @@ finaliseUniverse();
 /* 52 weekly closes ending at the current price, consistent with the stated
    12-month return and the 52-week range. */
 function priceHistory(c) {
-  if (!isNum(c.px?.p) || !isNum(c.px?.m12)) return null;   /* nothing to draw */
+  /* A seeded walk is a drawing of the illustrative set's sample prices. A
+     filed company is never given one, whatever a price file carries — the
+     same rule documents() and quarters() apply — and the walk needs the
+     52-week range it is clamped to, or it flattens to a line at zero. */
+  if (c.real) return null;
+  if (!isNum(c.px?.p) || !isNum(c.px?.m12) || !isNum(c.px?.lo) || !isNum(c.px?.hi)) return null;   /* nothing to draw */
   const rnd = seeded(c.id + 'px');
   const n = 52;
   const start = c.px.p / (1 + c.px.m12 / 100);
@@ -349,7 +360,7 @@ function priceHistory(c) {
    and the prior year is implied by the stated twelve-month return; earlier years
    are generated deterministically from the seed. */
 function priceSeries(c) {
-  if (!isNum(c.px?.p) || !isNum(c.px?.m12)) return new Array(YEARS.length).fill(null);
+  if (c.real || !isNum(c.px?.p) || !isNum(c.px?.m12)) return new Array(YEARS.length).fill(null);
   const rnd = seeded(c.id + 'annual');
   const n = YEARS.length, out = new Array(n);
   out[n - 1] = c.px.p;
@@ -463,14 +474,24 @@ function changeSummary(c) {
   const r = BY_ID.get(c.id); if (!r) return null;
   const d = r.d, i = d.rev.length - 1;
   const pctChange = (a, b) => isNum(a) && isNum(b) && a !== 0 ? (b - a) / Math.abs(a) * 100 : null;
+  /* A split between the last two rows is a corporate action, not a change in
+     the dividend or in the number of owners. Booking's count went 0.06bn to
+     1.6bn in its latest year; "shares in issue +2420%" is the split, and the
+     row is withheld with the reason rather than printed as a result. */
+  const ratio = isNum(d.sh[i-1]) && isNum(d.sh[i]) && d.sh[i-1] > 0 ? d.sh[i] / d.sh[i-1] : null;
+  const splitHere = !!r.m.shareSeriesBreak && isNum(ratio) && (ratio > 1.5 || ratio < 0.67);
+  const SPLIT_WHY = 'The share count moves by a corporate action between these two years, so a one-year change in a per-share figure measures the split.';
+  const perShare = (label, a, b) => splitHere ? { label, v: null, withheld: SPLIT_WHY } : { label, v: pctChange(a, b) };
   return [
     { label:'Revenue',            v:pctChange(d.rev[i-1], d.rev[i]) },
     { label:'Operating profit',   v:pctChange(d.ebit[i-1], d.ebit[i]) },
     { label:'Net profit',         v:pctChange(d.ni[i-1], d.ni[i]) },
-    { label:c.type==='reit' ? 'Distribution per unit' : 'Dividend per share', v:pctChange(d.dps[i-1], d.dps[i]) },
-    { label:'Shares in issue',    v:pctChange(d.sh[i-1], d.sh[i]) },
-  ].filter(x => isNum(x.v));
+    perShare(c.type==='reit' ? 'Distribution per unit' : 'Dividend per share', d.dps[i-1], d.dps[i]),
+    perShare('Shares in issue', d.sh[i-1], d.sh[i]),
+  ].filter(x => isNum(x.v) || x.withheld);
 }
+/* How a change row renders where it is a number and where it was withheld. */
+const changeCell = (x) => isNum(x.v) ? withSign(x.v, 1) : 'withheld';
 
 /* --------------------------------------------------- change feed for Home */
 function buildFeed() {

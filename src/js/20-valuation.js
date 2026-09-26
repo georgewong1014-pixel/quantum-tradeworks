@@ -42,7 +42,7 @@ const MODEL_PACKS = {
     limits:['The probability of success is a judgement, not an observable — it is exposed as an input for that reason.','New shares are assumed to be issued at today’s price; a real raise would very likely price lower.','The downside floor assumes an orderly outcome, which a distressed restructuring may not deliver.'] },
   sotp: {
     id:'sotp', name:'Consolidated FCFF with a holding-company discount',
-    why:'Holding company with unlike operating segments. A true sum of the parts needs segment-level earnings and capital, which the sample dataset does not carry — so the group is valued on consolidated cash flow and an explicit holding-company discount is applied rather than implied.',
+    why:'Holding company with unlike operating segments. A true sum of the parts needs segment-level earnings and capital, which this dataset does not carry — so the group is valued on consolidated cash flow and an explicit holding-company discount is applied rather than implied.',
     secondary:['Segment peer multiples once segment financials are available', 'Observed discounts at comparable listed holding companies'],
     limits:['This is not a true sum of the parts. Segment disclosure here is revenue-weighted only, so the parts cannot be valued separately.','The holding-company discount is a judgement, not an observable — it is exposed as an input for exactly that reason.','A single blended discount rate is applied to businesses with different risk profiles.'] },
 };
@@ -67,6 +67,12 @@ function defaultInputs(c, d) {
   const beta = { mature:0.95, growth:1.45, saas:1.20, cyclical:1.30, bank:0.95, reit:0.85, holding:1.10 }[c.type] || 1;
   const coe = riskFree + beta * erp;
 
+  /* BOOK VALUE PER SHARE IS THE BASE OF BOTH RESIDUAL-INCOME MODELS. Without
+     a share count there is none — and `null * justifiedPB` is nought, which
+     valued Berkshire at $0.00 a share under a named model with a confidence
+     grade. No estimate, and the reason, instead. */
+  if ((pack.id === 'ri' || pack.id === 'insurer') && !isNum(m.bvps)) return { model:'unavailable', pack: pack.id,
+    reason: `Book value per share could not be computed for ${c.tk || c.code}: the latest statements carry no share count. A residual-income estimate is not available, and no figure has been assumed.` };
   if (pack.id === 'ri') {
     const sustainableRoe = isNum(m.roe) ? clamp(m.roe * 0.97, 4, 20) : 10;
     const payout = isNum(m.payout) ? +clamp(m.payout, 10, 90).toFixed(0) : 50;
@@ -89,6 +95,8 @@ function defaultInputs(c, d) {
        debt; neither exists without both balance-sheet lines. */
     if (!isNum(m.netDebt) || !isNum(last(d.cash))) return { model:'unavailable', pack: pack.id,
       reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt or cash line. A financing-adjusted estimate is not available, and no balance has been assumed.` };
+    if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
+      reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share.` };
     /* Years to break even, from the current loss and the assumed improvement. */
     const burn = c.early?.burn ?? Math.max(0.05, -last(d.fcf) || 0.2);
     const cashNow = last(d.cash);
@@ -104,6 +112,8 @@ function defaultInputs(c, d) {
       shares: last(d.sh), price: c.px.p, netDebt: m.netDebt };
   }
   if (pack.id === 'ddm') {
+    if (!isNum(m.dps)) return { model:'unavailable', pack: pack.id,
+      reason: `No distribution per unit is carried for ${c.tk || c.code} in the latest year, so a distribution-discount estimate cannot be built. Nothing has been assumed in its place.` };
     /* A perpetual distribution-growth rate has to be a long-run rate, not an
        extrapolation of a strong recovery period — capped well below nominal GDP. */
     const g = isNum(m.dps5) ? clamp(m.dps5 * 0.7, 0, 3.5) : 2;
@@ -117,20 +127,38 @@ function defaultInputs(c, d) {
     return { model:'ddm', dpu:m.dps, g:+g.toFixed(2), req:+(coe + 0.4).toFixed(2), navps:m.bvps,
              cap:c.reit?.cap ?? null, gearing:c.reit?.gearing ?? null };
   }
-  const fcfSeries = d.fcf.filter(isNum);
-  const baseFcf = pack.id === 'dcfMid' ? sum(fcfSeries) / fcfSeries.length : last(fcfSeries);
+  /* THE STARTING CASH FLOW IS THE LATEST YEAR'S, OR THERE IS NONE.
+     `d.fcf.filter(isNum)` then `last()` silently reached back to the most
+     recent year that HAD a capex line: Verizon's model ran from its FY2018
+     free cash flow, Dominion's from FY2019, while the statement table beside
+     them showed the latest year withheld. The mid-cycle pack averaged
+     whatever years survived and called it a five-year average. An absent
+     latest line is not a licence to use an older one — the same rule that
+     stops capex and net debt reading as nought. All five years for the
+     average, the latest year for the rest, or no estimate. */
+  const anyFcf = d.fcf.some(isNum);
+  const window5 = d.fcf.slice(-5);
+  const baseFcf = pack.id === 'dcfMid'
+    ? (window5.length === 5 && window5.every(isNum) ? sum(window5) / 5 : null)
+    : (isNum(last(d.fcf)) ? last(d.fcf) : null);
   /* A discounted-cash-flow model needs cash flow. Two Bursa filers arrived with
-     no operating cash flow line in any year, which left fcfSeries empty and
-     last() undefined, and the function threw before any of the engine's own
-     error handling could see it — so the company vanished from the universe
-     with a console warning instead of appearing with an explanation.
+     no operating cash flow line in any year, which left the series empty and
+     the function threw before any of the engine's own error handling could
+     see it — so the company vanished from the universe with a console
+     warning instead of appearing with an explanation.
 
      The engine already has a convention for a model that does not apply: an
      error string, which every caller checks. Using it here means the company
      loads, its statements and scorecard work, and only the valuation reports
      itself unavailable — which is the truthful outcome and the useful one. */
   if (!isNum(baseFcf)) return { model:'unavailable', pack: pack.id,
-    reason: `No free cash flow could be computed for ${c.tk || c.code}: the statements carry no operating cash flow line for any year retrieved. A discounted-cash-flow estimate is not available, and no substitute has been assumed.` };
+    reason: !anyFcf
+      ? `No free cash flow could be computed for ${c.tk || c.code}: the statements carry no operating cash flow line for any year retrieved. A discounted-cash-flow estimate is not available, and no substitute has been assumed.`
+      : pack.id === 'dcfMid'
+      ? `The mid-cycle model averages five years of free cash flow and ${c.tk || c.code} does not carry all five — a capital-expenditure line is absent in at least one. Averaging the years that exist would be a different measure under the same name, so no estimate is shown.`
+      : `Free cash flow for ${c.tk || c.code}'s latest year could not be computed — its capital-expenditure line is absent — and an older year is not a substitute for it. No estimate is shown.` };
+  if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
+    reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share. No estimate is shown.` };
   /* NET DEBT IS THE BRIDGE, AND A MISSING BRIDGE IS NOT A ZERO-LENGTH ONE.
      ---------------------------------------------------------------------
      `ev - (netDebt || 0)` valued twelve filers — Ford, General Motors and
@@ -172,6 +200,9 @@ function defaultInputs(c, d) {
       fcfConv: +conv.toFixed(1),
       wacc: +wacc.toFixed(2), gt: c.mkt === 'US' ? 2.5 : 3.0, years: 7,
       dilution: +clamp(isNum(m.dilution) ? m.dilution : 0, -4, 8).toFixed(2),
+      /* Said, when the reported rate was withheld for a split and the default
+         is therefore an assumption of no issuance rather than a reading. */
+      dilutionAssumed: !isNum(m.dilution),
       netDebt: m.netDebt, shares: last(d.sh) };
   }
 
@@ -189,6 +220,7 @@ function valueDCF(inp) {
   const r = wacc / 100, gT = gt / 100;
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
   if (!isNum(netDebt)) return { error: 'Net debt is not established, so enterprise value cannot be bridged to equity. No balance has been assumed.' };
+  if (!(shares > 0)) return { error: 'No share count is carried, so nothing can be stated per share.' };
   let f = fcf0, pvExplicit = 0;
   const flows = [];
   for (let t = 1; t <= years; t++) {
@@ -213,6 +245,7 @@ function valueRI(inp) {
   const { bvps, roe, coe, g } = inp;
   const r = coe / 100, gr = g / 100, R = roe / 100;
   if (gr >= r) return { error: 'Growth must stay below the cost of equity — the justified multiple is undefined otherwise.' };
+  if (!isNum(bvps)) return { error: 'Book value per share is not established — no share count is carried — so a justified price-to-book cannot be applied to it.' };
   const justifiedPB = (R - gr) / (r - gr);
   const perShare = bvps * justifiedPB;
   /* Residual income cross-check: book value plus the present value of excess returns. */
@@ -224,6 +257,7 @@ function valueDDM(inp) {
   const { dpu, g, req, navps, cap } = inp;
   const r = req / 100, gr = g / 100;
   if (gr >= r) return { error: 'Distribution growth must stay below the required return.' };
+  if (!isNum(dpu)) return { error: 'No distribution per unit is carried for the latest year, so there is no stream to discount.' };
   const perShare = dpu * (1 + gr) / (r - gr);
   return { perShare, impliedYield: dpu / perShare * 100, navps, pnav: perShare / navps, cap };
 }
@@ -237,6 +271,8 @@ function valueScenario(inp) {
   const r = wacc / 100, gT = gt / 100;
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
   if (rev0 <= 0) return { error: 'Starting revenue must be positive for a revenue-driven scenario model.' };
+  if (!isNum(netDebt)) return { error: 'Net debt is not established, so enterprise value cannot be bridged to equity. No balance has been assumed.' };
+  if (!(shares > 0)) return { error: 'No share count is carried, so nothing can be stated per share.' };
 
   let rev = rev0, pvExplicit = 0;
   const flows = [];
@@ -321,6 +357,7 @@ function valueEarly(inp) {
   const r = wacc / 100, gT = gt / 100;
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate.' };
   if (!isNum(netDebt)) return { error: 'Net debt is not established, so neither the equity bridge nor the net-cash floor can be computed. No balance has been assumed.' };
+  if (!(shares > 0)) return { error: 'No share count is carried, so nothing can be stated per share.' };
   if (rev0 <= 0) return { error: 'Starting revenue must be positive.' };
   if (price <= 0) return { error: 'A financing need cannot be priced from a zero share price.' };
 
@@ -397,12 +434,17 @@ function nineMethods(r) {
   const wacc = isNum(inputs.wacc) ? inputs.wacc : coeOf();
   const shares = last(d.sh);
   const na = (why) => ({ value: null, why });
+  /* Every method below divides by the share count; two filers carry none,
+     and a division by null is Infinity rendered as a dash beside a sentence
+     describing a capitalisation that never happened. */
+  const noShares = shares > 0 ? null : na('No share count is carried for the latest year, so nothing can be stated per share.');
 
   /* 4 — FCFE. Equity cash flow: operating cash flow, less capex, plus net new
      borrowing, discounted at the cost of equity. Net debt is NOT subtracted
      again; the flow is already an equity flow. */
   const fcfe = (() => {
     if (c.type === 'bank') return na('Free cash flow is not meaningful for a deposit-taking balance sheet.');
+    if (noShares) return noShares;
     const ocf = last(d.ocf), capex = last(d.capex);
     if (!isNum(ocf)) return na('Operating cash flow is not carried for this company.');
     if (!isNum(capex)) return na('Capital expenditure is not carried for the latest year, so the equity flow cannot be computed.');
@@ -422,6 +464,7 @@ function nineMethods(r) {
      "what is this worth if it never grows again". */
   const epv = (() => {
     if (c.type === 'bank' || c.type === 'reit') return na('Not applied to financials or REITs, where operating profit is not the right base.');
+    if (noShares) return noShares;
     /* sum() reads a missing year as nought, so a five-year average over four
        reported years was silently a four-fifths average. All five, or none. */
     const window = d.ebit.slice(-5);
@@ -437,7 +480,8 @@ function nineMethods(r) {
   /* 8 — Peer multiple, chosen by business model rather than applied blindly. */
   const peer = (() => {
     const peers = U.filter(x => x.c.type === c.type && x.c.id !== c.id);
-    if (peers.length < 2) return na(`Only ${peers.length} comparable ${c.type} peer in the sample universe.`);
+    if (peers.length < 2) return na(`Only ${peers.length} comparable ${c.type} peer in the universe carried here.`);
+    if (noShares && c.type !== 'bank' && c.type !== 'reit') return noShares;
     if (c.type === 'bank') {
       const pb = median(peers.map(p => p.m.pb));
       return isNum(pb) && isNum(m.bvps)

@@ -133,7 +133,7 @@ function learnModels() {
       el('td', { class: 'ident' }, label),
       el('td', { style: 'text-align:left;white-space:normal;max-width:200px' }, pack?.name || '—'),
       el('td', { style: 'text-align:left;white-space:normal;max-width:260px', class: 'caption' }, pack?.secondary.join(' · ') || '—'),
-      el('td', {}, members.map(m => m.c.tk).join(', ') || '—'),
+      el('td', {}, members.map(m => m.c.tk + illusText(m.c)).join(', ') || '—'),
     ]);
   })));
   tw.append(t); intro.append(tw);
@@ -288,7 +288,7 @@ function learnData() {
   have.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Present'));
   const hl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
-   'Ten fiscal years for each SEC-filed company; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
+   'Up to ten fiscal years for each SEC-filed company — as many as it has filed in XBRL, and a few carry fewer; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
    'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
@@ -409,7 +409,7 @@ function learnTrust() {
       'Ten SEC filers whose fiscal year ends before December — Microsoft, Nvidia, Walmart, Oracle, Nike and five more — had every column labelled one year early: figures for fiscal 2026 were printed under FY2025.',
       'Every label now reads the company’s own fiscal years, on the statement table, the source drawer, the provenance strip and the Value Map. No figure changed.'],
     ['26 Sep 2026', 'Metric engine',
-      'A missing capital-expenditure, dividend or debt line was read as nought: the reinvestment rate published 0% on thirteen filers, the payout ratio 0% on twenty-one, and twelve filers with no debt line were valued as if debt-free.',
+      'A missing capital-expenditure, dividend or debt line was read as nought: the reinvestment rate published 0% on every filer whose capital-expenditure line did not resolve (sixteen, six of them banks); the payout ratio 0% on the eighteen whose dividend line did not resolve while earnings were positive; and of the twelve filers with no debt line, the seven routed to a model that bridges enterprise value to equity — plus one with debt but no cash line — were valued with a zero bridge, as if debt-free.',
       'Each measure now requires its inputs and reports unknown without them. The valuation reports itself unavailable, with the reason, rather than assuming a balance sheet.'],
     ['26 Sep 2026', 'Metric engine',
       'Earnings, book-value and dividend growth were computed across stock splits, so they measured the split rather than the company. Share-count growth had been withheld on the same evidence since 9 August; the other per-share lines had not.',

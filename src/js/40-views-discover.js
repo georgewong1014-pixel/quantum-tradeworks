@@ -88,7 +88,7 @@ VIEWS.home = () => {
   fxCard.append(statTile('USD / MYR',
     FX.source === 'sample' ? FX.USDMYR.toFixed(2) : FX.USDMYR.toFixed(4),
     { sub: FX.source === 'sample'
-        ? `Indicative sample rate · ${FX.asOf}`
+        ? `Indicative sample rate · ${FX.asOf || 'no observation date — nobody observed it'}`
         : FX.named
         ? `${FX.named} · ${FX.asOf || 'date not stated'}`
         : `${FX.personal ? 'Read from your screen' : 'From your price file'} · ${FX.asOf || 'date not stated'}` }));
@@ -108,8 +108,14 @@ VIEWS.home = () => {
      fixed, so the card says so rather than implying a live pipeline that would
      silently age into a lie. */
   freshCard.append(el('div', { class: 'row', style: 'margin-bottom:8px' },
-    [sevChip('info', 'Fixed sample dataset'), el('span', { class: 'caption' }, 'Freshness')]));
-  freshCard.append(statTile('Data as of', AS_OF, { sub: `${U.length} companies · ${MODEL_VERSION.split('·')[0].trim()}` }));
+    [sevChip('info', U.some(r => r.c.real) ? 'Filed and illustrative' : 'Illustrative set'), el('span', { class: 'caption' }, 'Freshness')]));
+  /* Two dates, because there are two sources: the filed set carries the day
+     it was retrieved from EDGAR, the illustrative set its fixed stamp. One
+     "data as of" for both dated audited figures a week before they were
+     fetched. */
+  const filedDate = U.find(r => r.c.real && r.c.retrieved)?.c.retrieved;
+  freshCard.append(statTile('Data as of', filedDate ? `Filed ${filedDate}` : AS_OF,
+    { sub: `${filedDate ? `Illustrative set ${AS_OF} · ` : ''}${U.length} companies · ${MODEL_VERSION.split('·')[0].trim()}` }));
   freshCard.append(el('div', { class: 'metaline', style: 'margin-top:10px' },
     `This date does not advance — nothing here is fed by a live source. Median coverage ${Math.round(U.map(r => r.m.coverage).sort((a, b) => a - b)[Math.floor(U.length / 2)])}%.`));
 
@@ -199,7 +205,7 @@ VIEWS.home = () => {
       const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
         onclick: () => openResearch(r.c.id) });
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { style: 'font-size:13px;font-weight:600' }, r.c.tk));
+      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, illusChip(r.c)]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
       row.append(sparkline(priceHistory(r.c)));
@@ -224,7 +230,7 @@ VIEWS.home = () => {
     const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
       onclick: () => openResearch(r.c.id, 'valuation') });
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), marketChip(r.c.mkt)]));
+    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt)]));
     nm.append(el('div', { class: 'metaline' }, `${r.val.pack.name} · ${r.val.confBand} confidence`));
     row.append(nm);
     row.append(el('div', { class: 'num pos', style: 'font-size:13px;font-weight:700' }, withSign(r.val.mos.base, 0)));
@@ -345,7 +351,7 @@ const FIELDS = [
   { g:'Financial risk',        k:'revDD',     label:'Revenue drawdown',           fmt:v=>fmtPct(v,0), formula:'largest peak-to-trough fall in revenue' },
   { g:'Financial risk',        k:'dilution',  label:'Share count growth',         fmt:v=>fmtPct(v,2), formula:'CAGR of shares in issue' },
   { g:'Financial risk',        k:'netGearing',label:'Net gearing',                fmt:v=>fmtPct(v,0), formula:'(total debt − cash) ÷ shareholders’ equity', miss:'Not applicable to a bank balance sheet.', note:'Cash here is cash and equivalents only. A company holding short-term investments will look more indebted than it is.' },
-  { g:'Financial risk',        k:'ocfPosYears',label:'Years of positive operating cash flow', fmt:v=>`${fmtNum(v,0)} of 5`, formula:'count of the last five reported years with operating cash flow above zero' },
+  { g:'Financial risk',        k:'ocfPosYears',label:'Years of positive operating cash flow', fmt:(v, r)=>`${fmtNum(v,0)} of ${r?.m?.ocfYearsSeen ?? 5}`, formula:'count of the reported years, up to the last five, with operating cash flow above zero' },
   { g:'Market and eligibility',k:'rs12',      label:'12-month price change',      fmt:v=>fmtPct(v),   formula:'price change over the trailing twelve months' },
   { g:'Market and eligibility',k:'from52',    label:'Distance from 52-week high', fmt:v=>fmtPct(v),   formula:'(price − 52-week high) ÷ 52-week high' },
   { g:'Market and eligibility',k:'sma200d',   label:'Distance from 200-day average', fmt:v=>fmtPct(v), formula:'(price − 200-day simple moving average) ÷ 200-day average', note:'Needs 200 observed closes. Computed from imported or captured history only.' },
@@ -492,7 +498,7 @@ function evaluateScreen(row, sc) {
   if (sc.sectors.length && !sc.sectors.includes(c.sector)) fails.push(`Sector ${c.sector} is not selected`);
   if (sc.types.length && !sc.types.includes(c.type)) fails.push(`Business model "${c.type}" is not selected`);
   if (m.coverage < sc.minCoverage) fails.push(`Data completeness ${m.coverage}% is below the ${sc.minCoverage}% threshold`);
-  if (sc.local.shariahOnly && c.flags.shariah !== true) fails.push('Not Shariah-compliant in this sample dataset');
+  if (sc.local.shariahOnly && c.flags.shariah !== true) fails.push('Not recorded as Shariah-compliant in this dataset');
   if (sc.local.excludePn17 && c.flags.pn17) fails.push('Classified under PN17');
   if (sc.local.klciOnly && c.flags.idx !== 'FBM KLCI') fails.push('Not an FBM KLCI constituent');
 
@@ -916,7 +922,7 @@ function renderScreener() {
       } else if (screenCcy() === 'local') {
         parts.push(`${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} shown in each company’s own reporting currency, labelled per row. Nothing has been converted, so those values are not comparable across the two markets and no median is offered for them.`);
       } else {
-        parts.push(`${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} converted to ${screenCcy()} at USD/MYR ${FX.USDMYR.toFixed(2)}, ${FX.asOf}${FX.source === 'sample' ? ' — a sample rate, not a live one' : ''}.`);
+        parts.push(`${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} converted to ${screenCcy()} at USD/MYR ${FX.USDMYR.toFixed(2)}${FX.asOf ? `, ${FX.asOf}` : ''}${FX.source === 'sample' ? ' — a sample rate, undated because nobody observed it' : ''}.`);
       }
       parts.push('Every other column is a ratio, a multiple or a percentage and reads the same in either currency. Scores and percentile ranks are computed within each market cohort, not across the two.');
       tw.append(el('p', { class: 'metaline', style: 'padding:10px var(--md);border-top:1px solid var(--line)' },
@@ -933,7 +939,7 @@ function renderScreener() {
       const card = el('a', { class: 'card screener-card', href: href(companyPath(r.c)),
         onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); openResearch(r.c.id); } });
       card.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
-        el('span', { style: 'font-weight:700' }, r.c.tk),
+        el('span', { style: 'font-weight:700' }, r.c.tk), illusChip(r.c),
         el('span', { class: 'metaline', style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, r.c.name),
         el('span', { class: r.c.mkt === 'US' ? 'chip chip-us' : 'chip chip-my' }, r.c.mkt),
       ]));
@@ -1001,7 +1007,19 @@ function renderScreener() {
     main.append(sv2);
   }
 
-  main.append(el('div', { style: 'margin-top:var(--md)' }, provenance(U[0], [`<b>Model</b> ${MODEL_VERSION}`])));
+  /* The screen's own strip, not the first row's. provenance(U[0]) printed one
+     company's price stamp, fiscal year, currency and coverage under a table
+     of 138 — Maybank's, once the illustrative US twins retire — as though
+     they described the screen. */
+  {
+    const filed = U.filter(r => r.c.real), yrs = U.map(r => latestFy(r.c)), priced = U.filter(r => isNum(r.c.px?.p));
+    main.append(el('div', { class: 'prov', style: 'margin-top:var(--md)', html: [
+      `<b>Companies</b> ${U.length} · ${filed.length} filed, ${U.length - filed.length} illustrative`,
+      `<b>Period</b> each company's latest fiscal year, FY${Math.min(...yrs)}–FY${Math.max(...yrs)}`,
+      `<b>Prices</b> ${priced.length} of ${U.length} carry one${priced.some(r => !r.c.real) ? ' — the illustrative set’s are sample figures' : ''}`,
+      `<b>Model</b> ${MODEL_VERSION}`,
+    ].join('<span class="dotsep"></span>') }));
+  }
   wrap.append(main);
   return wrap;
 }
@@ -1080,7 +1098,7 @@ function openSourceDrawer(r, f) {
     ['Adjustments', 'None. The figure is computed directly from the stored lines.'],
     ['Data completeness', `${m.coverage}% of applicable measures are computable for this company`],
     ['Model version', MODEL_VERSION],
-    ['Computed', AS_OF],
+    ['Computed', `at page load, from ${dataDateLabel(c)}`],
   ];
   if (c.real && c.provenance) {
     const mixed = Object.entries(c.provenance).filter(([, pv]) => pv.mixedTags).map(([kk]) => kk);
@@ -1114,7 +1132,7 @@ function openMetricInfo(f) {
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Value'), el('th', {}, 'Market pct')])));
   t.append(el('tbody', {}, vals.slice(0, 12).map(x => el('tr', {}, [
-    el('td', { class: 'ident' }, x.r.c.tk), el('td', {}, f.fmt(x.v)), el('td', {}, String(metricPct(x.r, f.k, 'market') ?? '—')),
+    el('td', { class: 'ident' }, x.r.c.tk + illusText(x.r.c)), el('td', {}, f.fmt(x.v)), el('td', {}, String(metricPct(x.r, f.k, 'market') ?? '—')),
   ]))));
   tw.append(t); body.append(tw);
   openDrawer('Metric definition', body);
@@ -1127,7 +1145,7 @@ function openExclusions(failed) {
   failed.slice(0, 40).forEach(({ r, ev }) => {
     const item = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     item.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' }, [
-      el('span', { style: 'font-weight:600;font-size:13px' }, r.c.tk), marketChip(r.c.mkt),
+      el('span', { style: 'font-weight:600;font-size:13px' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
       el('span', { class: 'spacer' }),
       el('span', { class: 'chip' }, `${ev.fails.length} failed`),
     ]));
@@ -1315,18 +1333,23 @@ function exportScreen() {
   if (!lim('exports')) { toast('Exports are part of Equities Research'); go('plans'); return; }
   const sc = State.screen;
   const rows = U.filter(r => evaluateScreen(r, sc).pass);
-  const cols = ['ticker', 'name', 'market', 'currency', 'price', 'quality', 'value', 'mos_vs_base', ...sc.cols, 'coverage'];
+  /* A source column per row, and a footer that says what the rows are —
+     the export used to footer 119 audited rows "Synthetic data for interface
+     demonstration only", under a previous product's file name. */
+  const cols = ['ticker', 'name', 'market', 'currency', 'source', 'price', 'quality', 'value', 'mos_vs_base', ...sc.cols, 'coverage'];
   const lines = [cols.join(',')];
   rows.forEach(r => lines.push([
-    r.c.tk, `"${r.c.name}"`, r.c.mkt, r.c.ccy, r.c.px.p,
+    r.c.tk, `"${r.c.name}"`, r.c.mkt, r.c.ccy, r.c.real ? 'SEC EDGAR companyfacts' : 'illustrative (synthetic)',
+    isNum(r.c.px?.p) ? r.c.px.p : '',
     r.scores.quality.score, r.scores.value.score, (r.val.mos?.base ?? '').toString().slice(0, 6),
     ...sc.cols.map(k => isNum(r.m[k]) ? r.m[k].toFixed(3) : ''), r.m.coverage,
   ].join(',')));
   lines.push('');
-  lines.push(`# Quantum Tradeworks sample export · as of ${AS_OF} · ${MODEL_VERSION}`);
-  lines.push('# Synthetic data for interface demonstration only. Not for investment use.');
+  lines.push(`# Quantum Tradeworks screen export · ${MODEL_VERSION}`);
+  lines.push(`# ${coverageSentence('source')}`);
+  lines.push('# Research only. Not for investment use.');
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const a = el('a', { href: URL.createObjectURL(blob), download: 'valuelens-screen.csv' });
+  const a = el('a', { href: URL.createObjectURL(blob), download: 'quantum-tradeworks-screen.csv' });
   document.body.append(a); a.click(); a.remove();
   toast(`Exported ${rows.length} rows with the screen definition`);
 }
@@ -1419,7 +1442,7 @@ function renderRadar() {
   card.append(el('div', { style: 'margin-top:var(--sm)' },
     el('div', { class: 'prov', html: [
       `<b>Period</b> ${rr.yi === YEARS.length - 1 ? 'latest reported for each company' : `FY${YEARS[rr.yi]} reported`}`,
-      `<b>Price</b> ${rr.yi === YEARS.length - 1 ? AS_OF : `sample series, FY${YEARS[rr.yi]}`}`,
+      `<b>Price</b> ${rr.yi === YEARS.length - 1 ? 'each company’s own basis — sample figure, entered close or end-of-day file, as its page states' : `sample series, FY${YEARS[rr.yi]}`}`,
       `<b>Cohort</b> ${rr.cohort === 'sector' ? 'sector-relative' : 'market-absolute'}`,
       `<b>Universe</b> ${rows.length} eligible`,
       `<b>Model</b> ${MODEL_VERSION}`,
@@ -1427,7 +1450,7 @@ function renderRadar() {
 
   card.append(tableTwin('Show the table view of every plotted company',
     ['Company', 'Market', rr.yi === YEARS.length - 1 ? 'Price' : `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
-    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
+    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
       withSign(r.val.mos.base, 1), String(yOf(r)),
       fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy), esc(r.val.pack.name), r.val.confBand])));
   wrap.append(card);
@@ -1460,14 +1483,14 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   const latest = yi === YEARS.length - 1;
   const body = el('div');
   body.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [
-    el('h3', { class: 'h-section' }, r.c.tk), marketChip(r.c.mkt), el('span', { class: 'chip' }, r.c.sector),
+    el('h3', { class: 'h-section' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt), el('span', { class: 'chip' }, r.c.sector),
     latest ? null : el('span', { class: 'chip chip-brand' }, `As of FY${YEARS[yi]}`)]));
   body.append(el('p', { class: 'caption', style: 'margin-bottom:var(--md)' }, r.c.name));
 
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   [['Model pack selected', r.val.pack.name],
    ['Selection reason', r.val.pack.why],
-   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${AS_OF}` : `FY${YEARS[yi]} reported · price from the sample series for FY${YEARS[yi]}`],
+   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${priceAsOfLabel(r.c)}` : `FY${YEARS[yi]} reported · price from the sample series for FY${YEARS[yi]}`],
    ['Price used', fmtMoney(r.price ?? r.c.px.p, r.c.ccy)],
    ['Confidence', `${r.val.confBand} (${r.val.conf}/100)`],
    ['Coverage', `${r.d.m.coverage}% of applicable metrics computable`]]
@@ -1499,7 +1522,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   body.append(el('h4', { class: 'h-card', style: 'margin-bottom:6px' }, 'What changed in the latest reported year'));
   const ch = changeSummary(r.c) || [];
   const cl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  ch.forEach(x => { cl.append(el('dt', {}, x.label)); cl.append(el('dd', { class: signClass(x.v) }, withSign(x.v, 1))); });
+  ch.forEach(x => { cl.append(el('dt', {}, x.label)); cl.append(el('dd', { class: signClass(x.v), title: x.withheld || null }, changeCell(x))); });
   body.append(cl);
 
   const acts = el('div', { class: 'row', style: 'gap:8px' });
@@ -1521,7 +1544,9 @@ const THEMES = [
   { id:'divdur', name:'Dividend Durability', mkt:'Both',
     rules:['Dividend yield above 2.5%', 'Dividends below 85% of free cash flow, or a bank below an 85% payout', 'Net debt below 3.5× EBIT where applicable'],
     excl:['Companies whose dividends exceed free cash flow', 'One-off or special distributions'],
-    test:r => r.m.dy > 2.5 && ((isNum(r.m.cashPayout) && r.m.cashPayout < 85) || (r.c.type === 'bank' && (r.m.payout ?? 99) < 85)) && (r.m.ndEbit ?? 0) < 3.5,
+    /* An unknown leverage figure does not clear a leverage rule: `?? 99`,
+       as the neighbouring themes read it, not `?? 0`. */
+    test:r => r.m.dy > 2.5 && ((isNum(r.m.cashPayout) && r.m.cashPayout < 85) || (r.c.type === 'bank' && (r.m.payout ?? 99) < 85)) && (r.m.ndEbit ?? 99) < 3.5,
     rebalance:'Semi-annually' },
   { id:'divgrow', name:'Dividend Growth', mkt:'Both',
     rules:['Dividend per share CAGR above 5% over four years', 'Earnings CAGR above 3%', 'Payout ratio below 75%'],
@@ -1533,15 +1558,21 @@ const THEMES = [
     excl:['Low-confidence valuations', 'Companies with data completeness below 70%'],
     test:r => r.scores.quality.score > 60 && (r.val.mos?.base ?? -99) > 0 && r.val.confBand !== 'Low' && r.m.coverage >= 70,
     rebalance:'Quarterly' },
+  /* A rule the test does not evaluate is listed as such, under its own
+     heading on the card — a theme that tests two rules and states three is
+     the failure the section-18.1 template names. */
   { id:'netcash', name:'Net-Cash Growth', mkt:'Both',
-    rules:['Cash exceeds total debt', 'Revenue CAGR above 6%', 'Operating margin improving over the window'],
+    rules:['Cash exceeds total debt', 'Revenue CAGR above 6%'],
+    untested:['Operating margin improving over the window — the margin path is not a screener field yet, so this is stated for the reader to check, not evaluated'],
     excl:['Banks and REITs', 'Cash offset by material lease or pension obligations'],
     test:r => r.m.netCash === true && (r.m.rev5 ?? -9) > 6,
     rebalance:'Quarterly' },
   { id:'recovery', name:'Recovery Watch', mkt:'Both',
     rules:['Revenue drawdown above 20% in the window', 'Latest-year operating profit improving', 'Free cash flow positive in the latest year'],
     excl:['Unresolved going-concern or PN17 status', 'Severe dilution above 3% a year'],
-    test:r => (r.m.revDD ?? 0) > 20 && last(r.d.ebit) > r.d.ebit[r.d.ebit.length - 2] && (r.m.fcf ?? -1) > 0 && !r.c.flags.pn17 && (r.m.dilution ?? 0) < 3,
+    /* A withheld dilution rate — the share series crosses a split — does not
+       satisfy "not severely diluting"; it is unknown, and unknown fails. */
+    test:r => (r.m.revDD ?? 0) > 20 && last(r.d.ebit) > r.d.ebit[r.d.ebit.length - 2] && (r.m.fcf ?? -1) > 0 && !r.c.flags.pn17 && (r.m.dilution ?? 99) < 3,
     rebalance:'Quarterly' },
   { id:'reit', name:'Bursa REIT Income', mkt:'MY',
     rules:['Malaysian REIT', 'Occupancy above 92%', 'Gearing below 40%', 'AFFO covers the distribution'],
@@ -1554,7 +1585,8 @@ const THEMES = [
     test:r => r.c.mkt === 'MY' && r.c.type === 'bank' && r.m.roe > 9 && r.m.cet1 > 13 && r.m.npl < 2,
     rebalance:'Quarterly' },
   { id:'capreturn', name:'US Capital Return', mkt:'US',
-    rules:['US listed', 'Share count falling', 'Free cash flow covers dividends and buybacks', 'Net debt below 3× EBIT'],
+    rules:['US listed', 'Share count falling', 'Free cash flow positive in the latest year', 'Net debt below 3× EBIT'],
+    untested:['Free cash flow covers dividends and buybacks — the buyback outflow is not a line this dataset carries, so cover is stated for the reader to check, not evaluated'],
     excl:['Debt-funded buybacks', 'Buybacks that only offset share-based compensation'],
     test:r => r.c.mkt === 'US' && (r.m.buyback ?? -9) > 0.3 && (r.m.fcf ?? -1) > 0 && (r.m.ndEbit ?? 99) < 3,
     rebalance:'Quarterly' },
@@ -1591,7 +1623,7 @@ function renderIdeas() {
     card.append(hd);
 
     if (!members.length) {
-      card.append(el('p', { class: 'caption', style: 'padding:var(--md) 0' }, 'No company in the sample universe currently meets every rule. The theme is shown empty rather than relaxed.'));
+      card.append(el('p', { class: 'caption', style: 'padding:var(--md) 0' }, 'No company in the universe carried here currently meets every rule. The theme is shown empty rather than relaxed.'));
     } else {
       const l = el('div', { style: 'display:flex;flex-direction:column;margin-top:6px' });
       members.slice(0, 5).forEach((r, i) => {
@@ -1619,6 +1651,7 @@ function openThemeDetail(t, members) {
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Inclusion rules'));
   const inc = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px;margin-bottom:var(--md)' });
   t.rules.forEach(r => inc.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, r)));
+  (t.untested || []).forEach(r => inc.append(el('li', { class: 'evidence', style: 'font-size:13px', title: 'Stated on the card, not evaluated by the test — a company shown here has not been checked against this rule.' }, `Not evaluated: ${r}`)));
   body.append(inc);
 
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Exclusions'));
@@ -1627,7 +1660,7 @@ function openThemeDetail(t, members) {
   body.append(exc);
 
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  [['Rebalance frequency', t.rebalance], ['Data timestamp', `${AS_OF}, latest reported fiscal year of each company`],
+  [['Rebalance frequency', t.rebalance], ['Data timestamp', 'Each company’s latest reported fiscal year; filed statements as retrieved from EDGAR, the illustrative set as of its fixed stamp — stated on each company’s page'],
    ['Model version', MODEL_VERSION], ['Turnover', 'Not shown — this prototype holds a single point in time'],
    ['Backtest', 'Not shown. A return series without delisting, survivorship, lag, cost and rebalance assumptions would mislead.']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
@@ -1638,13 +1671,13 @@ function openThemeDetail(t, members) {
   const tab = el('table', { class: 'dt' });
   tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Quality'), el('th', {}, 'Yield'), el('th', {}, 'vs base')])));
   tab.append(el('tbody', {}, members.map(r => el('tr', {}, [
-    el('td', { class: 'ident' }, r.c.tk), el('td', {}, String(r.scores.quality.score)),
+    el('td', { class: 'ident' }, r.c.tk + illusText(r.c)), el('td', {}, String(r.scores.quality.score)),
     el('td', {}, fmtPct(r.m.dy, 2)), el('td', { class: diffClass(r.val.mos?.base) }, withSign(r.val.mos?.base, 0)),
   ]))));
   tw.append(tab); body.append(tw);
 
   body.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    `Limitations: the sample universe is ${U.length} companies, so a theme can be empty or narrow. Constituency is computed live from the rules above — it is not a curated list.`));
+    `Limitations: the universe carried here is ${U.length} companies, so a theme can be empty or narrow. Constituency is computed live from the rules above — it is not a curated list.`));
   openDrawer('Theme rules', body);
 }
 
@@ -1662,9 +1695,12 @@ const HEAT_MODES = [
 /* Move attribution: market component, sector component, then the residual. */
 function attribution(row, mode) {
   const m = HEAT_MODES.find(x => x.id === mode);
-  const val = m.get(row) ?? 0;
-  const peersMkt = U.filter(r => r.c.mkt === row.c.mkt);
-  const capW = (arr) => { const tot = sum(arr.map(r => r.m.mcap)); return sum(arr.map(r => (m.get(r) ?? 0) * r.m.mcap)) / tot; };
+  /* No observed change, no attribution: `?? 0` drew a priced filer with no
+     day change as an exactly-0.00% mover and then explained the move. */
+  const val = m.get(row);
+  if (!isNum(val)) return null;
+  const peersMkt = U.filter(r => r.c.mkt === row.c.mkt && isNum(m.get(r)) && isNum(r.m.mcap));
+  const capW = (arr) => { const tot = sum(arr.map(r => r.m.mcap)); return tot > 0 ? sum(arr.map(r => m.get(r) * r.m.mcap)) / tot : 0; };
   const market = capW(peersMkt);
   const peersSec = peersMkt.filter(r => r.c.sector === row.c.sector);
   const sector = peersSec.length > 1 ? capW(peersSec) - market : 0;
@@ -1701,6 +1737,12 @@ function renderHeatmap() {
   if (st.universe === 'US' || st.universe === 'MY') rows = rows.filter(r => r.c.mkt === st.universe);
   if (st.universe === 'watchlist') rows = rows.filter(r => State.watchlist.includes(r.c.id));
   const mode = HEAT_MODES.find(m => m.id === st.mode);
+  /* Only tiles with an observed value for the chosen mode. A priced filer
+     carries no day, month or quarter change, and drawing it as 0.00% in the
+     neutral colour asserted a move that was never observed. */
+  const inScope = rows.length;
+  rows = rows.filter(r => isNum(mode.get(r)));
+  const unobserved = inScope - rows.length;
 
   const card = el('div', { class: 'card' });
 
@@ -1734,17 +1776,17 @@ function renderHeatmap() {
   const ramp = el('div', { class: 'row', style: 'gap:0' });
   DIVERGING.forEach(v => ramp.append(el('span', { style: `width:20px;height:9px;background:var(${v})` })));
   leg.append(el('span', { class: 'legend-item' }, [el('span', { class: 'metaline' }, mode.fmt(-mode.full)), ramp, el('span', { class: 'metaline' }, mode.fmt(mode.full))]));
-  leg.append(el('span', { class: 'caption', style: 'margin-left:auto' }, `${rows.length} companies · ${mode.label}`));
+  leg.append(el('span', { class: 'caption', style: 'margin-left:auto' }, `${rows.length} companies · ${mode.label}${unobserved ? ` · ${unobserved} priced but with no observed ${mode.label.toLowerCase()} change, not drawn` : ''}`));
   card.append(leg);
   card.append(tableTwin('Show the table view of every tile',
     ['Company', 'Market', mode.label, 'Market cap'],
-    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}`, r.c.mkt, mode.fmt(mode.get(r) ?? 0), fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)])));
+    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, mode.fmt(mode.get(r)), fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)])));
   wrap.append(card);
 
   mounts.forEach(([host, gr]) => treemap(host, {
     items: gr.map(r => ({
-      id: r.c.id, label: r.c.tk, name: r.c.name,
-      value: toBase(r.m.mcap, r.c.ccy), change: mode.get(r) ?? 0,
+      id: r.c.id, label: r.c.tk, name: r.c.name + illusText(r.c),
+      value: toBase(r.m.mcap, r.c.ccy), change: mode.get(r),
       capLabel: fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       metricLabel: mode.label,
     })),
@@ -1758,7 +1800,12 @@ function openWhyMoved(id, mode) {
   const r = BY_ID.get(id);
   const a = attribution(r, mode);
   const body = el('div');
-  body.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:2px' }, [el('h3', { class: 'h-section' }, r.c.tk), marketChip(r.c.mkt)]));
+  body.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:2px' }, [el('h3', { class: 'h-section' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt)]));
+  if (!a) {
+    body.append(el('p', { class: 'body', style: 'font-size:13px' }, `${r.c.name} carries no observed change for this period, so there is no move to attribute.`));
+    openDrawer('Why moved?', body);
+    return;
+  }
   body.append(el('p', { class: 'caption', style: 'margin-bottom:var(--md)' }, `${r.c.name} · ${a.m.label}`));
 
   body.append(statTile(a.m.label, a.m.fmt(a.val), { tone: a.val >= 0 ? '--ok-text' : '--dn-text' }));
@@ -1794,17 +1841,17 @@ function openWhyMoved(id, mode) {
       `The sample document list carries a ${a.doc.form} dated ${a.doc.date}: “${a.doc.title}”. That list is illustrative — nothing in it was retrieved from any exchange — so this is a prompt to check the real filing index, not evidence that anything was published.`));
   }
   const ch = changeSummary(r.c) || [];
-  const big = ch.filter(x => Math.abs(x.v) > 8);
+  const big = ch.filter(x => isNum(x.v) && Math.abs(x.v) > 8);
   if (big.length) evid.append(el('div', { class: 'evidence support' },
     `Latest reported year: ${big.map(x => `${x.label.toLowerCase()} ${withSign(x.v, 0)}`).join(', ')}.`));
   if (!evid.children.length || Math.abs(a.specific) < 1) {
     evid.append(el('div', { class: 'evidence' },
-      'No reliable company event in the sample dataset explains this move. It is reported as unexplained rather than attributed to a cause the data does not support.'));
+      'No reliable company event in the data carried here explains this move. It is reported as unexplained rather than attributed to a cause the data does not support.'));
   }
   body.append(evid);
 
   body.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'Attribution is arithmetic on the sample dataset. It identifies where a move came from, not whether the move was justified.'));
+    'Attribution is arithmetic on the prices carried here. It identifies where a move came from, not whether the move was justified.'));
 
   const acts = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => { closeDrawer(); openResearch(id); } }, 'Open research'));

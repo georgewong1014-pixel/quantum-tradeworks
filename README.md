@@ -46,7 +46,10 @@ Services Act before launch.
 
 ## Run it
 
-No build step. It is one static HTML file.
+The deployed site is one static HTML file, assembled from `src/` by `build.mjs`
+and committed, so the host needs no build step. After editing anything under
+`src/`, run `node build.mjs` and commit the result; CI fails if `index.html`
+drifts from its source.
 
 ```bash
 node serve.mjs            # http://localhost:3000

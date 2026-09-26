@@ -299,11 +299,13 @@ function propertyIpsAnswers(d, m, g) {
     ? ipsAnswer('capital', meets ? 'pass' : 'partial',
         `${fmtMoney(safe, 'MYR', 0)} to complete and be safe, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve`
         + (reserve > 0 ? ` — ${months} month${months === 1 ? '' : 's'} of instalment and owner-paid running costs. ` : '. ')
+        /* This gate's own threshold, stated as such — the IPS text carries no
+           reserve period, so it must not be quoted for one. */
         + (meets
-          ? 'The IPS requires at least six months of instalments, maintenance, repairs and vacancy exposure held back, and this reserve meets it.'
+          ? 'This gate holds the reserve to at least six months of instalments, maintenance, repairs and vacancy exposure, and this reserve meets it.'
           : reserve > 0
-          ? `The IPS requires at least six months held back; this reserve is set to ${months}. Raise the months of reserve on the calculator to meet the gate.`
-          : 'No liquidity reserve is carried. The IPS requires at least six months of obligations held back before this gate is answered.'))
+          ? `This gate holds the reserve to at least six months; this reserve is set to ${months}. Raise the months of reserve on the calculator to meet it.`
+          : 'No liquidity reserve is carried. This gate holds the reserve to at least six months of obligations before it is answered.'))
     : ipsAnswer('capital', 'unknown', 'Not computed — the purchase figures are incomplete.'));
 
   /* 3 — DEMAND. §6.5, and the one gate this product could not answer at all

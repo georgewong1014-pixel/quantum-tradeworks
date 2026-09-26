@@ -2,7 +2,7 @@
   "name": "quantum-tradeworks",
   "version": "0.1.0",
   "private": true,
-  "description": "Quantum Tradeworks — Malaysia-first cross-asset research prototype for US and Bursa equities and Malaysian property. Research only; all data is synthetic. The deployed site is one static self-contained index.html with no runtime dependencies; it is assembled from src/ by build.mjs and committed, so the host still serves it with no build step.",
+  "description": "Quantum Tradeworks — Malaysia-first cross-asset research prototype for US and Bursa equities and Malaysian property. Research only. 119 US companies carry audited statements from SEC filings; the Malaysian set is illustrative and synthetic; no market data is included. The deployed site is one static self-contained index.html with no runtime dependencies; it is assembled from src/ by build.mjs and committed, so the host still serves it with no build step.",
   "scripts": {
     "dev": "node serve.mjs",
     "assemble": "node build.mjs",

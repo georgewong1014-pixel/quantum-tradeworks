@@ -23,9 +23,14 @@ const LYI = YEARS.length - 1;          /* index of the latest reported year */
    year Microsoft calls fiscal 2026 was printed as FY2025, and so on back.
 
    The value was right and the label was wrong, which is the harder kind of
-   error to notice. Every label now asks the company. Where a record carries no
-   years of its own the window is the most recent slice of YEARS, which is what
-   the previous code silently assumed for everything. */
+   error to notice. Every label now asks the company. "FY" here means the
+   calendar year the fiscal period ENDS in — the ingest's convention — which
+   matches how Microsoft, Nvidia and Walmart name their years and differs
+   from Home Depot and Lowe's, who name a year by its start. Where the ingest
+   recorded the period end, the caption states the date and the ambiguity
+   goes away. Where a record carries no years of its own the window is the
+   most recent slice of YEARS, which is what the previous code silently
+   assumed for everything. */
 const yearsOf = (c) => {
   if (Array.isArray(c?.years) && c.years.length === c.fin?.length) return c.years;
   const n = c?.fin?.length || YEARS.length;

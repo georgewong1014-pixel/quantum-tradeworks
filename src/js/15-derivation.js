@@ -4,7 +4,12 @@
    above, so the metric dictionary can show the formula and the exact inputs.
    ========================================================================== */
 
-const MODEL_VERSION = 'metrics 1.4.0 · scores 1.2.0 · valuation 1.3.0';
+/* Bumped when a published figure can change for the same statements. The
+   September 2026 corrections did that twice over — absent lines no longer
+   read as nought in the metrics, and the valuation refuses a missing bridge,
+   share count or book value rather than assuming one — so a run saved under
+   the previous version is right to report that the model has moved. */
+const MODEL_VERSION = 'metrics 1.5.0 · scores 1.2.0 · valuation 1.4.0';
 const AS_OF = '30 Jul 2026';
 
 /* SAVED WORK — NAMED, VERSIONED, AND HONESTLY LOCATED.
@@ -316,13 +321,19 @@ function derive(c) {
      a company with real statements and no feed stays usable. */
   const price = isNum(c.px?.p) ? c.px.p : null;
   const hasPx = price != null;
-  const mcap = hasPx ? price * sh[i] : null;
+  /* A price times an absent share count is not a market capitalisation of
+     nought. Two filers carry no share-count line; with a price entered they
+     read "$0M" and an EV equal to net debt. */
+  const mcap = hasPx && isNum(sh[i]) && sh[i] > 0 ? price * sh[i] : null;
   /* Both lines, or neither. `debt[i] - cash[i]` with a missing debt line
      returned negative net debt, which made m.netCash true and m.netGearing
      negative — the product asserting a net cash position for a company whose
      borrowings it simply had not read. */
   const netDebt = (isBank || !isNum(debt[i]) || !isNum(cash[i])) ? null : debt[i] - cash[i];
-  const ev = (isBank || !hasPx) ? null : mcap + netDebt;
+  /* Both halves or nothing: `mcap + null` is mcap, which valued a priced
+     filer with no debt line as debt-free on the screener's EV/EBIT column
+     and in every peer multiple built from it. */
+  const ev = (isBank || !isNum(mcap) || !isNum(netDebt)) ? null : mcap + netDebt;
 
   const m = {};
   m.mcap = mcap; m.ev = ev; m.netDebt = netDebt;
@@ -396,7 +407,7 @@ function derive(c) {
   const equitySignFlip = isNum(eq[i]) && isNum(eq[i - 1]) && eq[i] * eq[i - 1] < 0;
   const equityTooThin = isNum(avgEq) && isNum(rev[i]) && rev[i] > 0
     && (avgEq < 0.05 * rev[i] || equitySignFlip) && !isBank && c.type !== 'reit';
-  m.roe = avgEq > 0 && !equityTooThin ? ni[i] / avgEq * 100 : null;
+  m.roe = isNum(ni[i]) && avgEq > 0 && !equityTooThin ? ni[i] / avgEq * 100 : null;
   m.roeWithheld = avgEq > 0 && equityTooThin
     ? 'Book equity is under 5% of revenue, so return on equity divides by a base too small to carry meaning. The underlying figures are on the financials tab.'
     : null;
@@ -508,12 +519,13 @@ function derive(c) {
   }
   m.shareSeriesBreak = shBreak;
   /* The split reaches every per-share series, not just the share count. Nvidia
-     reports 2.47bn shares one year and 24.6bn the next, and its earnings per
-     share fall to a tenth on the same day for the same reason; a growth rate
-     across that boundary measures the split. Apple's dividend reads 2.40 then
-     0.68. Earnings, book value and dividend growth are therefore withheld on
-     the same evidence that withholds share-count growth — the whole-company
-     lines (revenue, cash flow) are unaffected and keep their rates. */
+     reports 2.47bn shares one year and 24.6bn the next — a tenfold count
+     against earnings that rose 6.8 times — so earnings per share read 1.77
+     then 1.21 while the business grew; a growth rate across that boundary is
+     off by the split factor. Apple's dividend reads 2.40 then 0.68. Earnings,
+     book value and dividend growth are therefore withheld on the same
+     evidence that withholds share-count growth — the whole-company lines
+     (revenue, cash flow) are unaffected and keep their rates. */
   if (shBreak) { m.eps5 = null; m.bv5 = null; m.dps5 = null; m.eps10 = null; m.dps10 = null; }
   const shCagr = shBreak ? null : cagr(sh);
   m.dilution = isNum(shCagr) ? shCagr : null;          /* +ve = issuing */

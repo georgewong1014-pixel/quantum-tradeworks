@@ -55,6 +55,10 @@ function cagr(series) {
 
 /* ------------------------------------------------------------- formatting */
 const NA = '<span class="caption" title="Not available or not meaningful for this company type">n/a</span>';
+/* Distinct from n/a: the figure exists in principle and was withheld, because
+   the share count moves by a corporate action inside the window and a
+   per-share rate across that boundary would measure the split. */
+const NA_SPLIT = '<span class="caption" title="Withheld: the share count moves by a corporate action inside this window, so a growth rate over a per-share line would measure the split, not the company.">withheld</span>';
 
 function fmtNum(v, dp = 1) {
   if (!isNum(v)) return '—';

@@ -118,10 +118,14 @@ const ANNUAL_FORM = /^(10-K|10-K405|10-KT|20-F|40-F)(\/A)?$/;
  *    YEAR. This function used to bucket every balance-sheet fact by the
  *    calendar year of its date and let the latest-filed one win — and a 10-Q
  *    balance dated inside the year is filed later than the 10-K for the
- *    year-end before it, so a March quarter-end could and did stand in for the
- *    September year-end it followed. Equity, debt, cash and share count then
- *    disagreed with the income statement beside them about which date they
- *    described. The caller now supplies the fiscal year-end for each year,
+ *    year-end before it, so a quarter-end could stand in for the year-end: a
+ *    December quarter-end filed in January outranks a September 10-K on
+ *    filing date until a later filing re-reports the year-end. Whether that
+ *    happened anywhere in the shipped data is for the regeneration diff to
+ *    show; the rule permitted it, which is enough. Equity, debt, cash and
+ *    share count could then disagree with the income statement beside them
+ *    about which date they described. The caller now supplies the fiscal
+ *    year-end for each year,
  *    taken from the revenue period that defines it, and only a fact dated
  *    exactly there is accepted. Where no year-end is known the fallback is a
  *    fact from an annual form; a quarterly form is never a source for an
@@ -435,8 +439,16 @@ if (isMain) {
   }
 
   if (out) {
-    await mkdir(dirname(out), { recursive: true });
-    await writeFile(out, JSON.stringify({ generated: new Date().toISOString(), source: 'SEC EDGAR', results, failures }, null, 2));
-    console.log(`\nwrote ${out} — ${results.length} companies, ${failures.length} failures`);
+    /* A regeneration that lost a company to a transient 403 or 429 must not
+       quietly shrink the universe. If the target already exists and this run
+       has failures, the old file stands and the new results go to a sibling
+       for inspection; pass --force to overwrite anyway. */
+    const { existsSync } = await import('node:fs');
+    const force = argv.includes('--force');
+    const target = (failures.length && existsSync(out) && !force) ? out.replace(/\.json$/, '') + '.partial.json' : out;
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, JSON.stringify({ generated: new Date().toISOString(), source: 'SEC EDGAR', results, failures }, null, 2));
+    console.log(`\nwrote ${target} — ${results.length} companies, ${failures.length} failures`);
+    if (target !== out) console.error(`! ${failures.length} ticker(s) failed, so ${out} was left as it was. Re-run the failed tickers, or pass --force to overwrite with a smaller universe.`);
   }
 }

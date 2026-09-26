@@ -492,10 +492,10 @@ VIEWS.alerts = () => {
     const e = evaluateThesis(t);
     e.breaches.forEach(b => items.push({
       sev:'serious', kind:'thesis', id:t.ticker,
-      title:`${BY_ID.get(t.ticker).c.tk} — thesis condition breached`,
+      title:`${BY_ID.get(t.ticker).c.tk}${illusText(BY_ID.get(t.ticker).c)} — thesis condition breached`,
       what:b.label,
       detail:`Current value ${(b.type === 'val' ? fmtPct(b.actual, 1) : fmtFor(b.k)(b.actual))} against your threshold of ${b.op} ${b.type === 'val' ? fmtPct(b.v, 1) : fmtFor(b.k)(b.v)}.`,
-      source:`FY${latestFy(BY_ID.get(t.ticker).c)} reported · ${AS_OF}`,
+      source:`FY${latestFy(BY_ID.get(t.ticker).c)} reported · ${dataDateLabel(BY_ID.get(t.ticker).c)}`,
     }));
   });
   /* Saved screens with alerting on: anything that entered or left since the
@@ -505,7 +505,7 @@ VIEWS.alerts = () => {
     const diff = screenDiff(s);
     diff.entered.forEach(r => items.push({
       sev:'good', kind:'screen', id:r.c.id,
-      title:`${r.c.tk} is a new match for “${s.name}”`,
+      title:`${r.c.tk}${illusText(r.c)} is a new match for “${s.name}”`,
       what:`It did not clear this screen when the snapshot was taken on ${s.snapshot?.saved ?? s.asOf}.`,
       detail:`Quality ${r.scores.quality.score}, Value ${r.scores.value.score}, ${withSign(r.val.mos?.base, 0)} vs base-case model estimate.`,
       source:`Screen saved ${s.snapshot?.saved ?? s.asOf} · ${s.snapshot?.model ?? s.model}`,
@@ -521,7 +521,7 @@ VIEWS.alerts = () => {
 
   FEED.filter(f => State.watchlist.includes(f.id) || State.theses.some(t => t.ticker === f.id)).slice(0, 8).forEach(f => {
     items.push({ sev:f.sev, kind:f.kind, id:f.id, title:f.title, what:f.detail,
-      detail:'Mapped to your watchlist. No thesis condition covers this yet.', source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${AS_OF}` });
+      detail:'Mapped to your watchlist. No thesis condition covers this yet.', source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${dataDateLabel(BY_ID.get(f.id)?.c)}` });
   });
 
   /* User-set price thresholds, evaluated against the current price. Collected
@@ -535,7 +535,7 @@ VIEWS.alerts = () => {
     if (!hit) return;
     items.push({
       sev:'info', kind:'price', id:pa.ticker,
-      title:`${r.c.tk} is ${pa.op === '>' ? 'above' : 'below'} ${fmtMoney(pa.price, r.c.ccy)}`,
+      title:`${r.c.tk}${illusText(r.c)} is ${pa.op === '>' ? 'above' : 'below'} ${fmtMoney(pa.price, r.c.ccy)}`,
       what:pa.note || 'Price threshold you set has been crossed.',
       detail:`Now ${fmtMoney(r.c.px.p, r.c.ccy)}. A price move on its own is not new information — check the "Why moved?" attribution or the latest filing before treating it as such.`,
       source:`Price ${priceAsOfLabel(r.c)} · threshold set by you`,

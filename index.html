@@ -897,6 +897,10 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
      to 44px would break the paragraph it belongs to. */
   p .linklike, .body .linklike, .metric-label { min-height: 0; }
   .searchbtn, .iconbtn { min-width: 44px; }
+  /* A select sized to a two-letter option is 38px wide on a phone — the
+     evidence-source pickers on the property calculator were — and a finger
+     is wider than that. The height rule above already gives it 44. */
+  .select, .select-sm { min-width: 44px; }
   /* Inline links in running prose are exempt — WCAG does not require a 44px
      target for a link inside a sentence, and padding them apart would break
      the paragraph they sit in. The footer's are a LIST of links, not prose,
@@ -1681,6 +1685,10 @@ function cagr(series) {
 
 /* ------------------------------------------------------------- formatting */
 const NA = '<span class="caption" title="Not available or not meaningful for this company type">n/a</span>';
+/* Distinct from n/a: the figure exists in principle and was withheld, because
+   the share count moves by a corporate action inside the window and a
+   per-share rate across that boundary would measure the split. */
+const NA_SPLIT = '<span class="caption" title="Withheld: the share count moves by a corporate action inside this window, so a growth rate over a per-share line would measure the split, not the company.">withheld</span>';
 
 function fmtNum(v, dp = 1) {
   if (!isNum(v)) return '—';
@@ -2157,7 +2165,9 @@ const savePriceAlerts = () => store.write('priceAlerts', State.priceAlerts);
    USDMYR replaces it at load and says where the number came from. Every US
    figure shown in MYR passes through this one number, so a stale rate misstates
    the whole cross-market view rather than one field. */
-const FX = { USDMYR: 4.42, asOf: '30 Jul 2026 17:00 MYT', source: 'sample', personal: false };
+/* A sample rate has no observation time. It was stamped "17:00 MYT" like a
+   fixing, which is what a reader takes a time-of-day for. */
+const FX = { USDMYR: 4.42, asOf: null, source: 'sample', personal: false };
 let fxRejected = null;
 
 /* Illustrative dividend withholding, per market of listing. These are user
@@ -2214,9 +2224,14 @@ const LYI = YEARS.length - 1;          /* index of the latest reported year */
    year Microsoft calls fiscal 2026 was printed as FY2025, and so on back.
 
    The value was right and the label was wrong, which is the harder kind of
-   error to notice. Every label now asks the company. Where a record carries no
-   years of its own the window is the most recent slice of YEARS, which is what
-   the previous code silently assumed for everything. */
+   error to notice. Every label now asks the company. "FY" here means the
+   calendar year the fiscal period ENDS in — the ingest's convention — which
+   matches how Microsoft, Nvidia and Walmart name their years and differs
+   from Home Depot and Lowe's, who name a year by its start. Where the ingest
+   recorded the period end, the caption states the date and the ambiguity
+   goes away. Where a record carries no years of its own the window is the
+   most recent slice of YEARS, which is what the previous code silently
+   assumed for everything. */
 const yearsOf = (c) => {
   if (Array.isArray(c?.years) && c.years.length === c.fin?.length) return c.years;
   const n = c?.fin?.length || YEARS.length;
@@ -2847,7 +2862,12 @@ const RAW = [
    above, so the metric dictionary can show the formula and the exact inputs.
    ========================================================================== */
 
-const MODEL_VERSION = 'metrics 1.4.0 · scores 1.2.0 · valuation 1.3.0';
+/* Bumped when a published figure can change for the same statements. The
+   September 2026 corrections did that twice over — absent lines no longer
+   read as nought in the metrics, and the valuation refuses a missing bridge,
+   share count or book value rather than assuming one — so a run saved under
+   the previous version is right to report that the model has moved. */
+const MODEL_VERSION = 'metrics 1.5.0 · scores 1.2.0 · valuation 1.4.0';
 const AS_OF = '30 Jul 2026';
 
 /* SAVED WORK — NAMED, VERSIONED, AND HONESTLY LOCATED.
@@ -3159,13 +3179,19 @@ function derive(c) {
      a company with real statements and no feed stays usable. */
   const price = isNum(c.px?.p) ? c.px.p : null;
   const hasPx = price != null;
-  const mcap = hasPx ? price * sh[i] : null;
+  /* A price times an absent share count is not a market capitalisation of
+     nought. Two filers carry no share-count line; with a price entered they
+     read "$0M" and an EV equal to net debt. */
+  const mcap = hasPx && isNum(sh[i]) && sh[i] > 0 ? price * sh[i] : null;
   /* Both lines, or neither. `debt[i] - cash[i]` with a missing debt line
      returned negative net debt, which made m.netCash true and m.netGearing
      negative — the product asserting a net cash position for a company whose
      borrowings it simply had not read. */
   const netDebt = (isBank || !isNum(debt[i]) || !isNum(cash[i])) ? null : debt[i] - cash[i];
-  const ev = (isBank || !hasPx) ? null : mcap + netDebt;
+  /* Both halves or nothing: `mcap + null` is mcap, which valued a priced
+     filer with no debt line as debt-free on the screener's EV/EBIT column
+     and in every peer multiple built from it. */
+  const ev = (isBank || !isNum(mcap) || !isNum(netDebt)) ? null : mcap + netDebt;
 
   const m = {};
   m.mcap = mcap; m.ev = ev; m.netDebt = netDebt;
@@ -3239,7 +3265,7 @@ function derive(c) {
   const equitySignFlip = isNum(eq[i]) && isNum(eq[i - 1]) && eq[i] * eq[i - 1] < 0;
   const equityTooThin = isNum(avgEq) && isNum(rev[i]) && rev[i] > 0
     && (avgEq < 0.05 * rev[i] || equitySignFlip) && !isBank && c.type !== 'reit';
-  m.roe = avgEq > 0 && !equityTooThin ? ni[i] / avgEq * 100 : null;
+  m.roe = isNum(ni[i]) && avgEq > 0 && !equityTooThin ? ni[i] / avgEq * 100 : null;
   m.roeWithheld = avgEq > 0 && equityTooThin
     ? 'Book equity is under 5% of revenue, so return on equity divides by a base too small to carry meaning. The underlying figures are on the financials tab.'
     : null;
@@ -3351,12 +3377,13 @@ function derive(c) {
   }
   m.shareSeriesBreak = shBreak;
   /* The split reaches every per-share series, not just the share count. Nvidia
-     reports 2.47bn shares one year and 24.6bn the next, and its earnings per
-     share fall to a tenth on the same day for the same reason; a growth rate
-     across that boundary measures the split. Apple's dividend reads 2.40 then
-     0.68. Earnings, book value and dividend growth are therefore withheld on
-     the same evidence that withholds share-count growth — the whole-company
-     lines (revenue, cash flow) are unaffected and keep their rates. */
+     reports 2.47bn shares one year and 24.6bn the next — a tenfold count
+     against earnings that rose 6.8 times — so earnings per share read 1.77
+     then 1.21 while the business grew; a growth rate across that boundary is
+     off by the split factor. Apple's dividend reads 2.40 then 0.68. Earnings,
+     book value and dividend growth are therefore withheld on the same
+     evidence that withholds share-count growth — the whole-company lines
+     (revenue, cash flow) are unaffected and keep their rates. */
   if (shBreak) { m.eps5 = null; m.bv5 = null; m.dps5 = null; m.eps10 = null; m.dps10 = null; }
   const shCagr = shBreak ? null : cagr(sh);
   m.dilution = isNum(shCagr) ? shCagr : null;          /* +ve = issuing */
@@ -4225,7 +4252,7 @@ const MODEL_PACKS = {
     limits:['The probability of success is a judgement, not an observable — it is exposed as an input for that reason.','New shares are assumed to be issued at today’s price; a real raise would very likely price lower.','The downside floor assumes an orderly outcome, which a distressed restructuring may not deliver.'] },
   sotp: {
     id:'sotp', name:'Consolidated FCFF with a holding-company discount',
-    why:'Holding company with unlike operating segments. A true sum of the parts needs segment-level earnings and capital, which the sample dataset does not carry — so the group is valued on consolidated cash flow and an explicit holding-company discount is applied rather than implied.',
+    why:'Holding company with unlike operating segments. A true sum of the parts needs segment-level earnings and capital, which this dataset does not carry — so the group is valued on consolidated cash flow and an explicit holding-company discount is applied rather than implied.',
     secondary:['Segment peer multiples once segment financials are available', 'Observed discounts at comparable listed holding companies'],
     limits:['This is not a true sum of the parts. Segment disclosure here is revenue-weighted only, so the parts cannot be valued separately.','The holding-company discount is a judgement, not an observable — it is exposed as an input for exactly that reason.','A single blended discount rate is applied to businesses with different risk profiles.'] },
 };
@@ -4250,6 +4277,12 @@ function defaultInputs(c, d) {
   const beta = { mature:0.95, growth:1.45, saas:1.20, cyclical:1.30, bank:0.95, reit:0.85, holding:1.10 }[c.type] || 1;
   const coe = riskFree + beta * erp;
 
+  /* BOOK VALUE PER SHARE IS THE BASE OF BOTH RESIDUAL-INCOME MODELS. Without
+     a share count there is none — and `null * justifiedPB` is nought, which
+     valued Berkshire at $0.00 a share under a named model with a confidence
+     grade. No estimate, and the reason, instead. */
+  if ((pack.id === 'ri' || pack.id === 'insurer') && !isNum(m.bvps)) return { model:'unavailable', pack: pack.id,
+    reason: `Book value per share could not be computed for ${c.tk || c.code}: the latest statements carry no share count. A residual-income estimate is not available, and no figure has been assumed.` };
   if (pack.id === 'ri') {
     const sustainableRoe = isNum(m.roe) ? clamp(m.roe * 0.97, 4, 20) : 10;
     const payout = isNum(m.payout) ? +clamp(m.payout, 10, 90).toFixed(0) : 50;
@@ -4272,6 +4305,8 @@ function defaultInputs(c, d) {
        debt; neither exists without both balance-sheet lines. */
     if (!isNum(m.netDebt) || !isNum(last(d.cash))) return { model:'unavailable', pack: pack.id,
       reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt or cash line. A financing-adjusted estimate is not available, and no balance has been assumed.` };
+    if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
+      reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share.` };
     /* Years to break even, from the current loss and the assumed improvement. */
     const burn = c.early?.burn ?? Math.max(0.05, -last(d.fcf) || 0.2);
     const cashNow = last(d.cash);
@@ -4287,6 +4322,8 @@ function defaultInputs(c, d) {
       shares: last(d.sh), price: c.px.p, netDebt: m.netDebt };
   }
   if (pack.id === 'ddm') {
+    if (!isNum(m.dps)) return { model:'unavailable', pack: pack.id,
+      reason: `No distribution per unit is carried for ${c.tk || c.code} in the latest year, so a distribution-discount estimate cannot be built. Nothing has been assumed in its place.` };
     /* A perpetual distribution-growth rate has to be a long-run rate, not an
        extrapolation of a strong recovery period — capped well below nominal GDP. */
     const g = isNum(m.dps5) ? clamp(m.dps5 * 0.7, 0, 3.5) : 2;
@@ -4300,20 +4337,38 @@ function defaultInputs(c, d) {
     return { model:'ddm', dpu:m.dps, g:+g.toFixed(2), req:+(coe + 0.4).toFixed(2), navps:m.bvps,
              cap:c.reit?.cap ?? null, gearing:c.reit?.gearing ?? null };
   }
-  const fcfSeries = d.fcf.filter(isNum);
-  const baseFcf = pack.id === 'dcfMid' ? sum(fcfSeries) / fcfSeries.length : last(fcfSeries);
+  /* THE STARTING CASH FLOW IS THE LATEST YEAR'S, OR THERE IS NONE.
+     `d.fcf.filter(isNum)` then `last()` silently reached back to the most
+     recent year that HAD a capex line: Verizon's model ran from its FY2018
+     free cash flow, Dominion's from FY2019, while the statement table beside
+     them showed the latest year withheld. The mid-cycle pack averaged
+     whatever years survived and called it a five-year average. An absent
+     latest line is not a licence to use an older one — the same rule that
+     stops capex and net debt reading as nought. All five years for the
+     average, the latest year for the rest, or no estimate. */
+  const anyFcf = d.fcf.some(isNum);
+  const window5 = d.fcf.slice(-5);
+  const baseFcf = pack.id === 'dcfMid'
+    ? (window5.length === 5 && window5.every(isNum) ? sum(window5) / 5 : null)
+    : (isNum(last(d.fcf)) ? last(d.fcf) : null);
   /* A discounted-cash-flow model needs cash flow. Two Bursa filers arrived with
-     no operating cash flow line in any year, which left fcfSeries empty and
-     last() undefined, and the function threw before any of the engine's own
-     error handling could see it — so the company vanished from the universe
-     with a console warning instead of appearing with an explanation.
+     no operating cash flow line in any year, which left the series empty and
+     the function threw before any of the engine's own error handling could
+     see it — so the company vanished from the universe with a console
+     warning instead of appearing with an explanation.
 
      The engine already has a convention for a model that does not apply: an
      error string, which every caller checks. Using it here means the company
      loads, its statements and scorecard work, and only the valuation reports
      itself unavailable — which is the truthful outcome and the useful one. */
   if (!isNum(baseFcf)) return { model:'unavailable', pack: pack.id,
-    reason: `No free cash flow could be computed for ${c.tk || c.code}: the statements carry no operating cash flow line for any year retrieved. A discounted-cash-flow estimate is not available, and no substitute has been assumed.` };
+    reason: !anyFcf
+      ? `No free cash flow could be computed for ${c.tk || c.code}: the statements carry no operating cash flow line for any year retrieved. A discounted-cash-flow estimate is not available, and no substitute has been assumed.`
+      : pack.id === 'dcfMid'
+      ? `The mid-cycle model averages five years of free cash flow and ${c.tk || c.code} does not carry all five — a capital-expenditure line is absent in at least one. Averaging the years that exist would be a different measure under the same name, so no estimate is shown.`
+      : `Free cash flow for ${c.tk || c.code}'s latest year could not be computed — its capital-expenditure line is absent — and an older year is not a substitute for it. No estimate is shown.` };
+  if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
+    reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share. No estimate is shown.` };
   /* NET DEBT IS THE BRIDGE, AND A MISSING BRIDGE IS NOT A ZERO-LENGTH ONE.
      ---------------------------------------------------------------------
      `ev - (netDebt || 0)` valued twelve filers — Ford, General Motors and
@@ -4355,6 +4410,9 @@ function defaultInputs(c, d) {
       fcfConv: +conv.toFixed(1),
       wacc: +wacc.toFixed(2), gt: c.mkt === 'US' ? 2.5 : 3.0, years: 7,
       dilution: +clamp(isNum(m.dilution) ? m.dilution : 0, -4, 8).toFixed(2),
+      /* Said, when the reported rate was withheld for a split and the default
+         is therefore an assumption of no issuance rather than a reading. */
+      dilutionAssumed: !isNum(m.dilution),
       netDebt: m.netDebt, shares: last(d.sh) };
   }
 
@@ -4372,6 +4430,7 @@ function valueDCF(inp) {
   const r = wacc / 100, gT = gt / 100;
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
   if (!isNum(netDebt)) return { error: 'Net debt is not established, so enterprise value cannot be bridged to equity. No balance has been assumed.' };
+  if (!(shares > 0)) return { error: 'No share count is carried, so nothing can be stated per share.' };
   let f = fcf0, pvExplicit = 0;
   const flows = [];
   for (let t = 1; t <= years; t++) {
@@ -4396,6 +4455,7 @@ function valueRI(inp) {
   const { bvps, roe, coe, g } = inp;
   const r = coe / 100, gr = g / 100, R = roe / 100;
   if (gr >= r) return { error: 'Growth must stay below the cost of equity — the justified multiple is undefined otherwise.' };
+  if (!isNum(bvps)) return { error: 'Book value per share is not established — no share count is carried — so a justified price-to-book cannot be applied to it.' };
   const justifiedPB = (R - gr) / (r - gr);
   const perShare = bvps * justifiedPB;
   /* Residual income cross-check: book value plus the present value of excess returns. */
@@ -4407,6 +4467,7 @@ function valueDDM(inp) {
   const { dpu, g, req, navps, cap } = inp;
   const r = req / 100, gr = g / 100;
   if (gr >= r) return { error: 'Distribution growth must stay below the required return.' };
+  if (!isNum(dpu)) return { error: 'No distribution per unit is carried for the latest year, so there is no stream to discount.' };
   const perShare = dpu * (1 + gr) / (r - gr);
   return { perShare, impliedYield: dpu / perShare * 100, navps, pnav: perShare / navps, cap };
 }
@@ -4420,6 +4481,8 @@ function valueScenario(inp) {
   const r = wacc / 100, gT = gt / 100;
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
   if (rev0 <= 0) return { error: 'Starting revenue must be positive for a revenue-driven scenario model.' };
+  if (!isNum(netDebt)) return { error: 'Net debt is not established, so enterprise value cannot be bridged to equity. No balance has been assumed.' };
+  if (!(shares > 0)) return { error: 'No share count is carried, so nothing can be stated per share.' };
 
   let rev = rev0, pvExplicit = 0;
   const flows = [];
@@ -4504,6 +4567,7 @@ function valueEarly(inp) {
   const r = wacc / 100, gT = gt / 100;
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate.' };
   if (!isNum(netDebt)) return { error: 'Net debt is not established, so neither the equity bridge nor the net-cash floor can be computed. No balance has been assumed.' };
+  if (!(shares > 0)) return { error: 'No share count is carried, so nothing can be stated per share.' };
   if (rev0 <= 0) return { error: 'Starting revenue must be positive.' };
   if (price <= 0) return { error: 'A financing need cannot be priced from a zero share price.' };
 
@@ -4580,12 +4644,17 @@ function nineMethods(r) {
   const wacc = isNum(inputs.wacc) ? inputs.wacc : coeOf();
   const shares = last(d.sh);
   const na = (why) => ({ value: null, why });
+  /* Every method below divides by the share count; two filers carry none,
+     and a division by null is Infinity rendered as a dash beside a sentence
+     describing a capitalisation that never happened. */
+  const noShares = shares > 0 ? null : na('No share count is carried for the latest year, so nothing can be stated per share.');
 
   /* 4 — FCFE. Equity cash flow: operating cash flow, less capex, plus net new
      borrowing, discounted at the cost of equity. Net debt is NOT subtracted
      again; the flow is already an equity flow. */
   const fcfe = (() => {
     if (c.type === 'bank') return na('Free cash flow is not meaningful for a deposit-taking balance sheet.');
+    if (noShares) return noShares;
     const ocf = last(d.ocf), capex = last(d.capex);
     if (!isNum(ocf)) return na('Operating cash flow is not carried for this company.');
     if (!isNum(capex)) return na('Capital expenditure is not carried for the latest year, so the equity flow cannot be computed.');
@@ -4605,6 +4674,7 @@ function nineMethods(r) {
      "what is this worth if it never grows again". */
   const epv = (() => {
     if (c.type === 'bank' || c.type === 'reit') return na('Not applied to financials or REITs, where operating profit is not the right base.');
+    if (noShares) return noShares;
     /* sum() reads a missing year as nought, so a five-year average over four
        reported years was silently a four-fifths average. All five, or none. */
     const window = d.ebit.slice(-5);
@@ -4620,7 +4690,8 @@ function nineMethods(r) {
   /* 8 — Peer multiple, chosen by business model rather than applied blindly. */
   const peer = (() => {
     const peers = U.filter(x => x.c.type === c.type && x.c.id !== c.id);
-    if (peers.length < 2) return na(`Only ${peers.length} comparable ${c.type} peer in the sample universe.`);
+    if (peers.length < 2) return na(`Only ${peers.length} comparable ${c.type} peer in the universe carried here.`);
+    if (noShares && c.type !== 'bank' && c.type !== 'reit') return noShares;
     if (c.type === 'bank') {
       const pb = median(peers.map(p => p.m.pb));
       return isNum(pb) && isNum(m.bvps)
@@ -5052,10 +5123,16 @@ const MOM_INPUTS = [
 
 function momentumOf(r) {
   const peers = U.filter(x => x.c.mkt === r.c.mkt);
-  const medRs = median(peers.map(x => x.c.px.m12)) ?? 0;
+  /* A cohort median needs a cohort. Once the illustrative US twins retire,
+     the only US row with a twelve-month return is one synthetic company, and
+     `median([19.7]) ?? 0` handed its hand-written figure to 119 filed
+     companies as "cohort median +19.7%". Fewer than five priced peers is no
+     cohort; the figure is null and the page says so. */
+  const priced = peers.map(x => x.c.px?.m12).filter(isNum);
+  const medRs = priced.length >= 5 ? median(priced) : null;
   const pc = (a, b) => isNum(a) && isNum(b) && a !== 0 ? (b - a) / Math.abs(a) * 100 : null;
   const raw = {
-    rel: isNum(r.c.px?.m12) ? r.c.px.m12 - medRs : null,
+    rel: isNum(r.c.px?.m12) && isNum(medRs) ? r.c.px.m12 - medRs : null,
     ebitDir: pc(r.d.ebit[r.d.ebit.length - 2], last(r.d.ebit)),
     revDir: pc(r.d.rev[r.d.rev.length - 2], last(r.d.rev)),
   };
@@ -5114,7 +5191,12 @@ finaliseUniverse();
 /* 52 weekly closes ending at the current price, consistent with the stated
    12-month return and the 52-week range. */
 function priceHistory(c) {
-  if (!isNum(c.px?.p) || !isNum(c.px?.m12)) return null;   /* nothing to draw */
+  /* A seeded walk is a drawing of the illustrative set's sample prices. A
+     filed company is never given one, whatever a price file carries — the
+     same rule documents() and quarters() apply — and the walk needs the
+     52-week range it is clamped to, or it flattens to a line at zero. */
+  if (c.real) return null;
+  if (!isNum(c.px?.p) || !isNum(c.px?.m12) || !isNum(c.px?.lo) || !isNum(c.px?.hi)) return null;   /* nothing to draw */
   const rnd = seeded(c.id + 'px');
   const n = 52;
   const start = c.px.p / (1 + c.px.m12 / 100);
@@ -5134,7 +5216,7 @@ function priceHistory(c) {
    and the prior year is implied by the stated twelve-month return; earlier years
    are generated deterministically from the seed. */
 function priceSeries(c) {
-  if (!isNum(c.px?.p) || !isNum(c.px?.m12)) return new Array(YEARS.length).fill(null);
+  if (c.real || !isNum(c.px?.p) || !isNum(c.px?.m12)) return new Array(YEARS.length).fill(null);
   const rnd = seeded(c.id + 'annual');
   const n = YEARS.length, out = new Array(n);
   out[n - 1] = c.px.p;
@@ -5248,14 +5330,24 @@ function changeSummary(c) {
   const r = BY_ID.get(c.id); if (!r) return null;
   const d = r.d, i = d.rev.length - 1;
   const pctChange = (a, b) => isNum(a) && isNum(b) && a !== 0 ? (b - a) / Math.abs(a) * 100 : null;
+  /* A split between the last two rows is a corporate action, not a change in
+     the dividend or in the number of owners. Booking's count went 0.06bn to
+     1.6bn in its latest year; "shares in issue +2420%" is the split, and the
+     row is withheld with the reason rather than printed as a result. */
+  const ratio = isNum(d.sh[i-1]) && isNum(d.sh[i]) && d.sh[i-1] > 0 ? d.sh[i] / d.sh[i-1] : null;
+  const splitHere = !!r.m.shareSeriesBreak && isNum(ratio) && (ratio > 1.5 || ratio < 0.67);
+  const SPLIT_WHY = 'The share count moves by a corporate action between these two years, so a one-year change in a per-share figure measures the split.';
+  const perShare = (label, a, b) => splitHere ? { label, v: null, withheld: SPLIT_WHY } : { label, v: pctChange(a, b) };
   return [
     { label:'Revenue',            v:pctChange(d.rev[i-1], d.rev[i]) },
     { label:'Operating profit',   v:pctChange(d.ebit[i-1], d.ebit[i]) },
     { label:'Net profit',         v:pctChange(d.ni[i-1], d.ni[i]) },
-    { label:c.type==='reit' ? 'Distribution per unit' : 'Dividend per share', v:pctChange(d.dps[i-1], d.dps[i]) },
-    { label:'Shares in issue',    v:pctChange(d.sh[i-1], d.sh[i]) },
-  ].filter(x => isNum(x.v));
+    perShare(c.type==='reit' ? 'Distribution per unit' : 'Dividend per share', d.dps[i-1], d.dps[i]),
+    perShare('Shares in issue', d.sh[i-1], d.sh[i]),
+  ].filter(x => isNum(x.v) || x.withheld);
 }
+/* How a change row renders where it is a number and where it was withheld. */
+const changeCell = (x) => isNum(x.v) ? withSign(x.v, 1) : 'withheld';
 
 /* --------------------------------------------------- change feed for Home */
 function buildFeed() {
@@ -6702,6 +6794,14 @@ function priceAsOfLabel(c) {
   if (!c.real) return `sample price, ${AS_OF}`;
   return `${AS_OF} 17:00 ${c.mkt === 'US' ? 'ET' : 'MYT'}`;
 }
+/* When a company's STATEMENTS date from — the illustrative set's fixed stamp
+   is not the date filed statements were retrieved, and dating Apple's audited
+   figures "30 Jul 2026" when they were fetched on 3 August was the same
+   defect as the price stamp, one row down. */
+function dataDateLabel(c) {
+  if (c?.real) return c.retrieved ? `statements retrieved ${c.retrieved}` : 'filed statements';
+  return `sample set, ${AS_OF}`;
+}
 
 /* Freshness + lineage, shown on every analytical surface. */
 function provenance(row, extra = []) {
@@ -7502,7 +7602,7 @@ VIEWS.home = () => {
   fxCard.append(statTile('USD / MYR',
     FX.source === 'sample' ? FX.USDMYR.toFixed(2) : FX.USDMYR.toFixed(4),
     { sub: FX.source === 'sample'
-        ? `Indicative sample rate · ${FX.asOf}`
+        ? `Indicative sample rate · ${FX.asOf || 'no observation date — nobody observed it'}`
         : FX.named
         ? `${FX.named} · ${FX.asOf || 'date not stated'}`
         : `${FX.personal ? 'Read from your screen' : 'From your price file'} · ${FX.asOf || 'date not stated'}` }));
@@ -7522,8 +7622,14 @@ VIEWS.home = () => {
      fixed, so the card says so rather than implying a live pipeline that would
      silently age into a lie. */
   freshCard.append(el('div', { class: 'row', style: 'margin-bottom:8px' },
-    [sevChip('info', 'Fixed sample dataset'), el('span', { class: 'caption' }, 'Freshness')]));
-  freshCard.append(statTile('Data as of', AS_OF, { sub: `${U.length} companies · ${MODEL_VERSION.split('·')[0].trim()}` }));
+    [sevChip('info', U.some(r => r.c.real) ? 'Filed and illustrative' : 'Illustrative set'), el('span', { class: 'caption' }, 'Freshness')]));
+  /* Two dates, because there are two sources: the filed set carries the day
+     it was retrieved from EDGAR, the illustrative set its fixed stamp. One
+     "data as of" for both dated audited figures a week before they were
+     fetched. */
+  const filedDate = U.find(r => r.c.real && r.c.retrieved)?.c.retrieved;
+  freshCard.append(statTile('Data as of', filedDate ? `Filed ${filedDate}` : AS_OF,
+    { sub: `${filedDate ? `Illustrative set ${AS_OF} · ` : ''}${U.length} companies · ${MODEL_VERSION.split('·')[0].trim()}` }));
   freshCard.append(el('div', { class: 'metaline', style: 'margin-top:10px' },
     `This date does not advance — nothing here is fed by a live source. Median coverage ${Math.round(U.map(r => r.m.coverage).sort((a, b) => a - b)[Math.floor(U.length / 2)])}%.`));
 
@@ -7613,7 +7719,7 @@ VIEWS.home = () => {
       const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
         onclick: () => openResearch(r.c.id) });
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { style: 'font-size:13px;font-weight:600' }, r.c.tk));
+      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, illusChip(r.c)]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
       row.append(sparkline(priceHistory(r.c)));
@@ -7638,7 +7744,7 @@ VIEWS.home = () => {
     const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
       onclick: () => openResearch(r.c.id, 'valuation') });
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), marketChip(r.c.mkt)]));
+    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt)]));
     nm.append(el('div', { class: 'metaline' }, `${r.val.pack.name} · ${r.val.confBand} confidence`));
     row.append(nm);
     row.append(el('div', { class: 'num pos', style: 'font-size:13px;font-weight:700' }, withSign(r.val.mos.base, 0)));
@@ -7759,7 +7865,7 @@ const FIELDS = [
   { g:'Financial risk',        k:'revDD',     label:'Revenue drawdown',           fmt:v=>fmtPct(v,0), formula:'largest peak-to-trough fall in revenue' },
   { g:'Financial risk',        k:'dilution',  label:'Share count growth',         fmt:v=>fmtPct(v,2), formula:'CAGR of shares in issue' },
   { g:'Financial risk',        k:'netGearing',label:'Net gearing',                fmt:v=>fmtPct(v,0), formula:'(total debt − cash) ÷ shareholders’ equity', miss:'Not applicable to a bank balance sheet.', note:'Cash here is cash and equivalents only. A company holding short-term investments will look more indebted than it is.' },
-  { g:'Financial risk',        k:'ocfPosYears',label:'Years of positive operating cash flow', fmt:v=>`${fmtNum(v,0)} of 5`, formula:'count of the last five reported years with operating cash flow above zero' },
+  { g:'Financial risk',        k:'ocfPosYears',label:'Years of positive operating cash flow', fmt:(v, r)=>`${fmtNum(v,0)} of ${r?.m?.ocfYearsSeen ?? 5}`, formula:'count of the reported years, up to the last five, with operating cash flow above zero' },
   { g:'Market and eligibility',k:'rs12',      label:'12-month price change',      fmt:v=>fmtPct(v),   formula:'price change over the trailing twelve months' },
   { g:'Market and eligibility',k:'from52',    label:'Distance from 52-week high', fmt:v=>fmtPct(v),   formula:'(price − 52-week high) ÷ 52-week high' },
   { g:'Market and eligibility',k:'sma200d',   label:'Distance from 200-day average', fmt:v=>fmtPct(v), formula:'(price − 200-day simple moving average) ÷ 200-day average', note:'Needs 200 observed closes. Computed from imported or captured history only.' },
@@ -7906,7 +8012,7 @@ function evaluateScreen(row, sc) {
   if (sc.sectors.length && !sc.sectors.includes(c.sector)) fails.push(`Sector ${c.sector} is not selected`);
   if (sc.types.length && !sc.types.includes(c.type)) fails.push(`Business model "${c.type}" is not selected`);
   if (m.coverage < sc.minCoverage) fails.push(`Data completeness ${m.coverage}% is below the ${sc.minCoverage}% threshold`);
-  if (sc.local.shariahOnly && c.flags.shariah !== true) fails.push('Not Shariah-compliant in this sample dataset');
+  if (sc.local.shariahOnly && c.flags.shariah !== true) fails.push('Not recorded as Shariah-compliant in this dataset');
   if (sc.local.excludePn17 && c.flags.pn17) fails.push('Classified under PN17');
   if (sc.local.klciOnly && c.flags.idx !== 'FBM KLCI') fails.push('Not an FBM KLCI constituent');
 
@@ -8330,7 +8436,7 @@ function renderScreener() {
       } else if (screenCcy() === 'local') {
         parts.push(`${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} shown in each company’s own reporting currency, labelled per row. Nothing has been converted, so those values are not comparable across the two markets and no median is offered for them.`);
       } else {
-        parts.push(`${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} converted to ${screenCcy()} at USD/MYR ${FX.USDMYR.toFixed(2)}, ${FX.asOf}${FX.source === 'sample' ? ' — a sample rate, not a live one' : ''}.`);
+        parts.push(`${moneyCols.map(k => FIELD_BY_K[k].label).join(', ')} ${moneyCols.length === 1 ? 'is' : 'are'} converted to ${screenCcy()} at USD/MYR ${FX.USDMYR.toFixed(2)}${FX.asOf ? `, ${FX.asOf}` : ''}${FX.source === 'sample' ? ' — a sample rate, undated because nobody observed it' : ''}.`);
       }
       parts.push('Every other column is a ratio, a multiple or a percentage and reads the same in either currency. Scores and percentile ranks are computed within each market cohort, not across the two.');
       tw.append(el('p', { class: 'metaline', style: 'padding:10px var(--md);border-top:1px solid var(--line)' },
@@ -8347,7 +8453,7 @@ function renderScreener() {
       const card = el('a', { class: 'card screener-card', href: href(companyPath(r.c)),
         onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); openResearch(r.c.id); } });
       card.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
-        el('span', { style: 'font-weight:700' }, r.c.tk),
+        el('span', { style: 'font-weight:700' }, r.c.tk), illusChip(r.c),
         el('span', { class: 'metaline', style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, r.c.name),
         el('span', { class: r.c.mkt === 'US' ? 'chip chip-us' : 'chip chip-my' }, r.c.mkt),
       ]));
@@ -8415,7 +8521,19 @@ function renderScreener() {
     main.append(sv2);
   }
 
-  main.append(el('div', { style: 'margin-top:var(--md)' }, provenance(U[0], [`<b>Model</b> ${MODEL_VERSION}`])));
+  /* The screen's own strip, not the first row's. provenance(U[0]) printed one
+     company's price stamp, fiscal year, currency and coverage under a table
+     of 138 — Maybank's, once the illustrative US twins retire — as though
+     they described the screen. */
+  {
+    const filed = U.filter(r => r.c.real), yrs = U.map(r => latestFy(r.c)), priced = U.filter(r => isNum(r.c.px?.p));
+    main.append(el('div', { class: 'prov', style: 'margin-top:var(--md)', html: [
+      `<b>Companies</b> ${U.length} · ${filed.length} filed, ${U.length - filed.length} illustrative`,
+      `<b>Period</b> each company's latest fiscal year, FY${Math.min(...yrs)}–FY${Math.max(...yrs)}`,
+      `<b>Prices</b> ${priced.length} of ${U.length} carry one${priced.some(r => !r.c.real) ? ' — the illustrative set’s are sample figures' : ''}`,
+      `<b>Model</b> ${MODEL_VERSION}`,
+    ].join('<span class="dotsep"></span>') }));
+  }
   wrap.append(main);
   return wrap;
 }
@@ -8494,7 +8612,7 @@ function openSourceDrawer(r, f) {
     ['Adjustments', 'None. The figure is computed directly from the stored lines.'],
     ['Data completeness', `${m.coverage}% of applicable measures are computable for this company`],
     ['Model version', MODEL_VERSION],
-    ['Computed', AS_OF],
+    ['Computed', `at page load, from ${dataDateLabel(c)}`],
   ];
   if (c.real && c.provenance) {
     const mixed = Object.entries(c.provenance).filter(([, pv]) => pv.mixedTags).map(([kk]) => kk);
@@ -8528,7 +8646,7 @@ function openMetricInfo(f) {
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Value'), el('th', {}, 'Market pct')])));
   t.append(el('tbody', {}, vals.slice(0, 12).map(x => el('tr', {}, [
-    el('td', { class: 'ident' }, x.r.c.tk), el('td', {}, f.fmt(x.v)), el('td', {}, String(metricPct(x.r, f.k, 'market') ?? '—')),
+    el('td', { class: 'ident' }, x.r.c.tk + illusText(x.r.c)), el('td', {}, f.fmt(x.v)), el('td', {}, String(metricPct(x.r, f.k, 'market') ?? '—')),
   ]))));
   tw.append(t); body.append(tw);
   openDrawer('Metric definition', body);
@@ -8541,7 +8659,7 @@ function openExclusions(failed) {
   failed.slice(0, 40).forEach(({ r, ev }) => {
     const item = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     item.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' }, [
-      el('span', { style: 'font-weight:600;font-size:13px' }, r.c.tk), marketChip(r.c.mkt),
+      el('span', { style: 'font-weight:600;font-size:13px' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
       el('span', { class: 'spacer' }),
       el('span', { class: 'chip' }, `${ev.fails.length} failed`),
     ]));
@@ -8729,18 +8847,23 @@ function exportScreen() {
   if (!lim('exports')) { toast('Exports are part of Equities Research'); go('plans'); return; }
   const sc = State.screen;
   const rows = U.filter(r => evaluateScreen(r, sc).pass);
-  const cols = ['ticker', 'name', 'market', 'currency', 'price', 'quality', 'value', 'mos_vs_base', ...sc.cols, 'coverage'];
+  /* A source column per row, and a footer that says what the rows are —
+     the export used to footer 119 audited rows "Synthetic data for interface
+     demonstration only", under a previous product's file name. */
+  const cols = ['ticker', 'name', 'market', 'currency', 'source', 'price', 'quality', 'value', 'mos_vs_base', ...sc.cols, 'coverage'];
   const lines = [cols.join(',')];
   rows.forEach(r => lines.push([
-    r.c.tk, `"${r.c.name}"`, r.c.mkt, r.c.ccy, r.c.px.p,
+    r.c.tk, `"${r.c.name}"`, r.c.mkt, r.c.ccy, r.c.real ? 'SEC EDGAR companyfacts' : 'illustrative (synthetic)',
+    isNum(r.c.px?.p) ? r.c.px.p : '',
     r.scores.quality.score, r.scores.value.score, (r.val.mos?.base ?? '').toString().slice(0, 6),
     ...sc.cols.map(k => isNum(r.m[k]) ? r.m[k].toFixed(3) : ''), r.m.coverage,
   ].join(',')));
   lines.push('');
-  lines.push(`# Quantum Tradeworks sample export · as of ${AS_OF} · ${MODEL_VERSION}`);
-  lines.push('# Synthetic data for interface demonstration only. Not for investment use.');
+  lines.push(`# Quantum Tradeworks screen export · ${MODEL_VERSION}`);
+  lines.push(`# ${coverageSentence('source')}`);
+  lines.push('# Research only. Not for investment use.');
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const a = el('a', { href: URL.createObjectURL(blob), download: 'valuelens-screen.csv' });
+  const a = el('a', { href: URL.createObjectURL(blob), download: 'quantum-tradeworks-screen.csv' });
   document.body.append(a); a.click(); a.remove();
   toast(`Exported ${rows.length} rows with the screen definition`);
 }
@@ -8833,7 +8956,7 @@ function renderRadar() {
   card.append(el('div', { style: 'margin-top:var(--sm)' },
     el('div', { class: 'prov', html: [
       `<b>Period</b> ${rr.yi === YEARS.length - 1 ? 'latest reported for each company' : `FY${YEARS[rr.yi]} reported`}`,
-      `<b>Price</b> ${rr.yi === YEARS.length - 1 ? AS_OF : `sample series, FY${YEARS[rr.yi]}`}`,
+      `<b>Price</b> ${rr.yi === YEARS.length - 1 ? 'each company’s own basis — sample figure, entered close or end-of-day file, as its page states' : `sample series, FY${YEARS[rr.yi]}`}`,
       `<b>Cohort</b> ${rr.cohort === 'sector' ? 'sector-relative' : 'market-absolute'}`,
       `<b>Universe</b> ${rows.length} eligible`,
       `<b>Model</b> ${MODEL_VERSION}`,
@@ -8841,7 +8964,7 @@ function renderRadar() {
 
   card.append(tableTwin('Show the table view of every plotted company',
     ['Company', 'Market', rr.yi === YEARS.length - 1 ? 'Price' : `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
-    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
+    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
       withSign(r.val.mos.base, 1), String(yOf(r)),
       fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy), esc(r.val.pack.name), r.val.confBand])));
   wrap.append(card);
@@ -8874,14 +8997,14 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   const latest = yi === YEARS.length - 1;
   const body = el('div');
   body.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [
-    el('h3', { class: 'h-section' }, r.c.tk), marketChip(r.c.mkt), el('span', { class: 'chip' }, r.c.sector),
+    el('h3', { class: 'h-section' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt), el('span', { class: 'chip' }, r.c.sector),
     latest ? null : el('span', { class: 'chip chip-brand' }, `As of FY${YEARS[yi]}`)]));
   body.append(el('p', { class: 'caption', style: 'margin-bottom:var(--md)' }, r.c.name));
 
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   [['Model pack selected', r.val.pack.name],
    ['Selection reason', r.val.pack.why],
-   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${AS_OF}` : `FY${YEARS[yi]} reported · price from the sample series for FY${YEARS[yi]}`],
+   ['Data date', latest ? `FY${latestFy(r.c)} reported · price ${priceAsOfLabel(r.c)}` : `FY${YEARS[yi]} reported · price from the sample series for FY${YEARS[yi]}`],
    ['Price used', fmtMoney(r.price ?? r.c.px.p, r.c.ccy)],
    ['Confidence', `${r.val.confBand} (${r.val.conf}/100)`],
    ['Coverage', `${r.d.m.coverage}% of applicable metrics computable`]]
@@ -8913,7 +9036,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   body.append(el('h4', { class: 'h-card', style: 'margin-bottom:6px' }, 'What changed in the latest reported year'));
   const ch = changeSummary(r.c) || [];
   const cl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  ch.forEach(x => { cl.append(el('dt', {}, x.label)); cl.append(el('dd', { class: signClass(x.v) }, withSign(x.v, 1))); });
+  ch.forEach(x => { cl.append(el('dt', {}, x.label)); cl.append(el('dd', { class: signClass(x.v), title: x.withheld || null }, changeCell(x))); });
   body.append(cl);
 
   const acts = el('div', { class: 'row', style: 'gap:8px' });
@@ -8935,7 +9058,9 @@ const THEMES = [
   { id:'divdur', name:'Dividend Durability', mkt:'Both',
     rules:['Dividend yield above 2.5%', 'Dividends below 85% of free cash flow, or a bank below an 85% payout', 'Net debt below 3.5× EBIT where applicable'],
     excl:['Companies whose dividends exceed free cash flow', 'One-off or special distributions'],
-    test:r => r.m.dy > 2.5 && ((isNum(r.m.cashPayout) && r.m.cashPayout < 85) || (r.c.type === 'bank' && (r.m.payout ?? 99) < 85)) && (r.m.ndEbit ?? 0) < 3.5,
+    /* An unknown leverage figure does not clear a leverage rule: `?? 99`,
+       as the neighbouring themes read it, not `?? 0`. */
+    test:r => r.m.dy > 2.5 && ((isNum(r.m.cashPayout) && r.m.cashPayout < 85) || (r.c.type === 'bank' && (r.m.payout ?? 99) < 85)) && (r.m.ndEbit ?? 99) < 3.5,
     rebalance:'Semi-annually' },
   { id:'divgrow', name:'Dividend Growth', mkt:'Both',
     rules:['Dividend per share CAGR above 5% over four years', 'Earnings CAGR above 3%', 'Payout ratio below 75%'],
@@ -8947,15 +9072,21 @@ const THEMES = [
     excl:['Low-confidence valuations', 'Companies with data completeness below 70%'],
     test:r => r.scores.quality.score > 60 && (r.val.mos?.base ?? -99) > 0 && r.val.confBand !== 'Low' && r.m.coverage >= 70,
     rebalance:'Quarterly' },
+  /* A rule the test does not evaluate is listed as such, under its own
+     heading on the card — a theme that tests two rules and states three is
+     the failure the section-18.1 template names. */
   { id:'netcash', name:'Net-Cash Growth', mkt:'Both',
-    rules:['Cash exceeds total debt', 'Revenue CAGR above 6%', 'Operating margin improving over the window'],
+    rules:['Cash exceeds total debt', 'Revenue CAGR above 6%'],
+    untested:['Operating margin improving over the window — the margin path is not a screener field yet, so this is stated for the reader to check, not evaluated'],
     excl:['Banks and REITs', 'Cash offset by material lease or pension obligations'],
     test:r => r.m.netCash === true && (r.m.rev5 ?? -9) > 6,
     rebalance:'Quarterly' },
   { id:'recovery', name:'Recovery Watch', mkt:'Both',
     rules:['Revenue drawdown above 20% in the window', 'Latest-year operating profit improving', 'Free cash flow positive in the latest year'],
     excl:['Unresolved going-concern or PN17 status', 'Severe dilution above 3% a year'],
-    test:r => (r.m.revDD ?? 0) > 20 && last(r.d.ebit) > r.d.ebit[r.d.ebit.length - 2] && (r.m.fcf ?? -1) > 0 && !r.c.flags.pn17 && (r.m.dilution ?? 0) < 3,
+    /* A withheld dilution rate — the share series crosses a split — does not
+       satisfy "not severely diluting"; it is unknown, and unknown fails. */
+    test:r => (r.m.revDD ?? 0) > 20 && last(r.d.ebit) > r.d.ebit[r.d.ebit.length - 2] && (r.m.fcf ?? -1) > 0 && !r.c.flags.pn17 && (r.m.dilution ?? 99) < 3,
     rebalance:'Quarterly' },
   { id:'reit', name:'Bursa REIT Income', mkt:'MY',
     rules:['Malaysian REIT', 'Occupancy above 92%', 'Gearing below 40%', 'AFFO covers the distribution'],
@@ -8968,7 +9099,8 @@ const THEMES = [
     test:r => r.c.mkt === 'MY' && r.c.type === 'bank' && r.m.roe > 9 && r.m.cet1 > 13 && r.m.npl < 2,
     rebalance:'Quarterly' },
   { id:'capreturn', name:'US Capital Return', mkt:'US',
-    rules:['US listed', 'Share count falling', 'Free cash flow covers dividends and buybacks', 'Net debt below 3× EBIT'],
+    rules:['US listed', 'Share count falling', 'Free cash flow positive in the latest year', 'Net debt below 3× EBIT'],
+    untested:['Free cash flow covers dividends and buybacks — the buyback outflow is not a line this dataset carries, so cover is stated for the reader to check, not evaluated'],
     excl:['Debt-funded buybacks', 'Buybacks that only offset share-based compensation'],
     test:r => r.c.mkt === 'US' && (r.m.buyback ?? -9) > 0.3 && (r.m.fcf ?? -1) > 0 && (r.m.ndEbit ?? 99) < 3,
     rebalance:'Quarterly' },
@@ -9005,7 +9137,7 @@ function renderIdeas() {
     card.append(hd);
 
     if (!members.length) {
-      card.append(el('p', { class: 'caption', style: 'padding:var(--md) 0' }, 'No company in the sample universe currently meets every rule. The theme is shown empty rather than relaxed.'));
+      card.append(el('p', { class: 'caption', style: 'padding:var(--md) 0' }, 'No company in the universe carried here currently meets every rule. The theme is shown empty rather than relaxed.'));
     } else {
       const l = el('div', { style: 'display:flex;flex-direction:column;margin-top:6px' });
       members.slice(0, 5).forEach((r, i) => {
@@ -9033,6 +9165,7 @@ function openThemeDetail(t, members) {
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Inclusion rules'));
   const inc = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px;margin-bottom:var(--md)' });
   t.rules.forEach(r => inc.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, r)));
+  (t.untested || []).forEach(r => inc.append(el('li', { class: 'evidence', style: 'font-size:13px', title: 'Stated on the card, not evaluated by the test — a company shown here has not been checked against this rule.' }, `Not evaluated: ${r}`)));
   body.append(inc);
 
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Exclusions'));
@@ -9041,7 +9174,7 @@ function openThemeDetail(t, members) {
   body.append(exc);
 
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  [['Rebalance frequency', t.rebalance], ['Data timestamp', `${AS_OF}, latest reported fiscal year of each company`],
+  [['Rebalance frequency', t.rebalance], ['Data timestamp', 'Each company’s latest reported fiscal year; filed statements as retrieved from EDGAR, the illustrative set as of its fixed stamp — stated on each company’s page'],
    ['Model version', MODEL_VERSION], ['Turnover', 'Not shown — this prototype holds a single point in time'],
    ['Backtest', 'Not shown. A return series without delisting, survivorship, lag, cost and rebalance assumptions would mislead.']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
@@ -9052,13 +9185,13 @@ function openThemeDetail(t, members) {
   const tab = el('table', { class: 'dt' });
   tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Quality'), el('th', {}, 'Yield'), el('th', {}, 'vs base')])));
   tab.append(el('tbody', {}, members.map(r => el('tr', {}, [
-    el('td', { class: 'ident' }, r.c.tk), el('td', {}, String(r.scores.quality.score)),
+    el('td', { class: 'ident' }, r.c.tk + illusText(r.c)), el('td', {}, String(r.scores.quality.score)),
     el('td', {}, fmtPct(r.m.dy, 2)), el('td', { class: diffClass(r.val.mos?.base) }, withSign(r.val.mos?.base, 0)),
   ]))));
   tw.append(tab); body.append(tw);
 
   body.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    `Limitations: the sample universe is ${U.length} companies, so a theme can be empty or narrow. Constituency is computed live from the rules above — it is not a curated list.`));
+    `Limitations: the universe carried here is ${U.length} companies, so a theme can be empty or narrow. Constituency is computed live from the rules above — it is not a curated list.`));
   openDrawer('Theme rules', body);
 }
 
@@ -9076,9 +9209,12 @@ const HEAT_MODES = [
 /* Move attribution: market component, sector component, then the residual. */
 function attribution(row, mode) {
   const m = HEAT_MODES.find(x => x.id === mode);
-  const val = m.get(row) ?? 0;
-  const peersMkt = U.filter(r => r.c.mkt === row.c.mkt);
-  const capW = (arr) => { const tot = sum(arr.map(r => r.m.mcap)); return sum(arr.map(r => (m.get(r) ?? 0) * r.m.mcap)) / tot; };
+  /* No observed change, no attribution: `?? 0` drew a priced filer with no
+     day change as an exactly-0.00% mover and then explained the move. */
+  const val = m.get(row);
+  if (!isNum(val)) return null;
+  const peersMkt = U.filter(r => r.c.mkt === row.c.mkt && isNum(m.get(r)) && isNum(r.m.mcap));
+  const capW = (arr) => { const tot = sum(arr.map(r => r.m.mcap)); return tot > 0 ? sum(arr.map(r => m.get(r) * r.m.mcap)) / tot : 0; };
   const market = capW(peersMkt);
   const peersSec = peersMkt.filter(r => r.c.sector === row.c.sector);
   const sector = peersSec.length > 1 ? capW(peersSec) - market : 0;
@@ -9115,6 +9251,12 @@ function renderHeatmap() {
   if (st.universe === 'US' || st.universe === 'MY') rows = rows.filter(r => r.c.mkt === st.universe);
   if (st.universe === 'watchlist') rows = rows.filter(r => State.watchlist.includes(r.c.id));
   const mode = HEAT_MODES.find(m => m.id === st.mode);
+  /* Only tiles with an observed value for the chosen mode. A priced filer
+     carries no day, month or quarter change, and drawing it as 0.00% in the
+     neutral colour asserted a move that was never observed. */
+  const inScope = rows.length;
+  rows = rows.filter(r => isNum(mode.get(r)));
+  const unobserved = inScope - rows.length;
 
   const card = el('div', { class: 'card' });
 
@@ -9148,17 +9290,17 @@ function renderHeatmap() {
   const ramp = el('div', { class: 'row', style: 'gap:0' });
   DIVERGING.forEach(v => ramp.append(el('span', { style: `width:20px;height:9px;background:var(${v})` })));
   leg.append(el('span', { class: 'legend-item' }, [el('span', { class: 'metaline' }, mode.fmt(-mode.full)), ramp, el('span', { class: 'metaline' }, mode.fmt(mode.full))]));
-  leg.append(el('span', { class: 'caption', style: 'margin-left:auto' }, `${rows.length} companies · ${mode.label}`));
+  leg.append(el('span', { class: 'caption', style: 'margin-left:auto' }, `${rows.length} companies · ${mode.label}${unobserved ? ` · ${unobserved} priced but with no observed ${mode.label.toLowerCase()} change, not drawn` : ''}`));
   card.append(leg);
   card.append(tableTwin('Show the table view of every tile',
     ['Company', 'Market', mode.label, 'Market cap'],
-    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}`, r.c.mkt, mode.fmt(mode.get(r) ?? 0), fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)])));
+    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, mode.fmt(mode.get(r)), fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)])));
   wrap.append(card);
 
   mounts.forEach(([host, gr]) => treemap(host, {
     items: gr.map(r => ({
-      id: r.c.id, label: r.c.tk, name: r.c.name,
-      value: toBase(r.m.mcap, r.c.ccy), change: mode.get(r) ?? 0,
+      id: r.c.id, label: r.c.tk, name: r.c.name + illusText(r.c),
+      value: toBase(r.m.mcap, r.c.ccy), change: mode.get(r),
       capLabel: fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       metricLabel: mode.label,
     })),
@@ -9172,7 +9314,12 @@ function openWhyMoved(id, mode) {
   const r = BY_ID.get(id);
   const a = attribution(r, mode);
   const body = el('div');
-  body.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:2px' }, [el('h3', { class: 'h-section' }, r.c.tk), marketChip(r.c.mkt)]));
+  body.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:2px' }, [el('h3', { class: 'h-section' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt)]));
+  if (!a) {
+    body.append(el('p', { class: 'body', style: 'font-size:13px' }, `${r.c.name} carries no observed change for this period, so there is no move to attribute.`));
+    openDrawer('Why moved?', body);
+    return;
+  }
   body.append(el('p', { class: 'caption', style: 'margin-bottom:var(--md)' }, `${r.c.name} · ${a.m.label}`));
 
   body.append(statTile(a.m.label, a.m.fmt(a.val), { tone: a.val >= 0 ? '--ok-text' : '--dn-text' }));
@@ -9208,17 +9355,17 @@ function openWhyMoved(id, mode) {
       `The sample document list carries a ${a.doc.form} dated ${a.doc.date}: “${a.doc.title}”. That list is illustrative — nothing in it was retrieved from any exchange — so this is a prompt to check the real filing index, not evidence that anything was published.`));
   }
   const ch = changeSummary(r.c) || [];
-  const big = ch.filter(x => Math.abs(x.v) > 8);
+  const big = ch.filter(x => isNum(x.v) && Math.abs(x.v) > 8);
   if (big.length) evid.append(el('div', { class: 'evidence support' },
     `Latest reported year: ${big.map(x => `${x.label.toLowerCase()} ${withSign(x.v, 0)}`).join(', ')}.`));
   if (!evid.children.length || Math.abs(a.specific) < 1) {
     evid.append(el('div', { class: 'evidence' },
-      'No reliable company event in the sample dataset explains this move. It is reported as unexplained rather than attributed to a cause the data does not support.'));
+      'No reliable company event in the data carried here explains this move. It is reported as unexplained rather than attributed to a cause the data does not support.'));
   }
   body.append(evid);
 
   body.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'Attribution is arithmetic on the sample dataset. It identifies where a move came from, not whether the move was justified.'));
+    'Attribution is arithmetic on the prices carried here. It identifies where a move came from, not whether the move was justified.'));
 
   const acts = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => { closeDrawer(); openResearch(id); } }, 'Open research'));
@@ -9955,7 +10102,7 @@ VIEWS.researchHome = () => {
      .slice(0, 8)
      .forEach(r => results.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'justify-content:flex-start',
         onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } },
-        `${r.c.tk || r.c.code} — ${r.c.name}`)));
+        `${r.c.tk || r.c.code} — ${r.c.name}${illusText(r.c)}`)));
     if (!results.children.length) results.append(el('p', { class: 'metaline' }, `Nothing in the beta universe matches “${inp.value.trim()}”.`));
   };
   inp.addEventListener('input', runSearch);
@@ -10012,7 +10159,7 @@ VIEWS.researchHome = () => {
   if (recent.length) {
     const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     recent.forEach(r => row.append(el('button', { class: 'btn btn-ghost btn-sm',
-      onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } }, r.c.tk || r.c.code)));
+      onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } }, (r.c.tk || r.c.code) + illusText(r.c))));
     rc.append(row);
   } else rc.append(el('p', { class: 'metaline' }, 'Nothing yet. Companies you open will be listed here.'));
   wrap.append(rc);
@@ -10570,7 +10717,9 @@ function tabSnapshot(r) {
     'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.'));
   if (!real) {
     tc.append(el('p', { class: 'body', style: 'font-size:13px' },
-      `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`));
+      priceHistory(c)
+        ? `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`
+        : `No observed price history has been imported for ${c.tk}, and none is drawn: a chart generated to fit a stated return would be a series that never existed, and a 200-day average over it a confident figure for nothing.`));
     tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `Add closes for ${c.tk} under My Investments → Your data to enable this. They stay in this browser.`));
   } else {
@@ -10692,12 +10841,12 @@ function tabSnapshot(r) {
   chg.append(cardHead('What changed', `FY${yearsOf(c)[yearsOf(c).length - 2]} to FY${latestFy(c)}, as reported.`));
   const ch = changeSummary(c) || [];
   const kv = el('dl', { class: 'kv' });
-  ch.forEach(x => { kv.append(el('dt', {}, x.label)); kv.append(el('dd', { class: signClass(x.v) }, withSign(x.v, 1))); });
+  ch.forEach(x => { kv.append(el('dt', {}, x.label)); kv.append(el('dd', { class: signClass(x.v), title: x.withheld || null }, changeCell(x))); });
   chg.append(kv);
   rail.append(chg);
 
   const rk = el('div', { class: 'card' });
-  rk.append(cardHead('Open risk flags', null, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.researchTab = 'risks'; render(); } }, 'All')));
+  rk.append(cardHead('Open risk flags', null, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'risks') }, 'All')));
   const notable = r.flags.filter(f => f.sev !== 'good').slice(0, 3);
   if (!notable.length) rk.append(el('p', { class: 'caption' }, 'No flag triggered by the current thresholds.'));
   notable.forEach(f => {
@@ -10717,7 +10866,9 @@ function tabBusiness(r) {
   const wrap = el('div', { class: 'grid g-2' });
 
   const seg = el('div', { class: 'card' });
-  seg.append(cardHead('Revenue mix', 'Share of the latest reported year. Segment split is part of the sample dataset.'));
+  seg.append(cardHead('Revenue mix', c.seg?.length
+    ? 'Share of the latest reported year. This split is illustrative — it is authored, not filed.'
+    : 'No segment split is carried for a company loaded from filings; the XBRL facts read here are consolidated lines.'));
   const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
   (c.seg || []).forEach((s, i) => bar.append(el('i', { style: `width:${s[1]}%;background:var(${SERIES[i % 8]})`, title: `${s[0]} ${s[1]}%` })));
   seg.append(bar);
@@ -10754,9 +10905,9 @@ function tabBusiness(r) {
     (x.c.sector === c.sector || x.c.mkt === c.mkt)).slice(0, 6);
   const comp = el('div', { class: 'card', style: 'grid-column:1/-1' });
   comp.append(cardHead('Competitive position',
-    `Ranked against ${rivals.length} companies sharing this business model. Rank is computed from the sample universe, so it says where this company sits among the peers carried here — not among every listed competitor.`));
+    `Ranked against ${rivals.length} companies sharing this business model. Rank is computed from the universe carried here, so it says where this company sits among these peers — not among every listed competitor.`));
   if (!rivals.length) {
-    comp.append(el('p', { class: 'caption' }, 'No comparable peer of the same business model is carried in the sample universe.'));
+    comp.append(el('p', { class: 'caption' }, 'No comparable peer of the same business model is carried in the universe here.'));
   } else {
     const set = [r, ...rivals];
     const measures = c.type === 'bank'
@@ -10793,7 +10944,7 @@ function tabBusiness(r) {
     tw2.append(t2); comp.append(tw2);
     comp.append(el('div', { class: 'row row-wrap', style: 'gap:5px;margin-top:var(--sm)' },
       [el('span', { class: 'caption' }, 'Peer set:'), ...rivals.map(x =>
-        el('button', { class: 'chip', style: 'cursor:pointer', onclick: () => openResearch(x.c.id) }, x.c.tk))]));
+        el('button', { class: 'chip', style: 'cursor:pointer', onclick: () => openResearch(x.c.id) }, x.c.tk + illusText(x.c)))]));
     comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', onclick: () => {
       State.compare = [c.id, ...rivals.map(x => x.c.id)].slice(0, LIMITS.compare);
       store.write('compare', State.compare); go('compare');
@@ -10875,8 +11026,11 @@ function tabFinancials(r) {
     arr.forEach(v => tr.append(el('td', { html: isNum(v) ? fmtNum(v, Math.abs(v) < 10 ? (Math.abs(v) < 1 ? 3 : 2) : 1) : NA })));
     /* A per-share series that crosses a split has no growth rate — the same
        withholding the corporate-actions card applies to the share count. */
-    const withheld = perShare && split;
-    const g = withheld ? null : cagr(arr);
+    /* Withheld only where a rate would otherwise exist: a dividend line that
+       is empty throughout has nothing to withhold and reads n/m as before. */
+    const g0 = cagr(arr);
+    const withheld = perShare && split && isNum(g0);
+    const g = withheld ? null : g0;
     tr.append(el('td', { class: signClass(g), html: isNum(g) ? withSign(g, 1)
       : withheld ? '<span class="caption" title="The share count moves by a corporate action inside this window, so a growth rate over any per-share line would measure the split. Withheld.">withheld</span>'
       : '<span class="caption">n/m</span>' }));
@@ -10896,8 +11050,9 @@ function tabFinancials(r) {
   if (c.real) {
     wrap.append(el('div', { class: 'card' },
       [cardHead('Quarterly figures', 'Not carried in this build.'),
-       el('p', { class: 'body', style: 'font-size:13px' },
-         'The ingest reads annual XBRL facts — periods of a year — and no quarterly line is held for any filed company. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.')]));
+       el('p', { class: 'body', style: 'font-size:13px' }, c.cik
+         ? 'The ingest reads annual XBRL facts — periods of a year — and no quarterly line is held for any filed company. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.'
+         : 'Only annual statements were loaded for this company, so there is no quarterly line to draw and none is invented.')]));
     return wrap;
   }
   const q = quarters(c, d);
@@ -10925,7 +11080,7 @@ function tabQuality(r) {
   const chips = el('div', { class: 'row row-wrap', style: 'gap:6px' });
   chips.append(el('span', { class: 'chip' }, `Model ${MODEL_VERSION}`));
   chips.append(el('span', { class: 'chip' }, `Cohort: ${r.c.mkt} market`));
-  chips.append(el('span', { class: 'chip' }, `Calculated ${AS_OF}`));
+  chips.append(el('span', { class: 'chip' }, `Calculated at page load · ${dataDateLabel(r.c)}`));
   chips.append(el('span', { class: 'chip' }, `Source periods FY${yearsOf(r.c)[0]}–FY${latestFy(r.c)}`));
   intro.append(chips);
   wrap.append(intro);
@@ -10991,7 +11146,9 @@ function tabQuality(r) {
     p.parts.forEach(part => {
       const tr = el('tr');
       tr.append(el('td', { class: 'ident' }, part.label));
-      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : NA }));
+      /* A per-share growth input withheld for a split says so, rather than
+         reading as "not meaningful". */
+      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.shareSeriesBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }));
       tr.append(el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}${part.inv ? ' (inverted)' : ''}</span>` }));
       tr.append(el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }));
       tr.append(el('td', {}, `${Math.round(part.w * 100)}%`));
@@ -11026,7 +11183,7 @@ function tabQuality(r) {
   ]));
   mh.append(el('div', { style: 'text-align:right' }, [
     el('div', { class: 'num', style: 'font-size:24px;font-weight:700' }, isNum(r.mom.score) ? r.mom.score : '—'),
-    el('div', { class: 'metaline' }, `cohort median ${withSign(r.mom.cohortMedian, 1)} over 12m`),
+    el('div', { class: 'metaline' }, isNum(r.mom.cohortMedian) ? `cohort median ${withSign(r.mom.cohortMedian, 1)} over 12m` : 'no priced cohort to compare against'),
   ]));
   mc.append(mh);
   const mtw = el('div', { class: 'tablewrap' });
@@ -11034,7 +11191,7 @@ function tabQuality(r) {
   mt.append(el('thead', {}, el('tr', {}, ['Input', 'Raw value', 'Anchor range', 'Input score', 'Weight', 'Contribution'].map(h => el('th', {}, h)))));
   mt.append(el('tbody', {}, r.mom.parts.map(part => el('tr', {}, [
     el('td', { class: 'ident' }, part.label),
-    el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : NA }),
+    el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.shareSeriesBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }),
     el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}</span>` }),
     el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }),
     el('td', {}, `${Math.round(part.w * 100)}%`),
@@ -11054,7 +11211,10 @@ function tabMoat(r) {
     'Evidence is structured, not asserted. Supporting and counter-evidence are shown together with a durability horizon and a confidence grade.'));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   [['Moat type', c.moat.kind], ['Durability horizon', c.moat.dur], ['Confidence', c.moat.conf],
-   ['Evidence date', `FY${last(YEARS)} reported · reviewed ${AS_OF}`], ['Review status', 'Analyst-reviewed template']]
+   /* A company with no moat assessment has no review date and no review
+      status; printing one for it described a review that did not happen. */
+   ['Evidence date', c.moat?.kind === 'Not assessed' ? 'Not assessed — no review has been made' : `FY${latestFy(c)} reported · reviewed ${AS_OF}`],
+   ['Review status', c.moat?.kind === 'Not assessed' ? 'Not assessed' : 'Analyst-reviewed template']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   card.append(kv);
 
@@ -11071,26 +11231,30 @@ function tabMoat(r) {
 
   const corr = el('div', { class: 'card' });
   corr.append(cardHead('Quantitative corroboration', 'The numbers that would have to hold for the moat claim to be true. If these deteriorate, the claim weakens regardless of the narrative.'));
+  /* Each row carries the metric its percentile is taken from. The column
+     used to read the percentile by ROW POSITION from a fixed list of the
+     general metrics, so a bank's cost-to-income row showed the percentile of
+     operating margin and a REIT's occupancy row the percentile of ROIC. */
   const rows = c.type === 'bank'
-    ? [['Net interest margin', fmtPct(m.nim, 2), 'Pricing power on the funding base'],
-       ['Cost-to-income ratio', fmtPct(m.cir), 'Operating efficiency versus peers'],
-       ['Gross impaired loans', fmtPct(m.npl, 2), 'Underwriting quality'],
-       ['CET1 ratio', fmtPct(m.cet1), 'Capacity to lend through a downturn']]
+    ? [['Net interest margin', fmtPct(m.nim, 2), 'Pricing power on the funding base', 'nim', false],
+       ['Cost-to-income ratio', fmtPct(m.cir), 'Operating efficiency versus peers', 'cir', true],
+       ['Gross impaired loans', fmtPct(m.npl, 2), 'Underwriting quality', 'npl', true],
+       ['CET1 ratio', fmtPct(m.cet1), 'Capacity to lend through a downturn', 'cet1', false]]
     : c.type === 'reit'
-    ? [['Occupancy', fmtPct(m.occ), 'Genuine tenant demand'],
-       ['Weighted lease expiry', `${fmtNum(m.wale)} yrs`, 'Contracted income duration'],
-       ['Net property margin', fmtPct(m.om), 'Operating leverage on the assets'],
-       ['Gearing', fmtPct(m.gearing), 'Refinancing exposure']]
-    : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : 'n/a', 'Excess return over the cost of capital'],
-       ['Operating margin', fmtPct(m.om), 'Pricing power net of cost'],
-       ['Margin stability', isNum(m.revVol) ? `${fmtNum(m.revVol)} s.d.` : '—', 'Whether the advantage holds through the cycle'],
-       ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : 'n/a', 'Conversion of the advantage into cash']];
+    ? [['Occupancy', fmtPct(m.occ), 'Genuine tenant demand', 'occ', false],
+       ['Weighted lease expiry', `${fmtNum(m.wale)} yrs`, 'Contracted income duration', 'wale', false],
+       ['Net property margin', fmtPct(m.om), 'Operating leverage on the assets', 'om', false],
+       ['Gearing', fmtPct(m.gearing), 'Refinancing exposure', 'gearing', true]]
+    : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : 'n/a', 'Excess return over the cost of capital', 'roic', false],
+       ['Operating margin', fmtPct(m.om), 'Pricing power net of cost', 'om', false],
+       ['Margin stability', isNum(m.revVol) ? `${fmtNum(m.revVol)} s.d.` : '—', 'Whether the advantage holds through the cycle', 'revVol', true],
+       ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : 'n/a', 'Conversion of the advantage into cash', 'fcfm', false]];
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, 'Latest'), el('th', {}, 'Peer pct'), el('th', {}, 'Why it matters')])));
-  t.append(el('tbody', {}, rows.map(([label, v, why], i) => el('tr', {}, [
+  t.append(el('tbody', {}, rows.map(([label, v, why, key, inv]) => el('tr', {}, [
     el('td', { class: 'ident' }, label), el('td', {}, v),
-    el('td', {}, String(metricPct(r, ['roic', 'om', 'revVol', 'fcfm'][i] || 'roic', 'sector') ?? '—')),
+    el('td', {}, String(metricPct(r, key, 'sector', inv) ?? '—')),
     el('td', { style: 'text-align:left;white-space:normal;max-width:220px', class: 'caption' }, why),
   ]))));
   tw.append(t); corr.append(tw);
@@ -11140,9 +11304,14 @@ function tabOwnership(r) {
   const wrap = el('div', { class: 'grid g-2' });
 
   const own = el('div', { class: 'card' });
-  own.append(cardHead('Ownership', 'Substantial holders as recorded in the sample dataset.'));
+  own.append(cardHead('Ownership', c.real
+    ? 'Not held for a company loaded from filings — ownership is not among the XBRL facts read here.'
+    : 'Substantial holders as recorded in the illustrative set.'));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  [['Directors and insiders', fmtPct(c.own.insider, 2)], ['Institutional', fmtPct(c.own.inst, 1)], ['Free float (implied)', fmtPct(100 - c.own.inst - c.own.insider, 1)]]
+  /* `100 - null - null` is 100: a free float of exactly 100.0% was stated for
+     every filed company from two inputs shown as dashes on the same rows. */
+  [['Directors and insiders', fmtPct(c.own.insider, 2)], ['Institutional', fmtPct(c.own.inst, 1)],
+   ['Free float (implied)', isNum(c.own.inst) && isNum(c.own.insider) ? fmtPct(100 - c.own.inst - c.own.insider, 1) : '—']]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
   own.append(kv);
   const tw = el('div', { class: 'tablewrap' });
@@ -11164,7 +11333,7 @@ function tabOwnership(r) {
   const kv2 = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
   [['Share count CAGR', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.dilution, 2)],
    ['Net buyback yield', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.buyback, 2)],
-   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : 'n/m'],
+   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : m.shareSeriesBreak ? 'Withheld — see below' : 'n/m'],
    ['Payout ratio', isNum(m.payout) ? fmtPct(m.payout, 0) : 'n/m'],
    ['Dividends as % of free cash flow', isNum(m.cashPayout) ? fmtPct(m.cashPayout, 0) : 'n/a']]
    .forEach(([k, v]) => { kv2.append(el('dt', {}, k)); kv2.append(el('dd', {}, v)); });
@@ -11210,12 +11379,34 @@ function tabFilings(r) {
       el('td', { class: 'ident' }, x.label),
       el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
       el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
-      el('td', { class: signClass(x.v) }, withSign(x.v, 1)),
+      el('td', { class: signClass(x.v), title: x.withheld || null }, changeCell(x)),
     ]))));
     tw.append(t);
     return tw;
   };
 
+  /* Statements loaded for personal research — a Bursa company read from the
+     reader's own file, real but with no CIK and no EDGAR behind it. Keyed on
+     `real` alone this branch printed "SEC filings", "CIK undefined" and three
+     links to EDGAR for a Malaysian company. */
+  if (c.real && !c.cik) {
+    const hd = el('div', { class: 'card' });
+    hd.append(cardHead('Statements loaded for personal research',
+      'These annual statements were loaded from your own research file. No filing index is held for them and nothing here was retrieved from an exchange — Bursa Malaysia’s announcements are on its own site.'));
+    hd.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
+      el('span', { class: 'chip chip-brand' }, 'Personal research'),
+      c.retrieved ? el('span', { class: 'chip' }, `loaded ${c.retrieved}`) : null,
+    ]));
+    wrap.append(hd);
+    const ch = changeSummary(c) || [];
+    if (ch.length) {
+      const card = el('div', { class: 'card' });
+      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'From the statement lines you loaded.'));
+      card.append(changedTable(ch));
+      wrap.append(card);
+    }
+    return wrap;
+  }
   if (c.real) {
     /* A filed company: the real index, and nothing standing in for it. */
     const cik10 = String(c.cik).padStart(10, '0');
@@ -11521,6 +11712,8 @@ function studioOutputs(r, inputs, redraw) {
   /* ---------- guardrails ---------- */
   const warnings = [];
   if (run.err) warnings.push({ sev:'critical', text: run.err });
+  if (inputs.dilutionAssumed)
+    warnings.push({ sev:'warning', text:'Annual share issuance is assumed at 0.0%: the reported rate was withheld because the share series crosses a corporate action, so the default is an assumption of no issuance rather than a reading. Set it from your own reading of the share count.' });
   if (inputs.model === 'dcf') {
     if (inputs.gt >= inputs.wacc - 0.5 && inputs.gt < inputs.wacc)
       warnings.push({ sev:'serious', text:'Terminal growth is within half a point of the discount rate. The terminal value dominates and the output is unstable — treat the result as indicative only.' });
@@ -11618,7 +11811,7 @@ function studioOutputs(r, inputs, redraw) {
     grid.append(p);
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
-  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : c.real ? 'Market price' : 'Sample price'));
+  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : c.px?.manual ? 'Price (entered by you)' : c.real ? 'Market price' : 'Sample price'));
   pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2-text)' }, fmtMoney(c.px.p, c.ccy)));
   /* The same stamp the provenance strip uses, so one page cannot date a
      price two ways — and a filed company with no price no longer gets a
@@ -11808,7 +12001,7 @@ function studioOutputs(r, inputs, redraw) {
        ['Implied price / NAV', fmtX(run.base.pnav, 2)], ['Portfolio capitalisation rate', fmtPct(inputs.cap)]]
     : inputs.model === 'scenario'
     ? [['Implied EV / revenue at base-case model estimate', fmtX(run.base.ev / last(d.rev), 1)],
-       ['Current EV / revenue', fmtX(r.m.ev / last(d.rev), 1)],
+       ['Current EV / revenue', isNum(r.m.ev) && last(d.rev) > 0 ? fmtX(r.m.ev / last(d.rev), 1) : 'n/a — no enterprise value without a price'],
        ['Terminal-year revenue', fmtCap(run.base.terminalRevenue, c.ccy)],
        ['Base-case EV against terminal-year operating profit', fmtX(run.base.ev / (run.base.terminalRevenue * inputs.termMargin / 100), 1)],
        ['Revenue CAGR assumed vs last four years', `${fmtPct(inputs.revCagr)} vs ${isNum(r.m.rev5) ? fmtPct(r.m.rev5) : 'n/m'}`]]
@@ -11964,17 +12157,27 @@ const CONDITION_STATES = {
    which is the point at which "not yet filed" stops being the explanation. */
 const STALE_AFTER_MONTHS = 18;
 
-function dataAgeMonths() {
-  /* The most recent fiscal year any loaded company reports, not the axis of
-     the illustrative set — ten filers run a year past it. */
-  const latest = U.length ? Math.max(...U.map(r => latestFy(r.c))) : YEARS[YEARS.length - 1];
-  if (!Number.isFinite(latest)) return null;
-  /* Fiscal years are recorded by year, so the end of the period is the end of
-     that calendar year. Approximate by construction, and the threshold is wide
-     enough that the approximation cannot decide the answer. */
-  const end = new Date(Date.UTC(latest, 11, 31));
-  const months = (Date.now() - end.getTime()) / (86400000 * 30.44);
-  return Number.isFinite(months) ? Math.max(0, Math.round(months)) : null;
+/* How old a company's statements are, in months. Per company: the age of
+   Apple's September year-end is not the age of Microsoft's June one, and a
+   universe-wide "newest fiscal year anywhere" put every thesis at 0 months
+   old the moment ten filers carried FY2026. With no company given — the
+   rule table's universe-wide sentence — the OLDEST statements loaded, which
+   is the conservative figure for a sentence about all of them. */
+function dataAgeMonths(c = null) {
+  const ageOf = (co) => {
+    const fy = latestFy(co);
+    if (!Number.isFinite(fy)) return null;
+    /* The recorded year-end where the ingest kept it; otherwise the end of
+       the calendar year, approximate by construction, and the threshold is
+       wide enough that the approximation cannot decide the answer. */
+    const iso = fyEndOf(co, fy);
+    const end = iso ? new Date(iso + 'T00:00:00Z') : new Date(Date.UTC(fy, 11, 31));
+    const months = (Date.now() - end.getTime()) / (86400000 * 30.44);
+    return Number.isFinite(months) ? Math.max(0, Math.round(months)) : null;
+  };
+  if (c) return ageOf(c);
+  const ages = U.map(r => ageOf(r.c)).filter(isNum);
+  return ages.length ? Math.max(...ages) : null;
 }
 
 /* The proximity itself, so the label can be inspected rather than trusted.
@@ -12013,7 +12216,7 @@ function conditionState(cd) {
      is reported as stale instead, because "within threshold" on an eighteen-
      month-old figure is a claim about a period that has since closed. */
   if (cd.hit) return CONDITION_STATES.breached;
-  const age = dataAgeMonths();
+  const age = dataAgeMonths(cd.c || null);
   if (isNum(age) && age > STALE_AFTER_MONTHS) return CONDITION_STATES.stale;
   const dist = conditionDistance(cd);
   if (dist && dist.rel <= APPROACH_MARGIN) return CONDITION_STATES.approaching;
@@ -12026,11 +12229,14 @@ function evaluateThesis(t) {
   const breaches = [], ok = [];
   t.conds.forEach(cd => {
     let actual, label = cd.label;
-    if (cd.type === 'val') actual = -(r.val.mos?.base ?? 0);          /* premium to base-case model estimate */
+    /* No model difference — every unpriced filer — is no value, not a value
+       of nought: `?? 0` reported "within threshold, 0.0%" on a condition that
+       could not be evaluated, and fired the opposite condition as breached. */
+    if (cd.type === 'val') actual = isNum(r.val.mos?.base) ? -r.val.mos.base : null;   /* premium to base-case model estimate */
     else actual = r.m[cd.k];
-    if (!isNum(actual)) { ok.push({ ...cd, actual: null, note: 'Input not available — condition cannot be evaluated, and is not treated as passing.' }); return; }
+    if (!isNum(actual)) { ok.push({ ...cd, actual: null, c: r.c, note: 'Input not available — condition cannot be evaluated, and is not treated as passing.' }); return; }
     const hit = cd.op === '<' ? actual < cd.v : actual > cd.v;
-    (hit ? breaches : ok).push({ ...cd, actual });
+    (hit ? breaches : ok).push({ ...cd, actual, c: r.c });
   });
   return { breaches, ok, row: r };
 }
@@ -12230,7 +12436,7 @@ function thesisCard(t, expanded) {
   const age = dataAgeMonths();
   ruleBox.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `Distance is shown two ways: the absolute gap in the metric's own unit — percentage points where the metric is a percentage — and that gap as a proportion of the threshold, which is the figure the ${Math.round(APPROACH_MARGIN * 100)}% margin is measured against.`
-    + (isNum(age) ? ` The statements behind these conditions are ${age} months old; they are treated as stale beyond ${STALE_AFTER_MONTHS}.` : '')));
+    + (isNum(age) ? ` The oldest statements behind any condition are ${age} months old; a company's are treated as stale beyond ${STALE_AFTER_MONTHS}.` : '')));
   card.append(ruleBox);
   card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `A condition reads Breached when it evaluates true, Approaching threshold when it does not but sits within ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value — |actual − threshold| ÷ |threshold| — and Within threshold beyond that. A condition with no current value, or one resting on stale statements, is never counted as passing.`));
@@ -12312,7 +12518,14 @@ function openReview(t) {
     ['Was the original thesis supported by what actually happened?', evalr.breaches.length ? `${evalr.breaches.length} invalidation condition is currently breached.` : 'No invalidation condition is currently breached.'],
     ['Which assumptions turned out to be wrong?', `The largest driver of the current valuation is ${driverImpact(r.c, r.d, r.inputs)[0].label.toLowerCase()}.`],
     ['Was the process good despite the outcome?', 'Check whether the evidence was gathered before the conclusion, or after it.'],
-    ['Did you react to price rather than to evidence?', `Price has moved ${withSign(r.c.px.m12)} over twelve months; reported net profit moved ${withSign(((r.d.ni[4] - r.d.ni[3]) / Math.abs(r.d.ni[3])) * 100)}.`],
+    /* The latest two years, not rows 3 and 4 of a five-row era — every
+       company holds ten rows now, and fixed indices named FY2020's change as
+       the current one. */
+    ['Did you react to price rather than to evidence?', (() => {
+      const n = r.d.ni.length, a = r.d.ni[n - 2], b = r.d.ni[n - 1], yrs = yearsOf(r.c);
+      const mv = isNum(a) && isNum(b) && a !== 0 ? withSign((b - a) / Math.abs(a) * 100) : 'not computable';
+      return `Price has moved ${isNum(r.c.px?.m12) ? withSign(r.c.px.m12) : 'an unobserved amount'} over twelve months; reported net profit moved ${mv} from FY${yrs[n - 2]} to FY${yrs[n - 1]}.`;
+    })()],
     ['What reusable lesson should be recorded?', 'Write it as a rule you would apply to the next company, not as a comment about this one.'],
   ];
   /* Past reviews, so the journal accumulates rather than resetting each time. */
@@ -12411,11 +12624,14 @@ VIEWS.compare = () => {
   /* picker */
   const pick = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   pick.append(cardHead('Selection',
-    `Choose up to ${LIMITS.compare} companies — the sample universe holds ${U.length}. Peer-mode presets pick an economically comparable set rather than a sector list.`));
+    `Choose up to ${LIMITS.compare} companies — the universe carried here holds ${U.length}. Peer-mode presets pick an economically comparable set rather than a sector list.`));
   const presets = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:var(--sm)' });
   [['Malaysian banks', U.filter(r => r.c.mkt === 'MY' && r.c.type === 'bank').map(r => r.c.id)],
    ['Malaysian REITs', U.filter(r => r.c.mkt === 'MY' && r.c.type === 'reit').map(r => r.c.id)],
-   ['US mega-cap technology', ['AAPL', 'MSFT', 'GOOGL', 'NVDA']],
+   /* By ticker, resolved against whatever record carries it now: the
+      illustrative ids these once named are retired when the filed twins
+      load, and the preset silently selected nothing. */
+   ['US mega-cap technology', ['AAPL', 'MSFT', 'GOOGL', 'NVDA'].map(tk => U.find(r => r.c.tk === tk)?.c.id).filter(Boolean)],
    ['Commodity cyclicals', U.filter(r => r.c.type === 'cyclical').map(r => r.c.id)],
    ['Consumer staples, both markets', U.filter(r => r.c.sector === 'Consumer Staples').map(r => r.c.id)],
    ['My watchlist', State.watchlist],
@@ -12431,7 +12647,7 @@ VIEWS.compare = () => {
         State.compare = on ? State.compare.filter(x => x !== r.c.id)
           : (State.compare.length >= LIMITS.compare ? (toast(`${LIMITS.compare} is the maximum`), State.compare) : [...State.compare, r.c.id]);
         store.write('compare', State.compare); render();
-      } }, r.c.tk));
+      } }, r.c.tk + illusText(r.c)));
   });
   pick.append(chips);
 
@@ -12558,7 +12774,7 @@ VIEWS.compare = () => {
         ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA],
         ['— Growth —', null],
         ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : NA],
-        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : NA],
+        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.shareSeriesBreak ? NA_SPLIT : NA],
         ['— Balance sheet —', null],
         ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA],
         ['— Valuation —', null],
@@ -12603,7 +12819,7 @@ VIEWS.compare = () => {
   const t = el('table', { class: 'dt dt-pagesticky' });
   const thr = el('tr');
   thr.append(el('th', { class: 'pin' }, 'Measure'));
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}${r.c.real ? '' : ' <span class="illus" title="' + esc(ILLUS_TITLE) + '">illustrative</span>'}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   METRIC_ROWS.forEach(([label, get]) => {
@@ -12742,23 +12958,30 @@ function positionsOf(pf) {
     const r = BY_ID.get(h.id);
     if (!r) return null;
     const ccy = r.c.ccy;
-    const valLocal = h.qty * r.c.px.p;
+    /* A holding in a company with no price has no value, no weight and no
+       return — not a value of nought and a return of minus one hundred, which
+       is what `qty * null` and `(null - cost) / cost` produced for every
+       filed company on the deployed site. Likewise an absent dividend line
+       is no projection, not a projection of nought. */
+    const unpriced = !isNum(r.c.px?.p);
+    const valLocal = unpriced ? null : h.qty * r.c.px.p;
     const grossCostLocal = h.qty * h.cost;
     const netCostLocal = grossCostLocal + (h.fee || 0) - (h.rebate || 0);
-    const valBase = toBase(valLocal, ccy);
+    const valBase = unpriced ? null : toBase(valLocal, ccy);
     /* Cost is translated at the rate that applied on the purchase date, not at
        today's rate — otherwise the currency effect cancels to zero by
        construction and the split says nothing. */
     const toBaseAtCost = (v) => State.baseCcy === ccy ? v : (ccy === 'MYR' ? v / h.fx0 : v * h.fx0);
     const costBase = toBaseAtCost(netCostLocal);
-    const priceRet = (r.c.px.p - h.cost) / h.cost * 100;
-    const totalRet = (valBase / costBase - 1) * 100;
+    const priceRet = unpriced ? null : (r.c.px.p - h.cost) / h.cost * 100;
+    const totalRet = unpriced ? null : (valBase / costBase - 1) * 100;
     /* Cost drag is the part of the gap explained by fees net of rebates. */
     const costDrag = (toBaseAtCost(grossCostLocal) / costBase - 1) * 100;
-    const fxRet = totalRet - priceRet - costDrag;
-    const incomeLocal = h.qty * (r.m.dps || 0);
-    return { h, r, valLocal, netCostLocal, valBase, costBase, priceRet, fxRet, costDrag, totalRet,
-             incomeBase: toBase(incomeLocal, ccy),
+    const fxRet = unpriced ? null : totalRet - priceRet - costDrag;
+    const noDividendLine = !isNum(r.m.dps);
+    const incomeLocal = noDividendLine ? null : h.qty * r.m.dps;
+    return { h, r, unpriced, noDividendLine, valLocal, netCostLocal, valBase, costBase, priceRet, fxRet, costDrag, totalRet,
+             incomeBase: noDividendLine ? null : toBase(incomeLocal, ccy),
              thesis: State.theses.find(t => t.ticker === h.id) };
   }).filter(Boolean);
 }
@@ -12834,9 +13057,10 @@ VIEWS.portfolio = () => {
     /* Fractional quantities are shown to three places; whole lots stay clean. */
     tr.append(el('td', { title: `Cost ${fmtMoney(p.h.cost, p.r.c.ccy)} · fee ${fmtMoney(p.h.fee || 0, p.r.c.ccy)} · rebate ${fmtMoney(p.h.rebate || 0, p.r.c.ccy)}` },
       Number.isInteger(p.h.qty) ? p.h.qty.toLocaleString('en-US') : fmtNum(p.h.qty, 3)));
-    tr.append(el('td', {}, fmtPct(p.valBase / totalVal * 100, 1)));
-    tr.append(el('td', {}, fmtAmount(p.valBase, State.baseCcy)));
-    tr.append(el('td', { class: signClass(p.priceRet), title: `In ${p.r.c.ccy}, the reporting currency` }, withSign(p.priceRet, 1)));
+    const NOPX = '<span class="caption" title="No price is carried for this company, so the position has no value, weight or return here.">no price</span>';
+    tr.append(el('td', { html: p.unpriced ? NOPX : fmtPct(p.valBase / totalVal * 100, 1) }));
+    tr.append(el('td', { html: p.unpriced ? NOPX : fmtAmount(p.valBase, State.baseCcy) }));
+    tr.append(el('td', { class: signClass(p.priceRet), title: `In ${p.r.c.ccy}, the reporting currency`, html: p.unpriced ? NOPX : withSign(p.priceRet, 1) }));
     tr.append(el('td', { class: signClass(p.fxRet), title: p.r.c.ccy === State.baseCcy ? 'Same currency as the base — no translation effect' : `Rate at cost ${p.h.fx0.toFixed(2)} → now ${FX.USDMYR.toFixed(2)}`,
       html: p.r.c.ccy === State.baseCcy ? '<span class="caption">same currency</span>' : withSign(p.fxRet, 1) }));
     tr.append(el('td', { class: signClass(p.costDrag), title: 'The part of the return explained by fees net of rebates',
@@ -12853,6 +13077,11 @@ VIEWS.portfolio = () => {
     tb.append(tr);
   });
   t.append(tb); tw.append(t); hc.append(tw);
+  {
+    const np = pos.filter(p => p.unpriced);
+    if (np.length) hc.append(el('p', { class: 'metaline', style: 'padding:var(--sm) var(--lg)' },
+      `${np.length} holding${np.length === 1 ? '' : 's'} (${np.map(p => p.r.c.tk).join(', ')}) ${np.length === 1 ? 'has' : 'have'} no price carried here and ${np.length === 1 ? 'is' : 'are'} excluded from value, weight and returns rather than counted at nought.`));
+  }
   wrap.append(hc);
 
   /* exposures */
@@ -12887,8 +13116,12 @@ VIEWS.portfolio = () => {
      projection after an illustrative withholding. Adding them together — or
      showing a projection where a reader expects a record — is how a portfolio
      page ends up reporting income nobody received. */
-  const grossIncome = sum(pos.map(p => p.incomeBase));
-  const netIncome = sum(pos.map(p => p.incomeBase * (1 - (State.wht[p.r.c.mkt] ?? 0) / 100)));
+  /* Over the holdings that carry a dividend line. The ones that do not are
+     counted and named below rather than summed as nought. */
+  const withDps = pos.filter(p => !p.noDividendLine);
+  const noDpsCount = pos.length - withDps.length;
+  const grossIncome = sum(withDps.map(p => p.incomeBase));
+  const netIncome = sum(withDps.map(p => p.incomeBase * (1 - (State.wht[p.r.c.mkt] ?? 0) / 100)));
   const received = (State.dividendsReceived || []).filter(x => pos.some(p => p.h.id === x.id));
   const recTotal = sum(received.map(x => toBase(num0(x.amount), x.ccy || State.baseCcy)));
   const yr = new Date().getFullYear();
@@ -12897,7 +13130,8 @@ VIEWS.portfolio = () => {
 
   const inc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   inc.append(cardHead('Income',
-    'Received, declared, projected and after-withholding are four separate figures. They are never added together.'));
+    'Received, declared, projected and after-withholding are four separate figures. They are never added together.'
+    + (noDpsCount ? ` ${noDpsCount} holding${noDpsCount === 1 ? '' : 's'} carr${noDpsCount === 1 ? 'ies' : 'y'} no dividend line and ${noDpsCount === 1 ? 'is' : 'are'} excluded from the projection — not counted as paying nothing.` : '')));
   const ig2 = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
   ig2.append(el('div', { class: 'panel' }, statTile('Dividends received', fmtAmount(recTotal, State.baseCcy),
     { sub: received.length
@@ -14167,7 +14401,7 @@ VIEWS.watchlists = () => {
         const row = BY_ID.get(id);
         if (!row) return;
         ul.append(el('a', { class: 'chip', href: href(companyPath(row.c)),
-          onclick: (e) => { e.preventDefault(); openResearch(id); } }, `${row.c.tk} · ${row.c.name}`));
+          onclick: (e) => { e.preventDefault(); openResearch(id); } }, `${row.c.tk} · ${row.c.name}${illusText(row.c)}`));
       });
       card.append(ul);
     }
@@ -14427,11 +14661,11 @@ VIEWS.privacy = () => trustPage('Privacy',
          assume the rest is not there. The borrower profile in particular —
          income, commitments, credit conduct — is the most personal thing this
          product holds and was not on this page. */
-      ['Your watchlists, saved screens, investment cases, portfolio holdings, property inputs and the evidence records behind them, the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), the name or initials you give the register log, any prices or statement lines you paste in, the data-error cases you record, your trading-index observations, saved property candidates, the plan you selected, theme and base currency are all held in this browser’s local storage. None of it is sent anywhere.',
+      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency.',
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
-        'Page views are counted by Vercel Web Analytics: the path you visited, the site that referred you, your country, and whether you are on a phone or a desktop. It sets no cookies, stores no identifier, and cannot follow you to another site — there is no way to tell a returning visitor from a new one, which is the trade being made deliberately.',
+        'This deployment includes the Vercel Web Analytics script. Where the operator has switched analytics on, page views are counted: the path you visited, the site that referred you, your country, and whether you are on a phone or a desktop. It sets no cookies, stores no identifier, and cannot follow you to another site — there is no way to tell a returning visitor from a new one, which is the trade being made deliberately. Where it is not switched on, the script does not load and nothing is counted.',
         'When SEC-filed companies are loaded, the filing data is fetched from a file served by this site. No request identifying you is made to any third party.',
         /* Written from the same flag the waitlist renders from. If that form is
            ever switched on, this sentence appears with it — a privacy page that
@@ -14455,7 +14689,7 @@ VIEWS.terms = () => trustPage('Terms',
     ['Research, not advice',
       'Everything here is general information. It does not take account of your objectives, financial situation or needs, and nothing on this site is a recommendation to deal in any security or property.'],
     ['Sample data',
-      'A substantial part of the dataset is synthetic and exists to demonstrate the interface. It is labelled as such wherever it appears. Do not use a sample figure for a decision.'],
+      'The Malaysian companies carry synthetic financials that exist to demonstrate the interface, as does one US listing; the rest of the US set carries audited statements from SEC filings. Each company is labelled with which it is, wherever it appears. Do not use a sample figure for a decision.'],
     ['No warranty on figures',
       'Data is drawn from filings and files you supply. Errors are possible, are corrected when found, and are logged. Verify anything you intend to act on against the primary source.'],
     ['Prices and licensing',
@@ -14979,10 +15213,10 @@ VIEWS.alerts = () => {
     const e = evaluateThesis(t);
     e.breaches.forEach(b => items.push({
       sev:'serious', kind:'thesis', id:t.ticker,
-      title:`${BY_ID.get(t.ticker).c.tk} — thesis condition breached`,
+      title:`${BY_ID.get(t.ticker).c.tk}${illusText(BY_ID.get(t.ticker).c)} — thesis condition breached`,
       what:b.label,
       detail:`Current value ${(b.type === 'val' ? fmtPct(b.actual, 1) : fmtFor(b.k)(b.actual))} against your threshold of ${b.op} ${b.type === 'val' ? fmtPct(b.v, 1) : fmtFor(b.k)(b.v)}.`,
-      source:`FY${latestFy(BY_ID.get(t.ticker).c)} reported · ${AS_OF}`,
+      source:`FY${latestFy(BY_ID.get(t.ticker).c)} reported · ${dataDateLabel(BY_ID.get(t.ticker).c)}`,
     }));
   });
   /* Saved screens with alerting on: anything that entered or left since the
@@ -14992,7 +15226,7 @@ VIEWS.alerts = () => {
     const diff = screenDiff(s);
     diff.entered.forEach(r => items.push({
       sev:'good', kind:'screen', id:r.c.id,
-      title:`${r.c.tk} is a new match for “${s.name}”`,
+      title:`${r.c.tk}${illusText(r.c)} is a new match for “${s.name}”`,
       what:`It did not clear this screen when the snapshot was taken on ${s.snapshot?.saved ?? s.asOf}.`,
       detail:`Quality ${r.scores.quality.score}, Value ${r.scores.value.score}, ${withSign(r.val.mos?.base, 0)} vs base-case model estimate.`,
       source:`Screen saved ${s.snapshot?.saved ?? s.asOf} · ${s.snapshot?.model ?? s.model}`,
@@ -15008,7 +15242,7 @@ VIEWS.alerts = () => {
 
   FEED.filter(f => State.watchlist.includes(f.id) || State.theses.some(t => t.ticker === f.id)).slice(0, 8).forEach(f => {
     items.push({ sev:f.sev, kind:f.kind, id:f.id, title:f.title, what:f.detail,
-      detail:'Mapped to your watchlist. No thesis condition covers this yet.', source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${AS_OF}` });
+      detail:'Mapped to your watchlist. No thesis condition covers this yet.', source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${dataDateLabel(BY_ID.get(f.id)?.c)}` });
   });
 
   /* User-set price thresholds, evaluated against the current price. Collected
@@ -15022,7 +15256,7 @@ VIEWS.alerts = () => {
     if (!hit) return;
     items.push({
       sev:'info', kind:'price', id:pa.ticker,
-      title:`${r.c.tk} is ${pa.op === '>' ? 'above' : 'below'} ${fmtMoney(pa.price, r.c.ccy)}`,
+      title:`${r.c.tk}${illusText(r.c)} is ${pa.op === '>' ? 'above' : 'below'} ${fmtMoney(pa.price, r.c.ccy)}`,
       what:pa.note || 'Price threshold you set has been crossed.',
       detail:`Now ${fmtMoney(r.c.px.p, r.c.ccy)}. A price move on its own is not new information — check the "Why moved?" attribution or the latest filing before treating it as such.`,
       source:`Price ${priceAsOfLabel(r.c)} · threshold set by you`,
@@ -15243,7 +15477,7 @@ function learnModels() {
       el('td', { class: 'ident' }, label),
       el('td', { style: 'text-align:left;white-space:normal;max-width:200px' }, pack?.name || '—'),
       el('td', { style: 'text-align:left;white-space:normal;max-width:260px', class: 'caption' }, pack?.secondary.join(' · ') || '—'),
-      el('td', {}, members.map(m => m.c.tk).join(', ') || '—'),
+      el('td', {}, members.map(m => m.c.tk + illusText(m.c)).join(', ') || '—'),
     ]);
   })));
   tw.append(t); intro.append(tw);
@@ -15398,7 +15632,7 @@ function learnData() {
   have.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Present'));
   const hl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
-   'Ten fiscal years for each SEC-filed company; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
+   'Up to ten fiscal years for each SEC-filed company — as many as it has filed in XBRL, and a few carry fewer; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
    'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
@@ -15519,7 +15753,7 @@ function learnTrust() {
       'Ten SEC filers whose fiscal year ends before December — Microsoft, Nvidia, Walmart, Oracle, Nike and five more — had every column labelled one year early: figures for fiscal 2026 were printed under FY2025.',
       'Every label now reads the company’s own fiscal years, on the statement table, the source drawer, the provenance strip and the Value Map. No figure changed.'],
     ['26 Sep 2026', 'Metric engine',
-      'A missing capital-expenditure, dividend or debt line was read as nought: the reinvestment rate published 0% on thirteen filers, the payout ratio 0% on twenty-one, and twelve filers with no debt line were valued as if debt-free.',
+      'A missing capital-expenditure, dividend or debt line was read as nought: the reinvestment rate published 0% on every filer whose capital-expenditure line did not resolve (sixteen, six of them banks); the payout ratio 0% on the eighteen whose dividend line did not resolve while earnings were positive; and of the twelve filers with no debt line, the seven routed to a model that bridges enterprise value to equity — plus one with debt but no cash line — were valued with a zero bridge, as if debt-free.',
       'Each measure now requires its inputs and reports unknown without them. The valuation reports itself unavailable, with the reason, rather than assuming a balance sheet.'],
     ['26 Sep 2026', 'Metric engine',
       'Earnings, book-value and dividend growth were computed across stock splits, so they measured the split rather than the company. Share-count growth had been withheld on the same evidence since 9 August; the other per-share lines had not.',
@@ -22520,11 +22754,13 @@ function propertyIpsAnswers(d, m, g) {
     ? ipsAnswer('capital', meets ? 'pass' : 'partial',
         `${fmtMoney(safe, 'MYR', 0)} to complete and be safe, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve`
         + (reserve > 0 ? ` — ${months} month${months === 1 ? '' : 's'} of instalment and owner-paid running costs. ` : '. ')
+        /* This gate's own threshold, stated as such — the IPS text carries no
+           reserve period, so it must not be quoted for one. */
         + (meets
-          ? 'The IPS requires at least six months of instalments, maintenance, repairs and vacancy exposure held back, and this reserve meets it.'
+          ? 'This gate holds the reserve to at least six months of instalments, maintenance, repairs and vacancy exposure, and this reserve meets it.'
           : reserve > 0
-          ? `The IPS requires at least six months held back; this reserve is set to ${months}. Raise the months of reserve on the calculator to meet the gate.`
-          : 'No liquidity reserve is carried. The IPS requires at least six months of obligations held back before this gate is answered.'))
+          ? `This gate holds the reserve to at least six months; this reserve is set to ${months}. Raise the months of reserve on the calculator to meet it.`
+          : 'No liquidity reserve is carried. This gate holds the reserve to at least six months of obligations before it is answered.'))
     : ipsAnswer('capital', 'unknown', 'Not computed — the purchase figures are incomplete.'));
 
   /* 3 — DEMAND. §6.5, and the one gate this product could not answer at all
@@ -24786,7 +25022,7 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- inputs: identity ---------- */
   const idc = el('div', { class: 'card' });
-  idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted — screenshot extraction is phase 2 and is not built.'));
+  idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted on this page; the phase-2 extraction script runs off-page, writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'));
   /* `lines` makes it a textarea. A single-line input scrolls its own content,
      which is fine for a ticker and wrong for a sentence: at 390px the
      unidentified-indicators note showed 55% of itself even at full width, and

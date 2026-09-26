@@ -219,6 +219,8 @@ function studioOutputs(r, inputs, redraw) {
   /* ---------- guardrails ---------- */
   const warnings = [];
   if (run.err) warnings.push({ sev:'critical', text: run.err });
+  if (inputs.dilutionAssumed)
+    warnings.push({ sev:'warning', text:'Annual share issuance is assumed at 0.0%: the reported rate was withheld because the share series crosses a corporate action, so the default is an assumption of no issuance rather than a reading. Set it from your own reading of the share count.' });
   if (inputs.model === 'dcf') {
     if (inputs.gt >= inputs.wacc - 0.5 && inputs.gt < inputs.wacc)
       warnings.push({ sev:'serious', text:'Terminal growth is within half a point of the discount rate. The terminal value dominates and the output is unstable — treat the result as indicative only.' });
@@ -316,7 +318,7 @@ function studioOutputs(r, inputs, redraw) {
     grid.append(p);
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
-  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : c.real ? 'Market price' : 'Sample price'));
+  pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : c.px?.manual ? 'Price (entered by you)' : c.real ? 'Market price' : 'Sample price'));
   pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2-text)' }, fmtMoney(c.px.p, c.ccy)));
   /* The same stamp the provenance strip uses, so one page cannot date a
      price two ways — and a filed company with no price no longer gets a
@@ -506,7 +508,7 @@ function studioOutputs(r, inputs, redraw) {
        ['Implied price / NAV', fmtX(run.base.pnav, 2)], ['Portfolio capitalisation rate', fmtPct(inputs.cap)]]
     : inputs.model === 'scenario'
     ? [['Implied EV / revenue at base-case model estimate', fmtX(run.base.ev / last(d.rev), 1)],
-       ['Current EV / revenue', fmtX(r.m.ev / last(d.rev), 1)],
+       ['Current EV / revenue', isNum(r.m.ev) && last(d.rev) > 0 ? fmtX(r.m.ev / last(d.rev), 1) : 'n/a — no enterprise value without a price'],
        ['Terminal-year revenue', fmtCap(run.base.terminalRevenue, c.ccy)],
        ['Base-case EV against terminal-year operating profit', fmtX(run.base.ev / (run.base.terminalRevenue * inputs.termMargin / 100), 1)],
        ['Revenue CAGR assumed vs last four years', `${fmtPct(inputs.revCagr)} vs ${isNum(r.m.rev5) ? fmtPct(r.m.rev5) : 'n/m'}`]]
@@ -662,17 +664,27 @@ const CONDITION_STATES = {
    which is the point at which "not yet filed" stops being the explanation. */
 const STALE_AFTER_MONTHS = 18;
 
-function dataAgeMonths() {
-  /* The most recent fiscal year any loaded company reports, not the axis of
-     the illustrative set — ten filers run a year past it. */
-  const latest = U.length ? Math.max(...U.map(r => latestFy(r.c))) : YEARS[YEARS.length - 1];
-  if (!Number.isFinite(latest)) return null;
-  /* Fiscal years are recorded by year, so the end of the period is the end of
-     that calendar year. Approximate by construction, and the threshold is wide
-     enough that the approximation cannot decide the answer. */
-  const end = new Date(Date.UTC(latest, 11, 31));
-  const months = (Date.now() - end.getTime()) / (86400000 * 30.44);
-  return Number.isFinite(months) ? Math.max(0, Math.round(months)) : null;
+/* How old a company's statements are, in months. Per company: the age of
+   Apple's September year-end is not the age of Microsoft's June one, and a
+   universe-wide "newest fiscal year anywhere" put every thesis at 0 months
+   old the moment ten filers carried FY2026. With no company given — the
+   rule table's universe-wide sentence — the OLDEST statements loaded, which
+   is the conservative figure for a sentence about all of them. */
+function dataAgeMonths(c = null) {
+  const ageOf = (co) => {
+    const fy = latestFy(co);
+    if (!Number.isFinite(fy)) return null;
+    /* The recorded year-end where the ingest kept it; otherwise the end of
+       the calendar year, approximate by construction, and the threshold is
+       wide enough that the approximation cannot decide the answer. */
+    const iso = fyEndOf(co, fy);
+    const end = iso ? new Date(iso + 'T00:00:00Z') : new Date(Date.UTC(fy, 11, 31));
+    const months = (Date.now() - end.getTime()) / (86400000 * 30.44);
+    return Number.isFinite(months) ? Math.max(0, Math.round(months)) : null;
+  };
+  if (c) return ageOf(c);
+  const ages = U.map(r => ageOf(r.c)).filter(isNum);
+  return ages.length ? Math.max(...ages) : null;
 }
 
 /* The proximity itself, so the label can be inspected rather than trusted.
@@ -711,7 +723,7 @@ function conditionState(cd) {
      is reported as stale instead, because "within threshold" on an eighteen-
      month-old figure is a claim about a period that has since closed. */
   if (cd.hit) return CONDITION_STATES.breached;
-  const age = dataAgeMonths();
+  const age = dataAgeMonths(cd.c || null);
   if (isNum(age) && age > STALE_AFTER_MONTHS) return CONDITION_STATES.stale;
   const dist = conditionDistance(cd);
   if (dist && dist.rel <= APPROACH_MARGIN) return CONDITION_STATES.approaching;
@@ -724,11 +736,14 @@ function evaluateThesis(t) {
   const breaches = [], ok = [];
   t.conds.forEach(cd => {
     let actual, label = cd.label;
-    if (cd.type === 'val') actual = -(r.val.mos?.base ?? 0);          /* premium to base-case model estimate */
+    /* No model difference — every unpriced filer — is no value, not a value
+       of nought: `?? 0` reported "within threshold, 0.0%" on a condition that
+       could not be evaluated, and fired the opposite condition as breached. */
+    if (cd.type === 'val') actual = isNum(r.val.mos?.base) ? -r.val.mos.base : null;   /* premium to base-case model estimate */
     else actual = r.m[cd.k];
-    if (!isNum(actual)) { ok.push({ ...cd, actual: null, note: 'Input not available — condition cannot be evaluated, and is not treated as passing.' }); return; }
+    if (!isNum(actual)) { ok.push({ ...cd, actual: null, c: r.c, note: 'Input not available — condition cannot be evaluated, and is not treated as passing.' }); return; }
     const hit = cd.op === '<' ? actual < cd.v : actual > cd.v;
-    (hit ? breaches : ok).push({ ...cd, actual });
+    (hit ? breaches : ok).push({ ...cd, actual, c: r.c });
   });
   return { breaches, ok, row: r };
 }
@@ -928,7 +943,7 @@ function thesisCard(t, expanded) {
   const age = dataAgeMonths();
   ruleBox.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `Distance is shown two ways: the absolute gap in the metric's own unit — percentage points where the metric is a percentage — and that gap as a proportion of the threshold, which is the figure the ${Math.round(APPROACH_MARGIN * 100)}% margin is measured against.`
-    + (isNum(age) ? ` The statements behind these conditions are ${age} months old; they are treated as stale beyond ${STALE_AFTER_MONTHS}.` : '')));
+    + (isNum(age) ? ` The oldest statements behind any condition are ${age} months old; a company's are treated as stale beyond ${STALE_AFTER_MONTHS}.` : '')));
   card.append(ruleBox);
   card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `A condition reads Breached when it evaluates true, Approaching threshold when it does not but sits within ${Math.round(APPROACH_MARGIN * 100)}% of the threshold value — |actual − threshold| ÷ |threshold| — and Within threshold beyond that. A condition with no current value, or one resting on stale statements, is never counted as passing.`));
@@ -1010,7 +1025,14 @@ function openReview(t) {
     ['Was the original thesis supported by what actually happened?', evalr.breaches.length ? `${evalr.breaches.length} invalidation condition is currently breached.` : 'No invalidation condition is currently breached.'],
     ['Which assumptions turned out to be wrong?', `The largest driver of the current valuation is ${driverImpact(r.c, r.d, r.inputs)[0].label.toLowerCase()}.`],
     ['Was the process good despite the outcome?', 'Check whether the evidence was gathered before the conclusion, or after it.'],
-    ['Did you react to price rather than to evidence?', `Price has moved ${withSign(r.c.px.m12)} over twelve months; reported net profit moved ${withSign(((r.d.ni[4] - r.d.ni[3]) / Math.abs(r.d.ni[3])) * 100)}.`],
+    /* The latest two years, not rows 3 and 4 of a five-row era — every
+       company holds ten rows now, and fixed indices named FY2020's change as
+       the current one. */
+    ['Did you react to price rather than to evidence?', (() => {
+      const n = r.d.ni.length, a = r.d.ni[n - 2], b = r.d.ni[n - 1], yrs = yearsOf(r.c);
+      const mv = isNum(a) && isNum(b) && a !== 0 ? withSign((b - a) / Math.abs(a) * 100) : 'not computable';
+      return `Price has moved ${isNum(r.c.px?.m12) ? withSign(r.c.px.m12) : 'an unobserved amount'} over twelve months; reported net profit moved ${mv} from FY${yrs[n - 2]} to FY${yrs[n - 1]}.`;
+    })()],
     ['What reusable lesson should be recorded?', 'Write it as a rule you would apply to the next company, not as a comment about this one.'],
   ];
   /* Past reviews, so the journal accumulates rather than resetting each time. */
@@ -1109,11 +1131,14 @@ VIEWS.compare = () => {
   /* picker */
   const pick = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   pick.append(cardHead('Selection',
-    `Choose up to ${LIMITS.compare} companies — the sample universe holds ${U.length}. Peer-mode presets pick an economically comparable set rather than a sector list.`));
+    `Choose up to ${LIMITS.compare} companies — the universe carried here holds ${U.length}. Peer-mode presets pick an economically comparable set rather than a sector list.`));
   const presets = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:var(--sm)' });
   [['Malaysian banks', U.filter(r => r.c.mkt === 'MY' && r.c.type === 'bank').map(r => r.c.id)],
    ['Malaysian REITs', U.filter(r => r.c.mkt === 'MY' && r.c.type === 'reit').map(r => r.c.id)],
-   ['US mega-cap technology', ['AAPL', 'MSFT', 'GOOGL', 'NVDA']],
+   /* By ticker, resolved against whatever record carries it now: the
+      illustrative ids these once named are retired when the filed twins
+      load, and the preset silently selected nothing. */
+   ['US mega-cap technology', ['AAPL', 'MSFT', 'GOOGL', 'NVDA'].map(tk => U.find(r => r.c.tk === tk)?.c.id).filter(Boolean)],
    ['Commodity cyclicals', U.filter(r => r.c.type === 'cyclical').map(r => r.c.id)],
    ['Consumer staples, both markets', U.filter(r => r.c.sector === 'Consumer Staples').map(r => r.c.id)],
    ['My watchlist', State.watchlist],
@@ -1129,7 +1154,7 @@ VIEWS.compare = () => {
         State.compare = on ? State.compare.filter(x => x !== r.c.id)
           : (State.compare.length >= LIMITS.compare ? (toast(`${LIMITS.compare} is the maximum`), State.compare) : [...State.compare, r.c.id]);
         store.write('compare', State.compare); render();
-      } }, r.c.tk));
+      } }, r.c.tk + illusText(r.c)));
   });
   pick.append(chips);
 
@@ -1256,7 +1281,7 @@ VIEWS.compare = () => {
         ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA],
         ['— Growth —', null],
         ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : NA],
-        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : NA],
+        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.shareSeriesBreak ? NA_SPLIT : NA],
         ['— Balance sheet —', null],
         ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA],
         ['— Valuation —', null],
@@ -1301,7 +1326,7 @@ VIEWS.compare = () => {
   const t = el('table', { class: 'dt dt-pagesticky' });
   const thr = el('tr');
   thr.append(el('th', { class: 'pin' }, 'Measure'));
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}${r.c.real ? '' : ' <span class="illus" title="' + esc(ILLUS_TITLE) + '">illustrative</span>'}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   METRIC_ROWS.forEach(([label, get]) => {
@@ -1440,23 +1465,30 @@ function positionsOf(pf) {
     const r = BY_ID.get(h.id);
     if (!r) return null;
     const ccy = r.c.ccy;
-    const valLocal = h.qty * r.c.px.p;
+    /* A holding in a company with no price has no value, no weight and no
+       return — not a value of nought and a return of minus one hundred, which
+       is what `qty * null` and `(null - cost) / cost` produced for every
+       filed company on the deployed site. Likewise an absent dividend line
+       is no projection, not a projection of nought. */
+    const unpriced = !isNum(r.c.px?.p);
+    const valLocal = unpriced ? null : h.qty * r.c.px.p;
     const grossCostLocal = h.qty * h.cost;
     const netCostLocal = grossCostLocal + (h.fee || 0) - (h.rebate || 0);
-    const valBase = toBase(valLocal, ccy);
+    const valBase = unpriced ? null : toBase(valLocal, ccy);
     /* Cost is translated at the rate that applied on the purchase date, not at
        today's rate — otherwise the currency effect cancels to zero by
        construction and the split says nothing. */
     const toBaseAtCost = (v) => State.baseCcy === ccy ? v : (ccy === 'MYR' ? v / h.fx0 : v * h.fx0);
     const costBase = toBaseAtCost(netCostLocal);
-    const priceRet = (r.c.px.p - h.cost) / h.cost * 100;
-    const totalRet = (valBase / costBase - 1) * 100;
+    const priceRet = unpriced ? null : (r.c.px.p - h.cost) / h.cost * 100;
+    const totalRet = unpriced ? null : (valBase / costBase - 1) * 100;
     /* Cost drag is the part of the gap explained by fees net of rebates. */
     const costDrag = (toBaseAtCost(grossCostLocal) / costBase - 1) * 100;
-    const fxRet = totalRet - priceRet - costDrag;
-    const incomeLocal = h.qty * (r.m.dps || 0);
-    return { h, r, valLocal, netCostLocal, valBase, costBase, priceRet, fxRet, costDrag, totalRet,
-             incomeBase: toBase(incomeLocal, ccy),
+    const fxRet = unpriced ? null : totalRet - priceRet - costDrag;
+    const noDividendLine = !isNum(r.m.dps);
+    const incomeLocal = noDividendLine ? null : h.qty * r.m.dps;
+    return { h, r, unpriced, noDividendLine, valLocal, netCostLocal, valBase, costBase, priceRet, fxRet, costDrag, totalRet,
+             incomeBase: noDividendLine ? null : toBase(incomeLocal, ccy),
              thesis: State.theses.find(t => t.ticker === h.id) };
   }).filter(Boolean);
 }
@@ -1532,9 +1564,10 @@ VIEWS.portfolio = () => {
     /* Fractional quantities are shown to three places; whole lots stay clean. */
     tr.append(el('td', { title: `Cost ${fmtMoney(p.h.cost, p.r.c.ccy)} · fee ${fmtMoney(p.h.fee || 0, p.r.c.ccy)} · rebate ${fmtMoney(p.h.rebate || 0, p.r.c.ccy)}` },
       Number.isInteger(p.h.qty) ? p.h.qty.toLocaleString('en-US') : fmtNum(p.h.qty, 3)));
-    tr.append(el('td', {}, fmtPct(p.valBase / totalVal * 100, 1)));
-    tr.append(el('td', {}, fmtAmount(p.valBase, State.baseCcy)));
-    tr.append(el('td', { class: signClass(p.priceRet), title: `In ${p.r.c.ccy}, the reporting currency` }, withSign(p.priceRet, 1)));
+    const NOPX = '<span class="caption" title="No price is carried for this company, so the position has no value, weight or return here.">no price</span>';
+    tr.append(el('td', { html: p.unpriced ? NOPX : fmtPct(p.valBase / totalVal * 100, 1) }));
+    tr.append(el('td', { html: p.unpriced ? NOPX : fmtAmount(p.valBase, State.baseCcy) }));
+    tr.append(el('td', { class: signClass(p.priceRet), title: `In ${p.r.c.ccy}, the reporting currency`, html: p.unpriced ? NOPX : withSign(p.priceRet, 1) }));
     tr.append(el('td', { class: signClass(p.fxRet), title: p.r.c.ccy === State.baseCcy ? 'Same currency as the base — no translation effect' : `Rate at cost ${p.h.fx0.toFixed(2)} → now ${FX.USDMYR.toFixed(2)}`,
       html: p.r.c.ccy === State.baseCcy ? '<span class="caption">same currency</span>' : withSign(p.fxRet, 1) }));
     tr.append(el('td', { class: signClass(p.costDrag), title: 'The part of the return explained by fees net of rebates',
@@ -1551,6 +1584,11 @@ VIEWS.portfolio = () => {
     tb.append(tr);
   });
   t.append(tb); tw.append(t); hc.append(tw);
+  {
+    const np = pos.filter(p => p.unpriced);
+    if (np.length) hc.append(el('p', { class: 'metaline', style: 'padding:var(--sm) var(--lg)' },
+      `${np.length} holding${np.length === 1 ? '' : 's'} (${np.map(p => p.r.c.tk).join(', ')}) ${np.length === 1 ? 'has' : 'have'} no price carried here and ${np.length === 1 ? 'is' : 'are'} excluded from value, weight and returns rather than counted at nought.`));
+  }
   wrap.append(hc);
 
   /* exposures */
@@ -1585,8 +1623,12 @@ VIEWS.portfolio = () => {
      projection after an illustrative withholding. Adding them together — or
      showing a projection where a reader expects a record — is how a portfolio
      page ends up reporting income nobody received. */
-  const grossIncome = sum(pos.map(p => p.incomeBase));
-  const netIncome = sum(pos.map(p => p.incomeBase * (1 - (State.wht[p.r.c.mkt] ?? 0) / 100)));
+  /* Over the holdings that carry a dividend line. The ones that do not are
+     counted and named below rather than summed as nought. */
+  const withDps = pos.filter(p => !p.noDividendLine);
+  const noDpsCount = pos.length - withDps.length;
+  const grossIncome = sum(withDps.map(p => p.incomeBase));
+  const netIncome = sum(withDps.map(p => p.incomeBase * (1 - (State.wht[p.r.c.mkt] ?? 0) / 100)));
   const received = (State.dividendsReceived || []).filter(x => pos.some(p => p.h.id === x.id));
   const recTotal = sum(received.map(x => toBase(num0(x.amount), x.ccy || State.baseCcy)));
   const yr = new Date().getFullYear();
@@ -1595,7 +1637,8 @@ VIEWS.portfolio = () => {
 
   const inc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   inc.append(cardHead('Income',
-    'Received, declared, projected and after-withholding are four separate figures. They are never added together.'));
+    'Received, declared, projected and after-withholding are four separate figures. They are never added together.'
+    + (noDpsCount ? ` ${noDpsCount} holding${noDpsCount === 1 ? '' : 's'} carr${noDpsCount === 1 ? 'ies' : 'y'} no dividend line and ${noDpsCount === 1 ? 'is' : 'are'} excluded from the projection — not counted as paying nothing.` : '')));
   const ig2 = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
   ig2.append(el('div', { class: 'panel' }, statTile('Dividends received', fmtAmount(recTotal, State.baseCcy),
     { sub: received.length

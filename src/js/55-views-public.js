@@ -795,7 +795,7 @@ VIEWS.watchlists = () => {
         const row = BY_ID.get(id);
         if (!row) return;
         ul.append(el('a', { class: 'chip', href: href(companyPath(row.c)),
-          onclick: (e) => { e.preventDefault(); openResearch(id); } }, `${row.c.tk} · ${row.c.name}`));
+          onclick: (e) => { e.preventDefault(); openResearch(id); } }, `${row.c.tk} · ${row.c.name}${illusText(row.c)}`));
       });
       card.append(ul);
     }
@@ -1055,11 +1055,11 @@ VIEWS.privacy = () => trustPage('Privacy',
          assume the rest is not there. The borrower profile in particular —
          income, commitments, credit conduct — is the most personal thing this
          product holds and was not on this page. */
-      ['Your watchlists, saved screens, investment cases, portfolio holdings, property inputs and the evidence records behind them, the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), the name or initials you give the register log, any prices or statement lines you paste in, the data-error cases you record, your trading-index observations, saved property candidates, the plan you selected, theme and base currency are all held in this browser’s local storage. None of it is sent anywhere.',
+      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency.',
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
-        'Page views are counted by Vercel Web Analytics: the path you visited, the site that referred you, your country, and whether you are on a phone or a desktop. It sets no cookies, stores no identifier, and cannot follow you to another site — there is no way to tell a returning visitor from a new one, which is the trade being made deliberately.',
+        'This deployment includes the Vercel Web Analytics script. Where the operator has switched analytics on, page views are counted: the path you visited, the site that referred you, your country, and whether you are on a phone or a desktop. It sets no cookies, stores no identifier, and cannot follow you to another site — there is no way to tell a returning visitor from a new one, which is the trade being made deliberately. Where it is not switched on, the script does not load and nothing is counted.',
         'When SEC-filed companies are loaded, the filing data is fetched from a file served by this site. No request identifying you is made to any third party.',
         /* Written from the same flag the waitlist renders from. If that form is
            ever switched on, this sentence appears with it — a privacy page that
@@ -1083,7 +1083,7 @@ VIEWS.terms = () => trustPage('Terms',
     ['Research, not advice',
       'Everything here is general information. It does not take account of your objectives, financial situation or needs, and nothing on this site is a recommendation to deal in any security or property.'],
     ['Sample data',
-      'A substantial part of the dataset is synthetic and exists to demonstrate the interface. It is labelled as such wherever it appears. Do not use a sample figure for a decision.'],
+      'The Malaysian companies carry synthetic financials that exist to demonstrate the interface, as does one US listing; the rest of the US set carries audited statements from SEC filings. Each company is labelled with which it is, wherever it appears. Do not use a sample figure for a decision.'],
     ['No warranty on figures',
       'Data is drawn from filings and files you supply. Errors are possible, are corrected when found, and are logged. Verify anything you intend to act on against the primary source.'],
     ['Prices and licensing',

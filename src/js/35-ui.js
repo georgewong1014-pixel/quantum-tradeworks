@@ -63,6 +63,14 @@ function priceAsOfLabel(c) {
   if (!c.real) return `sample price, ${AS_OF}`;
   return `${AS_OF} 17:00 ${c.mkt === 'US' ? 'ET' : 'MYT'}`;
 }
+/* When a company's STATEMENTS date from — the illustrative set's fixed stamp
+   is not the date filed statements were retrieved, and dating Apple's audited
+   figures "30 Jul 2026" when they were fetched on 3 August was the same
+   defect as the price stamp, one row down. */
+function dataDateLabel(c) {
+  if (c?.real) return c.retrieved ? `statements retrieved ${c.retrieved}` : 'filed statements';
+  return `sample set, ${AS_OF}`;
+}
 
 /* Freshness + lineage, shown on every analytical surface. */
 function provenance(row, extra = []) {

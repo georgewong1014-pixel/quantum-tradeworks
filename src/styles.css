@@ -865,6 +865,10 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
      to 44px would break the paragraph it belongs to. */
   p .linklike, .body .linklike, .metric-label { min-height: 0; }
   .searchbtn, .iconbtn { min-width: 44px; }
+  /* A select sized to a two-letter option is 38px wide on a phone — the
+     evidence-source pickers on the property calculator were — and a finger
+     is wider than that. The height rule above already gives it 44. */
+  .select, .select-sm { min-width: 44px; }
   /* Inline links in running prose are exempt — WCAG does not require a 44px
      target for a link inside a sentence, and padding them apart would break
      the paragraph they sit in. The footer's are a LIST of links, not prose,

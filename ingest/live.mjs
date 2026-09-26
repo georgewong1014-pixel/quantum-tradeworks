@@ -155,7 +155,12 @@ if (WANT_QUOTES) {
   for (const sym of symbols) {
     const q = await provider.quote(toVendor(sym, provider.name));
     if (q && Number.isFinite(q.price)) {
-      prices[sym] = { price: q.price, currency: q.currency, asOf: q.asOf };
+      /* The shape prices.mjs writes and the app reads: `close` and `date`.
+         This wrote `price` and `asOf`, which history.mjs skipped as "no
+         usable close" and applyPrices ignored — a licensed run into
+         data/prices.json attached no price to anything, with no error. */
+      prices[sym] = { close: q.price, currency: q.currency, date: q.asOf ? String(q.asOf).slice(0, 10) : null,
+                      d1: null, hi: null, lo: null, m12: null };
       ok++;
     } else { miss++; console.warn(`  no quote: ${sym}`); }
     await sleep(120);                      /* courteous, not adversarial */

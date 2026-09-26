@@ -186,7 +186,9 @@ const savePriceAlerts = () => store.write('priceAlerts', State.priceAlerts);
    USDMYR replaces it at load and says where the number came from. Every US
    figure shown in MYR passes through this one number, so a stale rate misstates
    the whole cross-market view rather than one field. */
-const FX = { USDMYR: 4.42, asOf: '30 Jul 2026 17:00 MYT', source: 'sample', personal: false };
+/* A sample rate has no observation time. It was stamped "17:00 MYT" like a
+   fixing, which is what a reader takes a time-of-day for. */
+const FX = { USDMYR: 4.42, asOf: null, source: 'sample', personal: false };
 let fxRejected = null;
 
 /* Illustrative dividend withholding, per market of listing. These are user
