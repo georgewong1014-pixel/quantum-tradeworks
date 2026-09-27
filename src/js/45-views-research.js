@@ -938,6 +938,12 @@ VIEWS.research = () => {
       isNum(c.fin?.length) && c.fin.length < 6
         ? el('span', { class: 'chip chip-bronze' }, `${c.fin.length} years held`) : null,
       el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
+      /* The rules that wrote the record. A filed company from the shipped
+         file has none, and the chip says the stamp is not in this dataset yet
+         rather than implying the current rules produced it. */
+      !c.personal ? (c.ingestVersion
+        ? el('span', { class: 'chip', title: 'The version of the SEC ingest rules that produced these statements.' }, `ingest ${c.ingestVersion.replace(/^sec /, '')}`)
+        : el('span', { class: 'chip chip-bronze', title: 'This file was written before the ingest stamped its version, under rules since corrected — the misassembled figures are withheld on the page. A regeneration writes the version here.' }, 'ingest version not in this dataset yet')) : null,
       c.px?.eod ? (c.pricePersonal
           ? el('span', { class: 'chip chip-bronze' }, `read from your screen${c.px.asOf ? ' ' + c.px.asOf : ''}`)
           : sevChip('good', `end-of-day close${c.px.asOf ? ' ' + c.px.asOf : ''}`))
@@ -951,6 +957,12 @@ VIEWS.research = () => {
     const mixed = Object.entries(c.provenance || {}).filter(([, p]) => p.mixedTags);
     if (mixed.length) rp.append(el('p', { class: 'metaline', style: 'margin-bottom:6px' },
       `Assembled from more than one XBRL tag: ${mixed.map(([k, p]) => `${k} (${p.concept})`).join('; ')}. Comparability across peers is weaker where this happens.`));
+    /* Restatements: a record from the corrected ingest keeps the first-filed
+       figure beside the latest. Read defensively — the shipped file predates
+       it and carries none. */
+    const restated = Object.entries(c.provenance || {}).filter(([, p]) => p.restated && Object.keys(p.restated).length);
+    if (restated.length) rp.append(el('p', { class: 'metaline', style: 'margin-bottom:6px' },
+      `Restated in a later filing, and shown as restated: ${restated.map(([k, p]) => `${LINE_LABEL[k] || k} FY${Object.keys(p.restated).join(', FY')}`).join('; ')}. The first-filed figure is kept in the dataset.`));
 
     const pr = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:flex-end' });
     const f = el('div', { class: 'field', style: 'width:150px' });

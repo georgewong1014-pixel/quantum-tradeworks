@@ -137,6 +137,53 @@ any non-US issuer. **There is no Bursa Malaysia equivalent.** That asymmetry
 shapes the whole roadmap: a real US research product costs nearly nothing in
 data; the Malaysian half, which is the actual differentiation, is licensed.
 
+## The SEC pipeline, stage by stage (ingest sec 1.2.0)
+
+```bash
+node ingest/sec.mjs --out data/us.json --facts data/us-facts.json AAPL MSFT   # fetch, archive, write
+node ingest/sec.mjs --from-raw --out data/us.json AAPL MSFT                   # offline: re-normalise the archive
+node data-check.mjs                                                           # the shipped file, checked
+```
+
+1. **Fetch and archive.** Every companyfacts and submissions body is saved
+   verbatim under `ingest/raw/` (git-ignored) with its URL, retrieval date and
+   SHA-256 in `ingest/raw/manifest.json`, and each record names the bodies it
+   was built from by hash (`raw`). `--no-raw` skips the archive; `--raw-dir`
+   moves it.
+2. **`--from-raw`** reads the archive instead of the network — no request goes
+   to the SEC, and a ticker never fetched fails by name. A rule change can be
+   re-run and diffed without a contact address.
+3. **Normalise.** A concept in a unit its line does not expect is refused and
+   named in `gaps[]` (Emerson's dividend in `pure`; any money line not in USD).
+   A line whose period ends away from the revenue year-end — more than seven
+   days for a duration, at all for an instant — is left empty with both dates
+   in the gap. A restated year keeps its first-filed value beside the latest
+   (`provenance[line].restated`) and is listed in `gaps[]`. A share count of
+   nought is no count.
+4. **Validate.** `validateCompany` refuses a record whose shape, years, units,
+   completeness or share count is wrong; it goes to `failures[]`, not
+   `results[]`. `data-check.mjs` runs the same function over `data/us.json` in
+   CI and records what the shipped file already breaks.
+5. **Gate.** Before replacing `--out`, `writeGate` compares the run with the
+   file: a missing company, completeness down more than 0.05, a window moving
+   backwards, a golden figure (AAPL, MSFT, NVDA) moving, a duplicate or a
+   failure writes `.partial.json` instead, unless `--force`. It always prints
+   every changed equity, debt, cash and share-count cell with both values and
+   the date the new one describes — the diff that verifies the year-end fix.
+6. **Write.** Each record and the file header carry `ingestVersion`. With
+   `--facts`, one FinancialFact row per line and year is written beside the
+   tuple: the value as a decimal string in filed units, unit, currency, fiscal
+   year and period, period start and end, filing date, form, accession number,
+   concept, and `dataClassification: "FILED"`. The engine does not read it.
+
+The fixture archive in `ingest/fixtures/sec-raw/` is invented and shaped like
+the SEC's responses; `ingest-test.mjs` runs the whole pipeline and the CLI
+against it with no network.
+
+**Still waiting on a contact address:** none of this has run against the SEC.
+`data/us.json` predates it — no `periodEnds`, no per-line dates, no
+`ingestVersion` — and regenerating it needs `SEC_UA`.
+
 ## Prices: why not Yahoo Finance or TradingView
 
 Both were considered and both were rejected. See `providers.mjs` for the

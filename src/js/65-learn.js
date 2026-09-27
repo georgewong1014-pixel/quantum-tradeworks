@@ -44,22 +44,66 @@ VIEWS.learn = () => {
   return wrap;
 };
 
+/* THE DICTIONARY IS THE REGISTRY, READ ALOUD.
+   It used to list the screener's fields by screener group with a formula and
+   a missing-data line, and nothing else: no definition, no unit, no inputs,
+   no period — and nothing at all for a measure the statements cannot
+   support, so a reader looking for gross margin or the current ratio could
+   not tell whether it was missing or forgotten. It now reads every row of
+   the metric registry, by the ratio library's categories, and a measure
+   whose line is not stored is listed as blocked with the line it needs. */
+const TYPE_PLURAL = { bank: 'banks', insurer: 'insurers', early: 'pre-profit companies', reit: 'REITs' };
 function learnDictionary() {
   const wrap = el('div');
-  FIELD_GROUPS.forEach(g => {
+  const blocked = METRICS.filter(x => x.blocked);
+  const published = METRICS.filter(x => !x.blocked);
+  const intro = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  intro.append(cardHead(`${published.length} measures from the stored statements, ${blocked.length} blocked`,
+    `Every measure is defined once, in one registry, and the screener, the source drawer, the explanations and this page are all read from it. Version: ${MODEL_VERSION.split('·')[0].trim()}.`));
+  intro.append(el('p', { class: 'body', style: 'max-width:72ch' },
+    'The stored statements hold ten lines a year: revenue, operating profit (EBIT), net income, operating cash flow, capital expenditure, equity, debt, cash, shares in issue and dividend per share. A measure that needs any other line cannot be computed for any company, and is listed below as blocked rather than filled from a stand-in:'));
+  const ul = el('ul', { class: 'dict-blocked' });
+  blocked.forEach(x => ul.append(el('li', {}, [
+    el('span', { class: 'ident' }, x.label),
+    el('span', { class: 'caption' }, ` — needs ${x.needs.join(', ')}`),
+  ])));
+  intro.append(ul);
+  intro.append(el('p', { class: 'caption', style: 'max-width:72ch' },
+    'Adding them means widening the ingest and the stored statements, then regenerating the SEC dataset — which waits on a contact address the SEC requires and this build has not been given.'));
+  wrap.append(intro);
+
+  METRIC_CATEGORIES.forEach(cat => {
+    const rows = METRICS.filter(x => x.cat === cat.id);
+    if (!rows.length) return;
     const card = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-    card.append(cardHead(g, null));
+    card.append(cardHead(cat.label, cat.note));
     const tw = el('div', { class: 'tablewrap' });
-    const t = el('table', { class: 'dt' });
-    t.append(el('thead', {}, el('tr', {}, ['Metric', 'Formula', 'Computable', 'Missing-data behaviour'].map(h => el('th', {}, h)))));
+    const t = el('table', { class: 'dt dict' });
+    t.append(el('thead', {}, el('tr', {}, ['Metric', 'What it is', 'Formula and inputs', 'Unit and period', 'Computable', 'Missing-data behaviour'].map(h => el('th', {}, h)))));
     const tb = el('tbody');
-    FIELDS.filter(f => f.g === g).forEach(f => {
-      const n = U.filter(r => isNum(r.m[f.k])).length;
-      tb.append(el('tr', {}, [
-        el('td', { class: 'ident' }, f.label),
-        el('td', { style: 'text-align:left;white-space:normal;max-width:280px' }, f.formula),
-        el('td', { html: `${n}/${U.length}` }),
-        el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:300px' }, f.miss || 'Reported unavailable; never imputed.'),
+    rows.forEach(x => {
+      const n = x.blocked ? 0 : U.filter(r => isNum(r.m[x.k])).length;
+      const na = (x.na || []).map(tp => TYPE_PLURAL[tp] || tp);
+      /* Applicability first, from the registry's list; a missing-data line
+         whose first sentence only says the same about banks is not repeated. */
+      const naText = na.length ? `Not applicable to ${na.join(', ')}${x.counted ? ', and left out of their coverage count' : ''}.` : null;
+      const own = (x.miss || '').replace(/^Not (applicable|meaningful|computed) (to|for) (banks|a bank balance sheet)( — excluded rather than imputed)?\.\s*/, '');
+      const miss = x.blocked || [naText, own || (naText ? 'Otherwise reported unavailable; never imputed.' : 'Reported unavailable; never imputed.')].filter(Boolean).join(' ');
+      const inputs = (x.inputs || []).map(l => LINE_LABEL[l] || l);
+      tb.append(el('tr', { class: x.blocked ? 'dict-row-blocked' : null }, [
+        el('td', { class: 'ident' }, [metricLabel(x.k, x.label), el('div', { class: 'dict-kind' }, x.blocked
+          ? el('span', { class: 'chip chip-bronze' }, 'Blocked')
+          : provChip(x.kind))]),
+        el('td', { class: 'dict-text' }, x.help?.simple || ''),
+        el('td', { class: 'dict-text' }, [el('div', {}, x.formula),
+          inputs.length || x.needs ? el('div', { class: 'caption' }, [
+            inputs.length ? `Reads ${inputs.join(', ')}` : null,
+            x.needs ? `${inputs.length ? '; needs' : 'Needs'} ${x.needs.join(', ')} — not in the stored statements` : null,
+          ].filter(Boolean).join('')) : null]),
+        el('td', { class: 'dict-text' }, [el('div', {}, METRIC_UNIT[x.unit]?.label || x.unit),
+          el('div', { class: 'caption' }, METRIC_PERIOD[x.period] || x.period)]),
+        el('td', {}, x.blocked ? el('span', { class: 'caption' }, `none of ${U.length}`) : `${n}/${U.length}`),
+        el('td', { class: 'caption dict-text' }, miss),
       ]));
     });
     t.append(tb); tw.append(t); card.append(tw);
@@ -322,13 +366,16 @@ function learnData() {
   const lack = el('div');
   lack.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Absent by design'));
   const ll = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  ['Interest expense — so interest cover is reported as unavailable rather than estimated',
+  [`Interest expense, cost of revenue, total assets, current assets and liabilities, inventory and depreciation — so ${METRICS.filter(x => x.blocked).map(x => x.label.toLowerCase().replace('ev / ebitda', 'EV / EBITDA')).join(', ')} are listed in the metric dictionary as blocked rather than estimated`,
    'Forward estimates and analyst revisions — these require a licence',
    'Intraday prices, order books and tick data',
    'Backtested theme returns — shown only with point-in-time data and full cost assumptions',
    'Brokerage connections, order execution and personalised allocation',
    'Historical score versions — only the current score exists, so a saved screen cannot be re-run against an earlier model version',
-   'Restatement and amendment versioning — the dataset holds one version of each period, so a restatement would overwrite rather than branch',
+   /* The ingest now keeps the first-filed figure beside the latest and flags
+      the year; the shipped file predates that, and even with it a period
+      holds one figure, so this stays on the list. */
+   'Restatement and amendment versioning — the dataset holds one version of each period, so a restatement overwrites rather than branches. The SEC ingest now records the first-filed value beside the latest and flags a restated year, but the shipped statements predate it',
    'Winsorisation of extreme inputs — score inputs are clamped at their published anchor range instead, which bounds the score but does not treat the outlier',
    'Lease, minority-interest, associate and non-controlling-interest adjustments — these lines are not carried, so enterprise value is unadjusted for them',
    'Share-based compensation as a separate line — it cannot be isolated from operating cash flow in this dataset',
@@ -435,6 +482,9 @@ function learnTrust() {
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, ['Date', 'Scope', 'What was wrong', 'What changed'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, [
+    ['28 Sep 2026', 'Metric dictionary',
+      'Net margin was computed and published nowhere; free cash flow, operating cash flow margin and net-income growth were supported by the stored statements and not offered; twenty-four screener measures had no plain-language definition; and gross margin, return on assets, the current and quick ratios and EV/EBITDA were simply missing from the dictionary, with nothing to say why. A bank’s free cash flow was published although every measure built on it was declared not applicable.',
+      'Metrics 1.7.0 and scores 1.4.0. Six measures are published — net margin, operating cash flow margin, free cash flow, net income growth over four years and one, and revenue growth over one — every measure has a definition, unit and period, and the five that need lines the statements do not carry are listed as blocked. A bank’s free cash flow is not computed, so Citigroup and Goldman Sachs no longer carry a negative-free-cash-flow risk flag. No coverage figure changed.'],
     ['26 Sep 2026', 'Statement display',
       'Ten SEC filers whose fiscal year ends before December — Microsoft, Nvidia, Walmart, Oracle, Nike and five more — had every column labelled one year early: figures for fiscal 2026 were printed under FY2025.',
       'Every label now reads the company’s own fiscal years, on the statement table, the source drawer, the provenance strip and the Value Map. No figure changed.'],
