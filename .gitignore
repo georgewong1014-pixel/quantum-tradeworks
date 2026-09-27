@@ -80,3 +80,6 @@ property-data/rejects/
 # the deployed site. scanner/setups.example.json is the committed template.
 data/scan-setups.json
 data/scan-alerts.json
+# The worker writes the record beside itself and keeps the previous one.
+data/scan-alerts.json.tmp
+data/scan-alerts.json.bak

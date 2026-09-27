@@ -260,6 +260,89 @@ check(vex.problems.length === 0 && vex.setups.length === exDoc.setups.length, 't
   check(cdGone.alerts.length === 0 && /cooldown/.test(cdGone.skipped[0]?.why || ''), 'the cooldown holds when the previous alert\'s bar has left the history', cdGone.skipped);
 }
 
+/* AUDIT FINDINGS (scanner#0–#6, lead6, lead8, lead20). A column of zeros is
+   no volume; a named symbol with no series, a series with no market and an
+   untested pair each say why; the run's bars are the bars it evaluated; an
+   empty setups file is no setups; an expired setup is not "untested
+   everywhere"; typed paths are the reader's; the record is replaced whole. */
+{
+  const n = 30;
+  const flatBars = (vols) => mkBars(Array.from({ length: n }, (_, i) => 10 + (i % 3)), vols);
+  const zeros = flatBars(Array.from({ length: n }, () => 0));
+  const zBelow = E.scanRule({ left: { indicator: 'volume' }, op: 'below', right: { value: 1 } }, zeros);
+  const zAvg = E.scanRule({ left: { indicator: 'price' }, op: 'above', right: { indicator: 'volume_avg', n: 20 } }, zeros);
+  check(zBelow.met === null && /no volume is carried/.test(zBelow.text) && zAvg.met === null && /no volume is carried/.test(zAvg.text),
+    'an instrument whose volume is 0 on every bar carries no volume: volume and average-volume rules are untested, not met', { zBelow, zAvg });
+  const someZero = flatBars(Array.from({ length: n }, (_, i) => (i % 5 === 0 || i === n - 1 ? 0 : 500)));
+  const sz = E.scanRule({ left: { indicator: 'volume' }, op: 'below', right: { value: 1 } }, someZero);
+  check(sz.met === true, 'a zero-trade day among positive readings is still a reading of 0', sz);
+  const noLast = flatBars(Array.from({ length: n }, (_, i) => (i === n - 1 ? null : 500)));
+  const nl = E.scanRule({ left: { indicator: 'volume' }, op: 'above', right: { value: 1 } }, noLast);
+  check(nl.met === null && nl.text === 'volume: volume is not recorded for the last bar', 'a bar with no recorded volume says so, not "needs 1 bars"', nl);
+
+  const miss = E.scanRun([{ ...setup, universe: { kind: 'symbols', symbols: ['MATCH', 'NOPE'] } }], history, {});
+  check(miss.evaluated === 1 && miss.skipped.some(s => s.symbol === 'NOPE' && /no series/.test(s.why)),
+    'a named symbol with no series is listed as skipped, with the reason, not dropped', miss.skipped);
+  const missAll = E.scanRun([{ ...setup, universe: { kind: 'symbols', symbols: ['ZZZ', 'YYY'] } }], history, {});
+  check(missAll.skipped.length === 1 && /no instrument.*\(ZZZ, YYY\)/.test(missAll.skipped[0].why), 'a universe with no series at all names the symbols it could not find', missAll.skipped);
+
+  const deep = E.scanRun([{ ...setup, id: 'deep', rules: [{ left: { indicator: 'sma', n: 500 }, op: 'above', right: { value: 1 } }] }], history, {});
+  check(deep.untested === 2 && deep.untestedList.length === 2 && deep.untestedList[0].why === `SMA500 needs 500 bars; ${dates.length} held`,
+    'each untested pair carries the rule that could not be read', deep.untestedList);
+  check(deep.untestedEverywhere.length === 1 && deep.untestedEverywhere[0].setup === 'deep' && /SMA500 needs 500 bars/.test(deep.untestedEverywhere[0].why),
+    'a setup untested on every instrument is named with the rule, not a fixed sentence', deep.untestedEverywhere);
+
+  const unreg = E.scanRun([{ ...setup, universe: { kind: 'market', market: 'US' } }], history, { instruments: [{ symbol: 'FLAT', market: 'US' }] });
+  check(unreg.evaluated === 1 && unreg.skipped.some(s => s.symbol === 'MATCH' && /not in data\/instruments\.json/.test(s.why)),
+    'a market universe names the series it cannot place in any market', unreg.skipped);
+
+  /* LAG ends 30 bars before the others, so the evaluated bars span a range
+     and LAG is far enough behind to be flagged. */
+  const hLag = JSON.parse(JSON.stringify(history));
+  hLag.series.LAG = Object.fromEntries(dates.slice(0, dates.length - 30).map(d => [d, 50]));
+  const lagRun = E.scanRun([{ ...always, cooldownBars: 0, universe: { kind: 'symbols', symbols: ['MATCH', 'LAG'] } }], hLag, {});
+  check(lagRun.asOf === lastBar && lagRun.asOfFrom === dates[dates.length - 31] && E.scanBarRange(lagRun.asOfFrom, lagRun.asOf) === `${dates[dates.length - 31]} … ${lastBar}`,
+    'the run\'s bars are the bars it evaluated, not the newest in the file', { asOf: lagRun.asOf, from: lagRun.asOfFrom });
+  check(lagRun.stale.some(s => s.symbol === 'LAG' && /behind the newest bar/.test(s.why)) && !lagRun.stale.some(s => s.symbol === 'MATCH'),
+    'a series far behind the newest bar in the history is flagged, and a current one is not', lagRun.stale);
+
+  const expiredDeep = E.scanRun([{ ...setup, id: 'old', expires: '2026-01-31', rules: [{ left: { indicator: 'sma', n: 500 }, op: 'above', right: { value: 1 } }] }], history, {});
+  check(expiredDeep.untestedEverywhere.length === 0 && expiredDeep.evaluated === 0, 'an expired setup is not "untested everywhere": it was never evaluated', expiredDeep);
+
+  /* The worker, from another directory, with relative paths. */
+  const d2 = join(tmpdir(), `qt-scan-test-rel-${process.pid}`);
+  await mkdir(d2, { recursive: true });
+  await writeFile(join(d2, 'setups.json'), JSON.stringify({ setups: [setup] }));
+  await writeFile(join(d2, 'history.json'), JSON.stringify(history));
+  const cliIn = async (cwd, ...args) => {
+    try { const { stdout, stderr } = await run(process.execPath, [join(ROOT, 'scanner/scan.mjs'), ...args], { cwd }); return { code: 0, stdout, stderr }; }
+    catch (e) { return { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; }
+  };
+  const rel = await cliIn(d2, '--setups', 'setups.json', '--history', 'history.json', '--alerts', 'alerts.json');
+  check(rel.code === 0 && existsSync(join(d2, 'alerts.json')) && !existsSync(join(ROOT, 'alerts.json')),
+    'relative --setups/--history/--alerts paths are taken from the current directory', { code: rel.code, err: rel.stderr.slice(0, 200) });
+  const rel2 = await cliIn(d2, '--setups', 'setups.json', '--history', 'history.json', '--alerts', 'alerts.json');
+  const bak = existsSync(join(d2, 'alerts.json.bak')) ? JSON.parse(await readFile(join(d2, 'alerts.json.bak'), 'utf8')) : null;
+  check(rel2.code === 0 && bak?.alerts?.length === 1 && !existsSync(join(d2, 'alerts.json.tmp')),
+    'the record is written beside itself and renamed over: the previous one is kept as .bak, no .tmp is left', { code: rel2.code, bak: !!bak });
+  await writeFile(join(d2, 'empty.json'), JSON.stringify({ setups: [] }));
+  const empty = await cliIn(d2, '--setups', 'empty.json', '--history', 'history.json', '--alerts', 'alerts.json', '--dry');
+  check(empty.code === 1 && /holds no setups/.test(empty.stderr), 'a setups file with an empty list exits 1, as "no setups"', { code: empty.code, err: empty.stderr.slice(0, 200) });
+  await writeFile(join(d2, 'expired.json'), JSON.stringify({ setups: [{ ...setup, id: 'old', expires: '2026-01-31', rules: [{ left: { indicator: 'sma', n: 500 }, op: 'above', right: { value: 1 } }] }] }));
+  const expd = await cliIn(d2, '--setups', 'expired.json', '--history', 'history.json', '--alerts', 'alerts.json', '--dry');
+  check(expd.code === 0 && !/UNTESTED EVERYWHERE/.test(expd.stdout), 'an expired setup with a rule nothing can test does not exit 2', { code: expd.code });
+
+  /* history-import: a blank volume cell is no reading, not a day of 0. */
+  await writeFile(join(d2, 'T.csv'), 'date,close,volume\n2026-01-02,10,100\n2026-01-05,11,\n2026-01-06,12,0\n');
+  let imp = { code: 0 };
+  try { await run(process.execPath, [join(ROOT, 'ingest/history-import.mjs'), '--in', join(d2, 'T.csv'), '--symbol', 'T', '--out', join(d2, 'hist-import.json')], { cwd: d2 }); }
+  catch (e) { imp = { code: e.code, err: String(e.stderr || '').slice(0, 200) }; }
+  const hi = existsSync(join(d2, 'hist-import.json')) ? JSON.parse(await readFile(join(d2, 'hist-import.json'), 'utf8')) : null;
+  check(imp.code === 0 && hi?.volume?.T?.['2026-01-02'] === 100 && !('2026-01-05' in (hi?.volume?.T || {})) && hi?.volume?.T?.['2026-01-06'] === 0,
+    'history-import leaves a blank volume cell unrecorded and keeps a written 0', { imp, vol: hi?.volume?.T });
+  await rm(d2, { recursive: true, force: true });
+}
+
 /* The two data files are personal and git-ignored; CI also checks this, but a
    local run should say so before a push does. */
 try {

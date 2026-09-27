@@ -225,6 +225,25 @@ above, crosses below, between. A rule whose indicator needs more bars than an
 instrument holds is **untested** for it — a third state, never met or failed —
 and an AND setup with an untested rule cannot match.
 
+Volume and average volume need a recorded volume, and the screen capture
+(`ingest/daily.mjs`) records closes only. Volume reaches the history from
+`ingest/live.mjs` or from an export imported with a volume column
+(`ingest/history-import.mjs`). A volume rule is untested on a bar with no
+recorded volume — so on history built by the screen capture alone, the
+example's "Trend breakout" setup can never match — and on an instrument that
+carries no volume at all (FX pairs, indices, yields).
+
+The page and the worker scan the same thing: `data/price-history.json`.
+Closes pasted on the Your data page live in one browser, so the scanner names
+them as left out rather than scanning series the worker cannot see. A named
+symbol with no series, and — for a market universe — a series with no row in
+`data/instruments.json`, is listed as skipped with the reason. Each pair is
+evaluated on its own instrument's last bar; a series whose last bar is more
+than ten days behind the newest in the file is flagged. Paths given to
+`scan.mjs` are taken from the current directory, and the alert record is
+written to a temporary file and renamed over the old one, which is kept as
+`data/scan-alerts.json.bak`.
+
 ```bash
 node scanner/scan.mjs --check   # self-test only
 node scanner/scan.mjs --dry     # evaluate and print; write nothing

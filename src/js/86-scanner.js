@@ -167,10 +167,16 @@ function scanIndicatorSeries(spec, bars) {
     }
   }
   if (id === 'volume' || id === 'volume_avg') {
-    if (!bars.volumes || bars.volumes.every(v => v == null)) return { series: null, label, needs: def.needs(spec), noVolume: true };
+    /* No positive reading anywhere is no volume at all. FX pairs, indices and
+       yields have no traded volume, and the history path stores that absence
+       as 0 on every bar — which a "volume below 1" rule then matched on. A
+       real instrument's odd zero-trade day sits among positive readings and
+       keeps its series. */
+    if (!bars.volumes || !bars.volumes.some(v => Number.isFinite(v) && v > 0)) return { series: null, label, needs: def.needs(spec), noVolume: true };
     const window = id === 'volume_avg' ? n : 1;
     const miss = bars.volumes.slice(-window).filter(v => v == null).length;
-    if (miss) note = `volume is not recorded for ${miss} of the last ${window} bar${window === 1 ? '' : 's'}`;
+    if (miss) note = window === 1 ? 'volume is not recorded for the last bar'
+      : `volume is not recorded for ${miss} of the last ${window} bars`;
   }
   return { series: scale(series), label, needs: def.needs(spec), note };
 }
@@ -266,6 +272,31 @@ function scanUniverse(setup, history, instruments) {
   }
   return have;
 }
+/* What a universe names but cannot scan, so the run can say so rather than
+   drop it: a named symbol with no series in the history (the example's AAPL
+   vanished from "3 named instruments" without a word), and, for a market
+   universe, a series with no row in the instrument registry — the worker
+   reads only data/instruments.json, so a series fetched from a watchlist
+   file has no market until a row is added there. */
+function scanUniverseGaps(setup, history, instruments) {
+  const have = new Set(Object.keys(history?.series || {}).map(s => String(s).toUpperCase()));
+  const u = setup.universe || { kind: 'all' };
+  if (u.kind === 'symbols' || u.kind === 'watchlist') {
+    const seen = new Set();
+    const missing = (u.symbols || []).map(s => String(s)).filter(s => {
+      const k = s.toUpperCase();
+      if (!k.trim() || seen.has(k)) return false;
+      seen.add(k);
+      return !have.has(k);
+    });
+    return { missing, unplaced: [] };
+  }
+  if (u.kind === 'market') {
+    const reg = new Set((instruments || []).map(i => String(i.symbol).toUpperCase()));
+    return { missing: [], unplaced: Object.keys(history?.series || {}).filter(s => !reg.has(String(s).toUpperCase())) };
+  }
+  return { missing: [], unplaced: [] };
+}
 
 /* An instrument's bars from the history file's {date: close} shape, in date
    order, with volumes aligned (null where none was recorded). */
@@ -277,6 +308,10 @@ function scanBars(history, symbol) {
 }
 
 const scanKey = (setupId, symbol, timeframe, bar) => `${setupId}|${symbol}|${timeframe}|${bar}`;
+/* The bars a run was evaluated on, in words — one date when every pair
+   shared it, the range when instruments end on different days. The page and
+   the worker both print this, so neither names a bar nothing was read on. */
+const scanBarRange = (from, to) => !to ? 'no bar' : (!from || from === to) ? to : `${from} … ${to}`;
 
 /* The run. Every enabled, unexpired setup against every instrument in its
    universe, on the last completed bar of each; a match becomes one alert
@@ -284,24 +319,59 @@ const scanKey = (setupId, symbol, timeframe, bar) => `${setupId}|${symbol}|${tim
    instrument within its cooldown. Nothing is sorted by anything but the
    order of the setups and the symbols. */
 function scanRun(setups, history, { instruments = [], existing = [], now = null } = {}) {
-  const out = { engine: `scan ${SCAN_VERSION}`, alerts: [], evaluated: 0, matched: 0, untested: 0, skipped: [], setups: 0 };
+  /* untestedList carries each untested pair's reason — the count alone told
+     a reader "1 untested" and nothing else. stale names series evaluated on a
+     bar well behind the newest one the history holds. untestedEverywhere is
+     decided here, from the pairs actually evaluated, so the worker cannot
+     warn about a setup the run never evaluated (an expired one). */
+  const out = { engine: `scan ${SCAN_VERSION}`, alerts: [], evaluated: 0, matched: 0, untested: 0, skipped: [], setups: 0,
+                untestedList: [], untestedEverywhere: [], stale: [] };
   const seen = new Set((existing || []).map(a => a.key));
   const lastBar = (sym) => { const d = Object.keys(history?.series?.[sym] || {}).sort(); return d[d.length - 1] || null; };
+  /* The newest bar any series holds: the yardstick a lagging series is
+     measured against. It is not the bar anything was evaluated on. */
+  const newest = Object.keys(history?.series || {}).map(lastBar).filter(Boolean).sort().pop() || null;
+  const dayMs = 86400000;
+  const staleSeen = new Set();
+  const evaluatedBars = [];
   for (const setup of setups || []) {
     if (!setup || setup.enabled === false) continue;
     if (!setup.id) { out.skipped.push({ setup: setup.name || '(unnamed)', why: 'no id' }); continue; }
     if ((setup.timeframe || 'daily') !== 'daily') { out.skipped.push({ setup: setup.id, why: `timeframe “${setup.timeframe}” is not built — daily only` }); continue; }
     out.setups++;
     const symbols = scanUniverse(setup, history, instruments);
-    if (!symbols.length) { out.skipped.push({ setup: setup.id, why: 'no instrument in its universe has a series' }); continue; }
+    const gaps = scanUniverseGaps(setup, history, instruments);
+    if (!symbols.length) { out.skipped.push({ setup: setup.id, why: `no instrument in its universe has a series${gaps.missing.length ? ` (${gaps.missing.join(', ')})` : ''}` }); continue; }
+    gaps.missing.forEach(sym => out.skipped.push({ setup: setup.id, symbol: sym, why: 'no series in the price history' }));
+    gaps.unplaced.forEach(sym => out.skipped.push({ setup: setup.id, symbol: sym, why: 'not in data/instruments.json, so it has no market to be scanned under' }));
+    /* Per setup: pairs that count towards "untested everywhere" (too short,
+       or evaluated and untested) against the pairs that were looked at. */
+    let looked = 0, blind = 0;
+    const reasons = [];
     for (const sym of symbols) {
       const bars = scanBars(history, sym);
-      if (bars.closes.length < 2) { out.skipped.push({ setup: setup.id, symbol: sym, why: 'fewer than two bars' }); continue; }
+      if (bars.closes.length < 2) { out.skipped.push({ setup: setup.id, symbol: sym, why: 'fewer than two bars' }); looked++; blind++; if (!reasons.includes('fewer than two bars')) reasons.push('fewer than two bars'); continue; }
       const bar = bars.dates[bars.dates.length - 1];
       if (setup.expires && bar > setup.expires) { out.skipped.push({ setup: setup.id, symbol: sym, why: `expired ${setup.expires}` }); continue; }
       out.evaluated++;
+      looked++;
+      evaluatedBars.push(bar);
+      if (newest && !staleSeen.has(sym)) {
+        const behind = Math.round((Date.parse(newest) - Date.parse(bar)) / dayMs);
+        /* Ten calendar days clears a long holiday closure; a series further
+           behind than that was not updated, and its "last bar" is old news. */
+        if (behind > 10) { staleSeen.add(sym); out.stale.push({ symbol: sym, bar, why: `last bar ${bar} is ${behind} days behind the newest bar in the history (${newest})` }); }
+      }
       const r = scanSetup(setup, sym, bars);
-      if (r.untested) out.untested++;
+      if (r.untested) {
+        out.untested++;
+        blind++;
+        const why = r.rules.filter(x => x.met === null).map(x => x.text).join('; ');
+        out.untestedList.push({ setup: setup.id, symbol: sym, why });
+        /* The reason without this instrument's bar count, so one line can
+           stand for the whole universe. */
+        r.rules.filter(x => x.met === null).forEach(x => { const g = x.text.replace(/; \d+ held$/, ''); if (!reasons.includes(g)) reasons.push(g); });
+      }
       if (!r.matched) continue;
       out.matched++;
       const key = scanKey(setup.id, sym, 'daily', bar);
@@ -327,9 +397,19 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null 
       out.alerts.push(rec);
       seen.add(key);
     }
+    /* A setup none of whose instruments could be tested is a configuration
+       problem, not a quiet day. Expired pairs are not counted: they were
+       never evaluated, and are reported per instrument. */
+    if (looked > 0 && blind === looked) out.untestedEverywhere.push({ setup: setup.id, why: reasons.slice(0, 3).join('; ') || 'no rule could be tested' });
   }
-  /* The run's as-of: the latest bar any series holds. */
-  out.asOf = Object.keys(history?.series || {}).map(lastBar).filter(Boolean).sort().pop() || null;
+  /* The run's as-of is the range of bars actually evaluated — each pair is
+     evaluated on its own instrument's last bar. It used to be the newest bar
+     in the whole file, so a summary named a date none of the evaluated
+     instruments had. */
+  const sortedBars = evaluatedBars.sort();
+  out.asOf = sortedBars[sortedBars.length - 1] || null;
+  out.asOfFrom = sortedBars[0] || null;
+  out.newestInHistory = newest;
   return out;
 }
 
@@ -434,6 +514,11 @@ function scanSelfTest() {
    only on the reader's machine; on the deployed site they 404 and the page
    says what it would show. */
 let scanSetupsFile = null, scanAlertsFile = null;
+/* data/price-history.json exactly as the worker reads it, taken before the
+   closes the reader pasted into this browser are merged into trackedHistory.
+   The page scanned the merged copy, so "Evaluate now" and "Test" showed
+   matches on series the worker cannot see, and on a later bar than it has. */
+let scanHistoryFile = null;
 
 /* The builder's draft lives in memory for the session, not in storage: the
    setups file is the record, and a second copy in the browser would be the
@@ -479,7 +564,10 @@ VIEWS.scanner = () => {
       + 'It does not rank, it does not deliver anything, and it does not say that any condition means anything.'),
   ])));
 
-  const history = trackedHistory;
+  /* The file, not the merged copy: this page evaluates what the worker
+     evaluates, so a pasted series is named below as left out, not scanned. */
+  const history = scanHistoryFile;
+  const pasted = Object.keys(userData.series || {});
   const haveHistory = !!(history?.series && Object.keys(history.series).length);
   const registry = instruments?.instruments || [];
   /* Validated here exactly as the worker validates, so "evaluate now" can
@@ -503,7 +591,7 @@ VIEWS.scanner = () => {
 
   /* ---- data present ---- */
   const dataCard = el('div', { class: 'card' });
-  dataCard.append(cardHead('Price history in this browser', haveHistory
+  dataCard.append(cardHead('Price history the scanner reads', haveHistory
     ? `${Object.keys(history.series).length} instruments, generated ${history.generated ? String(history.generated).slice(0, 10) : '—'}. Personal research — not redistributable.`
     : 'None loaded.'));
   if (!haveHistory) dataCard.append(el('p', { class: 'body', style: 'font-size:13px' },
@@ -511,7 +599,11 @@ VIEWS.scanner = () => {
   else {
     const depth = Object.values(history.series).map(s => Object.keys(s).length);
     dataCard.append(el('p', { class: 'metaline' }, `Series depth ${Math.min(...depth)}–${Math.max(...depth)} bars. A rule whose indicator needs more bars than an instrument holds is reported as untested for it, never as met or failed.`));
+    const withVol = Object.keys(history.series).filter(s => Object.values(history.volume?.[s] || {}).some(v => Number.isFinite(v) && v > 0)).length;
+    dataCard.append(el('p', { class: 'metaline' }, `Volume is recorded for ${withVol} of ${Object.keys(history.series).length}. The screen capture (ingest/daily.mjs) records closes only; volume comes from ingest/live.mjs or from an export imported with a volume column (ingest/history-import.mjs). A volume or average-volume rule is untested on a bar with no recorded volume, and on an instrument that carries none — FX pairs, indices and yields.`));
   }
+  if (pasted.length) dataCard.append(el('p', { class: 'metaline' },
+    `${pasted.length} series you pasted in this browser (${pasted.slice(0, 8).join(', ')}${pasted.length > 8 ? ', …' : ''}) ${pasted.length === 1 ? 'is' : 'are'} not scanned, and pasted closes do not replace the file’s: the worker reads only data/price-history.json and cannot see this browser, so the page scans the same file.`));
   wrap.append(dataCard);
 
   /* ---- setups on file, and a live evaluation of them ---- */
@@ -560,8 +652,11 @@ VIEWS.scanner = () => {
      instrument could test are the part a reader needs and never saw. */
   if (lastRun) {
     const lr = el('div', { class: 'panel', style: 'margin-top:8px' });
-    lr.append(el('p', { class: 'metaline' }, `Last worker run ${lastRun.at ? String(lastRun.at).replace('T', ' ').slice(0, 16) : '—'} on bars to ${lastRun.asOf || '—'} (${lastRun.engine || 'engine unknown'}): ${lastRun.setups ?? 0} setup${lastRun.setups === 1 ? '' : 's'}, ${lastRun.evaluated ?? 0} evaluation${lastRun.evaluated === 1 ? '' : 's'}, ${lastRun.matched ?? 0} matched, ${lastRun.recorded ?? 0} recorded, ${lastRun.untested ?? 0} untested.`));
-    const probs = [...(lastRun.problems || []).map(p => `refused — ${p}`), ...(lastRun.untestedEverywhere || []).map(id => `${id}: no instrument in its universe holds enough bars for its rules`)];
+    lr.append(el('p', { class: 'metaline' }, `Last worker run ${lastRun.at ? String(lastRun.at).replace('T', ' ').slice(0, 16) : '—'} on bars ${lastRun.asOf ? scanBarRange(lastRun.asOfFrom, lastRun.asOf) : '—'} (${lastRun.engine || 'engine unknown'}): ${lastRun.setups ?? 0} setup${lastRun.setups === 1 ? '' : 's'}, ${lastRun.evaluated ?? 0} evaluation${lastRun.evaluated === 1 ? '' : 's'}, ${lastRun.matched ?? 0} matched, ${lastRun.recorded ?? 0} recorded, ${lastRun.untested ?? 0} untested.`));
+    const probs = [...(lastRun.problems || []).map(p => `refused — ${p}`), ...(lastRun.untestedEverywhere || []).map(u => typeof u === 'string'
+      ? `${u}: no instrument in its universe could test its rules`
+      : `${u.setup}: untested on every instrument in its universe — ${u.why}`),
+      ...(lastRun.stale || []).map(x => `${x.symbol}: ${x.why}`)];
     if (probs.length) lr.append(el('ul', { class: 'rulelist' }, probs.map(p => el('li', {}, p))));
     ac.append(lr);
   }
@@ -591,17 +686,26 @@ VIEWS.scanner = () => {
    skipped and why. In setup-then-symbol order. */
 function scanRunSummary(r, note) {
   const box = el('div');
-  box.append(el('p', { class: 'metaline' }, `${r.setups} setup${r.setups === 1 ? '' : 's'} · ${r.evaluated} evaluation${r.evaluated === 1 ? '' : 's'} on the last bar held${r.asOf ? ` (${r.asOf})` : ''} · ${r.matched} match${r.matched === 1 ? '' : 'es'} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
+  box.append(el('p', { class: 'metaline' }, `${r.setups} setup${r.setups === 1 ? '' : 's'} · ${r.evaluated} evaluation${r.evaluated === 1 ? '' : 's'}, each on its instrument’s last bar${r.asOf ? ` (${scanBarRange(r.asOfFrom, r.asOf)})` : ''} · ${r.matched} match${r.matched === 1 ? '' : 'es'} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
   if (r.alerts.length) {
     const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
     r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
     box.append(ul);
   }
-  const untestedWhy = r.skipped.filter(s => s.why);
-  if (untestedWhy.length) {
+  /* Every pair that was not a plain met-or-failed, with its reason: untested
+     ones first (the rule that could not be read), then the skips, then the
+     series evaluated on a bar well behind the rest. The count alone said
+     "1 untested" and nothing about which rule or why. */
+  const un = (r.untestedList || []).map(s => `${s.setup} · ${s.symbol}: untested — ${s.why}`);
+  const sk = r.skipped.filter(s => s.why).map(s => `${s.setup}${s.symbol ? ' · ' + s.symbol : ''}: ${s.why}`);
+  const st = (r.stale || []).map(s => `${s.symbol}: ${s.why}`);
+  const lines = [...un, ...sk, ...st];
+  if (lines.length) {
+    const parts = [un.length ? `untested ${un.length}` : null, sk.length ? `skipped ${sk.length}` : null, st.length ? `behind the rest ${st.length}` : null].filter(Boolean);
     const det = el('details', { style: 'margin-top:6px' });
-    det.append(el('summary', { class: 'caption', style: 'cursor:pointer' }, `Skipped (${untestedWhy.length})`));
-    det.append(el('ul', { class: 'rulelist' }, untestedWhy.slice(0, 60).map(s => el('li', { class: 'caption' }, `${s.setup}${s.symbol ? ' · ' + s.symbol : ''}: ${s.why}`))));
+    det.append(el('summary', { class: 'caption', style: 'cursor:pointer' }, `Why — ${parts.join(' · ')}`));
+    det.append(el('ul', { class: 'rulelist' }, lines.slice(0, 80).map(t => el('li', { class: 'caption' }, t))));
+    if (lines.length > 80) det.append(el('p', { class: 'caption' }, `Showing 80 of ${lines.length}.`));
     box.append(det);
   }
   return box;
@@ -656,11 +760,19 @@ function scanBuilder(history, registry, alerts) {
   if (d.universe.kind === 'watchlist') {
     g.append(field('Watchlist', select(d.universe.watchlistId, (State.watchlists || []).map(w => [w.id, `${w.name} (${(w.ids || []).length})`]), v => { d.universe.watchlistId = v; })));
     const snap = watchlistSymbols(d.universe.watchlistId);
+    const noSeries = scanUniverseGaps({ universe: { kind: 'watchlist', symbols: snap.symbols } }, history, registry).missing;
     g.append(el('p', { class: 'metaline', style: 'grid-column:1/-1' }, snap.name
-      ? `${snap.symbols.length} symbol${snap.symbols.length === 1 ? '' : 's'} as of ${snap.asOf}: ${snap.symbols.join(', ') || '—'}${snap.unresolved.length ? ` · not resolvable to a symbol: ${snap.unresolved.join(', ')}` : ''}. The worker cannot read this browser, so the setup carries this snapshot — copy the JSON again when the list changes.`
+      ? `${snap.symbols.length} symbol${snap.symbols.length === 1 ? '' : 's'} as of ${snap.asOf}: ${snap.symbols.join(', ') || '—'}${snap.unresolved.length ? ` · not resolvable to a symbol: ${snap.unresolved.join(', ')}` : ''}${noSeries.length ? ` · no series in your history, so not scanned: ${noSeries.join(', ')}` : ''}. The worker cannot read this browser, so the setup carries this snapshot — copy the JSON again when the list changes.`
       : 'No watchlist selected.'));
   }
-  if (d.universe.kind === 'market') g.append(field('Market', select(d.universe.market, [['US', 'US'], ['MY', 'Bursa Malaysia']], v => { d.universe.market = v; })));
+  /* The markets the registry the worker reads actually holds, in its own
+     order — the select used to offer US and MY only, of thirty. */
+  if (d.universe.kind === 'market') {
+    const mkts = [...new Set(registry.map(i => String(i.market || '').toUpperCase()).filter(Boolean))];
+    if (!mkts.includes(String(d.universe.market))) mkts.unshift(String(d.universe.market));
+    g.append(field('Market', select(d.universe.market, mkts.map(m => [m, m === 'MY' ? 'MY — Bursa Malaysia' : m]), v => { d.universe.market = v; })));
+    g.append(el('p', { class: 'metaline', style: 'grid-column:1/-1' }, 'Membership is read from data/instruments.json, the file the worker reads. A series with no row there has no market and is listed as skipped when you test.'));
+  }
   g.append(field('Cooldown (bars before the same instrument can match again)', text(d.cooldownBars, v => { const n = numOrAbsent(v); d.cooldownBars = n === undefined ? 0 : Math.max(0, Math.round(n)); }, { type: 'number', min: '0', step: '1' })));
   g.append(field('Expires (blank for persistent)', text(d.expires || '', v => { d.expires = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; }, { type: 'date' })));
   card.append(g);
@@ -669,12 +781,12 @@ function scanBuilder(history, registry, alerts) {
   const INDS = [['price', 'price'], ['volume', 'volume'], ['sma', 'SMA'], ['ema', 'EMA'], ['rsi', 'RSI'], ['macd', 'MACD'], ['volume_avg', 'average volume']];
   const OPS = Object.entries(SCAN_OPERATORS).map(([k, v]) => [k, v.label]);
   const proseSpans = [];
-  const periodField = (side) => field('Period (bars)', text(side.n, v => { const n = numOrAbsent(v); if (n === undefined) delete side.n; else side.n = n; }, { type: 'number', min: '1', step: '1', placeholder: String(SCAN_DEFAULT_N[side.indicator] ?? '') }));
+  const periodField = (side, which) => field('Period (bars)', text(side.n, v => { const n = numOrAbsent(v); if (n === undefined) delete side.n; else side.n = n; }, { type: 'number', min: '1', step: '1', placeholder: String(SCAN_DEFAULT_N[side.indicator] ?? ''), 'aria-label': `${which} period (bars)` }));
   d.rules.forEach((r, i) => {
     const row = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     const grid = el('div', { class: 'grid g-4', style: 'gap:var(--sm)' });
     grid.append(field('Left', select(r.left?.indicator || 'price', INDS, v => { r.left = freshSide(v); })));
-    if (PERIOD.includes(r.left?.indicator)) grid.append(periodField(r.left));
+    if (PERIOD.includes(r.left?.indicator)) grid.append(periodField(r.left, 'Left'));
     if (r.left?.indicator === 'macd') grid.append(field('MACD field', select(r.left.field || 'line', [['line', 'line'], ['signal', 'signal'], ['hist', 'histogram']], v => { r.left.field = v; })));
     grid.append(field('Operator', select(r.op, OPS, v => { r.op = v; if (v === 'between') { r.range = r.range || [50, 70]; delete r.right; } else { delete r.range; if (!r.right) r.right = { indicator: 'ema', n: 50 }; } })));
     if (r.op === 'between') {
@@ -683,18 +795,22 @@ function scanBuilder(history, registry, alerts) {
       grid.append(field('To', text(r.range[1], v => { r.range[1] = numOrAbsent(v) ?? null; }, { type: 'number', step: 'any' })));
     } else {
       grid.append(field('Right', select(r.right?.indicator ? r.right.indicator : 'value', [['value', 'a fixed value'], ...INDS], v => { r.right = v === 'value' ? { value: null } : freshSide(v); })));
-      if (r.right?.indicator && PERIOD.includes(r.right.indicator)) grid.append(periodField(r.right));
+      if (r.right?.indicator && PERIOD.includes(r.right.indicator)) grid.append(periodField(r.right, 'Right'));
       if (r.right?.indicator === 'macd') grid.append(field('MACD field (right)', select(r.right.field || 'line', [['line', 'line'], ['signal', 'signal'], ['hist', 'histogram']], v => { r.right.field = v; })));
       if (r.right?.indicator) grid.append(field('Multiplier (1 = none)', text(r.right.multiplier ?? 1, v => { const m = numOrAbsent(v); if (m !== undefined && m > 0 && m !== 1) r.right.multiplier = m; else delete r.right.multiplier; }, { type: 'number', step: 'any', min: '0' })));
       if (r.right && !r.right.indicator) grid.append(field('Value', text(r.right.value, v => { r.right.value = numOrAbsent(v) ?? null; }, { type: 'number', step: 'any' })));
     }
+    /* Each field's accessible name says which rule it edits: every rule
+       repeated "Left", "Operator", "Period (bars)", so a screen reader could
+       not tell one rule's period from another's, or left from right. */
+    grid.querySelectorAll('[aria-label]').forEach(n => n.setAttribute('aria-label', `Rule ${i + 1}: ${n.getAttribute('aria-label')}`));
     row.append(grid);
     const prose = el('span', { class: 'metaline' }, scanRuleProse(r));
     proseSpans.push([prose, r]);
     row.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px;align-items:center' }, [
       prose,
       el('span', { class: 'spacer' }),
-      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { d.rules.splice(i, 1); if (!d.rules.length) d.rules.push(scanBlankRule()); rebuild(); } }, 'Remove'),
+      el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Remove rule ${i + 1}`, onclick: () => { d.rules.splice(i, 1); if (!d.rules.length) d.rules.push(scanBlankRule()); rebuild(); } }, 'Remove'),
     ]));
     card.append(row);
   });

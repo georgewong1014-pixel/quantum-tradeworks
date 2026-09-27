@@ -8,6 +8,8 @@
  *   node scanner/scan.mjs --check          run only the self-test and exit
  *   node scanner/scan.mjs --dry            evaluate and print; write nothing
  *   node scanner/scan.mjs --setups f --history f --alerts f --instruments f --html f
+ *                                          a path given here is taken from the current
+ *                                          directory; the defaults are in the repository
  *
  *   exit 0  ran; whatever matched is recorded (or --check passed)
  *   exit 1  could not run: engine missing, self-test failed, no setups, no history
@@ -43,7 +45,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, copyFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -81,7 +83,7 @@ export async function loadEngine(htmlPath = join(ROOT, 'index.html')) {
     ${src}
     return { SCAN_VERSION, SCAN_INDICATORS, SCAN_OPERATORS, scanValidate, scanSideLabel, scanPeriodOf,
              scanSma, scanEma, scanRsi, scanMacd, scanIndicatorSeries,
-             scanRule, scanSetup, scanUniverse, scanBars, scanKey,
+             scanRule, scanSetup, scanUniverse, scanUniverseGaps, scanBars, scanKey, scanBarRange,
              scanRun, scanFixture, scanSelfTest };
   `);
   return factory();
@@ -105,6 +107,20 @@ export function validateSetups(doc, E) {
 
 const readJson = async (p) => JSON.parse(await readFile(p, 'utf8'));
 
+/* The alert record is the only copy (it is git-ignored), and writeFile
+   empties a file before it writes a byte: a run killed mid-write left it
+   empty, and every later run then refused to touch it. So the record is
+   written beside itself and renamed over the old one — a rename within one
+   volume is all or nothing — and the previous record is kept as .bak. */
+export async function writeAtomic(path, text) {
+  const tmp = `${path}.tmp`;
+  await writeFile(tmp, text);
+  try {
+    if (existsSync(path)) await copyFile(path, `${path}.bak`);
+    await rename(tmp, path);
+  } catch (e) { await rm(tmp, { force: true }); throw e; }
+}
+
 /* One evaluation of a setups file on a history file, merged into an alerts
    file. Pure with respect to the process: no exit, no console; the CLI below
    turns the result into words and a code, and the test reads it directly. */
@@ -112,6 +128,10 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   if (!existsSync(setupsPath)) throw Object.assign(new Error(`no setups file at ${setupsPath}`), { code: 'NO_SETUPS' });
   if (!existsSync(historyPath)) throw Object.assign(new Error(`no price history at ${historyPath}`), { code: 'NO_HISTORY' });
   const doc = await readJson(setupsPath);
+  /* An empty list is "no setups", as the header says — not a clean run of
+     nothing that ingest/daily.mjs then reports as "0 new alerts". */
+  const list = Array.isArray(doc) ? doc : Array.isArray(doc?.setups) ? doc.setups : null;
+  if (list && !list.length) throw Object.assign(new Error(`the setups file at ${setupsPath} holds no setups`), { code: 'NO_SETUPS' });
   const { setups, problems } = validateSetups(doc, E);
   const history = await readJson(historyPath);
   let instruments = [];
@@ -120,30 +140,31 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   }
   let existingDoc = null;
   if (existsSync(alertsPath)) {
-    try { existingDoc = await readJson(alertsPath); } catch { throw Object.assign(new Error(`${alertsPath} is not valid JSON — nothing was written over it`), { code: 'BAD_ALERTS' }); }
+    try { existingDoc = await readJson(alertsPath); } catch {
+      const bak = `${alertsPath}.bak`;
+      throw Object.assign(new Error(`${alertsPath} is not valid JSON — nothing was written over it${existsSync(bak) ? `. The record as it stood before the last write is in ${bak}` : ''}`), { code: 'BAD_ALERTS' });
+    }
   }
   const existing = Array.isArray(existingDoc) ? existingDoc : Array.isArray(existingDoc?.alerts) ? existingDoc.alerts : [];
 
   const r = E.scanRun(setups, history, { instruments, existing, now });
 
   /* A setup none of whose instruments could be tested is a configuration
-     problem, not a quiet day: the exit code says so. */
+     problem, not a quiet day: the exit code says so. The engine decides it
+     from the pairs it evaluated. This file used to re-evaluate every setup
+     on its own, expired ones included, and so warned — and exited 2 every
+     day — about a setup the run had never evaluated. */
   const setupLevel = r.skipped.filter(s => !s.symbol);
-  const untestedEverywhere = setups.filter(s => s.enabled !== false && (s.timeframe || 'daily') === 'daily')
-    .filter(s => {
-      const syms = E.scanUniverse(s, history, instruments);
-      if (!syms.length) return false;                     /* already a setup-level skip */
-      return syms.every(sym => { const bars = E.scanBars(history, sym); return bars.closes.length < 2 || E.scanSetup(s, sym, bars).untested; });
-    }).map(s => s.id);
+  const untestedEverywhere = r.untestedEverywhere || [];
 
-  const lastRun = { at: now, asOf: r.asOf, engine: r.engine, setups: r.setups, evaluated: r.evaluated,
+  const lastRun = { at: now, asOf: r.asOf, asOfFrom: r.asOfFrom, engine: r.engine, setups: r.setups, evaluated: r.evaluated,
                     matched: r.matched, recorded: r.alerts.length, untested: r.untested, skipped: r.skipped.length,
-                    problems, untestedEverywhere };
+                    problems, untestedEverywhere, stale: r.stale || [] };
   const out = { engine: r.engine, updatedAt: now, lastRun, alerts: [...existing, ...r.alerts] };
   let written = false;
   if (!dry) {
     await mkdir(dirname(alertsPath), { recursive: true });
-    await writeFile(alertsPath, JSON.stringify(out, null, 2) + '\n');
+    await writeAtomic(alertsPath, JSON.stringify(out, null, 2) + '\n');
     written = true;
   }
   const warn = problems.length > 0 || setupLevel.length > 0 || untestedEverywhere.length > 0;
@@ -157,8 +178,14 @@ async function main() {
   const has = (f) => argv.includes(`--${f}`);
   const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 
+  /* A path the reader types is taken from where they are standing; only the
+     defaults live in the repository. Resolving typed paths against the repo
+     root sent --alerts mine.json into the repository, under a name
+     .gitignore does not cover. */
+  const path = (n, d) => { const v = flag(n, null); return v ? resolve(v) : resolve(ROOT, d); };
+
   let E;
-  try { E = await loadEngine(resolve(ROOT, flag('html', 'index.html'))); }
+  try { E = await loadEngine(path('html', 'index.html')); }
   catch (err) {
     console.error('Could not load the scan engine out of index.html.');
     console.error(`  ${err.message}`);
@@ -179,10 +206,10 @@ async function main() {
   console.log(`engine     ${E.SCAN_VERSION} (extracted from index.html)`);
   if (has('check')) process.exit(0);
 
-  const setupsPath = resolve(ROOT, flag('setups', 'data/scan-setups.json'));
-  const historyPath = resolve(ROOT, flag('history', 'data/price-history.json'));
-  const alertsPath = resolve(ROOT, flag('alerts', 'data/scan-alerts.json'));
-  const instrumentsPath = resolve(ROOT, flag('instruments', 'data/instruments.json'));
+  const setupsPath = path('setups', 'data/scan-setups.json');
+  const historyPath = path('history', 'data/price-history.json');
+  const alertsPath = path('alerts', 'data/scan-alerts.json');
+  const instrumentsPath = path('instruments', 'data/instruments.json');
   const dry = has('dry');
 
   let run;
@@ -201,7 +228,7 @@ async function main() {
   const { result: r, problems, setupLevel, untestedEverywhere, written } = run;
   console.log('');
   console.log(`setups     ${r.setups} evaluated${problems.length ? `, ${problems.length} left out` : ''}`);
-  console.log(`as of      ${r.asOf ?? '—'} (last bar in the history — the engine cannot tell whether its session had closed)`);
+  console.log(`bars       ${r.asOf ? E.scanBarRange(r.asOfFrom, r.asOf) : '—'} (each pair on its own instrument's last bar — the engine cannot tell whether that session had closed)`);
   console.log(`evaluated  ${r.evaluated} setup × instrument pair${r.evaluated === 1 ? '' : 's'} · ${r.matched} matched · ${r.untested} untested`);
   console.log(`${r.alerts.length} new alert${r.alerts.length === 1 ? '' : 's'} recorded${dry ? ' (dry run — nothing written)' : written ? ` → ${alertsPath}` : ''}`);
   if (r.alerts.length) {
@@ -220,15 +247,30 @@ async function main() {
     setupLevel.forEach(s => console.log(`  · ${s.setup}: ${s.why}`));
   }
   if (untestedEverywhere.length) {
-    console.log('\nUNTESTED EVERYWHERE — no instrument in the universe holds enough bars for these rules:');
-    untestedEverywhere.forEach(id => console.log(`  · ${id}`));
+    console.log('\nUNTESTED EVERYWHERE — no instrument in the universe could test these rules:');
+    untestedEverywhere.forEach(u => console.log(`  · ${u.setup}: ${u.why}`));
+  }
+  const untestedList = r.untestedList || [];
+  if (untestedList.length) {
+    /* Grouped by reason, with each instrument's bar count taken out, so a
+       large universe prints one line per cause rather than one per pair. */
+    const by = new Map();
+    untestedList.forEach(u => { const k = `${u.setup}: ${u.why.replace(/; \d+ held/g, '')}`; by.set(k, [...(by.get(k) || []), u.symbol]); });
+    console.log('\nuntested:');
+    [...by.entries()].forEach(([k, syms]) => console.log(`  ${String(syms.length).padStart(4)}  ${k}  (${syms.slice(0, 6).join(', ')}${syms.length > 6 ? ', …' : ''})`));
+  }
+  if ((r.stale || []).length) {
+    console.log('\nbehind the rest — evaluated, but on an old bar:');
+    r.stale.forEach(x => console.log(`  · ${x.symbol}: ${x.why}`));
   }
   const routine = r.skipped.filter(s => s.symbol);
   if (routine.length) {
     const by = new Map();
-    routine.forEach(s => { const k = s.why.replace(/ of \d{4}-\d{2}-\d{2}$/, '').replace(/\d{4}-\d{2}-\d{2}/, 'a date'); by.set(k, (by.get(k) || 0) + 1); });
+    /* Grouped by reason, and each group names its first few instruments: a
+       count alone did not say which named symbol had no series. */
+    routine.forEach(s => { const k = s.why.replace(/ of \d{4}-\d{2}-\d{2}$/, '').replace(/\d{4}-\d{2}-\d{2}/, 'a date'); by.set(k, [...(by.get(k) || []), s.symbol]); });
     console.log('\nper instrument:');
-    [...by.entries()].forEach(([k, n]) => console.log(`  ${String(n).padStart(4)}  ${k}`));
+    [...by.entries()].forEach(([k, syms]) => { const u = [...new Set(syms)]; console.log(`  ${String(syms.length).padStart(4)}  ${k}  (${u.slice(0, 6).join(', ')}${u.length > 6 ? ', …' : ''})`); });
   }
   console.log('\nA record that conditions held, in setup-then-instrument order. Not a signal, not ranked, not sent anywhere.');
   process.exit(run.warn ? 2 : 0);

@@ -781,6 +781,10 @@ async function loadRealData() {
      page says what each would show. */
   try { scanSetupsFile = await fetchJson(dataUrl('scan-setups.json')); } catch { /* none */ }
   try { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')); } catch { /* none */ }
+  /* The scanner's copy of the file, before the merge below: the worker never
+     sees this browser's pasted closes. A shallow copy of the series map is
+     enough — the merge replaces each symbol's object rather than editing it. */
+  scanHistoryFile = trackedHistory ? { ...trackedHistory, series: { ...(trackedHistory.series || {}) } } : null;
   /* Outside the try, because the deployed site has no history file at all and
      the reader's own closes are the only ones it will ever see. Merging only on
      a successful fetch would have made the feature work everywhere except the
