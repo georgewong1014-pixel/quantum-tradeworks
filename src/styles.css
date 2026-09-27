@@ -242,13 +242,33 @@ a { color: inherit; }
    keyboard, so the people who use it are precisely those most likely to need
    the contrast — and it was the worst ratio in the product. Dark ground,
    light text: 14:1. */
+/* Moved with transform rather than by animating `top`: only transform and
+   opacity are animated anywhere in this product, and `top` is a layout
+   property that re-flows on every frame of the slide. */
 .skip-link {
-  position: absolute; left: var(--md); top: -60px; z-index: 100;
+  position: absolute; left: var(--md); top: var(--md); z-index: 100;
   background: var(--surface-inv); color: var(--ink-inv); padding: 10px 16px;
   border-radius: var(--r-md); font-weight: 600;
-  transition: top 180ms ease;
+  transform: translateY(calc(-100% - var(--md) - 8px));
+  transition: transform 180ms ease;
 }
-.skip-link:focus { top: var(--md); }
+.skip-link:focus { transform: none; }
+
+/* THE DOCK COVERED THE FIELD BEING TYPED INTO. A focused control is scrolled
+   only until it meets the viewport's bottom edge, and on a page with the
+   decision dock that edge is underneath the dock. --dock-h is published by
+   render() from the dock's measured height and removed with it, so pages
+   without a dock keep only the small margin. */
+html { scroll-padding-bottom: calc(var(--dock-h, 0px) + 12px); }
+/* The same fault at the top edge, walking backwards. Shift+Tab scrolls a
+   control only until it meets the top of the viewport, which is under the
+   sticky topbar: 25 stops on the screener, 19 on the calculator and every
+   remove button on the watchlists page were drawn beneath it. The padding is
+   whatever is stuck up there — the topbar, measured, or on a company report
+   the topbar and the ticker strip together (--sticky-h). Headings that are
+   jumped to used to add their own scroll-margin for this; they now share the
+   one padding instead of stacking two. */
+html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-h))) + 12px); }
 /* The main landmark takes focus programmatically after a route change and
    from the skip link, so reading starts at the new content. It is not a
    control, and a ring drawn around the whole page is a border, not a focus
@@ -439,8 +459,12 @@ body[data-surface="public"] .disclosure-long { display: none; }
    TEXT darkens. --s1 is a chart series token, and moving it to fix a 12px chip
    label would repaint every plot that uses it — the mark and the text on top of
    it have different jobs and different contrast floors. 3.93:1 -> 4.61:1.
-   --s3 was checked the same way and already measures 4.84:1, so it is left. */
-.chip-my      { background: color-mix(in srgb, var(--s1) 12%, transparent); color: #007460; border-color: color-mix(in srgb, var(--s1) 28%, transparent); }
+   --s3 was checked the same way and already measures 4.84:1, so it is left.
+   4.61:1 was measured on the card surface only. The fill is translucent, so
+   on a sunk panel — the screener's local-filter box — the same chip read
+   4.13:1, and 3.90:1 on --mid. #00654f clears 4.5 on every light ground
+   the chip is placed on (4.80:1 at worst, on --mid). */
+.chip-my      { background: color-mix(in srgb, var(--s1) 12%, transparent); color: #00654f; border-color: color-mix(in srgb, var(--s1) 28%, transparent); }
 /* Dark only: an explicit dark theme, or no theme chosen and the OS dark. The
    earlier form of this rule also matched `html:not([data-theme="light"])`,
    which is every visitor who has not picked a theme — including the default
@@ -658,6 +682,25 @@ body[data-surface="public"] .disclosure-long { display: none; }
 .btn-ghost:hover { color: var(--ink); border-color: var(--line-2); box-shadow: var(--lift-1); transform: translateY(-1px); }
 .btn-ghost:active { transform: translateY(0); }
 .btn-quiet { color: var(--ink-2); padding: 0 8px; min-height: 30px; }
+
+/* A BUTTON THAT READS AS A LINK. The class was used twice — "Which sources?"
+   in the disclosure strip and "Report a data error" in the footer — and
+   defined nowhere, so both rendered as the browser's own grey push-button:
+   in dark mode a #6b6b6b slab with --ink-2 text on it at 2.27:1, sitting
+   between links it was meant to look like. They are buttons because they
+   act rather than navigate; they take the look of the text around them. */
+.linklike {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: var(--r-xs);
+  transition: color 160ms ease;
+}
+.linklike:hover { color: var(--brand); }
+.disclosure .linklike { color: var(--ink); }
+.footer .linklike { font-size: 13px; color: var(--ink-2); text-decoration: none; }
+.footer .linklike:hover { color: var(--brand); }
 .btn-quiet:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .btn-sm { min-height: 30px; padding: 0 10px; font-size:13px; border-radius: var(--r-sm); }
 .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
@@ -778,7 +821,11 @@ table.dt thead th {
 }
 table.dt thead th.sortable { cursor: pointer; }
 table.dt thead th.sortable:hover { color: var(--ink); }
-table.dt thead th .sort-ind { opacity: .4; margin-left: 3px; }
+/* The idle sort arrow is the only sign a column can be sorted. At opacity .4
+   it measured 1.83:1 in light and 2.25:1 in dark, under the 3:1 a meaningful
+   graphic needs. --ink-3 at full opacity recedes behind the header text and
+   measures 4.59:1 and 6.37:1 on the sunk header. */
+table.dt thead th .sort-ind { color: var(--ink-3); margin-left: 3px; }
 table.dt thead th[aria-sort] .sort-ind { opacity: 1; color: var(--brand); }
 table.dt tbody td, table.dt tbody th { border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; color: var(--ink-2); }
 /* A row header is not a column header: it keeps the body's weight and case, and
@@ -873,7 +920,7 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
      target for a link inside a sentence, and padding them apart would break
      the paragraph they sit in. The footer's are a LIST of links, not prose,
      so they get the height. */
-  .footer a { display: inline-flex; align-items: center; min-height: 44px; }
+  .footer a, .footer .linklike { display: inline-flex; align-items: center; min-height: 44px; }
   .checkline { min-height: 44px; }
   /* The checkbox itself stays small; the whole 44px row is the target,
      because .checkline is the <label> that wraps it. */
@@ -889,7 +936,7 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
      away. Padding rather than a bare min-width so the text stays centred in
      the target it claims. */
   .subnav button, .subnav a, .btn, button.chip { min-width: 44px; }
-  .footer a { padding-inline: 6px; min-width: 44px; justify-content: center; }
+  .footer a, .footer .linklike { padding-inline: 6px; min-width: 44px; justify-content: center; }
   /* A range input is 20px tall and the thumb is the target. The track stays
      thin — the browser centres it — and the element grows to give the thumb
      somewhere to be caught. The data-completeness slider gates which companies
@@ -899,6 +946,16 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
      floor — a hair under, and the two sit side by side, which is exactly where
      a mis-tap costs the reader an answer they did not give. */
   .segmented button, .segmented a { min-width: 44px; justify-content: center; }
+  /* A <summary> is the whole control for a disclosure, and none of them were
+     in the list above: the screener's "Start from a template", "Advanced
+     filters" and its six filter groups measured 28px tall at 375px, the
+     calculator's "Show the table view" and "Assess your loan readiness" 18-19px.
+     Flex so the label centres in the height it claims; the markers are
+     already suppressed, so nothing list-item is lost. */
+  summary { min-height: 44px; display: flex; align-items: center; flex-wrap: wrap; column-gap: 6px; }
+  /* A list of one-line buttons that are not .btn — the dashboard's research
+     loop, six 34px rows two pixels apart. */
+  .tap-row { min-height: 44px; }
 }
 
 /* THE DECISION DOCK.
@@ -1052,7 +1109,12 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 
 /* ----------------------------------------------------------------- views */
 .view { display: none; padding: var(--xl) 0 var(--x4); }
-.view[data-active="1"] { display: block; animation: viewin 300ms ease both; }
+/* backwards, not both. A transform or opacity animation that is still in
+   effect — which fill-mode forwards keeps it forever — makes the view a
+   stacking context, and nothing inside one can rise above the topbar however
+   high its z-index. That is what kept the company strip under the topbar on a
+   phone. The end state is the element's own state, so nothing needs holding. */
+.view[data-active="1"] { display: block; animation: viewin 300ms ease backwards; }
 @keyframes viewin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (max-width: 640px) { .view { padding: var(--lg) 0 var(--xxl); } }
 
@@ -1212,6 +1274,10 @@ table.dt .num, .num { overflow-wrap: normal; }
 /* Sticky side rails, disabled once the layout stacks. */
 .rail-sticky { align-self: start; position: sticky; top: calc(var(--topbar-h) + 12px); }
 @media (max-width: 1040px) { .rail-sticky { position: static; } }
+/* Set by render() when the rail is taller than the viewport below the topbar:
+   a stuck rail that does not fit can never show its bottom, and Tab lands
+   focus on controls there that nobody can see. */
+.rail-sticky.rail-tall { position: static; }
 
 .screener-layout { display: grid; grid-template-columns: 288px minmax(0, 1fr); gap: var(--md); align-items: start; }
 @media (max-width: 1040px) {
@@ -1248,7 +1314,13 @@ table.dt .num, .num { overflow-wrap: normal; }
 }
 @media (max-width: 900px) { .ticker-sticky { margin: 0 calc(var(--lg) * -1) var(--lg); padding: 0 var(--lg); } }
 @media (max-width: 560px) { .ticker-sticky { margin: 0 calc(var(--md) * -1) var(--lg); padding: 0 var(--md); } }
-@media (max-width: 780px) { .ticker-sticky { top: 0; } }
+/* Below 780px the strip sticks at top:0 and is meant to sit OVER the topbar
+   (render() measures --sticky-h on that basis). At z-index 25 it sat UNDER
+   it instead: on a phone the 167px topbar covered the whole stuck strip, so
+   the company name, the ten tabs and the section jump vanished the moment
+   they stuck, and a tab focused from the keyboard was drawn beneath the
+   topbar. Above the topbar's 40, below the drawer and the search dialog. */
+@media (max-width: 780px) { .ticker-sticky { top: 0; z-index: 41; } }
 .ts-jump { margin-left: auto; }
 .ts-jump .select { max-width: 210px; }
 @media (max-width: 560px) {
@@ -1266,9 +1338,14 @@ table.dt .num, .num { overflow-wrap: normal; }
    a phone, because the tab bar now wraps to two rows there — and any constant
    picked to fix that would be wrong again at the next breakpoint, or on a
    narrow phone where the tabs take three rows. The fallback covers the moment
-   before the observer first fires. */
+   before the observer first fires.
+
+   The clearance itself now comes from html's scroll-padding-top, which
+   carries the same --sticky-h for every scroll target, focus included; a
+   margin here as well would add the strip's height twice. The 2px keeps the
+   old 14px gap exactly (12px of padding plus this). */
 h3.h-card[id], h2.h-section[id] {
-  scroll-margin-top: calc(var(--sticky-h, 150px) + 14px);
+  scroll-margin-top: 2px;
 }
 
 .ts-ident {
@@ -1276,8 +1353,25 @@ h3.h-card[id], h2.h-section[id] {
   max-height: 0; overflow: hidden; opacity: 0;
   transition: max-height 200ms ease, opacity 200ms ease, padding 200ms ease;
 }
-/* Revealed only once the full identity card has scrolled out of view. */
-.ticker-sticky.is-stuck .ts-ident { max-height: 34px; opacity: 1; padding: 7px 0 3px; }
+/* Revealed once the full identity card has scrolled out of view — and while
+   anything inside it has focus. The section jump lives in this row, and Tab
+   reached it at the top of the report while the row was 0px tall and fully
+   transparent: a focused control nobody could see, underneath the tab strip. */
+.ticker-sticky.is-stuck .ts-ident,
+.ts-ident:focus-within { max-height: 34px; opacity: 1; padding: 7px 0 3px; }
+/* Once a jump select is in the row it is the tallest thing there: 34px of
+   control inside 24px of content box, so its lower third and its focus ring
+   were clipped. Room for the control, and no clipping once revealed — the
+   overflow only exists to hide the row while it is collapsed. */
+.ticker-sticky.is-stuck .ts-ident:has(.ts-jump select),
+.ts-ident:has(.ts-jump select):focus-within { max-height: 48px; overflow: visible; }
+/* On a coarse pointer the jump is a 44px select, and a 34px row clipped the
+   bottom third of it. */
+@media (pointer: coarse), (max-width: 768px) {
+  .ts-ident { align-items: center; }
+  .ticker-sticky.is-stuck .ts-ident:has(.ts-jump select),
+  .ts-ident:has(.ts-jump select):focus-within { max-height: 56px; padding: 6px 0; }
+}
 .ts-tk { font-size: 14px; font-weight:700; letter-spacing: -.01em; }
 .ts-name { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 .ts-px { font-size: 13px; font-weight:600; }

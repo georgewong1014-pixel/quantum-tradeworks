@@ -246,8 +246,11 @@ VIEWS.home = () => {
   const steps = [['Discover candidates', 'discover'], ['Inspect evidence', 'research'], ['Build a valuation range', 'research'], ['Save a thesis', 'thesis'], ['Monitor changes', 'alerts'], ['Review decision quality', 'thesis']];
   const ol = el('ol', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:2px' });
   steps.forEach(([label, target], i) => {
+    /* tap-row: one line of 13px text in 7px padding is a 34px target, six of
+       them stacked 2px apart — the 44px floor comes from the stylesheet on a
+       phone, where a fingertip is what presses them. */
     ol.append(el('li', {}, el('button', {
-      class: 'row', style: 'width:100%;gap:10px;background:none;border:0;cursor:pointer;padding:7px 0;text-align:left',
+      class: 'row tap-row', style:'width:100%;gap:10px;background:none;border:0;cursor:pointer;padding:7px 0;text-align:left',
       onclick: () => go(target) }, [
       el('span', { style: 'width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--brand-wash);color:var(--brand)' }, String(i + 1)),
       el('span', { style: 'font-size:13px;color:var(--ink-2)' }, label),

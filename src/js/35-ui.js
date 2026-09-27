@@ -610,6 +610,20 @@ function buildNav() {
 
 let stickyObserver = null;
 let stickySizer = null;
+let dockSizer = null;
+let railSizer = null;
+let fitRails = () => {};
+/* A viewport that changes height changes which rails fit, and a
+   ResizeObserver on the rail itself never hears about it. */
+window.addEventListener('resize', () => fitRails());
+/* The topbar's real height, for scroll-padding-top. --topbar-h is the 60px
+   single-row design value; below 1220px the nav wraps under the brand and the
+   bar is 100-167px, so the constant would clear barely a third of it. */
+{
+  const bar = document.querySelector('.topbar');
+  if (bar) new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-live',
+    `${Math.round(bar.getBoundingClientRect().height)}px`)).observe(bar);
+}
 /* THE FIRST PAINT WAS A DIFFERENT PRODUCT
    ---------------------------------------------------------------------------
    Filings load asynchronously, and the first paint used to happen on the sample
@@ -677,9 +691,33 @@ function render() {
      Skipped while the universe is loading: a dock is a summary of the page
      below it, and there is no page below a skeleton yet. */
   document.querySelectorAll('.dock').forEach(n => n.remove());
+  dockSizer?.disconnect();
   const dockSpec = (!realPending || !UNIVERSE_VIEWS.has(State.view)) ? DOCKS[State.view]?.() : null;
-  if (dockSpec) { document.body.append(decisionDock(dockSpec)); viewRoot.dataset.dock = '1'; }
-  else delete viewRoot.dataset.dock;
+  if (dockSpec) {
+    /* Still at body level, but BEFORE the footer rather than after it. Tab
+       order follows the DOM, so appended last the dock's one action was the
+       final stop on the page: 170 fields and every footer link came first on
+       the property calculator. After main it is reached when the page is. */
+    const dock = decisionDock(dockSpec);
+    const footer = document.querySelector('body > .footer');
+    footer ? footer.before(dock) : document.body.append(dock);
+    viewRoot.dataset.dock = '1';
+    /* THE DOCK COVERED THE FIELD BEING TYPED INTO. The browser scrolls a
+       focused control only until it touches the bottom edge of the viewport,
+       and the bottom 70-190px of the viewport is the dock. Tabbing down the
+       property calculator landed 21 of its controls entirely underneath it at
+       1440px and 50 at 375px — the reader typing into a field they could not
+       see. scroll-padding-bottom moves the edge the browser scrolls to; its
+       height is measured, because the dock wraps to two or three rows on a
+       phone and the blocker line is clamped, not fixed. */
+    const publish = () => document.documentElement.style.setProperty('--dock-h', `${Math.round(dock.getBoundingClientRect().height)}px`);
+    publish();
+    dockSizer = new ResizeObserver(publish);
+    dockSizer.observe(dock);
+  } else {
+    delete viewRoot.dataset.dock;
+    document.documentElement.style.removeProperty('--dock-h');
+  }
   /* The title is set by setDocumentMeta, which knows the route and the company
      on it. Setting it here as well overwrote that with a generic view label —
      so a company page announced itself as "Research" and every shared link
@@ -724,6 +762,29 @@ function render() {
     stickySizer.observe(strip);
   } else {
     document.documentElement.style.removeProperty('--sticky-h');
+  }
+
+  /* A STICKY RAIL TALLER THAN THE VIEWPORT HID ITS OWN BOTTOM.
+     A stuck box does not scroll with the page, so whatever of it hangs below
+     the viewport stays there until the column beside it ends. The screener's
+     filter rail is 972px against a 900px laptop screen, and the property
+     calculator's deal form is several screens long: Tab walked focus onto
+     "Advanced filters", "Save screen", "Export" and the comparable-evidence
+     fields while every one of them sat below the fold, where no amount of
+     scrolling the page could bring them. A rail that does not fit stops
+     being sticky — the same behaviour it already has once the layout
+     stacks — and one that fits keeps it. Measured, because opening a
+     filter group or an evidence panel changes the answer. */
+  railSizer?.disconnect();
+  const rails = [...section.querySelectorAll('.rail-sticky')];
+  fitRails = () => rails.forEach(rail => {
+    const top = parseFloat(getComputedStyle(rail).top) || 0;
+    rail.classList.toggle('rail-tall', rail.offsetHeight > window.innerHeight - top - 12);
+  });
+  if (rails.length) {
+    fitRails();
+    railSizer = new ResizeObserver(() => fitRails());
+    rails.forEach(r => railSizer.observe(r));
   }
 }
 

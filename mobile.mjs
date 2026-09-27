@@ -128,8 +128,10 @@ for (const w of WIDTHS) {
       /* Tap targets below the 44px floor, on either axis — the count, and
          enough of the first two to find them. A count alone was reported
          once and told nobody which control to look at; and the filter said
-         40px tall while the comments and CLAUDE.md said 44 square. */
-      const smallEls = [...document.querySelectorAll('button,a.btn,select')].filter(n => {
+         40px tall while the comments and CLAUDE.md said 44 square.
+         <summary> is a control too: eight disclosure toggles on the screener
+         measured 28px and were never counted. */
+      const smallEls = [...document.querySelectorAll('button,a.btn,select,summary')].filter(n => {
         const b = n.getBoundingClientRect();
         return b.width > 0 && b.height > 0 && Math.min(b.width, b.height) < 44;
       });
@@ -163,6 +165,109 @@ for (const w of WIDTHS) {
     }
   }
 }
+
+/* FOCUS THAT LANDS WHERE NOBODY CAN SEE IT.
+   Overflow is not the only way a page hides its own controls. Walked with
+   the keyboard, the property calculator put 50 of its fields underneath the
+   fixed decision dock at 375px, the screener's filter rail kept "Advanced
+   filters", "Save screen" and "Export" below the fold of a 900px screen
+   inside a sticky box that could not scroll, and the report's section jump
+   took focus while its row was 0px tall and transparent. Tab through each
+   page and, at every stop, hit-test the focused control's top and bottom
+   edges: if both land on something else — or outside the viewport, or on an
+   invisible box — the reader is typing into a field they cannot see. */
+const FOCUS_ROUTES = ['/property/calculator', '/discover/screener', '/company/AAPL-SEC', '/app/watchlists'];
+/* Reduced motion, so a control that slides in on focus — the skip link — is
+   measured where it comes to rest and not 20ms into the slide. */
+await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+const tabKey = async (back) => {
+  const modifiers = back ? 8 : 0;
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers }, sessionId);
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers }, sessionId);
+};
+for (const w of [375, 1440]) {
+  await send('Emulation.setDeviceMetricsOverride',
+    { width: w, height: w < 768 ? 812 : 900, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+  /* Both directions: forwards the browser scrolls a control to the bottom
+     edge (the dock's side), backwards to the top edge (the topbar's). */
+  for (const back of [false, true]) for (const route of FOCUS_ROUTES) {
+    const dir = back ? ' (Shift+Tab)' : '';
+    await send('Page.navigate', { url: BASE + route }, sessionId);
+    await sleep(1500);
+    let ready = false;
+    for (let i = 0; i < 40 && !ready; i++) {
+      const p = await send('Runtime.evaluate', { returnByValue: true, expression:
+        `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+      ready = p.result?.result?.value === true;
+      if (!ready) await sleep(500);
+    }
+    if (!ready) { bad++; console.log(`FAIL ${w}px ${route}${dir} — focus walk: the filed set never arrived`); continue; }
+    /* Instant scrolling, so each measurement sees where the browser put the
+       control rather than a frame of the smooth scroll on its way there. */
+    await send('Runtime.evaluate', { expression: `document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, ${back ? 'document.documentElement.scrollHeight' : 0}); document.activeElement?.blur(); 1` }, sessionId);
+    const hidden = []; const seen = new Set();
+    for (let i = 0; i < 260; i++) {
+      await tabKey(back);
+      const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+        /* Two frames, so a transition started by the focus has applied its
+           end state — measured synchronously the skip link still read as
+           parked above the viewport, focused but not yet moved. */
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const n = document.activeElement;
+        if (!n || n === document.body) return { end: true };
+        if (!n.dataset.fw) n.dataset.fw = String(Math.random()).slice(2);
+        const b = n.getBoundingClientRect();
+        let op = 1; for (let p = n; p && p.nodeType === 1; p = p.parentElement) op *= parseFloat(getComputedStyle(p).opacity);
+        const x = Math.min(innerWidth - 2, Math.max(1, b.left + Math.min(b.width, 40) / 2));
+        const covered = [b.top + 3, b.bottom - 3].map(y => {
+          if (y < 0 || y > innerHeight) return 'off-screen';
+          const t = document.elementFromPoint(x, y);
+          if (!t || n.contains(t) || t.contains(n)) return '';
+          const c = t.closest('.dock,.topbar,.ticker-sticky') || t;
+          return c.tagName.toLowerCase() + (c.className && typeof c.className === 'string' ? '.' + c.className.split(' ')[0] : '');
+        });
+        /* Taller than the viewport (a scrollable table region) cannot fit.
+           A focusable mark inside a chart is hit-tested against its own
+           siblings — a scale bar, a label — so only visibility counts there. */
+        const why = b.height > innerHeight - 40 ? '' : op < 0.1 || b.height < 2 ? 'invisible'
+          : covered.every(Boolean) && !(n instanceof SVGElement) ? covered.join(' / ') : '';
+        return { id: n.dataset.fw, why, who: n.tagName.toLowerCase() + ' “' + (n.getAttribute('aria-label') || n.textContent || '').trim().slice(0, 28) + '”' };
+      })()` }, sessionId);
+      const v = r.result?.result?.value;
+      if (!v || v.end) break;
+      if (seen.has(v.id)) continue;   /* a date field takes several Tabs */
+      seen.add(v.id);
+      if (v.why) hidden.push(`${v.who} (${v.why})`);
+    }
+    if (!seen.size) { bad++; console.log(`FAIL ${w}px ${route}${dir} — focus walk reached no control at all`); continue; }
+    if (hidden.length) {
+      bad++;
+      console.log(`FAIL ${w}px ${route}${dir} — ${hidden.length} of ${seen.size} focus stops hidden: ${hidden.slice(0, 4).join('; ')}`);
+    }
+  }
+}
+
+/* THE STUCK COMPANY STRIP HAS TO BE ON TOP. On a phone it sticks at top:0
+   and is meant to cover the topbar; at z-index 25 the 167px topbar covered it
+   instead, so the ten tabs and the section jump disappeared as they stuck. */
+await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true }, sessionId);
+await send('Page.navigate', { url: BASE + '/company/AAPL-SEC' }, sessionId);
+await sleep(2500);
+{
+  const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, Math.min(3000, document.documentElement.scrollHeight - innerHeight));
+    await new Promise(r => setTimeout(r, 600));
+    const strip = document.querySelector('.ticker-sticky');
+    const tab = strip?.querySelector('.subnav button');
+    if (!strip || !tab || !strip.classList.contains('is-stuck')) return 'the strip never stuck';
+    const b = tab.getBoundingClientRect();
+    const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+    return t && strip.contains(t) ? '' : 'first tab is under ' + (t ? t.closest('header,div')?.className : 'nothing');
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (v) { bad++; console.log(`FAIL 375px /company/AAPL-SEC — stuck strip: ${v}`); }
+}
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);
@@ -171,7 +276,7 @@ for (const w of WIDTHS) {
   proc.kill();
   await rm(profile, { recursive: true, force: true }).catch(() => {});
 }
-console.log(bad ? `\n${bad} genuine overflow issues` : '\nno horizontal overflow at any width');
+console.log(bad ? `\n${bad} genuine issues (overflow or hidden focus)` : '\nno horizontal overflow at any width, and no focus stop hidden');
 if (smallTargets.length) {
   console.log('\ntap targets under 44px on either axis, on phone widths (reported, not failed):');
   smallTargets.sort((a, b) => b.n - a.n).slice(0, 12)
