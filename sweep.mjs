@@ -11,6 +11,8 @@ import { join } from 'node:path';
 const BASE = process.argv[2] || 'http://localhost:3000';
 const ROUTES = [
   '/', '/app', '/welcome', '/discover', '/discover/screener', '/discover/value-map',
+  /* The two discover tabs with no path of their own. */
+  '/discover?tab=ideas', '/discover?tab=heatmap',
   '/research', '/company/aapl-apple-inc',
   /* An SEC-filed company with no price — the normal state for 119 of the 138,
      and the case that was never exercised while the filings sat behind a flag. */

@@ -32,7 +32,12 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 /* The front door, the discover hub and two company pages — one
                    filed, one illustrative — were never in this list, so the
                    widest tables on the site were the ones never measured. */
-                '/', '/discover', '/company/MSFT-SEC', '/company/MAYBANK'];
+                '/', '/discover', '/company/MSFT-SEC', '/company/MAYBANK',
+                /* The other three discover tabs. The strategy cards ran 5px
+                   past a 390px screen and 35px past 360 — a member row of
+                   ticker, sparkline, price and model difference that could
+                   not shrink — and no route here ever opened them. */
+                '/discover?tab=ideas', '/discover?tab=heatmap', '/discover/value-map'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
