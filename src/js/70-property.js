@@ -436,6 +436,11 @@ const PROPERTY_DEFAULT_DEAL = {
   sqft:1050, landSqft:0, parking:1,
   /* purchase */
   price:572000, bankValuation:0, renovation:25000, downPct:10, ratePct:4.30, tenureYears:35,
+  /* What the renovation buys. The share of the entered rent that depends on
+     it, and the share of the spend a buyer will pay for at exit. Both default
+     to nought — which is what the model always assumed, silently: the rent
+     stood whole and the spend vanished at the sale. Stated now, and movable. */
+  renoRentUpliftPct:0, renoValueRecoveryPct:0,
   /* Which value a lender lends against. The lower of price and valuation is
      the common default and not a universal rule; replace it with the selected
      lender's actual policy when one is known. */
@@ -485,7 +490,14 @@ State.deal = store.read('deal', null) || {
   evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
   checks: { ...PROPERTY_DEFAULT_DEAL.checks },
 };
-const saveDeal = () => store.write('deal', State.deal);
+/* The address follows the deal. Every input change saves, and the save
+   rewrites the address, so the next render's read of the address finds what
+   is already on screen — the write-before-read that stops a stale link from
+   undoing the reader's last change. */
+const saveDeal = () => {
+  store.write('deal', State.deal);
+  if (location.pathname.endsWith('/property/calculator')) syncPropertyUrl(State.deal);
+};
 
 /* ---------------------------------------------------------- shareable state */
 /* The city used to be read out of the URL and then deleted from it, because
@@ -501,11 +513,82 @@ const saveDeal = () => store.write('deal', State.deal);
 const slugParam = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const matchBySlug = (list, want) => list.find(x => slugParam(x) === slugParam(want));
 
+/* THE WHOLE DEAL IN THE ADDRESS, NOT THREE FIELDS OF IT.
+   ---------------------------------------------------------------------------
+   The address carried city, district and type; a pasted link reproduced the
+   place and none of the figures, so "look at this deal" sent someone the
+   default deal in the right town. `d=` now carries every input that differs
+   from the default, with its evidence grade and whether it was entered — the
+   three things the receiving calculator needs to show the same screen and say
+   the same things about where each figure came from.
+
+   Compact and readable rather than JSON: `price:600000~rent:2000~
+   evidence.rent:user~touched:price,rent`. Values are typed by the default
+   they replace, so a string cannot land in a number field, and strings are
+   limited to the short enumerations the deal actually holds. Anything the
+   default deal does not know is dropped on the way in. */
+const SHARE_SKIP = new Set(['city', 'district', 'propertyType', 'evidence', 'checks', 'touched', 'userStarted']);
+const SHARE_KEYS = Object.keys(PROPERTY_DEFAULT_DEAL).filter(k => !SHARE_SKIP.has(k));
+const SHARE_STR = /^[\w .,'()\/-]{0,40}$/;
+
+function dealToParam(d) {
+  const parts = [];
+  for (const k of SHARE_KEYS) {
+    const v = d[k], def = PROPERTY_DEFAULT_DEAL[k];
+    if (v === def || v === undefined) continue;
+    if (v === null) { parts.push(`${k}:null`); continue; }
+    if (typeof v === 'number' && Number.isFinite(v)) parts.push(`${k}:${v}`);
+    else if (typeof v === 'boolean') parts.push(`${k}:${v}`);
+    else if (typeof v === 'string' && SHARE_STR.test(v)) parts.push(`${k}:${encodeURIComponent(v)}`);
+  }
+  for (const [k, v] of Object.entries(d.evidence || {})) {
+    if (v && v !== PROPERTY_DEFAULT_DEAL.evidence[k] && SHARE_STR.test(String(v))) parts.push(`evidence.${k}:${encodeURIComponent(v)}`);
+  }
+  const touched = Object.entries(d.touched || {}).filter(([, on]) => on).map(([k]) => k).filter(k => SHARE_KEYS.includes(k));
+  if (touched.length) parts.push(`touched:${touched.join(',')}`);
+  return parts.join('~');
+}
+
+/* Applies a `d=` value to the deal; returns true if anything changed. */
+function applyDealParam(d, str) {
+  if (!str) return false;
+  let changed = false;
+  for (const part of String(str).split('~')) {
+    const i = part.indexOf(':');
+    if (i < 1) continue;
+    const k = part.slice(0, i), raw = decodeURIComponent(part.slice(i + 1));
+    if (k === 'touched') {
+      d.touched = d.touched || {};
+      raw.split(',').filter(x => SHARE_KEYS.includes(x)).forEach(x => { if (!d.touched[x]) { d.touched[x] = true; changed = true; } });
+      continue;
+    }
+    if (k.startsWith('evidence.')) {
+      const ek = k.slice(9);
+      if (!SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
+      d.evidence = d.evidence || {};
+      if (d.evidence[ek] !== raw) { d.evidence[ek] = raw; changed = true; }
+      continue;
+    }
+    if (!SHARE_KEYS.includes(k)) continue;
+    const def = PROPERTY_DEFAULT_DEAL[k];
+    let v;
+    if (raw === 'null') v = null;
+    else if (typeof def === 'number' || (def === null && /^-?\d+(\.\d+)?$/.test(raw))) { v = Number(raw); if (!Number.isFinite(v)) continue; }
+    else if (typeof def === 'boolean') v = raw === 'true';
+    else if (SHARE_STR.test(raw)) v = raw;
+    else continue;
+    if (d[k] !== v) { d[k] = v; changed = true; }
+  }
+  return changed;
+}
+
 function syncPropertyUrl(d) {
   const p = new URLSearchParams(location.search);
   p.set('city', d.city);
   if (d.district) p.set('district', slugParam(d.district)); else p.delete('district');
   if (d.propertyType) p.set('type', slugParam(d.propertyType)); else p.delete('type');
+  const dp = dealToParam(d);
+  if (dp) p.set('d', dp); else p.delete('d');
   const q = p.toString();
   const next = location.pathname + (q ? `?${q}` : '');
   if (next === location.pathname + location.search) return;
@@ -539,6 +622,7 @@ function readPropertyUrl(d) {
     const hit = matchBySlug(PROPERTY_TYPES, type);
     if (hit && d.propertyType !== hit) { d.propertyType = hit; changed = true; }
   }
+  if (applyDealParam(d, p.get('d'))) changed = true;
   return changed;
 }
 

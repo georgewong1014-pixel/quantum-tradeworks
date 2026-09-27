@@ -478,6 +478,86 @@ try {
     else ok('NAPIC categories map into the classes, the type wins where present, and the source is named', r);
   }
 
+  /* ---------------------------------------------------------------------
+     24–28: the property additions of the platform plan (§12.3). */
+
+  /* 24 — selling in the final year of the hold IS the model's own case. */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel(window.__T.base);
+      const last = m.holdVsSell[m.holdVsSell.length - 1];
+      return { n: m.holdVsSell.length, hold: window.__T.base.holdYears, lastYear: last.yrs, lastIrr: last.irrPct, irr: m.irrPct, lastNet: last.net, net: m.netExitProceeds };
+    })()`);
+    if (r.n !== r.hold || r.lastYear !== r.hold) fail('hold-versus-sell does not cover every year of the hold', r);
+    else if (Math.abs(r.lastIrr - r.irr) > 1e-9 || Math.abs(r.lastNet - r.net) > 1e-6) fail('a sale in the final year does not reproduce the model\'s own return and proceeds', r);
+    else ok(`a sale in year ${r.hold} reproduces the model's own rate of return — ${r.irr.toFixed(4)}%`, r);
+  }
+
+  /* 25 — the five- and ten-year exits are the same arithmetic as the year table. */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel(window.__T.base);
+      return m.exits.map(e => ({ yrs: e.yrs, exitIrr: e.irrPct, tableIrr: m.holdVsSell[e.yrs - 1]?.irrPct ?? null, inHold: e.yrs <= window.__T.base.holdYears }));
+    })()`);
+    const bad = r.filter(x => x.inHold && (!isFinite(x.exitIrr) || Math.abs(x.exitIrr - x.tableIrr) > 1e-9));
+    if (bad.length) fail('an exit row disagrees with the same year in the hold-versus-sell table', bad);
+    else ok('the exit rows and the year table agree on the rate of return for every shared year', r);
+  }
+
+  /* 26 — with nothing attributed to the renovation, the return with it is the
+         model's return, and the return without it is the model run with no
+         renovation; with a share attributed, the rent uplift is exactly that
+         share of the effective rent. */
+  {
+    const r = await evaluate(`(() => {
+      const d = window.__T.base, m = dealModel(d);
+      const rr = renovationReturn(d, m);
+      const bare = dealModel({ ...d, renovation: 0 });
+      const d2 = { ...d, renoRentUpliftPct: 20, renoValueRecoveryPct: 50 }, m2 = dealModel(d2);
+      const rr2 = renovationReturn(d2, m2);
+      return { applicable: rr.applicable, irrWith: rr.irrWith, irr: m.irrPct, irrWithout: rr.irrWithout, bare: bare.irrPct,
+               recovered0: rr.valueRecovered, payback0: rr.paybackYears,
+               uplift: rr2.rentUpliftAnnual, expected: m2.effectiveRent * (1 - 1 / 1.2), recovered50: rr2.valueRecovered, reno: d.renovation };
+    })()`);
+    if (!r.applicable) fail('the default deal budgets a renovation and the return card says it does not', r);
+    else if (Math.abs(r.irrWith - r.irr) > 1e-12 || Math.abs(r.irrWithout - r.bare) > 1e-12) fail('the renovation return does not reduce to the model with and without the spend', r);
+    else if (r.recovered0 !== 0 || r.payback0 !== null) fail('nothing attributed to the renovation still shows a recovery or a payback', r);
+    else if (Math.abs(r.uplift - r.expected) > 1e-6 || Math.abs(r.recovered50 - r.reno * 0.5) > 1e-9) fail('an attributed share is not the share of the effective rent, or the recovery is not the share of the spend', r);
+    else ok('the renovation return reduces to the model with and without the spend, and an attributed share is exactly that share', r);
+  }
+
+  /* 27 — the exit value is the appreciating price plus the recovered spend. */
+  {
+    const r = await evaluate(`(() => {
+      const d = window.__T.base;
+      const a = dealModel({ ...d, renoValueRecoveryPct: 0 }), b = dealModel({ ...d, renoValueRecoveryPct: 100 });
+      return { a: a.exitValue, b: b.exitValue, diff: b.exitValue - a.exitValue, reno: d.renovation, expected: d.price * Math.pow(1 + d.apprecPct / 100, d.holdYears) };
+    })()`);
+    if (Math.abs(r.a - r.expected) > 1e-6) fail('with nothing recovered, the exit value is not the appreciating price', r);
+    else if (Math.abs(r.diff - r.reno) > 1e-6) fail('full recovery does not add exactly the renovation spend to the exit value', r);
+    else ok('the exit value is the appreciating price plus the share of the renovation recovered', r);
+  }
+
+  /* 28 — the address round-trips the deal: what differs from the default, its
+         evidence and what was entered, and nothing the default does not know. */
+  {
+    const r = await evaluate(`(() => {
+      const d2 = { ...window.__T.base, price: 610000, rent: 2100, selfManaged: false, marginalTaxPct: 24, disposerCategory: 'company',
+                   evidence: { ...window.__T.base.evidence, rent: 'verified' }, touched: { price: true, rent: true } };
+      const s = dealToParam(d2);
+      const back = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const changed = applyDealParam(back, s);
+      const junk = { ...back }; const junkChanged = applyDealParam(junk, 'notAKey:1~price:abc~evidence.rent:nonsense~disposerCategory:<script>');
+      return { s, changed, len: s.length,
+               price: back.price, rent: back.rent, self: back.selfManaged, tax: back.marginalTaxPct, cat: back.disposerCategory,
+               ev: back.evidence.rent, touched: back.touched, junkChanged, junkPrice: junk.price, junkEv: junk.evidence.rent, junkCat: junk.disposerCategory };
+    })()`);
+    const okRound = r.changed && r.price === 610000 && r.rent === 2100 && r.self === false && r.tax === 24 && r.cat === 'company' && r.ev === 'verified' && r.touched.price && r.touched.rent;
+    if (!okRound) fail('the address does not round-trip the deal', r);
+    else if (r.junkChanged || r.junkPrice !== 610000 || r.junkEv !== 'verified' || r.junkCat !== 'company') fail('the address parser accepted a key, a type or a value the default deal does not know', r);
+    else ok(`the address round-trips the deal in ${r.len} characters and refuses what it does not know`, r);
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

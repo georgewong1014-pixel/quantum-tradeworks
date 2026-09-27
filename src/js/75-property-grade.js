@@ -766,7 +766,15 @@ function dealModel(d) {
   /* Exit at the chosen holding period. Selling is not instantaneous: the
      property is carried, unlet, for however long the sale takes, and in a
      Sarawak secondary market that is months rather than weeks. */
-  const exitValue = d.price * Math.pow(1 + d.apprecPct / 100, d.holdYears);
+  /* The property's value in year y: the price appreciating, plus whatever
+     share of the renovation spend a buyer will pay for. The model used to
+     drop the renovation at the sale entirely — a RM25,000 refit added nothing
+     to the exit and was deducted in full from the gain — which is one
+     assumption (nothing recovered) presented as none. It is an input now,
+     defaulting to the old behaviour. */
+  const renoRecovered = num0(d.renovation) * num0(d.renoValueRecoveryPct) / 100;
+  const exitValueAt = (y) => d.price * Math.pow(1 + d.apprecPct / 100, y) + renoRecovered;
+  const exitValue = exitValueAt(d.holdYears);
   const outstanding = balanceAfter(loan, d.ratePct, d.tenureYears, d.holdYears * 12);
   const agentFee = exitValue * num0(d.agentPct) / 100;
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
@@ -826,7 +834,7 @@ function dealModel(d) {
              interest: interestY, principal: Math.max(0, annualDebtService - interestY),
              taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
              cfPreTax, cf,
-             value: d.price * Math.pow(1 + d.apprecPct / 100, y),
+             value: exitValueAt(y),
              balance: balanceAfter(loan, d.ratePct, d.tenureYears, y * 12) };
   };
   let cumCash = 0, cumTax = 0, cumPreTax = 0;
@@ -918,7 +926,7 @@ function dealModel(d) {
 
   /* ---- five and ten year exits ----------------------------------------- */
   const exitAt = (yrs) => {
-    const val = d.price * Math.pow(1 + d.apprecPct / 100, yrs);
+    const val = exitValueAt(yrs);
     const bal = balanceAfter(loan, d.ratePct, d.tenureYears, yrs * 12);
     const agent = val * num0(d.agentPct) / 100;
     const lg = Math.max(500, val * num0(d.exitLegalPct) / 100);
@@ -1052,6 +1060,26 @@ function dealModel(d) {
   });
   const irrResult = irrOf(flows);
   const irrPct = irrResult.rate;
+
+  /* HOLD OR SELL, YEAR BY YEAR. The same flows the rate of return above is
+     built from, cut at every possible exit: the equity out, each year's
+     after-tax cash, and in the final year the net proceeds of a sale then
+     plus the reserve coming back. exitAt already prices a sale in any year;
+     this gives each one its rate. Selling in the final year of the hold IS
+     the model's own case, so the last row must equal irrPct — a definition
+     the test suite holds it to. Bounded at thirty years: past that the
+     figures describe a different owner. */
+  const exitIrr = (e) => {
+    const cfs = Array.from({ length: e.yrs }, (_, y) => yearFlow(y + 1).cf);
+    const fl = [-equityOut, ...cfs];
+    fl[fl.length - 1] += e.net + num0(reserveCash);
+    return irrOf(fl).rate;
+  };
+  const holdVsSell = Array.from({ length: clamp(Math.round(num0(d.holdYears)) || 1, 1, 30) }, (_, k) => {
+    const e = exitAt(k + 1);
+    return { ...e, irrPct: exitIrr(e) };
+  });
+  exits.forEach(e => { e.irrPct = exitIrr(e); });
   /* NPV at the return the reader says their capital could earn elsewhere —
      already collected for the opportunity-cost comparison and never used for
      this. Positive means the deal beats that alternative after tax. */
@@ -1093,7 +1121,32 @@ function dealModel(d) {
            irrPct, irrWhy: irrResult.why, irrSignChanges: irrResult.signChanges,
            npvAtHurdle, hurdlePct, annualisedMultiplePct, equityOut, flows,
            propertyClass, propertyClassSrc, letsToTenant, strataCharges,
-           stress, exits, equity };
+           stress, exits, holdVsSell, renoRecovered, equity };
+}
+
+/* WHAT THE RENOVATION RETURNS. Two runs of the model, not one: this deal as
+   entered, and the same deal with no renovation, the rent reduced by the
+   share that depends on it, and nothing recovered at exit. The difference in
+   the rate of return is what the spend buys. Computed here rather than inside
+   dealModel because it calls dealModel — the sensitivity module makes the
+   same choice for the same reason. Not applicable where nothing is budgeted;
+   said so, rather than a card of zeros. */
+function renovationReturn(d, m) {
+  const cost = num0(d.renovation);
+  if (!(cost > 0)) return { applicable: false, why: 'No renovation or furnishing budget is entered, so there is nothing to assess.' };
+  const uplift = num0(d.renoRentUpliftPct) / 100, recovery = num0(d.renoValueRecoveryPct) / 100;
+  const without = dealModel({ ...d, renovation: 0, rent: num0(d.rent) / (1 + uplift), renoRentUpliftPct: 0, renoValueRecoveryPct: 0 });
+  const rentUpliftAnnual = isNum(m.effectiveRent) && isNum(without.effectiveRent) ? m.effectiveRent - without.effectiveRent : null;
+  return {
+    applicable: true, cost,
+    rentUpliftPct: uplift * 100, recoveryPct: recovery * 100,
+    rentUpliftAnnual,
+    paybackYears: isNum(rentUpliftAnnual) && rentUpliftAnnual > 0 ? cost / rentUpliftAnnual : null,
+    valueRecovered: cost * recovery,
+    irrWith: m.irrPct, irrWithout: without.irrPct,
+    irrDelta: isNum(m.irrPct) && isNum(without.irrPct) ? m.irrPct - without.irrPct : null,
+    cashWith: m.safeCashRequired, cashWithout: without.safeCashRequired,
+  };
 }
 
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
@@ -1782,6 +1835,15 @@ VIEWS.property = () => {
      reproduces what is on screen without the reader having to change anything
      first. */
   syncPropertyUrl(d);
+  /* The address IS the share. One control to put it on the clipboard, beside
+     the fields it describes, and a sentence saying what travels with it. */
+  loc.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-bottom:10px' }, [
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: async () => {
+      try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every figure on this screen'); }
+      catch { toast('Could not reach the clipboard — copy the address bar instead'); }
+    } }, 'Copy a link to this deal'),
+    el('span', { class: 'metaline' }, 'The address carries every figure you changed, its evidence grade and which ones you entered. Whoever opens it sees this deal.'),
+  ]));
 
   const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
     d.city = e.target.value;
@@ -2096,6 +2158,8 @@ VIEWS.property = () => {
       ['bankValuation', 'Bank or valuer estimate (RM, 0 if not yet known)', 1000],
       ['bookingDepositPaid', 'Booking deposit already paid (RM)', 500],
       ['renovation', 'Renovation and furnishing (RM)', 500],
+      ['renoRentUpliftPct', 'Share of the rent that depends on the renovation (%)', 5],
+      ['renoValueRecoveryPct', 'Share of the renovation a buyer will pay for at exit (%)', 10],
       ['downPct', 'Deposit (%)', 1],
       ['ratePct', 'Loan interest rate (%)', 0.05],
       ['tenureYears', 'Loan tenure (years)', 1],
@@ -2838,6 +2902,7 @@ VIEWS.property = () => {
     [m.taxComputed ? 'Rental cash over the hold, after tax on the rent' : 'Rental cash over the hold, before tax', e => fmtAmount(e.cumCash, 'MYR')],
     ['Total profit on cash invested', e => fmtAmount(e.profit, 'MYR')],
     ['Annualised', e => isNum(e.annualised) ? fmtPct(e.annualised, 2) : '—'],
+    ['Rate of return if sold then', e => isNum(e.irrPct) ? fmtPct(e.irrPct, 2) : 'no rate — the capital does not come back'],
   ];
   exRows.forEach(([label, get], i) => {
     const strong = i >= exRows.length - 2;
@@ -2852,6 +2917,69 @@ VIEWS.property = () => {
   exitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'Exit costs include the months the property is carried unlet while it sells — a real cost in a Sarawak secondary market, and one most calculators leave out.'));
   out.append(exitCard);
+
+  /* ---------- hold or sell, year by year ---------- */
+  {
+    const hs = m.holdVsSell || [];
+    const card = el('div', { class: 'card' });
+    card.append(cardHead('If you sold in year…',
+      'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.'));
+    const rated = hs.filter(e => isNum(e.irrPct));
+    const best = rated.length ? rated.reduce((a, b) => (b.irrPct > a.irrPct ? b : a)) : null;
+    const host = el('div', { style: 'width:100%' });
+    card.append(host);
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, ['Year', 'Sale value', 'Loan outstanding', 'RPGT', 'Net proceeds', 'Rental cash to date', 'Rate of return'].map((h, i) =>
+      el('th', { class: i ? 'num' : '' }, h)))));
+    const tb = el('tbody');
+    hs.forEach(e => tb.append(el('tr', {}, [
+      el('td', {}, String(e.yrs)),
+      el('td', { class: 'num' }, fmtAmount(e.value, 'MYR')),
+      el('td', { class: 'num' }, fmtAmount(e.outstanding, 'MYR')),
+      el('td', { class: 'num' }, `${e.rpgtPct}%`),
+      el('td', { class: 'num' }, fmtAmount(e.net, 'MYR')),
+      el('td', { class: 'num' }, fmtAmount(e.cumCash, 'MYR')),
+      el('td', { class: 'num' + (isNum(e.irrPct) ? '' : ' caption') }, isNum(e.irrPct) ? fmtPct(e.irrPct, 2) : 'no rate'),
+    ])));
+    t.append(tb);
+    card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+      (best
+        ? `Under these assumptions the rate of return is highest for a sale in year ${best.yrs}, at ${fmtPct(best.irrPct, 2)}. `
+        : 'No exit year returns the capital under these assumptions. ')
+      + 'That is arithmetic on the entered figures — the appreciation rate, the gains-tax band for the year, and how much of the loan is left — and not a view on when to sell. '
+      + `Rental cash is ${m.taxComputed ? 'after' : 'before'} tax on the rent.`));
+    out.append(card);
+    if (rated.length) columnChart(host, { cats: hs.map(e => `Y${e.yrs}`), series: [{ key:'irr', label:'Rate of return if sold that year', values: hs.map(e => isNum(e.irrPct) ? e.irrPct : null), varName:'--s1' }], fmt: v => fmtPct(v, 1), title: 'Rate of return by exit year' });
+  }
+
+  /* ---------- what the renovation returns ---------- */
+  {
+    const rr = renovationReturn(d, m);
+    const card = el('div', { class: 'card' });
+    card.append(cardHead('What the renovation returns',
+      'The deal as entered against the same deal with no renovation — the rent reduced by the share that depends on it, nothing recovered at the sale.'));
+    if (!rr.applicable) card.append(el('p', { class: 'body', style: 'font-size:13px' }, rr.why));
+    else {
+      const g = el('div', { class: 'grid g-3' });
+      [['Renovation and furnishing', fmtAmount(rr.cost, 'MYR'), 'spent before the property can earn'],
+       ['Rent that depends on it', isNum(rr.rentUpliftAnnual) ? `${fmtAmount(rr.rentUpliftAnnual, 'MYR')} a year` : '—', `${fmtPct(rr.rentUpliftPct, 0)} of the entered rent, after vacancy`],
+       ['Payback from rent alone', isNum(rr.paybackYears) ? `${fmtNum(rr.paybackYears, 1)} years` : 'never — no rent is attributed to it', 'cost ÷ the rent it produces'],
+       ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
+       ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
+       ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} safe cash instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
+      ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel' }, statTile(k, v, { sub }))));
+      card.append(g);
+      card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+        (isNum(rr.irrDelta)
+          ? `The renovation ${rr.irrDelta >= 0 ? 'adds' : 'costs'} ${fmtNum(Math.abs(rr.irrDelta), 2)} percentage points of return under these two inputs. `
+          : '')
+        + (rr.rentUpliftPct === 0 && rr.recoveryPct === 0
+          ? 'Both inputs are at nought, so the model treats the spend as buying nothing — no rent, no value at the sale. If that is not what you believe, say what you do believe in the two fields under Purchase; the answer will follow.'
+          : 'Neither input is observed: what a refit adds to rent and to a sale price is an estimate until a valuer or a tenant says otherwise, and this card says only what follows from the estimate you entered.')));
+    }
+    out.append(card);
+  }
 
   /* ---------- paid report ---------- */
   const comps = el('div', { class: 'card' });

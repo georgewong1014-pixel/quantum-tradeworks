@@ -980,9 +980,43 @@ VIEWS.opportunities = () => {
   } }, 'Add to register'));
   wrap.append(add);
 
+  /* Run every candidate once; the cards and the comparison both read it. */
+  const modelled = list.map(o => ({ o, ...candidateModel(o) }));
+
+  /* SIDE BY SIDE. The same engine, the same assumptions — whatever the
+     calculator holds today for anything a record does not state — and the
+     candidates as columns in the order they were recorded. Not sorted by any
+     figure: a table sorted by rate of return is a pick list with a header. */
+  if (modelled.length >= 2) {
+    const cmp = el('div', { class: 'card' });
+    cmp.append(cardHead('Side by side',
+      `${modelled.length} candidates under one set of assumptions. Where a record states a figure the model uses it; where it does not, the calculator’s current inputs stand in — so a difference between two columns can be a difference between two properties or between what is known about them.`));
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, x.o.name))])));
+    const rows = [
+      ['Asking price', x => isNum(x.o.deal.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : 'not recorded'],
+      ['Safe cash required', x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
+      ['Monthly position', x => isNum(x.m.cashflowMonthly) ? fmtAmount(x.m.cashflowMonthly, 'MYR') : '—'],
+      ['Gross yield', x => isNum(x.m.grossYield) ? fmtPct(x.m.grossYield, 2) : 'n/a'],
+      ['Net yield', x => isNum(x.m.netYield) ? fmtPct(x.m.netYield, 2) : 'n/a'],
+      ['Debt-service cover', x => isNum(x.m.dscr) ? fmtX(x.m.dscr, 2) : 'n/a'],
+      ['Break-even rent', x => isNum(x.m.breakEvenRent) ? fmtAmount(x.m.breakEvenRent, 'MYR') : 'n/a'],
+      ['Rate of return', x => isNum(x.m.irrPct) ? fmtPct(x.m.irrPct, 2) : 'no rate'],
+      ['Grade', x => `${x.grade.grade} — ${x.grade.verdict}`],
+      ['Financeability', x => isNum(x.finance.score) ? `${x.finance.score}/100` : `unscored — ${x.finance.gates.length} to verify`],
+    ];
+    const tb = el('tbody');
+    rows.forEach(([label, get]) => tb.append(el('tr', {}, [el('td', { class: 'pin ident' }, label), ...modelled.map(x => el('td', { class: 'num', style: 'white-space:normal' }, get(x)))])));
+    t.append(tb);
+    cmp.append(el('div', { class: 'tablewrap' }, t));
+    cmp.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+      'Columns are in register order. A grade of U means the evidence is not there yet, not that the property is poor; a yield on an unverified rent is arithmetic on a guess, and the grade says so.'));
+    wrap.append(cmp);
+  }
+
   /* The register itself. Newest first — an explicit, stated order. */
   list.forEach((o, i) => {
-    const { m, grade, finance } = candidateModel(o);
+    const { m, grade, finance } = modelled[i];
     const card = el('div', { class: 'card' });
     const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[grade.grade];
     card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [

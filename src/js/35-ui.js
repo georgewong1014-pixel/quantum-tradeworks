@@ -420,9 +420,15 @@ function navigate(path, { push = true, replace = false } = {}) {
   let url;
   if (path.includes('?')) url = href(path);
   else {
+    /* Parameters belong to a view. A tab id means something only inside its
+       own view; the property calculator's ?city, ?district and ?d= mean
+       nothing on /learn and used to ride there. Leaving a view keeps only the
+       two that are global — ?personal=1 and ?real=0, read at boot. */
     const target = matchRoute(path);
     const q = new URLSearchParams(location.search);
-    if (!target || target.view !== State.view || target.tab) q.delete('tab');
+    const GLOBAL = new Set(['personal', 'real']);
+    if (!target || target.view !== State.view) { for (const k of [...q.keys()]) if (!GLOBAL.has(k)) q.delete(k); }
+    else if (target.tab) q.delete('tab');
     const s = q.toString();
     url = href(path) + (s ? `?${s}` : '');
   }
