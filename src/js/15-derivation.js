@@ -842,6 +842,22 @@ const PILLARS = {
   },
 };
 
+/* THE VALUATION PILLAR, PUBLISHED WHERE THE OTHERS ARE.
+   It is scored in addCompany rather than by scorePillar, because its first
+   input is the valuation model's own output, so it used to be defined inline
+   there, and Learn, which walks PILLARS, never showed it: a screener column, an
+   alert input and 30% of the composite with no published weight or anchor. One
+   definition now serves the score and the page. The same inputs apply to every
+   business model, and all three need a price. */
+const VALUE_PILLAR = {
+  label: 'Valuation Evidence',
+  all: [
+    { k:'mosBase', w:.6, label:'Difference to model estimate vs base-case model estimate', lo:-35, hi:45, fmt:v=>fmtPct(v) },
+    { k:'fcfy',    w:.2, label:'Free cash flow yield', lo:0, hi:9, fmt:v=>fmtPct(v) },
+    { k:'dy',      w:.2, label:'Dividend yield',       lo:0, hi:6, fmt:v=>fmtPct(v) },
+  ],
+};
+
 function pillarInputs(pillar, c) {
   const def = PILLARS[pillar];
   return def[c.type] || def[c.type === 'bank' ? 'bank' : c.type === 'reit' ? 'reit' : 'general'] || def.general;

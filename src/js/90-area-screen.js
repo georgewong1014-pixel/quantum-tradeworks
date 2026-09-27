@@ -974,10 +974,18 @@ VIEWS.plans = () => {
       ['Watchlists', `${pl.limits.watchlists} × ${pl.limits.watchlistStocks} companies`],
       ['Portfolios', `${pl.limits.portfolios} × ${pl.limits.holdings} holdings`],
       ['Compare', `${pl.limits.compare} companies`],
-      ['Screener metrics', pl.limits.screenerFields === Infinity ? 'All 28' : `${pl.limits.screenerFields} of 28`],
+      /* Two of the plan's limits are recorded here and applied nowhere: every
+         plan can filter on every screener metric and sees the fact-change
+         alert feed. The card read "8 of 28" and "No" on Free, which sold a
+         boundary the build does not draw — and "28" was typed in by hand while
+         the screener carried 34. The count now comes from FIELDS, and a limit
+         that is not applied says so rather than being printed as a feature. */
+      ['Screener metrics', pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}`
+        : `All ${FIELDS.length} — the limit of ${pl.limits.screenerFields} is not applied in this build`],
       ['Peer-percentile screening', pl.limits.percentileMode ? 'Yes' : 'No'],
       ['Editable valuation assumptions', pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
-      ['Fundamental alerts', pl.limits.fundamentalAlerts ? 'Yes' : 'No'],
+      ['Fundamental alerts', pl.limits.fundamentalAlerts ? 'Yes'
+        : 'Shown — this plan excludes them, but that is not applied in this build'],
       ['Price alerts', `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
       ['Exports', pl.limits.exports ? 'Yes' : 'No'],
       ['Property calculator', pl.limits.propertyCalculator ? 'Included' : 'No'],

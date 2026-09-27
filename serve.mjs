@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Minimal zero-dependency static server for local preview + screenshotting.
-//   node serve.mjs [--port 3000] [--root .]
+//   node serve.mjs [--port 8123] [--root .]
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { readFileSync, statSync } from 'node:fs';
@@ -44,7 +44,10 @@ const arg = (name, fallback) => {
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
 
-const PORT = Number(arg('port', process.env.PORT || 3000));
+/* 8123, the port every harness, npm script and CI step targets. The default
+   was 3000, which is another project's server on the development machine, so
+   `npm run dev` followed by `npm run sweep` found nothing to test. */
+const PORT = Number(arg('port', process.env.PORT || 8123));
 const ROOT = resolve(arg('root', '.'));
 
 const MIME = {

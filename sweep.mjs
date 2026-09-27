@@ -8,7 +8,7 @@ import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const BASE = process.argv[2] || 'http://localhost:3000';
+const BASE = process.argv[2] || 'http://localhost:8123';
 const ROUTES = [
   '/', '/app', '/welcome', '/discover', '/discover/screener', '/discover/value-map',
   '/research', '/company/aapl-apple-inc',

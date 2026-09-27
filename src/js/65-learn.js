@@ -72,7 +72,7 @@ function learnScoring() {
   const wrap = el('div');
   const intro = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   intro.append(cardHead('Why a scorecard and not one composite',
-    'Quality, value, risk and momentum answer different questions and frequently point in opposite directions. Collapsing them into one number hides exactly the trade-off a reader needs to see. Pillars stay separate.'));
+    'Quality, growth, balance-sheet strength, capital allocation and valuation answer different questions and frequently point in opposite directions. Collapsing them into one number hides exactly the trade-off a reader needs to see. Pillars stay separate.'));
   const rules = ['Scores are computed inside valid cohorts — market, sector and business model — never against the whole universe alone.',
     'Both the absolute score and the peer percentile are shown.',
     'Missing inputs reduce coverage and re-base the weights; a score is never credited for data it does not have.',
@@ -83,11 +83,17 @@ function learnScoring() {
   intro.append(ul);
   wrap.append(intro);
 
-  Object.entries(PILLARS).forEach(([key, def]) => {
+  /* The valuation pillar is defined apart from PILLARS because it is scored on
+     the model's output; it is published here all the same, since it is a
+     screener column and 30% of the composite. It was missing from this page. */
+  const VARIANT_LABEL = { general: 'General (non-financial)', bank: 'Banks', reit: 'REITs', all: 'Every business model' };
+  [...Object.entries(PILLARS), ['value', VALUE_PILLAR]].forEach(([key, def]) => {
     const card = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-    card.append(cardHead(def.label, 'Input sets by business model. The anchor range is the raw value that maps to a score of 0 and of 100.'));
+    card.append(cardHead(def.label, key === 'value'
+      ? 'One input set for every business model; all three inputs need a price, and the score re-bases over the ones that could be computed. The anchor range is the raw value that maps to a score of 0 and of 100.'
+      : 'Input sets by business model. The anchor range is the raw value that maps to a score of 0 and of 100.'));
     Object.entries(def).filter(([k]) => k !== 'label').forEach(([variant, inputs]) => {
-      card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, variant === 'general' ? 'General (non-financial)' : variant === 'bank' ? 'Banks' : 'REITs'));
+      card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, VARIANT_LABEL[variant] || variant));
       const tw = el('div', { class: 'tablewrap' });
       const t = el('table', { class: 'dt' });
       t.append(el('thead', {}, el('tr', {}, ['Input', 'Weight', 'Anchor 0', 'Anchor 100'].map(h => el('th', {}, h)))));
@@ -122,12 +128,17 @@ function learnModels() {
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, ['Company type', 'Primary model', 'Secondary checks', 'Companies'].map(h => el('th', {}, h)))));
+  /* Every type routeModel handles, and the pack from routeModel itself. The
+     table used to list seven types and take each pack from the first company
+     of that type: the insurer and early-stage rows were missing though their
+     packs are built and companies use them, and a type with no member printed
+     no model at all, although the router still sends it somewhere. */
   t.append(el('tbody', {}, [
-    ['mature', 'Mature profitable non-financial'], ['bank', 'Bank'], ['reit', 'REIT'],
+    ['mature', 'Mature profitable non-financial'], ['bank', 'Bank'], ['insurer', 'Insurer'], ['reit', 'REIT'],
     ['cyclical', 'Cyclical / commodity'], ['growth', 'High growth'], ['saas', 'Subscription software'], ['holding', 'Holding company'],
+    ['early', 'Early-stage, loss-making'],
   ].map(([type, label]) => {
-    const sample = U.find(r => r.c.type === type);
-    const pack = sample ? routeModel(sample.c) : null;
+    const pack = routeModel({ type });
     const members = U.filter(r => r.c.type === type);
     return el('tr', {}, [
       el('td', { class: 'ident' }, label),
@@ -137,12 +148,11 @@ function learnModels() {
     ]);
   })));
   tw.append(t); intro.append(tw);
-  /* The blueprint's router lists eight company types. Two have no pack here,
-     and saying so is the difference between a published methodology and a
-     marketing page. */
+  /* What the router does not do, stated beside what it does: saying so is the
+     difference between a published methodology and a marketing page. */
   intro.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Known limits of the router'));
   const nb = el('div', { style: 'display:flex;flex-direction:column;gap:6px' });
-  [['All eight company types are routed', 'Every row of the intended router is built, including the insurer and loss-making early-stage packs. Routing is by business model, not by sector label.'],
+  [['Every company type in the table is routed', 'Every row of the intended router is built, including the insurer and loss-making early-stage packs. Routing is by business model, not by sector label.'],
    ['Embedded value is not modelled', 'The insurer pack uses residual income with a combined-ratio check. A life insurer’s embedded value is not disclosed in this dataset, so an embedded-value model cannot be run and is not approximated.'],
    ['Sum of the parts is not a true SOTP', 'The holding-company pack values consolidated cash flow and applies an explicit discount, because segment-level earnings and capital are not carried here.'],
    ['Routing is a default, not a verdict', 'Every pack’s assumptions are editable, and all nine methods are computed on every company regardless of which pack was selected.']]
@@ -396,7 +406,10 @@ function learnTrust() {
                 .then(() => toast('Case copied')).catch(() => toast('Select the text above and copy it'));
             } }, 'Copy'),
             el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-              State.corrections = (State.corrections || []).filter(x => x.id !== c.id);
+              /* By identity, not by id: a browser that recorded cases before
+                 the id fix can hold two with the same id, and Delete must
+                 remove only the one that was opened. */
+              State.corrections = (State.corrections || []).filter(x => x !== c);
               saveCorrections(); closeDrawer(); render(); toast(`${c.id} deleted`);
             } }, 'Delete this case'),
           ]));
@@ -481,12 +494,26 @@ const saveCorrections = () => store.write('corrections', State.corrections);
 
 /* QT-YYYYMMDD-NNN. The sequence comes from the cases already stored on that
    date, so two cases raised in the same millisecond cannot collide the way a
-   timestamp id would. */
-function nextCaseId() {
-  const d = new Date();
+   timestamp id would. It is one past the HIGHEST sequence used, not the count
+   of cases: counting reissued an id still in use as soon as one case was
+   deleted, and deleting either of the pair then removed both. */
+function nextCaseId(d = new Date()) {
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-  const n = (State.corrections || []).filter(c => String(c.id || '').includes(stamp)).length + 1;
+  const used = (State.corrections || []).map(c => String(c.id || ''))
+    .filter(id => id.startsWith(`QT-${stamp}-`)).map(id => parseInt(id.slice(-3), 10)).filter(Number.isFinite);
+  const n = (used.length ? Math.max(...used) : 0) + 1;
   return `QT-${stamp}-${String(n).padStart(3, '0')}`;
+}
+
+/* The time a case was raised, on the same local clock as its id and labelled
+   with its offset. It was the UTC clock with no zone, so in Kuala Lumpur a case
+   raised at 00:30 on the 28th carried a 20260928 id and "Raised 2026-09-27
+   16:30", and the payload the reader sends repeated the disagreement. */
+function caseRaisedAt(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  const off = -d.getTimezoneOffset();
+  const zone = `UTC${off < 0 ? '−' : '+'}${p(Math.floor(Math.abs(off) / 60))}:${p(Math.abs(off) % 60)}`;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())} ${zone}`;
 }
 
 function correctionPayload(c) {
@@ -677,9 +704,10 @@ function openReportError() {
       return;
     }
     const k = coverage();
+    const now = new Date();
     const c = {
-      id: nextCaseId(),
-      createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      id: nextCaseId(now),
+      createdAt: caseRaisedAt(now),
       route: location.pathname + location.search,
       status: 'recorded — not sent',
       modelVersion: MODEL_VERSION, asOf: AS_OF,

@@ -64,6 +64,13 @@ const LICENSED = [
   'data/personal-prices.json',
   'data/price-history.json',
   'data/personal-fundamentals.json',
+  /* Also git-ignored and also fetched by the page, but missing here, so a local
+     base serving them was reported safe to capture: the household-income cache
+     (redistribution rights unconfirmed) and the scanner's setups and alerts,
+     which are personal and derived from the reader's own price history. */
+  'data/sarawak-income.json',
+  'data/scan-setups.json',
+  'data/scan-alerts.json',
 ];
 
 /* ---------------------------------------------------------------- the frames

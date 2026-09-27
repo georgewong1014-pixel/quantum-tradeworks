@@ -33,10 +33,11 @@
  * either direction and the hashes differ. There is no string to choose badly,
  * no marker to forget to update, and nothing to get right at the call site.
  *
- * Newlines are normalised first, and only newlines. The repository stores CRLF
- * and the CDN serves LF, which is a transport difference rather than a content
- * one — verified empirically: after normalisation the two are identical
- * byte-for-byte, so nothing is injected and no other allowance is needed.
+ * Newlines are normalised first, and only newlines. The repository stores LF
+ * (.gitattributes pins eol=lf) and the CDN serves LF, so this is a defence
+ * against a CRLF working copy on Windows rather than a known difference —
+ * after normalisation the two are identical byte-for-byte, so nothing is
+ * injected and no other allowance is needed.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
