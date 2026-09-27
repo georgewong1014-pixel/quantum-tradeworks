@@ -297,11 +297,20 @@ const PORTABLE_KEYS = [
   { k:'runs',              label:'Saved valuation runs' },
   { k:'borrowerProfile',   label:'Borrower profile' },
   { k:'sarawakExposure',   label:'Sarawak exposure records' },
+  /* The two saved kinds the research workspace added: assumptions edited in
+     the Valuation Studio (kept per company across reloads), and named
+     comparisons. Every kind the workspace lists travels in this one file. */
+  { k:'valuation',         label:'Valuation assumptions you edited' },
+  { k:'comparisons',       label:'Saved comparisons' },
 ];
 
 function exportEverything() {
+  /* The envelope says which data the file was taken against, as well as
+     which model: every saved item inside carries its own stamp, and this is
+     the same record for the file as a whole. */
   const out = { format:'quantum-tradeworks/user-data', version:1,
-                exportedAt:new Date().toISOString(), model:MODEL_VERSION, data:{} };
+                exportedAt:new Date().toISOString(), model:MODEL_VERSION,
+                dataVersions: buildStamp('universe').data, data:{} };
   PORTABLE_KEYS.forEach(({ k }) => {
     const v = store.read(k, null);
     if (v !== null && v !== undefined) out.data[k] = v;

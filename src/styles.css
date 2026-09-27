@@ -1500,6 +1500,98 @@ details > summary::marker { content: ''; }
    little better at 37% and 25%. */
 .assumption .a-text { grid-column: 1 / -1; width: 100%; }
 .assumption .a-note { grid-column: 1 / -1; font-size:12px; color: var(--ink-3); margin-top: -4px; }
+/* An input moved off its derived default is marked as the reader's, with the
+   default beside it; the rule is a bronze edge, not a colour on the number. */
+.assumption.is-edited { box-shadow: inset 2px 0 0 var(--bronze); padding-left: 10px; margin-left: -10px; }
+.assumption .a-default { grid-column: 1 / -1; font-size: var(--text-label); color: var(--bronze); margin-top: -4px;
+  font-variant-numeric: tabular-nums; }
+.a-whose { margin: 0 0 var(--sm); }
+.a-whose .chip { white-space: normal; height: auto; min-height: 24px; line-height: 1.35; padding-top: 3px; padding-bottom: 3px; }
+
+/* The Studio's "how this is produced" and "why this confidence" panels. */
+details.explain { margin-top: var(--md); border-top: 1px solid var(--grid); padding-top: var(--sm); }
+details.explain > summary { cursor: pointer; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink);
+  min-height: 44px; display: flex; align-items: center; gap: 8px; }
+details.explain > summary::before { content: '+'; display: inline-grid; place-items: center; width: 18px; height: 18px;
+  border-radius: 999px; border: 1px solid var(--line-2); font-size: 12px; color: var(--ink-3); flex: none; }
+details.explain[open] > summary::before { content: '−'; }
+details.explain > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-sm); }
+.explain-list { margin: 4px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px;
+  font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); max-width: 78ch; font-variant-numeric: tabular-nums; }
+
+/* The sensitivity axis chooser: four fields and a reset, wrapping on a phone. */
+.sens-controls { margin: 0 0 var(--md); }
+.sens-row { display: flex; flex-wrap: wrap; gap: var(--sm) var(--md); align-items: flex-end; margin-bottom: 6px; }
+.sens-row .field { flex: 0 1 auto; }
+.sens-row .field label { font-size: var(--text-label); color: var(--ink-3); }
+.sens-row .select { width: 230px; max-width: 100%; }
+.sens-row .input-inline { width: 84px; }
+@media (max-width: 560px) {
+  .sens-row .field { flex: 1 1 40%; }
+  .sens-row .select, .sens-row .input-inline { width: 100%; min-width: 0; }
+}
+
+/* An absent compare cell: the reason word, with its sentence on hover. */
+.cmp-absent { cursor: help; border-bottom: 1px dotted var(--line-2); }
+
+/* ------------------------------------------------------------- workspace */
+.ws-limits .chip { font-size: var(--text-label); }
+.ws-filters .segmented { max-width: 100%; }
+.ws-search { flex: 1 1 220px; max-width: 320px; }
+.ws-list { list-style: none; margin: 0; padding: 0; }
+/* Fixed tracks for the date and the actions, so every row lines up with the
+   header whatever buttons it carries. */
+.ws-row { display: grid; grid-template-columns: minmax(0, 2.4fr) 150px minmax(0, 1.8fr) minmax(0, 1.4fr) 230px;
+  gap: var(--md); align-items: start; padding: var(--md) var(--lg); border-top: 1px solid var(--grid); }
+.ws-row:first-child { border-top: 0; }
+.ws-head { font-size: var(--text-micro); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+  font-weight: var(--weight-bold); padding-top: var(--sm); padding-bottom: var(--sm); background: var(--surface-sunk);
+  border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.ws-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ws-name strong { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.ws-cell { display: flex; flex-direction: column; gap: 3px; font-size: var(--text-sm); color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
+.ws-cell .chip { align-self: flex-start; }
+.ws-label { display: none; }
+.ws-why { line-height: 1.45; }
+.ws-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+@media (max-width: 900px) {
+  .ws-head { display: none; }
+  .ws-row { grid-template-columns: 1fr; gap: 10px; padding: var(--md); }
+  .ws-row:nth-child(2) { border-top: 0; }
+  .ws-label { display: block; font-size: var(--text-micro); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: var(--weight-bold); }
+  .ws-acts { justify-content: flex-start; }
+  .ws-acts .btn { min-height: 44px; }
+  .ws-search { max-width: none; }
+}
+
+/* --------------------------------------------------------- research report */
+.research-report .rr-cover h1 { font-size: var(--text-h1); letter-spacing: -.02em; }
+.research-report .rr-ident { font-size: var(--text-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.research-report .rr-kv { max-width: 760px; }
+.research-report .rr-kv dd { text-align: left; }
+.research-report .rr-legend { grid-template-columns: 220px 1fr; margin-top: var(--sm); }
+.research-report .rr-plain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; line-height: 1.55; color: var(--ink-2); overflow-wrap: anywhere; }
+.research-report .rr-legend dt { font-weight: var(--weight-semibold); color: var(--ink); }
+.research-report .rr-kind { margin-top: 2px; line-height: 1.35; }
+.research-report .rr-why { display: block; margin-top: 2px; line-height: 1.45; }
+.research-report .rr-table td, .research-report .rr-table th { font-size: var(--text-sm); }
+.research-report .rr-hist td:first-child { white-space: nowrap; }
+.research-report .rr-ok { font-size: 13px; line-height: 1.55; color: var(--ink-2); border-left: 2px solid var(--s1);
+  padding-left: 10px; margin-top: var(--md); }
+.research-report .rr-h3 { font-size: var(--text-sm); font-weight: var(--weight-semibold); margin: var(--lg) 0 var(--xs); color: var(--ink); }
+.research-report > .metaline, .research-report h2 + .metaline { margin-top: var(--xs); }
+.research-report .tablewrap + .metaline { margin-top: var(--xs); }
+.research-report details.explain { margin-top: var(--lg); }
+.research-report .metaline + .dr-figs { margin-top: var(--md); }
+/* On a phone a label column beside a sentence leaves the sentence a third of
+   the width; the pairs stack instead. */
+@media (max-width: 560px) {
+  .research-report .rr-kv, .research-report .rr-legend { grid-template-columns: 1fr; gap: 2px; }
+  .research-report .rr-kv dd { margin-bottom: 8px; }
+  .research-report .dr-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.research-report .rr-table td.caption { overflow-wrap: anywhere; }
 
 .guardrail {
   display: flex; gap: 8px; padding: 10px 12px; border-radius: var(--r-md);
@@ -1535,6 +1627,15 @@ details > summary::marker { content: ''; }
 @media print {
   /* On paper there is no scroll to reveal what a fixed width hides. */
   .decision-record .tablewrap { overflow: visible !important; border: 0 !important; }
+  /* The research report is a decision-record page with longer tables: a
+     smaller face so six fiscal years and a kind column fit a portrait page,
+     and the explanation printed open, with its summary read as a heading. */
+  .research-report .rr-table td, .research-report .rr-table th { font-size: 9.5pt; padding: 3px 6px; }
+  .research-report h2 { break-after: avoid; }
+  .research-report .dr-figs { grid-template-columns: repeat(3, 1fr); }
+  .research-report details.explain > summary::before { display: none; }
+  .research-report details.explain > summary { min-height: 0; }
+  .research-report .rr-cover { break-after: avoid; }
 }
 
 /* --------------------------------------------------------------- printing */

@@ -965,7 +965,14 @@ VIEWS.research = () => {
   const pxBase = toBase(c.px.p, c.ccy);
   if (State.baseCcy !== c.ccy && isNum(pxBase)) pxBlock.append(el('div', { class: 'metaline', style: 'margin-top:2px' },
     `${baseSym()}${pxBase.toFixed(2)} in ${State.baseCcy} at ${FX.USDMYR.toFixed(2)}`));
-  pxBlock.append(companyActions(r));
+  /* The four actions (batch C), and the printable report (batch F) in the
+     same row. A real link, so it opens in a new tab for printing beside the
+     page it came from. */
+  const actionsBox = companyActions(r);
+  const reportPath = `${companyPath(c)}/report`;
+  (actionsBox.querySelector('.row') || actionsBox).append(el('a', { class: 'btn btn-ghost btn-sm', href: href(reportPath), title: 'A print-first research report — saved as PDF through your browser’s print dialog',
+    onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(reportPath); } }, 'Report'));
+  pxBlock.append(actionsBox);
   top.append(pxBlock);
   head.append(top);
 
@@ -1456,9 +1463,10 @@ function tabSnapshot(r) {
      the derived defaults, so each company is compared on the same basis — and
      once the reader has edited them, the snapshot says which run it shows
      rather than sitting silently beside a different number one tab away. */
-  const ed = State.valuation?.[c.id];
-  const assumptionsEdited = !!ed && [...new Set([...Object.keys(r.inputs || {}), ...Object.keys(ed)])]
-    .some(k => JSON.stringify(ed[k]) !== JSON.stringify(r.inputs?.[k]));
+  /* Edits persist across reloads now, so they are read through the Studio's
+     own accessor, which applies the stored ones — State.valuation alone is
+     empty until the Studio has been opened in this session. */
+  const assumptionsEdited = editedKeys(r).length > 0;
   /* Market measures. Every one divides by or compares to a price, and on a
      company with none they were a row of four dashes at the top of the page —
      a dashboard of absences. Without a price the row is one sentence saying

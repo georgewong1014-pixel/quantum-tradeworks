@@ -247,6 +247,9 @@ const SUBNAV_MY = [
   { id:'alerts',     label:'Alerts',     path:'/my/alerts' },
   { id:'tracked',    label:'Tracked',    path:'/my/tracked' },
   { id:'scanner',    label:'Scanner',    path:'/my/scanner' },
+  /* Everything saved, across kinds, in one list — beside the page that
+     exports it. */
+  { id:'workspace',  label:'Workspace',  path:'/my/workspace' },
   { id:'userdata',   label:'Your data',  path:'/my/data' },
 ];
 
@@ -329,6 +332,8 @@ const ROUTES = [
   { path: '/discover/value-map',  view: 'discover',  tab: 'radar',     title: 'Quality vs Value Map' },
   { path: '/research',            view: 'researchHome', title: 'Research' },
   { path: '/company/:id',         view: 'research',  title: 'Company report' },
+  /* The print-first research report — one company on one printable page. */
+  { path: '/company/:id/report',  view: 'researchReport', title: 'Research report' },
   /* The Phase 2 brief's paths — aliases of the routes around them: the same
      views, the same header, so a company is one page whichever address opens
      it. A symbol here resolves through the instrument registry, so
@@ -342,6 +347,8 @@ const ROUTES = [
   { path: '/app/equities/explore',  view: 'researchHome', title: 'Company explorer', alias: true },
   { path: '/app/equities/compare',  view: 'compare',   title: 'Compare companies', alias: true },
   { path: '/app/equities/:id',      view: 'research',  title: 'Company report' },
+  /* Above :tab, which would otherwise read "report" as a tab name. */
+  { path: '/app/equities/:id/report', view: 'researchReport', title: 'Research report' },
   { path: '/app/equities/:id/:tab', view: 'research',  title: 'Company report' },
   { path: '/app/watchlists',        view: 'watchlists', title: 'Watchlists', alias: true },
   { path: '/equities/methodology',  view: 'learn',     tab: 'models',    title: 'Methodology', alias: true },
@@ -354,6 +361,8 @@ const ROUTES = [
   { path: '/my/scanner',          view: 'scanner',   title: 'Trade-setup scanner' },
   { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data' },
+  { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
+  { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
@@ -422,6 +431,8 @@ const META = {
   boundaries:  'What this product will not do, and why each of those absences is deliberate.',
   status:      'What is built, what is gated, and what is holding it.',
   decisionRecord: 'One printable page: the figures, every input with where it came from, and everything still open.',
+  researchReport: 'One company on one printable page: statements, metrics with their status, your valuation assumptions, and where every figure came from. Saved as PDF through your browser’s print.',
+  workspace:   'Everything you have saved in this browser, across kinds, with the model and data version each was saved against.',
   ips:         'The Investment Policy Statement this product’s calculations carry out, and where the product departs from it.',
   about:       'What Quantum Tradeworks is and is not, and who is responsible for it.',
   contact:     'How to report a wrong figure, and where the contact route will be published.',
@@ -484,8 +495,9 @@ function matchRoute(pathname) {
 }
 
 function setDocumentMeta(route) {
-  const name = route?.view === 'research' && !route.pending && State.ticker && BY_ID.get(State.ticker)
-    ? `${BY_ID.get(State.ticker).c.tk} — ${BY_ID.get(State.ticker).c.name}`
+  const co = (route?.view === 'research' || route?.view === 'researchReport') && !route.pending && State.ticker && BY_ID.get(State.ticker);
+  const name = co
+    ? `${route.view === 'researchReport' ? 'Research report: ' : ''}${co.c.tk} — ${co.c.name}`
     : (route?.title || 'Not found');
   document.title = route?.path === '/' ? route.title : `${name} · Quantum Tradeworks`;
   const desc = META[route?.view] || META.marketing;
@@ -512,6 +524,8 @@ function canonicalPath(route) {
     const tab = State.researchTab && State.researchTab !== 'snapshot' ? `?tab=${State.researchTab}` : '';
     return companyPath(BY_ID.get(State.ticker).c) + tab;
   }
+  if (route.view === 'researchReport' && State.ticker && BY_ID.get(State.ticker))
+    return `${companyPath(BY_ID.get(State.ticker).c)}/report`;
   const same = ROUTES.find(r => !r.path.includes(':') && r.view === route.view && (r.tab || null) === (route.tab || null));
   return same ? same.path : route.path;
 }
@@ -794,7 +808,7 @@ function openResearch(id, tab) {
    the wheel and the trading index alike, and the dashboard sits above every
    section, so neither is claimed by one. */
 const SECTION_OF = {
-  researchHome: 'research', compare: 'research', tradingIndex: 'research', wheel: 'research',
+  researchHome: 'research', compare: 'research', tradingIndex: 'research', wheel: 'research', researchReport: 'research',
   sarawak: 'discover',
   opportunities: 'property', comparables: 'property', areas: 'property',
   boundaries: 'learn', ips: 'learn', status: 'learn',
@@ -859,6 +873,9 @@ let realPending = false;
 const UNIVERSE_VIEWS = new Set([
   'home', 'discover', 'research', 'researchHome', 'compare', 'portfolio',
   'watchlists', 'thesis', 'alerts', 'tracked', 'scanner', 'sarawak', 'plans',
+  /* Both name companies: the report is one, and the workspace lists saved
+     items by company and says whether each one's data has moved. */
+  'researchReport', 'workspace',
 ]);
 
 function bootSkeleton() {

@@ -45,7 +45,13 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 /* The statements table, the widest on a company page: ten years,
                    a CAGR column and, on request, two change columns a year.
                    The table scrolls inside its card; the page must not. */
-                '/company/MSFT-SEC?tab=financials', '/company/MAYBANK?tab=financials'];
+                '/company/MSFT-SEC?tab=financials', '/company/MAYBANK?tab=financials',
+                /* Phase 2 batch F: the Studio with its bridge inputs and axis
+                   chooser, the comparison with its period and scale rows, the
+                   workspace list and the printable report, filed and
+                   illustrative. */
+                '/company/MSFT-SEC?tab=valuation', '/compare?companies=AAPL-SEC,MSFT-SEC,MAYBANK',
+                '/my/workspace', '/company/MSFT-SEC/report', '/company/MAYBANK/report'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,

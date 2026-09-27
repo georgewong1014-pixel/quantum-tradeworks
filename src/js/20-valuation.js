@@ -251,7 +251,7 @@ function defaultInputs(c, d) {
       /* Said, when the reported rate was withheld for a split and the default
          is therefore an assumption of no issuance rather than a reading. */
       dilutionAssumed: !isNum(m.dilution),
-      netDebt: m.netDebt, shares: last(d.sh) };
+      netDebt: m.netDebt, shares: last(d.sh), adj: 0 };
   }
 
   const g1 = clamp(isNum(m.rev5) ? m.rev5 * 0.75 : 4, -2, 14);
@@ -259,8 +259,17 @@ function defaultInputs(c, d) {
            wacc:+wacc.toFixed(2), netDebt:m.netDebt, shares:last(d.sh), years:5,
            /* Only a holding company carries a conglomerate discount, and it is an
               editable input rather than something buried in the model. */
-           hold: pack.id === 'sotp' ? 20 : 0 };
+           hold: pack.id === 'sotp' ? 20 : 0,
+           /* Other claims on, and assets outside, the enterprise value —
+              minorities, leases, pensions, associates, surplus assets. None of
+              them is in the statement tuple, so the default claims nothing and
+              any figure here is the reader's own. */
+           adj: 0 };
 }
+
+/* The reader's own bridge adjustment. Absent on a run saved before the input
+   existed, which is the same as the default: no adjustment claimed. */
+const adjOf = (inp) => isNum(inp.adj) ? inp.adj : 0;
 
 /* --- the three model implementations ------------------------------------ */
 /* A FORECAST HAS A WHOLE NUMBER OF YEARS, AND AT LEAST ONE. With 0 typed into
@@ -282,6 +291,7 @@ const floorEquity = (perShare) => ({ perShare: Math.max(0, perShare), rawPerShar
 
 function valueDCF(inp) {
   const { fcf0, g1, gt, wacc, netDebt, shares, years, hold = 0 } = inp;
+  const adj = adjOf(inp);
   const r = wacc / 100, gT = gt / 100;
   if (badYears(years)) return { error: YEARS_ERROR };
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
@@ -303,12 +313,14 @@ function valueDCF(inp) {
   const terminal = f * (1 + gT) / (r - gT);
   const pvTerminal = terminal / Math.pow(1 + r, years);
   const ev = pvExplicit + pvTerminal;
-  const equity = ev - netDebt;
+  /* Equity is the enterprise value, less net debt, plus the reader's signed
+     adjustment for claims and assets the tuple does not carry. */
+  const equity = ev - netDebt + adj;
   /* A discount on negative equity would add value; there is nothing to
      discount once the equity is gone. */
   const holdDiscount = Math.max(0, equity) * (hold / 100);
   return { ...floorEquity((equity - holdDiscount) / shares), pvExplicit, pvTerminal, ev, equity,
-           netDebt, holdDiscount, hold, flows,
+           netDebt, adj, holdDiscount, hold, flows,
            terminalShare: pvTerminal / ev * 100 };
 }
 
@@ -339,6 +351,7 @@ function valueDDM(inp) {
    dilution reduces value per share rather than being ignored. */
 function valueScenario(inp) {
   const { rev0, revCagr, margin0, termMargin, fcfConv, wacc, gt, years, netDebt, shares, dilution } = inp;
+  const adj = adjOf(inp);
   const r = wacc / 100, gT = gt / 100;
   if (badYears(years)) return { error: YEARS_ERROR };
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
@@ -362,10 +375,10 @@ function valueScenario(inp) {
   const terminal = lastFcf * (1 + gT) / (r - gT);
   const pvTerminal = terminal / Math.pow(1 + r, years);
   const ev = pvExplicit + pvTerminal;
-  const equity = ev - netDebt;
+  const equity = ev - netDebt + adj;
   const dilutedShares = shares * Math.pow(1 + (dilution || 0) / 100, years);
   return { ...floorEquity(equity / dilutedShares), pvExplicit, pvTerminal, ev, equity,
-           netDebt, flows, shares, dilutedShares,
+           netDebt, adj, flows, shares, dilutedShares,
            undilutedPerShare: Math.max(0, equity / shares),
            terminalRevenue: last(flows).rev, terminalShare: pvTerminal / ev * 100 };
 }
@@ -691,29 +704,36 @@ function valuationRun(c, d, inputs) {
      the bear-bull band is relative to the base case. A band that cannot be
      measured — a missing case, or a base of nil — scores as the widest, never
      as the tightest: a negative base once made every width "under 45%". */
-  let conf = 0;
-  conf += d.m.coverage >= 90 ? 40 : d.m.coverage >= 75 ? 28 : 16;
-  conf += ({ mature:30, bank:26, insurer:24, reit:28, cyclical:18, holding:14, growth:12, saas:16, early:6 })[c.type] || 20;
+  /* The three parts are kept, not only their sum, so the Studio can show the
+     arithmetic behind "64/100" rather than assert it. */
+  const TYPE_POINTS = { mature:30, bank:26, insurer:24, reit:28, cyclical:18, holding:14, growth:12, saas:16, early:6 };
+  const coveragePts = d.m.coverage >= 90 ? 40 : d.m.coverage >= 75 ? 28 : 16;
+  const typePts = TYPE_POINTS[c.type] || 20;
+  let width = null, bandPts = null;
   if (!err) {
-    const width = isNum(vals.bear) && isNum(vals.bull) && vals.base > 0
+    width = isNum(vals.bear) && isNum(vals.bull) && vals.base > 0
       ? (vals.bull - vals.bear) / vals.base * 100 : null;
-    conf += isNum(width) && width >= 0 && width < 45 ? 30 : isNum(width) && width >= 0 && width < 80 ? 20 : 8;
+    bandPts = isNum(width) && width >= 0 && width < 45 ? 30 : isNum(width) && width >= 0 && width < 80 ? 20 : 8;
   }
+  const conf = coveragePts + typePts + (bandPts || 0);
+  const caps = [];
   let confBand = conf >= 78 ? 'High' : conf >= 58 ? 'Medium' : 'Low';
   /* Equity modelled at nil is a restructuring outcome, not a precise answer. */
-  if (!err && base.equityWipedOut) confBand = 'Low';
+  if (!err && base.equityWipedOut) { confBand = 'Low'; caps.push('The modelled equity is nil, so the grade is Low whatever the points say.'); }
   /* A range with a case missing is not a measured range; it cannot be graded High. */
-  if (!err && caseNotes.length && confBand === 'High') confBand = 'Medium';
+  if (!err && caseNotes.length && confBand === 'High') { confBand = 'Medium'; caps.push('A bear or bull case is not computable, so the range is not fully measured and cannot be graded High.'); }
   /* Model applicability caps confidence. A tight bear-bull band on a cyclical or
      an early-growth business is a property of the model, not evidence that the
      answer is reliable — so those packs cannot reach a High grade. */
   const CAP = { cyclical:'Medium', growth:'Medium', saas:'Medium', holding:'Medium', insurer:'Medium' };
-  if (CAP[c.type] === 'Medium' && confBand === 'High') confBand = 'Medium';
+  if (CAP[c.type] === 'Medium' && confBand === 'High') { confBand = 'Medium'; caps.push(`A ${c.type} business is capped at Medium: a tight band on this model is a property of the model, not evidence the answer is reliable.`); }
   /* An early-stage valuation is never more than low confidence. The spread
      between the success case and the floor is the whole point. */
-  if (c.type === 'early') confBand = 'Low';
+  if (c.type === 'early') { confBand = 'Low'; caps.push('An early-stage valuation is never graded above Low.'); }
+  const confParts = { coverage: coveragePts, coverageOf: 40, coveragePct: d.m.coverage,
+    type: typePts, typeOf: 30, typeName: c.type, band: bandPts, bandOf: 30, width, caps };
 
-  return { pack, inputs, base, bear, bull, vals, mos, err, caseNotes, conf, confBand, price, shift };
+  return { pack, inputs, base, bear, bull, vals, mos, err, caseNotes, conf, confBand, confParts, price, shift };
 }
 
 /* Driver sensitivity: how much does the base-case model estimate move per unit of each
@@ -774,8 +794,9 @@ function sensAxis(axis, inputs) {
   return { values, baseIndex: values.indexOf(clamp(v0, lo, hi)) };
 }
 
-function sensitivityGrid(inputs) {
-  const ax = SENS_AXES[inputs.model];
+/* The axes default to the pack's pair; the Studio passes the reader's own
+   choice of inputs and step sizes in the same shape. */
+function sensitivityGrid(inputs, ax = SENS_AXES[inputs.model]) {
   const xs = sensAxis(ax.x, inputs).values, ys = sensAxis(ax.y, inputs).values;
   return ys.map(y => xs.map(x => {
     const r = runModel({ ...inputs, [ax.x.k]: x, [ax.y.k]: y });
