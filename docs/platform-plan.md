@@ -369,18 +369,18 @@ Status: **done** · **partial** · **now** (this plan, being built) · **blocked
 | Company search by ticker, name, exchange, Bursa code | done |
 | Overview, statements, ratios, comparisons, watchlist | done |
 | Valuation calculator with user assumptions | done (Studio) |
-| Data lineage: source, period, formula, update date | partial → **now**: input values, XBRL tag, filing date and form per input once `us.json` is regenerated; four-way status on every figure and every absence |
-| Actual / derived / illustrative / unavailable visibly distinct | partial → **now** |
+| Data lineage: source, period, formula, update date | **done** (8e761ca): an inputs table in the source drawer with the latest value, fiscal year and XBRL tag of every input; a status on every figure and a reason on every absence. Filing date and form per input wait on the `us.json` regeneration |
+| Actual / derived / illustrative / unavailable visibly distinct | **done** (8e761ca): reported / calculated / modelled / market / illustrative on every present figure; not reported / not applicable / withheld / needs a price / not meaningful on every absence, on the screener cell and in the drawer |
 | Filings index | done (EDGAR links for filed companies; no invented list) |
 
 ### Scanner
 
 | Item | Status |
 |---|---|
-| Setup builder: universe, timeframe, indicator, operator, threshold, confirmation, AND/OR, cooldown, expiry | **now**, personal lane, daily timeframe only |
-| Daily scanner over end-of-day bars | **now**, over the reader's own history; a licensed feed would plug into the same engine |
-| Alert engine with dedupe on setup × instrument × timeframe × bar | **now** |
-| Alert history with timestamps and triggering values | **now** (local file) |
+| Setup builder: universe, timeframe, indicator, operator, threshold, confirmation, AND/OR, cooldown, expiry | **done** (8c3345f) at `/my/scanner`, personal lane, daily timeframe only |
+| Daily scanner over end-of-day bars | **done** (8c3345f): `scanner/scan.mjs` over the reader's own history, run by `ingest/daily.mjs`; a licensed feed would plug into the same engine |
+| Alert engine with dedupe on setup × instrument × timeframe × bar | **done** (8c3345f): key `setup|symbol|daily|bar`, cooldown counted in bars |
+| Alert history with timestamps and triggering values | **done** (8c3345f): `data/scan-alerts.json`, shown on `/my/scanner` |
 | Notification delivery (email, Telegram, push) | blocked (entity — contact data under PDPA; and a backend) |
 | Intraday scanner | blocked (licence, infrastructure, classification) |
 | Backtesting | blocked (point-in-time licensed history); the product states no indicator here is validated |
@@ -392,10 +392,10 @@ Status: **done** · **partial** · **now** (this plan, being built) · **blocked
 |---|---|
 | Acquisition, mortgage, affordability, rental, cash flow, exit, sensitivity | done |
 | Versioned statutory tables, reproducible saved models | done (fee registry, RPGT schedule, `modelVersion`) — values unverified, said so |
-| Renovation ROI | **now**: share of rent and of exit value attributable to the renovation, payback, rate of return with and without |
-| Hold-versus-sell | **now**: year-by-year net proceeds and rate of return if sold in year *y* |
-| Property comparison | **now**: side-by-side table on the opportunity register, register order, same assumptions |
-| Shareable model | **now**: the deal in the address, so a link reproduces the screen |
+| Renovation ROI | **done** (138b36e): share of rent and of exit value attributable to the renovation, payback, rate of return with and without |
+| Hold-versus-sell | **done** (138b36e): year-by-year net proceeds and rate of return if sold in year *y* |
+| Property comparison | **done** (138b36e): side-by-side table on the opportunity register, register order, same assumptions |
+| Shareable model | **done** (138b36e): the deal in the address, so a link reproduces the screen |
 | Report generator | done (decision record) |
 | Lock-in and refinancing | not planned this phase |
 
@@ -474,9 +474,9 @@ Not planned this phase. Both need a backend, imports and an entity.
 | Every navigation item resolves | met; the sweep visits every route |
 | All actions have working backend implementations | there is no backend; every action is implemented client-side, and the ones that cannot be (send, pay, sign in) say so |
 | Authentication and permissions enforced | not applicable until identity exists; `/pricing` says no payment is processed |
-| Calculations have automated tests | met for property and equities; the scanner engine gets a fixture test in this plan |
+| Calculations have automated tests | met for property and equities; the scanner engine has `scanner-test.mjs` (51 checks) since 8c3345f |
 | Consistent units | met; stated on every table; currency conversions go through one FX rate |
-| Provenance and freshness on external data | met at company level; per-figure in this plan (§12) |
+| Provenance and freshness on external data | met at company level; per-figure since 8e761ca (§12.2) |
 | Empty, loading and error states | met; the sweep catches an empty page |
 | Mobile usable | met, and now measurable |
 | Background jobs monitored, retried | exit codes and a report file; no queue — accepted for a personal lane |
@@ -581,6 +581,15 @@ the source drawer and the compare table render from it. The drawer lists each
 input line with its latest value and fiscal year, the XBRL tag that supplied
 it, and — once `data/us.json` is regenerated — the filing's date and form and
 the period end.
+
+**As built (8e761ca).** The four-way design needed a fifth of each. A fifth
+kind, *illustrative*: a figure on a synthetic company is arithmetic like any
+other, but on lines that describe no company, and calling it "calculated"
+would have said less than the page already says. A fifth reason, *not
+meaningful*: a P/E on negative earnings has every input present and no honest
+number, which is neither "not reported" nor "withheld". `metricStatus(row,
+key)` decides both, once, and the screener cell, the drawer and the Learn
+legend read it.
 
 ### 12.3 Property additions
 
