@@ -207,14 +207,51 @@ function addCompany(c) {
    each one moved its own ranking, and a screen returned the same business on two
    rows with different numbers. The real filing always wins; the stand-in goes. */
 function retireIllustrativeTwin(c) {
-  const key = String(c.tk || c.code || '').toUpperCase();
-  if (!key) return null;
-  const i = U.findIndex(r => !r.c.real && String(r.c.tk || r.c.code || '').toUpperCase() === key
-                          && r.c.mkt === c.mkt);
+  /* Either name the real record carries against either name the stand-in
+     carries. addCompany moves an illustrative Bursa company's listing code
+     into c.code and its short name into c.tk, so a match on tk alone let a
+     personal '1155-MY' sit beside illustrative 'MAYBANK' — both in the
+     universe, and the code's own link opening the synthetic one. */
+  const keys = new Set([c.tk, c.code].filter(Boolean).map(x => String(x).toUpperCase()));
+  if (!keys.size) return null;
+  const i = U.findIndex(r => !r.c.real && r.c.mkt === c.mkt
+    && [r.c.tk, r.c.code].some(x => x && keys.has(String(x).toUpperCase())));
   if (i === -1) return null;
   const [gone] = U.splice(i, 1);
   BY_ID.delete(gone.c.id);
-  return gone.c.tk || gone.c.id;
+  return { from: gone.c.id, label: gone.c.tk || gone.c.id };
+}
+
+/* A retired twin's id keeps answering — to the filer's row. Links, watchlists
+   and portfolios saved under 'AAPL' open AAPL-SEC rather than nothing. BY_ID
+   is looked up and never iterated, so an alias entry double-counts nothing. */
+function aliasRetiredId(from, to, pairs) {
+  const row = BY_ID.get(to);
+  if (row) BY_ID.set(from, row);
+  pairs.push({ from, to });
+}
+/* And the saved state is rewritten to the row's own id, once, so an export
+   carries the id the company actually has. Every collection that names a
+   company is listed here; a new one must be added or its ids dangle when a
+   filer replaces a stand-in. */
+function remapSavedIds(pairs) {
+  const map = new Map(pairs.map(p => [p.from, p.to]));
+  const fix = (id) => map.get(id) || id;
+  const list = (arr) => [...new Set((arr || []).map(fix))];
+  const changed = (a, b) => (a || []).join('\u0001') !== (b || []).join('\u0001');
+  let n = 0;
+  let wl = false;
+  (State.watchlists || []).forEach(w => { const next = list(w.ids); if (changed(next, w.ids)) { w.ids = next; wl = true; } });
+  if (wl) { store.write('watchlists', State.watchlists); n++; }
+  const cmp = list(State.compare); if (changed(cmp, State.compare)) { State.compare = cmp; store.write('compare', cmp); n++; }
+  const rc = list(State.recentCompanies); if (changed(rc, State.recentCompanies)) { State.recentCompanies = rc; store.write('recentCompanies', rc); n++; }
+  let pa = false; (State.priceAlerts || []).forEach(a => { if (a && map.has(a.ticker)) { a.ticker = map.get(a.ticker); pa = true; } });
+  if (pa) { store.write('priceAlerts', State.priceAlerts); n++; }
+  let th = false; (State.theses || []).forEach(t => { if (t && map.has(t.ticker)) { t.ticker = map.get(t.ticker); th = true; } });
+  if (th) { store.write('theses', State.theses); n++; }
+  let pf = false; (State.portfolios || []).forEach(p => (p?.holdings || []).forEach(h => { if (h && map.has(h.id)) { h.id = map.get(h.id); pf = true; } }));
+  if (pf) { store.write('portfolios', State.portfolios); n++; }
+  return n;
 }
 
 RAW.forEach(addCompany);
@@ -755,7 +792,7 @@ async function loadRealData() {
   const fxUpdated = applyFx();
 
   let added = 0, priced = 0;
-  const broken = [], superseded = [];
+  const broken = [], superseded = [], pairs = [];
   for (const r of (j.results || [])) {
     if (BY_ID.has(`${r.id}-SEC`)) continue;         /* already loaded */
     /* Per company, not per batch. One filer whose shape the engine cannot
@@ -771,8 +808,8 @@ async function loadRealData() {
       if (!isNum(c.px?.p) && applyPrices(c)) priced++;
       RAW.push(c);
       const replaced = retireIllustrativeTwin(c);
-      if (replaced) superseded.push(replaced);
       addCompany(c);
+      if (replaced) { superseded.push(replaced.label); aliasRetiredId(replaced.from, c.id, pairs); }
       added++;
     } catch (e) {
       broken.push({ id: r.id, error: e.message });
@@ -790,8 +827,8 @@ async function loadRealData() {
       if (!isNum(c.px?.p) && applyPrices(c)) priced++;
       RAW.push(c);
       const replaced = retireIllustrativeTwin(c);
-      if (replaced) superseded.push(replaced);
       addCompany(c);
+      if (replaced) { superseded.push(replaced.label); aliasRetiredId(replaced.from, c.id, pairs); }
       addedMY++;
     } catch (e) {
       broken.push({ id: r.id, error: e.message });
@@ -801,6 +838,11 @@ async function loadRealData() {
 
   const momentumBacked = refreshMomentum();
   if (added || addedMY) { finaliseUniverse(); FEED = buildFeed(); }
+  /* The registry follows the universe: filers replaced stand-ins, the tracked
+     registry may have arrived, and every saved id is rewritten to the row it
+     now names. */
+  rebuildInstruments();
+  if (pairs.length) remapSavedIds(pairs);
   return { added, addedMY, priced, fxUpdated, broken, superseded, momentumBacked, generated: j.generated, failures: j.failures || [],
            myStatements: myFundamentals ? { count: myFundamentals.count, retrieved: myFundamentals.results?.[0]?.retrieved || null,
              years: myFundamentals.yearsAvailable || null } : null,

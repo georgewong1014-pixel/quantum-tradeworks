@@ -43,21 +43,38 @@ function runSearch(q) {
      company's numeric code into c.code and its short name into c.tk, so a
      search that read only tk and id could never match 1155 to Maybank — the
      placeholder described a field the filter did not look at. */
-  const hits = U.filter(r => !term
-    || r.c.tk.toLowerCase().includes(term) || r.c.id.toLowerCase().includes(term)
-    || (r.c.code && String(r.c.code).toLowerCase().includes(term))
-    || r.c.name.toLowerCase().includes(term) || r.c.sector.toLowerCase().includes(term)
-    || r.c.industry.toLowerCase().includes(term)).slice(0, 10);
-  searchResults.replaceChildren(...(hits.length ? hits.map(r => {
+  /* Through the canonical registry: symbol, old id, listing code, CIK, vendor
+     form, then name, then sector. A price-only instrument is listed too and
+     says so — a reader who tracks it should not be told it does not exist. */
+  const found = searchInstruments(term, {}, { limit: 10 });
+  const rows = found.hits.map(ins => ({ ins, r: ins.companyId ? BY_ID.get(ins.companyId) : null }));
+  const hits = rows;
+  const hover = (b) => {
+    b.addEventListener('pointerenter', () => b.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
+    b.addEventListener('pointerleave', () => b.style.background = 'none');
+  };
+  searchResults.replaceChildren(...rows.map(({ ins, r }) => {
+    if (!r) {
+      const b = el('button', { class: 'row', style: 'width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
+        onclick: () => { closeSearch({ restore: false }); navigate('/my/tracked'); } });
+      hover(b);
+      const nm = el('div', { style: 'min-width:0;flex:1' });
+      nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
+        el('span', { style: 'font-size:13px;font-weight:600' }, ins.symbol), marketChip(ins.market),
+        el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]));
+      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on My Investments › Tracked`));
+      b.append(nm);
+      return b;
+    }
     const b = el('button', { class: 'row', style: 'width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
       /* No focus restore: the page is about to change and navigate() puts
          focus on the new content, which is where a chosen result leads. */
       onclick: () => { closeSearch({ restore: false }); openResearch(r.c.id); } });
-    b.addEventListener('pointerenter', () => b.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
-    b.addEventListener('pointerleave', () => b.style.background = 'none');
+    hover(b);
     const nm = el('div', { style: 'min-width:0;flex:1' });
     nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
       el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
+      r.c.personal ? el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'personal research') : null,
       /* The code the reader may have typed, so a hit on it is visibly a hit.
          A fixed-width numeric token: .metaline wraps anywhere, and inside a
          nowrap flex row that broke "1155" into two lines at 360px. */
@@ -68,7 +85,8 @@ function runSearch(q) {
     b.append(el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
     b.append(el('span', { class: 'num ' + signClass(r.c.px.d1), style: 'font-size:12px;min-width:48px;text-align:right' }, withSign(r.c.px.d1, 2)));
     return b;
-  }) : []));
+  }));
+  if (found.total > rows.length) searchResults.append(el('p', { class: 'metaline', style: 'padding:6px 10px' }, `Showing ${rows.length} of ${found.total} — keep typing to narrow.`));
 
   /* Pages, not only companies. Search indexed the universe and nothing else, so
      "wheel" answered "No company matches that search" while the Cash Wheel
@@ -99,7 +117,9 @@ function runSearch(q) {
   if (!hits.length && !routeHits.length)
     searchResults.append(emptyState('Nothing matches that search — no company, and no page.'));
 }
-searchInput.addEventListener('input', e => runSearch(e.target.value));
+/* Debounced: a keystroke every 40ms re-ranked the whole registry each time. */
+let searchTimer = null;
+searchInput.addEventListener('input', e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => runSearch(e.target.value), 120); });
 $('#openSearch').addEventListener('click', openSearch);
 $('#closeSearch')?.addEventListener('click', closeSearch);
 document.addEventListener('keydown', e => {
@@ -117,6 +137,14 @@ document.addEventListener('keydown', e => {
     const first = f[0], last = f[f.length - 1], inside = dialog.contains(document.activeElement);
     if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+    return;
+  }
+
+  /* Enter in the box opens the first result — what a reader typing a ticker
+     expects; nothing opens when nothing matched. */
+  if (searchOpen && e.key === 'Enter' && document.activeElement === searchInput) {
+    const first = searchResults.querySelector('button,a');
+    if (first) { e.preventDefault(); first.click(); }
     return;
   }
 

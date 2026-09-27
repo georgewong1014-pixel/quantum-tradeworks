@@ -691,24 +691,38 @@ VIEWS.researchHome = () => {
   wrap.append(hd);
 
   const search = el('div', { class: 'card' });
-  search.append(cardHead('Find a company', 'By name, ticker or Bursa code.'));
-  const inp = el('input', { class: 'input', type:'search', placeholder:'Maybank, 1155, AAPL…',
-    'aria-label':'Search for a company' });
+  search.append(cardHead('Find a company', 'By name, ticker, listing code, CIK or an old link — and by market and coverage.'));
+  const inp = el('input', { class: 'input', type:'search', placeholder:'Maybank, 1155, AAPL, CIK0000320193…',
+    'aria-label':'Search for a company', style: 'flex:1;min-width:200px' });
+  const sel = (label, opts) => { const x = el('select', { class: 'select', 'aria-label': label, style: 'width:auto;flex:none' });
+    opts.forEach(([v, l]) => x.append(el('option', { value: v }, l))); return x; };
+  const mkSel = sel('Market', [['', 'All markets'], ['US', 'United States'], ['MY', 'Bursa Malaysia']]);
+  const cvSel = sel('Coverage', [['', 'Any coverage'], ['FILED', 'Filed statements'], ['ILLUSTRATIVE', 'Illustrative'], ['UNAVAILABLE', 'Price only']]);
   const results = el('div', { style: 'margin-top:10px;display:flex;flex-direction:column;gap:4px' });
+  /* Over the canonical registry, so every name an instrument goes by matches,
+     and a price-only instrument is listed as such rather than absent. */
   const runSearch = () => {
-    const q = inp.value.trim().toLowerCase();
+    const q = inp.value.trim();
     results.replaceChildren();
-    if (q.length < 2) return;
-    U.filter(r => [r.c.name, r.c.tk, r.c.code].filter(Boolean)
-        .some(f => String(f).toLowerCase().includes(q)))
-     .slice(0, 8)
-     .forEach(r => results.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'justify-content:flex-start',
-        onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } },
-        `${r.c.tk || r.c.code} — ${r.c.name}${illusText(r.c)}`)));
-    if (!results.children.length) results.append(el('p', { class: 'metaline' }, `Nothing in the beta universe matches “${inp.value.trim()}”.`));
+    const filters = { market: mkSel.value || null, dataStatus: cvSel.value || null };
+    if (q.length < 2 && !filters.market && !filters.dataStatus) return;
+    const { hits, total } = searchInstruments(q, filters, { limit: 8 });
+    hits.forEach(ins => {
+      const r = ins.companyId ? BY_ID.get(ins.companyId) : null;
+      const label = r
+        ? `${r.c.tk || r.c.code} — ${r.c.name}${illusText(r.c)}${r.c.personal ? ' · personal research' : ''}`
+        : `${ins.symbol} — ${ins.companyName} · price only, no statements`;
+      results.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'justify-content:flex-start;text-align:left;white-space:normal',
+        onclick: () => { if (r) { State.ticker = r.c.id; navigate(companyPath(r.c)); } else navigate('/my/tracked'); } }, label));
+    });
+    if (total > hits.length) results.append(el('p', { class: 'metaline' }, `Showing ${hits.length} of ${total} — narrow the search.`));
+    if (!results.children.length) results.append(el('p', { class: 'metaline' }, `Nothing in the beta universe matches “${q}”.`));
   };
-  inp.addEventListener('input', runSearch);
-  search.append(inp); search.append(results);
+  let searchTimer = null;
+  inp.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
+  mkSel.addEventListener('change', runSearch); cvSel.addEventListener('change', runSearch);
+  search.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [inp, mkSel, cvSel]));
+  search.append(results);
   wrap.append(search);
 
   /* Collections, described by what they contain. */

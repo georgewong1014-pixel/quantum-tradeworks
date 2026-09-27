@@ -28,7 +28,7 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                    .tablewrap. Nothing else in the suite looks below 1440. */
                 '/decision-record', '/property/comparables', '/property/areas', '/start',
                 '/methodology/ips',
-                '/my/scanner',
+                '/my/scanner', '/app/equities', '/app/watchlists',
                 /* The front door, the discover hub and two company pages — one
                    filed, one illustrative — were never in this list, so the
                    widest tables on the site were the ones never measured. */

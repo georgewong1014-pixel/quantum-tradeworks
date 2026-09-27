@@ -556,6 +556,55 @@ try {
     if (p2.length) fail('an empty screener cell says why and opens the drawer that names the input', p2);
     else ok(`an empty screener cell says why ("${d.label}") and opens the drawer that names the input`);
   }
+  /* ONE IDENTITY PER LISTED THING. A company has one row; a market and a
+     symbol name one instrument; every name it has ever had — the ticker, the
+     listing code, the CIK, the vendor form, the id a link was shared under
+     before its filer loaded — resolves to that instrument; a filer retires its
+     illustrative stand-in even when the stand-in's ticker sits in c.code; and
+     the ids the app seeds its watchlists, compare set and alerts with all
+     resolve after the filers have loaded. */
+  {
+    const r = await evaluate(`(() => {
+      const ids = U.map(x => x.c.id);
+      const dupIds = ids.filter((v, i) => ids.indexOf(v) !== i);
+      const keys = U.map(x => x.c.mkt + ':' + String(x.c.code || x.c.tk).toUpperCase());
+      const dupKeys = keys.filter((v, i) => keys.indexOf(v) !== i);
+      const reg = rebuildInstruments();
+      const own = (t) => { const id = companyIdFor(t); return id ? BY_ID.get(id)?.c.id || null : null; };
+      const aapl = own('AAPL'), sec = own('AAPL-SEC'), cik = own('CIK0000320193'), us = own('US:AAPL');
+      const kl = own('1155.KL'), my = own('MY:1155'), name = own('MAYBANK'), code = own('1155');
+      const seeds = State.watchlists.flatMap(w => w.ids).concat(State.compare, State.priceAlerts.map(a => a.ticker));
+      const dangling = seeds.filter(id => !BY_ID.has(id));
+      const slug = companyFromSlug('aapl-apple-inc'), slugMy = companyFromSlug('1155-malayan-banking-berhad'), slugCik = companyFromSlug('CIK0000320193');
+      const tracked = [...INSTRUMENTS.values()].filter(i => i.dataStatus === 'UNAVAILABLE').length;
+      const filed = [...INSTRUMENTS.values()].filter(i => i.dataStatus === 'FILED').length;
+      const clash = INSTRUMENT_ALIAS_CLASHES.slice(0, 5);
+      const sym = instrumentSymbolFor(BY_ID.get(my).c);
+      return { dupIds, dupKeys, reg, aapl, sec, cik, us, kl, my, name, code, dangling, slug, slugMy, slugCik, tracked, filed, clash, sym, total: U.length };
+    })()`);
+    const problems = [];
+    if (r.dupIds.length) problems.push(`duplicate company ids: ${r.dupIds.join(', ')}`);
+    if (r.dupKeys.length) problems.push(`the same market:symbol on two rows: ${r.dupKeys.join(', ')}`);
+    if (!(r.aapl === 'AAPL-SEC' && r.sec === 'AAPL-SEC' && r.cik === 'AAPL-SEC' && r.us === 'AAPL-SEC')) problems.push(`AAPL by ticker / -SEC / CIK / canonical id resolves to ${r.aapl} / ${r.sec} / ${r.cik} / ${r.us}`);
+    if (r.slug !== 'AAPL-SEC' || r.slugCik !== 'AAPL-SEC') problems.push(`/company/aapl-apple-inc → ${r.slug}; /company/CIK0000320193 → ${r.slugCik}`);
+    if (!r.my || !(r.my === r.kl && r.my === r.name && r.my === r.code && r.my === r.slugMy)) problems.push(`Maybank's names disagree: MY:1155 ${r.my}, 1155.KL ${r.kl}, MAYBANK ${r.name}, 1155 ${r.code}, slug ${r.slugMy}`);
+    if (r.sym !== '1155') problems.push(`Maybank's history symbol is ${r.sym}, not 1155`);
+    if (r.dangling.length) problems.push(`seeded ids that no longer resolve: ${r.dangling.join(', ')}`);
+    if (r.filed < 100) problems.push(`only ${r.filed} filed instruments in the registry`);
+    if (problems.length) fail('one identity per listed thing, every old name resolving to it', problems);
+    else ok(`one identity per listed thing: ${r.reg} instruments (${r.filed} filed, ${r.tracked} price-only), ${r.total} company rows, no duplicate ids, every alias and seed resolves${r.clash.length ? `, ${r.clash.length} alias clash(es) recorded` : ''}`);
+
+    /* The brief's paths open the same pages, and its tab names land on ours. */
+    const p = {};
+    for (const [path, want] of [['/app/equities/aapl/financials', ['research', 'financials', 'AAPL-SEC']], ['/app/equities/1155/ratios', ['research', 'quality', null]],
+                                ['/app/equities/CIK0000320193', ['research', 'snapshot', 'AAPL-SEC']], ['/app/watchlists', ['watchlists']], ['/app/equities/explore', ['researchHome']], ['/app/equities/compare', ['compare']], ['/equities/methodology', ['learn']]]) {
+      const got = await evaluate(`(() => { navigate(${JSON.stringify(path)}); return { view: State.view, tab: State.researchTab, ticker: State.ticker, rendered: !!document.querySelector('main h1, main h2') }; })()`);
+      const bad = got.view !== want[0] || (want[1] && got.tab !== want[1]) || (want[2] && got.ticker !== want[2]) || !got.rendered;
+      if (bad) p[path] = got;
+    }
+    if (Object.keys(p).length) fail('the brief\'s /app/equities paths open the existing pages with the right tab and company', p);
+    else ok('the brief\'s /app/equities and /app/watchlists paths open the existing pages, with its tab names mapped to ours');
+  }
 } catch (e) {
   fail('harness error', e.message);
 } finally {

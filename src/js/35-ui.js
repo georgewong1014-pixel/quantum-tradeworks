@@ -243,17 +243,29 @@ function companyPath(c) {
   return `/company/${slug(String(lead))}${tail}`;
 }
 
+/* The brief's names for the company page's tabs, where they differ. */
+const RESEARCH_TAB_ALIAS = { ratios: 'quality', statements: 'financials', 'source-data': 'filings', sources: 'filings', overview: 'snapshot' };
+
 function companyFromSlug(s) {
   if (!s) return null;
   const raw = decodeURIComponent(s).toUpperCase();
-  if (BY_ID.has(raw)) return raw;
+  /* A retired stand-in's id aliases the filer's row in BY_ID; the answer is
+     always the row's own id, so State.ticker never carries a retired name. */
+  const own = (id) => BY_ID.get(id)?.c.id || null;
+  if (BY_ID.has(raw)) return own(raw);
+  /* The canonical registry knows every name an instrument goes by — 'MY:1155',
+     '1155.KL', 'CIK0000320193', a listing code, an old id. */
+  const viaRegistry = companyIdFor(raw);
+  if (viaRegistry && BY_ID.has(viaRegistry)) return own(viaRegistry);
 
   const head = raw.split('-')[0];
-  if (BY_ID.has(head)) return head;
-  if (BY_ID.has(`${head}-SEC`)) return `${head}-SEC`;
+  if (BY_ID.has(head)) return own(head);
+  const headReg = companyIdFor(head);
+  if (headReg && BY_ID.has(headReg)) return own(headReg);
+  if (BY_ID.has(`${head}-SEC`)) return own(`${head}-SEC`);
   /* -SEC ids carry their own hyphen, so the first two segments may be the id. */
   const two = raw.split('-').slice(0, 2).join('-');
-  if (BY_ID.has(two)) return two;
+  if (BY_ID.has(two)) return own(two);
 
   /* Then the listing code and the ticker. Scanned rather than indexed because
      companies load asynchronously and a map built at startup would miss every
@@ -272,6 +284,18 @@ const ROUTES = [
   { path: '/discover/value-map',  view: 'discover',  tab: 'radar',     title: 'Quality vs Value Map' },
   { path: '/research',            view: 'researchHome', title: 'Research' },
   { path: '/company/:id',         view: 'research',  title: 'Company report' },
+  /* The Phase 2 brief's paths — aliases of the routes around them: the same
+     views, the same header, so a company is one page whichever address opens
+     it. A symbol here resolves through the instrument registry, so
+     /app/equities/1155 and /app/equities/maybank are the same company, and
+     the tab segment accepts the brief's names for our tabs. */
+  { path: '/app/equities',          view: 'researchHome', title: 'Equities' },
+  { path: '/app/equities/explore',  view: 'researchHome', title: 'Company explorer' },
+  { path: '/app/equities/compare',  view: 'compare',   title: 'Compare companies' },
+  { path: '/app/equities/:id',      view: 'research',  title: 'Company report' },
+  { path: '/app/equities/:id/:tab', view: 'research',  title: 'Company report' },
+  { path: '/app/watchlists',        view: 'watchlists', title: 'Watchlists' },
+  { path: '/equities/methodology',  view: 'learn',     tab: 'models',    title: 'Methodology' },
   { path: '/compare',             view: 'compare',   title: 'Compare' },
   { path: '/my/portfolio',        view: 'portfolio', title: 'Portfolio' },
   { path: '/my/watchlists',       view: 'watchlists',title: 'Watchlists' },
@@ -515,7 +539,10 @@ function applyRoute() {
      where it does not. A company page with no tab in its address is on its
      snapshot; anything unknown falls back the same way. */
   if (route.view === 'research') {
-    const t = qs.get('tab');
+    /* The tab may be a path segment (/app/equities/aapl/financials — the
+       brief's form, with its names for our tabs) or ?tab= on /company/. */
+    const raw = route.params?.tab ? String(route.params.tab).toLowerCase() : qs.get('tab');
+    const t = RESEARCH_TAB_ALIAS[raw] || raw;
     State.researchTab = t && RESEARCH_TABS.some(x => x.id === t) ? t : 'snapshot';
   }
   /* Validated against the view's own tabs, as research is above. An unknown

@@ -5074,14 +5074,51 @@ function addCompany(c) {
    each one moved its own ranking, and a screen returned the same business on two
    rows with different numbers. The real filing always wins; the stand-in goes. */
 function retireIllustrativeTwin(c) {
-  const key = String(c.tk || c.code || '').toUpperCase();
-  if (!key) return null;
-  const i = U.findIndex(r => !r.c.real && String(r.c.tk || r.c.code || '').toUpperCase() === key
-                          && r.c.mkt === c.mkt);
+  /* Either name the real record carries against either name the stand-in
+     carries. addCompany moves an illustrative Bursa company's listing code
+     into c.code and its short name into c.tk, so a match on tk alone let a
+     personal '1155-MY' sit beside illustrative 'MAYBANK' — both in the
+     universe, and the code's own link opening the synthetic one. */
+  const keys = new Set([c.tk, c.code].filter(Boolean).map(x => String(x).toUpperCase()));
+  if (!keys.size) return null;
+  const i = U.findIndex(r => !r.c.real && r.c.mkt === c.mkt
+    && [r.c.tk, r.c.code].some(x => x && keys.has(String(x).toUpperCase())));
   if (i === -1) return null;
   const [gone] = U.splice(i, 1);
   BY_ID.delete(gone.c.id);
-  return gone.c.tk || gone.c.id;
+  return { from: gone.c.id, label: gone.c.tk || gone.c.id };
+}
+
+/* A retired twin's id keeps answering — to the filer's row. Links, watchlists
+   and portfolios saved under 'AAPL' open AAPL-SEC rather than nothing. BY_ID
+   is looked up and never iterated, so an alias entry double-counts nothing. */
+function aliasRetiredId(from, to, pairs) {
+  const row = BY_ID.get(to);
+  if (row) BY_ID.set(from, row);
+  pairs.push({ from, to });
+}
+/* And the saved state is rewritten to the row's own id, once, so an export
+   carries the id the company actually has. Every collection that names a
+   company is listed here; a new one must be added or its ids dangle when a
+   filer replaces a stand-in. */
+function remapSavedIds(pairs) {
+  const map = new Map(pairs.map(p => [p.from, p.to]));
+  const fix = (id) => map.get(id) || id;
+  const list = (arr) => [...new Set((arr || []).map(fix))];
+  const changed = (a, b) => (a || []).join('\u0001') !== (b || []).join('\u0001');
+  let n = 0;
+  let wl = false;
+  (State.watchlists || []).forEach(w => { const next = list(w.ids); if (changed(next, w.ids)) { w.ids = next; wl = true; } });
+  if (wl) { store.write('watchlists', State.watchlists); n++; }
+  const cmp = list(State.compare); if (changed(cmp, State.compare)) { State.compare = cmp; store.write('compare', cmp); n++; }
+  const rc = list(State.recentCompanies); if (changed(rc, State.recentCompanies)) { State.recentCompanies = rc; store.write('recentCompanies', rc); n++; }
+  let pa = false; (State.priceAlerts || []).forEach(a => { if (a && map.has(a.ticker)) { a.ticker = map.get(a.ticker); pa = true; } });
+  if (pa) { store.write('priceAlerts', State.priceAlerts); n++; }
+  let th = false; (State.theses || []).forEach(t => { if (t && map.has(t.ticker)) { t.ticker = map.get(t.ticker); th = true; } });
+  if (th) { store.write('theses', State.theses); n++; }
+  let pf = false; (State.portfolios || []).forEach(p => (p?.holdings || []).forEach(h => { if (h && map.has(h.id)) { h.id = map.get(h.id); pf = true; } }));
+  if (pf) { store.write('portfolios', State.portfolios); n++; }
+  return n;
 }
 
 RAW.forEach(addCompany);
@@ -5622,7 +5659,7 @@ async function loadRealData() {
   const fxUpdated = applyFx();
 
   let added = 0, priced = 0;
-  const broken = [], superseded = [];
+  const broken = [], superseded = [], pairs = [];
   for (const r of (j.results || [])) {
     if (BY_ID.has(`${r.id}-SEC`)) continue;         /* already loaded */
     /* Per company, not per batch. One filer whose shape the engine cannot
@@ -5638,8 +5675,8 @@ async function loadRealData() {
       if (!isNum(c.px?.p) && applyPrices(c)) priced++;
       RAW.push(c);
       const replaced = retireIllustrativeTwin(c);
-      if (replaced) superseded.push(replaced);
       addCompany(c);
+      if (replaced) { superseded.push(replaced.label); aliasRetiredId(replaced.from, c.id, pairs); }
       added++;
     } catch (e) {
       broken.push({ id: r.id, error: e.message });
@@ -5657,8 +5694,8 @@ async function loadRealData() {
       if (!isNum(c.px?.p) && applyPrices(c)) priced++;
       RAW.push(c);
       const replaced = retireIllustrativeTwin(c);
-      if (replaced) superseded.push(replaced);
       addCompany(c);
+      if (replaced) { superseded.push(replaced.label); aliasRetiredId(replaced.from, c.id, pairs); }
       addedMY++;
     } catch (e) {
       broken.push({ id: r.id, error: e.message });
@@ -5668,6 +5705,11 @@ async function loadRealData() {
 
   const momentumBacked = refreshMomentum();
   if (added || addedMY) { finaliseUniverse(); FEED = buildFeed(); }
+  /* The registry follows the universe: filers replaced stand-ins, the tracked
+     registry may have arrived, and every saved id is rewritten to the row it
+     now names. */
+  rebuildInstruments();
+  if (pairs.length) remapSavedIds(pairs);
   return { added, addedMY, priced, fxUpdated, broken, superseded, momentumBacked, generated: j.generated, failures: j.failures || [],
            myStatements: myFundamentals ? { count: myFundamentals.count, retrieved: myFundamentals.results?.[0]?.retrieved || null,
              years: myFundamentals.yearsAvailable || null } : null,
@@ -5676,6 +5718,214 @@ async function loadRealData() {
 }
 let realStatus = null;
 
+/* ==========================================================================
+   CANONICAL INSTRUMENTS — one identity per listed thing, and every name it
+   goes by
+
+   Three id spaces grew up in this file's neighbours and never met. A company
+   row is keyed by c.id, which is a ticker for the illustrative US set
+   ('AAPL'), a short name for the illustrative Bursa set ('MAYBANK', with the
+   listing code kept in c.code), 'TICKER-SEC' for a filer and 'CODE-MY' for a
+   statement set the owner supplied. The price history and the tracked-
+   instrument registry are keyed by the bare symbol ('AAPL', '1155'). The
+   scanner's setups name bare symbols too. So the same business is 'MAYBANK'
+   on the company page, '1155' in the history and '1155-MY' once its
+   statements are loaded, and nothing in the code said those were one thing.
+
+   This module says it. Every company row and every registry entry becomes
+   one Instrument with a canonical id of the form MARKET:SYMBOL — 'US:AAPL',
+   'MY:1155' — that does not change when a filer replaces its illustrative
+   stand-in, because the market and the symbol do not change. Everything
+   else the instrument has been called is an alias: the old c.id (so every
+   link ever shared still resolves), the ticker, the listing code, the
+   '-SEC' and '-MY' forms, the CIK, the vendor forms ('1155.KL'). One resolver
+   turns any of them into the instrument, and from the instrument into the
+   company row when there is one.
+
+   WHAT IT DOES NOT CLAIM. The brief this answers asks for an exchange code,
+   an ISIN, a listing status and timestamps on every instrument. The exchange
+   is recorded where the data states it (the illustrative set names its
+   venue; SEC companyfacts does not, so a filer's exchange is 'unknown' until
+   the ingest records it); ISIN has no reachable licensed source and is null;
+   status is ACTIVE by assumption and says so, because no exchange status
+   feed is connected. A field the data cannot support is a null with a
+   stated reason, not a plausible default — the same rule as every figure.
+
+   Pure with respect to the DOM: this file builds maps and answers lookups.
+   ========================================================================== */
+
+/* The two markets this product knows. Session hours are the exchanges'
+   published regular sessions, recorded for display; nothing derives bar
+   timing from them, and holiday calendars are not held (a hand-typed list
+   goes stale, and a maintained one comes with a licensed feed). */
+const MARKETS = {
+  US: { code: 'US', country: 'US', currency: 'USD', label: 'United States', tz: 'America/New_York',
+        session: '09:30–16:00 local', exchanges: ['XNAS', 'XNYS'], calendar: 'not held — needs a licensed exchange calendar' },
+  MY: { code: 'MY', country: 'MY', currency: 'MYR', label: 'Malaysia', tz: 'Asia/Kuala_Lumpur',
+        session: '09:00–12:30 and 14:30–17:00 local', exchanges: ['XKLS'], calendar: 'not held — needs a licensed exchange calendar' },
+};
+
+/* ISO 10383 market identifier codes for the venues the data names. */
+const EXCHANGE_MIC = [
+  ['NASDAQ', 'XNAS'], ['NYSE ARCA', 'ARCX'], ['NYSE AMERICAN', 'XASE'], ['NYSE', 'XNYS'],
+  ['BURSA', 'XKLS'], ['MAIN MARKET', 'XKLS'], ['ACE MARKET', 'XKLS'],
+];
+function exchangeCodeOf(c) {
+  if (c.mkt === 'MY') return { code: 'XKLS', source: 'listed' };
+  const e = String(c.exch || '').toUpperCase();
+  for (const [name, mic] of EXCHANGE_MIC) if (e.includes(name)) return { code: mic, source: 'listed' };
+  return { code: 'US', source: 'unknown — SEC companyfacts carries no listing venue; the ingest can record it from the submissions file once data/us.json is regenerated' };
+}
+
+const REGISTRY_KIND_TYPE = { equity: 'STOCK', etf: 'ETF', reit: 'REIT', index: 'INDEX', fx: 'FX', commodity: 'COMMODITY', crypto: 'CRYPTO' };
+
+const INSTRUMENTS = new Map();          /* canonical id → Instrument */
+const INSTRUMENT_ALIASES = new Map();   /* upper-cased alias → canonical id */
+const INSTRUMENT_ALIAS_CLASHES = [];    /* { alias, kept, dropped } — the same name claimed by two instruments */
+const DATA_STATUS_RANK = { FILED: 0, ILLUSTRATIVE: 1, UNAVAILABLE: 2 };
+
+const instrumentId = (mkt, symbol) => `${String(mkt || 'US').toUpperCase()}:${String(symbol || '').toUpperCase()}`;
+const padCik = (cik) => String(cik).replace(/\D/g, '').padStart(10, '0');
+
+/* A company row as an instrument. The symbol is the thing the market trades
+   — the listing code for Bursa, the ticker for the US — never the short name. */
+function instrumentFromCompany(c) {
+  const symbol = String(c.code || c.tk || c.id).toUpperCase();
+  const ex = exchangeCodeOf(c);
+  const m = MARKETS[c.mkt] || MARKETS.US;
+  const aliases = new Set([c.id, c.tk, c.code, `${symbol}-SEC`, `${symbol}-MY`, c.mkt === 'MY' ? `${symbol}.KL` : null]
+    .filter(Boolean).map(a => String(a).toUpperCase()));
+  if (c.cik) { aliases.add(`CIK${padCik(c.cik)}`); aliases.add(`CIK ${String(c.cik).replace(/\D/g, '')}`); aliases.add(padCik(c.cik)); }
+  return {
+    id: instrumentId(c.mkt, symbol), symbol, market: c.mkt, exchangeCode: ex.code, exchangeCodeSource: ex.source,
+    companyName: c.name, displayName: c.mkt === 'MY' ? (c.tk || c.name) : symbol,
+    country: m.country, currency: c.ccy || m.currency,
+    isin: null, isinSource: 'no licensed reference source — not recorded',
+    cik: c.cik ? padCik(c.cik) : null,
+    sector: c.sector || null, industry: c.industry || null,
+    instrumentType: c.type === 'reit' ? 'REIT' : 'STOCK',
+    status: 'ACTIVE', statusSource: 'assumed — no exchange status feed is connected',
+    dataStatus: c.real ? 'FILED' : 'ILLUSTRATIVE',
+    lane: c.personal ? 'personal' : 'product',
+    companyId: c.id,
+    updatedAt: c.retrieved || null, updatedAtSource: c.retrieved ? 'statements retrieved' : 'illustrative set — no retrieval date',
+    aliases: [...aliases],
+  };
+}
+
+/* A tracked-only registry entry (data/instruments.json): a price series and a
+   name, no statements. It is an instrument the scanner can see and the
+   research lane cannot value, and its dataStatus says so. */
+function instrumentFromRegistry(e) {
+  const symbol = String(e.symbol || '').toUpperCase();
+  const mkt = String(e.market || 'US').toUpperCase();
+  const m = MARKETS[mkt] || MARKETS.US;
+  return {
+    id: instrumentId(mkt, symbol), symbol, market: mkt, exchangeCode: mkt === 'MY' ? 'XKLS' : 'US',
+    exchangeCodeSource: mkt === 'MY' ? 'listed' : 'unknown — registry entry carries no venue',
+    companyName: e.name || symbol, displayName: symbol,
+    country: m.country, currency: m.currency,
+    isin: null, isinSource: 'no licensed reference source — not recorded',
+    cik: null, sector: e.sector || null, industry: null,
+    instrumentType: REGISTRY_KIND_TYPE[e.kind] || 'STOCK',
+    status: 'ACTIVE', statusSource: 'assumed — no exchange status feed is connected',
+    dataStatus: 'UNAVAILABLE', dataStatusWhy: 'tracked by price only — no statements are held for it',
+    lane: 'personal', companyId: null,
+    updatedAt: null, updatedAtSource: 'registry entry — no retrieval date',
+    aliases: [symbol, ...(e.aliases || []).map(a => String(a).toUpperCase()), mkt === 'MY' ? `${symbol}.KL` : null].filter(Boolean),
+  };
+}
+
+function registerAlias(alias, id) {
+  const key = String(alias || '').toUpperCase().trim();
+  if (!key) return;
+  const have = INSTRUMENT_ALIASES.get(key);
+  if (!have || have === id) { INSTRUMENT_ALIASES.set(key, id); return; }
+  /* Two instruments answer to one name. Filed beats illustrative beats
+     price-only; a tie keeps the first and records the clash, so the search
+     can show both rather than silently pick. */
+  const a = INSTRUMENTS.get(have), b = INSTRUMENTS.get(id);
+  const ra = DATA_STATUS_RANK[a?.dataStatus] ?? 9, rb = DATA_STATUS_RANK[b?.dataStatus] ?? 9;
+  if (rb < ra) { INSTRUMENT_ALIASES.set(key, id); INSTRUMENT_ALIAS_CLASHES.push({ alias: key, kept: id, dropped: have }); }
+  else INSTRUMENT_ALIAS_CLASHES.push({ alias: key, kept: have, dropped: id });
+}
+
+/* Rebuilt whenever the universe changes — cheap, and a map built once at
+   startup would miss every filer that loads afterwards. */
+function rebuildInstruments() {
+  INSTRUMENTS.clear(); INSTRUMENT_ALIASES.clear(); INSTRUMENT_ALIAS_CLASHES.length = 0;
+  for (const r of U) {
+    const ins = instrumentFromCompany(r.c);
+    const have = INSTRUMENTS.get(ins.id);
+    /* The same market and symbol twice can only be an illustrative twin that
+       has not been retired; the filed record is the instrument. */
+    if (have && (DATA_STATUS_RANK[have.dataStatus] <= DATA_STATUS_RANK[ins.dataStatus])) { have.aliases = [...new Set([...have.aliases, ...ins.aliases])]; continue; }
+    INSTRUMENTS.set(ins.id, ins);
+  }
+  for (const e of (instruments?.instruments || [])) {
+    if (!e?.symbol) continue;
+    const ins = instrumentFromRegistry(e);
+    const have = INSTRUMENTS.get(ins.id);
+    if (have) { have.aliases = [...new Set([...have.aliases, ...ins.aliases])]; have.tracked = true; continue; }
+    ins.tracked = true;
+    INSTRUMENTS.set(ins.id, ins);
+  }
+  for (const ins of INSTRUMENTS.values()) { registerAlias(ins.id, ins.id); ins.aliases.forEach(a => registerAlias(a, ins.id)); }
+  return INSTRUMENTS.size;
+}
+
+/* Any name → the instrument. A market narrows an ambiguous bare symbol
+   ('TM' is Telekom on Bursa and Toyota's ADR in New York). */
+function resolveInstrument(term, { market = null } = {}) {
+  const key = String(term || '').toUpperCase().trim();
+  if (!key) return null;
+  if (INSTRUMENTS.has(key)) return INSTRUMENTS.get(key);
+  if (market) { const scoped = INSTRUMENTS.get(instrumentId(market, key)); if (scoped) return scoped; }
+  const id = INSTRUMENT_ALIASES.get(key);
+  return id ? INSTRUMENTS.get(id) : null;
+}
+/* Any name → the company row's id, for routes and saved state. Null for a
+   price-only instrument: it has no company page to open. */
+function companyIdFor(term, opts) { return resolveInstrument(term, opts)?.companyId || null; }
+/* A company → the symbol its price history and the scanner use. */
+function instrumentSymbolFor(c) { return c ? instrumentFromCompany(c).symbol : null; }
+function instrumentOfCompany(c) { return c ? INSTRUMENTS.get(instrumentId(c.mkt, instrumentSymbolFor(c))) || instrumentFromCompany(c) : null; }
+
+/* What a reader should be told about coverage, in two words. */
+function coverageLabel(ins) {
+  if (!ins) return null;
+  if (ins.dataStatus === 'FILED') return ins.lane === 'personal' ? 'personal research' : 'filed';
+  if (ins.dataStatus === 'ILLUSTRATIVE') return 'illustrative';
+  return 'price only';
+}
+
+/* Search, ranked by how the term matched — an exact symbol or alias first,
+   then a symbol prefix, then a word of the name, then anything else — and
+   never by any measure of the company. */
+function searchInstruments(term, { market = null, instrumentType = null, dataStatus = null } = {}, { limit = 10, offset = 0 } = {}) {
+  const q = String(term || '').trim().toUpperCase();
+  const all = [...INSTRUMENTS.values()].filter(ins =>
+    (!market || ins.market === market) && (!instrumentType || ins.instrumentType === instrumentType) && (!dataStatus || ins.dataStatus === dataStatus));
+  if (!q) return { hits: all.slice(offset, offset + limit), total: all.length };
+  const scored = [];
+  for (const ins of all) {
+    const c = ins.companyId ? BY_ID.get(ins.companyId)?.c : null;
+    const name = String(ins.companyName || '').toUpperCase();
+    let score = null;
+    if (ins.symbol === q || ins.id === q || ins.aliases.includes(q)) score = 0;
+    else if (ins.symbol.startsWith(q) || ins.aliases.some(a => a.startsWith(q))) score = 1;
+    else if (name.split(/[^A-Z0-9]+/).some(w => w.startsWith(q))) score = 2;
+    else if (name.includes(q) || String(ins.displayName || '').toUpperCase().includes(q)) score = 3;
+    else if (c && (String(c.sector || '').toUpperCase().includes(q) || String(c.industry || '').toUpperCase().includes(q))) score = 4;
+    if (score !== null) scored.push({ ins, score });
+  }
+  scored.sort((a, b) => a.score - b.score || (DATA_STATUS_RANK[a.ins.dataStatus] - DATA_STATUS_RANK[b.ins.dataStatus]) || a.ins.symbol.localeCompare(b.ins.symbol));
+  return { hits: scored.slice(offset, offset + limit).map(s => s.ins), total: scored.length };
+}
+
+/* Built once here, over the illustrative set the modules above have loaded;
+   rebuilt by loadRealData when the filers and the tracked registry arrive. */
+rebuildInstruments();
 /* ==========================================================================
    CHART LAYER
    Thin marks, hairline solid grid, 2px surface gaps between touching fills,
@@ -6990,17 +7240,29 @@ function companyPath(c) {
   return `/company/${slug(String(lead))}${tail}`;
 }
 
+/* The brief's names for the company page's tabs, where they differ. */
+const RESEARCH_TAB_ALIAS = { ratios: 'quality', statements: 'financials', 'source-data': 'filings', sources: 'filings', overview: 'snapshot' };
+
 function companyFromSlug(s) {
   if (!s) return null;
   const raw = decodeURIComponent(s).toUpperCase();
-  if (BY_ID.has(raw)) return raw;
+  /* A retired stand-in's id aliases the filer's row in BY_ID; the answer is
+     always the row's own id, so State.ticker never carries a retired name. */
+  const own = (id) => BY_ID.get(id)?.c.id || null;
+  if (BY_ID.has(raw)) return own(raw);
+  /* The canonical registry knows every name an instrument goes by — 'MY:1155',
+     '1155.KL', 'CIK0000320193', a listing code, an old id. */
+  const viaRegistry = companyIdFor(raw);
+  if (viaRegistry && BY_ID.has(viaRegistry)) return own(viaRegistry);
 
   const head = raw.split('-')[0];
-  if (BY_ID.has(head)) return head;
-  if (BY_ID.has(`${head}-SEC`)) return `${head}-SEC`;
+  if (BY_ID.has(head)) return own(head);
+  const headReg = companyIdFor(head);
+  if (headReg && BY_ID.has(headReg)) return own(headReg);
+  if (BY_ID.has(`${head}-SEC`)) return own(`${head}-SEC`);
   /* -SEC ids carry their own hyphen, so the first two segments may be the id. */
   const two = raw.split('-').slice(0, 2).join('-');
-  if (BY_ID.has(two)) return two;
+  if (BY_ID.has(two)) return own(two);
 
   /* Then the listing code and the ticker. Scanned rather than indexed because
      companies load asynchronously and a map built at startup would miss every
@@ -7019,6 +7281,18 @@ const ROUTES = [
   { path: '/discover/value-map',  view: 'discover',  tab: 'radar',     title: 'Quality vs Value Map' },
   { path: '/research',            view: 'researchHome', title: 'Research' },
   { path: '/company/:id',         view: 'research',  title: 'Company report' },
+  /* The Phase 2 brief's paths — aliases of the routes around them: the same
+     views, the same header, so a company is one page whichever address opens
+     it. A symbol here resolves through the instrument registry, so
+     /app/equities/1155 and /app/equities/maybank are the same company, and
+     the tab segment accepts the brief's names for our tabs. */
+  { path: '/app/equities',          view: 'researchHome', title: 'Equities' },
+  { path: '/app/equities/explore',  view: 'researchHome', title: 'Company explorer' },
+  { path: '/app/equities/compare',  view: 'compare',   title: 'Compare companies' },
+  { path: '/app/equities/:id',      view: 'research',  title: 'Company report' },
+  { path: '/app/equities/:id/:tab', view: 'research',  title: 'Company report' },
+  { path: '/app/watchlists',        view: 'watchlists', title: 'Watchlists' },
+  { path: '/equities/methodology',  view: 'learn',     tab: 'models',    title: 'Methodology' },
   { path: '/compare',             view: 'compare',   title: 'Compare' },
   { path: '/my/portfolio',        view: 'portfolio', title: 'Portfolio' },
   { path: '/my/watchlists',       view: 'watchlists',title: 'Watchlists' },
@@ -7262,7 +7536,10 @@ function applyRoute() {
      where it does not. A company page with no tab in its address is on its
      snapshot; anything unknown falls back the same way. */
   if (route.view === 'research') {
-    const t = qs.get('tab');
+    /* The tab may be a path segment (/app/equities/aapl/financials — the
+       brief's form, with its names for our tabs) or ?tab= on /company/. */
+    const raw = route.params?.tab ? String(route.params.tab).toLowerCase() : qs.get('tab');
+    const t = RESEARCH_TAB_ALIAS[raw] || raw;
     State.researchTab = t && RESEARCH_TABS.some(x => x.id === t) ? t : 'snapshot';
   }
   /* Validated against the view's own tabs, as research is above. An unknown
@@ -10265,24 +10542,38 @@ VIEWS.researchHome = () => {
   wrap.append(hd);
 
   const search = el('div', { class: 'card' });
-  search.append(cardHead('Find a company', 'By name, ticker or Bursa code.'));
-  const inp = el('input', { class: 'input', type:'search', placeholder:'Maybank, 1155, AAPL…',
-    'aria-label':'Search for a company' });
+  search.append(cardHead('Find a company', 'By name, ticker, listing code, CIK or an old link — and by market and coverage.'));
+  const inp = el('input', { class: 'input', type:'search', placeholder:'Maybank, 1155, AAPL, CIK0000320193…',
+    'aria-label':'Search for a company', style: 'flex:1;min-width:200px' });
+  const sel = (label, opts) => { const x = el('select', { class: 'select', 'aria-label': label, style: 'width:auto;flex:none' });
+    opts.forEach(([v, l]) => x.append(el('option', { value: v }, l))); return x; };
+  const mkSel = sel('Market', [['', 'All markets'], ['US', 'United States'], ['MY', 'Bursa Malaysia']]);
+  const cvSel = sel('Coverage', [['', 'Any coverage'], ['FILED', 'Filed statements'], ['ILLUSTRATIVE', 'Illustrative'], ['UNAVAILABLE', 'Price only']]);
   const results = el('div', { style: 'margin-top:10px;display:flex;flex-direction:column;gap:4px' });
+  /* Over the canonical registry, so every name an instrument goes by matches,
+     and a price-only instrument is listed as such rather than absent. */
   const runSearch = () => {
-    const q = inp.value.trim().toLowerCase();
+    const q = inp.value.trim();
     results.replaceChildren();
-    if (q.length < 2) return;
-    U.filter(r => [r.c.name, r.c.tk, r.c.code].filter(Boolean)
-        .some(f => String(f).toLowerCase().includes(q)))
-     .slice(0, 8)
-     .forEach(r => results.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'justify-content:flex-start',
-        onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } },
-        `${r.c.tk || r.c.code} — ${r.c.name}${illusText(r.c)}`)));
-    if (!results.children.length) results.append(el('p', { class: 'metaline' }, `Nothing in the beta universe matches “${inp.value.trim()}”.`));
+    const filters = { market: mkSel.value || null, dataStatus: cvSel.value || null };
+    if (q.length < 2 && !filters.market && !filters.dataStatus) return;
+    const { hits, total } = searchInstruments(q, filters, { limit: 8 });
+    hits.forEach(ins => {
+      const r = ins.companyId ? BY_ID.get(ins.companyId) : null;
+      const label = r
+        ? `${r.c.tk || r.c.code} — ${r.c.name}${illusText(r.c)}${r.c.personal ? ' · personal research' : ''}`
+        : `${ins.symbol} — ${ins.companyName} · price only, no statements`;
+      results.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'justify-content:flex-start;text-align:left;white-space:normal',
+        onclick: () => { if (r) { State.ticker = r.c.id; navigate(companyPath(r.c)); } else navigate('/my/tracked'); } }, label));
+    });
+    if (total > hits.length) results.append(el('p', { class: 'metaline' }, `Showing ${hits.length} of ${total} — narrow the search.`));
+    if (!results.children.length) results.append(el('p', { class: 'metaline' }, `Nothing in the beta universe matches “${q}”.`));
   };
-  inp.addEventListener('input', runSearch);
-  search.append(inp); search.append(results);
+  let searchTimer = null;
+  inp.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
+  mkSel.addEventListener('change', runSearch); cvSel.addEventListener('change', runSearch);
+  search.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [inp, mkSel, cvSel]));
+  search.append(results);
   wrap.append(search);
 
   /* Collections, described by what they contain. */
@@ -27890,21 +28181,38 @@ function runSearch(q) {
      company's numeric code into c.code and its short name into c.tk, so a
      search that read only tk and id could never match 1155 to Maybank — the
      placeholder described a field the filter did not look at. */
-  const hits = U.filter(r => !term
-    || r.c.tk.toLowerCase().includes(term) || r.c.id.toLowerCase().includes(term)
-    || (r.c.code && String(r.c.code).toLowerCase().includes(term))
-    || r.c.name.toLowerCase().includes(term) || r.c.sector.toLowerCase().includes(term)
-    || r.c.industry.toLowerCase().includes(term)).slice(0, 10);
-  searchResults.replaceChildren(...(hits.length ? hits.map(r => {
+  /* Through the canonical registry: symbol, old id, listing code, CIK, vendor
+     form, then name, then sector. A price-only instrument is listed too and
+     says so — a reader who tracks it should not be told it does not exist. */
+  const found = searchInstruments(term, {}, { limit: 10 });
+  const rows = found.hits.map(ins => ({ ins, r: ins.companyId ? BY_ID.get(ins.companyId) : null }));
+  const hits = rows;
+  const hover = (b) => {
+    b.addEventListener('pointerenter', () => b.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
+    b.addEventListener('pointerleave', () => b.style.background = 'none');
+  };
+  searchResults.replaceChildren(...rows.map(({ ins, r }) => {
+    if (!r) {
+      const b = el('button', { class: 'row', style: 'width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
+        onclick: () => { closeSearch({ restore: false }); navigate('/my/tracked'); } });
+      hover(b);
+      const nm = el('div', { style: 'min-width:0;flex:1' });
+      nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
+        el('span', { style: 'font-size:13px;font-weight:600' }, ins.symbol), marketChip(ins.market),
+        el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]));
+      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on My Investments › Tracked`));
+      b.append(nm);
+      return b;
+    }
     const b = el('button', { class: 'row', style: 'width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
       /* No focus restore: the page is about to change and navigate() puts
          focus on the new content, which is where a chosen result leads. */
       onclick: () => { closeSearch({ restore: false }); openResearch(r.c.id); } });
-    b.addEventListener('pointerenter', () => b.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
-    b.addEventListener('pointerleave', () => b.style.background = 'none');
+    hover(b);
     const nm = el('div', { style: 'min-width:0;flex:1' });
     nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
       el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
+      r.c.personal ? el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'personal research') : null,
       /* The code the reader may have typed, so a hit on it is visibly a hit.
          A fixed-width numeric token: .metaline wraps anywhere, and inside a
          nowrap flex row that broke "1155" into two lines at 360px. */
@@ -27915,7 +28223,8 @@ function runSearch(q) {
     b.append(el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
     b.append(el('span', { class: 'num ' + signClass(r.c.px.d1), style: 'font-size:12px;min-width:48px;text-align:right' }, withSign(r.c.px.d1, 2)));
     return b;
-  }) : []));
+  }));
+  if (found.total > rows.length) searchResults.append(el('p', { class: 'metaline', style: 'padding:6px 10px' }, `Showing ${rows.length} of ${found.total} — keep typing to narrow.`));
 
   /* Pages, not only companies. Search indexed the universe and nothing else, so
      "wheel" answered "No company matches that search" while the Cash Wheel
@@ -27946,7 +28255,9 @@ function runSearch(q) {
   if (!hits.length && !routeHits.length)
     searchResults.append(emptyState('Nothing matches that search — no company, and no page.'));
 }
-searchInput.addEventListener('input', e => runSearch(e.target.value));
+/* Debounced: a keystroke every 40ms re-ranked the whole registry each time. */
+let searchTimer = null;
+searchInput.addEventListener('input', e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => runSearch(e.target.value), 120); });
 $('#openSearch').addEventListener('click', openSearch);
 $('#closeSearch')?.addEventListener('click', closeSearch);
 document.addEventListener('keydown', e => {
@@ -27964,6 +28275,14 @@ document.addEventListener('keydown', e => {
     const first = f[0], last = f[f.length - 1], inside = dialog.contains(document.activeElement);
     if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+    return;
+  }
+
+  /* Enter in the box opens the first result — what a reader typing a ticker
+     expects; nothing opens when nothing matched. */
+  if (searchOpen && e.key === 'Enter' && document.activeElement === searchInput) {
+    const first = searchResults.querySelector('button,a');
+    if (first) { e.preventDefault(); first.click(); }
     return;
   }
 
