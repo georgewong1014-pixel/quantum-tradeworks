@@ -687,7 +687,7 @@ function openReportError() {
          audited set had not landed yet would file a case that misdescribes the
          build it was raised against. */
       coverage: k.resolved
-        ? `${k.total} companies, ${k.filed} filed, ${k.illustrative} illustrative`
+        ? `${k.total} companies, ${k.filed} filed${k.personal ? `, ${k.personal} personal-research` : ''}, ${k.illustrative} illustrative`
         : 'coverage not resolved when this case was recorded',
       ...state,
     };

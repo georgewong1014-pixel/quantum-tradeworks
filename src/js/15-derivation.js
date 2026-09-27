@@ -207,7 +207,13 @@ const waitlistReady = () => !!(LAUNCH.waitlistEndpoint || LAUNCH.contactEmail);
    sanctioned way to print a figure derived from it. */
 function coverage() {
   const rows = typeof U !== 'undefined' ? U : [];
-  const filed = rows.filter(r => r.c.real);
+  /* "Filed" means filed with the SEC. The personal-research lane's Bursa
+     statements are real statements too (c.real), but not SEC filings and not
+     licensed for redistribution, and counting them here made the banner say
+     162 companies carried audited SEC statements when 119 did. They are their
+     own count, so filed + personal + illustrative = total. */
+  const filed = rows.filter(r => r.c.real && !r.c.personal);
+  const personal = rows.filter(r => r.c.real && r.c.personal);
   const illus = rows.filter(r => !r.c.real);
   const us = rows.filter(r => r.c.mkt === 'US');
   const my = rows.filter(r => r.c.mkt === 'MY');
@@ -218,7 +224,7 @@ function coverage() {
        universe is empty — an empty universe yields zeroes that read as facts. */
     resolved: !(typeof realPending !== 'undefined' && realPending) && rows.length > 0,
     total: rows.length,
-    filed: filed.length, illustrative: illus.length,
+    filed: filed.length, personal: personal.length, illustrative: illus.length,
     us: us.length, my: my.length,
     usFiled: us.length - usIllus.length, usIllustrative: usIllus.length,
     usIllustrativeNames: usIllus.map(r => r.c.tk || r.c.id),
@@ -246,7 +252,9 @@ function coverageSentence(axis) {
   const k = coverage();
   if (!k.resolved) return `${COVERAGE_PENDING} — the audited set is still loading.`;
   if (!k.total) return 'The universe is still loading.';
-  const bySource = `${k.filed} carry audited statements filed with the SEC and ${k.illustrative} carry illustrative figures that are synthetic`;
+  const bySource = `${k.filed} carry audited statements filed with the SEC`
+    + (k.personal ? `, ${k.personal} carry Bursa statements from your personal-research file (not licensed, not for redistribution)` : '')
+    + ` and ${k.illustrative} carry illustrative figures that are synthetic`;
   const byMarket = `${k.us} are US-listed and ${k.my} are Bursa-listed`;
   const oddity = k.usIllustrative
     ? ` Not every illustrative company is Malaysian: ${k.usIllustrativeNames.join(', ')} ${k.usIllustrative === 1 ? 'is a US listing' : 'are US listings'} whose figures are synthetic too.`

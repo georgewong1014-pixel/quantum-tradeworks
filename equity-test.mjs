@@ -702,6 +702,65 @@ try {
     if (p.length) fail('every absent figure gives the true reason, and the drawer states what it used', p);
     else ok(`every absent figure gives the true reason (insurer ${r.ins.cid}${r.negEq ? `, negative equity ${r.negEq.cid}` : ''}${r.noDps ? `, no dividend line ${r.noDps.cid}` : ''}), a price measure shows no false prior period${r.wtd ? `, and ${r.wtd.id}'s share count names its weighted diluted tag` : ''}`);
   }
+  /* THE SHELL KEEPS ITS WORD. Every company's own path resolves to it (BRK-B's
+     did not); a malformed escape is an unknown company, not an exception; the
+     compare list reads any name a company address accepts; moving between
+     companies keeps a tab carried in the path; leaving a view drops its
+     parameters on go() as on navigate(); /learn with no tab is the dictionary;
+     the header marks the section of every sub-page; aliases share a canonical;
+     the market chip names the market; and Enter in the search answers the text
+     in the box, not the list from before the debounce. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = {};
+      out.roundtrip = U.filter(x => companyFromSlug(companyPath(x.c).split('/')[2]) !== x.c.id).map(x => x.c.id);
+      out.total = U.length;
+      try { out.malformed = String(companyFromSlug('%E0%A4%A')); } catch (e) { out.malformed = 'threw ' + e.message; }
+      history.replaceState(null, '', '/app/equities/compare?companies=aapl-sec,1155,klcc');
+      applyRoute();
+      out.compare = State.compare.slice(0, 3).join(',');
+      out.compareWant = [companyFromSlug('aapl-sec'), companyFromSlug('1155'), companyFromSlug('klcc')].join(',');
+      navigate('/app/equities/aapl/financials'); openResearch('JPM-SEC');
+      out.carried = State.researchTab;
+      history.replaceState(null, '', '/property/calculator?city=sibu&d=x&real=1'); applyRoute();
+      go('plans');
+      out.plans = location.pathname + location.search;
+      navigate('/learn?tab=scoring'); navigate('/corrections'); navigate('/learn');
+      out.learn = State.learnTab;
+      out.nav = {};
+      for (const p of ['/app/equities', '/discover/sarawak', '/property/areas', '/learn/product-boundaries', '/my/scanner']) {
+        navigate(p);
+        out.nav[p] = document.querySelector('#mainnav a[aria-current=page]')?.textContent || null;
+      }
+      const canon = () => document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '');
+      navigate('/app/equities/aapl'); const c1 = canon();
+      navigate('/company/aapl-sec'); const c2 = canon();
+      out.canon = [c1, c2];
+      const reg = [...INSTRUMENTS.values()].find(i => i.market && !['US', 'MY'].includes(i.market));
+      out.chip = reg ? [reg.market, marketChip(reg.market)?.textContent, reg.currency] : null;
+      navigate('/learn'); openSearch(); await w(100);
+      searchInput.value = 'nvda'; searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await w(200);
+      out.enter = State.ticker;
+      return out;
+    })()`);
+    const p = [];
+    if (r.roundtrip.length) p.push(`companyPath does not resolve back for: ${r.roundtrip.join(', ')}`);
+    if (r.malformed !== 'null') p.push(`a malformed escape: ${r.malformed}`);
+    if (r.compare !== r.compareWant) p.push(`?companies=aapl-sec,1155,klcc selected ${r.compare}, not ${r.compareWant}`);
+    if (r.carried !== 'financials') p.push(`moving to JPM from /app/equities/aapl/financials landed on ${r.carried}`);
+    if (r.plans !== '/pricing?real=1') p.push(`go('plans') from the calculator went to ${r.plans}`);
+    if (r.learn !== 'dictionary') p.push(`/learn after /corrections shows the ${r.learn} tab`);
+    const wantNav = { '/app/equities': 'Research', '/discover/sarawak': 'Discover', '/property/areas': 'Property', '/learn/product-boundaries': 'Learn', '/my/scanner': 'My Investments' };
+    for (const [k, v] of Object.entries(wantNav)) if (r.nav[k] !== v) p.push(`${k}: the header marks ${r.nav[k]}, not ${v}`);
+    if (r.canon[0] !== r.canon[1] || !/^\/company\/aapl-/.test(r.canon[0])) p.push(`AAPL's canonicals: ${r.canon.join(' vs ')}`);
+    if (r.chip && (r.chip[1] !== r.chip[0] || r.chip[2] !== null)) p.push(`a ${r.chip[0]} instrument shows the chip ${r.chip[1]} and currency ${r.chip[2]}`);
+    if (r.enter !== 'NVDA-SEC') p.push(`Enter inside the search debounce opened ${r.enter}, not NVDA-SEC`);
+    if (p.length) fail('the shell: every company path resolves, parameters and tabs travel as documented, the header and canonical are right, search answers the box', p);
+    else ok(`the shell: all ${r.total} company paths resolve back, a malformed escape is unknown, ?companies= reads any name, a path tab travels, go() drops view parameters, /learn is the dictionary, the header marks every sub-page, aliases share a canonical, and Enter answers the box`);
+  }
 
 } catch (e) {
   fail('harness error', e.message);

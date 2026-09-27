@@ -255,6 +255,20 @@ a { color: inherit; }
    indicator; every control inside it keeps its own :focus-visible ring. */
 #main:focus { outline: none; }
 
+/* A button that reads as a link — "Which sources?" in the disclosure, "Report
+   a data error" in the footer. The class had only a touch-size rule, so both
+   kept the browser's default button: a grey bevelled box among plain text
+   links, and in the dark theme #a9aa9f on #6b6b6b, about 2.3:1. It now takes
+   the text it sits in, underlined so it is still visibly something to press;
+   the global :focus-visible ring applies. */
+.linklike {
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: inherit; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+}
+.linklike:hover { text-decoration-color: currentColor; }
+
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;
@@ -1052,7 +1066,12 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 
 /* ----------------------------------------------------------------- views */
 .view { display: none; padding: var(--xl) 0 var(--x4); }
-.view[data-active="1"] { display: block; animation: viewin 300ms ease both; }
+/* `backwards`, not `both`. With `both` the finished animation held a
+   transform on every view for as long as it was open, and a transform makes
+   the element a stacking context: the company page's sticky strip was then
+   layered inside the view, under the topbar whatever its own z-index said,
+   and invisible once stuck on a phone. */
+.view[data-active="1"] { display: block; animation: viewin 300ms ease backwards; }
 @keyframes viewin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (max-width: 640px) { .view { padding: var(--lg) 0 var(--xxl); } }
 
@@ -1248,7 +1267,13 @@ table.dt .num, .num { overflow-wrap: normal; }
 }
 @media (max-width: 900px) { .ticker-sticky { margin: 0 calc(var(--lg) * -1) var(--lg); padding: 0 var(--lg); } }
 @media (max-width: 560px) { .ticker-sticky { margin: 0 calc(var(--md) * -1) var(--lg); padding: 0 var(--md); } }
-@media (max-width: 780px) { .ticker-sticky { top: 0; } }
+/* Below 780px the topbar wraps to two rows and takes 120–170px, so the strip
+   comes to rest at the top of the viewport and covers the topbar rather than
+   stacking under it. That needs a layer above the topbar's 40 — at 25 the
+   strip slid underneath and the stuck ticker and tabs were invisible — and
+   still below the drawer (60+), the toast and the skip link. The background is
+   opaque here because the topbar's links would otherwise show through it. */
+@media (max-width: 780px) { .ticker-sticky { top: 0; z-index: 41; background: var(--plane); } }
 .ts-jump { margin-left: auto; }
 .ts-jump .select { max-width: 210px; }
 @media (max-width: 560px) {
@@ -1321,7 +1346,7 @@ details > summary::marker { content: ''; }
   .card, .panel, .noteitem { border: 1px solid CanvasText; }
 }
 /* --------------------------------------------------------- decision record */
-.decision-record .dr-head { border-bottom: 2px solid var(--ink-1); padding-bottom: var(--md); margin-bottom: var(--lg); }
+.decision-record .dr-head { border-bottom: 2px solid var(--ink); padding-bottom: var(--md); margin-bottom: var(--lg); }
 .decision-record .dr-head h1 { margin: 4px 0 6px; }
 .decision-record h2 { font-size: var(--text-lead); font-weight: var(--weight-semibold);
   margin: var(--xl) 0 var(--sm); padding-bottom: 4px; border-bottom: 1px solid var(--grid); }
@@ -1351,10 +1376,28 @@ details > summary::marker { content: ''; }
    It prints in light colours from either theme on purpose. A dark page costs a
    cartridge and reads worse, and nobody has ever asked a printer for it. */
 @media print {
+  /* Every token the dark palette redefines is reset here, not a handful. The
+     first version reset --ink-1 (a name the palette does not use; its text
+     token is --ink) and left --bronze, --dn-text, --ok-text, --surface-2 and
+     the chart slots dark — so under a dark OS scheme the record printed chart
+     text #f2f0ea on white and its warnings #d3a44e on white, about 2.3:1, on
+     the page that promises light colours whatever the screen uses. The values
+     are the light palette's own, with the surfaces taken to paper white and
+     the ink a step darker for print. `:root` alone outranks the media-query
+     dark rule by source order; `[data-theme="dark"]` matches its specificity. */
   :root, :root[data-theme="dark"] {
-    --plane: #ffffff; --surface: #ffffff; --surface-sunk: #ffffff; --panel: #ffffff;
-    --ink-1: #16160f; --ink-2: #3a3a32; --ink-3: #55554c;
-    --line: #c9c7bd; --grid: #ddd9cf;
+    color-scheme: light;
+    --plane: #ffffff; --surface: #ffffff; --surface-2: #ffffff; --surface-sunk: #ffffff; --surface-inv: #141a18;
+    --ink: #16160f; --ink-2: #3a3a32; --ink-3: #55554c; --ink-inv: #f4f1ea;
+    --line: #c9c7bd; --line-2: #b9b5a8; --grid: #ddd9cf; --ring: rgba(20, 25, 22, 0.10);
+    --brand: #1B4FCC; --brand-hi: #2E68E4; --brand-wash: #E7EEFD; --bronze: #89631e; --bronze-wash: #f4ecdb;
+    --s1: #00806a; --s2: #b8862b; --s2-text: #916a22; --s3: #4a5fa5; --s4: #c0562e; --s5: #7d4f8a; --s6: #6b7a2f; --s7: #4a3aa7; --s8: #c23b47;
+    --up-5: #0b6a55; --up-4: #1f8e74; --up-3: #63b39d; --up-2: #a8d3c6; --up-1: #d9ebe4;
+    --mid: #e8e4dc;
+    --dn-1: #f6e0d6; --dn-2: #e8b6a4; --dn-3: #d4846a; --dn-4: #bc5537; --dn-5: #8f3a22;
+    --seq-1: #dcece7; --seq-2: #b3d7cc; --seq-3: #7cbcac; --seq-4: #3f9a85; --seq-5: #1a7a66; --seq-6: #0d5c4d; --seq-7: #094137;
+    --ok-text: #0a6b32; --dn-text: #a03a20; --critical-text: #b3261e; --pol-pos: #1a5fb4; --pol-neg: #a03a20;
+    --logo-navy: #14284B; --logo-teal-text: #0B7159; --logo-word: var(--logo-navy);
   }
   html, body { background: #fff !important; color: #16160f !important; }
   .topbar, .mainnav, .subnav, .disclosure, .decision-dock, .footer,
@@ -1386,7 +1429,7 @@ details > summary::marker { content: ''; }
      An OPEN panel still prints, with its summary reading as the heading it
      effectively is. */
   details:not([open]) { display: none !important; }
-  details[open] > summary { font-weight: 600; color: var(--ink-1); list-style: none; }
+  details[open] > summary { font-weight: 600; color: var(--ink); list-style: none; }
   @page { margin: 16mm 14mm; }
 }
 

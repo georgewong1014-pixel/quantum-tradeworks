@@ -99,12 +99,16 @@ function instrumentFromCompany(c) {
 function instrumentFromRegistry(e) {
   const symbol = String(e.symbol || '').toUpperCase();
   const mkt = String(e.market || 'US').toUpperCase();
-  const m = MARKETS[mkt] || MARKETS.US;
+  /* Only the two markets MARKETS describes have a known country and currency.
+     Defaulting the rest to US and USD dated the DAX and the Nikkei in dollars;
+     outside those two the fields are not recorded, and say so. */
+  const m = MARKETS[mkt] || null;
   return {
-    id: instrumentId(mkt, symbol), symbol, market: mkt, exchangeCode: mkt === 'MY' ? 'XKLS' : 'US',
+    id: instrumentId(mkt, symbol), symbol, market: mkt, exchangeCode: mkt === 'MY' ? 'XKLS' : mkt === 'US' ? 'US' : null,
     exchangeCodeSource: mkt === 'MY' ? 'listed' : 'unknown — registry entry carries no venue',
     companyName: e.name || symbol, displayName: symbol,
-    country: m.country, currency: m.currency,
+    country: m ? m.country : null, currency: m ? m.currency : null,
+    ...(m ? {} : { countrySource: `not recorded — market ${mkt} is outside the markets this build describes` }),
     isin: null, isinSource: 'no licensed reference source — not recorded',
     cik: null, sector: e.sector || null, industry: null,
     instrumentType: REGISTRY_KIND_TYPE[e.kind] || 'STOCK',
