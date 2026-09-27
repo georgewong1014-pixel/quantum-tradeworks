@@ -160,9 +160,15 @@ function tabValuation(r) {
     const row = el('div', { class: 'assumption' });
     const lab = el('label', { for: `as-${a.k}` }, a.label);
     row.append(lab);
+    /* A cleared field is an absent input, not the previous one. Ignoring the
+       empty value kept the range, the grid and the bridge computed from a
+       number the field no longer showed, under a rail that promises nothing is
+       silently substituted. The value becomes null and the outputs say which
+       input is missing instead of producing an estimate. A half-typed entry
+       ("-", "1e") reads as empty too, and fills in again on the next key. */
     const num = el('input', { class: 'input input-inline', id: `as-${a.k}`, type: 'number', step: a.step,
-      value: Number(inputs[a.k]).toFixed(a.dp), style: 'text-align:right', disabled: editable ? null : '',
-      oninput: e => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { inputs[a.k] = v; syncRange(); redraw(); } } });
+      value: Number.isFinite(inputs[a.k]) ? Number(inputs[a.k]).toFixed(a.dp) : '', style: 'text-align:right', disabled: editable ? null : '',
+      oninput: e => { const v = parseFloat(e.target.value); inputs[a.k] = Number.isFinite(v) ? v : null; syncRange(); redraw(); } });
     row.append(num);
     let rng = null;
     if (a.min != null && editable) {
@@ -171,7 +177,7 @@ function tabValuation(r) {
         oninput: e => { inputs[a.k] = +e.target.value; num.value = Number(inputs[a.k]).toFixed(a.dp); redraw(); } });
       row.append(rng);
     }
-    const syncRange = () => { if (rng) rng.value = inputs[a.k]; };
+    const syncRange = () => { if (rng && Number.isFinite(inputs[a.k])) rng.value = inputs[a.k]; };
     row.append(el('p', { class: 'a-note' }, a.note));
     rail.append(row);
   });
@@ -203,7 +209,7 @@ function tabValuation(r) {
   rail.append(el('button', { class: 'btn btn-primary btn-sm', style: 'width:100%;margin-top:var(--md)',
     onclick: () => saveValuationRun(r, inputs) }, 'Save this valuation run'));
   rail.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'A saved run stores the inputs, the model version and the as-of date, so the same run reproduces the same output exactly.'));
+    'A saved run stores the inputs, the figures they produced, the model version and the as-of date, so replaying it later can be checked against what was saved.'));
   wrap.append(rail);
 
   redraw();
@@ -211,8 +217,24 @@ function tabValuation(r) {
   return wrap;
 }
 
+/* The editable assumptions the reader has emptied. The model would otherwise
+   run on null — NaN through every formula, or a number coerced from nothing —
+   so an empty input stops the estimate rather than feeding it. */
+function blankAssumptions(r, inputs) {
+  return (ASSUMPTIONS[inputs.model] || [])
+    .filter(a => (!a.onlyIf || a.onlyIf === r.val.pack.id) && !Number.isFinite(inputs[a.k]));
+}
+
 function studioOutputs(r, inputs, redraw) {
   const { c, d } = r;
+  const blank = blankAssumptions(r, inputs);
+  if (blank.length) {
+    const names = blank.map(a => a.label);
+    const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+    return [el('div', { class: 'guardrail',
+      html: `<span style="color:var(${SEV_STYLE.critical.v})">${icon('alert')}</span><span>${esc(
+        `${list} ${names.length === 1 ? 'is' : 'are'} empty — no estimate. The model is not run on a missing input and the previous value is not reused. Enter a value, or use Reset to return to the derived defaults.`)}</span>` })];
+  }
   const run = valuationRun(c, d, inputs);
   const nodes = [];
 
@@ -327,9 +349,13 @@ function studioOutputs(r, inputs, redraw) {
   grid.append(pp);
   head.append(grid);
 
-  const shiftText = Object.entries(run.shift.bear).map(([k, v]) => `${k} ${withSign(v, 1, '')}`).join(', ');
+  /* Both shifts printed as they are applied. The bull case was described as
+     "the mirror image" of the bear, but SCENARIO_SHIFT sets it smaller on the
+     rate inputs (a discount rate −1.0 against +1.2, for one) — so the
+     published construction misstated what the model does. */
+  const shiftText = (s) => Object.entries(s).map(([k, v]) => `${k} ${withSign(v, 1, '')}`).join(', ');
   head.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `Scenario construction is published, not hidden: the bear case applies ${shiftText} to the base assumptions, and the bull case applies the mirror image.`));
+    `Scenario construction is published, not hidden: the bear case applies ${shiftText(run.shift.bear)} to the base assumptions, and the bull case applies ${shiftText(run.shift.bull)}.`));
   nodes.push(head);
 
   /* ---------- driver impact ---------- */
@@ -475,7 +501,9 @@ function studioOutputs(r, inputs, redraw) {
   if (applicable.length >= 3) {
     const vals = applicable.map(x => x.value);
     nineCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-      `Applicable methods span ${fmtMoney(Math.min(...vals), c.ccy)} to ${fmtMoney(Math.max(...vals), c.ccy)}, with a median of ${fmtMoney(median(vals), c.ccy)} against a market price of ${fmtMoney(c.px.p, c.ccy)}. A spread this wide is normal — the methods answer different questions.`));
+      /* No price clause without a price: "against a market price of —" read
+         as a sentence about a price that does not exist. */
+      `Applicable methods span ${fmtMoney(Math.min(...vals), c.ccy)} to ${fmtMoney(Math.max(...vals), c.ccy)}, with a median of ${fmtMoney(median(vals), c.ccy)}${isNum(c.px?.p) ? ` against a market price of ${fmtMoney(c.px.p, c.ccy)}` : ''}. A spread this wide is normal — the methods answer different questions.`));
   }
   nodes.push(nineCard);
 
@@ -527,9 +555,17 @@ function studioOutputs(r, inputs, redraw) {
 }
 
 function saveValuationRun(r, inputs) {
+  const blank = blankAssumptions(r, inputs);
+  if (blank.length) { toast(`${blank[0].label} is empty — a run with a missing input cannot be saved`); return; }
   const runs = store.read('runs', []);
+  /* The output is stored with the inputs. A run that kept only its inputs
+     could claim to reproduce its output but never check it: the replay had
+     nothing to be compared with. With the figures kept, the drawer compares
+     them instead of asserting it. */
+  const out = valuationRun(r.c, r.d, inputs);
   const run = { runId: `run-${r.c.id}-${runs.length + 1}`, id:r.c.id, ticker:r.c.tk,
                 inputs:{ ...inputs }, pack:r.val.pack.name,
+                vals: out.vals ? { ...out.vals } : null,
                 asOf:AS_OF, model:MODEL_VERSION, saved:new Date().toISOString().slice(0, 10) };
   runs.unshift(run);
   store.write('runs', runs.slice(0, 50));
@@ -547,15 +583,17 @@ function saveValuationRun(r, inputs) {
   render();
 }
 
-/* Re-run a saved run's stored inputs through the current model. If the output
-   differs, the model has changed since the run was saved — which is exactly
-   what Epic E asks the product to be able to show. */
+/* Re-run a saved run's stored inputs through the current model and compare
+   the result with the figures saved alongside them. If they differ, the
+   drawer shows both — which is exactly what Epic E asks the product to be
+   able to show. */
 function openSavedRun(t) {
   const run = (store.read('runs', []) || []).find(x => x.runId === t.runRef);
   const r = BY_ID.get(t.ticker);
   const body = el('div');
-  if (!run) {
-    body.append(el('p', { class: 'body' }, 'The saved run this thesis referenced is no longer in local storage.'));
+  if (!run || !r) {
+    body.append(el('p', { class: 'body' }, !run ? 'The saved run this thesis referenced is no longer in local storage.'
+      : `The saved run names ${t.ticker}, which is not in the universe loaded now, so it cannot be replayed.`));
     openDrawer('Saved valuation run', body); return;
   }
   const replay = valuationRun(r.c, r.d, run.inputs);
@@ -563,9 +601,18 @@ function openSavedRun(t) {
   body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
     `Run ${run.runId} · saved ${run.saved} · as of ${run.asOf} · ${run.model}`));
 
+  /* Replayed figures beside the saved ones, and the comparison made rather
+     than asserted. Runs saved before the output was stored have nothing to
+     compare with, and say so. */
+  const saved = run.vals && typeof run.vals === 'object' ? run.vals : null;
+  const same = (a, b) => isNum(a) && isNum(b) && Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
+  const reproduced = !!(saved && replay.vals && ['bear', 'base', 'bull'].every(k => same(replay.vals[k], saved[k])));
   const g = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
-  [['Bear', replay.vals?.bear], ['Base', replay.vals?.base], ['Bull', replay.vals?.bull]].forEach(([l, v]) =>
-    g.append(el('div', { class: 'panel' }, statTile(l, isNum(v) ? fmtMoney(v, r.c.ccy) : '—'))));
+  [['Bear', 'bear'], ['Base', 'base'], ['Bull', 'bull']].forEach(([l, k]) => {
+    const v = replay.vals?.[k];
+    g.append(el('div', { class: 'panel' }, statTile(`${l} · replayed`, isNum(v) ? fmtMoney(v, r.c.ccy) : '—',
+      { sub: saved ? `Saved ${isNum(saved[k]) ? fmtMoney(saved[k], r.c.ccy) : '—'}` : 'Not stored with this run' })));
+  });
   body.append(g);
 
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Stored inputs'));
@@ -575,11 +622,20 @@ function openSavedRun(t) {
   });
   body.append(kv);
 
-  body.append(el('div', { class: run.model === MODEL_VERSION ? 'evidence support' : 'guardrail',
-    style: 'font-size:13px' },
-    run.model === MODEL_VERSION
-      ? 'The model version is unchanged since this run was saved, so replaying these inputs reproduces the saved output exactly.'
-      : `This run was saved under ${run.model}; the current version is ${MODEL_VERSION}. The values above are the stored inputs replayed through the current model, so they may differ from what was originally saved.`));
+  const modelNote = run.model === MODEL_VERSION ? ''
+    : ` It was saved under ${run.model}; the current version is ${MODEL_VERSION}.`;
+  body.append(el('div', { class: reproduced ? 'evidence support' : 'guardrail', style: 'font-size:13px' },
+    reproduced
+      ? `Replaying the stored inputs through the current model gives the saved figures exactly — compared figure by figure, not assumed.${modelNote}`
+      : saved
+      ? `Replaying the stored inputs gives different figures from the ones saved with this run.${modelNote || ' The model version is the same, so the difference is not explained by a model change.'}`
+      : `This run was saved without its output figures, so the replay above cannot be checked against what was originally shown.${modelNote}`));
+  /* The replay reuses the stored inputs, so a newer data date does not change
+     it — but the inputs were derived from the older data, and the Studio's
+     defaults for this company today would not be the same. */
+  if (run.asOf !== AS_OF)
+    body.append(el('div', { class: 'guardrail', style: 'font-size:13px;margin-top:8px' },
+      `The inputs were derived from data as of ${run.asOf}; the data loaded now is as of ${AS_OF}. The replay uses the stored inputs unchanged, so it does not reflect anything reported since.`));
 
   body.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)',
     onclick: () => { State.valuation[t.ticker] = { ...run.inputs }; closeDrawer(); openResearch(t.ticker, 'valuation'); } },
@@ -739,7 +795,14 @@ function evaluateThesis(t) {
     /* No model difference — every unpriced filer — is no value, not a value
        of nought: `?? 0` reported "within threshold, 0.0%" on a condition that
        could not be evaluated, and fired the opposite condition as breached. */
-    if (cd.type === 'val') actual = isNum(r.val.mos?.base) ? -r.val.mos.base : null;   /* premium to base-case model estimate */
+    /* The premium of the price over the base-case estimate, measured against
+       the estimate — which is what "X% above the estimate" says. It was read
+       as −mos.base, which divides by the price: a price exactly 15% above the
+       estimate scored 13.0% and the condition breached only at 17.6%. */
+    if (cd.type === 'val') {
+      const base = r.val.vals?.base, price = r.val.price;
+      actual = isNum(base) && base > 0 && isNum(price) ? (price - base) / base * 100 : null;
+    }
     else actual = r.m[cd.k];
     if (!isNum(actual)) { ok.push({ ...cd, actual: null, c: r.c, note: 'Input not available — condition cannot be evaluated, and is not treated as passing.' }); return; }
     const hit = cd.op === '<' ? actual < cd.v : actual > cd.v;
@@ -756,7 +819,9 @@ function addToThesis(id) {
     id: 't' + Date.now(), ticker: id, oneLine: '', quality: '', valCase: '',
     catalysts: [], risks: r.flags.filter(f => f.sev !== 'good').slice(0, 2).map(f => f.title),
     conds: [{ type:'val', op:'>', v:15, label:'Price moves more than 15% above the base-case model estimate' }],
-    horizon: '3–5 years', review: '2026-10-30', conf: 'Low', questions: [],
+    /* Ninety days from creation. A fixed '2026-10-30' became a review date
+       already in the past for any thesis started after it. */
+    horizon: '3–5 years', review: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10), conf: 'Low', questions: [],
     created: new Date().toISOString().slice(0, 10),
   }];
   saveTheses();
@@ -766,7 +831,11 @@ function addToThesis(id) {
 
 /* An original seven-step review. Each step reports a status computed from the
    work actually done in the product, so it tracks progress rather than acting
-   as a checklist the reader ticks themselves. */
+   as a checklist the reader ticks themselves.
+
+   Each Go navigates to the tab's address, as a tab click does. Setting
+   State.researchTab and re-rendering switched the panel while the address kept
+   ?tab=thesis, so a reload, Back or a copied link went to the wrong tab. */
 function sevenSteps(r, t) {
   const { c, d, m } = r;
   const wacc = isNum(r.inputs.wacc) ? r.inputs.wacc : null;
@@ -777,32 +846,36 @@ function sevenSteps(r, t) {
       note: (c.seg || []).length >= 2
         ? `${c.seg.length} reported segments, largest ${c.seg[0][0]} at ${c.seg[0][1]}% of revenue.`
         : 'Segment disclosure is thin for this company — the revenue mix cannot be broken down.',
-      go: () => { State.researchTab = 'business'; render(); } },
+      go: () => openResearch(c.id, 'business') },
     { n:2, title:'Check it can survive a bad year',
       ok: r.scores.strength.score >= 50,
       note: `Financial Strength ${r.scores.strength.score}/100${isNum(m.ndEbit) ? `, net debt ${fmtX(m.ndEbit)} EBIT` : ''}. ${r.flags.filter(f => f.sev === 'serious' || f.sev === 'critical').length} serious flag(s).`,
-      go: () => { State.researchTab = 'risks'; render(); } },
+      go: () => openResearch(c.id, 'risks') },
     { n:3, title:'Judge the quality of the returns',
       ok: r.scores.quality.score >= 50,
       note: `Business Quality ${r.scores.quality.score}/100${isNum(m.roic) && isNum(wacc) ? `, return on invested capital ${fmtPct(m.roic)} against a ${fmtPct(wacc)} cost of capital` : ''}.`,
-      go: () => { State.researchTab = 'quality'; render(); } },
+      go: () => openResearch(c.id, 'quality') },
     { n:4, title:'Test whether the advantage lasts',
       ok: moatRead >= 2 && c.moat.conf !== 'Low',
       note: `${c.moat.kind}, ${c.moat.conf.toLowerCase()} confidence, durability ${c.moat.dur.toLowerCase()}. ${c.moat.counter.length} piece(s) of counter-evidence.`,
-      go: () => { State.researchTab = 'moat'; render(); } },
+      go: () => openResearch(c.id, 'moat') },
     { n:5, title:'Value it with a model that fits',
       ok: r.val.confBand !== 'Low' && !r.val.err,
       note: `${r.val.pack.name}, ${r.val.confBand.toLowerCase()} confidence${r.val.mos ? `, ${withSign(r.val.mos.base, 0)} against the base case` : ''}.`,
-      go: () => { State.researchTab = 'valuation'; render(); } },
+      go: () => openResearch(c.id, 'valuation') },
     { n:6, title:'Write down what would prove you wrong',
       ok: !!(t && t.conds?.length && t.oneLine),
       note: t ? `${t.conds.length} invalidation condition(s)${t.oneLine ? '' : ', but no investment case written yet'}.`
               : 'No thesis written for this company yet.',
-      go: () => { State.researchTab = 'thesis'; render(); } },
+      go: () => openResearch(c.id, 'thesis') },
+    /* A review date that has passed is a check that was missed, not one that
+       is scheduled — so it no longer satisfies the step. */
     { n:7, title:'Set when you will check again',
-      ok: !!(t && t.review),
-      note: t?.review ? `Next review ${t.review}, horizon ${t.horizon}.` : 'No review date set.',
-      go: () => { State.researchTab = 'thesis'; render(); } },
+      ok: !!(t && t.review) && t.review >= new Date().toISOString().slice(0, 10),
+      note: !t?.review ? 'No review date set.'
+        : t.review < new Date().toISOString().slice(0, 10) ? `The review date ${t.review} has passed. Set the next one.`
+        : `Next review ${t.review}, horizon ${t.horizon}.`,
+      go: () => openResearch(c.id, 'thesis') },
   ];
 }
 
@@ -1009,6 +1082,10 @@ function openThesisEditor(t) {
     el('button', { class: 'btn btn-primary btn-sm', onclick: () => { saveTheses(); closeDrawer(); render(); toast('Thesis saved'); } }, 'Save'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!confirm('Delete this thesis? Its review history will be removed too.')) return;
+      /* The dialog promises the review history goes with it; only the thesis
+         was removed, and its reviews stayed in storage and in backups. */
+      const reviews = store.read('reviews', {});
+      if (reviews && t.id in reviews) { delete reviews[t.id]; store.write('reviews', reviews); }
       State.theses = State.theses.filter(x => x.id !== t.id); saveTheses(); closeDrawer(); render(); toast('Thesis deleted');
     } }, 'Delete'),
   ]));
@@ -1023,7 +1100,14 @@ function openReview(t) {
     'A review scores the process, not the outcome. A good decision can still lose money, and a bad one can still make it.'));
   const qs = [
     ['Was the original thesis supported by what actually happened?', evalr.breaches.length ? `${evalr.breaches.length} invalidation condition is currently breached.` : 'No invalidation condition is currently breached.'],
-    ['Which assumptions turned out to be wrong?', `The largest driver of the current valuation is ${driverImpact(r.c, r.d, r.inputs)[0].label.toLowerCase()}.`],
+    /* driverImpact returns nothing for a company no model could be built for,
+       and indexing [0].label threw — the review never opened for any thesis
+       on such a company. */
+    ['Which assumptions turned out to be wrong?', (() => {
+      const top = r.val?.err ? null : driverImpact(r.c, r.d, r.inputs)[0];
+      return top ? `The largest driver of the current valuation is ${top.label.toLowerCase()}.`
+        : 'No valuation model could be built for this company, so there is no driver to name.';
+    })()],
     ['Was the process good despite the outcome?', 'Check whether the evidence was gathered before the conclusion, or after it.'],
     /* The latest two years, not rows 3 and 4 of a five-row era — every
        company holds ten rows now, and fixed indices named FY2020's change as
@@ -1099,10 +1183,16 @@ VIEWS.thesis = () => {
   const evals = State.theses.map(t => ({ t, e: evaluateThesis(t) }));
   const breached = evals.filter(x => x.e.breaches.length).length;
   const dueSoon = State.theses.filter(t => new Date(t.review) <= new Date('2026-09-30')).length;
-  [['Open theses', String(State.theses.length), 'Each links to a saved valuation run'],
+  /* Coverage is the watchlist entries that have a thesis, not the count of
+     theses: a thesis on a company not on the watchlist raised it, and it
+     could pass 100%. The linked-run line counts the links instead of claiming
+     every thesis has one — a new thesis starts without. */
+  const covered = State.watchlist.filter(id => State.theses.some(t => t.ticker === id)).length;
+  const linked = State.theses.filter(t => t.runRef).length;
+  [['Open theses', String(State.theses.length), `${linked} linked to a saved valuation run`],
    ['Conditions breached', String(breached), breached ? 'Read the evidence before acting' : 'Nothing has changed state'],
    ['Reviews due by 30 Sep', String(dueSoon), 'Review discipline is scored, not returns'],
-   ['Watchlist coverage', `${State.theses.length}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
+   ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
    .forEach(([l, v, s]) => stats.append(el('div', { class: 'card' }, statTile(l, v, { sub: s }))));
   wrap.append(stats);
 
@@ -1141,10 +1231,16 @@ VIEWS.compare = () => {
    ['US mega-cap technology', ['AAPL', 'MSFT', 'GOOGL', 'NVDA'].map(tk => U.find(r => r.c.tk === tk)?.c.id).filter(Boolean)],
    ['Commodity cyclicals', U.filter(r => r.c.type === 'cyclical').map(r => r.c.id)],
    ['Consumer staples, both markets', U.filter(r => r.c.sector === 'Consumer Staples').map(r => r.c.id)],
-   ['My watchlist', State.watchlist],
-   [`Whole universe (${U.length})`, U.map(r => r.c.id)]]
+   /* No "Whole universe" preset. It was labelled with the full count and
+      selected the first two or five companies — a comparison of the universe
+      is not something a capped selection can do. Any preset larger than the
+      cap says it was cut, rather than cutting silently. */
+   ['My watchlist', State.watchlist]]
    .forEach(([label, ids]) => presets.append(el('button', { class: 'btn btn-ghost btn-sm',
-     onclick: () => { State.compare = ids.slice(0, LIMITS.compare); store.write('compare', State.compare); render(); } }, label)));
+     onclick: () => {
+       State.compare = ids.slice(0, LIMITS.compare); store.write('compare', State.compare); render();
+       if (ids.length > LIMITS.compare) toast(`Showing the first ${LIMITS.compare} of ${ids.length} — ${LIMITS.compare} is the most a comparison holds`);
+     } }, label)));
   pick.append(presets);
   const chips = el('div', { class: 'row row-wrap', style: 'gap:5px' });
   U.forEach(r => {
@@ -1190,7 +1286,11 @@ VIEWS.compare = () => {
     const warn = el('div', { class: 'guardrail', style: 'background:color-mix(in srgb, var(--warn) 12%, transparent);border-color:color-mix(in srgb, var(--warn) 36%, transparent);margin-bottom:var(--md)' });
     warn.innerHTML = `<span style="color:var(--warn)">${icon('alert')}</span><span>${
       mixedTypes ? 'This selection mixes business models, so some rows are not comparable — return on invested capital and enterprise value are not meaningful for banks, and free cash flow is not meaningful for a deposit-taking balance sheet. ' : ''
-    }${mixedMkts ? `It also mixes reporting currencies; per-share figures are shown in the reporting currency and market capitalisation is converted to ${State.baseCcy}.` : ''}</span>`;
+    }${mixedMkts ? (State.compareCcy === 'local'
+      /* The sentence follows the currency toggle. It said "converted" in
+         Local-currency mode, above a row printing $ and RM side by side. */
+      ? 'It also mixes reporting currencies; per-share figures and market capitalisation are shown in each company’s reporting currency and are not comparable across markets.'
+      : `It also mixes reporting currencies; per-share figures are shown in the reporting currency and market capitalisation is converted to ${State.baseCcy}.`) : ''}</span>`;
     wrap.append(warn);
   }
 
@@ -2002,7 +2102,7 @@ const ALERT_KINDS = [
 ];
 
 /* ==========================================================================
-   ONBOARDING — five questions, then one completed task
+   ONBOARDING — four questions, then one completed task
 
    The purpose is not to configure the product. It is to get one real thing
    done: a company opened, a holding added, a watchlist made, a property
@@ -2028,7 +2128,7 @@ const OB_STEPS = [
       { v:'experienced', t:'Experienced investor',        n:'Formulas and periods, minimal prose' },
     ] },
   { key:'market', q:'Which market are you mainly looking at?',
-    note:'Sets the default filter on screens and comparisons. You can always widen it.',
+    note:'Sets the default market filter on the screener. You can always widen it.',
     options:[
       { v:'MY',   t:'Bursa Malaysia' },
       { v:'US',   t:'US equities' },
@@ -2053,15 +2153,23 @@ function completeOnboarding(answers) {
   /* The answers take effect immediately rather than being stored and ignored. */
   if (done.ccy) { State.baseCcy = done.ccy; store.write('baseCcy', done.ccy); }
   setExplainDepth(done.level === 'experienced' ? 'technical' : done.level === 'basic' ? 'context' : 'simple');
+  /* The screener filters on `universe`; nothing reads a `market` key, so the
+     answer used to be stored and ignored. Written where the launcher's own
+     "Which market?" step writes it. Compare has no market filter, so the
+     question no longer claims to set one there. */
   if (done.market && done.market !== 'both' && State.screen) {
-    State.screen.market = done.market; store.write('screen', State.screen);
+    State.screen.universe = done.market; store.write('screen', State.screen);
   }
 
   /* One task, chosen by the first answer, and it is a real destination rather
      than a tour. */
   const FIRST = {
     bursa:    () => { const r = U.find(x => x.c.mkt === 'MY'); r ? openResearch(r.c.id) : navigate('/discover'); },
-    us:       () => { const r = U.find(x => x.c.mkt === 'US'); r ? openResearch(r.c.id) : navigate('/discover'); },
+    /* The option promises SEC-filed, audited statements, and the first US row
+       is an illustrative listing. Only a filed company qualifies; while the
+       filings are still loading, or if they failed, the reader lands on the
+       research home rather than on sample figures. */
+    us:       () => { const r = !realPending && U.find(x => x.c.mkt === 'US' && x.c.real); r ? openResearch(r.c.id) : navigate('/research'); },
     monitor:  () => navigate('/my/portfolio'),
     property: () => navigate('/property/calculator'),
     learn:    () => navigate('/learn'),
@@ -2069,20 +2177,27 @@ function completeOnboarding(answers) {
   (FIRST[done.goal] || (() => navigate('/app')))();
 }
 
+/* render() replaces the pressed button, so focus fell to <body> on every step
+   and a keyboard reader had to Tab from the top of the page. Focus moves to
+   the new question instead, which is also what a screen reader should read. */
+function focusObQuestion() { $('.ob-wrap h1')?.focus(); }
+
 VIEWS.onboarding = () => {
   const draft = State.obDraft ||= {};
   const i = Math.min(State.obStep || 0, OB_STEPS.length - 1);
   const step = OB_STEPS[i];
 
+  /* The count is the questions asked. It was OB_STEPS.length + 1, so the last
+     question read "Step 4 of 5" and the flow then ended without a fifth. */
   const wrap = el('div', { class: 'ob-wrap' });
   const dots = el('div', { class: 'ob-steps', role: 'progressbar',
-    'aria-valuemin': '1', 'aria-valuemax': String(OB_STEPS.length + 1),
-    'aria-valuenow': String(i + 1), 'aria-label': `Step ${i + 1} of ${OB_STEPS.length + 1}` });
-  for (let k = 0; k <= OB_STEPS.length; k++) dots.append(el('div', { class: 'ob-dot', data: { done: k <= i ? '1' : '0' } }));
+    'aria-valuemin': '1', 'aria-valuemax': String(OB_STEPS.length),
+    'aria-valuenow': String(i + 1), 'aria-label': `Step ${i + 1} of ${OB_STEPS.length}` });
+  for (let k = 0; k < OB_STEPS.length; k++) dots.append(el('div', { class: 'ob-dot', data: { done: k <= i ? '1' : '0' } }));
   wrap.append(dots);
 
-  wrap.append(el('p', { class: 'eyebrow' }, `Step ${i + 1} of ${OB_STEPS.length + 1}`));
-  wrap.append(el('h1', { class: 'h-display', style: 'font-size:24px;margin:4px 0 6px' }, step.q));
+  wrap.append(el('p', { class: 'eyebrow' }, `Step ${i + 1} of ${OB_STEPS.length}`));
+  wrap.append(el('h1', { class: 'h-display', tabindex: '-1', style: 'font-size:24px;margin:4px 0 6px' }, step.q));
   wrap.append(el('p', { class: 'body' }, step.note));
 
   const opts = el('div', { class: 'ob-options' });
@@ -2091,7 +2206,7 @@ VIEWS.onboarding = () => {
       'aria-pressed': draft[step.key] === o.v ? 'true' : 'false',
       onclick: () => {
         draft[step.key] = o.v;
-        if (i < OB_STEPS.length - 1) { State.obStep = i + 1; render(); }
+        if (i < OB_STEPS.length - 1) { State.obStep = i + 1; render(); focusObQuestion(); }
         else completeOnboarding(draft);
       } });
     btn.append(el('div', { class: 'ob-option-t' }, o.t));
@@ -2102,7 +2217,7 @@ VIEWS.onboarding = () => {
 
   const foot = el('div', { class: 'row', style: 'gap:10px;margin-top:var(--xl)' });
   if (i > 0) foot.append(el('button', { class: 'btn btn-ghost btn-sm',
-    onclick: () => { State.obStep = i - 1; render(); } }, 'Back'));
+    onclick: () => { State.obStep = i - 1; render(); focusObQuestion(); } }, 'Back'));
   foot.append(el('span', { class: 'spacer' }));
   foot.append(el('button', { class: 'btn btn-quiet btn-sm',
     onclick: () => completeOnboarding({ ...draft, skipped: true }) }, 'Skip — take me to the app'));
