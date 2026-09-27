@@ -43,6 +43,14 @@ data/probe-*
 data/scroll-probe.*
 data/pp.bak.json
 
+# The SEC ingest's raw archive: companyfacts and submissions bodies exactly as
+# fetched, 1-10 MB each, kept so a normalisation rule can be re-run with
+# --from-raw without the network. The SEC's to publish, not ours to commit.
+# The committed fixture archive lives in ingest/fixtures/sec-raw.
+ingest/raw/
+# What the replacement gate writes instead of the file it refused to replace.
+data/*.partial.json
+
 # Household income cache — redistribution rights unconfirmed, see ingest/sarawak-geo.mjs
 data/sarawak-income.json
 

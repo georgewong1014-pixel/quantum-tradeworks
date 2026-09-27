@@ -850,6 +850,24 @@ table.dt tbody tr:last-child td, table.dt tbody tr:last-child th { border-bottom
 table.dt tbody tr { transition: background-color 140ms ease; }
 table.dt tbody tr:hover { background: color-mix(in srgb, var(--brand) 5%, transparent); }
 table.dt td.ident, table.dt th.ident { color: var(--ink); font-weight:600; }
+/* THE METRIC DICTIONARY. Four of its six columns are prose, so they wrap at a
+   readable measure and every cell sits at the top of its row; the name column
+   carries the measure's kind beneath it. A blocked measure keeps its row — its
+   absence is the information — on a faint bronze wash so it reads as a gap
+   rather than as a row whose cells failed to fill. */
+table.dt.dict td { vertical-align: top; }
+table.dt.dict th, table.dt.dict td { text-align: left; }
+table.dt.dict td.dict-text { text-align: left; white-space: normal; min-width: 180px; max-width: 300px; }
+table.dt.dict td.ident { white-space: normal; min-width: 170px; }
+table.dt.dict td.ident .metric-label { font-weight: 600; }
+table.dt.dict .dict-kind { margin-top: 6px; }
+table.dt.dict .caption { display: block; margin-top: 4px; }
+table.dt.dict tr.dict-row-blocked td { background: color-mix(in srgb, var(--bronze-wash) 55%, transparent); }
+.dict-blocked { list-style: none; padding: 0; margin: var(--sm) 0; display: grid; gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.dict-blocked li { padding: 8px 12px; border-left: 3px solid var(--bronze); background: var(--bronze-wash);
+  border-radius: 0 6px 6px 0; font-size: var(--text-sm); }
+.dict-blocked li .caption { display: inline; }
 /* THE GRID'S FOCUS RING.
    A dense table gives focus almost nowhere to show itself — an outline on the
    cell edge disappears under the next cell's border. Inset, so it reads as the
@@ -929,6 +947,9 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
      WCAG exempts a target that is part of a block of text, and padding one out
      to 44px would break the paragraph it belongs to. */
   p .linklike, .body .linklike, .metric-label { min-height: 0; }
+  /* In the dictionary the label is not inside a sentence — it is the row's
+     control for its definition — so it takes the full target. */
+  table.dict .metric-label { min-height: 44px; }
   .searchbtn, .iconbtn { min-width: 44px; }
   /* A select sized to a two-letter option is 38px wide on a phone — the
      evidence-source pickers on the property calculator were — and a finger

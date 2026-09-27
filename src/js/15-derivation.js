@@ -14,8 +14,18 @@
    the REIT pillar no longer scores an operating margin as a net property
    margin (scores); and the valuation refuses a negative base, a WACC weighted
    on negative book equity and a residual income with no reported ROE, floors
-   equity at nil, and keeps the base case when only a shifted case breaks. */
-const MODEL_VERSION = 'metrics 1.6.0 · scores 1.3.0 · valuation 1.5.0';
+   equity at nil, and keeps the base case when only a shifted case breaks.
+   metrics 1.7.0 publishes six measures the statements always supported —
+   net margin, operating cash flow margin, free cash flow, net income growth
+   over four years and over one, and revenue growth over one — and stops
+   computing free cash flow for a bank, where the registry says it does not
+   apply. None of the new six is in the coverage count, so no coverage
+   figure moves; a saved screen can now name a column an older build lacks.
+   scores 1.4.0 because the second of those reaches the risk grade: a bank
+   no longer carries a "negative free cash flow" flag (Citigroup and Goldman
+   Sachs did), for the reason every other cash-flow measure on a bank is
+   not applicable. */
+const MODEL_VERSION = 'metrics 1.7.0 · scores 1.4.0 · valuation 1.5.0';
 const AS_OF = '30 Jul 2026';
 
 /* SAVED WORK — NAMED, VERSIONED, AND HONESTLY LOCATED.
@@ -324,19 +334,15 @@ function maxDrawdown(series) {
 /* Measures that do not apply to a business model, by company type. Module
    level, because two places read it: the coverage denominator inside derive,
    and metricStatus, which has to say "not applicable" for exactly the measures
-   the denominator excludes — one list, or the two would drift. */
-const INAPPLICABLE = {
-  bank: ['roic','fcfm','fcf5','ndEbit','de','evebit','pfcf','fcfy','cashconv','cashPayout','reinv'],
-  insurer: ['roic','ndEbit','evebit'],
-  early: ['pe','pfcf','evebit','roic','payout','cashPayout','dps5','dy'],
-  reit: [],
-};
+   the denominator excludes — one list, or the two would drift. Both lists
+   are now read off the metric registry (13-metrics.js), where each measure
+   states the business models it does not apply to and whether it is counted. */
+const INAPPLICABLE = metricApplicability(true);
 
 /* The measures data coverage is counted over. Module level, because the
    count is taken twice: once when a company is derived, and again when price
    history arrives and fills its twelve-month return (refreshMomentum). */
-const COVERAGE_KEYS = ['pe','pb','evebit','pfcf','dy','fcfy','om','nm','fcfm','roe','roic','cashconv',
-                       'rev5','eps5','fcf5','dps5','ndEbit','de','icov','dilution','payout','cashPayout','reinv','rs12'];
+const COVERAGE_KEYS = METRICS.filter(x => x.counted).map(x => x.k);
 function metricCoverage(m, type) {
   const skip = INAPPLICABLE[type] || [];
   const applicable = COVERAGE_KEYS.filter(k => !skip.includes(k));
@@ -433,6 +439,12 @@ function derive(c) {
   m.om  = isNum(ebit[i]) && rev[i] > 0 && !revenueSuspect ? ebit[i] / rev[i] * 100 : null;
   m.nm  = isNum(ni[i]) && rev[i] > 0 && !revenueSuspect ? ni[i] / rev[i] * 100 : null;
   m.fcfm = isNum(m.fcf) && rev[i] > 0 && !revenueSuspect ? m.fcf / rev[i] * 100 : null;
+  /* Operating cash flow over revenue — the step between the operating margin
+     and the free cash flow margin, under the same revenue-line withhold. Not
+     for a bank, whose operating cash flow carries the movement in loans and
+     deposits and says nothing about margin; it is not in the coverage count,
+     so the registry lists it under ALSO_INAPPLICABLE and the rule is here. */
+  m.ocfm = !isBank && isNum(ocf[i]) && rev[i] > 0 && !revenueSuspect ? ocf[i] / rev[i] * 100 : null;
   /* RETURN ON EQUITY, WITHHELD WHERE THERE IS BARELY ANY EQUITY.
      ---------------------------------------------------------------------
      The risk flags already say, in these words, that "sustained buybacks have
@@ -508,6 +520,17 @@ function derive(c) {
   m.fcf5 = safeCagr(W(fcf));
   m.dps5 = W(dps)[0] > 0 ? safeCagr(W(dps)) : null;
   m.bv5  = safeCagr(W(bvps));
+  /* Earnings growth on the whole-company line. Earnings per share compound
+     across a split and are withheld there (below); net income does not know
+     a split happened, so this rate stands where eps5 cannot, and the
+     dictionary says which is which. */
+  m.ni5  = safeCagr(W(ni));
+  /* One year against the one before. Both years reported and a positive base,
+     or no rate — the same two-endpoint rule as the compound rates, over the
+     shortest window there is. */
+  const yoy = (s) => (i >= 1 && isNum(s[i]) && isNum(s[i - 1]) && s[i - 1] > 0) ? (s[i] / s[i - 1] - 1) * 100 : null;
+  m.revYoY = yoy(rev);
+  m.niYoY  = yoy(ni);
   m.revVol = growthVol(W(rev));
   m.epsVol = growthVol(W(ni));
   m.revDD  = maxDrawdown(W(rev));
@@ -619,7 +642,7 @@ function derive(c) {
      rather than at each computation above, because they run before the two
      per-share figures are both in hand — and a metric suppressed in one place
      and left standing in another is worse than either choice made throughout. */
-  if (perShareScaleBroken) { m.nm = null; m.roe = null; m.pe = null; m.cashconv = null; }
+  if (perShareScaleBroken) { m.nm = null; m.roe = null; m.pe = null; m.cashconv = null; m.ni5 = null; m.niYoY = null; }
   m.cashPayout = isNum(m.fcf) && m.fcf > 0 && isNum(dps[i]) && isNum(sh[i]) ? (dps[i] * sh[i]) / m.fcf * 100 : null;
   /* Same rule for the reinvestment rate: `capex[i] / ocf[i]` with no capex line
      published 0% — "reinvests nothing" — on thirteen filers, among them oil
@@ -692,6 +715,10 @@ function derive(c) {
      cell, the screen, the pillar and the coverage agree. */
   for (const k of skip) m[k] = null;
   if (skip.includes('pe')) m.ey = null;      /* the earnings yield is the same measure inverted */
+  /* Free cash flow itself, now that it is a published measure, under the
+     same rule as the margin, yield and growth rate built on it. Nulled last
+     because the bank-inapplicable measures above were computed from it. */
+  if (isBank) m.fcf = null;
   m.coverage = metricCoverage(m, c.type);
   m.inapplicable = skip.length;
 

@@ -691,6 +691,10 @@ function realToCompany(r) {
        count a figure the page no longer shows. */
     completeness: withheldGaps.length ? +(fin.flat().filter(v => v != null).length / fin.flat().length).toFixed(3) : r.completeness,
     retrieved: r.retrieved,
+    /* Which version of the ingest's rules wrote the record ("sec 1.2.0"), so a
+       file built before the year-end rule can be told from one built after.
+       The shipped file predates the stamp; null says so rather than guessing. */
+    ingestVersion: r.ingestVersion || null,
     seg: [], moat: { kind:'Not assessed', dur:'—', conf:'Low',
       support:[], counter:['No moat assessment exists for a company loaded from filings alone. Moat evidence is analyst work, not a computed field.'] },
     qrisk: 'Loaded from filings only. Segment mix, ownership and qualitative risk have not been researched for this company.',

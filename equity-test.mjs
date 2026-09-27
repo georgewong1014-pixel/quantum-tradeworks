@@ -929,7 +929,7 @@ try {
      does not agree with the code by construction. */
   {
     const r = await evaluate(`(() => {
-      const SPAN = { rev5: 5, eps5: 5, fcf5: 5, dps5: 5, epsVol: 5, revDD: 5, ocfPosYears: 5, buyback: 99, dilution: 99 };
+      const SPAN = { rev5: 5, eps5: 5, ni5: 5, fcf5: 5, dps5: 5, epsVol: 5, revDD: 5, ocfPosYears: 5, revYoY: 2, niYoY: 2, buyback: 99, dilution: 99 };
       const bad = [];
       for (const row of U) for (const f of FIELDS) {
         const s = metricStatus(row, f.k);
@@ -1517,6 +1517,147 @@ try {
     if (p.length) fail('Learn and pricing publish what the product does, and every accepted address survives a reload', p);
     else ok(`Learn routes all ${r.rows.length} company types and publishes the valuation pillar, the router tab stays on /methodology, pricing names its unapplied limits, and 1155.KL becomes ${r.dotted.path}`);
   }
+
+  /* 21 — ONE METRIC REGISTRY. FIELDS, FIELD_INPUTS, FIELD_PROVENANCE,
+          INAPPLICABLE, ALSO_INAPPLICABLE, COVERAGE_KEYS, NM_WHY and
+          METRIC_HELP are projections of METRICS (13-metrics.js). Checked key
+          by key rather than trusted, because the failure this replaces was
+          five hand-kept objects that disagreed: net margin computed and
+          published nowhere, twenty-four screener fields with no definition. */
+  {
+    const r = await evaluate(`(() => {
+      const p = [];
+      const rowOf = (k) => METRIC_BY_K[k];
+      const screener = METRICS.filter(x => x.screener !== false).map(x => x.k);
+      if (FIELDS.map(f => f.k).join() !== screener.join()) p.push('FIELDS is not the registry in order: ' + FIELDS.map(f => f.k).join());
+      for (const f of FIELDS) {
+        const x = rowOf(f.k);
+        if (!x) { p.push(f.k + ' has no registry row'); continue; }
+        if (f.formula !== x.formula || f.label !== x.label) p.push(f.k + ' formula or label differs');
+        if (JSON.stringify(FIELD_INPUTS[f.k]) !== JSON.stringify(x.inputs)) p.push(f.k + ' inputs ' + JSON.stringify(FIELD_INPUTS[f.k]));
+        if (provenanceOf(f.k) !== x.kind) p.push(f.k + ' kind ' + provenanceOf(f.k) + ' vs ' + x.kind);
+        const h = METRIC_HELP[f.k];
+        if (!h || !h.simple || !h.context || !h.technical) p.push(f.k + ' has no three-depth definition');
+        if (!f.unit || !f.period || !METRIC_UNIT[f.unit]) p.push(f.k + ' has no unit or period');
+        if (!!f.money !== !!x.money) p.push(f.k + ' money flag differs');
+      }
+      for (const [proj, counted] of [[INAPPLICABLE, true], [ALSO_INAPPLICABLE, false]])
+        for (const t of ['bank', 'insurer', 'early', 'reit']) {
+          const want = METRICS.filter(x => !!x.counted === counted && !x.blocked && (x.na || []).includes(t)).map(x => x.k).sort().join();
+          if ((proj[t] || []).slice().sort().join() !== want) p.push((counted ? 'INAPPLICABLE.' : 'ALSO_INAPPLICABLE.') + t + ' = ' + (proj[t] || []).join());
+        }
+      if (COVERAGE_KEYS.slice().sort().join() !== METRICS.filter(x => x.counted).map(x => x.k).sort().join()) p.push('COVERAGE_KEYS differs');
+      for (const k of Object.keys(NM_WHY)) if (NM_WHY[k] !== rowOf(k)?.nmWhy) p.push('NM_WHY.' + k);
+      /* derive() produces every published key, and no company has a value for
+         a blocked one. */
+      const aapl = BY_ID.get('AAPL-SEC');
+      const missing = METRICS.filter(x => !x.blocked && !(x.k in aapl.m)).map(x => x.k);
+      if (missing.length) p.push('derive() does not produce ' + missing.join(', '));
+      const leak = [];
+      for (const row of U) for (const x of METRICS.filter(x => x.blocked)) if (isNum(row.m[x.k])) leak.push(row.c.id + '.' + x.k);
+      if (leak.length) p.push('a blocked measure has a value: ' + leak.slice(0, 4).join(', '));
+      const blocked = METRICS.filter(x => x.blocked);
+      if (blocked.some(x => !x.needs?.length)) p.push('a blocked row does not name the line it needs');
+      return { p, n: METRICS.length, fields: FIELDS.length, blocked: blocked.map(x => x.k) };
+    })()`);
+    if (r.p.length) fail('the screener, drawer, explanations and coverage all read one metric registry', r.p.slice(0, 8));
+    else ok(`one registry of ${r.n} measures: ${r.fields} screener fields, their inputs, kinds, applicability, coverage keys, "n/m" reasons and three-depth definitions all agree with it; ${r.blocked.join(', ')} are blocked and carry no value anywhere`);
+  }
+
+  /* 22 — the six measures published in metrics 1.7.0 are the quantities their
+          formulas name, on every filed company; free cash flow is not a bank
+          measure; net-income growth survives a split that withholds the
+          per-share rate; and each absence gives its reason. */
+  {
+    const r = await evaluate(`(() => {
+      const bad = [], near = (a, b) => (a == null && b == null) || (isNum(a) && isNum(b) && Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(b)));
+      let checked = 0;
+      for (const row of U.filter(x => x.c.real)) {
+        const { c, m } = row, f = c.fin, i = f.length - 1, L = f[i], P = f[i - 1] || [];
+        const bank = c.type === 'bank', susp = !!m.revenueSuspect, scale = !!m.perShareScaleBroken;
+        checked++;
+        const want = {
+          nm: !susp && !scale && isNum(L[2]) && L[0] > 0 ? L[2] / L[0] * 100 : null,
+          ocfm: !bank && !susp && isNum(L[3]) && L[0] > 0 ? L[3] / L[0] * 100 : null,
+          fcf: !bank && isNum(L[3]) && isNum(L[4]) ? L[3] - L[4] : null,
+          revYoY: isNum(L[0]) && P[0] > 0 ? (L[0] / P[0] - 1) * 100 : null,
+          niYoY: !scale && isNum(L[2]) && P[2] > 0 ? (L[2] / P[2] - 1) * 100 : null,
+          ni5: scale ? null : (() => { const w = f.slice(-5).map(x => x[2]); return isNum(w[0]) && isNum(w[w.length - 1]) ? cagr(w) : null; })(),
+        };
+        for (const [k, v] of Object.entries(want)) if (!near(m[k], v)) bad.push(c.id + '.' + k + ' ' + m[k] + ' vs ' + v);
+      }
+      const split = U.filter(x => x.c.real && x.m.shareSeriesBreak);
+      const survives = split.filter(x => isNum(x.m.ni5) && !isNum(x.m.eps5)).map(x => x.c.tk);
+      const pick = (fn) => U.find(fn) || null;
+      const calc = pick(x => x.c.real && isNum(x.m.ocfm));
+      const susp = pick(x => x.c.real && x.m.revenueSuspect);
+      const bank = pick(x => x.c.real && x.c.type === 'bank');
+      const scale = pick(x => x.c.real && x.m.perShareScaleBroken);
+      return { bad, checked, split: split.length, survives,
+        calc: calc && metricStatus(calc, 'ocfm'), susp: susp && metricStatus(susp, 'ocfm'),
+        bankOcfm: bank && metricStatus(bank, 'ocfm'), bankFcf: bank && metricStatus(bank, 'fcf'),
+        scaleNi5: scale && metricStatus(scale, 'ni5'), fcfMoney: FIELD_BY_K.fcf.money === true,
+        yoyNm: (() => { const x = U.find(x => x.c.real && x.c.fin.length > 1 && !isNum(x.m.niYoY) && x.c.fin[x.c.fin.length - 2][2] <= 0 && isNum(x.c.fin[x.c.fin.length - 1][2]) && !x.m.perShareScaleBroken); return x ? metricStatus(x, 'niYoY') : null; })() };
+    })()`);
+    const p = [];
+    if (r.bad.length) p.push(`${r.bad.length} values differ from their formula: ${r.bad.slice(0, 6).join('; ')}`);
+    if (!r.split || !r.survives.length) p.push(`no split company keeps its net-income growth (${r.split} split)`);
+    if (r.calc?.id !== 'calculated') p.push(`a filer's OCF margin: ${JSON.stringify(r.calc)}`);
+    if (r.susp && r.susp.reason !== 'withheld') p.push(`OCF margin on a revenue line EBIT exceeds: ${JSON.stringify(r.susp)}`);
+    if (r.bankOcfm?.reason !== 'not applicable' || r.bankFcf?.reason !== 'not applicable') p.push(`a bank's OCF margin / FCF: ${r.bankOcfm?.reason} / ${r.bankFcf?.reason}`);
+    if (r.scaleNi5 && r.scaleNi5.reason !== 'withheld') p.push(`net income growth on a scale-broken filer: ${JSON.stringify(r.scaleNi5)}`);
+    if (!r.fcfMoney) p.push('free cash flow is not flagged as money, so the screener would not convert or label it');
+    if (r.yoyNm && !(r.yoyNm.reason === 'not meaningful' && /prior year/.test(r.yoyNm.text))) p.push(`one-year growth off a loss: ${JSON.stringify(r.yoyNm)}`);
+    if (p.length) fail('net margin, OCF margin, free cash flow and the growth rates are what their formulas say', p);
+    else ok(`net margin, OCF margin, free cash flow, net-income CAGR and both one-year rates match their formulas on all ${r.checked} filed companies; net-income growth stands on ${r.survives.length} of the ${r.split} split companies whose per-share rate is withheld (${r.survives.slice(0, 4).join(', ')}…); a bank's FCF and OCF margin read "not applicable"`);
+  }
+
+  /* 23 — Learn lists every registry row by category with its definition,
+          inputs, unit and period, and says which measures are blocked and on
+          what. The company page's provenance strip names the ingest version,
+          or says the shipped file has none. */
+  {
+    await evaluate(`navigate('/learn/glossary')`); await sleep(500);
+    const r = await evaluate(`(() => {
+      const cards = [...document.querySelectorAll('main .card')];
+      const heads = cards.map(c => c.querySelector('.h-card')?.textContent || '');
+      const tables = [...document.querySelectorAll('main table.dict')];
+      const rows = tables.flatMap(t => [...t.querySelectorAll('tbody tr')]);
+      const cols = tables[0] ? [...tables[0].querySelectorAll('thead th')].map(th => th.textContent) : [];
+      const blockedRows = rows.filter(tr => tr.classList.contains('dict-row-blocked')).map(tr => tr.cells[0].querySelector('.metric-label span')?.textContent || tr.cells[0].textContent);
+      const liq = cards.find(c => c.querySelector('.h-card')?.textContent === 'Liquidity');
+      const nm = rows.find(tr => /^Net margin/.test(tr.cells[0].textContent));
+      const intro = cards[0]?.textContent || '';
+      return { heads, cols, n: rows.length, blockedRows, liqAllBlocked: !!liq && [...liq.querySelectorAll('tbody tr')].every(tr => tr.classList.contains('dict-row-blocked')),
+        nm: nm ? [...nm.cells].map(td => td.textContent) : null, intro, cats: METRIC_CATEGORIES.map(c => c.label), total: METRICS.length,
+        blockedWant: METRICS.filter(x => x.blocked).length };
+    })()`);
+    const p = [];
+    if (r.n !== r.total) p.push(`${r.n} dictionary rows for ${r.total} registry rows`);
+    if (JSON.stringify(r.heads.slice(1)) !== JSON.stringify(r.cats)) p.push(`category cards: ${r.heads.join(' | ')}`);
+    if (r.cols.join('|') !== 'Metric|What it is|Formula and inputs|Unit and period|Computable|Missing-data behaviour') p.push(`columns: ${r.cols.join('|')}`);
+    if (r.blockedRows.length !== r.blockedWant || !r.liqAllBlocked) p.push(`blocked rows: ${r.blockedRows.join(', ')}`);
+    if (!/blocked/.test(r.intro) || !/Gross margin/.test(r.intro) || !/current assets/.test(r.intro)) p.push('the intro does not name the blocked measures and their lines');
+    if (!r.nm || !/Net margin/.test(r.nm[0]) || !/net income ÷ revenue/.test(r.nm[2]) || !/percent/.test(r.nm[3]) || !/^\d+\/\d+$/.test(r.nm[4])) p.push(`net margin row: ${JSON.stringify(r.nm)}`);
+
+    await evaluate(`openResearch('AAPL-SEC', 'snapshot'); true`); await sleep(500);
+    const strip = await evaluate(`(() => {
+      const chips = () => [...document.querySelectorAll('main .chip')].map(c => c.textContent);
+      const before = chips().filter(t => /ingest/.test(t));
+      const row = BY_ID.get('AAPL-SEC'); row.c.ingestVersion = 'sec 1.2.0';
+      row.c.provenance = { ...row.c.provenance, rev: { ...row.c.provenance.rev, restated: { 2023: { from: 1, to: 2 } } } };
+      render();
+      const after = chips().filter(t => /ingest/.test(t));
+      const restated = [...document.querySelectorAll('main .metaline')].some(p => /Restated in a later filing/.test(p.textContent) && /revenue FY2023/.test(p.textContent));
+      row.c.ingestVersion = null; delete row.c.provenance.rev.restated; render();
+      return { before, after, restated };
+    })()`);
+    if (strip.before.join() !== 'ingest version not in this dataset yet') p.push(`strip without a version: ${JSON.stringify(strip.before)}`);
+    if (strip.after.join() !== 'ingest 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
+    if (p.length) fail('Learn publishes the registry with blocked measures named; the provenance strip carries the ingest version', p);
+    else ok(`Learn lists all ${r.n} measures in ${r.cats.length} categories with definition, inputs, unit and period, and ${r.blockedRows.length} blocked rows (${r.blockedRows.join(', ')}); the provenance strip says the shipped file has no ingest version, and names one and a restated year when the record carries them`);
+  }
+
 
 } catch (e) {
   fail('harness error', e.message);

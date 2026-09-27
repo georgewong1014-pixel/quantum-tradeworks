@@ -343,53 +343,13 @@ const DISCOVER_TABS = [
 ];
 
 /* --------------------------------------------------------------- screener */
-/* Every field publishes its formula, period and missing-data behaviour. */
-const FIELDS = [
-  { g:'Business quality',      k:'roic',      label:'Return on invested capital', fmt:v=>fmtPct(v),   formula:'EBIT × (1 − tax rate) ÷ (equity + debt − cash)', miss:'Not meaningful for banks — excluded rather than imputed.' },
-  { g:'Business quality',      k:'om',        label:'Operating margin',           fmt:v=>fmtPct(v),   formula:'EBIT ÷ revenue' },
-  { g:'Business quality',      k:'fcfm',      label:'Free cash flow margin',      fmt:v=>fmtPct(v),   formula:'(operating cash flow − capex) ÷ revenue', miss:'Not computed for banks.' },
-  { g:'Business quality',      k:'roe',       label:'Return on equity',           fmt:v=>fmtPct(v),   formula:'net income ÷ average shareholders’ equity' },
-  { g:'Business quality',      k:'cashconv',  label:'Cash conversion',            fmt:v=>fmtPct(v,0), formula:'operating cash flow ÷ net income' },
-  { g:'Growth and profitability', k:'rev5',      label:'Revenue CAGR (4y)',          fmt:v=>fmtPct(v),   formula:'(latest ÷ earliest)^(1/n) − 1', miss:'Null when the base period is non-positive.' },
-  { g:'Growth and profitability', k:'eps5',      label:'Earnings CAGR (4y)',         fmt:v=>fmtPct(v),   formula:'compound growth of earnings per share' },
-  { g:'Growth and profitability', k:'fcf5',      label:'Free cash flow CAGR (4y)',   fmt:v=>fmtPct(v),   formula:'compound growth of free cash flow' },
-  { g:'Growth and profitability', k:'dps5',      label:'Dividend CAGR (4y)',         fmt:v=>fmtPct(v),   formula:'compound growth of dividend per share' },
-  { g:'Financial risk',        k:'ndEbit',    label:'Net debt / EBIT',            fmt:v=>fmtX(v),     formula:'(debt − cash) ÷ EBIT', miss:'Not applicable to banks.' },
-  { g:'Financial risk',        k:'de',        label:'Debt / equity',              fmt:v=>fmtX(v,2),   formula:'total debt ÷ shareholders’ equity' },
-  { g:'Financial risk',        k:'icov',      label:'Interest cover',             fmt:v=>fmtX(v),     formula:'EBIT ÷ net interest expense', miss:'Interest expense is not carried in the statement tuple, filed or illustrative — reported missing, never estimated.' },
-  { g:'Valuation and income',  k:'pe',        label:'Price / earnings',           fmt:v=>fmtX(v),     formula:'price ÷ earnings per share', miss:'Null when earnings are negative.' },
-  { g:'Valuation and income',  k:'pb',        label:'Price / book',               fmt:v=>fmtX(v,2),   formula:'price ÷ book value per share' },
-  { g:'Valuation and income',  k:'evebit',    label:'EV / EBIT',                  fmt:v=>fmtX(v),     formula:'(market cap + net debt) ÷ EBIT', miss:'Enterprise value is not meaningful for banks.' },
-  { g:'Valuation and income',  k:'pfcf',      label:'Price / free cash flow',     fmt:v=>fmtX(v),     formula:'price ÷ free cash flow per share' },
-  { g:'Valuation and income',  k:'dy',        label:'Dividend yield',             fmt:v=>fmtPct(v,2), formula:'dividend per share ÷ price' },
-  { g:'Valuation and income',  k:'fcfy',      label:'Free cash flow yield',       fmt:v=>fmtPct(v,2), formula:'free cash flow ÷ market capitalisation' },
-  { g:'Valuation and income',  k:'buyback', label:'Net buyback yield',        fmt:v=>fmtPct(v,2), formula:'negative of the share-count CAGR' },
-  { g:'Valuation and income',  k:'payout',  label:'Payout ratio',             fmt:v=>fmtPct(v,0), formula:'dividend per share ÷ earnings per share' },
-  { g:'Valuation and income',  k:'cashPayout', label:'Dividend as % of FCF',  fmt:v=>fmtPct(v,0), formula:'total dividends paid ÷ free cash flow' },
-  { g:'Valuation and income',  k:'reinv',   label:'Reinvestment rate',        fmt:v=>fmtPct(v,0), formula:'capex ÷ operating cash flow' },
-  { g:'Financial risk',        k:'epsVol',    label:'Earnings variability',       fmt:v=>fmtNum(v),   formula:'standard deviation of year-on-year net income growth' },
-  { g:'Financial risk',        k:'revDD',     label:'Revenue drawdown',           fmt:v=>fmtPct(v,0), formula:'largest peak-to-trough fall in revenue' },
-  { g:'Financial risk',        k:'dilution',  label:'Share count growth',         fmt:v=>fmtPct(v,2), formula:'CAGR of shares in issue' },
-  { g:'Financial risk',        k:'netGearing',label:'Net gearing',                fmt:v=>fmtPct(v,0), formula:'(total debt − cash) ÷ shareholders’ equity', miss:'Not applicable to a bank balance sheet.', note:'Cash here is cash and equivalents only. A company holding short-term investments will look more indebted than it is.' },
-  { g:'Financial risk',        k:'ocfPosYears',label:'Years of positive operating cash flow', fmt:(v, r)=>`${fmtNum(v,0)} of ${r?.m?.ocfYearsSeen ?? 5}`, formula:'count of the reported years, up to the last five, with operating cash flow above zero' },
-  { g:'Market and eligibility',k:'rs12',      label:'12-month price change',      fmt:v=>fmtPct(v),   formula:'price change over the trailing twelve months' },
-  { g:'Market and eligibility',k:'from52',    label:'Distance from 52-week high', fmt:v=>fmtPct(v),   formula:'(price − 52-week high) ÷ 52-week high' },
-  { g:'Market and eligibility',k:'sma200d',   label:'Distance from 200-day average', fmt:v=>fmtPct(v), formula:'(price − 200-day simple moving average) ÷ 200-day average', note:'Needs 200 observed closes. Computed from imported or captured history only.' },
-  { g:'Composite scores',      k:'qscore',     label:'Business quality score',     fmt:v=>fmtNum(v,0), formula:'weighted pillar score, 0–100' },
-  { g:'Composite scores',      k:'vscore',     label:'Valuation evidence score',   fmt:v=>fmtNum(v,0), formula:'weighted valuation score, 0–100' },
-  { g:'Composite scores',      k:'mosBase',    label:'Difference to base-case model', fmt:v=>fmtPct(v,0), formula:'(base-case model estimate − price) ÷ price' },
-  /* The only field here denominated in money. Every other column is a ratio, a
-     multiple or a percentage, and therefore reads the same whichever currency
-     the company reports in. Flagged so the screener can convert and label this
-     one rather than printing a Bursa figure in ringgit beside a US figure in
-     dollars as though they were the same unit.
-
-     Formatted in the company's own currency when the row is known. A bare
-     fmtNum printed "131.2" in the source drawer beside a cell reading
-     "$29.7B" — the same quantity twice, with no unit on either side to say
-     that one is billions of ringgit and the other billions of dollars. */
-  { g:'Market and eligibility',k:'mcap',      label:'Market capitalisation',      fmt:(v, r)=>r?.c ? fmtCap(v, r.c.ccy) : `${fmtNum(v,1)}bn`, formula:'price × shares in issue', money:true },
-];
+/* Every field publishes its formula, period and missing-data behaviour — as
+   a projection of the metric registry (13-metrics.js), which is where a
+   measure is defined. A blocked measure (a line the statements do not carry)
+   is in the registry and the dictionary but not here, so no screener column
+   offers a figure that can never arrive; interest cover is the exception,
+   kept as the column it has always been and reported missing on every row. */
+const FIELDS = METRICS.filter(x => x.screener !== false).map(metricField);
 const FIELD_BY_K = Object.fromEntries(FIELDS.map(f => [f.k, f]));
 const FIELD_GROUPS = [...new Set(FIELDS.map(f => f.g))];
 /* The screener's three fixed score columns carry their own keys and their own
@@ -1256,11 +1216,7 @@ function statusChip(st) {
 /* Which kind each screener field is when it is present. Statement lines are
    reported; everything derived from them is calculated; anything needing a
    price is market; anything that is an output of assumptions is modelled. */
-const FIELD_PROVENANCE = {
-  pe:'market', pb:'market', evebit:'market', pfcf:'market', dy:'market', fcfy:'market', rs12:'market',
-  from52:'market', sma200d:'market', mcap:'market',
-  qscore:'modelled', vscore:'modelled', mosBase:'modelled',
-};
+const FIELD_PROVENANCE = Object.fromEntries(METRICS.filter(x => x.kind !== 'calculated').map(x => [x.k, x.kind]));
 const provenanceOf = (k) => FIELD_PROVENANCE[k] || 'calculated';
 
 /* Which stored lines each measure is arithmetic on. `price` is the quoted
@@ -1276,59 +1232,21 @@ const LINE_COL = { rev:F.REV, ebit:F.EBIT, ni:F.NI, ocf:F.OCF, capex:F.CAPEX, eq
    year-end instant where the filer reports one, and the weighted diluted
    count where it does not — the ingest's own order (sh ?? shWtd). */
 const LINE_PROV = { debt: { keys: ['debtL', 'debtC'], mode: 'sum' }, sh: { keys: ['sh', 'shWtd'], mode: 'first' } };
-const FIELD_INPUTS = {
-  roic:['ebit','eq','debt','cash'], om:['ebit','rev'], nm:['ni','rev'], fcfm:['ocf','capex','rev'], roe:['ni','eq'], cashconv:['ocf','ni'],
-  rev5:['rev'], eps5:['ni','sh'], fcf5:['ocf','capex'], dps5:['dps'],
-  ndEbit:['debt','cash','ebit'], de:['debt','eq'], icov:['ebit'], netGearing:['debt','cash','eq'],
-  pe:['price','ni','sh'], pb:['price','eq','sh'], evebit:['price','sh','debt','cash','ebit'], pfcf:['price','ocf','capex','sh'],
-  dy:['price','dps'], fcfy:['price','sh','ocf','capex'], buyback:['sh'], payout:['dps','ni','sh'], cashPayout:['dps','sh','ocf','capex'],
-  reinv:['capex','ocf'], epsVol:['ni'], revDD:['rev'], dilution:['sh'], ocfPosYears:['ocf'],
-  rs12:['history'], from52:['history'], sma200d:['history'], mcap:['price','sh'],
-  qscore:['rev','ebit','ni','ocf','capex','eq','debt','cash','sh'], vscore:['price','ni','ocf','capex','eq','sh'], mosBase:['price'],
-};
+const FIELD_INPUTS = Object.fromEntries(METRICS.map(x => [x.k, x.inputs || []]));
 /* How many of the latest stored years each measure reads, where it is more
    than the latest one — the window derive() slices for it. The four-year
    growth, variability and drawdown measures read the last five points; the
    share-count rate is cagr() over the whole series; return on equity averages
    this year's equity with last year's. */
-const FIELD_SPAN = { rev5: 5, eps5: 5, fcf5: 5, dps5: 5, epsVol: 5, revDD: 5, ocfPosYears: 5,
-                     buyback: Infinity, dilution: Infinity };
-const FIELD_SPAN_LINE = { roe: { eq: 2 } };
+const FIELD_SPAN = Object.fromEntries(METRICS.filter(x => x.span).map(x => [x.k, x.span]));
+const FIELD_SPAN_LINE = Object.fromEntries(METRICS.filter(x => x.spanLine).map(x => [x.k, x.spanLine]));
 /* Measures a type cannot carry that the coverage dictionary does not list —
    so they are not in INAPPLICABLE, whose length the coverage figure prints. */
-const ALSO_INAPPLICABLE = { bank: ['netGearing'] };
+const ALSO_INAPPLICABLE = metricApplicability(false);
 const TYPE_NOUN = { bank: 'bank', insurer: 'insurer', early: 'pre-profit company', reit: 'REIT' };
 /* Why a measure whose inputs are all present still has no number. Each is the
    guard in derive() for that measure, in words. */
-const NM_WHY = {
-  pe: 'Earnings per share are zero or negative, so a price-to-earnings multiple has no meaning.',
-  pb: 'Book value per share is zero or negative.',
-  pfcf: 'Free cash flow per share is zero or negative.',
-  evebit: 'Operating profit (EBIT) is zero or negative, so enterprise value cannot be expressed as a multiple of it.',
-  fcfy: 'Market capitalisation could not be formed, so there is nothing to divide free cash flow by.',
-  mcap: 'The share count is zero or absent, so a price cannot be turned into a market capitalisation.',
-  om: 'Revenue is zero or negative.', nm: 'Revenue is zero or negative.', fcfm: 'Revenue is zero or negative.',
-  roe: 'Average shareholders’ equity over the last two years is zero or negative, so a return on it has no meaning.',
-  roic: 'Invested capital (equity plus debt less cash) is zero or negative.',
-  cashconv: 'Net income is zero or negative, or operating cash flow exceeds fifteen times it — a ratio that measures a one-off, not conversion.',
-  rev5: 'The starting year’s revenue is zero or negative, so a compound growth rate has no meaning.',
-  eps5: 'The starting year’s earnings per share are zero or negative, so a compound growth rate has no meaning.',
-  fcf5: 'The starting year’s free cash flow is zero or negative, so a compound growth rate has no meaning.',
-  dps5: 'No dividend was paid in the starting year, so a compound growth rate has no meaning.',
-  ndEbit: 'Operating profit (EBIT) is zero or negative, so debt cannot be expressed as years of it.',
-  de: 'Shareholders’ equity is zero or negative, so debt cannot be expressed against it.',
-  netGearing: 'Shareholders’ equity is zero or negative, so gearing against it has no meaning.',
-  payout: 'Earnings per share are zero or negative, so a payout ratio has no meaning.',
-  cashPayout: 'Free cash flow is zero or negative, so dividends cannot be expressed as a share of it.',
-  reinv: 'Operating cash flow is zero or negative.',
-  dilution: 'The first share count in the window is zero or absent.', buyback: 'The first share count in the window is zero or absent.',
-  epsVol: 'Fewer than two year-on-year changes in net income can be measured.',
-  revDD: 'Fewer than two years of revenue are held.',
-  ocfPosYears: 'No year of operating cash flow is held.',
-  qscore: 'Too few of the quality pillar’s inputs are computable to score it.',
-  vscore: 'Too few of the valuation inputs are computable to score them — every one of them needs a price.',
-  mosBase: 'The base-case model produced no estimate for this company — its model pack needs inputs that are absent — so there is no difference to a price.',
-};
+const NM_WHY = Object.fromEntries(METRICS.filter(x => x.nmWhy).map(x => [x.k, x.nmWhy]));
 
 /* THE STATUS OF ONE FIGURE. Present: which of the five kinds it is. Absent:
    which of the five reasons, with the sentence for this company — the line
@@ -1347,11 +1265,17 @@ function metricStatus(r, k) {
   if (skip.includes(k)) return why('not applicable', c.type === 'bank' && f?.miss
     ? f.miss
     : `Not meaningful for a ${TYPE_NOUN[c.type] || c.type}. Excluded from the count of applicable measures rather than imputed.`);
-  if (k === 'icov') return why('not reported', f?.miss || 'Interest expense is not carried in the statement tuple, so interest cover is reported missing for every company, never estimated.');
+  /* A measure the stored statements cannot support — interest cover, whose
+     line the tuple does not carry — is not reported for any company, and the
+     registry names the line it waits for. */
+  if (METRIC_BY_K[k]?.blocked) return why('not reported', f?.miss || METRIC_BY_K[k].blocked);
+  /* The withheld flags, each with every measure derive() nulls on it: the
+     margins over a revenue line EBIT exceeds, and everything divided by or
+     compounded from a net income on the wrong scale. */
   const W = [
-    [['om', 'nm', 'fcfm'], m.revenueSuspect],
+    [['om', 'nm', 'fcfm', 'ocfm'], m.revenueSuspect],
     [['roe'], m.roeWithheld],
-    [['payout', 'nm', 'roe', 'pe', 'cashconv'], m.perShareScaleBroken],
+    [['payout', 'nm', 'roe', 'pe', 'cashconv', 'ni5', 'niYoY'], m.perShareScaleBroken],
     [['eps5', 'dps5', 'dilution', 'buyback'], m.shareSeriesBreak
       ? `The share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn inside the window — a corporate action, not issuance, and no corporate-action source is licensed here to undo it. A rate over a per-share line across that boundary would measure the split, so it is withheld.`
       : null],

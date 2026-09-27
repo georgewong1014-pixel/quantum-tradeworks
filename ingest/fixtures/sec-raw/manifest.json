@@ -1,0 +1,17 @@
+{
+ "company_tickers.json": {
+  "url": "https://www.sec.gov/files/company_tickers.json",
+  "retrieved": "2026-09-28",
+  "note": "fixture — invented, shaped like the SEC response"
+ },
+ "CIK0001234567.companyfacts.json": {
+  "url": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001234567.json",
+  "retrieved": "2026-09-28",
+  "note": "fixture"
+ },
+ "CIK0001234567.submissions.json": {
+  "url": "https://data.sec.gov/submissions/CIK0001234567.json",
+  "retrieved": "2026-09-28",
+  "note": "fixture"
+ }
+}

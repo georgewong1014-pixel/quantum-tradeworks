@@ -65,6 +65,16 @@ jobs:
       - name: the ingest picks the year-end balance
         run: node ingest-test.mjs
 
+      # The same rules, over the file that ships. Every plausibility check used
+      # to live in the browser, so data/us.json could hold a share count of
+      # nought or a dividend in the wrong unit and nothing outside the page
+      # would say so. data-check runs the ingest's own validateCompany over
+      # every record, lists the cells the loader withholds by running the
+      # loader's function, and fails on any hard finding not already recorded
+      # — or on a recorded one that has gone, so the record stays true.
+      - name: the shipped dataset passes the ingest's own validation
+        run: node data-check.mjs
+
       # The scanner worker slices its engine out of index.html by marker and the
       # page runs the same region, so one test covers both: indicator arithmetic
       # on hand-computed series, the fixture, dedupe, cooldown, expiry, and the
