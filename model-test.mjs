@@ -517,7 +517,7 @@ try {
       const rr2 = renovationReturn(d2, m2);
       return { applicable: rr.applicable, irrWith: rr.irrWith, irr: m.irrPct, irrWithout: rr.irrWithout, bare: bare.irrPct,
                recovered0: rr.valueRecovered, payback0: rr.paybackYears,
-               uplift: rr2.rentUpliftAnnual, expected: m2.effectiveRent * (1 - 1 / 1.2), recovered50: rr2.valueRecovered, reno: d.renovation };
+               uplift: rr2.rentUpliftAnnual, expected: m2.effectiveRent * 0.2, recovered50: rr2.valueRecovered, reno: d.renovation };
     })()`);
     if (!r.applicable) fail('the default deal budgets a renovation and the return card says it does not', r);
     else if (Math.abs(r.irrWith - r.irr) > 1e-12 || Math.abs(r.irrWithout - r.bare) > 1e-12) fail('the renovation return does not reduce to the model with and without the spend', r);
@@ -556,6 +556,95 @@ try {
     if (!okRound) fail('the address does not round-trip the deal', r);
     else if (r.junkChanged || r.junkPrice !== 610000 || r.junkEv !== 'verified' || r.junkCat !== 'company') fail('the address parser accepted a key, a type or a value the default deal does not know', r);
     else ok(`the address round-trips the deal in ${r.len} characters and refuses what it does not know`, r);
+  }
+
+  /* 29 — a loan whose instalment cannot be computed is not an unlevered deal:
+         no monthly position, no cover, no rate of return — never the figures
+         of a loan that is never serviced and never repaid. */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel({ ...window.__T.base, tenureYears: 0 });
+      const cash = dealModel({ ...window.__T.base, downPct: 100 });
+      return { loan: m.loan, inst: m.instalment, cf: m.cashflowMonthly, irr: m.irrPct, dscr: m.dscr,
+               hs: (m.holdVsSell || []).filter(e => e.irrPct != null).length, cashLoan: cash.loan, cashCf: cash.cashflowMonthly, cashIrr: cash.irrPct };
+    })()`);
+    if (!(r.loan > 0) || r.inst !== null || r.cf !== null || r.irr !== null || r.hs !== 0) fail('a loan with no computable instalment still reports a monthly position or a rate of return', r);
+    else if (!(Number.isFinite(r.cashCf))) fail('an all-cash purchase lost its monthly position — no loan is not an unknown loan', r);
+    else ok('a loan with no computable instalment reports no monthly position and no rate of return; an all-cash purchase keeps both', r);
+  }
+
+  /* 30 — the address parser never throws and takes numbers as written. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      let threw = null;
+      try { applyDealParam(d, 'price:%zz~rent:%E0%A4%A~foo:%'); } catch (e) { threw = e.message; }
+      const e = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      applyDealParam(e, 'price:~holdYears:0x10~rent: 12 ~downPct:1e1~evidence.constructor:user~evidence.rent:user~reserveMonths:6');
+      return { threw, price: d.price, rent: d.rent, e: { price: e.price, hold: e.holdYears, rent: e.rent, down: e.downPct, ctor: Object.prototype.hasOwnProperty.call(e.evidence, 'constructor'), evRent: e.evidence.rent, reserve: e.reserveMonths } };
+    })()`);
+    const def = r.e;
+    if (r.threw) fail('a malformed escape in the address throws out of the render', r);
+    else if (def.price !== 572000 || def.hold !== 10 || def.rent !== 1850 || def.down !== 10) fail('the address parser accepted a number that is not digits as written', r);
+    else if (def.ctor || def.evRent !== 'user') fail('the address parser accepted an evidence grade for a field the deal does not have', r);
+    else if (def.reserve !== 6) fail('the reserve months do not travel in the address', r);
+    else ok('the address parser skips malformed escapes, takes numbers only as written, grades only the deal\'s own fields, and carries the reserve', r);
+  }
+
+  /* 31 — a link to a deal is that deal: opened over a browser that holds its
+         own, it replaces it whole and keeps the old one to restore; opened
+         over itself, it changes nothing. */
+  {
+    const r = await evaluate(`(async () => {
+      const own = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: { flood: 'no' }, touched: {}, renovation: 80000, rent: 3000 };
+      own.evidence.rent = 'verified';
+      State.deal = own; store.write('deal', own);
+      const sender = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, price: 600000, rent: 1850 };
+      const link = '/property/calculator?city=kuching&d=' + encodeURIComponent(dealToParam(sender));
+      navigate(link); await new Promise(res => setTimeout(res, 300));
+      const got = { price: State.deal.price, rent: State.deal.rent, reno: State.deal.renovation, ev: State.deal.evidence.rent, checks: Object.keys(State.deal.checks || {}).length };
+      const kept = store.read('dealBeforeLink', null);
+      const restored = restoreDealBeforeLink();
+      const after = { reno: State.deal.renovation, rent: State.deal.rent };
+      /* Our own address again, after a reload: nothing replaced. */
+      const self = '/property/calculator?' + new URLSearchParams(location.search).toString();
+      store.write('dealBeforeLink', null);
+      navigate('/property/opportunities'); await new Promise(res => setTimeout(res, 150));
+      navigate(self); await new Promise(res => setTimeout(res, 300));
+      const selfKept = store.read('dealBeforeLink', null);
+      return { got, keptReno: kept?.renovation, restored, after, selfKept: !!selfKept, selfReno: State.deal.renovation };
+    })()`);
+    if (r.got.price !== 600000 || r.got.reno !== 25000 || r.got.rent !== 1850 || r.got.ev === 'verified' || r.got.checks !== 0) fail('a shared link is still laid over the recipient\'s own deal', r);
+    else if (r.keptReno !== 80000 || !r.restored || r.after.reno !== 80000) fail('the recipient\'s own deal is not kept and restorable', r);
+    else if (r.selfKept || r.selfReno !== 80000) fail('reopening one\'s own address replaced the deal', r);
+    else ok('a shared link shows the sender\'s deal whole, keeps the recipient\'s to restore, and one\'s own address changes nothing', r);
+  }
+
+  /* 32 — an edit on /property survives the next render (the address used to
+         read the stale deal back over it). */
+  {
+    const r = await evaluate(`(async () => {
+      navigate('/property'); await new Promise(res => setTimeout(res, 300));
+      State.deal.rent = 2345; saveDeal(); render(); await new Promise(res => setTimeout(res, 100));
+      render(); await new Promise(res => setTimeout(res, 100));
+      return { rent: State.deal.rent, stored: store.read('deal', {}).rent, inAddress: /rent%3A2345|rent:2345/.test(location.search) };
+    })()`);
+    if (r.rent !== 2345 || r.stored !== 2345 || !r.inAddress) fail('an edit on /property is reverted by the address on the next render', r);
+    else ok('an edit on /property survives the next render and is written to the address', r);
+  }
+
+  /* 33 — a register record is modelled on what it records: its own checklist,
+         and without a price the calculator's price stands in rather than 0. */
+  {
+    const r = await evaluate(`(() => {
+      State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: { flood: 'no', title: 'yes' }, touched: {} };
+      const unpriced = candidateModel({ name: 'x', deal: { price: 0, rent: 1500 } });
+      const priced = candidateModel({ name: 'y', deal: { price: 450000, rent: 1500 } });
+      return { upPrice: unpriced.d.price, upCash: unpriced.m.safeCashRequired, upChecks: Object.keys(unpriced.d.checks).length, pPrice: priced.d.price, pChecks: Object.keys(priced.d.checks).length };
+    })()`);
+    if (r.upPrice !== 572000 || !(r.upCash > 0)) fail('an unpriced record is modelled off a price of 0', r);
+    else if (r.upChecks !== 0 || r.pChecks !== 0) fail('the calculator\'s checklist answers leak into register records', r);
+    else ok('a register record is modelled on its own checklist, and an unpriced one on the calculator\'s price rather than 0', r);
   }
 
 } catch (e) {

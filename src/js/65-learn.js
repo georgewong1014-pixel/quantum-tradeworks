@@ -201,7 +201,7 @@ function learnData() {
      absence; the screener's cells and the drawer behind each use exactly these
      words, from the same registry this table reads. */
   const lg = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  lg.append(cardHead('How every figure is labelled', 'A number carries one of five kinds; an absence carries one of five reasons. The screener cell, the drawer behind it and the company page read the same registry, so they cannot disagree about one figure.'));
+  lg.append(cardHead('How every figure is labelled', 'A number carries one of five kinds; an absence carries one of five reasons. The screener cell and the drawer behind it read the same registry, so they cannot disagree about one figure.'));
   const legendTable = (heads, rows) => {
     const tw = el('div', { class: 'tablewrap', style: 'margin-bottom:var(--sm)' });
     const t = el('table', { class: 'dt' });

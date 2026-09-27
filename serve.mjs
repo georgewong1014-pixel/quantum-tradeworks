@@ -67,8 +67,11 @@ const MIME = {
 };
 
 async function resolveTarget(pathname) {
-  // Contain every request inside ROOT.
-  const decoded = decodeURIComponent(pathname.split('?')[0]);
+  // Contain every request inside ROOT. A malformed percent sequence (/%zz, or
+  // a link truncated mid-escape) used to throw here, outside any handler, and
+  // take the whole server down for every other tab — now it is a plain 404.
+  let decoded;
+  try { decoded = decodeURIComponent(pathname.split('?')[0]); } catch { return null; }
   const candidate = normalize(join(ROOT, decoded));
   if (candidate !== ROOT && !candidate.startsWith(ROOT + sep)) return null;
 
@@ -102,8 +105,23 @@ async function resolveTarget(pathname) {
   }
 }
 
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
+/* Every request is contained. An async handler that throws is an unhandled
+   rejection, and on Node 22+ that ends the process — one bad request (a
+   malformed Host header, an unreadable vercel.json mid-edit) took the server
+   down for every open tab and every test harness using it. */
+const server = createServer((req, res) => {
+  handle(req, res).catch((err) => {
+    try {
+      if (!res.headersSent) res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end(`500 ${err?.message || err}`);
+    } catch { /* the socket is already gone */ }
+  });
+});
+
+async function handle(req, res) {
+  let url;
+  try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
+  catch { res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' }); res.end('400 Bad Request'); return; }
   const file = await resolveTarget(url.pathname);
 
   if (!file) {
@@ -125,7 +143,7 @@ const server = createServer(async (req, res) => {
     res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(`500 ${err.message}`);
   }
-});
+}
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

@@ -351,7 +351,7 @@ const META = {
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
-  scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on which completed daily bar. Nothing ranked, nothing delivered.',
+  scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on the last daily bar your history holds. Nothing ranked, nothing delivered.',
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
   plans:     'Plans and pricing for Quantum Tradeworks research and property reports.',
 };

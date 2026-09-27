@@ -213,6 +213,53 @@ const exDoc = JSON.parse(await readFile(join(ROOT, 'scanner/setups.example.json'
 const vex = validateSetups(exDoc, E);
 check(vex.problems.length === 0 && vex.setups.length === exDoc.setups.length, 'the committed example setups all validate', vex.problems);
 
+/* ONE READING OF EVERY NUMBER. An omitted period is the indicator's default
+   everywhere — series, label, bars needed — never 1; a quoted number is the
+   number; null, true and '' are not numbers and are refused with the reason.
+   A missing volume is not a volume of nought. A cooldown survives the
+   previous alert's bar leaving the history. (Review findings 1–4, 14, 15.) */
+{
+  const up = mkBars(Array.from({ length: 30 }, (_, i) => 100 + i));
+  const sOmit = E.scanIndicatorSeries({ indicator: 'sma' }, up), s20 = E.scanIndicatorSeries({ indicator: 'sma', n: 20 }, up);
+  check(sOmit.label === 'SMA20' && sOmit.needs === 20 && sOmit.series.findIndex(v => v != null) === 19 && near(sOmit.series[29], s20.series[29]),
+    'an omitted SMA period is 20 in the series, the label and the bars needed — not a 1-bar average equal to the close', { label: sOmit.label, needs: sOmit.needs, first: sOmit.series.findIndex(v => v != null) });
+  const rOmit = E.scanIndicatorSeries({ indicator: 'rsi' }, up);
+  check(rOmit.label === 'RSI14' && rOmit.needs === 15, 'an omitted RSI period is 14 and needs 15 bars', { label: rOmit.label, needs: rOmit.needs });
+  const short = E.scanRule({ left: { indicator: 'price' }, op: 'above', right: { indicator: 'sma' } }, mkBars([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+  check(short.met === null && /SMA20 needs 20 bars; 10 held/.test(short.text), 'a default-period SMA on 10 bars is untested, not failed', short);
+  const trend = mkBars(Array.from({ length: 60 }, (_, i) => 100 + Math.sin(i / 4) * 3 + i * 0.2));
+  const mStr = E.scanIndicatorSeries({ indicator: 'macd', fast: '12', slow: '26', signal: '9', field: 'signal' }, trend);
+  const mNum = E.scanIndicatorSeries({ indicator: 'macd', fast: 12, slow: 26, signal: 9, field: 'signal' }, trend);
+  check(near(mStr.series[59], mNum.series[59]) && mStr.needs === 34 && mNum.needs === 34, 'quoted MACD periods are read as numbers — the same series and the same bars needed', { str: mStr.series[59], num: mNum.series[59], needs: mStr.needs });
+  const mLine = E.scanIndicatorSeries({ indicator: 'macd' }, trend);
+  check(mLine.needs === 26 && mLine.label === 'MACD line', 'the MACD line needs the slow average only — 26 bars, not 34', { needs: mLine.needs, label: mLine.label });
+  const vb = mkBars(Array.from({ length: 25 }, () => 10), Array.from({ length: 25 }, () => 1000));
+  const x3 = E.scanIndicatorSeries({ indicator: 'volume_avg', n: 20, multiplier: '3' }, vb);
+  check(near(x3.series[24], 3000) && x3.label === '3× 20-bar average volume', 'a quoted multiplier is applied, and the label says so', { value: x3.series[24], label: x3.label });
+  const nv = E.scanRule({ left: { indicator: 'price' }, op: 'above', right: { value: null } }, mkBars([1, 2, 3]));
+  check(nv.met === null && /no value/.test(nv.text), 'a null right-hand value is untested, never compared as 0', nv);
+  const nr = E.scanRule({ left: { indicator: 'price' }, op: 'between', range: [null, 70] }, mkBars([1, 50]));
+  check(nr.met === null && /two numbers/.test(nr.text), 'a null range bound is untested, never read as 0', nr);
+  const gapVol = Array.from({ length: 25 }, () => 1000); gapVol[22] = null;
+  const va = E.scanRule({ left: { indicator: 'volume' }, op: 'above', right: { indicator: 'volume_avg', n: 20 } }, mkBars(Array.from({ length: 25 }, () => 10), gapVol));
+  check(va.met === null && /not recorded for 1 of the last 20 bars/.test(va.text), 'an average volume over a window with an unrecorded bar is untested, with the count', va);
+  const vv = E.scanValidate({ setups: [
+    { ...setup, id: 'v-null', rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: null } }] },
+    { ...setup, id: 'v-range', rules: [{ left: { indicator: 'rsi', n: 14 }, op: 'between', range: [null, 70] }] },
+    { ...setup, id: 'v-bool', rules: [{ left: { indicator: 'volume' }, op: 'above', right: { indicator: 'volume_avg', multiplier: true } }] },
+    { ...setup, id: 'v-blank', rules: [{ left: { indicator: 'sma', n: '' }, op: 'above', right: { value: 1 } }] },
+    { ...setup, id: 'v-ok', rules: [{ left: { indicator: 'sma' }, op: 'above', right: { value: '1.5' } }] },
+  ] });
+  check(vv.setups.map(s => s.id).join() === 'v-ok' && vv.problems.length === 4, 'null values and bounds, a boolean multiplier and a blank period are refused; an omitted period and a quoted value pass', vv.problems);
+  check(JSON.stringify(validateSetups(exDoc, E)) === JSON.stringify(E.scanValidate(exDoc)), 'the worker and the page validate with the same function');
+  /* The previous alert's bar is gone from the history; the cooldown still holds. */
+  const hGone = JSON.parse(JSON.stringify(history));
+  const prevBar = dates[dates.length - 3];
+  delete hGone.series.MATCH[prevBar]; delete hGone.volume.MATCH[prevBar];
+  const cdGone = E.scanRun([always], hGone, { existing: [{ key: `always|MATCH|daily|${prevBar}`, setupId: 'always', symbol: 'MATCH', bar: prevBar }] });
+  check(cdGone.alerts.length === 0 && /cooldown/.test(cdGone.skipped[0]?.why || ''), 'the cooldown holds when the previous alert\'s bar has left the history', cdGone.skipped);
+}
+
 /* The two data files are personal and git-ignored; CI also checks this, but a
    local run should say so before a push does. */
 try {

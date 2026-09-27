@@ -1114,8 +1114,11 @@ const LINE_LABEL = { rev:'revenue', ebit:'operating profit (EBIT)', ni:'net inco
   eq:'shareholders’ equity', debt:'total debt', cash:'cash and equivalents', sh:'shares in issue', dps:'dividend per share',
   price:'price', history:'price history' };
 const LINE_COL = { rev:F.REV, ebit:F.EBIT, ni:F.NI, ocf:F.OCF, capex:F.CAPEX, eq:F.EQ, debt:F.DEBT, cash:F.CASH, sh:F.SH, dps:F.DPS };
-/* The ingest names debt as two lines and the tuple sums them. */
-const LINE_PROV = { debt:['debtL','debtC'] };
+/* Where the ingest fills one tuple column from more than one line. Debt is
+   the sum of the non-current and current lines; the share count is the
+   year-end instant where the filer reports one, and the weighted diluted
+   count where it does not — the ingest's own order (sh ?? shWtd). */
+const LINE_PROV = { debt: { keys: ['debtL', 'debtC'], mode: 'sum' }, sh: { keys: ['sh', 'shWtd'], mode: 'first' } };
 const FIELD_INPUTS = {
   roic:['ebit','eq','debt','cash'], om:['ebit','rev'], nm:['ni','rev'], fcfm:['ocf','capex','rev'], roe:['ni','eq'], cashconv:['ocf','ni'],
   rev5:['rev'], eps5:['ni','sh'], fcf5:['ocf','capex'], dps5:['dps'],
@@ -1130,6 +1133,37 @@ const FIELD_INPUTS = {
    so they are not in INAPPLICABLE, whose length the coverage figure prints. */
 const ALSO_INAPPLICABLE = { bank: ['netGearing'] };
 const TYPE_NOUN = { bank: 'bank', insurer: 'insurer', early: 'pre-profit company', reit: 'REIT' };
+/* Why a measure whose inputs are all present still has no number. Each is the
+   guard in derive() for that measure, in words. */
+const NM_WHY = {
+  pe: 'Earnings per share are zero or negative, so a price-to-earnings multiple has no meaning.',
+  pb: 'Book value per share is zero or negative.',
+  pfcf: 'Free cash flow per share is zero or negative.',
+  evebit: 'Operating profit (EBIT) is zero or negative, so enterprise value cannot be expressed as a multiple of it.',
+  fcfy: 'Market capitalisation could not be formed, so there is nothing to divide free cash flow by.',
+  mcap: 'The share count is zero or absent, so a price cannot be turned into a market capitalisation.',
+  om: 'Revenue is zero or negative.', nm: 'Revenue is zero or negative.', fcfm: 'Revenue is zero or negative.',
+  roe: 'Average shareholders’ equity over the last two years is zero or negative, so a return on it has no meaning.',
+  roic: 'Invested capital (equity plus debt less cash) is zero or negative.',
+  cashconv: 'Net income is zero or negative, or operating cash flow exceeds fifteen times it — a ratio that measures a one-off, not conversion.',
+  rev5: 'The starting year’s revenue is zero or negative, so a compound growth rate has no meaning.',
+  eps5: 'The starting year’s earnings per share are zero or negative, so a compound growth rate has no meaning.',
+  fcf5: 'The starting year’s free cash flow is zero or negative, so a compound growth rate has no meaning.',
+  dps5: 'No dividend was paid in the starting year, so a compound growth rate has no meaning.',
+  ndEbit: 'Operating profit (EBIT) is zero or negative, so debt cannot be expressed as years of it.',
+  de: 'Shareholders’ equity is zero or negative, so debt cannot be expressed against it.',
+  netGearing: 'Shareholders’ equity is zero or negative, so gearing against it has no meaning.',
+  payout: 'Earnings per share are zero or negative, so a payout ratio has no meaning.',
+  cashPayout: 'Free cash flow is zero or negative, so dividends cannot be expressed as a share of it.',
+  reinv: 'Operating cash flow is zero or negative.',
+  dilution: 'The first share count in the window is zero or absent.', buyback: 'The first share count in the window is zero or absent.',
+  epsVol: 'Fewer than two year-on-year changes in net income can be measured.',
+  revDD: 'Fewer than two years of revenue are held.',
+  ocfPosYears: 'No year of operating cash flow is held.',
+  qscore: 'Too few of the quality pillar’s inputs are computable to score it.',
+  vscore: 'Too few of the valuation inputs are computable to score them — every one of them needs a price.',
+  mosBase: 'The base-case model produced no estimate for this company — its model pack needs inputs that are absent — so there is no difference to a price.',
+};
 
 /* THE STATUS OF ONE FIGURE. Present: which of the five kinds it is. Absent:
    which of the five reasons, with the sentence for this company — the line
@@ -1145,7 +1179,9 @@ function metricStatus(r, k) {
   }
   const why = (reason, text) => ({ id: 'unavailable', available: false, reason, label: ABSENCE[reason].short, text });
   const skip = [...(INAPPLICABLE[c?.type] || []), ...(ALSO_INAPPLICABLE[c?.type] || [])];
-  if (skip.includes(k)) return why('not applicable', f?.miss || `Not meaningful for a ${TYPE_NOUN[c.type] || c.type}. Excluded from the count of applicable measures rather than imputed.`);
+  if (skip.includes(k)) return why('not applicable', c.type === 'bank' && f?.miss
+    ? f.miss
+    : `Not meaningful for a ${TYPE_NOUN[c.type] || c.type}. Excluded from the count of applicable measures rather than imputed.`);
   if (k === 'icov') return why('not reported', f?.miss || 'Interest expense is not carried in the statement tuple, so interest cover is reported missing for every company, never estimated.');
   const W = [
     [['om', 'nm', 'fcfm'], m.revenueSuspect],
@@ -1156,17 +1192,16 @@ function metricStatus(r, k) {
       : null],
   ];
   for (const [keys, text] of W) if (text && keys.includes(k)) return why('withheld', text);
-  if (inputs.includes('price') && !isNum(c?.px?.p)) return why('needs a price', 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.');
+  const lastRow = c?.fin?.[c.fin.length - 1] || [];
+  const missingLines = inputs.filter(l => LINE_COL[l] != null && !isNum(lastRow[LINE_COL[l]]));
+  const noPrice = inputs.includes('price') && !isNum(c?.px?.p);
+  if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in the latest stored statements${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
+  if (noPrice) return why('needs a price', 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.');
   if (inputs.includes('history')) {
     const need = k === 'sma200d' ? 200 : 252;
     return why('needs a price', `Needs ${need} observed closes; ${m.pxPoints || 0} held. Computed only from price history you imported or captured.`);
   }
-  /* A priced company whose valuation produced nothing: the model, not a line. */
-  if (k === 'mosBase' || k === 'vscore') return why('not meaningful', 'The base-case model produced no estimate for this company — its model pack needs inputs that are absent — so there is no difference to a price and no valuation evidence to score.');
-  const last = c?.fin?.[c.fin.length - 1] || [];
-  const missing = inputs.filter(l => LINE_COL[l] != null && !isNum(last[LINE_COL[l]]));
-  if (missing.length) return why('not reported', `${missing.map(l => LINE_LABEL[l]).join(', ')} ${missing.length === 1 ? 'is' : 'are'} not in the latest stored statements${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
-  return why('not meaningful', f?.miss || 'Every input is present, but the ratio is not meaningful on them — a zero or negative denominator, or a growth base at or below zero.');
+  return why('not meaningful', NM_WHY[k] || 'Every input is present, but the ratio is not meaningful on them — a zero or negative denominator, or a growth base at or below zero.');
 }
 
 /* The drawer behind any number, or any absence: what it is, how it was
@@ -1176,8 +1211,11 @@ function openSourceDrawer(r, f) {
   const { c, m } = r;
   const v = m[f.k];
   const st = metricStatus(r, f.k);
-  const prev = (() => {
-    /* Same metric one year earlier, where the series supports it. */
+  /* Same metric one year earlier, where the series supports it — and not for a
+     measure that needs a price or the reader's price history: re-deriving it
+     on last year's statements keeps today's price, which is no period at all. */
+  const priceBased = (FIELD_INPUTS[f.k] || []).some(l => l === 'price' || l === 'history');
+  const prev = priceBased ? null : (() => {
     try { const d2 = derive({ ...c, fin: c.fin.slice(0, -1) }); return d2.m[f.k]; } catch { return null; }
   })();
 
@@ -1196,12 +1234,14 @@ function openSourceDrawer(r, f) {
     [st.available ? 'What it is' : 'Why it is absent', st.text],
     ['Formula', f.formula],
     ['Reporting period', `FY${fy}${fyEndOf(c, fy) ? ` (ended ${fmtFyEnd(fyEndOf(c, fy))})` : ''}, as reported`],
-    ['Prior period', isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev, r)}` : 'not computable'],
+    ['Prior period', priceBased ? 'not shown — this measure needs the price on the day, and no price history for the prior year is held' : isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev, r)}` : 'not computable'],
     ['Currency', c.ccy],
     ['Source', c.real
       ? (c.personal ? `Annual statements you supplied — personal research, retrieved ${c.retrieved}` : `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`)
       : 'Synthetic sample statement — not a filing'],
-    ['Adjustments', 'None. The figure is computed directly from the stored lines.'],
+    ['Transformation', c.real && !c.personal
+      ? 'Filed values scaled to billions. Debt is the non-current plus the current line. Where a filer reports no year-end share count, the weighted diluted count stands in. The latest-filed value for each year is used, so a restatement replaces the original. Nothing else is adjusted.'
+      : c.real ? 'Statements as supplied, scaled to billions. Nothing else is adjusted.' : 'Synthetic lines. Nothing is adjusted.'],
     ['Data completeness', `${m.coverage}% of applicable measures are computable for this company`],
     ['Model version', MODEL_VERSION],
     ['Computed', `at page load, from ${dataDateLabel(c)}`],
@@ -1243,10 +1283,12 @@ function openSourceDrawer(r, f) {
         present = isNum(x);
         val = present ? (l === 'sh' ? `${fmtNum(x, 3)}bn shares` : l === 'dps' ? `${fmtNum(x, 3)} per share` : `${fmtNum(x, 3)}bn ${c.ccy}`) : 'not reported';
         period = `FY${fy}`;
-        if (c.real && c.provenance) {
-          const tags = (LINE_PROV[l] || [l]).map(pk => c.provenance[pk]).filter(Boolean)
-            .map(p => (p.byYear && p.byYear[fy]) || p.concept).filter(Boolean);
-          src = tags.length ? tags.join(' + ') : 'tag not recorded';
+        if (c.real && c.provenance && typeof c.provenance === 'object') {
+          const spec = LINE_PROV[l] || { keys: [l], mode: 'first' };
+          const tagOf = (pk) => c.provenance[pk]?.byYear?.[fy] || c.provenance[pk]?.byYear?.[String(fy)] || null;
+          const tags = spec.mode === 'sum' ? spec.keys.map(tagOf).filter(Boolean) : [spec.keys.map(tagOf).find(Boolean)].filter(Boolean);
+          src = tags.length ? tags.join(' + ') : `no tag recorded for FY${fy}`;
+          if (l === 'sh' && !tagOf('sh') && tagOf('shWtd')) src += ' (weighted diluted — no year-end count filed)';
         } else src = c.real ? 'statements you supplied' : 'synthetic sample';
       }
       tb.append(el('tr', {}, [

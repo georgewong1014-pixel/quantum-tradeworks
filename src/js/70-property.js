@@ -441,6 +441,11 @@ const PROPERTY_DEFAULT_DEAL = {
      to nought — which is what the model always assumed, silently: the rent
      stood whole and the spend vanished at the sale. Stated now, and movable. */
   renoRentUpliftPct:0, renoValueRecoveryPct:0,
+  /* Written by the calculator and read by the model, so they belong in the
+     default deal: without a default the shared address could not carry them,
+     and a recipient saw a different reserve, deposit and own use. The values
+     are what the model already assumed when they were absent. */
+  reserveMonths:3, bookingDepositPaid:0, ownUseWeeks:0,
   /* Which value a lender lends against. The lower of price and valuation is
      the common default and not a universal rule; replace it with the selected
      lender's actual policy when one is known. */
@@ -496,7 +501,10 @@ State.deal = store.read('deal', null) || {
    undoing the reader's last change. */
 const saveDeal = () => {
   store.write('deal', State.deal);
-  if (location.pathname.endsWith('/property/calculator')) syncPropertyUrl(State.deal);
+  /* /property serves the calculator as well as /property/calculator. Syncing
+     on one path only left /property's address stale, and the next render
+     read the stale deal back over the edit just made. */
+  if (State.view === 'property') syncPropertyUrl(State.deal);
 };
 
 /* ---------------------------------------------------------- shareable state */
@@ -556,7 +564,11 @@ function applyDealParam(d, str) {
   for (const part of String(str).split('~')) {
     const i = part.indexOf(':');
     if (i < 1) continue;
-    const k = part.slice(0, i), raw = decodeURIComponent(part.slice(i + 1));
+    const k = part.slice(0, i);
+    /* A truncated or hand-edited link can carry a bad escape; it used to
+       throw out of the render and leave the page blank. Skip the part. */
+    let raw;
+    try { raw = decodeURIComponent(part.slice(i + 1)); } catch { continue; }
     if (k === 'touched') {
       d.touched = d.touched || {};
       raw.split(',').filter(x => SHARE_KEYS.includes(x)).forEach(x => { if (!d.touched[x]) { d.touched[x] = true; changed = true; } });
@@ -564,7 +576,8 @@ function applyDealParam(d, str) {
     }
     if (k.startsWith('evidence.')) {
       const ek = k.slice(9);
-      if (!SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
+      /* Evidence is graded for the deal's own fields, and only those. */
+      if (!Object.prototype.hasOwnProperty.call(PROPERTY_DEFAULT_DEAL, ek) || !SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
       d.evidence = d.evidence || {};
       if (d.evidence[ek] !== raw) { d.evidence[ek] = raw; changed = true; }
       continue;
@@ -573,13 +586,57 @@ function applyDealParam(d, str) {
     const def = PROPERTY_DEFAULT_DEAL[k];
     let v;
     if (raw === 'null') v = null;
-    else if (typeof def === 'number' || (def === null && /^-?\d+(\.\d+)?$/.test(raw))) { v = Number(raw); if (!Number.isFinite(v)) continue; }
+    /* A number is digits as written — not '' (which Number reads as 0), not
+       '0x10', not ' 12 ', not '1e3'. */
+    else if ((typeof def === 'number' || def === null) && /^-?\d+(\.\d+)?$/.test(raw)) v = Number(raw);
+    else if (typeof def === 'number') continue;
     else if (typeof def === 'boolean') v = raw === 'true';
     else if (SHARE_STR.test(raw)) v = raw;
     else continue;
     if (d[k] !== v) { d[k] = v; changed = true; }
   }
   return changed;
+}
+
+/* THE ADDRESS IS READ WHEN IT ARRIVES, NOT ON EVERY RENDER.
+   Every render used to apply the address to the deal. The address is rewritten
+   after each edit on /property/calculator, so that was harmless there — but
+   /property never rewrote it, and a restored or reset deal was overwritten by
+   whatever the address still said. The address now counts as new only when it
+   differs from the one this page last wrote or read: a pasted link, a
+   bookmark, Back to an older state.
+
+   And a link to a deal is that deal. The link carries only the figures that
+   differ from the default, so it used to be laid over whatever this browser
+   held — a recipient saw the sender's changes mixed with their own. Opening a
+   link now starts from the default deal, applies the link, and keeps the
+   reader's previous deal to restore. */
+let propertyUrlSeen = null;
+function arrivePropertyUrl() {
+  if (location.search === propertyUrlSeen) return { changed: false };
+  propertyUrlSeen = location.search;
+  const p = new URLSearchParams(location.search);
+  const incoming = p.get('d');
+  if (!incoming) return { changed: readPropertyUrl(State.deal) };
+  /* Our own address, reloaded or returned to: nothing to apply. */
+  if (incoming === dealToParam(State.deal)) return { changed: readPropertyUrl(State.deal) };
+  const fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+  readPropertyUrl(fresh);
+  if (dealToParam(fresh) === dealToParam(State.deal) && fresh.city === State.deal.city) return { changed: false };
+  const previous = State.deal;
+  store.write('dealBeforeLink', previous);
+  State.deal = fresh;
+  store.write('deal', fresh);
+  return { changed: true, replaced: true };
+}
+function restoreDealBeforeLink() {
+  const prev = store.read('dealBeforeLink', null);
+  if (!prev) return false;
+  State.deal = prev;
+  store.write('deal', prev);
+  store.write('dealBeforeLink', null);
+  syncPropertyUrl(prev);
+  return true;
 }
 
 function syncPropertyUrl(d) {
@@ -591,8 +648,10 @@ function syncPropertyUrl(d) {
   if (dp) p.set('d', dp); else p.delete('d');
   const q = p.toString();
   const next = location.pathname + (q ? `?${q}` : '');
-  if (next === location.pathname + location.search) return;
-  history.replaceState(history.state, '', next);
+  if (next !== location.pathname + location.search) history.replaceState(history.state, '', next);
+  /* What this page wrote is what it has seen: the next render must not read
+     it back as a new arrival. */
+  propertyUrlSeen = location.search;
 }
 
 /* Applies a link's parameters to the deal. Returns true when something actually

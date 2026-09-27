@@ -210,7 +210,7 @@ and a comparison against putting the same cash into equities.
 
 **Trade-setup scanner** (`/my/scanner`) — conditions you define, evaluated on
 price history you supplied, producing a record of which conditions held on
-which completed daily bar. Every clause of that sentence is a boundary. The
+which daily bar — the last one your history holds, so run the capture after the close. Every clause of that sentence is a boundary. The
 rules are yours: nothing is proposed and nothing is ranked. The data is yours:
 `data/price-history.json`, built from your own screen under your own
 subscription — no feed is licensed to this product, so it scans nothing else

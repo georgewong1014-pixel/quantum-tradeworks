@@ -1739,7 +1739,10 @@ VIEWS.portfolio = () => {
     xa.append(upsell('Combine shares and property', 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
   } else {
     const dm = dealModel(State.deal);
-    const propValue = toBase(dm.exitValue / Math.pow(1 + State.deal.apprecPct / 100, State.deal.holdYears), 'MYR');
+    /* The carrying value is the price. Back-computing it from the exit value
+       stopped being the price when the exit value began to include the
+       recovered share of the renovation. */
+    const propValue = toBase(num0(State.deal.price), 'MYR');
     const propLoan = toBase(dm.loan, 'MYR');
     const propEquity = Math.max(0, propValue - propLoan);
     const netWorth = totalVal + propEquity;

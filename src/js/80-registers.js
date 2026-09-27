@@ -83,7 +83,7 @@ const CAPABILITY_REGISTER = [
     now:'Multi-timeframe trend regime, first-tranche readiness against your own rules, screenshot confidence, template and derivative hard gates, from chart evidence you record.',
     gate:'Phase 1 only. It does not read your screenshot — OCR and vision extraction are phase 2. No indicator here has been backtested on point-in-time data, so no rule is claimed to be effective.' },
   { name:'Trade-setup scanner', status:'data-gated', path:'/my/scanner',
-    now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on which completed bar. A watchlist can be its universe, snapshotted into the setup. Never ranked, never delivered, never claimed to work.',
+    now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on the last daily bar your history holds. A watchlist can be its universe, snapshotted into the setup. Never ranked, never delivered, never claimed to work.',
     gate:'Personal lane only: it reads the price history you built under your own subscription, so the deployed site has nothing to scan. Offering it to anyone else needs a licensed end-of-day feed and written classification, and neither exists.' },
   { name:'Sarawak Economy Watch', status:'data-gated', path:'/discover/sarawak',
     gate:'11 companies identified with price history. Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.' },
@@ -157,7 +157,16 @@ const saveOpportunities = () => store.write('opportunities', State.opportunities
    calculator's own defaults, so a register entry and a calculator run cannot
    diverge — one engine, two front doors. */
 function candidateModel(o) {
-  const d = { ...State.deal, ...o.deal, touched: o.touched || {}, evidence: o.evidence || {} };
+  /* A record states what it states. Its checklist answers are its own — the
+     calculator's answers used to be attributed to every record, raising their
+     financeability — and a price it does not state is absent: a price of 0
+     modelled a free property, with cash, cover and a rate of return off
+     nothing. Without one the calculator's price stands in, as the table says. */
+  const od = { ...(o.deal || {}) };
+  const unpriced = !(num0(od.price) > 0);
+  if (unpriced) delete od.price;
+  if (!(num0(od.sqft) > 0)) delete od.sqft;
+  const d = { ...State.deal, ...od, touched: o.touched || {}, evidence: o.evidence || {}, checks: o.checks || {} };
   const m = dealModel(d);
   return { d, m, grade: propertyGrade(d, m), finance: propertyFinanceability(d, m) };
 }

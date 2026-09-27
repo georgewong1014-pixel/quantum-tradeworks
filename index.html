@@ -7501,7 +7501,7 @@ const META = {
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
-  scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on which completed daily bar. Nothing ranked, nothing delivered.',
+  scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on the last daily bar your history holds. Nothing ranked, nothing delivered.',
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
   plans:     'Plans and pricing for Quantum Tradeworks research and property reports.',
 };
@@ -9083,8 +9083,11 @@ const LINE_LABEL = { rev:'revenue', ebit:'operating profit (EBIT)', ni:'net inco
   eq:'shareholders’ equity', debt:'total debt', cash:'cash and equivalents', sh:'shares in issue', dps:'dividend per share',
   price:'price', history:'price history' };
 const LINE_COL = { rev:F.REV, ebit:F.EBIT, ni:F.NI, ocf:F.OCF, capex:F.CAPEX, eq:F.EQ, debt:F.DEBT, cash:F.CASH, sh:F.SH, dps:F.DPS };
-/* The ingest names debt as two lines and the tuple sums them. */
-const LINE_PROV = { debt:['debtL','debtC'] };
+/* Where the ingest fills one tuple column from more than one line. Debt is
+   the sum of the non-current and current lines; the share count is the
+   year-end instant where the filer reports one, and the weighted diluted
+   count where it does not — the ingest's own order (sh ?? shWtd). */
+const LINE_PROV = { debt: { keys: ['debtL', 'debtC'], mode: 'sum' }, sh: { keys: ['sh', 'shWtd'], mode: 'first' } };
 const FIELD_INPUTS = {
   roic:['ebit','eq','debt','cash'], om:['ebit','rev'], nm:['ni','rev'], fcfm:['ocf','capex','rev'], roe:['ni','eq'], cashconv:['ocf','ni'],
   rev5:['rev'], eps5:['ni','sh'], fcf5:['ocf','capex'], dps5:['dps'],
@@ -9099,6 +9102,37 @@ const FIELD_INPUTS = {
    so they are not in INAPPLICABLE, whose length the coverage figure prints. */
 const ALSO_INAPPLICABLE = { bank: ['netGearing'] };
 const TYPE_NOUN = { bank: 'bank', insurer: 'insurer', early: 'pre-profit company', reit: 'REIT' };
+/* Why a measure whose inputs are all present still has no number. Each is the
+   guard in derive() for that measure, in words. */
+const NM_WHY = {
+  pe: 'Earnings per share are zero or negative, so a price-to-earnings multiple has no meaning.',
+  pb: 'Book value per share is zero or negative.',
+  pfcf: 'Free cash flow per share is zero or negative.',
+  evebit: 'Operating profit (EBIT) is zero or negative, so enterprise value cannot be expressed as a multiple of it.',
+  fcfy: 'Market capitalisation could not be formed, so there is nothing to divide free cash flow by.',
+  mcap: 'The share count is zero or absent, so a price cannot be turned into a market capitalisation.',
+  om: 'Revenue is zero or negative.', nm: 'Revenue is zero or negative.', fcfm: 'Revenue is zero or negative.',
+  roe: 'Average shareholders’ equity over the last two years is zero or negative, so a return on it has no meaning.',
+  roic: 'Invested capital (equity plus debt less cash) is zero or negative.',
+  cashconv: 'Net income is zero or negative, or operating cash flow exceeds fifteen times it — a ratio that measures a one-off, not conversion.',
+  rev5: 'The starting year’s revenue is zero or negative, so a compound growth rate has no meaning.',
+  eps5: 'The starting year’s earnings per share are zero or negative, so a compound growth rate has no meaning.',
+  fcf5: 'The starting year’s free cash flow is zero or negative, so a compound growth rate has no meaning.',
+  dps5: 'No dividend was paid in the starting year, so a compound growth rate has no meaning.',
+  ndEbit: 'Operating profit (EBIT) is zero or negative, so debt cannot be expressed as years of it.',
+  de: 'Shareholders’ equity is zero or negative, so debt cannot be expressed against it.',
+  netGearing: 'Shareholders’ equity is zero or negative, so gearing against it has no meaning.',
+  payout: 'Earnings per share are zero or negative, so a payout ratio has no meaning.',
+  cashPayout: 'Free cash flow is zero or negative, so dividends cannot be expressed as a share of it.',
+  reinv: 'Operating cash flow is zero or negative.',
+  dilution: 'The first share count in the window is zero or absent.', buyback: 'The first share count in the window is zero or absent.',
+  epsVol: 'Fewer than two year-on-year changes in net income can be measured.',
+  revDD: 'Fewer than two years of revenue are held.',
+  ocfPosYears: 'No year of operating cash flow is held.',
+  qscore: 'Too few of the quality pillar’s inputs are computable to score it.',
+  vscore: 'Too few of the valuation inputs are computable to score them — every one of them needs a price.',
+  mosBase: 'The base-case model produced no estimate for this company — its model pack needs inputs that are absent — so there is no difference to a price.',
+};
 
 /* THE STATUS OF ONE FIGURE. Present: which of the five kinds it is. Absent:
    which of the five reasons, with the sentence for this company — the line
@@ -9114,7 +9148,9 @@ function metricStatus(r, k) {
   }
   const why = (reason, text) => ({ id: 'unavailable', available: false, reason, label: ABSENCE[reason].short, text });
   const skip = [...(INAPPLICABLE[c?.type] || []), ...(ALSO_INAPPLICABLE[c?.type] || [])];
-  if (skip.includes(k)) return why('not applicable', f?.miss || `Not meaningful for a ${TYPE_NOUN[c.type] || c.type}. Excluded from the count of applicable measures rather than imputed.`);
+  if (skip.includes(k)) return why('not applicable', c.type === 'bank' && f?.miss
+    ? f.miss
+    : `Not meaningful for a ${TYPE_NOUN[c.type] || c.type}. Excluded from the count of applicable measures rather than imputed.`);
   if (k === 'icov') return why('not reported', f?.miss || 'Interest expense is not carried in the statement tuple, so interest cover is reported missing for every company, never estimated.');
   const W = [
     [['om', 'nm', 'fcfm'], m.revenueSuspect],
@@ -9125,17 +9161,16 @@ function metricStatus(r, k) {
       : null],
   ];
   for (const [keys, text] of W) if (text && keys.includes(k)) return why('withheld', text);
-  if (inputs.includes('price') && !isNum(c?.px?.p)) return why('needs a price', 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.');
+  const lastRow = c?.fin?.[c.fin.length - 1] || [];
+  const missingLines = inputs.filter(l => LINE_COL[l] != null && !isNum(lastRow[LINE_COL[l]]));
+  const noPrice = inputs.includes('price') && !isNum(c?.px?.p);
+  if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in the latest stored statements${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
+  if (noPrice) return why('needs a price', 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.');
   if (inputs.includes('history')) {
     const need = k === 'sma200d' ? 200 : 252;
     return why('needs a price', `Needs ${need} observed closes; ${m.pxPoints || 0} held. Computed only from price history you imported or captured.`);
   }
-  /* A priced company whose valuation produced nothing: the model, not a line. */
-  if (k === 'mosBase' || k === 'vscore') return why('not meaningful', 'The base-case model produced no estimate for this company — its model pack needs inputs that are absent — so there is no difference to a price and no valuation evidence to score.');
-  const last = c?.fin?.[c.fin.length - 1] || [];
-  const missing = inputs.filter(l => LINE_COL[l] != null && !isNum(last[LINE_COL[l]]));
-  if (missing.length) return why('not reported', `${missing.map(l => LINE_LABEL[l]).join(', ')} ${missing.length === 1 ? 'is' : 'are'} not in the latest stored statements${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
-  return why('not meaningful', f?.miss || 'Every input is present, but the ratio is not meaningful on them — a zero or negative denominator, or a growth base at or below zero.');
+  return why('not meaningful', NM_WHY[k] || 'Every input is present, but the ratio is not meaningful on them — a zero or negative denominator, or a growth base at or below zero.');
 }
 
 /* The drawer behind any number, or any absence: what it is, how it was
@@ -9145,8 +9180,11 @@ function openSourceDrawer(r, f) {
   const { c, m } = r;
   const v = m[f.k];
   const st = metricStatus(r, f.k);
-  const prev = (() => {
-    /* Same metric one year earlier, where the series supports it. */
+  /* Same metric one year earlier, where the series supports it — and not for a
+     measure that needs a price or the reader's price history: re-deriving it
+     on last year's statements keeps today's price, which is no period at all. */
+  const priceBased = (FIELD_INPUTS[f.k] || []).some(l => l === 'price' || l === 'history');
+  const prev = priceBased ? null : (() => {
     try { const d2 = derive({ ...c, fin: c.fin.slice(0, -1) }); return d2.m[f.k]; } catch { return null; }
   })();
 
@@ -9165,12 +9203,14 @@ function openSourceDrawer(r, f) {
     [st.available ? 'What it is' : 'Why it is absent', st.text],
     ['Formula', f.formula],
     ['Reporting period', `FY${fy}${fyEndOf(c, fy) ? ` (ended ${fmtFyEnd(fyEndOf(c, fy))})` : ''}, as reported`],
-    ['Prior period', isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev, r)}` : 'not computable'],
+    ['Prior period', priceBased ? 'not shown — this measure needs the price on the day, and no price history for the prior year is held' : isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev, r)}` : 'not computable'],
     ['Currency', c.ccy],
     ['Source', c.real
       ? (c.personal ? `Annual statements you supplied — personal research, retrieved ${c.retrieved}` : `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`)
       : 'Synthetic sample statement — not a filing'],
-    ['Adjustments', 'None. The figure is computed directly from the stored lines.'],
+    ['Transformation', c.real && !c.personal
+      ? 'Filed values scaled to billions. Debt is the non-current plus the current line. Where a filer reports no year-end share count, the weighted diluted count stands in. The latest-filed value for each year is used, so a restatement replaces the original. Nothing else is adjusted.'
+      : c.real ? 'Statements as supplied, scaled to billions. Nothing else is adjusted.' : 'Synthetic lines. Nothing is adjusted.'],
     ['Data completeness', `${m.coverage}% of applicable measures are computable for this company`],
     ['Model version', MODEL_VERSION],
     ['Computed', `at page load, from ${dataDateLabel(c)}`],
@@ -9212,10 +9252,12 @@ function openSourceDrawer(r, f) {
         present = isNum(x);
         val = present ? (l === 'sh' ? `${fmtNum(x, 3)}bn shares` : l === 'dps' ? `${fmtNum(x, 3)} per share` : `${fmtNum(x, 3)}bn ${c.ccy}`) : 'not reported';
         period = `FY${fy}`;
-        if (c.real && c.provenance) {
-          const tags = (LINE_PROV[l] || [l]).map(pk => c.provenance[pk]).filter(Boolean)
-            .map(p => (p.byYear && p.byYear[fy]) || p.concept).filter(Boolean);
-          src = tags.length ? tags.join(' + ') : 'tag not recorded';
+        if (c.real && c.provenance && typeof c.provenance === 'object') {
+          const spec = LINE_PROV[l] || { keys: [l], mode: 'first' };
+          const tagOf = (pk) => c.provenance[pk]?.byYear?.[fy] || c.provenance[pk]?.byYear?.[String(fy)] || null;
+          const tags = spec.mode === 'sum' ? spec.keys.map(tagOf).filter(Boolean) : [spec.keys.map(tagOf).find(Boolean)].filter(Boolean);
+          src = tags.length ? tags.join(' + ') : `no tag recorded for FY${fy}`;
+          if (l === 'sh' && !tagOf('sh') && tagOf('shWtd')) src += ' (weighted diluted — no year-end count filed)';
         } else src = c.real ? 'statements you supplied' : 'synthetic sample';
       }
       tb.append(el('tr', {}, [
@@ -13846,7 +13888,10 @@ VIEWS.portfolio = () => {
     xa.append(upsell('Combine shares and property', 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
   } else {
     const dm = dealModel(State.deal);
-    const propValue = toBase(dm.exitValue / Math.pow(1 + State.deal.apprecPct / 100, State.deal.holdYears), 'MYR');
+    /* The carrying value is the price. Back-computing it from the exit value
+       stopped being the price when the exit value began to include the
+       recovered share of the renovation. */
+    const propValue = toBase(num0(State.deal.price), 'MYR');
     const propLoan = toBase(dm.loan, 'MYR');
     const propEquity = Math.max(0, propValue - propLoan);
     const netWorth = totalVal + propEquity;
@@ -16221,7 +16266,7 @@ function learnData() {
      absence; the screener's cells and the drawer behind each use exactly these
      words, from the same registry this table reads. */
   const lg = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  lg.append(cardHead('How every figure is labelled', 'A number carries one of five kinds; an absence carries one of five reasons. The screener cell, the drawer behind it and the company page read the same registry, so they cannot disagree about one figure.'));
+  lg.append(cardHead('How every figure is labelled', 'A number carries one of five kinds; an absence carries one of five reasons. The screener cell and the drawer behind it read the same registry, so they cannot disagree about one figure.'));
   const legendTable = (heads, rows) => {
     const tw = el('div', { class: 'tablewrap', style: 'margin-bottom:var(--sm)' });
     const t = el('table', { class: 'dt' });
@@ -17559,6 +17604,11 @@ const PROPERTY_DEFAULT_DEAL = {
      to nought — which is what the model always assumed, silently: the rent
      stood whole and the spend vanished at the sale. Stated now, and movable. */
   renoRentUpliftPct:0, renoValueRecoveryPct:0,
+  /* Written by the calculator and read by the model, so they belong in the
+     default deal: without a default the shared address could not carry them,
+     and a recipient saw a different reserve, deposit and own use. The values
+     are what the model already assumed when they were absent. */
+  reserveMonths:3, bookingDepositPaid:0, ownUseWeeks:0,
   /* Which value a lender lends against. The lower of price and valuation is
      the common default and not a universal rule; replace it with the selected
      lender's actual policy when one is known. */
@@ -17614,7 +17664,10 @@ State.deal = store.read('deal', null) || {
    undoing the reader's last change. */
 const saveDeal = () => {
   store.write('deal', State.deal);
-  if (location.pathname.endsWith('/property/calculator')) syncPropertyUrl(State.deal);
+  /* /property serves the calculator as well as /property/calculator. Syncing
+     on one path only left /property's address stale, and the next render
+     read the stale deal back over the edit just made. */
+  if (State.view === 'property') syncPropertyUrl(State.deal);
 };
 
 /* ---------------------------------------------------------- shareable state */
@@ -17674,7 +17727,11 @@ function applyDealParam(d, str) {
   for (const part of String(str).split('~')) {
     const i = part.indexOf(':');
     if (i < 1) continue;
-    const k = part.slice(0, i), raw = decodeURIComponent(part.slice(i + 1));
+    const k = part.slice(0, i);
+    /* A truncated or hand-edited link can carry a bad escape; it used to
+       throw out of the render and leave the page blank. Skip the part. */
+    let raw;
+    try { raw = decodeURIComponent(part.slice(i + 1)); } catch { continue; }
     if (k === 'touched') {
       d.touched = d.touched || {};
       raw.split(',').filter(x => SHARE_KEYS.includes(x)).forEach(x => { if (!d.touched[x]) { d.touched[x] = true; changed = true; } });
@@ -17682,7 +17739,8 @@ function applyDealParam(d, str) {
     }
     if (k.startsWith('evidence.')) {
       const ek = k.slice(9);
-      if (!SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
+      /* Evidence is graded for the deal's own fields, and only those. */
+      if (!Object.prototype.hasOwnProperty.call(PROPERTY_DEFAULT_DEAL, ek) || !SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
       d.evidence = d.evidence || {};
       if (d.evidence[ek] !== raw) { d.evidence[ek] = raw; changed = true; }
       continue;
@@ -17691,13 +17749,57 @@ function applyDealParam(d, str) {
     const def = PROPERTY_DEFAULT_DEAL[k];
     let v;
     if (raw === 'null') v = null;
-    else if (typeof def === 'number' || (def === null && /^-?\d+(\.\d+)?$/.test(raw))) { v = Number(raw); if (!Number.isFinite(v)) continue; }
+    /* A number is digits as written — not '' (which Number reads as 0), not
+       '0x10', not ' 12 ', not '1e3'. */
+    else if ((typeof def === 'number' || def === null) && /^-?\d+(\.\d+)?$/.test(raw)) v = Number(raw);
+    else if (typeof def === 'number') continue;
     else if (typeof def === 'boolean') v = raw === 'true';
     else if (SHARE_STR.test(raw)) v = raw;
     else continue;
     if (d[k] !== v) { d[k] = v; changed = true; }
   }
   return changed;
+}
+
+/* THE ADDRESS IS READ WHEN IT ARRIVES, NOT ON EVERY RENDER.
+   Every render used to apply the address to the deal. The address is rewritten
+   after each edit on /property/calculator, so that was harmless there — but
+   /property never rewrote it, and a restored or reset deal was overwritten by
+   whatever the address still said. The address now counts as new only when it
+   differs from the one this page last wrote or read: a pasted link, a
+   bookmark, Back to an older state.
+
+   And a link to a deal is that deal. The link carries only the figures that
+   differ from the default, so it used to be laid over whatever this browser
+   held — a recipient saw the sender's changes mixed with their own. Opening a
+   link now starts from the default deal, applies the link, and keeps the
+   reader's previous deal to restore. */
+let propertyUrlSeen = null;
+function arrivePropertyUrl() {
+  if (location.search === propertyUrlSeen) return { changed: false };
+  propertyUrlSeen = location.search;
+  const p = new URLSearchParams(location.search);
+  const incoming = p.get('d');
+  if (!incoming) return { changed: readPropertyUrl(State.deal) };
+  /* Our own address, reloaded or returned to: nothing to apply. */
+  if (incoming === dealToParam(State.deal)) return { changed: readPropertyUrl(State.deal) };
+  const fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+  readPropertyUrl(fresh);
+  if (dealToParam(fresh) === dealToParam(State.deal) && fresh.city === State.deal.city) return { changed: false };
+  const previous = State.deal;
+  store.write('dealBeforeLink', previous);
+  State.deal = fresh;
+  store.write('deal', fresh);
+  return { changed: true, replaced: true };
+}
+function restoreDealBeforeLink() {
+  const prev = store.read('dealBeforeLink', null);
+  if (!prev) return false;
+  State.deal = prev;
+  store.write('deal', prev);
+  store.write('dealBeforeLink', null);
+  syncPropertyUrl(prev);
+  return true;
 }
 
 function syncPropertyUrl(d) {
@@ -17709,8 +17811,10 @@ function syncPropertyUrl(d) {
   if (dp) p.set('d', dp); else p.delete('d');
   const q = p.toString();
   const next = location.pathname + (q ? `?${q}` : '');
-  if (next === location.pathname + location.search) return;
-  history.replaceState(history.state, '', next);
+  if (next !== location.pathname + location.search) history.replaceState(history.state, '', next);
+  /* What this page wrote is what it has seen: the next render must not read
+     it back as a new arrival. */
+  propertyUrlSeen = location.search;
 }
 
 /* Applies a link's parameters to the deal. Returns true when something actually
@@ -20605,14 +20709,20 @@ function dealModel(d) {
   const opex = opexAt(effectiveRentN);
   const noiN = effectiveRentN - opex;
   const noi = letsToTenant ? noiN : null;
-  const annualDebtService = instalment * 12;
+  /* A loan whose instalment cannot be computed (a tenure of zero, or a
+     cleared box) has no debt service to subtract — which is not the same as
+     none. Multiplying null gave 0, and the model reported the purchase as if
+     the loan were never serviced and never repaid: a 26.6% rate of return on
+     the default deal. With no loan there is genuinely nothing to service. */
+  const debtUnknown = loan > 0 && !isNum(instalment);
+  const annualDebtService = debtUnknown ? null : num0(instalment) * 12;
 
   const grossYield = (letsToTenant && d.price > 0) ? grossAnnualRentN / d.price * 100 : null;
   const netYield = (letsToTenant && d.price > 0) ? noiN / d.price * 100 : null;
   /* Cash flow survives every class, and for a parcel it is the whole question:
      what does holding this cost me each month while it appreciates. */
-  const cashflowMonthly = (noiN / 12) - instalment;
-  const cashOnCash = (letsToTenant && acquisitionCost > 0)
+  const cashflowMonthly = debtUnknown ? null : (noiN / 12) - num0(instalment);
+  const cashOnCash = (letsToTenant && acquisitionCost > 0 && !debtUnknown)
     ? (noiN - annualDebtService) / acquisitionCost * 100 : null;
   /* Null when there is no debt, and null when the instalment could not be
      computed — those are different states and neither is 0.00x. It reported an
@@ -20682,7 +20792,7 @@ function dealModel(d) {
   const renoRecovered = num0(d.renovation) * num0(d.renoValueRecoveryPct) / 100;
   const exitValueAt = (y) => d.price * Math.pow(1 + d.apprecPct / 100, y) + renoRecovered;
   const exitValue = exitValueAt(d.holdYears);
-  const outstanding = balanceAfter(loan, d.ratePct, d.tenureYears, d.holdYears * 12);
+  const outstanding = debtUnknown ? null : balanceAfter(loan, d.ratePct, d.tenureYears, d.holdYears * 12);
   const agentFee = exitValue * num0(d.agentPct) / 100;
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
   const sellMonths = num0(d.sellMonths);
@@ -20735,8 +20845,8 @@ function dealModel(d) {
       interest: interestY, marginalTaxPct: d.marginalTaxPct,
     });
 
-    const cfPreTax = effY - opexY - annualDebtService;
-    const cf = cfPreTax - taxY.tax;
+    const cfPreTax = debtUnknown ? null : effY - opexY - annualDebtService;
+    const cf = debtUnknown ? null : cfPreTax - taxY.tax;
     return { y, rent: effY, opex: opexY, debt: annualDebtService,
              interest: interestY, principal: Math.max(0, annualDebtService - interestY),
              taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
@@ -20963,7 +21073,9 @@ function dealModel(d) {
   const flows = [-equityOut];
   path.forEach((p, i) => {
     const last = i === path.length - 1;
-    flows.push(p.cf + (last ? netExitProceeds + num0(reserveCash) : 0));
+    /* A missing year stays missing: null + 0 is 0 in JavaScript, which turned
+       an unknown cash flow into a known nought and gave the IRR a number. */
+    flows.push(isNum(p.cf) ? p.cf + (last ? netExitProceeds + num0(reserveCash) : 0) : null);
   });
   const irrResult = irrOf(flows);
   const irrPct = irrResult.rate;
@@ -20978,6 +21090,7 @@ function dealModel(d) {
      figures describe a different owner. */
   const exitIrr = (e) => {
     const cfs = Array.from({ length: e.yrs }, (_, y) => yearFlow(y + 1).cf);
+    if (!cfs.every(isNum) || !isNum(e.net)) return null;
     const fl = [-equityOut, ...cfs];
     fl[fl.length - 1] += e.net + num0(reserveCash);
     return irrOf(fl).rate;
@@ -21042,7 +21155,11 @@ function renovationReturn(d, m) {
   const cost = num0(d.renovation);
   if (!(cost > 0)) return { applicable: false, why: 'No renovation or furnishing budget is entered, so there is nothing to assess.' };
   const uplift = num0(d.renoRentUpliftPct) / 100, recovery = num0(d.renoValueRecoveryPct) / 100;
-  const without = dealModel({ ...d, renovation: 0, rent: num0(d.rent) / (1 + uplift), renoRentUpliftPct: 0, renoValueRecoveryPct: 0 });
+  /* The input is the SHARE of the entered rent that depends on the work, so
+     the rent without it is the rent less that share. It was divided by
+     (1 + share), which attributed share/(1 + share) — 16.7% for an input of
+     20% — while the label, the card and the plan all said 20%. */
+  const without = dealModel({ ...d, renovation: 0, rent: num0(d.rent) * (1 - clamp(uplift, 0, 1)), renoRentUpliftPct: 0, renoValueRecoveryPct: 0 });
   const rentUpliftAnnual = isNum(m.effectiveRent) && isNum(without.effectiveRent) ? m.effectiveRent - without.effectiveRent : null;
   return {
     applicable: true, cost,
@@ -21346,6 +21463,12 @@ VIEWS.sarawak = () => {
 };
 
 VIEWS.property = () => {
+  /* The address is read when it is new — a link, a bookmark, Back — and not on
+     every render, which is what used to undo an edit on /property and a Resume
+     or Reset on either path. */
+  const arrival = arrivePropertyUrl();
+  if (arrival.changed) store.write('deal', State.deal);
+  if (arrival.replaced) setTimeout(() => toast('Opened the linked deal — your previous deal is kept; restore it beside the link'), 0);
   const d = State.deal;
   const m = dealModel(d);
   const paid = lim('propertyReports') > 0 || State.propertyReportsBought.includes(d.projectId);
@@ -21737,10 +21860,10 @@ VIEWS.property = () => {
   cityField.append(el('label', { for: 'dealCity' }, 'City'));
   /* Read before the controls are built, so they render already showing what the
      link asked for. */
-  if (readPropertyUrl(d)) saveDeal();
   /* Written on arrival too, so a bare /property/calculator becomes a link that
      reproduces what is on screen without the reader having to change anything
-     first. */
+     first. The address itself was read at the top of the view, once, when it
+     was new. */
   syncPropertyUrl(d);
   /* The address IS the share. One control to put it on the clipboard, beside
      the fields it describes, and a sentence saying what travels with it. */
@@ -21749,7 +21872,8 @@ VIEWS.property = () => {
       try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every figure on this screen'); }
       catch { toast('Could not reach the clipboard — copy the address bar instead'); }
     } }, 'Copy a link to this deal'),
-    el('span', { class: 'metaline' }, 'The address carries every figure you changed, its evidence grade and which ones you entered. Whoever opens it sees this deal.'),
+    el('span', { class: 'metaline' }, 'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. The Sarawak checklist answers do not travel.'),
+    store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); render(); } } }, 'Restore my previous deal') : null,
   ]));
 
   const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
@@ -22832,7 +22956,6 @@ VIEWS.property = () => {
     card.append(cardHead('If you sold in year…',
       'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.'));
     const rated = hs.filter(e => isNum(e.irrPct));
-    const best = rated.length ? rated.reduce((a, b) => (b.irrPct > a.irrPct ? b : a)) : null;
     const host = el('div', { style: 'width:100%' });
     card.append(host);
     const t = el('table', { class: 'dt' });
@@ -22851,9 +22974,10 @@ VIEWS.property = () => {
     t.append(tb);
     card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
     card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-      (best
-        ? `Under these assumptions the rate of return is highest for a sale in year ${best.yrs}, at ${fmtPct(best.irrPct, 2)}. `
-        : 'No exit year returns the capital under these assumptions. ')
+      /* Every year, unranked. Naming the year with the highest rate was the
+         model choosing an exit by its own measure — the pick this product
+         leaves to the reader. */
+      (rated.length ? '' : 'No exit year returns a rate under these assumptions. ')
       + 'That is arithmetic on the entered figures — the appreciation rate, the gains-tax band for the year, and how much of the loan is left — and not a view on when to sell. '
       + `Rental cash is ${m.taxComputed ? 'after' : 'before'} tax on the rent.`));
     out.append(card);
@@ -24446,7 +24570,7 @@ const CAPABILITY_REGISTER = [
     now:'Multi-timeframe trend regime, first-tranche readiness against your own rules, screenshot confidence, template and derivative hard gates, from chart evidence you record.',
     gate:'Phase 1 only. It does not read your screenshot — OCR and vision extraction are phase 2. No indicator here has been backtested on point-in-time data, so no rule is claimed to be effective.' },
   { name:'Trade-setup scanner', status:'data-gated', path:'/my/scanner',
-    now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on which completed bar. A watchlist can be its universe, snapshotted into the setup. Never ranked, never delivered, never claimed to work.',
+    now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on the last daily bar your history holds. A watchlist can be its universe, snapshotted into the setup. Never ranked, never delivered, never claimed to work.',
     gate:'Personal lane only: it reads the price history you built under your own subscription, so the deployed site has nothing to scan. Offering it to anyone else needs a licensed end-of-day feed and written classification, and neither exists.' },
   { name:'Sarawak Economy Watch', status:'data-gated', path:'/discover/sarawak',
     gate:'11 companies identified with price history. Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.' },
@@ -24520,7 +24644,16 @@ const saveOpportunities = () => store.write('opportunities', State.opportunities
    calculator's own defaults, so a register entry and a calculator run cannot
    diverge — one engine, two front doors. */
 function candidateModel(o) {
-  const d = { ...State.deal, ...o.deal, touched: o.touched || {}, evidence: o.evidence || {} };
+  /* A record states what it states. Its checklist answers are its own — the
+     calculator's answers used to be attributed to every record, raising their
+     financeability — and a price it does not state is absent: a price of 0
+     modelled a free property, with cash, cover and a rate of return off
+     nothing. Without one the calculator's price stands in, as the table says. */
+  const od = { ...(o.deal || {}) };
+  const unpriced = !(num0(od.price) > 0);
+  if (unpriced) delete od.price;
+  if (!(num0(od.sqft) > 0)) delete od.sqft;
+  const d = { ...State.deal, ...od, touched: o.touched || {}, evidence: o.evidence || {}, checks: o.checks || {} };
   const m = dealModel(d);
   return { d, m, grade: propertyGrade(d, m), finance: propertyFinanceability(d, m) };
 }
@@ -26292,7 +26425,7 @@ VIEWS.opportunities = () => {
     const t = el('table', { class: 'dt' });
     t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, x.o.name))])));
     const rows = [
-      ['Asking price', x => isNum(x.o.deal.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : 'not recorded'],
+      ['Asking price', x => isNum(x.o.deal?.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : `not recorded — the calculator’s ${fmtAmount(x.d.price, 'MYR')} stands in`],
       ['Safe cash required', x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
       ['Monthly position', x => isNum(x.m.cashflowMonthly) ? fmtAmount(x.m.cashflowMonthly, 'MYR') : '—'],
       ['Gross yield', x => isNum(x.m.grossYield) ? fmtPct(x.m.grossYield, 2) : 'n/a'],
@@ -26438,20 +26571,50 @@ VIEWS.opportunities = () => {
    ========================================================================== */
 
 /* @scan-engine-start — sliced by scanner/scan.mjs; keep this region pure. */
-const SCAN_VERSION = '0.1.0';
+const SCAN_VERSION = '0.2.0';
 
 /* Indicators and how many bars each needs before it says anything. A 50-bar
    average from 22 bars is a different number wearing its name, so a rule on
    it is UNTESTED rather than met or failed. Crossings need one bar more. */
+/* ONE READING OF EVERY NUMBER A SETUP CARRIES. A period was read one way by
+   the series (an absent n became 1, so SMA20 was computed as the close), a
+   second way by the bars-needed count (20) and a third by the page's prose
+   (SMA20) — three periods for one rule. Every consumer now calls these. A
+   period that is absent takes the indicator's default; a quoted number is the
+   number; null, true, '' and anything below 1 are not periods. */
+const scanNumeric = (v) => (typeof v === 'number' && Number.isFinite(v))
+  || (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)));
+const SCAN_DEFAULT_N = { sma: 20, ema: 20, rsi: 14, volume_avg: 20 };
+const scanPeriod = (v, def) => (scanNumeric(v) && Number(v) >= 1 ? Math.round(Number(v)) : def);
+const scanPeriodOf = (s) => scanPeriod(s?.n, SCAN_DEFAULT_N[s?.indicator] ?? 20);
+const scanMacdPeriods = (s) => ({ fast: scanPeriod(s?.fast, 12), slow: scanPeriod(s?.slow, 26), signal: scanPeriod(s?.signal, 9) });
+const scanMultiplier = (v) => (scanNumeric(v) && Number(v) > 0 ? Number(v) : 1);
 const SCAN_INDICATORS = {
   price:      { label: 'price',                    needs: () => 1 },
   volume:     { label: 'volume',                   needs: () => 1 },
-  sma:        { label: 'SMA',  param: 'n', needs: (s) => Math.max(1, s.n || 20) },
-  ema:        { label: 'EMA',  param: 'n', needs: (s) => Math.max(1, s.n || 20) },
-  rsi:        { label: 'RSI',  param: 'n', needs: (s) => Math.max(2, (s.n || 14) + 1) },
-  macd:       { label: 'MACD', needs: (s) => Math.max(2, (s.slow || 26) + (s.signal || 9) - 1) },
-  volume_avg: { label: 'average volume', param: 'n', needs: (s) => Math.max(1, s.n || 20) },
+  sma:        { label: 'SMA',  param: 'n', needs: (s) => scanPeriodOf(s) },
+  ema:        { label: 'EMA',  param: 'n', needs: (s) => scanPeriodOf(s) },
+  rsi:        { label: 'RSI',  param: 'n', needs: (s) => scanPeriodOf(s) + 1 },
+  /* The line exists from the slow average's first value; the signal and the
+     histogram need the signal average on top of it. */
+  macd:       { label: 'MACD', needs: (s) => { const p = scanMacdPeriods(s); return (s?.field === 'signal' || s?.field === 'hist') ? p.slow + p.signal - 1 : p.slow; } },
+  volume_avg: { label: 'average volume', param: 'n', needs: (s) => scanPeriodOf(s) },
 };
+/* How a side reads in words — the page's list, the builder and the alert
+   text all use this, so the rule a reader sees is the rule that ran. */
+function scanSideLabel(s) {
+  const id = s?.indicator, def = SCAN_INDICATORS[id];
+  if (!def) return id ? `unknown indicator “${id}”` : '—';
+  let base;
+  if (id === 'volume_avg') base = `${scanPeriodOf(s)}-bar average volume`;
+  else if (def.param) base = `${def.label}${scanPeriodOf(s)}`;
+  else if (id === 'macd') {
+    const p = scanMacdPeriods(s), field = ['line', 'signal', 'hist'].includes(s.field) ? s.field : 'line';
+    base = `MACD${p.fast === 12 && p.slow === 26 && p.signal === 9 ? '' : `(${p.fast},${p.slow},${p.signal})`} ${field}`;
+  } else base = def.label;
+  const m = scanMultiplier(s.multiplier);
+  return m === 1 ? base : `${m}× ${base}`;
+}
 const SCAN_OPERATORS = {
   above:         { label: 'above',         needsPrev: false },
   below:         { label: 'below',         needsPrev: false },
@@ -26463,13 +26626,17 @@ const SCAN_OPERATORS = {
 /* Series helpers. Each returns an array the length of its input with null
    wherever the window is not yet full — alignment is what makes "the bar
    before" a defined thing. */
+/* A window containing an unrecorded value has no average: a missing volume
+   is not a volume of nought, and summing it as one produced a lower average
+   and a match that should not have been one. */
 function scanSma(a, n) {
   const out = new Array(a.length).fill(null);
-  let s = 0;
+  const ok = (v) => v != null && Number.isFinite(v);
+  let s = 0, gaps = 0;
   for (let i = 0; i < a.length; i++) {
-    s += a[i];
-    if (i >= n) s -= a[i - n];
-    if (i >= n - 1) out[i] = s / n;
+    if (ok(a[i])) s += a[i]; else gaps++;
+    if (i >= n) { if (ok(a[i - n])) s -= a[i - n]; else gaps--; }
+    if (i >= n - 1 && gaps === 0) out[i] = s / n;
   }
   return out;
 }
@@ -26518,28 +26685,32 @@ function scanIndicatorSeries(spec, bars) {
   const id = spec?.indicator;
   const def = SCAN_INDICATORS[id];
   if (!def) return { series: null, label: `unknown indicator “${id}”`, needs: Infinity };
-  const mult = Number.isFinite(spec.multiplier) && spec.multiplier > 0 ? spec.multiplier : 1;
+  const mult = scanMultiplier(spec.multiplier);
   const scale = (arr) => mult === 1 ? arr : arr.map(v => v == null ? null : v * mult);
-  const n = Math.max(1, Math.round(Number(spec.n) || 0)) || null;
-  let series, label;
+  const n = scanPeriodOf(spec);
+  const label = scanSideLabel(spec);
+  let series, note = null;
   switch (id) {
-    case 'price':      series = bars.closes; label = 'price'; break;
-    case 'volume':     series = bars.volumes; label = 'volume'; break;
-    case 'sma':        series = scanSma(bars.closes, n || 20); label = `SMA${n || 20}`; break;
-    case 'ema':        series = scanEma(bars.closes, n || 20); label = `EMA${n || 20}`; break;
-    case 'rsi':        series = scanRsi(bars.closes, n || 14); label = `RSI${n || 14}`; break;
-    case 'volume_avg': series = scanSma(bars.volumes, n || 20); label = `${n || 20}-bar average volume`; break;
+    case 'price':      series = bars.closes; break;
+    case 'volume':     series = bars.volumes; break;
+    case 'sma':        series = scanSma(bars.closes, n); break;
+    case 'ema':        series = scanEma(bars.closes, n); break;
+    case 'rsi':        series = scanRsi(bars.closes, n); break;
+    case 'volume_avg': series = scanSma(bars.volumes, n); break;
     case 'macd': {
-      const m = scanMacd(bars.closes, spec.fast || 12, spec.slow || 26, spec.signal || 9);
-      const field = ['line', 'signal', 'hist'].includes(spec.field) ? spec.field : 'line';
-      series = m[field]; label = `MACD ${field}`;
+      const p = scanMacdPeriods(spec);
+      const m = scanMacd(bars.closes, p.fast, p.slow, p.signal);
+      series = m[['line', 'signal', 'hist'].includes(spec.field) ? spec.field : 'line'];
       break;
     }
   }
   if (id === 'volume' || id === 'volume_avg') {
     if (!bars.volumes || bars.volumes.every(v => v == null)) return { series: null, label, needs: def.needs(spec), noVolume: true };
+    const window = id === 'volume_avg' ? n : 1;
+    const miss = bars.volumes.slice(-window).filter(v => v == null).length;
+    if (miss) note = `volume is not recorded for ${miss} of the last ${window} bar${window === 1 ? '' : 's'}`;
   }
-  return { series: scale(series), label: mult === 1 ? label : `${mult}× ${label}`, needs: def.needs(spec) };
+  return { series: scale(series), label, needs: def.needs(spec), note };
 }
 
 const scanFmt = (v) => v == null ? '—' : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}m` : Math.abs(v) >= 1e4 ? `${(v / 1e3).toFixed(1)}k` : v.toFixed(2);
@@ -26557,11 +26728,14 @@ function scanRule(rule, bars) {
   const needs = L.needs + (op.needsPrev ? 1 : 0);
   const lv = L.series[last], lp = op.needsPrev ? L.series[prev] : null;
   if (lv == null || (op.needsPrev && lp == null)) {
-    return { met: null, untested: true, needs, text: `${L.label} needs ${needs} bars; ${bars.closes.length} held` };
+    return { met: null, untested: true, needs, text: L.note ? `${L.label}: ${L.note}` : `${L.label} needs ${needs} bars; ${bars.closes.length} held` };
   }
   if (rule.op === 'between') {
-    const [lo, hi] = Array.isArray(rule.range) && rule.range.length === 2 ? rule.range.map(Number) : [NaN, NaN];
-    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { met: null, untested: true, text: `${L.label}: no range given` };
+    /* Both bounds must be numbers as written. Number(null) is 0, so a null
+       bound used to be compared as nought and printed as one. */
+    const ok = Array.isArray(rule.range) && rule.range.length === 2 && rule.range.every(scanNumeric);
+    if (!ok) return { met: null, untested: true, text: `${L.label}: the range needs two numbers` };
+    const [lo, hi] = rule.range.map(Number);
     const met = lv >= Math.min(lo, hi) && lv <= Math.max(lo, hi);
     return { met, text: `${L.label} ${scanFmt(lv)} ${met ? 'between' : 'outside'} ${scanFmt(lo)} and ${scanFmt(hi)}`, left: lv };
   }
@@ -26574,11 +26748,11 @@ function scanRule(rule, bars) {
     const rneeds = R.needs + (op.needsPrev ? 1 : 0);
     rv = R.series[last]; rp = op.needsPrev ? R.series[prev] : null; rlabel = R.label;
     if (rv == null || (op.needsPrev && rp == null)) {
-      return { met: null, untested: true, needs: Math.max(needs, rneeds), text: `${R.label} needs ${rneeds} bars; ${bars.closes.length} held` };
+      return { met: null, untested: true, needs: Math.max(needs, rneeds), text: R.note ? `${R.label}: ${R.note}` : `${R.label} needs ${rneeds} bars; ${bars.closes.length} held` };
     }
   } else {
-    const v = Number(rule.right?.value);
-    if (!Number.isFinite(v)) return { met: null, untested: true, text: `${L.label}: no value to compare against` };
+    if (!scanNumeric(rule.right?.value)) return { met: null, untested: true, text: `${L.label}: no value to compare against` };
+    const v = Number(rule.right.value);
     rv = v; rp = v; rlabel = scanFmt(v);
   }
   let met;
@@ -26677,9 +26851,12 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null 
       if (cd > 0) {
         const mine = (existing || []).filter(a => a.setupId === setup.id && a.symbol === sym).map(a => a.bar).sort();
         const prevBar = mine[mine.length - 1];
+        /* Counted as the bars held after the previous alert's bar, not by
+           finding that bar: a bar removed from the history (or a history
+           rolled back past it) used to lose the cooldown silently. */
         if (prevBar) {
-          const i = bars.dates.indexOf(prevBar);
-          if (i >= 0 && (bars.dates.length - 1 - i) <= cd) { out.skipped.push({ setup: setup.id, symbol: sym, why: `within the ${cd}-bar cooldown of ${prevBar}` }); continue; }
+          const since = bars.dates.filter(dd => dd > prevBar).length;
+          if (since <= cd) { out.skipped.push({ setup: setup.id, symbol: sym, why: `within the ${cd}-bar cooldown of ${prevBar}` }); continue; }
         }
       }
       const rec = { key, setupId: setup.id, setupName: setup.name || setup.id, symbol: sym, timeframe: 'daily',
@@ -26692,6 +26869,64 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null 
   /* The run's as-of: the latest bar any series holds. */
   out.asOf = Object.keys(history?.series || {}).map(lastBar).filter(Boolean).sort().pop() || null;
   return out;
+}
+
+/* VALIDATION — the same for the page and the worker. A setups file is
+   `{ setups: [...] }` or a bare list. Every setup either passes whole or is
+   left out whole, with the reason: a half-valid setup evaluated on the rules
+   that parsed would match on fewer conditions than the reader wrote. */
+const SCAN_ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+function scanValidate(doc) {
+  const list = Array.isArray(doc) ? doc : Array.isArray(doc?.setups) ? doc.setups : null;
+  const problems = [];
+  if (!list) return { setups: [], problems: ['the setups file is neither a list nor an object with a "setups" list'] };
+  const ids = new Map();
+  list.forEach(s => { const id = s?.id; if (typeof id === 'string' && id) ids.set(id, (ids.get(id) || 0) + 1); });
+  const ok = [];
+  list.forEach((s, i) => {
+    const who = (s && typeof s === 'object' && (s.id || s.name)) || `setup #${i + 1}`;
+    const bad = (why) => problems.push(`${who}: ${why}`);
+    if (!s || typeof s !== 'object') { bad('is not an object'); return; }
+    if (typeof s.id !== 'string' || !s.id) { bad('has no id — ids are part of every alert key'); return; }
+    if (/[|\s]/.test(s.id)) { bad('id contains "|" or whitespace'); return; }
+    if (ids.get(s.id) > 1) { bad('id is used by more than one setup'); return; }
+    if ((s.timeframe || 'daily') !== 'daily') { bad(`timeframe "${s.timeframe}" is not built — daily only`); return; }
+    if (s.logic != null && s.logic !== 'AND' && s.logic !== 'OR') { bad(`logic "${s.logic}" is not AND or OR`); return; }
+    if (!Array.isArray(s.rules) || !s.rules.length) { bad('has no rules'); return; }
+    if (s.expires != null && !(typeof s.expires === 'string' && SCAN_ISO_DAY.test(s.expires))) { bad(`expires "${s.expires}" is not YYYY-MM-DD`); return; }
+    if (s.cooldownBars != null && !(scanNumeric(s.cooldownBars) && Number(s.cooldownBars) >= 0)) { bad(`cooldownBars "${s.cooldownBars}" is not a non-negative number`); return; }
+    const u = s.universe || { kind: 'all' };
+    if (!['all', 'market', 'symbols', 'watchlist'].includes(u.kind)) { bad(`universe kind "${u.kind}" is not all, market, symbols or watchlist`); return; }
+    if (u.kind === 'symbols' && (!Array.isArray(u.symbols) || !u.symbols.some(x => typeof x === 'string' && x.trim()))) { bad('universe is "symbols" but names none'); return; }
+    /* A watchlist lives in a browser; the worker sees only the snapshot of its
+       symbols the page wrote into the setup. Without one there is nothing to scan. */
+    if (u.kind === 'watchlist' && (!Array.isArray(u.symbols) || !u.symbols.length)) { bad('universe is a watchlist but carries no symbol snapshot — copy the setup JSON again from /my/scanner'); return; }
+    if (u.kind === 'market' && !u.market) { bad('universe is "market" but names none'); return; }
+    const sideOk = (side, what) => {
+      if (!side || typeof side !== 'object') return `${what} side is missing`;
+      if (!SCAN_INDICATORS[side.indicator]) return `${what} indicator "${side.indicator}" is not one of ${Object.keys(SCAN_INDICATORS).join(', ')}`;
+      for (const k of ['n', 'fast', 'slow', 'signal']) if (side[k] != null && !(scanNumeric(side[k]) && Number(side[k]) >= 1)) return `${what} ${k === 'n' ? 'period' : k + ' period'} "${side[k]}" is not a number of at least 1`;
+      if (side.multiplier != null && !(scanNumeric(side.multiplier) && Number(side.multiplier) > 0)) return `${what} multiplier "${side.multiplier}" is not a positive number`;
+      if (side.field != null && !['line', 'signal', 'hist'].includes(side.field)) return `${what} MACD field "${side.field}" is not line, signal or hist`;
+      return null;
+    };
+    for (let r = 0; r < s.rules.length; r++) {
+      const rule = s.rules[r];
+      const where = `rule ${r + 1}`;
+      if (!rule || typeof rule !== 'object') { bad(`${where} is not an object`); return; }
+      if (!SCAN_OPERATORS[rule.op]) { bad(`${where}: operator "${rule.op}" is not one of ${Object.keys(SCAN_OPERATORS).join(', ')}`); return; }
+      const l = sideOk(rule.left, `${where} left`); if (l) { bad(l); return; }
+      if (rule.op === 'between') {
+        if (!Array.isArray(rule.range) || rule.range.length !== 2 || !rule.range.every(scanNumeric)) { bad(`${where}: "between" needs a range of two numbers`); return; }
+      } else if (rule.right && rule.right.indicator != null) {
+        const rr = sideOk(rule.right, `${where} right`); if (rr) { bad(rr); return; }
+      } else if (!scanNumeric(rule.right?.value)) {
+        bad(`${where}: right side needs an indicator or a numeric value`); return;
+      }
+    }
+    ok.push(s);
+  });
+  return { setups: ok, problems };
 }
 
 /* The fixture every run self-tests against. Sixty bars of a flat-ish series,
@@ -26746,12 +26981,14 @@ const scanBlankRule = () => ({ left: { indicator: 'price' }, op: 'crosses_above'
 const scanBlankDraft = () => ({ id: '', name: '', enabled: true, universe: { kind: 'symbols', symbols: [] }, timeframe: 'daily',
   confirmation: 'close', logic: 'AND', cooldownBars: 5, expires: null, rules: [scanBlankRule()] });
 
+/* The engine's own label for each side, so the rule a reader sees is the
+   rule that runs — the page used to print SMA20 for a side the engine read
+   as SMA1. A missing value prints as '?', never as a number. */
 const scanRuleProse = (r) => {
-  const side = (s) => { if (!s) return '—'; const def = SCAN_INDICATORS[s.indicator]; if (!def) return s.indicator || '—';
-    const base = def.param ? `${def.label}${s.n || (s.indicator === 'rsi' ? 14 : 20)}` : s.indicator === 'macd' ? `MACD ${s.field || 'line'}` : def.label;
-    return s.multiplier && s.multiplier !== 1 ? `${s.multiplier}× ${base}` : base; };
-  if (r.op === 'between') return `${side(r.left)} between ${r.range?.[0] ?? '?'} and ${r.range?.[1] ?? '?'}`;
-  return `${side(r.left)} ${SCAN_OPERATORS[r.op]?.label || r.op} ${r.right?.indicator ? side(r.right) : (r.right?.value ?? '?')}`;
+  if (!r || typeof r !== 'object') return '(not a rule)';
+  const val = (v) => (scanNumeric(v) ? String(Number(v)) : '?');
+  if (r.op === 'between') return `${scanSideLabel(r.left)} between ${val(r.range?.[0])} and ${val(r.range?.[1])}`;
+  return `${scanSideLabel(r.left)} ${SCAN_OPERATORS[r.op]?.label || r.op} ${r.right?.indicator ? scanSideLabel(r.right) : val(r.right?.value)}`;
 };
 const scanUniverseProse = (u) => !u || u.kind === 'all' ? 'every instrument with a series'
   : u.kind === 'market' ? `every ${u.market || '?'} instrument in the registry`
@@ -26776,25 +27013,29 @@ VIEWS.scanner = () => {
     el('p', { class: 'eyebrow' }, 'Personal lane'),
     el('h1', {}, 'Trade-setup scanner'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Conditions you define, evaluated on price history you supplied, producing a record of which conditions held on which completed bar. '
+      'Conditions you define, evaluated on price history you supplied, producing a record of which conditions held on which daily bar. '
       + 'It does not rank, it does not deliver anything, and it does not say that any condition means anything.'),
   ])));
 
   const history = trackedHistory;
   const haveHistory = !!(history?.series && Object.keys(history.series).length);
   const registry = instruments?.instruments || [];
-  const setups = Array.isArray(scanSetupsFile?.setups) ? scanSetupsFile.setups : Array.isArray(scanSetupsFile) ? scanSetupsFile : [];
-  const alerts = Array.isArray(scanAlertsFile?.alerts) ? scanAlertsFile.alerts : [];
+  /* Validated here exactly as the worker validates, so "evaluate now" can
+     never show a match for a setup the record will refuse. */
+  const checked = scanSetupsFile ? scanValidate(scanSetupsFile) : { setups: [], problems: [] };
+  const setups = checked.setups;
+  const alerts = Array.isArray(scanAlertsFile?.alerts) ? scanAlertsFile.alerts : Array.isArray(scanAlertsFile) ? scanAlertsFile : [];
+  const lastRun = scanAlertsFile && !Array.isArray(scanAlertsFile) ? scanAlertsFile.lastRun || null : null;
 
   /* ---- what this is, and is not ---- */
   const bd = el('div', { class: 'card' });
   bd.append(cardHead('What this will and will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
     el('li', {}, 'It reads only your own price history — data/price-history.json, built from your screen or your export under your subscription. No feed is licensed to this product, so no other data is scanned and none of this is offered to anyone else.'),
-    el('li', {}, 'A match is a record that the conditions you wrote held on a completed daily bar, with the values. It is not a signal, and no indicator here has been validated on point-in-time data, so none is claimed to work.'),
+    el('li', {}, 'A match is a record that the conditions you wrote held on the last daily bar your history holds, with the values. It is not a signal, and no indicator here has been validated on point-in-time data, so none is claimed to work.'),
     el('li', {}, 'Nothing is ranked or sorted by strength. Matches appear in the order of your setups and your instruments.'),
     el('li', {}, 'Nothing is delivered. The worker writes a file; this page reads it. Email, Telegram and push need a server and a contact address held under a privacy notice, and this build has neither.'),
-    el('li', {}, 'Daily bars, confirmed at the close, only. Intraday needs a licensed feed; backtesting needs point-in-time history. Both are named in the plan as gated, not as missing.'),
+    el('li', {}, 'Daily bars only, evaluated on the last bar your history holds. The engine cannot tell whether that bar\u2019s session had closed when it was captured, so run the capture after the close. Intraday needs a licensed feed; backtesting needs point-in-time history. Both are named in the plan as gated, not as missing.'),
   ]));
   wrap.append(bd);
 
@@ -26813,8 +27054,16 @@ VIEWS.scanner = () => {
 
   /* ---- setups on file, and a live evaluation of them ---- */
   const sc = el('div', { class: 'card' });
-  sc.append(cardHead('Your setups', setups.length ? `${setups.length} in data/scan-setups.json. The worker evaluates them after each daily run; the button below evaluates them now, here, and records nothing.` : 'No setups file is loaded.'));
-  if (!setups.length) sc.append(el('p', { class: 'body', style: 'font-size:13px' },
+  sc.append(cardHead('Your setups', setups.length || checked.problems.length
+    ? `${setups.length} valid in data/scan-setups.json${checked.problems.length ? `, ${checked.problems.length} refused` : ''}. The worker evaluates the valid ones after each daily run; the button below evaluates them now, here, and records nothing.`
+    : 'No setups file is loaded.'));
+  if (checked.problems.length) {
+    const pr = el('div', { class: 'panel', style: 'margin-top:8px;border-color:var(--warn-line, var(--line))' });
+    pr.append(el('p', { class: 'metaline', style: 'font-weight:600' }, 'Refused — the worker leaves these out too. A setup passes whole or not at all:'));
+    pr.append(el('ul', { class: 'rulelist' }, checked.problems.map(p => el('li', {}, p))));
+    sc.append(pr);
+  }
+  if (!setups.length && !checked.problems.length) sc.append(el('p', { class: 'body', style: 'font-size:13px' },
     'Write your first setup with the builder below, save it as data/scan-setups.json (a committed example is at scanner/setups.example.json), and run node scanner/scan.mjs. The file stays on your machine — it is git-ignored and CI fails if it is ever tracked.'));
   setups.forEach(s => {
     const p = el('div', { class: 'panel', style: 'margin-top:8px' });
@@ -26826,7 +27075,7 @@ VIEWS.scanner = () => {
       el('span', { class: 'chip' }, `cooldown ${s.cooldownBars ?? 0} bars`),
       s.expires ? el('span', { class: 'chip' }, `expires ${s.expires}`) : null,
     ]));
-    p.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, `Universe: ${scanUniverseProse(s.universe)} · ${s.timeframe || 'daily'} bars, confirmed at the close.`));
+    p.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, `Universe: ${scanUniverseProse(s.universe)} · daily bars, the last one your history holds.`));
     p.append(el('ul', { class: 'rulelist' }, (s.rules || []).map(r => el('li', {}, scanRuleProse(r)))));
     sc.append(p);
   });
@@ -26843,8 +27092,17 @@ VIEWS.scanner = () => {
   /* ---- the record ---- */
   const ac = el('div', { class: 'card' });
   ac.append(cardHead('Alert history', alerts.length
-    ? `${alerts.length} recorded match${alerts.length === 1 ? '' : 'es'} in data/scan-alerts.json, newest first. Each is one setup, one instrument, one completed bar; the same bar is never recorded twice.`
+    ? `${alerts.length} recorded match${alerts.length === 1 ? '' : 'es'} in data/scan-alerts.json, newest first. Each is one setup, one instrument, one daily bar; the same bar is never recorded twice.`
     : 'Nothing recorded yet.'));
+  /* What the worker said on its last run — the refusals and the setups no
+     instrument could test are the part a reader needs and never saw. */
+  if (lastRun) {
+    const lr = el('div', { class: 'panel', style: 'margin-top:8px' });
+    lr.append(el('p', { class: 'metaline' }, `Last worker run ${lastRun.at ? String(lastRun.at).replace('T', ' ').slice(0, 16) : '—'} on bars to ${lastRun.asOf || '—'} (${lastRun.engine || 'engine unknown'}): ${lastRun.setups ?? 0} setup${lastRun.setups === 1 ? '' : 's'}, ${lastRun.evaluated ?? 0} evaluation${lastRun.evaluated === 1 ? '' : 's'}, ${lastRun.matched ?? 0} matched, ${lastRun.recorded ?? 0} recorded, ${lastRun.untested ?? 0} untested.`));
+    const probs = [...(lastRun.problems || []).map(p => `refused — ${p}`), ...(lastRun.untestedEverywhere || []).map(id => `${id}: no instrument in its universe holds enough bars for its rules`)];
+    if (probs.length) lr.append(el('ul', { class: 'rulelist' }, probs.map(p => el('li', {}, p))));
+    ac.append(lr);
+  }
   if (!alerts.length) ac.append(el('p', { class: 'body', style: 'font-size:13px' }, 'The worker appends a record here when a setup matches. An empty history is the normal state of a scanner with tight conditions, not a fault.'));
   else {
     const t = el('table', { class: 'dt' });
@@ -26871,7 +27129,7 @@ VIEWS.scanner = () => {
    skipped and why. In setup-then-symbol order. */
 function scanRunSummary(r, note) {
   const box = el('div');
-  box.append(el('p', { class: 'metaline' }, `${r.setups} setup${r.setups === 1 ? '' : 's'} · ${r.evaluated} evaluation${r.evaluated === 1 ? '' : 's'} on the last completed bar${r.asOf ? ` (${r.asOf})` : ''} · ${r.matched} match${r.matched === 1 ? '' : 'es'} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
+  box.append(el('p', { class: 'metaline' }, `${r.setups} setup${r.setups === 1 ? '' : 's'} · ${r.evaluated} evaluation${r.evaluated === 1 ? '' : 's'} on the last bar held${r.asOf ? ` (${r.asOf})` : ''} · ${r.matched} match${r.matched === 1 ? '' : 'es'} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
   if (r.alerts.length) {
     const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
     r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
@@ -26880,7 +27138,7 @@ function scanRunSummary(r, note) {
   const untestedWhy = r.skipped.filter(s => s.why);
   if (untestedWhy.length) {
     const det = el('details', { style: 'margin-top:6px' });
-    det.append(el('summary', { class: 'caption', style: 'cursor:pointer' }, `Skipped and untested (${untestedWhy.length})`));
+    det.append(el('summary', { class: 'caption', style: 'cursor:pointer' }, `Skipped (${untestedWhy.length})`));
     det.append(el('ul', { class: 'rulelist' }, untestedWhy.slice(0, 60).map(s => el('li', { class: 'caption' }, `${s.setup}${s.symbol ? ' · ' + s.symbol : ''}: ${s.why}`))));
     box.append(det);
   }
@@ -26889,20 +27147,43 @@ function scanRunSummary(r, note) {
 
 /* The setup builder. It writes JSON for the reader to save — the same
    pattern as the Trading Index observations file — and can test the draft
-   against the loaded history without recording anything. */
+   against the loaded history without recording anything.
+
+   Text, number and date fields update the draft on every keystroke and
+   refresh the outputs in place; nothing is rebuilt under the cursor, so focus
+   stays, a click straight after an edit lands, and a date is not committed at
+   its first year digit. Only a select that changes which fields exist rebuilds
+   the card, and focus returns to it. A blank number is absent — the default
+   applies, or the setup is refused with the reason — never a silent 0. */
+let scanIdAuto = true;
 function scanBuilder(history, registry, alerts) {
   const card = el('div', { class: 'card' });
   card.append(cardHead('Setup builder', 'Write a setup, test it against your history, then save the JSON as data/scan-setups.json for the worker.'));
   const d = scanDraft || (scanDraft = scanBlankDraft());
-  /* Re-render the card in place: the page around it has nothing to redraw. */
-  const rerender = () => card.replaceWith(scanBuilder(history, registry, alerts));
+  const rebuild = () => {
+    const a = document.activeElement;
+    let key = null;
+    if (a && card.contains(a) && a.getAttribute('aria-label')) {
+      const lab = a.getAttribute('aria-label');
+      key = { lab, i: [...card.querySelectorAll('[aria-label]')].filter(n => n.getAttribute('aria-label') === lab).indexOf(a) };
+    }
+    const next = scanBuilder(history, registry, alerts);
+    card.replaceWith(next);
+    if (key) [...next.querySelectorAll('[aria-label]')].filter(n => n.getAttribute('aria-label') === key.lab)[key.i]?.focus();
+  };
   const field = (label, input) => { const f = el('div', { class: 'field' }); f.append(el('label', {}, label)); if (!input.getAttribute('aria-label')) input.setAttribute('aria-label', label); f.append(input); return f; };
-  const text = (val, on, attrs = {}) => el('input', { class: 'input', value: val ?? '', ...attrs, onchange: e => { on(e.target.value); rerender(); } });
-  const select = (val, opts, on) => { const s = el('select', { class: 'select', onchange: e => { on(e.target.value); rerender(); } }); opts.forEach(([v, l]) => s.append(el('option', { value: v, selected: String(val) === String(v) ? '' : null }, l))); return s; };
+  /* Live fields: the draft follows the keystrokes; the outputs follow the draft. */
+  const text = (val, on, attrs = {}) => el('input', { class: 'input', value: val ?? '', ...attrs, oninput: e => { on(e.target.value); refresh(); } });
+  const numOrAbsent = (v) => (String(v).trim() === '' || !Number.isFinite(Number(v)) ? undefined : Number(v));
+  const select = (val, opts, on) => { const s = el('select', { class: 'select', onchange: e => { on(e.target.value); rebuild(); } }); opts.forEach(([v, l]) => s.append(el('option', { value: v, selected: String(val) === String(v) ? '' : null }, l))); return s; };
+  const PERIOD = ['sma', 'ema', 'rsi', 'volume_avg'];
+  const freshSide = (v) => ({ indicator: v, ...(PERIOD.includes(v) ? { n: SCAN_DEFAULT_N[v] } : {}) });
 
   const g = el('div', { class: 'grid g-3', style: 'gap:var(--sm)' });
-  g.append(field('Name', text(d.name, v => { d.name = v; if (!d.id) d.id = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40); })));
-  g.append(field('Id (stable; part of every alert key)', text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); })));
+  const slug = (v) => v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+  const idInput = text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); scanIdAuto = !d.id; });
+  g.append(field('Name', text(d.name, v => { d.name = v; if (scanIdAuto) { d.id = slug(v); idInput.value = d.id; } })));
+  g.append(field('Id (stable; part of every alert key)', idInput));
   g.append(field('Logic', select(d.logic, [['AND', 'all rules must hold'], ['OR', 'any rule may hold']], v => { d.logic = v; })));
   g.append(field('Universe', select(d.universe.kind, [['symbols', 'named instruments'], ['watchlist', 'one of your watchlists (its symbols, snapshotted)'], ['market', 'a market'], ['all', 'everything with a series']], v => {
     d.universe = v === 'market' ? { kind: 'market', market: 'US' }
@@ -26918,47 +27199,52 @@ function scanBuilder(history, registry, alerts) {
       : 'No watchlist selected.'));
   }
   if (d.universe.kind === 'market') g.append(field('Market', select(d.universe.market, [['US', 'US'], ['MY', 'Bursa Malaysia']], v => { d.universe.market = v; })));
-  g.append(field('Cooldown (bars before the same instrument can match again)', text(d.cooldownBars, v => { d.cooldownBars = Math.max(0, Math.round(Number(v) || 0)); }, { type: 'number', min: '0', step: '1' })));
-  g.append(field('Expires (blank for persistent)', text(d.expires || '', v => { d.expires = v || null; }, { type: 'date' })));
+  g.append(field('Cooldown (bars before the same instrument can match again)', text(d.cooldownBars, v => { const n = numOrAbsent(v); d.cooldownBars = n === undefined ? 0 : Math.max(0, Math.round(n)); }, { type: 'number', min: '0', step: '1' })));
+  g.append(field('Expires (blank for persistent)', text(d.expires || '', v => { d.expires = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; }, { type: 'date' })));
   card.append(g);
 
   card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Rules'));
   const INDS = [['price', 'price'], ['volume', 'volume'], ['sma', 'SMA'], ['ema', 'EMA'], ['rsi', 'RSI'], ['macd', 'MACD'], ['volume_avg', 'average volume']];
   const OPS = Object.entries(SCAN_OPERATORS).map(([k, v]) => [k, v.label]);
+  const proseSpans = [];
+  const periodField = (side) => field('Period (bars)', text(side.n, v => { const n = numOrAbsent(v); if (n === undefined) delete side.n; else side.n = n; }, { type: 'number', min: '1', step: '1', placeholder: String(SCAN_DEFAULT_N[side.indicator] ?? '') }));
   d.rules.forEach((r, i) => {
     const row = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     const grid = el('div', { class: 'grid g-4', style: 'gap:var(--sm)' });
-    grid.append(field('Left', select(r.left?.indicator || 'price', INDS, v => { r.left = { indicator: v, ...(['sma', 'ema', 'rsi', 'volume_avg'].includes(v) ? { n: v === 'rsi' ? 14 : 20 } : {}) }; })));
-    if (['sma', 'ema', 'rsi', 'volume_avg'].includes(r.left?.indicator)) grid.append(field('Period (bars)', text(r.left.n, v => { r.left.n = Math.max(1, Math.round(Number(v) || 1)); }, { type: 'number', min: '1', step: '1' })));
+    grid.append(field('Left', select(r.left?.indicator || 'price', INDS, v => { r.left = freshSide(v); })));
+    if (PERIOD.includes(r.left?.indicator)) grid.append(periodField(r.left));
     if (r.left?.indicator === 'macd') grid.append(field('MACD field', select(r.left.field || 'line', [['line', 'line'], ['signal', 'signal'], ['hist', 'histogram']], v => { r.left.field = v; })));
-    grid.append(field('Operator', select(r.op, OPS, v => { r.op = v; if (v === 'between') { r.range = r.range || [50, 70]; delete r.right; } else if (!r.right) r.right = { indicator: 'ema', n: 50 }; })));
+    grid.append(field('Operator', select(r.op, OPS, v => { r.op = v; if (v === 'between') { r.range = r.range || [50, 70]; delete r.right; } else { delete r.range; if (!r.right) r.right = { indicator: 'ema', n: 50 }; } })));
     if (r.op === 'between') {
-      grid.append(field('From', text(r.range?.[0], v => { r.range = [Number(v), r.range?.[1] ?? 0]; }, { type: 'number', step: 'any' })));
-      grid.append(field('To', text(r.range?.[1], v => { r.range = [r.range?.[0] ?? 0, Number(v)]; }, { type: 'number', step: 'any' })));
+      r.range = Array.isArray(r.range) ? r.range : [null, null];
+      grid.append(field('From', text(r.range[0], v => { r.range[0] = numOrAbsent(v) ?? null; }, { type: 'number', step: 'any' })));
+      grid.append(field('To', text(r.range[1], v => { r.range[1] = numOrAbsent(v) ?? null; }, { type: 'number', step: 'any' })));
     } else {
-      grid.append(field('Right', select(r.right?.indicator ? r.right.indicator : 'value', [['value', 'a fixed value'], ...INDS], v => { r.right = v === 'value' ? { value: 0 } : { indicator: v, ...(['sma', 'ema', 'rsi', 'volume_avg'].includes(v) ? { n: v === 'rsi' ? 14 : 20 } : {}) }; })));
-      if (r.right?.indicator && ['sma', 'ema', 'rsi', 'volume_avg'].includes(r.right.indicator)) grid.append(field('Period (bars)', text(r.right.n, v => { r.right.n = Math.max(1, Math.round(Number(v) || 1)); }, { type: 'number', min: '1', step: '1' })));
-      if (r.right?.indicator) grid.append(field('Multiplier (1 = none)', text(r.right.multiplier ?? 1, v => { const m = Number(v); if (Number.isFinite(m) && m > 0 && m !== 1) r.right.multiplier = m; else delete r.right.multiplier; }, { type: 'number', step: 'any', min: '0' })));
-      if (r.right && !r.right.indicator) grid.append(field('Value', text(r.right.value, v => { r.right.value = Number(v); }, { type: 'number', step: 'any' })));
+      grid.append(field('Right', select(r.right?.indicator ? r.right.indicator : 'value', [['value', 'a fixed value'], ...INDS], v => { r.right = v === 'value' ? { value: null } : freshSide(v); })));
+      if (r.right?.indicator && PERIOD.includes(r.right.indicator)) grid.append(periodField(r.right));
+      if (r.right?.indicator === 'macd') grid.append(field('MACD field (right)', select(r.right.field || 'line', [['line', 'line'], ['signal', 'signal'], ['hist', 'histogram']], v => { r.right.field = v; })));
+      if (r.right?.indicator) grid.append(field('Multiplier (1 = none)', text(r.right.multiplier ?? 1, v => { const m = numOrAbsent(v); if (m !== undefined && m > 0 && m !== 1) r.right.multiplier = m; else delete r.right.multiplier; }, { type: 'number', step: 'any', min: '0' })));
+      if (r.right && !r.right.indicator) grid.append(field('Value', text(r.right.value, v => { r.right.value = numOrAbsent(v) ?? null; }, { type: 'number', step: 'any' })));
     }
     row.append(grid);
+    const prose = el('span', { class: 'metaline' }, scanRuleProse(r));
+    proseSpans.push([prose, r]);
     row.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px;align-items:center' }, [
-      el('span', { class: 'metaline' }, scanRuleProse(r)),
+      prose,
       el('span', { class: 'spacer' }),
-      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { d.rules.splice(i, 1); if (!d.rules.length) d.rules.push(scanBlankRule()); rerender(); } }, 'Remove'),
+      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { d.rules.splice(i, 1); if (!d.rules.length) d.rules.push(scanBlankRule()); rebuild(); } }, 'Remove'),
     ]));
     card.append(row);
   });
-  card.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { d.rules.push(scanBlankRule()); rerender(); } }, 'Add a rule'));
+  card.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { d.rules.push(scanBlankRule()); rebuild(); } }, 'Add a rule'));
 
   /* Test and output. */
   const outHost = el('div', { style: 'margin-top:var(--md)' });
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
-  const ready = d.id && d.rules.length;
   /* The setup as the worker will read it. A watchlist universe is expanded
      here, at the moment the JSON is written, into the symbols the list holds. */
   const draftSetup = () => {
-    const out = { ...d, enabled: true };
+    const out = JSON.parse(JSON.stringify({ ...d, enabled: true }));
     if (d.universe.kind === 'watchlist') {
       const snap = watchlistSymbols(d.universe.watchlistId);
       out.universe = { kind: 'watchlist', watchlistId: d.universe.watchlistId, name: snap.name, symbols: snap.symbols, asOf: snap.asOf, unresolved: snap.unresolved };
@@ -26966,20 +27252,36 @@ function scanBuilder(history, registry, alerts) {
     return out;
   };
   const draftJson = () => JSON.stringify({ setups: [draftSetup()] }, null, 2);
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: (!ready || !history?.series) ? '' : null, onclick: () => {
+  const testBtn = el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
     const r = scanRun([draftSetup()], history, { instruments: registry, existing: alerts, now: new Date().toISOString() });
     outHost.replaceChildren(scanRunSummary(r, 'A test of the draft against the loaded history. Nothing is recorded.'));
-  } }, 'Test against your history (not recorded)'));
-  acts.append(el('button', { class: 'btn btn-primary btn-sm', disabled: ready ? null : '', onclick: async () => {
+  } }, 'Test against your history (not recorded)');
+  const copyBtn = el('button', { class: 'btn btn-primary btn-sm', onclick: async () => {
     try { await navigator.clipboard.writeText(draftJson()); toast('Setup JSON copied — save it as data/scan-setups.json'); }
     catch { toast('Could not reach the clipboard — copy the JSON below'); }
-  } }, 'Copy setup JSON'));
-  acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { scanDraft = scanBlankDraft(); rerender(); } }, 'Start over'));
+  } }, 'Copy setup JSON');
+  acts.append(testBtn, copyBtn, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { scanDraft = scanBlankDraft(); scanIdAuto = true; rebuild(); } }, 'Start over'));
   card.append(acts);
+  const problemsHost = el('ul', { class: 'rulelist', style: 'margin-top:6px' });
+  card.append(problemsHost);
   card.append(outHost);
-  if (ready) card.append(el('pre', { class: 'caption', style: 'margin-top:var(--md);white-space:pre-wrap;max-height:320px;overflow:auto;padding:var(--sm);background:var(--surface-sunk);border-radius:var(--r-sm)' }, draftJson()));
+  const pre = el('pre', { class: 'caption', style: 'margin-top:var(--md);white-space:pre-wrap;max-height:320px;overflow:auto;padding:var(--sm);background:var(--surface-sunk);border-radius:var(--r-sm)' });
+  card.append(pre);
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'To add this to an existing file, paste the object inside the file’s "setups" array. Then: node scanner/scan.mjs — or let the daily run pick it up. Ids are part of every alert key, so renaming a setup starts its history afresh.'));
+
+  /* In place: the buttons, the reasons, the JSON and each rule's prose. */
+  function refresh() {
+    const v = scanValidate({ setups: [draftSetup()] });
+    const ready = v.problems.length === 0;
+    copyBtn.disabled = !ready;
+    testBtn.disabled = !ready || !history?.series;
+    problemsHost.replaceChildren(...(ready ? [] : v.problems.map(p => el('li', { class: 'caption' }, `Not ready — ${p.replace(/^[^:]*: /, '')}`))));
+    pre.textContent = ready ? draftJson() : '';
+    pre.hidden = !ready;
+    proseSpans.forEach(([span, r]) => { span.textContent = scanRuleProse(r); });
+  }
+  refresh();
   return card;
 }
 /* ==========================================================================

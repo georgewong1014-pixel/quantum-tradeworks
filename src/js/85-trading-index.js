@@ -994,7 +994,7 @@ VIEWS.opportunities = () => {
     const t = el('table', { class: 'dt' });
     t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, x.o.name))])));
     const rows = [
-      ['Asking price', x => isNum(x.o.deal.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : 'not recorded'],
+      ['Asking price', x => isNum(x.o.deal?.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : `not recorded — the calculator’s ${fmtAmount(x.d.price, 'MYR')} stands in`],
       ['Safe cash required', x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
       ['Monthly position', x => isNum(x.m.cashflowMonthly) ? fmtAmount(x.m.cashflowMonthly, 'MYR') : '—'],
       ['Gross yield', x => isNum(x.m.grossYield) ? fmtPct(x.m.grossYield, 2) : 'n/a'],

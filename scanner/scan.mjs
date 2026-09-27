@@ -79,7 +79,7 @@ export async function loadEngine(htmlPath = join(ROOT, 'index.html')) {
   const factory = new Function(`
     ${PRELUDE}
     ${src}
-    return { SCAN_VERSION, SCAN_INDICATORS, SCAN_OPERATORS,
+    return { SCAN_VERSION, SCAN_INDICATORS, SCAN_OPERATORS, scanValidate, scanSideLabel, scanPeriodOf,
              scanSma, scanEma, scanRsi, scanMacd, scanIndicatorSeries,
              scanRule, scanSetup, scanUniverse, scanBars, scanKey,
              scanRun, scanFixture, scanSelfTest };
@@ -89,7 +89,6 @@ export async function loadEngine(htmlPath = join(ROOT, 'index.html')) {
 
 /* ------------------------------------------------------------ validation -- */
 
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /* A setups file is `{ setups: [...] }` (the builder's output) or a bare list.
    Every setup either passes whole or is left out whole, with the reason: a
@@ -97,55 +96,9 @@ const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
    conditions than the reader wrote, which is the one thing a scanner must
    never do quietly. */
 export function validateSetups(doc, E) {
-  const list = Array.isArray(doc) ? doc : Array.isArray(doc?.setups) ? doc.setups : null;
-  const problems = [];
-  if (!list) return { setups: [], problems: ['the setups file is neither a list nor an object with a "setups" list'] };
-  const ids = new Map();
-  list.forEach((s, i) => { const id = s?.id; if (typeof id === 'string' && id) ids.set(id, (ids.get(id) || 0) + 1); });
-  const ok = [];
-  list.forEach((s, i) => {
-    const who = s?.id || s?.name || `setup #${i + 1}`;
-    const bad = (why) => problems.push(`${who}: ${why}`);
-    if (!s || typeof s !== 'object') { bad('is not an object'); return; }
-    if (typeof s.id !== 'string' || !s.id) { bad('has no id — ids are part of every alert key'); return; }
-    if (/[|\s]/.test(s.id)) { bad('id contains "|" or whitespace'); return; }
-    if (ids.get(s.id) > 1) { bad('id is used by more than one setup'); return; }
-    if ((s.timeframe || 'daily') !== 'daily') { bad(`timeframe "${s.timeframe}" is not built — daily only`); return; }
-    if (s.logic != null && s.logic !== 'AND' && s.logic !== 'OR') { bad(`logic "${s.logic}" is not AND or OR`); return; }
-    if (!Array.isArray(s.rules) || !s.rules.length) { bad('has no rules'); return; }
-    if (s.expires != null && !(typeof s.expires === 'string' && ISO_DAY.test(s.expires))) { bad(`expires "${s.expires}" is not YYYY-MM-DD`); return; }
-    if (s.cooldownBars != null && !(Number.isFinite(Number(s.cooldownBars)) && Number(s.cooldownBars) >= 0)) { bad(`cooldownBars "${s.cooldownBars}" is not a non-negative number`); return; }
-    const u = s.universe || { kind: 'all' };
-    if (!['all', 'market', 'symbols', 'watchlist'].includes(u.kind)) { bad(`universe kind "${u.kind}" is not all, market, symbols or watchlist`); return; }
-    if (u.kind === 'symbols' && (!Array.isArray(u.symbols) || !u.symbols.length)) { bad('universe is "symbols" but names none'); return; }
-    /* A watchlist lives in a browser; the worker sees only the snapshot of its
-       symbols the page wrote into the setup. Without one there is nothing to scan. */
-    if (u.kind === 'watchlist' && (!Array.isArray(u.symbols) || !u.symbols.length)) { bad('universe is a watchlist but carries no symbol snapshot — copy the setup JSON again from /my/scanner'); return; }
-    if (u.kind === 'market' && !u.market) { bad('universe is "market" but names none'); return; }
-    const sideOk = (side, what) => {
-      if (!side || typeof side !== 'object') return `${what} side is missing`;
-      if (!E.SCAN_INDICATORS[side.indicator]) return `${what} indicator "${side.indicator}" is not one of ${Object.keys(E.SCAN_INDICATORS).join(', ')}`;
-      if (side.n != null && !(Number.isFinite(Number(side.n)) && Number(side.n) >= 1)) return `${what} period "${side.n}" is not a positive number`;
-      if (side.multiplier != null && !(Number.isFinite(Number(side.multiplier)) && Number(side.multiplier) > 0)) return `${what} multiplier "${side.multiplier}" is not a positive number`;
-      return null;
-    };
-    for (let r = 0; r < s.rules.length; r++) {
-      const rule = s.rules[r];
-      const where = `rule ${r + 1}`;
-      if (!rule || typeof rule !== 'object') { bad(`${where} is not an object`); return; }
-      if (!E.SCAN_OPERATORS[rule.op]) { bad(`${where}: operator "${rule.op}" is not one of ${Object.keys(E.SCAN_OPERATORS).join(', ')}`); return; }
-      const l = sideOk(rule.left, `${where} left`); if (l) { bad(l); return; }
-      if (rule.op === 'between') {
-        if (!Array.isArray(rule.range) || rule.range.length !== 2 || !rule.range.every(v => Number.isFinite(Number(v)))) { bad(`${where}: "between" needs a range of two numbers`); return; }
-      } else if (rule.right && rule.right.indicator != null) {
-        const rr = sideOk(rule.right, `${where} right`); if (rr) { bad(rr); return; }
-      } else if (!Number.isFinite(Number(rule.right?.value))) {
-        bad(`${where}: right side needs an indicator or a numeric value`); return;
-      }
-    }
-    ok.push(s);
-  });
-  return { setups: ok, problems };
+  /* One validator, in the engine region, so the page refuses exactly what
+     the worker refuses. */
+  return E.scanValidate(doc);
 }
 
 /* ------------------------------------------------------------------ run -- */
@@ -248,7 +201,7 @@ async function main() {
   const { result: r, problems, setupLevel, untestedEverywhere, written } = run;
   console.log('');
   console.log(`setups     ${r.setups} evaluated${problems.length ? `, ${problems.length} left out` : ''}`);
-  console.log(`as of      ${r.asOf ?? '—'} (last completed bar in the history)`);
+  console.log(`as of      ${r.asOf ?? '—'} (last bar in the history — the engine cannot tell whether its session had closed)`);
   console.log(`evaluated  ${r.evaluated} setup × instrument pair${r.evaluated === 1 ? '' : 's'} · ${r.matched} matched · ${r.untested} untested`);
   console.log(`${r.alerts.length} new alert${r.alerts.length === 1 ? '' : 's'} recorded${dry ? ' (dry run — nothing written)' : written ? ` → ${alertsPath}` : ''}`);
   if (r.alerts.length) {

@@ -698,14 +698,20 @@ function dealModel(d) {
   const opex = opexAt(effectiveRentN);
   const noiN = effectiveRentN - opex;
   const noi = letsToTenant ? noiN : null;
-  const annualDebtService = instalment * 12;
+  /* A loan whose instalment cannot be computed (a tenure of zero, or a
+     cleared box) has no debt service to subtract — which is not the same as
+     none. Multiplying null gave 0, and the model reported the purchase as if
+     the loan were never serviced and never repaid: a 26.6% rate of return on
+     the default deal. With no loan there is genuinely nothing to service. */
+  const debtUnknown = loan > 0 && !isNum(instalment);
+  const annualDebtService = debtUnknown ? null : num0(instalment) * 12;
 
   const grossYield = (letsToTenant && d.price > 0) ? grossAnnualRentN / d.price * 100 : null;
   const netYield = (letsToTenant && d.price > 0) ? noiN / d.price * 100 : null;
   /* Cash flow survives every class, and for a parcel it is the whole question:
      what does holding this cost me each month while it appreciates. */
-  const cashflowMonthly = (noiN / 12) - instalment;
-  const cashOnCash = (letsToTenant && acquisitionCost > 0)
+  const cashflowMonthly = debtUnknown ? null : (noiN / 12) - num0(instalment);
+  const cashOnCash = (letsToTenant && acquisitionCost > 0 && !debtUnknown)
     ? (noiN - annualDebtService) / acquisitionCost * 100 : null;
   /* Null when there is no debt, and null when the instalment could not be
      computed — those are different states and neither is 0.00x. It reported an
@@ -775,7 +781,7 @@ function dealModel(d) {
   const renoRecovered = num0(d.renovation) * num0(d.renoValueRecoveryPct) / 100;
   const exitValueAt = (y) => d.price * Math.pow(1 + d.apprecPct / 100, y) + renoRecovered;
   const exitValue = exitValueAt(d.holdYears);
-  const outstanding = balanceAfter(loan, d.ratePct, d.tenureYears, d.holdYears * 12);
+  const outstanding = debtUnknown ? null : balanceAfter(loan, d.ratePct, d.tenureYears, d.holdYears * 12);
   const agentFee = exitValue * num0(d.agentPct) / 100;
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
   const sellMonths = num0(d.sellMonths);
@@ -828,8 +834,8 @@ function dealModel(d) {
       interest: interestY, marginalTaxPct: d.marginalTaxPct,
     });
 
-    const cfPreTax = effY - opexY - annualDebtService;
-    const cf = cfPreTax - taxY.tax;
+    const cfPreTax = debtUnknown ? null : effY - opexY - annualDebtService;
+    const cf = debtUnknown ? null : cfPreTax - taxY.tax;
     return { y, rent: effY, opex: opexY, debt: annualDebtService,
              interest: interestY, principal: Math.max(0, annualDebtService - interestY),
              taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
@@ -1056,7 +1062,9 @@ function dealModel(d) {
   const flows = [-equityOut];
   path.forEach((p, i) => {
     const last = i === path.length - 1;
-    flows.push(p.cf + (last ? netExitProceeds + num0(reserveCash) : 0));
+    /* A missing year stays missing: null + 0 is 0 in JavaScript, which turned
+       an unknown cash flow into a known nought and gave the IRR a number. */
+    flows.push(isNum(p.cf) ? p.cf + (last ? netExitProceeds + num0(reserveCash) : 0) : null);
   });
   const irrResult = irrOf(flows);
   const irrPct = irrResult.rate;
@@ -1071,6 +1079,7 @@ function dealModel(d) {
      figures describe a different owner. */
   const exitIrr = (e) => {
     const cfs = Array.from({ length: e.yrs }, (_, y) => yearFlow(y + 1).cf);
+    if (!cfs.every(isNum) || !isNum(e.net)) return null;
     const fl = [-equityOut, ...cfs];
     fl[fl.length - 1] += e.net + num0(reserveCash);
     return irrOf(fl).rate;
@@ -1135,7 +1144,11 @@ function renovationReturn(d, m) {
   const cost = num0(d.renovation);
   if (!(cost > 0)) return { applicable: false, why: 'No renovation or furnishing budget is entered, so there is nothing to assess.' };
   const uplift = num0(d.renoRentUpliftPct) / 100, recovery = num0(d.renoValueRecoveryPct) / 100;
-  const without = dealModel({ ...d, renovation: 0, rent: num0(d.rent) / (1 + uplift), renoRentUpliftPct: 0, renoValueRecoveryPct: 0 });
+  /* The input is the SHARE of the entered rent that depends on the work, so
+     the rent without it is the rent less that share. It was divided by
+     (1 + share), which attributed share/(1 + share) — 16.7% for an input of
+     20% — while the label, the card and the plan all said 20%. */
+  const without = dealModel({ ...d, renovation: 0, rent: num0(d.rent) * (1 - clamp(uplift, 0, 1)), renoRentUpliftPct: 0, renoValueRecoveryPct: 0 });
   const rentUpliftAnnual = isNum(m.effectiveRent) && isNum(without.effectiveRent) ? m.effectiveRent - without.effectiveRent : null;
   return {
     applicable: true, cost,
@@ -1439,6 +1452,12 @@ VIEWS.sarawak = () => {
 };
 
 VIEWS.property = () => {
+  /* The address is read when it is new — a link, a bookmark, Back — and not on
+     every render, which is what used to undo an edit on /property and a Resume
+     or Reset on either path. */
+  const arrival = arrivePropertyUrl();
+  if (arrival.changed) store.write('deal', State.deal);
+  if (arrival.replaced) setTimeout(() => toast('Opened the linked deal — your previous deal is kept; restore it beside the link'), 0);
   const d = State.deal;
   const m = dealModel(d);
   const paid = lim('propertyReports') > 0 || State.propertyReportsBought.includes(d.projectId);
@@ -1830,10 +1849,10 @@ VIEWS.property = () => {
   cityField.append(el('label', { for: 'dealCity' }, 'City'));
   /* Read before the controls are built, so they render already showing what the
      link asked for. */
-  if (readPropertyUrl(d)) saveDeal();
   /* Written on arrival too, so a bare /property/calculator becomes a link that
      reproduces what is on screen without the reader having to change anything
-     first. */
+     first. The address itself was read at the top of the view, once, when it
+     was new. */
   syncPropertyUrl(d);
   /* The address IS the share. One control to put it on the clipboard, beside
      the fields it describes, and a sentence saying what travels with it. */
@@ -1842,7 +1861,8 @@ VIEWS.property = () => {
       try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every figure on this screen'); }
       catch { toast('Could not reach the clipboard — copy the address bar instead'); }
     } }, 'Copy a link to this deal'),
-    el('span', { class: 'metaline' }, 'The address carries every figure you changed, its evidence grade and which ones you entered. Whoever opens it sees this deal.'),
+    el('span', { class: 'metaline' }, 'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. The Sarawak checklist answers do not travel.'),
+    store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); render(); } } }, 'Restore my previous deal') : null,
   ]));
 
   const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
@@ -2925,7 +2945,6 @@ VIEWS.property = () => {
     card.append(cardHead('If you sold in year…',
       'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.'));
     const rated = hs.filter(e => isNum(e.irrPct));
-    const best = rated.length ? rated.reduce((a, b) => (b.irrPct > a.irrPct ? b : a)) : null;
     const host = el('div', { style: 'width:100%' });
     card.append(host);
     const t = el('table', { class: 'dt' });
@@ -2944,9 +2963,10 @@ VIEWS.property = () => {
     t.append(tb);
     card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
     card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-      (best
-        ? `Under these assumptions the rate of return is highest for a sale in year ${best.yrs}, at ${fmtPct(best.irrPct, 2)}. `
-        : 'No exit year returns the capital under these assumptions. ')
+      /* Every year, unranked. Naming the year with the highest rate was the
+         model choosing an exit by its own measure — the pick this product
+         leaves to the reader. */
+      (rated.length ? '' : 'No exit year returns a rate under these assumptions. ')
       + 'That is arithmetic on the entered figures — the appreciation rate, the gains-tax band for the year, and how much of the loan is left — and not a view on when to sell. '
       + `Rental cash is ${m.taxComputed ? 'after' : 'before'} tax on the rent.`));
     out.append(card);

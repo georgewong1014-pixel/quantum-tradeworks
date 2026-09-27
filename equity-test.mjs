@@ -662,6 +662,45 @@ try {
     if (page.view !== 'watchlists' || !page.create || !page.add || !page.scan || page.instIds !== page.rows) fail('the watchlists page carries create, add and scanner controls and an instrument id per member', page);
     else ok(`the watchlists page carries create, add and scanner controls, and an instrument id on each of its ${page.rows} member rows`);
   }
+  /* THE REASON IS THE TRUE ONE. An insurer's inapplicable measure names the
+     insurer, not a bank; a non-bank whose equity is negative is told about its
+     equity, not about banks; a missing statement line is named before a price
+     is asked for, because a price would not fill it; a price measure shows no
+     "prior period" made of today's price and last year's statements; and a
+     share count that came from the weighted diluted line says so. */
+  {
+    const r = await evaluate(`(() => {
+      const ins = U.find(x => x.c.real && x.c.type === 'insurer' && !isNum(x.m.roic));
+      const negEq = U.find(x => x.c.real && x.c.type !== 'bank' && !isNum(x.m.netGearing) && isNum(x.c.fin[x.c.fin.length - 1][F.EQ]) && x.c.fin[x.c.fin.length - 1][F.EQ] <= 0);
+      const noDps = U.find(x => x.c.real && !isNum(x.c.px?.p) && !isNum(x.c.fin[x.c.fin.length - 1][F.DPS]));
+      const out = {
+        ins: ins ? { ...metricStatus(ins, 'roic'), cid: ins.c.id } : null,
+        negEq: negEq ? { ...metricStatus(negEq, 'netGearing'), cid: negEq.c.id } : null,
+        noDps: noDps ? { ...metricStatus(noDps, 'dy'), cid: noDps.c.id } : null,
+      };
+      /* The drawer for a price measure and for a share-count input. */
+      const aapl = BY_ID.get('AAPL-SEC');
+      openSourceDrawer(aapl, FIELD_BY_K.pe);
+      const peTxt = document.querySelector('.drawer')?.textContent || '';
+      closeDrawer({ restore: false });
+      const wtd = U.find(x => x.c.real && x.c.provenance?.sh && !x.c.provenance.sh.byYear?.[latestFy(x.c)] && x.c.provenance.shWtd?.byYear?.[latestFy(x.c)]);
+      let shTxt = null;
+      if (wtd) { openSourceDrawer(wtd, FIELD_BY_K.pb); shTxt = document.querySelector('.drawer')?.textContent || ''; closeDrawer({ restore: false }); }
+      out.pePrior = /Prior period\\s*not shown/.test(peTxt);
+      out.wtd = wtd ? { id: wtd.c.id, weighted: /weighted diluted/.test(shTxt), tag: /WeightedAverage/.test(shTxt) } : null;
+      return out;
+    })()`);
+    const p = [];
+    if (!r.ins) p.push('no filed insurer without ROIC to test');
+    else if (r.ins.reason !== 'not applicable' || /bank/i.test(r.ins.text) || !/insurer/.test(r.ins.text)) p.push(`insurer ${r.ins.cid} ROIC: ${r.ins.reason} — ${r.ins.text}`);
+    if (r.negEq && (/bank/i.test(r.negEq.text) || !/equity/i.test(r.negEq.text))) p.push(`negative-equity ${r.negEq.cid} net gearing: ${r.negEq.text}`);
+    if (r.noDps && (r.noDps.reason !== 'not reported' || !/dividend per share/.test(r.noDps.text) || !/price alone would not fill it/.test(r.noDps.text))) p.push(`unpriced ${r.noDps.cid} with no DPS line, yield: ${r.noDps.reason} — ${r.noDps.text}`);
+    if (!r.pePrior) p.push('the drawer for P/E still prints a prior period made of today\'s price');
+    if (r.wtd && !(r.wtd.weighted && r.wtd.tag)) p.push(`${r.wtd.id}: the share-count input does not name the weighted diluted tag it came from`);
+    if (p.length) fail('every absent figure gives the true reason, and the drawer states what it used', p);
+    else ok(`every absent figure gives the true reason (insurer ${r.ins.cid}${r.negEq ? `, negative equity ${r.negEq.cid}` : ''}${r.noDps ? `, no dividend line ${r.noDps.cid}` : ''}), a price measure shows no false prior period${r.wtd ? `, and ${r.wtd.id}'s share count names its weighted diluted tag` : ''}`);
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

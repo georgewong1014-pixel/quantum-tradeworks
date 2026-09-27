@@ -33,20 +33,50 @@
    ========================================================================== */
 
 /* @scan-engine-start — sliced by scanner/scan.mjs; keep this region pure. */
-const SCAN_VERSION = '0.1.0';
+const SCAN_VERSION = '0.2.0';
 
 /* Indicators and how many bars each needs before it says anything. A 50-bar
    average from 22 bars is a different number wearing its name, so a rule on
    it is UNTESTED rather than met or failed. Crossings need one bar more. */
+/* ONE READING OF EVERY NUMBER A SETUP CARRIES. A period was read one way by
+   the series (an absent n became 1, so SMA20 was computed as the close), a
+   second way by the bars-needed count (20) and a third by the page's prose
+   (SMA20) — three periods for one rule. Every consumer now calls these. A
+   period that is absent takes the indicator's default; a quoted number is the
+   number; null, true, '' and anything below 1 are not periods. */
+const scanNumeric = (v) => (typeof v === 'number' && Number.isFinite(v))
+  || (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)));
+const SCAN_DEFAULT_N = { sma: 20, ema: 20, rsi: 14, volume_avg: 20 };
+const scanPeriod = (v, def) => (scanNumeric(v) && Number(v) >= 1 ? Math.round(Number(v)) : def);
+const scanPeriodOf = (s) => scanPeriod(s?.n, SCAN_DEFAULT_N[s?.indicator] ?? 20);
+const scanMacdPeriods = (s) => ({ fast: scanPeriod(s?.fast, 12), slow: scanPeriod(s?.slow, 26), signal: scanPeriod(s?.signal, 9) });
+const scanMultiplier = (v) => (scanNumeric(v) && Number(v) > 0 ? Number(v) : 1);
 const SCAN_INDICATORS = {
   price:      { label: 'price',                    needs: () => 1 },
   volume:     { label: 'volume',                   needs: () => 1 },
-  sma:        { label: 'SMA',  param: 'n', needs: (s) => Math.max(1, s.n || 20) },
-  ema:        { label: 'EMA',  param: 'n', needs: (s) => Math.max(1, s.n || 20) },
-  rsi:        { label: 'RSI',  param: 'n', needs: (s) => Math.max(2, (s.n || 14) + 1) },
-  macd:       { label: 'MACD', needs: (s) => Math.max(2, (s.slow || 26) + (s.signal || 9) - 1) },
-  volume_avg: { label: 'average volume', param: 'n', needs: (s) => Math.max(1, s.n || 20) },
+  sma:        { label: 'SMA',  param: 'n', needs: (s) => scanPeriodOf(s) },
+  ema:        { label: 'EMA',  param: 'n', needs: (s) => scanPeriodOf(s) },
+  rsi:        { label: 'RSI',  param: 'n', needs: (s) => scanPeriodOf(s) + 1 },
+  /* The line exists from the slow average's first value; the signal and the
+     histogram need the signal average on top of it. */
+  macd:       { label: 'MACD', needs: (s) => { const p = scanMacdPeriods(s); return (s?.field === 'signal' || s?.field === 'hist') ? p.slow + p.signal - 1 : p.slow; } },
+  volume_avg: { label: 'average volume', param: 'n', needs: (s) => scanPeriodOf(s) },
 };
+/* How a side reads in words — the page's list, the builder and the alert
+   text all use this, so the rule a reader sees is the rule that ran. */
+function scanSideLabel(s) {
+  const id = s?.indicator, def = SCAN_INDICATORS[id];
+  if (!def) return id ? `unknown indicator “${id}”` : '—';
+  let base;
+  if (id === 'volume_avg') base = `${scanPeriodOf(s)}-bar average volume`;
+  else if (def.param) base = `${def.label}${scanPeriodOf(s)}`;
+  else if (id === 'macd') {
+    const p = scanMacdPeriods(s), field = ['line', 'signal', 'hist'].includes(s.field) ? s.field : 'line';
+    base = `MACD${p.fast === 12 && p.slow === 26 && p.signal === 9 ? '' : `(${p.fast},${p.slow},${p.signal})`} ${field}`;
+  } else base = def.label;
+  const m = scanMultiplier(s.multiplier);
+  return m === 1 ? base : `${m}× ${base}`;
+}
 const SCAN_OPERATORS = {
   above:         { label: 'above',         needsPrev: false },
   below:         { label: 'below',         needsPrev: false },
@@ -58,13 +88,17 @@ const SCAN_OPERATORS = {
 /* Series helpers. Each returns an array the length of its input with null
    wherever the window is not yet full — alignment is what makes "the bar
    before" a defined thing. */
+/* A window containing an unrecorded value has no average: a missing volume
+   is not a volume of nought, and summing it as one produced a lower average
+   and a match that should not have been one. */
 function scanSma(a, n) {
   const out = new Array(a.length).fill(null);
-  let s = 0;
+  const ok = (v) => v != null && Number.isFinite(v);
+  let s = 0, gaps = 0;
   for (let i = 0; i < a.length; i++) {
-    s += a[i];
-    if (i >= n) s -= a[i - n];
-    if (i >= n - 1) out[i] = s / n;
+    if (ok(a[i])) s += a[i]; else gaps++;
+    if (i >= n) { if (ok(a[i - n])) s -= a[i - n]; else gaps--; }
+    if (i >= n - 1 && gaps === 0) out[i] = s / n;
   }
   return out;
 }
@@ -113,28 +147,32 @@ function scanIndicatorSeries(spec, bars) {
   const id = spec?.indicator;
   const def = SCAN_INDICATORS[id];
   if (!def) return { series: null, label: `unknown indicator “${id}”`, needs: Infinity };
-  const mult = Number.isFinite(spec.multiplier) && spec.multiplier > 0 ? spec.multiplier : 1;
+  const mult = scanMultiplier(spec.multiplier);
   const scale = (arr) => mult === 1 ? arr : arr.map(v => v == null ? null : v * mult);
-  const n = Math.max(1, Math.round(Number(spec.n) || 0)) || null;
-  let series, label;
+  const n = scanPeriodOf(spec);
+  const label = scanSideLabel(spec);
+  let series, note = null;
   switch (id) {
-    case 'price':      series = bars.closes; label = 'price'; break;
-    case 'volume':     series = bars.volumes; label = 'volume'; break;
-    case 'sma':        series = scanSma(bars.closes, n || 20); label = `SMA${n || 20}`; break;
-    case 'ema':        series = scanEma(bars.closes, n || 20); label = `EMA${n || 20}`; break;
-    case 'rsi':        series = scanRsi(bars.closes, n || 14); label = `RSI${n || 14}`; break;
-    case 'volume_avg': series = scanSma(bars.volumes, n || 20); label = `${n || 20}-bar average volume`; break;
+    case 'price':      series = bars.closes; break;
+    case 'volume':     series = bars.volumes; break;
+    case 'sma':        series = scanSma(bars.closes, n); break;
+    case 'ema':        series = scanEma(bars.closes, n); break;
+    case 'rsi':        series = scanRsi(bars.closes, n); break;
+    case 'volume_avg': series = scanSma(bars.volumes, n); break;
     case 'macd': {
-      const m = scanMacd(bars.closes, spec.fast || 12, spec.slow || 26, spec.signal || 9);
-      const field = ['line', 'signal', 'hist'].includes(spec.field) ? spec.field : 'line';
-      series = m[field]; label = `MACD ${field}`;
+      const p = scanMacdPeriods(spec);
+      const m = scanMacd(bars.closes, p.fast, p.slow, p.signal);
+      series = m[['line', 'signal', 'hist'].includes(spec.field) ? spec.field : 'line'];
       break;
     }
   }
   if (id === 'volume' || id === 'volume_avg') {
     if (!bars.volumes || bars.volumes.every(v => v == null)) return { series: null, label, needs: def.needs(spec), noVolume: true };
+    const window = id === 'volume_avg' ? n : 1;
+    const miss = bars.volumes.slice(-window).filter(v => v == null).length;
+    if (miss) note = `volume is not recorded for ${miss} of the last ${window} bar${window === 1 ? '' : 's'}`;
   }
-  return { series: scale(series), label: mult === 1 ? label : `${mult}× ${label}`, needs: def.needs(spec) };
+  return { series: scale(series), label, needs: def.needs(spec), note };
 }
 
 const scanFmt = (v) => v == null ? '—' : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}m` : Math.abs(v) >= 1e4 ? `${(v / 1e3).toFixed(1)}k` : v.toFixed(2);
@@ -152,11 +190,14 @@ function scanRule(rule, bars) {
   const needs = L.needs + (op.needsPrev ? 1 : 0);
   const lv = L.series[last], lp = op.needsPrev ? L.series[prev] : null;
   if (lv == null || (op.needsPrev && lp == null)) {
-    return { met: null, untested: true, needs, text: `${L.label} needs ${needs} bars; ${bars.closes.length} held` };
+    return { met: null, untested: true, needs, text: L.note ? `${L.label}: ${L.note}` : `${L.label} needs ${needs} bars; ${bars.closes.length} held` };
   }
   if (rule.op === 'between') {
-    const [lo, hi] = Array.isArray(rule.range) && rule.range.length === 2 ? rule.range.map(Number) : [NaN, NaN];
-    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return { met: null, untested: true, text: `${L.label}: no range given` };
+    /* Both bounds must be numbers as written. Number(null) is 0, so a null
+       bound used to be compared as nought and printed as one. */
+    const ok = Array.isArray(rule.range) && rule.range.length === 2 && rule.range.every(scanNumeric);
+    if (!ok) return { met: null, untested: true, text: `${L.label}: the range needs two numbers` };
+    const [lo, hi] = rule.range.map(Number);
     const met = lv >= Math.min(lo, hi) && lv <= Math.max(lo, hi);
     return { met, text: `${L.label} ${scanFmt(lv)} ${met ? 'between' : 'outside'} ${scanFmt(lo)} and ${scanFmt(hi)}`, left: lv };
   }
@@ -169,11 +210,11 @@ function scanRule(rule, bars) {
     const rneeds = R.needs + (op.needsPrev ? 1 : 0);
     rv = R.series[last]; rp = op.needsPrev ? R.series[prev] : null; rlabel = R.label;
     if (rv == null || (op.needsPrev && rp == null)) {
-      return { met: null, untested: true, needs: Math.max(needs, rneeds), text: `${R.label} needs ${rneeds} bars; ${bars.closes.length} held` };
+      return { met: null, untested: true, needs: Math.max(needs, rneeds), text: R.note ? `${R.label}: ${R.note}` : `${R.label} needs ${rneeds} bars; ${bars.closes.length} held` };
     }
   } else {
-    const v = Number(rule.right?.value);
-    if (!Number.isFinite(v)) return { met: null, untested: true, text: `${L.label}: no value to compare against` };
+    if (!scanNumeric(rule.right?.value)) return { met: null, untested: true, text: `${L.label}: no value to compare against` };
+    const v = Number(rule.right.value);
     rv = v; rp = v; rlabel = scanFmt(v);
   }
   let met;
@@ -272,9 +313,12 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null 
       if (cd > 0) {
         const mine = (existing || []).filter(a => a.setupId === setup.id && a.symbol === sym).map(a => a.bar).sort();
         const prevBar = mine[mine.length - 1];
+        /* Counted as the bars held after the previous alert's bar, not by
+           finding that bar: a bar removed from the history (or a history
+           rolled back past it) used to lose the cooldown silently. */
         if (prevBar) {
-          const i = bars.dates.indexOf(prevBar);
-          if (i >= 0 && (bars.dates.length - 1 - i) <= cd) { out.skipped.push({ setup: setup.id, symbol: sym, why: `within the ${cd}-bar cooldown of ${prevBar}` }); continue; }
+          const since = bars.dates.filter(dd => dd > prevBar).length;
+          if (since <= cd) { out.skipped.push({ setup: setup.id, symbol: sym, why: `within the ${cd}-bar cooldown of ${prevBar}` }); continue; }
         }
       }
       const rec = { key, setupId: setup.id, setupName: setup.name || setup.id, symbol: sym, timeframe: 'daily',
@@ -287,6 +331,64 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null 
   /* The run's as-of: the latest bar any series holds. */
   out.asOf = Object.keys(history?.series || {}).map(lastBar).filter(Boolean).sort().pop() || null;
   return out;
+}
+
+/* VALIDATION — the same for the page and the worker. A setups file is
+   `{ setups: [...] }` or a bare list. Every setup either passes whole or is
+   left out whole, with the reason: a half-valid setup evaluated on the rules
+   that parsed would match on fewer conditions than the reader wrote. */
+const SCAN_ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+function scanValidate(doc) {
+  const list = Array.isArray(doc) ? doc : Array.isArray(doc?.setups) ? doc.setups : null;
+  const problems = [];
+  if (!list) return { setups: [], problems: ['the setups file is neither a list nor an object with a "setups" list'] };
+  const ids = new Map();
+  list.forEach(s => { const id = s?.id; if (typeof id === 'string' && id) ids.set(id, (ids.get(id) || 0) + 1); });
+  const ok = [];
+  list.forEach((s, i) => {
+    const who = (s && typeof s === 'object' && (s.id || s.name)) || `setup #${i + 1}`;
+    const bad = (why) => problems.push(`${who}: ${why}`);
+    if (!s || typeof s !== 'object') { bad('is not an object'); return; }
+    if (typeof s.id !== 'string' || !s.id) { bad('has no id — ids are part of every alert key'); return; }
+    if (/[|\s]/.test(s.id)) { bad('id contains "|" or whitespace'); return; }
+    if (ids.get(s.id) > 1) { bad('id is used by more than one setup'); return; }
+    if ((s.timeframe || 'daily') !== 'daily') { bad(`timeframe "${s.timeframe}" is not built — daily only`); return; }
+    if (s.logic != null && s.logic !== 'AND' && s.logic !== 'OR') { bad(`logic "${s.logic}" is not AND or OR`); return; }
+    if (!Array.isArray(s.rules) || !s.rules.length) { bad('has no rules'); return; }
+    if (s.expires != null && !(typeof s.expires === 'string' && SCAN_ISO_DAY.test(s.expires))) { bad(`expires "${s.expires}" is not YYYY-MM-DD`); return; }
+    if (s.cooldownBars != null && !(scanNumeric(s.cooldownBars) && Number(s.cooldownBars) >= 0)) { bad(`cooldownBars "${s.cooldownBars}" is not a non-negative number`); return; }
+    const u = s.universe || { kind: 'all' };
+    if (!['all', 'market', 'symbols', 'watchlist'].includes(u.kind)) { bad(`universe kind "${u.kind}" is not all, market, symbols or watchlist`); return; }
+    if (u.kind === 'symbols' && (!Array.isArray(u.symbols) || !u.symbols.some(x => typeof x === 'string' && x.trim()))) { bad('universe is "symbols" but names none'); return; }
+    /* A watchlist lives in a browser; the worker sees only the snapshot of its
+       symbols the page wrote into the setup. Without one there is nothing to scan. */
+    if (u.kind === 'watchlist' && (!Array.isArray(u.symbols) || !u.symbols.length)) { bad('universe is a watchlist but carries no symbol snapshot — copy the setup JSON again from /my/scanner'); return; }
+    if (u.kind === 'market' && !u.market) { bad('universe is "market" but names none'); return; }
+    const sideOk = (side, what) => {
+      if (!side || typeof side !== 'object') return `${what} side is missing`;
+      if (!SCAN_INDICATORS[side.indicator]) return `${what} indicator "${side.indicator}" is not one of ${Object.keys(SCAN_INDICATORS).join(', ')}`;
+      for (const k of ['n', 'fast', 'slow', 'signal']) if (side[k] != null && !(scanNumeric(side[k]) && Number(side[k]) >= 1)) return `${what} ${k === 'n' ? 'period' : k + ' period'} "${side[k]}" is not a number of at least 1`;
+      if (side.multiplier != null && !(scanNumeric(side.multiplier) && Number(side.multiplier) > 0)) return `${what} multiplier "${side.multiplier}" is not a positive number`;
+      if (side.field != null && !['line', 'signal', 'hist'].includes(side.field)) return `${what} MACD field "${side.field}" is not line, signal or hist`;
+      return null;
+    };
+    for (let r = 0; r < s.rules.length; r++) {
+      const rule = s.rules[r];
+      const where = `rule ${r + 1}`;
+      if (!rule || typeof rule !== 'object') { bad(`${where} is not an object`); return; }
+      if (!SCAN_OPERATORS[rule.op]) { bad(`${where}: operator "${rule.op}" is not one of ${Object.keys(SCAN_OPERATORS).join(', ')}`); return; }
+      const l = sideOk(rule.left, `${where} left`); if (l) { bad(l); return; }
+      if (rule.op === 'between') {
+        if (!Array.isArray(rule.range) || rule.range.length !== 2 || !rule.range.every(scanNumeric)) { bad(`${where}: "between" needs a range of two numbers`); return; }
+      } else if (rule.right && rule.right.indicator != null) {
+        const rr = sideOk(rule.right, `${where} right`); if (rr) { bad(rr); return; }
+      } else if (!scanNumeric(rule.right?.value)) {
+        bad(`${where}: right side needs an indicator or a numeric value`); return;
+      }
+    }
+    ok.push(s);
+  });
+  return { setups: ok, problems };
 }
 
 /* The fixture every run self-tests against. Sixty bars of a flat-ish series,
@@ -341,12 +443,14 @@ const scanBlankRule = () => ({ left: { indicator: 'price' }, op: 'crosses_above'
 const scanBlankDraft = () => ({ id: '', name: '', enabled: true, universe: { kind: 'symbols', symbols: [] }, timeframe: 'daily',
   confirmation: 'close', logic: 'AND', cooldownBars: 5, expires: null, rules: [scanBlankRule()] });
 
+/* The engine's own label for each side, so the rule a reader sees is the
+   rule that runs — the page used to print SMA20 for a side the engine read
+   as SMA1. A missing value prints as '?', never as a number. */
 const scanRuleProse = (r) => {
-  const side = (s) => { if (!s) return '—'; const def = SCAN_INDICATORS[s.indicator]; if (!def) return s.indicator || '—';
-    const base = def.param ? `${def.label}${s.n || (s.indicator === 'rsi' ? 14 : 20)}` : s.indicator === 'macd' ? `MACD ${s.field || 'line'}` : def.label;
-    return s.multiplier && s.multiplier !== 1 ? `${s.multiplier}× ${base}` : base; };
-  if (r.op === 'between') return `${side(r.left)} between ${r.range?.[0] ?? '?'} and ${r.range?.[1] ?? '?'}`;
-  return `${side(r.left)} ${SCAN_OPERATORS[r.op]?.label || r.op} ${r.right?.indicator ? side(r.right) : (r.right?.value ?? '?')}`;
+  if (!r || typeof r !== 'object') return '(not a rule)';
+  const val = (v) => (scanNumeric(v) ? String(Number(v)) : '?');
+  if (r.op === 'between') return `${scanSideLabel(r.left)} between ${val(r.range?.[0])} and ${val(r.range?.[1])}`;
+  return `${scanSideLabel(r.left)} ${SCAN_OPERATORS[r.op]?.label || r.op} ${r.right?.indicator ? scanSideLabel(r.right) : val(r.right?.value)}`;
 };
 const scanUniverseProse = (u) => !u || u.kind === 'all' ? 'every instrument with a series'
   : u.kind === 'market' ? `every ${u.market || '?'} instrument in the registry`
@@ -371,25 +475,29 @@ VIEWS.scanner = () => {
     el('p', { class: 'eyebrow' }, 'Personal lane'),
     el('h1', {}, 'Trade-setup scanner'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Conditions you define, evaluated on price history you supplied, producing a record of which conditions held on which completed bar. '
+      'Conditions you define, evaluated on price history you supplied, producing a record of which conditions held on which daily bar. '
       + 'It does not rank, it does not deliver anything, and it does not say that any condition means anything.'),
   ])));
 
   const history = trackedHistory;
   const haveHistory = !!(history?.series && Object.keys(history.series).length);
   const registry = instruments?.instruments || [];
-  const setups = Array.isArray(scanSetupsFile?.setups) ? scanSetupsFile.setups : Array.isArray(scanSetupsFile) ? scanSetupsFile : [];
-  const alerts = Array.isArray(scanAlertsFile?.alerts) ? scanAlertsFile.alerts : [];
+  /* Validated here exactly as the worker validates, so "evaluate now" can
+     never show a match for a setup the record will refuse. */
+  const checked = scanSetupsFile ? scanValidate(scanSetupsFile) : { setups: [], problems: [] };
+  const setups = checked.setups;
+  const alerts = Array.isArray(scanAlertsFile?.alerts) ? scanAlertsFile.alerts : Array.isArray(scanAlertsFile) ? scanAlertsFile : [];
+  const lastRun = scanAlertsFile && !Array.isArray(scanAlertsFile) ? scanAlertsFile.lastRun || null : null;
 
   /* ---- what this is, and is not ---- */
   const bd = el('div', { class: 'card' });
   bd.append(cardHead('What this will and will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
     el('li', {}, 'It reads only your own price history — data/price-history.json, built from your screen or your export under your subscription. No feed is licensed to this product, so no other data is scanned and none of this is offered to anyone else.'),
-    el('li', {}, 'A match is a record that the conditions you wrote held on a completed daily bar, with the values. It is not a signal, and no indicator here has been validated on point-in-time data, so none is claimed to work.'),
+    el('li', {}, 'A match is a record that the conditions you wrote held on the last daily bar your history holds, with the values. It is not a signal, and no indicator here has been validated on point-in-time data, so none is claimed to work.'),
     el('li', {}, 'Nothing is ranked or sorted by strength. Matches appear in the order of your setups and your instruments.'),
     el('li', {}, 'Nothing is delivered. The worker writes a file; this page reads it. Email, Telegram and push need a server and a contact address held under a privacy notice, and this build has neither.'),
-    el('li', {}, 'Daily bars, confirmed at the close, only. Intraday needs a licensed feed; backtesting needs point-in-time history. Both are named in the plan as gated, not as missing.'),
+    el('li', {}, 'Daily bars only, evaluated on the last bar your history holds. The engine cannot tell whether that bar\u2019s session had closed when it was captured, so run the capture after the close. Intraday needs a licensed feed; backtesting needs point-in-time history. Both are named in the plan as gated, not as missing.'),
   ]));
   wrap.append(bd);
 
@@ -408,8 +516,16 @@ VIEWS.scanner = () => {
 
   /* ---- setups on file, and a live evaluation of them ---- */
   const sc = el('div', { class: 'card' });
-  sc.append(cardHead('Your setups', setups.length ? `${setups.length} in data/scan-setups.json. The worker evaluates them after each daily run; the button below evaluates them now, here, and records nothing.` : 'No setups file is loaded.'));
-  if (!setups.length) sc.append(el('p', { class: 'body', style: 'font-size:13px' },
+  sc.append(cardHead('Your setups', setups.length || checked.problems.length
+    ? `${setups.length} valid in data/scan-setups.json${checked.problems.length ? `, ${checked.problems.length} refused` : ''}. The worker evaluates the valid ones after each daily run; the button below evaluates them now, here, and records nothing.`
+    : 'No setups file is loaded.'));
+  if (checked.problems.length) {
+    const pr = el('div', { class: 'panel', style: 'margin-top:8px;border-color:var(--warn-line, var(--line))' });
+    pr.append(el('p', { class: 'metaline', style: 'font-weight:600' }, 'Refused — the worker leaves these out too. A setup passes whole or not at all:'));
+    pr.append(el('ul', { class: 'rulelist' }, checked.problems.map(p => el('li', {}, p))));
+    sc.append(pr);
+  }
+  if (!setups.length && !checked.problems.length) sc.append(el('p', { class: 'body', style: 'font-size:13px' },
     'Write your first setup with the builder below, save it as data/scan-setups.json (a committed example is at scanner/setups.example.json), and run node scanner/scan.mjs. The file stays on your machine — it is git-ignored and CI fails if it is ever tracked.'));
   setups.forEach(s => {
     const p = el('div', { class: 'panel', style: 'margin-top:8px' });
@@ -421,7 +537,7 @@ VIEWS.scanner = () => {
       el('span', { class: 'chip' }, `cooldown ${s.cooldownBars ?? 0} bars`),
       s.expires ? el('span', { class: 'chip' }, `expires ${s.expires}`) : null,
     ]));
-    p.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, `Universe: ${scanUniverseProse(s.universe)} · ${s.timeframe || 'daily'} bars, confirmed at the close.`));
+    p.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, `Universe: ${scanUniverseProse(s.universe)} · daily bars, the last one your history holds.`));
     p.append(el('ul', { class: 'rulelist' }, (s.rules || []).map(r => el('li', {}, scanRuleProse(r)))));
     sc.append(p);
   });
@@ -438,8 +554,17 @@ VIEWS.scanner = () => {
   /* ---- the record ---- */
   const ac = el('div', { class: 'card' });
   ac.append(cardHead('Alert history', alerts.length
-    ? `${alerts.length} recorded match${alerts.length === 1 ? '' : 'es'} in data/scan-alerts.json, newest first. Each is one setup, one instrument, one completed bar; the same bar is never recorded twice.`
+    ? `${alerts.length} recorded match${alerts.length === 1 ? '' : 'es'} in data/scan-alerts.json, newest first. Each is one setup, one instrument, one daily bar; the same bar is never recorded twice.`
     : 'Nothing recorded yet.'));
+  /* What the worker said on its last run — the refusals and the setups no
+     instrument could test are the part a reader needs and never saw. */
+  if (lastRun) {
+    const lr = el('div', { class: 'panel', style: 'margin-top:8px' });
+    lr.append(el('p', { class: 'metaline' }, `Last worker run ${lastRun.at ? String(lastRun.at).replace('T', ' ').slice(0, 16) : '—'} on bars to ${lastRun.asOf || '—'} (${lastRun.engine || 'engine unknown'}): ${lastRun.setups ?? 0} setup${lastRun.setups === 1 ? '' : 's'}, ${lastRun.evaluated ?? 0} evaluation${lastRun.evaluated === 1 ? '' : 's'}, ${lastRun.matched ?? 0} matched, ${lastRun.recorded ?? 0} recorded, ${lastRun.untested ?? 0} untested.`));
+    const probs = [...(lastRun.problems || []).map(p => `refused — ${p}`), ...(lastRun.untestedEverywhere || []).map(id => `${id}: no instrument in its universe holds enough bars for its rules`)];
+    if (probs.length) lr.append(el('ul', { class: 'rulelist' }, probs.map(p => el('li', {}, p))));
+    ac.append(lr);
+  }
   if (!alerts.length) ac.append(el('p', { class: 'body', style: 'font-size:13px' }, 'The worker appends a record here when a setup matches. An empty history is the normal state of a scanner with tight conditions, not a fault.'));
   else {
     const t = el('table', { class: 'dt' });
@@ -466,7 +591,7 @@ VIEWS.scanner = () => {
    skipped and why. In setup-then-symbol order. */
 function scanRunSummary(r, note) {
   const box = el('div');
-  box.append(el('p', { class: 'metaline' }, `${r.setups} setup${r.setups === 1 ? '' : 's'} · ${r.evaluated} evaluation${r.evaluated === 1 ? '' : 's'} on the last completed bar${r.asOf ? ` (${r.asOf})` : ''} · ${r.matched} match${r.matched === 1 ? '' : 'es'} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
+  box.append(el('p', { class: 'metaline' }, `${r.setups} setup${r.setups === 1 ? '' : 's'} · ${r.evaluated} evaluation${r.evaluated === 1 ? '' : 's'} on the last bar held${r.asOf ? ` (${r.asOf})` : ''} · ${r.matched} match${r.matched === 1 ? '' : 'es'} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
   if (r.alerts.length) {
     const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
     r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
@@ -475,7 +600,7 @@ function scanRunSummary(r, note) {
   const untestedWhy = r.skipped.filter(s => s.why);
   if (untestedWhy.length) {
     const det = el('details', { style: 'margin-top:6px' });
-    det.append(el('summary', { class: 'caption', style: 'cursor:pointer' }, `Skipped and untested (${untestedWhy.length})`));
+    det.append(el('summary', { class: 'caption', style: 'cursor:pointer' }, `Skipped (${untestedWhy.length})`));
     det.append(el('ul', { class: 'rulelist' }, untestedWhy.slice(0, 60).map(s => el('li', { class: 'caption' }, `${s.setup}${s.symbol ? ' · ' + s.symbol : ''}: ${s.why}`))));
     box.append(det);
   }
@@ -484,20 +609,43 @@ function scanRunSummary(r, note) {
 
 /* The setup builder. It writes JSON for the reader to save — the same
    pattern as the Trading Index observations file — and can test the draft
-   against the loaded history without recording anything. */
+   against the loaded history without recording anything.
+
+   Text, number and date fields update the draft on every keystroke and
+   refresh the outputs in place; nothing is rebuilt under the cursor, so focus
+   stays, a click straight after an edit lands, and a date is not committed at
+   its first year digit. Only a select that changes which fields exist rebuilds
+   the card, and focus returns to it. A blank number is absent — the default
+   applies, or the setup is refused with the reason — never a silent 0. */
+let scanIdAuto = true;
 function scanBuilder(history, registry, alerts) {
   const card = el('div', { class: 'card' });
   card.append(cardHead('Setup builder', 'Write a setup, test it against your history, then save the JSON as data/scan-setups.json for the worker.'));
   const d = scanDraft || (scanDraft = scanBlankDraft());
-  /* Re-render the card in place: the page around it has nothing to redraw. */
-  const rerender = () => card.replaceWith(scanBuilder(history, registry, alerts));
+  const rebuild = () => {
+    const a = document.activeElement;
+    let key = null;
+    if (a && card.contains(a) && a.getAttribute('aria-label')) {
+      const lab = a.getAttribute('aria-label');
+      key = { lab, i: [...card.querySelectorAll('[aria-label]')].filter(n => n.getAttribute('aria-label') === lab).indexOf(a) };
+    }
+    const next = scanBuilder(history, registry, alerts);
+    card.replaceWith(next);
+    if (key) [...next.querySelectorAll('[aria-label]')].filter(n => n.getAttribute('aria-label') === key.lab)[key.i]?.focus();
+  };
   const field = (label, input) => { const f = el('div', { class: 'field' }); f.append(el('label', {}, label)); if (!input.getAttribute('aria-label')) input.setAttribute('aria-label', label); f.append(input); return f; };
-  const text = (val, on, attrs = {}) => el('input', { class: 'input', value: val ?? '', ...attrs, onchange: e => { on(e.target.value); rerender(); } });
-  const select = (val, opts, on) => { const s = el('select', { class: 'select', onchange: e => { on(e.target.value); rerender(); } }); opts.forEach(([v, l]) => s.append(el('option', { value: v, selected: String(val) === String(v) ? '' : null }, l))); return s; };
+  /* Live fields: the draft follows the keystrokes; the outputs follow the draft. */
+  const text = (val, on, attrs = {}) => el('input', { class: 'input', value: val ?? '', ...attrs, oninput: e => { on(e.target.value); refresh(); } });
+  const numOrAbsent = (v) => (String(v).trim() === '' || !Number.isFinite(Number(v)) ? undefined : Number(v));
+  const select = (val, opts, on) => { const s = el('select', { class: 'select', onchange: e => { on(e.target.value); rebuild(); } }); opts.forEach(([v, l]) => s.append(el('option', { value: v, selected: String(val) === String(v) ? '' : null }, l))); return s; };
+  const PERIOD = ['sma', 'ema', 'rsi', 'volume_avg'];
+  const freshSide = (v) => ({ indicator: v, ...(PERIOD.includes(v) ? { n: SCAN_DEFAULT_N[v] } : {}) });
 
   const g = el('div', { class: 'grid g-3', style: 'gap:var(--sm)' });
-  g.append(field('Name', text(d.name, v => { d.name = v; if (!d.id) d.id = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40); })));
-  g.append(field('Id (stable; part of every alert key)', text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); })));
+  const slug = (v) => v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+  const idInput = text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); scanIdAuto = !d.id; });
+  g.append(field('Name', text(d.name, v => { d.name = v; if (scanIdAuto) { d.id = slug(v); idInput.value = d.id; } })));
+  g.append(field('Id (stable; part of every alert key)', idInput));
   g.append(field('Logic', select(d.logic, [['AND', 'all rules must hold'], ['OR', 'any rule may hold']], v => { d.logic = v; })));
   g.append(field('Universe', select(d.universe.kind, [['symbols', 'named instruments'], ['watchlist', 'one of your watchlists (its symbols, snapshotted)'], ['market', 'a market'], ['all', 'everything with a series']], v => {
     d.universe = v === 'market' ? { kind: 'market', market: 'US' }
@@ -513,47 +661,52 @@ function scanBuilder(history, registry, alerts) {
       : 'No watchlist selected.'));
   }
   if (d.universe.kind === 'market') g.append(field('Market', select(d.universe.market, [['US', 'US'], ['MY', 'Bursa Malaysia']], v => { d.universe.market = v; })));
-  g.append(field('Cooldown (bars before the same instrument can match again)', text(d.cooldownBars, v => { d.cooldownBars = Math.max(0, Math.round(Number(v) || 0)); }, { type: 'number', min: '0', step: '1' })));
-  g.append(field('Expires (blank for persistent)', text(d.expires || '', v => { d.expires = v || null; }, { type: 'date' })));
+  g.append(field('Cooldown (bars before the same instrument can match again)', text(d.cooldownBars, v => { const n = numOrAbsent(v); d.cooldownBars = n === undefined ? 0 : Math.max(0, Math.round(n)); }, { type: 'number', min: '0', step: '1' })));
+  g.append(field('Expires (blank for persistent)', text(d.expires || '', v => { d.expires = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null; }, { type: 'date' })));
   card.append(g);
 
   card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Rules'));
   const INDS = [['price', 'price'], ['volume', 'volume'], ['sma', 'SMA'], ['ema', 'EMA'], ['rsi', 'RSI'], ['macd', 'MACD'], ['volume_avg', 'average volume']];
   const OPS = Object.entries(SCAN_OPERATORS).map(([k, v]) => [k, v.label]);
+  const proseSpans = [];
+  const periodField = (side) => field('Period (bars)', text(side.n, v => { const n = numOrAbsent(v); if (n === undefined) delete side.n; else side.n = n; }, { type: 'number', min: '1', step: '1', placeholder: String(SCAN_DEFAULT_N[side.indicator] ?? '') }));
   d.rules.forEach((r, i) => {
     const row = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     const grid = el('div', { class: 'grid g-4', style: 'gap:var(--sm)' });
-    grid.append(field('Left', select(r.left?.indicator || 'price', INDS, v => { r.left = { indicator: v, ...(['sma', 'ema', 'rsi', 'volume_avg'].includes(v) ? { n: v === 'rsi' ? 14 : 20 } : {}) }; })));
-    if (['sma', 'ema', 'rsi', 'volume_avg'].includes(r.left?.indicator)) grid.append(field('Period (bars)', text(r.left.n, v => { r.left.n = Math.max(1, Math.round(Number(v) || 1)); }, { type: 'number', min: '1', step: '1' })));
+    grid.append(field('Left', select(r.left?.indicator || 'price', INDS, v => { r.left = freshSide(v); })));
+    if (PERIOD.includes(r.left?.indicator)) grid.append(periodField(r.left));
     if (r.left?.indicator === 'macd') grid.append(field('MACD field', select(r.left.field || 'line', [['line', 'line'], ['signal', 'signal'], ['hist', 'histogram']], v => { r.left.field = v; })));
-    grid.append(field('Operator', select(r.op, OPS, v => { r.op = v; if (v === 'between') { r.range = r.range || [50, 70]; delete r.right; } else if (!r.right) r.right = { indicator: 'ema', n: 50 }; })));
+    grid.append(field('Operator', select(r.op, OPS, v => { r.op = v; if (v === 'between') { r.range = r.range || [50, 70]; delete r.right; } else { delete r.range; if (!r.right) r.right = { indicator: 'ema', n: 50 }; } })));
     if (r.op === 'between') {
-      grid.append(field('From', text(r.range?.[0], v => { r.range = [Number(v), r.range?.[1] ?? 0]; }, { type: 'number', step: 'any' })));
-      grid.append(field('To', text(r.range?.[1], v => { r.range = [r.range?.[0] ?? 0, Number(v)]; }, { type: 'number', step: 'any' })));
+      r.range = Array.isArray(r.range) ? r.range : [null, null];
+      grid.append(field('From', text(r.range[0], v => { r.range[0] = numOrAbsent(v) ?? null; }, { type: 'number', step: 'any' })));
+      grid.append(field('To', text(r.range[1], v => { r.range[1] = numOrAbsent(v) ?? null; }, { type: 'number', step: 'any' })));
     } else {
-      grid.append(field('Right', select(r.right?.indicator ? r.right.indicator : 'value', [['value', 'a fixed value'], ...INDS], v => { r.right = v === 'value' ? { value: 0 } : { indicator: v, ...(['sma', 'ema', 'rsi', 'volume_avg'].includes(v) ? { n: v === 'rsi' ? 14 : 20 } : {}) }; })));
-      if (r.right?.indicator && ['sma', 'ema', 'rsi', 'volume_avg'].includes(r.right.indicator)) grid.append(field('Period (bars)', text(r.right.n, v => { r.right.n = Math.max(1, Math.round(Number(v) || 1)); }, { type: 'number', min: '1', step: '1' })));
-      if (r.right?.indicator) grid.append(field('Multiplier (1 = none)', text(r.right.multiplier ?? 1, v => { const m = Number(v); if (Number.isFinite(m) && m > 0 && m !== 1) r.right.multiplier = m; else delete r.right.multiplier; }, { type: 'number', step: 'any', min: '0' })));
-      if (r.right && !r.right.indicator) grid.append(field('Value', text(r.right.value, v => { r.right.value = Number(v); }, { type: 'number', step: 'any' })));
+      grid.append(field('Right', select(r.right?.indicator ? r.right.indicator : 'value', [['value', 'a fixed value'], ...INDS], v => { r.right = v === 'value' ? { value: null } : freshSide(v); })));
+      if (r.right?.indicator && PERIOD.includes(r.right.indicator)) grid.append(periodField(r.right));
+      if (r.right?.indicator === 'macd') grid.append(field('MACD field (right)', select(r.right.field || 'line', [['line', 'line'], ['signal', 'signal'], ['hist', 'histogram']], v => { r.right.field = v; })));
+      if (r.right?.indicator) grid.append(field('Multiplier (1 = none)', text(r.right.multiplier ?? 1, v => { const m = numOrAbsent(v); if (m !== undefined && m > 0 && m !== 1) r.right.multiplier = m; else delete r.right.multiplier; }, { type: 'number', step: 'any', min: '0' })));
+      if (r.right && !r.right.indicator) grid.append(field('Value', text(r.right.value, v => { r.right.value = numOrAbsent(v) ?? null; }, { type: 'number', step: 'any' })));
     }
     row.append(grid);
+    const prose = el('span', { class: 'metaline' }, scanRuleProse(r));
+    proseSpans.push([prose, r]);
     row.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px;align-items:center' }, [
-      el('span', { class: 'metaline' }, scanRuleProse(r)),
+      prose,
       el('span', { class: 'spacer' }),
-      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { d.rules.splice(i, 1); if (!d.rules.length) d.rules.push(scanBlankRule()); rerender(); } }, 'Remove'),
+      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { d.rules.splice(i, 1); if (!d.rules.length) d.rules.push(scanBlankRule()); rebuild(); } }, 'Remove'),
     ]));
     card.append(row);
   });
-  card.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { d.rules.push(scanBlankRule()); rerender(); } }, 'Add a rule'));
+  card.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { d.rules.push(scanBlankRule()); rebuild(); } }, 'Add a rule'));
 
   /* Test and output. */
   const outHost = el('div', { style: 'margin-top:var(--md)' });
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
-  const ready = d.id && d.rules.length;
   /* The setup as the worker will read it. A watchlist universe is expanded
      here, at the moment the JSON is written, into the symbols the list holds. */
   const draftSetup = () => {
-    const out = { ...d, enabled: true };
+    const out = JSON.parse(JSON.stringify({ ...d, enabled: true }));
     if (d.universe.kind === 'watchlist') {
       const snap = watchlistSymbols(d.universe.watchlistId);
       out.universe = { kind: 'watchlist', watchlistId: d.universe.watchlistId, name: snap.name, symbols: snap.symbols, asOf: snap.asOf, unresolved: snap.unresolved };
@@ -561,19 +714,35 @@ function scanBuilder(history, registry, alerts) {
     return out;
   };
   const draftJson = () => JSON.stringify({ setups: [draftSetup()] }, null, 2);
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: (!ready || !history?.series) ? '' : null, onclick: () => {
+  const testBtn = el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
     const r = scanRun([draftSetup()], history, { instruments: registry, existing: alerts, now: new Date().toISOString() });
     outHost.replaceChildren(scanRunSummary(r, 'A test of the draft against the loaded history. Nothing is recorded.'));
-  } }, 'Test against your history (not recorded)'));
-  acts.append(el('button', { class: 'btn btn-primary btn-sm', disabled: ready ? null : '', onclick: async () => {
+  } }, 'Test against your history (not recorded)');
+  const copyBtn = el('button', { class: 'btn btn-primary btn-sm', onclick: async () => {
     try { await navigator.clipboard.writeText(draftJson()); toast('Setup JSON copied — save it as data/scan-setups.json'); }
     catch { toast('Could not reach the clipboard — copy the JSON below'); }
-  } }, 'Copy setup JSON'));
-  acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { scanDraft = scanBlankDraft(); rerender(); } }, 'Start over'));
+  } }, 'Copy setup JSON');
+  acts.append(testBtn, copyBtn, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { scanDraft = scanBlankDraft(); scanIdAuto = true; rebuild(); } }, 'Start over'));
   card.append(acts);
+  const problemsHost = el('ul', { class: 'rulelist', style: 'margin-top:6px' });
+  card.append(problemsHost);
   card.append(outHost);
-  if (ready) card.append(el('pre', { class: 'caption', style: 'margin-top:var(--md);white-space:pre-wrap;max-height:320px;overflow:auto;padding:var(--sm);background:var(--surface-sunk);border-radius:var(--r-sm)' }, draftJson()));
+  const pre = el('pre', { class: 'caption', style: 'margin-top:var(--md);white-space:pre-wrap;max-height:320px;overflow:auto;padding:var(--sm);background:var(--surface-sunk);border-radius:var(--r-sm)' });
+  card.append(pre);
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'To add this to an existing file, paste the object inside the file’s "setups" array. Then: node scanner/scan.mjs — or let the daily run pick it up. Ids are part of every alert key, so renaming a setup starts its history afresh.'));
+
+  /* In place: the buttons, the reasons, the JSON and each rule's prose. */
+  function refresh() {
+    const v = scanValidate({ setups: [draftSetup()] });
+    const ready = v.problems.length === 0;
+    copyBtn.disabled = !ready;
+    testBtn.disabled = !ready || !history?.series;
+    problemsHost.replaceChildren(...(ready ? [] : v.problems.map(p => el('li', { class: 'caption' }, `Not ready — ${p.replace(/^[^:]*: /, '')}`))));
+    pre.textContent = ready ? draftJson() : '';
+    pre.hidden = !ready;
+    proseSpans.forEach(([span, r]) => { span.textContent = scanRuleProse(r); });
+  }
+  refresh();
   return card;
 }
