@@ -318,6 +318,22 @@ const PORTABLE_KEYS = [
   { k:'qttiPlan',     label:'Trading Index evidence' },
   { k:'manualPrices', label:'Prices you entered' },
   { k:'userData',     label:'Price series you pasted' },
+  /* Everything below is also made by the reader, and the card that exports
+     this list calls itself the only copy that survives a cleared browser. They
+     were missing, so a restore into a clean browser lost them — and the seeded
+     sample alerts reappeared in place of the reader's own, as if they were
+     theirs. Display preferences (theme, density, the companies in a
+     comparison) stay out on purpose; the full backup carries them. */
+  { k:'priceAlerts',       label:'Price alerts' },
+  { k:'dividendsReceived', label:'Dividends you recorded' },
+  { k:'wht',               label:'Withholding rates you set' },
+  { k:'baseCcy',           label:'Base currency' },
+  { k:'savedScreens',      label:'Saved screens' },
+  { k:'savedWork',         label:'Saved work' },
+  { k:'reviews',           label:'Decision reviews' },
+  { k:'runs',              label:'Saved valuation runs' },
+  { k:'borrowerProfile',   label:'Borrower profile' },
+  { k:'sarawakExposure',   label:'Sarawak exposure records' },
 ];
 
 function exportEverything() {

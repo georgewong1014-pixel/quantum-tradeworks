@@ -23,13 +23,28 @@
 
 const WATCHLIST_SCHEMA = 2;
 
+/* A monotonic suffix, because timestamps collide. Ids were `wl-${Date.now()}`,
+   and an import creates its lists in one synchronous loop, so two lists made
+   in the same millisecond shared an id — every lookup is a find() on id, so
+   the second list's members went into the first, and a later rename or delete
+   acted on the wrong one. The same collision, and the same cure, as saved
+   work's ids in 15-derivation.js. */
+let WL_SEQ = 0;
+const nextWatchlistId = () => `wl-${Date.now().toString(36)}-${(WL_SEQ++).toString(36)}`;
+
 /* One-time migration of what the browser already holds. Lists that predate
    timestamps get null with the reason, never a plausible date. */
 function migrateWatchlists() {
   const now = new Date().toISOString();
   let touched = false;
+  /* Lists already stored under a shared id (an import made before ids had a
+     suffix) are separated: the first keeps the id and each later one gets its
+     own. Members already merged cannot be told apart again, but the lists stop
+     colliding. */
+  const seenIds = new Set();
   (State.watchlists || []).forEach(w => {
-    if (!w.id) { w.id = `wl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`; touched = true; }
+    if (!w.id || seenIds.has(w.id)) { w.id = nextWatchlistId(); touched = true; }
+    seenIds.add(w.id);
     if (!Array.isArray(w.ids)) { w.ids = []; touched = true; }
     if (!('createdAt' in w)) { w.createdAt = null; w.createdAtSource = 'list predates timestamps — unknown'; touched = true; }
     if (!('updatedAt' in w)) { w.updatedAt = null; touched = true; }
@@ -48,7 +63,7 @@ const wlTouch = (w) => { w.updatedAt = new Date().toISOString(); };
 function wlCreate(name) {
   if (State.watchlists.length >= LIMITS.watchlists) return { ok: false, why: `${LIMITS.watchlists} watchlists is the maximum on this plan` };
   const now = new Date().toISOString();
-  const w = { id: `wl-${Date.now()}`, name: String(name || '').trim() || `Watchlist ${State.watchlists.length + 1}`,
+  const w = { id: nextWatchlistId(), name: String(name || '').trim() || `Watchlist ${State.watchlists.length + 1}`,
               ids: [], added: {}, createdAt: now, updatedAt: now, schema: WATCHLIST_SCHEMA };
   State.watchlists.push(w);
   State.wlIdx = State.watchlists.length - 1;
@@ -68,7 +83,12 @@ function wlDelete(wlId) {
   if (i < 0) return { ok: false, why: 'no such watchlist' };
   if (State.watchlists.length <= 1) return { ok: false, why: 'the last watchlist stays — empty it instead' };
   State.watchlists.splice(i, 1);
-  State.wlIdx = Math.min(State.wlIdx, State.watchlists.length - 1);
+  /* The active list stays the active list. Removing one above it shifts its
+     index down by one; only clamping made the next list along silently active,
+     and the alert feed, the dashboard and the company page's toggle all follow
+     the active list. */
+  if (i < State.wlIdx) State.wlIdx--;
+  State.wlIdx = Math.max(0, Math.min(State.wlIdx, State.watchlists.length - 1));
   saveWatchlists();
   return { ok: true };
 }

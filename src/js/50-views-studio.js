@@ -1164,7 +1164,7 @@ VIEWS.compare = () => {
   wht.append(el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:flex-end' }, [
     el('div', {}, [
       el('h4', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'Illustrative dividend withholding'),
-      el('p', { class: 'metaline' }, 'Applied to the gross yield to produce an illustrative net figure. Gross is always shown alongside it.'),
+      el('p', { class: 'metaline' }, 'Applied to the gross yield to produce the illustrative net row in the table below, and the net yield and income on the Portfolio page. Gross is always shown alongside it.'),
     ]),
     el('span', { class: 'spacer' }),
     ...['US', 'MY'].map(mkt => {
@@ -1235,6 +1235,13 @@ VIEWS.compare = () => {
   const kinds = [...new Set(rows.map(r => r.c.type))];
   const allAre = (t) => rows.length > 0 && kinds.length === 1 && kinds[0] === t;
 
+  /* The withholding block above says it produces a net figure beside the gross
+     one. No pack carried that row, so the rates changed nothing on this page
+     and the control was dead where it sat. Every pack's gross yield row is now
+     followed by the net one, labelled as the scenario it is. */
+  const NET_DY = ['Dividend yield, illustrative net', r => isNum(r.m.dy)
+    ? `<span title="Gross less the illustrative withholding of ${esc(String(State.wht[r.c.mkt] ?? 0))}% set above">${fmtPct(netYield(r.m.dy, r.c.mkt), 2)}</span>` : NA];
+
   const PACKS = {
     bank: { id:'bank', name:'Bank comparison',
       why:'Deposit takers are compared on the return they earn on equity, the quality of their funding and their loan book — free cash flow and EV multiples are not meaningful for a bank balance sheet.',
@@ -1253,6 +1260,7 @@ VIEWS.compare = () => {
         ['Price / book', r => fmtX(r.m.pb, 2)],
         ['Price / earnings', r => isNum(r.m.pe) ? fmtX(r.m.pe) : NA],
         ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        NET_DY,
         ['Payout ratio', r => isNum(r.m.payout) ? fmtPct(r.m.payout, 0) : NA],
       ] },
     reit: { id:'reit', name:'REIT comparison',
@@ -1260,6 +1268,7 @@ VIEWS.compare = () => {
       rows: [
         ['— Distribution —', null],
         ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        NET_DY,
         ['Distribution growth (4y)', r => isNum(r.m.dps5) ? fmtPct(r.m.dps5) : NA],
         ['Distribution cover', r => isNum(r.m.dpuCover) ? fmtPct(r.m.dpuCover, 0) : NA],
         ['— Portfolio —', null],
@@ -1288,6 +1297,7 @@ VIEWS.compare = () => {
         ['EV / EBIT', r => isNum(r.m.evebit) ? fmtX(r.m.evebit) : NA],
         ['Free cash flow yield', r => isNum(r.m.fcfy) ? fmtPct(r.m.fcfy, 2) : NA],
         ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        NET_DY,
       ] },
   };
   const pack = allAre('bank') ? PACKS.bank : allAre('reit') ? PACKS.reit : PACKS.general;
@@ -1398,6 +1408,27 @@ const DEFAULT_PORTFOLIOS = [
 ];
 if (!State.portfolios) { State.portfolios = DEFAULT_PORTFOLIOS; savePortfolios(); }
 
+/* Recorded dividends belong to the portfolio they were recorded in. Payments
+   saved before they carried a portfolio are given one here, once: the first
+   portfolio that holds the company, which is where the recording form would
+   have offered it. After this every payment names its portfolio, so a later
+   portfolio that buys the same company does not inherit it. */
+{
+  let moved = false;
+  State.dividendsReceived = (State.dividendsReceived || []).map(x => {
+    if (x.pfId) return x;
+    const home = State.portfolios.find(p => (p.holdings || []).some(h => h.id === x.id)) || State.portfolios[0];
+    moved = true;
+    return { ...x, pfId: home?.id || null };
+  });
+  if (moved) store.write('dividendsReceived', State.dividendsReceived);
+}
+const dropDividendsOf = (pfIds) => {
+  const before = (State.dividendsReceived || []).length;
+  State.dividendsReceived = (State.dividendsReceived || []).filter(x => !pfIds.includes(x.pfId));
+  if (State.dividendsReceived.length !== before) store.write('dividendsReceived', State.dividendsReceived);
+};
+
 /* SEEDED DEMONSTRATION DATA, SAID OUT LOUD
    ---------------------------------------------------------------------------
    Two portfolios and two investment cases are written into a fresh profile so
@@ -1411,24 +1442,45 @@ if (!State.portfolios) { State.portfolios = DEFAULT_PORTFOLIOS; savePortfolios()
    the sharpest contradiction available to it.
 
    Clearing removes the seeded ids and nothing else, so a reader who has already
-   added their own holdings or written their own case keeps them. */
+   added their own holdings or written their own case keeps them.
+
+   The seed also writes two watchlists and two price alerts (05-plans.js), and
+   clearing used to leave them: the banner disappeared and the alert feed went
+   on reporting items "mapped to your watchlist" built on a list the reader
+   never made. They are cleared with the rest — except a list or an alert the
+   reader has since changed, which is theirs now. A watchlist records its last
+   change in updatedAt (null for the untouched seed); an alert records it when
+   the editor saves it. */
 const SEEDED_PF_IDS = ['pf-1', 'pf-2'];
 const SEEDED_THESIS_IDS = ['t1', 't2'];
+const SEEDED_WL_IDS = ['wl-1', 'wl-2'];
+const SEEDED_PA_IDS = ['pa-1', 'pa-2'];
 const seededPortfolios = () => (State.portfolios || []).filter(p => SEEDED_PF_IDS.includes(p.id));
 const seededTheses = () => (State.theses || []).filter(t => SEEDED_THESIS_IDS.includes(t.id));
-const hasSeededData = () => seededPortfolios().length > 0 || seededTheses().length > 0;
+const isSeededWL = (w) => SEEDED_WL_IDS.includes(w.id) && !w.updatedAt;
+const isSeededPA = (pa) => SEEDED_PA_IDS.includes(pa.id) && !pa.updatedAt;
+const hasSeededData = () => seededPortfolios().length > 0 || seededTheses().length > 0
+  || (State.watchlists || []).some(isSeededWL) || (State.priceAlerts || []).some(isSeededPA);
 
 function clearSeededData() {
   const ownPf = (State.portfolios || []).filter(p => !SEEDED_PF_IDS.includes(p.id));
   const ownTh = (State.theses || []).filter(t => !SEEDED_THESIS_IDS.includes(t.id));
+  const ownWl = (State.watchlists || []).filter(w => !isSeededWL(w));
+  const activeWlId = activeWL()?.id;
+  dropDividendsOf(SEEDED_PF_IDS);
   /* activePF() reads State.portfolios[0] and the view assumes it exists, so the
      list is never left empty — it becomes one empty portfolio of the reader's
-     own rather than nothing at all. */
+     own rather than nothing at all. activeWL() makes the same assumption. */
   State.portfolios = ownPf.length ? ownPf
     : [{ id:'pf-user', name:'My portfolio', cash:0, cashCcy:'MYR', holdings:[] }];
   State.theses = ownTh;
   State.pfIdx = 0;
-  savePortfolios(); saveTheses(); render();
+  const now = new Date().toISOString();
+  State.watchlists = ownWl.length ? ownWl
+    : [{ id:'wl-user', name:'My watchlist', ids:[], added:{}, createdAt:now, updatedAt:now, schema:WATCHLIST_SCHEMA }];
+  State.wlIdx = Math.max(0, State.watchlists.findIndex(w => w.id === activeWlId));
+  State.priceAlerts = (State.priceAlerts || []).filter(pa => !isSeededPA(pa));
+  savePortfolios(); saveTheses(); saveWatchlists(); savePriceAlerts(); render();
   toast('Sample data cleared');
 }
 
@@ -1440,7 +1492,7 @@ function sampleBanner() {
   b.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 300px;margin:0' },
-      'These holdings and investment cases were written into this browser so the views have something to show. They are not yours, nobody holds them, and every figure derived from them is illustrative.'),
+      'These holdings, investment cases, watchlists and price alerts were written into this browser so the views have something to show. They are not yours, nobody holds them, and every figure derived from them is illustrative. Clearing keeps any list or alert you have changed.'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: clearSeededData }, 'Clear and start my own'),
   ]));
   return b;
@@ -1525,20 +1577,30 @@ VIEWS.portfolio = () => {
   const securities = sum(pos.map(p => p.valBase));
   const cashBase = toBase(pf.cash || 0, pf.cashCcy || State.baseCcy);
   const totalVal = securities + cashBase;
-  const totalCost = sum(pos.map(p => p.costBase));
+  /* The return is measured on the positions that have a value. Summing every
+     position's cost against the value of only the priced ones counted an
+     unpriced holding at nought — a sleeve of three unpriced holdings read
+     −100.0% — while the table beneath said those holdings were excluded from
+     returns. Value, cost, currency share and yield on cost now cover one set. */
+  const priced = pos.filter(p => !p.unpriced);
+  const unpricedN = pos.length - priced.length;
+  const totalCost = sum(priced.map(p => p.costBase));
 
   if (!pos.length && !cashBase) {
     wrap.append(el('div', { class: 'card' }, emptyState('This portfolio is empty. Add a holding to begin.')));
     return wrap;
   }
 
-  const fxContribution = totalCost ? sum(pos.map(p => p.fxRet * p.costBase)) / totalCost : 0;
+  const fxContribution = totalCost ? sum(priced.map(p => p.fxRet * p.costBase)) / totalCost : 0;
   const feeTotal = sum(pos.map(p => toBase((p.h.fee || 0) - (p.h.rebate || 0), p.r.c.ccy)));
+  const unpricedNote = unpricedN ? `${unpricedN} without a price excluded` : '';
   const tiles = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
   tiles.append(el('div', { class: 'card' }, statTile('Portfolio value', fmtAmount(totalVal, State.baseCcy),
-    { sub: `${pos.length} positions + ${fmtAmount(cashBase, State.baseCcy)} cash` })));
+    { sub: `${pos.length} positions${unpricedN ? ` (${unpricedN} without a price)` : ''} + ${fmtAmount(cashBase, State.baseCcy)} cash` })));
   tiles.append(el('div', { class: 'card' }, statTile('Unrealised change', totalCost ? withSign((securities - totalCost) / totalCost * 100, 1) : '—',
-    { sub: `of which ${withSign(fxContribution, 1)} is currency`, tone: securities >= totalCost ? '--ok-text' : '--dn-text' })));
+    { sub: totalCost ? `of which ${withSign(fxContribution, 1)} is currency${unpricedNote ? ` · ${unpricedNote}` : ''}`
+                     : (pos.length ? 'No holding here has a price, so there is no return to measure' : 'No holdings yet'),
+      tone: !totalCost ? null : securities >= totalCost ? '--ok-text' : '--dn-text' })));
   const withThesis = pos.filter(p => p.thesis);
   tiles.append(el('div', { class: 'card' }, statTile('Covered by a thesis', `${withThesis.length}/${pos.length}`,
     { sub: securities ? `${fmtPct(sum(withThesis.map(p => p.valBase)) / securities * 100, 0)} of securities value` : '—' })));
@@ -1629,7 +1691,7 @@ VIEWS.portfolio = () => {
   const noDpsCount = pos.length - withDps.length;
   const grossIncome = sum(withDps.map(p => p.incomeBase));
   const netIncome = sum(withDps.map(p => p.incomeBase * (1 - (State.wht[p.r.c.mkt] ?? 0) / 100)));
-  const received = (State.dividendsReceived || []).filter(x => pos.some(p => p.h.id === x.id));
+  const received = (State.dividendsReceived || []).filter(x => x.pfId === pf.id && pos.some(p => p.h.id === x.id));
   const recTotal = sum(received.map(x => toBase(num0(x.amount), x.ccy || State.baseCcy)));
   const yr = new Date().getFullYear();
   const recYTD = sum(received.filter(x => String(x.date || '').startsWith(String(yr)))
@@ -1656,18 +1718,29 @@ VIEWS.portfolio = () => {
   pos.forEach(p2 => selH.append(el('option', { value: p2.h.id }, p2.r.c.tk + ' — ' + p2.r.c.name)));
   const dDate = el('input', { class: 'input input-inline', type: 'date', id: 'divDate',
     value: new Date().toISOString().slice(0, 10), 'aria-label': 'Payment date' });
-  const dAmt = el('input', { class: 'input input-inline', type: 'number', step: '0.01',
-    placeholder: 'amount', id: 'divAmt', 'aria-label': 'Amount received' });
+  /* The amount is stored in the holding's own currency, so the field says
+     which one. Labelled only "Amount" on a page in the reader's base currency,
+     ringgit typed for a US holding were counted as dollars — 4.4 times over. */
+  const ccyOf = (id) => pos.find(p2 => p2.h.id === id)?.r.c.ccy || State.baseCcy;
+  const dAmt = el('input', { class: 'input input-inline', type: 'number', step: '0.01', min: '0',
+    placeholder: 'amount', id: 'divAmt', 'aria-label': `Amount received, in ${ccyOf(selH.value)}` });
+  const amtLabel = el('label', { for: 'divAmt' }, `Amount (${ccyOf(selH.value)})`);
+  selH.addEventListener('change', () => {
+    amtLabel.textContent = `Amount (${ccyOf(selH.value)})`;
+    dAmt.setAttribute('aria-label', `Amount received, in ${ccyOf(selH.value)}`);
+  });
   const addRow = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:flex-end;margin-bottom:var(--md)' });
   addRow.append(el('div', { class: 'field', style: 'margin:0' }, [el('label', { for: 'divHold' }, 'Record a payment'), selH]));
   addRow.append(el('div', { class: 'field', style: 'margin:0' }, [el('label', { for: 'divDate' }, 'Date paid'), dDate]));
-  addRow.append(el('div', { class: 'field', style: 'margin:0' }, [el('label', { for: 'divAmt' }, 'Amount'), dAmt]));
+  addRow.append(el('div', { class: 'field', style: 'margin:0' }, [amtLabel, dAmt]));
   addRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
     const amount = num0(dAmt.value);
     if (!(amount > 0)) { toast('Enter the amount that was actually paid'); return; }
-    const hold = pos.find(p2 => p2.h.id === selH.value);
+    /* Recorded against this portfolio. A payment carried no portfolio, so one
+       recorded in one portfolio appeared as received in every other portfolio
+       holding the same company. */
     State.dividendsReceived = [...(State.dividendsReceived || []),
-      { id: selH.value, date: dDate.value, amount, ccy: (hold && hold.r.c.ccy) || State.baseCcy }];
+      { id: selH.value, pfId: pf.id, date: dDate.value, amount, ccy: ccyOf(selH.value) }];
     store.write('dividendsReceived', State.dividendsReceived);
     render();
   } }, 'Add'));
@@ -1695,8 +1768,9 @@ VIEWS.portfolio = () => {
     inc.append(el('p', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Payments recorded, by month'));
     inc.append(cal);
     inc.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:8px', onclick: () => {
-      if (!confirm('Remove every recorded dividend payment? This cannot be undone.')) return;
-      State.dividendsReceived = []; store.write('dividendsReceived', []); render();
+      if (!confirm(`Remove every dividend payment recorded in “${pf.name}”? This cannot be undone.`)) return;
+      State.dividendsReceived = (State.dividendsReceived || []).filter(x => x.pfId !== pf.id);
+      store.write('dividendsReceived', State.dividendsReceived); render();
     } }, 'Clear recorded payments'));
   }
   wrap.append(inc);
@@ -1705,15 +1779,23 @@ VIEWS.portfolio = () => {
   const dc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   dc.append(cardHead('How the projection is built',
     'Projected income from the current holdings at the latest declared dividend per share. It assumes the distribution is repeated — it is a projection from reported history, not a forecast, and a cut or a special dividend would change it.'));
+  /* Each yield divides income by the value or cost of the SAME holdings. The
+     income of an unpriced holding over the value of the priced ones overstated
+     yield on value, and every holding's cost under the income of the ones with
+     a dividend line understated yield on cost. A holding with no dividend line
+     is absent from both halves, never counted as paying nothing. */
+  const yovSet = withDps.filter(p => !p.unpriced);
+  const yovValue = sum(yovSet.map(p => p.valBase));
+  const yocCost = sum(withDps.map(p => p.costBase));
   const dg = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
   dg.append(el('div', { class: 'panel' }, statTile('Gross income, annual', fmtAmount(grossIncome, State.baseCcy),
-    { sub: `Yield on value ${securities ? fmtPct(grossIncome / securities * 100, 2) : '—'}` })));
+    { sub: `Yield on value ${yovValue ? fmtPct(sum(yovSet.map(p => p.incomeBase)) / yovValue * 100, 2) : '—'}${yovSet.length < withDps.length ? ', over the priced holdings' : ''}` })));
   dg.append(el('div', { class: 'panel' }, statTile('Net income, annual', fmtAmount(netIncome, State.baseCcy),
     { sub: 'After the illustrative withholding you set' })));
   dg.append(el('div', { class: 'panel' }, statTile('Gross, monthly average', fmtAmount(grossIncome / 12, State.baseCcy),
     { sub: 'Annual ÷ 12; actual payments are lumpy' })));
-  dg.append(el('div', { class: 'panel' }, statTile('Yield on cost', totalCost ? fmtPct(grossIncome / totalCost * 100, 2) : '—',
-    { sub: 'Against the cost base including fees' })));
+  dg.append(el('div', { class: 'panel' }, statTile('Yield on cost', yocCost ? fmtPct(grossIncome / yocCost * 100, 2) : '—',
+    { sub: 'Against the cost base including fees, of the holdings with a dividend line' })));
   dc.append(dg);
   const dtw = el('div', { class: 'tablewrap' });
   const dt = el('table', { class: 'dt' });
@@ -1785,8 +1867,19 @@ VIEWS.portfolio = () => {
   return wrap;
 };
 
+/* Both editors below work on a COPY and write it back on Save. They edited the
+   live record, field by field as each input changed, so closing the drawer
+   with Escape, the scrim or × kept the edit in State: the page showed it on the
+   next render and the next unrelated save wrote it to storage.
+
+   The company is resolved to a row id before the select is built. The default
+   was a bare ticker ('AAPL') that matches no option value ('AAPL-SEC'), so the
+   select fell back to showing its first option while an untouched form saved
+   the other company. */
 function openPriceAlertEditor(existing) {
-  const pa = existing || { id: `pa-${Date.now()}`, ticker: State.ticker, op: '<', price: 0, note: '' };
+  const defaultId = BY_ID.get(State.ticker)?.c.id || U[0]?.c.id;
+  const pa = existing ? { ...existing }
+    : { id: `pa-${Date.now()}`, ticker: defaultId, op: '<', price: 0, note: '' };
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
     'A price alert tells you the price moved. It does not tell you anything changed about the business — pair it with a thesis condition if you want that.'));
@@ -1800,8 +1893,11 @@ function openPriceAlertEditor(existing) {
        RM0.00 — a threshold that can never trigger, presented as a suggestion. */
     if (r && !existing && isNum(r.c.px?.p)) { pa.price = +(r.c.px.p * 0.9).toFixed(2); $('#pa-price').value = pa.price; }
   } });
-  U.forEach(r => csel.append(el('option', { value: r.c.id, selected: r.c.id === pa.ticker ? '' : null },
+  const paRowId = BY_ID.get(pa.ticker)?.c.id;
+  U.forEach(r => csel.append(el('option', { value: r.c.id, selected: r.c.id === paRowId ? '' : null },
     `${r.c.tk} — ${fmtMoney(r.c.px.p, r.c.ccy)}`)));
+  /* What is saved is what the select shows, whatever it fell back to. */
+  if (!existing || paRowId) pa.ticker = csel.value;
   f1.append(csel); body.append(f1);
 
   const f2 = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
@@ -1825,10 +1921,14 @@ function openPriceAlertEditor(existing) {
 
   const acts = el('div', { class: 'row', style: 'gap:8px' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
-    if (!pa.price) { toast('Set a price'); return; }
+    if (!(pa.price > 0)) { toast('Set a price above zero'); return; }
     if (!existing) {
       if (State.priceAlerts.length >= LIMITS.priceAlerts) { toast(`${LIMITS.priceAlerts} price alerts is the maximum`); return; }
       State.priceAlerts.push(pa);
+    } else {
+      /* Stamped so an edited sample alert counts as the reader's own and is
+         kept when the sample data is cleared. */
+      Object.assign(existing, pa, { updatedAt: new Date().toISOString() });
     }
     savePriceAlerts(); closeDrawer(); render(); toast(existing ? 'Alert updated' : 'Price alert set');
   } }, existing ? 'Save' : 'Add alert'));
@@ -1911,7 +2011,12 @@ function openPortfolioManager() {
     if (State.portfolios.length > 1) top.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Delete “${p.name}” and its ${p.holdings.length} holdings?`)) return;
       State.portfolios = State.portfolios.filter((_, j) => j !== i);
-      State.pfIdx = 0; savePortfolios(); closeDrawer(); render(); toast('Portfolio deleted');
+      /* The active portfolio stays the active one: a deletion above it shifts
+         its index down by one, and only deleting it resets to the first. The
+         deleted portfolio's recorded payments go with it. */
+      State.pfIdx = i < State.pfIdx ? State.pfIdx - 1 : i === State.pfIdx ? 0 : State.pfIdx;
+      dropDividendsOf([p.id]);
+      savePortfolios(); closeDrawer(); render(); toast('Portfolio deleted');
     } }, 'Delete'));
     card.append(top);
     const cashRow = el('div', { class: 'row', style: 'gap:8px' });
@@ -1938,7 +2043,8 @@ function openPortfolioManager() {
 
 function openAddHolding(existing) {
   const pf = activePF();
-  const h = existing || { id: 'AAPL', qty: 0, cost: 0, fx0: FX.USDMYR, fee: 0, rebate: 0 };
+  const defaultId = BY_ID.get(State.ticker)?.c.id || U[0]?.c.id;
+  const h = existing ? { ...existing } : { id: defaultId, qty: 0, cost: 0, fx0: FX.USDMYR, fee: 0, rebate: 0 };
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
     existing ? 'Editing an existing position.' : `Adding to “${pf.name}”. Quantities may be fractional.`));
@@ -1947,29 +2053,43 @@ function openAddHolding(existing) {
   f1.append(el('label', { for: 'hd-co' }, 'Company'));
   const csel = el('select', { class: 'select', id: 'hd-co', disabled: existing ? '' : null,
     onchange: e => { h.id = e.target.value; } });
-  U.forEach(r => csel.append(el('option', { value: r.c.id, selected: r.c.id === h.id ? '' : null },
+  /* A held id may be an older alias of the row ('AAPL' for 'AAPL-SEC'); the
+     locked select for an existing holding shows the row it resolves to rather
+     than whichever company happens to be listed first. */
+  const hRowId = BY_ID.get(h.id)?.c.id;
+  U.forEach(r => csel.append(el('option', { value: r.c.id, selected: r.c.id === hRowId ? '' : null },
     `${r.c.tk} — ${r.c.name}`)));
+  if (!existing) h.id = csel.value;
   f1.append(csel); body.append(f1);
 
+  /* Each figure has a floor, and the save names the field that is wrong. Only
+     quantity was checked, and only for nought, so a negative quantity, a cost
+     of nought or a purchase rate of nought saved and produced a −100% cost drag
+     or a cost base of nothing. The rate band is the one the price-file loader
+     accepts for USD/MYR. */
   const fields = [
-    ['qty', 'Quantity (fractional allowed)', 0.0001],
-    ['cost', 'Cost per share, in the reporting currency', 0.01],
-    ['fee', 'Transaction cost paid', 0.01],
-    ['rebate', 'Rebate received', 0.01],
-    ['fx0', 'USD/MYR rate on the purchase date', 0.01],
+    ['qty', 'Quantity (fractional allowed)', 0.0001, 0],
+    ['cost', 'Cost per share, in the reporting currency', 0.01, 0],
+    ['fee', 'Transaction cost paid', 0.01, 0],
+    ['rebate', 'Rebate received', 0.01, 0],
+    ['fx0', 'USD/MYR rate on the purchase date', 0.01, 2],
   ];
-  fields.forEach(([k, label, step]) => {
+  fields.forEach(([k, label, step, min]) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
     f.append(el('label', { for: `hd-${k}` }, label));
-    f.append(el('input', { class: 'input', id: `hd-${k}`, type: 'number', step, value: h[k] ?? 0,
+    f.append(el('input', { class: 'input', id: `hd-${k}`, type: 'number', step, min, max: k === 'fx0' ? 8 : null, value: h[k] ?? 0,
       onchange: e => { h[k] = +e.target.value || 0; } }));
     body.append(f);
   });
 
   const acts = el('div', { class: 'row', style: 'gap:8px' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
-    if (!h.qty) { toast('Quantity must be greater than zero'); return; }
-    if (!existing) {
+    if (!(h.qty > 0)) { toast('Quantity must be greater than zero'); return; }
+    if (!(h.cost > 0)) { toast('Enter the cost per share, above zero'); return; }
+    if (!((h.fee || 0) >= 0) || !((h.rebate || 0) >= 0)) { toast('Fees and rebates cannot be negative'); return; }
+    if (!(h.fx0 >= 2 && h.fx0 <= 8)) { toast('Enter the USD/MYR rate on the purchase date, between 2 and 8'); return; }
+    if (existing) Object.assign(existing, h);
+    else {
       if (pf.holdings.length >= LIMITS.holdings) { toast(`${LIMITS.holdings} holdings is the maximum`); return; }
       pf.holdings.push(h);
     }
@@ -1991,15 +2111,22 @@ function openAddHolding(existing) {
 const ALERT_KINDS = [
   { id:'thesis',    label:'Thesis condition',      note:'Fires when a written invalidation condition changes state.' },
   { id:'fundamental',label:'Fundamental change',   note:'A reported metric crosses a threshold you set.' },
-  { id:'filing',    label:'Filing or announcement',note:'A new document is published for a company you follow.' },
+  { id:'filing',    label:'Filing or announcement',note:'A new document is published for a company you follow.', built:false },
   { id:'dividend',  label:'Dividend and coverage', note:'A change in the distribution, or in how well cash flow covers it.' },
   { id:'valuation', label:'Valuation band',        note:'Price enters or leaves a range you defined against your own valuation.' },
-  { id:'corporate', label:'Corporate action',      note:'Placement, buyback, split, or an entitlement date.' },
+  { id:'corporate', label:'Corporate action',      note:'Placement, buyback, split, or an entitlement date.', built:false },
   { id:'risk',      label:'Risk flag',             note:'A computed risk flag changes state — leverage, dilution, cash cover, earnings variability.' },
   { id:'screen',    label:'New screen match',      note:'A company enters or leaves one of your saved screens, measured against the snapshot taken when it was saved.' },
-  { id:'status',    label:'Local status change',   note:'Shariah status, PN17 or GN3 classification changes.' },
-  { id:'price',     label:'Price move',            note:'A price threshold. Off by default — price alone is not new information.' },
+  { id:'status',    label:'Local status change',   note:'Shariah status, PN17 or GN3 classification changes.', built:false },
+  { id:'price',     label:'Price move',            note:'A price threshold you set, or a large three-month move. Off by default — price alone is not new information.' },
 ];
+/* Which types the feed shows, stored so the choice survives a reload. The
+   default is every type but price, as the list has always said. A type marked
+   built:false has nothing in this build that produces it — no filings feed, no
+   corporate-actions feed, no status register — so its switch is shown disabled
+   with that reason rather than as a filter over nothing. */
+State.alertKinds = store.read('alertKinds', null) || ALERT_KINDS.filter(k => k.id !== 'price').map(k => k.id);
+const saveAlertKinds = () => store.write('alertKinds', State.alertKinds);
 
 /* ==========================================================================
    ONBOARDING — five questions, then one completed task
