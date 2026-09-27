@@ -235,6 +235,7 @@ const refreshDisclosure = () => {
     `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
     `<span class="disclosure-long"> ${k.filed} ${k.filed === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
     (k.filedUnpriced ? `, of which ${k.filedUnpriced} ${k.filedUnpriced === 1 ? 'has' : 'have'} no price because market data is not licensed for this build` : '') +
+    (k.personal ? `. ${k.personal} ${k.personal === 1 ? 'carries' : 'carry'} statements you supplied for personal research — not SEC filings, and not redistributable` : '') +
     `. ${k.illustrative} ${k.illustrative === 1 ? 'carries' : 'carry'} illustrative figures that are synthetic` +
     (k.usIllustrative ? `, and ${k.usIllustrative === 1 ? 'one of those is a US listing' : `${k.usIllustrative} of those are US listings`} rather than Bursa` : '') +
     `. Every company page states which it is.</span>`;

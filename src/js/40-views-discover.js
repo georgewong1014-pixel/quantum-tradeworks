@@ -134,7 +134,10 @@ VIEWS.home = () => {
   realRow.append(lab);
   freshCard.append(realRow);
   if (realOn) {
-    const n = U.filter(r => r.c.real).length;
+    /* SEC filers only — personal-research statements are real but not EDGAR's. */
+    const n = U.filter(r => r.c.real && !r.c.personal).length;
+    const unreadable = realStatus?.priceSource?.unreadable
+      ? ` ${realStatus.priceSource.unreadable} of the ${realStatus.priceSource.count ?? 'listed'} entries in ${realStatus.priceSource.file} carry no readable close and were skipped.` : '';
     freshCard.append(el('div', { class: 'metaline', style: 'margin-top:4px' },
       realStatus === null ? 'Loading filings from SEC EDGAR…'
       : realStatus.ok ? `${n} companies loaded from SEC EDGAR. Statements are audited and real. `
@@ -142,7 +145,9 @@ VIEWS.home = () => {
           + (realStatus.priced
               ? (realStatus.priceSource?.personal
                   ? `${realStatus.priced} carry closes you recognised from your own screen (${realStatus.priceSource.file}). Personal research only — these are not licensed market data and must not be redistributed.`
-                  : `${realStatus.priced} carry end-of-day prices from data/prices.json${realStatus.priceSource?.licence ? ` (${realStatus.priceSource.licence})` : ' — licence not stated'}.`)
+                  : `${realStatus.priced} carry end-of-day prices from data/prices.json${realStatus.priceSource?.licence ? ` (${realStatus.priceSource.licence})` : ' — licence not stated'}.`) + unreadable
+              : realStatus.priceSource
+              ? `${realStatus.priceSource.file} was read but attached no price to any company, so price-derived measures are unavailable.${unreadable}`
               : 'No price file supplied, so price-derived measures are unavailable.')
       : `Could not load filings: ${realStatus.error}`));
   }
@@ -1082,7 +1087,7 @@ const PROVENANCE = {
 const ABSENCE = {
   'not reported':   { short: 'not reported', legend: 'A statement line the measure needs is not in the stored statements — for a filer, the XBRL tag did not resolve. The drawer names the line.' },
   'not applicable': { short: 'n/a',          legend: 'The measure has no meaning for this business model — enterprise value on a deposit-taking balance sheet — and is excluded from the count of applicable measures rather than counted as missing.' },
-  'withheld':       { short: 'withheld',     legend: 'The inputs exist and disagree with each other, or a corporate action sits inside the window. A number could be computed; it would be wrong, so it is not.' },
+  'withheld':       { short: 'withheld',     legend: 'The inputs exist and disagree with each other, a corporate action sits inside the window, or the shipped statements assembled the line by a rule since corrected. A number could be computed; it would be wrong, so it is not.' },
   'needs a price':  { short: 'no price',     legend: 'The measure divides by or compares to a market price, and no licensed feed is connected. A price you supply on the company page fills it in, labelled as yours.' },
   'not meaningful': { short: 'n/m',          legend: 'Every input is present, but the ratio is not meaningful on them — earnings at or below zero under a price, a growth base at or below zero.' },
 };
@@ -1192,6 +1197,11 @@ function metricStatus(r, k) {
       : null],
   ];
   for (const [keys, text] of W) if (text && keys.includes(k)) return why('withheld', text);
+  /* A statement line the shipped file assembled wrongly and the loader
+     withheld (withholdMisassembled) is not a tag that failed to resolve. */
+  const fyNow = c?.real ? latestFy(c) : null;
+  const heldBack = inputs.filter(l => c?.withheld?.[l]?.years?.includes(fyNow));
+  if (heldBack.length) return why('withheld', heldBack.map(l => `${LINE_LABEL[l]} for FY${fyNow} is withheld: ${c.withheld[l].why}.`).join(' ') + ' The ingest rule has been corrected; the figure returns when the statements are regenerated.');
   const lastRow = c?.fin?.[c.fin.length - 1] || [];
   const missingLines = inputs.filter(l => LINE_COL[l] != null && !isNum(lastRow[LINE_COL[l]]));
   const noPrice = inputs.includes('price') && !isNum(c?.px?.p);
@@ -1288,7 +1298,11 @@ function openSourceDrawer(r, f) {
           const tagOf = (pk) => c.provenance[pk]?.byYear?.[fy] || c.provenance[pk]?.byYear?.[String(fy)] || null;
           const tags = spec.mode === 'sum' ? spec.keys.map(tagOf).filter(Boolean) : [spec.keys.map(tagOf).find(Boolean)].filter(Boolean);
           src = tags.length ? tags.join(' + ') : `no tag recorded for FY${fy}`;
-          if (l === 'sh' && !tagOf('sh') && tagOf('shWtd')) src += ' (weighted diluted — no year-end count filed)';
+          /* The corrected ingest records the route each assembled column took;
+             a withheld cell says why it is empty. */
+          if (c.withheld?.[l]?.years?.includes(fy)) src = `withheld — ${c.withheld[l].why}`;
+          else if (c.basis?.[l]?.[fy]) src = c.basis[l][fy];
+          else if (l === 'sh' && !tagOf('sh') && tagOf('shWtd')) src += ' (weighted diluted — no year-end count filed)';
         } else src = c.real ? 'statements you supplied' : 'synthetic sample';
       }
       tb.append(el('tr', {}, [

@@ -541,6 +541,7 @@ function workBar(kind, onReset) {
         const id = e.target.value;
         if (!id) return;
         if (resumeWork(id)) { render(); toast('Resumed'); }
+        else { e.target.value = ''; toast('That record holds no figures to restore — it was saved before anything had been entered.'); }
       } });
     sel.append(el('option', { value: '' }, `Resume… (${saved.length})`));
     saved.forEach(r => sel.append(el('option', { value: r.id }, `${r.name} · ${r.savedAt}`)));
@@ -880,7 +881,7 @@ function treemap(container, { items, valueFmt, onPick, full = 8 }) {
 }
 
 /* ----------------------------------------------------- sensitivity matrix */
-function matrixChart(container, { grid, xSteps, ySteps, xLabel, yLabel, base, price, fmt }) {
+function matrixChart(container, { grid, xSteps, ySteps, xLabel, yLabel, base, price, fmt, baseRow, baseCol }) {
   chartHost(container, (W) => {
     const cellW = Math.max(56, Math.min(110, (W - 96) / xSteps.length));
     const cellH = 40, padL = 92, padT = 42;
@@ -907,7 +908,8 @@ function matrixChart(container, { grid, xSteps, ySteps, xLabel, yLabel, base, pr
         const g = sv('g');
         g.append(sv('rect', { x: x + 1, y: y + 1, width: cellW - 2, height: cellH - 2, rx: 5, fill }));
         const ink = isNum(val) ? inkOn(fill) : cssVar('--ink-3');
-        const isBase = r === Math.floor(ySteps.length / 2) && cIdx === Math.floor(xSteps.length / 2);
+        /* Where the base sits: the middle, unless a bounded axis says otherwise. */
+        const isBase = r === (baseRow ?? Math.floor(ySteps.length / 2)) && cIdx === (baseCol ?? Math.floor(xSteps.length / 2));
         if (isBase) g.append(sv('rect', { x: x + 1, y: y + 1, width: cellW - 2, height: cellH - 2, rx: 5, fill: 'none', stroke: cssVar('--ink'), 'stroke-width': 2 }));
         /* every cell carries its value, so colour is never the only channel */
         const t2 = sv('text', { x: x + cellW / 2, y: y + cellH / 2 + 4, 'text-anchor': 'middle', fill: ink, 'font-size': 11.5, 'font-weight': isBase ? 700 : 560, 'font-variant-numeric': 'tabular-nums' });
@@ -1021,12 +1023,19 @@ function waterfallChart(container, { steps, fmt, ccy }) {
 }
 
 /* ------------------------------------------------------ value range strip */
-function rangeStrip(bear, base, bull, price, ccy) {
+function rangeStrip(bearIn, base, bullIn, price, ccy) {
+  /* A bear or bull case can be not computable while the base stands (its
+     shift took the model out of bounds). The strip then ends at the base on
+     that side, and the missing case is named rather than drawn. */
+  const bear = isNum(bearIn) ? bearIn : base, bull = isNum(bullIn) ? bullIn : base;
+  const caseLabel = (name, v) => isNum(v) ? `${name} ${fmtMoney(v, ccy)}` : `${name} not computable`;
   /* A company can have a modelled value and no price. Plotting a marker at
      zero would invent a comparison that was never made. */
   const hasPx = isNum(price);
   const lo = (hasPx ? Math.min(bear, price) : bear) * 0.94;
-  const hi = (hasPx ? Math.max(bull, price) : bull) * 1.06;
+  /* A range at nil (equity wiped out in every case) has no width to divide by. */
+  const hi0 = (hasPx ? Math.max(bull, price) : bull) * 1.06;
+  const hi = hi0 > lo ? hi0 : lo + 1;
   const at = v => clamp((v - lo) / (hi - lo) * 100, 0, 100);
 
   /* Keep a label inside the strip instead of letting it hang off either end. */
@@ -1044,12 +1053,15 @@ function rangeStrip(bear, base, bull, price, ccy) {
 
   const labels = tight
     ? [el('div', { class: 'metaline', style: `position:absolute;left:${clamp(mid, 0, 100)}%;top:36px;transform:${anchor(mid)};white-space:nowrap` },
-        `Bear ${fmtMoney(bear, ccy)} · Base ${fmtMoney(base, ccy)} · Bull ${fmtMoney(bull, ccy)}`)]
+        `${caseLabel('Bear', bearIn)} · Base ${fmtMoney(base, ccy)} · ${caseLabel('Bull', bullIn)}`)]
     : [
-        el('div', { class: 'metaline', style: `position:absolute;left:${at(bear)}%;top:36px;transform:${anchor(at(bear))}` }, `Bear ${fmtMoney(bear, ccy)}`),
-        el('div', { class: 'metaline', style: `position:absolute;left:${at(bull)}%;top:36px;transform:${anchor(at(bull))}` }, `Bull ${fmtMoney(bull, ccy)}`),
-        el('div', { class: 'metaline', style: `position:absolute;left:${at(base)}%;top:36px;transform:${anchor(at(base))};color:var(--ink);font-weight:600;white-space:nowrap` }, `Base ${fmtMoney(base, ccy)}`),
-      ];
+        /* A missing case has no position of its own — it would sit on the base
+           label — so it is named beside the base instead. */
+        isNum(bearIn) ? el('div', { class: 'metaline', style: `position:absolute;left:${at(bear)}%;top:36px;transform:${anchor(at(bear))}` }, caseLabel('Bear', bearIn)) : null,
+        isNum(bullIn) ? el('div', { class: 'metaline', style: `position:absolute;left:${at(bull)}%;top:36px;transform:${anchor(at(bull))}` }, caseLabel('Bull', bullIn)) : null,
+        el('div', { class: 'metaline', style: `position:absolute;left:${at(base)}%;top:36px;transform:${anchor(at(base))};color:var(--ink);font-weight:600;white-space:nowrap` },
+          `Base ${fmtMoney(base, ccy)}${isNum(bearIn) ? '' : ' · bear not computable'}${isNum(bullIn) ? '' : ' · bull not computable'}`),
+      ].filter(Boolean);
 
   return el('div', { style: 'position:relative;height:56px;margin-top:var(--xs)' }, [
     /* A minimum width so the range stays visible as a bar rather than becoming

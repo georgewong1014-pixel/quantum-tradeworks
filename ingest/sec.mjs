@@ -39,7 +39,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
    concept that yields a usable annual series wins, and which one was used is
    reported, because "revenue" meaning three different tags across a peer group
    is exactly how a comparison quietly becomes wrong. */
-const LINES = [
+export const LINES = [
   { key: 'rev',   taxonomy: 'us-gaap', kind: 'duration', concepts: [
       'RevenueFromContractWithCustomerExcludingAssessedTax',
       'RevenueFromContractWithCustomerIncludingAssessedTax',
@@ -64,9 +64,19 @@ const LINES = [
   { key: 'eq',    taxonomy: 'us-gaap', kind: 'instant',  concepts: [
       'StockholdersEquity',
       'StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest' ] },
+  /* DEBT IS NONCURRENT PLUS CURRENT, OR A TOTAL ALONE — NEVER A TOTAL PLUS
+     ITS OWN CURRENT PORTION. In us-gaap, LongTermDebt is the total INCLUDING
+     current maturities; it sat in the noncurrent chain, ahead of the true
+     noncurrent LongTermDebtAndCapitalLeaseObligations, and the current portion
+     was then added on top — Home Depot's FY2026 debt stored 54.4bn against
+     51.3bn filed, and ten other filers the same way. The totals are their own
+     line now, used only where no noncurrent line resolves (Air Products tags
+     only LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities,
+     and with no noncurrent line its "debt" was the 0.7bn current portion). */
   { key: 'debtL', taxonomy: 'us-gaap', kind: 'instant',  concepts: [
-      'LongTermDebtNoncurrent', 'LongTermDebt',
-      'LongTermDebtAndCapitalLeaseObligations' ] },
+      'LongTermDebtNoncurrent', 'LongTermDebtAndCapitalLeaseObligations' ] },
+  { key: 'debtT', taxonomy: 'us-gaap', kind: 'instant',  concepts: [
+      'LongTermDebt', 'LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities' ], aux: true },
   { key: 'debtC', taxonomy: 'us-gaap', kind: 'instant',  concepts: [
       'LongTermDebtCurrent', 'LongTermDebtAndCapitalLeaseObligationsCurrent' ] },
   { key: 'cash',  taxonomy: 'us-gaap', kind: 'instant',  concepts: [
@@ -87,8 +97,20 @@ const LINES = [
   { key: 'intExp', taxonomy: 'us-gaap', kind: 'duration', concepts: [
       'InterestExpense', 'InterestExpenseDebt',
       'InterestIncomeExpenseNet', 'InterestExpenseNonoperating' ] },
+  /* SHARES IN ISSUE ARE SHARES OUTSTANDING. CommonStockSharesIssued counts
+     treasury stock too, and it was the second link of this chain: Coca-Cola
+     stored 7.04bn shares against 4.30bn outstanding, Procter & Gamble 4.01bn
+     against about 2.3bn, and thirty filers the same way — every per-share
+     figure, payout ratio and dividend cover on them was divided by the wrong
+     count. The issued count is used only net of the treasury count, and only
+     where both are filed for the same year-end; otherwise the weighted
+     diluted count below stands in, as it already did. */
   { key: 'sh',    taxonomy: 'us-gaap', kind: 'instant',  concepts: [
-      'CommonStockSharesOutstanding', 'CommonStockSharesIssued' ], unit: 'shares' },
+      'CommonStockSharesOutstanding' ], unit: 'shares' },
+  { key: 'shIss', taxonomy: 'us-gaap', kind: 'instant',  concepts: [
+      'CommonStockSharesIssued' ], unit: 'shares', aux: true },
+  { key: 'shTreas', taxonomy: 'us-gaap', kind: 'instant', concepts: [
+      'TreasuryStockCommonShares', 'TreasuryStockShares' ], unit: 'shares', aux: true },
   { key: 'shWtd', taxonomy: 'us-gaap', kind: 'duration', concepts: [
       'WeightedAverageNumberOfDilutedSharesOutstanding',
       'WeightedAverageNumberOfSharesOutstandingBasic' ], unit: 'shares' },
@@ -283,17 +305,32 @@ const SIC_MAP = [
   [/^366[0-9]$|^3827$|^3861$/,          'mature',    'Technology', 'Electronic Equipment'],
   [/^1311$|^1381$|^1389$|^2911$|^291[0-9]$/, 'cyclical', 'Energy', 'Oil & Gas'],
   [/^10[0-9]{2}$|^14[0-9]{2}$|^33[0-9]{2}$/, 'cyclical', 'Materials', 'Metals & Mining'],
-  [/^28[0-9]{2}$/,                      'mature',    'Health Care', 'Pharmaceuticals'],
+  /* 28xx is chemicals and allied products, of which only 283x is drugs. The
+     whole block was Pharmaceuticals, which filed Air Products and Linde
+     (2810, industrial gases) and Procter & Gamble and Colgate (2840, 2844,
+     soaps and toiletries) under Health Care. */
+  [/^283[0-9]$/,                        'mature',    'Health Care', 'Pharmaceuticals'],
+  [/^284[0-9]$/,                        'mature',    'Consumer Staples', 'Household & Personal Products'],
+  [/^28[0-9]{2}$/,                      'mature',    'Materials', 'Chemicals'],
   [/^38(4[0-9]|41|45)$/,                'mature',    'Health Care', 'Medical Devices'],
   [/^80[0-9]{2}$|^6324$/,               'mature',    'Health Care', 'Health Care Services'],
   [/^49(11|22|23|24|31|32|41)$/,        'mature',    'Utilities', 'Utilities'],
   [/^481[0-9]$|^484[0-9]$/,             'mature',    'Communication Services', 'Telecom'],
-  [/^73(1[0-9]|4[0-9]|8[0-9])$|^78[0-9]{2}$/, 'mature', 'Communication Services', 'Media & Services'],
+  /* 738x is miscellaneous business services — 7389 is Visa, Mastercard and
+     Accenture, none of them media. It is left unmapped, so it reads as
+     Unclassified and assumed rather than as a sector it is not. */
+  [/^73(1[0-9]|4[0-9])$|^78[0-9]{2}$/, 'mature', 'Communication Services', 'Media & Services'],
   [/^20[0-9]{2}$|^21[0-9]{2}$/,         'mature',    'Consumer Staples', 'Food, Beverage & Tobacco'],
   [/^5(4[0-9]{2}|9[0-9]{2})$/,          'mature',    'Consumer Staples', 'Retail — Staples'],
-  [/^3711$|^3713$|^3714$|^37[0-9]{2}$/, 'cyclical',  'Consumer Discretionary', 'Automobiles'],
+  /* Specific before general, which this pair broke: the whole 37xx block was
+     Automobiles ahead of the aerospace codes below it, so Boeing (3721),
+     Honeywell and RTX (3724) and Lockheed Martin (3760) were car makers.
+     Motor vehicles are 371x only; aircraft (372x) and guided missiles and
+     space vehicles (376x) are aerospace. */
+  [/^37(2[0-9]|6[0-9])$/,                'cyclical',  'Industrials', 'Aerospace & Defence'],
+  [/^371[0-9]$/,                        'cyclical',  'Consumer Discretionary', 'Automobiles'],
   [/^5(3[0-9]{2}|6[0-9]{2}|7[0-9]{2})$/,'mature',    'Consumer Discretionary', 'Retail'],
-  [/^35[0-9]{2}$|^34[0-9]{2}$|^37(21|24|28)$/, 'cyclical', 'Industrials', 'Capital Goods'],
+  [/^35[0-9]{2}$|^34[0-9]{2}$|^37[0-9]{2}$/, 'cyclical', 'Industrials', 'Capital Goods'],
   [/^36[0-9]{2}$/,                      'cyclical',  'Industrials', 'Electrical Equipment'],
   [/^45[0-9]{2}$|^42[0-9]{2}$|^44[0-9]{2}$|^40[0-9]{2}$/, 'cyclical', 'Industrials', 'Transportation'],
   [/^382[0-9]$|^384[0-9]$/,             'mature',    'Health Care', 'Life Sciences Tools'],
@@ -310,6 +347,56 @@ export function classify(sic, sicDescription) {
   }
   return { type: 'mature', sector: 'Unclassified', industry: sicDescription || 'Unclassified',
            sic: s, sicDescription, assumed: true };
+}
+
+/* --------------------------------------------------------- the tuple columns */
+/**
+ * Two tuple columns are assembled from more than one line, and both rules are
+ * here, exported, so ingest-test.mjs can ask them directly.
+ *
+ * DEBT: noncurrent plus current where both are filed; the filed total alone
+ * where it is (a total already includes current maturities, so nothing is
+ * added to it); the noncurrent line alone where it is all there is. A current
+ * portion with no long-term line is NOT the company's debt — it is null, and
+ * the gap says so.
+ *
+ * SHARES: the year-end outstanding count; else issued less treasury, both at
+ * the year-end; else the weighted diluted count. Never the issued count on
+ * its own, which includes treasury stock.
+ *
+ * Each year's basis is recorded as the tags that produced it, so a reader can
+ * find the figure in the filing and see which of the three routes was taken.
+ */
+export function assembleFin(resolved, provenance, years) {
+  const B = 1e9;
+  const pick = (k, y) => (resolved[k]?.[y] ?? null);
+  const tag = (k, y) => provenance?.[k]?.byYear?.[y] || k;
+  const basis = { debt: {}, sh: {} };
+  const fin = years.map(y => {
+    const debt = (() => {
+      const l = pick('debtL', y), t = pick('debtT', y), c = pick('debtC', y);
+      if (l != null && c != null) { basis.debt[y] = `${tag('debtL', y)} + ${tag('debtC', y)}`; return (l + c) / B; }
+      if (t != null) { basis.debt[y] = `${tag('debtT', y)} (a total including current maturities)`; return t / B; }
+      if (l != null) { basis.debt[y] = `${tag('debtL', y)} (no current portion filed)`; return l / B; }
+      return null;                        /* a current portion alone is not total debt */
+    })();
+    const shares = (() => {
+      const out = pick('sh', y), iss = pick('shIss', y), tr = pick('shTreas', y), wtd = pick('shWtd', y);
+      if (out != null) { basis.sh[y] = tag('sh', y); return out; }
+      if (iss != null && tr != null && iss - tr > 0) { basis.sh[y] = `${tag('shIss', y)} − ${tag('shTreas', y)}`; return iss - tr; }
+      if (wtd != null) { basis.sh[y] = `${tag('shWtd', y)} (weighted diluted — no year-end count filed)`; return wtd; }
+      return null;
+    })();
+    const div = (v) => v == null ? null : v / B;
+    return [
+      div(pick('rev', y)), div(pick('ebit', y)), div(pick('ni', y)),
+      div(pick('ocf', y)), div(pick('capex', y)), div(pick('eq', y)),
+      debt, div(pick('cash', y)),
+      shares == null ? null : shares / B,
+      pick('dps', y),
+    ];
+  });
+  return { fin, basis };
 }
 
 /* ---------------------------------------------------------------- ingest one */
@@ -347,37 +434,19 @@ export async function ingestTicker(ticker, nYears) {
   const resolved = {}, provenance = {}, gaps = [];
   for (const line of LINES) {
     const r = resolveLine(facts.facts, line, years, periodEnds);
-    if (!r) { gaps.push({ line: line.key, reason: 'no concept in the fallback chain returned data' }); continue; }
+    /* An auxiliary line (a total, or the issued and treasury counts) exists to
+       stand in for another one; its absence is not a gap in the statements. */
+    if (!r) { if (!line.aux) gaps.push({ line: line.key, reason: 'no concept in the fallback chain returned data' }); continue; }
     resolved[line.key] = r.series;
     provenance[line.key] = { concept: r.concept, unit: r.unit, coverage: +r.coverage.toFixed(2),
                              weak: !!r.weak, mixedTags: !!r.mixedTags, byYear: r.byYear,
                              endByYear: r.endByYear, filedByYear: r.filedByYear, formByYear: r.formByYear };
     if (r.mixedTags) gaps.push({ line: line.key, warning: 'series assembled from more than one XBRL tag', concepts: r.concepts });
     const missing = years.filter(y => r.series[y] == null);
-    if (missing.length) gaps.push({ line: line.key, concept: r.concept, missingYears: missing });
+    if (missing.length && !line.aux) gaps.push({ line: line.key, concept: r.concept, missingYears: missing });
   }
 
-  const B = 1e9;
-  const pick = (k, y) => (resolved[k]?.[y] ?? null);
-  const fin = years.map(y => {
-    const debt = (() => {
-      const l = pick('debtL', y), c = pick('debtC', y);
-      if (l == null && c == null) return null;
-      return ((l || 0) + (c || 0)) / B;
-    })();
-    /* Shares outstanding is an instant and often absent; the weighted diluted
-       count is a duration and nearly always present. Prefer the instant, fall
-       back, and record which was used. */
-    const shares = pick('sh', y) ?? pick('shWtd', y);
-    const div = (v) => v == null ? null : v / B;
-    return [
-      div(pick('rev', y)), div(pick('ebit', y)), div(pick('ni', y)),
-      div(pick('ocf', y)), div(pick('capex', y)), div(pick('eq', y)),
-      debt, div(pick('cash', y)),
-      shares == null ? null : shares / B,
-      pick('dps', y),
-    ];
-  });
+  const { fin, basis } = assembleFin(resolved, provenance, years);
 
   const cells = fin.flat();
   const completeness = cells.filter(v => v != null).length / cells.length;
@@ -392,7 +461,7 @@ export async function ingestTicker(ticker, nYears) {
 
   return {
     id: ticker.toUpperCase(), name: title, cik, exch: null, mkt: 'US', ccy: 'USD',
-    years, periodEnds, fin, provenance, gaps,
+    years, periodEnds, fin, basis, provenance, gaps,
     completeness: +completeness.toFixed(3),
     ...cls,
     source: 'SEC EDGAR companyfacts', retrieved: new Date().toISOString().slice(0, 10),

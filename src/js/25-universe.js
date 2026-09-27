@@ -346,6 +346,15 @@ function refreshMomentum() {
       ? (t.last - t.values.lo52) / (t.values.hi52 - t.values.lo52) * 100 : null;
     m.pxPoints = t ? t.points : 0;
     if (t) backed++;
+    /* The twelve-month return is one of the measures coverage counts. The
+       rows were derived before the history loaded, so without a recount the
+       Coverage column, the minimum-coverage screen, the 70% classification
+       gate and the valuation's confidence all read the pre-history figure —
+       Maybank at 85% with 92% of its measures present. Confidence is the only
+       part of the valuation that reads coverage, so the run is repeated only
+       where the count moved. */
+    const cov = metricCoverage(m, r.c.type);
+    if (cov !== m.coverage) { m.coverage = cov; r.val = valuationRun(r.c, r.d, r.inputs); }
   }
   return backed;
 }
@@ -602,16 +611,68 @@ const REAL_SECTORS = {
   KO:['Consumer Staples','Soft Drinks'], RIVN:['Consumer Discretionary','Automobile Manufacturers'],
 };
 
+/* FIGURES THE SHIPPED FILE ASSEMBLED WRONGLY ARE WITHHELD, NOT SHOWN AS FILED.
+   ---------------------------------------------------------------------------
+   data/us.json was built by ingest rules since corrected (ingest/sec.mjs,
+   pinned in ingest-test.mjs), and it cannot be regenerated here: the SEC
+   requires a contact address that has not been supplied. Three of its
+   figures are known wrong from the provenance the file itself records:
+
+     shares   CommonStockSharesIssued, which counts treasury stock — Coca-Cola
+              7.04bn against 4.30bn outstanding, thirty filers in all;
+     debt     a current portion alone, where no long-term line resolved (Air
+              Products: 0.7bn of a 17.7bn total, and a "net cash" balance
+              sheet), or LongTermDebt — already a total — with the current
+              portion added again (Home Depot and ten others).
+
+   The provenance says which years, so exactly those cells become null, with
+   the reason recorded where every absence is explained. A null is honest and
+   the engine already handles it; the wrong figure would have gone on into
+   per-share values, payout, dividend cover, net debt and every valuation.
+   A file written by the corrected ingest carries `basis`, and none of this
+   applies to it. The sector label is the third: the old SIC rules filed
+   aerospace as automobiles, industrial gases and household goods as
+   pharmaceuticals and payment networks as media. Only the label is wrong —
+   the business type that routes the valuation is the same under the
+   corrected rule — so the label is withheld (Unclassified, and marked
+   assumed) rather than shown. */
+const SHIPPED_MISFILED_SECTOR = (sic, industry) => !!sic && (
+  (/^37/.test(sic) && !/^371/.test(sic) && industry === 'Automobiles') ||
+  (/^28/.test(sic) && !/^283/.test(sic) && industry === 'Pharmaceuticals') ||
+  (/^738/.test(sic) && industry === 'Media & Services'));
+function withholdMisassembled(r, fin) {
+  const withheld = {};
+  if (r.basis) return withheld;                 /* written by the corrected ingest */
+  const note = (line, y, why) => { const w = (withheld[line] = withheld[line] || { years: [], why: new Set() }); w.years.push(y); w.why.add(why); };
+  (r.years || []).forEach((y, k) => {
+    const row = fin[k]; if (!row) return;
+    const p = r.provenance || {};
+    const L = p.debtL?.byYear?.[y], C = p.debtC?.byYear?.[y];
+    if (row[F.DEBT] != null && C && !L) { row[F.DEBT] = null;
+      note('debt', y, `no long-term debt line resolved, so the stored figure is the current portion (${C}) alone`); }
+    else if (row[F.DEBT] != null && C && L === 'LongTermDebt') { row[F.DEBT] = null;
+      note('debt', y, `the stored figure adds the current portion (${C}) to LongTermDebt, which already includes current maturities`); }
+    if (row[F.SH] != null && p.sh?.byYear?.[y] === 'CommonStockSharesIssued') { row[F.SH] = null;
+      note('sh', y, 'the stored count is CommonStockSharesIssued, which includes treasury stock, not shares outstanding'); }
+  });
+  for (const w of Object.values(withheld)) w.why = [...w.why].join('; ');
+  return withheld;
+}
+
 function realToCompany(r) {
   /* Ingestion emits nulls for lines a filer does not report. The engine already
      treats null as "not available" rather than zero, so they pass through. */
   const fin = r.fin.map(row => row.map(v => (v == null ? null : v)));
+  const withheld = withholdMisassembled(r, fin);
+  const withheldGaps = Object.entries(withheld).map(([line, w]) => ({ line, withheld: true,
+    reason: `withheld for ${w.years.map(y => `FY${y}`).join(', ')} — ${w.why}. The ingest rule has been corrected; the figure returns when the statements are regenerated.` }));
   /* Order matters. A curated entry wins, then the filer's own SIC registration,
      then Unclassified. Without the SIC step every newly ingested company fell
      back to "mature" — which routes a bank into a free-cash-flow DCF, an answer
      that is not merely imprecise but meaningless. */
+  const sectorWithheld = !REAL_SECTORS[r.id] && SHIPPED_MISFILED_SECTOR(r.sic, r.industry);
   const [sector, industry] = REAL_SECTORS[r.id]
-    || (r.sector && r.sector !== 'Unclassified' ? [r.sector, r.industry] : ['Unclassified', 'Unclassified']);
+    || (r.sector && r.sector !== 'Unclassified' && !sectorWithheld ? [r.sector, r.industry] : ['Unclassified', 'Unclassified']);
   /* The ingested tickers deliberately overlap the sample set, so the real
      record takes a distinct id and the two sit side by side. Comparing
      synthetic AAPL against filed AAPL is the most useful thing this flag can
@@ -629,8 +690,13 @@ function realToCompany(r) {
     sic: r.sic || null, sicDescription: r.sicDescription || null,
     desc: `Audited annual statements retrieved from SEC EDGAR (CIK ${r.cik}) on ${r.retrieved}. SEC publishes filings, not market data — the price basis is stated separately below.`,
     px, fin, years: r.years, periodEnds: r.periodEnds || null,
-    real: true, cik: r.cik, provenance: r.provenance, gaps: r.gaps,
-    completeness: r.completeness, retrieved: r.retrieved,
+    real: true, cik: r.cik, provenance: r.provenance, gaps: [...(r.gaps || []), ...withheldGaps],
+    basis: r.basis || null, withheld,
+    sectorWithheld: sectorWithheld ? `The shipped classification (${r.sector} / ${r.industry}) came from a SIC rule since corrected, and SIC ${r.sic} does not belong there. It is withheld until the statements are regenerated.` : null,
+    /* Recounted where a cell was withheld, so the "lines present" chip does not
+       count a figure the page no longer shows. */
+    completeness: withheldGaps.length ? +(fin.flat().filter(v => v != null).length / fin.flat().length).toFixed(3) : r.completeness,
+    retrieved: r.retrieved,
     seg: [], moat: { kind:'Not assessed', dur:'—', conf:'Low',
       support:[], counter:['No moat assessment exists for a company loaded from filings alone. Moat evidence is analyst work, not a computed field.'] },
     qrisk: 'Loaded from filings only. Segment mix, ownership and qualitative risk have not been researched for this company.',
@@ -693,9 +759,25 @@ let myFundamentals = null;
    scorecard from being rendered as though it were a finding. */
 let instruments = null;
 
+/* ONE READING OF A PRICE ENTRY, FOR EVERY CONSUMER. ingest/live.mjs once
+   wrote `{price, currency, asOf}` where everything reads `{close, date}`; the
+   writer was corrected, but a file it wrote before then still loads — 97
+   entries read, none applied, USD/MYR left at the sample rate, and the banner
+   blaming licensing for the missing prices. The older shape is read the way
+   the corrected writer now converts it (price as the close, the date part of
+   asOf as the date). An entry that is neither shape is counted, and the count
+   travels to the Data page, rather than vanishing. */
+function priceEntry(p) {
+  if (!p) return null;
+  const close = isNum(p.close) ? p.close : isNum(p.price) ? p.price : null;
+  if (close == null) return null;
+  return { ...p, close, date: p.date || (p.asOf ? String(p.asOf).slice(0, 10) : null) };
+}
+const unreadablePriceEntries = (book) => Object.values(book?.prices || {}).filter(p => !priceEntry(p)).length;
+
 function applyPrices(c) {
-  const p = priceBook?.prices?.[c.tk];
-  if (!p || !isNum(p.close)) return false;
+  const p = priceEntry(priceBook?.prices?.[c.tk]);
+  if (!p) return false;
   c.px = { p: p.close, d1: p.d1 ?? null, m1: null, m3: null,
            m12: isNum(p.m12) ? p.m12 : null, lo: p.lo ?? null, hi: p.hi ?? null,
            eod: true, asOf: p.date || priceBook.asOf || null };
@@ -711,8 +793,8 @@ const FX_KEYS = ['USDMYR', 'USDMYR=X', 'MYR=X', 'USD/MYR'];
 function applyFx() {
   if (!priceBook?.prices) return false;
   for (const k of FX_KEYS) {
-    const p = priceBook.prices[k];
-    if (!p || !isNum(p.close) || p.close <= 0) continue;
+    const p = priceEntry(priceBook.prices[k]);
+    if (!p || p.close <= 0) continue;
     /* An inverted or order-of-magnitude-wrong rate would silently rescale every
        cross-market figure on every page, and nothing on screen would look odd.
        USDMYR has not left roughly 2.4–4.8 in modern history, so anything beyond
@@ -847,7 +929,8 @@ async function loadRealData() {
            myStatements: myFundamentals ? { count: myFundamentals.count, retrieved: myFundamentals.results?.[0]?.retrieved || null,
              years: myFundamentals.yearsAvailable || null } : null,
            priceSource: priceBook ? { asOf: priceBook.asOf, licence: priceBook.licence,
-             count: priceBook.count, personal: !!priceBook.personal, file: priceBook.file } : null };
+             count: priceBook.count, personal: !!priceBook.personal, file: priceBook.file,
+             unreadable: unreadablePriceEntries(priceBook) } : null };
 }
 let realStatus = null;
 

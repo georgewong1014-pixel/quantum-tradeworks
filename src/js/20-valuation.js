@@ -66,37 +66,62 @@ function defaultInputs(c, d) {
   const erp = c.mkt === 'US' ? 4.6 : 5.0;
   const beta = { mature:0.95, growth:1.45, saas:1.20, cyclical:1.30, bank:0.95, reit:0.85, holding:1.10 }[c.type] || 1;
   const coe = riskFree + beta * erp;
+  /* A line the loader withheld from the shipped file (withholdMisassembled in
+     the universe module) is named as withheld, not left to read as unreported. */
+  const heldBack = (line) => { const fy = last(c.years || []), w = c.withheld?.[line];
+    return w && w.years.includes(fy) ? ` The figure for FY${fy} is withheld rather than unreported: ${w.why}. The ingest rule has been corrected, and it returns when the statements are regenerated.` : ''; };
 
   /* BOOK VALUE PER SHARE IS THE BASE OF BOTH RESIDUAL-INCOME MODELS. Without
      a share count there is none — and `null * justifiedPB` is nought, which
      valued Berkshire at $0.00 a share under a named model with a confidence
      grade. No estimate, and the reason, instead. */
   if ((pack.id === 'ri' || pack.id === 'insurer') && !isNum(m.bvps)) return { model:'unavailable', pack: pack.id,
-    reason: `Book value per share could not be computed for ${c.tk || c.code}: the latest statements carry no share count. A residual-income estimate is not available, and no figure has been assumed.` };
+    reason: `Book value per share could not be computed for ${c.tk || c.code}: the latest statements carry no share count. A residual-income estimate is not available, and no figure has been assumed.${heldBack('sh')}` };
+  /* THE SUSTAINABLE ROE IS A HAIRCUT ON THE REPORTED ONE, OR THERE IS NONE.
+     With the return on equity withheld — Schwab's, because its earnings and
+     dividend disagree on scale by a thousand — the model ran on a flat 10%
+     (11% for an insurer) and published a base case, while the assumption note
+     said the default "applies a small haircut to the reported ROE". Nothing
+     had been reported. The ROE is the model's main driver, so no estimate. */
+  if ((pack.id === 'ri' || pack.id === 'insurer') && !isNum(m.roe)) return { model:'unavailable', pack: pack.id,
+    reason: `Return on equity for ${c.tk || c.code} is not available${m.perShareScaleBroken ? ' — it is withheld because earnings and dividends disagree on scale' : m.roeWithheld ? ' — it is withheld because the equity base is too thin to carry meaning' : ''}, and the residual-income model's sustainable ROE is a haircut on the reported one. A figure put in its place would be the estimate, so no estimate is shown.` };
+  /* The payout ratio only sets the default long-run growth (what retained
+     earnings can fund). Where it is not reported the default is an
+     assumption, and it is said to be one rather than read as a reading. */
+  const payoutAssumed = !isNum(m.payout);
   if (pack.id === 'ri') {
-    const sustainableRoe = isNum(m.roe) ? clamp(m.roe * 0.97, 4, 20) : 10;
+    const sustainableRoe = clamp(m.roe * 0.97, 4, 20);
     const payout = isNum(m.payout) ? +clamp(m.payout, 10, 90).toFixed(0) : 50;
     /* Defaults must not trip the product's own guardrails: long-run growth is
        capped at what retained earnings can fund (ROE × retention). */
     const sustainableG = sustainableRoe * (1 - payout / 100);
     return { model:'ri', bvps:m.bvps, roe:+sustainableRoe.toFixed(2), coe:+coe.toFixed(2),
-             g:+clamp(Math.min(c.mkt === 'US' ? 3.5 : 4.0, sustainableG), 0.5, 6).toFixed(2), payout };
+             g:+clamp(Math.min(c.mkt === 'US' ? 3.5 : 4.0, sustainableG), 0.5, 6).toFixed(2), payout, payoutAssumed };
   }
   if (pack.id === 'insurer') {
-    const sustainableRoe = isNum(m.roe) ? clamp(m.roe * 0.95, 4, 26) : 11;
+    const sustainableRoe = clamp(m.roe * 0.95, 4, 26);
     const payout = isNum(m.payout) ? +clamp(m.payout, 10, 90).toFixed(0) : 45;
     const icoe = c.ins?.coe ?? coe;
+    /* THE COMBINED RATIO AND SOLVENCY ARE DISCLOSURES, OR THEY ARE ABSENT.
+       `?? 100` and `?? 1.5` gave every filed insurer — UnitedHealth, Cigna —
+       a combined ratio of exactly 100.0% and solvency of 1.50x under "Fixed
+       inputs", and the Studio then warned that the book "loses money on
+       underwriting". Neither figure is in the SEC facts this build reads;
+       both were the fallback, printed as a reading. Neither enters the
+       arithmetic, so null costs the estimate nothing and the rows say "not
+       reported". */
     return { model:'insurer', bvps:m.bvps, roe:+sustainableRoe.toFixed(2), coe:+icoe.toFixed(2),
              g:+clamp(Math.min(c.mkt === 'US' ? 3.5 : 4.0, sustainableRoe * (1 - payout / 100)), 0.5, 6).toFixed(2),
-             combined:c.ins?.combined ?? 100, solvency:c.ins?.solvency ?? 1.5, payout };
+             combined: isNum(c.ins?.combined) ? c.ins.combined : null,
+             solvency: isNum(c.ins?.solvency) ? c.ins.solvency : null, payout, payoutAssumed };
   }
   if (pack.id === 'early') {
     /* The downside floor is net cash per share and the equity bridge is net
        debt; neither exists without both balance-sheet lines. */
     if (!isNum(m.netDebt) || !isNum(last(d.cash))) return { model:'unavailable', pack: pack.id,
-      reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt or cash line. A financing-adjusted estimate is not available, and no balance has been assumed.` };
+      reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt or cash line. A financing-adjusted estimate is not available, and no balance has been assumed.${heldBack('debt')}` };
     if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
-      reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share.` };
+      reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share.${heldBack('sh')}` };
     /* Years to break even, from the current loss and the assumed improvement. */
     const burn = c.early?.burn ?? Math.max(0.05, -last(d.fcf) || 0.2);
     const cashNow = last(d.cash);
@@ -157,8 +182,21 @@ function defaultInputs(c, d) {
       : pack.id === 'dcfMid'
       ? `The mid-cycle model averages five years of free cash flow and ${c.tk || c.code} does not carry all five — a capital-expenditure line is absent in at least one. Averaging the years that exist would be a different measure under the same name, so no estimate is shown.`
       : `Free cash flow for ${c.tk || c.code}'s latest year could not be computed — its capital-expenditure line is absent — and an older year is not a substitute for it. No estimate is shown.` };
+  /* A NEGATIVE BASE GROWS INTO A NEGATIVE ANSWER. Air Products, Duke,
+     Southern, Boeing and Intel spent more than they generated in the latest
+     year, and the DCF compounded that into a negative enterprise value and a
+     negative price per share — Bear −$207, Base −$293, Bull −$422 for Air
+     Products, the bull case below the bear because faster growth of a loss is
+     a bigger loss — beside the Studio's own warning that the model "cannot
+     produce a meaningful value from a negative base". The warning was right
+     and the number should not have been printed under it. */
+  /* The scenario pack is exempt: it models revenue and margin rather than
+     compounding today's cash flow, which is why a business whose current cash
+     flow is small or negative is routed to it. */
+  if (pack.id !== 'scenario' && baseFcf <= 0) return { model:'unavailable', pack: pack.id,
+    reason: `${pack.id === 'dcfMid' ? 'The five-year average of free cash flow' : 'Free cash flow in the latest year'} for ${c.tk || c.code} is ${baseFcf < 0 ? 'negative' : 'nil'} (${fmtCap(baseFcf, c.ccy)}). A discounted-cash-flow model grows its starting cash flow into perpetuity, so from this base it values a loss, not the business — no estimate is shown, and no other year has been substituted.` };
   if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
-    reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share. No estimate is shown.` };
+    reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share. No estimate is shown.${heldBack('sh')}` };
   /* NET DEBT IS THE BRIDGE, AND A MISSING BRIDGE IS NOT A ZERO-LENGTH ONE.
      ---------------------------------------------------------------------
      `ev - (netDebt || 0)` valued twelve filers — Ford, General Motors and
@@ -169,14 +207,24 @@ function defaultInputs(c, d) {
      would have contradicted it. The same rule derive() applies to net gearing
      applies here: both lines, or no bridge, and no bridge means no estimate. */
   if (!isNum(m.netDebt)) return { model:'unavailable', pack: pack.id,
-    reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt line, no cash line, or neither. Enterprise value cannot be bridged to a value per share, so no estimate is shown and no balance has been assumed.` };
+    reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt line, no cash line, or neither. Enterprise value cannot be bridged to a value per share, so no estimate is shown and no balance has been assumed.${heldBack('debt')}` };
   /* Weighted average cost of capital from the company's own capital structure:
      equity at the cost of equity, debt at the risk-free rate plus a credit
      spread, after tax. Weights come from market value of equity and book debt. */
   /* Without a market price there is no market value of equity, so the weight
      falls back to book equity. Noted rather than silently substituted. */
   const usedBookEquity = !isNum(m.mcap);
-  const E = usedBookEquity ? (last(d.eq) || 0) : m.mcap, D = last(d.debt) || 0, V = (E + D) || 1;
+  /* A WEIGHT CANNOT BE NEGATIVE. Book equity below nought — McDonald's,
+     Lowe's and Booking, each after years of buybacks — put a negative weight
+     on the cost of equity, and the "average" fell below both of its own
+     components: 2.2% to 3.9% against an after-tax cost of debt of 4.3%. The
+     bull case then broke on it and the page blamed a terminal-growth input
+     the reader never set. With no price and no positive book equity there is
+     no capital structure to weight, so there is no discount rate and no
+     estimate — and a price, which gives market weights, is what fills it. */
+  if (usedBookEquity && !(last(d.eq) > 0)) return { model:'unavailable', pack: pack.id,
+    reason: `Shareholders' equity for ${c.tk || c.code} is ${last(d.eq) < 0 ? 'negative' : isNum(last(d.eq)) ? 'nil' : 'not reported'} in the latest statements and no price is attached, so the capital structure has no equity weight and a discount rate cannot be formed from it. No rate has been assumed. Enter a price on the company page and the cost of capital is weighted on market value instead.` };
+  const E = usedBookEquity ? last(d.eq) : m.mcap, D = last(d.debt) || 0, V = (E + D) || 1;
   const costDebtAfterTax = (riskFree + 1.2) * (1 - TAX[c.mkt]);
   const wacc = (coe * E + costDebtAfterTax * D) / V;
 
@@ -215,10 +263,31 @@ function defaultInputs(c, d) {
 }
 
 /* --- the three model implementations ------------------------------------ */
+/* A FORECAST HAS A WHOLE NUMBER OF YEARS, AND AT LEAST ONE. With 0 typed into
+   the Studio the scenario and early-stage packs read `last(flows).fcf` from
+   an empty list and threw inside the redraw, so the previous range stayed on
+   screen as though it were current; the DCF quietly valued a terminal value
+   discounted over no years. An engine error is the Studio's way of saying an
+   input cannot be valued, and every pack returns the same one. */
+const YEARS_ERROR = 'Forecast years must be a whole number of at least 1 — there is no explicit forecast to discount otherwise.';
+const badYears = (years) => !(Number.isInteger(years) && years >= 1);
+
+/* EQUITY CANNOT BE WORTH LESS THAN NOTHING. The early-stage pack already
+   floors it; the DCF and scenario packs published negative prices per share
+   when net debt exceeded the enterprise value, and the confidence grade then
+   read a negative band width as a tight one — "−RM8.29, High confidence,
+   100/100". Nil, and the caller is told which case it is, because "worth
+   nothing to shareholders" is a different finding from "worth little". */
+const floorEquity = (perShare) => ({ perShare: Math.max(0, perShare), rawPerShare: perShare, equityWipedOut: perShare <= 0 });
+
 function valueDCF(inp) {
   const { fcf0, g1, gt, wacc, netDebt, shares, years, hold = 0 } = inp;
   const r = wacc / 100, gT = gt / 100;
+  if (badYears(years)) return { error: YEARS_ERROR };
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
+  /* The same rule defaultInputs applies to the reported base, for a base the
+     reader typed: compounding a loss values the loss. */
+  if (!(fcf0 > 0)) return { error: 'Starting free cash flow is zero or negative. A discounted-cash-flow model grows it into perpetuity, so it would value a loss rather than the business — no estimate is produced from it.' };
   if (!isNum(netDebt)) return { error: 'Net debt is not established, so enterprise value cannot be bridged to equity. No balance has been assumed.' };
   if (!(shares > 0)) return { error: 'No share count is carried, so nothing can be stated per share.' };
   let f = fcf0, pvExplicit = 0;
@@ -235,8 +304,10 @@ function valueDCF(inp) {
   const pvTerminal = terminal / Math.pow(1 + r, years);
   const ev = pvExplicit + pvTerminal;
   const equity = ev - netDebt;
-  const holdDiscount = equity * (hold / 100);
-  return { perShare: (equity - holdDiscount) / shares, pvExplicit, pvTerminal, ev, equity,
+  /* A discount on negative equity would add value; there is nothing to
+     discount once the equity is gone. */
+  const holdDiscount = Math.max(0, equity) * (hold / 100);
+  return { ...floorEquity((equity - holdDiscount) / shares), pvExplicit, pvTerminal, ev, equity,
            netDebt, holdDiscount, hold, flows,
            terminalShare: pvTerminal / ev * 100 };
 }
@@ -269,6 +340,7 @@ function valueDDM(inp) {
 function valueScenario(inp) {
   const { rev0, revCagr, margin0, termMargin, fcfConv, wacc, gt, years, netDebt, shares, dilution } = inp;
   const r = wacc / 100, gT = gt / 100;
+  if (badYears(years)) return { error: YEARS_ERROR };
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate — a perpetuity is undefined otherwise.' };
   if (rev0 <= 0) return { error: 'Starting revenue must be positive for a revenue-driven scenario model.' };
   if (!isNum(netDebt)) return { error: 'Net debt is not established, so enterprise value cannot be bridged to equity. No balance has been assumed.' };
@@ -292,9 +364,9 @@ function valueScenario(inp) {
   const ev = pvExplicit + pvTerminal;
   const equity = ev - netDebt;
   const dilutedShares = shares * Math.pow(1 + (dilution || 0) / 100, years);
-  return { perShare: equity / dilutedShares, pvExplicit, pvTerminal, ev, equity,
+  return { ...floorEquity(equity / dilutedShares), pvExplicit, pvTerminal, ev, equity,
            netDebt, flows, shares, dilutedShares,
-           undilutedPerShare: equity / shares,
+           undilutedPerShare: Math.max(0, equity / shares),
            terminalRevenue: last(flows).rev, terminalShare: pvTerminal / ev * 100 };
 }
 
@@ -346,8 +418,10 @@ function consistencyWarnings(c, d, inputs) {
 function valueInsurer(inp) {
   const base = valueRI(inp);
   if (base.error) return base;
+  /* `null < 100` is true: an unreported combined ratio read as a profitable
+     book. Unknown stays unknown. */
   return { ...base, combined: inp.combined, solvency: inp.solvency,
-           underwritingProfitable: inp.combined < 100 };
+           underwritingProfitable: isNum(inp.combined) ? inp.combined < 100 : null };
 }
 
 /* Loss-making / early stage: a success case, the dilution required to fund the
@@ -355,11 +429,11 @@ function valueInsurer(inp) {
 function valueEarly(inp) {
   const { rev0, revCagr, termMargin, fcfConv, wacc, gt, years, burn, cash, pSuccess, shares, price, netDebt } = inp;
   const r = wacc / 100, gT = gt / 100;
+  if (badYears(years)) return { error: YEARS_ERROR };
   if (gT >= r) return { error: 'Terminal growth must stay below the discount rate.' };
   if (!isNum(netDebt)) return { error: 'Net debt is not established, so neither the equity bridge nor the net-cash floor can be computed. No balance has been assumed.' };
   if (!(shares > 0)) return { error: 'No share count is carried, so nothing can be stated per share.' };
   if (rev0 <= 0) return { error: 'Starting revenue must be positive.' };
-  if (price <= 0) return { error: 'A financing need cannot be priced from a zero share price.' };
 
   /* Success case: revenue compounds, margin arrives linearly at the terminal
      level, cash flow follows. */
@@ -383,7 +457,14 @@ function valueEarly(inp) {
      at today's share price. */
   const yearsToBreakeven = Math.max(0, flows.findIndex(f => f.fcf > burn) + 1) || Math.ceil(years / 2);
   const need = Math.max(0, burn * yearsToBreakeven - cash);
-  const newShares = need / price;
+  /* NO PRICE IS NOT A ZERO PRICE. `null <= 0` is true, so Rivian — which has
+     no price attached at all — was refused "from a zero share price" on the
+     same page that says no price is attached. The price is needed only to
+     turn a financing need into new shares; with nothing to raise it is not
+     needed at all. */
+  if (need > 0 && !isNum(price)) return { error: `The model needs a price: the ${fmtNum(need, 2)}bn to be raised before break-even is priced as new shares at the share price, and no price is attached. Enter one on the company page to compute it. Nothing has been assumed in its place.` };
+  if (need > 0 && price <= 0) return { error: 'A financing need cannot be priced from a zero share price.' };
+  const newShares = need > 0 ? need / price : 0;
   /* Equity is a limited-liability claim: it cannot be worth less than nothing.
      When the enterprise value does not cover the debt the honest answer is nil,
      not a negative price per share — and the caller is told which case it is,
@@ -478,27 +559,36 @@ function nineMethods(r) {
   })();
 
   /* 8 — Peer multiple, chosen by business model rather than applied blindly. */
+  /* PEERS OF THE SAME KIND OF DATA, IN THE SAME MARKET. Every row of the same
+     business type was a peer, and the only priced ones are mostly the
+     illustrative set — so JPMorgan's "peer median price-to-book" was the
+     median of three synthetic Bursa banks, Coca-Cola's EV/EBIT came from
+     synthetic Tenaga, Nestlé and Maxis, and it sat in the nine-method table
+     beside audited figures with nothing to say so. A filed company is compared
+     only with filed companies in its own market, an illustrative one only
+     with illustrative ones, and the peers are named. Insurers are valued on
+     price-to-book: enterprise value is not meaningful for them (INAPPLICABLE),
+     so an EV/EBIT multiple was the one method certain not to fit. */
   const peer = (() => {
-    const peers = U.filter(x => x.c.type === c.type && x.c.id !== c.id);
-    if (peers.length < 2) return na(`Only ${peers.length} comparable ${c.type} peer in the universe carried here.`);
-    if (noShares && c.type !== 'bank' && c.type !== 'reit') return noShares;
-    if (c.type === 'bank') {
-      const pb = median(peers.map(p => p.m.pb));
-      return isNum(pb) && isNum(m.bvps)
-        ? { value: pb * m.bvps, why: `Peer median price-to-book of ${fmtX(pb, 2)} on book value per share of ${fmtMoney(m.bvps, c.ccy)}.` }
-        : na('Peer price-to-book could not be computed.');
+    const bookBased = c.type === 'bank' || c.type === 'insurer';
+    const key = bookBased ? 'pb' : c.type === 'reit' ? 'pnav' : 'evebit';
+    const label = bookBased ? 'price-to-book' : c.type === 'reit' ? 'price-to-NAV' : 'EV/EBIT';
+    const peers = U.filter(x => x.c.type === c.type && x.c.id !== c.id
+      && !!x.c.real === !!c.real && !!x.c.personal === !!c.personal && x.c.mkt === c.mkt && isNum(x.m[key]));
+    const kind = c.personal ? 'personal-research' : c.real ? 'filed' : 'illustrative';
+    if (peers.length < 2) return na(`Fewer than two other ${kind} companies of the ${c.type} type in the same market carry the ${label} multiple (${peers.length} do), so there is no peer median. ${c.real ? 'Filed companies carry no price unless one is supplied, and illustrative companies are not peers for a filed one.' : ''}`.trim());
+    if (noShares && !bookBased && c.type !== 'reit') return noShares;
+    const names = peers.map(p => p.c.tk || p.c.id).join(', ');
+    const med = median(peers.map(p => p.m[key]));
+    if (bookBased || c.type === 'reit') {
+      return isNum(med) && isNum(m.bvps)
+        ? { value: med * m.bvps, why: `Peer median ${label} of ${fmtX(med, 2)} (${kind} peers: ${names}) on ${c.type === 'reit' ? 'NAV per unit' : 'book value per share'} of ${fmtMoney(m.bvps, c.ccy)}.` }
+        : na(`Book value per share is not established, so a peer ${label} multiple has nothing to apply to.`);
     }
-    if (c.type === 'reit') {
-      const pn = median(peers.map(p => p.m.pnav));
-      return isNum(pn) && isNum(m.bvps)
-        ? { value: pn * m.bvps, why: `Peer median price-to-NAV of ${fmtX(pn, 2)} on NAV per unit of ${fmtMoney(m.bvps, c.ccy)}.` }
-        : na('Peer price-to-NAV could not be computed.');
-    }
-    const ee = median(peers.map(p => p.m.evebit));
-    if (!isNum(ee) || last(d.ebit) <= 0) return na('Peer EV/EBIT or the company’s own operating profit is not usable.');
+    if (!(last(d.ebit) > 0)) return na('The company’s own operating profit is not positive, so an EV/EBIT multiple has nothing to apply to.');
     if (!isNum(m.netDebt)) return na('Net debt is not established, so an enterprise-value multiple cannot be bridged to a value per share.');
-    return { value: (ee * last(d.ebit) - m.netDebt) / shares,
-             why: `Peer median EV/EBIT of ${fmtX(ee)} on operating profit of ${fmtCap(last(d.ebit), c.ccy)}.` };
+    return { value: (med * last(d.ebit) - m.netDebt) / shares,
+             why: `Peer median EV/EBIT of ${fmtX(med)} (${kind} peers: ${names}) on operating profit of ${fmtCap(last(d.ebit), c.ccy)}.` };
   })();
 
   /* 9 — Asset floor. Book value per share. Deliberately labelled a floor: for
@@ -508,21 +598,35 @@ function nineMethods(r) {
     ? { value: m.bvps, why: 'Reported book value per share. A floor, not a target — it ignores every future cash flow.' }
     : na('Book value per share is not positive.');
 
+  /* THE PRIMARY ESTIMATE SITS ON THE ROW OF THE METHOD IT IS. Matching on
+     the pack id alone left three packs with no row: Sime Darby's primary IS
+     consolidated FCFF (with a holding-company discount), yet row 1 read
+     "routed away from this pack"; an insurer's residual income and an
+     early-stage company's probability-weighted scenario appeared nowhere, so
+     the card said every method was computed and marked none as primary. Each
+     pack maps to the method it is a variant of, and says which variant. */
   const primary = r.val;
-  const packValue = (packId) => primary.pack.id === packId && primary.vals ? primary.vals.base : null;
+  const PRIMARY_ROW = { dcf:1, sotp:1, dcfMid:2, scenario:3, early:3, ri:5, insurer:5, ddm:6 };
+  const VARIANT = {
+    sotp: () => `Primary model for this company, run on consolidated cash flow with a ${fmtNum(primary.inputs.hold, 0)}% holding-company discount.`,
+    early: () => 'Primary model for this company, run probability-weighted against a downside floor, with the financing need priced as dilution.',
+    insurer: () => 'Primary model for this company, run with the combined ratio carried as an underwriting check.',
+  };
+  const slot = (n, otherwise) => {
+    if (PRIMARY_ROW[primary.pack.id] !== n) return { value: null, why: otherwise, primary: false };
+    const value = primary.vals ? primary.vals.base : null;
+    const why = primary.err ? `Primary model for this company, but no estimate: ${primary.err}`
+      : VARIANT[primary.pack.id] ? VARIANT[primary.pack.id]() : 'Primary model for this company.';
+    return { value, why, primary: true };
+  };
 
   return [
-    { n:1, name:'FCFF discounted cash flow', value: packValue('dcf'),
-      why: primary.pack.id === 'dcf' ? 'Primary model for this company.' : 'Routed away from this pack for this business model.' },
-    { n:2, name:'Mid-cycle normalised FCFF', value: packValue('dcfMid'),
-      why: primary.pack.id === 'dcfMid' ? 'Primary model for this company.' : 'Applied only to cyclical and commodity-linked businesses.' },
-    { n:3, name:'Scenario: revenue → margin → FCF', value: packValue('scenario'),
-      why: primary.pack.id === 'scenario' ? 'Primary model for this company.' : 'Applied only where current cash flow is small relative to the opportunity.' },
+    { n:1, name:'FCFF discounted cash flow', ...slot(1, 'Routed away from this pack for this business model.') },
+    { n:2, name:'Mid-cycle normalised FCFF', ...slot(2, 'Applied only to cyclical and commodity-linked businesses.') },
+    { n:3, name:'Scenario: revenue → margin → FCF', ...slot(3, 'Applied only where current cash flow is small relative to the opportunity.') },
     { n:4, name:'FCFE (free cash flow to equity)', value: fcfe.value, why: fcfe.why },
-    { n:5, name:'Residual income / justified price-to-book', value: packValue('ri'),
-      why: primary.pack.id === 'ri' ? 'Primary model for this company.' : 'Applied to deposit-taking institutions.' },
-    { n:6, name:'Distribution discount (DDM / AFFO)', value: packValue('ddm'),
-      why: primary.pack.id === 'ddm' ? 'Primary model for this company.' : 'Applied to real estate investment trusts.' },
+    { n:5, name:'Residual income / justified price-to-book', ...slot(5, 'Applied to deposit-taking institutions and insurers.') },
+    { n:6, name:'Distribution discount (DDM / AFFO)', ...slot(6, 'Applied to real estate investment trusts.') },
     { n:7, name:'Earnings power value (no growth)', value: epv.value, why: epv.why },
     { n:8, name:'Peer multiple', value: peer.value, why: peer.why },
     { n:9, name:'Net asset / book value floor', value: asset.value, why: asset.why },
@@ -556,31 +660,50 @@ function valuationRun(c, d, inputs) {
   if (!shift || base.error) {
     return { pack, inputs, base, bear: base, bull: base,
              err: base.error || `No scenario band is defined for the ${key} model.`,
-             vals: null, mos: null, conf: 0, confBand: 'Low',
+             vals: null, mos: null, caseNotes: [], conf: 0, confBand: 'Low',
              price: isNum(c.px?.p) ? c.px.p : null, shift: null };
   }
   const bear = runModel(apply(shift.bear));
   const bull = runModel(apply(shift.bull));
-  const err = base.error || bear.error || bull.error;
+  /* A SHIFTED CASE THAT BREAKS IS THAT CASE'S FAILURE, NOT THE READER'S.
+     `base.error || bear.error || bull.error` replaced the whole output with
+     one critical "terminal growth must stay below the discount rate" when
+     only the published bull shift (growth up, discount rate down) crossed
+     that line — Tenaga at a 6.0% discount rate and 5.4% growth lost its range,
+     bridge and sensitivity to a rule the reader's own inputs satisfied. The
+     base case stands on the reader's inputs; a case the shift pushes out of
+     bounds is shown as not computable, with the shifted values that did it. */
+  const caseNote = (label, delta, res) => {
+    if (!res.error) return null;
+    const moved = Object.entries(delta).map(([k, v]) => `${k} ${withSign(v, 1, '')} to ${fmtNum(inputs[k] + v, 2)}`).join(', ');
+    return `The ${label} case is not computable: its published shift (${moved}) takes the model outside what it can value — ${res.error.charAt(0).toLowerCase()}${res.error.slice(1)} Your own inputs value normally, so the base case is shown.`;
+  };
+  const caseNotes = [caseNote('bear', shift.bear, bear), caseNote('bull', shift.bull, bull)].filter(Boolean);
+  const err = base.error || null;
+  const perShareOf = (res) => res.error ? null : res.perShare;
 
   const price = isNum(c.px?.p) ? c.px.p : null;
-  const vals = err ? null : { bear: bear.perShare, base: base.perShare, bull: bull.perShare };
-  const mos = (err || price == null) ? null : {
-    bear: (bear.perShare - price) / price * 100,
-    base: (base.perShare - price) / price * 100,
-    bull: (bull.perShare - price) / price * 100,
-  };
+  const vals = err ? null : { bear: perShareOf(bear), base: base.perShare, bull: perShareOf(bull) };
+  const vsPrice = (v) => isNum(v) ? (v - price) / price * 100 : null;
+  const mos = (err || price == null) ? null : { bear: vsPrice(vals.bear), base: vsPrice(vals.base), bull: vsPrice(vals.bull) };
 
   /* Confidence: data coverage, model fit for the company type, and how wide
-     the bear-bull band is relative to the base case. */
+     the bear-bull band is relative to the base case. A band that cannot be
+     measured — a missing case, or a base of nil — scores as the widest, never
+     as the tightest: a negative base once made every width "under 45%". */
   let conf = 0;
   conf += d.m.coverage >= 90 ? 40 : d.m.coverage >= 75 ? 28 : 16;
   conf += ({ mature:30, bank:26, insurer:24, reit:28, cyclical:18, holding:14, growth:12, saas:16, early:6 })[c.type] || 20;
   if (!err) {
-    const width = (bull.perShare - bear.perShare) / base.perShare * 100;
-    conf += width < 45 ? 30 : width < 80 ? 20 : 8;
+    const width = isNum(vals.bear) && isNum(vals.bull) && vals.base > 0
+      ? (vals.bull - vals.bear) / vals.base * 100 : null;
+    conf += isNum(width) && width >= 0 && width < 45 ? 30 : isNum(width) && width >= 0 && width < 80 ? 20 : 8;
   }
   let confBand = conf >= 78 ? 'High' : conf >= 58 ? 'Medium' : 'Low';
+  /* Equity modelled at nil is a restructuring outcome, not a precise answer. */
+  if (!err && base.equityWipedOut) confBand = 'Low';
+  /* A range with a case missing is not a measured range; it cannot be graded High. */
+  if (!err && caseNotes.length && confBand === 'High') confBand = 'Medium';
   /* Model applicability caps confidence. A tight bear-bull band on a cyclical or
      an early-growth business is a property of the model, not evidence that the
      answer is reliable — so those packs cannot reach a High grade. */
@@ -590,7 +713,7 @@ function valuationRun(c, d, inputs) {
      between the success case and the floor is the whole point. */
   if (c.type === 'early') confBand = 'Low';
 
-  return { pack, inputs, base, bear, bull, vals, mos, err, conf, confBand, price, shift };
+  return { pack, inputs, base, bear, bull, vals, mos, err, caseNotes, conf, confBand, price, shift };
 }
 
 /* Driver sensitivity: how much does the base-case model estimate move per unit of each
@@ -630,16 +753,32 @@ const SENS_AXES = {
          y:{ k:'g',    label:'Distribution growth', steps:[1.5,0.75,0,-0.75,-1.5], fmt:v=>fmtPct(v,2) } },
   insurer: { x:{ k:'coe', label:'Cost of equity', steps:[-1.5,-0.75,0,0.75,1.5], fmt:v=>fmtPct(v,2) },
             y:{ k:'roe', label:'Sustainable ROE', steps:[3,1.5,0,-1.5,-3], fmt:v=>fmtPct(v,2) } },
-  early:   { x:{ k:'pSuccess', label:'Probability of success', steps:[-20,-10,0,10,20], fmt:v=>fmtPct(v,0) },
+  early:   { x:{ k:'pSuccess', label:'Probability of success', steps:[-20,-10,0,10,20], min:0, max:100, fmt:v=>fmtPct(v,0) },
             y:{ k:'termMargin', label:'Terminal operating margin', steps:[6,3,0,-3,-6], fmt:v=>fmtPct(v,1) } },
   scenario: { x:{ k:'wacc', label:'Discount rate', steps:[-1.5,-0.75,0,0.75,1.5], fmt:v=>fmtPct(v,2) },
               y:{ k:'termMargin', label:'Terminal operating margin', steps:[8,4,0,-4,-8], fmt:v=>fmtPct(v,1) } },
 };
 
+/* AN AXIS STEPS ONLY THROUGH VALUES ITS INPUT CAN TAKE. A probability of
+   success of 95% stepped by ±10 and ±20 labelled columns 105% and 115%; the
+   engine clamps the probability, so those columns silently repeated the 100%
+   value under headings no probability can have. Each step is clamped to the
+   axis's bounds and a repeat is dropped, so every column is a distinct valid
+   value — and the base cell is found by value, because it is no longer
+   always in the middle. */
+function sensAxis(axis, inputs) {
+  const v0 = inputs[axis.k];
+  const lo = axis.min ?? -Infinity, hi = axis.max ?? Infinity;
+  const values = [];
+  for (const s of axis.steps) { const v = clamp(v0 + s, lo, hi); if (!values.includes(v)) values.push(v); }
+  return { values, baseIndex: values.indexOf(clamp(v0, lo, hi)) };
+}
+
 function sensitivityGrid(inputs) {
   const ax = SENS_AXES[inputs.model];
-  return ax.y.steps.map(dy => ax.x.steps.map(dx => {
-    const r = runModel({ ...inputs, [ax.x.k]: inputs[ax.x.k] + dx, [ax.y.k]: inputs[ax.y.k] + dy });
+  const xs = sensAxis(ax.x, inputs).values, ys = sensAxis(ax.y, inputs).values;
+  return ys.map(y => xs.map(x => {
+    const r = runModel({ ...inputs, [ax.x.k]: x, [ax.y.k]: y });
     return r.error ? null : r.perShare;
   }));
 }
