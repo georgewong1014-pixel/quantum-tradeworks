@@ -1305,7 +1305,11 @@ function tabSnapshot(r) {
   const pb = el('tbody');
   rc.parts.forEach(p => {
     pb.append(el('tr', {}, [
-      el('td', { style: isNum(p.score) ? '' : 'opacity:.7' }, p.label),
+      /* Receded with the muted ink rather than with opacity. opacity:.7 on
+         --ink-2 measured 3.40:1 in light and 4.45:1 in dark — body text under
+         the 4.5 floor on the one row that explains why a pillar is empty.
+         --ink-3 recedes as far and measures 5.15:1 and 6.18:1. */
+      el('td', { style: isNum(p.score) ? '' : 'color:var(--ink-3)' }, p.label),
       el('td', { class: 'num' }, `${p.w}%`),
       el('td', { class: 'num' }, isNum(p.score) ? fmtNum(p.score, 0) : 'not tested'),
       el('td', { class: 'metaline' }, isNum(p.score) ? `From ${p.from}.` : p.absent),
