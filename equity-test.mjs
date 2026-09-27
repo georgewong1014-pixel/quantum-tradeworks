@@ -755,6 +755,9 @@ try {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       await w(200);
       out.enter = State.ticker;
+      /* ?real=1 was set above to test that go() keeps it; it is global by
+         design, so it would ride into every later check's address. Cleared. */
+      history.replaceState(null, '', location.pathname);
       return out;
     })()`);
     const p = [];
@@ -1155,10 +1158,14 @@ try {
       out.alert = { editor: !!document.getElementById('pa-co'), co: document.getElementById('pa-co')?.value || null,
                     falseBuilder: [...document.querySelectorAll('main, .drawer, .toast, [role=status]')].some(n => /Alert rule builder/.test(n.textContent)) };
       closeDrawer({ restore: false });
-      const abbv = BY_ID.get('ABBV-SEC');
+      /* An unpriced filer whose valuation computes: the note sits beside the
+         range, and the absent "vs base-case value" is what the tile check reads.
+         ABBV was the fixture until the engine rightly withheld its valuation
+         (negative book equity and no price), which left no range to annotate. */
+      const abbv = U.find(x => x.c.real && !x.c.personal && !x.val?.err && !isNum(x.c.px?.p) && isNum(x.inputs?.wacc));
       const saved = State.valuation[abbv.c.id];
       State.valuation[abbv.c.id] = { ...abbv.inputs, wacc: (abbv.inputs.wacc || 8) + 1 };
-      openResearch('ABBV-SEC', 'snapshot');
+      openResearch(abbv.c.id, 'snapshot');
       out.editedNote = [...document.querySelectorAll('main .metaline')].some(n => /^Default assumptions\\./.test(n.textContent));
       const tile = [...document.querySelectorAll('main .stat-label')].find(x => /vs base-case/.test(x.textContent))?.parentElement;
       out.tile = tile ? { value: tile.querySelector('.stat-value').textContent, style: tile.querySelector('.stat-value').getAttribute('style') || '' } : null;

@@ -83,3 +83,6 @@ data/scan-alerts.json
 # The worker writes the record beside itself and keeps the previous one.
 data/scan-alerts.json.tmp
 data/scan-alerts.json.bak
+
+# Worktrees made by parallel agents (Claude Code). Never part of the product.
+.claude/worktrees/
