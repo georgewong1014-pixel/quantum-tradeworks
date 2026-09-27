@@ -607,7 +607,7 @@ VIEWS.comparables = () => {
     el('button', { class: 'btn btn-primary btn-sm', onclick: () => openComparableImport() }, 'Import'),
   ]));
   io.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'CSV is for reading; JSON round-trips exactly and carries the change history with it. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));
+    'CSV is for reading; JSON brings back every field of each record, worked-example marks and land areas included. The file also carries the change history for reading — an import starts each record\'s history afresh, at the import. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));
   wrap.append(io);
 
   const rules = el('div', { class: 'card' });
@@ -689,11 +689,25 @@ function openComparableImport() {
     if (!r.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))) return { err: `date "${r.date}" is not YYYY-MM-DD` };
     const ev = String(r.evidence || 'user');
     if (!EVIDENCE.some(e => e.id === ev)) return { err: `evidence "${ev}" is not a known source class` };
+    /* EVERY FIELD THE EXPORT WRITES COMES BACK. The record was rebuilt from
+       eleven fields, so a worked-example row came back without `sample` —
+       sixteen invented transactions re-entered the medians as ordinary
+       sourced records, unlabelled — and a land sale came back without its
+       land area. An area that is absent stays absent: Number(null) is 0,
+       which turned a missing floor area into a measured one of nought.
+       A row is an example if it says so, in JSON or in the CSV's standing. */
+    const areaOf = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) || !(Number(v) > 0)) ? null : Number(v);
+    const unit = (v, fallback) => (v && AREA_UNIT_BY_ID[v]) ? v : fallback;
+    const title = String(r.titleType || '');
     return { ok: { city: String(r.city), area: String(r.area || ''), kind, value,
                    date: String(r.date), evidence: ev,
                    propertyType: String(r.propertyType || ''), address: String(r.address || ''),
                    sourceRef: String(r.sourceRef || ''), reviewedBy: String(r.reviewedBy || ''),
-                   sqft: Number.isFinite(Number(r.sqft)) && r.sqft !== '' ? Number(r.sqft) : null } };
+                   reviewedAt: String(r.reviewedAt || ''),
+                   sqft: areaOf(r.sqft), areaUnit: unit(r.areaUnit, 'sqft'),
+                   landSqft: areaOf(r.landSqft), landUnit: unit(r.landUnit, 'point'),
+                   titleType: TITLE_TYPES.some(t => t.id === title) ? title : '',
+                   ...(r.sample === true || r.sample === 'true' || r.standing === 'sample' ? { sample: true } : {}) } };
   };
 
   const isDup = (a, b) => a.city === b.city && a.area === b.area && a.kind === b.kind
@@ -724,6 +738,9 @@ function openComparableImport() {
           'Rejected rows are not imported and not partially imported. Fix them and paste again.'));
       }
       if (!ok.length) return;
+      const examples = ok.filter(x => x.sample).length;
+      if (examples) report.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+        `${examples} of these are worked-example rows. They stay marked as invented wherever they are shown, and leave when the worked example is removed.`));
       const unsourced = ok.filter(x => !x.sourceRef).length;
       if (unsourced) report.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
         `${unsourced} of these carry no source reference and will be held as notes rather than evidence.`));
@@ -739,11 +756,35 @@ function openComparableImport() {
 
 /* One record, with the fields the calculator's compact form has no room for. */
 function openObservationDrawer(o) {
-  const s = observationStanding(o);
   const body = el('div');
-  body.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:var(--md)' },
-    el('span', { class: s.tone }, s.label)));
-  body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' }, s.why));
+  /* The standing and the history are redrawn after every edit. They were
+     built once, so naming a reviewer turned the table's chip to Verified
+     while the open drawer still said Awaiting review, and the edit just
+     logged was missing from the History below it. */
+  const chipRow = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:var(--md)' });
+  const whyP = el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' });
+  const histHost = el('div');
+  const paint = () => {
+    const cur = (State.observations || []).find(x => x.id === o.id) || o;
+    const s = observationStanding(cur);
+    chipRow.replaceChildren(el('span', { class: s.tone }, s.label));
+    whyP.textContent = s.why;
+    histHost.replaceChildren();
+    /* WHAT HAPPENED TO THIS RECORD.
+       A register that only shows the current figure asks the reader to trust
+       that it was always that figure. This is the whole reason the log exists,
+       so it is shown where the figure is edited rather than filed away in a
+       settings page nobody opens. */
+    const hist = registerHistory('observation', o.id);
+    if (hist.length) {
+      histHost.append(el('h3', { class: 'h-card', style: 'margin-top:var(--lg)' }, 'History'));
+      const ul = el('ul', { class: 'log-list' });
+      hist.slice(0, 12).forEach(e => ul.append(el('li', { class: 'metaline' }, registerEventText(e))));
+      if (hist.length > 12) ul.append(el('li', { class: 'metaline' }, `… and ${hist.length - 12} earlier change${hist.length - 12 === 1 ? '' : 's'}`));
+      histHost.append(ul);
+    }
+  };
+  body.append(chipRow, whyP);
 
   const edit = (label, key, kind) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
@@ -760,7 +801,7 @@ function openObservationDrawer(o) {
         saveObservations();
       }
       o[key] = v;
-      render();
+      render(); paint();
     });
     f.append(node);
     body.append(f);
@@ -776,20 +817,8 @@ function openObservationDrawer(o) {
    ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${o.city || '—'}`]]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
   body.append(kv);
-
-  /* WHAT HAPPENED TO THIS RECORD.
-     A register that only shows the current figure asks the reader to trust that
-     it was always that figure. This is the whole reason the log exists, so it
-     is shown where the figure is edited rather than filed away in a settings
-     page nobody opens. */
-  const hist = registerHistory('observation', o.id);
-  if (hist.length) {
-    body.append(el('h3', { class: 'h-card', style: 'margin-top:var(--lg)' }, 'History'));
-    const ul = el('ul', { class: 'log-list' });
-    hist.slice(0, 12).forEach(e => ul.append(el('li', { class: 'metaline' }, registerEventText(e))));
-    if (hist.length > 12) ul.append(el('li', { class: 'metaline' }, `… and ${hist.length - 12} earlier change${hist.length - 12 === 1 ? '' : 's'}`));
-    body.append(ul);
-  }
+  body.append(histHost);
+  paint();
 
   body.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--md)', onclick: () => {
     recordObservationDeleted(State.observations.find(x => x.id === o.id) || o);

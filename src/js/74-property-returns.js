@@ -62,6 +62,34 @@ function irrOf(flows) {
   let fLo = npvAt(lo, flows), fHi = npvAt(hi, flows);
   if (!isFinite(fLo) || !isFinite(fHi)) return { rate: null, signChanges, why: 'The cash flows do not resolve to a finite value.' };
   if (Math.sign(fLo) === Math.sign(fHi)) {
+    /* THE SAME SIGN AT BOTH ENDS IS NOT THE SAME AS NO RATE. With two sign
+       changes — the equity out, rent that more than repays it, then a sale
+       that does not clear the loan — the flows can have two rates inside the
+       range and the ends agree. This said "no rate" beside a positive profit
+       on the same sale. A grid finds every bracket; two or more rates are
+       named, and none is chosen, because none describes the flows alone. */
+    const roots = [];
+    if (signChanges > 1) {
+      /* Evenly spaced in log(1 + r), from −99.99% to +1000%, so the fine
+         steps sit where property returns are. */
+      let a = LO, fa = fLo;
+      for (let i = 1; i <= 400; i++) {
+        const b = (1 + LO) * Math.pow((1 + HI) / (1 + LO), i / 400) - 1;
+        const fb = npvAt(b, flows);
+        if (isFinite(fa) && isFinite(fb) && Math.sign(fa) !== Math.sign(fb)) {
+          let l = a, h = b, fl = fa;
+          for (let k = 0; k < 200 && (h - l) > 1e-10; k++) {
+            const mid = (l + h) / 2, fm = npvAt(mid, flows);
+            if (Math.sign(fm) === Math.sign(fl)) { l = mid; fl = fm; } else h = mid;
+          }
+          roots.push((l + h) / 2 * 100);
+        }
+        a = b; fa = fb;
+      }
+    }
+    if (roots.length === 1) return { rate: roots[0], signChanges, why: null };
+    if (roots.length > 1) return { rate: null, signChanges, rates: roots,
+      why: `These cash flows change sign more than once and have more than one rate of return — ${roots.map(r => fmtPct(r, 2)).join(' and ')} a year. No single rate describes them.` };
     return { rate: null, signChanges,
       why: 'No rate between −99.99% and 1000% a year makes these cash flows sum to zero.' };
   }
@@ -118,16 +146,23 @@ function rentalTaxYear({ effectiveRent, deductibleOpex, interest, marginalTaxPct
   };
 }
 
-/* Interest paid in one year of an amortising loan: the twelve instalments, less
-   the principal the balance actually fell by. Derived from the same
-   balanceAfter the rest of the model uses, so the two cannot disagree. */
+/* Interest paid in one year of an amortising loan: the instalments paid that
+   year, less the principal the balance actually fell by. Derived from the same
+   balanceAfter the rest of the model uses, so the two cannot disagree.
+
+   Only the months of the year the loan still runs. It charged twelve
+   instalments in every year of the hold, so once the balance reached nought
+   the whole instalment — which was no longer being paid — was booked as
+   deductible interest. */
 function interestInYear(loan, ratePct, tenureYears, year) {
   if (!(num0(loan) > 0) || !(num0(tenureYears) > 0)) return 0;
+  const months = clamp(num0(tenureYears) * 12 - (year - 1) * 12, 0, 12);
+  if (!(months > 0)) return 0;
   const pmt = monthlyInstalment(loan, ratePct, tenureYears);
   const open = balanceAfter(loan, ratePct, tenureYears, (year - 1) * 12);
-  const close = balanceAfter(loan, ratePct, tenureYears, year * 12);
+  const close = balanceAfter(loan, ratePct, tenureYears, (year - 1) * 12 + months);
   const principalPaid = Math.max(0, open - close);
-  return Math.max(0, pmt * 12 - principalPaid);
+  return Math.max(0, pmt * months - principalPaid);
 }
 
 

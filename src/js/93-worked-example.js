@@ -135,7 +135,11 @@ function seedWorkedExample() {
 
   /* The other two surfaces, so the example is the whole product rather than one
      screen of it. Neither overwrites work in progress. */
-  if (!State.wheel?.strike) {
+  /* The wheel's contract field is putStrike. This tested `strike`, which the
+     plan never has, so the guard was always open: the worked contract
+     replaced whatever the reader had entered, and removing the example then
+     blanked it. */
+  if (!(num0(State.wheel?.putStrike) > 0)) {
     State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true };
     saveWheel();
   }

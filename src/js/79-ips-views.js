@@ -272,13 +272,33 @@ VIEWS.ips = () => {
 
   /* §6.9 */
   const rej = el('div', { class: 'card' });
-  rej.append(cardHead('Auto-reject conditions', 'IPS §6.9. Any one of these refuses regardless of every other figure.'));
+  rej.append(cardHead('Auto-reject conditions', 'IPS §6.9. Under the IPS any one of these refuses regardless of every other figure. Beside each is what this engine actually does with it.'));
+  /* WHICH OF THESE THE ENGINE ACTUALLY TESTS. The card said "these are
+     enforced, not listed", and three of the nine were tested nowhere — no
+     gate reads oversupply, management or a promotional yield — while "no
+     credible exit market" leaves its gate open rather than refusing. Each
+     condition now says what the engine does with it. */
+  const HOW = {
+    negcash:    'Enforced — the net-economics gate refuses a negative monthly position.',
+    nodemand:   'Enforced once demand has been examined — the demand gate refuses when no operating source of demand is recorded, and stays open while nothing has been recorded at all.',
+    oversupply: 'Not tested. The engine holds no supply or unsold-stock data; your checklist answer on nearby supply is raised as a finding, not refused on.',
+    management: 'Not tested. No management or common-property evidence is modelled.',
+    legal:      'Enforced for the title class — the eligibility gate refuses a restricted class. Other legal or compliance complexity is not tested.',
+    valuation:  'Enforced — the margin gate refuses a bank valuation below the price. With no valuation entered the gate stays open.',
+    noexit:     'Not refused on. The exit gate counts sourced transactions you recorded; with none it stays open, because an absence of records is not evidence of no market.',
+    apprec:     'Enforced — the return-engine gate refuses a deal with no positive net rent and no recorded value-add.',
+    promo:      'Not refused on. An unverified rent keeps the underwriting grade at U, but the IPS assessment does not refuse on it.',
+  };
   const rl = el('ul', { class: 'ticklist blocklist', style: 'margin-top:var(--md)' });
-  IPS_PROPERTY_REJECTS.forEach(r => rl.append(el('li', {}, r.label)));
+  IPS_PROPERTY_REJECTS.forEach(r => rl.append(el('li', {}, [
+    el('span', {}, r.label),
+    HOW[r.id] ? el('span', { class: 'caption', style: 'display:block' }, HOW[r.id]) : null,
+  ])));
   rej.append(rl);
   rej.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'These are enforced, not listed. A refusal produces no assessment at all rather than a lower one — a deduction can be '
-    + 'outweighed by a good number somewhere else, and that is exactly what must not happen here.'));
+    'Where a condition is enforced, a refusal produces no assessment at all rather than a lower one — a deduction can be '
+    + 'outweighed by a good number somewhere else, and that is exactly what must not happen here. Where it is not yet '
+    + 'tested, it is said so beside it rather than implied.'));
   wrap.append(rej);
 
   wrap.append(el('div', { class: 'card' }, [

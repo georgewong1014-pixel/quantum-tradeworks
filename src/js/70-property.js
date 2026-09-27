@@ -116,6 +116,13 @@ function activeProject(d) {
 const SARAWAK_CITIES = [
   { id:'kuching', name:'Kuching', division:'Kuching', localityKind:'neighbourhood',
     districts:['City centre','Tabuan','Stutong','Batu Kawa','Matang','Petra Jaya','Samarahan','Kota Samarahan'],
+    /* Kota Samarahan is listed here as Kuching's university and commuter
+       belt, but it is a Samarahan Division town, and NAPIC files it there;
+       its division figures were being read as Kuching's. "Samarahan" here is
+       the expressway corridor, which geocodes inside Kuching Division — the
+       benchmark panel says the name is ambiguous rather than choosing. */
+    localityDivision:{ 'Kota Samarahan':'Samarahan' },
+    ambiguousLocality:{ 'Samarahan':'“Samarahan” here is the Kuching–Samarahan expressway corridor, which lies in the Kuching Division. Kota Samarahan itself is in the Samarahan Division — choose it, or the Kota Samarahan town, for that division’s figures.' },
     factors:['Government employment','University demand','Medical and professional employment',
              'New suburban supply','Traffic and parking'] },
   { id:'bau', name:'Bau', division:'Kuching', localityKind:'district',
@@ -371,6 +378,18 @@ function evidenceDriversFor(d) {
     : EVIDENCE_DRIVERS.filter(k => k !== 'rent' && k !== 'maintenance');
 }
 
+/* Whether an input means anything for this deal's class. A bare parcel has
+   no tenancy, so no rent and no vacancy; and no strata, so no service charge.
+   The model withholds what depends on them, and every list that names inputs
+   — the review queue, the ranked drivers, the break-points — has to withhold
+   them too, or it ranks and queues figures the page says are not used. */
+function propertyInputApplies(d, k) {
+  const cls = PROPERTY_CLASSES[propertyClassOf(d)];
+  if (!cls.letsToTenant && (k === 'rent' || k === 'vacancyPct')) return false;
+  if (!cls.strataCharges && k === 'maintenance') return false;
+  return true;
+}
+
 /* THE REVIEW QUEUE — ONE LIST, NOT TWENTY SCATTERED WARNINGS.
    ---------------------------------------------------------------------------
    Every seeded figure was already marked at the input and in the evidence card,
@@ -415,7 +434,7 @@ const PROPERTY_REVIEW = [
    themselves has made a decision about it, and a queue that kept nagging them
    would train them to ignore it. */
 function propertyReviewQueue(d) {
-  return PROPERTY_REVIEW.filter(f => !isTouched(d, f.k));
+  return PROPERTY_REVIEW.filter(f => !isTouched(d, f.k) && propertyInputApplies(d, f.k));
 }
 
 /* What to show for a figure the reader has not touched: what it actually is. */
@@ -487,6 +506,17 @@ const PROPERTY_DEFAULT_DEAL = {
   /* answers to the Sarawak checklist, keyed by check id */
   checks: {},
 };
+/* THE HOLDING PERIOD IS A WHOLE NUMBER OF YEARS, FROM ONE TO THIRTY.
+   The model runs rent year by year, so a hold of 7.5 took seven years of rent
+   and priced the sale, the loan balance and the gains tax at 7.5; the year
+   table beside it rounded to eight and named a sale after the stated hold. And
+   the table stopped at thirty while the input took forty, so "every possible
+   exit" was missing the model's own. One rule, applied wherever a hold enters
+   — the input, the address, a stored deal and the model itself — so no
+   surface can see a hold another surface does not. */
+const HOLD_YEARS_MAX = 30;
+const normHoldYears = (v) => clamp(Math.round(num0(v)) || 1, 1, HOLD_YEARS_MAX);
+
 /* A deep-ish copy on boot: `evidence` and `checks` are objects, and handing the
    live default out by reference would let the first edit rewrite the constant
    that Reset restores from. */
@@ -495,6 +525,8 @@ State.deal = store.read('deal', null) || {
   evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
   checks: { ...PROPERTY_DEFAULT_DEAL.checks },
 };
+/* A deal saved before the hold was normalised can carry 7.5 or 40. */
+State.deal.holdYears = normHoldYears(State.deal.holdYears);
 /* The address follows the deal. Every input change saves, and the save
    rewrites the address, so the next render's read of the address finds what
    is already on screen — the write-before-read that stops a stale link from
@@ -552,6 +584,14 @@ function dealToParam(d) {
   for (const [k, v] of Object.entries(d.evidence || {})) {
     if (v && v !== PROPERTY_DEFAULT_DEAL.evidence[k] && SHARE_STR.test(String(v))) parts.push(`evidence.${k}:${encodeURIComponent(v)}`);
   }
+  /* The checklist travels too. Its answers move the grade, the financeability
+     score and the risk flags, so a link without them showed the recipient a
+     different verdict on the same figures. */
+  for (const c of SARAWAK_CHECKS) {
+    const a = d.checks?.[c.id], ev = d.checkEvidence?.[c.id];
+    if (CHECK_ANSWERS.includes(a)) parts.push(`check.${c.id}:${a}`);
+    if (ev && EVIDENCE.some(e => e.id === ev)) parts.push(`checkev.${c.id}:${ev}`);
+  }
   const touched = Object.entries(d.touched || {}).filter(([, on]) => on).map(([k]) => k).filter(k => SHARE_KEYS.includes(k));
   if (touched.length) parts.push(`touched:${touched.join(',')}`);
   return parts.join('~');
@@ -582,10 +622,27 @@ function applyDealParam(d, str) {
       if (d.evidence[ek] !== raw) { d.evidence[ek] = raw; changed = true; }
       continue;
     }
+    /* A checklist answer, and how it was established — only for questions
+       the checklist asks, and only in its own three answers and the evidence
+       vocabulary. */
+    if (k.startsWith('check.') || k.startsWith('checkev.')) {
+      const ev = k.startsWith('checkev.');
+      const id = k.slice(ev ? 8 : 6);
+      if (!SARAWAK_CHECKS.some(c => c.id === id)) continue;
+      if (ev ? !EVIDENCE.some(e => e.id === raw) : !CHECK_ANSWERS.includes(raw)) continue;
+      const bag = ev ? 'checkEvidence' : 'checks';
+      d[bag] = { ...(d[bag] || {}) };
+      if (d[bag][id] !== raw) { d[bag][id] = raw; changed = true; }
+      continue;
+    }
     if (!SHARE_KEYS.includes(k)) continue;
     const def = PROPERTY_DEFAULT_DEAL[k];
     let v;
-    if (raw === 'null') v = null;
+    /* Null is a value only for a field whose default is null — a quote not
+       given, a rate not stated. For a figure the model needs, such as the
+       price or the rent, null has no meaning the model can use, and it used
+       to be read as nought: a free property. */
+    if (raw === 'null') { if (def !== null) continue; v = null; }
     /* A number is digits as written — not '' (which Number reads as 0), not
        '0x10', not ' 12 ', not '1e3'. */
     else if ((typeof def === 'number' || def === null) && /^-?\d+(\.\d+)?$/.test(raw)) v = Number(raw);
@@ -593,6 +650,7 @@ function applyDealParam(d, str) {
     else if (typeof def === 'boolean') v = raw === 'true';
     else if (SHARE_STR.test(raw)) v = raw;
     else continue;
+    if (k === 'holdYears') v = normHoldYears(v);
     if (d[k] !== v) { d[k] = v; changed = true; }
   }
   return changed;
@@ -792,9 +850,19 @@ function workspaceLinkBanner(kind, plan, save) {
 /* ------------------------------------------------------- Sarawak checklist */
 /* Questions, not verdicts. Each names who can actually answer it, because the
    honest output of a calculator on a legal or physical question is "ask this
-   person", not a score. */
+   person", not a score.
+
+   `adverse` is the answer that raises a risk. It is 'yes' for most questions
+   and 'no' for the three that ask whether something good has been
+   established. The grade and the risk flags used to treat every answer
+   alike: a 'yes' to flood, single-employer demand and unsold supply scored
+   the local-demand pillar 100, exactly as all-'no' did, and a 'yes' to "has
+   the strata title issued" was raised as a risk. The leasehold question asks
+   two things at once and has no adverse answer; an answer to it counts as
+   settled and nothing more. */
+const CHECK_ANSWERS = ['yes', 'no', 'unknown'];
 const SARAWAK_CHECKS = [
-  { id:'title-restricted', q:'Is the title Native Area Land, NCR or another restricted class?',
+  { id:'title-restricted', adverse:'yes', q:'Is the title Native Area Land, NCR or another restricted class?',
     who:'Lawyer and the Land and Survey Department', sev:'serious',
     steps:[
       'Instruct the lawyer to conduct an official title search at the Land and Survey Department, rather than relying on what the seller or agent states the class to be.',
@@ -804,13 +872,13 @@ const SARAWAK_CHECKS = [
     ],
     affects:['Whether the purchase can complete at all', 'Financing', 'Resale pool'],
     why:'Transfer of restricted classes is limited by the Sarawak Land Code. If it applies, no financial model matters until it is resolved.' },
-  { id:'lease-remaining', q:'If leasehold, how many years remain and has extension been applied for?',
+  { id:'lease-remaining', adverse:null, q:'If leasehold, how many years remain and has extension been applied for?',
     who:'Lawyer, Land and Survey Department', sev:'warning',
     why:'Short remaining leases can reduce financing availability and resale demand. Confirm applicable thresholds with the intended lender.' },
-  { id:'strata-issued', q:'For an apartment: has the strata title issued, or is it still a master title?',
+  { id:'strata-issued', adverse:'no', flag:'The strata title has not issued', q:'For an apartment: has the strata title issued, or is it still a master title?',
     who:'Lawyer, developer', sev:'warning',
     why:'A pending strata title may affect transfer, financing and transaction timing. Confirm the title status and implications with the lawyer and lender.' },
-  { id:'flood', q:'Is the site in an area with a known flood history?',
+  { id:'flood', adverse:'yes', q:'Is the site in an area with a known flood history?',
     steps:[
       'Ask the Department of Irrigation and Drainage (Jabatan Pengairan dan Saliran) for flood records covering the locality.',
       'Ask the local council about past events and any drainage works planned or completed.',
@@ -822,25 +890,29 @@ const SARAWAK_CHECKS = [
     who:'Local council, neighbours, DID flood maps', sev:'serious',
     basis:'General observation. No flood record, depth or return period is held for any address in this tool.',
     why:'Flooding is widely reported in parts of Kuching, Sibu and the Rajang basin, and where it recurs it can affect insurance cost and availability, tenant retention and resale. Establish the record for this specific site.' },
-  { id:'single-employer', q:'Does rental demand here depend on one employer or one industry?',
+  { id:'single-employer', adverse:'yes', q:'Does rental demand here depend on one employer or one industry?',
     who:'Local agents, your own observation', sev:'serious',
     basis:'General observation. This tool holds no vacancy series for any Sarawak locality.',
     why:'Locations that depend heavily on one project or one employer may see higher vacancy when contracts end. Bintulu and Miri rental demand is commonly described as tracking oil, gas and heavy industry — confirm against current occupancy locally.' },
-  { id:'transient-demand', q:'Is demand driven by students, O&G rotation staff or construction workers?',
+  { id:'transient-demand', adverse:'yes', q:'Is demand driven by students, O&G rotation staff or construction workers?',
     who:'Local agents', sev:'warning',
     why:'Transient demand is real demand, but it is shorter, more seasonal and more sensitive to one contract than a family tenancy.' },
-  { id:'parking', q:'Is the unit hard to rent without parking?',
+  { id:'parking', adverse:'yes', q:'Is the unit hard to rent without parking?',
     who:'Local agents', sev:'warning',
     basis:'General observation. No parking-related rental differential has been measured for any Sarawak locality.',
     why:'Limited parking may reduce tenant demand in car-dependent locations. Confirm against comparable listings, recent tenancies and local agents.' },
-  { id:'supply', q:'Is there substantial unsold or newly completed supply nearby?',
+  { id:'supply', adverse:'yes', q:'Is there substantial unsold or newly completed supply nearby?',
     who:'Developer sales offices, NAPIC data', sev:'warning',
     basis:'General observation. This tool holds no completions or unsold-stock counts.',
     why:'Competing new stock may cap achievable rent and lengthen the void period before the market absorbs it. Check what is completing nearby over your holding period.' },
-  { id:'comparables', q:'Have you verified comparable rental transactions, not asking prices?',
+  { id:'comparables', adverse:'no', flag:'Rental comparables have not been verified', q:'Have you verified comparable rental transactions, not asking prices?',
     who:'Agents, existing tenants', sev:'serious',
     why:'The rent assumption drives every output on this page. An asking price is not a transaction.' },
-  { id:'resale-time', q:'How long would a resale realistically take in this district?',
+  /* Asked as "how long?" and answered yes or no, which made "Yes" a risk
+     flag and any answer at all a liquidity credit. It now asks whether the
+     period has been established, which the three answers can say. */
+  { id:'resale-time', adverse:'no', flag:'The resale period in this district is not established',
+    q:'Have you established how long a resale would realistically take in this district?',
     who:'Local agents', sev:'warning',
     basis:'General observation. No time-on-market series is held for any Sarawak district.',
     why:'Secondary markets outside the main centres are commonly reported as slower to transact. Whatever that period turns out to be, its carrying cost falls on you — the exit assumption below sets it explicitly.' },
@@ -1922,7 +1994,7 @@ const PROPERTY_I18N = {
   'chk.parking':          { en:'Is the unit hard to rent without parking?', ms:'Adakah unit ini sukar disewakan tanpa tempat letak kereta?', zh:'没有停车位，这个单位是否难以出租？' },
   'chk.supply':           { en:'Is there substantial unsold or newly completed supply nearby?', ms:'Adakah banyak unit belum terjual atau baru siap berhampiran?', zh:'附近是否有大量未售出或刚竣工的单位？' },
   'chk.comparables':      { en:'Have you verified comparable rental transactions, not asking prices?', ms:'Adakah anda telah mengesahkan transaksi sewa setanding, bukan kadar sewa yang diminta?', zh:'是否已核实同类单位的实际成交租金，而非叫价？' },
-  'chk.resale-time':      { en:'How long would a resale realistically take in this district?', ms:'Secara realistik, berapa lama jualan semula mengambil masa di daerah ini?', zh:'在这个县转售，实际上需要多久？' },
+  'chk.resale-time':      { en:'Have you established how long a resale would realistically take in this district?', ms:'Adakah anda telah memastikan berapa lama jualan semula secara realistik mengambil masa di daerah ini?', zh:'你是否已确认在这个县转售实际需要多久？' },
   /* calculator inputs */
   'in.sqft':      { en:'Built-up area (sq ft)', ms:'Keluasan binaan (sq ft)', zh:'建筑面积 (sq ft)' },
   'in.landSqft':  { en:'Land area (sq ft, 0 if none)', ms:'Keluasan tanah (sq ft, 0 jika tiada)', zh:'土地面积 (sq ft，无则填 0)' },
@@ -1976,11 +2048,11 @@ const tr = (key) => METRIC_DICTIONARY[key]?.[lang()] || METRIC_DICTIONARY[key]?.
    because a half-translated argument is harder to trust than an English one. */
 const SUMMARY_COPY = {
   en: { title:'Summary', note:'Input labels, evidence grades and the ten risk questions are translated. The longer explanations remain in English.',
-        forEvery:'For every ringgit of rent you collect', afterAll:'after every cost modelled here' },
+        forEvery:'For every ringgit of rent you collect', afterAll:'after every cost modelled here', perMonth:'a month' },
   ms: { title:'Ringkasan', note:'Label input, gred bukti dan sepuluh soalan risiko telah diterjemah. Penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
-        forEvery:'Bagi setiap ringgit sewa yang dikutip', afterAll:'selepas semua kos yang dimodelkan di sini' },
+        forEvery:'Bagi setiap ringgit sewa yang dikutip', afterAll:'selepas semua kos yang dimodelkan di sini', perMonth:'sebulan' },
   zh: { title:'摘要', note:'输入项名称、证据等级与十道风险问题已翻译，较长的说明仍为英文。',
-        forEvery:'每收取一令吉租金', afterAll:'扣除此处模型中的所有成本后' },
+        forEvery:'每收取一令吉租金', afterAll:'扣除此处模型中的所有成本后', perMonth:'每月' },
 };
 
 /* ==========================================================================

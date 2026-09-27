@@ -897,6 +897,9 @@ VIEWS.tradingIndex = () => {
   return wrap;
 };
 
+/* Which records have their edit panel open, so a redraw after an edit does
+   not close it under the reader. */
+const OPP_EDIT_OPEN = new Set();
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
@@ -934,18 +937,21 @@ VIEWS.opportunities = () => {
   const add = el('div', { class: 'card' });
   add.append(cardHead('Record a property', 'Enough to identify it. Evidence is added afterwards.'));
   const draft = { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
+  /* Each control carries its own label: the labels had no `for` and the
+     inputs no id, so all seven fields were unnamed to a screen reader. */
   const f = (label, key, kind) => {
     const fl = el('div', { class: 'field', style: 'margin-top:8px' });
-    fl.append(el('label', {}, label));
+    const id = `opp-new-${key}`;
+    fl.append(el('label', { for: id }, label));
     let input;
     if (kind === 'city') {
-      input = el('select', { class: 'select' });
+      input = el('select', { class: 'select', id });
       SARAWAK_CITIES.forEach(c => input.append(el('option', { value: c.id }, c.name)));
     } else if (kind === 'type') {
-      input = el('select', { class: 'select' });
+      input = el('select', { class: 'select', id });
       PROPERTY_TYPES.forEach(t => input.append(el('option', { value: t }, t)));
     } else {
-      input = el('input', { class: 'input', type: kind === 'num' ? 'number' : 'text' });
+      input = el('input', { class: 'input', id, type: kind === 'num' ? 'number' : 'text' });
     }
     input.addEventListener('change', e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; });
     fl.append(input);
@@ -971,8 +977,12 @@ VIEWS.opportunities = () => {
       deal: { city: draft.city, district: draft.district || null, propertyType: draft.type,
               price: draft.askingPrice, sqft: draft.sqft, projectId: customProjectId(draft.city),
               bankValuation: 0, titleType: 'unknown' },
-      touched: draft.askingPrice > 0 ? { price: true, sqft: true } : {},
-      evidence: draft.askingPrice > 0 ? { price: 'user' } : {},
+      /* Each figure is marked as the reader's only if the reader gave it. A
+         price alone marked the floor area as entered too, so a record with
+         no area was graded as if its area were known, and the calculator's
+         1,050 sq ft stood in unannounced. */
+      touched: { ...(draft.askingPrice > 0 && { price: true }), ...(draft.sqft > 0 && { sqft: true }) },
+      evidence: { ...(draft.askingPrice > 0 && { price: 'user' }), ...(draft.sqft > 0 && { sqft: 'user' }) },
       negotiatedPrice: null, valuerEstimate: null,
       nextAction: '', nextActionOwner: '', nextActionDue: '',
     }, ...State.opportunities];
@@ -1059,16 +1069,83 @@ VIEWS.opportunities = () => {
       card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Blocking or capping this'));
       const gl = el('ul', { class: 'ticklist' });
       grade.gates.slice(0, 4).forEach(g => gl.append(el('li', {}, g.text)));
+      /* Four are shown; the rest are counted rather than silently dropped. */
+      if (grade.gates.length > 4) gl.append(el('li', { class: 'metaline' },
+        `…and ${grade.gates.length - 4} more — open it in the calculator to see every one.`));
       card.append(gl);
     }
+
+    /* THE FOUR PRICES, AND THE CAPTURE, CAN BE RECORDED HERE.
+       The card listed four prices "kept apart", and nothing on the page could
+       set three of them — the negotiated price, the bank valuation and a
+       registered valuer's figure always read "none" or "not obtained" — and a
+       mistyped name, price or area could not be corrected after capture. The
+       model reads the asking price and the bank valuation, as the calculator
+       does; the negotiated and valuer figures are recorded beside them and do
+       not move it. The calculator works on a copy: what is changed there is
+       not written back to this record. */
+    const ed = el('details', { style: 'margin-top:var(--md)', open: OPP_EDIT_OPEN.has(o.id) ? '' : null });
+    ed.addEventListener('toggle', () => { if (ed.open) OPP_EDIT_OPEN.add(o.id); else OPP_EDIT_OPEN.delete(o.id); });
+    ed.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'Record prices or correct this record'));
+    const eg = el('div', { class: 'grid g-2', style: 'margin-top:8px' });
+    const edField = (label, get, set, kind = 'num') => {
+      const id = `opp-${i}-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+      const w = el('div', { class: 'field' });
+      w.append(el('label', { for: id }, label));
+      const v = get();
+      const inp = el('input', { class: 'input', id, type: kind === 'num' ? 'number' : 'text',
+        ...(kind === 'num' ? { min: '0', step: '1000', placeholder: 'not recorded' } : {}),
+        value: kind === 'num' ? (isNum(v) && v > 0 ? String(v) : '') : (v || '') });
+      inp.addEventListener('change', e => {
+        const raw = e.target.value.trim();
+        if (kind === 'num') {
+          /* Empty clears the figure to "not recorded"; it is never a nought. */
+          const n = raw === '' ? null : Number(raw);
+          if (raw !== '' && !(Number.isFinite(n) && n >= 0)) { toast('Enter an amount of nought or more, or leave it empty'); return; }
+          set(isNum(n) && n > 0 ? n : null);
+        } else {
+          if (!raw && label === 'Name or address') { toast('A record needs a name or an address'); e.target.value = get() || ''; return; }
+          set(raw);
+        }
+        saveOpportunities();
+        /* Redrawn once focus has moved, and returned to wherever it went, so
+           filling the fields in order does not lose the place. */
+        setTimeout(() => {
+          const at = document.activeElement?.id;
+          render();
+          if (at) document.getElementById(at)?.focus();
+        }, 0);
+      });
+      w.append(inp);
+      return w;
+    };
+    const setDeal = (k, v) => { o.deal = { ...o.deal, [k]: v ?? 0 }; };
+    const mark = (k, on, ev = 'user') => {
+      o.touched = { ...(o.touched || {}) }; o.evidence = { ...(o.evidence || {}) };
+      if (on) { o.touched[k] = true; o.evidence[k] = ev; } else { delete o.touched[k]; delete o.evidence[k]; }
+    };
+    eg.append(edField('Asking price (RM)', () => o.deal.price, v => { setDeal('price', v); mark('price', v > 0); }));
+    eg.append(edField('Your negotiated price (RM)', () => o.negotiatedPrice, v => { o.negotiatedPrice = v; }));
+    eg.append(edField('Bank valuation (RM)', () => o.deal.bankValuation, v => { setDeal('bankValuation', v); }));
+    eg.append(edField('Registered valuer (RM)', () => o.valuerEstimate, v => { o.valuerEstimate = v; }));
+    eg.append(edField('Name or address', () => o.name, v => { o.name = v; }, 'text'));
+    eg.append(edField('Area or district', () => o.deal.district, v => { o.deal = { ...o.deal, district: v || null }; }, 'text'));
+    eg.append(edField('Built-up area (sq ft)', () => o.deal.sqft, v => { setDeal('sqft', v); mark('sqft', v > 0); }));
+    ed.append(eg);
+    ed.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      'The asking price and the bank valuation feed the model, as they do on the calculator. Your negotiated price and a registered valuer’s figure are kept beside them and change nothing modelled. Changes made after “Open in the calculator” stay in the calculator.'));
+    card.append(ed);
 
     /* Next verification action, with an owner and a date — 27.5 requires all
        three, because a task with no owner is a wish. */
     const na = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:end;margin-top:var(--md)' });
+    /* Named for assistive technology; a placeholder is not a label. */
     const naIn = el('input', { class: 'input', style: 'flex:2 1 220px', placeholder: 'Next verification action',
-      value: o.nextAction || '' });
-    const naWho = el('input', { class: 'input', style: 'flex:1 1 140px', placeholder: 'Who', value: o.nextActionOwner || '' });
-    const naDue = el('input', { class: 'input', style: 'flex:0 1 150px', type: 'date', value: o.nextActionDue || '' });
+      'aria-label': `Next verification action for ${o.name}`, value: o.nextAction || '' });
+    const naWho = el('input', { class: 'input', style: 'flex:1 1 140px', placeholder: 'Who',
+      'aria-label': `Who owns the next action for ${o.name}`, value: o.nextActionOwner || '' });
+    const naDue = el('input', { class: 'input', style: 'flex:0 1 150px', type: 'date',
+      'aria-label': `Date the next action for ${o.name} is due`, value: o.nextActionDue || '' });
     [naIn, naWho, naDue].forEach((inp, j) => inp.addEventListener('change', e => {
       o[['nextAction', 'nextActionOwner', 'nextActionDue'][j]] = e.target.value; saveOpportunities(); render();
     }));
@@ -1079,7 +1156,7 @@ VIEWS.opportunities = () => {
         'An action with no owner and no date is a wish. Name both.'));
 
     const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
-    const stSel = el('select', { class: 'select select-sm', style: 'width:auto',
+    const stSel = el('select', { class: 'select select-sm', style: 'width:auto', 'aria-label': `Stage of ${o.name}`,
       onchange: e => { o.state = e.target.value; saveOpportunities(); render(); } });
     CANDIDATE_STATES.forEach(s => stSel.append(el('option', { value: s.id, selected: o.state === s.id ? '' : null }, s.label)));
     acts.append(stSel);
@@ -1087,8 +1164,13 @@ VIEWS.opportunities = () => {
       o.availabilityCheckedAt = new Date().toISOString().slice(0, 10); o.available = true;
       saveOpportunities(); toast('Availability confirmed today'); render();
     } }, 'I checked — still available'));
+    /* The deal the register models, not a second assembly of it. This laid
+       the raw record over the calculator's deal, so an unpriced record opened
+       at a price of 0 — a free property — where the register had modelled it
+       on the calculator's price, and the calculator's checklist answers were
+       kept as though they were the record's. */
     acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-      State.deal = { ...State.deal, ...o.deal, touched: o.touched || {}, evidence: o.evidence || {} };
+      State.deal = { ...modelled[i].d };
       saveDeal(); navigate('/property/calculator');
     } }, 'Open in the calculator'));
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {

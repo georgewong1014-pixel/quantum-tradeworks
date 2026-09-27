@@ -553,7 +553,10 @@ VIEWS.wheel = () => {
 
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
 
+  /* A new cycle starts a new ledger, and says so first when the last one
+     still has legs in it — it cleared them without a word. */
   if (allowed.includes('put_planned')) acts.append(el('button', { class: 'btn btn-sm', onclick: () => {
+    if (legs.length && !confirm(`Starting a new cycle clears the ${legs.length} leg${legs.length === 1 ? '' : 's'} recorded for the last one. Continue?`)) return;
     State.wheelLegs = []; saveWheelLegs(); go('put_planned');
   } }, 'Start a cycle'));
 
@@ -653,6 +656,30 @@ VIEWS.wheel = () => {
       saveWheelLegs(); go('called_away');
     } }, 'Shares were called away'));
   }
+
+  /* EVERY OTHER PERMITTED TRANSITION, SO NO STATE IS A DEAD END.
+     Only the transitions with a leg to record had buttons. After a put
+     expired or was bought back, after a covered call expired, after the
+     shares were called away, and after "Start a cycle" on a blank contract,
+     nothing was offered but "Clear the cycle" — which deletes the ledger —
+     so the next call could not be written and "Cycle complete" and "Paused"
+     could never be reached, on a page that says only the permitted
+     transitions are offered. These move the state and record no leg; the
+     ledger stays as it is. Pausing is not offered while a leg is open,
+     because both ways out of Paused would leave that leg unresolved. */
+  const PLAIN = {
+    candidate:   { put_planned: 'Cancel the planned put', paused: 'Resume — back to candidate',
+                   complete: 'Begin again as a candidate' },
+    shares_held: { call_planned: 'Cancel the planned call', paused: 'Resume — shares held' },
+    complete:    {},
+    paused:      {},
+  };
+  const plainLabel = (to) => PLAIN[to]?.[st]
+    || { candidate: 'Back to candidate — ready for the next put', shares_held: 'Shares held — plan the next call',
+         complete: 'Mark the cycle complete', paused: 'Pause the cycle' }[to];
+  allowed.filter(to => !['put_planned', 'put_open', 'call_planned', 'call_open'].includes(to)
+      && !(st === 'put_open' || st === 'call_open'))
+    .forEach(to => acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go(to) }, plainLabel(to))));
 
   /* The roll, which can only ever be two legs. */
   if (openLeg) {
