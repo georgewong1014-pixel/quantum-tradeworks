@@ -183,8 +183,8 @@ function tabValuation(r) {
   fixed.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Fixed inputs'));
   const kv = el('dl', { class: 'kv' });
   const fixedRows = inputs.model === 'insurer'
-    ? [['Combined ratio', fmtPct(inputs.combined, 1)], ['Solvency, times required', fmtX(inputs.solvency, 2)],
-       ['Payout ratio', fmtPct(inputs.payout, 0)], ['Reporting currency', c.ccy]]
+    ? [['Combined ratio', isNum(inputs.combined) ? fmtPct(inputs.combined, 1) : 'not reported'], ['Solvency, times required', isNum(inputs.solvency) ? fmtX(inputs.solvency, 2) : 'not reported'],
+       ['Payout ratio', inputs.payoutAssumed ? `${fmtPct(inputs.payout, 0)} — assumed, not reported` : fmtPct(inputs.payout, 0)], ['Reporting currency', c.ccy]]
     : inputs.model === 'early'
     ? [['Shares in issue today', `${fmtNum(inputs.shares, 3)}bn`], ['Share price used for the raise', fmtMoney(inputs.price, c.ccy)],
        ['Net debt', fmtCap(inputs.netDebt, c.ccy)], ['Reporting currency', c.ccy]]
@@ -194,7 +194,7 @@ function tabValuation(r) {
     : inputs.model === 'dcf'
     ? [['Net debt', fmtCap(inputs.netDebt, c.ccy)], ['Shares in issue', `${fmtNum(inputs.shares, 3)}bn`], ['Reporting currency', c.ccy]]
     : inputs.model === 'ri'
-    ? [['Payout ratio', fmtPct(inputs.payout, 0)], ['Shares in issue', `${fmtNum(last(d.sh), 3)}bn`], ['Reporting currency', c.ccy]]
+    ? [['Payout ratio', inputs.payoutAssumed ? `${fmtPct(inputs.payout, 0)} — assumed, not reported` : fmtPct(inputs.payout, 0)], ['Shares in issue', `${fmtNum(last(d.sh), 3)}bn`], ['Reporting currency', c.ccy]]
     : [['NAV per unit', fmtMoney(inputs.navps, c.ccy)], ['Gearing', fmtPct(inputs.gearing)], ['Capitalisation rate', fmtPct(inputs.cap)]];
   fixedRows.forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
   fixed.append(kv);
@@ -219,13 +219,18 @@ function studioOutputs(r, inputs, redraw) {
   /* ---------- guardrails ---------- */
   const warnings = [];
   if (run.err) warnings.push({ sev:'critical', text: run.err });
+  /* A bear or bull case its published shift pushed out of bounds. The base
+     case still stands, so this is serious rather than critical. */
+  (run.caseNotes || []).forEach(text => warnings.push({ sev:'serious', text }));
+  if (!run.err && run.base.equityWipedOut && inputs.model !== 'early')
+    warnings.push({ sev:'critical', text:'The enterprise value does not cover net debt, so the modelled equity is nil, not negative — a shareholder cannot owe more than the holding. Treat this as a restructuring outcome, not a valuation range.' });
+  if (inputs.payoutAssumed)
+    warnings.push({ sev:'warning', text:`No payout ratio is reported for the latest year, so the default long-run growth assumes ${fmtPct(inputs.payout, 0)} of earnings is paid out. That figure is an assumption, not a reading — set the growth from your own view of what retained earnings can fund.` });
   if (inputs.dilutionAssumed)
     warnings.push({ sev:'warning', text:'Annual share issuance is assumed at 0.0%: the reported rate was withheld because the share series crosses a corporate action, so the default is an assumption of no issuance rather than a reading. Set it from your own reading of the share count.' });
   if (inputs.model === 'dcf') {
     if (inputs.gt >= inputs.wacc - 0.5 && inputs.gt < inputs.wacc)
       warnings.push({ sev:'serious', text:'Terminal growth is within half a point of the discount rate. The terminal value dominates and the output is unstable — treat the result as indicative only.' });
-    if (inputs.fcf0 <= 0)
-      warnings.push({ sev:'serious', text:'Starting free cash flow is zero or negative. A discounted cash flow model cannot produce a meaningful value from a negative base — use a scenario model instead.' });
     if (!run.err && run.base.terminalShare > 78)
       warnings.push({ sev:'warning', text:`${fmtPct(run.base.terminalShare, 0)} of the enterprise value sits in the terminal value. Most of the answer is an assumption about the far future, not a forecast.` });
     if (inputs.g1 > 25)
@@ -244,9 +249,10 @@ function studioOutputs(r, inputs, redraw) {
       warnings.push({ sev:'warning', text:`Share count is assumed to grow ${fmtPct(inputs.dilution)} a year, which compounds to ${fmtPct((Math.pow(1 + inputs.dilution / 100, inputs.years) - 1) * 100, 0)} more shares by the terminal year.` });
   }
   if (inputs.model === 'insurer') {
-    if (inputs.combined >= 100)
+    /* Only on a reported figure — a filed insurer carries neither, and `null < 1.5` is true. */
+    if (isNum(inputs.combined) && inputs.combined >= 100)
       warnings.push({ sev:'serious', text:`A combined ratio of ${fmtPct(inputs.combined, 1)} means the book loses money on underwriting before investment income. A sustainable return on equity above the cost of equity then depends entirely on the investment portfolio.` });
-    if (inputs.solvency < 1.5)
+    if (isNum(inputs.solvency) && inputs.solvency < 1.5)
       warnings.push({ sev:'serious', text:`Solvency of ${fmtX(inputs.solvency, 2)} times required capital leaves little headroom. Capital strain constrains both growth and the dividend.` });
     if (inputs.roe - inputs.coe > 10)
       warnings.push({ sev:'warning', text:'The assumed return on equity exceeds the cost of equity by more than ten points in perpetuity. Insurance pricing cycles rarely allow a spread that wide to persist.' });
@@ -314,7 +320,7 @@ function studioOutputs(r, inputs, redraw) {
     p.append(el('div', { class: 'stat-label' }, `${label} case`));
     p.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0' }, fmtMoney(v, c.ccy)));
     p.append(el('div', { class: 'num ' + diffClass(mos), style: 'font-size:12px;font-weight:600' },
-        isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
+        !isNum(v) ? 'not computable — see above' : isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
     grid.append(p);
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
@@ -356,12 +362,14 @@ function studioOutputs(r, inputs, redraw) {
     `Value per share across ${ax.x.label.toLowerCase()} and ${ax.y.label.toLowerCase()}. The outlined cell is the current base case; the fill shows the implied premium or discount to the market price.`));
   const sh2 = el('div', { style: 'width:100%;overflow-x:auto' });
   sens.append(sh2);
-  const xSteps = ax.x.steps.map(s => ax.x.fmt(inputs[ax.x.k] + s));
-  const ySteps = ax.y.steps.map(s => ax.y.fmt(inputs[ax.y.k] + s));
+  /* The same bounded axis values the grid was computed on (sensAxis). */
+  const xAxis = sensAxis(ax.x, inputs), yAxis = sensAxis(ax.y, inputs);
+  const xSteps = xAxis.values.map(ax.x.fmt);
+  const ySteps = yAxis.values.map(ax.y.fmt);
   sens.append(tableTwin('Show the table view', [ax.y.label + ' \\ ' + ax.x.label, ...xSteps],
     grid2.map((row, i) => [ySteps[i], ...row.map(v => isNum(v) ? fmtMoney(v, c.ccy) : 'n/a')])));
   nodes.push(sens);
-  queueMicrotask(() => matrixChart(sh2, { grid: grid2, xSteps, ySteps, xLabel: ax.x.label, yLabel: ax.y.label,
+  queueMicrotask(() => matrixChart(sh2, { grid: grid2, xSteps, ySteps, xLabel: ax.x.label, yLabel: ax.y.label, baseCol: xAxis.baseIndex, baseRow: yAxis.baseIndex,
     base: run.vals.base, price: c.px.p, fmt: v => fmtMoney(v, c.ccy, c.px.p < 20 ? 2 : 0) }));
 
   /* ---------- value bridge ---------- */
@@ -461,11 +469,13 @@ function studioOutputs(r, inputs, redraw) {
   nt.append(el('thead', {}, el('tr', {}, ['#', 'Method', 'Value per share', 'vs price', 'Basis'].map(h => el('th', {}, h)))));
   nt.append(el('tbody', {}, nm.map(x => {
     const mos = isNum(x.value) ? (x.value - c.px.p) / c.px.p * 100 : null;
-    const isPrimary = x.name.startsWith(run.pack.name.split(' ')[0]) && isNum(x.value) && x.why === 'Primary model for this company.';
+    /* The engine marks the primary row; matching on the pack's name missed every
+       pack that is a variant of its method (holding company, insurer, early stage). */
+    const isPrimary = x.primary && isNum(x.value);
     return el('tr', isPrimary ? { style: 'background:color-mix(in srgb, var(--brand) 7%, transparent)' } : {}, [
       el('td', { class: 'ident' }, String(x.n)),
       el('td', { style: 'text-align:left;white-space:normal', class: 'ident' },
-        x.why === 'Primary model for this company.' ? `${x.name} · primary` : x.name),
+        x.primary ? `${x.name} · primary` : x.name),
       el('td', { html: isNum(x.value) ? fmtMoney(x.value, c.ccy) : NA }),
       el('td', { class: diffClass(mos), html: isNum(mos) ? withSign(mos, 0) : '<span class="caption">—</span>' }),
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:320px' }, x.why),
@@ -487,9 +497,9 @@ function studioOutputs(r, inputs, redraw) {
   notes.append(sec);
   const cross = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   const crossRows = inputs.model === 'insurer'
-    ? [['Combined ratio', fmtPct(inputs.combined, 1)],
-       ['Underwriting result', inputs.combined < 100 ? 'Profitable before investment income' : 'Loss-making before investment income'],
-       ['Solvency, times required capital', fmtX(inputs.solvency, 2)],
+    ? [['Combined ratio', isNum(inputs.combined) ? fmtPct(inputs.combined, 1) : 'not reported'],
+       ['Underwriting result', !isNum(inputs.combined) ? 'Not known — no combined ratio is reported' : inputs.combined < 100 ? 'Profitable before investment income' : 'Loss-making before investment income'],
+       ['Solvency, times required capital', isNum(inputs.solvency) ? fmtX(inputs.solvency, 2) : 'not reported'],
        ['Justified price / book', fmtX(run.base.justifiedPB, 2)],
        ['Current price / book', fmtX(r.m.pb, 2)],
        ['ROE less cost of equity', `${withSign(run.base.spread, 1)} points`]]

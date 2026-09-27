@@ -826,7 +826,9 @@ VIEWS.research = () => {
     c.real ? null : el('span', { class: 'chip chip-bronze',
       title: 'Financial figures for this company are synthetic — created for interface demonstration. They are not filed, and they are not real.' }, 'illustrative figures'),
     el('span', { class: 'chip' }, `${c.exch} · ${c.code}`),
-    el('span', { class: 'chip' }, c.sector),
+    /* A withheld classification says why on hover, rather than reading as a
+       filer nobody had classified. */
+    el('span', c.sectorWithheld ? { class: 'chip chip-bronze', title: c.sectorWithheld } : { class: 'chip' }, c.sectorWithheld ? 'Sector withheld' : c.sector),
     /* Bursa publishes no industry classification below sector, so the two are
        the same string for a Malaysian company and rendering both put
        "Materials Materials" in the header. One fact, shown once. */
@@ -1275,6 +1277,8 @@ function tabSnapshot(r) {
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Adjust assumptions')));
   if (val.err) vr.append(el('div', { class: 'guardrail', html: `${icon('alert')}<span>${esc(val.err)}</span>` }));
   else {
+    /* A bear or bull case its published shift took out of bounds; the base stands. */
+    (val.caseNotes || []).forEach(t => vr.append(el('div', { class: 'guardrail', html: `${icon('alert')}<span>${esc(t)}</span>` })));
     vr.append(rangeStrip(val.vals.bear, val.vals.base, val.vals.bull, c.px.p, c.ccy));
     const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--lg)' });
     [['Bear', val.vals.bear, val.mos?.bear], ['Base', val.vals.base, val.mos?.base], ['Bull', val.vals.bull, val.mos?.bull]].forEach(([label, v, mos]) => {
@@ -1282,7 +1286,7 @@ function tabSnapshot(r) {
       p.append(el('div', { class: 'stat-label' }, `${label} case`));
       p.append(el('div', { class: 'num', style: 'font-size:18px;font-weight:700;margin:2px 0' }, fmtMoney(v, c.ccy)));
       p.append(el('div', { class: 'num ' + diffClass(mos), style: 'font-size:12px;font-weight:600' },
-        isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
+        !isNum(v) ? 'not computable' : isNum(mos) ? `${withSign(mos, 1)} vs price` : 'no price to compare'));
       g.append(p);
     });
     vr.append(g);
@@ -1524,7 +1528,7 @@ function tabBusiness(r) {
       ? [['Return on equity', x => x.m.roe, false], ['Cost-to-income', x => x.m.cir, true],
          ['Impaired loans', x => x.m.npl, true], ['CET1 ratio', x => x.m.cet1, false]]
       : c.type === 'reit'
-      ? [['Occupancy', x => x.m.occ, false], ['Net property margin', x => x.m.om, false],
+      ? [['Occupancy', x => x.m.occ, false], ['Net property margin', x => x.m.npm, false],
          ['Gearing', x => x.m.gearing, true], ['Distribution yield', x => x.m.dy, false]]
       : [['Operating margin', x => x.m.om, false], ['Return on invested capital', x => x.m.roic, false],
          ['Revenue CAGR (4y)', x => x.m.rev5, false], ['Free cash flow margin', x => x.m.fcfm, false]];
@@ -1853,7 +1857,7 @@ function tabMoat(r) {
     : c.type === 'reit'
     ? [['Occupancy', fmtPct(m.occ), 'Genuine tenant demand', 'occ', false],
        ['Weighted lease expiry', `${fmtNum(m.wale)} yrs`, 'Contracted income duration', 'wale', false],
-       ['Net property margin', fmtPct(m.om), 'Operating leverage on the assets', 'om', false],
+       ['Net property margin', fmtPct(m.npm), 'Operating leverage on the assets', 'npm', false],
        ['Gearing', fmtPct(m.gearing), 'Refinancing exposure', 'gearing', true]]
     : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : 'n/a', 'Excess return over the cost of capital', 'roic', false],
        ['Operating margin', fmtPct(m.om), 'Pricing power net of cost', 'om', false],

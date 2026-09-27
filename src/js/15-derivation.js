@@ -8,8 +8,14 @@
    September 2026 corrections did that twice over — absent lines no longer
    read as nought in the metrics, and the valuation refuses a missing bridge,
    share count or book value rather than assuming one — so a run saved under
-   the previous version is right to report that the model has moved. */
-const MODEL_VERSION = 'metrics 1.5.0 · scores 1.2.0 · valuation 1.4.0';
+   the previous version is right to report that the model has moved. The
+   engine audit moved all three again: measures declared not applicable are no
+   longer computed and a growth rate needs both window endpoints (metrics);
+   the REIT pillar no longer scores an operating margin as a net property
+   margin (scores); and the valuation refuses a negative base, a WACC weighted
+   on negative book equity and a residual income with no reported ROE, floors
+   equity at nil, and keeps the base case when only a shifted case breaks. */
+const MODEL_VERSION = 'metrics 1.6.0 · scores 1.3.0 · valuation 1.5.0';
 const AS_OF = '30 Jul 2026';
 
 /* SAVED WORK — NAMED, VERSIONED, AND HONESTLY LOCATED.
@@ -30,6 +36,13 @@ const AS_OF = '30 Jul 2026';
    audit asks for "last editor" on every saved result; there is no identity in
    this build to record, and inventing one would be worse than the gap, so the
    field says "this browser" and means it. */
+/* Which piece of State each stored key holds. A snapshot is taken from State,
+   not from storage: the Cash Wheel and the Trading Index keep their defaults
+   in memory until the first edit, so a Save before any edit read
+   {wheelPlan:null, wheelLegs:null} back out of storage — a record that could
+   never restore anything, and whose Resume still toasted "Resumed" over the
+   figures it had failed to replace. */
+const WORK_STATE = { deal:'deal', wheelPlan:'wheel', wheelLegs:'wheelLegs', qttiPlan:'qtti' };
 const WORK_KINDS = {
   property: { label:'Property deal',        keys:['deal'],
               name:() => `${(State.deal?.district || 'Property')} — ${fmtAmount(num0(State.deal?.price), 'MYR')}` },
@@ -56,7 +69,11 @@ function saveWork(kind, nameOverride) {
   const def = WORK_KINDS[kind];
   if (!def) return null;
   const payload = {};
-  def.keys.forEach(k => { payload[k] = store.read(k, null); });
+  /* A copy, so a later edit to the live object cannot reach back into the record. */
+  def.keys.forEach(k => {
+    const live = State[WORK_STATE[k]];
+    payload[k] = live == null ? store.read(k, null) : JSON.parse(JSON.stringify(live));
+  });
   const rec = {
     id: nextWorkId(kind),
     kind,
@@ -72,16 +89,21 @@ function saveWork(kind, nameOverride) {
 }
 
 /* Resume writes the record's keys back and re-reads State from them, so the
-   page reflects the record rather than whatever was on screen a moment ago. */
+   page reflects the record rather than whatever was on screen a moment ago.
+   It reports success only when it restored something: a record saved by the
+   old storage-reading snapshot before any edit holds nothing but nulls, and
+   the caller says so instead of announcing a resume that changed nothing. */
 function resumeWork(id) {
   const rec = loadWork().find(r => r.id === id);
   if (!rec) return false;
-  Object.entries(rec.payload || {}).forEach(([k, v]) => { if (v != null) store.write(k, v); });
-  if (rec.payload.deal) State.deal = rec.payload.deal;
-  if (rec.payload.wheelPlan) State.wheel = rec.payload.wheelPlan;
-  if (rec.payload.wheelLegs) State.wheelLegs = rec.payload.wheelLegs;
-  if (rec.payload.qttiPlan) State.qtti = rec.payload.qttiPlan;
-  return true;
+  let restored = 0;
+  Object.entries(rec.payload || {}).forEach(([k, v]) => {
+    if (v == null || !WORK_STATE[k]) return;
+    store.write(k, v);
+    State[WORK_STATE[k]] = JSON.parse(JSON.stringify(v));
+    restored++;
+  });
+  return restored > 0;
 }
 
 function duplicateWork(id) {
@@ -207,7 +229,13 @@ const waitlistReady = () => !!(LAUNCH.waitlistEndpoint || LAUNCH.contactEmail);
    sanctioned way to print a figure derived from it. */
 function coverage() {
   const rows = typeof U !== 'undefined' ? U : [];
-  const filed = rows.filter(r => r.c.real);
+  /* Personal-research rows are real (they are somebody's actual statements)
+     but they are not SEC filings: counting them as filed told a reader in the
+     personal lane that 162 companies carry audited SEC statements when 119 do
+     and 43 are Bursa statements they supplied themselves. A third source,
+     counted and named as one. */
+  const filed = rows.filter(r => r.c.real && !r.c.personal);
+  const personal = rows.filter(r => r.c.personal);
   const illus = rows.filter(r => !r.c.real);
   const us = rows.filter(r => r.c.mkt === 'US');
   const my = rows.filter(r => r.c.mkt === 'MY');
@@ -218,7 +246,7 @@ function coverage() {
        universe is empty — an empty universe yields zeroes that read as facts. */
     resolved: !(typeof realPending !== 'undefined' && realPending) && rows.length > 0,
     total: rows.length,
-    filed: filed.length, illustrative: illus.length,
+    filed: filed.length, illustrative: illus.length, personal: personal.length,
     us: us.length, my: my.length,
     usFiled: us.length - usIllus.length, usIllustrative: usIllus.length,
     usIllustrativeNames: usIllus.map(r => r.c.tk || r.c.id),
@@ -246,7 +274,7 @@ function coverageSentence(axis) {
   const k = coverage();
   if (!k.resolved) return `${COVERAGE_PENDING} — the audited set is still loading.`;
   if (!k.total) return 'The universe is still loading.';
-  const bySource = `${k.filed} carry audited statements filed with the SEC and ${k.illustrative} carry illustrative figures that are synthetic`;
+  const bySource = `${k.filed} carry audited statements filed with the SEC${k.personal ? `, ${k.personal} carry statements you supplied for personal research` : ''} and ${k.illustrative} carry illustrative figures that are synthetic`;
   const byMarket = `${k.us} are US-listed and ${k.my} are Bursa-listed`;
   const oddity = k.usIllustrative
     ? ` Not every illustrative company is Malaysian: ${k.usIllustrativeNames.join(', ')} ${k.usIllustrative === 1 ? 'is a US listing' : 'are US listings'} whose figures are synthetic too.`
@@ -301,6 +329,17 @@ const INAPPLICABLE = {
   early: ['pe','pfcf','evebit','roic','payout','cashPayout','dps5','dy'],
   reit: [],
 };
+
+/* The measures data coverage is counted over. Module level, because the
+   count is taken twice: once when a company is derived, and again when price
+   history arrives and fills its twelve-month return (refreshMomentum). */
+const COVERAGE_KEYS = ['pe','pb','evebit','pfcf','dy','fcfy','om','nm','fcfm','roe','roic','cashconv',
+                       'rev5','eps5','fcf5','dps5','ndEbit','de','icov','dilution','payout','cashPayout','reinv','rs12'];
+function metricCoverage(m, type) {
+  const skip = INAPPLICABLE[type] || [];
+  const applicable = COVERAGE_KEYS.filter(k => !skip.includes(k));
+  return Math.round(applicable.filter(k => isNum(m[k])).length / applicable.length * 100);
+}
 
 function derive(c) {
   const fin = c.fin, n = fin.length, i = n - 1;
@@ -444,14 +483,24 @@ function derive(c) {
      that window. The full ten-year history is exposed separately below and in
      the statements view rather than silently re-basing every score. */
   const W = (a) => a.slice(-5);
-  const safeCagr = (a) => { const s = a.filter(isNum); return s.length >= 2 ? cagr(s) : null; };
+  /* BOTH ENDPOINTS OF THE WINDOW, OR NO RATE. Filtering out the missing years
+     and compounding over whatever survived turned ConocoPhillips' free cash
+     flow window [11.67, 18.16, —, —, —] into a 55.5% "four-year" CAGR that
+     was really the one-year 2021-to-2022 change, scored 100 and screenable.
+     A compound rate is defined by its two endpoints and the years between
+     them; with both present the span is the window's own, whatever is missing
+     inside it, and the label is true. The same rule the valuation applies:
+     an absent latest line is not a licence to use an older one. */
+  const safeCagr = (a) => a.length >= 2 && isNum(a[0]) && isNum(a[a.length - 1]) ? cagr(a) : null;
   /* How many annual intervals the growth measures below were actually computed
      over. Every US filer carries ten years, so the window is always the full
      four and the number is uninteresting — until a company arrives with four
      years of statements, at which point "Revenue CAGR (4y)" would silently mean
      three. The label has to follow the data rather than the field definition,
      so the span travels with the metrics and the page states it. */
-  m.growthYears = Math.max(0, W(rev).filter(isNum).length - 1);
+  /* The span between the window's endpoints — the same for every series,
+     because every rate above is taken over the same rows or not at all. */
+  m.growthYears = Math.max(0, W(rev).length - 1);
   m.rev5 = safeCagr(W(rev));
   m.eps5 = safeCagr(W(eps));
   m.fcf5 = safeCagr(W(fcf));
@@ -607,6 +656,17 @@ function derive(c) {
      because those sit in regulatory returns, so they resolve to null and the
      coverage figure reflects the gap rather than the code throwing. */
   if (isBank && c.bank) { Object.assign(m, { cet1:c.bank.cet1, npl:c.bank.npl, nim:c.bank.nim, cir:c.bank.cir, casa:c.bank.casa, ldr:c.bank.loans/c.bank.dep*100 }); }
+  /* NET PROPERTY MARGIN IS NOT AN OPERATING MARGIN. The REIT quality pillar
+     scored m.om against a 55–82% net-property-income anchor. For a REIT
+     loaded from filings m.om is EBIT over revenue — after depreciation and
+     head-office costs, about 20% for Realty Income and Equinix — so a
+     different measure under the NPI label scored 0 and put Business Quality
+     at 0/100. XBRL carries no net property income line, so a filed REIT has
+     no net property margin, and the pillar reports no score rather than
+     zero. The illustrative REITs carry authored property disclosures (c.reit)
+     and authored margins in the net-property range, so for them the authored
+     margin stands in — illustrative, and labelled so, like all they carry. */
+  m.npm = isReit && c.reit ? m.om : null;
   if (isReit && c.reit) { Object.assign(m, { occ:c.reit.occ, wale:c.reit.wale, gearing:c.reit.gearing, cap:c.reit.cap, aff:c.reit.aff });
                 m.dpuCover = c.reit.aff && dps[i] ? c.reit.aff / dps[i] * 100 : null;
                 m.pnav = m.bvps > 0 ? price / m.bvps : null; }
@@ -618,12 +678,19 @@ function derive(c) {
      would penalise every bank for being a bank. Interest cover stays in the
      denominator everywhere, because that one genuinely is a gap in this
      dataset rather than an inapplicable measure. */
-  const dictKeys = ['pe','pb','evebit','pfcf','dy','fcfy','om','nm','fcfm','roe','roic','cashconv',
-                    'rev5','eps5','fcf5','dps5','ndEbit','de','icov','dilution','payout','cashPayout','reinv','rs12'];
   const skip = INAPPLICABLE[c.type] || [];
-  const applicable = dictKeys.filter(k => !skip.includes(k));
-  const have = applicable.filter(k => isNum(m[k])).length;
-  m.coverage = Math.round(have / applicable.length * 100);
+  /* A MEASURE DECLARED NOT APPLICABLE IS NOT COMPUTED. The list above was
+     read by the coverage denominator and by metricStatus, and by nothing that
+     produced the values — so Capital One carried a 324% free cash flow margin
+     and 1,130% cash conversion, a "free cash flow CAGR" scored in its growth
+     pillar, and the only match for a screen on FCF margin above 100%, while
+     its coverage counted the same measures as n/a. Cigna and UnitedHealth
+     showed a return on invested capital and net debt to EBIT; Rivian a ROIC of
+     −39.9%. One list, applied to the values as well as to the count, so the
+     cell, the screen, the pillar and the coverage agree. */
+  for (const k of skip) m[k] = null;
+  if (skip.includes('pe')) m.ey = null;      /* the earnings yield is the same measure inverted */
+  m.coverage = metricCoverage(m, c.type);
   m.inapplicable = skip.length;
 
   return { fin, rev, ebit, ni, ocf, capex, eq, debt, cash, sh, dps, fcf, eps, bvps, fcfps, m };
@@ -780,7 +847,7 @@ const PILLARS = {
     ],
     reit: [
       { k:'occ',    w:.30, label:'Portfolio occupancy',    lo:85, hi:100, fmt:v=>fmtPct(v) },
-      { k:'om',     w:.25, label:'Net property margin',    lo:55, hi:82,  fmt:v=>fmtPct(v) },
+      { k:'npm',    w:.25, label:'Net property margin',    lo:55, hi:82,  fmt:v=>fmtPct(v) },
       { k:'wale',   w:.25, label:'Weighted lease expiry',  lo:1.5,hi:10,  fmt:v=>`${fmtNum(v)} yrs` },
       { k:'dpuCover',w:.20,label:'AFFO cover of DPU',      lo:90, hi:130, fmt:v=>fmtPct(v) },
     ],

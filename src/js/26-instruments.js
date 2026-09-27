@@ -75,7 +75,17 @@ function instrumentFromCompany(c) {
   const m = MARKETS[c.mkt] || MARKETS.US;
   const aliases = new Set([c.id, c.tk, c.code, `${symbol}-SEC`, `${symbol}-MY`, c.mkt === 'MY' ? `${symbol}.KL` : null]
     .filter(Boolean).map(a => String(a).toUpperCase()));
-  if (c.cik) { aliases.add(`CIK${padCik(c.cik)}`); aliases.add(`CIK ${String(c.cik).replace(/\D/g, '')}`); aliases.add(padCik(c.cik)); }
+  /* EVERY WRITTEN FORM OF THE CIK. The record stores it zero-padded, so only
+     "CIK0000320193" resolved; "CIK 320193" and "320193" — the form EDGAR's
+     own URLs and most readers use — matched nothing. The unpadded number on
+     its own is registered only from five digits up: a four-digit bare number
+     is a Bursa listing code (AMD's CIK 2488 is also Alliance Bank's code), and
+     the listing code keeps it. "CIK 2488" still reaches AMD. */
+  if (c.cik) {
+    const padded = padCik(c.cik), bare = String(Number(padded));
+    [`CIK${padded}`, `CIK ${padded}`, padded, `CIK${bare}`, `CIK ${bare}`].forEach(a => aliases.add(a));
+    if (bare.length >= 5) aliases.add(bare);
+  }
   return {
     id: instrumentId(c.mkt, symbol), symbol, market: c.mkt, exchangeCode: ex.code, exchangeCodeSource: ex.source,
     companyName: c.name, displayName: c.mkt === 'MY' ? (c.tk || c.name) : symbol,

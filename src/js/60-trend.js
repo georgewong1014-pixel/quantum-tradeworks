@@ -381,7 +381,8 @@ VIEWS.tracked = () => {
        registry would orphan the history collected under the old key. */
     const keys = [...new Set([sym, seenAs, meta.symbol, ...(meta.aliases || [])]
       .filter(Boolean).map(s => s.toUpperCase()))];
-    const p = keys.map(k => book[k]).find(Boolean) || null;
+    /* Read through priceEntry, so an older-shape entry ({price, asOf}) shows its close. */
+    const p = keys.map(k => priceEntry(book[k])).find(Boolean) || null;
     const hist = Object.assign({}, ...keys.map(k => series[k] || {}));
     const dates = Object.keys(hist).sort();
     const values = dates.map(d => hist[d]);

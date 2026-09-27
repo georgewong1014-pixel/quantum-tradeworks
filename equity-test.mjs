@@ -348,7 +348,10 @@ try {
          check into a fallback that passes. */
   {
     const pick = await evaluate(`(() => {
-      const r = U.find(r => r.c.real && r.c.type !== 'bank' && !isNum(r.m.netDebt) && ['dcf', 'dcfMid', 'scenario', 'sotp'].includes(r.val.pack.id));
+      /* Every earlier refusal ruled out — a share count, and a positive base
+         for the packs that compound one — so the bridge is what is missing. */
+      const r = U.find(r => r.c.real && r.c.type !== 'bank' && !isNum(r.m.netDebt) && ['dcf', 'scenario', 'sotp'].includes(r.val.pack.id)
+        && last(r.d.sh) > 0 && (r.val.pack.id === 'scenario' || last(r.d.fcf) > 0));
       return r ? { id: r.c.id, err: r.val.err || null, pack: r.val.pack.id } : null;
     })()`);
     if (!pick) fail('no filed company needs a net-debt bridge and lacks one — the no-valuation card has no case to render');
@@ -673,7 +676,7 @@ try {
   {
     const r = await evaluate(`(() => {
       const ins = U.find(x => x.c.real && x.c.type === 'insurer' && !isNum(x.m.roic));
-      const negEq = U.find(x => x.c.real && x.c.type !== 'bank' && !isNum(x.m.netGearing) && isNum(x.c.fin[x.c.fin.length - 1][F.EQ]) && x.c.fin[x.c.fin.length - 1][F.EQ] <= 0);
+      const negEq = U.find(x => x.c.real && x.c.type !== 'bank' && !isNum(x.m.netGearing) && isNum(x.m.netDebt) && isNum(x.c.fin[x.c.fin.length - 1][F.EQ]) && x.c.fin[x.c.fin.length - 1][F.EQ] <= 0);
       const noDps = U.find(x => x.c.real && !isNum(x.c.px?.p) && !isNum(x.c.fin[x.c.fin.length - 1][F.DPS]));
       const out = {
         ins: ins ? { ...metricStatus(ins, 'roic'), cid: ins.c.id } : null,
@@ -703,6 +706,151 @@ try {
     else ok(`every absent figure gives the true reason (insurer ${r.ins.cid}${r.negEq ? `, negative equity ${r.negEq.cid}` : ''}${r.noDps ? `, no dividend line ${r.noDps.cid}` : ''}), a price measure shows no false prior period${r.wtd ? `, and ${r.wtd.id}'s share count names its weighted diluted tag` : ''}`);
   }
 
+
+  /* 16 — the shipped file's misassembled figures are withheld, never shown as
+          filed: a share count read from CommonStockSharesIssued (treasury
+          included), a debt figure that is a current portion alone or a total
+          with its own current portion added again, and a sector label from a
+          SIC rule since corrected. Each withheld cell names its reason. */
+  {
+    const r = await evaluate(`(() => {
+      const leaks = [];
+      for (const row of U.filter(x => x.c.real && !x.c.personal && !x.c.basis)) {
+        const c = row.c, p = c.provenance || {};
+        c.years.forEach((y, k) => {
+          const L = p.debtL?.byYear?.[y], C = p.debtC?.byYear?.[y];
+          if (isNum(c.fin[k][6]) && C && (!L || L === 'LongTermDebt')) leaks.push(c.id + ' debt FY' + y);
+          if (isNum(c.fin[k][8]) && p.sh?.byYear?.[y] === 'CommonStockSharesIssued') leaks.push(c.id + ' shares FY' + y);
+        });
+        const sic = String(c.sic || '');
+        if ((/^37/.test(sic) && !/^371/.test(sic) && c.industry === 'Automobiles') || (/^28/.test(sic) && !/^283/.test(sic) && c.industry === 'Pharmaceuticals') || (/^738/.test(sic) && c.industry === 'Media & Services'))
+          leaks.push(c.id + ' sector ' + c.industry);
+      }
+      const ko = BY_ID.get('KO-SEC'), apd = BY_ID.get('APD-SEC');
+      return { leaks, koPayout: metricStatus(ko, 'payout'), apdDe: metricStatus(apd, 'de'), apdCash: apd.m.netCash };
+    })()`);
+    const p = [];
+    if (r.leaks.length) p.push(`${r.leaks.length} misassembled figures still shown: ${r.leaks.slice(0, 6).join(', ')}`);
+    if (r.koPayout.reason !== 'withheld' || !/CommonStockSharesIssued/.test(r.koPayout.text)) p.push(`KO payout: ${r.koPayout.reason} — ${r.koPayout.text}`);
+    if (r.apdDe.reason !== 'withheld' || r.apdCash != null) p.push(`APD debt/equity: ${r.apdDe.reason}, net cash ${r.apdCash}`);
+    if (p.length) fail('the shipped file\'s misassembled shares, debt and sector labels are withheld with their reason', p);
+    else ok('no share count read from the issued tag, no current-portion-only or double-counted debt, no misfiled sector is shown; KO\'s payout and APD\'s debt/equity read "withheld" with the reason');
+  }
+
+  /* 17 — a measure declared not applicable is not computed, and a growth rate
+          needs both endpoints of its window. Capital One's 324% FCF margin,
+          Cigna's ROIC and ConocoPhillips' 55.5% "four-year" FCF CAGR over a
+          window whose last three years are missing were all published. */
+  {
+    const r = await evaluate(`(() => {
+      const inapplicable = [], cagr = [], coverage = [];
+      for (const row of U) {
+        for (const k of INAPPLICABLE[row.c.type] || []) if (isNum(row.m[k])) inapplicable.push(row.c.id + '.' + k);
+        for (const [k, s] of [['rev5', row.d.rev], ['fcf5', row.d.fcf], ['eps5', row.d.eps], ['bv5', row.d.bvps]]) {
+          const w = s.slice(-5);
+          if (isNum(row.m[k]) && !(isNum(w[0]) && isNum(w[w.length - 1]))) cagr.push(row.c.id + '.' + k);
+        }
+        if (row.m.coverage !== metricCoverage(row.m, row.c.type)) coverage.push(row.c.id + ' ' + row.m.coverage + ' vs ' + metricCoverage(row.m, row.c.type));
+      }
+      const s = blankScreen(); s.crit.fcfm = { min: 100, max: null }; s.minCoverage = 0;
+      return { inapplicable, cagr, coverage, fcfm100: U.filter(x => evaluateScreen(x, s).pass).map(x => x.c.id) };
+    })()`);
+    const p = [];
+    if (r.inapplicable.length) p.push(`${r.inapplicable.length} not-applicable measures carry a value: ${r.inapplicable.slice(0, 6).join(', ')}`);
+    if (r.cagr.length) p.push(`${r.cagr.length} growth rates computed without both window endpoints: ${r.cagr.slice(0, 6).join(', ')}`);
+    if (r.coverage.length) p.push(`${r.coverage.length} rows whose stored coverage differs from their measures: ${r.coverage.slice(0, 4).join(', ')}`);
+    if (r.fcfm100.length) p.push(`FCF margin ≥ 100% still matches ${r.fcfm100.join(', ')}`);
+    if (p.length) fail('not-applicable measures are null, growth rates span their whole window, and coverage matches the measures present', p);
+    else ok('every not-applicable measure is null, every growth rate has both window endpoints, and every row\'s coverage is recounted after history loads');
+  }
+
+  /* 18 — the valuation engine: no negative value per share, no DCF from a
+          non-positive base, no WACC outside its own components, no insurer
+          combined ratio or solvency that was never reported, no residual
+          income without a reported ROE, no "zero share price" for a missing
+          one, and a bull or bear shift that breaks leaves the base standing. */
+  {
+    const r = await evaluate(`(() => {
+      const p = [];
+      for (const row of U) {
+        const v = row.val, i = row.inputs, c = row.c;
+        if (v.vals) for (const [k, x] of Object.entries(v.vals)) if (isNum(x) && x < 0) p.push(c.id + ' ' + k + ' ' + x.toFixed(2));
+        if (i.model === 'dcf' && !(i.fcf0 > 0)) p.push(c.id + ' DCF from fcf0 ' + i.fcf0);
+        if ((i.model === 'dcf' || i.model === 'scenario') && i.waccFromBook !== false && !isNum(row.m.mcap) && !(last(row.d.eq) > 0)) p.push(c.id + ' WACC weighted on non-positive book equity');
+        if (i.model === 'insurer' && !c.ins && (i.combined != null || i.solvency != null)) p.push(c.id + ' insurer combined/solvency invented');
+        if ((i.model === 'ri' || i.model === 'insurer') && !isNum(row.m.roe)) p.push(c.id + ' residual income without a reported ROE');
+        if (/zero share price/.test(v.err || '') && !isNum(c.px?.p)) p.push(c.id + ' blames a zero price it does not have');
+        if (v.vals && isNum(v.vals.base) && !(v.vals.base > 0) && v.confBand !== 'Low') p.push(c.id + ' nil value at ' + v.confBand + ' confidence');
+      }
+      const ten = BY_ID.get('TENAGA');
+      const bull = valuationRun(ten.c, ten.d, { ...ten.inputs, wacc: 6, gt: 5.4 });
+      const wiped = valuationRun(ten.c, ten.d, { ...ten.inputs, fcf0: 0.05 });
+      const years0 = ['MSFT-SEC', 'SAPNRG', 'TENAGA'].map(id => { const x = BY_ID.get(id); try { return runModel({ ...studioInputs(x), years: 0 }).error || 'no error'; } catch (e) { return 'threw ' + e.message; } });
+      const sap = BY_ID.get('SAPNRG');
+      const ax = sensAxis(SENS_AXES.early.x, { ...sap.inputs, pSuccess: 95 }).values;
+      return { p, bull: { err: bull.err, notes: bull.caseNotes.length, bullVal: bull.vals?.bull, base: bull.vals?.base },
+               wiped: { base: wiped.vals?.base, flag: wiped.base.equityWipedOut, band: wiped.confBand }, years0, ax };
+    })()`);
+    const p = [...r.p];
+    if (r.bull.err || r.bull.notes !== 1 || r.bull.bullVal !== null || !(r.bull.base > 0)) p.push(`a broken bull shift hid the base case: ${JSON.stringify(r.bull)}`);
+    if (r.wiped.base !== 0 || !r.wiped.flag || r.wiped.band !== 'Low') p.push(`negative modelled equity is not nil at Low confidence: ${JSON.stringify(r.wiped)}`);
+    if (r.years0.some(e => !/whole number of at least 1/.test(e))) p.push(`zero forecast years: ${r.years0.join(' | ')}`);
+    if (r.ax.some(v => v > 100) || new Set(r.ax).size !== r.ax.length) p.push(`the probability axis leaves 0–100: ${r.ax.join(', ')}`);
+    if (p.length) fail('the valuation engine produces no figure its inputs cannot support', p.slice(0, 10));
+    else ok(`no negative or unsupported value anywhere in the universe; a broken bull shift leaves the base; nil equity is Low confidence; zero forecast years is an engine error; the probability axis stays inside 0–100 (${r.ax.join(', ')})`);
+  }
+
+  /* 19 — the nine methods place every pack's primary estimate on its own row,
+          and a peer multiple compares like with like — filed with filed, in
+          the same market, and an insurer on price-to-book. */
+  {
+    const r = await evaluate(`(() => {
+      const p = [];
+      for (const row of U) {
+        const nm = nineMethods(row), prim = nm.filter(x => x.primary);
+        if (prim.length !== 1) p.push(row.c.id + ' has ' + prim.length + ' primary rows');
+        else if (row.val.vals && prim[0].value !== row.val.vals.base) p.push(row.c.id + ' primary row value differs from the base case');
+        const peer = nm.find(x => x.n === 8);
+        if (isNum(peer.value)) {
+          const kind = row.c.personal ? 'personal-research' : row.c.real ? 'filed' : 'illustrative';
+          if (!new RegExp(kind + ' peers').test(peer.why)) p.push(row.c.id + ' peer multiple from other kinds: ' + peer.why);
+          if (row.c.type === 'insurer' && /EV\\/EBIT/.test(peer.why)) p.push(row.c.id + ' insurer valued on EV/EBIT');
+        }
+      }
+      return p;
+    })()`);
+    if (r.length) fail('every pack has one primary row and every peer multiple is like-for-like', r.slice(0, 8));
+    else ok('every company has exactly one primary row carrying its base case, and every peer multiple names peers of its own kind and market');
+  }
+
+  /* 20 — any written form of a CIK resolves; an older-shape price entry is
+          read; the REIT quality pillar does not score an operating margin as
+          a net property margin; a save before any edit restores what was on
+          screen. */
+  {
+    const r = await evaluate(`(() => {
+      const cik = ['CIK 320193', 'CIK320193', '320193', 'CIK 0000320193', 'CIK0000320193'].map(t => companyIdFor(t));
+      const legacy = priceEntry({ price: 4.096, currency: 'MYR', asOf: '2026-08-04T02:05:02.000Z' });
+      const reit = U.filter(x => x.c.real && x.c.type === 'reit').map(x => ({ id: x.c.id, npm: x.m.npm, q: x.scores.quality.score, npmPart: x.scores.quality.parts.find(pp => pp.k === 'npm')?.raw }));
+      const savedWheel = State.wheel, savedLegs = State.wheelLegs;
+      localStorage.removeItem('vl.wheelPlan');
+      State.wheel = { ...savedWheel, symbol: 'ONSCREEN', putStrike: 11 };
+      const rec = saveWork('wheel', 'harness');
+      State.wheel = { ...State.wheel, symbol: 'CHANGED', putStrike: 7 };
+      const resumed = resumeWork(rec.id);
+      const after = [State.wheel.symbol, State.wheel.putStrike];
+      deleteWork(rec.id); State.wheel = savedWheel; State.wheelLegs = savedLegs; saveWheel();
+      return { cik, legacy, reit, payload: rec.payload.wheelPlan?.symbol || null, resumed, after };
+    })()`);
+    const p = [];
+    if (r.cik.some(x => x !== 'AAPL-SEC')) p.push(`CIK forms: ${JSON.stringify(r.cik)}`);
+    if (!r.legacy || r.legacy.close !== 4.096 || r.legacy.date !== '2026-08-04') p.push(`older price entry: ${JSON.stringify(r.legacy)}`);
+    const badReit = r.reit.filter(x => x.npm != null || x.npmPart != null || x.q === 0);
+    if (badReit.length) p.push(`filed REITs scored on an operating margin as net property margin: ${JSON.stringify(badReit.slice(0, 3))}`);
+    if (r.payload !== 'ONSCREEN' || !r.resumed || r.after[0] !== 'ONSCREEN' || r.after[1] !== 11) p.push(`save/resume: payload ${r.payload}, resumed ${r.resumed}, after ${r.after}`);
+    if (p.length) fail('CIK aliases, older price entries, the REIT quality pillar and saved work', p);
+    else ok(`every written form of a CIK resolves, an older-shape price entry is read, ${r.reit.length} filed REITs carry no net property margin they do not report, and a save before any edit restores the screen it was taken from`);
+  }
 } catch (e) {
   fail('harness error', e.message);
 } finally {

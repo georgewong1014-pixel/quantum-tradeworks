@@ -15,6 +15,12 @@ const ROUTES = [
   /* An SEC-filed company with no price — the normal state for 119 of the 138,
      and the case that was never exercised while the filings sat behind a flag. */
   '/company/abbv-abbvie-inc', '/company/1155-malayan-banking-berhad',
+  /* One valuation page per model pack the engine now refuses or reshapes: a
+     filed insurer with no combined ratio, a holding company whose primary sits
+     on row 1, an early-stage company with no price, a filer whose shipped debt
+     is withheld, and one whose starting cash flow is negative. */
+  '/company/UNH-SEC?tab=valuation', '/company/SIME?tab=valuation', '/company/RIVN-SEC?tab=valuation',
+  '/company/SAPNRG?tab=valuation', '/company/APD-SEC?tab=valuation', '/company/DUK-SEC?tab=valuation', '/company/O-SEC?tab=quality',
   '/start',
   '/compare', '/my/portfolio', '/my/watchlists', '/my/data',
   '/my/theses', '/my/alerts', '/my/tracked', '/my/scanner',
