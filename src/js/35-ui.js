@@ -40,8 +40,15 @@ function sevChip(sev, text) {
     html: `<span class="chip-dot" style="background:var(${s.v})"></span>${esc(text || s.label)}` });
 }
 
+/* The chip names the market the instrument is listed on. It used to answer
+   'MY' for anything that was not 'US', and the tracked registry holds indices
+   and listings from seventeen other markets — so the search called the DAX a
+   Malaysian listing. US and MY keep their colours; any other market shows its
+   own code on a plain chip, and an instrument with no market gets no chip. */
 function marketChip(mkt) {
-  return el('span', { class: 'chip ' + (mkt === 'US' ? 'chip-us' : 'chip-my') }, mkt === 'US' ? 'US' : 'MY');
+  const m = String(mkt || '').toUpperCase();
+  if (!m) return null;
+  return el('span', { class: 'chip' + (m === 'US' ? ' chip-us' : m === 'MY' ? ' chip-my' : '') }, m);
 }
 
 /* How a price is dated, decided once.
@@ -248,7 +255,13 @@ const RESEARCH_TAB_ALIAS = { ratios: 'quality', statements: 'financials', 'sourc
 
 function companyFromSlug(s) {
   if (!s) return null;
-  const raw = decodeURIComponent(s).toUpperCase();
+  /* A malformed escape ('%', '%E0%A4%A') is an address nobody can resolve,
+     not an error: decodeURIComponent throws on it, and thrown from the router
+     at boot it left the page blank. It is matched as typed and ends at the
+     not-found card like any other unknown slug. */
+  let raw;
+  try { raw = decodeURIComponent(s); } catch { raw = String(s); }
+  raw = raw.toUpperCase();
   /* A retired stand-in's id aliases the filer's row in BY_ID; the answer is
      always the row's own id, so State.ticker never carries a retired name. */
   const own = (id) => BY_ID.get(id)?.c.id || null;
@@ -266,6 +279,13 @@ function companyFromSlug(s) {
   /* -SEC ids carry their own hyphen, so the first two segments may be the id. */
   const two = raw.split('-').slice(0, 2).join('-');
   if (BY_ID.has(two)) return own(two);
+  /* A ticker with a hyphen of its own (BRK-B) puts its SEC id's stem in the
+     first two segments, and companyPath writes exactly that form —
+     /company/brk-b-berkshire-hathaway — so the resolver has to read it back,
+     or the company's own link is a 404. */
+  const twoReg = companyIdFor(two);
+  if (twoReg && BY_ID.has(twoReg)) return own(twoReg);
+  if (BY_ID.has(`${two}-SEC`)) return own(`${two}-SEC`);
 
   /* Then the listing code and the ticker. Scanned rather than indexed because
      companies load asynchronously and a map built at startup would miss every
@@ -354,6 +374,30 @@ const META = {
   scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on the last daily bar your history holds. Nothing ranked, nothing delivered.',
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
   plans:     'Plans and pricing for Quantum Tradeworks research and property reports.',
+  /* Every other view fell back to the marketing sentence above, so a shared
+     link to the privacy policy or a watchlist previewed as the landing page.
+     Each says what the page is, and claims nothing it does not do. */
+  home:        'Your dashboard: a research queue built from the statements held for each company, each labelled filed or illustrative, with no recommendations.',
+  onboarding:  'Five questions that decide where you land in Quantum Tradeworks, and nothing else.',
+  launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
+  portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
+  watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
+  thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
+  alerts:      'Alerts that name the fact that changed and its source period. Nothing is sent outside this browser.',
+  tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
+  userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
+  opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
+  comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
+  areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
+  wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
+  boundaries:  'What this product will not do, and why each of those absences is deliberate.',
+  status:      'What is built, what is gated, and what is holding it.',
+  decisionRecord: 'One printable page: the figures, every input with where it came from, and everything still open.',
+  ips:         'The Investment Policy Statement this product’s calculations carry out, and where the product departs from it.',
+  about:       'What Quantum Tradeworks is and is not, and who is responsible for it.',
+  contact:     'How to report a wrong figure, and where the contact route will be published.',
+  privacy:     'What this build stores, where it stores it, and what leaves your device.',
+  terms:       'The terms this build is offered under: research, not advice.',
 };
 
 /* The app is mounted at the domain root in production, but served from a
@@ -411,7 +455,7 @@ function matchRoute(pathname) {
 }
 
 function setDocumentMeta(route) {
-  const name = route?.view === 'research' && State.ticker && BY_ID.get(State.ticker)
+  const name = route?.view === 'research' && !route.pending && State.ticker && BY_ID.get(State.ticker)
     ? `${BY_ID.get(State.ticker).c.tk} — ${BY_ID.get(State.ticker).c.name}`
     : (route?.title || 'Not found');
   document.title = route?.path === '/' ? route.title : `${name} · Quantum Tradeworks`;
@@ -421,21 +465,60 @@ function setDocumentMeta(route) {
   tag.setAttribute('content', desc);
   let canon = document.querySelector('link[rel="canonical"]');
   if (!canon) { canon = document.createElement('link'); canon.setAttribute('rel', 'canonical'); document.head.append(canon); }
-  canon.setAttribute('href', location.origin + location.pathname);
+  canon.setAttribute('href', location.origin + href(canonicalPath(route)));
+}
+
+/* ONE PAGE, ONE CANONICAL ADDRESS. The canonical was location.pathname, so
+   /company/aapl, /company/aapl-sec, /app/equities/aapl and /app/ each named
+   themselves — the aliases were declared to be one page and then told every
+   crawler they were five. A company page canonicalises to companyPath (with
+   its tab, which is different content); any other route to the first route
+   that shows the same view and tab, which is where the aliases point. */
+function canonicalPath(route) {
+  if (!route || route.pending) {
+    const p = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
+    return p.replace(/\/+$/, '') || '/';
+  }
+  if (route.view === 'research' && State.ticker && BY_ID.get(State.ticker)) {
+    const tab = State.researchTab && State.researchTab !== 'snapshot' ? `?tab=${State.researchTab}` : '';
+    return companyPath(BY_ID.get(State.ticker).c) + tab;
+  }
+  const same = ROUTES.find(r => !r.path.includes(':') && r.view === route.view && (r.tab || null) === (route.tab || null));
+  return same ? same.path : route.path;
 }
 
 /* Navigate. push=false is for popstate, where the browser already moved. */
-/* "path?query" built from the current address: every parameter except `tab`
-   travels — ?personal=1 and ?real=0 are read at boot and by the home checkbox,
-   and a tab click must not strip them — and `tab` is set or dropped as the
-   caller says. navigate() strips a trailing "?" so an empty query is clean. */
+/* "path?query" built from the current address, with `tab` set or dropped as
+   the caller says. navigate() strips a trailing "?" so an empty query is clean.
+   Which other parameters travel is navigate()'s rule for a bare path, applied
+   here too: within the same view they all do; leaving the view keeps only the
+   two global ones, ?personal=1 and ?real=0. This helper used to keep every
+   parameter unconditionally, and because go() and openResearch() build their
+   address through it, navigate()'s rule never ran for them — "See plans" on
+   the property calculator opened /pricing?city=…&district=…&d=price:600000,
+   a shareable link carrying the reader's deal figures to a page that reads
+   none of them. */
+const GLOBAL_PARAMS = new Set(['personal', 'real']);
+function keptQuery(path) {
+  const target = matchRoute(path.split('?')[0]);
+  const q = new URLSearchParams(location.search);
+  if (!target || target.view !== State.view) { for (const k of [...q.keys()]) if (!GLOBAL_PARAMS.has(k)) q.delete(k); }
+  return q;
+}
 function withQuery(path, tab) {
-  const q = new URLSearchParams(location.search); q.delete('tab');
+  const q = keptQuery(path); q.delete('tab');
   if (tab) q.set('tab', tab);
   return `${path}?${q.toString()}`;
 }
 /* The tab the address currently names, if it is one of this view's. */
 const currentTabIn = (tabs) => { const t = new URLSearchParams(location.search).get('tab'); return t && tabs.some(x => x.id === t) ? t : null; };
+/* The research tab a move to another company keeps. The address names it as
+   ?tab= on /company/ but as a path segment on /app/equities/:id/:tab, which
+   ?tab= alone never saw — so Financials on /app/equities/aapl/financials fell
+   back to the next company's Snapshot. State.researchTab is what the router
+   resolved from either form. Snapshot is the default and is left out. */
+const carriedResearchTab = () => currentTabIn(RESEARCH_TABS)
+  || (State.view === 'research' && State.researchTab !== 'snapshot' ? State.researchTab : null);
 
 let lastPath = location.pathname;
 function navigate(path, { push = true, replace = false } = {}) {
@@ -445,17 +528,24 @@ function navigate(path, { push = true, replace = false } = {}) {
      panel and threw. It is also dropped when the target route names its own
      tab in the path. A path ending in a bare "?" means "and no query". */
   let url;
-  if (path.includes('?')) url = href(path);
+  if (path.includes('?')) {
+    /* A path that brings its own query (a footer link to /learn?tab=scoring)
+       still keeps the two global parameters, as every other route change
+       does; one the path names itself wins. */
+    const [p, s0] = path.split('?');
+    const q = new URLSearchParams(s0), here = new URLSearchParams(location.search);
+    for (const k of GLOBAL_PARAMS) if (here.has(k) && !q.has(k)) q.set(k, here.get(k));
+    const s = q.toString();
+    url = href(p) + (s ? `?${s}` : '');
+  }
   else {
     /* Parameters belong to a view. A tab id means something only inside its
        own view; the property calculator's ?city, ?district and ?d= mean
        nothing on /learn and used to ride there. Leaving a view keeps only the
        two that are global — ?personal=1 and ?real=0, read at boot. */
     const target = matchRoute(path);
-    const q = new URLSearchParams(location.search);
-    const GLOBAL = new Set(['personal', 'real']);
-    if (!target || target.view !== State.view) { for (const k of [...q.keys()]) if (!GLOBAL.has(k)) q.delete(k); }
-    else if (target.tab) q.delete('tab');
+    const q = keptQuery(path);
+    if (target && target.view === State.view && target.tab) q.delete('tab');
     const s = q.toString();
     url = href(path) + (s ? `?${s}` : '');
   }
@@ -513,13 +603,30 @@ function applyRoute() {
   if (!onboarded() && ENTRY.includes(route.view)) {
     State.view = 'onboarding';
     setDocumentMeta({ ...route, view: 'onboarding', title: 'Get started' });
-    if (location.pathname !== href('/welcome')) history.replaceState({ path: '/welcome' }, '', href('/welcome'));
+    /* The global parameters travel with the redirect. Dropping them left a
+       ?real=0 session running on the sample set under an address that no
+       longer said so — a refresh, or the link copied from it, switched data
+       modes silently. */
+    const g = keptQuery('/welcome').toString();
+    const to = href('/welcome') + (g ? `?${g}` : '');
+    if (location.pathname + location.search !== to) history.replaceState({ path: '/welcome' }, '', to);
     render();
     return;
   }
   if (route.params?.id) {
     const id = companyFromSlug(route.params.id);
     if (id) State.ticker = id;
+    /* While the filings are in flight only the sample set can be searched, so
+       every filed company is "unknown" for that second — and a cold deep link
+       to one painted "404 No company" under the title "Not found" until
+       us.json arrived. An unresolved slug waits with the view's skeleton
+       instead; boot runs this router again once the filings land (or fail),
+       and only then is an unknown slug a 404. */
+    else if (realPending) {
+      State.view = route.view;
+      setDocumentMeta({ ...route, title: 'Loading company report', pending: true });
+      render(); return;
+    }
     else { State.view = 'notfound'; State.notFoundWhat = `company “${route.params.id}”`; setDocumentMeta(null); render(); return; }
   }
   if (route.tab) {
@@ -529,7 +636,10 @@ function applyRoute() {
   }
   const qs = new URLSearchParams(location.search);
   if (route.view === 'compare' && qs.get('companies')) {
-    const ids = qs.get('companies').split(',').map(s => s.trim().toUpperCase()).filter(x => BY_ID.has(x));
+    /* Through the same resolver as a company address, so every name
+       /app/equities/:id accepts — 1155, maybank, aapl, a CIK — works here too.
+       Matching BY_ID alone dropped 1155 without a word. */
+    const ids = [...new Set(qs.get('companies').split(',').map(s => companyFromSlug(s.trim())).filter(Boolean))];
     if (ids.length) State.compare = ids.slice(0, lim('compare'));
   }
   /* THE TAB IS PART OF THE ADDRESS. Tab clicks used to change State and
@@ -553,9 +663,30 @@ function applyRoute() {
     if (route.view === 'discover' && DISCOVER_TABS.some(x => x.id === t)) State.discoverTab = t;
     if (route.view === 'learn' && (LEARN_TABS.some(x => x.id === t) || LEARN_TAB_ALIAS[t])) State.learnTab = t;
   }
+  /* /learn with no tab in its address is the Metric dictionary, as a fresh
+     load of it is. Left alone, the previous tab survived: Back from
+     /learn?tab=scoring kept Scoring under /learn, and the header's Learn link
+     from /corrections showed the Corrections tab. Research does the same with
+     its snapshot above. */
+  if (route.view === 'learn' && !route.tab) {
+    const t = qs.get('tab');
+    if (!(t && (LEARN_TABS.some(x => x.id === t) || LEARN_TAB_ALIAS[t]))) State.learnTab = 'dictionary';
+  }
   State.view = route.view;
   setDocumentMeta(route);
   render();
+}
+
+/* The comparison set changed on the page. ?companies= wins over storage on
+   every route apply, so a page opened from such a link reverted every chip or
+   preset edit on reload or Back while storage held the edit. The address is
+   rewritten in place (replace, not push: a chip click is not a new page). */
+function saveCompare() {
+  store.write('compare', State.compare);
+  const q = new URLSearchParams(location.search);
+  if (State.view !== 'compare' || !q.has('companies')) return;
+  q.set('companies', State.compare.join(','));
+  history.replaceState(history.state, '', `${location.pathname}?${q.toString().replace(/%2C/gi, ',')}`);
 }
 
 /* Kept so the existing call sites keep working while the app moves to paths.
@@ -569,13 +700,14 @@ function go(view, opts = {}) {
   }
   if (view === 'research' && State.ticker && BY_ID.has(State.ticker)) {
     const c = BY_ID.get(State.ticker).c;
-    navigate(withQuery(companyPath(c), opts.tab || currentTabIn(RESEARCH_TABS)));
+    navigate(withQuery(companyPath(c), opts.tab || carriedResearchTab()));
     return;
   }
   /* A route that carries the tab in its path is used when one exists; a tab
      with no route of its own rides on the view's base path as ?tab=. Either
-     way the stale ?tab= from wherever the reader came from is dropped, and
-     every other parameter travels. */
+     way the stale ?tab= from wherever the reader came from is dropped, and the
+     other parameters follow withQuery's rule: all of them within the view,
+     only ?personal and ?real out of it. */
   const exact = opts.tab ? ROUTES.find(x => x.view === view && x.tab === opts.tab) : null;
   const base = ROUTES.find(x => x.view === view && !x.tab && !x.path.includes(':'))
             || ROUTES.find(x => x.view === view && !x.path.includes(':'));
@@ -590,17 +722,28 @@ function openResearch(id, tab) {
      a reader moving between companies on the Financials tab stays on it —
      and drops anything else, so a company link never carries ?tab=heatmap
      from the view it was clicked on. */
-  navigate(withQuery(companyPath(row ? row.c : id), tab || currentTabIn(RESEARCH_TABS)));
+  navigate(withQuery(companyPath(row ? row.c : id), tab || carriedResearchTab()));
 }
 
+/* Which header section a view belongs to, where that is not the view's own
+   id. The header matched on the view id alone, so Research home, every
+   /app/equities address, Sarawak, Property's registers and Learn's sub-pages
+   left the header with no current item. The decision record serves property,
+   the wheel and the trading index alike, and the dashboard sits above every
+   section, so neither is claimed by one. */
+const SECTION_OF = {
+  researchHome: 'research', compare: 'research', tradingIndex: 'research', wheel: 'research',
+  sarawak: 'discover',
+  opportunities: 'property', comparables: 'property', areas: 'property',
+  boundaries: 'learn', ips: 'learn', status: 'learn',
+  ...Object.fromEntries(SUBNAV_MY.map(s => [s.id, 'my'])),
+};
 function buildNav() {
   const nav = $('#mainnav');
   /* Real anchors, so the whole browser contract works: middle-click, open in
      a new tab, copy link address, and the status bar showing where it goes. */
   nav.replaceChildren(...NAV.map(n => {
-    const active = State.view === n.id
-      || (n.id === 'my' && SUBNAV_MY.some(s => s.id === State.view))
-      || (n.id === 'research' && State.view === 'compare');
+    const active = State.view === n.id || SECTION_OF[State.view] === n.id;
     return el('a', {
       class: 'navlink', href: href(n.path), 'aria-current': active ? 'page' : null,
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(n.path); },

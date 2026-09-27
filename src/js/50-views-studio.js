@@ -1154,7 +1154,7 @@ VIEWS.compare = () => {
    ['My watchlist', State.watchlist],
    [`Whole universe (${U.length})`, U.map(r => r.c.id)]]
    .forEach(([label, ids]) => presets.append(el('button', { class: 'btn btn-ghost btn-sm',
-     onclick: () => { State.compare = ids.slice(0, LIMITS.compare); store.write('compare', State.compare); render(); } }, label)));
+     onclick: () => { State.compare = ids.slice(0, LIMITS.compare); saveCompare(); render(); } }, label)));
   pick.append(presets);
   const chips = el('div', { class: 'row row-wrap', style: 'gap:5px' });
   U.forEach(r => {
@@ -1163,7 +1163,7 @@ VIEWS.compare = () => {
       onclick: () => {
         State.compare = on ? State.compare.filter(x => x !== r.c.id)
           : (State.compare.length >= LIMITS.compare ? (toast(`${LIMITS.compare} is the maximum`), State.compare) : [...State.compare, r.c.id]);
-        store.write('compare', State.compare); render();
+        saveCompare(); render();
       } }, r.c.tk + illusText(r.c)));
   });
   pick.append(chips);

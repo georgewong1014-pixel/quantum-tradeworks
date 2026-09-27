@@ -23,6 +23,8 @@ function closeSearch({ restore = true } = {}) {
      focus to give back and must not take any. */
   if (!searchOpen) return;
   searchOpen = false;
+  /* A search still waiting on its debounce would refill the closed box. */
+  clearTimeout(searchTimer); searchTimer = null;
   searchModal.dataset.open = '0';
   /* Stale results were left in the box after it closed, and — because the
      closed box is display:none only since the [hidden] rule below — they used
@@ -34,8 +36,16 @@ function closeSearch({ restore = true } = {}) {
   /* Back to the opener, or to the search button when the opener was the
      document body (the "/" key with nothing focused) or has since been
      destroyed by a render — never left inside the invisible box. */
+  /* The main landmark is the usual opener — every route change focuses it —
+     but it is focusable only while it holds the tabindex focusMain() gives it
+     and takes away on blur. Opening the box blurred it, so a plain focus()
+     here failed silently and dropped focus on <body>; focusMain() puts the
+     tabindex back first. Anything else that did not take focus falls back to
+     the search button. */
   const target = back && back !== document.body && document.contains(back) && back !== searchInput ? back : $('#openSearch');
+  if (target?.id === 'main') { focusMain(); return; }
   target?.focus?.({ preventScroll: true });
+  if (document.activeElement !== target) $('#openSearch')?.focus({ preventScroll: true });
 }
 function runSearch(q) {
   const term = q.trim().toLowerCase();
@@ -119,7 +129,7 @@ function runSearch(q) {
 }
 /* Debounced: a keystroke every 40ms re-ranked the whole registry each time. */
 let searchTimer = null;
-searchInput.addEventListener('input', e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => runSearch(e.target.value), 120); });
+searchInput.addEventListener('input', e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { searchTimer = null; runSearch(e.target.value); }, 120); });
 $('#openSearch').addEventListener('click', openSearch);
 $('#closeSearch')?.addEventListener('click', closeSearch);
 document.addEventListener('keydown', e => {
@@ -143,6 +153,11 @@ document.addEventListener('keydown', e => {
   /* Enter in the box opens the first result — what a reader typing a ticker
      expects; nothing opens when nothing matched. */
   if (searchOpen && e.key === 'Enter' && document.activeElement === searchInput) {
+    /* The list on screen may belong to the previous query: typing is
+       debounced by 120ms, and Enter pressed inside that window opened the old
+       first result — Maybank, on a fresh box, for "nvda". The pending search
+       is run now, so Enter answers the text actually in the box. */
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; runSearch(searchInput.value); }
     const first = searchResults.querySelector('button,a');
     if (first) { e.preventDefault(); first.click(); }
     return;
@@ -216,6 +231,18 @@ const refreshDisclosure = () => {
       + ` Reload to try again.</span>`;
     return;
   }
+  /* With the filings switched off (?real=0, or the dashboard's "Load SEC-filed
+     companies" unticked) every company loaded is synthetic. The static wording
+     — "some companies carry illustrative figures" — is written for a build
+     that also carries filings, and understated this one. */
+  if (!real && !realEnabled()) {
+    node.innerHTML =
+      `<strong>Beta preview — illustrative figures only.</strong> Do not use figures here for investment decisions.`
+      + `<span class="disclosure-long"> Audited filings are switched off, so every one of the ${U.length} companies here`
+      + ` carries illustrative figures that are synthetic and do not represent real financials.`
+      + ` Add ?real=1 to the address to load the filings.</span>`;
+    return;
+  }
   if (!real) return;                       /* the static wording is correct */
   /* Counted by the manifest, not here. This banner sits on every page, so a
      count of its own would be the one most likely to disagree with the rest. */
@@ -235,7 +262,9 @@ const refreshDisclosure = () => {
     `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
     `<span class="disclosure-long"> ${k.filed} ${k.filed === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
     (k.filedUnpriced ? `, of which ${k.filedUnpriced} ${k.filedUnpriced === 1 ? 'has' : 'have'} no price because market data is not licensed for this build` : '') +
-    (k.personal ? `. ${k.personal} ${k.personal === 1 ? 'carries' : 'carry'} statements you supplied for personal research — not SEC filings, and not redistributable` : '') +
+    /* The personal-research lane (?personal=1) is stated on its own: those are
+       Bursa statements from the reader's own file, not SEC filings. */
+    (k.personal ? `. ${k.personal} ${k.personal === 1 ? 'carries' : 'carry'} Bursa statements from your personal-research file — not SEC filings, not licensed, and not for redistribution` : '') +
     `. ${k.illustrative} ${k.illustrative === 1 ? 'carries' : 'carry'} illustrative figures that are synthetic` +
     (k.usIllustrative ? `, and ${k.usIllustrative === 1 ? 'one of those is a US listing' : `${k.usIllustrative} of those are US listings`} rather than Bursa` : '') +
     `. Every company page states which it is.</span>`;
@@ -265,7 +294,12 @@ if (realEnabled()) {
          and realStatus carries the failure so the page can say what happened. */
       realPending = false;
       refreshSearchLabel();
-      render();
+      /* Routed again rather than only repainted: a company slug that waited
+         for the filings is resolved against what did load, which may make it a
+         404 now. */
+      applyRoute();
+      /* The banner has a failed-load wording; nothing called it from here. */
+      refreshDisclosure();
       console.warn('real data failed to load:', err.message);
     });
 }
@@ -274,6 +308,9 @@ if (realEnabled()) {
    and forgotten in the other. This synchronous write is what put "36" on screen
    between DOMContentLoaded and the filings landing. */
 refreshSearchLabel();
+/* With the filings off nothing else ever writes the banner, so it is written
+   once here; with them on it waits for the load, as above. */
+if (!realEnabled()) refreshDisclosure();
 
 $('#disclosureMore')?.addEventListener('click', (e) => {
   const open = document.body.dataset.disclosure === 'open';
@@ -310,7 +347,9 @@ function fromHash() {
   if (!path) return false;
   if (view === 'discover' && a) State.discoverTab = a;
   if (view === 'learn' && a) State.learnTab = a;
-  navigate(path, { replace: true });
+  /* The tab goes into the address, which is where the router reads it; set
+     only on State, /learn's own default (the dictionary) replaced it. */
+  navigate(a && (view === 'discover' || view === 'learn') ? withQuery(path, a) : path, { replace: true });
   return true;
 }
 
