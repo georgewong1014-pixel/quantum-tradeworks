@@ -53,7 +53,7 @@
     },
 
     {
-      "_comment": "An ETF read with the five-state picker rather than analyst numbers. Trend is aligned but the tranche still blocks until the risk plan and the asset thesis are complete — which is the module working, not failing.",
+      "_comment": "An ETF read with the five-state picker rather than analyst numbers. Trend is aligned, the asset thesis and trading status are confirmed, and the risk plan clears its own minimum net of costs (3.81:1 against 3:1), so no gate stands and it reads Criteria met. That describes the rules declared in this row being met, nothing more: remove the plan or the asset thesis and the same evidence blocks.",
       "symbol": "VOO",
       "instrumentType": "etf",
       "venue": "NYSE Arca",

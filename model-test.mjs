@@ -649,6 +649,132 @@ try {
     else ok('a register record is modelled on its own checklist, and an unpriced one on the calculator\'s price rather than 0', r);
   }
 
+  /* 34 — the Cash Wheel through a cycle, driven by its own buttons. An assigned
+         cycle still holds shares, so it is not closed and the two totals are
+         not compared; sold shares leave the share count; Reset and "Clear and
+         enter my own" return the cycle to a blank candidate. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = () => new Promise(res => setTimeout(res, 120));
+      const click = async (t) => { const b = [...document.querySelectorAll('main button')].find(x => x.textContent.trim() === t);
+        if (!b) throw new Error('no button: ' + t); b.click(); await wait(); };
+      const kv = (k) => { const dt = [...document.querySelectorAll('main dl.kv dt')].find(x => x.textContent === k); return dt?.nextElementSibling?.textContent; };
+      const alarm = () => [...document.querySelectorAll('main .note')].some(n => /disagree/.test(n.textContent));
+      window.confirm = () => true;
+      State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, state: 'candidate', phase: 'put', economicShareBasisOverride: null,
+        shareCostBasisOverride: null, eligibleShares: 0, isWorkedExample: false };
+      State.wheelLegs = []; saveWheel(); saveWheelLegs();
+      navigate('/us-options/wheel'); await wait();
+      const out = {};
+      try {
+        await click('Load a worked contract');
+        State.wheel.adjustedContract = true; render(); await wait();
+        out.adjustedCashGate = [...document.querySelectorAll('main ul.blocklist li')].some(li => /Eligible cash has not been entered/.test(li.textContent));
+        State.wheel.adjustedContract = false; saveWheel(); render(); await wait();
+        await click('Start a cycle'); await click('Record the put as opened'); await click('It was assigned');
+        out.assigned = { cash: kv('Same total from cash movements'), alarm: alarm(), owed: kv('Still open against it'), shares: State.wheel.eligibleShares };
+        await click('Plan a covered call');
+        State.wheel.callStrike = 55; State.wheel.callCredit = 1; saveWheel(); render(); await wait();
+        await click('Record the call as opened'); await click('Shares were called away');
+        out.called = { shares: State.wheel.eligibleShares, alarm: alarm(), closed: wheelLedger(State.wheelLegs).cycleClosed };
+        await click('Clear the cycle'); await click('Start a cycle'); await click('Record the put as opened'); await click('It was assigned');
+        await click('Reset');
+        out.reset = { state: State.wheel.state, phase: State.wheel.phase, shares: State.wheel.eligibleShares, basis: State.wheel.economicShareBasisOverride, legs: State.wheelLegs.length };
+        await click('Load a worked contract');
+        await click('Start a cycle'); await click('Record the put as opened'); await click('It was assigned');
+        await click('Clear and enter my own');
+        out.own = { state: State.wheel.state, phase: State.wheel.phase, shares: State.wheel.eligibleShares, legs: State.wheelLegs.length };
+      } catch (e) { out.error = e.message; }
+      return out;
+    })()`);
+    /* A step that cannot be taken is itself a failure: before the fix, Reset
+       left the rail at Assigned, so there was no "Start a cycle" to press. */
+    if (r.error) fail(`the Cash Wheel cycle could not be driven through — ${r.error}`, r);
+    else if (r.adjustedCashGate) fail('an adjusted contract reports eligible cash as not entered', r);
+    else if (r.assigned.alarm || !/shares still held/.test(r.assigned.cash || '')) fail('an assigned cycle is treated as closed and its totals compared', r.assigned);
+    else if (!/^none/.test(r.assigned.owed || '')) fail('the premium card still shows the assigned put as an open obligation', r.assigned);
+    else if (r.called.shares !== 0 || !r.called.closed || r.called.alarm) fail('called-away shares stay in the unencumbered count, or the closed cycle does not reconcile', r.called);
+    else if (r.reset.state !== 'candidate' || r.reset.phase !== 'put' || r.reset.shares !== 0 || r.reset.basis !== null || r.reset.legs !== 0) fail('Reset leaves the cycle state behind', r.reset);
+    else if (r.own.state !== 'candidate' || r.own.phase !== 'put' || r.own.shares !== 0 || r.own.legs !== 0) fail('"Clear and enter my own" leaves the illustrative cycle behind', r.own);
+    else ok('the Cash Wheel holds its cycle: assignment is open, sold shares leave, and both clears return a blank candidate', r);
+  }
+
+  /* 35 — the Trading Index engine refuses what it used to accept silently. */
+  {
+    const r = await evaluate(`(() => {
+      const perp = qttiWorkedExample();
+      perp.perp = { ...perp.perp, leverage: 2, notional: 1000, collateral: 500, marginMode: 'isolated', liquidationPrice: 1, specVersion: 'v1' };
+      const noFunding = qttiRun(perp).perpGates.some(g => /[Ff]unding/.test(g));
+      const withFunding = { ...perp, perp: { ...perp.perp, fundingPerUnit: 2 },
+        plan: { ...perp.plan, plannedEntry: 100, invalidation: 90, target: 140, fees: 1 } };
+      const fr = qttiRun(withFunding).rr;
+      const opt = { ...perp, instrumentType: 'option' };
+      const optGates = qttiRun(opt).perpGates;
+      const frac = qttiRun({ ...perp, plan: { ...perp.plan, plannedTotal: 10000, stage1Fraction: 25 } });
+      const minZero = qttiRun({ ...perp, plan: { ...perp.plan, plannedEntry: 100, invalidation: 90, target: 110, fees: 1, minRewardToRisk: 0 } }).gates;
+      const floor = qttiWorkedExample(); floor.timeframes.daily.priceStructure = { state: 'analyst', value: 77 };
+      const fr2 = qttiRun(floor);
+      const share = qttiRun({ ...qttiDefaultPlan(), instrumentType: 'ordinary_share' }).gates[0];
+      return { noFunding, fundingCost: fr.costs, optLiquidation: optGates.some(g => /liquidation/.test(g)), optBlocked: optGates.some(g => /does not model/.test(g)),
+        stage1: frac.stage1, fracGate: frac.gates.some(g => /Stage 1 fraction is 25/.test(g)),
+        minZero: minZero.some(g => /reads 0/.test(g)), minThree: minZero.some(g => /minimum of 3/.test(g)),
+        daily: fr2.tfs.daily.score, floorGate: fr2.gates.filter(g => /daily score/.test(g)),
+        share, worked: [qttiRun(qttiWorkedExample()).regime, qttiRun(qttiWorkedExample()).tranche, qttiRun(qttiWorkedExample()).confidence] };
+    })()`);
+    if (r.worked.join('/') !== '38/35/77') fail('the §14 worked example no longer returns 38 / 35 / 77', r.worked);
+    else if (!r.noFunding || r.fundingCost !== 3) fail('an unentered funding figure clears the perpetual gate, or entered funding is not a cost', r);
+    else if (r.optLiquidation || !r.optBlocked) fail('an option is asked for a liquidation price, or clears on the perpetual checklist', r);
+    else if (r.stage1 !== null || !r.fracGate) fail('a Stage 1 fraction above 1 is accepted', r);
+    else if (!r.minZero || r.minThree) fail('a minimum reward-to-risk of 0 is silently replaced by 3', r);
+    else if (r.floorGate.length) fail('a floor gate contradicts its own printed score', r);
+    else if (!/Not yet researched/.test(r.share)) fail('the company thesis gate quotes the internal id', r.share);
+    else ok('Trading Index gates: funding required and costed, option terms named, fraction bounded, minimum refused at 0, floors on the printed score', r);
+  }
+
+  /* 36 — Trading Index clears drop the previous instrument, and the history
+         records corrections only, in one unit. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = () => new Promise(res => setTimeout(res, 120));
+      window.confirm = () => true;
+      State.qtti = qttiDefaultPlan(); saveQtti();
+      navigate('/research/trading-index'); await wait();
+      const set = (sel, v) => { const n = document.querySelector(sel); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); };
+      set('select[aria-label="Daily Momentum"]', 'bullish'); await wait();
+      const firstEntry = State.qtti.corrections.length;
+      set('select[aria-label="Daily Momentum"]', 'strong_bullish'); await wait();
+      const change = State.qtti.corrections[State.qtti.corrections.length - 1];
+      Object.assign(State.qtti, { symbol: 'AAPL', sourceCompanyId: 'AAPL-SEC', sourceTicker: 'AAPL', instrumentType: 'ordinary_share',
+        equityThesisStatus: 'pass', tradingStatusClear: true, venue: 'NASDAQ' });
+      State.qtti.plan.plannedTotal = 5000; saveQtti(); render(); await wait();
+      [...document.querySelectorAll('main button')].find(b => b.textContent === 'Clear evidence').click(); await wait();
+      const cleared = { id: State.qtti.sourceCompanyId, th: State.qtti.equityThesisStatus, ts: State.qtti.tradingStatusClear, venue: State.qtti.venue, total: State.qtti.plan.plannedTotal,
+        trail: State.qtti.corrections.some(c => c.newValue === 'cleared') };
+      Object.assign(State.qtti, { symbol: 'AAPL', sourceCompanyId: 'AAPL-SEC', sourceTicker: 'AAPL' }); saveQtti(); render(); await wait();
+      set('#q-symbol', 'BTC / USDC Perpetual'); await wait();
+      return { firstEntry, change, cleared, unlinked: State.qtti.sourceCompanyId };
+    })()`);
+    if (r.firstEntry !== 0) fail('a first-time entry is logged as a correction', r);
+    else if (r.change?.oldValue !== 'Bullish (75)' || r.change?.newValue !== 'Strong bullish (100)') fail('a correction mixes units', r.change);
+    else if (r.cleared.id !== null || r.cleared.th !== 'unknown' || r.cleared.ts || r.cleared.venue || r.cleared.total !== 5000 || !r.cleared.trail) fail('Clear evidence keeps the previous instrument, drops the reader\'s rules, or leaves no trail', r.cleared);
+    else if (r.unlinked !== null) fail('typing a different symbol keeps the company link', r);
+    else ok('Trading Index clears drop the previous instrument and keep the rules; corrections log revisions only, in one unit', r);
+  }
+
+  /* 37 — the status register's Sarawak row states the history this browser
+         actually holds, not the author's machine's. */
+  {
+    const r = await evaluate(`(() => {
+      const row = CAPABILITY_REGISTER.find(c => c.name === 'Sarawak Economy Watch');
+      if (typeof row.gate !== 'function') return { text: row.gate, fn: false };
+      const kept = trackedHistory; trackedHistory = null;
+      const text = row.gate(); trackedHistory = kept;
+      return { text, fn: true };
+    })()`);
+    if (!r.fn || /with price history/.test(r.text) || !/no price history/.test(r.text)) fail('the Sarawak status row claims price history the browser does not hold', r);
+    else ok('the Sarawak status row states the price history actually held', r);
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

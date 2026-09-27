@@ -139,19 +139,37 @@ const QTTI_TEMPLATES = [
     note:'Directional rules mirrored, plus borrow, gap and derivative approval. A bearish regime does not itself authorise a short.',
     floors:{ monthly:0, weekly:0, daily:0, regime:0, tranche:65 }, needsTrigger:true, needsVolume:true, short:true },
 ];
+/* Which derivative terms apply is a property of the instrument, not of
+   "derivative" as a class. A bought option has no liquidation price and pays
+   no funding, so asking it for either made the gate clear only once the reader
+   typed in a number that does not exist. `liquidation` marks the margined
+   contracts a venue can close out; `funding` is the perpetual's periodic
+   payment; `unmodelledTerms` names what this version cannot yet examine. */
 const QTTI_INSTRUMENTS = [
   { id:'ordinary_share', label:'Ordinary share', gate:'equity' },
   { id:'etf',            label:'ETF',            gate:'asset' },
   { id:'spot_asset',     label:'Spot asset',     gate:'asset' },
-  { id:'option',         label:'Option',         gate:'asset', derivative:true },
-  { id:'future',         label:'Future',         gate:'asset', derivative:true },
-  { id:'perpetual',      label:'Perpetual contract', gate:'asset', derivative:true },
+  { id:'option',         label:'Option',         gate:'asset', derivative:true,
+    unmodelledTerms:'premium at risk, expiry and the margin on a written option' },
+  { id:'future',         label:'Future',         gate:'asset', derivative:true, liquidation:true },
+  { id:'perpetual',      label:'Perpetual contract', gate:'asset', derivative:true, liquidation:true, funding:true },
+];
+/* The select's labels, and the words a gate quotes back. The gate used to
+   print the internal id — "unknown" beside a control reading "Not yet
+   researched" — so the reason and the control named one state two ways. */
+const QTTI_THESIS_STATES = [
+  { id:'unknown', label:'Not yet researched' }, { id:'fail', label:'Does not pass' }, { id:'pass', label:'Passes' },
 ];
 const QTTI_LIMITS = { coverageFloor:0.70, confidenceFloor:70, confidenceReject:65, minRewardToRisk:3 };
 
 const qttiBand = (bands, v) => bands.find(b => v >= b.lo) || bands[bands.length - 1];
 const qttiRegimeBand = (v) => QTTI_REGIME_BANDS.find(b => v >= b.lo && v <= b.hi) || QTTI_REGIME_BANDS[0];
 const qttiStateOf = (id) => QTTI_STATES.find(s => s.id === id) || QTTI_STATES.find(s => s.id === 'unknown');
+/* A floor is judged on the score as displayed. Comparing the unrounded 59.5
+   against 60 while printing Math.round of it produced "needs at least 60; it is
+   60", and the regime floor already compared the rounded value — so two floors
+   on one card treated rounding differently. */
+const qttiClearsFloor = (score, floor) => !floor || Math.round(score) >= floor;
 
 function qttiBlankPanel() {
   const o = { present:false, latestBarAt:'', openBarIncluded:false };
@@ -183,8 +201,16 @@ function qttiDefaultPlan() {
     entryLocation:'unknown',
     plan:{ plannedTotal:0, stage1Fraction:0, plannedEntry:0, invalidation:0, target:0,
            minRewardToRisk:3, fees:0, fxCost:0, slippage:0, costsEntered:false },
-    perp:{ leverage:0, collateral:0, notional:0, marginMode:'', maintenanceMargin:0,
-           liquidationPrice:0, fundingRate:0, fundingIntervalHours:8, estimatedFunding:0,
+    /* fundingPerUnit is null until entered. It used to default to 0 beside a
+       funding rate that also defaulted to 0, so the gate that asks for funding
+       could never fire and an unentered figure was scored as "no funding".
+       Maintenance margin, funding rate and funding interval were inputs too,
+       and nothing read any of them; the one funding figure the plan needs is
+       the amount paid over the holding period, and it now feeds net risk. A
+       key under a new name, so a plan saved with the old 0 default reads as
+       not entered rather than as an entered zero. */
+    perp:{ leverage:0, collateral:0, notional:0, marginMode:'',
+           liquidationPrice:0, fundingPerUnit:null,
            maxAccountLoss:0, specVersion:'' },
     extension:{ extendedFromMean:false, momentumExtreme:false, belowResistance:false, volumeDiverges:false },
   };
@@ -218,18 +244,24 @@ function qttiTimeframe(panel) {
 
 /* §12. Costs are added to risk and subtracted from reward on both sides, so a
    3:1 gross case can and often does fail net — which is the point of showing
-   it rather than the gross ratio. */
-function qttiRewardToRisk(plan, isShort) {
+   it rather than the gross ratio.
+
+   Funding is a cost of holding a perpetual and is counted with the others.
+   Only funding PAID counts: a negative figure (funding received) is not added
+   back, because the rate flips sign with positioning and a receipt at entry is
+   no promise over the holding period. */
+function qttiRewardToRisk(plan, isShort, fundingPerUnit) {
   const { plannedEntry:e, invalidation:i, target:t } = plan;
   if (!(e > 0) || !(i > 0) || !(t > 0)) return { defined:false, ratio:null };
   const riskPerUnit   = isShort ? i - e : e - i;
   const rewardPerUnit = isShort ? e - t : t - e;
-  const costs = num0(plan.fees) + num0(plan.fxCost) + num0(plan.slippage);
+  const funding = Math.max(0, num0(fundingPerUnit));
+  const costs = num0(plan.fees) + num0(plan.fxCost) + num0(plan.slippage) + funding;
   const netRisk   = riskPerUnit + costs;
   const netReward = rewardPerUnit - costs;
   if (!(netRisk > 0)) return { defined:true, ratio:null, netRisk, netReward,
     err:'The invalidation is on the wrong side of the entry, so there is no risk to divide by.' };
-  return { defined:true, ratio: netReward / netRisk, netRisk, netReward, costs };
+  return { defined:true, ratio: netReward / netRisk, netRisk, netReward, costs, funding };
 }
 
 /* The whole run. Returns every figure the card needs plus the named reasons —
@@ -244,7 +276,15 @@ function qttiRun(p) {
 
   const inst = QTTI_INSTRUMENTS.find(x => x.id === p.instrumentType) || QTTI_INSTRUMENTS[0];
   const tpl  = QTTI_TEMPLATES.find(x => x.id === p.template) || QTTI_TEMPLATES[0];
-  const rr   = qttiRewardToRisk(p.plan || {}, !!tpl.short);
+  const rr   = qttiRewardToRisk(p.plan || {}, !!tpl.short, inst.funding ? p.perp?.fundingPerUnit : 0);
+  /* Your own minimum. A missing key is the blank plan's published default; an
+     entered 0 is not, and is refused below rather than silently replaced by 3
+     while the input went on showing 0. */
+  const minRR = p.plan?.minRewardToRisk == null ? QTTI_LIMITS.minRewardToRisk : num0(p.plan.minRewardToRisk);
+  /* A share of the intended total. 25 typed for 25% printed a Stage 1 amount
+     twenty-five times the whole position and raised no gate. */
+  const stage1Fraction = num0(p.plan?.stage1Fraction);
+  const fractionValid = stage1Fraction > 0 && stage1Fraction <= 1;
 
   /* --- §5.4 screenshot rejection. These make the run U outright rather than
      scoring it low, because an unreadable chart is not bearish evidence. */
@@ -275,8 +315,8 @@ function qttiRun(p) {
     volume: plainMean('volume'),
     location: qttiStateOf(p.entryLocation).unknown ? 50 : qttiStateOf(p.entryLocation).v,
     breadth: (wMean('momentum') + wMean('confirmation')) / 2,
-    risk: !rr.defined || !isNum(rr.ratio) ? 0
-        : Math.round(clamp(100 * Math.min(1, rr.ratio / (num0(p.plan?.minRewardToRisk) || QTTI_LIMITS.minRewardToRisk)), 0, 100)),
+    risk: !rr.defined || !isNum(rr.ratio) || !(minRR > 0) ? 0
+        : Math.round(clamp(100 * Math.min(1, rr.ratio / minRR), 0, 100)),
     dataconf: conf,
   };
   const trancheRaw = QTTI_TRANCHE_PARTS.reduce((a, c) => a + c.w * parts[c.k], 0);
@@ -286,7 +326,7 @@ function qttiRun(p) {
   const gates = [];
   if (inst.gate === 'equity') {
     if (p.equityThesisStatus !== 'pass')
-      gates.push(`The underlying company thesis reads "${p.equityThesisStatus}". An ordinary share still has to clear its research gate before a timing tool applies to it.`);
+      gates.push(`The underlying company thesis reads "${(QTTI_THESIS_STATES.find(x => x.id === p.equityThesisStatus) || QTTI_THESIS_STATES[0]).label}". An ordinary share still has to clear its research gate before a timing tool applies to it.`);
   } else {
     const at = p.assetThesis || {};
     const missing = [['mandate','a declared mandate or index'], ['issuer','the issuer or counterparty'],
@@ -298,13 +338,17 @@ function qttiRun(p) {
   if (confKnown && conf < QTTI_LIMITS.confidenceFloor)
     gates.push(`Screenshot confidence is ${Math.round(conf)}, below the ${QTTI_LIMITS.confidenceFloor} required to unlock a tranche. Extraction reliability is not market predictability, but a tranche cannot rest on evidence this thin.`);
   if (!confKnown) gates.push('Screenshot confidence has not been scored, so the evidence rule cannot be applied.');
-  if (!(num0(p.plan?.plannedTotal) > 0) || !(num0(p.plan?.stage1Fraction) > 0))
+  if (!(num0(p.plan?.plannedTotal) > 0) || !(stage1Fraction > 0))
     gates.push('Your intended total position and Stage 1 fraction have not been entered. The platform does not invent either number.');
+  else if (!fractionValid)
+    gates.push(`Stage 1 fraction is ${stage1Fraction}. It is a share of the intended total, between 0 and 1 — 0.25 is a quarter — so ${stage1Fraction} would be ${stage1Fraction} times the whole position.`);
   if (!p.triggerComplete) gates.push('No completed entry trigger has been confirmed. A trigger that has not completed is a setup, not an entry.');
   if (!rr.defined) gates.push('Entry, invalidation and target are not all defined, so reward-to-risk cannot be computed and risk definition scores zero.');
   else if (rr.err) gates.push(rr.err);
-  else if (isNum(rr.ratio) && rr.ratio < (num0(p.plan?.minRewardToRisk) || QTTI_LIMITS.minRewardToRisk))
-    gates.push(`Net reward-to-risk is ${rr.ratio.toFixed(2)}:1 after costs, below your minimum of ${num0(p.plan?.minRewardToRisk) || QTTI_LIMITS.minRewardToRisk}:1.`);
+  if (!(minRR > 0))
+    gates.push(`Your minimum reward-to-risk reads ${minRR}. A minimum at or below zero would pass any trade, so it is refused rather than replaced — enter the ratio you actually require.`);
+  else if (rr.defined && !rr.err && isNum(rr.ratio) && rr.ratio < minRR)
+    gates.push(`Net reward-to-risk is ${rr.ratio.toFixed(2)}:1 after costs, below your minimum of ${minRR}:1.`);
   if (!p.plan?.costsEntered) gates.push('Fees, FX and slippage have not been confirmed as included. A gross ratio that clears 3:1 can fail net.');
   if (tpl.explicitOptIn && !p.reversalOptIn)
     gates.push('The early-reversal scout is a higher-risk template and has to be selected deliberately. Tick the opt-in to use it.');
@@ -312,10 +356,10 @@ function qttiRun(p) {
   /* --- §11 template floors. */
   if (assessable) {
     const f = tpl.floors;
-    if (f.monthly && tfs.monthly.score < f.monthly) gates.push(`${tpl.label} needs a monthly score of at least ${f.monthly}; it is ${Math.round(tfs.monthly.score)}.`);
-    if (f.weekly  && tfs.weekly.score  < f.weekly)  gates.push(`${tpl.label} needs a weekly score of at least ${f.weekly}; it is ${Math.round(tfs.weekly.score)}.`);
-    if (f.daily   && tfs.daily.score   < f.daily)   gates.push(`${tpl.label} needs a daily score of at least ${f.daily}; it is ${Math.round(tfs.daily.score)}.`);
-    if (f.regime  && regime < f.regime)             gates.push(`${tpl.label} needs a trend regime of at least ${f.regime}; it is ${regime}.`);
+    if (!qttiClearsFloor(tfs.monthly.score, f.monthly)) gates.push(`${tpl.label} needs a monthly score of at least ${f.monthly}; it is ${Math.round(tfs.monthly.score)}.`);
+    if (!qttiClearsFloor(tfs.weekly.score, f.weekly))   gates.push(`${tpl.label} needs a weekly score of at least ${f.weekly}; it is ${Math.round(tfs.weekly.score)}.`);
+    if (!qttiClearsFloor(tfs.daily.score, f.daily))     gates.push(`${tpl.label} needs a daily score of at least ${f.daily}; it is ${Math.round(tfs.daily.score)}.`);
+    if (!qttiClearsFloor(regime, f.regime))             gates.push(`${tpl.label} needs a trend regime of at least ${f.regime}; it is ${regime}.`);
     if (tpl.needsVolume && plainMean('volume') < 50) gates.push('Volume does not confirm the move under this template.');
   }
 
@@ -329,16 +373,24 @@ function qttiRun(p) {
     if (!d.marginMode) perpGates.push('Margin mode has not been stated.');
     if (d.marginMode === 'cross' && !(num0(d.maxAccountLoss) > 0))
       perpGates.push('Cross margin is selected without total-account exposure being modelled.');
-    if (!(num0(d.liquidationPrice) > 0)) perpGates.push('No estimated liquidation price.');
-    else if (num0(p.plan?.invalidation) > 0) {
-      const liq = num0(d.liquidationPrice), inv = num0(p.plan.invalidation);
-      const inside = tpl.short ? liq <= inv : liq >= inv;
-      if (inside) perpGates.push(`The estimated liquidation price ${liq} sits inside or at your invalidation ${inv}. The position would be closed by the venue before your own stop.`);
+    if (inst.liquidation) {
+      if (!(num0(d.liquidationPrice) > 0)) perpGates.push('No estimated liquidation price.');
+      else if (num0(p.plan?.invalidation) > 0) {
+        const liq = num0(d.liquidationPrice), inv = num0(p.plan.invalidation);
+        const inside = tpl.short ? liq <= inv : liq >= inv;
+        if (inside) perpGates.push(`The estimated liquidation price ${liq} sits inside or at your invalidation ${inv}. The position would be closed by the venue before your own stop.`);
+      }
     }
-    if (!isNum(d.fundingRate)) perpGates.push('Funding rate is absent from the reward-to-risk calculation.');
+    if (inst.funding && !isNum(d.fundingPerUnit))
+      perpGates.push('Funding over the holding period has not been entered, so it cannot be part of the reward-to-risk calculation. Enter 0 if none will be paid.');
+    /* Not a request for a figure: this version has no field that could hold
+       these terms, so the tranche stays locked and the page says why, rather
+       than letting an option clear on the perpetual's checklist. */
+    if (inst.unmodelledTerms)
+      perpGates.push(`This version does not model an ${inst.label.toLowerCase()}'s own terms — ${inst.unmodelledTerms} — so the derivative gate cannot clear for one.`);
     if (!d.specVersion) perpGates.push('No contract specification version, so the venue terms in force are unknown.');
     if (num0(d.maxAccountLoss) > 0 && isNum(rr.netRisk) && num0(p.plan?.plannedTotal) > 0) {
-      const intended = rr.netRisk * num0(p.plan.plannedTotal) * num0(p.plan.stage1Fraction) / Math.max(num0(p.plan.plannedEntry), 1);
+      const intended = rr.netRisk * num0(p.plan.plannedTotal) * stage1Fraction / Math.max(num0(p.plan.plannedEntry), 1);
       if (intended > num0(d.maxAccountLoss)) perpGates.push('The intended loss exceeds the risk budget you entered.');
     }
   }
@@ -363,13 +415,16 @@ function qttiRun(p) {
   const wouldChange = [];
   if (assessable) {
     const f = tpl.floors;
-    if (f.weekly && tfs.weekly.score < f.weekly) wouldChange.push(`Weekly structure recovers to at least ${f.weekly}.`);
-    if (f.monthly && tfs.monthly.score < f.monthly) wouldChange.push(`Monthly stops deteriorating and reaches ${f.monthly}.`);
-    if (f.daily && tfs.daily.score < f.daily) wouldChange.push(`Daily reaches ${f.daily} on a completed trigger.`);
+    if (!qttiClearsFloor(tfs.weekly.score, f.weekly)) wouldChange.push(`Weekly structure recovers to at least ${f.weekly}.`);
+    if (!qttiClearsFloor(tfs.monthly.score, f.monthly)) wouldChange.push(`Monthly stops deteriorating and reaches ${f.monthly}.`);
+    if (!qttiClearsFloor(tfs.daily.score, f.daily)) wouldChange.push(`Daily reaches ${f.daily} on a completed trigger.`);
   }
   if (!p.triggerComplete) wouldChange.push('A breakout and successful retest, a valid pullback trigger, or a confirmed reversal completes.');
   if (!rr.defined) wouldChange.push('You define entry, invalidation and target, and the net ratio clears your minimum.');
-  if (inst.derivative && perpGates.length) wouldChange.push('The derivative-risk gate is completed: leverage, collateral, liquidation and funding.');
+  if (inst.derivative && perpGates.length) wouldChange.push(inst.unmodelledTerms
+    ? `A version of this model that examines an ${inst.label.toLowerCase()}'s own terms — ${inst.unmodelledTerms}. None does yet.`
+    : `The derivative-risk gate is completed: ${['leverage, notional and collateral', 'margin mode',
+        inst.liquidation && 'liquidation', inst.funding && 'funding', 'the contract specification'].filter(Boolean).join(', ')}.`);
   QTTI_TIMEFRAMES.forEach(t => { if (tfs[t.k].present && tfs[t.k].unknown.length)
     wouldChange.push(`${t.label} ${tfs[t.k].unknown.map(u => u.toLowerCase()).join(' and ')} becomes readable.`); });
 
@@ -379,8 +434,9 @@ function qttiRun(p) {
     confidence: confKnown ? Math.round(conf) : null,
     confidenceBand: confKnown ? qttiBand(QTTI_CONF_BANDS, conf) : null,
     parts, tranche, trancheRaw, trancheState, gates, perpGates, ext, rr, tpl, inst,
-    stage1: (num0(p.plan?.plannedTotal) > 0 && num0(p.plan?.stage1Fraction) > 0)
-      ? num0(p.plan.plannedTotal) * num0(p.plan.stage1Fraction) : null,
+    stage1: (num0(p.plan?.plannedTotal) > 0 && fractionValid)
+      ? num0(p.plan.plannedTotal) * stage1Fraction : null,
+    minRewardToRisk: minRR,
     wouldChange,
   };
 }
@@ -434,8 +490,15 @@ const saveQtti = () => store.write('qttiPlan', State.qtti);
    reader who sees a blocked score and then walks the evidence upward until it
    unblocks leaves a visible trail of having done so. Overwriting in place is
    what makes that indistinguishable from having read the chart correctly the
-   first time. */
+   first time.
+
+   Only a change to something ALREADY recorded is a correction. Logging the
+   first entry of a group as "unknown → bullish" filled the history with
+   transcription rather than revision, and a reader looking for the evidence
+   that was walked upward had to find it among entries that were only ever
+   typed once. `oldValue` is null for "nothing recorded yet". */
 function qttiCorrect(field, oldValue, newValue) {
+  if (oldValue == null) return;
   if (String(oldValue ?? '') === String(newValue ?? '')) return;
   State.qtti.corrections = State.qtti.corrections || [];
   State.qtti.corrections.push({ field, oldValue: oldValue ?? null, newValue: newValue ?? null,
@@ -443,6 +506,51 @@ function qttiCorrect(field, oldValue, newValue) {
   /* Bounded so one long session cannot fill the browser's storage quota and
      take the rest of the app's saved state down with it. */
   while (State.qtti.corrections.length > 200) State.qtti.corrections.shift();
+}
+
+/* One unit for both sides of a correction. The old side used to be the cell's
+   number and the new side the picker's id — "30 → strong_bullish" — so a
+   reader had to know the state table to see how far a value moved. */
+function qttiCellLabel(cell) {
+  if (isNum(cell?.value)) return `Analyst estimate (${cell.value})`;
+  const st = qttiStateOf(cell?.state);
+  return st.unknown ? 'Unknown' : `${st.label} (${st.v})`;
+}
+
+/* CLEARING, AND WHAT SURVIVES IT.
+   Both clear paths used to spread the live plan and blank a handful of keys,
+   so the company link, the thesis answer, the asset-thesis ticks, the trading
+   status, the venue, the hash, the derivative inputs and the extension flags
+   all carried over to the next chart — a "Linked to Apple Inc." banner above a
+   plan now recording a BTC/USDC perpetual, and an attestation made about one
+   instrument quietly standing for another.
+
+   So a clear starts from the blank plan. What is kept is what belongs to the
+   reader rather than to the chart: on "Clear evidence", the template and the
+   capital rules (intended total, Stage 1 fraction, minimum reward-to-risk);
+   on Reset, nothing but the correction history. The history is kept in both,
+   with the clear itself appended to it, because it is append-only — clearing
+   a plan and re-entering higher readings must leave the same trail as editing
+   them in place. */
+function qttiClearedPlan(prev, { keepRules }) {
+  const next = qttiDefaultPlan();
+  if (keepRules) {
+    next.template = prev.template || next.template;
+    next.reversalOptIn = !!prev.reversalOptIn;
+    ['plannedTotal', 'stage1Fraction', 'minRewardToRisk'].forEach(k => {
+      if (prev.plan?.[k] != null) next.plan[k] = prev.plan[k];
+    });
+  }
+  next.corrections = [...(prev.corrections || [])];
+  const recorded = !!prev.symbol || QTTI_TIMEFRAMES.some(t => prev.timeframes?.[t.k]?.present
+    || QTTI_GROUPS.some(g => qttiCell(prev.timeframes?.[t.k]?.[g.k]).known));
+  if (recorded) {
+    next.corrections.push({ field: 'All recorded evidence',
+      oldValue: prev.symbol || 'unnamed chart', newValue: keepRules ? 'cleared' : 'reset',
+      correctedAt: new Date().toISOString() });
+    while (next.corrections.length > 200) next.corrections.shift();
+  }
+  return next;
 }
 
 VIEWS.tradingIndex = () => {
@@ -462,14 +570,11 @@ VIEWS.tradingIndex = () => {
   const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); });
   if (qLink) wrap.append(qLink);
 
-  /* Reset here means a blank evidence set, which for this tool IS the useful
-     starting point — every panel is the reader's own transcription and there is
-     no default reading to fall back to. */
+  /* Reset here means a blank plan, which for this tool IS the useful starting
+     point — every panel is the reader's own transcription and there is no
+     default reading to fall back to. See qttiClearedPlan for what survives. */
   wrap.append(workBar('trading', () => {
-    State.qtti = { ...State.qtti, symbol:'',
-      timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
-      confidence:{ metadata:null, panels:null, indicators:null, legibility:null, recency:null },
-      entryLocation:'unknown', identityConsistent:false, capturedAt:'', triggerComplete:false };
+    State.qtti = qttiClearedPlan(State.qtti, { keepRules: false });
     saveQtti();
   }));
 
@@ -644,7 +749,17 @@ VIEWS.tradingIndex = () => {
     const f = el('div', { class: 'assumption' });
     f.append(el('label', { for: `q-${k}` }, label));
     const common = { class: 'input a-text', id: `q-${k}`, placeholder: ph || '',
-      onchange: e => { p[k] = e.target.value; save(); } };
+      onchange: e => {
+        p[k] = e.target.value;
+        /* A symbol typed over the linked one is a different instrument. The
+           link used to survive it, so the banner went on reading "Linked to
+           Apple Inc." above a plan for something else. */
+        if (k === 'symbol' && p.sourceCompanyId && e.target.value.trim() !== (p.sourceTicker || '')) {
+          p.sourceCompanyId = null; p.sourceTicker = ''; p.sourceLinkedAt = '';
+          toast('Company link removed — the symbol no longer matches it');
+        }
+        save();
+      } };
     if (lines) {
       const ta = el('textarea', { ...common, rows: String(lines), style: 'min-height:0' });
       ta.value = p[k] ?? '';
@@ -709,8 +824,7 @@ VIEWS.tradingIndex = () => {
       ? 'An ordinary share clears its Strategy Lens tier first. A timing tool does not substitute for researching the business.'
       : 'This instrument has no filed statements, so the fundamental gate is replaced rather than skipped. Trend evidence alone does not authorise a position in something whose mandate, issuer, liquidity and custody are unexamined.'));
   if (isEquity) {
-    gate.append(sel('Underlying company thesis', p.equityThesisStatus, [
-      { id:'unknown', label:'Not yet researched' }, { id:'fail', label:'Does not pass' }, { id:'pass', label:'Passes' }],
+    gate.append(sel('Underlying company thesis', p.equityThesisStatus, QTTI_THESIS_STATES,
       v => { p.equityThesisStatus = v; }));
   } else {
     gate.append(cb('The mandate or index it tracks is declared and understood', p.assetThesis.mandate, v => { p.assetThesis.mandate = v; }));
@@ -740,9 +854,10 @@ VIEWS.tradingIndex = () => {
       f.append(el('label', { title: g.ask }, `${g.label} · ${fmtPct(g.w * 100, 0)}`));
       const s = el('select', { class: 'input input-inline', 'aria-label': `${tf.label} ${g.label}`,
         onchange: e => {
-          const prev = qttiCell(p.timeframes[tf.k][g.k]);
-          qttiCorrect(`${tf.label} · ${g.label}`, prev.known ? prev.v : 'unknown', e.target.value);
-          p.timeframes[tf.k][g.k] = { state: e.target.value, value: null }; save();
+          const before = p.timeframes[tf.k][g.k];
+          const next = { state: e.target.value, value: null };
+          qttiCorrect(`${tf.label} · ${g.label}`, qttiCell(before).known ? qttiCellLabel(before) : null, qttiCellLabel(next));
+          p.timeframes[tf.k][g.k] = next; save();
         } });
       QTTI_STATES.forEach(o => s.append(el('option', { value: o.id,
         selected: cell.state === o.id ? '' : null }, `${o.label}${o.unknown ? '' : ` (${o.v})`}`)));
@@ -785,49 +900,54 @@ VIEWS.tradingIndex = () => {
     QTTI_STATES.map(s => ({ id:s.id, label: s.unknown ? 'Not judged' : `${s.label} (${s.v})` })), v => { p.entryLocation = v; }));
   pl.append(cb('A completed entry trigger has occurred — breakout and retest, valid pullback, or confirmed reversal', p.triggerComplete, v => { p.triggerComplete = v; }));
 
-  const pf = (k, label, step) => {
+  const pf = (k, label, step, range) => {
     const f = el('div', { class: 'assumption' });
     f.append(el('label', { for: `qp-${k}` }, label));
     f.append(el('input', { class: 'input input-inline', id: `qp-${k}`, type: 'number', step: step || 1,
-      value: String(p.plan[k] ?? 0), style: 'text-align:right',
+      ...(range || {}), value: String(p.plan[k] ?? 0), style: 'text-align:right',
       onchange: e => { p.plan[k] = num0(e.target.value); save(); } }));
     return f;
   };
   pl.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Capital'));
   pl.append(pf('plannedTotal', 'Intended total position', 100));
-  pl.append(pf('stage1Fraction', 'Stage 1 fraction (0.25 = a quarter)', 0.05));
+  /* The range is a hint to the spinner, not the check — a typed 25 still
+     lands, and the engine refuses it with a named gate. */
+  pl.append(pf('stage1Fraction', 'Stage 1 fraction (0.25 = a quarter)', 0.05, { min: 0, max: 1 }));
   if (isNum(r.stage1)) pl.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
     `Stage 1 amount: ${fmtNum(r.stage1, 2)} — your intended total multiplied by your fraction, and nothing else.`));
   pl.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Risk'));
   [['plannedEntry', 'Planned entry price', 0.01], ['invalidation', 'Invalidation price', 0.01],
    ['target', 'Target price', 0.01], ['minRewardToRisk', 'Your minimum reward-to-risk', 0.5],
    ['fees', 'Entry and exit fees per unit', 0.01], ['fxCost', 'FX cost per unit', 0.01],
-   ['slippage', 'Estimated slippage per unit', 0.01]].forEach(([k, l, s]) => pl.append(pf(k, l, s)));
+   ['slippage', 'Estimated slippage per unit', 0.01]].forEach(([k, l, s]) => pl.append(pf(k, l, s, k === 'minRewardToRisk' ? { min: 0 } : null)));
   pl.append(cb('Fees, FX and slippage above are complete', p.plan.costsEntered, v => { p.plan.costsEntered = v; }));
   if (r.rr.defined && isNum(r.rr.ratio)) pl.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-    `Net reward-to-risk ${r.rr.ratio.toFixed(2)}:1 — net reward ${fmtNum(r.rr.netReward, 2)} over net risk ${fmtNum(r.rr.netRisk, 2)}, costs added to the risk and taken off the reward on both sides. A gross ratio that clears your minimum can still fail net, and a gap can exit worse than the stop.`));
+    `Net reward-to-risk ${r.rr.ratio.toFixed(2)}:1 — net reward ${fmtNum(r.rr.netReward, 2)} over net risk ${fmtNum(r.rr.netRisk, 2)}, costs added to the risk and taken off the reward on both sides${r.rr.funding > 0 ? `, funding of ${fmtNum(r.rr.funding, 2)} per unit among them` : ''}. A gross ratio that clears your minimum can still fail net, and a gap can exit worse than the stop.`));
   wrap.append(pl);
 
   /* ---------- derivative gate ---------- */
   if (r.inst.derivative) {
     const dv = el('div', { class: 'card', style: r.perpGates.length ? 'border-left:3px solid var(--dn-text)' : null });
+    const inst = r.inst;
     dv.append(cardHead('Derivative risk gate',
-      'Screenshot trend evidence is not sufficient to authorise a leveraged position. The trend card still shows; the tranche card stays locked until this is complete.'));
+      'Screenshot trend evidence is not sufficient to authorise a leveraged position. The trend card still shows; the tranche card stays locked until this is complete.'
+      + (inst.unmodelledTerms ? ` For an ${inst.label.toLowerCase()} it cannot complete in this version: its own terms — ${inst.unmodelledTerms} — are not modelled, and a liquidation price and funding do not apply to it.` : '')));
+    /* A blank field is stored as null, not 0. For funding that is the
+       difference between "not entered", which blocks, and "none paid". */
     const df = (k, label, step) => {
       const f = el('div', { class: 'assumption' });
       f.append(el('label', { for: `qd-${k}` }, label));
       f.append(el('input', { class: 'input input-inline', id: `qd-${k}`, type: 'number', step: step || 1,
-        value: String(p.perp[k] ?? 0), style: 'text-align:right',
-        onchange: e => { p.perp[k] = num0(e.target.value); save(); } }));
+        value: isNum(p.perp[k]) ? String(p.perp[k]) : '', placeholder: 'not entered', style: 'text-align:right',
+        onchange: e => { p.perp[k] = e.target.value === '' ? null : num0(e.target.value); save(); } }));
       return f;
     };
     dv.append(sel('Margin mode', p.perp.marginMode, [{ id:'', label:'Not stated' },
       { id:'isolated', label:'Isolated' }, { id:'cross', label:'Cross' }], v => { p.perp.marginMode = v; }));
     [['leverage', 'Leverage', 0.5], ['notional', 'Contract notional', 1], ['collateral', 'Collateral posted', 1],
-     ['maintenanceMargin', 'Maintenance margin', 1], ['liquidationPrice', 'Estimated liquidation price', 0.01],
-     ['fundingRate', 'Funding rate (%)', 0.001], ['fundingIntervalHours', 'Funding interval (hours)', 1],
-     ['estimatedFunding', 'Estimated holding-period funding', 0.01],
-     ['maxAccountLoss', 'Maximum account loss you accept', 1]].forEach(([k, l, s]) => dv.append(df(k, l, s)));
+     inst.liquidation && ['liquidationPrice', 'Estimated liquidation price', 0.01],
+     inst.funding && ['fundingPerUnit', 'Funding you expect to pay over the holding period, per unit (0 if none)', 0.01],
+     ['maxAccountLoss', 'Maximum account loss you accept', 1]].filter(Boolean).forEach(([k, l, s]) => dv.append(df(k, l, s)));
     const sv = el('div', { class: 'assumption' });
     sv.append(el('label', { for: 'qd-spec' }, 'Contract specification version'));
     sv.append(el('input', { class: 'input input-inline', id: 'qd-spec', type: 'text', value: p.perp.specVersion || '',
@@ -875,10 +995,8 @@ VIEWS.tradingIndex = () => {
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { State.qtti = qttiWorkedExample(); save(); toast('Worked example loaded'); } },
       'Load the §14 worked example'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-      State.qtti = { ...State.qtti, symbol:'', timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
-        confidence:{ metadata:null, panels:null, indicators:null, legibility:null, recency:null },
-        entryLocation:'unknown', identityConsistent:false, capturedAt:'', triggerComplete:false };
-      save(); toast('Evidence cleared');
+      State.qtti = qttiClearedPlan(State.qtti, { keepRules: true });
+      save(); toast('Evidence cleared — your template and capital rules are kept');
     } }, 'Clear evidence'),
   ]));
   wrap.append(tools);
