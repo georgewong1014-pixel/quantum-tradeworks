@@ -1342,6 +1342,93 @@ try {
     else ok(`compare and onboarding do what their labels say — local-currency warning, no uncapped preset, "Step 1 of 4", focus on the question, US lands on ${r.landed.id}`);
   }
 
+  /* MY INVESTMENTS: THE EDITORS, THE LISTS AND THE FEED SAY WHAT THEY DO.
+     Lists imported in one tick get their own ids; deleting a list above the
+     active one keeps the active one; an untouched Add-holding form saves the
+     company its select shows; closing an editor without saving changes
+     nothing; a negative quantity is refused; a sleeve with no priced holding
+     has no return rather than −100%; an alert on an unpriced company is not
+     "Crossed"; the alert-type switches filter the feed and persist; the
+     export carries price alerts; no trend indicator reads computed without a
+     value; clearing the sample removes the seeded lists and alerts; and the
+     Compare page carries the net yield its withholding control produces. */
+  {
+    const r = await evaluate(`(() => {
+      const out = {};
+      const imp = watchlistsImport({ watchlists: [{ name: 'H Imp A', ids: ['MAYBANK'] }, { name: 'H Imp B', ids: ['TENAGA'] }, { name: 'H Imp C', ids: ['CIMB'] }] });
+      const mine = State.watchlists.filter(w => w.name.startsWith('H Imp '));
+      out.importIds = new Set(mine.map(w => w.id)).size === 3 && mine.every(w => w.ids.length === 1);
+      State.wlIdx = State.watchlists.findIndex(w => w.name === 'H Imp B');
+      wlDelete(mine.find(w => w.name === 'H Imp A').id);
+      out.activeKept = activeWL().name === 'H Imp B';
+
+      navigate('/my/portfolio');
+      const pf = activePF(), n0 = pf.holdings.length;
+      openAddHolding();
+      const shown = document.querySelector('#hd-co').value;
+      const set = (sel, v) => { const n = document.querySelector(sel); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); };
+      set('#hd-qty', '10'); set('#hd-cost', '5');
+      [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Add holding').click();
+      const added = pf.holdings[n0];
+      out.addSaves = !!added && added.id === shown;
+      openAddHolding(added); set('#hd-qty', '999'); closeDrawer({ restore: false });
+      out.cancelKeeps = added.qty === 10;
+      openAddHolding(added); set('#hd-qty', '-5');
+      [...document.querySelectorAll('#drawer button')].find(b => b.textContent.trim() === 'Save').click();
+      out.negRefused = added.qty === 10;
+      closeDrawer({ restore: false });
+
+      State.portfolios.push({ id: 'pf-h', name: 'H unpriced', cash: 0, cashCcy: 'MYR',
+        holdings: [{ id: 'O-SEC', qty: 10, cost: 50, fx0: 4.4, fee: 0, rebate: 0 }] });
+      State.pfIdx = State.portfolios.length - 1; render();
+      const tile = [...document.querySelectorAll('main .card')].map(c => c.innerText).find(t => t.startsWith('Unrealised change')) || '';
+      out.unpricedTile = tile.split('\\n').filter(Boolean)[1] || tile;
+      State.portfolios.pop(); State.pfIdx = 0;
+
+      State.priceAlerts.push({ id: 'pa-h', ticker: 'O-SEC', op: '<', price: 50, note: '' });
+      navigate('/my/alerts');
+      const rail = [...document.querySelectorAll('main .card')].map(c => c.innerText).find(t => t.startsWith('Price alerts')) || '';
+      const oRow = rail.split('\\n').findIndex(l => l.trim() === 'O');
+      out.unpricedChip = rail.split('\\n').slice(oRow, oRow + 4).join(' ');
+      const feedN = () => +((document.querySelector('main .card h3, main .card .h-card')?.textContent || '').match(/— (\\d+)/) || [])[1];
+      const before = feedN();
+      const box = [...document.querySelectorAll('.checkline')].find(l => l.innerText.startsWith('Risk flag'))?.querySelector('input');
+      box?.click();
+      out.kinds = { before, after: feedN(), stored: !(store.read('alertKinds', []) || []).includes('risk'),
+        disabled: [...document.querySelectorAll('.checkline input')].filter(i => i.disabled).length };
+      box && document.querySelector('.checkline') && [...document.querySelectorAll('.checkline')].find(l => l.innerText.startsWith('Risk flag')).querySelector('input').click();
+
+      out.exportsAlerts = 'priceAlerts' in exportEverything().data;
+
+      const s = {}; const d0 = Date.UTC(2025, 0, 1);
+      for (let i = 0; i < 66; i++) s[new Date(d0 + i * 864e5).toISOString().slice(0, 10)] = 100 + i;
+      const t = trendContext(s);
+      out.hollow = TREND_INDICATORS.filter(ind => ind.id !== 'cross' && !isNum(t.values[ind.id]) && !t.pending.some(p => p.id === ind.id)).map(i => i.id);
+
+      clearSeededData();
+      out.seedLeft = State.watchlists.filter(w => ['wl-1', 'wl-2'].includes(w.id)).length + State.priceAlerts.filter(p => ['pa-1', 'pa-2'].includes(p.id)).length;
+
+      State.compare = ['AAPL-SEC', 'MAYBANK']; navigate('/compare');
+      out.netRow = [...document.querySelectorAll('main table.dt td.pin')].some(td => /illustrative net/.test(td.textContent));
+      return out;
+    })()`);
+    const p = [];
+    if (!r.importIds) p.push('lists imported in one tick share an id, or a member landed in the wrong list');
+    if (!r.activeKept) p.push('deleting a list above the active one changed the active list');
+    if (!r.addSaves) p.push('an untouched Add-holding form saved a company other than the one its select shows');
+    if (!r.cancelKeeps) p.push('closing the holding editor without saving kept the edit');
+    if (!r.negRefused) p.push('a negative quantity was saved');
+    if (/−100/.test(r.unpricedTile) || r.unpricedTile.trim() !== '—') p.push(`a portfolio with no priced holding shows an unrealised change of ${r.unpricedTile}`);
+    if (/Crossed/.test(r.unpricedChip) || !/No price/.test(r.unpricedChip)) p.push(`an alert on an unpriced company reads: ${r.unpricedChip}`);
+    if (!(r.kinds.after < r.kinds.before) || !r.kinds.stored || r.kinds.disabled !== 3) p.push(`alert-type switches: feed ${r.kinds.before} → ${r.kinds.after}, stored ${r.kinds.stored}, ${r.kinds.disabled} disabled`);
+    if (!r.exportsAlerts) p.push('Export everything leaves out the price alerts');
+    if (r.hollow.length) p.push(`on 66 closes these read computed with no value: ${r.hollow.join(', ')}`);
+    if (r.seedLeft) p.push(`${r.seedLeft} seeded watchlists or alerts survive "Clear and start my own"`);
+    if (!r.netRow) p.push('the Compare table has no illustrative net yield row');
+    if (p.length) fail('My Investments: editors save what they show, lists keep their identity, the feed and its switches agree', p);
+    else ok('My Investments: editors save what they show and only on Save, lists keep their identity, unpriced holdings and alerts are not counted at nought, alert types filter and persist, the export and the sample clear are complete');
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

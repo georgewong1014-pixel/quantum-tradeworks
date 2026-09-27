@@ -25,10 +25,14 @@ const TREND_INDICATORS = [
   { id:'hi52',   label:'52-week high',     needs:252, kind:'level' },
   { id:'lo52',   label:'52-week low',      needs:252, kind:'level' },
   { id:'ddown',  label:'Drawdown from high', needs:252, kind:'pct' },
-  { id:'ret1m',  label:'1-month return',   needs:22,  kind:'pct' },
-  { id:'ret3m',  label:'3-month return',   needs:66,  kind:'pct' },
-  { id:'ret6m',  label:'6-month return',   needs:126, kind:'pct' },
-  { id:'ret12m', label:'12-month return',  needs:252, kind:'pct' },
+  /* A return over k trading days compares today's close with the one k days
+     before it, so it needs k + 1 closes. Declared as k, a series of exactly k
+     closes passed the gate, pctChange returned null, and the drawer listed
+     the return as computed with no value. */
+  { id:'ret1m',  label:'1-month return',   needs:23,  kind:'pct' },
+  { id:'ret3m',  label:'3-month return',   needs:67,  kind:'pct' },
+  { id:'ret6m',  label:'6-month return',   needs:127, kind:'pct' },
+  { id:'ret12m', label:'12-month return',  needs:253, kind:'pct' },
   { id:'vol',    label:'Realised volatility (annualised)', needs:30, kind:'pct' },
 ];
 const TREND_BY_ID = Object.fromEntries(TREND_INDICATORS.map(i => [i.id, i]));
@@ -72,7 +76,11 @@ function trendContext(series) {
     set('cross', found);
   }
 
-  if (!need('hi52')) {
+  /* Each of the three is gated in its own name. Only the high was, so the low
+     and the drawdown were never pending on a short series and the drawer
+     called them computed while printing a dash. */
+  const shortHi = need('hi52'), shortLo = need('lo52'), shortDd = need('ddown');
+  if (!shortHi && !shortLo && !shortDd) {
     const w = closes.slice(-252);
     set('hi52', Math.max(...w)); set('lo52', Math.min(...w));
     set('ddown', (last / Math.max(...w) - 1) * 100);
@@ -220,7 +228,9 @@ function alignedReturn(a, b, days) {
 
 function relativeStrength(symbol, meta, allSeries) {
   const bench = benchmarkFor(meta, symbol);
-  if (!bench) return { benchmark: null, reason: `No benchmark is defensible here${meta?.kind ? ` for ${meta.kind === 'fx' ? 'a currency pair' : `a ${meta.kind}`}` : ''}. Measuring it against an equity index would be a number with no question behind it.` };
+  /* The article follows the word: "an index", "an ETF", "a commodity". */
+  const kindPhrase = (k) => k === 'fx' ? 'a currency pair' : `${/^[aeiou]/i.test(k) ? 'an' : 'a'} ${k}`;
+  if (!bench) return { benchmark: null, reason: `No benchmark is defensible here${meta?.kind ? ` for ${kindPhrase(meta.kind)}` : ''}. Measuring it against an equity index would be a number with no question behind it.` };
   if (symbol.toUpperCase() === bench.symbol) return { benchmark: bench, isBenchmark: true };
   const a = allSeries[symbol], b = allSeries[bench.symbol];
   if (!a || !b) return { benchmark: bench, reason: `No series for ${!b ? bench.symbol : symbol}. Import one to compare.` };
@@ -390,7 +400,7 @@ VIEWS.tracked = () => {
        day-change field, so what is drawn and what is stated agree. */
     const first = values[0], last = values[values.length - 1];
     const chg = (values.length >= 2 && first > 0) ? ((last - first) / first) * 100 : null;
-    return { sym, meta, p, dates, values, chg, name: meta.name || sym,
+    return { sym, meta, p, hist, dates, values, chg, name: meta.name || sym,
              kind: meta.kind || 'unknown', market: meta.market || '' };
   });
 
@@ -445,7 +455,11 @@ VIEWS.tracked = () => {
 
     /* Trend state, or how much more history it needs. Never a computed-looking
        value on a series too short to support it. */
-    const t = trendContext(series[r.sym] || {});
+    /* From the merged series the row draws, not the canonical key alone.
+       Closes filed under an alias were drawn in the sparkline and counted in
+       the change, then ignored here, so the trend and the drawer reported the
+       shorter history. */
+    const t = trendContext(r.hist);
     const tCell = el('td');
     const ctx = TREND_STRATEGIES[0].evaluate(t);
     if (ctx) {
@@ -545,11 +559,26 @@ VIEWS.alerts = () => {
 
   const layout = el('div', { class: 'thesis-layout' });
 
+  /* The alert types in the rail filter this feed. They were checkboxes with no
+     handler and no storage: unticking every one changed nothing, and crossed
+     price alerts appeared tagged "Price move" while that type read as off.
+     What a type hides is counted, never dropped silently. */
+  const kindOn = (k) => State.alertKinds.includes(k);
+  const shown = items.filter(a => kindOn(a.kind));
+  const hiddenN = items.length - shown.length;
+
   const feedCard = el('div', { class: 'card' });
-  feedCard.append(cardHead(`Alert feed — ${items.length}`, 'Deduplicated: the same fact changing twice in one period produces one alert, not two.'));
-  if (!items.length) feedCard.append(emptyState('Nothing has changed state since the last run.'));
+  /* The feed is rebuilt from the current state each time the page loads; it is
+     not a history of changes, and nothing merges two items about one fact. It
+     used to say it was deduplicated, which the status register says is not
+     built. */
+  feedCard.append(cardHead(`Alert feed — ${shown.length}`,
+    'Rebuilt from the current data each time this page loads. Not deduplicated: one company can appear once per source that reports on it.'));
+  if (hiddenN) feedCard.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
+    `${hiddenN} more item${hiddenN === 1 ? ' is' : 's are'} hidden by the types switched off under Alert types.`));
+  if (!shown.length) feedCard.append(emptyState(items.length ? 'Every current item is of a type you have switched off.' : 'Nothing has changed state since the last run.'));
   const l = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
-  items.forEach(a => {
+  shown.forEach(a => {
     const s = SEV_STYLE[a.sev] || SEV_STYLE.info;
     const item = el('div', { class: 'noteitem' });
     item.append(el('span', { class: 'ni-icon', style: `background:color-mix(in srgb, var(${s.v}) 15%, transparent);color:var(${s.v})`, html: icon(s.icon, 13) }));
@@ -582,13 +611,19 @@ VIEWS.alerts = () => {
   const pal = el('div', { style: 'display:flex;flex-direction:column' });
   State.priceAlerts.forEach((pa, i) => {
     const r = BY_ID.get(pa.ticker);
-    const hit = r && (pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price);
+    /* The same test the feed applies. Without the price check, null < 50 is
+       true, so an alert on an unpriced company read "Crossed" here while the
+       feed, correctly, showed nothing. */
+    const priced = !!r && isNum(r.c.px?.p);
+    const hit = priced && (pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price);
+    const tk = r ? r.c.tk : pa.ticker;
     const row = el('div', { class: 'row row-wrap', style: `gap:8px;padding:8px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
-    row.append(el('span', { style: 'font-size:13px;font-weight:600;min-width:74px' }, pa.ticker));
+    row.append(el('span', { style: 'font-size:13px;font-weight:600;min-width:74px' }, tk));
     row.append(el('span', { class: 'metaline' }, `${pa.op} ${r ? fmtMoney(pa.price, r.c.ccy) : pa.price}`));
     row.append(el('span', { class: 'spacer' }));
-    row.append(hit ? sevChip('info', 'Crossed') : el('span', { class: 'chip' }, 'Waiting'));
-    row.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Edit ${pa.ticker} price alert`,
+    row.append(!priced ? el('span', { class: 'chip', title: 'No price is carried for this company, so the threshold cannot be tested.' }, 'No price')
+      : hit ? sevChip('info', kindOn('price') ? 'Crossed' : 'Crossed · Price move is off') : el('span', { class: 'chip' }, 'Waiting'));
+    row.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Edit ${tk} price alert`,
       onclick: () => openPriceAlertEditor(pa) }, 'Edit'));
     pal.append(row);
   });
@@ -596,13 +631,20 @@ VIEWS.alerts = () => {
   rail.append(pac);
 
   const rules = el('div', { class: 'card' });
-  rules.append(cardHead('Alert types', 'Defaults are thesis-linked. Price alerts are available but off by default.'));
+  rules.append(cardHead('Alert types', 'Which types the feed shows. Defaults are thesis-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
   ALERT_KINDS.forEach(k => {
+    const built = k.built !== false;
     const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
-    lab.append(el('input', { type: 'checkbox', checked: k.id !== 'price' ? '' : null, style: 'margin-top:3px' }));
+    lab.append(el('input', { type: 'checkbox', checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
+      style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
+      onchange: e => {
+        State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
+        saveAlertKinds(); render();
+      } }));
     const tx = el('div');
     tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
-    tx.append(el('div', { class: 'metaline' }, k.note));
+    tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` },
+      built ? k.note : `${k.note} Nothing in this build produces this type yet, so there is nothing for the switch to show or hide.`));
     lab.append(tx);
     rules.append(lab);
   });

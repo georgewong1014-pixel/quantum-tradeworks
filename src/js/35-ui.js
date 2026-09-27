@@ -672,6 +672,24 @@ function applyRoute() {
     const t = qs.get('tab');
     if (!(t && (LEARN_TABS.some(x => x.id === t) || LEARN_TAB_ALIAS[t]))) State.learnTab = 'dictionary';
   }
+
+  /* A screen template named in the address (?template=div-cover) loads as the
+     screen, so a link can open the screener on the question it promises —
+     "Check whether a dividend is sustainable" opened the default columns. It
+     is applied once and the parameter dropped from the address, so a later
+     tab change inside Discover does not reload it over the reader's edits. */
+  if (route.view === 'discover' && qs.get('template')) {
+    const t = SCREEN_TEMPLATES.find(x => x.id === qs.get('template'));
+    if (t) { const s = blankScreen(); t.apply(s); State.screen = s; State.appliedTemplate = t.id; }
+    qs.delete('template');
+    const rest = qs.toString();
+    history.replaceState(history.state, '', location.pathname + (rest ? `?${rest}` : ''));
+  }
+  /* The launcher's goal does not persist (55-views-public.js says why), but it
+     lived on in State for the session, so coming back to /start from another
+     page reopened the last goal's questions instead of the menu. Entering the
+     view resets it; the answers are kept. */
+  if (route.view === 'launcher' && State.view !== 'launcher' && State.launcher) State.launcher.goal = null;
   State.view = route.view;
   setDocumentMeta(route);
   render();

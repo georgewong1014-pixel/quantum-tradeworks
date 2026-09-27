@@ -128,7 +128,10 @@ VIEWS.marketing = () => {
     '/discover/screener', 'Open the screener'));
   tgrid.append(taskCard('Check whether a dividend is sustainable',
     'Cover the distribution against earnings and free cash flow, and see how much headroom is left.',
-    '/discover/screener', 'Check cover'));
+    /* Opens on the dividend cash coverage template — yield, cash payout, free
+       cash flow yield and the earnings payout ratio — rather than the default
+       columns, which carried no cover measure at all. */
+    '/discover/screener?template=div-cover', 'Check cover'));
   tgrid.append(taskCard('Compare similar businesses',
     'Compare on the measures that fit the business model rather than one generic table.',
     '/compare', 'Compare companies'));
@@ -149,7 +152,10 @@ VIEWS.marketing = () => {
     { id: 'MAYBANK', label: 'Maybank' }, { id: 'PBBANK', label: 'Public Bank' },
     { id: 'TENAGA', label: 'Tenaga' }, { id: 'AAPL-SEC', label: 'Apple' },
   ].filter(p => BY_ID.has(p.id));
-  State.demoPick = picks.some(p => p.id === State.demoPick) ? State.demoPick : (picks[0]?.id || null);
+  /* 'property' is a pick too. Checked against the company picks alone, it was
+     reset to the first company on every render, so the Kuching tab could be
+     clicked and never shown. */
+  State.demoPick = State.demoPick === 'property' || picks.some(p => p.id === State.demoPick) ? State.demoPick : (picks[0]?.id || null);
 
   const seg = el('div', { class: 'segmented', style: 'margin:var(--md) 0' });
   picks.forEach(p => seg.append(el('button', {
@@ -159,19 +165,35 @@ VIEWS.marketing = () => {
     onclick: () => { State.demoPick = 'property'; render(); } }, 'A Kuching property'));
   demo.append(seg);
 
+  /* THE KUCHING EXAMPLE, COMPUTED. Its figures were written by hand, and the
+     engine disagreed with them for the very inputs stated beside them — the
+     page then invited the reader to "Calculate my property" and see different
+     numbers. The example is the calculator's default deal at the stated price
+     and rent, run through the same dealModel the calculator uses. */
+  const EX_PRICE = 550000, EX_RENT = 1900;
+  const exm = dealModel({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
+    checks: {}, price: EX_PRICE, rent: EX_RENT });
+  const rm0 = (v) => isNum(v) ? fmtMoney(v, 'MYR', 0) : '—';
+  const exUpfront = isNum(exm.transactionCash) ? exm.transactionCash + (exm.improvementCash || 0) : null;
+  const exNote = 'Computed by the calculator’s own model from its illustrative defaults at this price and rent — an example, not a listing. Enter your own numbers to get your own answer.';
+
   const panel = el('div', { class: 'card' });
   if (State.demoPick === 'property') {
     panel.append(el('div', { class: 'grid grid-5' }, [
-      statTile('Monthly cash flow', '−RM840', { sub: 'after instalment, maintenance and vacancy' }),
-      statTile('Break-even rent', 'RM2,810', { sub: 'rent needed to cover every cost' }),
-      statTile('Cash required upfront', 'RM91,000', { sub: 'deposit, fees, renovation' }),
-      statTile('Gross yield', '4.15%', { sub: 'RM1,900 rent on RM550,000' }),
-      statTile('Evidence quality', 'Illustrative', { sub: 'user-supplied inputs, no verified comparables' }),
+      statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { sub: 'after instalment, maintenance and vacancy' }),
+      statTile('Break-even rent', rm0(exm.breakEvenRent), { sub: 'rent needed to cover every cost' }),
+      statTile('Cash required upfront', rm0(exUpfront), { sub: 'deposit, fees, renovation' }),
+      statTile('Gross yield', fmtPct(EX_RENT * 12 / EX_PRICE * 100, 2), { sub: `${rm0(EX_RENT)} rent on ${rm0(EX_PRICE)}` }),
+      statTile('Evidence quality', 'Illustrative', { sub: 'default inputs, no verified comparables' }),
     ]));
-    panel.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
-      'An example, not a listing. Enter your own numbers to get your own answer.'));
+    panel.append(el('p', { class: 'metaline', style: 'margin-top:10px' }, exNote));
   } else if (State.demoPick && BY_ID.has(State.demoPick)) {
     const r = BY_ID.get(State.demoPick);
+    /* The illustrative marker every other company surface carries. The panel
+       showed synthetic Maybank scores and a valuation range with nothing
+       saying they were synthetic. */
+    if (!r.c.real) panel.append(el('p', { class: 'metaline', style: 'margin:0 0 10px' }, [
+      illusChip(r.c), ` ${r.c.name}: illustrative figures — synthetic, not filed. They show what the report contains, not what the company reported.`]));
     panel.append(el('div', { class: 'grid grid-5' }, [
       statTile('Business quality', `${r.scores.quality.score}/100`, { sub: 'margin durability, returns, consistency' }),
       statTile('Financial strength', `${r.scores.strength.score}/100`, { sub: 'leverage, cover, liquidity' }),
@@ -204,12 +226,13 @@ VIEWS.marketing = () => {
   prop.append(cityGrid);
   const example = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   example.append(el('div', { class: 'grid grid-5' }, [
-    statTile('Purchase price', 'RM550,000'),
-    statTile('Expected rent', 'RM1,900', { sub: 'per month' }),
-    statTile('Monthly cash flow', '−RM840', { tone: '--dn-text' }),
-    statTile('Break-even rent', 'RM2,810'),
-    statTile('Cash required upfront', 'RM91,000'),
+    statTile('Purchase price', rm0(EX_PRICE)),
+    statTile('Expected rent', rm0(EX_RENT), { sub: 'per month' }),
+    statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { tone: isNum(exm.cashflowMonthly) && exm.cashflowMonthly < 0 ? '--dn-text' : null }),
+    statTile('Break-even rent', rm0(exm.breakEvenRent)),
+    statTile('Cash required upfront', rm0(exUpfront)),
   ]));
+  example.append(el('p', { class: 'metaline', style: 'margin-top:10px' }, exNote));
   example.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
     el('a', { class: 'btn btn-primary', href: href('/property/calculator'),
       onclick: (e) => { e.preventDefault(); navigate('/property/calculator'); } }, 'Calculate my property')));
@@ -616,7 +639,10 @@ VIEWS.userdata = () => {
       const blob = new Blob([JSON.stringify(userData, null, 2)], { type: 'application/json' });
       const a = el('a', { href: URL.createObjectURL(blob), download: 'quantum-tradeworks-my-data.json' });
       document.body.append(a); a.click(); a.remove();
-    } }, 'Export everything'));
+      /* Named for what it carries. It shared its label with the card below,
+         which exports portfolios, cases and watchlists; a reader backing up
+         from this one got pasted prices and nothing else. */
+    } }, 'Export these prices'));
     exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!confirm('Remove every price you have added? This cannot be undone and there is no copy on any server.')) return;
       userData.series = {}; saveUserData(); location.reload();
@@ -635,11 +661,12 @@ VIEWS.userdata = () => {
      the longest was the work most easily lost. */
   const all = el('div', { class: 'card' });
   all.append(cardHead('Everything you have made',
-    'All of it is held in this browser and nowhere else. This is the only copy that survives a cleared browser, a second machine, or private mode closing.'));
+    'All of it is held in this browser and nowhere else. This is the only copy that survives a cleared browser, a second machine, or private mode closing. Display preferences — theme, density, the companies in a comparison — are not in it; the backup above carries those too.'));
 
   const held = PORTABLE_KEYS.map(({ k, label }) => {
     const v = store.read(k, null);
-    const n = Array.isArray(v) ? v.length : (v && typeof v === 'object' ? 1 : 0);
+    /* A setting stored as a bare value (the base currency) is held too. */
+    const n = Array.isArray(v) ? v.length : (v && typeof v === 'object' ? 1 : (v !== null && v !== undefined && v !== '' ? 1 : 0));
     return { k, label, n, has: v !== null && v !== undefined && n > 0 };
   });
   const kv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
@@ -892,7 +919,10 @@ function openTrendDrawer(row, t) {
   }
 
   /* Relative strength, computed against the benchmark for this instrument. */
-  const series = trackedHistory?.series || {};
+  /* The row's own series is the merged one the Tracked row drew (every alias
+     key it is filed under), so the relative strength reads the same history
+     as the trend context above. */
+  const series = row.hist ? { ...(trackedHistory?.series || {}), [row.sym]: row.hist } : (trackedHistory?.series || {});
   const reg = instruments?.instruments || [];
   const rs = relativeStrength(row.sym, row.meta, series);
   const rsCard = el('div', { class: 'panel' });
@@ -931,7 +961,8 @@ function openTrendDrawer(row, t) {
         el('td', { class: 'num' }, withSign(h.benchmark, 1)),
         el('td', { class: 'num ' + diffClass(h.excess) }, withSign(h.excess, 1)),
         el('td', { class: 'metaline' }, !pc ? '—'
-          : pc.insufficient ? `${pc.have} of ${pc.needs} peers` : `${ord(pc.pct)} of ${pc.peers}`),
+          /* A percentile, not a rank: "60th of 43" read as a place out of 43. */
+          : pc.insufficient ? `${pc.have} of ${pc.needs} peers` : `${ord(pc.pct)} percentile · ${pc.peers} peers`),
       ]));
     });
     rt.append(rb);
@@ -1015,7 +1046,7 @@ function openTrendDrawer(row, t) {
     tb2.append(el('tr', {}, [
       el('td', {}, ind.label),
       el('td', { class: 'num' }, shown),
-      el('td', { class: 'metaline' }, pend ? `needs ${pend.more} more closes` : 'computed'),
+      el('td', { class: 'metaline' }, pend ? `needs ${pend.more} more close${pend.more === 1 ? '' : 's'}` : 'computed'),
     ]));
   });
   tbl.append(tb2);
@@ -1117,7 +1148,11 @@ VIEWS.privacy = () => trustPage('Privacy',
          assume the rest is not there. The borrower profile in particular —
          income, commitments, credit conduct — is the most personal thing this
          product holds and was not on this page. */
-      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency.',
+      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency. '
+       /* Named after an audit compared this list with every key the code
+          writes. The report log is a per-company reading record of the same
+          kind as recently viewed, and was missing with the rest. */
+       + 'Also: the companies you put in a comparison, the required discount you set on a valuation, which company reports you opened this month (counted against the plan’s monthly allowance), the screener’s current filters, which alert types the feed shows, the property deal you had before opening a shared link, and display preferences — dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, whether filed SEC data is switched on, and whether you dismissed the introduction.',
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
