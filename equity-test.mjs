@@ -703,6 +703,134 @@ try {
     else ok(`every absent figure gives the true reason (insurer ${r.ins.cid}${r.negEq ? `, negative equity ${r.negEq.cid}` : ''}${r.noDps ? `, no dividend line ${r.noDps.cid}` : ''}), a price measure shows no false prior period${r.wtd ? `, and ${r.wtd.id}'s share count names its weighted diluted tag` : ''}`);
   }
 
+  /* THE COMPANY PAGE SAYS WHAT IT HOLDS. A filed bank's pre-tax income is not
+     pre-provision profit; a Basic Directory company is not graded, and a D is
+     not a reason to own anything; a share-count jump is not asserted to be a
+     split; a short growth window names the missing revenue, not missing
+     statements; the company at the peer median is not "below peers"; and a
+     momentum score re-based over half its weight says so. */
+  {
+    const r = await evaluate(`(() => {
+      const lbl = (id) => typeof ebitLabel !== 'function' ? 'no ebitLabel' : BY_ID.get(id) ? ebitLabel(BY_ID.get(id).c) : null;
+      const labels = { jpm: lbl('JPM-SEC'), maybank: lbl('MAYBANK'), blk: lbl('BLK-SEC') };
+      let dirGraded = 0, fromD = 0;
+      U.forEach(x => { const l = strategyLens(x);
+        if (l.tier.id === 'directory' && l.fits.some(f => f.state === 'graded')) dirGraded++;
+        const role = l.fits.filter(f => f.state === 'graded' && ['income','compounder','cyclical','value','catalyst'].includes(f.key)).sort((a, b) => b.score - a.score).find(f => f.grade !== 'D');
+        if (l.primary && !role) fromD++; });
+      openResearch('JPM-SEC', 'financials');
+      const legend = [...document.querySelectorAll('main .legend-item')].map(x => x.textContent).join(' | ');
+      openResearch('O-SEC', 'ownership');
+      const breakNote = [...document.querySelectorAll('main .note')].map(n => n.textContent).find(t => /withheld/.test(t)) || '';
+      openResearch('BLK-SEC', 'quality');
+      const blk = BY_ID.get('BLK-SEC');
+      const caveat = [...document.querySelectorAll('main .metaline')].map(n => n.textContent).find(t => /^Computed over/.test(t)) || '';
+      openResearch('ABBV-SEC', 'business');
+      const medianRows = [...document.querySelectorAll('main table.dt tbody tr')].map(tr => [...tr.cells].map(td => td.textContent))
+        .filter(cells => cells.length === 5 && /^(\\d+) of (\\d+)$/.test(cells[3]))
+        .filter(cells => { const [, k, n] = cells[3].match(/^(\\d+) of (\\d+)$/).map(Number); return n % 2 === 1 && k === (n + 1) / 2; });
+      openResearch('ABBV-SEC', 'quality');
+      const abbv = BY_ID.get('ABBV-SEC');
+      const momCard = [...document.querySelectorAll('main h3.h-card')].find(h => /Momentum/.test(h.textContent))?.closest('.card')?.textContent || '';
+      return { labels, dirGraded, fromD, legend, breakNote, blkFin: blk ? blk.c.fin.length : null, caveat, medianRows,
+               momCoverage: abbv?.mom?.coverage, momNote: /re-based/.test(momCard) };
+    })()`);
+    const p = [];
+    if (r.labels.jpm !== 'Profit before tax, after provisions' || r.labels.maybank !== 'Pre-provision profit' || (r.labels.blk && r.labels.blk !== 'Operating profit'))
+      p.push(`profit labels: ${JSON.stringify(r.labels)}`);
+    if (/Pre-provision/.test(r.legend)) p.push(`JPM's Financials legend still reads "${r.legend}"`);
+    if (r.dirGraded) p.push(`${r.dirGraded} Basic Directory companies carry a strategy grade`);
+    if (r.fromD) p.push(`${r.fromD} companies name a return role from a D-graded fit`);
+    if (!r.breakNote || /no issuance or buyback/.test(r.breakNote) || /measure the split/.test(r.breakNote)) p.push(`O's share-count note: ${r.breakNote.slice(0, 200)}`);
+    if (r.blkFin >= 5 && /annual statements are held/.test(r.caveat)) p.push(`BLK holds ${r.blkFin} statements and the caveat says "${r.caveat.slice(0, 120)}"`);
+    const below = r.medianRows.filter(cells => /Below peers|Above peers/.test(cells[4]));
+    if (below.length) p.push(`the median company is told ${below.map(c => `${c[0]}: ${c[4]}`).join('; ')}`);
+    if (r.momCoverage < 100 && !r.momNote) p.push(`ABBV's momentum is re-based over ${r.momCoverage}% of its weight and the card does not say so`);
+    if (p.length) fail('the company page labels what it holds: filed profit lines, directory tier, share-count breaks, growth window, median, momentum re-basing', p);
+    else ok(`the company page labels what it holds — JPM "${r.labels.jpm}", no directory-tier grades, no role from a D, the share-count break left undiagnosed, the median at the median${r.medianRows.length ? ` (${r.medianRows.length} row)` : ''}, momentum re-basing stated`);
+  }
+
+  /* EVERY CONTROL ON THE COMPANY PAGE DOES WHAT IT SAYS. The peers button
+     keeps to the plan's Compare limit; the research-home template cards open
+     the screener; "Create a price alert" opens the editor on this company;
+     the tab strip is a tablist the arrow keys move along; the illustrative
+     price card computes its distance from the high on the sample it prints;
+     and edited assumptions are named on the snapshot that does not use them. */
+  {
+    const r = await evaluate(`(() => {
+      const out = {};
+      openResearch('MAYBANK', 'snapshot');
+      const pc = [...document.querySelectorAll('main h3.h-card')].find(h => /Price, last 52 weeks/.test(h.textContent))?.closest('.card');
+      const mb = BY_ID.get('MAYBANK').c.px;
+      const want = fmtPct((mb.p - mb.hi) / mb.hi * 100);
+      out.priceCard = pc ? { generated: /generated illustration/.test(pc.textContent), fromHigh: pc.textContent.includes(want + ' from the high'), want } : null;
+      const sub = document.querySelector('.subnav');
+      const tabs = [...sub.querySelectorAll('[role=tab]')];
+      out.tablist = sub.getAttribute('role') === 'tablist' && tabs.filter(t => t.tabIndex === 0).length === 1;
+      tabs[0].focus();
+      tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      out.arrow = document.activeElement === tabs[1];
+      [...document.querySelectorAll('main button')].find(b => /Open full comparison/.test(b.textContent))?.click();
+      out.compare = { n: State.compare.length, cap: LIMITS.compare };
+      openResearch('MAYBANK', 'filings');
+      [...document.querySelectorAll('main button')].find(b => /price alert/i.test(b.textContent))?.click();
+      out.alert = { editor: !!document.getElementById('pa-co'), co: document.getElementById('pa-co')?.value || null,
+                    falseBuilder: [...document.querySelectorAll('main, .drawer, .toast, [role=status]')].some(n => /Alert rule builder/.test(n.textContent)) };
+      closeDrawer({ restore: false });
+      const abbv = BY_ID.get('ABBV-SEC');
+      const saved = State.valuation[abbv.c.id];
+      State.valuation[abbv.c.id] = { ...abbv.inputs, wacc: (abbv.inputs.wacc || 8) + 1 };
+      openResearch('ABBV-SEC', 'snapshot');
+      out.editedNote = [...document.querySelectorAll('main .metaline')].some(n => /^Default assumptions\\./.test(n.textContent));
+      const tile = [...document.querySelectorAll('main .stat-label')].find(x => /vs base-case/.test(x.textContent))?.parentElement;
+      out.tile = tile ? { value: tile.querySelector('.stat-value').textContent, style: tile.querySelector('.stat-value').getAttribute('style') || '' } : null;
+      if (saved) State.valuation[abbv.c.id] = saved; else delete State.valuation[abbv.c.id];
+      navigate('/research');
+      const card = [...document.querySelectorAll('[role=button]')].find(x => x.querySelector('h3')?.textContent === 'Banks');
+      card?.click();
+      out.banks = { view: State.view, path: location.pathname, tpl: State.appliedTemplate };
+      return out;
+    })()`);
+    const p = [];
+    if (!r.priceCard || !r.priceCard.generated || !r.priceCard.fromHigh) p.push(`Maybank's price card: ${JSON.stringify(r.priceCard)}`);
+    if (!r.tablist || !r.arrow) p.push(`tab strip: tablist with one tab stop ${r.tablist}, ArrowRight moves focus ${r.arrow}`);
+    if (r.compare.n > r.compare.cap) p.push(`the peers button put ${r.compare.n} companies in a comparison capped at ${r.compare.cap}`);
+    if (!r.alert.editor || r.alert.co !== 'MAYBANK' || r.alert.falseBuilder) p.push(`Create a price alert: ${JSON.stringify(r.alert)}`);
+    if (!r.editedNote) p.push('edited assumptions are not named on the snapshot that still shows the defaults');
+    if (r.tile && r.tile.value === '—' && /--dn-text|--ok-text/.test(r.tile.style)) p.push(`the absent "vs base-case value" is coloured: ${r.tile.style}`);
+    if (r.banks.path !== '/discover/screener' || r.banks.tpl !== 'my-banks') p.push(`the research-home Banks card: ${JSON.stringify(r.banks)}`);
+    if (p.length) fail('every control on the company page does what it says', p);
+    else ok(`every control on the company page does what it says — peers capped at ${r.compare.cap}, Banks opens the screener, the alert editor opens on MAYBANK, the tabs are a tablist, ${r.priceCard.want} from the high on the sample`);
+  }
+
+  /* A ROLL IS TWO LEGS, AND EACH CARRIES ONLY ITS OWN COSTS. The close leg
+     used to be spread from the opening one: it inherited the opening fees, so
+     the ledger counted them twice, and its id was overwritten with undefined.
+     A rolled call committed strike × shares, which a call opened directly
+     never does. */
+  {
+    const r = await evaluate(`(() => {
+      const saved = State.wheelLegs;
+      State.wheelLegs = [];
+      addWheelLeg({ phase:'put', action:'open', status:'open', contractLabel:'P50', strike:50, shares:100, grossPremium:110,
+        commissions:0, fees:0.5, netCash:109.5, capitalCommitted:5000, currentCloseCost:40 });
+      rollWheelLeg(State.wheelLegs[0], 0.8, { label:'P45', strike:45, shares:100, creditPerShare:1.2, openCommission:1, closeCommission:1 });
+      const close = State.wheelLegs[1];
+      const t = wheelLedger(State.wheelLegs);
+      const put = { closeId: close.id || null, closeFees: close.fees ?? null, costs: t.fees + t.commissions };
+      State.wheelLegs = [];
+      addWheelLeg({ phase:'call', action:'open', status:'open', contractLabel:'C55', strike:55, shares:100, grossPremium:100,
+        commissions:0, fees:0, netCash:100, capitalCommitted:0 });
+      rollWheelLeg(State.wheelLegs[0], 0.5, { label:'C57', strike:57, shares:100, creditPerShare:1, openCommission:0, closeCommission:0 });
+      const callCap = State.wheelLegs[2].capitalCommitted;
+      State.wheelLegs = saved; saveWheelLegs();
+      return { ...put, callCap };
+    })()`);
+    if (!r.closeId || r.closeFees != null || Math.abs(r.costs - 2.5) > 1e-9 || r.callCap !== 0)
+      fail('a roll records a close leg with its own id and only its own costs, and a rolled call commits no capital', r);
+    else ok('a roll records a close leg with its own id and only its own costs ($2.50 of fees and commissions, not $3.00), and a rolled call commits no capital');
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

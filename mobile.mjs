@@ -32,7 +32,11 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 /* The front door, the discover hub and two company pages — one
                    filed, one illustrative — were never in this list, so the
                    widest tables on the site were the ones never measured. */
-                '/', '/discover', '/company/MSFT-SEC', '/company/MAYBANK'];
+                '/', '/discover', '/company/MSFT-SEC', '/company/MAYBANK',
+                /* The illustrative Filings tab: its "sample list" chip carried a
+                   whole sentence, did not wrap, and ran 61px past 390. Only the
+                   default tab of a company page was measured above. */
+                '/company/MAYBANK?tab=filings'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
