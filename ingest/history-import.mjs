@@ -87,8 +87,11 @@ function parseCsv(text, label) {
     if (!date || !Number.isFinite(close) || close <= 0) { skipped++; continue; }
     out[date] = close;
     if (vi > -1) {
-      const v = Number(String(cells[vi] ?? '').replace(/[, ]/g, ''));
-      /* Zero is a real reading on a day with no trades; negative is not. */
+      const raw = String(cells[vi] ?? '').replace(/[, ]/g, '');
+      /* Zero is a real reading on a day with no trades; negative is not; and
+         a blank cell is no reading at all — Number('') is 0, so it used to be
+         written as a day with no trades. */
+      const v = raw === '' ? NaN : Number(raw);
       if (Number.isFinite(v) && v >= 0) vols[date] = v;
     }
   }

@@ -226,6 +226,11 @@ export function yahooProvider({ userAgent } = {}) {
         out.push({ date: new Date(ts[i] * 1000).toISOString().slice(0, 10), close,
                    volume: Number.isFinite(q.volume?.[i]) ? q.volume[i] : null });
       }
+      /* Yahoo answers 0 on every bar for an FX pair, an index or a yield:
+         nothing trades, so there is no volume, and a column of zeros stored
+         as readings let a "volume below 1" rule match. With no positive
+         reading in the window, the volume is recorded as absent. */
+      if (!out.some(r => r.volume > 0)) out.forEach(r => { r.volume = null; });
       return out.length ? out : null;
     },
 
