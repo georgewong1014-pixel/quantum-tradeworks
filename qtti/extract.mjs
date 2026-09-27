@@ -419,6 +419,17 @@ function toDraft(x, meta) {
 
 /* -------------------------------------------------------------------- main -- */
 
+/* Before the image check and the banner. The contract does not depend on any
+   image (the payload is elided), and qtti/screenshots/ is git-ignored, so on a
+   fresh checkout the documented "inspect the exact model contract" command
+   stopped at "No images found." Stdout carries only the JSON, so it pipes. */
+if (has('print-request')) {
+  const name = ONE ? basename(ONE)
+    : existsSync(SHOTS) ? ((await readdir(SHOTS)).filter(f => MEDIA[extname(f).toLowerCase()]).sort()[0] || 'example.png') : 'example.png';
+  console.log(JSON.stringify(buildRequest('<base64 image omitted>', 'image/png', name), null, 2));
+  process.exit(0);
+}
+
 let files = [];
 if (ONE) files = [resolve(ROOT, ONE)];
 else {
@@ -429,12 +440,12 @@ else {
   }
   files = (await readdir(SHOTS)).filter(f => MEDIA[extname(f).toLowerCase()]).map(f => join(SHOTS, f)).sort();
 }
-if (!files.length) { console.error('No images found.'); process.exit(1); }
-
-/* Before the banner, so stdout carries only the JSON and the dump can be piped. */
-if (has('print-request')) {
-  console.log(JSON.stringify(buildRequest('<base64 image omitted>', 'image/png', basename(files[0])), null, 2));
-  process.exit(0);
+/* --simulate still reads, hashes and size-checks each real image — that is the
+   pipeline it exists to exercise — so it needs one, and says so. */
+if (!files.length) {
+  console.error(`No images found in ${SHOTS}.`);
+  if (has('simulate')) console.error('--simulate runs the whole pipeline on a real image with a canned reply; drop at least one chart image in first.');
+  process.exit(1);
 }
 
 console.log(`model      ${MODEL}`);

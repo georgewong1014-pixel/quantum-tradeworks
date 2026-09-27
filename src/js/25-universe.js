@@ -163,23 +163,17 @@ function addCompany(c) {
      earn points for a metric that was not tested. Re-based over tested weight
      now, with coverage reporting what was actually tested rather than the
      constant 100 it asserted. */
-  const valueParts = [
-    { w:.6, s:anchor(val.mos?.base, -35, 45) },
-    { w:.2, s:anchor(d.m.fcfy, 0, 9) },
-    { w:.2, s:anchor(d.m.dy, 0, 6) },
-  ];
-  const valueTested = valueParts.filter(x => isNum(x.s));
+  /* Weights and anchors come from VALUE_PILLAR, the definition Learn publishes. */
+  const valueRaw = { mosBase: val.mos?.base, fcfy: d.m.fcfy, dy: d.m.dy };
+  const valueParts = VALUE_PILLAR.all.map(i => ({ ...i, raw: valueRaw[i.k], score: anchor(valueRaw[i.k], i.lo, i.hi, i.inv) }));
+  const valueTested = valueParts.filter(x => isNum(x.score));
   const valueWeight = valueTested.reduce((a, x) => a + x.w, 0);
   scores.value = {
     score: valueWeight > 0
-      ? Math.round(clamp(valueTested.reduce((a, x) => a + x.s * x.w, 0) / valueWeight, 0, 100))
+      ? Math.round(clamp(valueTested.reduce((a, x) => a + x.score * x.w, 0) / valueWeight, 0, 100))
       : null,
     coverage: Math.round(valueWeight * 100),
-    parts: [
-      { k:'mosBase', w:.6, label:'Difference to model estimate vs base-case model estimate', raw:val.mos?.base, score:anchor(val.mos?.base, -35, 45), fmt:v=>fmtPct(v), lo:-35, hi:45 },
-      { k:'fcfy',    w:.2, label:'Free cash flow yield',           raw:d.m.fcfy,      score:anchor(d.m.fcfy, 0, 9),        fmt:v=>fmtPct(v), lo:0, hi:9 },
-      { k:'dy',      w:.2, label:'Dividend yield',                 raw:d.m.dy,        score:anchor(d.m.dy, 0, 6),          fmt:v=>fmtPct(v), lo:0, hi:6 },
-    ] };
+    parts: valueParts };
 
   /* Section 18.1 screens on the composite scores and the difference to the
      base-case model. Those are derived above, after the metric block has

@@ -3,10 +3,12 @@
 # /my/ holds one reader's own portfolios, investment cases, watchlists, property
 # evidence and correction cases. None of it leaves the browser, so there is
 # nothing there for a crawler to fetch — but a personal surface should not be in
-# an index whatever it happens to contain today.
+# an index whatever it happens to contain today. /app/watchlists is the Phase 2
+# brief's address for the same watchlists page, so it is excluded with it.
 
 User-agent: *
 Disallow: /my/
+Disallow: /app/watchlists
 Allow: /
 
 Sitemap: https://quantum-tradeworks.vercel.app/sitemap.xml

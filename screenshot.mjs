@@ -2,11 +2,11 @@
 // Zero-dependency screenshot tool. Drives a locally installed Chrome/Edge over the
 // DevTools Protocol using Node's built-in WebSocket (Node >= 22).
 //
-//   node screenshot.mjs http://localhost:3000
-//   node screenshot.mjs http://localhost:3000 homepage
-//   node screenshot.mjs http://localhost:3000 home-mobile --width 390 --height 844
-//   node screenshot.mjs http://localhost:3000 home-dark --dark
-//   node screenshot.mjs http://localhost:3000 home-fold --viewport-only
+//   node screenshot.mjs http://localhost:8123
+//   node screenshot.mjs http://localhost:8123 homepage
+//   node screenshot.mjs http://localhost:8123 home-mobile --width 390 --height 844
+//   node screenshot.mjs http://localhost:8123 home-dark --dark
+//   node screenshot.mjs http://localhost:8123 home-fold --viewport-only
 //
 // Output: ./temporary screenshots/screenshot-<label>.png
 import { spawn } from 'node:child_process';
@@ -166,7 +166,11 @@ try {
   }, sessionId);
 
   const loaded = cdp.once('Page.loadEventFired');
-  await cdp.send('Page.navigate', { url: rawUrl }, sessionId);
+  /* A dead port still "loads": Chrome paints its own "This site can't be
+     reached" page, and that was written out as the screenshot with exit 0. The
+     navigation's errorText is the only signal, so it fails the run. */
+  const nav = await cdp.send('Page.navigate', { url: rawUrl }, sessionId);
+  if (nav?.errorText) throw new Error(`Could not load ${rawUrl}: ${nav.errorText}. Is the server running on that port?`);
   await Promise.race([loaded, new Promise((r) => setTimeout(r, 15000))]);
   await new Promise((r) => setTimeout(r, WAIT));
 

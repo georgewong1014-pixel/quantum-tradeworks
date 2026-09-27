@@ -498,7 +498,11 @@ try {
       const bank = pick(x => x.c.type === 'bank' && x.c.real);
       const noPx = pick(x => x.c.real && !isNum(x.c.px?.p) && isNum(x.m.eps) && x.m.eps > 0);
       const illus = pick(x => !x.c.real && isNum(x.m.roe));
-      const suspect = pick(x => x.m.revenueSuspect);
+      /* Chosen from the raw lines, not from the flag under test: picked by
+         m.revenueSuspect, a derive() that stopped setting the flag left no
+         fixture, the check was skipped and the test still passed. */
+      const suspect = pick(x => { const l = x.c.fin[x.c.fin.length - 1];
+        return x.c.real && l[F.REV] > 0 && isNum(l[F.EBIT]) && l[F.EBIT] > l[F.REV]; });
       const anyReal = pick(x => x.c.real);
       const calcRow = pick(x => x.c.real && isNum(x.m.om));
       const missing = pick(x => x.c.real && !isNum(x.c.fin[x.c.fin.length - 1][F.DPS]) && !x.m.perShareScaleBroken);
@@ -510,6 +514,9 @@ try {
         suspectOm: suspect ? metricStatus(suspect, 'om') : null,
         calc: calcRow ? metricStatus(calcRow, 'om') : null,
         noDps: missing ? metricStatus(missing, 'payout') : null,
+        /* A rule with no company to test it on is reported, not passed. */
+        untested: [!suspect && 'withheld (no filer has EBIT above revenue)',
+                   !missing && 'dividend line not reported (every filer reports DPS)'].filter(Boolean),
       };
       let bad = 0, n = 0; const reasons = {};
       for (const row of U) for (const f of FIELDS) {
@@ -531,7 +538,8 @@ try {
     if (r.noDps && !(r.noDps.reason === 'not reported' && /dividend per share/.test(r.noDps.text))) problems.push(`a filer without a dividend line, payout: ${JSON.stringify(r.noDps)}`);
     if (r.bad) problems.push(`${r.bad} of ${r.n} field × company statuses disagree with the value`);
     if (problems.length) fail('every absent figure names its reason and every present one its kind', problems);
-    else ok(`every absent figure names its reason and every present one its kind (${r.n} pairs; absences: ${Object.entries(r.reasons).map(([k, v]) => `${k} ${v}`).join(', ')})`);
+    else ok(`every absent figure names its reason and every present one its kind (${r.n} pairs; absences: ${Object.entries(r.reasons).map(([k, v]) => `${k} ${v}`).join(', ')})`
+      + (r.untested.length ? `; UNTESTED — no fixture: ${r.untested.join('; ')}` : ''));
 
     /* And on the screener itself: an empty cell prints the reason, carries it
        as a title, and opens the drawer that names the input behind it. */
@@ -1427,6 +1435,80 @@ try {
     if (!r.netRow) p.push('the Compare table has no illustrative net yield row');
     if (p.length) fail('My Investments: editors save what they show, lists keep their identity, the feed and its switches agree', p);
     else ok('My Investments: editors save what they show and only on Save, lists keep their identity, unpriced holdings and alerts are not counted at nought, alert types filter and persist, the export and the sample clear are complete');
+  }
+
+  /* A CORRECTION CASE IS KEPT, AND SHOWN. Recording one closed the form and
+     opened the confirmation in the same tick, and the close's timer then hid
+     the confirmation. Ids were numbered by count, so after a delete the next
+     case reused a live id and Delete removed both. The raised time was UTC
+     with no zone beside a local-date id. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms) => new Promise(res => setTimeout(res, ms));
+      const saved = State.corrections;
+      State.corrections = [];
+      const record = async (text) => {
+        openReportError(); await wait(50);
+        const d = document.getElementById('err-description');
+        d.value = text; d.dispatchEvent(new Event('input'));
+        [...document.querySelectorAll('#drawer button')].find(b => b.textContent === 'Record this case').click();
+      };
+      await record('one');
+      await wait(450);
+      const shown = { hidden: drawer.hidden, title: drawerTitle.textContent,
+        link: [...drawer.querySelectorAll('a')].some(a => /See my recorded cases/.test(a.textContent)) };
+      closeDrawer({ restore: false }); await wait(350);
+      await record('two'); closeDrawer({ restore: false }); await wait(350);
+      State.corrections = State.corrections.filter(c => !c.id.endsWith('-001'));
+      await record('three'); closeDrawer({ restore: false }); await wait(350);
+      const ids = State.corrections.map(c => c.id);
+      const raised = State.corrections[0].createdAt;
+      const id = State.corrections[0].id;
+      State.corrections = saved; saveCorrections();
+      return { shown, ids, raised, id };
+    })()`);
+    const p = [];
+    if (r.shown.hidden || !/recorded/.test(r.shown.title) || !r.shown.link) p.push(`the confirmation drawer: ${JSON.stringify(r.shown)}`);
+    if (new Set(r.ids).size !== r.ids.length || r.ids.length !== 2) p.push(`ids after a delete: ${JSON.stringify(r.ids)}`);
+    const stamp = r.id.slice(3, 11);
+    if (!/ UTC[+−]\d\d:\d\d$/.test(r.raised) || r.raised.slice(0, 10).replace(/-/g, '') !== stamp) p.push(`raised "${r.raised}" against id ${r.id}`);
+    if (p.length) fail('a recorded correction case is confirmed, keeps a unique id, and is dated on one labelled clock', p);
+    else ok(`a recorded correction case is confirmed, keeps a unique id after a delete (${r.ids.join(', ')}), and is dated on one labelled clock (${r.raised})`);
+  }
+  /* LEARN PUBLISHES WHAT THE PRODUCT DOES. The router table lists every type
+     routeModel handles with the pack it routes to; the scoring page carries
+     the valuation pillar the screener and composite use; the router tab keeps
+     its own address; pricing prints no limit the build does not apply; and a
+     dotted registry alias is replaced by an address that survives a reload. */
+  {
+    await evaluate(`navigate('/learn')`); await sleep(400);
+    await evaluate(`[...document.querySelectorAll('main .subnav button')].find(b => b.textContent === 'Valuation model router').click()`);
+    await sleep(400);
+    const r = await evaluate(`(() => {
+      const rows = [...document.querySelectorAll('main table.dt')[0].querySelectorAll('tbody tr')].map(tr => [tr.cells[0].textContent, tr.cells[1].textContent]);
+      const out = { path: location.pathname, rows };
+      navigate('/learn?tab=scoring');
+      const vc = [...document.querySelectorAll('main .card')].find(c => c.querySelector('.h-card')?.textContent === 'Valuation Evidence');
+      out.valueRows = vc ? [...vc.querySelectorAll('tbody tr')].map(tr => [...tr.cells].map(td => td.textContent)) : null;
+      out.valueWeights = (typeof VALUE_PILLAR === 'undefined' ? [] : VALUE_PILLAR.all).map(i => Math.round(i.w * 100) + '%');
+      out.parts = (U.find(x => isNum(x.scores.value?.score)) || U[0]).scores.value.parts.map(p => [p.k, p.w, p.lo, p.hi]);
+      navigate('/pricing');
+      const dd = (k) => [...document.querySelectorAll('main dl.kv dt')].find(d => d.textContent === k)?.nextElementSibling.textContent;
+      out.metrics = dd('Screener metrics'); out.alerts = dd('Fundamental alerts'); out.nFields = FIELDS.length;
+      navigate('/app/equities/1155.KL/financials');
+      out.dotted = { path: location.pathname, view: State.view, ticker: State.ticker, tab: State.researchTab };
+      return out;
+    })()`);
+    const p = [];
+    if (r.path !== '/methodology') p.push(`the router tab moved the address to ${r.path}`);
+    const types = r.rows.map(x => x[0]);
+    if (r.rows.length !== 9 || !types.includes('Insurer') || !types.some(t => /Early-stage/.test(t)) || r.rows.some(x => x[1] === '—')) p.push(`router rows: ${JSON.stringify(r.rows)}`);
+    if (!r.valueRows || r.valueRows.map(x => x[1]).join() !== r.valueWeights.join()) p.push(`valuation pillar card: ${JSON.stringify(r.valueRows)}`);
+    if (JSON.stringify(r.parts) !== JSON.stringify([['mosBase', .6, -35, 45], ['fcfy', .2, 0, 9], ['dy', .2, 0, 6]])) p.push(`value score inputs: ${JSON.stringify(r.parts)}`);
+    if (!new RegExp('^All ' + r.nFields + '\\b').test(r.metrics || '') || !/not applied/.test(r.metrics) || !/not applied/.test(r.alerts || '')) p.push(`free plan card: metrics "${r.metrics}", alerts "${r.alerts}"`);
+    if (r.dotted.path.includes('.') || r.dotted.ticker !== 'MAYBANK' || r.dotted.tab !== 'financials') p.push(`dotted alias: ${JSON.stringify(r.dotted)}`);
+    if (p.length) fail('Learn and pricing publish what the product does, and every accepted address survives a reload', p);
+    else ok(`Learn routes all ${r.rows.length} company types and publishes the valuation pillar, the router tab stays on /methodology, pricing names its unapplied limits, and 1155.KL becomes ${r.dotted.path}`);
   }
 
 } catch (e) {

@@ -104,8 +104,9 @@ function runSearch(q) {
      confirmed the feature did not exist. Every route already carries a title,
      so this is a filter over data that was there all along. */
   const routeHits = !term ? [] : ROUTES.filter(rt =>
-    !rt.path.includes(':') && (rt.title.toLowerCase().includes(term) || rt.path.toLowerCase().includes(term)))
-    /* Aliases share a title with their canonical route; show each page once. */
+    !rt.path.includes(':') && !rt.alias && (rt.title.toLowerCase().includes(term) || rt.path.toLowerCase().includes(term)))
+    /* Aliases share a title with their canonical route; show each page once,
+       and never by an alias row, which would lead with the brief's address. */
     .filter((rt, i, a) => a.findIndex(x => x.view === rt.view && x.title === rt.title) === i)
     .slice(0, 6);
   if (routeHits.length) {

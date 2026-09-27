@@ -159,10 +159,20 @@ function emptyState(text) {
 
 /* ------------------------------------------------------------ drawer/toast */
 const scrim = $('#scrim'), drawer = $('#drawer'), drawerBody = $('#drawerBody'), drawerTitle = $('#drawerTitle');
-let lastFocus = null;
+let lastFocus = null, closeTimer = null, closingBack = null;
 
+/* A drawer opened while the previous one is still closing (the case-recorded
+   confirmation, the dashboard customiser reopening after a reorder) used to be
+   hidden by the close's 300ms timer, which nothing cancelled: the confirmation
+   of a recorded correction case opened and vanished in the same tick. Opening
+   now cancels the pending close and inherits the element that close would have
+   handed focus back to, because the button that opened this drawer sits in the
+   body about to be replaced. */
 function openDrawer(title, node) {
-  lastFocus = document.activeElement;
+  if (closeTimer) {
+    clearTimeout(closeTimer); closeTimer = null;
+    lastFocus = closingBack; closingBack = null;
+  } else lastFocus = document.activeElement;
   drawerTitle.textContent = title;
   drawerBody.replaceChildren(node);
   drawer.hidden = false;
@@ -176,10 +186,13 @@ function openDrawer(title, node) {
    to close and no focus to give back. restore:false is for a navigation away
    from the page the drawer belonged to, where the new page takes focus. */
 function closeDrawer({ restore = true } = {}) {
-  if (drawer.hidden) { closeSearch(); return; }
+  /* Already closing: the pending close owns the focus hand-back. */
+  if (drawer.hidden || closeTimer) { closeSearch(); return; }
   drawer.dataset.open = '0'; scrim.dataset.open = '0';
   const back = lastFocus; lastFocus = null;
-  setTimeout(() => {
+  closingBack = restore ? back : null;
+  closeTimer = setTimeout(() => {
+    closeTimer = null; closingBack = null;
     drawer.hidden = true;
     if (restore && back && back !== document.body && document.contains(back)) back.focus?.({ preventScroll: true });
   }, 300);
@@ -308,14 +321,18 @@ const ROUTES = [
      views, the same header, so a company is one page whichever address opens
      it. A symbol here resolves through the instrument registry, so
      /app/equities/1155 and /app/equities/maybank are the same company, and
-     the tab segment accepts the brief's names for our tabs. */
-  { path: '/app/equities',          view: 'researchHome', title: 'Equities' },
-  { path: '/app/equities/explore',  view: 'researchHome', title: 'Company explorer' },
-  { path: '/app/equities/compare',  view: 'compare',   title: 'Compare companies' },
+     the tab segment accepts the brief's names for our tabs. alias:true keeps
+     go() from choosing one as the address of its view: go() takes the first
+     matching row, and these sit above the canonical rows, so the Learn tab
+     "Valuation model router" moved the address to /equities/methodology and
+     go('compare') and go('watchlists') to their /app/ forms. */
+  { path: '/app/equities',          view: 'researchHome', title: 'Equities', alias: true },
+  { path: '/app/equities/explore',  view: 'researchHome', title: 'Company explorer', alias: true },
+  { path: '/app/equities/compare',  view: 'compare',   title: 'Compare companies', alias: true },
   { path: '/app/equities/:id',      view: 'research',  title: 'Company report' },
   { path: '/app/equities/:id/:tab', view: 'research',  title: 'Company report' },
-  { path: '/app/watchlists',        view: 'watchlists', title: 'Watchlists' },
-  { path: '/equities/methodology',  view: 'learn',     tab: 'models',    title: 'Methodology' },
+  { path: '/app/watchlists',        view: 'watchlists', title: 'Watchlists', alias: true },
+  { path: '/equities/methodology',  view: 'learn',     tab: 'models',    title: 'Methodology', alias: true },
   { path: '/compare',             view: 'compare',   title: 'Compare' },
   { path: '/my/portfolio',        view: 'portfolio', title: 'Portfolio' },
   { path: '/my/watchlists',       view: 'watchlists',title: 'Watchlists' },
@@ -615,7 +632,21 @@ function applyRoute() {
   }
   if (route.params?.id) {
     const id = companyFromSlug(route.params.id);
-    if (id) State.ticker = id;
+    if (id) {
+      State.ticker = id;
+      /* A registry alias with a dot in it (1155.KL) opens the page in-app, but
+         the host serves any dotted path as a file: the rewrite to index.html
+         excludes it on Vercel and serve.mjs falls back only for extensionless
+         paths, so a reload or a shared link 404'd. The address is swapped for
+         the company's own dotless segment, keeping the route, tab and query,
+         so every address the router accepts is one that survives a reload. */
+      if (String(route.params.id).includes('.')) {
+        const clean = (location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname).split('/');
+        const at = route.path.split('/').indexOf(':id');
+        clean[at] = companyPath(BY_ID.get(id).c).split('/').pop();
+        history.replaceState(history.state, '', href(clean.join('/')) + location.search);
+      }
+    }
     /* While the filings are in flight only the sample set can be searched, so
        every filed company is "unknown" for that second — and a cold deep link
        to one painted "404 No company" under the title "Not found" until
@@ -726,9 +757,10 @@ function go(view, opts = {}) {
      way the stale ?tab= from wherever the reader came from is dropped, and the
      other parameters follow withQuery's rule: all of them within the view,
      only ?personal and ?real out of it. */
-  const exact = opts.tab ? ROUTES.find(x => x.view === view && x.tab === opts.tab) : null;
-  const base = ROUTES.find(x => x.view === view && !x.tab && !x.path.includes(':'))
-            || ROUTES.find(x => x.view === view && !x.path.includes(':'));
+  const own = ROUTES.filter(x => !x.alias);
+  const exact = opts.tab ? own.find(x => x.view === view && x.tab === opts.tab) : null;
+  const base = own.find(x => x.view === view && !x.tab && !x.path.includes(':'))
+            || own.find(x => x.view === view && !x.path.includes(':'));
   const target = exact ? exact.path : base ? base.path : '/app';
   navigate(withQuery(target, exact ? null : opts.tab));
 }

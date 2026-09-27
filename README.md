@@ -20,8 +20,13 @@ What the deployed site actually holds:
 
 | | Count | What it is |
 |---|---|---|
-| **US companies** | 119 | Audited annual statements from SEC EDGAR's XBRL `companyfacts`. Real. |
+| **US companies, filed** | 119 | Audited annual statements from SEC EDGAR's XBRL `companyfacts`. Real. |
+| **US company, illustrative** | 1 | PGR (Progressive). Financials and price are synthetic. |
 | **Malaysian companies** | 18 | Illustrative. Financials are synthetic, listing codes are real. |
+
+138 companies in all: 120 US-listed and 18 Bursa-listed by market; 119 filed and
+19 illustrative by source. Not every illustrative company is Malaysian — the app
+states the same two axes wherever it counts the universe.
 | **Prices** | 0 | No market-data licence is in place for either exchange. |
 
 Every company page states which of the two it is. A filed company carries no price
@@ -52,16 +57,16 @@ and committed, so the host needs no build step. After editing anything under
 drifts from its source.
 
 ```bash
-node serve.mjs            # http://localhost:3000
+node serve.mjs            # http://localhost:8123
 ```
 
 Screenshot tooling (drives locally installed Chrome/Edge over the DevTools
 Protocol; no dependencies):
 
 ```bash
-node screenshot.mjs http://localhost:3000 home
-node screenshot.mjs http://localhost:3000 home-dark --dark
-node screenshot.mjs http://localhost:3000 home-mobile --width 390 --height 844
+node screenshot.mjs http://localhost:8123 home
+node screenshot.mjs http://localhost:8123 home-dark --dark
+node screenshot.mjs http://localhost:8123 home-mobile --width 390 --height 844
 ```
 
 Output goes to `./temporary screenshots/` (git-ignored).
@@ -73,10 +78,11 @@ node deploy-check.mjs          # one check: exit 0 if production serves this fil
 node deploy-check.mjs --wait   # poll until it matches, or time out
 ```
 
-It compares the **whole file**, not a marker string. Newlines are normalised —
-the repository stores CRLF and the CDN serves LF — and nothing else is
-excused; after that normalisation the two are byte-identical, so nothing is
-injected in transit.
+It compares the **whole file**, not a marker string. The repository stores LF
+(`.gitattributes` pins `eol=lf`) and the CDN serves LF; newlines are still
+normalised, as a defence against a CRLF working copy on Windows, and nothing
+else is excused. After that the two are byte-identical, so nothing is injected
+in transit.
 
 **Do not verify a deployment by grepping the served HTML for a string from the
 change.** That method cannot merely fail, it produces false positives by
@@ -94,16 +100,25 @@ git commit --allow-empty -m "chore: trigger redeploy"
 
 ```
 .
-├── index.html        # the entire application
-├── serve.mjs         # zero-dependency static server
+├── src/              # the source: js/*.js in load order, styles.css, index and vercel templates
+├── build.mjs         # assembles index.html and vercel.json (with the CSP hash) from src/
+├── index.html        # the entire deployed application — generated, committed
+├── vercel.json       # host rewrites and headers — generated, committed
+├── data/             # committed datasets (us.json, instruments.json, …); licensed and personal files are git-ignored
+├── serve.mjs         # zero-dependency static server, applying vercel.json's headers
 ├── screenshot.mjs    # zero-dependency screenshot tool (CDP over Node's WebSocket)
-└── package.json      # metadata only
+├── syntax.mjs, wording-check.mjs, scanner-test.mjs, ingest-test.mjs   # offline checks
+├── sweep.mjs, mobile.mjs, coverage-frames.mjs, register-test.mjs,
+│   model-test.mjs, equity-test.mjs                                    # browser harnesses
+├── ingest/, scanner/, qtti/   # data ingest, the setup scanner, the trading-index tools
+└── package.json      # npm scripts for all of the above; devDependencies xlsx (NAPIC ingest) and sharp (renders)
 ```
 
 ## What is in it
 
-**Equities research** — 137 companies as deployed: 119 US filers with audited
-statements and 18 illustrative Bursa companies. Raw statement lines are stored
+**Equities research** — 138 companies as deployed: 119 US filers with audited
+statements, one illustrative US company (PGR) and 18 illustrative Bursa
+companies. Raw statement lines are stored
 once per company and every ratio, score and valuation is derived at runtime, so
 each number can show its own formula and inputs.
 
@@ -173,7 +188,7 @@ as advice for licensing purposes. Sort the CSV yourself if you want to.
 ### Screenshot extraction (§22 phase 2)
 
 ```bash
-node qtti/extract.mjs --simulate         # see the shape, no key, no call
+node qtti/extract.mjs --simulate         # see the shape, no key, no call (needs one image in qtti/screenshots/)
 node qtti/extract.mjs --print-request    # inspect the exact model contract
 ANTHROPIC_API_KEY=… node qtti/extract.mjs
 ```
