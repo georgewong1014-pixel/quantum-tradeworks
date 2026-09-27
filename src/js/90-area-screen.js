@@ -838,7 +838,10 @@ VIEWS.status = () => {
   ])));
 
   const key = el('div', { class: 'card' });
-  key.append(cardHead('What the statuses mean', 'Six states. "Deleted" and "coming soon" are not among them.'));
+  /* Counted, so the sentence cannot fall behind the list it describes — it
+     said "Six states" and would have gone on saying it beside seven. */
+  const nStates = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][FEATURE_STATUS.length] || String(FEATURE_STATUS.length);
+  key.append(cardHead('What the statuses mean', `${nStates} states. "Deleted" and "coming soon" are not among them.`));
   const kt = el('table', { class: 'dt' });
   kt.append(el('thead', {}, el('tr', {}, ['Status', 'Meaning'].map(h => el('th', { style: 'text-align:left' }, h)))));
   const kb = el('tbody');
@@ -849,18 +852,49 @@ VIEWS.status = () => {
   kt.append(kb); key.append(el('div', { class: 'tablewrap' }, kt));
   wrap.append(key);
 
+  /* THE RELEASE CONDITION, IN NUMBERS. The Phase 2 brief's rule is that no
+     P0 item is marked complete until its checks pass and no P1 surface is
+     shown as operational until it is. Both halves are read off the rows
+     below, not written here, so this card cannot disagree with them. */
+  const pri = CAPABILITY_REGISTER.filter(c => c.priority);
+  const p0 = pri.filter(c => c.priority === 'P0'), p1 = pri.filter(c => c.priority === 'P1');
+  const briefItems = new Set(pri.flatMap(c => c.brief || []));
+  const rel = el('div', { class: 'card' });
+  rel.append(cardHead('Release condition — the Phase 2 equities brief',
+    `${briefItems.size} brief items, answered by ${pri.length} rows below. Priority comes from the brief, not from this page.`));
+  const rl = el('dl', { class: 'kv' });
+  [['P0', `${p0.length} rows. ${PRIORITY_NOTE.P0} ${p0.filter(c => c.complete).length} of ${p0.length} complete; the rest are partial and say what they lack.`],
+   ['P1', `${p1.length} rows. ${PRIORITY_NOTE.P1} ${p1.filter(c => c.status === 'flagged').length} feature-flagged, ${p1.filter(c => !c.path).length} with no surface yet, ${p1.filter(c => c.complete).length} complete.`],
+   ['Checked', 'On every push, a static check fails the build if a row in an operational state has no working route, a prioritised row names a check that does not exist, or a partial P1 surface is not flagged.']]
+    .forEach(([k, v]) => { rl.append(el('dt', {}, k)); rl.append(el('dd', { style: 'text-align:left' }, v)); });
+  rel.append(rl);
+  wrap.append(rel);
+
   FEATURE_STATUS.forEach(s => {
     const rows = CAPABILITY_REGISTER.filter(c => c.status === s.id);
     if (!rows.length) return;
     const card = el('div', { class: 'card' });
-    card.append(cardHead(`${s.label} — ${rows.length}`, s.note));
-    const t = el('table', { class: 'dt' });
+    /* A flagged group is reachable, so its heading has to say what reachable
+       does not mean here. */
+    card.append(cardHead(`${s.label} — ${rows.length}${s.id === 'flagged' ? ' · not operational' : ''}`, s.note));
+    const t = el('table', { class: 'dt status-dt' });
     t.append(el('thead', {}, el('tr', {}, ['Capability', 'Where', 'State'].map(h =>
       el('th', { style: 'text-align:left' }, h)))));
     const tb = el('tbody');
+    /* Widths, so a phone scrolls the table rather than crushing it. The
+       paths are unbroken strings, and /company/AAPL-SEC?tab=valuation took
+       the width the State column needed: at 390px it set one letter per
+       line. The path may now break anywhere; the State column keeps a
+       readable measure and the table scrolls inside its wrapper. */
     rows.forEach(c => tb.append(el('tr', {}, [
-      el('td', { style: 'text-align:left;white-space:normal;font-weight:600' }, c.name),
-      el('td', { style: 'text-align:left' }, c.path
+      el('td', { style: 'text-align:left;white-space:normal;min-width:8rem' }, [
+        el('div', { style: 'font-weight:600' }, c.name),
+        c.priority ? el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:6px;align-items:center' }, [
+          el('span', { class: 'chip' + (c.priority === 'P0' ? ' chip-brand' : ' chip-bronze'), title: PRIORITY_NOTE[c.priority] }, c.priority),
+          el('span', { class: 'metaline' }, `${(c.brief || []).join(' · ')} · ${c.complete ? 'complete' : 'partial'}`),
+        ]) : null,
+      ]),
+      el('td', { style: 'text-align:left;white-space:normal;overflow-wrap:anywhere;min-width:11rem;max-width:14rem' }, c.path
         ? el('a', { href: href(c.path), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(c.path); } }, c.path)
         : el('span', { class: 'caption' }, 'no route yet')),
       /* A field may be a function, resolved at render. CAPABILITY_REGISTER is a
@@ -868,10 +902,13 @@ VIEWS.status = () => {
          anything — so any count written into it as a literal string counted the
          36-row sample set and froze that. It reported "0 US companies with
          audited SEC filings" on a build holding 119 of them. */
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, [
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal;min-width:15rem' }, [
         c.now ? el('div', {}, typeof c.now === 'function' ? c.now() : c.now) : null,
         c.gate ? el('div', { style: 'color:var(--bronze);margin-top:4px' },
           `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`) : null,
+        c.flag ? el('div', { style: 'color:var(--bronze);margin-top:4px' }, `Flagged: ${c.flag}`) : null,
+        c.checks?.length ? el('div', { style: 'margin-top:4px' },
+          `Checked by: ${c.checks.map(x => `${x.file} — ${x.name}`).join('; ')}.`) : null,
       ]),
     ])));
     t.append(tb); card.append(el('div', { class: 'tablewrap' }, t));

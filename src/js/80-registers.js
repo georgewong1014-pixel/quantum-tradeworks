@@ -26,10 +26,42 @@ const FEATURE_STATUS = [
   { id:'active-core', label:'Active Core Build', note:'Receiving current build capacity.' },
   { id:'maintenance', label:'Active Maintenance', note:'Available and supported; reliability work continues.' },
   { id:'beta',        label:'Beta', note:'Available with a stated limitation.' },
+  /* THE PHASE 2 BRIEF'S RELEASE RULE: a P1 surface that is not finished is
+     feature-flagged or states its limits, and nothing unfinished is shown as
+     operational. Before this state existed the register could only call a
+     partial surface Beta — "available" — or Queued — "not built" — and a
+     compare page that works but cannot yet say when two companies report on
+     different years is neither. Flagged is reachable, marked partial on the
+     page itself (flagNoticeFor below reads this row), and never counted as
+     operational. */
+  { id:'flagged',     label:'Feature-flagged', note:'Partial. Reachable at its address and marked partial on the page itself; not counted as operational until what it lacks is built and a named check covers it.' },
   { id:'data-gated',  label:'Data Gated', note:'Interface and model retained; investable output waits on authorised data.' },
   { id:'compliance',  label:'Compliance Gated', note:'Capability retained; activation waits on legal approval or licence.' },
   { id:'queued',      label:'Expansion Queue', note:'In the roadmap, sequenced after core quality gates.' },
 ];
+/* The states a reader may take to mean "this works". register-check.mjs holds
+   every row in one of them to a real route, and every prioritised row in one
+   of them to a named check. */
+const OPERATIONAL_STATUSES = new Set(['active-core', 'maintenance', 'beta']);
+
+/* PRIORITY, FROM THE PHASE 2 BRIEF — never invented per row.
+   ---------------------------------------------------------------------------
+   A row that answers an item of the Phase 2 equities brief names it in
+   `brief`, and carries that item's priority from docs/phase2-plan.md §1;
+   register-check.mjs reads the table there and fails a row whose priority
+   disagrees, and fails the build if any item of the brief is answered by no
+   row at all — the same "nothing silently disappears" rule, applied to the
+   brief. Rows outside the brief (property, the wheel) carry no priority,
+   because giving them one would be ranking work nobody has ranked.
+
+   `complete` is false unless stated, and every Phase 2 row is partial today.
+   `checks` names the harness checks that cover the row — a file and a phrase
+   from the check's own ok() line, which the static check finds in that file.
+   A P1 row with a surface that is not complete must be 'flagged'. */
+const PRIORITY_NOTE = {
+  P0: 'Phase 2 must-have. Not marked complete until its checks pass.',
+  P1: 'Phase 2 should-have. While partial it is feature-flagged, or has no surface yet.',
+};
 
 const CAPABILITY_REGISTER = [
   { name:'Sarawak property underwriting', status:'active-core', path:'/property/calculator',
@@ -57,8 +89,23 @@ const CAPABILITY_REGISTER = [
     now:'Cached coordinates under ODbL with per-area match confidence.' },
   { name:'Discover and screener', status:'maintenance', path:'/discover/screener',
     now:'Reproducible filters, cohort medians and a reporting-currency selector.' },
-  { name:'Company research', status:'maintenance', path:'/research',
-    now:'Statements, scorecards, valuation router and risk flags.' },
+  /* The explorer and the brief's paths were a row of their own in the brief
+     and nowhere here; the company page's row said "/research", which is the
+     explorer's address, not the page's. */
+  { name:'Company explorer and the equities paths', status:'maintenance', path:'/app/equities/explore',
+    brief:['NAV', 'EQ-204'], priority:'P0',
+    now:'Search by name, ticker, listing code, CIK or any older id the instrument registry holds, ranked by how the term matched and never by any measure of the company; market and coverage filters. The brief’s /app/equities and /app/watchlists addresses open the existing pages.',
+    gate:'SEC filings carry no listing venue, so a US filer cannot be found or filtered by exchange until the statements are regenerated. The search covers the loaded universe, not every listing on either market.',
+    checks:[{ file:'equity-test.mjs', name:'one identity per listed thing' },
+            { file:'equity-test.mjs', name:'/app/equities and /app/watchlists paths open the existing pages' },
+            { file:'equity-test.mjs', name:'the keyboard reaches the search' }] },
+  { name:'Company research', status:'maintenance', path:'/company/AAPL-SEC',
+    brief:['EQ-205', 'EQ-206', 'EQ-207', 'EQ-209'], priority:'P0',
+    now:'Statements, scorecards, valuation router and risk flags. Every figure opens the drawer that names its source, period and kind; every absence names its reason.',
+    gate:'Annual figures only — no quarterly line is held for any filer. Gross margin, return on assets, current and quick ratios, interest cover and EV/EBITDA need statement lines the shipped file does not carry.',
+    checks:[{ file:'equity-test.mjs', name:'every research tab labels MSFT-SEC with its own fiscal years' },
+            { file:'equity-test.mjs', name:'every filed company’s statement table reconciles with data/us.json' },
+            { file:'equity-test.mjs', name:'ratios match figures recomputed by hand from the filings' }] },
   /* Was listed as queued with no route while it had been live on every company
      page for weeks. One row was describing two things — the classifier that
      ships and the saved strategy plan that does not — so shipping half of it
@@ -69,13 +116,19 @@ const CAPABILITY_REGISTER = [
   { name:'Saved strategy plans and leverage stress', status:'queued', path:null,
     gate:'P1. Staged entry tranches, invalidation conditions, leverage stress and outcome review, saved against a company and a model version. The Lens grades the underlying; it does not record what you decided to do about it.' },
   { name:'Bursa universe', status:'data-gated', path:'/research',
+    brief:['EQ-202'], priority:'P0',
     gate:() => covText(k => `${k.illustrative} companies carry illustrative figures — ${k.my} Bursa`
        + (k.usIllustrative ? ` and ${k.usIllustrativeNames.join(', ')} on the US side` : '')
        + '. No investable grade is offered for any of them.',
        `${COVERAGE_PENDING} — how many companies carry illustrative figures is not known until the audited set has loaded. No investable grade is offered for any of them either way.`) },
   { name:'US equities', status:'maintenance', path:'/research',
+    brief:['EQ-201', 'EQ-202', 'EQ-203'], priority:'P0',
     now:() => covText(k => `${k.usFiled} US companies with audited SEC filings, of ${k.us} US listings held.`,
-      `${COVERAGE_PENDING} — the audited US set is still loading. This row states a count only once it can state the right one.`) },
+      `${COVERAGE_PENDING} — the audited US set is still loading. This row states a count only once it can state the right one.`),
+    gate:'The shipped statements predate the corrected ingest and cannot be regenerated until the SEC’s required contact address is supplied; figures the old rules assembled wrongly are withheld with the reason until then.',
+    checks:[{ file:'equity-test.mjs', name:'filed companies loaded, all' },
+            { file:'equity-test.mjs', name:'canonical ids are one per instrument' },
+            { file:'ingest-test.mjs', name:'ingest rules hold' }] },
   { name:'US Options Cash Wheel', status:'data-gated', path:'/us-options/wheel',
     now:'Cash-secured put and covered-call arithmetic, collateral gates, downside scenarios and the full risk card, from figures you enter.',
     gate:'No authorised option-chain data, so contracts are entered by hand. Live chains, any recommended contract, broker routing and execution stay Compliance Gated and are not built.' },
@@ -83,6 +136,7 @@ const CAPABILITY_REGISTER = [
     now:'Multi-timeframe trend regime, first-tranche readiness against your own rules, screenshot confidence, template and derivative hard gates, from chart evidence you record.',
     gate:'Phase 1 only. It does not read your screenshot — OCR and vision extraction are phase 2. No indicator here has been backtested on point-in-time data, so no rule is claimed to be effective.' },
   { name:'Trade-setup scanner', status:'data-gated', path:'/my/scanner',
+    brief:['EQ-214'], priority:'P0',
     now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on the last daily bar your history holds. A watchlist can be its universe, snapshotted into the setup. Never ranked, never delivered, never claimed to work.',
     gate:'Personal lane only: it reads the price history you built under your own subscription, so the deployed site has nothing to scan. Offering it to anyone else needs a licensed end-of-day feed and written classification, and neither exists.' },
   /* Computed at render, like the US equities row. It was a sentence — "11
@@ -106,8 +160,46 @@ const CAPABILITY_REGISTER = [
   { name:'Thesis, catalysts and invalidation', status:'maintenance', path:'/my/theses',
     now:'User-authored conditions evaluated against current data, with the proximity rule published.' },
   { name:'Watchlists', status:'active-core', path:'/my/watchlists',
+    brief:['EQ-208', 'EQ-214'], priority:'P0',
+    checks:[{ file:'equity-test.mjs', name:'watchlists are one service' },
+            { file:'equity-test.mjs', name:'a watchlist survives a reload' },
+            { file:'equity-test.mjs', name:'the watchlist handoff keeps its contract' }],
     now:'Create, rename, delete, add by any name the registry knows, remove, export and import — one service every page calls. Each member carries its canonical instrument id, so a list can be handed to the scanner as its universe.',
     gate:'Stored in this browser only: there are no accounts, so no ownership to enforce and nothing follows you to another device.' },
+  /* THE BRIEF'S P1 SURFACES. Two exist and work but lack what the brief
+     requires of them, so they are flagged: the page says what is missing
+     where it is read, and neither is counted as operational. Two have no
+     surface yet — the pieces exist in four places, the page that gathers them
+     does not — so there is nothing to flag, and they are queued. `flag` is
+     what the surface's notice says; `checks` is what already covers it. */
+  { name:'Company comparison', status:'flagged', path:'/compare',
+    brief:['EQ-210'], priority:'P1',
+    now:'Companies side by side — as many as the plan allows — with the measures chosen for their business models, a warning when models or markets are mixed, and a common-currency toggle that never converts a share price.',
+    flag:'No reporting-period or accounting-basis row, no absolute revenue, cash-flow or net-debt rows, and an empty cell reads n/a without naming its reason — so two companies can sit side by side on different fiscal years without this page saying so.',
+    checks:[{ file:'equity-test.mjs', name:'compare and onboarding do what their labels say' }] },
+  { name:'Valuation models', status:'flagged', path:'/company/AAPL-SEC?tab=valuation',
+    brief:['EQ-211'], priority:'P1',
+    now:'Nine methods on every company, a routed primary model whose assumptions the reader edits, bear/base/bull, a sensitivity grid and saved runs that replay figure by figure.',
+    flag:'Net debt and the share count are fixed inputs, there is no line for other claims or non-operating assets, an edit is lost on reload unless it is saved as a run, and the sensitivity axes cannot be chosen.',
+    checks:[{ file:'equity-test.mjs', name:'the Valuation Studio states what it computed' },
+            { file:'equity-test.mjs', name:'a saved valuation run keeps its assumptions across a reload' }] },
+  { name:'Research workspace', status:'queued', path:null,
+    brief:['EQ-212'], priority:'P1',
+    gate:'Saved valuation runs, saved screens, investment cases and named saved work each exist and each export, but in four places: no page lists them together, and a comparison cannot be saved at all.' },
+  { name:'Research report (print or save as PDF)', status:'queued', path:null,
+    brief:['EQ-213'], priority:'P1',
+    gate:'No company report route. The decision record prints property, Cash Wheel and Trading Index subjects only, and the screener exports CSV. A server-generated PDF is outside this phase by decision.' },
+  /* The checks are a capability too: the brief makes them one of its items,
+     and this page is where their result is stated. */
+  { name:'Research QA and the release rule', status:'active-core', path:'/status',
+    brief:['EQ-215'], priority:'P0',
+    now:'Each item of the brief’s eighteen-point research checklist is mapped to an automated check or to the reason it cannot have one (docs/phase2-qa.md in the repository). A static check fails the build when a row here claims a status its route or its checks do not support.',
+    gate:'Two checklist items cannot be tested: there are no accounts, so no cross-user access to refuse, and no quarterly figures are held.',
+    checks:[{ file:'register-check.mjs', name:'every operational row opens a real route' },
+            { file:'equity-test.mjs', name:'a feature-flagged surface says so where it is read' },
+            { file:'equity-test.mjs', name:'the skeleton holds the page while the filings load' },
+            { file:'equity-test.mjs', name:'a failed load paints the sample, labelled' },
+            { file:'mobile.mjs', name:'no horizontal overflow at any width' }] },
   { name:'Alerts and monitoring', status:'beta', path:'/my/alerts',
     now:'Fact-change alerts.', gate:'Stale-data and duplicate controls are not yet implemented.' },
   { name:'Bring your own market data', status:'maintenance', path:'/my/data',
@@ -125,6 +217,50 @@ const CAPABILITY_REGISTER = [
   { name:'Personalised advice mode', status:'compliance', path:null,
     gate:'Would require written Malaysian legal classification and SC authorisation. The research boundary is a product design, not a disclaimer.' },
 ];
+
+/* A FLAG THE READER CAN SEE.
+   ---------------------------------------------------------------------------
+   A flag recorded only on /status is a flag the reader of the flagged page
+   never meets: they would use the compare table believing it complete. So the
+   row is the switch, and the page reads it — render() asks which flagged row
+   owns the view on screen and mounts that row's notice, so the register and
+   the page cannot say different things, and lifting a flag is one edit here.
+   A row owns a view when its path resolves to that view (and to its tab, when
+   the path names one: the valuation row flags the valuation tab of every
+   company, not the whole company page). Nothing is hidden; the notice states
+   what is missing. */
+function flagRowFor(view, tab) {
+  return CAPABILITY_REGISTER.find(c => {
+    if (c.status !== 'flagged' || !c.path) return false;
+    const [p, q] = c.path.split('?');
+    const rt = matchRoute(p);
+    const want = new URLSearchParams(q || '').get('tab');
+    return !!rt && rt.view === view && (!want || want === tab);
+  }) || null;
+}
+function flagNoticeFor(row) {
+  return el('div', { class: 'flag-notice', role: 'note', 'aria-label': `${row.name}: partial` }, [
+    el('p', { class: 'flag-notice-hd' }, [el('span', { class: 'chip chip-bronze' }, `${row.priority || ''} · feature-flagged`.replace(/^ · /, '')),
+      el('strong', {}, `${row.name} is partial.`)]),
+    el('p', {}, row.flag),
+    el('p', { class: 'metaline' }, [`Usable as it stands, and not counted as operational until that is built. `,
+      el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Build status')]),
+  ]);
+}
+/* Where the notice goes: under the page heading when the view has one, and on
+   a company page above the tab panel it describes — the panel is the view's
+   last child (45-views-research.js appends it last), and above the heading
+   the notice would read as a statement about the whole company. */
+function mountFlagNotice(node, view, tab) {
+  const row = flagRowFor(view, tab);
+  if (!row || !node?.children) return null;
+  const notice = flagNoticeFor(row);
+  const hd = [...node.children].find(n => n.classList?.contains('page-hd'));
+  if (view === 'research' && node.lastElementChild) node.lastElementChild.before(notice);
+  else if (hd) hd.after(notice);
+  else node.prepend(notice);
+  return row;
+}
 
 /* ==========================================================================
    PROPERTY OPPORTUNITY REGISTER — directive 6.7, specification 27.5

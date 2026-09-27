@@ -1433,6 +1433,38 @@ details > summary::marker { content: ''; }
 }
 .guardrail svg { color: var(--critical); flex: none; }
 
+/* A feature-flagged surface, stated where it is read. Bronze, the colour the
+   site already uses for "illustrative" and "personal research": a limit to
+   know about, not an error — the critical red of .guardrail would say the
+   page is broken, and it is not. */
+.flag-notice {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; margin-bottom: var(--md);
+  border-radius: var(--r-md); background: var(--bronze-wash);
+  border: 1px solid color-mix(in srgb, var(--bronze) 30%, transparent);
+  font-size: 13px; line-height: 1.5; color: var(--ink);
+}
+.flag-notice p { margin: 0; max-width: 75ch; }
+.flag-notice-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.flag-notice-hd strong { font-weight: 600; }
+.flag-notice a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.flag-notice a:hover { color: var(--bronze); }
+.flag-notice a:focus-visible { outline: 2px solid var(--bronze); outline-offset: 2px; border-radius: 2px; }
+
+/* The Build status register on a phone. Three columns of prose do not fit
+   390px: the state column was either crushed to a letter a line or pushed
+   off to the right behind a scrollbar, and the state is the point of the
+   row. Below 640px each row stacks — name and priority, path, then the
+   state at full width — and the headings, which then label nothing, go. */
+@media (max-width: 640px) {
+  table.dt.status-dt thead { display: none; }
+  table.dt.status-dt, table.dt.status-dt tbody, table.dt.status-dt tr, table.dt.status-dt td { display: block; width: 100%; }
+  table.dt.status-dt td { min-width: 0 !important; max-width: none !important; border-bottom: 0; padding: 4px 16px; }
+  table.dt.status-dt tr { padding: 12px 0; border-bottom: 1px solid var(--grid); }
+  table.dt.status-dt tr:last-child { border-bottom: 0; }
+  /* The path is the row's one link; on its own line it can take a finger. */
+  table.dt.status-dt td a { display: inline-block; padding: 12px 0; }
+}
+
 .pillbar { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-sunk); }
 .pillbar > i { display: block; height: 100%; }
 

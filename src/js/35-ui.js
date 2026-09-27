@@ -871,6 +871,10 @@ function render() {
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
     ? bootSkeleton()
     : (VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found'));
+  /* A surface the capability register marks feature-flagged says so on the
+     page, from the register row itself (80-registers.js). Not on the
+     skeleton: there is no surface yet to describe. */
+  if (!(realPending && UNIVERSE_VIEWS.has(State.view))) mountFlagNotice(node, State.view, State.researchTab);
   const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
 
