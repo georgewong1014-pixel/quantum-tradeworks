@@ -202,6 +202,17 @@ const badA = await cli(...files);
 check(badA.code === 1 && (await readFile(P.alerts, 'utf8')) === '{not json', 'an unreadable alerts file is left alone and the run exits 1', { code: badA.code });
 await rm(dir, { recursive: true, force: true });
 
+/* A watchlist universe is a snapshot of symbols carried in the setup — the
+   worker cannot read a browser's storage — evaluated like a symbols list and
+   refused without its snapshot. */
+const wlU = E.scanRun([{ ...setup, universe: { kind: 'watchlist', watchlistId: 'wl-1', name: 'Core', symbols: ['match'], asOf: '2026-03-11' } }], history, {});
+check(wlU.evaluated === 1 && wlU.alerts.length === 1, 'a watchlist universe evaluates the symbols it snapshotted, case-insensitively', { evaluated: wlU.evaluated, alerts: wlU.alerts.length });
+const vw = validateSetups({ setups: [{ ...setup, id: 'w1', universe: { kind: 'watchlist', watchlistId: 'wl-1' } }, { ...setup, id: 'w2', universe: { kind: 'watchlist', watchlistId: 'wl-1', symbols: ['MATCH'] } }] }, E);
+check(vw.setups.length === 1 && vw.problems.length === 1 && /snapshot/.test(vw.problems[0]), 'a watchlist universe without its symbol snapshot is refused, with the reason', vw.problems);
+const exDoc = JSON.parse(await readFile(join(ROOT, 'scanner/setups.example.json'), 'utf8'));
+const vex = validateSetups(exDoc, E);
+check(vex.problems.length === 0 && vex.setups.length === exDoc.setups.length, 'the committed example setups all validate', vex.problems);
+
 /* The two data files are personal and git-ignored; CI also checks this, but a
    local run should say so before a push does. */
 try {

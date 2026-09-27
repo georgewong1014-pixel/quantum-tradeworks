@@ -658,19 +658,13 @@ const RESEARCH_TABS = [
   { id:'thesis',    label:'Thesis' },
 ];
 
+/* The one toggle in the app, on top of the watchlist service — so a company
+   page and the watchlists page cannot disagree about what is in a list. */
 function toggleWatch(id, wlIdx = State.wlIdx) {
   const wl = State.watchlists[wlIdx] || activeWL();
-  if (wl.ids.includes(id)) {
-    wl.ids = wl.ids.filter(x => x !== id);
-    toast(`Removed from “${wl.name}”`);
-  } else {
-    if (wl.ids.length >= LIMITS.watchlistStocks) {
-      toast(`“${wl.name}” already holds the maximum of ${LIMITS.watchlistStocks} companies`); return;
-    }
-    wl.ids = [...wl.ids, id];
-    toast(`Added to “${wl.name}”`);
-  }
-  saveWatchlists();
+  const had = wl.ids.includes(id);
+  const r = had ? wlRemove(wl.id, id) : wlAdd(wl.id, id);
+  toast(r.ok ? (had ? `Removed from “${wl.name}”` : `Added to “${wl.name}”`) : r.why);
   render();
 }
 

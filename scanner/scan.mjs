@@ -116,8 +116,11 @@ export function validateSetups(doc, E) {
     if (s.expires != null && !(typeof s.expires === 'string' && ISO_DAY.test(s.expires))) { bad(`expires "${s.expires}" is not YYYY-MM-DD`); return; }
     if (s.cooldownBars != null && !(Number.isFinite(Number(s.cooldownBars)) && Number(s.cooldownBars) >= 0)) { bad(`cooldownBars "${s.cooldownBars}" is not a non-negative number`); return; }
     const u = s.universe || { kind: 'all' };
-    if (!['all', 'market', 'symbols'].includes(u.kind)) { bad(`universe kind "${u.kind}" is not all, market or symbols`); return; }
+    if (!['all', 'market', 'symbols', 'watchlist'].includes(u.kind)) { bad(`universe kind "${u.kind}" is not all, market, symbols or watchlist`); return; }
     if (u.kind === 'symbols' && (!Array.isArray(u.symbols) || !u.symbols.length)) { bad('universe is "symbols" but names none'); return; }
+    /* A watchlist lives in a browser; the worker sees only the snapshot of its
+       symbols the page wrote into the setup. Without one there is nothing to scan. */
+    if (u.kind === 'watchlist' && (!Array.isArray(u.symbols) || !u.symbols.length)) { bad('universe is a watchlist but carries no symbol snapshot — copy the setup JSON again from /my/scanner'); return; }
     if (u.kind === 'market' && !u.market) { bad('universe is "market" but names none'); return; }
     const sideOk = (side, what) => {
       if (!side || typeof side !== 'object') return `${what} side is missing`;

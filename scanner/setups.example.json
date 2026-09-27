@@ -1,18 +1,54 @@
 {
-  "_note": "Copy this file to data/scan-setups.json (git-ignored) and edit it. Every setup is yours: the product proposes none, ranks none, and delivers nothing. Ids are part of every alert key, so renaming a setup starts its history afresh. Daily bars confirmed at the close are the only timeframe in this build.",
+  "_note": "Copy this file to data/scan-setups.json (git-ignored) and edit it. Every setup is yours: the product proposes none, ranks none, and delivers nothing. Ids are part of every alert key, so renaming a setup starts its history afresh. Daily bars confirmed at the close are the only timeframe in this build. A watchlist universe carries the symbols the page snapshotted when the JSON was written — the worker cannot read a browser.",
   "setups": [
     {
       "id": "trend-breakout",
       "name": "Trend breakout",
       "enabled": true,
-      "universe": { "kind": "symbols", "symbols": ["NVDA", "AAPL", "1155"] },
+      "universe": {
+        "kind": "symbols",
+        "symbols": [
+          "NVDA",
+          "AAPL",
+          "1155"
+        ]
+      },
       "timeframe": "daily",
       "confirmation": "close",
       "logic": "AND",
       "rules": [
-        { "left": { "indicator": "price" }, "op": "crosses_above", "right": { "indicator": "ema", "n": 50 } },
-        { "left": { "indicator": "volume" }, "op": "above", "right": { "indicator": "volume_avg", "n": 20, "multiplier": 1.5 } },
-        { "left": { "indicator": "rsi", "n": 14 }, "op": "between", "range": [50, 70] }
+        {
+          "left": {
+            "indicator": "price"
+          },
+          "op": "crosses_above",
+          "right": {
+            "indicator": "ema",
+            "n": 50
+          }
+        },
+        {
+          "left": {
+            "indicator": "volume"
+          },
+          "op": "above",
+          "right": {
+            "indicator": "volume_avg",
+            "n": 20,
+            "multiplier": 1.5
+          }
+        },
+        {
+          "left": {
+            "indicator": "rsi",
+            "n": 14
+          },
+          "op": "between",
+          "range": [
+            50,
+            70
+          ]
+        }
       ],
       "cooldownBars": 5,
       "expires": null
@@ -21,12 +57,25 @@
       "id": "sma-50-200-cross",
       "name": "50-bar average crosses above 200-bar average",
       "enabled": true,
-      "universe": { "kind": "market", "market": "US" },
+      "universe": {
+        "kind": "market",
+        "market": "US"
+      },
       "timeframe": "daily",
       "confirmation": "close",
       "logic": "AND",
       "rules": [
-        { "left": { "indicator": "sma", "n": 50 }, "op": "crosses_above", "right": { "indicator": "sma", "n": 200 } }
+        {
+          "left": {
+            "indicator": "sma",
+            "n": 50
+          },
+          "op": "crosses_above",
+          "right": {
+            "indicator": "sma",
+            "n": 200
+          }
+        }
       ],
       "cooldownBars": 20,
       "expires": null
@@ -35,12 +84,57 @@
       "id": "rsi-below-30",
       "name": "RSI below 30",
       "enabled": false,
-      "universe": { "kind": "all" },
+      "universe": {
+        "kind": "all"
+      },
       "timeframe": "daily",
       "confirmation": "close",
       "logic": "AND",
       "rules": [
-        { "left": { "indicator": "rsi", "n": 14 }, "op": "below", "right": { "value": 30 } }
+        {
+          "left": {
+            "indicator": "rsi",
+            "n": 14
+          },
+          "op": "below",
+          "right": {
+            "value": 30
+          }
+        }
+      ],
+      "cooldownBars": 10,
+      "expires": null
+    },
+    {
+      "id": "watchlist-rsi-recovery",
+      "name": "RSI crosses back above 30 on a watchlist",
+      "enabled": false,
+      "universe": {
+        "kind": "watchlist",
+        "watchlistId": "wl-1",
+        "name": "Core watchlist",
+        "symbols": [
+          "NVDA",
+          "AAPL",
+          "1155"
+        ],
+        "asOf": "2026-09-27",
+        "unresolved": []
+      },
+      "timeframe": "daily",
+      "confirmation": "close",
+      "logic": "AND",
+      "rules": [
+        {
+          "left": {
+            "indicator": "rsi",
+            "n": 14
+          },
+          "op": "crosses_above",
+          "right": {
+            "value": 30
+          }
+        }
       ],
       "cooldownBars": 10,
       "expires": null

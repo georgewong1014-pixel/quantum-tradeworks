@@ -605,6 +605,63 @@ try {
     if (Object.keys(p).length) fail('the brief\'s /app/equities paths open the existing pages with the right tab and company', p);
     else ok('the brief\'s /app/equities and /app/watchlists paths open the existing pages, with its tab names mapped to ours');
   }
+  /* WATCHLISTS AS ONE SERVICE. Create; add by a listing code, a CIK, an old
+     id; refuse the same company under another name as a duplicate; refuse an
+     unknown name and a price-only instrument with the reason; present each
+     member with its canonical instrument id; hand the scanner the symbols;
+     rename, remove, delete; and export a versioned document that says it
+     belongs to this browser. Then the page: create, add and scanner controls. */
+  {
+    const r = await evaluate(`(() => {
+      const before = State.watchlists.length;
+      const c = wlCreate('Harness list'); if (!c.ok) return { err: c.why };
+      const w = c.watchlist;
+      const a1 = wlAdd(w.id, '1155'), a2 = wlAdd(w.id, 'MAYBANK'), a3 = wlAdd(w.id, 'CIK0000320193'), a4 = wlAdd(w.id, 'ZZZNOPE');
+      const po = [...INSTRUMENTS.values()].find(i => i.dataStatus === 'UNAVAILABLE');
+      const a5 = po ? wlAdd(w.id, po.symbol) : null;
+      const items = watchlistItems(w);
+      const syms = watchlistSymbols(w.id);
+      const rn = wlRename(w.id, 'Harness renamed');
+      const ex = watchlistsExport();
+      const exList = ex.watchlists.find(x => x.id === w.id);
+      const rm = wlRemove(w.id, a1.id);
+      const afterRemove = w.ids.length;
+      const del = wlDelete(w.id);
+      return { before, after: State.watchlists.length, a1: a1.ok, a2dup: !!a2.duplicate, a3: a3.ok,
+        a4: a4.ok ? 'added?!' : a4.why, a5: a5 ? (a5.ok ? 'added?!' : a5.why) : 'no price-only instrument loaded',
+        n: items.length, instIds: items.map(i => i.instrumentId), syms: syms.symbols,
+        rn: rn.ok && w.name === 'Harness renamed', exSchema: ex.schema, exOwner: ex.owner, exItems: exList?.items?.length,
+        exHasInst: !!exList?.items?.every(i => i.instrumentId), rm: rm.ok, afterRemove, del: del.ok, stamped: !!w.createdAt && !!w.updatedAt };
+    })()`);
+    const problems = [];
+    if (r.err) problems.push(r.err);
+    else {
+      if (!r.a1 || !r.a3) problems.push(`adding by listing code / CIK: ${r.a1} / ${r.a3}`);
+      if (!r.a2dup) problems.push('the same company under another name was not refused as a duplicate');
+      if (r.a4 === 'added?!' || !/nothing in the universe/.test(r.a4)) problems.push(`an unknown name: ${r.a4}`);
+      if (r.a5 === 'added?!' || !(/price only/.test(r.a5) || /no price-only/.test(r.a5))) problems.push(`a price-only instrument: ${r.a5}`);
+      if (r.n !== 2 || !r.instIds.every(x => /^(US|MY):/.test(x || ''))) problems.push(`items ${r.n}, instrument ids ${JSON.stringify(r.instIds)}`);
+      if (!(r.syms.length === 2 && r.syms.includes('1155') && r.syms.includes('AAPL'))) problems.push(`symbols for the scanner: ${JSON.stringify(r.syms)}`);
+      if (!r.rn) problems.push('rename did not take');
+      if (r.exSchema !== 2 || !/this browser/.test(r.exOwner || '') || r.exItems !== 2 || !r.exHasInst) problems.push(`export: schema ${r.exSchema}, owner "${r.exOwner}", ${r.exItems} items, all with instrument ids ${r.exHasInst}`);
+      if (!r.rm || r.afterRemove !== 1) problems.push(`remove: ${r.rm}, ${r.afterRemove} left`);
+      if (!r.del || r.after !== r.before) problems.push(`delete: ${r.del}, ${r.after} lists (was ${r.before})`);
+      if (!r.stamped) problems.push('a new list carries no timestamps');
+    }
+    if (problems.length) fail('watchlists are one service: create, add by any name, no duplicates, remove, rename, delete, export with instrument ids', problems);
+    else ok('watchlists are one service: create, add by any name, no duplicates, remove, rename, delete, export with instrument ids');
+
+    await evaluate(`navigate('/app/watchlists')`);
+    await sleep(500);
+    const page = await evaluate(`(() => ({ view: State.view,
+      create: !!document.querySelector('input[aria-label="New watchlist name"]'),
+      add: document.querySelectorAll('input[aria-label^="Add a company to"]').length,
+      scan: [...document.querySelectorAll('button')].some(b => /scanner universe/.test(b.textContent)),
+      rows: document.querySelectorAll('main table.dt tbody tr').length,   /* main: the drawer keeps its last table after closing */
+      instIds: [...document.querySelectorAll('main table.dt tbody tr td:nth-child(4)')].map(td => td.textContent).filter(t => /^(US|MY):/.test(t)).length }))()`);
+    if (page.view !== 'watchlists' || !page.create || !page.add || !page.scan || page.instIds !== page.rows) fail('the watchlists page carries create, add and scanner controls and an instrument id per member', page);
+    else ok(`the watchlists page carries create, add and scanner controls, and an instrument id on each of its ${page.rows} member rows`);
+  }
 } catch (e) {
   fail('harness error', e.message);
 } finally {

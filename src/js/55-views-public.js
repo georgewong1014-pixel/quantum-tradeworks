@@ -769,35 +769,97 @@ VIEWS.watchlists = () => {
   appendSampleBanner(wrap);
   wrap.append(el('div', {}, [
     el('h1', { class: 'h-display' }, 'Watchlists'),
-    el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers.'),
+    el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
   ]));
-
-  /* State.watchlists is an array of { id, name, ids } — the shape the rest of
-     the app migrated to when multiple lists were added. */
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
+
+  /* Create, export and import — the operations the brief names, on the page
+     the brief names, rather than in a drawer behind another page's button.
+     Every mutation goes through the service in 06-watchlists.js. */
+  const ctl = el('div', { class: 'card' });
+  /* A browser can hold more lists than its plan allows — the seed has two, the
+     Free plan one. Those are kept; only creating another is refused, and the
+     line says which of the two is the case rather than '2 of 1'. */
+  const over = lists.length > LIMITS.watchlists;
+  ctl.append(cardHead('New watchlist', `${over ? `${lists.length} lists held — this plan allows ${LIMITS.watchlists}, so the ones you have are kept and no more can be created` : `${lists.length} of ${LIMITS.watchlists} on this plan`}, each holding up to ${LIMITS.watchlistStocks} companies. Stored in this browser only — there are no accounts, so nothing here follows you to another device.`));
+  const nameInp = el('input', { class: 'input', placeholder: 'Name', 'aria-label': 'New watchlist name', style: 'flex:1;min-width:160px' });
+  const createBtn = el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    const r = wlCreate(nameInp.value); toast(r.ok ? `Created “${r.watchlist.name}”` : r.why); if (r.ok) render(); } }, 'Create');
+  nameInp.addEventListener('keydown', e => { if (e.key === 'Enter') createBtn.click(); });
+  const fileInp = el('input', { type: 'file', accept: '.json,application/json', style: 'display:none', 'aria-label': 'Import a watchlists file' });
+  fileInp.addEventListener('change', async () => {
+    const file = fileInp.files?.[0]; if (!file) return;
+    try {
+      const rep = watchlistsImport(JSON.parse(await file.text()));
+      toast(rep.ok ? `Imported: ${rep.created} list(s) created, ${rep.added} added, ${rep.duplicate} already present${rep.unresolved.length ? `, ${rep.unresolved.length} not recognised: ${rep.unresolved.slice(0, 4).join(', ')}` : ''}` : rep.why);
+      render();
+    } catch (e) { toast(`Could not read that file: ${e.message}`); }
+  });
+  ctl.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [nameInp, createBtn,
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      const blob = new Blob([JSON.stringify(watchlistsExport(), null, 2)], { type: 'application/json' });
+      const a = el('a', { href: URL.createObjectURL(blob), download: `quantum-tradeworks-watchlists-${new Date().toISOString().slice(0, 10)}.json` });
+      document.body.append(a); a.click(); a.remove();
+    } }, 'Export JSON'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => fileInp.click() }, 'Import JSON'), fileInp]));
+  ctl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'The export carries each member’s canonical instrument id and market — the shape a scanner takes as its universe — and says it belongs to this browser.'));
+  wrap.append(ctl);
+
   if (!lists.length) {
-    wrap.append(emptyStateCta('No watchlists yet',
-      'A watchlist decides which companies the change feed and alerts cover.',
-      'Find companies', '/discover/screener'));
+    wrap.append(emptyStateCta('No watchlists yet', 'Create one above, or find companies to add.', 'Find companies', '/discover/screener'));
     return wrap;
   }
-  lists.forEach(list => {
-    const ids = list.ids || [];
+
+  lists.forEach(w => {
+    const items = watchlistItems(w);
     const card = el('div', { class: 'card' });
-    card.append(el('div', { class: 'row', style: 'gap:8px' }, [
-      el('h2', { class: 'h-card' }, list.name),
-      el('span', { class: 'chip' }, `${ids.length} compan${ids.length === 1 ? 'y' : 'ies'}`),
-    ]));
-    if (!ids.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'Nothing in this list yet.'));
+    const head = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' });
+    head.append(el('input', { class: 'input input-inline', value: w.name, 'aria-label': `Name of watchlist ${w.name}`, style: 'flex:1 1 180px;font-weight:600',
+      onchange: e => { const r = wlRename(w.id, e.target.value); toast(r.ok ? 'Renamed' : r.why); render(); } }));
+    head.append(el('span', { class: 'chip' }, `${items.length}/${LIMITS.watchlistStocks}`));
+    head.append(el('span', { class: 'chip', title: w.createdAt ? null : (w.createdAtSource || null) }, w.createdAt ? `created ${String(w.createdAt).slice(0, 10)}` : 'created: date unknown'));
+    if (w.updatedAt) head.append(el('span', { class: 'chip' }, `updated ${String(w.updatedAt).slice(0, 10)}`));
+    head.append(el('span', { class: 'spacer' }));
+    head.append(el('button', { class: 'btn btn-ghost btn-sm', title: 'Open the scanner builder with this list as the universe', onclick: () => {
+      scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } };
+      navigate('/my/scanner');
+    } }, 'Use as scanner universe'));
+    if (lists.length > 1) head.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+      if (!confirm(`Delete “${w.name}”?`)) return;
+      const r = wlDelete(w.id); toast(r.ok ? 'Watchlist deleted' : r.why); render();
+    } }, 'Delete'));
+    card.append(head);
+
+    const addInp = el('input', { class: 'input', placeholder: 'Add by ticker, listing code, CIK or name…', 'aria-label': `Add a company to ${w.name}`, style: 'flex:1;min-width:200px' });
+    const addBtn = el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      const term = addInp.value.trim(); if (!term) return;
+      let r = wlAdd(w.id, term);
+      /* A name rather than an identifier: the first search hit with a company page. */
+      if (!r.ok && !r.duplicate && !r.id) { const hit = searchInstruments(term, {}, { limit: 5 }).hits.find(i => i.companyId); if (hit) r = wlAdd(w.id, hit.companyId); }
+      toast(r.ok ? `Added ${BY_ID.get(r.id)?.c.tk || r.id}` : r.why);
+      if (r.ok) render();
+    } }, 'Add');
+    addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+    card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:10px' }, [addInp, addBtn]));
+
+    if (!items.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'Nothing in this list yet.'));
     else {
-      const ul = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:10px' });
-      ids.forEach(id => {
-        const row = BY_ID.get(id);
-        if (!row) return;
-        ul.append(el('a', { class: 'chip', href: href(companyPath(row.c)),
-          onclick: (e) => { e.preventDefault(); openResearch(id); } }, `${row.c.tk} · ${row.c.name}${illusText(row.c)}`));
-      });
-      card.append(ul);
+      const t = el('table', { class: 'dt' });
+      t.append(el('thead', {}, el('tr', {}, ['Symbol', 'Company', 'Coverage', 'Instrument id', 'Added', ''].map((h, i) => el('th', i === 1 ? { style: 'text-align:left' } : {}, h)))));
+      t.append(el('tbody', {}, items.map(it => {
+        const row = BY_ID.get(it.companyId);
+        return el('tr', {}, [
+          el('td', { class: 'ident' }, row ? el('a', { href: href(companyPath(row.c)), onclick: (e) => { e.preventDefault(); openResearch(row.c.id); } }, row.c.tk) : it.companyId),
+          el('td', { style: 'text-align:left;white-space:normal' }, row ? `${row.c.name}${illusText(row.c)}` : 'not in the universe'),
+          el('td', {}, el('span', { class: it.coverage === 'filed' ? 'chip chip-ok' : 'chip chip-bronze' }, it.coverage)),
+          el('td', { class: 'caption' }, it.instrumentId || '—'),
+          el('td', { class: 'caption' }, it.addedAt ? String(it.addedAt).slice(0, 10) : 'unknown'),
+          el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Remove ${row ? row.c.tk : it.companyId} from ${w.name}`,
+            onclick: () => { const r = wlRemove(w.id, it.companyId); toast(r.ok ? 'Removed' : r.why); render(); } }, '×')),
+        ]);
+      })));
+      card.append(el('div', { class: 'tablewrap', style: 'margin-top:10px' }, t));
     }
     wrap.append(card);
   });

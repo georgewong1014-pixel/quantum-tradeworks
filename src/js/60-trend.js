@@ -608,13 +608,17 @@ VIEWS.alerts = () => {
   rail.append(rules);
 
   const pref = el('div', { class: 'card' });
-  pref.append(cardHead('Delivery', 'Alert fatigue is the failure mode. Digesting and deduplication are on by default.'));
+  /* Nothing is delivered — there is no server, no channel and no contact
+     address held under a privacy notice. The card used to read as though a
+     digest ran; these are the preferences a delivery would honour, recorded
+     and inert, and the card says so first. */
+  pref.append(cardHead('Delivery — not built', 'Nothing is sent. These are the preferences a delivery would honour, recorded here and inert until there is a server to honour them.'));
   const kv = el('dl', { class: 'kv' });
-  [['Delivery', 'Daily digest'], ['Deduplication window', '24 hours'], ['Time zone', 'Asia/Kuala_Lumpur'],
-   ['Quiet hours', '22:00 – 07:00'], ['Per-company cap', '3 a day']].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
+  [['Delivery', 'would be a daily digest'], ['Deduplication window', 'would be 24 hours'], ['Time zone', MARKETS.MY.tz],
+   ['Quiet hours', 'would be 22:00 – 07:00'], ['Per-company cap', 'would be 3 a day']].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
   pref.append(kv);
   pref.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'A US filing published after the Malaysian market closes is held to the next digest rather than sent overnight.'));
+    'A US filing published after the Malaysian market closes would be held to the next digest rather than sent overnight — when there is a digest to hold it to. The scanner records matches to a file; see /my/scanner.'));
   rail.append(pref);
   layout.append(rail);
   wrap.append(layout);

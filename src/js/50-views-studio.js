@@ -1847,13 +1847,12 @@ function openWatchlistManager() {
     const card = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     const top = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' });
     top.append(el('input', { class: 'input input-inline', value: w.name, style: 'flex:1 1 150px', 'aria-label': 'Watchlist name',
-      onchange: e => { w.name = e.target.value || 'Untitled'; saveWatchlists(); render(); } }));
+      onchange: e => { const r = wlRename(w.id, e.target.value); if (!r.ok) toast(r.why); render(); } }));
     top.append(el('span', { class: 'chip' }, `${w.ids.length}/${LIMITS.watchlistStocks}`));
     top.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.wlIdx = i; closeDrawer(); render(); } }, 'Open'));
     if (State.watchlists.length > 1) top.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Delete “${w.name}”?`)) return;
-      State.watchlists = State.watchlists.filter((_, j) => j !== i);
-      State.wlIdx = 0; saveWatchlists(); closeDrawer(); render(); toast('Watchlist deleted');
+      const r = wlDelete(w.id); closeDrawer(); render(); toast(r.ok ? 'Watchlist deleted' : r.why);
     } }, 'Delete'));
     card.append(top);
     card.append(el('div', { class: 'row row-wrap', style: 'gap:4px' },
@@ -1864,10 +1863,9 @@ function openWatchlistManager() {
   });
 
   body.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin:var(--sm) 0 var(--lg)', onclick: () => {
-    if (State.watchlists.length >= LIMITS.watchlists) { toast(`${LIMITS.watchlists} watchlists is the maximum`); return; }
-    State.watchlists.push({ id: `wl-${Date.now()}`, name: `Watchlist ${State.watchlists.length + 1}`, ids: [] });
-    State.wlIdx = State.watchlists.length - 1;
-    saveWatchlists(); closeDrawer(); render(); toast('Watchlist created');
+    const r = wlCreate(`Watchlist ${State.watchlists.length + 1}`);
+    if (!r.ok) { toast(r.why); return; }
+    closeDrawer(); render(); toast('Watchlist created');
   } }, `New watchlist (${State.watchlists.length}/${LIMITS.watchlists})`));
 
   /* Import: paste tickers or Bursa codes. Anything unmatched is reported rather
@@ -1882,15 +1880,13 @@ function openWatchlistManager() {
     if (!tokens.length) { toast('Nothing to import'); return; }
     const wl = activeWL();
     const matched = [], unmatched = [], dupes = [];
+    /* Through the service, so a token resolves by any name the registry knows
+       and a duplicate is refused rather than appended twice. */
     tokens.forEach(tok => {
-      const hit = U.find(r => r.c.id.toUpperCase() === tok || String(r.c.code).toUpperCase() === tok);
-      if (!hit) { unmatched.push(tok); return; }
-      if (wl.ids.includes(hit.c.id)) { dupes.push(tok); return; }
-      if (wl.ids.length + matched.length >= LIMITS.watchlistStocks) { unmatched.push(tok); return; }
-      matched.push(hit.c.id);
+      const r = wlAdd(wl.id, tok);
+      if (r.ok) matched.push(r.id); else if (r.duplicate) dupes.push(tok); else unmatched.push(tok);
     });
-    wl.ids = [...wl.ids, ...matched];
-    saveWatchlists(); closeDrawer(); render();
+    closeDrawer(); render();
     toast(`Imported ${matched.length}${dupes.length ? `, ${dupes.length} already present` : ''}${unmatched.length ? `, ${unmatched.length} not recognised: ${unmatched.slice(0, 4).join(', ')}` : ''}`);
   } }, 'Import'));
   openDrawer('Manage watchlists', body);

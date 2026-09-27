@@ -243,6 +243,15 @@ the same bar is never recorded twice, and a cooldown counts bars rather than
 days. `scanner-test.mjs` checks the arithmetic on hand-worked series and the
 worker's exit codes.
 
+A watchlist can be a setup's universe. The builder on `/my/scanner` (and the
+"Use as scanner universe" button on `/my/watchlists`) expands the list into the
+symbols its members trade under and writes that snapshot into the setup JSON,
+with the date — the worker runs in Node and cannot read a browser's storage,
+so the setup carries the list rather than a reference to it. Copy the JSON
+again when the list changes. Every watchlist member carries its canonical
+instrument id (`US:AAPL`, `MY:1155`), and the export from `/my/watchlists` is
+the shape a later scanner phase would take as its universe.
+
 ## Bursa fundamentals: the source review
 
 Roughly forty candidate sources were probed empirically — fetched, not read about

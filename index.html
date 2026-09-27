@@ -2206,6 +2206,159 @@ const convertTo = (v, from, to) => {
 const screenCcy = () => State.screenCcy || State.baseCcy;
 
 /* ==========================================================================
+   WATCHLISTS — one service, not four call sites
+
+   A watchlist was mutated from three places (the company page's toggle, the
+   manager drawer, the seed in 05-plans.js) and read from a dozen, each
+   reaching into `w.ids` directly. The Phase 2 brief asks for a shared
+   service: create, rename, delete, add without duplicates, remove, and a
+   stable shape a scanner can take as its universe. This is that service.
+
+   THE SHAPE IS KEPT, AND EXTENDED. `w.ids` — an ordered list of company ids —
+   stays exactly what it was, because every reader in the app (the change
+   feed, the alerts, the screener's watchlist filter, the Tracked view) reads
+   it, and a second copy of the membership would drift. What is added beside
+   it: `createdAt` and `updatedAt` on the list, `added[companyId]` with the
+   date each company was added, and an accessor that presents the brief's
+   WatchlistItem shape — an item id, the watchlist id, the canonical
+   instrument id, the date — without storing it twice.
+
+   NO OWNER. There are no accounts, so there is no ownerId to enforce; a
+   watchlist belongs to the browser it was saved in, and the export says so.
+   That is a limitation stated, not a field invented.
+   ========================================================================== */
+
+const WATCHLIST_SCHEMA = 2;
+
+/* One-time migration of what the browser already holds. Lists that predate
+   timestamps get null with the reason, never a plausible date. */
+function migrateWatchlists() {
+  const now = new Date().toISOString();
+  let touched = false;
+  (State.watchlists || []).forEach(w => {
+    if (!w.id) { w.id = `wl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`; touched = true; }
+    if (!Array.isArray(w.ids)) { w.ids = []; touched = true; }
+    if (!('createdAt' in w)) { w.createdAt = null; w.createdAtSource = 'list predates timestamps — unknown'; touched = true; }
+    if (!('updatedAt' in w)) { w.updatedAt = null; touched = true; }
+    if (!w.added || typeof w.added !== 'object') { w.added = {}; touched = true; }
+    w.ids.forEach(id => { if (!(id in w.added)) { w.added[id] = null; touched = true; } });
+    if (w.schema !== WATCHLIST_SCHEMA) { w.schema = WATCHLIST_SCHEMA; w.migratedAt = now; touched = true; }
+  });
+  if (touched) saveWatchlists();
+}
+
+const wlById = (wlId) => (State.watchlists || []).find(w => w.id === wlId) || null;
+const wlTouch = (w) => { w.updatedAt = new Date().toISOString(); };
+
+/* Create. The limit is the plan's, and the reason a creation is refused is
+   returned, never toasted from inside a service. */
+function wlCreate(name) {
+  if (State.watchlists.length >= LIMITS.watchlists) return { ok: false, why: `${LIMITS.watchlists} watchlists is the maximum on this plan` };
+  const now = new Date().toISOString();
+  const w = { id: `wl-${Date.now()}`, name: String(name || '').trim() || `Watchlist ${State.watchlists.length + 1}`,
+              ids: [], added: {}, createdAt: now, updatedAt: now, schema: WATCHLIST_SCHEMA };
+  State.watchlists.push(w);
+  State.wlIdx = State.watchlists.length - 1;
+  saveWatchlists();
+  return { ok: true, watchlist: w };
+}
+function wlRename(wlId, name) {
+  const w = wlById(wlId);
+  if (!w) return { ok: false, why: 'no such watchlist' };
+  const next = String(name || '').trim();
+  if (!next) return { ok: false, why: 'a watchlist needs a name' };
+  w.name = next; wlTouch(w); saveWatchlists();
+  return { ok: true, watchlist: w };
+}
+function wlDelete(wlId) {
+  const i = (State.watchlists || []).findIndex(w => w.id === wlId);
+  if (i < 0) return { ok: false, why: 'no such watchlist' };
+  if (State.watchlists.length <= 1) return { ok: false, why: 'the last watchlist stays — empty it instead' };
+  State.watchlists.splice(i, 1);
+  State.wlIdx = Math.min(State.wlIdx, State.watchlists.length - 1);
+  saveWatchlists();
+  return { ok: true };
+}
+
+/* Add by any name the registry knows — a ticker, a listing code, a CIK, an
+   old id. A duplicate is refused and says so; a name that resolves to no
+   company row (a price-only instrument, or nothing) is refused with the
+   reason. This is an add, not a toggle: adding something already present
+   never removes it. */
+function wlAdd(wlId, term) {
+  const w = wlById(wlId);
+  if (!w) return { ok: false, why: 'no such watchlist' };
+  const id = BY_ID.has(String(term || '').toUpperCase()) ? BY_ID.get(String(term).toUpperCase()).c.id : companyIdFor(term);
+  if (!id || !BY_ID.has(id)) {
+    const ins = resolveInstrument(term);
+    return { ok: false, why: ins ? `${ins.symbol} is tracked by price only — it has no statements and no company page` : `nothing in the universe is called “${term}”`, term };
+  }
+  if (w.ids.includes(id)) return { ok: false, why: 'already in this watchlist', duplicate: true, id };
+  if (w.ids.length >= LIMITS.watchlistStocks) return { ok: false, why: `“${w.name}” already holds the maximum of ${LIMITS.watchlistStocks} companies on this plan`, id };
+  w.ids = [...w.ids, id];
+  w.added[id] = new Date().toISOString();
+  wlTouch(w); saveWatchlists();
+  return { ok: true, id, watchlist: w };
+}
+function wlRemove(wlId, companyId) {
+  const w = wlById(wlId);
+  if (!w) return { ok: false, why: 'no such watchlist' };
+  if (!w.ids.includes(companyId)) return { ok: false, why: 'not in this watchlist' };
+  w.ids = w.ids.filter(x => x !== companyId);
+  delete w.added[companyId];
+  wlTouch(w); saveWatchlists();
+  return { ok: true };
+}
+
+/* The brief's WatchlistItem shape, presented rather than stored. */
+function watchlistItems(w) {
+  return (w?.ids || []).map(companyId => {
+    const row = BY_ID.get(companyId);
+    const ins = row ? instrumentOfCompany(row.c) : null;
+    return { id: `${w.id}:${companyId}`, watchlistId: w.id, companyId: row?.c.id || companyId,
+             instrumentId: ins?.id || null, symbol: ins?.symbol || null, market: ins?.market || row?.c.mkt || null,
+             name: row?.c.name || null, coverage: ins ? coverageLabel(ins) : 'not in the universe',
+             addedAt: w.added?.[companyId] ?? null, resolves: !!row };
+  });
+}
+/* The symbols the price history and the scanner use for a watchlist — the
+   handoff the Phase 3 brief asks for, and what the scanner's 'watchlist'
+   universe snapshots into a setup. Unresolved members are named, never
+   dropped silently. */
+function watchlistSymbols(wlId) {
+  const w = wlById(wlId);
+  if (!w) return { symbols: [], unresolved: [], name: null };
+  const items = watchlistItems(w);
+  return { name: w.name, symbols: items.filter(i => i.symbol).map(i => i.symbol),
+           unresolved: items.filter(i => !i.symbol).map(i => i.companyId), asOf: new Date().toISOString().slice(0, 10) };
+}
+/* The export: every list with the brief's fields, versioned and stamped, and
+   honest about where it lives. Import accepts the same shape and the older
+   { id, name, ids } one. */
+function watchlistsExport() {
+  return { kind: 'quantum-tradeworks-watchlists', schema: WATCHLIST_SCHEMA, exportedAt: new Date().toISOString(),
+           owner: 'this browser — there are no accounts, so no ownerId',
+           watchlists: (State.watchlists || []).map(w => ({ id: w.id, name: w.name, createdAt: w.createdAt, updatedAt: w.updatedAt, items: watchlistItems(w) })) };
+}
+function watchlistsImport(doc) {
+  const lists = Array.isArray(doc) ? doc : Array.isArray(doc?.watchlists) ? doc.watchlists : null;
+  if (!lists) return { ok: false, why: 'not a watchlists export' };
+  const report = { created: 0, added: 0, duplicate: 0, unresolved: [], refused: [] };
+  for (const src of lists) {
+    const name = String(src.name || 'Imported').trim();
+    let w = State.watchlists.find(x => x.name === name);
+    if (!w) { const r = wlCreate(name); if (!r.ok) { report.refused.push(`${name}: ${r.why}`); continue; } w = r.watchlist; report.created++; }
+    const members = Array.isArray(src.items) ? src.items.map(i => i.companyId || i.instrumentId || i.symbol) : (src.ids || []);
+    for (const term of members) {
+      const r = wlAdd(w.id, term);
+      if (r.ok) report.added++; else if (r.duplicate) report.duplicate++; else report.unresolved.push(String(term));
+    }
+  }
+  return { ok: true, ...report };
+}
+
+migrateWatchlists();
+/* ==========================================================================
    DATASET — synthetic
    --------------------------------------------------------------------------
    fin rows are [revenue, ebit, netIncome, opCashFlow, capex, equity, debt,
@@ -10509,19 +10662,13 @@ const RESEARCH_TABS = [
   { id:'thesis',    label:'Thesis' },
 ];
 
+/* The one toggle in the app, on top of the watchlist service — so a company
+   page and the watchlists page cannot disagree about what is in a list. */
 function toggleWatch(id, wlIdx = State.wlIdx) {
   const wl = State.watchlists[wlIdx] || activeWL();
-  if (wl.ids.includes(id)) {
-    wl.ids = wl.ids.filter(x => x !== id);
-    toast(`Removed from “${wl.name}”`);
-  } else {
-    if (wl.ids.length >= LIMITS.watchlistStocks) {
-      toast(`“${wl.name}” already holds the maximum of ${LIMITS.watchlistStocks} companies`); return;
-    }
-    wl.ids = [...wl.ids, id];
-    toast(`Added to “${wl.name}”`);
-  }
-  saveWatchlists();
+  const had = wl.ids.includes(id);
+  const r = had ? wlRemove(wl.id, id) : wlAdd(wl.id, id);
+  toast(r.ok ? (had ? `Removed from “${wl.name}”` : `Added to “${wl.name}”`) : r.why);
   render();
 }
 
@@ -13807,13 +13954,12 @@ function openWatchlistManager() {
     const card = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     const top = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' });
     top.append(el('input', { class: 'input input-inline', value: w.name, style: 'flex:1 1 150px', 'aria-label': 'Watchlist name',
-      onchange: e => { w.name = e.target.value || 'Untitled'; saveWatchlists(); render(); } }));
+      onchange: e => { const r = wlRename(w.id, e.target.value); if (!r.ok) toast(r.why); render(); } }));
     top.append(el('span', { class: 'chip' }, `${w.ids.length}/${LIMITS.watchlistStocks}`));
     top.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.wlIdx = i; closeDrawer(); render(); } }, 'Open'));
     if (State.watchlists.length > 1) top.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Delete “${w.name}”?`)) return;
-      State.watchlists = State.watchlists.filter((_, j) => j !== i);
-      State.wlIdx = 0; saveWatchlists(); closeDrawer(); render(); toast('Watchlist deleted');
+      const r = wlDelete(w.id); closeDrawer(); render(); toast(r.ok ? 'Watchlist deleted' : r.why);
     } }, 'Delete'));
     card.append(top);
     card.append(el('div', { class: 'row row-wrap', style: 'gap:4px' },
@@ -13824,10 +13970,9 @@ function openWatchlistManager() {
   });
 
   body.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin:var(--sm) 0 var(--lg)', onclick: () => {
-    if (State.watchlists.length >= LIMITS.watchlists) { toast(`${LIMITS.watchlists} watchlists is the maximum`); return; }
-    State.watchlists.push({ id: `wl-${Date.now()}`, name: `Watchlist ${State.watchlists.length + 1}`, ids: [] });
-    State.wlIdx = State.watchlists.length - 1;
-    saveWatchlists(); closeDrawer(); render(); toast('Watchlist created');
+    const r = wlCreate(`Watchlist ${State.watchlists.length + 1}`);
+    if (!r.ok) { toast(r.why); return; }
+    closeDrawer(); render(); toast('Watchlist created');
   } }, `New watchlist (${State.watchlists.length}/${LIMITS.watchlists})`));
 
   /* Import: paste tickers or Bursa codes. Anything unmatched is reported rather
@@ -13842,15 +13987,13 @@ function openWatchlistManager() {
     if (!tokens.length) { toast('Nothing to import'); return; }
     const wl = activeWL();
     const matched = [], unmatched = [], dupes = [];
+    /* Through the service, so a token resolves by any name the registry knows
+       and a duplicate is refused rather than appended twice. */
     tokens.forEach(tok => {
-      const hit = U.find(r => r.c.id.toUpperCase() === tok || String(r.c.code).toUpperCase() === tok);
-      if (!hit) { unmatched.push(tok); return; }
-      if (wl.ids.includes(hit.c.id)) { dupes.push(tok); return; }
-      if (wl.ids.length + matched.length >= LIMITS.watchlistStocks) { unmatched.push(tok); return; }
-      matched.push(hit.c.id);
+      const r = wlAdd(wl.id, tok);
+      if (r.ok) matched.push(r.id); else if (r.duplicate) dupes.push(tok); else unmatched.push(tok);
     });
-    wl.ids = [...wl.ids, ...matched];
-    saveWatchlists(); closeDrawer(); render();
+    closeDrawer(); render();
     toast(`Imported ${matched.length}${dupes.length ? `, ${dupes.length} already present` : ''}${unmatched.length ? `, ${unmatched.length} not recognised: ${unmatched.slice(0, 4).join(', ')}` : ''}`);
   } }, 'Import'));
   openDrawer('Manage watchlists', body);
@@ -14842,35 +14985,97 @@ VIEWS.watchlists = () => {
   appendSampleBanner(wrap);
   wrap.append(el('div', {}, [
     el('h1', { class: 'h-display' }, 'Watchlists'),
-    el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers.'),
+    el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
   ]));
-
-  /* State.watchlists is an array of { id, name, ids } — the shape the rest of
-     the app migrated to when multiple lists were added. */
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
+
+  /* Create, export and import — the operations the brief names, on the page
+     the brief names, rather than in a drawer behind another page's button.
+     Every mutation goes through the service in 06-watchlists.js. */
+  const ctl = el('div', { class: 'card' });
+  /* A browser can hold more lists than its plan allows — the seed has two, the
+     Free plan one. Those are kept; only creating another is refused, and the
+     line says which of the two is the case rather than '2 of 1'. */
+  const over = lists.length > LIMITS.watchlists;
+  ctl.append(cardHead('New watchlist', `${over ? `${lists.length} lists held — this plan allows ${LIMITS.watchlists}, so the ones you have are kept and no more can be created` : `${lists.length} of ${LIMITS.watchlists} on this plan`}, each holding up to ${LIMITS.watchlistStocks} companies. Stored in this browser only — there are no accounts, so nothing here follows you to another device.`));
+  const nameInp = el('input', { class: 'input', placeholder: 'Name', 'aria-label': 'New watchlist name', style: 'flex:1;min-width:160px' });
+  const createBtn = el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    const r = wlCreate(nameInp.value); toast(r.ok ? `Created “${r.watchlist.name}”` : r.why); if (r.ok) render(); } }, 'Create');
+  nameInp.addEventListener('keydown', e => { if (e.key === 'Enter') createBtn.click(); });
+  const fileInp = el('input', { type: 'file', accept: '.json,application/json', style: 'display:none', 'aria-label': 'Import a watchlists file' });
+  fileInp.addEventListener('change', async () => {
+    const file = fileInp.files?.[0]; if (!file) return;
+    try {
+      const rep = watchlistsImport(JSON.parse(await file.text()));
+      toast(rep.ok ? `Imported: ${rep.created} list(s) created, ${rep.added} added, ${rep.duplicate} already present${rep.unresolved.length ? `, ${rep.unresolved.length} not recognised: ${rep.unresolved.slice(0, 4).join(', ')}` : ''}` : rep.why);
+      render();
+    } catch (e) { toast(`Could not read that file: ${e.message}`); }
+  });
+  ctl.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [nameInp, createBtn,
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      const blob = new Blob([JSON.stringify(watchlistsExport(), null, 2)], { type: 'application/json' });
+      const a = el('a', { href: URL.createObjectURL(blob), download: `quantum-tradeworks-watchlists-${new Date().toISOString().slice(0, 10)}.json` });
+      document.body.append(a); a.click(); a.remove();
+    } }, 'Export JSON'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => fileInp.click() }, 'Import JSON'), fileInp]));
+  ctl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'The export carries each member’s canonical instrument id and market — the shape a scanner takes as its universe — and says it belongs to this browser.'));
+  wrap.append(ctl);
+
   if (!lists.length) {
-    wrap.append(emptyStateCta('No watchlists yet',
-      'A watchlist decides which companies the change feed and alerts cover.',
-      'Find companies', '/discover/screener'));
+    wrap.append(emptyStateCta('No watchlists yet', 'Create one above, or find companies to add.', 'Find companies', '/discover/screener'));
     return wrap;
   }
-  lists.forEach(list => {
-    const ids = list.ids || [];
+
+  lists.forEach(w => {
+    const items = watchlistItems(w);
     const card = el('div', { class: 'card' });
-    card.append(el('div', { class: 'row', style: 'gap:8px' }, [
-      el('h2', { class: 'h-card' }, list.name),
-      el('span', { class: 'chip' }, `${ids.length} compan${ids.length === 1 ? 'y' : 'ies'}`),
-    ]));
-    if (!ids.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'Nothing in this list yet.'));
+    const head = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' });
+    head.append(el('input', { class: 'input input-inline', value: w.name, 'aria-label': `Name of watchlist ${w.name}`, style: 'flex:1 1 180px;font-weight:600',
+      onchange: e => { const r = wlRename(w.id, e.target.value); toast(r.ok ? 'Renamed' : r.why); render(); } }));
+    head.append(el('span', { class: 'chip' }, `${items.length}/${LIMITS.watchlistStocks}`));
+    head.append(el('span', { class: 'chip', title: w.createdAt ? null : (w.createdAtSource || null) }, w.createdAt ? `created ${String(w.createdAt).slice(0, 10)}` : 'created: date unknown'));
+    if (w.updatedAt) head.append(el('span', { class: 'chip' }, `updated ${String(w.updatedAt).slice(0, 10)}`));
+    head.append(el('span', { class: 'spacer' }));
+    head.append(el('button', { class: 'btn btn-ghost btn-sm', title: 'Open the scanner builder with this list as the universe', onclick: () => {
+      scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } };
+      navigate('/my/scanner');
+    } }, 'Use as scanner universe'));
+    if (lists.length > 1) head.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+      if (!confirm(`Delete “${w.name}”?`)) return;
+      const r = wlDelete(w.id); toast(r.ok ? 'Watchlist deleted' : r.why); render();
+    } }, 'Delete'));
+    card.append(head);
+
+    const addInp = el('input', { class: 'input', placeholder: 'Add by ticker, listing code, CIK or name…', 'aria-label': `Add a company to ${w.name}`, style: 'flex:1;min-width:200px' });
+    const addBtn = el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      const term = addInp.value.trim(); if (!term) return;
+      let r = wlAdd(w.id, term);
+      /* A name rather than an identifier: the first search hit with a company page. */
+      if (!r.ok && !r.duplicate && !r.id) { const hit = searchInstruments(term, {}, { limit: 5 }).hits.find(i => i.companyId); if (hit) r = wlAdd(w.id, hit.companyId); }
+      toast(r.ok ? `Added ${BY_ID.get(r.id)?.c.tk || r.id}` : r.why);
+      if (r.ok) render();
+    } }, 'Add');
+    addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
+    card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:10px' }, [addInp, addBtn]));
+
+    if (!items.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'Nothing in this list yet.'));
     else {
-      const ul = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:10px' });
-      ids.forEach(id => {
-        const row = BY_ID.get(id);
-        if (!row) return;
-        ul.append(el('a', { class: 'chip', href: href(companyPath(row.c)),
-          onclick: (e) => { e.preventDefault(); openResearch(id); } }, `${row.c.tk} · ${row.c.name}${illusText(row.c)}`));
-      });
-      card.append(ul);
+      const t = el('table', { class: 'dt' });
+      t.append(el('thead', {}, el('tr', {}, ['Symbol', 'Company', 'Coverage', 'Instrument id', 'Added', ''].map((h, i) => el('th', i === 1 ? { style: 'text-align:left' } : {}, h)))));
+      t.append(el('tbody', {}, items.map(it => {
+        const row = BY_ID.get(it.companyId);
+        return el('tr', {}, [
+          el('td', { class: 'ident' }, row ? el('a', { href: href(companyPath(row.c)), onclick: (e) => { e.preventDefault(); openResearch(row.c.id); } }, row.c.tk) : it.companyId),
+          el('td', { style: 'text-align:left;white-space:normal' }, row ? `${row.c.name}${illusText(row.c)}` : 'not in the universe'),
+          el('td', {}, el('span', { class: it.coverage === 'filed' ? 'chip chip-ok' : 'chip chip-bronze' }, it.coverage)),
+          el('td', { class: 'caption' }, it.instrumentId || '—'),
+          el('td', { class: 'caption' }, it.addedAt ? String(it.addedAt).slice(0, 10) : 'unknown'),
+          el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Remove ${row ? row.c.tk : it.companyId} from ${w.name}`,
+            onclick: () => { const r = wlRemove(w.id, it.companyId); toast(r.ok ? 'Removed' : r.why); render(); } }, '×')),
+        ]);
+      })));
+      card.append(el('div', { class: 'tablewrap', style: 'margin-top:10px' }, t));
     }
     wrap.append(card);
   });
@@ -15796,13 +16001,17 @@ VIEWS.alerts = () => {
   rail.append(rules);
 
   const pref = el('div', { class: 'card' });
-  pref.append(cardHead('Delivery', 'Alert fatigue is the failure mode. Digesting and deduplication are on by default.'));
+  /* Nothing is delivered — there is no server, no channel and no contact
+     address held under a privacy notice. The card used to read as though a
+     digest ran; these are the preferences a delivery would honour, recorded
+     and inert, and the card says so first. */
+  pref.append(cardHead('Delivery — not built', 'Nothing is sent. These are the preferences a delivery would honour, recorded here and inert until there is a server to honour them.'));
   const kv = el('dl', { class: 'kv' });
-  [['Delivery', 'Daily digest'], ['Deduplication window', '24 hours'], ['Time zone', 'Asia/Kuala_Lumpur'],
-   ['Quiet hours', '22:00 – 07:00'], ['Per-company cap', '3 a day']].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
+  [['Delivery', 'would be a daily digest'], ['Deduplication window', 'would be 24 hours'], ['Time zone', MARKETS.MY.tz],
+   ['Quiet hours', 'would be 22:00 – 07:00'], ['Per-company cap', 'would be 3 a day']].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
   pref.append(kv);
   pref.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'A US filing published after the Malaysian market closes is held to the next digest rather than sent overnight.'));
+    'A US filing published after the Malaysian market closes would be held to the next digest rather than sent overnight — when there is a digest to hold it to. The scanner records matches to a file; see /my/scanner.'));
   rail.append(pref);
   layout.append(rail);
   wrap.append(layout);
@@ -24237,7 +24446,7 @@ const CAPABILITY_REGISTER = [
     now:'Multi-timeframe trend regime, first-tranche readiness against your own rules, screenshot confidence, template and derivative hard gates, from chart evidence you record.',
     gate:'Phase 1 only. It does not read your screenshot — OCR and vision extraction are phase 2. No indicator here has been backtested on point-in-time data, so no rule is claimed to be effective.' },
   { name:'Trade-setup scanner', status:'data-gated', path:'/my/scanner',
-    now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on which completed bar. Never ranked, never delivered, never claimed to work.',
+    now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on which completed bar. A watchlist can be its universe, snapshotted into the setup. Never ranked, never delivered, never claimed to work.',
     gate:'Personal lane only: it reads the price history you built under your own subscription, so the deployed site has nothing to scan. Offering it to anyone else needs a licensed end-of-day feed and written classification, and neither exists.' },
   { name:'Sarawak Economy Watch', status:'data-gated', path:'/discover/sarawak',
     gate:'11 companies identified with price history. Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.' },
@@ -24245,6 +24454,9 @@ const CAPABILITY_REGISTER = [
     now:'Holdings, weights, currency attribution and thesis links.' },
   { name:'Thesis, catalysts and invalidation', status:'maintenance', path:'/my/theses',
     now:'User-authored conditions evaluated against current data, with the proximity rule published.' },
+  { name:'Watchlists', status:'active-core', path:'/my/watchlists',
+    now:'Create, rename, delete, add by any name the registry knows, remove, export and import — one service every page calls. Each member carries its canonical instrument id, so a list can be handed to the scanner as its universe.',
+    gate:'Stored in this browser only: there are no accounts, so no ownership to enforce and nothing follows you to another device.' },
   { name:'Alerts and monitoring', status:'beta', path:'/my/alerts',
     now:'Fact-change alerts.', gate:'Stale-data and duplicate controls are not yet implemented.' },
   { name:'Bring your own market data', status:'maintenance', path:'/my/data',
@@ -26405,7 +26617,9 @@ function scanSetup(setup, symbol, bars) {
 function scanUniverse(setup, history, instruments) {
   const have = Object.keys(history?.series || {});
   const u = setup.universe || { kind: 'all' };
-  if (u.kind === 'symbols') {
+  /* A watchlist universe is the list's symbols, snapshotted into the setup
+     when the JSON was written: the worker cannot read a browser's storage. */
+  if (u.kind === 'symbols' || u.kind === 'watchlist') {
     const want = new Set((u.symbols || []).map(s => String(s).toUpperCase()));
     return have.filter(s => want.has(String(s).toUpperCase()));
   }
@@ -26540,7 +26754,20 @@ const scanRuleProse = (r) => {
   return `${side(r.left)} ${SCAN_OPERATORS[r.op]?.label || r.op} ${r.right?.indicator ? side(r.right) : (r.right?.value ?? '?')}`;
 };
 const scanUniverseProse = (u) => !u || u.kind === 'all' ? 'every instrument with a series'
-  : u.kind === 'market' ? `every ${u.market || '?'} instrument in the registry` : `${(u.symbols || []).length} named instrument${(u.symbols || []).length === 1 ? '' : 's'}: ${(u.symbols || []).join(', ') || '—'}`;
+  : u.kind === 'market' ? `every ${u.market || '?'} instrument in the registry`
+  : u.kind === 'watchlist' ? `watchlist “${u.name || u.watchlistId || '?'}” — ${(u.symbols || []).length} symbol${(u.symbols || []).length === 1 ? '' : 's'} as of ${u.asOf || '?'}: ${(u.symbols || []).join(', ') || '—'}`
+  : `${(u.symbols || []).length} named instrument${(u.symbols || []).length === 1 ? '' : 's'}: ${(u.symbols || []).join(', ') || '—'}`;
+
+/* A symbol in the record, as a link to what the app knows about it: the
+   company page where the symbol is a company's, the Tracked view where it is
+   price-only, plain text where it is neither. */
+function scanSymbolLink(symbol) {
+  const id = companyIdFor(symbol);
+  const row = id ? BY_ID.get(id) : null;
+  if (row) return el('a', { href: href(companyPath(row.c)), onclick: (e) => { e.preventDefault(); openResearch(row.c.id); } }, symbol);
+  if (resolveInstrument(symbol)) return el('a', { href: href('/my/tracked'), onclick: (e) => { e.preventDefault(); navigate('/my/tracked'); } }, symbol);
+  return el('span', {}, symbol);
+}
 
 VIEWS.scanner = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
@@ -26625,7 +26852,7 @@ VIEWS.scanner = () => {
     t.append(el('tbody', {}, [...alerts].sort((a, b) => (b.bar || '').localeCompare(a.bar || '') || (b.recordedAt || '').localeCompare(a.recordedAt || '')).slice(0, 200).map(a => el('tr', {}, [
       el('td', { class: 'ident' }, a.bar || '—'),
       el('td', {}, a.setupName || a.setupId),
-      el('td', {}, a.symbol),
+      el('td', {}, scanSymbolLink(a.symbol)),
       el('td', { class: 'num' }, isNum(a.close) ? scanFmt(a.close) : '—'),
       el('td', { style: 'text-align:left;white-space:normal;max-width:360px' }, (a.rules || []).map(x => x.text).join('; ')),
       el('td', { class: 'caption' }, a.recordedAt ? String(a.recordedAt).replace('T', ' ').slice(0, 16) : '—'),
@@ -26647,7 +26874,7 @@ function scanRunSummary(r, note) {
   box.append(el('p', { class: 'metaline' }, `${r.setups} setup${r.setups === 1 ? '' : 's'} · ${r.evaluated} evaluation${r.evaluated === 1 ? '' : 's'} on the last completed bar${r.asOf ? ` (${r.asOf})` : ''} · ${r.matched} match${r.matched === 1 ? '' : 'es'} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
   if (r.alerts.length) {
     const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
-    r.alerts.forEach(a => ul.append(el('li', {}, `${a.setupName} · ${a.symbol} · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`)));
+    r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
     box.append(ul);
   }
   const untestedWhy = r.skipped.filter(s => s.why);
@@ -26677,8 +26904,19 @@ function scanBuilder(history, registry, alerts) {
   g.append(field('Name', text(d.name, v => { d.name = v; if (!d.id) d.id = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40); })));
   g.append(field('Id (stable; part of every alert key)', text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); })));
   g.append(field('Logic', select(d.logic, [['AND', 'all rules must hold'], ['OR', 'any rule may hold']], v => { d.logic = v; })));
-  g.append(field('Universe', select(d.universe.kind, [['symbols', 'named instruments'], ['market', 'a market'], ['all', 'everything with a series']], v => { d.universe = v === 'market' ? { kind: 'market', market: 'US' } : v === 'symbols' ? { kind: 'symbols', symbols: d.universe.symbols || [] } : { kind: 'all' }; })));
+  g.append(field('Universe', select(d.universe.kind, [['symbols', 'named instruments'], ['watchlist', 'one of your watchlists (its symbols, snapshotted)'], ['market', 'a market'], ['all', 'everything with a series']], v => {
+    d.universe = v === 'market' ? { kind: 'market', market: 'US' }
+      : v === 'symbols' ? { kind: 'symbols', symbols: d.universe.symbols || [] }
+      : v === 'watchlist' ? { kind: 'watchlist', watchlistId: d.universe.watchlistId || State.watchlists[0]?.id || null }
+      : { kind: 'all' }; })));
   if (d.universe.kind === 'symbols') g.append(field('Instruments (comma-separated symbols as they appear in your history)', text((d.universe.symbols || []).join(', '), v => { d.universe.symbols = v.split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean); })));
+  if (d.universe.kind === 'watchlist') {
+    g.append(field('Watchlist', select(d.universe.watchlistId, (State.watchlists || []).map(w => [w.id, `${w.name} (${(w.ids || []).length})`]), v => { d.universe.watchlistId = v; })));
+    const snap = watchlistSymbols(d.universe.watchlistId);
+    g.append(el('p', { class: 'metaline', style: 'grid-column:1/-1' }, snap.name
+      ? `${snap.symbols.length} symbol${snap.symbols.length === 1 ? '' : 's'} as of ${snap.asOf}: ${snap.symbols.join(', ') || '—'}${snap.unresolved.length ? ` · not resolvable to a symbol: ${snap.unresolved.join(', ')}` : ''}. The worker cannot read this browser, so the setup carries this snapshot — copy the JSON again when the list changes.`
+      : 'No watchlist selected.'));
+  }
   if (d.universe.kind === 'market') g.append(field('Market', select(d.universe.market, [['US', 'US'], ['MY', 'Bursa Malaysia']], v => { d.universe.market = v; })));
   g.append(field('Cooldown (bars before the same instrument can match again)', text(d.cooldownBars, v => { d.cooldownBars = Math.max(0, Math.round(Number(v) || 0)); }, { type: 'number', min: '0', step: '1' })));
   g.append(field('Expires (blank for persistent)', text(d.expires || '', v => { d.expires = v || null; }, { type: 'date' })));
@@ -26717,9 +26955,19 @@ function scanBuilder(history, registry, alerts) {
   const outHost = el('div', { style: 'margin-top:var(--md)' });
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
   const ready = d.id && d.rules.length;
-  const draftJson = () => JSON.stringify({ setups: [{ ...d, enabled: true }] }, null, 2);
+  /* The setup as the worker will read it. A watchlist universe is expanded
+     here, at the moment the JSON is written, into the symbols the list holds. */
+  const draftSetup = () => {
+    const out = { ...d, enabled: true };
+    if (d.universe.kind === 'watchlist') {
+      const snap = watchlistSymbols(d.universe.watchlistId);
+      out.universe = { kind: 'watchlist', watchlistId: d.universe.watchlistId, name: snap.name, symbols: snap.symbols, asOf: snap.asOf, unresolved: snap.unresolved };
+    }
+    return out;
+  };
+  const draftJson = () => JSON.stringify({ setups: [draftSetup()] }, null, 2);
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: (!ready || !history?.series) ? '' : null, onclick: () => {
-    const r = scanRun([{ ...d, enabled: true }], history, { instruments: registry, existing: alerts, now: new Date().toISOString() });
+    const r = scanRun([draftSetup()], history, { instruments: registry, existing: alerts, now: new Date().toISOString() });
     outHost.replaceChildren(scanRunSummary(r, 'A test of the draft against the loaded history. Nothing is recorded.'));
   } }, 'Test against your history (not recorded)'));
   acts.append(el('button', { class: 'btn btn-primary btn-sm', disabled: ready ? null : '', onclick: async () => {

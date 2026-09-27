@@ -212,7 +212,9 @@ function scanSetup(setup, symbol, bars) {
 function scanUniverse(setup, history, instruments) {
   const have = Object.keys(history?.series || {});
   const u = setup.universe || { kind: 'all' };
-  if (u.kind === 'symbols') {
+  /* A watchlist universe is the list's symbols, snapshotted into the setup
+     when the JSON was written: the worker cannot read a browser's storage. */
+  if (u.kind === 'symbols' || u.kind === 'watchlist') {
     const want = new Set((u.symbols || []).map(s => String(s).toUpperCase()));
     return have.filter(s => want.has(String(s).toUpperCase()));
   }
@@ -347,7 +349,20 @@ const scanRuleProse = (r) => {
   return `${side(r.left)} ${SCAN_OPERATORS[r.op]?.label || r.op} ${r.right?.indicator ? side(r.right) : (r.right?.value ?? '?')}`;
 };
 const scanUniverseProse = (u) => !u || u.kind === 'all' ? 'every instrument with a series'
-  : u.kind === 'market' ? `every ${u.market || '?'} instrument in the registry` : `${(u.symbols || []).length} named instrument${(u.symbols || []).length === 1 ? '' : 's'}: ${(u.symbols || []).join(', ') || '—'}`;
+  : u.kind === 'market' ? `every ${u.market || '?'} instrument in the registry`
+  : u.kind === 'watchlist' ? `watchlist “${u.name || u.watchlistId || '?'}” — ${(u.symbols || []).length} symbol${(u.symbols || []).length === 1 ? '' : 's'} as of ${u.asOf || '?'}: ${(u.symbols || []).join(', ') || '—'}`
+  : `${(u.symbols || []).length} named instrument${(u.symbols || []).length === 1 ? '' : 's'}: ${(u.symbols || []).join(', ') || '—'}`;
+
+/* A symbol in the record, as a link to what the app knows about it: the
+   company page where the symbol is a company's, the Tracked view where it is
+   price-only, plain text where it is neither. */
+function scanSymbolLink(symbol) {
+  const id = companyIdFor(symbol);
+  const row = id ? BY_ID.get(id) : null;
+  if (row) return el('a', { href: href(companyPath(row.c)), onclick: (e) => { e.preventDefault(); openResearch(row.c.id); } }, symbol);
+  if (resolveInstrument(symbol)) return el('a', { href: href('/my/tracked'), onclick: (e) => { e.preventDefault(); navigate('/my/tracked'); } }, symbol);
+  return el('span', {}, symbol);
+}
 
 VIEWS.scanner = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
@@ -432,7 +447,7 @@ VIEWS.scanner = () => {
     t.append(el('tbody', {}, [...alerts].sort((a, b) => (b.bar || '').localeCompare(a.bar || '') || (b.recordedAt || '').localeCompare(a.recordedAt || '')).slice(0, 200).map(a => el('tr', {}, [
       el('td', { class: 'ident' }, a.bar || '—'),
       el('td', {}, a.setupName || a.setupId),
-      el('td', {}, a.symbol),
+      el('td', {}, scanSymbolLink(a.symbol)),
       el('td', { class: 'num' }, isNum(a.close) ? scanFmt(a.close) : '—'),
       el('td', { style: 'text-align:left;white-space:normal;max-width:360px' }, (a.rules || []).map(x => x.text).join('; ')),
       el('td', { class: 'caption' }, a.recordedAt ? String(a.recordedAt).replace('T', ' ').slice(0, 16) : '—'),
@@ -454,7 +469,7 @@ function scanRunSummary(r, note) {
   box.append(el('p', { class: 'metaline' }, `${r.setups} setup${r.setups === 1 ? '' : 's'} · ${r.evaluated} evaluation${r.evaluated === 1 ? '' : 's'} on the last completed bar${r.asOf ? ` (${r.asOf})` : ''} · ${r.matched} match${r.matched === 1 ? '' : 'es'} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
   if (r.alerts.length) {
     const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
-    r.alerts.forEach(a => ul.append(el('li', {}, `${a.setupName} · ${a.symbol} · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`)));
+    r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
     box.append(ul);
   }
   const untestedWhy = r.skipped.filter(s => s.why);
@@ -484,8 +499,19 @@ function scanBuilder(history, registry, alerts) {
   g.append(field('Name', text(d.name, v => { d.name = v; if (!d.id) d.id = v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40); })));
   g.append(field('Id (stable; part of every alert key)', text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); })));
   g.append(field('Logic', select(d.logic, [['AND', 'all rules must hold'], ['OR', 'any rule may hold']], v => { d.logic = v; })));
-  g.append(field('Universe', select(d.universe.kind, [['symbols', 'named instruments'], ['market', 'a market'], ['all', 'everything with a series']], v => { d.universe = v === 'market' ? { kind: 'market', market: 'US' } : v === 'symbols' ? { kind: 'symbols', symbols: d.universe.symbols || [] } : { kind: 'all' }; })));
+  g.append(field('Universe', select(d.universe.kind, [['symbols', 'named instruments'], ['watchlist', 'one of your watchlists (its symbols, snapshotted)'], ['market', 'a market'], ['all', 'everything with a series']], v => {
+    d.universe = v === 'market' ? { kind: 'market', market: 'US' }
+      : v === 'symbols' ? { kind: 'symbols', symbols: d.universe.symbols || [] }
+      : v === 'watchlist' ? { kind: 'watchlist', watchlistId: d.universe.watchlistId || State.watchlists[0]?.id || null }
+      : { kind: 'all' }; })));
   if (d.universe.kind === 'symbols') g.append(field('Instruments (comma-separated symbols as they appear in your history)', text((d.universe.symbols || []).join(', '), v => { d.universe.symbols = v.split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean); })));
+  if (d.universe.kind === 'watchlist') {
+    g.append(field('Watchlist', select(d.universe.watchlistId, (State.watchlists || []).map(w => [w.id, `${w.name} (${(w.ids || []).length})`]), v => { d.universe.watchlistId = v; })));
+    const snap = watchlistSymbols(d.universe.watchlistId);
+    g.append(el('p', { class: 'metaline', style: 'grid-column:1/-1' }, snap.name
+      ? `${snap.symbols.length} symbol${snap.symbols.length === 1 ? '' : 's'} as of ${snap.asOf}: ${snap.symbols.join(', ') || '—'}${snap.unresolved.length ? ` · not resolvable to a symbol: ${snap.unresolved.join(', ')}` : ''}. The worker cannot read this browser, so the setup carries this snapshot — copy the JSON again when the list changes.`
+      : 'No watchlist selected.'));
+  }
   if (d.universe.kind === 'market') g.append(field('Market', select(d.universe.market, [['US', 'US'], ['MY', 'Bursa Malaysia']], v => { d.universe.market = v; })));
   g.append(field('Cooldown (bars before the same instrument can match again)', text(d.cooldownBars, v => { d.cooldownBars = Math.max(0, Math.round(Number(v) || 0)); }, { type: 'number', min: '0', step: '1' })));
   g.append(field('Expires (blank for persistent)', text(d.expires || '', v => { d.expires = v || null; }, { type: 'date' })));
@@ -524,9 +550,19 @@ function scanBuilder(history, registry, alerts) {
   const outHost = el('div', { style: 'margin-top:var(--md)' });
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
   const ready = d.id && d.rules.length;
-  const draftJson = () => JSON.stringify({ setups: [{ ...d, enabled: true }] }, null, 2);
+  /* The setup as the worker will read it. A watchlist universe is expanded
+     here, at the moment the JSON is written, into the symbols the list holds. */
+  const draftSetup = () => {
+    const out = { ...d, enabled: true };
+    if (d.universe.kind === 'watchlist') {
+      const snap = watchlistSymbols(d.universe.watchlistId);
+      out.universe = { kind: 'watchlist', watchlistId: d.universe.watchlistId, name: snap.name, symbols: snap.symbols, asOf: snap.asOf, unresolved: snap.unresolved };
+    }
+    return out;
+  };
+  const draftJson = () => JSON.stringify({ setups: [draftSetup()] }, null, 2);
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: (!ready || !history?.series) ? '' : null, onclick: () => {
-    const r = scanRun([{ ...d, enabled: true }], history, { instruments: registry, existing: alerts, now: new Date().toISOString() });
+    const r = scanRun([draftSetup()], history, { instruments: registry, existing: alerts, now: new Date().toISOString() });
     outHost.replaceChildren(scanRunSummary(r, 'A test of the draft against the loaded history. Nothing is recorded.'));
   } }, 'Test against your history (not recorded)'));
   acts.append(el('button', { class: 'btn btn-primary btn-sm', disabled: ready ? null : '', onclick: async () => {
