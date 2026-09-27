@@ -703,6 +703,169 @@ try {
     else ok(`every absent figure gives the true reason (insurer ${r.ins.cid}${r.negEq ? `, negative equity ${r.negEq.cid}` : ''}${r.noDps ? `, no dividend line ${r.noDps.cid}` : ''}), a price measure shows no false prior period${r.wtd ? `, and ${r.wtd.id}'s share count names its weighted diluted tag` : ''}`);
   }
 
+  /* "NOT MEANINGFUL" MEANS EVERY INPUT IS THERE — IN EVERY YEAR READ. The
+     legend says so, and a growth, variability or share-count measure reads
+     more than the latest year: META's dividend line is absent in its early
+     years and its dividend CAGR read "n/m, every input is present". The
+     windows are written out here rather than read from the page, so the check
+     does not agree with the code by construction. */
+  {
+    const r = await evaluate(`(() => {
+      const SPAN = { rev5: 5, eps5: 5, fcf5: 5, dps5: 5, epsVol: 5, revDD: 5, ocfPosYears: 5, buyback: 99, dilution: 99 };
+      const bad = [];
+      for (const row of U) for (const f of FIELDS) {
+        const s = metricStatus(row, f.k);
+        if (s.available || s.reason !== 'not meaningful') continue;
+        const span = SPAN[f.k] || 1;
+        const gap = (FIELD_INPUTS[f.k] || []).filter(l => LINE_COL[l] != null && row.c.fin.slice(-span).some(x => !isNum(x[LINE_COL[l]])));
+        if (gap.length) bad.push(row.c.tk + ' ' + f.k + ' (' + gap.join(', ') + ')');
+      }
+      const meta = U.find(x => x.c.tk === 'META' && x.c.real);
+      return { bad, meta: meta ? metricStatus(meta, 'dps5') : null };
+    })()`);
+    const p = [];
+    if (r.bad.length) p.push(`${r.bad.length} "not meaningful" cells have an input missing in a year the measure reads: ${r.bad.slice(0, 8).join('; ')}`);
+    if (r.meta && !(r.meta.reason === 'not reported' && /FY\d{4}/.test(r.meta.text))) p.push(`META dividend CAGR: ${r.meta.reason} — ${r.meta.text}`);
+    if (p.length) fail('"not meaningful" is only said where every input is present in every year the measure reads', p);
+    else ok('"not meaningful" is only said where every input is present in every year the measure reads; a gap names the line and its years');
+  }
+
+  /* THE SCREENER'S OWN ARITHMETIC AND COPY. A money threshold is read in the
+     currency the column shows; a template's banner goes when its criteria
+     do; a mode switch does not reinterpret thresholds; the export carries the
+     definition, the on-screen order and its units; every exclusion is listed;
+     no absent score prints "null"; and the formula text is the computation. */
+  {
+    await evaluate(`navigate('/discover/screener')`);
+    await sleep(700);
+    const r = await evaluate(`(async () => {
+      const out = {};
+      const s = blankScreen(); s.minCoverage = 0; s.crit = { mcap: { min: 100, max: null } };
+      const prevCcy = State.screenCcy; State.screenCcy = 'USD';
+      out.mcapUsd = U.filter(x => evaluateScreen(x, s).pass).filter(x => (convertTo(x.m.mcap, x.c.ccy, 'USD') ?? -1) < 100).map(x => x.c.tk);
+      const aapl = BY_ID.get('AAPL-SEC');
+      out.mos = aapl && isNum(aapl.m.mosBase) ? { formula: FIELD_BY_K.mosBase.formula, v: aapl.m.mosBase, byPrice: (aapl.val.vals.base - aapl.c.px.p) / aapl.c.px.p * 100 } : null;
+
+      const tpl = SCREEN_TEMPLATES.find(t => t.untestable?.length);
+      applyTemplate(tpl);
+      out.tplOn = /not evaluated/.test(document.querySelector('main').innerText);
+      State.screen.crit.qscore = { min: 10, max: null }; render();
+      out.tplAfterEdit = { flag: State.appliedTemplate, banner: /rule not evaluated/.test(document.querySelector('main').innerText) };
+
+      State.screen = blankScreen(); State.screen.mode = 'pct'; State.screen.crit = { roic: { min: 50, max: null } }; render();
+      out.pctChip = [...document.querySelectorAll('main .chip.chip-brand')].map(x => x.textContent).find(t => /Return on invested capital/.test(t)) || null;
+      [...document.querySelectorAll('main .segmented button')].find(x => x.textContent === 'Absolute').click();
+      out.afterSwitch = JSON.stringify(State.screen.crit);
+
+      State.screen = blankScreen(); State.screen.cols = ['roic', 'mcap']; render();
+      let blob = null; const oc = URL.createObjectURL, ac = HTMLAnchorElement.prototype.click;
+      URL.createObjectURL = (x) => { blob = x; return 'blob:x'; }; HTMLAnchorElement.prototype.click = function () {};
+      try { exportScreen(); } finally { URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = ac; }
+      const lines = (await blob.text()).split('\\n');
+      out.exp = { head: lines[0], first: lines.slice(1, 4).map(l => l.split(',')[0]),
+        shown: [...document.querySelectorAll('main table.dt tbody tr')].slice(0, 3).map(tr => tr.querySelector('.tk')?.childNodes[0]?.textContent),
+        criteria: lines.filter(l => l.startsWith('# Criterion:')).length, json: lines.some(l => l.startsWith('# Definition (JSON):')) };
+
+      const failed = U.map(x => ({ r: x, ev: evaluateScreen(x, State.screen) })).filter(x => !x.ev.pass);
+      openExclusions(failed);
+      out.excl = { failed: failed.length, panels: document.querySelectorAll('.drawer .panel').length };
+      closeDrawer({ restore: false });
+
+      const def = JSON.parse(JSON.stringify(State.screen));
+      const keep = State.savedScreens;
+      State.savedScreens = [{ name: 'harness', def, snapshot: screenSnapshot(def), alertOnMatch: false }];
+      openSavedScreen(0);
+      out.savedNull = /\\bnull\\b/.test(document.querySelector('.drawer')?.innerText || '');
+      closeDrawer({ restore: false });
+      State.savedScreens = keep;
+      out.cardNull = [...document.querySelectorAll('.screener-card')].filter(c => /\\bnull\\b/.test(c.textContent)).length;
+      State.screenCcy = prevCcy; State.screen = blankScreen(); render();
+      return out;
+    })()`);
+    const p = [];
+    if (r.mcapUsd.length) p.push(`a market-cap floor of $100B in USD passes ${r.mcapUsd.join(', ')}, below it once converted`);
+    if (r.mos && (!/÷ price$/.test(r.mos.formula) || Math.abs(r.mos.v - r.mos.byPrice) > 0.01)) p.push(`difference to base case: formula "${r.mos.formula}", value ${r.mos.v}, (estimate − price) ÷ price = ${r.mos.byPrice}`);
+    if (!r.tplOn) p.push('the section 18.1 template shows no "not evaluated" banner');
+    if (r.tplAfterEdit.flag || r.tplAfterEdit.banner) p.push(`an edited template keeps its flag or banner: ${JSON.stringify(r.tplAfterEdit)}`);
+    if (!/50th pct/.test(r.pctChip || '')) p.push(`a percentile chip reads "${r.pctChip}"`);
+    if (r.afterSwitch !== '{}') p.push(`thresholds survive a switch from percentile to absolute: ${r.afterSwitch}`);
+    if (!/mcap_bn_/.test(r.exp.head) || !/roic_pct/.test(r.exp.head)) p.push(`export headers carry no units: ${r.exp.head}`);
+    if (JSON.stringify(r.exp.first) !== JSON.stringify(r.exp.shown)) p.push(`export order ${r.exp.first} is not the table's ${r.exp.shown}`);
+    if (!r.exp.criteria || !r.exp.json) p.push('the export carries no screen definition');
+    if (r.excl.panels !== r.excl.failed) p.push(`Explain exclusions lists ${r.excl.panels} of ${r.excl.failed}`);
+    if (r.savedNull) p.push('the saved-screen reproducibility table prints "null"');
+    if (r.cardNull) p.push(`${r.cardNull} phone cards print "null"`);
+    if (p.length) fail('the screener filters, labels, exports and explains what it shows', p);
+    else ok(`the screener filters money in the column's currency, drops a template once edited, clears thresholds on a mode switch, exports in the table's order with units and the definition, lists all ${r.excl.failed} exclusions, and prints no "null"`);
+
+    /* Keyboard: the completeness slider keeps focus across the re-render, so
+       a second arrow press still moves it. */
+    await evaluate(`document.getElementById('covRange').focus()`);
+    for (let k = 0; k < 2; k++) {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 }, sessionId);
+      await sleep(250);
+    }
+    const kb = await evaluate(`({ v: State.screen.minCoverage, active: document.activeElement?.id || document.activeElement?.tagName })`);
+    if (kb.v !== 70 || kb.active !== 'covRange') fail('the completeness slider keeps focus and moves on every arrow press', kb);
+    else ok('the completeness slider keeps focus and moves on every arrow press (60% → 70% in two presses)');
+    await evaluate(`State.screen = blankScreen(); render(); true`);
+  }
+
+  /* STRATEGIES, HEATMAP, VALUE MAP, HOME. A bank meeting Dividend
+     Durability's yield and payout rules is admitted, since leverage is "where
+     applicable"; no card claims a rebalance; exclusions a test cannot read are
+     marked; a quality-score split prints point differences, not the score
+     with 50 added; heatmap tiles are keyboard buttons; the value map's table
+     prints no invented midpoint rank; the movement row is in points with the
+     model-difference colour; and the home market card averages one
+     provenance. */
+  {
+    const r = await evaluate(`(async () => {
+      const out = {};
+      const dd = THEMES.find(t => t.id === 'divdur');
+      out.bankOk = U.filter(x => x.c.type === 'bank' && x.m.dy > 2.5 && (x.m.payout ?? 99) < 85).map(x => x.c.tk + ':' + dd.test(x));
+      out.untestedMarked = THEMES.every(t => !(t.excl || []).some(e => /yield trap|special distribution|going-concern|lease or pension|debt-funded|revaluation|status changed/i.test(e)));
+      out.rebalance = THEMES.some(t => 'rebalance' in t);
+      const mb = U.find(x => x.c.mkt === 'MY' && isNum(x.m.mcap) && isNum(x.scores.quality.score));
+      const a = mb ? attribution(mb, 'qual') : null;
+      out.qual = a ? { market: a.market, shown: (a.m.dfmt || a.m.fmt)(a.market) } : null;
+      const us = marketSummary('US');
+      out.home = { mixed: new Set(us.rows.map(x => !!x.c.real)).size > 1 };
+      navigate('/discover?tab=heatmap'); await new Promise(res => setTimeout(res, 700));
+      out.tiles = document.querySelectorAll('main svg g.tile[role="button"][tabindex="0"]').length;
+      const g = document.querySelector('main svg g.tile');
+      if (g) { g.focus(); g.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); }
+      await new Promise(res => setTimeout(res, 300));
+      out.tileOpens = !!document.querySelector('.drawer') && /Why moved|How this figure splits/.test(document.querySelector('.drawer').innerText);
+      closeDrawer({ restore: false });
+      out.klciLabel = [...document.querySelectorAll('main .segmented button')].some(b => /S&P 500|FBM KLCI/.test(b.textContent));
+      navigate('/discover/value-map'); await new Promise(res => setTimeout(res, 700));
+      State.radar.cohort = 'sector'; render();
+      const noPeer = universeAsOf(State.radar.yi).find(x => x.val.mos && x.qpctSector == null);
+      const row = noPeer ? [...document.querySelectorAll('main details tbody tr')].find(tr => tr.children[0].textContent.startsWith(noPeer.c.tk + ' ')) : null;
+      out.noPeer = noPeer ? { tk: noPeer.c.tk, cell: row?.children[4]?.textContent } : null;
+      out.unplotted = /not plotted/.test(document.querySelector('main').innerText);
+      State.radar.cohort = 'market'; render();
+      const past = universeAsOf(RADAR_MIN_YI).find(x => x.val.mos && BY_ID.get(x.id)?.val.mos);
+      if (past) { openRadarDetail(past.id, RADAR_MIN_YI); out.move = [...document.querySelectorAll('.drawer dl.kv dd')].map(dd => dd.textContent + '|' + dd.className).find(t => /points/.test(t)) || null; closeDrawer({ restore: false }); }
+      return out;
+    })()`);
+    const p = [];
+    if (r.bankOk.some(x => x.endsWith(':false'))) p.push(`banks meeting Dividend Durability's yield and payout rules are excluded: ${r.bankOk.join(', ')}`);
+    if (!r.untestedMarked) p.push('an exclusion no test evaluates is still listed as applied');
+    if (r.rebalance) p.push('a strategy still claims a rebalance schedule');
+    if (r.qual && Math.abs(r.qual.market) < 40 && /^\d{2}$/.test(r.qual.shown)) p.push(`a quality-score component of ${r.qual.market.toFixed(1)} prints as "${r.qual.shown}"`);
+    if (r.home.mixed) p.push('the home US card averages filed closes and sample prices together');
+    if (!r.tiles || !r.tileOpens) p.push(`heatmap tiles: ${r.tiles} keyboard buttons, Enter opens the drawer ${r.tileOpens}`);
+    if (r.klciLabel) p.push('the heatmap universe is still labelled as an index it does not filter on');
+    if (r.noPeer && /^\d+$/.test(r.noPeer.cell || '')) p.push(`${r.noPeer.tk} with no sector peers prints a sector percentile of ${r.noPeer.cell}`);
+    if (!r.unplotted) p.push('the value map does not say who is not plotted');
+    if (r.move && (/% points/.test(r.move) || /\|(pos|neg)$/.test(r.move))) p.push(`value-map movement row: ${r.move}`);
+    if (p.length) fail('strategies, heatmap, value map and home state what they test and show', p);
+    else ok(`strategies admit ${r.bankOk.length} bank(s) on the payout branch and mark untested exclusions, ${r.tiles} heatmap tiles are keyboard buttons, a score split prints points, the value map names what it leaves out, and the home card averages one provenance`);
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

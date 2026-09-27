@@ -2,12 +2,22 @@
    VIEW — HOME
    ========================================================================== */
 
+/* One provenance per aggregate. The US card cap-weighted PGR, an illustrative
+   company on a synthetic price and market cap, together with four filers on
+   supplied closes, and printed the blend as one move: neither a real figure
+   nor a labelled sample. Where a market has filed companies with a close, the
+   aggregate is over those alone; otherwise it is over the illustrative set,
+   and the card says which it is. */
 function marketSummary(mkt) {
-  const rows = U.filter(r => r.c.mkt === mkt && isNum(r.m.mcap) && isNum(r.c.px?.d1));
+  const priced = U.filter(r => r.c.mkt === mkt && isNum(r.m.mcap) && isNum(r.c.px?.d1));
+  const filedRows = priced.filter(r => r.c.real);
+  const filed = filedRows.length > 0;
+  const rows = filed ? filedRows : priced;
   const capTotal = sum(rows.map(r => r.m.mcap));
-  const wChg = sum(rows.map(r => r.c.px.d1 * r.m.mcap)) / capTotal;
+  const wChg = capTotal > 0 ? sum(rows.map(r => r.c.px.d1 * r.m.mcap)) / capTotal : null;
   const advancers = rows.filter(r => r.c.px.d1 > 0).length;
-  return { rows, capTotal, wChg, advancers, total: rows.length };
+  const asOf = [...new Set(rows.map(r => priceAsOfLabel(r.c)))];
+  return { rows, capTotal, wChg, advancers, total: rows.length, filed, asOf, leftOut: priced.length - rows.length };
 }
 
 VIEWS.home = () => {
@@ -67,12 +77,14 @@ VIEWS.home = () => {
     const card = el('div', { class: 'card' });
     const top = el('div', { class: 'row', style: 'margin-bottom:8px' });
     top.append(marketChip(mkt));
-    top.append(el('span', { class: 'caption' }, mkt === 'US' ? 'S&P 500 sample' : 'FBM KLCI sample'));
+    top.append(el('span', { class: 'caption' }, s.filed ? 'Filed companies' : 'Illustrative sample'));
     card.append(top);
     card.append(statTile('Cap-weighted move vs previous close', withSign(s.wChg, 2), {
-      sub: `${s.advancers} of ${s.total} companies advancing`,
-      tone: s.wChg >= 0 ? '--ok-text' : '--dn-text',
+      sub: `${s.advancers} of ${s.total} ${s.filed ? 'filed companies with a supplied close' : 'illustrative companies on sample prices'} advancing${s.asOf.length ? ` · ${s.asOf.join('; ')}` : ''}`,
+      tone: !isNum(s.wChg) ? null : s.wChg >= 0 ? '--ok-text' : '--dn-text',
     }));
+    if (s.leftOut) card.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
+      `${s.leftOut} illustrative ${s.leftOut === 1 ? 'company is' : 'companies are'} left out, so supplied closes and sample prices are not averaged together.`));
     ctx.append(card);
   });
 
@@ -357,13 +369,18 @@ const FIELDS = [
   { g:'Market and eligibility',k:'sma200d',   label:'Distance from 200-day average', fmt:v=>fmtPct(v), formula:'(price − 200-day simple moving average) ÷ 200-day average', note:'Needs 200 observed closes. Computed from imported or captured history only.' },
   { g:'Composite scores',      k:'qscore',     label:'Business quality score',     fmt:v=>fmtNum(v,0), formula:'weighted pillar score, 0–100' },
   { g:'Composite scores',      k:'vscore',     label:'Valuation evidence score',   fmt:v=>fmtNum(v,0), formula:'weighted valuation score, 0–100' },
-  { g:'Composite scores',      k:'mosBase',    label:'Difference to base-case model', fmt:v=>fmtPct(v,0), formula:'(base-case model estimate − price) ÷ base-case estimate' },
+  { g:'Composite scores',      k:'mosBase',    label:'Difference to base-case model', fmt:v=>fmtPct(v,0), formula:'(base-case model estimate − price) ÷ price' },
   /* The only field here denominated in money. Every other column is a ratio, a
      multiple or a percentage, and therefore reads the same whichever currency
      the company reports in. Flagged so the screener can convert and label this
      one rather than printing a Bursa figure in ringgit beside a US figure in
-     dollars as though they were the same unit. */
-  { g:'Market and eligibility',k:'mcap',      label:'Market capitalisation',      fmt:v=>fmtNum(v,1), formula:'price × shares in issue', money:true },
+     dollars as though they were the same unit.
+
+     Formatted in the company's own currency when the row is known. A bare
+     fmtNum printed "131.2" in the source drawer beside a cell reading
+     "$29.7B" — the same quantity twice, with no unit on either side to say
+     that one is billions of ringgit and the other billions of dollars. */
+  { g:'Market and eligibility',k:'mcap',      label:'Market capitalisation',      fmt:(v, r)=>r?.c ? fmtCap(v, r.c.ccy) : `${fmtNum(v,1)}bn`, formula:'price × shares in issue', money:true },
 ];
 const FIELD_BY_K = Object.fromEntries(FIELDS.map(f => [f.k, f]));
 const FIELD_GROUPS = [...new Set(FIELDS.map(f => f.g))];
@@ -492,6 +509,30 @@ function applyTemplate(t) {
   render();
 }
 
+/* Whether the screen on the page is still the one a template produced. The
+   section 18.1 banner — "matches below satisfy the rules that could be
+   tested" — survived Reset, Clear all and every edited threshold, so it went
+   on describing a screen that no longer had the template's rules. Rather than
+   remembering to clear the flag in every handler that can change a criterion,
+   the screen is compared with the template's own output: the same universe,
+   filters, completeness floor and thresholds, or it is not that template.
+   Columns and sort are presentation and do not count. */
+function screenCriteriaKey(s) {
+  const crit = Object.entries(s.crit || {})
+    .filter(([, c]) => c && (c.min != null || c.max != null))
+    .map(([k, c]) => [k, c.min ?? null, c.max ?? null])
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  return JSON.stringify([s.universe, [...(s.sectors || [])].sort(), [...(s.types || [])].sort(), s.mode,
+    s.minCoverage, s.local?.shariahOnly, s.local?.excludePn17, s.local?.klciOnly, crit]);
+}
+function templateStillApplies(sc) {
+  const t = SCREEN_TEMPLATES.find(x => x.id === State.appliedTemplate);
+  if (!t) return null;
+  const s = blankScreen();
+  t.apply(s);
+  return screenCriteriaKey(s) === screenCriteriaKey(sc) ? t : null;
+}
+
 /* Returns { pass, fails:[reason] } for one company — the "explain exclusion" data. */
 function evaluateScreen(row, sc) {
   const fails = [];
@@ -509,22 +550,132 @@ function evaluateScreen(row, sc) {
   for (const [k, range] of Object.entries(sc.crit)) {
     if (range.min == null && range.max == null) continue;
     const f = FIELD_BY_K[k];
-    const raw = sc.mode === 'pct' ? metricPct(row, k, 'market') : m[k];
+    const raw = critValue(row, k, sc);
     if (!isNum(raw)) {
       /* Missing data never passes a threshold silently. */
       fails.push(`${f.label} is not available${f.miss ? ' — ' + f.miss.replace(/\.$/, '') : ''}`);
       continue;
     }
-    const shown = sc.mode === 'pct' ? `${raw}th pct` : f.fmt(raw);
-    if (range.min != null && raw < range.min) fails.push(`${f.label} ${shown} is below the ${sc.mode === 'pct' ? range.min + 'th pct' : f.fmt(range.min)} minimum`);
-    if (range.max != null && raw > range.max) fails.push(`${f.label} ${shown} is above the ${sc.mode === 'pct' ? range.max + 'th pct' : f.fmt(range.max)} maximum`);
+    const shown = critFmt(f, raw, sc, row);
+    if (range.min != null && raw < range.min) fails.push(`${f.label} ${shown} is below the ${critFmt(f, range.min, sc, row)} minimum`);
+    if (range.max != null && raw > range.max) fails.push(`${f.label} ${shown} is above the ${critFmt(f, range.max, sc, row)} maximum`);
   }
   return { pass: fails.length === 0, fails };
 }
 
+/* THE CURRENCY A MONEY THRESHOLD IS READ IN.
+   The market-cap filter compared m.mcap raw — billions of ringgit for a Bursa
+   row, billions of dollars for a US one — while the column beside it showed
+   both converted. "Market cap ≥ 100" under "Show money in USD" passed
+   Maybank, whose own cell read $29.7B. A money threshold is now read in the
+   screen's currency, and under "Local" in each company's own, which the rail
+   and the chip then say. A saved screen carries the currency it was saved in,
+   so re-running it later does not depend on where the toggle happens to be. */
+const screenMoneyCcy = (sc) => sc.moneyCcy || screenCcy();
+function critValue(row, k, sc) {
+  if (sc.mode === 'pct') return metricPct(row, k, 'market');
+  const v = row.m[k], ccy = screenMoneyCcy(sc);
+  return FIELD_BY_K[k]?.money && ccy !== 'local' ? convertTo(v, row.c.ccy, ccy) : v;
+}
+/* How a threshold, or a value tested against one, reads — with the scale it is
+   on. The same number is a percentile rank in one mode and a raw value in the
+   other, and a chip that read "≥ 50" in both let a mode switch turn a median
+   rank into a 50% floor without anything on screen changing. */
+function critFmt(f, v, sc, row) {
+  if (sc.mode === 'pct') return `${ord(v)} pct`;
+  if (f.money) {
+    const ccy = screenMoneyCcy(sc);
+    if (ccy !== 'local') return fmtCap(v, ccy);
+    return row ? fmtCap(v, row.c.ccy) : `${fmtNum(v, 1)}bn in each company’s own currency`;
+  }
+  return f.fmt(v, row);
+}
+/* The unit a threshold is typed in, for the rail beside its inputs. */
+function critUnit(f, sc) {
+  if (sc.mode === 'pct') return 'percentile';
+  if (!f.money) return null;
+  const ccy = screenMoneyCcy(sc);
+  return ccy === 'local' ? 'bn, each company’s own currency' : `bn ${ccy}`;
+}
+
+/* Every active filter on a screen, in words, each with the way to remove it.
+   The chips above the results and the definition written into an export
+   both read from here, so the file cannot describe a different screen from
+   the one on the page. */
+function activeFilters(sc) {
+  const active = [];
+  if (sc.universe !== 'all') active.push({ label: `Universe: ${
+    { US:'United States', MY:'Bursa Malaysia', watchlist:'Only companies I follow' }[sc.universe] || sc.universe }`,
+    clear: () => { sc.universe = 'all'; } });
+  if (sc.minCoverage > 0) active.push({ label: `Data completeness ≥ ${sc.minCoverage}%`, clear: () => { sc.minCoverage = 0; } });
+  (sc.types || []).forEach(t => active.push({ label: `Type: ${t}`, clear: () => { sc.types = sc.types.filter(x => x !== t); } }));
+  (sc.sectors || []).forEach(t => active.push({ label: `Sector: ${t}`, clear: () => { sc.sectors = sc.sectors.filter(x => x !== t); } }));
+  Object.entries(sc.crit || {}).forEach(([k, c3]) => {
+    if (!c3 || (c3.min == null && c3.max == null)) return;
+    const f = FIELD_BY_K[k]; if (!f) return;
+    const bits = [c3.min != null ? `≥ ${critFmt(f, c3.min, sc)}` : null, c3.max != null ? `≤ ${critFmt(f, c3.max, sc)}` : null].filter(Boolean).join(' and ');
+    active.push({ label: `${f.label} ${bits}`, clear: () => { delete sc.crit[k]; } });
+  });
+  if (sc.local?.shariahOnly) active.push({ label: 'Shariah-compliant only', clear: () => { sc.local.shariahOnly = false; } });
+  if (sc.local?.excludePn17) active.push({ label: 'Excluding PN17 / GN3', clear: () => { sc.local.excludePn17 = false; } });
+  if (sc.local?.klciOnly) active.push({ label: 'FBM KLCI constituents only', clear: () => { sc.local.klciOnly = false; } });
+  return active;
+}
+
+/* The value a results column sorts on, by column key — one definition for the
+   table and for the export, so the file comes out in the order on screen. A
+   metric that is not among the displayed columns sorts nothing, as in the
+   table, where no header exists to sort it by. */
+function screenSortGet(k, sc) {
+  const fixed = { quality: r => r.scores.quality.score, value: r => r.scores.value.score, mos: r => r.val.mos?.base,
+                  risk: r => r.risk.raw, coverage: r => r.m.coverage };
+  if (fixed[k]) return fixed[k];
+  const f = FIELD_BY_K[k];
+  if (!f || !sc.cols.includes(k)) return null;
+  const ccy = screenCcy();
+  return f.money && ccy !== 'local' ? r => convertTo(r.m[k], r.c.ccy, ccy) : r => r.m[k];
+}
+function sortScreenRows(rows, sc) {
+  const get = screenSortGet(sc.sort.k, sc);
+  if (!get) return [...rows];
+  return [...rows].sort((a, b) => {
+    const av = get(a), bv = get(b);
+    if (!isNum(av)) return 1; if (!isNum(bv)) return -1;
+    return (av - bv) * sc.sort.dir;
+  });
+}
+
+/* Re-render and hand focus back to the control that asked for it. render()
+   replaces the whole view, so the focused slider, select or checkbox was
+   destroyed under the reader: one arrow press moved the completeness slider,
+   focus fell to <body>, and the next press did nothing. Controls that re-render
+   carry an id, and focus returns to the new element with the same id. */
+function renderKeepFocus() {
+  const id = document.activeElement?.id;
+  render();
+  if (id) document.getElementById(id)?.focus({ preventScroll: true });
+}
+
 function renderScreener() {
   const sc = State.screen;
+  /* A template whose criteria have since been changed is no longer applied —
+     its pressed state and its banner go with it. */
+  if (State.appliedTemplate && !templateStillApplies(sc)) State.appliedTemplate = null;
   const wrap = el('div', { class: 'screener-layout' });
+
+  /* Absolute and percentile thresholds are different scales. The criteria used
+     to survive the switch, so "ROIC min 50" — the median rank — silently became
+     a 50% return floor when Absolute was pressed. A switch now clears them and
+     says so, rather than reinterpreting numbers the reader typed for another
+     scale. */
+  const setMode = (mode) => {
+    if (sc.mode === mode) return;
+    const had = Object.values(sc.crit || {}).some(c => c && (c.min != null || c.max != null));
+    sc.mode = mode;
+    sc.crit = {};
+    if (had) toast(`Thresholds cleared — ${mode === 'pct' ? 'percentile ranks' : 'raw values'} are a different scale from the ones you typed`);
+    render();
+  };
 
   /* ---------- filter rail ---------- */
   const rail = el('div', { class: 'card rail-sticky', style: 'padding:0;overflow:hidden' });
@@ -535,13 +686,13 @@ function renderScreener() {
     el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.screen = blankScreen(); render(); } }, 'Reset'),
   ]));
   railHd.append(el('div', { class: 'segmented', style: 'margin-top:10px;width:100%' }, [
-    el('button', { style: 'flex:1', 'aria-selected': sc.mode === 'abs' ? 'true' : 'false', onclick: () => { sc.mode = 'abs'; render(); } }, 'Absolute'),
+    el('button', { style: 'flex:1', 'aria-selected': sc.mode === 'abs' ? 'true' : 'false', onclick: () => setMode('abs') }, 'Absolute'),
     el('button', { style: 'flex:1', 'aria-selected': sc.mode === 'pct' ? 'true' : 'false',
       title: lim('percentileMode') ? null : 'Peer-percentile screening is part of Equities Research',
-      onclick: () => { if (!lim('percentileMode')) { toast('Peer-percentile screening is part of Equities Research'); go('plans'); return; } sc.mode = 'pct'; render(); } }, 'Peer percentile'),
+      onclick: () => { if (!lim('percentileMode')) { toast('Peer-percentile screening is part of Equities Research'); go('plans'); return; } setMode('pct'); } }, 'Peer percentile'),
   ]));
   railHd.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-    sc.mode === 'abs' ? 'Thresholds are raw metric values.' : 'Thresholds are percentile ranks within the same market cohort.'));
+    sc.mode === 'abs' ? 'Thresholds are raw metric values. Switching mode clears them.' : 'Thresholds are percentile ranks within the same market cohort. Switching mode clears them.'));
   rail.append(railHd);
 
   /* The filter column was the second of three competing vertical scrollbars.
@@ -572,7 +723,7 @@ function renderScreener() {
   /* universe */
   const uni = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   uni.append(el('label', { for: 'uniSel' }, 'Universe'));
-  const uniSel = el('select', { class: 'select', id: 'uniSel', onchange: e => { sc.universe = e.target.value; render(); } });
+  const uniSel = el('select', { class: 'select', id: 'uniSel', onchange: e => { sc.universe = e.target.value; renderKeepFocus(); } });
   [['all', `All markets (${U.length})`], ['US', 'United States'], ['MY', 'Bursa Malaysia'], ['watchlist', 'Only companies I follow']]
     .forEach(([v, l]) => uniSel.append(el('option', { value: v, selected: sc.universe === v ? '' : null }, l)));
   uni.append(uniSel);
@@ -580,9 +731,14 @@ function renderScreener() {
 
   /* completeness */
   const cov = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-  cov.append(el('label', { for: 'covRange' }, `Minimum data completeness — ${sc.minCoverage}%`));
+  const covLabel = el('label', { for: 'covRange' }, `Minimum data completeness — ${sc.minCoverage}%`);
+  cov.append(covLabel);
+  /* While the slider moves, only its label follows; the results follow on
+     change. Re-rendering on every input event replaced the slider under a
+     dragging pointer, so a drag stopped after its first step. */
   cov.append(el('input', { type: 'range', id: 'covRange', min: 0, max: 100, step: 5, value: sc.minCoverage,
-    oninput: e => { sc.minCoverage = +e.target.value; render(); } }));
+    oninput: e => { covLabel.textContent = `Minimum data completeness — ${e.target.value}%`; },
+    onchange: e => { sc.minCoverage = +e.target.value; renderKeepFocus(); } }));
   cov.append(el('p', { class: 'metaline' }, 'Stops a company with thin data from passing a screen it was never tested against.'));
   railBody.append(cov);
 
@@ -591,7 +747,7 @@ function renderScreener() {
   loc.append(el('div', { class: 'row', style: 'margin-bottom:6px' }, [el('span', { class: 'chip chip-my' }, 'MY'), el('span', { class: 'caption' }, 'Local filters')]));
   [['shariahOnly', 'Shariah-compliant only'], ['excludePn17', 'Exclude PN17 / GN3'], ['klciOnly', 'FBM KLCI constituents only']].forEach(([k, label]) => {
     const lab = el('label', { class: 'checkline' });
-    lab.append(el('input', { type: 'checkbox', checked: sc.local[k] ? '' : null, onchange: e => { sc.local[k] = e.target.checked; render(); } }));
+    lab.append(el('input', { type: 'checkbox', id: `loc-${k}`, checked: sc.local[k] ? '' : null, onchange: e => { sc.local[k] = e.target.checked; renderKeepFocus(); } }));
     lab.append(el('span', {}, label));
     loc.append(lab);
   });
@@ -619,14 +775,19 @@ function renderScreener() {
   const critRow = (f) => {
     const c = sc.crit[f.k] || {};
     const row = el('div', { style: 'display:grid;grid-template-columns:1fr 62px 62px;gap:6px;align-items:center;padding:3px 0' });
+    const unit = critUnit(f, sc);
     row.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'justify-content:flex-start;padding:0;font-size:12px;text-align:left',
-      title: f.formula, onclick: () => openMetricInfo(f) }, f.label));
+      title: f.formula, onclick: () => openMetricInfo(f) }, unit ? `${f.label} (${unit})` : f.label));
     ['min', 'max'].forEach(side => {
       row.append(el('input', { class: 'input input-inline', type: 'number', placeholder: side, value: c[side] ?? '',
-        'aria-label': `${f.label} ${side}`,
+        id: `crit-${f.k}-${side}`,
+        'aria-label': `${f.label} ${side}${unit ? `, ${unit}` : ''}`,
         onchange: e => {
           sc.crit[f.k] = { ...(sc.crit[f.k] || {}), [side]: e.target.value === '' ? null : +e.target.value };
-          render();
+          /* A number field commits on Tab as well as on Enter, and on Tab the
+             focus is on its way to the next field when change fires. One tick
+             later it has arrived, so that is the element focus returns to. */
+          setTimeout(renderKeepFocus, 0);
         } }));
     });
     return row;
@@ -713,22 +874,7 @@ function renderScreener() {
      visible — otherwise the reader cannot tell a strict screen from an empty
      universe. */
   const activeChips = el('div', { class: 'row row-wrap', style: 'gap:6px;padding:10px var(--lg);border-bottom:1px solid var(--line)' });
-  const active = [];
-  if (sc.universe !== 'all') active.push({ label: `Universe: ${
-    { US:'United States', MY:'Bursa Malaysia', watchlist:'Only companies I follow' }[sc.universe] || sc.universe }`,
-    clear: () => { sc.universe = 'all'; } });
-  if (sc.minCoverage > 0) active.push({ label: `Data completeness ≥ ${sc.minCoverage}%`, clear: () => { sc.minCoverage = 0; } });
-  (sc.types || []).forEach(t => active.push({ label: `Type: ${t}`, clear: () => { sc.types = sc.types.filter(x => x !== t); } }));
-  (sc.sectors || []).forEach(t => active.push({ label: `Sector: ${t}`, clear: () => { sc.sectors = sc.sectors.filter(x => x !== t); } }));
-  Object.entries(sc.crit || {}).forEach(([k, c3]) => {
-    if (!c3 || (c3.min == null && c3.max == null)) return;
-    const f = FIELD_BY_K[k]; if (!f) return;
-    const bits = [c3.min != null ? `≥ ${c3.min}` : null, c3.max != null ? `≤ ${c3.max}` : null].filter(Boolean).join(' and ');
-    active.push({ label: `${f.label} ${bits}`, clear: () => { delete sc.crit[k]; } });
-  });
-  if (sc.local?.shariahOnly) active.push({ label: 'Shariah-compliant only', clear: () => { sc.local.shariahOnly = false; } });
-  if (sc.local?.excludePn17) active.push({ label: 'Excluding PN17 / GN3', clear: () => { sc.local.excludePn17 = false; } });
-  if (sc.local?.klciOnly) active.push({ label: 'FBM KLCI constituents only', clear: () => { sc.local.klciOnly = false; } });
+  const active = activeFilters(sc);
 
   activeChips.append(el('span', { class: 'metaline', style: 'margin-right:2px' },
     active.length ? `${active.length} active filter${active.length === 1 ? '' : 's'}:` : 'No filters applied — every company in the universe is shown.'));
@@ -788,7 +934,7 @@ function renderScreener() {
       { k:'ident', label:'Company', sortable:false },
       { k:'quality', label:'Quality', get:r => r.scores.quality.score, fmt:(v, r) => scorePill(v, r.pct.quality) },
       { k:'value', label:'Value', get:r => r.scores.value.score, fmt:(v, r) => scorePill(v, r.pct.value) },
-      { k:'mos', label:'vs base-case model estimate', get:r => r.val.mos?.base, fmt:v => `<span class="${signClass(v)}">${withSign(v, 0)}</span>`, mfmt:v => withSign(v, 0) },
+      { k:'mos', label:'vs base-case model estimate', get:r => r.val.mos?.base, fmt:v => `<span class="${diffClass(v)}">${withSign(v, 0)}</span>`, mfmt:v => withSign(v, 0) },
       /* A monetary column is converted to one currency and says which. It used
          to print r.m.mcap raw, so a screen across both markets stacked ringgit
          and dollars in the same column with nothing to tell them apart — and a
@@ -818,13 +964,7 @@ function renderScreener() {
     ];
     cols[1].mfmt = v => String(Math.round(v));   /* quality */
     cols[2].mfmt = v => String(Math.round(v));   /* value */
-    const sorted = [...passed].sort((a, b) => {
-      const col = cols.find(c2 => c2.k === sc.sort.k);
-      if (!col || !col.get) return 0;
-      const av = col.get(a), bv = col.get(b);
-      if (!isNum(av)) return 1; if (!isNum(bv)) return -1;
-      return (av - bv) * sc.sort.dir;
-    });
+    const sorted = sortScreenRows(passed, sc);
 
     /* ONE VERTICAL SCROLL PER PAGE.
        This was max-height:66vh with overflow:auto, so 11,094px of results lived
@@ -866,7 +1006,10 @@ function renderScreener() {
         if (fld && isNum(v)) {
           td.classList.add('cell-sourced');
           td.setAttribute('role', 'button');
-          td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${fld.fmt(v, r)} — show source`);
+          /* The label reads what the cell shows. A money column holds the
+             converted value, and fld.fmt on it would print it in the
+             company's own currency — "$29.7B" announced as "RM29.7B". */
+          td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${fld.money ? td.textContent.trim() : fld.fmt(v, r)} — show source`);
           td.addEventListener('click', () => openSourceDrawer(r, fld));
           td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSourceDrawer(r, fld); } });
         } else if (fld) {
@@ -960,8 +1103,11 @@ function renderScreener() {
         el('span', { class: r.c.mkt === 'US' ? 'chip chip-us' : 'chip chip-my' }, r.c.mkt),
       ]));
       const mini = el('div', { class: 'screener-card-metrics' });
-      [['Quality', String(r.scores.quality.score)],
-       ['Value', String(r.scores.value.score)],
+      /* An absent score prints its reason, as the table cell does. String()
+         on it printed the word "null" on 55 of 77 phone cards. */
+      const score = (v, k) => isNum(v) ? String(v) : metricStatus(r, k).label;
+      [['Quality', score(r.scores.quality.score, 'qscore')],
+       ['Value', score(r.scores.value.score, 'vscore')],
        ['Yield', isNum(r.m.dy) ? fmtPct(r.m.dy, 2) : '—'],
        ['Completeness', `${r.m.coverage}%`]].forEach(([k, v]) => {
         /* Not `metaline`. On desktop these four are table column headings; in
@@ -1083,8 +1229,11 @@ const ABSENCE = {
   'not reported':   { short: 'not reported', legend: 'A statement line the measure needs is not in the stored statements — for a filer, the XBRL tag did not resolve. The drawer names the line.' },
   'not applicable': { short: 'n/a',          legend: 'The measure has no meaning for this business model — enterprise value on a deposit-taking balance sheet — and is excluded from the count of applicable measures rather than counted as missing.' },
   'withheld':       { short: 'withheld',     legend: 'The inputs exist and disagree with each other, or a corporate action sits inside the window. A number could be computed; it would be wrong, so it is not.' },
-  'needs a price':  { short: 'no price',     legend: 'The measure divides by or compares to a market price, and no licensed feed is connected. A price you supply on the company page fills it in, labelled as yours.' },
-  'not meaningful': { short: 'n/m',          legend: 'Every input is present, but the ratio is not meaningful on them — earnings at or below zero under a price, a growth base at or below zero.' },
+  /* Two routes, because a single entered price fills the ratio measures and
+     nothing else: the twelve-month change, the distance from the 52-week high
+     and the 200-day average need hundreds of observed closes. */
+  'needs a price':  { short: 'no price',     legend: 'The measure divides by or compares to a market price, and no licensed feed is connected. A price you enter on the company page fills the ratio measures, labelled as yours; the trend measures need a history of closes you import under Your data.' },
+  'not meaningful': { short: 'n/m',          legend: 'Every input is present in every year the measure reads, but the ratio is not meaningful on them — earnings at or below zero under a price, a growth base at or below zero.' },
 };
 function provChip(kind) {
   const p = PROVENANCE[kind] || PROVENANCE.calculated;
@@ -1129,6 +1278,14 @@ const FIELD_INPUTS = {
   rs12:['history'], from52:['history'], sma200d:['history'], mcap:['price','sh'],
   qscore:['rev','ebit','ni','ocf','capex','eq','debt','cash','sh'], vscore:['price','ni','ocf','capex','eq','sh'], mosBase:['price'],
 };
+/* How many of the latest stored years each measure reads, where it is more
+   than the latest one — the window derive() slices for it. The four-year
+   growth, variability and drawdown measures read the last five points; the
+   share-count rate is cagr() over the whole series; return on equity averages
+   this year's equity with last year's. */
+const FIELD_SPAN = { rev5: 5, eps5: 5, fcf5: 5, dps5: 5, epsVol: 5, revDD: 5, ocfPosYears: 5,
+                     buyback: Infinity, dilution: Infinity };
+const FIELD_SPAN_LINE = { roe: { eq: 2 } };
 /* Measures a type cannot carry that the coverage dictionary does not list —
    so they are not in INAPPLICABLE, whose length the coverage figure prints. */
 const ALSO_INAPPLICABLE = { bank: ['netGearing'] };
@@ -1192,10 +1349,23 @@ function metricStatus(r, k) {
       : null],
   ];
   for (const [keys, text] of W) if (text && keys.includes(k)) return why('withheld', text);
-  const lastRow = c?.fin?.[c.fin.length - 1] || [];
+  const fin = c?.fin || [];
+  const lastRow = fin[fin.length - 1] || [];
   const missingLines = inputs.filter(l => LINE_COL[l] != null && !isNum(lastRow[LINE_COL[l]]));
   const noPrice = inputs.includes('price') && !isNum(c?.px?.p);
   if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in the latest stored statements${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
+  /* The latest year is not the only year a growth, variability or share-count
+     measure reads. META's dividend line is absent in its early stored years,
+     so its dividend CAGR has no base — and the cell said "n/m" with "every
+     input is present", which was false. Each input is checked across the rows
+     the measure actually reads, and a gap in any of them is named with its
+     years. */
+  const earlier = inputs.filter(l => LINE_COL[l] != null).map(l => {
+    const span = FIELD_SPAN_LINE[k]?.[l] ?? FIELD_SPAN[k] ?? 1;
+    const rows = fin.slice(-span), ys = yearsOf(c).slice(-rows.length);
+    return { l, years: rows.map((row, j) => (isNum(row[LINE_COL[l]]) ? null : ys[j])).filter(y => y != null) };
+  }).filter(x => x.years.length);
+  if (earlier.length) return why('not reported', `${earlier.map(x => `${LINE_LABEL[x.l]} (FY${x.years.join(', FY')})`).join('; ')} ${earlier.length === 1 ? 'is' : 'are'} not in the stored statements for ${earlier.length === 1 && earlier[0].years.length === 1 ? 'a year' : 'years'} this measure reads${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
   if (noPrice) return why('needs a price', 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.');
   if (inputs.includes('history')) {
     const need = k === 'sma200d' ? 200 : 252;
@@ -1225,8 +1395,14 @@ function openSourceDrawer(r, f) {
     el('span', { class: 'chip' }, `${c.tk} · ${c.name}`),
     illusChip(c),
   ]));
+  /* A money figure in its own currency, with the converted value the screener
+     cell showed beside it, so the drawer and the cell visibly state one
+     quantity rather than two unlabelled numbers. */
+  const target = screenCcy();
+  const conv = f.money && isNum(v) && target !== 'local' && target !== c.ccy ? convertTo(v, c.ccy, target) : null;
   body.append(el('div', { class: 'panel' }, statTile(f.label, isNum(v) ? f.fmt(v, r) : `unavailable — ${st.reason}`,
-    { sub: isNum(prev) && isNum(v) ? `was ${f.fmt(prev, r)} in the prior period` : null })));
+    { sub: [isNum(conv) ? `≈ ${fmtCap(conv, target)} at USD/MYR ${FX.USDMYR.toFixed(2)}` : null,
+            isNum(prev) && isNum(v) ? `was ${f.fmt(prev, r)} in the prior period` : null].filter(Boolean).join(' · ') || null })));
 
   const kv = el('dl', { class: 'kv' });
   const fy = latestFy(c);
@@ -1325,7 +1501,7 @@ function openMetricInfo(f) {
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Value'), el('th', {}, 'Market pct')])));
   t.append(el('tbody', {}, vals.slice(0, 12).map(x => el('tr', {}, [
-    el('td', { class: 'ident' }, x.r.c.tk + illusText(x.r.c)), el('td', {}, f.fmt(x.v)), el('td', {}, String(metricPct(x.r, f.k, 'market') ?? '—')),
+    el('td', { class: 'ident' }, x.r.c.tk + illusText(x.r.c)), el('td', {}, f.fmt(x.v, x.r)), el('td', {}, String(metricPct(x.r, f.k, 'market') ?? '—')),
   ]))));
   tw.append(t); body.append(tw);
   openDrawer('Metric definition', body);
@@ -1333,9 +1509,13 @@ function openMetricInfo(f) {
 
 function openExclusions(failed) {
   const body = el('div');
+  /* Every excluded company, and the count. This was cut at forty with nothing
+     to say so, and a drawer that ends at NFLX reads as a complete list — the
+     other twenty-one simply did not exist. The universe is small enough to
+     list whole. */
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-    'Each company below failed at least one active criterion. The first failure is listed first — a company can fail several.'));
-  failed.slice(0, 40).forEach(({ r, ev }) => {
+    `${failed.length} ${failed.length === 1 ? 'company' : 'companies'} failed at least one active criterion, all listed below. The first failure is listed first — a company can fail several.`));
+  failed.forEach(({ r, ev }) => {
     const item = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     item.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' }, [
       el('span', { style: 'font-weight:600;font-size:13px' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
@@ -1410,6 +1590,13 @@ function screenSnapshot(def) {
   };
 }
 
+/* A score change between a snapshot and now, only where both sides are a
+   score. An unpriced filer's value score is null, and `now − null` counted a
+   score appearing as a change of its whole size; `null − null` is 0 and hid
+   nothing, but by accident. */
+const scoreDelta = (now, then) => (isNum(now) && isNum(then) ? now - then : null);
+const scoreText = (v) => (isNum(v) ? String(v) : '—');
+
 /* What has changed since the screen was saved: companies that entered, that
    dropped out, and matches whose scores moved under a new model version. */
 function screenDiff(saved) {
@@ -1424,7 +1611,7 @@ function screenDiff(saved) {
     rescored: now.map(r => {
       const m = snapMatches.find(x => x.id === r.c.id);
       if (!m) return null;
-      const dq = r.scores.quality.score - m.quality, dv = r.scores.value.score - m.value;
+      const dq = scoreDelta(r.scores.quality.score, m.quality), dv = scoreDelta(r.scores.value.score, m.value);
       return (dq || dv) ? { r, m, dq, dv } : null;
     }).filter(Boolean),
     modelChanged: saved.snapshot?.model !== MODEL_VERSION,
@@ -1438,6 +1625,8 @@ function saveScreen() {
   const name = prompt('Name this screen', `Screen ${State.savedScreens.length + 1}`);
   if (!name) return;
   const def = JSON.parse(JSON.stringify(State.screen));
+  /* The currency a money threshold was typed in travels with the screen. */
+  def.moneyCcy = screenMoneyCcy(def);
   const snapshot = screenSnapshot(def);
   State.savedScreens = [...State.savedScreens, {
     name, def, snapshot, alertOnMatch: true, asOf: snapshot.asOf, model: snapshot.model }];
@@ -1492,15 +1681,18 @@ function openSavedScreen(idx) {
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, ['Company', 'Quality as saved', 'Quality now', 'Value as saved', 'Value now'].map(h => el('th', {}, h)))));
   t.append(el('tbody', {}, (s.snapshot?.matches || []).map(m => {
+    /* An absent score is a dash on both sides, never the word "null" — the
+       115 unpriced filers carry no value score, and every one of them read
+       "null" as saved and "null" now. */
     const live = BY_ID.get(m.id);
-    const dq = live ? live.scores.quality.score - m.quality : null;
-    const dv = live ? live.scores.value.score - m.value : null;
+    const dq = live ? scoreDelta(live.scores.quality.score, m.quality) : null;
+    const dv = live ? scoreDelta(live.scores.value.score, m.value) : null;
     return el('tr', {}, [
       el('td', { class: 'ident' }, m.tk),
-      el('td', {}, String(m.quality)),
-      el('td', { class: dq ? signClass(dq) : '' }, live ? `${live.scores.quality.score}${dq ? ` (${withSign(dq, 0, '')})` : ''}` : '—'),
-      el('td', {}, String(m.value)),
-      el('td', { class: dv ? signClass(dv) : '' }, live ? `${live.scores.value.score}${dv ? ` (${withSign(dv, 0, '')})` : ''}` : '—'),
+      el('td', {}, scoreText(m.quality)),
+      el('td', { class: dq ? signClass(dq) : '' }, live ? `${scoreText(live.scores.quality.score)}${dq ? ` (${withSign(dq, 0, '')})` : ''}` : '—'),
+      el('td', {}, scoreText(m.value)),
+      el('td', { class: dv ? signClass(dv) : '' }, live ? `${scoreText(live.scores.value.score)}${dv ? ` (${withSign(dv, 0, '')})` : ''}` : '—'),
     ]);
   })));
   tw.append(t);
@@ -1508,7 +1700,11 @@ function openSavedScreen(idx) {
 
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--lg)' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
-    State.screen = JSON.parse(JSON.stringify(s.def)); closeDrawer(); render(); toast(`Loaded "${s.name}"`);
+    /* Loaded criteria take the currency they were saved in onto the toggle,
+       so the thresholds and the table beside them read in the same one. */
+    const def = JSON.parse(JSON.stringify(s.def));
+    if (def.moneyCcy) { State.screenCcy = def.moneyCcy; store.write('screenCcy', def.moneyCcy); delete def.moneyCcy; }
+    State.screen = def; closeDrawer(); render(); toast(`Loaded "${s.name}"`);
   } }, 'Load these criteria'));
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
     s.snapshot = screenSnapshot(s.def); store.write('savedScreens', State.savedScreens);
@@ -1525,20 +1721,47 @@ function openSavedScreen(idx) {
 function exportScreen() {
   if (!lim('exports')) { toast('Exports are part of Equities Research'); go('plans'); return; }
   const sc = State.screen;
-  const rows = U.filter(r => evaluateScreen(r, sc).pass);
-  /* A source column per row, and a footer that says what the rows are —
-     the export used to footer 119 audited rows "Synthetic data for interface
-     demonstration only", under a previous product's file name. */
-  const cols = ['ticker', 'name', 'market', 'currency', 'source', 'price', 'quality', 'value', 'mos_vs_base', ...sc.cols, 'coverage'];
+  /* In the order on screen, with money as the table shows it and every column
+     carrying its unit. The file used to come out in universe order, print
+     market cap raw in each company's own currency under a bare "mcap", and
+     claim a screen definition it did not contain. */
+  const rows = sortScreenRows(U.filter(r => evaluateScreen(r, sc).pass), sc);
+  const ccy = screenCcy();
+  const unitOf = (f) => {
+    if (f.money) return ccy === 'local' ? 'bn_local' : `bn_${ccy}`;
+    /* Read off the formatter the table uses, so the header cannot name a
+       different unit from the cell. */
+    const s = String(f.fmt(1));
+    return s.endsWith('%') ? 'pct' : s.endsWith('×') ? 'x' : null;
+  };
+  const metricVal = (r, k) => {
+    const f = FIELD_BY_K[k];
+    const v = f.money && ccy !== 'local' ? convertTo(r.m[k], r.c.ccy, ccy) : r.m[k];
+    return isNum(v) ? v.toFixed(3) : '';
+  };
+  const csv = (x) => `"${String(x).replace(/"/g, '""')}"`;
+  const cols = ['ticker', 'name', 'market', 'currency', 'source', 'price_local', 'quality_score', 'value_score', 'mos_vs_base_pct',
+    ...sc.cols.map(k => { const u = unitOf(FIELD_BY_K[k]); return u ? `${k}_${u}` : k; }), 'coverage_pct'];
   const lines = [cols.join(',')];
   rows.forEach(r => lines.push([
-    r.c.tk, `"${r.c.name}"`, r.c.mkt, r.c.ccy, r.c.real ? 'SEC EDGAR companyfacts' : 'illustrative (synthetic)',
+    r.c.tk, csv(r.c.name), r.c.mkt, r.c.ccy,
+    r.c.real ? (r.c.personal ? 'statements you supplied (personal research)' : 'SEC EDGAR companyfacts') : 'illustrative (synthetic)',
     isNum(r.c.px?.p) ? r.c.px.p : '',
-    r.scores.quality.score, r.scores.value.score, (r.val.mos?.base ?? '').toString().slice(0, 6),
-    ...sc.cols.map(k => isNum(r.m[k]) ? r.m[k].toFixed(3) : ''), r.m.coverage,
+    isNum(r.scores.quality.score) ? r.scores.quality.score : '', isNum(r.scores.value.score) ? r.scores.value.score : '',
+    isNum(r.val.mos?.base) ? r.val.mos.base.toFixed(2) : '',
+    ...sc.cols.map(k => metricVal(r, k)), r.m.coverage,
   ].join(',')));
   lines.push('');
   lines.push(`# Quantum Tradeworks screen export · ${MODEL_VERSION}`);
+  /* The definition, as the chips above the results state it, and whole as
+     JSON so it can be loaded back or compared. */
+  lines.push(`# Screen: ${sc.mode === 'pct' ? 'peer-percentile thresholds' : 'absolute thresholds'}; universe ${sc.universe}`);
+  const filters = activeFilters(sc);
+  if (filters.length) filters.forEach(a => lines.push(`# Criterion: ${a.label}`));
+  else lines.push('# Criterion: none — every company in the universe');
+  lines.push(`# Money columns: ${ccy === 'local' ? 'each company’s own currency, not converted' : `converted to ${ccy} at USD/MYR ${FX.USDMYR.toFixed(4)}${FX.asOf ? `, ${FX.asOf}` : ''}`}`);
+  lines.push(`# Sorted by: ${sc.sort.k}, ${sc.sort.dir === 1 ? 'ascending' : 'descending'}`);
+  lines.push(`# Definition (JSON): ${JSON.stringify({ ...sc, moneyCcy: screenMoneyCcy(sc) })}`);
   lines.push(`# ${coverageSentence('source')}`);
   lines.push('# Research only. Not for investment use.');
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -1587,11 +1810,16 @@ function renderRadar() {
      truncated to that fiscal year and the price that applied then. */
   const timeRow = el('div', { class: 'row row-wrap', style: 'gap:var(--md);margin-top:10px;padding-top:10px;border-top:1px solid var(--grid)' });
   timeRow.append(el('span', { class: 'caption', style: 'font-weight:600' }, 'As of'));
-  const slider = el('input', { type: 'range', min: RADAR_MIN_YI, max: YEARS.length - 1, step: 1, value: rr.yi,
+  /* The chip follows the slider as it moves; the map is re-derived on change,
+     and focus returns to the slider — re-rendering on every input event
+     replaced it under a drag and dropped keyboard focus to the page. */
+  const yiChip = el('span', { class: 'chip chip-brand' }, rr.yi === YEARS.length - 1 ? 'Latest' : `FY${YEARS[rr.yi]}`);
+  const slider = el('input', { type: 'range', id: 'radarYear', min: RADAR_MIN_YI, max: YEARS.length - 1, step: 1, value: rr.yi,
     style: 'max-width:260px', 'aria-label': 'Fiscal year the radar is drawn as of',
-    oninput: e => { rr.yi = +e.target.value; render(); } });
+    oninput: e => { const v = +e.target.value; yiChip.textContent = v === YEARS.length - 1 ? 'Latest' : `FY${YEARS[v]}`; },
+    onchange: e => { rr.yi = +e.target.value; renderKeepFocus(); } });
   timeRow.append(slider);
-  timeRow.append(el('span', { class: 'chip chip-brand' }, rr.yi === YEARS.length - 1 ? 'Latest' : `FY${YEARS[rr.yi]}`));
+  timeRow.append(yiChip);
   timeRow.append(el('span', { class: 'metaline' },
     rr.yi === YEARS.length - 1
       ? 'Latest reported period, current price.'
@@ -1600,9 +1828,17 @@ function renderRadar() {
   wrap.append(bar);
 
   const asOfRows = universeAsOf(rr.yi);
-  let rows = asOfRows.filter(r => r.val.mos);
-  if (rr.universe === 'US' || rr.universe === 'MY') rows = rows.filter(r => r.c.mkt === rr.universe);
-  if (rr.universe === 'watchlist') rows = rows.filter(r => State.watchlist.includes(r.c.id));
+  let scoped = asOfRows;
+  if (rr.universe === 'US' || rr.universe === 'MY') scoped = scoped.filter(r => r.c.mkt === rr.universe);
+  if (rr.universe === 'watchlist') scoped = scoped.filter(r => State.watchlist.includes(r.c.id));
+  let rows = scoped.filter(r => r.val.mos);
+  /* Who is not on the map, and why. At the latest stop 115 filed companies
+     carry no price, so there is no difference to a model estimate to plot —
+     and "23 eligible" under a 138-company universe said nothing about the
+     other 115. The past-year text already named its drop-out; now the
+     default view does too. */
+  const unplotted = scoped.length - rows.length;
+  const unpriced = scoped.filter(r => !r.val.mos && !isNum(r.price)).length;
   if (rr.minConf === 'med') rows = rows.filter(r => r.val.confBand !== 'Low');
   if (rr.minConf === 'high') rows = rows.filter(r => r.val.confBand === 'High');
 
@@ -1637,14 +1873,20 @@ function renderRadar() {
       `<b>Period</b> ${rr.yi === YEARS.length - 1 ? 'latest reported for each company' : `FY${YEARS[rr.yi]} reported`}`,
       `<b>Price</b> ${rr.yi === YEARS.length - 1 ? 'each company’s own basis — sample figure, entered close or end-of-day file, as its page states' : `sample series, FY${YEARS[rr.yi]}`}`,
       `<b>Cohort</b> ${rr.cohort === 'sector' ? 'sector-relative' : 'market-absolute'}`,
-      `<b>Universe</b> ${rows.length} eligible`,
+      `<b>Universe</b> ${rows.length} eligible of ${scoped.length}`,
       `<b>Model</b> ${MODEL_VERSION}`,
     ].join('<span class="dotsep"></span>') })));
+  if (unplotted) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    `${unplotted} of ${scoped.length} companies in this universe are not plotted: ${unpriced} carry no price${rr.yi === YEARS.length - 1 ? '' : ` for FY${YEARS[rr.yi]}`}, so no difference to a model estimate can be computed${unplotted > unpriced ? `; ${unplotted - unpriced} have a price but no base-case model estimate` : ''}.`));
 
+  /* The table prints the percentile that exists, or says there is none. The
+     midpoint is a plotting position for a company with no sector peers, and
+     printed as "50" it read as a measured median rank. */
+  const pctText = (r) => { const p = rr.cohort === 'sector' ? r.qpctSector : r.qpctMarket; return isNum(p) ? String(p) : `— (no ${rr.cohort === 'sector' ? 'sector peers' : 'rank'})`; };
   card.append(tableTwin('Show the table view of every plotted company',
     ['Company', 'Market', rr.yi === YEARS.length - 1 ? 'Price' : `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
     rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
-      withSign(r.val.mos.base, 1), String(yOf(r)),
+      withSign(r.val.mos.base, 1), pctText(r),
       fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy), esc(r.val.pack.name), r.val.confBand])));
   wrap.append(card);
 
@@ -1702,13 +1944,20 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   if (!latest) {
     body.append(el('h4', { class: 'h-card', style: 'margin-bottom:6px' }, `Movement from FY${YEARS[yi]} to today`));
     const mv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-    const dMos = (live.val.mos?.base ?? 0) - (r.val.mos?.base ?? 0);
-    const dQ = live.scores.quality.score - r.q.score;
-    const dPx = (live.c.px.p - (r.price ?? live.c.px.p)) / (r.price || 1) * 100;
-    [['Difference to model estimate', withSign(dMos, 1) + ' points'],
-     ['Quality score', withSign(dQ, 0, '')],
-     ['Price', withSign(dPx, 1)]]
-     .forEach(([k, v]) => { mv.append(el('dt', {}, k)); mv.append(el('dd', { class: signClass(parseFloat(v)) }, v)); });
+    /* Each change only where both ends exist — `?? 0` turned a company with
+       no estimate today into a move of its whole former difference. The model
+       difference is in percentage points ("+21.1% points" doubled the unit)
+       and takes diffClass, not the green of a gain: a wider gap to a model
+       estimate is not a profit. The class is read from the number, not
+       re-parsed from the text, where "−3.1" (a true minus) parsed as NaN and
+       left every fall unclassed. */
+    const dMos = scoreDelta(live.val.mos?.base, r.val.mos?.base);
+    const dQ = scoreDelta(live.scores.quality.score, r.q.score);
+    const dPx = isNum(live.c.px?.p) && isNum(r.price) && r.price > 0 ? (live.c.px.p - r.price) / r.price * 100 : null;
+    [['Difference to model estimate', isNum(dMos) ? `${withSign(dMos, 1, '')} points` : '—', diffClass(dMos)],
+     ['Quality score', withSign(dQ, 0, ''), signClass(dQ)],
+     ['Price', withSign(dPx, 1), signClass(dPx)]]
+     .forEach(([k, v, cls]) => { mv.append(el('dt', {}, k)); mv.append(el('dd', { class: cls }, v)); });
     body.append(mv);
   }
 
@@ -1727,67 +1976,77 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
 
 /* --------------------------------------------------------- Research screens */
 /* Every theme is a set of published rules evaluated against the dataset —
-   there is no hidden list. */
+   there is no hidden list.
+
+   Exclusions follow the same rule as inclusions. `excl` lists only those the
+   test evaluates; `exclUntested` lists those it cannot — a yield trap, a
+   special dividend, a debt-funded buyback, a going-concern note are not lines
+   this dataset carries — and the Rules drawer marks them "Not evaluated", as
+   it does untested inclusion rules. Stating an exclusion as applied when no
+   test reads it is the same failure as stating a rule that is not tested.
+
+   There is no rebalance schedule either. Membership is recomputed from the
+   stored data every time the page loads; each card used to say "rebalanced
+   quarterly", which described a process that does not exist. */
 const THEMES = [
   { id:'compounders', name:'High-Quality Compounders', mkt:'Both',
     rules:['Return on invested capital above 12%', 'Operating margin above 15%', 'Free cash flow positive in the latest year', 'Net debt below 3× EBIT'],
     excl:['Banks and REITs (return on invested capital is not meaningful)', 'Revenue drawdown above 25% in the window'],
-    test:r => r.m.roic > 12 && r.m.om > 15 && r.m.fcf > 0 && (r.m.ndEbit ?? 99) < 3 && r.m.revDD < 25,
-    rebalance:'Quarterly, after each reporting season' },
+    test:r => r.c.type !== 'bank' && r.c.type !== 'reit' && r.m.roic > 12 && r.m.om > 15 && r.m.fcf > 0 && (r.m.ndEbit ?? 99) < 3 && r.m.revDD < 25 },
   { id:'divdur', name:'Dividend Durability', mkt:'Both',
     rules:['Dividend yield above 2.5%', 'Dividends below 85% of free cash flow, or a bank below an 85% payout', 'Net debt below 3.5× EBIT where applicable'],
-    excl:['Companies whose dividends exceed free cash flow', 'One-off or special distributions'],
+    excl:['Companies whose dividends exceed free cash flow'],
+    exclUntested:['One-off or special distributions — the dataset carries one dividend per share a year and does not separate a special payment from the regular one'],
     /* An unknown leverage figure does not clear a leverage rule: `?? 99`,
-       as the neighbouring themes read it, not `?? 0`. */
-    test:r => r.m.dy > 2.5 && ((isNum(r.m.cashPayout) && r.m.cashPayout < 85) || (r.c.type === 'bank' && (r.m.payout ?? 99) < 85)) && (r.m.ndEbit ?? 99) < 3.5,
-    rebalance:'Semi-annually' },
+       as the neighbouring themes read it, not `?? 0`. But "where applicable"
+       is part of the rule: net debt to EBIT has no meaning on a bank balance
+       sheet (INAPPLICABLE), and `?? 99` failed every bank — so the bank
+       branch of the payout rule could never admit anyone. */
+    test:r => r.m.dy > 2.5 && ((isNum(r.m.cashPayout) && r.m.cashPayout < 85) || (r.c.type === 'bank' && (r.m.payout ?? 99) < 85))
+      && ((INAPPLICABLE[r.c.type] || []).includes('ndEbit') || (r.m.ndEbit ?? 99) < 3.5) },
   { id:'divgrow', name:'Dividend Growth', mkt:'Both',
     rules:['Dividend per share CAGR above 5% over four years', 'Earnings CAGR above 3%', 'Payout ratio below 75%'],
-    excl:['Yield traps — a rising yield driven by a falling price with flat dividends'],
-    test:r => (r.m.dps5 ?? -9) > 5 && (r.m.eps5 ?? -9) > 3 && (r.m.payout ?? 99) < 75,
-    rebalance:'Annually' },
+    exclUntested:['Yield traps — a rising yield driven by a falling price with flat dividends. Rising dividends are required above, but the price path behind the yield is not tested'],
+    test:r => (r.m.dps5 ?? -9) > 5 && (r.m.eps5 ?? -9) > 3 && (r.m.payout ?? 99) < 75 },
   { id:'qafp', name:'Quality at a Fair Price', mkt:'Both',
     rules:['Quality score above 60', 'Trading at or below the base-case value', 'Valuation confidence Medium or better'],
     excl:['Low-confidence valuations', 'Companies with data completeness below 70%'],
-    test:r => r.scores.quality.score > 60 && (r.val.mos?.base ?? -99) > 0 && r.val.confBand !== 'Low' && r.m.coverage >= 70,
-    rebalance:'Quarterly' },
+    test:r => r.scores.quality.score > 60 && (r.val.mos?.base ?? -99) > 0 && r.val.confBand !== 'Low' && r.m.coverage >= 70 },
   /* A rule the test does not evaluate is listed as such, under its own
      heading on the card — a theme that tests two rules and states three is
      the failure the section-18.1 template names. */
   { id:'netcash', name:'Net-Cash Growth', mkt:'Both',
     rules:['Cash exceeds total debt', 'Revenue CAGR above 6%'],
     untested:['Operating margin improving over the window — the margin path is not a screener field yet, so this is stated for the reader to check, not evaluated'],
-    excl:['Banks and REITs', 'Cash offset by material lease or pension obligations'],
-    test:r => r.m.netCash === true && (r.m.rev5 ?? -9) > 6,
-    rebalance:'Quarterly' },
+    excl:['Banks and REITs'],
+    exclUntested:['Cash offset by material lease or pension obligations — neither line is carried, so the net cash position is cash against borrowings only'],
+    test:r => r.c.type !== 'bank' && r.c.type !== 'reit' && r.m.netCash === true && (r.m.rev5 ?? -9) > 6 },
   { id:'recovery', name:'Recovery Watch', mkt:'Both',
     rules:['Revenue drawdown above 20% in the window', 'Latest-year operating profit improving', 'Free cash flow positive in the latest year'],
-    excl:['Unresolved going-concern or PN17 status', 'Severe dilution above 3% a year'],
+    excl:['PN17 status', 'Severe dilution above 3% a year'],
+    exclUntested:['Unresolved going-concern opinions — auditor opinions are not in the dataset'],
     /* A withheld dilution rate — the share series crosses a split — does not
        satisfy "not severely diluting"; it is unknown, and unknown fails. */
-    test:r => (r.m.revDD ?? 0) > 20 && last(r.d.ebit) > r.d.ebit[r.d.ebit.length - 2] && (r.m.fcf ?? -1) > 0 && !r.c.flags.pn17 && (r.m.dilution ?? 99) < 3,
-    rebalance:'Quarterly' },
+    test:r => (r.m.revDD ?? 0) > 20 && last(r.d.ebit) > r.d.ebit[r.d.ebit.length - 2] && (r.m.fcf ?? -1) > 0 && !r.c.flags.pn17 && (r.m.dilution ?? 99) < 3 },
   { id:'reit', name:'Bursa REIT Income', mkt:'MY',
     rules:['Malaysian REIT', 'Occupancy above 92%', 'Gearing below 40%', 'AFFO covers the distribution'],
-    excl:['Income from asset revaluation presented as recurring', 'REITs with gearing near the regulatory ceiling'],
-    test:r => r.c.mkt === 'MY' && r.c.type === 'reit' && r.m.occ > 92 && r.m.gearing < 40 && (r.m.dpuCover ?? 0) > 100,
-    rebalance:'Semi-annually' },
+    excl:['REITs with gearing near the regulatory ceiling'],
+    exclUntested:['Income from asset revaluation presented as recurring — the dataset carries distribution cover, not the make-up of income'],
+    test:r => r.c.mkt === 'MY' && r.c.type === 'reit' && r.m.occ > 92 && r.m.gearing < 40 && (r.m.dpuCover ?? 0) > 100 },
   { id:'bank', name:'Bursa Bank Quality', mkt:'MY',
     rules:['Malaysian bank', 'Return on equity above 9%', 'CET1 above 13%', 'Gross impaired loans below 2%'],
     excl:['Banks with incomplete capital or asset-quality disclosure'],
-    test:r => r.c.mkt === 'MY' && r.c.type === 'bank' && r.m.roe > 9 && r.m.cet1 > 13 && r.m.npl < 2,
-    rebalance:'Quarterly' },
+    test:r => r.c.mkt === 'MY' && r.c.type === 'bank' && r.m.roe > 9 && r.m.cet1 > 13 && r.m.npl < 2 },
   { id:'capreturn', name:'US Capital Return', mkt:'US',
     rules:['US listed', 'Share count falling', 'Free cash flow positive in the latest year', 'Net debt below 3× EBIT'],
     untested:['Free cash flow covers dividends and buybacks — the buyback outflow is not a line this dataset carries, so cover is stated for the reader to check, not evaluated'],
-    excl:['Debt-funded buybacks', 'Buybacks that only offset share-based compensation'],
-    test:r => r.c.mkt === 'US' && (r.m.buyback ?? -9) > 0.3 && (r.m.fcf ?? -1) > 0 && (r.m.ndEbit ?? 99) < 3,
-    rebalance:'Quarterly' },
+    excl:['Buybacks that only offset share-based compensation (tested through the share count: a buyback that only offsets issuance does not make it fall)'],
+    exclUntested:['Debt-funded buybacks — the financing of a buyback is not a line this dataset carries'],
+    test:r => r.c.mkt === 'US' && (r.m.buyback ?? -9) > 0.3 && (r.m.fcf ?? -1) > 0 && (r.m.ndEbit ?? 99) < 3 },
   { id:'shariah', name:'Shariah-Compliant Quality', mkt:'MY',
     rules:['Shariah-compliant in this sample dataset', 'Quality score above 50', 'Net debt below 3× EBIT'],
-    excl:['Companies whose Shariah status changed in the last review cycle'],
-    test:r => r.c.flags.shariah === true && r.scores.quality.score > 50 && (r.m.ndEbit ?? 99) < 3,
-    rebalance:'After each Shariah status review' },
+    exclUntested:['Companies whose Shariah status changed in the last review cycle — the dataset carries the current flag only, not its history'],
+    test:r => r.c.flags.shariah === true && r.scores.quality.score > 50 && (r.m.ndEbit ?? 99) < 3 },
 ];
 
 function renderIdeas() {
@@ -1810,7 +2069,7 @@ function renderIdeas() {
         el('h3', { class: 'h-card' }, t.name),
         t.mkt !== 'Both' ? marketChip(t.mkt) : null,
       ]),
-      el('p', { class: 'metaline' }, `${members.length} constituent${members.length === 1 ? '' : 's'} · rebalanced ${t.rebalance.toLowerCase()}`),
+      el('p', { class: 'metaline' }, `${members.length} constituent${members.length === 1 ? '' : 's'} · recomputed at page load`),
     ]));
     hd.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openThemeDetail(t, members) }, 'Rules'));
     card.append(hd);
@@ -1820,7 +2079,9 @@ function renderIdeas() {
     } else {
       const l = el('div', { style: 'display:flex;flex-direction:column;margin-top:6px' });
       members.slice(0, 5).forEach((r, i) => {
-        const row = el('div', { class: 'row', style: `gap:10px;padding:7px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
+        /* theme-row: the name column shrinks and the sparkline drops on a
+           phone, so price and model difference stay inside a 360px screen. */
+        const row = el('div', { class: 'row theme-row', style: `gap:10px;padding:7px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
         row.append(tickerCell(r));
         row.append(el('span', { class: 'spacer' }));
         row.append(sparkline(priceHistory(r.c)));
@@ -1849,11 +2110,12 @@ function openThemeDetail(t, members) {
 
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Exclusions'));
   const exc = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px;margin-bottom:var(--md)' });
-  t.excl.forEach(r => exc.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, r)));
+  (t.excl || []).forEach(r => exc.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, r)));
+  (t.exclUntested || []).forEach(r => exc.append(el('li', { class: 'evidence', style: 'font-size:13px', title: 'Stated on the card, not evaluated by the test — a company shown here has not been checked against this exclusion.' }, `Not evaluated: ${r}`)));
   body.append(exc);
 
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  [['Rebalance frequency', t.rebalance], ['Data timestamp', 'Each company’s latest reported fiscal year; filed statements as retrieved from EDGAR, the illustrative set as of its fixed stamp — stated on each company’s page'],
+  [['Membership', 'Recomputed from the stored data every time the page loads. There is no rebalance schedule.'], ['Data timestamp', 'Each company’s latest reported fiscal year; filed statements as retrieved from EDGAR, the illustrative set as of its fixed stamp — stated on each company’s page'],
    ['Model version', MODEL_VERSION], ['Turnover', 'Not shown — this prototype holds a single point in time'],
    ['Backtest', 'Not shown. A return series without delisting, survivorship, lag, cost and rebalance assumptions would mislead.']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
@@ -1864,7 +2126,7 @@ function openThemeDetail(t, members) {
   const tab = el('table', { class: 'dt' });
   tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Quality'), el('th', {}, 'Yield'), el('th', {}, 'vs base')])));
   tab.append(el('tbody', {}, members.map(r => el('tr', {}, [
-    el('td', { class: 'ident' }, r.c.tk + illusText(r.c)), el('td', {}, String(r.scores.quality.score)),
+    el('td', { class: 'ident' }, r.c.tk + illusText(r.c)), el('td', {}, scoreText(r.scores.quality.score)),
     el('td', {}, fmtPct(r.m.dy, 2)), el('td', { class: diffClass(r.val.mos?.base) }, withSign(r.val.mos?.base, 0)),
   ]))));
   tw.append(tab); body.append(tw);
@@ -1876,13 +2138,25 @@ function openThemeDetail(t, members) {
 
 /* ---------------------------------------------------------------- Heatmap */
 State.heat = { mode:'d1', universe:'all' };
+/* `fmt` prints a tile's level; `dfmt` prints a difference between two levels,
+   which is what the attribution components are. The quality mode stores the
+   score less 50 so the diverging scale centres on the midpoint, and its fmt
+   adds the 50 back — which, applied to a component, printed a −3 point market
+   component as "47". `price` separates the modes that are moves in a price
+   from the two that are levels of a model output: a level is not a move, and
+   the drawer does not call it one.
+
+   "Today" was a label on a fixed-date change: c.px.d1 is a sample figure for
+   the illustrative set and a price-file field for filers, and neither
+   advances. It is the change against the previous close, as of the price
+   date the caption states. */
 const HEAT_MODES = [
-  { id:'d1',  label:'Today',        get:r => r.c.px.d1,  full:3,  fmt:v => withSign(v, 2) },
-  { id:'m1',  label:'1 month',      get:r => r.c.px.m1,  full:8,  fmt:v => withSign(v, 1) },
-  { id:'m3',  label:'3 months',     get:r => r.c.px.m3,  full:15, fmt:v => withSign(v, 1) },
-  { id:'m12', label:'12 months',    get:r => r.c.px.m12, full:35, fmt:v => withSign(v, 0) },
-  { id:'val', label:'vs base-case model estimate',get:r => r.val.mos?.base, full:40, fmt:v => withSign(v, 0) },
-  { id:'qual',label:'Quality score',get:r => r.scores.quality.score - 50, full:50, fmt:v => String(Math.round(v + 50)) },
+  { id:'d1',  label:'Day change',   get:r => r.c.px.d1,  full:3,  fmt:v => withSign(v, 2), price:true },
+  { id:'m1',  label:'1 month',      get:r => r.c.px.m1,  full:8,  fmt:v => withSign(v, 1), price:true },
+  { id:'m3',  label:'3 months',     get:r => r.c.px.m3,  full:15, fmt:v => withSign(v, 1), price:true },
+  { id:'m12', label:'12 months',    get:r => r.c.px.m12, full:35, fmt:v => withSign(v, 0), price:true },
+  { id:'val', label:'vs base-case model estimate',get:r => r.val.mos?.base, full:40, fmt:v => withSign(v, 0), dfmt:v => withSign(v, 0, ' pts') },
+  { id:'qual',label:'Quality score',get:r => isNum(r.scores.quality.score) ? r.scores.quality.score - 50 : null, full:50, fmt:v => String(Math.round(v + 50)), dfmt:v => withSign(v, 0, ' pts') },
 ];
 
 /* Move attribution: market component, sector component, then the residual. */
@@ -1908,7 +2182,7 @@ function renderHeatmap() {
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('h2', { class: 'h-section' }, 'Heatmap'),
     el('p', { class: 'body', style: 'margin-top:4px' },
-      'Tile area is market capitalisation; fill is the selected measure on a diverging scale with a neutral midpoint. Select a tile for the move attribution.'),
+      'Tile area is market capitalisation; fill is the selected measure on a diverging scale with a neutral midpoint. Select a tile, with the pointer or with Tab and Enter, for how its figure splits into market, sector and company parts.'),
   ])));
 
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md);margin-bottom:var(--md)' });
@@ -1920,16 +2194,24 @@ function renderHeatmap() {
   ]));
   row.append(el('div', { class: 'row', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Universe'),
-    el('div', { class: 'segmented' }, [['all', 'All'], ['US', 'S&P 500'], ['MY', 'FBM KLCI'], ['watchlist', 'Watchlist']].map(([v, l]) =>
+    /* Named for what they filter — the market — as on the value map. "FBM
+       KLCI" drew eighteen Bursa tiles, four of them not index constituents;
+       "S&P 500" was every US row carried here. */
+    el('div', { class: 'segmented' }, [['all', 'All'], ['US', 'US'], ['MY', 'Bursa'], ['watchlist', 'Watchlist']].map(([v, l]) =>
       el('button', { 'aria-selected': st.universe === v ? 'true' : 'false', onclick: () => { st.universe = v; render(); } }, l))),
   ]));
   bar.append(row);
   wrap.append(bar);
 
-  let rows = U.filter(r => isNum(r.m.mcap));           /* area comes from market cap */
-  if (st.universe === 'US' || st.universe === 'MY') rows = rows.filter(r => r.c.mkt === st.universe);
-  if (st.universe === 'watchlist') rows = rows.filter(r => State.watchlist.includes(r.c.id));
-  const mode = HEAT_MODES.find(m => m.id === st.mode);
+  let scoped = U;
+  if (st.universe === 'US' || st.universe === 'MY') scoped = scoped.filter(r => r.c.mkt === st.universe);
+  if (st.universe === 'watchlist') scoped = scoped.filter(r => State.watchlist.includes(r.c.id));
+  let rows = scoped.filter(r => isNum(r.m.mcap));      /* area comes from market cap */
+  /* The companies with no market capitalisation — every filer without a
+     price — have no tile area and are not drawn. "23 companies" under a
+     138-company universe used to say nothing about the other 115. */
+  const noCap = scoped.length - rows.length;
+  const mode = HEAT_MODES.find(m => m.id === st.mode) || HEAT_MODES[0];
   /* Only tiles with an observed value for the chosen mode. A priced filer
      carries no day, month or quarter change, and drawing it as 0.00% in the
      neutral colour asserted a move that was never observed. */
@@ -1969,8 +2251,17 @@ function renderHeatmap() {
   const ramp = el('div', { class: 'row', style: 'gap:0' });
   DIVERGING.forEach(v => ramp.append(el('span', { style: `width:20px;height:9px;background:var(${v})` })));
   leg.append(el('span', { class: 'legend-item' }, [el('span', { class: 'metaline' }, mode.fmt(-mode.full)), ramp, el('span', { class: 'metaline' }, mode.fmt(mode.full))]));
-  leg.append(el('span', { class: 'caption', style: 'margin-left:auto' }, `${rows.length} companies · ${mode.label}${unobserved ? ` · ${unobserved} priced but with no observed ${mode.label.toLowerCase()} change, not drawn` : ''}`));
+  const missingWhat = mode.price ? `observed ${mode.id === 'd1' ? 'day' : mode.label} change` : mode.label.toLowerCase().replace(/^vs /, 'difference to ');
+  /* A price move is dated by the prices it is computed from, which are fixed
+     files and sample figures, not a feed — so the caption names their dates. */
+  const pxDates = mode.price ? [...new Set(rows.map(r => priceAsOfLabel(r.c)))] : [];
+  leg.append(el('span', { class: 'caption', style: 'margin-left:auto' }, `${rows.length} companies · ${mode.label}${mode.id === 'd1' ? ' vs previous close' : ''}${pxDates.length ? ` · prices as of ${pxDates.join('; ')}` : ''}${unobserved ? ` · ${unobserved} priced but with no ${missingWhat}, not drawn` : ''}`));
   card.append(leg);
+  if (noCap) {
+    const unpriced = scoped.filter(r => !isNum(r.m.mcap) && !isNum(r.c.px?.p)).length;
+    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `${noCap} of ${scoped.length} companies in this universe have no market capitalisation to size a tile — ${unpriced} carry no price${noCap > unpriced ? `, ${noCap - unpriced} no usable share count` : ''} — so they are not drawn.`));
+  }
   card.append(tableTwin('Show the table view of every tile',
     ['Company', 'Market', mode.label, 'Market cap'],
     rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, mode.fmt(mode.get(r)), fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)])));
@@ -1984,6 +2275,7 @@ function renderHeatmap() {
       metricLabel: mode.label,
     })),
     valueFmt: mode.fmt, full: mode.full,
+    pickNote: mode.price ? 'Select for the "Why moved?" attribution' : 'Select for the market, sector and company split',
     onPick: id => openWhyMoved(id, st.mode),
   }));
   return wrap;
@@ -1992,21 +2284,38 @@ function renderHeatmap() {
 function openWhyMoved(id, mode) {
   const r = BY_ID.get(id);
   const a = attribution(r, mode);
+  /* A score or a model difference is a level, not a move. The same split
+     applies — market, sector, the rest — but the drawer does not call it a
+     move, colour it as a gain, or look for a company event that explains it,
+     and its components are printed as point differences (dfmt), not through
+     the tile formatter that adds the quality midpoint back. */
+  const HM = HEAT_MODES.find(x => x.id === mode) || HEAT_MODES[0];
+  const isMove = !!HM.price;
+  const title = isMove ? 'Why moved?' : 'How this figure splits';
   const body = el('div');
   body.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:2px' }, [el('h3', { class: 'h-section' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt)]));
   if (!a) {
-    body.append(el('p', { class: 'body', style: 'font-size:13px' }, `${r.c.name} carries no observed change for this period, so there is no move to attribute.`));
-    openDrawer('Why moved?', body);
+    body.append(el('p', { class: 'body', style: 'font-size:13px' }, isMove
+      ? `${r.c.name} carries no observed change for this period, so there is no move to attribute.`
+      : `${r.c.name} carries no ${HM.label.toLowerCase().replace(/^vs /, 'difference to ')}, so there is nothing to split.`));
+    openDrawer(title, body);
     return;
   }
+  const dfmt = a.m.dfmt || a.m.fmt;
   body.append(el('p', { class: 'caption', style: 'margin-bottom:var(--md)' }, `${r.c.name} · ${a.m.label}`));
 
-  body.append(statTile(a.m.label, a.m.fmt(a.val), { tone: a.val >= 0 ? '--ok-text' : '--dn-text' }));
+  body.append(statTile(a.m.label, a.m.fmt(a.val), { tone: isMove ? (a.val >= 0 ? '--ok-text' : '--dn-text') : null }));
 
-  body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Attribution'));
-  const parts = [
+  body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, isMove ? 'Attribution' : 'Split'));
+  const parts = isMove ? [
     ['Market component', a.market, 'The cap-weighted move of the whole market cohort.'],
     ['Sector component', a.sector, 'The sector’s move over and above the market.'],
+    ['Company-specific', a.specific, 'The residual after market and sector are removed.'],
+  ] : [
+    ['Market component', a.market, mode === 'qual'
+      ? 'How far the cap-weighted average score of the market cohort sits from the midpoint of 50.'
+      : 'The cap-weighted average difference to the base-case model estimate across the market cohort.'],
+    ['Sector component', a.sector, 'The sector’s cap-weighted average over and above the market’s.'],
     ['Company-specific', a.specific, 'The residual after market and sector are removed.'],
   ];
   const maxAbs = Math.max(...parts.map(p => Math.abs(p[1])), 0.01);
@@ -2015,7 +2324,7 @@ function openWhyMoved(id, mode) {
     p.append(el('div', { class: 'row' }, [
       el('span', { style: 'font-size:13px;color:var(--ink-2)' }, label),
       el('span', { class: 'spacer' }),
-      el('span', { class: 'num ' + signClass(v), style: 'font-size:13px;font-weight:600' }, a.m.fmt(v)),
+      el('span', { class: 'num ' + (isMove ? signClass(v) : ''), style: 'font-size:13px;font-weight:600' }, dfmt(v)),
     ]));
     const track = el('div', { style: 'height:6px;background:var(--surface-sunk);border-radius:999px;margin:5px 0 4px;position:relative;overflow:hidden' });
     track.append(el('i', { style: `position:absolute;left:50%;${v >= 0 ? '' : 'transform:translateX(-100%);'}width:${Math.abs(v) / maxAbs * 50}%;height:100%;background:var(${v >= 0 ? '--up-4' : '--dn-4'});border-radius:999px;display:block` }));
@@ -2024,33 +2333,36 @@ function openWhyMoved(id, mode) {
     body.append(p);
   });
 
-  body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Candidate explanations'));
-  const evid = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
-  /* Only an illustrative company has a document here — documents() returns
-     nothing for a filed one — and the list it comes from is a labelled
-     sample. Cited as a prompt, then, not as evidence. */
-  if (Math.abs(a.specific) > Math.abs(a.market) * 0.8 && a.doc) {
-    evid.append(el('div', { class: 'evidence' },
-      `The sample document list carries a ${a.doc.form} dated ${a.doc.date}: “${a.doc.title}”. That list is illustrative — nothing in it was retrieved from any exchange — so this is a prompt to check the real filing index, not evidence that anything was published.`));
+  if (isMove) {
+    body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Candidate explanations'));
+    const evid = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
+    /* Only an illustrative company has a document here — documents() returns
+       nothing for a filed one — and the list it comes from is a labelled
+       sample. Cited as a prompt, then, not as evidence. */
+    if (Math.abs(a.specific) > Math.abs(a.market) * 0.8 && a.doc) {
+      evid.append(el('div', { class: 'evidence' },
+        `The sample document list carries a ${a.doc.form} dated ${a.doc.date}: “${a.doc.title}”. That list is illustrative — nothing in it was retrieved from any exchange — so this is a prompt to check the real filing index, not evidence that anything was published.`));
+    }
+    const ch = changeSummary(r.c) || [];
+    const big = ch.filter(x => isNum(x.v) && Math.abs(x.v) > 8);
+    if (big.length) evid.append(el('div', { class: 'evidence support' },
+      `Latest reported year: ${big.map(x => `${x.label.toLowerCase()} ${withSign(x.v, 0)}`).join(', ')}.`));
+    if (!evid.children.length || Math.abs(a.specific) < 1) {
+      evid.append(el('div', { class: 'evidence' },
+        'No reliable company event in the data carried here explains this move. It is reported as unexplained rather than attributed to a cause the data does not support.'));
+    }
+    body.append(evid);
   }
-  const ch = changeSummary(r.c) || [];
-  const big = ch.filter(x => isNum(x.v) && Math.abs(x.v) > 8);
-  if (big.length) evid.append(el('div', { class: 'evidence support' },
-    `Latest reported year: ${big.map(x => `${x.label.toLowerCase()} ${withSign(x.v, 0)}`).join(', ')}.`));
-  if (!evid.children.length || Math.abs(a.specific) < 1) {
-    evid.append(el('div', { class: 'evidence' },
-      'No reliable company event in the data carried here explains this move. It is reported as unexplained rather than attributed to a cause the data does not support.'));
-  }
-  body.append(evid);
 
-  body.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'Attribution is arithmetic on the prices carried here. It identifies where a move came from, not whether the move was justified.'));
+  body.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, isMove
+    ? 'Attribution is arithmetic on the prices carried here. It identifies where a move came from, not whether the move was justified.'
+    : `This split is arithmetic on the ${mode === 'qual' ? 'quality scores' : 'base-case model estimates'} carried here: how much of the figure is shared with the market and the sector, and how much is particular to the company. It explains no price move and is not a view on the company.`));
 
   const acts = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => { closeDrawer(); openResearch(id); } }, 'Open research'));
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { closeDrawer(); openResearch(id, 'filings'); } }, 'Read filings'));
   body.append(acts);
-  openDrawer('Why moved?', body);
+  openDrawer(title, body);
 }
 
 VIEWS.discover = () => {

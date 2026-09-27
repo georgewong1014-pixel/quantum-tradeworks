@@ -841,10 +841,16 @@ function squarify(items, x, y, w, h) {
   return out;
 }
 
-function treemap(container, { items, valueFmt, onPick, full = 8 }) {
+/* Each tile is a button, as each mark on the value map is: focusable, named,
+   and opened with Enter or Space. The tiles took a pointer click and nothing
+   else, so the drawer behind them — and the table view offers no action —
+   could not be reached from a keyboard at all. The svg is a group rather than
+   an image, because an image's children are not exposed as controls.
+   `pickNote` is the tooltip's last line: what selecting a tile opens. */
+function treemap(container, { items, valueFmt, onPick, full = 8, pickNote = 'Select for the "Why moved?" attribution' }) {
   chartHost(container, (W) => {
     const H = Math.max(320, Math.min(520, W * 0.5));
-    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Market heatmap, tile area is market capitalisation' });
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'group', tabindex: '0', 'aria-label': 'Market heatmap, tile area is market capitalisation. Tab to a tile and press Enter to open it.' });
     const laid = squarify([...items].sort((a, b) => b.value - a.value), 0, 0, W, H);
     const GAP = 2;                                   /* surface gap, not a border */
     laid.forEach(t => {
@@ -852,7 +858,10 @@ function treemap(container, { items, valueFmt, onPick, full = 8 }) {
       if (w < 2 || h < 2) return;
       const fillVar = divergingVar(t.change, full);
       const fill = cssVar(fillVar) || '#888';
-      const g = sv('g', { style: 'cursor:pointer' });
+      const g = sv('g', { class: 'tile', style: 'cursor:pointer' });
+      g.setAttribute('tabindex', '0');
+      g.setAttribute('role', 'button');
+      g.setAttribute('aria-label', `${t.label}, ${t.metricLabel} ${valueFmt(t.change)}, market cap ${t.capLabel}`);
       g.append(sv('rect', { x: t.x + GAP / 2, y: t.y + GAP / 2, width: w, height: h, rx: Math.min(6, w / 6, h / 6), fill }));
       const ink = inkOn(fill);
       /* only label when the text fits with padding — never clip */
@@ -865,13 +874,16 @@ function treemap(container, { items, valueFmt, onPick, full = 8 }) {
         }
       }
       const hit = sv('rect', { x: t.x, y: t.y, width: t.w, height: t.h, fill: 'transparent' });
-      hit.addEventListener('pointermove', e => showTip(
-        `<div class="t-title">${esc(t.label)} · ${esc(t.name)}</div>
+      const tip = `<div class="t-title">${esc(t.label)} · ${esc(t.name)}</div>
          <div class="t-row"><span>${esc(t.metricLabel)}</span><b>${valueFmt(t.change)}</b></div>
          <div class="t-row"><span>Market cap</span><b>${esc(t.capLabel)}</b></div>
-         <div class="t-note">Click for the "Why moved?" attribution</div>`, e.clientX, e.clientY));
+         <div class="t-note">${esc(pickNote)}</div>`;
+      hit.addEventListener('pointermove', e => showTip(tip, e.clientX, e.clientY));
       hit.addEventListener('pointerleave', hideTip);
       hit.addEventListener('click', () => onPick(t.id));
+      g.addEventListener('focus', () => { const b = g.getBoundingClientRect(); showTip(tip, b.left + b.width / 2, b.top + b.height / 2); });
+      g.addEventListener('blur', hideTip);
+      g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(t.id); } });
       g.append(hit);
       s.append(g);
     });
