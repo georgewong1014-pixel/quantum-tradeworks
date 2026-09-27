@@ -739,6 +739,11 @@ async function loadRealData() {
   try { await loadNapic(); } catch { /* the panel reports it */ }
   try { trackedHistory = await fetchJson(dataUrl('price-history.json')); }
   catch { /* no history yet */ }
+  /* The scanner's two files: the reader's setups and the worker's record of
+     matches. Both git-ignored, both absent on the deployed site; the scanner
+     page says what each would show. */
+  try { scanSetupsFile = await fetchJson(dataUrl('scan-setups.json')); } catch { /* none */ }
+  try { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')); } catch { /* none */ }
   /* Outside the try, because the deployed site has no history file at all and
      the reader's own closes are the only ones it will ever see. Merging only on
      a successful fetch would have made the feature work everywhere except the

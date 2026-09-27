@@ -74,3 +74,9 @@ property-data/raw/
 property-data/staging/
 property-data/normalized/
 property-data/rejects/
+
+# Trade-setup scanner. Your setups are your business, and the alert record is
+# derived from your own price history and inherits its terms. Neither reaches
+# the deployed site. scanner/setups.example.json is the committed template.
+data/scan-setups.json
+data/scan-alerts.json

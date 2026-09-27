@@ -14,6 +14,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { existsSync } from 'node:fs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -105,6 +106,26 @@ try {
 } catch {
   say(`history   could not be updated — today's prices are still imported`);
   bump(2);
+}
+
+/* 4b ------------------------------------------------------------ scanner */
+/* Only when the reader has written setups. The worker evaluates them on the
+   history just updated and appends any match to data/scan-alerts.json. No
+   setups file is the normal state of a reader who has not asked for this, so
+   it is reported and not counted against the run. */
+if (existsSync('data/scan-setups.json')) {
+  try {
+    const { stdout } = await node(['scanner/scan.mjs']);
+    const n = (stdout.match(/(\d+) new alert/) || [])[1];
+    say(`scanner   ${n ?? '?'} new alert(s) recorded in data/scan-alerts.json`);
+  } catch (e) {
+    const n = (String(e.stdout || '').match(/(\d+) new alert/) || [])[1];
+    if (e.code === 2) say(`scanner   ${n ?? '?'} new alert(s) recorded; a setup was skipped or could not be tested — run node scanner/scan.mjs to see which`);
+    else say(`scanner   could not run — ${String(e.stderr || e.message).trim().split('\n').filter(Boolean).pop() || 'see above'}`);
+    bump(2);
+  }
+} else {
+  say('scanner   no data/scan-setups.json — nothing to evaluate');
 }
 
 /* 5 ------------------------------------------------------------------ FX */

@@ -17,7 +17,7 @@ const ROUTES = [
   '/company/abbv-abbvie-inc', '/company/1155-malayan-banking-berhad',
   '/start',
   '/compare', '/my/portfolio', '/my/watchlists', '/my/data',
-  '/my/theses', '/my/alerts', '/my/tracked', '/discover/sarawak', '/property',
+  '/my/theses', '/my/alerts', '/my/tracked', '/my/scanner', '/discover/sarawak', '/property',
   '/property/calculator', '/property/opportunities', '/property/comparables', '/property/areas', '/us-options/wheel', '/property/calculator?city=sibu',
   '/research/trading-index', '/learn/trading-index', '/trading-index',
   '/wheel', '/cash-wheel', '/options', '/my/wheel', '/my/options',

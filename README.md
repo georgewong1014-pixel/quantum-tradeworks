@@ -208,6 +208,41 @@ and a comparison against putting the same cash into equities.
 
 **Not an official valuation.** In Malaysia that requires a registered valuer.
 
+**Trade-setup scanner** (`/my/scanner`) — conditions you define, evaluated on
+price history you supplied, producing a record of which conditions held on
+which completed daily bar. Every clause of that sentence is a boundary. The
+rules are yours: nothing is proposed and nothing is ranked. The data is yours:
+`data/price-history.json`, built from your own screen under your own
+subscription — no feed is licensed to this product, so it scans nothing else
+and is offered to nobody else. The output is a record, not a signal: no
+indicator here has been validated on point-in-time data, so none is claimed
+to work. And nothing is delivered: there is no server, so no email, Telegram
+or push.
+
+Indicators: price, volume, SMA, EMA, RSI (Wilder), MACD line / signal /
+histogram, average volume with a multiplier. Operators: above, below, crosses
+above, crosses below, between. A rule whose indicator needs more bars than an
+instrument holds is **untested** for it — a third state, never met or failed —
+and an AND setup with an untested rule cannot match.
+
+```bash
+node scanner/scan.mjs --check   # self-test only
+node scanner/scan.mjs --dry     # evaluate and print; write nothing
+node scanner/scan.mjs           # evaluate data/scan-setups.json, append to data/scan-alerts.json
+```
+
+Copy `scanner/setups.example.json` to `data/scan-setups.json`, or build a
+setup on the page and copy its JSON. Both data files are git-ignored and CI
+fails if either is tracked. `ingest/daily.mjs` runs the worker after it
+updates the history, when a setups file exists. Like the Trading Index batch,
+the worker slices its engine out of `index.html` between `@scan-engine-start`
+and `@scan-engine-end`, self-tests on a fixture before every run, and writes
+alerts in setup-then-instrument order — never sorted by anything. Each alert is
+one setup, one instrument, one bar, keyed `setupId|symbol|daily|barDate`, so
+the same bar is never recorded twice, and a cooldown counts bars rather than
+days. `scanner-test.mjs` checks the arithmetic on hand-worked series and the
+worker's exit codes.
+
 ## Bursa fundamentals: the source review
 
 Roughly forty candidate sources were probed empirically — fetched, not read about

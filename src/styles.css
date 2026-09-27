@@ -1389,3 +1389,9 @@ details > summary::marker { content: ''; }
   details[open] > summary { font-weight: 600; color: var(--ink-1); list-style: none; }
   @page { margin: 16mm 14mm; }
 }
+
+/* The scanner's rule lists. A rule is a condition to be tested, not a claim
+   that was met, so it takes a dot where .ticklist takes a tick. */
+.rulelist { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rulelist li { font-size: 13px; line-height: 1.5; color: var(--ink-2); padding-left: 14px; position: relative; font-variant-numeric: tabular-nums; }
+.rulelist li::before { content: '·'; position: absolute; left: 2px; color: var(--ink-3); font-weight: 700; }

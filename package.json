@@ -16,6 +16,8 @@
     "register": "node register-test.mjs http://localhost:8123",
     "model": "node model-test.mjs http://localhost:8123",
     "equity": "node equity-test.mjs http://localhost:8123",
+    "scan": "node scanner/scan.mjs",
+    "scan-test": "node scanner-test.mjs",
     "napic": "node napic-ingest.mjs",
     "wording": "node wording-check.mjs"
   },

@@ -214,6 +214,7 @@ const SUBNAV_MY = [
   { id:'thesis',     label:'Investment cases', path:'/my/theses' },
   { id:'alerts',     label:'Alerts',     path:'/my/alerts' },
   { id:'tracked',    label:'Tracked',    path:'/my/tracked' },
+  { id:'scanner',    label:'Scanner',    path:'/my/scanner' },
   { id:'userdata',   label:'Your data',  path:'/my/data' },
 ];
 
@@ -277,6 +278,7 @@ const ROUTES = [
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
+  { path: '/my/scanner',          view: 'scanner',   title: 'Trade-setup scanner' },
   { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data' },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
@@ -325,6 +327,7 @@ const META = {
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
+  scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on which completed daily bar. Nothing ranked, nothing delivered.',
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
   plans:     'Plans and pricing for Quantum Tradeworks research and property reports.',
 };
@@ -609,7 +612,7 @@ let realPending = false;
    appearing would be a worse trade than the one it fixes. */
 const UNIVERSE_VIEWS = new Set([
   'home', 'discover', 'research', 'researchHome', 'compare', 'portfolio',
-  'watchlists', 'thesis', 'alerts', 'tracked', 'sarawak', 'plans',
+  'watchlists', 'thesis', 'alerts', 'tracked', 'scanner', 'sarawak', 'plans',
 ]);
 
 function bootSkeleton() {
