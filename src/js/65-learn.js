@@ -197,6 +197,23 @@ function learnData() {
     'Bursa Malaysia data is licensed, not free. Information-service licensing terms, a published price list and redistribution rights make the data workstream a commercial prerequisite — it has to be settled before the feature architecture is locked, not after.'));
   wrap.append(src);
 
+  /* THE STATUS ON EVERY FIGURE. Five kinds of number and five reasons for an
+     absence; the screener's cells and the drawer behind each use exactly these
+     words, from the same registry this table reads. */
+  const lg = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  lg.append(cardHead('How every figure is labelled', 'A number carries one of five kinds; an absence carries one of five reasons. The screener cell, the drawer behind it and the company page read the same registry, so they cannot disagree about one figure.'));
+  const legendTable = (heads, rows) => {
+    const tw = el('div', { class: 'tablewrap', style: 'margin-bottom:var(--sm)' });
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, heads.map(h => el('th', {}, h)))));
+    t.append(el('tbody', {}, rows.map(r => el('tr', {}, r.map((x, i) => el('td', { style: i ? 'text-align:left;white-space:normal' : '' }, x))))));
+    tw.append(t); return tw;
+  };
+  lg.append(legendTable(['Kind', 'Meaning'], ['reported', 'calculated', 'modelled', 'market', 'illustrative'].map(k => [provChip(k), PROVENANCE[k].note])));
+  lg.append(legendTable(['Absence', 'Meaning'], Object.entries(ABSENCE).map(([k, a]) => [el('span', { class: 'chip chip-bronze' }, `Unavailable — ${k}`), a.legend])));
+  lg.append(el('p', { class: 'metaline' }, 'Every empty cell on the screener prints the short form of its reason and opens the drawer that names the line, the flag or the price behind it.'));
+  wrap.append(lg);
+
   /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
      This page previously implied no Sarawak transaction source existed. It
      does; what does not yet exist is the right to republish it. Those are

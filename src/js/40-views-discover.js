@@ -367,6 +367,10 @@ const FIELDS = [
 ];
 const FIELD_BY_K = Object.fromEntries(FIELDS.map(f => [f.k, f]));
 const FIELD_GROUPS = [...new Set(FIELDS.map(f => f.g))];
+/* The screener's three fixed score columns carry their own keys and their own
+   pill renderers. This maps them to the fields behind them, so an absent score
+   says why and a present one opens its drawer like any other cell. */
+const SCORE_COL_FIELD = { quality: 'qscore', value: 'vscore', mos: 'mosBase' };
 
 /* COLUMN PRESETS.
    ---------------------------------------------------------------------------
@@ -858,11 +862,23 @@ function renderScreener() {
            the period, the prior period, where it came from and how complete the
            company's data is. This is the product's central claim made operable
            rather than asserted in copy. */
-        const fld = FIELD_BY_K[c2.k];
+        const fld = FIELD_BY_K[c2.k] || FIELD_BY_K[SCORE_COL_FIELD[c2.k]];
         if (fld && isNum(v)) {
           td.classList.add('cell-sourced');
           td.setAttribute('role', 'button');
-          td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${fld.fmt(v)} — show source`);
+          td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${fld.fmt(v, r)} — show source`);
+          td.addEventListener('click', () => openSourceDrawer(r, fld));
+          td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSourceDrawer(r, fld); } });
+        } else if (fld) {
+          /* An empty cell says why — not reported, not applicable, withheld,
+             no price, not meaningful — and opens the same drawer, which names
+             the line or the flag behind the absence. "n/a" for everything was
+             a claim that nothing could be said. */
+          const st = metricStatus(r, fld.k);
+          td.innerHTML = `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>`;
+          td.classList.add('cell-sourced');
+          td.setAttribute('role', 'button');
+          td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: unavailable, ${st.reason} — show why`);
           td.addEventListener('click', () => openSourceDrawer(r, fld));
           td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSourceDrawer(r, fld); } });
         }
@@ -1051,49 +1067,139 @@ const PROVENANCE = {
   reported:   { label: 'Reported',   cls: 'chip chip-ok',     note: 'Taken directly from a filed statement line. Not adjusted.' },
   calculated: { label: 'Calculated', cls: 'chip',             note: 'Arithmetic on reported lines. No assumption is involved, so it is exactly as reliable as the figures underneath it.' },
   modelled:   { label: 'Modelled',   cls: 'chip chip-bronze', note: 'An output of assumptions you can see and change. A different set of assumptions gives a different number.' },
-  market:     { label: 'Market',     cls: 'chip',             note: 'A price, from the source stated on the page rather than from a filing.' },
+  market:     { label: 'Market',     cls: 'chip',             note: 'Needs a price. The price comes from the source stated on the company page — an end-of-day close you supplied or a figure you entered — never from a licensed feed, because none is connected.' },
+  /* Two more kinds the four above could not say. A figure on a synthetic
+     company is arithmetic like any other, but on lines that describe no
+     company; and an absence is not a kind of number at all, which is why it
+     carries a reason instead. */
+  illustrative: { label: 'Illustrative', cls: 'chip chip-bronze', note: 'Computed from a synthetic sample statement, not a filing. It demonstrates the interface and describes no company.' },
+  unavailable:  { label: 'Unavailable',  cls: 'chip chip-bronze', note: 'No figure is shown and the reason is stated. Nothing is imputed, and an absent figure never passes a screen.' },
+};
+/* The five reasons a figure can be absent. `short` is what the screener cell
+   prints; `legend` is what the Learn page says it means. The reason a
+   particular cell gives is built by metricStatus from the company's own
+   lines, so the legend describes the class and the cell names the instance. */
+const ABSENCE = {
+  'not reported':   { short: 'not reported', legend: 'A statement line the measure needs is not in the stored statements — for a filer, the XBRL tag did not resolve. The drawer names the line.' },
+  'not applicable': { short: 'n/a',          legend: 'The measure has no meaning for this business model — enterprise value on a deposit-taking balance sheet — and is excluded from the count of applicable measures rather than counted as missing.' },
+  'withheld':       { short: 'withheld',     legend: 'The inputs exist and disagree with each other, or a corporate action sits inside the window. A number could be computed; it would be wrong, so it is not.' },
+  'needs a price':  { short: 'no price',     legend: 'The measure divides by or compares to a market price, and no licensed feed is connected. A price you supply on the company page fills it in, labelled as yours.' },
+  'not meaningful': { short: 'n/m',          legend: 'Every input is present, but the ratio is not meaningful on them — earnings at or below zero under a price, a growth base at or below zero.' },
 };
 function provChip(kind) {
   const p = PROVENANCE[kind] || PROVENANCE.calculated;
   return el('span', { class: p.cls, title: p.note }, p.label);
 }
+/* The chip for a status, present or absent. */
+function statusChip(st) {
+  if (st.available) return provChip(st.id);
+  return el('span', { class: 'chip chip-bronze', title: st.text }, `Unavailable — ${st.reason}`);
+}
 
-/* Which kind each screener field is. Statement lines are reported; everything
-   derived from them is calculated; anything needing a price is market-derived
-   and anything needing an assumption is modelled. */
+/* Which kind each screener field is when it is present. Statement lines are
+   reported; everything derived from them is calculated; anything needing a
+   price is market; anything that is an output of assumptions is modelled. */
 const FIELD_PROVENANCE = {
   pe:'market', pb:'market', evebit:'market', pfcf:'market', dy:'market', fcfy:'market', rs12:'market',
+  from52:'market', sma200d:'market', mcap:'market',
+  qscore:'modelled', vscore:'modelled', mosBase:'modelled',
 };
 const provenanceOf = (k) => FIELD_PROVENANCE[k] || 'calculated';
 
-/* The drawer behind any number: what it is, how it was produced, from which
-   period, against what it was before, and how far to trust it. */
+/* Which stored lines each measure is arithmetic on. `price` is the quoted
+   price and `history` the reader's own closes; everything else is a column
+   of the statement tuple. The drawer lists them with their latest values and
+   XBRL tags, and an absent figure names the line that is missing. */
+const LINE_LABEL = { rev:'revenue', ebit:'operating profit (EBIT)', ni:'net income', ocf:'operating cash flow', capex:'capital expenditure',
+  eq:'shareholders’ equity', debt:'total debt', cash:'cash and equivalents', sh:'shares in issue', dps:'dividend per share',
+  price:'price', history:'price history' };
+const LINE_COL = { rev:F.REV, ebit:F.EBIT, ni:F.NI, ocf:F.OCF, capex:F.CAPEX, eq:F.EQ, debt:F.DEBT, cash:F.CASH, sh:F.SH, dps:F.DPS };
+/* The ingest names debt as two lines and the tuple sums them. */
+const LINE_PROV = { debt:['debtL','debtC'] };
+const FIELD_INPUTS = {
+  roic:['ebit','eq','debt','cash'], om:['ebit','rev'], nm:['ni','rev'], fcfm:['ocf','capex','rev'], roe:['ni','eq'], cashconv:['ocf','ni'],
+  rev5:['rev'], eps5:['ni','sh'], fcf5:['ocf','capex'], dps5:['dps'],
+  ndEbit:['debt','cash','ebit'], de:['debt','eq'], icov:['ebit'], netGearing:['debt','cash','eq'],
+  pe:['price','ni','sh'], pb:['price','eq','sh'], evebit:['price','sh','debt','cash','ebit'], pfcf:['price','ocf','capex','sh'],
+  dy:['price','dps'], fcfy:['price','sh','ocf','capex'], buyback:['sh'], payout:['dps','ni','sh'], cashPayout:['dps','sh','ocf','capex'],
+  reinv:['capex','ocf'], epsVol:['ni'], revDD:['rev'], dilution:['sh'], ocfPosYears:['ocf'],
+  rs12:['history'], from52:['history'], sma200d:['history'], mcap:['price','sh'],
+  qscore:['rev','ebit','ni','ocf','capex','eq','debt','cash','sh'], vscore:['price','ni','ocf','capex','eq','sh'], mosBase:['price'],
+};
+/* Measures a type cannot carry that the coverage dictionary does not list —
+   so they are not in INAPPLICABLE, whose length the coverage figure prints. */
+const ALSO_INAPPLICABLE = { bank: ['netGearing'] };
+const TYPE_NOUN = { bank: 'bank', insurer: 'insurer', early: 'pre-profit company', reit: 'REIT' };
+
+/* THE STATUS OF ONE FIGURE. Present: which of the five kinds it is. Absent:
+   which of the five reasons, with the sentence for this company — the line
+   that is missing, the flag that withheld it, the price it needs. The screener
+   cell, the drawer and the Learn legend all read from here, so they cannot
+   say three different things about one cell. */
+function metricStatus(r, k) {
+  const c = r?.c, m = r?.m || {}, v = m[k], f = FIELD_BY_K[k];
+  const inputs = FIELD_INPUTS[k] || [];
+  if (isNum(v)) {
+    const id = c?.real ? provenanceOf(k) : 'illustrative';
+    return { id, available: true, label: PROVENANCE[id].label, text: PROVENANCE[id].note };
+  }
+  const why = (reason, text) => ({ id: 'unavailable', available: false, reason, label: ABSENCE[reason].short, text });
+  const skip = [...(INAPPLICABLE[c?.type] || []), ...(ALSO_INAPPLICABLE[c?.type] || [])];
+  if (skip.includes(k)) return why('not applicable', f?.miss || `Not meaningful for a ${TYPE_NOUN[c.type] || c.type}. Excluded from the count of applicable measures rather than imputed.`);
+  if (k === 'icov') return why('not reported', f?.miss || 'Interest expense is not carried in the statement tuple, so interest cover is reported missing for every company, never estimated.');
+  const W = [
+    [['om', 'nm', 'fcfm'], m.revenueSuspect],
+    [['roe'], m.roeWithheld],
+    [['payout', 'nm', 'roe', 'pe', 'cashconv'], m.perShareScaleBroken],
+    [['eps5', 'dps5', 'dilution', 'buyback'], m.shareSeriesBreak
+      ? `The share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn inside the window — a corporate action, not issuance, and no corporate-action source is licensed here to undo it. A rate over a per-share line across that boundary would measure the split, so it is withheld.`
+      : null],
+  ];
+  for (const [keys, text] of W) if (text && keys.includes(k)) return why('withheld', text);
+  if (inputs.includes('price') && !isNum(c?.px?.p)) return why('needs a price', 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.');
+  if (inputs.includes('history')) {
+    const need = k === 'sma200d' ? 200 : 252;
+    return why('needs a price', `Needs ${need} observed closes; ${m.pxPoints || 0} held. Computed only from price history you imported or captured.`);
+  }
+  /* A priced company whose valuation produced nothing: the model, not a line. */
+  if (k === 'mosBase' || k === 'vscore') return why('not meaningful', 'The base-case model produced no estimate for this company — its model pack needs inputs that are absent — so there is no difference to a price and no valuation evidence to score.');
+  const last = c?.fin?.[c.fin.length - 1] || [];
+  const missing = inputs.filter(l => LINE_COL[l] != null && !isNum(last[LINE_COL[l]]));
+  if (missing.length) return why('not reported', `${missing.map(l => LINE_LABEL[l]).join(', ')} ${missing.length === 1 ? 'is' : 'are'} not in the latest stored statements${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
+  return why('not meaningful', f?.miss || 'Every input is present, but the ratio is not meaningful on them — a zero or negative denominator, or a growth base at or below zero.');
+}
+
+/* The drawer behind any number, or any absence: what it is, how it was
+   produced, from which lines, from which period, against what it was before,
+   and how far to trust it. */
 function openSourceDrawer(r, f) {
   const { c, m } = r;
   const v = m[f.k];
+  const st = metricStatus(r, f.k);
   const prev = (() => {
     /* Same metric one year earlier, where the series supports it. */
     try { const d2 = derive({ ...c, fin: c.fin.slice(0, -1) }); return d2.m[f.k]; } catch { return null; }
   })();
-  const kind = provenanceOf(f.k);
 
   const body = el('div', { class: 'stack' });
   body.append(el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
-    provChip(kind),
+    statusChip(st),
     el('span', { class: 'chip' }, `${c.tk} · ${c.name}`),
+    illusChip(c),
   ]));
-  body.append(el('div', { class: 'panel' }, statTile(f.label, isNum(v) ? f.fmt(v) : 'not computable',
-    { sub: isNum(prev) && isNum(v) ? `was ${f.fmt(prev)} in the prior period` : null })));
+  body.append(el('div', { class: 'panel' }, statTile(f.label, isNum(v) ? f.fmt(v, r) : `unavailable — ${st.reason}`,
+    { sub: isNum(prev) && isNum(v) ? `was ${f.fmt(prev, r)} in the prior period` : null })));
 
   const kv = el('dl', { class: 'kv' });
+  const fy = latestFy(c);
   const rows = [
-    ['What it is', PROVENANCE[kind].note],
+    [st.available ? 'What it is' : 'Why it is absent', st.text],
     ['Formula', f.formula],
-    ['Reporting period', `FY${latestFy(c)}${fyEndOf(c, latestFy(c)) ? ` (ended ${fmtFyEnd(fyEndOf(c, latestFy(c)))})` : ''}, as reported`],
-    ['Prior period', isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev)}` : 'not computable'],
+    ['Reporting period', `FY${fy}${fyEndOf(c, fy) ? ` (ended ${fmtFyEnd(fyEndOf(c, fy))})` : ''}, as reported`],
+    ['Prior period', isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev, r)}` : 'not computable'],
     ['Currency', c.ccy],
     ['Source', c.real
-      ? `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`
+      ? (c.personal ? `Annual statements you supplied — personal research, retrieved ${c.retrieved}` : `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`)
       : 'Synthetic sample statement — not a filing'],
     ['Adjustments', 'None. The figure is computed directly from the stored lines.'],
     ['Data completeness', `${m.coverage}% of applicable measures are computable for this company`],
@@ -1107,6 +1213,51 @@ function openSourceDrawer(r, f) {
   }
   rows.forEach(([k2, v2]) => { kv.append(el('dt', {}, k2)); kv.append(el('dd', { style: 'text-align:left' }, v2)); });
   body.append(kv);
+
+  /* THE INPUTS. Each line the measure is arithmetic on, with the value that
+     went in, the period it belongs to and — for a filer — the XBRL concept
+     that supplied it. The lineage the plan asks for on every figure, in the
+     place a reader already looks for it. */
+  const inputs = FIELD_INPUTS[f.k] || [];
+  if (inputs.length) {
+    body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Inputs'));
+    const last = c.fin?.[c.fin.length - 1] || [];
+    const tw = el('div', { class: 'tablewrap' });
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, ['Line', 'Latest value', 'Period', 'Source'].map(h => el('th', {}, h)))));
+    const tb = el('tbody');
+    inputs.forEach(l => {
+      let val, period, src, present = true;
+      if (l === 'price') {
+        present = isNum(c.px?.p);
+        val = present ? `${fmtNum(c.px.p, 2)} ${c.ccy}` : 'none';
+        period = present ? priceAsOfLabel(c) : '—';
+        src = c.px?.eod ? (c.pricePersonal ? 'read from your screen' : 'end-of-day close') : present ? 'entered by you' : 'no licensed feed';
+      } else if (l === 'history') {
+        present = (m.pxPoints || 0) > 0;
+        val = `${m.pxPoints || 0} closes`;
+        period = '—';
+        src = present ? 'your imported or captured history' : 'none held';
+      } else {
+        const x = last[LINE_COL[l]];
+        present = isNum(x);
+        val = present ? (l === 'sh' ? `${fmtNum(x, 3)}bn shares` : l === 'dps' ? `${fmtNum(x, 3)} per share` : `${fmtNum(x, 3)}bn ${c.ccy}`) : 'not reported';
+        period = `FY${fy}`;
+        if (c.real && c.provenance) {
+          const tags = (LINE_PROV[l] || [l]).map(pk => c.provenance[pk]).filter(Boolean)
+            .map(p => (p.byYear && p.byYear[fy]) || p.concept).filter(Boolean);
+          src = tags.length ? tags.join(' + ') : 'tag not recorded';
+        } else src = c.real ? 'statements you supplied' : 'synthetic sample';
+      }
+      tb.append(el('tr', {}, [
+        el('td', { class: 'ident' }, LINE_LABEL[l] || l),
+        el('td', { class: present ? '' : 'caption' }, val),
+        el('td', {}, period),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:260px' }, src),
+      ]));
+    });
+    t.append(tb); tw.append(t); body.append(tw);
+  }
 
   if (METRIC_HELP[f.k]) {
     body.append(el('button', { class: 'btn btn-ghost btn-sm',

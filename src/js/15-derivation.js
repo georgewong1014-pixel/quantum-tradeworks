@@ -291,6 +291,17 @@ function maxDrawdown(series) {
   return worst;
 }
 
+/* Measures that do not apply to a business model, by company type. Module
+   level, because two places read it: the coverage denominator inside derive,
+   and metricStatus, which has to say "not applicable" for exactly the measures
+   the denominator excludes — one list, or the two would drift. */
+const INAPPLICABLE = {
+  bank: ['roic','fcfm','fcf5','ndEbit','de','evebit','pfcf','fcfy','cashconv','cashPayout','reinv'],
+  insurer: ['roic','ndEbit','evebit'],
+  early: ['pe','pfcf','evebit','roic','payout','cashPayout','dps5','dy'],
+  reit: [],
+};
+
 function derive(c) {
   const fin = c.fin, n = fin.length, i = n - 1;
   const isBank = c.type === 'bank', isReit = c.type === 'reit';
@@ -609,12 +620,6 @@ function derive(c) {
      dataset rather than an inapplicable measure. */
   const dictKeys = ['pe','pb','evebit','pfcf','dy','fcfy','om','nm','fcfm','roe','roic','cashconv',
                     'rev5','eps5','fcf5','dps5','ndEbit','de','icov','dilution','payout','cashPayout','reinv','rs12'];
-  const INAPPLICABLE = {
-    bank: ['roic','fcfm','fcf5','ndEbit','de','evebit','pfcf','fcfy','cashconv','cashPayout','reinv'],
-    insurer: ['roic','ndEbit','evebit'],
-    early: ['pe','pfcf','evebit','roic','payout','cashPayout','dps5','dy'],
-    reit: [],
-  };
   const skip = INAPPLICABLE[c.type] || [];
   const applicable = dictKeys.filter(k => !skip.includes(k));
   const have = applicable.filter(k => isNum(m[k])).length;

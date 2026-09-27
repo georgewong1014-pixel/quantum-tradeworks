@@ -478,6 +478,84 @@ try {
     if (problems.length) fail('the address, focus and cross-view tab rules do not hold', problems);
     else ok('tabs live in the address, other parameters survive, a foreign tab never crosses views, and focus follows the page');
   }
+  /* THE STATUS BEHIND EVERY ABSENCE. An empty screener cell has to say why —
+     one of five reasons — and the reason has to be the true one: a bank's
+     return on invested capital is not applicable, an unpriced filer's P/E
+     needs a price, interest cover is not reported for anyone, a partially
+     captured revenue line withholds the margins, a filer with no dividend
+     line names that line, an illustrative company's figure is illustrative
+     and a filer's computed margin is calculated. Then every field on every
+     company: a status always comes back, and it agrees with whether the
+     value is there. */
+  {
+    const r = await evaluate(`(() => {
+      const pick = (pred) => U.find(pred);
+      const bank = pick(x => x.c.type === 'bank' && x.c.real);
+      const noPx = pick(x => x.c.real && !isNum(x.c.px?.p) && isNum(x.m.eps) && x.m.eps > 0);
+      const illus = pick(x => !x.c.real && isNum(x.m.roe));
+      const suspect = pick(x => x.m.revenueSuspect);
+      const anyReal = pick(x => x.c.real);
+      const calcRow = pick(x => x.c.real && isNum(x.m.om));
+      const missing = pick(x => x.c.real && !isNum(x.c.fin[x.c.fin.length - 1][F.DPS]) && !x.m.perShareScaleBroken);
+      const out = {
+        bankRoic: bank ? metricStatus(bank, 'roic') : null,
+        noPxPe: noPx ? metricStatus(noPx, 'pe') : null,
+        illusRoe: illus ? metricStatus(illus, 'roe') : null,
+        icov: anyReal ? metricStatus(anyReal, 'icov') : null,
+        suspectOm: suspect ? metricStatus(suspect, 'om') : null,
+        calc: calcRow ? metricStatus(calcRow, 'om') : null,
+        noDps: missing ? metricStatus(missing, 'payout') : null,
+      };
+      let bad = 0, n = 0; const reasons = {};
+      for (const row of U) for (const f of FIELDS) {
+        n++;
+        const s = metricStatus(row, f.k);
+        if (!s || s.available !== isNum(row.m[f.k]) || (!s.available && !(s.reason && s.text && s.label))) bad++;
+        if (s && !s.available) reasons[s.reason] = (reasons[s.reason] || 0) + 1;
+      }
+      out.bad = bad; out.n = n; out.reasons = reasons;
+      return out;
+    })()`);
+    const problems = [];
+    if (r.bankRoic?.reason !== 'not applicable') problems.push(`a bank's ROIC: ${JSON.stringify(r.bankRoic)}`);
+    if (r.noPxPe?.reason !== 'needs a price') problems.push(`an unpriced filer's P/E: ${JSON.stringify(r.noPxPe)}`);
+    if (r.illusRoe?.id !== 'illustrative') problems.push(`an illustrative company's ROE: ${JSON.stringify(r.illusRoe)}`);
+    if (r.icov?.reason !== 'not reported') problems.push(`interest cover: ${JSON.stringify(r.icov)}`);
+    if (r.suspectOm && r.suspectOm.reason !== 'withheld') problems.push(`a suspect revenue line's margin: ${JSON.stringify(r.suspectOm)}`);
+    if (r.calc?.id !== 'calculated') problems.push(`a filer's computed margin: ${JSON.stringify(r.calc)}`);
+    if (r.noDps && !(r.noDps.reason === 'not reported' && /dividend per share/.test(r.noDps.text))) problems.push(`a filer without a dividend line, payout: ${JSON.stringify(r.noDps)}`);
+    if (r.bad) problems.push(`${r.bad} of ${r.n} field × company statuses disagree with the value`);
+    if (problems.length) fail('every absent figure names its reason and every present one its kind', problems);
+    else ok(`every absent figure names its reason and every present one its kind (${r.n} pairs; absences: ${Object.entries(r.reasons).map(([k, v]) => `${k} ${v}`).join(', ')})`);
+
+    /* And on the screener itself: an empty cell prints the reason, carries it
+       as a title, and opens the drawer that names the input behind it. */
+    await evaluate(`navigate('/discover/screener')`);
+    await sleep(800);
+    const d = await evaluate(`(() => {
+      const span = document.querySelector('td.cell-sourced .cell-absent');
+      if (!span) return { none: true, sourced: document.querySelectorAll('td.cell-sourced').length };
+      const td = span.closest('td');
+      td.click();
+      const drawer = document.querySelector('.drawer');
+      const txt = drawer ? drawer.textContent : '';
+      const out = { label: span.textContent, title: span.getAttribute('title') || '',
+        open: !!drawer && !drawer.hidden,   /* data-open lands a frame later; hidden flips at once */
+        why: /Why it is absent/.test(txt), inputs: /Inputs/.test(txt) };
+      try { closeDrawer(); } catch { /* already closed */ }
+      return out;
+    })()`);
+    const p2 = [];
+    if (d.none) p2.push(`no empty cell on the default screener (${d.sourced} sourced cells)`);
+    else {
+      if (!['not reported', 'n/a', 'withheld', 'no price', 'n/m'].includes(d.label)) p2.push(`cell prints "${d.label}"`);
+      if (!d.title) p2.push('cell carries no title');
+      if (!d.open || !d.why) p2.push(`drawer did not open with the reason (open=${d.open} why=${d.why})`);
+      if (!d.inputs) p2.push('drawer has no inputs table');
+    }
+    if (p2.length) fail('an empty screener cell says why and opens the drawer that names the input', p2);
+    else ok(`an empty screener cell says why ("${d.label}") and opens the drawer that names the input`);
+  }
 } catch (e) {
   fail('harness error', e.message);
 } finally {
