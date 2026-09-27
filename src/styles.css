@@ -948,6 +948,11 @@ table.dt tfoot td.pin { z-index: 3; }
 
 /* Header row pinned under the top bar for full-page tables. */
 table.dt-pagesticky thead th { top: var(--topbar-h); }
+/* Except inside a .tablewrap. The wrap scrolls sideways, which makes it the
+   scroll container a sticky cell measures from, so the top-bar offset counted
+   from the wrap's own top instead: the Compare header dropped 60px, covered the
+   Price row and left an empty band where it belonged. In a wrap it pins at 0. */
+.tablewrap table.dt-pagesticky thead th { top: 0; }
 /* AT PHONE WIDTH, WRAP RATHER THAN HIDE.
    ---------------------------------------------------------------------------
    Two strips scroll horizontally with the scrollbar suppressed and no fade,

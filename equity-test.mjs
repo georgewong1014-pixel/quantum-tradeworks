@@ -2337,7 +2337,10 @@ try {
         const node = tabFinancials(row), text = node.textContent;
         const span = 'FY' + s.years[0] + '\\u2013FY' + s.years[s.years.length - 1];
         if (!text.includes('Reported ' + c.ccy + ' billions, ' + span)) bad.push(c.id + ': the chart caption does not say ' + c.ccy + ' billions over ' + span);
-        if (!text.includes('All values in ' + c.ccy + ' billions')) bad.push(c.id + ': the statement caption does not state its unit');
+        /* The unit, whatever words lead into it — the statements card was
+           re-captioned ("USD billions unless stated, FY…") when it became
+           three statements. */
+        if (!text.includes(c.ccy + ' billions unless stated')) bad.push(c.id + ': the statement caption does not state its unit');
         const lines = new Set();
         for (const t of node.querySelectorAll('table')) {
           const col = new Map();
@@ -2813,6 +2816,25 @@ try {
       await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
       ws.removeEventListener('message', listen);
     }
+  }
+
+  /* NO STICKY HEADER COVERS ITS OWN FIRST ROW. A page-sticky table inside a
+     sideways-scrolling .tablewrap measured its top-bar offset from the wrap,
+     so the Compare header dropped over the Price row. Every table on the
+     pages below: the header ends where the body starts, not below it. */
+  {
+    const bad = [];
+    for (const path of ['/compare?companies=AAPL-SEC,MSFT-SEC', '/discover/screener', '/company/MSFT-SEC?tab=financials', '/my/watchlists']) {
+      await evaluate(`navigate(${JSON.stringify(path)})`);
+      await sleep(700);
+      const r = await evaluate(`(() => [...document.querySelectorAll('main table.dt')].filter(t => t.tHead && t.tBodies[0]?.rows.length && t.offsetParent).map(t => {
+        const h = t.tHead.getBoundingClientRect(), b = t.tBodies[0].rows[0].getBoundingClientRect();
+        return { cls: t.className, over: Math.round(h.bottom - b.top) };
+      }).filter(x => x.over > 1))()`);
+      r.forEach(x => bad.push(`${path}: table.${x.cls.replace(/ /g, '.')} header covers ${x.over}px of its first row`));
+    }
+    if (bad.length) fail('no table header covers its own first row', bad);
+    else ok('no table header covers its own first row — Compare, the screener, the statements and the watchlists');
   }
 
 } catch (e) {

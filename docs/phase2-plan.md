@@ -36,31 +36,37 @@ Three facts recur in the blocked columns and are stated once here:
 
 ## 1. Status at a glance
 
-| Item | Priority | Status | Buildable now | Blocked |
+*Updated 28 September 2026, after all six batches merged (main at the merge of
+batch E). "Built" means the buildable part is in the product with checks
+behind it; the brief's full wording is not met anywhere a blocker is named.
+P1 items are feature-flagged on /status and say on their own page what they
+lack, as the release rule requires.*
+
+| Item | Priority | Status | Landed in | Still blocked |
 |---|---|---|---|---|
+| NAV Required navigation | P0 | built | A (672d8ce) | a listing venue for filers until data/us.json is regenerated |
+| EQ-201 Company master | P0 | built | A (672d8ce) | ISIN (no licensed reference source); listing status (no exchange feed); server-side tables |
+| EQ-202 Data ingestion | P0 | built, pending data | D (5387ddd) | regenerating data/us.json (SEC contact email); quarterly facts; Bursa financials; per-fact taxonomy version |
+| EQ-203 Data validation | P0 | built | D (5387ddd) | balance identity and P&L reconciliation need lines the shipped tuple lacks; TTM needs quarterly data |
+| EQ-204 Company Explorer | P0 | built | A (672d8ce) | exchange search for filers (regeneration); a complete listing of either market |
+| EQ-205 Company profile | P0 | built | C (e205768) | period end, filing date and exchange for filers (regeneration); any licensed price |
+| EQ-206 Financial statements | P0 | built | C (e205768) | quarterly statements; filing date and form per figure (regeneration); sub-lines beyond the ten-column tuple |
+| EQ-207 Financial ratios | P0 | built within the tuple | D (5387ddd) | gross margin, ROA, current and quick ratios, interest cover, EV/EBITDA — lines not held |
+| EQ-208 Watchlists | P0 | built | B (e8089cf) | ownership and cross-device lists (no accounts) |
+| EQ-209 Data lineage | P0 | built | C (e205768) | filing date, form, period end and exact-filing links per figure (regeneration) |
+| EQ-210 Company comparison | P1 | flagged | F (b09c7a1) | period-end alignment (regeneration); line-level accounting reconciliation |
+| EQ-211 Valuation models | P1 | flagged | F (b09c7a1) | market-weighted WACC and a difference to price without a licensed price; lease and minority adjustments from filings |
+| EQ-212 Research workspace | P1 | flagged | F (b09c7a1) | multi-device or shared workspace (no accounts) |
+| EQ-213 Report exports | P1 | flagged | F (b09c7a1) | server-generated and archived PDFs (by decision); byte-identical reproduction without a saved run |
+| EQ-214 Scanner handoff | P0 | built | B (e8089cf) | accounts, notification delivery, an authorised OHLCV feed, exchange calendars |
+| EQ-215 Research QA | P0 | built | E (e4603ed) | cross-user access and quarterly handling cannot be tested — no accounts, no quarterly data |
 
-| NAV Required navigation | P0 | partial | 3 | 2 |
-| EQ-201 Company master | P0 | partial | 2 | 3 |
-| EQ-202 Data ingestion | P0 | partial | 4 | 6 |
-| EQ-203 Data validation | P0 | partial | 5 | 4 |
-| EQ-204 Company Explorer | P0 | partial | 2 | 2 |
-| EQ-205 Company profile (header, actions, dashboard tiles, tabs, no- | P0 | partial | 5 | 3 |
-| EQ-206 Financial statements (one table, annual/quarterly, changes,  | P0 | partial | 4 | 3 |
-| EQ-207 Financial ratios | P0 | partial | 2 | 1 |
-| EQ-208 Watchlists | P0 | partial | 4 | 2 |
-| EQ-209 Data lineage | P0 | partial | 3 | 1 |
-| EQ-210 Company comparison | P1 | partial | 4 | 3 |
-| EQ-211 Valuation models (user-controlled DCF, sensitivity, saved as | P1 | partial | 5 | 3 |
-| EQ-212 Research workspace | P1 | partial | 5 | 2 |
-| EQ-213 Report exports | P1 | partial | 3 | 3 |
-| EQ-214 Scanner handoff | P0 | partial | 5 | 5 |
-| EQ-215 Research QA | P0 | partial | 6 | 5 |
-
-All sixteen are *partial*: the application already carries a search, a company
-page with statements, ratios and nine valuation methods, a compare view,
-watchlists, a provenance drawer, a personal-lane scanner, and seven test
-harnesses. None is *done* against the brief's wording, and none is *missing*
-outright.
+Two things block most of what remains, and neither is code: an SEC contact
+email so data/us.json can be regenerated under the corrected ingest, and the
+licences and operating entity the platform plan names. `node register-check.mjs
+--release` states mechanically which P0 rows are not yet complete; CI runs the
+same checker without --release on every push. The eighteen-item QA checklist
+is mapped to its checks in [phase2-qa.md](phase2-qa.md).
 
 ## 2. Build order
 

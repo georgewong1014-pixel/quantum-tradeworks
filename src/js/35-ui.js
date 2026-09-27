@@ -1067,6 +1067,15 @@ function gridKeyboard(table, label) {
     /* A sticky header and two sticky median rows can hide the cell that just
        took focus, which looks exactly like focus having gone nowhere. */
     cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    /* And a sticky label column: scrollIntoView treats it as part of the
+       viewport, so a cell stepped to from the right came to rest underneath
+       it. The container is scrolled back by exactly the overlap. */
+    const wrap = table.closest('.tablewrap');
+    const pin = cell.parentElement?.querySelector('.pin');
+    if (wrap && pin && pin !== cell) {
+      const over = pin.getBoundingClientRect().right - cell.getBoundingClientRect().left;
+      if (over > 0) wrap.scrollLeft -= over;
+    }
   };
 
   table.addEventListener('keydown', (e) => {

@@ -2058,6 +2058,10 @@ VIEWS.compare = () => {
     tb.append(tr);
   });
   t.append(tb); tw.append(t); tcard.append(tw);
+  /* One tab stop and arrow keys, as the screener. Every sourced cell used to be
+     its own tab stop — dozens on a three-company comparison — and on a phone
+     each one scrolled in under the pinned label column, invisible. */
+  gridKeyboard(t, `${rows.length} companies compared, one column each. Arrow keys move between cells; Enter opens a figure’s source.`);
   tcard.append(el('p', { class: 'metaline', style: 'padding:var(--sm) var(--lg)' },
     'Select any measure computed from the statements for its source: the formula, the fiscal year, the lines it reads with their XBRL concepts, and the EDGAR record for a filer. An empty cell names its reason. Rows from a bank’s or REIT’s own disclosures, and the model rows, are not statement arithmetic and open nothing.'));
   wrap.append(tcard);
