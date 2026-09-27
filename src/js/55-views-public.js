@@ -578,7 +578,13 @@ VIEWS.userdata = () => {
   const sw = el('div', { class: 'card' });
   sw.append(cardHead(`Saved work — ${recs.length}`,
     recs.length ? 'Named snapshots you took inside the tools. Each carries the model version and data date it was taken against.'
-                : 'Nothing saved yet. The Property, Cash Wheel and Trading Index tools each have a Save control.'));
+                : 'Nothing saved yet. The Property, Cash Wheel and Trading Index tools each have a Save control.',
+    /* The tools' snapshots are one kind of saved thing among five; the
+       Workspace lists all of them, with whether each one's model or data has
+       moved. */
+    el('a', { class: 'btn btn-ghost btn-sm', href: href('/my/workspace'),
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } },
+      'Everything saved, in the Workspace')));
   if (recs.length) {
     const tw2 = el('div', { class: 'tablewrap' });
     const t2 = el('table', { class: 'dt' });
@@ -1148,11 +1154,11 @@ VIEWS.privacy = () => trustPage('Privacy',
          assume the rest is not there. The borrower profile in particular —
          income, commitments, credit conduct — is the most personal thing this
          product holds and was not on this page. */
-      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency. '
+      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs and the valuation assumptions you edit, saved comparisons, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency. '
        /* Named after an audit compared this list with every key the code
           writes. The report log is a per-company reading record of the same
           kind as recently viewed, and was missing with the rest. */
-       + 'Also: the companies you put in a comparison, the required discount you set on a valuation, which company reports you opened this month (counted against the plan’s monthly allowance), the screener’s current filters, which alert types the feed shows, the property deal you had before opening a shared link, and display preferences — dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, whether filed SEC data is switched on, and whether you dismissed the introduction.',
+       + 'Also: the companies you put in a comparison, the required discount you set on a valuation, which company reports you opened this month (counted against the plan’s monthly allowance), the screener’s current filters, which alert types the feed shows, the property deal you had before opening a shared link, and display preferences — dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the inputs you chose for the valuation sensitivity grid, the units for property rates, whether filed SEC data is switched on, and whether you dismissed the introduction.',
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [

@@ -913,6 +913,11 @@ VIEWS.research = () => {
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => toggleWatch(c.id) },
     State.watchlist.includes(c.id) ? '✓ Watching' : '+ Watchlist'));
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Valuation Studio'));
+  /* The printable page for this company. A real link, so it opens in a new
+     tab for printing beside the page it came from. */
+  const reportPath = `${companyPath(c)}/report`;
+  acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(reportPath), title: 'A print-first research report — saved as PDF through your browser’s print dialog',
+    onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(reportPath); } }, 'Report'));
   pxBlock.append(acts);
   top.append(pxBlock);
   head.append(top);
@@ -1341,9 +1346,10 @@ function tabSnapshot(r) {
      the derived defaults, so each company is compared on the same basis — and
      once the reader has edited them, the snapshot says which run it shows
      rather than sitting silently beside a different number one tab away. */
-  const ed = State.valuation?.[c.id];
-  const assumptionsEdited = !!ed && [...new Set([...Object.keys(r.inputs || {}), ...Object.keys(ed)])]
-    .some(k => JSON.stringify(ed[k]) !== JSON.stringify(r.inputs?.[k]));
+  /* Edits persist across reloads now, so they are read through the Studio's
+     own accessor, which applies the stored ones — State.valuation alone is
+     empty until the Studio has been opened in this session. */
+  const assumptionsEdited = editedKeys(r).length > 0;
   /* No price means no gap to measure, and the dash for it was drawn in the
      negative colour, where it read as a shortfall. */
   tg.append(statTile('vs base-case value', val.mos ? withSign(val.mos.base, 1) : '—',

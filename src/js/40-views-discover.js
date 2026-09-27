@@ -1596,6 +1596,10 @@ function screenSnapshot(def) {
     asOf: AS_OF,
     model: MODEL_VERSION,
     saved: new Date().toISOString().slice(0, 10),
+    /* The data versions too: a screen run over the filed set is answered by
+       us.json, and a regeneration changes the answer without the model
+       moving at all. */
+    stamp: buildStamp('universe'),
     matches: U.filter(r => evaluateScreen(r, def).pass).map(r => ({
       id: r.c.id, tk: r.c.tk,
       quality: r.scores.quality.score,
@@ -1632,6 +1636,7 @@ function screenDiff(saved) {
       return (dq || dv) ? { r, m, dq, dv } : null;
     }).filter(Boolean),
     modelChanged: saved.snapshot?.model !== MODEL_VERSION,
+    versions: stampDiff(saved.snapshot?.stamp, { model: saved.snapshot?.model ?? saved.model }),
   };
 }
 
@@ -1660,8 +1665,10 @@ function openSavedScreen(idx) {
   body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
     `Saved ${s.snapshot?.saved ?? s.asOf} · as of ${s.snapshot?.asOf ?? s.asOf} · ${s.snapshot?.model ?? s.model}`));
 
-  if (diff.modelChanged) body.append(el('div', { class: 'guardrail', style: 'margin-bottom:var(--md)',
-    html: `${icon('alert')}<span>The model version has changed since this screen was saved. Scores below are shown both as saved and as they stand now.</span>` }));
+  /* Model and data reported apart, from the snapshot's stamp. */
+  if (diff.modelChanged || diff.versions.dataMoved) body.append(el('div', { class: 'guardrail', style: 'margin-bottom:var(--md)',
+    html: `${icon('alert')}<span>${esc(diff.versions.text)} Scores below are shown both as saved and as they stand now.</span>` }));
+  else if (!diff.versions.stamped) body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' }, diff.versions.text));
 
   const stat = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
   [['Matches when saved', String((s.snapshot?.matches || []).length)],

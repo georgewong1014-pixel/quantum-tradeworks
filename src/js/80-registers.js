@@ -110,6 +110,21 @@ const CAPABILITY_REGISTER = [
     gate:'Stored in this browser only: there are no accounts, so no ownership to enforce and nothing follows you to another device.' },
   { name:'Alerts and monitoring', status:'beta', path:'/my/alerts',
     now:'Fact-change alerts.', gate:'Stale-data and duplicate controls are not yet implemented.' },
+  /* Phase 2's P1 research surfaces. Each is listed as beta with its limit
+     stated, because the brief's release rule is that nothing unfinished is
+     shown as operational — and each has a limit no engineering here removes. */
+  { name:'Research workspace', status:'beta', path:'/my/workspace',
+    now:'Every saved valuation run, comparison, screen, investment case and tool snapshot in one list, each with the model and data version it was saved against and whether either has moved since. One export on Your data carries every kind.',
+    gate:'This browser only. There are no accounts, so nothing follows you to another device, nothing can be shared, and a cleared browser loses it all unless it was exported.' },
+  { name:'Research report (print or save as PDF)', status:'beta', path:'/research',
+    now:'From the Report button on any company page: identification, data status with version stamps, statements, selected metrics with their status, your valuation assumptions marked edited or default, and the figure-kind legend — printable, or rendered from a saved run so it reproduces after the data moves.',
+    gate:'PDF is your browser’s own print-to-PDF, not a server export: one company per report, no stored copy, no archive and no share link. Bursa companies print illustrative figures, and no filed company carries a licensed price.' },
+  { name:'Comparison with periods, bases and saved sets', status:'beta', path:'/compare',
+    now:'Reporting period and accounting basis rows, absolute scale rows in the chosen currency, a stated reason for every absent cell, a banner when periods, bases or illustrative and filed figures are mixed, and named comparisons that say what moved.',
+    gate:'Period-end months cannot be aligned until the SEC dataset is regenerated with period ends, and no line-level accounting reconciliation (leases, minorities, associates) is possible from the statements held.' },
+  { name:'Editable valuation bridge and saved assumptions', status:'beta', path:'/research',
+    now:'In the Valuation Studio: net debt, the share count and a signed adjustment are inputs, labelled as yours once changed; edits are kept per company across reloads; the sensitivity grid takes any two inputs and steps; the calculation and the confidence score are explained with your figures.',
+    gate:'Editing sits behind the local plan switch in this prototype — no payment exists. Lease, minority and associate adjustments are not pre-filled from any filing; the adjustment is your figure.' },
   { name:'Bring your own market data', status:'maintenance', path:'/my/data',
     now:'Paste closes; they stay in this browser and never reach the site.' },
   { name:'Multilingual property workflow', status:'beta', path:'/property/calculator',

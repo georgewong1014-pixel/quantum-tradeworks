@@ -4,6 +4,17 @@
    driver ranking and the bridge all re-derive from the model on every change.
    ========================================================================== */
 
+/* Net debt, the share count and the reader's own adjustment — shared by the
+   two packs whose value is an enterprise value bridged to equity. */
+const BRIDGE_ASSUMPTIONS = [
+  { k:'netDebt', label:'Net debt', min:null, max:null, step:0.01, unit:'bn', dp:3, bridge:true,
+    note:'Total debt less cash and equivalents from the latest balance sheet, in billions of the reporting currency. Negative is net cash. Change it and the figure is yours, not the filing’s.' },
+  { k:'shares', label:'Shares in issue', min:null, max:null, step:0.001, unit:'bn', dp:3, bridge:true,
+    note:'The latest reported share count, in billions. A buyback or an issue since the filing is yours to enter; the value per share divides by whatever this holds.' },
+  { k:'adj', label:'Other claims and non-operating assets', min:null, max:null, step:0.01, unit:'bn', dp:2, bridge:true,
+    note:'Added to equity after net debt. Positive for assets outside the enterprise value (associates, surplus property); negative for claims ahead of shareholders (minority interests, leases, pension deficits). Nothing is carried here from the filing — the statements this build holds do not have those lines — so any figure is yours.' },
+];
+
 const ASSUMPTIONS = {
   dcf: [
     { k:'fcf0',  label:'Starting free cash flow', min:null, max:null, step:0.01, unit:'bn', dp:2,
@@ -16,6 +27,12 @@ const ASSUMPTIONS = {
       note:'Derived from a risk-free rate, an equity risk premium and a business-model beta, then blended for debt.' },
     { k:'years', label:'Explicit forecast years', min:3, max:10, step:1, unit:'yrs', dp:0,
       note:'Longer explicit periods move value out of the terminal assumption and into the forecast.' },
+    /* The bridge from enterprise value to a price per share. Both lines come
+       from the latest statements and used to be printed as fixed; they are
+       inputs now because a reader who knows of a debt raise, a buyback or a
+       convertible since the filing has a better figure than the filing does —
+       and a changed one is labelled as theirs beside the reported value. */
+    ...BRIDGE_ASSUMPTIONS,
     { k:'hold', label:'Holding-company discount', min:0, max:45, step:1, unit:'%', dp:0, onlyIf:'sotp',
       note:'Applied to the equity value of a holding company. It is a judgement about how the market treats unlike businesses under one listing, not an observed quantity — so it is left as an input.' },
   ],
@@ -78,6 +95,7 @@ const ASSUMPTIONS = {
       note:'High-growth businesses need a longer explicit period before a perpetuity is defensible.' },
     { k:'dilution', label:'Annual share issuance', min:-5, max:10, step:0.1, unit:'%', dp:1,
       note:'Compounded over the forecast period and applied to the share count, so issuance reduces value per share instead of being ignored.' },
+    ...BRIDGE_ASSUMPTIONS,
   ],
   ddm: [
     { k:'dpu',  label:'Distribution per unit', min:null, max:null, step:0.001, unit:'', dp:3,
@@ -89,9 +107,66 @@ const ASSUMPTIONS = {
   ],
 };
 
+/* EDITED ASSUMPTIONS SURVIVE A RELOAD.
+   ---------------------------------------------------------------------------
+   State.valuation lived in memory only, so every edit a reader made in the
+   Studio was gone on the next reload unless they had thought to save a run —
+   and the rail's promise that the inputs are "yours" lasted one tab. Edits
+   are now written through to storage, per company, as the inputs that differ
+   from the derived defaults (never the whole object: the fixed fields —
+   whether the cost of capital fell back to book weights, the starting margin
+   — are re-derived from today's statements on every load, so a price entered
+   later is not overridden by a stale copy). Each entry carries the stamp it
+   was edited under, and an entry made for a different model pack is not
+   applied, because a residual-income input means nothing to a DCF.
+
+   Storage is this browser's, as for everything else, and the export on Your
+   data carries it. */
+const assumptionList = (inputs, packId) => (ASSUMPTIONS[inputs?.model] || []).filter(a => !a.onlyIf || a.onlyIf === packId);
+const sameInput = (a, b) => a === b || (isNum(a) && isNum(b) && Math.abs(a - b) <= 1e-12 * Math.max(1, Math.abs(b)));
+const valuationEdits = () => { const v = store.read('valuation', {}); return v && typeof v === 'object' ? v : {}; };
+
 function studioInputs(r) {
-  if (!State.valuation[r.c.id]) State.valuation[r.c.id] = { ...r.inputs };
+  if (!State.valuation[r.c.id]) {
+    const saved = valuationEdits()[r.c.id];
+    const keys = assumptionList(r.inputs, r.val?.pack?.id).map(a => a.k);
+    const over = saved && saved.model === r.inputs.model && saved.over
+      ? Object.fromEntries(Object.entries(saved.over).filter(([k, v]) => keys.includes(k) && (v === null || isNum(v)))) : {};
+    State.valuation[r.c.id] = { ...r.inputs, ...over };
+  }
   return State.valuation[r.c.id];
+}
+
+/* Which editable inputs differ from the derived defaults right now. */
+function editedKeys(r, inputs = studioInputs(r)) {
+  return assumptionList(r.inputs, r.val?.pack?.id).map(a => a.k).filter(k => !sameInput(inputs[k], r.inputs[k]));
+}
+
+const persistTimers = {};
+function persistValuation(r, now = false) {
+  const id = r.c.id;
+  const write = () => {
+    delete persistTimers[id];
+    const all = valuationEdits();
+    const inputs = State.valuation[id];
+    const keys = inputs ? editedKeys(r, inputs) : [];
+    if (!keys.length) delete all[id];
+    else all[id] = { model: r.inputs.model, over: Object.fromEntries(keys.map(k => [k, inputs[k]])),
+                     edited: new Date().toISOString(), stamp: buildStamp(r.c) };
+    store.write('valuation', all);
+  };
+  clearTimeout(persistTimers[id]);
+  if (now) write(); else persistTimers[id] = setTimeout(write, 300);
+}
+
+/* An assumption's value in its own unit, for the "derived default" line and
+   the saved-run tables. */
+function fmtAssumption(a, v) {
+  if (!isNum(v)) return 'empty';
+  if (a.unit === '%') return fmtPct(v, a.dp);
+  if (a.unit === 'bn') return `${fmtNum(v, a.dp)}bn`;
+  if (a.unit === 'yrs') return `${fmtNum(v, 0)} yrs`;
+  return fmtNum(v, a.dp);
 }
 
 function tabValuation(r) {
@@ -149,17 +224,49 @@ function tabValuation(r) {
   rail.append(cardHead('Assumptions',
     editable ? 'Every input is yours to change. Nothing is silently substituted if you clear a value.'
              : 'Every assumption behind the range is shown. Editing them is part of Equities Research — the numbers are not hidden, only the controls.',
-    editable ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.valuation[c.id] = { ...r.inputs }; render(); toast('Reset to derived defaults'); } }, 'Reset')
+    editable ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.valuation[c.id] = { ...r.inputs }; persistValuation(r, true); render(); toast('Reset to derived defaults'); } }, 'Reset')
              : el('span', { class: 'chip chip-bronze' }, 'Read-only')));
+
+  /* Whose assumptions these are, said above them: how many differ from the
+     derived defaults, when they were last edited, and — where the model or
+     the statements have moved since — that the defaults they were edited
+     against are not today's. Refreshed on every change. */
+  const whose = el('div', { class: 'a-whose', 'aria-live': 'polite' });
+  rail.append(whose);
+  const refreshWhose = () => {
+    const n = editedKeys(r, inputs).length, total = assumptionList(r.inputs, r.val.pack.id).length;
+    const saved = valuationEdits()[c.id];
+    const diff = saved?.stamp ? stampDiff(saved.stamp) : null;
+    whose.replaceChildren(...(n
+      ? [el('span', { class: 'chip chip-bronze' }, `Your assumptions · ${n} of ${total} differ from the derived defaults`),
+         el('p', { class: 'metaline', style: 'margin-top:6px' },
+           `${saved?.edited ? `Last edited ${saved.edited.slice(0, 16).replace('T', ' ')} UTC and kept in this browser across reloads. ` : 'Kept in this browser across reloads. '}${diff && diff.status !== 'current' ? `Since then — ${diff.text} The derived defaults beside each edited input are today’s.` : ''}`)]
+      : [el('span', { class: 'chip' }, 'Derived defaults — nothing edited')]));
+  };
+  refreshWhose();
 
   const out = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md);min-width:0' });
 
   const redraw = () => out.replaceChildren(...studioOutputs(r, inputs, redraw));
+  /* Every edit is written through, then the outputs and the rail's own
+     labels follow. */
+  const changed = () => { persistValuation(r); refreshWhose(); redraw(); };
 
   ASSUMPTIONS[inputs.model].filter(a => !a.onlyIf || a.onlyIf === r.val.pack.id).forEach(a => {
     const row = el('div', { class: 'assumption' });
     const lab = el('label', { for: `as-${a.k}` }, a.label);
     row.append(lab);
+    /* An input the reader has moved off its derived default says so, with
+       the default beside it — for net debt and the share count that default
+       is the reported figure, so a changed bridge is never mistaken for the
+       filing's. */
+    const hint = el('p', { class: 'a-default' });
+    const refreshHint = () => {
+      const edited = !sameInput(inputs[a.k], r.inputs[a.k]);
+      row.classList.toggle('is-edited', edited);
+      hint.hidden = !edited;
+      hint.textContent = edited ? `Your figure · ${a.bridge && a.k !== 'adj' ? 'reported' : 'derived default'} ${fmtAssumption(a, r.inputs[a.k])}` : '';
+    };
     /* A cleared field is an absent input, not the previous one. Ignoring the
        empty value kept the range, the grid and the bridge computed from a
        number the field no longer showed, under a rail that promises nothing is
@@ -168,16 +275,18 @@ function tabValuation(r) {
        ("-", "1e") reads as empty too, and fills in again on the next key. */
     const num = el('input', { class: 'input input-inline', id: `as-${a.k}`, type: 'number', step: a.step,
       value: Number.isFinite(inputs[a.k]) ? Number(inputs[a.k]).toFixed(a.dp) : '', style: 'text-align:right', disabled: editable ? null : '',
-      oninput: e => { const v = parseFloat(e.target.value); inputs[a.k] = Number.isFinite(v) ? v : null; syncRange(); redraw(); } });
+      oninput: e => { const v = parseFloat(e.target.value); inputs[a.k] = Number.isFinite(v) ? v : null; syncRange(); refreshHint(); changed(); } });
     row.append(num);
     let rng = null;
     if (a.min != null && editable) {
       rng = el('input', { class: 'a-range', type: 'range', min: a.min, max: a.max, step: a.step, value: inputs[a.k],
         'aria-label': a.label,
-        oninput: e => { inputs[a.k] = +e.target.value; num.value = Number(inputs[a.k]).toFixed(a.dp); redraw(); } });
+        oninput: e => { inputs[a.k] = +e.target.value; num.value = Number(inputs[a.k]).toFixed(a.dp); refreshHint(); changed(); } });
       row.append(rng);
     }
     const syncRange = () => { if (rng && Number.isFinite(inputs[a.k])) rng.value = inputs[a.k]; };
+    row.append(hint);
+    refreshHint();
     row.append(el('p', { class: 'a-note' }, a.note));
     rail.append(row);
   });
@@ -186,7 +295,8 @@ function tabValuation(r) {
 
   /* fixed inputs shown for transparency */
   const fixed = el('div', { class: 'sunk', style: 'margin-top:var(--md)' });
-  fixed.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Fixed inputs'));
+  fixed.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' },
+    inputs.model === 'dcf' || inputs.model === 'scenario' ? 'As reported, and fixed' : 'Fixed inputs'));
   const kv = el('dl', { class: 'kv' });
   const fixedRows = inputs.model === 'insurer'
     ? [['Combined ratio', isNum(inputs.combined) ? fmtPct(inputs.combined, 1) : 'not reported'], ['Solvency, times required', isNum(inputs.solvency) ? fmtX(inputs.solvency, 2) : 'not reported'],
@@ -195,10 +305,12 @@ function tabValuation(r) {
     ? [['Shares in issue today', `${fmtNum(inputs.shares, 3)}bn`], ['Share price used for the raise', fmtMoney(inputs.price, c.ccy)],
        ['Net debt', fmtCap(inputs.netDebt, c.ccy)], ['Reporting currency', c.ccy]]
     : inputs.model === 'scenario'
-    ? [['Starting operating margin', fmtPct(inputs.margin0)], ['Net debt', fmtCap(inputs.netDebt, c.ccy)],
-       ['Shares in issue today', `${fmtNum(inputs.shares, 3)}bn`], ['Reporting currency', c.ccy]]
+    ? [['Starting operating margin', fmtPct(inputs.margin0)], ['Net debt, latest statements', fmtCap(r.inputs.netDebt, c.ccy)],
+       ['Shares in issue, latest statements', `${fmtNum(r.inputs.shares, 3)}bn`], ['Reporting currency', c.ccy]]
     : inputs.model === 'dcf'
-    ? [['Net debt', fmtCap(inputs.netDebt, c.ccy)], ['Shares in issue', `${fmtNum(inputs.shares, 3)}bn`], ['Reporting currency', c.ccy]]
+    /* The bridge is editable above; what stays fixed is what the statements
+       say, so a changed input always has the reported figure beside it. */
+    ? [['Net debt, latest statements', fmtCap(r.inputs.netDebt, c.ccy)], ['Shares in issue, latest statements', `${fmtNum(r.inputs.shares, 3)}bn`], ['Reporting currency', c.ccy]]
     : inputs.model === 'ri'
     ? [['Payout ratio', inputs.payoutAssumed ? `${fmtPct(inputs.payout, 0)} — assumed, not reported` : fmtPct(inputs.payout, 0)], ['Shares in issue', `${fmtNum(last(d.sh), 3)}bn`], ['Reporting currency', c.ccy]]
     : [['NAV per unit', fmtMoney(inputs.navps, c.ccy)], ['Gearing', fmtPct(inputs.gearing)], ['Capitalisation rate', fmtPct(inputs.cap)]];
@@ -209,7 +321,11 @@ function tabValuation(r) {
   rail.append(el('button', { class: 'btn btn-primary btn-sm', style: 'width:100%;margin-top:var(--md)',
     onclick: () => saveValuationRun(r, inputs) }, 'Save this valuation run'));
   rail.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'A saved run stores the inputs, the figures they produced, the model version and the as-of date, so replaying it later can be checked against what was saved.'));
+    'A saved run stores the inputs and which of them you changed, the figures they produced, the statements they were computed on, and the model and data versions — so it can be replayed, and printed as a report, after the dataset moves.'));
+  const reportPath = `${companyPath(c)}/report`;
+  rail.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'width:100%;margin-top:var(--sm)', href: href(reportPath),
+    onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(reportPath); } },
+    'Open the printable report'));
   wrap.append(rail);
 
   redraw();
@@ -308,6 +424,20 @@ function studioOutputs(r, inputs, redraw) {
   /* Unit, sign and per-share base checks run for every pack. */
   warnings.push(...consistencyWarnings(c, d, inputs));
 
+  /* The bridge is the reader's once it is changed, and the page says so where
+     the estimate is read, not only in the rail. An adjustment large against
+     the enterprise value is most of the answer, and is flagged as such. */
+  if (inputs.model === 'dcf' || inputs.model === 'scenario') {
+    const moved = [['netDebt', 'Net debt', v => fmtCap(v, c.ccy)], ['shares', 'The share count', v => `${fmtNum(v, 3)}bn`]]
+      .filter(([k]) => !sameInput(inputs[k], r.inputs[k]) && isNum(inputs[k]));
+    if (moved.length) warnings.push({ sev:'warning', text: `${moved.map(([k, l, f]) => `${l} is your figure, ${f(inputs[k])}, where the latest statements give ${f(r.inputs[k])}`).join('; ')}. The estimate below is bridged on your figure${moved.length > 1 ? 's' : ''}.` });
+    if (isNum(inputs.adj) && inputs.adj !== 0) {
+      const ev = run.base?.ev;
+      warnings.push({ sev: isNum(ev) && ev > 0 && Math.abs(inputs.adj) > ev * 0.5 ? 'serious' : 'warning',
+        text: `${inputs.adj > 0 ? 'Adds' : 'Subtracts'} ${fmtCap(Math.abs(inputs.adj), c.ccy)} ${inputs.adj > 0 ? 'to' : 'from'} equity as other claims and non-operating assets — your figure; the statements held here carry no such line to check it against.${isNum(ev) && ev > 0 && Math.abs(inputs.adj) > ev * 0.5 ? ` It is more than half the modelled enterprise value of ${fmtCap(ev, c.ccy)}, so it, not the cash flows, is most of the answer.` : ''}` });
+    }
+  }
+
   /* Without a market price the cost of capital is weighted on BOOK equity,
      which for a leveraged balance sheet tilts the blend toward cheap debt and
      lowers the discount rate — inflating the value. Too consequential to leave
@@ -362,6 +492,8 @@ function studioOutputs(r, inputs, redraw) {
   const shiftText = (s) => Object.entries(s).map(([k, v]) => `${k} ${withSign(v, 1, '')}`).join(', ');
   head.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     `Scenario construction is published, not hidden: the bear case applies ${shiftText(run.shift.bear)} to the base assumptions, and the bull case applies ${shiftText(run.shift.bull)}.`));
+  head.append(explainCalculation(r, inputs, run));
+  head.append(explainConfidence(run));
   nodes.push(head);
 
   /* ---------- driver impact ---------- */
@@ -381,11 +513,13 @@ function studioOutputs(r, inputs, redraw) {
   queueMicrotask(() => tornadoChart(dh, { drivers }));
 
   /* ---------- sensitivity ---------- */
-  const ax = SENS_AXES[inputs.model];
-  const grid2 = sensitivityGrid(inputs);
+  const chosen = sensitivityAxes(r, inputs);
+  const ax = chosen.ax;
+  const grid2 = sensitivityGrid(inputs, ax);
   const sens = el('div', { class: 'card' });
   sens.append(cardHead('Sensitivity',
     `Value per share across ${ax.x.label.toLowerCase()} and ${ax.y.label.toLowerCase()}. The outlined cell is the current base case; the fill shows the implied premium or discount to the market price.`));
+  sens.append(sensitivityControls(r, inputs, chosen, redraw));
   const sh2 = el('div', { style: 'width:100%;overflow-x:auto' });
   sens.append(sh2);
   /* The same bounded axis values the grid was computed on (sensAxis). */
@@ -410,7 +544,8 @@ function studioOutputs(r, inputs, redraw) {
     steps = [
       { short:'Forecast', label:`Present value of the ${inputs.years}-year explicit forecast`, value:run.base.pvExplicit / sh3 },
       { short:'Terminal', label:'Present value of the terminal value', value:run.base.pvTerminal / sh3 },
-      { short:'Net debt', label:'Less net debt', value:-run.base.netDebt / sh3 },
+      { short:'Net debt', label:`Less net debt${sameInput(inputs.netDebt, r.inputs.netDebt) ? '' : ' (your figure)'}`, value:-run.base.netDebt / sh3 },
+      ...(run.base.adj ? [{ short:'Adjust', label:`${run.base.adj > 0 ? 'Plus' : 'Less'} other claims and non-operating assets (your figure)`, value:run.base.adj / sh3 }] : []),
       ...(run.base.hold ? [{ short:'Holdco', label:`Less the ${run.base.hold}% holding-company discount`, value:-run.base.holdDiscount / sh3 }] : []),
       { short:'Base', label:'Base-case model estimate per share', value:run.vals.base, total:true },
     ];
@@ -419,7 +554,8 @@ function studioOutputs(r, inputs, redraw) {
     steps = [
       { short:'Forecast', label:`Present value of the ${inputs.years}-year explicit forecast`, value:run.base.pvExplicit / sh4 },
       { short:'Terminal', label:'Present value of the terminal value', value:run.base.pvTerminal / sh4 },
-      { short:'Net debt', label:'Less net debt', value:-run.base.netDebt / sh4 },
+      { short:'Net debt', label:`Less net debt${sameInput(inputs.netDebt, r.inputs.netDebt) ? '' : ' (your figure)'}`, value:-run.base.netDebt / sh4 },
+      ...(run.base.adj ? [{ short:'Adjust', label:`${run.base.adj > 0 ? 'Plus' : 'Less'} other claims and non-operating assets (your figure)`, value:run.base.adj / sh4 }] : []),
       { short:'Dilution', label:`Effect of ${fmtPct(inputs.dilution)} annual share issuance over ${inputs.years} years`,
         value:run.vals.base - run.base.undilutedPerShare },
       { short:'Base', label:'Base-case model estimate per share', value:run.vals.base, total:true },
@@ -564,6 +700,198 @@ function studioOutputs(r, inputs, redraw) {
   return nodes;
 }
 
+/* SENSITIVITY ON THE READER'S OWN AXES.
+   ---------------------------------------------------------------------------
+   The grid was fixed to one pair per pack — discount rate against terminal
+   growth for a DCF — which answers the question the pack's author thought
+   most likely and no other. The reader who wants to know how far the answer
+   leans on the net debt they typed in, or on the length of the forecast, had
+   no way to ask. sensitivityGrid was already generic over {k, steps}; this
+   supplies the pair and the step from two selects and two numbers.
+
+   The pack's pair stays the first render, so a page nobody touched reads as
+   it did. A chosen pair is kept per model in this browser; its steps are ±1
+   and ±2 of the chosen size around the current value, bounded to the input's
+   range (sensAxis drops a repeated edge value), and a forecast-years step is
+   a whole number because the engine refuses anything else. */
+function defaultSensStep(a, inputs) {
+  if (a.unit === 'yrs') return 1;
+  if (a.unit === '%') return Math.max(a.step * 5, 0.5);
+  const base = Math.max(Math.abs(inputs[a.k] || 0) * 0.1, a.step * 10);
+  return Number(base.toPrecision(2));
+}
+function sensAxisFrom(a, step, ascending) {
+  let s = Math.abs(step);
+  if (a.unit === 'yrs') s = Math.max(1, Math.round(s));
+  const steps = ascending ? [-2 * s, -s, 0, s, 2 * s] : [2 * s, s, 0, -s, -2 * s];
+  return { k: a.k, label: a.label, steps, min: a.min, max: a.max, fmt: v => fmtAssumption(a, v), step: s };
+}
+function sensitivityAxes(r, inputs) {
+  const def = SENS_AXES[inputs.model];
+  const byK = Object.fromEntries(assumptionList(inputs, r.val.pack.id).map(a => [a.k, a]));
+  const pref = (store.read('sensAxes', {}) || {})[inputs.model];
+  const stepOfDefault = (axis) => Math.abs(axis.steps[1] - axis.steps[0]);
+  if (pref && byK[pref.x] && byK[pref.y] && pref.x !== pref.y && pref.xs > 0 && pref.ys > 0) {
+    return { custom: true, ax: { x: sensAxisFrom(byK[pref.x], pref.xs, true), y: sensAxisFrom(byK[pref.y], pref.ys, false) } };
+  }
+  return { custom: false, ax: { x: { ...def.x, step: stepOfDefault(def.x) }, y: { ...def.y, step: stepOfDefault(def.y) } } };
+}
+function sensitivityControls(r, inputs, chosen, redraw) {
+  const list = assumptionList(inputs, r.val.pack.id);
+  const byK = Object.fromEntries(list.map(a => [a.k, a]));
+  const box = el('div', { class: 'sens-controls' });
+  const note = el('p', { class: 'metaline', 'aria-live': 'polite' });
+  const write = (next, focusId) => {
+    const all = store.read('sensAxes', {}) || {};
+    if (next) all[inputs.model] = next; else delete all[inputs.model];
+    store.write('sensAxes', all);
+    redraw();
+    document.getElementById(focusId)?.focus();
+  };
+  const select = (id, cur) => el('select', { class: 'select select-sm', id },
+    list.map(a => el('option', { value: a.k, selected: a.k === cur ? '' : null }, a.label)));
+  const stepIn = (id, v, label) => el('input', { class: 'input input-inline', id, type: 'number', min: 0, step: 'any',
+    value: String(Number(v.toPrecision(3))), 'aria-label': label, style: 'text-align:right' });
+  const xSel = select('sens-x', chosen.ax.x.k), ySel = select('sens-y', chosen.ax.y.k);
+  const xStep = stepIn('sens-xs', chosen.ax.x.step, 'Step across'), yStep = stepIn('sens-ys', chosen.ax.y.step, 'Step down');
+  const apply = (focusId) => {
+    const next = { x: xSel.value, y: ySel.value, xs: parseFloat(xStep.value), ys: parseFloat(yStep.value) };
+    if (next.x === next.y) { note.textContent = 'Choose two different inputs — one grid cannot vary the same input in both directions.'; return; }
+    if (!(next.xs > 0) || !(next.ys > 0)) { note.textContent = 'A step has to be a positive number.'; return; }
+    write(next, focusId);
+  };
+  /* A new input starts from its own sensible step, not the last one's: a
+     step of 0.75 points means nothing to a share count in billions. */
+  xSel.addEventListener('change', () => { xStep.value = String(defaultSensStep(byK[xSel.value], inputs)); apply('sens-x'); });
+  ySel.addEventListener('change', () => { yStep.value = String(defaultSensStep(byK[ySel.value], inputs)); apply('sens-y'); });
+  xStep.addEventListener('change', () => apply('sens-xs'));
+  yStep.addEventListener('change', () => apply('sens-ys'));
+  const field = (id, label, node) => el('div', { class: 'field' }, [el('label', { for: id }, label), node]);
+  box.append(el('div', { class: 'sens-row' }, [
+    field('sens-x', 'Across', xSel), field('sens-xs', 'Step', xStep),
+    field('sens-y', 'Down', ySel), field('sens-ys', 'Step', yStep),
+    el('button', { class: 'btn btn-quiet btn-sm', disabled: chosen.custom ? null : '',
+      onclick: () => write(null, 'sens-x') }, 'Pack default'),
+  ]));
+  const stepText = (k, s) => { const u = byK[k]?.unit ?? '%', v = +Number(s).toPrecision(3);
+    return u === '%' ? `${v} percentage points` : u === 'bn' ? `${v}bn` : u === 'yrs' ? `${v} year${v === 1 ? '' : 's'}` : String(v); };
+  note.textContent = `Columns step ±${stepText(chosen.ax.x.k, chosen.ax.x.step)} and rows ±${stepText(chosen.ax.y.k, chosen.ax.y.step)}, twice each, around your current values and within each input’s range.${chosen.custom ? ' Your choice is kept for this model in this browser.' : ' This is the pack’s own pair.'}`;
+  box.append(note);
+  return box;
+}
+
+/* THE ARITHMETIC, IN WORDS, WITH THE READER'S NUMBERS IN IT.
+   The Studio showed the answer, the bridge and the forecast, but the formula
+   joining them was only in Learn, written with symbols and no values. This
+   puts it under the headline with the current inputs substituted, so each
+   line can be checked against the table it names. */
+function explainCalculation(r, inputs, run) {
+  const { c } = r, b = run.base;
+  const bn = (v) => fmtCap(v, c.ccy), pct = (v) => fmtPct(v, 2), per = (v) => fmtMoney(v, c.ccy);
+  const lines = [];
+  const bridge = () => `Equity = enterprise value ${bn(b.ev)} − net debt ${bn(b.netDebt)}${sameInput(inputs.netDebt, r.inputs.netDebt) ? '' : ' (your figure)'}${b.adj ? ` ${b.adj > 0 ? '+' : '−'} your adjustment ${bn(Math.abs(b.adj))}` : ', with no other adjustment'} = ${bn(b.equity)}${b.hold ? `, less the ${b.hold}% holding-company discount of ${bn(b.holdDiscount)}` : ''}.`;
+  if (inputs.model === 'dcf') {
+    lines.push(`Starting free cash flow of ${bn(inputs.fcf0)} grows ${pct(inputs.g1)} in year 1; the growth rate fades in a straight line to the terminal ${pct(inputs.gt)} by year ${inputs.years}, where the cash flow reaches ${bn(last(b.flows)?.fcf)}.`);
+    lines.push(`Each year’s cash flow is discounted at ${pct(inputs.wacc)} — present value = cash flow ÷ (1 + ${pct(inputs.wacc)}) to the power of the year. The ${inputs.years} present values sum to ${bn(b.pvExplicit)}; the explicit forecast table lists them.`);
+    lines.push(`Terminal value = year-${inputs.years} cash flow × (1 + ${pct(inputs.gt)}) ÷ (${pct(inputs.wacc)} − ${pct(inputs.gt)}), discounted to ${bn(b.pvTerminal)} today — ${fmtPct(b.terminalShare, 0)} of the enterprise value.`);
+    lines.push(`Enterprise value = ${bn(b.pvExplicit)} + ${bn(b.pvTerminal)} = ${bn(b.ev)}.`);
+    lines.push(bridge());
+    lines.push(`Per share = equity ÷ ${fmtNum(inputs.shares, 3)}bn shares${sameInput(inputs.shares, r.inputs.shares) ? '' : ' (your figure)'} = ${per(run.vals.base)}${b.equityWipedOut ? ' — floored at nil, because the enterprise value does not cover net debt' : ''}.`);
+  } else if (inputs.model === 'scenario') {
+    lines.push(`Revenue of ${bn(inputs.rev0)} grows ${pct(inputs.revCagr)} in year 1, fading in a straight line to ${pct(inputs.gt)} by year ${inputs.years}; the operating margin moves in a straight line from ${pct(inputs.margin0)} to ${pct(inputs.termMargin)}.`);
+    lines.push(`Free cash flow each year = revenue × margin × ${fmtPct(inputs.fcfConv, 0)} cash conversion, discounted at ${pct(inputs.wacc)}; the ${inputs.years} present values sum to ${bn(b.pvExplicit)}.`);
+    lines.push(`Terminal value = final-year cash flow × (1 + ${pct(inputs.gt)}) ÷ (${pct(inputs.wacc)} − ${pct(inputs.gt)}), discounted to ${bn(b.pvTerminal)} — ${fmtPct(b.terminalShare, 0)} of the enterprise value of ${bn(b.ev)}.`);
+    lines.push(bridge());
+    lines.push(`Per share = equity ÷ ${fmtNum(b.dilutedShares, 3)}bn shares — ${fmtNum(inputs.shares, 3)}bn today${sameInput(inputs.shares, r.inputs.shares) ? '' : ' (your figure)'}, grown ${pct(inputs.dilution)} a year for ${inputs.years} years — = ${per(run.vals.base)}.`);
+  } else if (inputs.model === 'ri' || inputs.model === 'insurer') {
+    lines.push(`Justified price-to-book = (return on equity ${pct(inputs.roe)} − growth ${pct(inputs.g)}) ÷ (cost of equity ${pct(inputs.coe)} − growth ${pct(inputs.g)}) = ${fmtX(b.justifiedPB, 2)}.`);
+    lines.push(`Value per share = book value per share ${per(inputs.bvps)} × ${fmtX(b.justifiedPB, 2)} = ${per(run.vals.base)}. Of that, ${per(b.riPremium)} is the present value of returns above the cost of equity.`);
+  } else if (inputs.model === 'ddm') {
+    lines.push(`Value per unit = distribution ${fmtMoney(inputs.dpu, c.ccy, 3)} × (1 + ${pct(inputs.g)}) ÷ (required return ${pct(inputs.req)} − ${pct(inputs.g)}) = ${per(run.vals.base)}.`);
+  } else if (inputs.model === 'early') {
+    lines.push(`A success case is modelled — revenue of ${bn(inputs.rev0)} compounding at ${pct(inputs.revCagr)}, the margin ramping from nil to ${pct(inputs.termMargin)} over ${inputs.years} years, discounted at ${pct(inputs.wacc)} — worth ${per(b.successPerShare)} a share after the dilution from raising ${bn(b.need)}.`);
+    lines.push(`The downside floor is net cash per share, never below nil: ${per(b.floor)}.`);
+    lines.push(`Value = ${fmtPct(inputs.pSuccess, 0)} × ${per(b.successPerShare)} + ${fmtPct(100 - clamp(inputs.pSuccess, 0, 100), 0)} × ${per(b.floor)} = ${per(run.vals.base)}.`);
+  }
+  lines.push('The bear and bull cases re-run exactly this arithmetic with the published shifts applied; nothing else differs between the three.');
+  const det = el('details', { class: 'explain' });
+  det.append(el('summary', {}, 'How this number is produced'));
+  det.append(el('ol', { class: 'explain-list' }, lines.map(l => el('li', {}, l))));
+  return det;
+}
+
+/* THE CONFIDENCE SCORE, TAKEN APART. The chip said "Medium confidence ·
+   64/100" and nothing said what 64 was made of. It is three parts and a set
+   of caps, all published here with the points each part earned. */
+function explainConfidence(run) {
+  const p = run.confParts;
+  if (!p) return document.createDocumentFragment();
+  const det = el('details', { class: 'explain' });
+  det.append(el('summary', {}, `Why the confidence reads ${run.conf}/100 — ${run.confBand}`));
+  const rows = [
+    ['Data completeness', `${p.coveragePct}% of the applicable measures computable`, p.coverage, p.coverageOf, '90% or more earns 40; 75% or more, 28; anything less, 16.'],
+    ['Model fit for the business type', `${p.typeName} business`, p.type, p.typeOf, 'How well the routed pack describes this kind of business — 30 for a mature operating company, 6 for an early-stage one.'],
+    ['Width of the bear-to-bull band', isNum(p.width) ? `${fmtPct(p.width, 0)} of the base case` : 'not measurable — a case is missing or the base is nil', p.band, p.bandOf, 'Under 45% earns 30; under 80%, 20; wider or unmeasurable, 8.'],
+  ];
+  const tw = el('div', { class: 'tablewrap', style: 'margin-top:8px' });
+  const t = el('table', { class: 'dt' });
+  t.append(el('thead', {}, el('tr', {}, ['Part', 'Reading', 'Points', 'Rule'].map((h, i) => el('th', { style: i === 2 ? null : 'text-align:left' }, h)))));
+  t.append(el('tbody', {}, [
+    ...rows.map(([part, reading, pts, of, rule]) => el('tr', {}, [
+      el('td', { style: 'text-align:left' }, part),
+      el('td', { style: 'text-align:left;white-space:normal' }, reading),
+      el('td', { class: 'num' }, isNum(pts) ? `${pts} of ${of}` : `— of ${of}`),
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, rule),
+    ])),
+    el('tr', {}, [el('td', { style: 'text-align:left;font-weight:600' }, 'Total'), el('td', {}, ''),
+      el('td', { class: 'num', style: 'font-weight:600' }, `${run.conf} of 100`), el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, '78 or more reads High; 58 or more, Medium; anything less, Low.')]),
+  ]));
+  tw.append(t); det.append(tw);
+  if (p.caps.length) det.append(el('ul', { class: 'ticklist', style: 'margin-top:8px' }, p.caps.map(x => el('li', {}, x))));
+  det.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'It grades how far the inputs and the model can be relied on to describe this company. It is not a probability that the estimate is right.'));
+  return det;
+}
+
+/* WHAT A RUN KEEPS, SO IT CAN BE REPRODUCED AFTER THE DATA MOVES.
+   ---------------------------------------------------------------------------
+   A run kept its inputs and outputs, which is enough to replay the arithmetic
+   but not to say what it was arithmetic ON: after a regeneration of us.json
+   the company's statements are different, and a report printed from the run
+   would have printed today's statements beside yesterday's valuation. So a
+   run now also keeps
+     stamp        the model and data versions (buildStamp);
+     assumptions  each editable input with its derived default and whether the
+                  reader changed it — "edited by you" is recorded, not inferred
+                  later from defaults that have themselves moved;
+     statements   the ten-column tuple and its years, and the price used, so
+                  the report can be re-derived exactly (ten rows of ten
+                  numbers — small);
+     sources      the filer's CIK, retrieval date, latest fiscal year and its
+                  period end where held, and the XBRL concept behind each line.
+   The id no longer counts the list, which repeated after a delete. */
+let RUN_SEQ = 0;
+function buildRunRecord(r, inputs, out) {
+  const { c } = r;
+  const fy = latestFy(c);
+  const stamp = buildStamp(c);
+  const assumptions = Object.fromEntries(assumptionList(r.inputs, r.val?.pack?.id).map(a => [a.k,
+    { value: inputs[a.k], default: r.inputs[a.k], edited: !sameInput(inputs[a.k], r.inputs[a.k]) }]));
+  const lines = Object.fromEntries(Object.entries(c.provenance && typeof c.provenance === 'object' ? c.provenance : {})
+    .map(([k, p]) => [k, { concept: p?.concept || null, mixedTags: !!p?.mixedTags }]));
+  return {
+    runId: `run-${c.id}-${Date.now().toString(36)}${(RUN_SEQ++).toString(36)}`, id: c.id, ticker: c.tk,
+    inputs: { ...inputs }, pack: r.val.pack.name, packId: r.val.pack.id,
+    vals: out.vals ? { ...out.vals } : null,
+    conf: out.conf, confBand: out.confBand,
+    asOf: stamp.asOf || AS_OF, model: MODEL_VERSION, saved: new Date().toISOString().slice(0, 10),
+    illustrative: !c.real, stamp, assumptions,
+    statements: { years: [...yearsOf(c)], fin: JSON.parse(JSON.stringify(c.fin || [])), type: c.type, ccy: c.ccy,
+      px: isNum(c.px?.p) ? { p: c.px.p, basis: c.pricePersonal ? 'personal' : c.px.manual ? 'entered' : c.px.eod ? 'eod' : c.real ? 'entered' : 'sample', asOf: c.px.asOf || null } : null },
+    sources: { cik: c.cik || null, retrieved: c.retrieved || null, fy, fyEnd: fyEndOf(c, fy), lines },
+  };
+}
+
 function saveValuationRun(r, inputs) {
   const blank = blankAssumptions(r, inputs);
   if (blank.length) { toast(`${blank[0].label} is empty — a run with a missing input cannot be saved`); return; }
@@ -573,10 +901,7 @@ function saveValuationRun(r, inputs) {
      nothing to be compared with. With the figures kept, the drawer compares
      them instead of asserting it. */
   const out = valuationRun(r.c, r.d, inputs);
-  const run = { runId: `run-${r.c.id}-${runs.length + 1}`, id:r.c.id, ticker:r.c.tk,
-                inputs:{ ...inputs }, pack:r.val.pack.name,
-                vals: out.vals ? { ...out.vals } : null,
-                asOf:AS_OF, model:MODEL_VERSION, saved:new Date().toISOString().slice(0, 10) };
+  const run = buildRunRecord(r, inputs, out);
   runs.unshift(run);
   store.write('runs', runs.slice(0, 50));
 
@@ -597,19 +922,27 @@ function saveValuationRun(r, inputs) {
    the result with the figures saved alongside them. If they differ, the
    drawer shows both — which is exactly what Epic E asks the product to be
    able to show. */
-function openSavedRun(t) {
-  const run = (store.read('runs', []) || []).find(x => x.runId === t.runRef);
-  const r = BY_ID.get(t.ticker);
+function openSavedRun(t) { openRunDrawer(t.runRef, t.ticker, 'thesis'); }
+
+/* The same drawer, reached from a thesis or from the workspace. */
+function openRunDrawer(runId, ticker, from = 'workspace') {
+  const run = (store.read('runs', []) || []).find(x => x.runId === runId);
+  const r = BY_ID.get(run?.id || ticker);
   const body = el('div');
   if (!run || !r) {
-    body.append(el('p', { class: 'body' }, !run ? 'The saved run this thesis referenced is no longer in local storage.'
-      : `The saved run names ${t.ticker}, which is not in the universe loaded now, so it cannot be replayed.`));
+    body.append(el('p', { class: 'body' }, !run ? `The saved run this ${from === 'thesis' ? 'thesis referenced' : 'entry named'} is no longer in local storage.`
+      : `The saved run names ${run.id || ticker}, which is not in the universe loaded now, so it cannot be replayed.`));
     openDrawer('Saved valuation run', body); return;
   }
+  const t = { ticker: r.c.id };
   const replay = valuationRun(r.c, r.d, run.inputs);
   body.append(el('h3', { class: 'h-section', style: 'margin-bottom:2px' }, `${run.ticker} — ${run.pack}`));
-  body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
-    `Run ${run.runId} · saved ${run.saved} · as of ${run.asOf} · ${run.model}`));
+  body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' },
+    `Run ${run.runId} · saved ${run.saved} · as of ${run.asOf} · ${run.model}${run.illustrative ? ' · illustrative figures' : ''}`));
+  /* Which of model and data has moved since, from the run's own stamp. */
+  const diff = stampDiff(run.stamp, { model: run.model });
+  body.append(el('div', { class: diff.status === 'current' ? 'evidence support' : 'guardrail', style: 'font-size:13px;margin-bottom:var(--md)' },
+    `${diff.label}. ${diff.text}`));
 
   /* Replayed figures beside the saved ones, and the comparison made rather
      than asserted. Runs saved before the output was stored have nothing to
@@ -626,11 +959,35 @@ function openSavedRun(t) {
   body.append(g);
 
   body.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Stored inputs'));
-  const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  Object.entries(run.inputs).filter(([k]) => k !== 'model').forEach(([k, v]) => {
-    kv.append(el('dt', {}, k)); kv.append(el('dd', {}, isNum(v) ? fmtNum(v, 2) : String(v)));
-  });
-  body.append(kv);
+  /* A run saved with its assumptions says which were the reader's; an older
+     one has only the flat inputs, and lists them as it always did. */
+  if (run.assumptions && typeof run.assumptions === 'object') {
+    const defs = Object.fromEntries((ASSUMPTIONS[run.inputs.model] || []).map(a => [a.k, a]));
+    const tw = el('div', { class: 'tablewrap', style: 'margin-bottom:var(--md)' });
+    const tb = el('table', { class: 'dt' });
+    tb.append(el('thead', {}, el('tr', {}, ['Assumption', 'Value', 'Derived default', ''].map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+    tb.append(el('tbody', {}, Object.entries(run.assumptions).map(([k, a]) => {
+      const def = defs[k] || { label: k, unit: '', dp: 2 };
+      return el('tr', {}, [
+        el('td', { style: 'text-align:left;white-space:normal' }, def.label),
+        el('td', {}, fmtAssumption(def, a.value)),
+        el('td', {}, fmtAssumption(def, a.default)),
+        el('td', {}, a.edited ? el('span', { class: 'chip chip-bronze' }, 'Edited by you') : el('span', { class: 'caption' }, 'Derived default')),
+      ]);
+    })));
+    tw.append(tb); body.append(tw);
+  } else {
+    const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
+    Object.entries(run.inputs).filter(([k]) => k !== 'model').forEach(([k, v]) => {
+      kv.append(el('dt', {}, k)); kv.append(el('dd', {}, isNum(v) ? fmtNum(v, 2) : String(v)));
+    });
+    body.append(kv);
+  }
+  if (run.sources) {
+    const s = run.sources;
+    body.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
+      `Computed on ${run.illustrative ? 'the illustrative statements' : `statements ${s.cik ? `filed under CIK ${s.cik}` : 'you supplied'}${s.retrieved ? `, retrieved ${s.retrieved}` : ''}`}; latest fiscal year FY${s.fy}${s.fyEnd ? `, ended ${fmtFyEnd(s.fyEnd)}` : ' (its period end is not carried in this dataset yet)'}. ${run.statements ? 'The statements are stored with the run, so its report can be reprinted as saved.' : ''}`));
+  }
 
   const modelNote = run.model === MODEL_VERSION ? ''
     : ` It was saved under ${run.model}; the current version is ${MODEL_VERSION}.`;
@@ -643,13 +1000,27 @@ function openSavedRun(t) {
   /* The replay reuses the stored inputs, so a newer data date does not change
      it — but the inputs were derived from the older data, and the Studio's
      defaults for this company today would not be the same. */
-  if (run.asOf !== AS_OF)
+  /* A filed company is dated by its retrieval, an illustrative one by the
+     set's date; a run saved before stamping recorded AS_OF for both, so for
+     a filed company it is compared only once it carries a stamp. */
+  const asOfNow = r.c.real ? r.c.retrieved : AS_OF;
+  if ((run.stamp || !r.c.real) && run.asOf !== asOfNow)
     body.append(el('div', { class: 'guardrail', style: 'font-size:13px;margin-top:8px' },
-      `The inputs were derived from data as of ${run.asOf}; the data loaded now is as of ${AS_OF}. The replay uses the stored inputs unchanged, so it does not reflect anything reported since.`));
+      `The inputs were derived from data as of ${run.asOf}; the data loaded now is as of ${asOfNow}. The replay uses the stored inputs unchanged, so it does not reflect anything reported since.`));
 
-  body.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)',
-    onclick: () => { State.valuation[t.ticker] = { ...run.inputs }; closeDrawer(); openResearch(t.ticker, 'valuation'); } },
-    'Load these inputs into the Studio'));
+  const reportPath = `${companyPath(r.c)}/report?run=${encodeURIComponent(run.runId)}`;
+  body.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+    el('button', { class: 'btn btn-primary btn-sm',
+      onclick: () => {
+        /* Loaded inputs are edits like any other, so they persist. */
+        State.valuation[t.ticker] = { ...studioInputs(r), ...run.inputs };
+        persistValuation(r, true);
+        closeDrawer(); openResearch(t.ticker, 'valuation');
+      } }, 'Load these inputs into the Studio'),
+    el('a', { class: 'btn btn-ghost btn-sm', href: href(reportPath),
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); closeDrawer({ restore: false }); navigate(reportPath); } },
+      'Print this run as a report'),
+  ]));
   openDrawer('Saved valuation run', body);
 }
 
@@ -833,6 +1204,10 @@ function addToThesis(id) {
        already in the past for any thesis started after it. */
     horizon: '3–5 years', review: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10), conf: 'Low', questions: [],
     created: new Date().toISOString().slice(0, 10),
+    /* Its conditions are evaluated against live figures, so what the case
+       was written against is worth keeping: the workspace can then say the
+       model or the statements have moved under it. */
+    stamp: buildStamp(r.c),
   }];
   saveTheses();
   go('thesis');
@@ -1089,7 +1464,9 @@ function openThesisEditor(t) {
   cf.append(cs); body.append(cf);
 
   body.append(el('div', { class: 'row', style: 'gap:8px' }, [
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => { saveTheses(); closeDrawer(); render(); toast('Thesis saved'); } }, 'Save'),
+    /* An explicit save re-stamps the case: the reader has read it against
+       today's figures, so that is what it now stands on. */
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => { t.stamp = buildStamp(BY_ID.get(t.ticker)?.c); saveTheses(); closeDrawer(); render(); toast('Thesis saved'); } }, 'Save'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!confirm('Delete this thesis? Its review history will be removed too.')) return;
       /* The dialog promises the review history goes with it; only the thesis
@@ -1217,7 +1594,127 @@ VIEWS.thesis = () => {
    VIEW — COMPARE
    ========================================================================== */
 
+/* ==========================================================================
+   COMPARE — WHAT EACH COLUMN IS, BEFORE WHAT IT SAYS
+   The table compared ratios across companies without saying which twelve
+   months each column covers, which accounting standard produced it, or why a
+   cell was empty. Those are the three things that decide whether two figures
+   side by side mean anything. Each is now a row, and a mixed selection says
+   so in the banner above the table rather than per column only.
+   ========================================================================== */
+
+/* The standard the statements were prepared under, as far as this build can
+   say. SEC companyfacts is read through the us-gaap taxonomy, so a filed US
+   company is US GAAP as tagged in XBRL. The synthetic Bursa set has no
+   standard at all — it describes no company. Statements the reader supplied
+   carry no field naming their standard, and MFRS is not inferred for them. */
+function accountingBasis(c) {
+  if (c.real && c.personal) return { id: 'personal', label: 'Not stated',
+    detail: 'Annual statements from your personal-research file. The file records no accounting standard, and none is inferred.' };
+  if (c.real && c.mkt === 'US') return { id: 'usgaap', label: 'US GAAP',
+    detail: 'As tagged in XBRL under the us-gaap taxonomy, read from SEC companyfacts.' };
+  if (!c.real) return { id: 'illustrative', label: 'None — illustrative',
+    detail: 'Synthetic figures made for demonstration. No accounting standard applies to them.' };
+  return { id: 'unknown', label: 'Not stated', detail: 'The source of these statements does not record an accounting standard.' };
+}
+/* The latest fiscal year each column reads, and the date it ended where the
+   ingest recorded one. The shipped us.json predates the period-end field, so
+   for now the month is said to be missing rather than assumed to be December. */
+function reportingPeriod(c) {
+  const fy = latestFy(c), end = fyEndOf(c, fy);
+  return { fy, end, label: `FY${fy}`, detail: end ? `ended ${fmtFyEnd(end)}` : (c.real ? 'year-end date not in this dataset yet' : 'illustrative year') };
+}
+/* An absent cell names its reason, with the sentence on hover — the same five
+   reasons the screener and the source drawer use. */
+const absentCell = (reason, text) => `<span class="caption cmp-absent" title="${esc(text)}">${esc(ABSENCE[reason]?.short || reason)}</span>`;
+function metricCell(r, k, fmt) {
+  if (isNum(r.m[k])) return fmt(r.m[k]);
+  const st = metricStatus(r, k);
+  return absentCell(st.reason, st.text);
+}
+/* A disclosure outside the statement tuple (a bank's NIM, a REIT's WALE). */
+function disclosureCell(r, v, fmt, what) {
+  if (isNum(v)) return fmt(v);
+  return absentCell('not reported', `${what} is not in the figures held for ${r.c.tk}.${r.c.real ? ' SEC companyfacts, as this build reads it, carries no such disclosure.' : ''} Nothing is imputed.`);
+}
+/* The months between two ISO dates, ignoring days. */
+const monthsApart = (a, b) => {
+  const x = new Date(a + 'T00:00:00Z'), y = new Date(b + 'T00:00:00Z');
+  return Math.abs((x.getUTCFullYear() - y.getUTCFullYear()) * 12 + x.getUTCMonth() - y.getUTCMonth());
+};
+
+/* SAVED COMPARISONS. A comparison was only ever the current selection; a
+   named one keeps the companies, the currency mode, the stamp, and the text
+   of every cell as it read, so reopening it can say which figures have moved
+   since — the saved-screen pattern, applied to a table. */
+const loadComparisons = () => { const v = store.read('comparisons', []); return Array.isArray(v) ? v : []; };
+const saveComparisons = (list) => store.write('comparisons', list.slice(0, 50));
+const cellText = (html) => { const d = document.createElement('div'); d.innerHTML = html; return d.textContent.trim(); };
+let CMP_SEQ = 0;
+/* The table as last rendered, so a save reads the cells the reader is
+   looking at rather than recomputing a second copy that could differ. */
+let CMP_LIVE = null;
+function saveComparison(name) {
+  if (!CMP_LIVE || !CMP_LIVE.rows.length) return null;
+  const { rows, pack, snapshotNow } = CMP_LIVE;
+  const rec = {
+    id: `cmp-${Date.now().toString(36)}${(CMP_SEQ++).toString(36)}`,
+    name: String(name || rows.map(r => r.c.tk).join(' vs ')).slice(0, 80),
+    ids: rows.map(r => r.c.id), tks: rows.map(r => r.c.tk),
+    ccy: State.compareCcy || 'common', baseCcy: State.baseCcy, pack: pack.id,
+    created: new Date().toISOString(), stamp: buildStamp(rows.map(r => r.c)), snapshot: snapshotNow(),
+  };
+  saveComparisons([rec, ...loadComparisons()]);
+  toast(`Saved "${rec.name}" — every cell kept as it reads now`);
+  render();
+  return rec;
+}
+/* Reopened: the stamp's verdict, and every cell that reads differently now. */
+function comparisonMovedCard(s, now, rows) {
+  const card = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
+  const diff = stampDiff(s.stamp);
+  card.append(cardHead(`Saved comparison — ${s.name}`,
+    `Saved ${String(s.created || '').slice(0, 16).replace('T', ' ')} UTC in this browser. ${diff.label}: ${diff.text}`));
+  const changes = [];
+  Object.entries(s.snapshot || {}).forEach(([id, snap]) => {
+    const cur = now[id]; if (!cur) return;
+    Object.entries(snap.cells || {}).forEach(([label, then]) => {
+      if (label in cur.cells && cur.cells[label] !== then) changes.push({ tk: snap.tk, label, then, now: cur.cells[label] });
+    });
+  });
+  const gone = (s.ids || []).filter(id => !now[id]);
+  const added = rows.filter(r => !(s.ids || []).includes(r.c.id));
+  const notes = [];
+  if (gone.length) notes.push(`${gone.length === 1 ? 'One company' : `${gone.length} companies`} in the saved comparison ${gone.length === 1 ? 'is' : 'are'} not in the selection now (${gone.map(id => s.snapshot?.[id]?.tk || id).join(', ')}).`);
+  if (added.length) notes.push(`${added.map(r => r.c.tk).join(', ')} ${added.length === 1 ? 'was' : 'were'} not in it when saved.`);
+  if ((s.ccy || 'common') !== (State.compareCcy || 'common') || (s.baseCcy && s.baseCcy !== State.baseCcy))
+    notes.push('The currency setting differs from the one it was saved under, so money cells differ for that reason alone.');
+  if (notes.length) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, notes.join(' ')));
+  if (!changes.length) card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--sm)' },
+    'Every cell of the companies still selected reads as it did when this comparison was saved.'));
+  else {
+    const tw = el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' });
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, ['Company', 'Measure', 'When saved', 'Now'].map((h, i) => el('th', { style: i < 2 ? 'text-align:left' : null }, h)))));
+    t.append(el('tbody', {}, changes.slice(0, 20).map(x => el('tr', {}, [
+      el('td', { class: 'ident', style: 'text-align:left' }, x.tk), el('td', { style: 'text-align:left' }, x.label),
+      el('td', {}, x.then || '—'), el('td', {}, x.now || '—')]))));
+    tw.append(t); card.append(tw);
+    if (changes.length > 20) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `…and ${changes.length - 20} more.`));
+  }
+  return card;
+}
+function openComparison(id) {
+  const s = loadComparisons().find(x => x.id === id);
+  if (!s) { toast('That comparison is no longer saved in this browser'); return; }
+  const ids = s.ids.map(x => companyFromSlug(x) || x).filter(x => BY_ID.has(x)).slice(0, lim('compare'));
+  State.compare = ids; store.write('compare', ids);
+  if (s.ccy) { State.compareCcy = s.ccy; store.write('compareCcy', s.ccy); }
+  navigate(`/compare?companies=${ids.join(',')}&saved=${encodeURIComponent(id)}`);
+}
+
 VIEWS.compare = () => {
+  CMP_LIVE = null;
   const wrap = el('div');
   const hd = el('div', { class: 'page-hd' });
   hd.append(el('div', {}, [
@@ -1294,15 +1791,35 @@ VIEWS.compare = () => {
 
   const mixedTypes = new Set(rows.map(r => r.c.type)).size > 1;
   const mixedMkts = new Set(rows.map(r => r.c.mkt)).size > 1;
-  if (mixedTypes || mixedMkts) {
+  /* Periods: the latest fiscal-year labels, and where both period ends are
+     held, how many months apart they fall. Bases: the accounting standard.
+     Kinds: synthetic beside filed. */
+  const periods = rows.map(r => reportingPeriod(r.c));
+  const fyLabels = [...new Set(periods.map(p => p.label))];
+  const ends = periods.map(p => p.end).filter(Boolean);
+  const endSpread = ends.length > 1 ? Math.max(...ends.flatMap(a => ends.map(b => monthsApart(a, b)))) : 0;
+  const mixedPeriods = fyLabels.length > 1 || endSpread > 6;
+  /* Among the columns that have a basis at all; synthetic beside filed is
+     its own sentence below. */
+  const bases = [...new Set(rows.filter(r => r.c.real).map(r => accountingBasis(r.c).id))];
+  const mixedBasis = bases.length > 1;
+  const mixedIllus = rows.some(r => r.c.real) && rows.some(r => !r.c.real);
+  if (mixedTypes || mixedMkts || mixedPeriods || mixedBasis || mixedIllus) {
     const warn = el('div', { class: 'guardrail', style: 'background:color-mix(in srgb, var(--warn) 12%, transparent);border-color:color-mix(in srgb, var(--warn) 36%, transparent);margin-bottom:var(--md)' });
-    warn.innerHTML = `<span style="color:var(--warn)">${icon('alert')}</span><span>${
-      mixedTypes ? 'This selection mixes business models, so some rows are not comparable — return on invested capital and enterprise value are not meaningful for banks, and free cash flow is not meaningful for a deposit-taking balance sheet. ' : ''
-    }${mixedMkts ? (State.compareCcy === 'local'
+    const said = [];
+    if (mixedTypes) said.push('This selection mixes business models, so some rows are not comparable — return on invested capital and enterprise value are not meaningful for banks, and free cash flow is not meaningful for a deposit-taking balance sheet.');
+    const opener = () => said.length ? 'It also mixes' : 'This selection mixes';
+    if (mixedMkts) said.push(State.compareCcy === 'local'
       /* The sentence follows the currency toggle. It said "converted" in
          Local-currency mode, above a row printing $ and RM side by side. */
-      ? 'It also mixes reporting currencies; per-share figures and market capitalisation are shown in each company’s reporting currency and are not comparable across markets.'
-      : `It also mixes reporting currencies; per-share figures are shown in the reporting currency and market capitalisation is converted to ${State.baseCcy}.`) : ''}</span>`;
+      ? `${opener()} reporting currencies; per-share figures, market capitalisation and the scale rows are shown in each company’s reporting currency and are not comparable across markets.`
+      : `${opener()} reporting currencies; per-share figures are shown in the reporting currency, and market capitalisation and the scale rows are converted to ${State.baseCcy}.`);
+    if (mixedPeriods) said.push(fyLabels.length > 1
+      ? `The selection compares ${fyLabels.sort().join(' statements with ')} statements — growth and margin rows are not measured over the same twelve months.`
+      : `The latest fiscal years end ${endSpread} months apart, so growth and margin rows are not measured over the same twelve months.`);
+    if (mixedBasis) said.push('Statements are prepared under different accounting bases, or none; lease, revenue-recognition and impairment treatment can differ line by line, and no adjustment is made here.');
+    if (mixedIllus) said.push('This selection places synthetic demonstration figures beside filed statements; the illustrative columns are not evidence about any company.');
+    warn.innerHTML = `<span style="color:var(--warn)">${icon('alert')}</span><span>${esc(said.join(' '))}</span>`;
     wrap.append(warn);
   }
 
@@ -1352,63 +1869,67 @@ VIEWS.compare = () => {
      and the control was dead where it sat. Every pack's gross yield row is now
      followed by the net one, labelled as the scenario it is. */
   const NET_DY = ['Dividend yield, illustrative net', r => isNum(r.m.dy)
-    ? `<span title="Gross less the illustrative withholding of ${esc(String(State.wht[r.c.mkt] ?? 0))}% set above">${fmtPct(netYield(r.m.dy, r.c.mkt), 2)}</span>` : NA];
+    ? `<span title="Gross less the illustrative withholding of ${esc(String(State.wht[r.c.mkt] ?? 0))}% set above">${fmtPct(netYield(r.m.dy, r.c.mkt), 2)}</span>` : metricCell(r, 'dy', () => '')];
 
+  /* Every absent cell goes through metricStatus (or, for a disclosure the
+     tuple does not hold, says it is not reported), so "n/a" no longer stands
+     for five different things: not reported, not applicable, withheld, no
+     price, not meaningful — each with its sentence on hover. */
   const PACKS = {
     bank: { id:'bank', name:'Bank comparison',
       why:'Deposit takers are compared on the return they earn on equity, the quality of their funding and their loan book — free cash flow and EV multiples are not meaningful for a bank balance sheet.',
       rows: [
         ['— Returns —', null],
-        ['Return on equity', r => fmtPct(r.m.roe)],
-        ['Net interest margin', r => isNum(r.c.bank?.nim) ? fmtPct(r.c.bank.nim, 2) : NA],
-        ['Cost-to-income', r => isNum(r.c.bank?.cir) ? fmtPct(r.c.bank.cir, 1) : NA],
+        ['Return on equity', r => metricCell(r, 'roe', v => fmtPct(v))],
+        ['Net interest margin', r => disclosureCell(r, r.c.bank?.nim, v => fmtPct(v, 2), 'Net interest margin')],
+        ['Cost-to-income', r => disclosureCell(r, r.c.bank?.cir, v => fmtPct(v, 1), 'The cost-to-income ratio')],
         ['— Funding and capital —', null],
-        ['CASA ratio', r => isNum(r.c.bank?.casa) ? fmtPct(r.c.bank.casa, 1) : NA],
-        ['Loan-to-deposit', r => isNum(r.c.bank?.ldr) ? fmtPct(r.c.bank.ldr, 1) : NA],
-        ['CET1 ratio', r => isNum(r.c.bank?.cet1) ? fmtPct(r.c.bank.cet1, 1) : NA],
+        ['CASA ratio', r => disclosureCell(r, r.c.bank?.casa, v => fmtPct(v, 1), 'The CASA ratio')],
+        ['Loan-to-deposit', r => disclosureCell(r, r.c.bank?.ldr, v => fmtPct(v, 1), 'The loan-to-deposit ratio')],
+        ['CET1 ratio', r => disclosureCell(r, r.c.bank?.cet1, v => fmtPct(v, 1), 'The CET1 ratio')],
         ['— Asset quality —', null],
-        ['Gross impaired loans', r => isNum(r.c.bank?.npl) ? fmtPct(r.c.bank.npl, 2) : NA],
+        ['Gross impaired loans', r => disclosureCell(r, r.c.bank?.npl, v => fmtPct(v, 2), 'The gross impaired loans ratio')],
         ['— Valuation and payout —', null],
-        ['Price / book', r => fmtX(r.m.pb, 2)],
-        ['Price / earnings', r => isNum(r.m.pe) ? fmtX(r.m.pe) : NA],
-        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        ['Price / book', r => metricCell(r, 'pb', v => fmtX(v, 2))],
+        ['Price / earnings', r => metricCell(r, 'pe', v => fmtX(v))],
+        ['Dividend yield', r => metricCell(r, 'dy', v => fmtPct(v, 2))],
         NET_DY,
-        ['Payout ratio', r => isNum(r.m.payout) ? fmtPct(r.m.payout, 0) : NA],
+        ['Payout ratio', r => metricCell(r, 'payout', v => fmtPct(v, 0))],
       ] },
     reit: { id:'reit', name:'REIT comparison',
       why:'Property trusts distribute most of what they earn, so the comparison is on the distribution, what backs it, and how much debt sits against the portfolio — not on earnings multiples.',
       rows: [
         ['— Distribution —', null],
-        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        ['Dividend yield', r => metricCell(r, 'dy', v => fmtPct(v, 2))],
         NET_DY,
-        ['Distribution growth (4y)', r => isNum(r.m.dps5) ? fmtPct(r.m.dps5) : NA],
-        ['Distribution cover', r => isNum(r.m.dpuCover) ? fmtPct(r.m.dpuCover, 0) : NA],
+        ['Distribution growth (4y)', r => metricCell(r, 'dps5', v => fmtPct(v))],
+        ['Distribution cover', r => disclosureCell(r, r.m.dpuCover, v => fmtPct(v, 0), 'Distribution cover')],
         ['— Portfolio —', null],
-        ['Occupancy', r => isNum(r.c.reit?.occ) ? fmtPct(r.c.reit.occ, 1) : NA],
-        ['Weighted average lease expiry', r => isNum(r.c.reit?.wale) ? `${fmtNum(r.c.reit.wale, 1)} yrs` : NA],
-        ['Capitalisation rate', r => isNum(r.c.reit?.cap) ? fmtPct(r.c.reit.cap, 1) : NA],
+        ['Occupancy', r => disclosureCell(r, r.c.reit?.occ, v => fmtPct(v, 1), 'Occupancy')],
+        ['Weighted average lease expiry', r => disclosureCell(r, r.c.reit?.wale, v => `${fmtNum(v, 1)} yrs`, 'The weighted average lease expiry')],
+        ['Capitalisation rate', r => disclosureCell(r, r.c.reit?.cap, v => fmtPct(v, 1), 'The capitalisation rate')],
         ['— Leverage —', null],
-        ['Gearing', r => isNum(r.c.reit?.gearing) ? fmtPct(r.c.reit.gearing, 1) : NA],
-        ['Interest cover', r => isNum(r.m.icov) ? fmtX(r.m.icov) : NA],
+        ['Gearing', r => disclosureCell(r, r.c.reit?.gearing, v => fmtPct(v, 1), 'Gearing')],
+        ['Interest cover', r => metricCell(r, 'icov', v => fmtX(v))],
         ['— Valuation —', null],
-        ['Price / NAV', r => isNum(r.m.pnav) ? fmtX(r.m.pnav, 2) : fmtX(r.m.pb, 2)],
+        ['Price / NAV', r => isNum(r.m.pnav) ? fmtX(r.m.pnav, 2) : metricCell(r, 'pb', v => fmtX(v, 2))],
       ] },
     general: { id:'general', name:'Operating business comparison',
       why:'Capital efficiency, margin, cash conversion and what the whole business costs including its debt.',
       rows: [
         ['— Returns —', null],
-        ['Return on invested capital', r => isNum(r.m.roic) ? fmtPct(r.m.roic) : NA],
-        ['Operating margin', r => fmtPct(r.m.om)],
-        ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA],
+        ['Return on invested capital', r => metricCell(r, 'roic', v => fmtPct(v))],
+        ['Operating margin', r => metricCell(r, 'om', v => fmtPct(v))],
+        ['Free cash flow margin', r => metricCell(r, 'fcfm', v => fmtPct(v))],
         ['— Growth —', null],
-        ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : NA],
-        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.shareSeriesBreak ? NA_SPLIT : NA],
+        ['Revenue CAGR (4y)', r => metricCell(r, 'rev5', v => fmtPct(v))],
+        ['Earnings CAGR (4y)', r => metricCell(r, 'eps5', v => fmtPct(v))],
         ['— Balance sheet —', null],
-        ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA],
+        ['Net debt / EBIT', r => metricCell(r, 'ndEbit', v => fmtX(v))],
         ['— Valuation —', null],
-        ['EV / EBIT', r => isNum(r.m.evebit) ? fmtX(r.m.evebit) : NA],
-        ['Free cash flow yield', r => isNum(r.m.fcfy) ? fmtPct(r.m.fcfy, 2) : NA],
-        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        ['EV / EBIT', r => metricCell(r, 'evebit', v => fmtX(v))],
+        ['Free cash flow yield', r => metricCell(r, 'fcfy', v => fmtPct(v, 2))],
+        ['Dividend yield', r => metricCell(r, 'dy', v => fmtPct(v, 2))],
         NET_DY,
       ] },
   };
@@ -1423,15 +1944,50 @@ VIEWS.compare = () => {
     `The selection mixes ${kinds.join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
   wrap.append(packNote);
 
+  /* Totals in the chosen currency, converted at the rate the chip above
+     shows — the same rule as market capitalisation. */
+  const money = (r, v) => fmtCap(showLocal ? v : toBase(v, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy);
+  const NO_PRICE = 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.';
+  /* A statement line, absolute: present, or the line that is missing. */
+  const lineCell = (r, v, lines) => isNum(v) ? money(r, v) : absentCell('not reported',
+    `${lines.map(l => LINE_LABEL[l]).join(' or ')} is not in the latest stored statements for ${r.c.tk}${r.c.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
+  const SCALE_ROWS = [
+    ['— Scale —', null],
+    ['Revenue, latest year', r => lineCell(r, last(r.d.rev), ['rev'])],
+    ['Revenue growth, latest year', r => {
+      const a = r.d.rev[r.d.rev.length - 2], b = last(r.d.rev);
+      if (!isNum(a) || !isNum(b)) return absentCell('not reported', `Revenue is not in the stored statements for both of the last two years for ${r.c.tk}. Nothing is imputed.`);
+      if (!(a > 0)) return absentCell('not meaningful', 'The prior year’s revenue is zero or negative, so a growth rate has no meaning.');
+      return withSign((b / a - 1) * 100, 1);
+    }],
+    ['Operating cash flow', r => lineCell(r, last(r.d.ocf), ['ocf'])],
+    /* Not a row at all for an all-bank selection; a bank in a mixed one says
+       why its cell is empty. */
+    ...(pack.id === 'bank' ? [] : [['Free cash flow', r => r.c.type === 'bank'
+      ? absentCell('not applicable', 'Free cash flow is not meaningful for a deposit-taking balance sheet, whose operating cash flow moves with deposits and loans.')
+      : lineCell(r, r.m.fcf, ['ocf', 'capex'])]]),
+    ['Net debt', r => r.c.type === 'bank'
+      ? absentCell('not applicable', 'Net debt is not meaningful for a deposit-taking balance sheet: its borrowings are its raw material, not its financing.')
+      : lineCell(r, r.m.netDebt, ['debt', 'cash'])],
+  ];
+
   const METRIC_ROWS = [
-    ['Price', r => fmtMoney(r.c.px.p, r.c.ccy)],
-    ['Market capitalisation', r => fmtCap(showLocal ? r.m.mcap : toBase(r.m.mcap, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy)],
+    ['Price', r => isNum(r.c.px?.p) ? fmtMoney(r.c.px.p, r.c.ccy) : absentCell('needs a price', NO_PRICE)],
+    ['Market capitalisation', r => metricCell(r, 'mcap', v => money(r, v))],
     ['Business model', r => r.c.type],
+    /* Which twelve months, and under which standard — so a column is read as
+       what it is before any figure in it is compared. */
+    ['Reporting period', r => { const p = reportingPeriod(r.c); return `${esc(p.label)}<br><span class="caption">${esc(p.detail)}</span>`; }],
+    ['Accounting basis', r => { const b = accountingBasis(r.c); return `<span title="${esc(b.detail)}">${esc(b.label)}</span>`; }],
     ['Model pack', r => r.val.pack.name],
+    ...SCALE_ROWS,
     ...pack.rows,
     ['— Valuation —', null],
-    ['Base-case model estimate', r => isNum(r.val.vals?.base) ? fmtMoney(r.val.vals.base, r.c.ccy) : NA],
-    ['Difference to price', r => isNum(r.val.mos?.base) ? `<span class="${diffClass(r.val.mos.base)}">${withSign(r.val.mos.base, 0)}</span>` : NA],
+    ['Base-case model estimate', r => isNum(r.val.vals?.base) ? fmtMoney(r.val.vals.base, r.c.ccy)
+      : `<span class="caption cmp-absent" title="${esc(r.val.err || 'The model produced no estimate for this company.')}">no estimate</span>`],
+    ['Difference to price', r => isNum(r.val.mos?.base) ? `<span class="${diffClass(r.val.mos.base)}">${withSign(r.val.mos.base, 0)}</span>`
+      : !isNum(r.val.vals?.base) ? `<span class="caption cmp-absent" title="${esc(r.val.err || 'The model produced no estimate for this company.')}">no estimate</span>`
+      : absentCell('needs a price', NO_PRICE)],
     ['Valuation confidence', r => r.val.confBand],
     ['— Scores —', null],
     ['Business Quality', r => scorePill(r.scores.quality.score, r.pct.quality)],
@@ -1440,6 +1996,27 @@ VIEWS.compare = () => {
     ['Risk grade', r => riskPill(r.risk.band)],
     ['Data completeness', r => `${r.m.coverage}%`],
   ];
+
+  /* ---------- saving it, and what has moved since it was saved ---------- */
+  const snapshotNow = () => Object.fromEntries(rows.map(r => [r.c.id, { tk: r.c.tk,
+    cells: Object.fromEntries(METRIC_ROWS.filter(([, g]) => g).map(([label, g]) => [label, cellText(g(r))])) }]));
+  CMP_LIVE = { rows, pack, snapshotNow };
+  const savedId = new URLSearchParams(location.search).get('saved');
+  const savedCmp = savedId ? loadComparisons().find(x => x.id === savedId) : null;
+  if (savedCmp) wrap.append(comparisonMovedCard(savedCmp, snapshotNow(), rows));
+  const nSaved = loadComparisons().length;
+  const saveBar = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  saveBar.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+      const name = prompt('Name this comparison', rows.map(r => r.c.tk).join(' vs '));
+      if (name) saveComparison(name);
+    } }, 'Save this comparison'),
+    el('p', { class: 'metaline', style: 'flex:1 1 260px;margin:0' },
+      `Kept in this browser only, with the model and data versions and every cell as it reads now, so reopening it shows what has moved. ${nSaved ? `${nSaved} saved so far.` : ''}`),
+    el('a', { class: 'btn btn-ghost btn-sm', href: href('/my/workspace'),
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } }, 'Workspace'),
+  ]));
+  wrap.append(saveBar);
 
   /* The comparison table is the page's primary content, so it is read by
      scrolling the page — the header row pins under the top bar instead. */

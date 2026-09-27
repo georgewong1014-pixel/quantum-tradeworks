@@ -41,7 +41,13 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 /* The illustrative Filings tab: its "sample list" chip carried a
                    whole sentence, did not wrap, and ran 61px past 390. Only the
                    default tab of a company page was measured above. */
-                '/company/MAYBANK?tab=filings'];
+                '/company/MAYBANK?tab=filings',
+                /* Phase 2 batch F: the Studio with its bridge inputs and axis
+                   chooser, the comparison with its period and scale rows, the
+                   workspace list and the printable report, filed and
+                   illustrative. */
+                '/company/MSFT-SEC?tab=valuation', '/compare?companies=AAPL-SEC,MSFT-SEC,MAYBANK',
+                '/my/workspace', '/company/MSFT-SEC/report', '/company/MAYBANK/report'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,

@@ -1518,6 +1518,295 @@ try {
     else ok(`Learn routes all ${r.rows.length} company types and publishes the valuation pillar, the router tab stays on /methodology, pricing names its unapplied limits, and 1155.KL becomes ${r.dotted.path}`);
   }
 
+  /* ===================================================================== */
+  /* PHASE 2 BATCH F — compare, valuation bridge, stamps, workspace, report */
+  /* ===================================================================== */
+
+  /* THE DCF ARITHMETIC, AGAINST A HAND COMPUTATION. No harness asserted what
+     valueDCF returns, only that a missing bridge refuses. The fixture is the
+     plan's: FCF 1, year-1 growth 5% fading to 2%, 8%, five years, net debt 2,
+     one share, and the reader's +0.5 adjustment — recomputed here in plain
+     arithmetic, not by calling the engine twice. */
+  {
+    const r = await evaluate(`(() => {
+      const inp = { model:'dcf', fcf0:1, g1:5, gt:2, wacc:8, years:5, netDebt:2, shares:1, adj:0.5, hold:0 };
+      let f = 1, pv = 0;
+      for (let t = 1; t <= 5; t++) { const g = 0.05 + (0.02 - 0.05) * (t - 1) / 4; f *= 1 + g; pv += f / Math.pow(1.08, t); }
+      const tv = f * 1.02 / (0.08 - 0.02) / Math.pow(1.08, 5);
+      const want = pv + tv - 2 + 0.5;
+      const got = valueDCF(inp);
+      const noAdj = valueDCF({ ...inp, adj: 0 }), legacy = valueDCF({ ...inp, adj: undefined });
+      const scen = valueScenario({ model:'scenario', rev0:10, revCagr:10, margin0:20, termMargin:25, fcfConv:80, wacc:9, gt:2, years:6, dilution:0, netDebt:1, shares:2, adj:-1 });
+      const scen0 = valueScenario({ model:'scenario', rev0:10, revCagr:10, margin0:20, termMargin:25, fcfConv:80, wacc:9, gt:2, years:6, dilution:0, netDebt:1, shares:2, adj:0 });
+      return { want, got: got.perShare, adjStep: got.perShare - noAdj.perShare, legacySame: legacy.perShare === noAdj.perShare,
+        gtErr: !!valueDCF({ ...inp, gt: 8 }).error, scenStep: scen0.perShare - scen.perShare,
+        defaults: ['AAPL-SEC', 'MSFT-SEC'].map(id => BY_ID.get(id).inputs.adj) };
+    })()`);
+    const p = [];
+    if (Math.abs(r.want - r.got) > 1e-9) p.push(`value per share ${r.got} against a hand computation of ${r.want}`);
+    if (Math.abs(r.adjStep - 0.5) > 1e-12) p.push(`a +0.5 adjustment moved the value by ${r.adjStep}`);
+    if (!r.legacySame) p.push('a run saved before the adjustment existed does not value as an adjustment of nil');
+    if (!r.gtErr) p.push('terminal growth equal to the discount rate did not refuse');
+    if (Math.abs(r.scenStep - 0.5) > 1e-12) p.push(`the scenario pack's −1 adjustment over two shares moved the value by ${r.scenStep}`);
+    if (r.defaults.some(v => v !== 0)) p.push(`the derived default adjustment is not nil: ${JSON.stringify(r.defaults)}`);
+    if (p.length) fail('the DCF bridge is equity = EV − net debt + your adjustment, to the cent', p);
+    else ok(`the DCF values the hand-computed fixture to 1e-9 (${r.got.toFixed(4)} a share), the adjustment moves it by exactly adj ÷ shares in both packs, and the default claims nothing`);
+  }
+
+  /* THE BRIDGE IS THE READER'S ONCE CHANGED, AND IT SURVIVES A RELOAD. Net
+     debt edited in the Studio is labelled as theirs beside the reported
+     figure, warned about above the estimate, written to storage, and read
+     back after a full reload; the explainer carries the current discount
+     rate and the confidence parts add to the score shown. */
+  {
+    const id = await evaluate(`(U.find(x => x.c.real && x.inputs.model === 'dcf' && !x.val.err && x.val.confParts) || {}).c?.id || null`);
+    if (!id) fail('no filed company with a DCF estimate to edit', id);
+    else {
+      await evaluate(`store.write('valuation', {}); State.valuation = {}; navigate(companyPath(BY_ID.get(${JSON.stringify(id)}).c) + '?tab=valuation')`);
+      await sleep(600);
+      const before = await evaluate(`(() => {
+        const r = BY_ID.get(${JSON.stringify(id)});
+        const f = document.getElementById('as-netDebt');
+        if (!f) return { missing: true };
+        const set = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+        const want = +(r.inputs.netDebt + 3).toFixed(3);
+        set(f, String(want));
+        set(document.getElementById('as-adj'), '-1.5');
+        persistValuation(r, true);
+        const main = document.querySelector('main').innerText;
+        return { want, hint: f.closest('.assumption').querySelector('.a-default')?.textContent || '',
+          warned: /Net debt is your figure/.test(main) && /Subtracts/.test(main),
+          stored: store.read('valuation', {})[${JSON.stringify(id)}] };
+      })()`);
+      await send('Page.reload', {}, sessionId);
+      let back = null;
+      for (let i = 0; i < 60 && !back; i++) { await sleep(500); try { back = await evaluate(`typeof realPending !== 'undefined' && !realPending && document.getElementById('as-netDebt') ? true : null`); } catch { /* booting */ } }
+      const after = await evaluate(`(() => {
+        const r = BY_ID.get(${JSON.stringify(id)});
+        document.querySelectorAll('details.explain').forEach(d => d.open = true);
+        const run = valuationRun(r.c, r.d, studioInputs(r));
+        const ex = [...document.querySelectorAll('details.explain')].map(d => d.textContent);
+        const p = run.confParts;
+        return { value: document.getElementById('as-netDebt')?.value, adj: document.getElementById('as-adj')?.value,
+          whose: document.querySelector('.a-whose')?.textContent || '',
+          waccShown: ex[0]?.includes(fmtPct(studioInputs(r).wacc, 2)), conf: run.conf, parts: p.coverage + p.type + (p.band || 0),
+          confText: ex[1]?.includes(run.conf + ' of 100'), snapshotSays: (() => { const r2 = BY_ID.get(${JSON.stringify(id)}); return editedKeys(r2).length; })() };
+      })()`);
+      const p = [];
+      if (before.missing) p.push('the DCF rail has no net debt input');
+      else {
+        if (!/Your figure · reported/.test(before.hint)) p.push(`the edited input is not labelled as the reader's: "${before.hint}"`);
+        if (!before.warned) p.push('no warning above the estimate says the bridge is the reader\'s');
+        if (!before.stored || before.stored.over?.netDebt !== before.want || before.stored.over?.adj !== -1.5 || !before.stored.stamp?.model) p.push(`stored edit ${JSON.stringify(before.stored)}`);
+        if (Number(after.value) !== before.want || Number(after.adj) !== -1.5) p.push(`after a reload the inputs read ${after.value} and ${after.adj}`);
+        if (!/Your assumptions · 2 of/.test(after.whose)) p.push(`rail header after reload: "${after.whose}"`);
+        if (!after.waccShown) p.push('the explainer does not carry the current discount rate');
+        if (after.parts !== after.conf || !after.confText) p.push(`confidence parts ${after.parts} against the score ${after.conf}`);
+        if (after.snapshotSays !== 2) p.push(`the snapshot's edited check sees ${after.snapshotSays} edits`);
+      }
+      await evaluate(`store.write('valuation', {}); State.valuation = {}; true`);
+      if (p.length) fail('net debt and the adjustment are the reader\'s, labelled, and kept across a reload', p);
+      else ok(`net debt and a signed adjustment on ${id} are labelled as the reader's, warned about, kept across a reload, and explained with the current discount rate — confidence ${after.conf} = the sum of its three parts`);
+    }
+  }
+
+  /* SENSITIVITY ON THE READER'S AXES. A chosen pair builds a 5×5 grid whose
+     centre is the base case; the choice is kept per model; the pack's pair is
+     what an untouched page shows. */
+  {
+    const r = await evaluate(`(() => {
+      const row = U.find(x => x.c.real && x.inputs.model === 'dcf' && !x.val.err);
+      const inputs = { ...row.inputs };
+      const out = { def: sensitivityAxes(row, inputs).custom };
+      store.write('sensAxes', { dcf: { x: 'netDebt', xs: 2, y: 'years', ys: 1 } });
+      const ch = sensitivityAxes(row, inputs);
+      const g = sensitivityGrid(inputs, ch.ax);
+      out.custom = ch.custom; out.dims = [g.length, g[0].length];
+      out.centre = g[2][2]; out.base = valuationRun(row.c, row.d, inputs).vals.base;
+      out.yearsInt = sensAxis(ch.ax.y, inputs).values.every(Number.isInteger);
+      store.write('sensAxes', {});
+      return out;
+    })()`);
+    const p = [];
+    if (r.def !== false) p.push('an untouched page does not show the pack\'s own pair');
+    if (!r.custom || r.dims.join('x') !== '5x5') p.push(`custom grid ${JSON.stringify(r.dims)}`);
+    if (Math.abs(r.centre - r.base) > 1e-9) p.push(`centre ${r.centre} against base ${r.base}`);
+    if (!r.yearsInt) p.push('a forecast-years axis stepped through a fractional year');
+    if (p.length) fail('the sensitivity grid takes the reader\'s own axes and steps', p);
+    else ok('the sensitivity grid takes any two inputs and steps — 5×5, centred on the base case, whole forecast years — and defaults to the pack\'s pair');
+  }
+
+  /* COMPARE SAYS WHAT EACH COLUMN IS. A filed FY2026 company beside a filed
+     FY2025 one and a synthetic bank: the period, basis and scale rows exist,
+     the banner names the period gap and the synthetic-beside-filed mix, a
+     bank has no free cash flow, and no cell is the bare generic "n/a". An
+     unpriced filer's price says "no price". */
+  {
+    const r = await evaluate(`(() => {
+      const unpriced = U.find(x => x.c.real && !isNum(x.c.px?.p) && x.c.type !== 'bank');
+      const ids = ['MSFT-SEC', 'AAPL-SEC', 'MAYBANK'];
+      State.compare = [...ids]; State.plan = 'pro'; navigate('/compare?companies=' + ids.join(','));
+      const labels = [...document.querySelectorAll('main table.dt tbody tr')].map(tr => tr.cells[0]?.textContent);
+      const rowOf = (l) => [...document.querySelectorAll('main table.dt tbody tr')].find(tr => tr.cells[0]?.textContent === l);
+      const banner = [...document.querySelectorAll('main .guardrail')].map(n => n.textContent).join(' ');
+      const bare = [...document.querySelectorAll('main table.dt td')].filter(td => td.innerHTML === NA).length;
+      const basis = [...rowOf('Accounting basis').cells].slice(1).map(td => td.textContent);
+      const fcfBank = rowOf('Free cash flow')?.cells[3]?.textContent;
+      const out = { labels, banner, bare, basis, fcfBank };
+      State.compare = [unpriced.c.id, 'AAPL-SEC']; navigate('/compare?companies=' + State.compare.join(','));
+      out.price = rowOf('Price')?.cells[1]?.textContent; out.unpriced = unpriced.c.id;
+      out.periodSame = ![...document.querySelectorAll('main .guardrail')].some(n => /twelve months/.test(n.textContent)) || latestFy(unpriced.c) !== latestFy(BY_ID.get('AAPL-SEC').c);
+      State.compare = ['MAYBANK', 'PBBANK']; navigate('/compare?companies=MAYBANK,PBBANK');
+      out.bankFcfRow = !!rowOf('Free cash flow');
+      return out;
+    })()`);
+    const p = [];
+    for (const l of ['Reporting period', 'Accounting basis', 'Revenue, latest year', 'Operating cash flow', 'Free cash flow', 'Net debt', 'Revenue growth, latest year'])
+      if (!r.labels.includes(l)) p.push(`no "${l}" row`);
+    if (!/FY2025 statements with FY2026 statements/.test(r.banner)) p.push('the banner does not name the period gap');
+    if (!/synthetic demonstration figures beside filed statements/.test(r.banner)) p.push('the banner does not flag synthetic beside filed');
+    if (r.basis.join('|') !== 'US GAAP|US GAAP|None — illustrative') p.push(`basis row ${r.basis.join('|')}`);
+    if (r.fcfBank !== 'n/a') p.push(`a bank's free cash flow cell reads "${r.fcfBank}"`);
+    if (r.bare) p.push(`${r.bare} cells print the bare generic n/a`);
+    if (r.price !== 'no price') p.push(`${r.unpriced}'s price cell reads "${r.price}"`);
+    if (!r.periodSame) p.push('two filers with the same fiscal year were flagged as different periods');
+    if (r.bankFcfRow) p.push('an all-bank selection carries a free cash flow row');
+    if (p.length) fail('the comparison states each column\'s period, basis and scale, and every absence\'s reason', p);
+    else ok(`the comparison carries period, basis and scale rows, flags FY2025 against FY2026 and synthetic beside filed, prints "no price" for ${r.unpriced}, and no cell is a bare n/a`);
+  }
+
+  /* ONE STAMP, AND WHAT MOVED. A stamp records model and data; a moved
+     model and a moved dataset are reported apart; an item from before
+     stamping says so; every saved kind carries one. */
+  {
+    const r = await evaluate(`(() => {
+      const c = BY_ID.get('AAPL-SEC').c;
+      const s = buildStamp(c);
+      const out = { s, illus: buildStamp(BY_ID.get('MAYBANK').c).illustrative, mixed: buildStamp([c, BY_ID.get('MAYBANK').c]).illustrative };
+      out.current = stampDiff(s).status;
+      out.model = stampDiff({ ...s, model: 'metrics 1.5.0 · scores 1.3.0 · valuation 1.4.0' });
+      out.data = stampDiff({ ...s, data: { 'us.json': { v: 'a635756100ff', generated: '2026-08-03' } } });
+      out.legacy = stampDiff(null, { model: MODEL_VERSION });
+      out.none = stampDiff(null);
+      out.work = buildStamp('property').data;
+      return out;
+    })()`);
+    const p = [];
+    if (r.s.model !== await evaluate('MODEL_VERSION') || !r.s.data['us.json']?.v || r.s.illustrative !== 'none' || !r.s.savedAt) p.push(`stamp ${JSON.stringify(r.s)}`);
+    if (r.illus !== 'all' || r.mixed !== 'some') p.push(`illustrative flags ${r.illus}, ${r.mixed}`);
+    if (r.current !== 'current') p.push(`a fresh stamp reads ${r.current}`);
+    if (r.model.status !== 'model' || !/valuation 1\.4\.0 → 1\.5\.0|valuation 1\.4\.0 →/.test(r.model.text) || r.model.dataMoved) p.push(`model move ${JSON.stringify(r.model)}`);
+    if (r.data.status !== 'data' || r.data.modelMoved || !/Data moved: saved against us\.json a635756/.test(r.data.text)) p.push(`data move ${JSON.stringify(r.data)}`);
+    if (r.legacy.status !== 'unstamped' || r.legacy.modelMoved !== false || r.none.status !== 'unstamped') p.push('an unstamped item is not reported as such');
+    if (!r.work['napic-h1-2025.json']?.v) p.push(`a property snapshot does not stamp the data it reads ${JSON.stringify(r.work)}`);
+    if (p.length) fail('one stamp on every saved item, and stampDiff says which of model and data moved', p);
+    else ok('a stamp records the model, each data file by hash and the illustrative flag; stampDiff reports a model move, a data move and an unstamped item apart');
+  }
+
+  /* THE WORKSPACE AND THE ONE EXPORT. A run, a comparison, a screen, a case
+     and a tool snapshot each appear once in the workspace list with a stamp;
+     the export carries every kind and the data versions; a clear and import
+     brings the same keys back; a saved comparison reopens with its verdict. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = Object.fromEntries(['runs', 'comparisons', 'savedScreens', 'savedWork', 'theses', 'valuation'].map(k => [k, localStorage.getItem('vl.' + k)]));
+      ['runs', 'comparisons', 'savedWork'].forEach(k => store.write(k, []));
+      State.savedScreens = []; store.write('savedScreens', []);
+      const aapl = BY_ID.get('AAPL-SEC');
+      saveValuationRun(aapl, studioInputs(aapl));
+      State.compare = ['AAPL-SEC', 'MSFT-SEC']; navigate('/compare?companies=AAPL-SEC,MSFT-SEC');
+      const cmp = saveComparison('Two filers');
+      const def = JSON.parse(JSON.stringify(State.screen));
+      State.savedScreens = [{ name: 'Test screen', def, snapshot: screenSnapshot(def), alertOnMatch: false }]; store.write('savedScreens', State.savedScreens);
+      saveWork('property', 'Test deal');
+      /* The checks above may have deleted every case; one is written so the
+         fifth kind is present, and the stored list is restored below. */
+      const thesesBefore = State.theses;
+      if (!(State.theses || []).length) { State.theses = [{ id: 't-ws-test', ticker: 'AAPL-SEC', oneLine: 'test case', conds: [], catalysts: [], risks: [], questions: [], created: '2026-09-28', stamp: buildStamp(aapl.c) }]; saveTheses(); }
+      const items = workspaceItems();
+      const want = store.read('runs', []).length + loadComparisons().length + State.savedScreens.length + (State.theses || []).length + loadWork().length;
+      const kinds = [...new Set(items.map(i => i.kind))].sort();
+      const stamped = items.filter(i => i.kind !== 'thesis').every(i => i.stamp?.model);
+      navigate('/my/workspace'); await wait(200);
+      const listed = document.querySelectorAll('.ws-list .ws-row:not(.ws-head)').length;
+      const inNav = [...document.querySelectorAll('main .segmented a')].some(a => a.textContent === 'Workspace' && a.getAttribute('aria-selected') === 'true');
+      const doc = exportEverything();
+      const exported = ['runs', 'comparisons', 'savedScreens', 'savedWork', 'theses'].filter(k => k in doc.data);
+      const run0 = doc.data.runs[0];
+      ['runs', 'comparisons', 'savedScreens', 'savedWork'].forEach(k => localStorage.removeItem('vl.' + k));
+      const imp = importEverything(JSON.parse(JSON.stringify(doc)));
+      imp.apply();
+      const back = store.read('runs', [])[0];
+      const replay = valuationRun(aapl.c, aapl.d, back.inputs).vals.base;
+      openComparison(cmp.id); await wait(200);
+      const card = [...document.querySelectorAll('main .card')].find(c => /Saved comparison — Two filers/.test(c.textContent))?.textContent || '';
+      Object.entries(keep).forEach(([k, v]) => v == null ? localStorage.removeItem('vl.' + k) : localStorage.setItem('vl.' + k, v));
+      State.savedScreens = store.read('savedScreens', []);
+      State.theses = thesesBefore;
+      return { n: items.length, want, kinds, stamped, listed, inNav, exported, dataVersions: doc.dataVersions,
+        replaySame: Math.abs(replay - run0.vals.base) < 1e-9, runHas: ['stamp', 'assumptions', 'statements', 'sources'].filter(k => run0[k]),
+        card: /Current/.test(card) && /Every cell of the companies still selected reads as it did/.test(card),
+        portable: ['valuation', 'comparisons', 'runs'].every(k => PORTABLE_KEYS.some(x => x.k === k)) };
+    })()`);
+    const p = [];
+    if (r.n !== r.want) p.push(`workspace lists ${r.n} of ${r.want} saved items`);
+    if (r.kinds.join() !== 'comparison,run,screen,thesis,work') p.push(`kinds ${r.kinds}`);
+    if (!r.stamped) p.push('an item saved in this run carries no stamp');
+    if (r.listed !== r.n) p.push(`the page shows ${r.listed} rows for ${r.n} items`);
+    if (!r.inNav) p.push('Workspace is not the selected tab in the My Investments subnav');
+    if (r.exported.length !== 5 || !r.dataVersions?.['us.json']) p.push(`export carries ${r.exported} and data versions ${JSON.stringify(r.dataVersions)}`);
+    if (!r.portable) p.push('PORTABLE_KEYS lacks valuation, comparisons or runs');
+    if (r.runHas.length !== 4) p.push(`a saved run keeps only ${r.runHas}`);
+    if (!r.replaySame) p.push('an imported run does not replay to its saved base case');
+    if (!r.card) p.push('a reopened comparison does not say it is current and unchanged');
+    if (p.length) fail('the workspace lists every saved kind with its stamp, and one export carries them all', p);
+    else ok(`the workspace lists all ${r.n} saved items across five kinds with stamps, the export carries every kind plus the data versions, an imported run replays to its saved base case, and a reopened comparison reports itself unchanged`);
+  }
+
+  /* THE REPORT. A filed company's cover says SEC-filed, an illustrative
+     one's says illustrative; the five figure kinds are legended; every
+     absent metric prints a reason; a report from a saved run prints the
+     saved statements and says the live data has moved; the chrome says the
+     PDF is the browser's print. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms) => new Promise(res => setTimeout(res, ms));
+      const txt = () => document.querySelector('.research-report')?.innerText || '';
+      const out = {};
+      navigate('/company/aapl-apple-inc/report'); await wait(150);
+      const cover = () => document.querySelector('.rr-cover')?.textContent || '';
+      out.view = State.view; out.filed = /SEC-filed statements/.test(cover()) && !/illustrative figures/.test(cover());
+      out.legend = ['Reported', 'Calculated', 'Market', 'Modelled', 'Illustrative'].every(k => new RegExp('\\\\n' + k + '\\\\n').test(txt()));
+      out.chrome = /your browser’s own/.test(document.querySelector('.dr-chrome')?.textContent || '') && /Nothing is generated on a server/.test(document.querySelector('.dr-chrome')?.textContent || '');
+      out.blankMetric = [...document.querySelectorAll('.research-report table.dt tbody tr')].filter(tr => tr.cells.length === 5 && !tr.cells[1].textContent.trim()).length;
+      navigate('/app/equities/maybank/report'); await wait(150);
+      out.alias = State.view === 'researchReport'; out.illus = /illustrative figures/.test(cover());
+      const aapl = BY_ID.get('AAPL-SEC');
+      saveValuationRun(aapl, studioInputs(aapl));
+      const runs = store.read('runs', []); const run = runs[0];
+      run.statements.fin[run.statements.fin.length - 1][0] = 999.5;
+      run.stamp.data['us.json'].v = '000000000000';
+      store.write('runs', runs);
+      navigate(companyPath(aapl.c) + '/report?run=' + run.runId); await wait(150);
+      out.fromRun = /From saved run/.test(cover());
+      out.savedRevenue = [...document.querySelectorAll('.research-report .dr-fig')].find(f => /Revenue/.test(f.textContent))?.textContent.includes(fmtCap(999.5, 'USD'));
+      out.movedNotice = /differ from the ones saved with the run; this report prints the saved ones/.test(txt()) && /Data moved/.test(txt());
+      store.write('runs', runs.filter(x => x.runId !== run.runId));
+      return out;
+    })()`);
+    const p = [];
+    if (r.view !== 'researchReport' || !r.filed) p.push(`filed cover ${JSON.stringify(r)}`);
+    if (!r.alias || !r.illus) p.push('the /app/equities alias or the illustrative cover label');
+    if (!r.legend) p.push('the five figure kinds are not all legended');
+    if (!r.chrome) p.push('the page does not say the PDF is the browser\'s print');
+    if (r.blankMetric) p.push(`${r.blankMetric} metric rows print a blank value`);
+    if (!r.fromRun || !r.savedRevenue) p.push('a report from a saved run does not print the saved statements');
+    if (!r.movedNotice) p.push('a report from a run whose data moved does not say so');
+    if (p.length) fail('the research report identifies, legends and reproduces what it prints', p);
+    else ok('the research report labels filed and illustrative covers, legends all five figure kinds, leaves no metric blank, says the PDF is the browser\'s print, and from a saved run prints the saved statements with a moved-data notice');
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

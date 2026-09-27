@@ -45,7 +45,10 @@ const VERBOSE = args.includes('--verbose');
 
 /* The routes that state coverage. Build Status and Data Sources are the point;
    the others are here because the beta banner rides on every page. */
-const ROUTES = ['/', '/status', '/data-sources', '/discover/screener', '/research', '/methodology', '/corrections'];
+const ROUTES = ['/', '/status', '/data-sources', '/discover/screener', '/research', '/methodology', '/corrections',
+  /* The printable report must not state a count before coverage resolves:
+     it waits for the filings like the company page, and prints none. */
+  '/company/aapl-apple-inc/report'];
 
 /* Each question the site answers with a number, and the regex that catches any
    answer to it. The capture group is the answer. A route may show one distinct

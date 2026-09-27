@@ -18,6 +18,116 @@
 const MODEL_VERSION = 'metrics 1.6.0 · scores 1.3.0 · valuation 1.5.0';
 const AS_OF = '30 Jul 2026';
 
+/* ONE STAMP ON EVERYTHING THAT IS SAVED.
+   ---------------------------------------------------------------------------
+   Four kinds of saved object grew up separately and each recorded a different
+   part of what it was saved against: a valuation run kept the model version
+   and AS_OF, a saved screen the same pair, saved work the pair under other
+   names, and an investment case neither. None kept the DATA version — and
+   AS_OF is the illustrative set's date, so a run on a filed company was dated
+   by a dataset it never read. A reopened item could say "the model moved" but
+   never "the statements under it moved", which after a regeneration of
+   us.json is the more likely of the two.
+
+   The stamp records, for whatever the item was built from:
+     model         MODEL_VERSION, all three parts;
+     data          each data file it read, by the content hash build.mjs
+                   stamps into DATA_VERSIONS (with us.json's own `generated`
+                   time where the filings loaded) — and for the illustrative
+                   set, which is compiled into the code rather than read from
+                   a file, AS_OF;
+     asOf          the date of the figures themselves — the filer's retrieval
+                   date for a filed company, AS_OF for an illustrative one;
+     illustrative  whether the subject is synthetic ('all', 'some', 'none'),
+                   so a list of saved things can say which describe no company;
+     savedAt       when.
+   A subject is a company, a list of them, or the name of a tool whose inputs
+   are the reader's own ('property', 'wheel', 'trading'), or 'universe' for a
+   screen run over every company loaded. */
+const ILLUS_SET = 'illustrative set';
+const STAMP_FILES = { property: ['napic-h1-2025.json', 'sarawak-geo.json'], wheel: [], trading: [] };
+const currentDataVersion = (key) => key === ILLUS_SET ? AS_OF : (DATA_VERSIONS[key] || null);
+const filingsGenerated = () => (typeof realStatus !== 'undefined' && realStatus?.ok && realStatus.generated) || null;
+function buildStamp(subject) {
+  const companies = Array.isArray(subject) ? subject.filter(Boolean)
+    : subject && typeof subject === 'object' ? [subject] : [];
+  const kind = typeof subject === 'string' ? subject : null;
+  const data = {};
+  const usJson = () => ({ v: DATA_VERSIONS['us.json'] || null, generated: filingsGenerated() });
+  if (kind === 'universe') {
+    if (filingsGenerated()) data['us.json'] = usJson();
+    data[ILLUS_SET] = { v: AS_OF };
+  } else if (kind) {
+    (STAMP_FILES[kind] || []).forEach(f => { data[f] = { v: DATA_VERSIONS[f] || null }; });
+  }
+  companies.forEach(c => {
+    if (c.real && !c.personal) data['us.json'] = usJson();
+    /* The personal-research file is kept out of the repository and never
+       hashed — a hash of it in a public build would fingerprint licensed
+       data — so the stamp says it was read and cannot say which copy. */
+    else if (c.personal) data['personal-fundamentals.json'] = { v: null, note: 'personal file, not versioned' };
+    else data[ILLUS_SET] = { v: AS_OF };
+  });
+  const illus = companies.filter(c => !c.real).length;
+  const asOfs = [...new Set(companies.map(c => (c.real ? c.retrieved : AS_OF) || null).filter(Boolean))];
+  return {
+    v: 1, model: MODEL_VERSION, data,
+    asOf: asOfs.length ? asOfs.join(', ') : (kind === 'universe' ? AS_OF : null),
+    illustrative: companies.length ? (illus === 0 ? 'none' : illus === companies.length ? 'all' : 'some') : null,
+    savedAt: new Date().toISOString(),
+  };
+}
+
+/* What moved between a stamp and now. Model and data are reported apart,
+   because they call for different readings: a model change means the same
+   statements are now read differently; a data change means the statements
+   themselves are not the ones the item was built on. An item saved before
+   stamping existed says so, with whatever version it did record, rather than
+   being guessed current. `legacy` is that older record: { model }. */
+const MODEL_PARTS = (v) => Object.fromEntries(String(v || '').split('·').map(s => s.trim()).filter(Boolean)
+  .map(s => { const i = s.lastIndexOf(' '); return [s.slice(0, i), s.slice(i + 1)]; }));
+function modelMoveText(then) {
+  const a = MODEL_PARTS(then), b = MODEL_PARTS(MODEL_VERSION);
+  const moved = Object.keys(b).filter(k => a[k] !== b[k]).map(k => `${k} ${a[k] || 'unrecorded'} → ${b[k]}`);
+  return moved.length ? moved.join(', ') : `${then} → ${MODEL_VERSION}`;
+}
+const shortHash = (h) => h ? String(h).slice(0, 7) : 'unrecorded';
+function stampDiff(stamp, legacy = null) {
+  if (!stamp || typeof stamp !== 'object' || !stamp.model) {
+    const model = legacy?.model || null;
+    const modelMoved = model ? model !== MODEL_VERSION : null;
+    return { status: 'unstamped', stamped: false, modelMoved, dataMoved: null, moved: [],
+      label: 'Saved before stamping',
+      text: model
+        ? `Saved before data versions were recorded. It was saved under ${model}${modelMoved ? `, and the model has moved since (${modelMoveText(model)})` : ', which is the model now'}. Which statements it was built on was not recorded, so whether they have changed cannot be said.`
+        : 'Saved before version stamping. Neither the model nor the data version was recorded, so whether either has moved cannot be said.' };
+  }
+  const modelMoved = stamp.model !== MODEL_VERSION;
+  const moved = Object.entries(stamp.data || {})
+    .filter(([k, d]) => d && d.v != null && currentDataVersion(k) != null && d.v !== currentDataVersion(k))
+    .map(([k, d]) => ({ key: k, then: d.v, now: currentDataVersion(k), generated: d.generated || null }));
+  const dataMoved = moved.length > 0;
+  const parts = [];
+  if (modelMoved) parts.push(`Model moved: ${modelMoveText(stamp.model)}.`);
+  moved.forEach(m => parts.push(m.key === ILLUS_SET
+    ? `Data moved: the illustrative set was dated ${m.then}; it is now dated ${m.now}.`
+    : `Data moved: saved against ${m.key} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; this build carries ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
+  const status = modelMoved && dataMoved ? 'both' : modelMoved ? 'model' : dataMoved ? 'data' : 'current';
+  return { status, stamped: true, modelMoved, dataMoved, moved,
+    label: { both: 'Model and data moved', model: 'Model moved', data: 'Data moved', current: 'Current' }[status],
+    text: parts.length ? parts.join(' ') : 'Saved under the model and data versions this build carries — neither has moved since.' };
+}
+/* The data line of a stamp, for a table cell or a printed footer. */
+function stampDataText(stamp) {
+  if (!stamp?.data) return 'not recorded';
+  const bits = Object.entries(stamp.data).map(([k, d]) => k === ILLUS_SET ? `illustrative set ${d.v}`
+    : d.v ? `${k} ${shortHash(d.v)}${d.generated ? ` (${String(d.generated).slice(0, 10)})` : ''}` : `${k} (${d.note || 'unversioned'})`);
+  return bits.length ? bits.join(' · ') : 'no dataset — your own inputs';
+}
+/* The data this build carries now, in the same words — for an export
+   envelope or a printed report, so a file says what it was taken against. */
+const currentDataText = () => stampDataText(buildStamp('universe'));
+
 /* SAVED WORK — NAMED, VERSIONED, AND HONESTLY LOCATED.
    ---------------------------------------------------------------------------
    Every tool here already autosaves: change a field and it is written to local
@@ -82,6 +192,10 @@ function saveWork(kind, nameOverride) {
     modelVersion: MODEL_VERSION,
     asOf: AS_OF,
     editor: 'this browser',
+    /* The tool's inputs are the reader's own; what the stamp adds is the model
+       version and the data files the tool reads — the NAPIC benchmarks and the
+       geography, for a property deal. */
+    stamp: buildStamp(kind),
     payload,
   };
   persistWork([rec, ...loadWork()]);
