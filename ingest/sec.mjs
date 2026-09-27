@@ -501,6 +501,18 @@ const SIC_MAP = [
   [/^30[0-9]{2}$|^31[0-9]{2}$|^23[0-9]{2}$/,   'mature', 'Consumer Discretionary', 'Consumer Goods'],
 ];
 
+/* The listing venue, from the submissions record the classifier already
+ * fetches. `tickers` and `exchanges` are parallel arrays; the venue is the one
+ * beside this ticker, or the first where the ticker is not listed there. Null
+ * when the record names none, so the page says unknown rather than guessing. */
+export function listingFromSubmissions(sub, ticker) {
+  const ex = Array.isArray(sub?.exchanges) ? sub.exchanges : [];
+  const tk = Array.isArray(sub?.tickers) ? sub.tickers.map(t => String(t).toUpperCase()) : [];
+  const i = tk.indexOf(String(ticker || '').toUpperCase());
+  const v = ex[i >= 0 ? i : 0];
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
 export function classify(sic, sicDescription) {
   const s = String(sic || '').padStart(4, '0');
   for (const [re, type, sector, industry] of SIC_MAP) {
@@ -658,9 +670,11 @@ export async function ingestTickerDetailed(ticker, nYears, { source = makeSource
   /* Non-fatal: without it the company still loads, just with an assumed model
      that the page labels as assumed. */
   let cls = { type: 'mature', sector: 'Unclassified', industry: 'Unclassified', assumed: true };
+  let exch = null;
   try {
     const sub = await source.json(`https://data.sec.gov/submissions/CIK${cik}.json`, subName);
     cls = classify(sub.sic, sub.sicDescription);
+    exch = listingFromSubmissions(sub, ticker);
   } catch { /* classification unavailable */ }
 
   /* Which bodies this record was built from, by hash — so a regeneration can
@@ -674,7 +688,7 @@ export async function ingestTickerDetailed(ticker, nYears, { source = makeSource
     /* ccy is USD by construction now, not by assertion: a money line in any
        other unit is refused in resolveLine, so nothing stored under this
        heading is in another currency. */
-    id: ticker.toUpperCase(), name: title, cik, exch: null, mkt: 'US', ccy: 'USD',
+    id: ticker.toUpperCase(), name: title, cik, exch, mkt: 'US', ccy: 'USD',
     years, periodEnds, fin, basis, provenance, gaps,
     completeness: +completeness.toFixed(3),
     ...cls,

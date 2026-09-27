@@ -16,7 +16,7 @@
  * Every fact here is invented and shaped like the real thing; the numbers
  * are arbitrary. The test is about WHICH fact wins, not what it says.
  */
-import { annualSeries, resolveLine, assembleFin, classify, LINES, agreePeriods, makeSource,
+import { annualSeries, resolveLine, assembleFin, classify, listingFromSubmissions, LINES, agreePeriods, makeSource,
          ingestTickerDetailed, validateCompany, writeGate, decimalString, FACT_FIELDS, INGEST_VERSION } from './ingest/sec.mjs';
 import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -414,6 +414,16 @@ const FY_ENDS = { 2023: '2023-09-30', 2024: '2024-09-28', 2025: '2025-09-27' };
     if (/no raw archive|not found/.test(d.stderr)) ok('a ticker absent from the archive fails by name, offline');
     else fail('an unarchived ticker', d.stderr.slice(0, 300));
   } finally { rmSync(tmp, { recursive: true, force: true }); }
+}
+
+/* The listing venue comes from the submissions record, beside the ticker it
+   belongs to, and is null rather than guessed where none is named. */
+{
+  const sub = { tickers: ['BRK-A', 'BRK-B'], exchanges: ['NYSE', 'NYSE'] };
+  eq('the venue beside the ticker is the listing (Nasdaq for MSFT)', listingFromSubmissions({ tickers: ['MSFT'], exchanges: ['Nasdaq'] }, 'msft'), 'Nasdaq');
+  eq('a ticker not in the record takes the first venue named', listingFromSubmissions(sub, 'BRK.B'), 'NYSE');
+  eq('a record that names no exchange gives null, not a guess', listingFromSubmissions({ tickers: ['X'], exchanges: [] }, 'X'), null);
+  eq('a missing record gives null', listingFromSubmissions(null, 'X'), null);
 }
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} ingest rules hold`);

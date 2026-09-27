@@ -41,7 +41,11 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 /* The illustrative Filings tab: its "sample list" chip carried a
                    whole sentence, did not wrap, and ran 61px past 390. Only the
                    default tab of a company page was measured above. */
-                '/company/MAYBANK?tab=filings'];
+                '/company/MAYBANK?tab=filings',
+                /* The statements table, the widest on a company page: ten years,
+                   a CAGR column and, on request, two change columns a year.
+                   The table scrolls inside its card; the page must not. */
+                '/company/MSFT-SEC?tab=financials', '/company/MAYBANK?tab=financials'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,

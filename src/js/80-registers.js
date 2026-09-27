@@ -59,6 +59,11 @@ const CAPABILITY_REGISTER = [
     now:'Reproducible filters, cohort medians and a reporting-currency selector.' },
   { name:'Company research', status:'maintenance', path:'/research',
     now:'Statements, scorecards, valuation router and risk flags.' },
+  /* The statements explorer and per-figure lineage. Active, with the parts
+     the shipped data cannot fill stated as the gate rather than hidden. */
+  { name:'Statements and figure lineage', status:'active-core', path:'/research',
+    now:'Latest-year tiles and a statements table grouped into income statement, balance sheet and cash flow, with year-on-year changes on request. Every figure opens its source: the XBRL concept for that year, the original unit, what the ingest did to it and the EDGAR record. CSV of every line and year.',
+    gate:'Filing date, form and period end per figure, and a link to the exact filing, wait on regenerating data/us.json. Annual only — no quarterly statements are held. CSV is an Equities Research feature, and personal-lane statements are never exported.' },
   /* Was listed as queued with no route while it had been live on every company
      page for weeks. One row was describing two things — the classifier that
      ships and the saved strategy plan that does not — so shipping half of it

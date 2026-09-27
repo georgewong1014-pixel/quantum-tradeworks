@@ -286,10 +286,12 @@ try {
     }
   }
 
-  /* 6b — an absent line reads n/a in the cell where it is absent, on a company
-          that actually has one. Microsoft has none, so the check above could
-          not fail on the defect it was written for. Ford carries no debt line
-          in its latest years; Dominion no capex line in its latest. */
+  /* 6b — an absent line names its reason in the cell where it is absent, on a
+          company that actually has one. Microsoft has none, so the check above
+          could not fail on the defect it was written for. Ford carries no debt
+          line in its latest years; Dominion no capex line in its latest. The
+          cell read a blanket n/a until the statements explorer; it now prints
+          the short reason (not reported, withheld) and carries the sentence. */
   for (const [id, label] of [['F-SEC', 'Net debt'], ['D-SEC', 'Capital expenditure'], ['D-SEC', 'Free cash flow']]) {
     await evaluate(`openResearch(${JSON.stringify(id)}, 'financials'); true`);
     await sleep(1200);
@@ -303,8 +305,8 @@ try {
       return { latest: cells[cells.length - 2], cells: cells.slice(1) };
     })()`);
     if (r.missing || r.noRow) fail(`${id}: the ${label} row was not found on the Financials tab`, r);
-    else if (r.latest !== 'n/a' || /-0\.000/.test(r.cells.join(' '))) fail(`${id}: ${label} prints "${r.latest}" for an absent latest line, not n/a`, r);
-    else ok(`${id}: ${label} reads n/a where its input is absent`, r);
+    else if (!['not reported', 'withheld'].includes(r.latest) || /-0\.000/.test(r.cells.join(' '))) fail(`${id}: ${label} prints "${r.latest}" for an absent latest line, not its reason`, r);
+    else ok(`${id}: ${label} reads "${r.latest}" where its input is absent`, r);
   }
 
   /* 7 — a filed company's Filings tab holds the real index and no sample list. */
@@ -1658,6 +1660,227 @@ try {
     else ok(`Learn lists all ${r.n} measures in ${r.cats.length} categories with definition, inputs, unit and period, and ${r.blockedRows.length} blocked rows (${r.blockedRows.join(', ')}); the provenance strip says the shipped file has no ingest version, and names one and a restated year when the record carries them`);
   }
 
+  /* PHASE 2 C — THE COMPANY PAGE AS A RESEARCH DASHBOARD.
+     The four overview tiles are the stored lines, not a recomputation; every
+     company carries its source badge and the same freshness line; the header
+     offers its four actions, with the scanner off unless the reader's own
+     history is loaded; and a filer's exchange is not called "SEC filer". */
+  {
+    await evaluate(`openResearch('MSFT-SEC', 'snapshot'); true`);
+    await sleep(1200);
+    const r = await evaluate(`(() => {
+      const rr = BY_ID.get('MSFT-SEC'), c = rr.c, row = c.fin[c.fin.length - 1];
+      const want = [row[F.REV], row[F.NI], row[F.OCF], row[F.EQ]].map(v => fmtNum(v, Math.abs(v) < 10 ? 2 : 1));
+      const tiles = [...document.querySelectorAll('main .overview-tiles .tile-btn')];
+      const got = tiles.map(t => t.querySelector('.stat-value').textContent.trim());
+      const badges = tiles.map(t => t.querySelector('.chip')?.textContent.trim());
+      const fyOk = tiles.every(t => t.textContent.includes('FY' + latestFy(c)));
+      tiles[0]?.click();
+      const d = document.querySelector('#drawer');
+      const dtxt = d && !d.hidden ? d.textContent : '';
+      closeDrawer({ restore: false });
+      const head = document.querySelector('main .card');
+      const acts = [...head.querySelectorAll('.company-acts a, .company-acts button')].map(b => b.textContent.trim());
+      const cmp = [...head.querySelectorAll('.company-acts a')].find(a => a.textContent.trim() === 'Compare');
+      const scan = [...head.querySelectorAll('.company-acts a, .company-acts button')].find(b => b.textContent.trim() === 'Open scanner');
+      const prov = head.querySelector('.prov')?.textContent || '';
+      const exch = [...head.querySelectorAll('.chip')].map(x => x.textContent).find(t => t.includes(' · MSFT')) || '';
+      const noDashRow = ![...document.querySelectorAll('main .stat-label')].some(x => /Market capitalisation/.test(x.textContent)) || isNum(c.px.p);
+      return { want, got, badges, fyOk, dtxt: dtxt.slice(0, 2000), acts, cmpHref: cmp?.getAttribute('href') || null,
+               scan: scan ? { tag: scan.tagName, disabled: !!scan.disabled, href: scan.getAttribute('href') } : null,
+               lane: scannerLaneOn(), prov, exch, noDashRow,
+               concept: c.provenance.rev.byYear[latestFy(c)] };
+    })()`);
+    const p = [];
+    if (JSON.stringify(r.got) !== JSON.stringify(r.want)) p.push(`tiles read ${JSON.stringify(r.got)}, the stored lines are ${JSON.stringify(r.want)}`);
+    if (r.badges.length !== 4 || r.badges.some(b => b !== 'Filed')) p.push(`source badges: ${JSON.stringify(r.badges)}`);
+    if (!r.fyOk) p.push('a tile does not name its fiscal year');
+    if (!r.dtxt.includes(r.concept) || !/Original unit/.test(r.dtxt) || !/Transformation/.test(r.dtxt)) p.push('the Revenue tile does not open a drawer naming its XBRL concept, original unit and transformation');
+    for (const a of ['Add to watchlist', 'Compare', 'Save research', 'Open scanner'])
+      if (!r.acts.some(x => x === a || (a === 'Add to watchlist' && /watchlist/.test(x)) || (a === 'Save research' && /investment case|Save research/.test(x)))) p.push(`header action missing: ${a}`);
+    if (!r.cmpHref || !/\/compare\?companies=.*MSFT-SEC/.test(decodeURIComponent(r.cmpHref))) p.push(`Compare links to ${r.cmpHref}`);
+    if (!r.scan) p.push('no scanner control');
+    else if (r.lane ? !(r.scan.tag === 'A' && /\/my\/scanner\?.*symbol=MSFT/.test(r.scan.href || '')) : !r.scan.disabled) p.push(`scanner control with history ${r.lane}: ${JSON.stringify(r.scan)}`);
+    if (!/Statements\s*FY/.test(r.prov) || !/Source/.test(r.prov) || !/As of/.test(r.prov)) p.push(`freshness line: ${r.prov.slice(0, 200)}`);
+    if (/SEC filer/.test(r.exch)) p.push(`the exchange chip reads "${r.exch}"`);
+    if (!r.noDashRow) p.push('market tiles render as dashes on an unpriced filer');
+    if (p.length) fail('the company page opens on its reported figures, its actions and one freshness line', p);
+    else ok(`MSFT-SEC opens on four filed tiles equal to its stored lines (${r.got.join(', ')}), each opening its source; Watchlist, Compare, Save research and a ${r.lane ? 'live' : 'switched-off'} personal-lane scanner; one freshness line; exchange "${r.exch}"`);
+  }
+  {
+    const r = await evaluate(`(() => {
+      const out = {};
+      for (const id of ['MAYBANK', 'AAPL-SEC']) {
+        openResearch(id, 'snapshot');
+        const head = document.querySelector('main .card');
+        out[id] = { badges: [...document.querySelectorAll('main .overview-tiles .chip')].map(x => x.textContent.trim()),
+                    prov: head.querySelector('.prov')?.textContent || '' };
+      }
+      navigate('/compare?companies=MSFT-SEC');
+      out.compare = State.compare.includes('MSFT-SEC');
+      return out;
+    })()`);
+    const p = [];
+    if (!r.MAYBANK.badges.length || r.MAYBANK.badges.some(b => b !== 'Illustrative')) p.push(`MAYBANK badges ${JSON.stringify(r.MAYBANK.badges)}`);
+    for (const id of ['MAYBANK', 'AAPL-SEC']) if (!/Statements\s*FY\d{4}/.test(r[id].prov) || !/Source/.test(r[id].prov)) p.push(`${id} freshness line: ${r[id].prov.slice(0, 160)}`);
+    if (!/synthetic sample/.test(r.MAYBANK.prov)) p.push('the illustrative freshness line does not say synthetic');
+    if (!r.compare) p.push('/compare?companies=MSFT-SEC does not select it');
+    if (p.length) fail('every company carries its source badge and the same freshness line', p);
+    else ok('an illustrative company badges its tiles Illustrative and says "synthetic sample" on the same freshness line a filer carries; the Compare link selects the company');
+  }
+
+  /* The statements explorer: three statements, changes on request agreeing
+     with changeSummary, a reason in every empty cell, and each cell opening
+     the line drawer with its XBRL concept and the EDGAR record. */
+  {
+    await evaluate(`State.finChanges = false; openResearch('MSFT-SEC', 'financials'); true`);
+    await sleep(1200);
+    const r = await evaluate(`(() => {
+      const rr = BY_ID.get('MSFT-SEC'), c = rr.c, fy = latestFy(c);
+      const t = document.querySelector('main table.stmt-table');
+      const groups = [...t.querySelectorAll('tr.grp th')].map(th => th.textContent.trim());
+      State.finChanges = true; render();
+      const t2 = document.querySelector('main table.stmt-table');
+      const rev = [...t2.querySelectorAll('tbody tr')].find(tr => tr.querySelector('td')?.textContent.trim() === 'Revenue');
+      const tds = [...rev.querySelectorAll('td')];
+      const pct = tds[tds.length - 2].textContent.trim();
+      const want = withSign(changeSummary(c).find(x => x.label === 'Revenue').v, 1);
+      State.finChanges = false; render();
+      const cell = [...document.querySelectorAll('main table.stmt-table tbody tr')].find(tr => tr.querySelector('td')?.textContent.trim() === 'Revenue').querySelectorAll('td.cell-sourced');
+      const last = cell[cell.length - 1];
+      last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const d = document.querySelector('#drawer');
+      const txt = d.hidden ? '' : d.textContent;
+      const sec = [...d.querySelectorAll('a[href*="sec.gov"]')];
+      const out = { groups, pct, want, fy, concept: c.provenance.rev.byYear[fy], title: document.getElementById('drawerTitle').textContent,
+        txtOk: txt.includes(c.provenance.rev.byYear[fy]) && /Original unit/.test(txt) && /USD, whole dollars/.test(txt) && /not in this dataset yet/.test(txt),
+        links: sec.length, rel: sec.every(a => /noopener/.test(a.rel)), role: last.getAttribute('role'), tab: last.tabIndex };
+      closeDrawer({ restore: false });
+      return out;
+    })()`);
+    const p = [];
+    if (r.groups.join('|') !== 'Income statement|Balance sheet|Cash flow') p.push(`group rows: ${JSON.stringify(r.groups)}`);
+    if (r.pct !== r.want) p.push(`Revenue Δ% FY${r.fy} reads ${r.pct}, changeSummary says ${r.want}`);
+    if (!/Revenue · FY/.test(r.title) || !r.txtOk) p.push(`the Revenue FY${r.fy} drawer ("${r.title}") does not name ${r.concept}, the original unit and the filing status`);
+    if (r.links < 3 || !r.rel) p.push(`drawer EDGAR links: ${r.links}, rel noopener ${r.rel}`);
+    if (r.role !== 'button' || r.tab !== 0) p.push('a statement cell is not a keyboard button');
+    if (p.length) fail('the statements table is three statements whose every cell opens its source', p);
+    else ok(`MSFT-SEC statements group into three statements, Revenue Δ% ${r.pct} agrees with changeSummary, and Enter on a cell opens its drawer naming ${r.concept} with ${r.links} EDGAR links`);
+  }
+  {
+    await evaluate(`openResearch('ABT-SEC', 'financials'); true`);
+    await sleep(1000);
+    const r = await evaluate(`(() => {
+      const row = [...document.querySelectorAll('main table.stmt-table tbody tr')].find(tr => tr.querySelector('td')?.textContent.trim() === 'Dividend per share');
+      if (!row) return { missing: true };
+      const first = row.querySelectorAll('td')[1];
+      const span = first.querySelector('.cell-absent');
+      return { text: first.textContent.trim(), title: span?.getAttribute('title') || '' };
+    })()`);
+    if (r.missing) fail('ABT-SEC has no dividend row on the Financials tab');
+    else if (r.text !== 'not reported' || !/CommonStockDividendsPerShareDeclared/.test(r.title)) fail('ABT-SEC\'s absent early dividend does not name its reason and tag', r);
+    else ok('ABT-SEC\'s absent early dividend reads "not reported" and names the tag that returned nothing');
+  }
+
+  /* The CSV reproduces the table: one row per line per year, full-precision
+     values equal to the stored cells, the concept per cell, and empty where
+     absent. Personal-lane statements are refused; the Free plan's rule is
+     stated beside the button. */
+  {
+    const r = await evaluate(`(() => {
+      const out = {};
+      for (const id of ['MSFT-SEC', 'ABT-SEC', 'MAYBANK']) {
+        const rr = BY_ID.get(id), c = rr.c, yrs = yearsOf(c), lines = statementLines(rr);
+        const text = statementsCsv(rr);
+        const rows = text.split('\\n').filter(l => l && !l.startsWith('#'));
+        const parse = (l) => { const o = []; let cur = '', q = false; for (let i = 0; i < l.length; i++) { const ch = l[i];
+          if (q) { if (ch === '"' && l[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; }
+          else if (ch === '"') q = true; else if (ch === ',') { o.push(cur); cur = ''; } else cur += ch; } o.push(cur); return o; };
+        const head = parse(rows[0]), body = rows.slice(1).map(parse);
+        const col = (n) => head.indexOf(n);
+        const bad = [];
+        body.forEach(cells => {
+          const line = lines.find(l => l.key === cells[col('line_key')]); const i = yrs.indexOf(Number(cells[col('fiscal_year')]));
+          const v = line?.arr[i], got = cells[col('value')];
+          if (!line || i < 0) bad.push('unknown row ' + cells.slice(3, 7).join('/'));
+          else if (isNum(v) ? Number(got) !== v : got !== '') bad.push(line.key + ' FY' + yrs[i] + ': ' + got + ' vs ' + v);
+          else if (c.real && !c.personal && !line.derived && (cells[col('xbrl_concept')] || '') !== (lineConcept(c, line.key, yrs[i]) || '')) bad.push(line.key + ' concept');
+        });
+        out[id] = { rows: body.length, want: lines.length * yrs.length, bad: bad.slice(0, 5), unit: col('unit') >= 0 && col('currency') >= 0 && col('source') >= 0,
+                    footer: /Research only/.test(text), illus: /synthetic/.test(text) };
+      }
+      let toastText = '';
+      const t0 = window.toast; window.toast = (m) => { toastText = m; };
+      try { exportStatements({ c: { personal: true, tk: 'X' } }); } finally { window.toast = t0; }
+      out.personal = toastText;
+      openResearch('MSFT-SEC', 'financials');
+      out.note = document.getElementById('stmt-csv-note')?.textContent || '';
+      out.exports = !!lim('exports');
+      return out;
+    })()`);
+    const p = [];
+    for (const id of ['MSFT-SEC', 'ABT-SEC', 'MAYBANK']) {
+      const x = r[id];
+      if (x.rows !== x.want) p.push(`${id}: ${x.rows} CSV rows for ${x.want} cells`);
+      if (x.bad.length) p.push(`${id}: ${x.bad.join('; ')}`);
+      if (!x.unit || !x.footer) p.push(`${id}: unit/currency/source columns or footer missing`);
+    }
+    if (!r.MAYBANK.illus) p.push('the illustrative CSV does not say synthetic');
+    if (!/not redistributable/.test(r.personal)) p.push(`personal-lane export: "${r.personal}"`);
+    if (r.exports ? !/every line and year/.test(r.note) : !/Equities Research/.test(r.note)) p.push(`CSV note on plan exports=${r.exports}: "${r.note}"`);
+    if (p.length) fail('the statements CSV round-trips the table', p);
+    else ok(`the statements CSV round-trips every cell of MSFT-SEC (${r['MSFT-SEC'].rows}), ABT-SEC and MAYBANK with its concept, refuses personal-lane statements, and states the plan rule`);
+  }
+
+  /* The measure drawer, completed: original unit, the ingest's
+     transformation for the lines it reads, the filing status, and EDGAR links
+     from the one builder the Filings tab also uses. Reused by Compare. */
+  {
+    const r = await evaluate(`(() => {
+      const rr = BY_ID.get('MSFT-SEC');
+      openSourceDrawer(rr, FIELD_BY_K.de);
+      const d = document.querySelector('#drawer'), txt = d.textContent;
+      const links = [...d.querySelectorAll('a[href*="sec.gov"]')].map(a => a.href);
+      closeDrawer({ restore: false });
+      const same = JSON.stringify(edgarLinks(rr.c).map(x => x.href));
+      openResearch('MSFT-SEC', 'filings');
+      const card = [...document.querySelectorAll('main .card')].find(cd => /SEC filings/.test(cd.textContent));
+      const filingLinks = JSON.stringify([...card.querySelectorAll('a[href*="sec.gov"]')].map(a => a.getAttribute('href')));
+      const ids = U.filter(x => x.c.real && !x.c.personal && !isNum(x.c.px.p)).slice(0, 2).map(x => x.c.id);
+      State.compare = ids; navigate('/compare');
+      const cells = [...document.querySelectorAll('main table.dt td.cell-sourced')];
+      const absent = cells.find(td => td.querySelector('.cell-absent'));
+      absent?.click();
+      const ctxt = document.querySelector('#drawer').hidden ? '' : document.querySelector('#drawer').textContent;
+      closeDrawer({ restore: false });
+      return { unit: /Original unit/.test(txt) && /USD, whole dollars/.test(txt), sum: /non-current line plus the current portion/.test(txt),
+               filing: /Filing/.test(txt) && /not in this dataset yet/.test(txt), stale: /None\\. The figure is computed directly/.test(txt),
+               links: links.length, same: same === filingLinks, sourced: cells.length,
+               absent: absent ? absent.textContent.trim() : null, opened: /Why it is absent|What it is/.test(ctxt) };
+    })()`);
+    const p = [];
+    if (!r.unit) p.push('no original unit');
+    if (!r.sum) p.push('debt / equity drawer does not say debt is summed');
+    if (!r.filing) p.push('no filing row saying the filing date is not held yet');
+    if (r.stale) p.push('the drawer still says nothing was transformed');
+    if (r.links < 3) p.push(`only ${r.links} EDGAR links in the drawer`);
+    if (!r.same) p.push('the Filings tab builds its EDGAR links differently from edgarLinks()');
+    if (!r.sourced || !['not reported', 'n/a', 'withheld', 'no price', 'n/m'].includes(r.absent) || !r.opened) p.push(`compare: ${r.sourced} sourced cells, absent "${r.absent}", drawer opened ${r.opened}`);
+    if (p.length) fail('the source drawer states unit, transformation, filing and EDGAR, and Compare opens it', p);
+    else ok(`the source drawer names the original unit, the debt sum, the filing status and ${r.links} EDGAR links from the Filings tab's own builder; Compare cells open it (${r.sourced} sourced, an absent one reads "${r.absent}")`);
+  }
+  {
+    const r = await evaluate(`(() => {
+      scanDraft = null;
+      navigate('/my/scanner?symbol=MSFT');
+      const inp = [...document.querySelectorAll('main input')].find(i => /Instruments/.test(i.getAttribute('aria-label') || ''));
+      const v = inp ? inp.value : null;
+      scanDraft = null;
+      return { v };
+    })()`);
+    if (r.v !== 'MSFT') fail('the scanner builder does not start on the ?symbol= the company page sends', r);
+    else ok('the scanner builder starts on the symbol the company page sends (?symbol=MSFT)');
+  }
 
 } catch (e) {
   fail('harness error', e.message);

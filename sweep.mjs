@@ -23,6 +23,9 @@ const ROUTES = [
      is withheld, and one whose starting cash flow is negative. */
   '/company/UNH-SEC?tab=valuation', '/company/SIME?tab=valuation', '/company/RIVN-SEC?tab=valuation',
   '/company/SAPNRG?tab=valuation', '/company/APD-SEC?tab=valuation', '/company/DUK-SEC?tab=valuation', '/company/O-SEC?tab=quality',
+  /* The statements explorer on a filer with absent lines and on a bank, whose
+     table drops the cash-flow lines that mean nothing for it. */
+  '/company/ABT-SEC?tab=financials', '/company/F-SEC?tab=financials', '/company/MAYBANK?tab=financials',
   '/start',
   '/compare', '/my/portfolio', '/my/watchlists', '/my/data',
   '/my/theses', '/my/alerts', '/my/tracked', '/my/scanner',

@@ -725,7 +725,11 @@ let scanIdAuto = true;
 function scanBuilder(history, registry, alerts) {
   const card = el('div', { class: 'card' });
   card.append(cardHead('Setup builder', 'Write a setup, test it against your history, then save the JSON as data/scan-setups.json for the worker.'));
-  const d = scanDraft || (scanDraft = scanBlankDraft());
+  /* Opened from a company page, the builder starts on that company's symbol
+     — the ?symbol= the page's link carries. Only a fresh draft takes it, so
+     returning to a half-written setup never loses it. */
+  const fromSymbol = String(new URLSearchParams(location.search).get('symbol') || '').trim().toUpperCase().replace(/[^A-Z0-9.^=:-]/g, '');
+  const d = scanDraft || (scanDraft = { ...scanBlankDraft(), ...(fromSymbol ? { universe: { kind: 'symbols', symbols: [fromSymbol] } } : {}) });
   const rebuild = () => {
     const a = document.activeElement;
     let key = null;
