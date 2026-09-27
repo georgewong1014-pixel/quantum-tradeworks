@@ -416,10 +416,12 @@ function timeframeScoreBars(container, tfs, floors) {
     const g = sv('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, role: 'img', tabindex: '0', class: 'chart-focusable',
       'aria-label': 'Timeframe scores against the floor each must clear for this template. '
         + rows.map(r => `${r.t.label} ${Math.round(r.x.score)} against a floor of ${r.floor}, `
-          + `${r.x.score >= r.floor ? 'clear' : 'short'}, coverage ${Math.round(r.x.coverage * 100)}%.`).join(' ') });
+          + `${qttiClearsFloor(r.x.score, r.floor) ? 'clear' : 'short'}, coverage ${Math.round(r.x.coverage * 100)}%.`).join(' ') });
 
     rows.forEach((r, i) => {
-      const top = i * rowH, clears = r.x.score >= r.floor;
+      /* The engine's own test, so the bar and the gate cannot disagree about a
+         59.5 against a floor of 60. */
+      const top = i * rowH, clears = qttiClearsFloor(r.x.score, r.floor);
       g.append(sv('text', { x: 0, y: top + 12, class: 'dl', fill: 'var(--ink-2)' },
         `${r.t.label} · ${Math.round(r.t.w * 100)}% weight`));
       g.append(sv('text', { x: w, y: top + 12, class: 'dl', fill: 'var(--ink)',

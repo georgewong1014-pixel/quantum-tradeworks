@@ -85,8 +85,22 @@ const CAPABILITY_REGISTER = [
   { name:'Trade-setup scanner', status:'data-gated', path:'/my/scanner',
     now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on the last daily bar your history holds. A watchlist can be its universe, snapshotted into the setup. Never ranked, never delivered, never claimed to work.',
     gate:'Personal lane only: it reads the price history you built under your own subscription, so the deployed site has nothing to scan. Offering it to anyone else needs a licensed end-of-day feed and written classification, and neither exists.' },
+  /* Computed at render, like the US equities row. It was a sentence — "11
+     companies identified with price history" — and the history is git-ignored
+     personal-lane data, so the deployed site, which ships none, stated a local
+     machine's state as a fact about the product while its own Sarawak page
+     said no history was loaded. */
   { name:'Sarawak Economy Watch', status:'data-gated', path:'/discover/sarawak',
-    gate:'11 companies identified with price history. Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.' },
+    gate:() => {
+      const tail = 'Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.';
+      if (!instruments) return `How many companies are identified is not stated until the instrument registry has loaded. ${tail}`;
+      const flagged = (instruments.instruments || []).filter(i => i.sarawak);
+      const withHistory = flagged.filter(i => trackedHistory?.series?.[i.symbol]).length;
+      return `${flagged.length} compan${flagged.length === 1 ? 'y' : 'ies'} identified; `
+        + (withHistory ? `${withHistory} with price history held locally, none of which ships with this site. `
+                       : 'no price history is held here, and this site ships none. ')
+        + tail;
+    } },
   { name:'Portfolio and My Investments', status:'maintenance', path:'/my/portfolio',
     now:'Holdings, weights, currency attribution and thesis links.' },
   { name:'Thesis, catalysts and invalidation', status:'maintenance', path:'/my/theses',
@@ -193,8 +207,12 @@ VIEWS.wheel = () => {
   const wLink = workspaceLinkBanner('wheel', p, () => { saveWheel(); render(); });
   if (wLink) wrap.append(wLink);
 
+  /* Reset clears the figures on screen, and the cycle built from them: the
+     contract, the legs, the cycle's state and basis, and the share count —
+     which an assignment adds to, so leaving it would let the next covered
+     call pass on shares that exist only in the cleared record. */
   wrap.append(workBar('wheel', () => {
-    State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, isWorkedExample: false };
+    State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, ...WHEEL_BLANK_CYCLE, eligibleShares: 0, isWorkedExample: false };
     State.wheelLegs = [];
     saveWheel(); saveWheelLegs();
   }));
@@ -243,9 +261,18 @@ VIEWS.wheel = () => {
          still mostly the example. */
       el('span', { style: 'font-size:14px' },
         'Loaded from the worked contract. Any field you have not changed is still an illustrative figure.'),
+      /* A cycle run on the worked contract is illustrative too: its legs,
+         state and basis were computed from the example's figures. Once this
+         banner goes, nothing else would mark them, so they go with it — and
+         so do the shares its assignments added, and only those. */
       el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto', onclick: () => {
-        State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, isWorkedExample: false };
-        saveWheel(); render(); toast('Contract cleared');
+        const cycle = State.wheelLegs || [];
+        const added = Math.max(0, wheelLedger(cycle).sharesHeld);
+        State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, ...WHEEL_BLANK_CYCLE,
+          eligibleShares: Math.max(0, num0(State.wheel.eligibleShares) - added), isWorkedExample: false };
+        State.wheelLegs = [];
+        saveWheel(); saveWheelLegs(); render();
+        toast(cycle.length ? 'Contract and its illustrative cycle cleared' : 'Contract cleared');
       } }, 'Clear and enter my own'),
     ]));
     wrap.append(note);
@@ -466,13 +493,23 @@ VIEWS.wheel = () => {
       'The premium is not deducted from the cash requirement. A broker’s treatment of unsettled premium, withdrawal rules and settlement state are not knowable here, and reserving less than the full exercise cost is how a cash-secured put stops being cash-secured.'));
     wrap.append(cov);
 
-    /* Premium and the open obligation, side by side. */
+    /* Premium and the open obligation, side by side.
+       The obligation row follows the cycle. It used to describe the put as
+       open whatever had happened to it, so after an assignment this card said
+       "an obligation to buy 100 shares" while the ledger below said "none". */
+    const cycleLegs = State.wheelLegs || [];
+    const putStillOpen = cycleLegs.some(l => l.phase === 'put' && l.status === 'open');
+    const putOutcome = putStillOpen ? null
+      : cycleLegs.some(l => l.action === 'assign') ? 'none — the put was assigned and the shares bought'
+      : p.state === 'put_expired' ? 'none — the put expired'
+      : p.state === 'put_closed' ? 'none — the put was bought back'
+      : null;
     const prem = el('div', { class: 'card' });
     prem.append(cardHead('Premium, and what is still owed',
       'Cash received is not realised profit while the option is open.'));
     const pk = el('dl', { class: 'kv' });
     [['Premium cash received', fmtMoney(m.putPremiumCashReceived, 'USD')],
-     ['Still open against it', `an obligation to buy ${m.deliverableShares} shares at ${fmtMoney(num0(p.putStrike), 'USD')}`],
+     ['Still open against it', putOutcome || `an obligation to buy ${m.deliverableShares} shares at ${fmtMoney(num0(p.putStrike), 'USD')}`],
      ['Period cash yield', isNum(m.putPeriodCashYield) ? fmtPct(m.putPeriodCashYield * 100, 2) : '—'],
      ['Simple annualised illustration', isNum(m.simpleAnnualisedPutYield) ? fmtPct(m.simpleAnnualisedPutYield * 100, 1) : '—'],
      ['Economic basis if assigned', isNum(m.economicShareBasis) ? fmtMoney(m.economicShareBasis, 'USD') : '—'],
@@ -646,6 +683,12 @@ VIEWS.wheel = () => {
       const basis = isNum(p.shareCostBasisOverride) ? p.shareCostBasisOverride
                   : isNum(m.shareCostBasis) ? m.shareCostBasis : 0;
       const proceeds = num0(l.strike) * num0(l.shares);
+      /* Sold shares are no longer held. Assignment adds the deliverable to
+         the unencumbered count; without the matching subtraction the next
+         cycle's covered-call check passed on shares already sold, and a
+         second assignment made 100 into 200. */
+      p.eligibleShares = Math.max(0, num0(p.eligibleShares) - num0(l.shares));
+      saveWheel();
       State.wheelLegs[i] = { ...l, status:'resolved', realisedPnl: num0(l.netCash), note:'Assigned — shares sold at the strike.' };
       addWheelLeg({ phase:'shares', action:'called_away', status:'resolved',
         contractLabel:l.contractLabel, shares:l.shares,
@@ -748,7 +791,8 @@ VIEWS.wheel = () => {
      /* The same total from cash movements alone. Shown beside the total rather
         than checked in private, because a reader is entitled to see that the
         two agree — and to see it immediately if they ever stop. */
-     ['Same total from cash movements', led.cycleClosed ? fmtMoney(led.cashFlowRealised, 'USD') : '— (cycle still open)'],
+     ['Same total from cash movements', led.cycleClosed ? fmtMoney(led.cashFlowRealised, 'USD')
+        : led.sharesHeld > 0 && !led.openLegs ? '— (shares still held)' : '— (cycle still open)'],
      ['Maximum capital committed', fmtMoney(led.maxCapitalCommitted, 'USD')],
      ['Return on maximum committed', isNum(led.cycleReturnOnMaxCommitted)
         ? fmtPct(led.cycleReturnOnMaxCommitted * 100, 2) : '—']]

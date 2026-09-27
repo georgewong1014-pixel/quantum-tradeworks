@@ -237,11 +237,15 @@ function wheelFit(p, m, r) {
     gates.push('You have not confirmed you are willing to sell the entire covered quantity at the call strike.');
   if (!p.optionsApprovalAttested) gates.push('Broker options approval and US market access have not been attested.');
   if (!p.quoteTimestamp) gates.push('No quote timestamp. A premium yield computed from an undated quote is not assessable.');
-  if (p.phase !== 'call' && !m.cashSecured)
+  /* Only on a contract whose deliverable is known. While it is not, there is
+     no obligation to cover and the gate above already says why; falling
+     through here reported "Eligible cash has not been entered" beside a field
+     holding $5,000, because an invalid contract never computes the coverage. */
+  if (m.valid && p.phase !== 'call' && !m.cashSecured)
     gates.push(isNum(m.cashCoveragePct)
       ? `Cash covers ${fmtPct(m.cashCoveragePct * 100, 1)} of the ${fmtMoney(m.requiredAssignmentCash, 'USD')} assignment obligation. A put is not cash-secured below 100%, and the premium does not reduce the requirement.`
       : 'Eligible cash has not been entered, so the put cannot be shown as cash-secured.');
-  if (p.phase === 'call' && !m.covered)
+  if (m.valid && p.phase === 'call' && !m.covered)
     gates.push(isNum(m.shareCoveragePct)
       ? `Unencumbered shares cover ${fmtPct(m.shareCoveragePct * 100, 1)} of the ${m.requiredCoveredShares}-share deliverable. A call is not covered below 100%.`
       : 'Eligible shares have not been entered, so the call cannot be shown as covered.');
@@ -312,7 +316,7 @@ function wheelLedger(legs) {
     grossPremiumQuoted: 0, premiumCashReceived: 0, openOptionLiability: 0,
     realisedOptionPnl: 0, shareAcquisitionCash: 0, realisedSharePnl: 0, shareSaleProceeds: 0,
     dividends: 0, commissions: 0, fees: 0, fxCostMyr: 0,
-    openLegs: 0, resolvedLegs: 0, maxCapitalCommitted: 0,
+    openLegs: 0, resolvedLegs: 0, maxCapitalCommitted: 0, sharesHeld: 0,
   };
   L.forEach(l => {
     t.grossPremiumQuoted += num0(l.grossPremium);
@@ -328,10 +332,11 @@ function wheelLedger(legs) {
        stays a cash column rather than becoming a profit column. */
     if (l.action === 'close') t.premiumCashReceived += num0(l.netCash);
     if (isNum(l.realisedPnl)) { t.realisedOptionPnl += l.realisedPnl; t.resolvedLegs++; }
-    if (l.action === 'assign') t.shareAcquisitionCash += num0(l.cashPaid);
+    if (l.action === 'assign') { t.shareAcquisitionCash += num0(l.cashPaid); t.sharesHeld += num0(l.shares); }
     if (l.action === 'called_away') {
       t.realisedSharePnl += num0(l.realisedSharePnl);
       t.shareSaleProceeds += num0(l.shareSaleProceeds);
+      t.sharesHeld -= num0(l.shares);
     }
     t.maxCapitalCommitted = Math.max(t.maxCapitalCommitted, num0(l.capitalCommitted));
   });
@@ -349,7 +354,13 @@ function wheelLedger(legs) {
      instead of quietly presenting whichever number it happened to reach first. */
   t.cashFlowRealised = t.premiumCashReceived + t.shareSaleProceeds
     - t.shareAcquisitionCash + t.dividends;
-  t.cycleClosed = t.openLegs === 0 && t.resolvedLegs > 0;
+  /* Closed means nothing is still at risk — no open option AND no shares still
+     held. After an assignment every option leg is resolved, but the cash that
+     bought the shares has left the account while the shares have not been
+     sold: the cash total reads the purchase as a loss of the whole strike, and
+     the check that follows raised a "please report this" alarm on an ordinary
+     assigned cycle. The shares are an open position, so the cycle is open. */
+  t.cycleClosed = t.openLegs === 0 && t.resolvedLegs > 0 && t.sharesHeld <= 0;
   t.reconciliationGap = t.totalRealisedCyclePnl - t.cashFlowRealised;
   t.reconciles = !t.cycleClosed || Math.abs(t.reconciliationGap) < 0.005;
 
@@ -440,6 +451,14 @@ const WHEEL_BLANK_CONTRACT = {
   putStrike: 0, putCredit: 0, contracts: 0,
   openCommission: 0, openFees: 0, assignmentFees: 0,
   eligibleCashUsd: 0, calendarDaysOpen: 0, quoteTimestamp: '',
+};
+/* The cycle's own position, which the contract keys above do not touch. A
+   clear that blanked the contract and the legs but left these behind showed a
+   rail at "Assigned", a phase of "covered call" and a frozen share basis on a
+   tool with nothing entered — the same keys "Clear the cycle" resets. */
+const WHEEL_BLANK_CYCLE = {
+  state: 'candidate', phase: 'put',
+  economicShareBasisOverride: null, shareCostBasisOverride: null,
 };
 
 /* Directive 7.9. The tier decides what may be shown at all, and it is decided
