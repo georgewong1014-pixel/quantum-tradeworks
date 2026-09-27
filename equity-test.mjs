@@ -1201,6 +1201,147 @@ try {
     else ok('a roll records a close leg with its own id and only its own costs ($2.50 of fees and commissions, not $3.00), and a rolled call commits no capital');
   }
 
+  /* THE THESIS AND THE STUDIO SAY WHAT THEY DO. A decision review opens on a
+     company no model could be built for; deleting a thesis deletes the review
+     history the dialog says it deletes; coverage counts watchlist entries with
+     a thesis; the "price above the estimate" condition divides by the
+     estimate; a new thesis's review date follows its creation and a passed one
+     does not satisfy step 7; a saved run keeps its figures and the replay is
+     compared with them. */
+  {
+    const r = await evaluate(`(() => {
+      const out = {};
+      window.confirm = () => true;
+      const noModel = U.find(x => x.c.real && x.inputs.model === 'unavailable' && !State.theses.some(t => t.ticker === x.c.id));
+      const offList = U.find(x => !State.watchlist.includes(x.c.id) && !State.theses.some(t => t.ticker === x.c.id) && x.c.id !== noModel?.c.id);
+      out.noModel = noModel?.c.id || null;
+      if (noModel) {
+        addToThesis(noModel.c.id);
+        const t = State.theses.find(x => x.ticker === noModel.c.id);
+        const today = new Date().toISOString().slice(0, 10);
+        out.reviewAhead = t.review > today && (new Date(t.review) - Date.now()) > 80 * 86400000;
+        try { openReview(t); out.reviewOpened = /no driver to name/.test(document.querySelector('.drawer')?.textContent || ''); }
+        catch (e) { out.reviewOpened = 'threw: ' + e.message; }
+        closeDrawer({ restore: false });
+        const past = { ...t, review: '2020-01-01' };
+        out.pastStep7 = sevenSteps(noModel, past)[6].ok;
+        const all = store.read('reviews', {}); all[t.id] = [{ date: today, breaches: 0, answers: [{ question: 'q', answer: 'a' }] }]; store.write('reviews', all);
+        openThesisEditor(t);
+        [...document.querySelectorAll('.drawer button')].find(b => b.textContent.trim() === 'Delete')?.click();
+        out.reviewsGone = !(t.id in (store.read('reviews', {}) || {})) && !State.theses.some(x => x.id === t.id);
+      }
+      if (offList) {
+        const covered = () => State.watchlist.filter(id => State.theses.some(t => t.ticker === id)).length;
+        const want = covered() + '/' + State.watchlist.length;
+        addToThesis(offList.c.id);
+        navigate('/my/theses');
+        const tile = [...document.querySelectorAll('.card')].find(c => /Watchlist coverage/.test(c.textContent) && c.textContent.length < 200);
+        out.coverage = { want, shown: tile?.querySelector('.stat-value')?.textContent };
+        State.theses = State.theses.filter(t => t.ticker !== offList.c.id); saveTheses();
+      }
+      const priced = U.find(x => isNum(x.val.price) && isNum(x.val.vals?.base) && x.val.vals.base > 0 && Math.abs(x.val.price / x.val.vals.base - 1) > 0.05);
+      if (priced) {
+        const e = evaluateThesis({ ticker: priced.c.id, conds: [{ type: 'val', op: '>', v: 15, label: 'x' }] });
+        const cd = [...e.breaches, ...e.ok][0];
+        out.premium = { id: priced.c.id, got: cd.actual, want: (priced.val.price - priced.val.vals.base) / priced.val.vals.base * 100 };
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (!r.noModel) p.push('no filed company without a valuation model to test');
+    else {
+      if (r.reviewOpened !== true) p.push(`decision review on ${r.noModel}: ${r.reviewOpened}`);
+      if (!r.reviewAhead) p.push('a new thesis does not get a review date about ninety days ahead');
+      if (r.pastStep7 !== false) p.push('a review date in the past still satisfies step 7');
+      if (!r.reviewsGone) p.push('deleting a thesis left its review history in storage');
+    }
+    if (!r.coverage || r.coverage.want !== r.coverage.shown) p.push(`watchlist coverage ${JSON.stringify(r.coverage)}`);
+    if (!r.premium || Math.abs(r.premium.got - r.premium.want) > 1e-9) p.push(`premium to the base-case estimate ${JSON.stringify(r.premium)}`);
+    if (p.length) fail('the thesis page does what its labels say', p);
+    else ok(`the thesis page does what its labels say — review opens on ${r.noModel}, deletion takes the reviews, coverage ${r.coverage.shown}, premium measured on the estimate (${r.premium.id})`);
+  }
+
+  /* THE STUDIO. A cleared input is absent, not the previous value; the nine-
+     methods sentence has no price clause without a price; the bull shifts are
+     printed as applied; Go changes the address; a saved run is compared with
+     its replay and a different data date is stated. */
+  {
+    await evaluate(`navigate('/company/MAYBANK?tab=valuation')`);
+    await sleep(600);
+    const r = await evaluate(`(() => {
+      const out = {};
+      const txt = () => document.querySelector('main')?.innerText || '';
+      out.bull = /bull case applies [a-zA-Z]+ [+−-]/.test(txt()) && !/mirror image/.test(txt());
+      const f = document.querySelector('#as-coe') || document.querySelector('.assumption input[type=number]');
+      const k = f.id.slice(3);
+      const set = (v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(f, v); f.dispatchEvent(new Event('input', { bubbles: true })); };
+      set('');
+      out.cleared = { stored: State.valuation.MAYBANK[k], empty: /is empty — no estimate/.test(txt()), noRange: !/Base case\\n/.test(document.querySelector('.studio-layout')?.innerText || '') };
+      [...document.querySelectorAll('button')].find(b => b.textContent === 'Reset')?.click();
+      [...document.querySelectorAll('button')].find(b => b.textContent === 'Save this valuation run')?.click();
+      const runs = store.read('runs', []);
+      out.savedVals = !!(runs[0]?.vals && isNum(runs[0].vals.base));
+      const t = State.theses.find(x => x.ticker === 'MAYBANK') || (addToThesis('MAYBANK'), State.theses.find(x => x.ticker === 'MAYBANK'));
+      t.runRef = runs[0].runId;
+      openSavedRun(t);
+      out.exact = /gives the saved figures exactly/.test(document.querySelector('.drawer')?.textContent || '');
+      closeDrawer({ restore: false });
+      if (runs[0].vals) runs[0].vals.base *= 1.1;
+      runs[0].asOf = '01 Jan 2020'; store.write('runs', runs);
+      openSavedRun(t);
+      const d = document.querySelector('.drawer')?.textContent || '';
+      out.differs = /different figures from the ones saved/.test(d) && /data as of 01 Jan 2020/.test(d);
+      closeDrawer({ restore: false });
+      return out;
+    })()`);
+    await evaluate(`navigate('/company/UNH-SEC?tab=valuation')`);
+    await sleep(600);
+    r.unpriced = await evaluate(`(() => { const s = [...document.querySelectorAll('p.metaline')].map(p => p.textContent).find(t => /Applicable methods span/.test(t)); return s === undefined ? 'absent' : !/market price of —/.test(s); })()`);
+    await evaluate(`navigate('/company/MAYBANK?tab=thesis')`);
+    await sleep(600);
+    r.go = await evaluate(`(() => { const b = [...document.querySelectorAll('main button')].filter(x => x.textContent === 'Go')[1]; b?.click(); return location.search; })()`);
+    const p = [];
+    if (!r.bull) p.push('the scenario note does not print the bull shifts');
+    if (!(r.cleared.stored === null && r.cleared.empty && r.cleared.noRange)) p.push(`a cleared input: ${JSON.stringify(r.cleared)}`);
+    if (!r.savedVals) p.push('a saved run keeps no output figures');
+    if (!r.exact) p.push('an untouched saved run is not reported as reproduced');
+    if (!r.differs) p.push('a saved run whose figures or data date differ is not reported as such');
+    if (r.unpriced !== true) p.push(`nine-methods sentence on an unpriced company: ${r.unpriced}`);
+    if (r.go !== '?tab=risks') p.push(`seven-step Go left the address at ${r.go}`);
+    if (p.length) fail('the Valuation Studio states what it computed and nothing it did not', p);
+    else ok('the Valuation Studio states what it computed — an emptied input stops the estimate, saved runs are compared with their replay, the bull shifts are printed, Go changes the address');
+  }
+
+  /* COMPARE AND ONBOARDING. The currency sentence follows the toggle; no
+     preset promises more companies than a comparison holds; the US answer
+     lands on a filed company; the market answer sets the screener's universe;
+     the counter counts the questions and focus follows the question. */
+  {
+    const r = await evaluate(`(() => {
+      const out = {};
+      State.compare = ['AAPL-SEC', 'MAYBANK']; State.compareCcy = 'local'; navigate('/compare');
+      const g = [...document.querySelectorAll('.guardrail')].map(n => n.textContent).find(t => /currenc/.test(t)) || '';
+      out.local = !/converted/.test(g) && /not comparable across markets/.test(g);
+      out.wholeUniverse = [...document.querySelectorAll('button')].some(b => /Whole universe/.test(b.textContent));
+      State.compareCcy = 'common'; store.write('compareCcy', 'common');
+      State.obStep = 0; State.obDraft = {}; navigate('/welcome');
+      out.counter = document.querySelector('.ob-wrap .eyebrow')?.textContent;
+      document.querySelector('.ob-option')?.click();
+      out.focus = document.activeElement?.tagName;
+      completeOnboarding({ goal: 'us', level: 'experienced', market: 'US', ccy: State.baseCcy });
+      out.landed = { id: State.ticker, real: !!BY_ID.get(State.ticker)?.c.real, universe: State.screen?.universe };
+      return out;
+    })()`);
+    const p = [];
+    if (!r.local) p.push('the mixed-currency warning says "converted" in Local-currency mode');
+    if (r.wholeUniverse) p.push('a "Whole universe" preset is still offered');
+    if (r.counter !== 'Step 1 of 4') p.push(`onboarding counter reads "${r.counter}"`);
+    if (r.focus !== 'H1') p.push(`focus after an onboarding answer is on ${r.focus}`);
+    if (!r.landed.real || r.landed.universe !== 'US') p.push(`onboarding US answer: ${JSON.stringify(r.landed)}`);
+    if (p.length) fail('compare and onboarding do what their labels say', p);
+    else ok(`compare and onboarding do what their labels say — local-currency warning, no uncapped preset, "Step 1 of 4", focus on the question, US lands on ${r.landed.id}`);
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
