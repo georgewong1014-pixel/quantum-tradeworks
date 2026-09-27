@@ -466,6 +466,7 @@ Not planned this phase. Both need a backend, imports and an entity.
 | Property arithmetic | `model-test.mjs` | 24 definitional invariants (NPV at the IRR is zero, break-evens are zeros, exits sum the path…) |
 | Filed statements | `equity-test.mjs` | 23 checks: labels, absent-line rules, goldens by fiscal-year label, split withholding, rendered surfaces, address and focus rules |
 | Mobile | `mobile.mjs` | horizontal overflow at 360–1440 on 20 routes; unloaded or unmeasurable pages fail |
+| Capability register | `register-check.mjs` | an operational row with no live route, a priority that disagrees with the Phase 2 plan, a brief item with no row, a named check that does not exist, a partial P1 surface not feature-flagged |
 
 ### The brief's twelve acceptance criteria, against this codebase
 
@@ -489,6 +490,14 @@ Not planned this phase. Both need a backend, imports and an entity.
 A commit ships when the local suite is green, the build reproduces, the CI run
 on the push is green, and the commit message states what was verified. That is
 the rule this repository has followed since August and it does not change.
+
+For the Phase 2 equities brief it gains a mechanical half, checked by
+`register-check.mjs` on every push: a P0 row is marked complete only with its
+checks named and passing; a P1 surface that is partial is feature-flagged —
+reachable, marked partial on the page from the register row, and not counted
+as operational — or has no surface yet; and no row in an operational state
+points at a route that does not exist. `register-check.mjs --release` fails
+while any P0 row is partial. See [phase2-qa.md](phase2-qa.md).
 
 ---
 

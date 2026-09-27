@@ -2169,6 +2169,651 @@ try {
     if (p.length) fail('the research report identifies, legends and reproduces what it prints', p);
     else ok('the research report labels filed and illustrative covers, legends all five figure kinds, leaves no metric blank, says the PDF is the browser\'s print, and from a saved run prints the saved statements with a moved-data notice');
   }
+  /* ═══════════════════════════════════════════════════════════════════════
+     THE RESEARCH QA CHECKLIST (Phase 2 brief EQ-215; docs/phase2-qa.md maps
+     all eighteen items). What follows are the items no check above covered.
+     Each names its checklist number so the map can point at it, and each is
+     a definition or a pinned fact rather than a snapshot of today's page.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* Waits for the whole filed set after a reload or a navigation that boots
+     the app again. The first wait at the top of the file is the model. */
+  const waitFiled = async (n = expected) => {
+    let got = 0;
+    for (let i = 0; i < 80 && got !== n; i++) {
+      await sleep(500);
+      try { got = await evaluate(`typeof U === 'undefined' || typeof realPending === 'undefined' || realPending ? -1 : U.filter(r => r.c.real).length`); } catch { /* booting */ }
+    }
+    return got === n;
+  };
+
+  /* Checklist 1 and 2 — CANONICAL IDS ACROSS EXCHANGES, AND EVERY ALIAS.
+     One instrument per market and symbol, of the MARKET:SYMBOL form; every
+     company row is exactly one instrument and the instrument names it back;
+     and not a sample of aliases but all of them — every filer by its
+     ticker, its -SEC id and its CIK, every Bursa row by its listing code,
+     its short name and the vendor's .KL form. */
+  {
+    const r = await evaluate(`(() => {
+      rebuildInstruments();
+      const bad = [];
+      for (const k of INSTRUMENTS.keys()) if (!/^[A-Z]{2,6}:[^\\s:]+$/.test(k)) bad.push('id shape ' + k);
+      const seen = new Map();
+      for (const row of U) {
+        const ins = instrumentOfCompany(row.c);
+        if (!INSTRUMENTS.has(ins.id)) { bad.push(row.c.id + ' has no instrument'); continue; }
+        if (INSTRUMENTS.get(ins.id).companyId !== row.c.id) bad.push(ins.id + ' names ' + INSTRUMENTS.get(ins.id).companyId + ', not ' + row.c.id);
+        if (seen.has(ins.id)) bad.push(ins.id + ' is both ' + seen.get(ins.id) + ' and ' + row.c.id);
+        seen.set(ins.id, row.c.id);
+        const names = row.c.real && !row.c.personal ? [row.c.tk, row.c.id, 'CIK' + String(row.c.cik).padStart(10, '0'), 'CIK ' + Number(row.c.cik)]
+          : row.c.mkt === 'MY' ? [row.c.code, row.c.id, row.c.code + '.KL', 'MY:' + row.c.code] : [row.c.tk, row.c.id];
+        for (const n of names) { const got = resolveInstrument(n)?.id; if (got !== ins.id) bad.push(n + ' → ' + got + ', not ' + ins.id); }
+      }
+      return { bad, instruments: INSTRUMENTS.size, rows: U.length, filers: U.filter(x => x.c.real).length };
+    })()`);
+    if (r.bad.length) fail(`canonical ids are one per instrument (checklist 1, 2) — ${r.bad.length} problems`, r.bad.slice(0, 8));
+    else ok(`canonical ids are one per instrument across both markets (checklist 1, 2) — ${r.instruments} instruments of the MARKET:SYMBOL form, all ${r.rows} company rows on one each, every filer answering to its ticker, -SEC id and CIK, every Bursa row to its code, short name and .KL form`);
+  }
+
+  /* Checklist 3 — A DUPLICATE INSTRUMENT IS REFUSED, at each of the three
+     places one could enter: the shipped file (the ingest CLI does not
+     de-duplicate its arguments, and the loader would drop the second record
+     silently), the registry (a stand-in beside its filer must not become a
+     second instrument), and the universe (a filer retires its stand-in). The
+     registry and universe cases use a stand-in made for the check and put
+     everything back. */
+  {
+    const file = (await (await fetch(`${BASE}/data/us.json`)).json()).results.map(x => x.id);
+    const dupInFile = file.filter((v, i) => file.indexOf(v) !== i);
+    const r = await evaluate(`(() => {
+      const out = {};
+      const before = rebuildInstruments();
+      const filer = BY_ID.get('AAPL-SEC');
+      const standIn = { c: { ...filer.c, id: 'QA-AAPL-STANDIN', real: false, cik: null, personal: false } };
+      U.push(standIn);
+      out.sizeWith = rebuildInstruments();
+      out.kept = INSTRUMENTS.get('US:AAPL')?.companyId;
+      U.pop();
+      out.sizeAfter = rebuildInstruments();
+      out.before = before;
+      const fake = { c: { id: 'QAZZ', tk: 'QAZZ', code: 'QAZZ', mkt: 'US', real: false } };
+      U.push(fake); BY_ID.set('QAZZ', fake);
+      const retired = retireIllustrativeTwin({ tk: 'QAZZ', code: 'QAZZ', mkt: 'US' });
+      out.retired = retired?.from || null;
+      out.gone = !U.includes(fake) && !BY_ID.has('QAZZ');
+      if (!out.gone) { U.splice(U.indexOf(fake), 1); BY_ID.delete('QAZZ'); }
+      out.refusedAdd = (() => { const w = State.watchlists[0]; const had = w.ids.includes('MSFT-SEC'); if (!had) wlAdd(w.id, 'MSFT-SEC'); const again = wlAdd(w.id, 'CIK0000789019'); if (!had) wlRemove(w.id, 'MSFT-SEC'); return !!again.duplicate; })();
+      return out;
+    })()`);
+    const p = [];
+    if (dupInFile.length) p.push(`data/us.json names ${dupInFile.join(', ')} more than once`);
+    if (r.sizeWith !== r.before || r.kept !== 'AAPL-SEC') p.push(`a stand-in beside AAPL-SEC made ${r.sizeWith} instruments (was ${r.before}) and US:AAPL names ${r.kept}`);
+    if (r.sizeAfter !== r.before) p.push(`the registry did not return to ${r.before} instruments`);
+    if (r.retired !== 'QAZZ' || !r.gone) p.push(`a filer did not retire its stand-in: ${JSON.stringify(r)}`);
+    if (!r.refusedAdd) p.push('a watchlist took the same company under its CIK');
+    if (p.length) fail('a duplicate instrument is refused (checklist 3)', p);
+    else ok(`a duplicate instrument is refused (checklist 3) — the shipped file names each of its ${file.length} filers once, a stand-in beside its filer does not become a second instrument, a filer retires its stand-in, and a watchlist refuses a company under a second name`);
+  }
+
+  /* Checklist 18 — EXCHANGE METADATA, AND NOTHING INVENTED FOR IT. Every
+     instrument in the two markets carries a market, a currency and a
+     country, and an exchange code with where it came from. A filer's venue
+     is not in SEC companyfacts, so its code is the market and its source
+     says "unknown"; a venue made up here would be the first thing a scanner
+     trusted. When the ingest records venues, this check still holds. */
+  {
+    const r = await evaluate(`(() => {
+      const bad = [];
+      const mics = new Set(EXCHANGE_MIC.map(x => x[1]));
+      for (const ins of INSTRUMENTS.values()) {
+        if (!['US', 'MY'].includes(ins.market)) continue;
+        if (!ins.currency || !ins.country) bad.push(ins.id + ': no currency or country');
+        if (!ins.exchangeCodeSource) bad.push(ins.id + ': no source for its exchange code');
+        const listed = mics.has(ins.exchangeCode) && ins.exchangeCodeSource === 'listed';
+        const unknown = ins.exchangeCode === ins.market && /^unknown/.test(ins.exchangeCodeSource);
+        if (!listed && !unknown) bad.push(ins.id + ': ' + ins.exchangeCode + ' from "' + ins.exchangeCodeSource + '"');
+        if (ins.market === 'MY' && ins.exchangeCode !== 'XKLS') bad.push(ins.id + ': a Bursa listing on ' + ins.exchangeCode);
+      }
+      for (const m of ['US', 'MY']) if (!MARKETS[m]?.tz || !MARKETS[m]?.session || !MARKETS[m]?.currency) bad.push('MARKETS.' + m + ' lacks a time zone, session or currency');
+      const filers = [...INSTRUMENTS.values()].filter(i => i.dataStatus === 'FILED' && i.market === 'US');
+      return { bad, filers: filers.length, unknown: filers.filter(i => /^unknown/.test(i.exchangeCodeSource)).length };
+    })()`);
+    if (r.bad.length) fail('every instrument states its exchange metadata and where it came from (checklist 18)', r.bad.slice(0, 8));
+    else ok(`every instrument states its exchange metadata and where it came from (checklist 18) — ${r.unknown} of ${r.filers} filers say their venue is unknown rather than name one; SEC companyfacts carries none`);
+  }
+
+  /* Checklist 16 — ONE SCANNER IDENTIFIER PER INSTRUMENT. The scanner keys
+     its history, its alerts and its dedupe on the bare symbol, so a symbol
+     two markets share would be two instruments under one key — "TM" is
+     Telekom on Bursa and Toyota in New York. None shares one today; this
+     fails the day one arrives, before an alert is recorded against the wrong
+     company. And the symbol a company hands the scanner is its instrument's,
+     the one that does not change when a filer retires its stand-in. */
+  {
+    const r = await evaluate(`(() => {
+      const bySym = new Map(), clash = [], drift = [];
+      for (const ins of INSTRUMENTS.values()) {
+        const k = String(ins.symbol).toUpperCase();
+        if (bySym.has(k) && bySym.get(k) !== ins.id) clash.push(k + ': ' + bySym.get(k) + ' and ' + ins.id);
+        bySym.set(k, ins.id);
+      }
+      for (const row of U) {
+        const sym = instrumentSymbolFor(row.c), ins = instrumentOfCompany(row.c);
+        if (sym !== ins.symbol || resolveInstrument(sym)?.id !== ins.id) drift.push(row.c.id + ': ' + sym + ' vs ' + ins.id);
+      }
+      const key = scanKey('qa', 'AAPL', 'daily', '2026-01-02');
+      return { clash, drift, key, n: INSTRUMENTS.size };
+    })()`);
+    const p = [...r.clash.map(x => `two instruments share the scanner key ${x}`), ...r.drift.slice(0, 5)];
+    if (r.key !== 'qa|AAPL|daily|2026-01-02') p.push(`the alert key is ${r.key}`);
+    if (p.length) fail('every instrument has one scanner identifier (checklist 16)', p);
+    else ok(`every instrument has one scanner identifier (checklist 16) — ${r.n} symbols, none shared across markets, each resolving back to its own instrument, and the alert key built on it`);
+  }
+
+  /* Checklist 4 and 9 — THE SOURCE RECORD RECONCILES WITH THE PAGE, FOR
+     EVERY FILER. The goldens pin three companies to their filings; this
+     holds all of them to the file they were loaded from. data/us.json is
+     fetched afresh, each company's Financials tab is built, and every cell
+     of every line that maps to a stored column is read back: a present
+     figure equals the file's to the precision printed, an absent one prints
+     no number, and a figure the loader withholds (the shipped file's
+     misassembled debt and share counts) prints no number and is named in
+     the company's withheld record. The columns are the company's own
+     fiscal years, and both captions state the currency and the unit. */
+  {
+    const r = await evaluate(`(async () => {
+      const src = await (await fetch(dataUrl('us.json'), { cache: 'no-store' })).json();
+      const byId = new Map(src.results.map(x => [x.id + '-SEC', x]));
+      const LINE = [[/^(Revenue|Total income)\\b/, F.REV], [/^Net (profit|income)\\b/, F.NI], [/^Operating cash flow\\b/, F.OCF],
+        [/^Capital expenditure\\b/, F.CAPEX], [/^Shareholders/, F.EQ], [/^(Total debt|Borrowings)\\b/, F.DEBT],
+        [/^Cash and equivalents\\b/, F.CASH], [/^Shares in issue\\b/, F.SH], [/^(Dividend per share|Distribution per unit)\\b/, F.DPS]];
+      const HELD = { [F.DEBT]: 'debt', [F.SH]: 'sh' };
+      const num = (t) => { const m = String(t).replace(/,/g, '').replace(/\\u2212/g, '-').trim().match(/^(-?\\d+)(\\.(\\d+))?$/); return m ? { v: +m[0], dp: (m[3] || '').length } : null; };
+      const bad = []; let companies = 0, cells = 0, absent = 0, held = 0;
+      for (const row of U.filter(x => x.c.real && !x.c.personal)) {
+        const c = row.c, s = byId.get(c.id);
+        if (!s) { bad.push(c.id + ': not in data/us.json'); continue; }
+        companies++;
+        const node = tabFinancials(row), text = node.textContent;
+        const span = 'FY' + s.years[0] + '\\u2013FY' + s.years[s.years.length - 1];
+        if (!text.includes('Reported ' + c.ccy + ' billions, ' + span)) bad.push(c.id + ': the chart caption does not say ' + c.ccy + ' billions over ' + span);
+        if (!text.includes('All values in ' + c.ccy + ' billions')) bad.push(c.id + ': the statement caption does not state its unit');
+        const lines = new Set();
+        for (const t of node.querySelectorAll('table')) {
+          const col = new Map();
+          [...t.querySelectorAll('thead th')].forEach((th, i) => { const m = th.textContent.trim().match(/^FY(\\d{4})$/); if (m) col.set(+m[1], i); });
+          if (!col.size) continue;
+          if ([...col.keys()].join() !== s.years.join()) bad.push(c.id + ': columns ' + [...col.keys()].join(',') + ' are not its years ' + s.years.join(','));
+          for (const tr of t.querySelectorAll('tbody tr')) {
+            const td = [...tr.children], label = (td[0]?.textContent || '').trim();
+            const j = label.startsWith(ebitLabel(c)) ? F.EBIT : (LINE.find(([re]) => re.test(label)) || [])[1];
+            if (j == null) continue;
+            lines.add(j);
+            for (const [y, i] of col) {
+              const k = s.years.indexOf(y), filed = s.fin[k]?.[j], shown = (td[i]?.textContent || '').trim(), p = num(shown);
+              const withheld = HELD[j] && c.withheld?.[HELD[j]]?.years?.includes(y);
+              cells++;
+              if (filed == null || withheld) {
+                if (p) bad.push(c.id + ' ' + label + ' FY' + y + ': ' + (withheld ? 'withheld' : 'absent') + ' in the source, "' + shown + '" on the page');
+                else if (withheld) held++; else absent++;
+                continue;
+              }
+              if (!p) { bad.push(c.id + ' ' + label + ' FY' + y + ': the file holds ' + filed + ', the page "' + shown + '"'); continue; }
+              const want = j === F.CAPEX ? Math.abs(filed) : filed, got = j === F.CAPEX ? Math.abs(p.v) : p.v;
+              if (Math.abs(got - want) > 0.5 * Math.pow(10, -p.dp) + 1e-9) bad.push(c.id + ' ' + label + ' FY' + y + ': the file holds ' + filed + ', the page ' + shown);
+            }
+          }
+        }
+        const need = c.type === 'bank' ? [F.REV, F.EBIT, F.NI, F.EQ, F.DEBT, F.SH, F.DPS] : Object.values(F);
+        const missing = need.filter(j => !lines.has(j));
+        if (missing.length) bad.push(c.id + ': no row for stored column(s) ' + missing.join(','));
+      }
+      return { bad: bad.slice(0, 10), nBad: bad.length, companies, cells, absent, held, file: src.results.length };
+    })()`);
+    if (r.nBad || r.companies !== r.file) fail(`every filed company’s statement table reconciles with data/us.json (checklist 4, 9) — ${r.nBad} disagreements over ${r.companies} of ${r.file} filers`, r.bad);
+    else ok(`every filed company’s statement table reconciles with data/us.json (checklist 4, 9) — ${r.cells} cells across all ${r.companies} filers: every figure equal to the file at the precision printed, ${r.absent} absent and ${r.held} withheld cells printing no number, columns on each company’s own years, and USD billions stated on both captions`);
+  }
+
+  /* Checklist 10 — RATIOS AGAINST FIGURES RECOMPUTED BY HAND. The inputs
+     below are typed from the filings, not read from data/us.json, so a
+     re-ingest that moved a line would fail here as well as in the goldens.
+     Apple's 10-K for the year ended 28 September 2024: net sales 391,035;
+     operating income 123,216; net income 93,736; cash generated by
+     operating activities 118,254; payments for property, plant and
+     equipment 9,447; total shareholders' equity 56,950, and 62,146 a year
+     earlier. Microsoft's 10-K for the year ended 30 June 2025: revenue
+     281,724; operating income 128,528; net income 101,832; net cash from
+     operations 136,162; additions to property and equipment 64,551; total
+     stockholders' equity 343,479, and 268,477 a year earlier. All $m. The
+     engine's ratio for that year is computed on the statements cut at that
+     year, as the source drawer's prior-period figure is, and compared to
+     0.01 of a percentage point. Bursa ratios have no independent reference
+     to meet: the Bursa figures are synthetic (docs/phase2-qa.md). */
+  {
+    const REF = [
+      { id: 'AAPL-SEC', fy: 2024, rev: 391035, ebit: 123216, ni: 93736, ocf: 118254, capex: 9447, eq: 56950, eqPrior: 62146 },
+      { id: 'MSFT-SEC', fy: 2025, rev: 281724, ebit: 128528, ni: 101832, ocf: 136162, capex: 64551, eq: 343479, eqPrior: 268477 },
+    ];
+    const p = [], shown = [];
+    for (const g of REF) {
+      /* The definitions, as the dictionary publishes them. */
+      const want = {
+        om: g.ebit / g.rev * 100,                          /* operating margin */
+        nm: g.ni / g.rev * 100,                            /* net margin */
+        fcfm: (g.ocf - g.capex) / g.rev * 100,             /* free cash flow margin */
+        roe: g.ni / ((g.eq + g.eqPrior) / 2) * 100,        /* return on average equity */
+        cashconv: g.ocf / g.ni * 100,                      /* cash conversion */
+      };
+      const got = await evaluate(`(() => {
+        const c = BY_ID.get(${JSON.stringify(g.id)}).c, k = c.years.indexOf(${g.fy});
+        if (k < 0) return null;
+        const m = derive({ ...c, fin: c.fin.slice(0, k + 1), years: c.years.slice(0, k + 1) }).m;
+        return { om: m.om, nm: m.nm, fcfm: m.fcfm, roe: m.roe, cashconv: m.cashconv };
+      })()`);
+      if (!got) { p.push(`${g.id} has no FY${g.fy}`); continue; }
+      for (const [k, v] of Object.entries(want)) {
+        if (typeof got[k] !== 'number' || Math.abs(got[k] - v) > 0.01) p.push(`${g.id} FY${g.fy} ${k}: engine ${got[k]}, by hand ${v.toFixed(4)}`);
+      }
+      shown.push(`${g.id.replace('-SEC', '')} FY${g.fy} net margin ${want.nm.toFixed(2)}%, ROE ${want.roe.toFixed(2)}%`);
+    }
+    if (p.length) fail('ratios match figures recomputed by hand from the filings (checklist 10)', p);
+    else ok(`ratios match figures recomputed by hand from the filings (checklist 10) — operating, net and FCF margin, return on average equity and cash conversion for ${shown.join('; ')}`);
+  }
+
+  /* Checklist 11 — SOURCE LINKS, WELL-FORMED FOR EVERY FILER. Each filer's
+     Filings tab links its own EDGAR index and its own companyfacts record:
+     https, an SEC host, and the filer's own ten-digit CIK — never another
+     company's. Whether SEC answers is a network question the CI runner
+     cannot ask (SEC refuses a request without a contact address), so it is
+     asked only with --links and SEC_UA set; see docs/phase2-qa.md. */
+  {
+    const r = await evaluate(`(() => {
+      const bad = [], sample = [];
+      let n = 0, links = 0;
+      for (const row of U.filter(x => x.c.real && x.c.cik)) {
+        const cik10 = String(row.c.cik).padStart(10, '0');
+        const hrefs = [...tabFilings(row).querySelectorAll('a[href*="sec.gov"]')].map(a => a.href);
+        n++; links += hrefs.length;
+        const kinds = { index: 0, facts: 0 };
+        for (const h of hrefs) {
+          let u; try { u = new URL(h); } catch { bad.push(row.c.id + ': not a URL ' + h); continue; }
+          if (u.protocol !== 'https:' || !['www.sec.gov', 'data.sec.gov'].includes(u.host)) { bad.push(row.c.id + ': ' + h); continue; }
+          if (u.pathname === '/cgi-bin/browse-edgar') { kinds.index++; if (u.searchParams.get('CIK') !== cik10 || u.searchParams.get('action') !== 'getcompany') bad.push(row.c.id + ': index link names CIK ' + u.searchParams.get('CIK')); }
+          else if (/^\\/api\\/xbrl\\/companyfacts\\/CIK\\d{10}\\.json$/.test(u.pathname)) { kinds.facts++; if (u.pathname !== '/api/xbrl/companyfacts/CIK' + cik10 + '.json') bad.push(row.c.id + ': companyfacts link is ' + u.pathname); }
+          else bad.push(row.c.id + ': an SEC link of no known form ' + h);
+        }
+        if (!kinds.index || !kinds.facts) bad.push(row.c.id + ': ' + kinds.index + ' index and ' + kinds.facts + ' companyfacts links');
+        if (sample.length < 5 && n % 24 === 1) sample.push(hrefs.find(h => /companyfacts/.test(h)));
+      }
+      return { bad, n, links, sample };
+    })()`);
+    if (r.bad.length) fail('source links are well-formed for every filer (checklist 11)', r.bad.slice(0, 8));
+    else ok(`source links are well-formed for every filer (checklist 11) — ${r.links} links across ${r.n} filers, each https on an SEC host and naming the filer's own CIK`);
+    if (args.includes('--links')) {
+      if (!process.env.SEC_UA) console.log('skip  --links: SEC refuses a request without a contact address in the User-Agent; set SEC_UA="Name email@example.com" to follow the links');
+      else {
+        let reached = 0; const missing = [];
+        for (const u of r.sample) {
+          try { const res = await fetch(u, { method: 'HEAD', headers: { 'User-Agent': process.env.SEC_UA }, signal: AbortSignal.timeout(5000) });
+            if (res.status === 404) missing.push(u); else if (res.ok) reached++; }
+          catch { /* offline or throttled: not a broken link */ }
+        }
+        if (missing.length) fail('an SEC source link answers 404', missing);
+        else ok(`--links: ${reached} of ${r.sample.length} sampled companyfacts links answered, none 404`);
+      }
+    }
+  }
+
+  /* Checklist 17 — THE WATCHLIST HANDOFF KEEPS ITS CONTRACT. Phase 3's
+     scanner and any later server take a watchlist in the shape
+     watchlistsExport writes, so the shape is pinned here field by field
+     (docs/phase2-qa.md, "watchlist contract v2"): the document's kind,
+     schema, date and owner; each list's id, name and dates; each member's
+     item id, list id, company id, canonical instrument id, symbol, market,
+     coverage and date added. Then it is used as a contract: every
+     instrument id resolves to the symbol it states, the symbols are what the
+     scanner's watchlist universe reads, and the export imports back into
+     the same list. */
+  {
+    const r = await evaluate(`(() => {
+      const made = wlCreate('QA handoff');
+      if (!made.ok) return { err: made.why };
+      const w = made.watchlist;
+      ['MSFT-SEC', '1155'].forEach(t => wlAdd(w.id, t));
+      const doc = watchlistsExport(), list = doc.watchlists.find(x => x.id === w.id);
+      const bad = [];
+      const is = (v, t) => t === 'string?' ? v === null || typeof v === 'string' : typeof v === t;
+      const docShape = { kind: 'string', schema: 'number', exportedAt: 'string', owner: 'string' };
+      for (const [k, t] of Object.entries(docShape)) if (!is(doc[k], t)) bad.push('document.' + k + ' is ' + typeof doc[k]);
+      if (doc.kind !== 'quantum-tradeworks-watchlists' || doc.schema !== WATCHLIST_SCHEMA || WATCHLIST_SCHEMA !== 2) bad.push('kind/schema ' + doc.kind + ' v' + doc.schema);
+      const listShape = { id: 'string', name: 'string', createdAt: 'string?', updatedAt: 'string?' };
+      for (const l of doc.watchlists) for (const [k, t] of Object.entries(listShape)) if (!is(l[k], t)) bad.push('list ' + l.id + '.' + k + ' is ' + typeof l[k]);
+      const itemShape = { id: 'string', watchlistId: 'string', companyId: 'string', instrumentId: 'string', symbol: 'string', market: 'string', coverage: 'string', addedAt: 'string?', resolves: 'boolean' };
+      for (const it of list.items) {
+        for (const [k, t] of Object.entries(itemShape)) if (!is(it[k], t)) bad.push('item ' + it.id + '.' + k + ' is ' + typeof it[k]);
+        if (it.id !== w.id + ':' + it.companyId || it.watchlistId !== w.id) bad.push('item id ' + it.id);
+        const ins = resolveInstrument(it.instrumentId);
+        if (!ins || ins.symbol !== it.symbol || ins.market !== it.market) bad.push(it.instrumentId + ' does not resolve to ' + it.market + ' ' + it.symbol);
+      }
+      const syms = watchlistSymbols(w.id).symbols;
+      const history = { series: Object.fromEntries(syms.map(s => [s, { '2026-01-02': 1 }])) };
+      const scanned = scanUniverse({ universe: { kind: 'watchlist', symbols: syms } }, history, []);
+      const ids = w.ids.slice();
+      wlDelete(w.id);
+      const imp = watchlistsImport({ watchlists: [list] });
+      const back = State.watchlists.find(x => x.name === 'QA handoff');
+      const out = { bad, syms, scanned, items: list.items.length, imported: imp.ok && !!back && JSON.stringify(back.ids) === JSON.stringify(ids) };
+      if (back) wlDelete(back.id);
+      return out;
+    })()`);
+    const p = r.err ? [r.err] : [...r.bad];
+    if (!r.err) {
+      if (r.items !== 2 || r.syms.join() !== 'MSFT,1155') p.push(`symbols handed over: ${r.syms.join(',')}`);
+      /* As a set: the scanner walks the history's keys, and an object puts
+         the numeric key 1155 ahead of MSFT whatever order it was written in. */
+      if ([...r.scanned].sort().join() !== [...r.syms].sort().join()) p.push(`the scanner's watchlist universe read ${r.scanned.join(',')}`);
+      if (!r.imported) p.push('the export did not import back into the same list');
+    }
+    if (p.length) fail('the watchlist handoff keeps its contract (checklist 17)', p);
+    else ok(`the watchlist handoff keeps its contract (checklist 17) — schema 2, every field of the document, list and member typed, each instrument id resolving to its symbol, ${r.syms.join(' and ')} read by the scanner's watchlist universe, and the export importing back into the same list`);
+  }
+
+  /* Checklist 12 and 14 — A WATCHLIST AND A SAVED MODEL SURVIVE A RELOAD.
+     Everything a reader makes lives in this browser's storage, so the test
+     that it persists is a reload, not a read of State: a list and a saved
+     valuation run with two assumptions moved are written, the page is
+     reloaded and boots from nothing, and both are read back — the list with
+     its members, dates and page, the run with every input as saved, the
+     model version it was saved under, and a replay that gives its saved
+     figures exactly. (Unsaved Studio edits do not survive a reload; the
+     register's Valuation models row says so, and this does not test it.) */
+  let qaRunId = null;
+  {
+    const before = await evaluate(`(() => {
+      const made = wlCreate('QA persist');
+      if (!made.ok) return { err: made.why };
+      const w = made.watchlist;
+      wlAdd(w.id, 'MSFT-SEC'); wlAdd(w.id, '1155');
+      const r = ['AAPL-SEC', 'MSFT-SEC', 'JNJ-SEC', 'KO-SEC'].map(id => BY_ID.get(id)).find(x => x && x.inputs?.model === 'dcf' && !x.val.err);
+      if (!r) return { err: 'no filer with a computable DCF among AAPL, MSFT, JNJ, KO' };
+      const inputs = { ...r.inputs, wacc: +(r.inputs.wacc + 0.7).toFixed(2), g1: +(r.inputs.g1 - 1).toFixed(2) };
+      saveValuationRun(r, inputs);
+      const run = store.read('runs', [])[0];
+      return { wl: { id: w.id, ids: w.ids.slice(), createdAt: w.createdAt, added: { ...w.added } }, run, co: r.c.id };
+    })()`);
+    if (before.err) fail('a watchlist survives a reload (checklist 12)', before.err);
+    else {
+      qaRunId = before.run?.runId || null;
+      await send('Page.reload', {}, sessionId);
+      const booted = await waitFiled();
+      if (!booted) throw new Error('the filed set did not load again after the reload');
+      const r = await evaluate(`(() => {
+        const w = State.watchlists.find(x => x.id === ${JSON.stringify(before.wl.id)});
+        const out = { found: !!w };
+        if (w) {
+          out.ids = w.ids; out.createdAt = w.createdAt; out.added = w.added; out.name = w.name;
+          State.wlIdx = State.watchlists.indexOf(w);
+          navigate('/my/watchlists');
+          /* The name is the value of its rename field, not text; the members
+             are the rows of the card that field sits in. */
+          const card = [...document.querySelectorAll('main input')].find(i => i.value === 'QA persist')?.closest('.card');
+          out.onPage = !!card && card.textContent.includes('US:MSFT') && card.textContent.includes('MY:1155');
+        }
+        const run = (store.read('runs', []) || []).find(x => x.runId === ${JSON.stringify(before.run.runId)});
+        out.run = run || null;
+        if (run) {
+          const row = BY_ID.get(run.id);
+          const replay = valuationRun(row.c, row.d, run.inputs).vals;
+          const same = (a, b) => typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
+          out.replayed = !!replay && ['bear', 'base', 'bull'].every(k => same(replay[k], run.vals?.[k]));
+          out.model = run.model === MODEL_VERSION;
+          out.exported = JSON.stringify(exportEverything().data.runs?.find(x => x.runId === run.runId)?.inputs) === JSON.stringify(run.inputs);
+        }
+        return out;
+      })()`);
+      const p = [];
+      if (!r.found) p.push('the list is gone after the reload');
+      else {
+        if (JSON.stringify(r.ids) !== JSON.stringify(before.wl.ids)) p.push(`members ${r.ids} vs ${before.wl.ids}`);
+        if (r.createdAt !== before.wl.createdAt || JSON.stringify(r.added) !== JSON.stringify(before.wl.added)) p.push('the dates changed across the reload');
+        if (!r.onPage) p.push('/my/watchlists does not show the list with its members\' instrument ids');
+      }
+      if (p.length) fail('a watchlist survives a reload (checklist 12)', p);
+      else ok(`a watchlist survives a reload (checklist 12) — its ${r.ids.length} members, its creation date and each member's date added read back from storage, and /my/watchlists shows it`);
+      const q = [];
+      if (!r.run) q.push('the saved run is gone after the reload');
+      else {
+        if (JSON.stringify(r.run.inputs) !== JSON.stringify(before.run.inputs)) q.push(`inputs ${JSON.stringify(r.run.inputs)} vs ${JSON.stringify(before.run.inputs)}`);
+        if (!r.model) q.push(`saved under ${r.run.model}, not the running model`);
+        if (!r.replayed) q.push('replaying the stored inputs does not give the saved figures');
+        if (!r.exported) q.push('Export everything does not carry the run\'s inputs');
+      }
+      if (q.length) fail('a saved valuation run keeps its assumptions across a reload (checklist 14)', q);
+      else ok(`a saved valuation run keeps its assumptions across a reload (checklist 14) — ${before.co}'s ${Object.keys(r.run.inputs).length} inputs, two of them moved, read back as saved, stamped with the running model, replaying to its saved bear/base/bull exactly, and carried by the export`);
+    }
+  }
+
+  /* Checklist 15 — EXPORTS REPRODUCE WHAT THE PAGE SHOWS. The screener's
+     CSV is caught as the page builds it (no file is written) and read
+     against the table on screen: the same companies in the same order, and
+     every score, difference, metric and coverage cell equal to the table's
+     to the precision the table prints — an empty cell where the table says
+     why a figure is absent. Then the full export: written, the stored keys
+     cleared, imported, and exported again, byte for byte. */
+  {
+    const r = await evaluate(`(async () => {
+      navigate('/discover/screener');
+      await new Promise(res => setTimeout(res, 400));
+      let blob = null;
+      const oc = URL.createObjectURL, click = HTMLAnchorElement.prototype.click;
+      URL.createObjectURL = (b) => { blob = b; return 'blob:qa'; };
+      HTMLAnchorElement.prototype.click = function () { if (!this.download) click.call(this); };
+      try { exportScreen(); } finally { URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = click; }
+      if (!blob) return { err: 'exportScreen wrote nothing' };
+      const text = await blob.text();
+      const parse = (line) => { const out = []; let cur = '', q = false;
+        for (let i = 0; i < line.length; i++) { const ch = line[i];
+          if (q) { if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; }
+          else if (ch === '"') q = true; else if (ch === ',') { out.push(cur); cur = ''; } else cur += ch; }
+        out.push(cur); return out; };
+      const lines = text.split('\\n'), head = parse(lines[0]);
+      const rows = []; for (let i = 1; i < lines.length && lines[i]; i++) rows.push(parse(lines[i]));
+      const table = [...document.querySelectorAll('main table.dt')].find(t => t.querySelector('thead th')?.textContent.startsWith('Company'));
+      if (!table) return { err: 'no results table' };
+      const trs = [...table.querySelectorAll('tbody tr')];
+      const sc = State.screen;
+      const shownNum = (td) => {
+        if (!td || td.querySelector('.cell-absent')) return null;
+        const t = td.textContent.replace(/,/g, '').replace(/\\u2212/g, '-');
+        const m = t.match(/([-+]?\\d+)(\\.(\\d+))?\\s*([TBM])?/);
+        if (!m) return null;
+        const scale = { T: 1000, B: 1, M: 0.001 }[m[4]] ?? 1;
+        return { v: parseFloat(m[1] + (m[2] || '')) * scale, tol: 0.5 * Math.pow(10, -(m[3] || '').length) * scale + 1e-6 };
+      };
+      /* Table column → CSV column. The table leads with the company, the two
+         scores and the model difference, then the chosen metrics, then risk
+         and coverage; the CSV leads with identity and price. */
+      const pairs = [[1, 'quality_score'], [2, 'value_score'], [3, 'mos_vs_base_pct'],
+        ...sc.cols.map((k, i) => [4 + i, head[9 + i]]), [4 + sc.cols.length + 1, 'coverage_pct']];
+      const bad = [];
+      if (rows.length !== trs.length) bad.push('CSV ' + rows.length + ' rows, table ' + trs.length);
+      let cells = 0;
+      trs.forEach((tr, i) => {
+        const tk = tr.querySelector('.tk')?.firstChild?.textContent.trim();
+        const row = rows[i];
+        if (!row || row[0] !== tk) { if (bad.length < 12) bad.push('row ' + i + ': CSV ' + (row && row[0]) + ', table ' + tk); return; }
+        for (const [ti, name] of pairs) {
+          const ci = head.indexOf(name), csv = row[ci], shown = shownNum(tr.children[ti]);
+          cells++;
+          if (csv === '' && !shown) continue;
+          if (csv === '' || !shown || Math.abs(parseFloat(csv) - shown.v) > shown.tol) { if (bad.length < 12) bad.push(tk + ' ' + name + ': CSV "' + csv + '", table "' + (tr.children[ti]?.textContent.trim() || '') + '"'); }
+        }
+      });
+      const doc = exportEverything(), json = JSON.stringify(doc);
+      PORTABLE_KEYS.forEach(({ k }) => { try { localStorage.removeItem('vl.' + k); } catch {} });
+      const imp = importEverything(JSON.parse(json));
+      if (imp.ok) imp.apply();
+      const again = exportEverything();
+      return { bad, rows: rows.length, cells, cols: sc.cols.length, keys: Object.keys(doc.data).length,
+               roundTrip: imp.ok && JSON.stringify(again.data) === JSON.stringify(doc.data), hasRuns: Array.isArray(doc.data.runs) && doc.data.runs.length > 0,
+               footer: /# Quantum Tradeworks screen export/.test(text) && /# Definition \\(JSON\\)/.test(text) };
+    })()`);
+    const p = r.err ? [r.err] : [...r.bad];
+    if (!r.err) {
+      if (!r.footer) p.push('the CSV lost its model stamp or its definition');
+      if (!r.roundTrip) p.push('Export everything → clear → import → export does not reproduce the file');
+      if (!r.hasRuns) p.push('the full export carries no saved valuation run');
+    }
+    if (p.length) fail('exports reproduce the figures on the page (checklist 15)', p);
+    else ok(`exports reproduce the figures on the page (checklist 15) — the screener CSV matches the table on all ${r.rows} rows and ${r.cells} score, metric and coverage cells in its order, and Export everything round-trips ${r.keys} kinds of saved work byte for byte`);
+    /* The list and the run were made for the checks above; nothing after
+       them should find either. */
+    await evaluate(`(() => { const w = State.watchlists.find(x => x.name === 'QA persist'); if (w) wlDelete(w.id);
+      store.write('runs', (store.read('runs', []) || []).filter(x => x.runId !== ${JSON.stringify(qaRunId)})); return true; })()`);
+  }
+
+  /* KEYBOARD. '/' from anywhere outside a field opens the search with the
+     cursor in the box; typing and ArrowDown walk into the results; Enter on
+     a result opens that company; Escape closes the box. And the first Tab
+     on a page lands on the skip link. Real key events through the browser,
+     not handlers called by name, so a listener on the wrong element fails. */
+  {
+    const key = async (k, code, vk, text) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk, ...(text ? { text } : {}) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk }, sessionId);
+    };
+    /* Chrome keeps the Tab starting point where focus was blurred, and
+       navigate() puts focus on main — so a blur alone would start the walk
+       mid-page. A throwaway stop at the top of the body moves the starting
+       point there, as a fresh page load would. */
+    await evaluate(`navigate('/research'); window.scrollTo(0, 0);
+      const s = document.createElement('span'); s.tabIndex = -1; document.body.prepend(s); s.focus(); s.blur(); s.remove(); true`);
+    await sleep(300);
+    await key('Tab', 'Tab', 9);
+    const tab1 = await evaluate(`document.activeElement?.className || document.activeElement?.tagName`);
+    await evaluate(`document.activeElement?.blur(); true`);
+    await key('/', 'Slash', 191, '/');
+    await sleep(150);
+    const opened = await evaluate(`({ focused: document.activeElement === searchInput, value: searchInput.value })`);
+    await send('Input.insertText', { text: 'maybank' }, sessionId);
+    await sleep(350);
+    await key('ArrowDown', 'ArrowDown', 40);
+    const onResult = await evaluate(`searchResults.contains(document.activeElement) && /MAYBANK|Malayan/.test(document.activeElement.textContent)`);
+    await key('Enter', 'Enter', 13, '\r');
+    await sleep(400);
+    const landed = await evaluate(`({ view: State.view, ticker: State.ticker })`);
+    await key('/', 'Slash', 191, '/');
+    await sleep(150);
+    await key('Escape', 'Escape', 27);
+    await sleep(150);
+    const closed = await evaluate(`!searchOpen && searchModal.dataset.open === '0' && document.activeElement !== searchInput`);
+    const p = [];
+    if (!/skip-link/.test(tab1)) p.push(`the first Tab lands on ${tab1}, not the skip link`);
+    if (!opened.focused || opened.value.includes('/')) p.push(`'/' did not put the cursor in an empty search box: ${JSON.stringify(opened)}`);
+    if (!onResult) p.push('ArrowDown did not move to the Maybank result');
+    if (landed.view !== 'research' || landed.ticker !== 'MAYBANK') p.push(`Enter on the result opened ${landed.view} ${landed.ticker}`);
+    if (!closed) p.push('Escape did not close the search');
+    if (p.length) fail('the keyboard reaches the search, its results and the page', p);
+    else ok('the keyboard reaches the search, its results and the page — the first Tab is the skip link, / opens the box, ArrowDown and Enter open Maybank, Escape closes it');
+  }
+
+  /* THE RELEASE RULE ON THE PAGE. A P1 surface the register flags says so
+     where it is read — the compare page under its heading, the valuation tab
+     above its panel and no other tab — in the register's own words; and
+     /status shows the priorities, the flagged group as not operational, and
+     the release card. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = {};
+      const flagOf = (name) => CAPABILITY_REGISTER.find(c => c.name === name)?.flag || '';
+      navigate('/compare'); await w(200);
+      const cn = document.querySelector('main .flag-notice');
+      out.compare = !!cn && cn.textContent.includes(flagOf('Company comparison')) && cn.previousElementSibling?.classList.contains('page-hd');
+      openResearch('AAPL-SEC', 'valuation'); await w(300);
+      const vn = document.querySelector('main .flag-notice');
+      out.valuation = !!vn && vn.textContent.includes(flagOf('Valuation models')) && vn.nextElementSibling === vn.parentElement.lastElementChild;
+      openResearch('AAPL-SEC', 'snapshot'); await w(300);
+      out.snapshotClean = !document.querySelector('main .flag-notice');
+      navigate('/status'); await w(200);
+      const main = document.querySelector('main')?.textContent || '';
+      out.status = { flaggedGroup: /Feature-flagged — \\d+ · not operational/.test(main), release: main.includes('Release condition'),
+        p0: [...document.querySelectorAll('main .chip')].filter(c => c.textContent === 'P0').length,
+        p1: [...document.querySelectorAll('main .chip')].filter(c => c.textContent === 'P1').length,
+        rowsP0: CAPABILITY_REGISTER.filter(c => c.priority === 'P0').length, rowsP1: CAPABILITY_REGISTER.filter(c => c.priority === 'P1').length };
+      return out;
+    })()`);
+    const p = [];
+    if (!r.compare) p.push('/compare carries no flag notice under its heading in the register\'s words');
+    if (!r.valuation) p.push('the valuation tab carries no flag notice above its panel');
+    if (!r.snapshotClean) p.push('the snapshot tab carries the valuation flag');
+    if (!r.status.flaggedGroup || !r.status.release) p.push(`/status: flagged group ${r.status.flaggedGroup}, release card ${r.status.release}`);
+    if (r.status.p0 !== r.status.rowsP0 || r.status.p1 !== r.status.rowsP1) p.push(`/status shows ${r.status.p0} P0 and ${r.status.p1} P1 chips for ${r.status.rowsP0} and ${r.status.rowsP1} rows`);
+    if (p.length) fail('a feature-flagged surface says so where it is read', p);
+    else ok(`a feature-flagged surface says so where it is read — /compare and the valuation tab carry the register's notice and the snapshot tab does not; /status shows ${r.status.rowsP0} P0 and ${r.status.rowsP1} P1 rows and the flagged group as not operational`);
+  }
+
+  /* LOADING AND ERROR STATES. The filings arrive after first paint, so the
+     universe pages wait on a skeleton rather than paint the sample and
+     correct themselves; and if the file never arrives the sample is painted,
+     labelled as the only thing there is, rather than the skeleton forever.
+     The request is held, then failed, by the browser's own interception —
+     the page's code runs unmodified. The cache is off so a cached copy
+     cannot answer for the network. */
+  {
+    const events = [];
+    const listen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Fetch.requestPaused' || m.method === 'Runtime.exceptionThrown') events.push(m); };
+    ws.addEventListener('message', listen);
+    await send('Network.enable', {}, sessionId);
+    await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+    await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/us.json*', requestStage: 'Request' }] }, sessionId);
+    const paused = async () => { for (let i = 0; i < 40; i++) { const m = events.find(x => x.method === 'Fetch.requestPaused' && !x.seen); if (m) { m.seen = true; return m; } await sleep(250); } return null; };
+    try {
+      /* Held: the skeleton, not the sample. */
+      await send('Page.navigate', { url: `${BASE}/discover/screener` }, sessionId);
+      const held = await paused();
+      await sleep(800);
+      const during = held ? await evaluate(`({ pending: realPending, skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
+      if (held) await send('Fetch.continueRequest', { requestId: held.params.requestId }, sessionId);
+      const arrived = held && await waitFiled();
+      const after = arrived ? await evaluate(`({ skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
+      const p = [];
+      if (!held) p.push('the page never requested data/us.json');
+      else if (!during.pending || !during.skeleton || during.rows) p.push(`while the file was held: ${JSON.stringify(during)}`);
+      if (held && (!after || after.skeleton || !after.rows)) p.push(`after it arrived: ${JSON.stringify(after)}`);
+      if (p.length) fail('the skeleton holds the page while the filings load', p);
+      else ok(`the skeleton holds the page while the filings load — no sample row is painted while the file is in flight, and the screener's ${after.rows} rows replace it when it lands`);
+
+      /* Failed: the sample, and the banner saying so. */
+      events.length = 0;
+      await send('Page.navigate', { url: `${BASE}/discover/screener` }, sessionId);
+      const req = await paused();
+      if (req) await send('Fetch.fulfillRequest', { requestId: req.params.requestId, responseCode: 404,
+        responseHeaders: [{ name: 'Content-Type', value: 'text/plain' }], body: Buffer.from('not here').toString('base64') }, sessionId);
+      let settled = false;
+      for (let i = 0; i < 40 && !settled; i++) { await sleep(250); try { settled = await evaluate(`typeof realPending !== 'undefined' && !realPending && !!realStatus`); } catch { /* booting */ } }
+      const st = settled ? await evaluate(`({ ok: realStatus.ok, error: realStatus.error, filed: U.filter(r => r.c.real).length, n: U.length,
+        banner: document.getElementById('disclosureText')?.textContent || '', rows: document.querySelectorAll('main table.dt tbody tr').length,
+        skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || '') })`) : null;
+      const thrown = events.filter(m => m.method === 'Runtime.exceptionThrown').map(m => m.params.exceptionDetails?.exception?.description?.split('\n')[0]);
+      const q = [];
+      if (!req) q.push('the page never requested data/us.json');
+      else if (!st) q.push('the page never settled after the file failed');
+      else {
+        if (st.ok !== false || !st.error) q.push(`realStatus ${JSON.stringify({ ok: st.ok, error: st.error })}`);
+        if (st.filed) q.push(`${st.filed} filed companies after a failed load`);
+        if (!/filings did not load/.test(st.banner)) q.push(`the banner reads "${st.banner.slice(0, 90)}"`);
+        if (st.skeleton || !st.rows) q.push(`the screener shows ${st.rows} rows${st.skeleton ? ' and the skeleton' : ''}`);
+      }
+      if (thrown.length) q.push(`exceptions: ${thrown.join('; ')}`);
+      if (q.length) fail('a failed load paints the sample, labelled', q);
+      else ok(`a failed load paints the sample, labelled — realStatus carries "${st.error}", the banner says the filings did not load, ${st.rows} illustrative rows are painted instead of a skeleton, and nothing throws`);
+    } finally {
+      await send('Fetch.disable', {}, sessionId);
+      await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+      ws.removeEventListener('message', listen);
+    }
+  }
 
 } catch (e) {
   fail('harness error', e.message);

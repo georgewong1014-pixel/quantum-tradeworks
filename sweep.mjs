@@ -32,7 +32,11 @@ const ROUTES = [
   /* The Phase 2 brief's paths, as aliases: a symbol, an old id form and a
      tab name that is not ours. */
   '/app/equities', '/app/equities/explore', '/app/equities/aapl/financials', '/app/equities/1155/ratios',
-  '/app/equities/compare', '/app/watchlists', '/equities/methodology', '/discover/sarawak', '/property',
+  '/app/equities/compare', '/app/watchlists', '/equities/methodology',
+  /* The brief's two remaining tab names, and the valuation tab that now
+     carries a feature-flag notice from the capability register. */
+  '/app/equities/msft/source-data', '/app/equities/msft/statements', '/app/equities/aapl/valuation',
+  '/discover/sarawak', '/property',
   '/property/calculator', '/property/opportunities', '/property/comparables', '/property/areas', '/us-options/wheel', '/property/calculator?city=sibu',
   '/research/trading-index', '/learn/trading-index', '/trading-index',
   '/wheel', '/cash-wheel', '/options', '/my/wheel', '/my/options',

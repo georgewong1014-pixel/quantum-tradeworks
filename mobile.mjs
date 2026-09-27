@@ -19,7 +19,9 @@ import { join } from 'node:path';
    run with no argument silently tested the wrong site and reported a clean
    pass. The default is now the port this project is actually served on. */
 const BASE = process.argv[2] || 'http://localhost:8123';
-const WIDTHS = [360, 390, 430, 768, 1024, 1440];
+/* 375 is the Phase 2 brief's own phone width, and the one the focus walk
+   below already used; the overflow sweep skipped from 360 to 390 past it. */
+const WIDTHS = [360, 375, 390, 430, 768, 1024, 1440];
 const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=sibu',
                 '/property/calculator?city=kuching', '/pricing', '/learn/glossary', '/app',
                 '/my/data', '/discover/sarawak', '/research/trading-index', '/us-options/wheel',
@@ -51,7 +53,15 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                    workspace list and the printable report, filed and
                    illustrative. */
                 '/company/MSFT-SEC?tab=valuation', '/compare?companies=AAPL-SEC,MSFT-SEC,MAYBANK',
-                '/my/workspace', '/company/MSFT-SEC/report', '/company/MAYBANK/report'];
+                '/my/workspace', '/company/MSFT-SEC/report', '/company/MAYBANK/report',
+                /* The equities lane under the brief's own addresses and the two
+                   pages it names that were never measured below 1440: the
+                   watchlist page (a table per list, four controls per row) and
+                   the compare table. The valuation tab carries a flag notice
+                   and the Studio's two-column rail; /status gained a priority
+                   column and the release card. */
+                '/my/watchlists', '/compare', '/app/equities/explore', '/app/equities/compare',
+                '/app/equities/aapl/valuation', '/status'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -104,7 +114,9 @@ const smallTargets = [];
 /* Routes whose widest tables only exist once the filed set has loaded. A
    fixed wait measured the boot skeleton on a slow runner — no tables, no
    overflow, a pass for the pages this check was extended to cover. */
-const DATA_ROUTES = /^\/(company\/|discover|research|compare|$)/;
+/* The /app/ aliases and the list pages wait on the same set: a watchlist's
+   rows and the scanner's universe are drawn only once the filers are in. */
+const DATA_ROUTES = /^\/(company\/|discover|research|compare|app\/equities|app\/watchlists|my\/watchlists|my\/scanner|$)/;
 try {
 for (const w of WIDTHS) {
   await send('Emulation.setDeviceMetricsOverride',
@@ -195,7 +207,11 @@ for (const w of WIDTHS) {
    page and, at every stop, hit-test the focused control's top and bottom
    edges: if both land on something else — or outside the viewport, or on an
    invisible box — the reader is typing into a field they cannot see. */
-const FOCUS_ROUTES = ['/property/calculator', '/discover/screener', '/company/AAPL-SEC', '/app/watchlists'];
+/* The explorer and compare joined with the equities routes above: the
+   explorer's filters and the compare picker's chips are the two long runs of
+   controls in the lane that the walk had not covered. */
+const FOCUS_ROUTES = ['/property/calculator', '/discover/screener', '/company/AAPL-SEC', '/app/watchlists',
+                      '/app/equities/explore', '/compare'];
 /* Reduced motion, so a control that slides in on focus — the skip link — is
    measured where it comes to rest and not 20ms into the slide. */
 await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);

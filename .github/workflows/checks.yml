@@ -82,6 +82,15 @@ jobs:
       - name: the scanner engine evaluates its fixture
         run: node scanner-test.mjs
 
+      # /status is the public statement of what works, typed by hand. This
+      # holds each row to its route (an operational row must open a real
+      # page), its checks (a named check must exist in the harness it names)
+      # and the Phase 2 brief's release rule (priorities match the plan, every
+      # brief item has a row, a partial P1 surface is feature-flagged). No
+      # browser: the register and the route table are read from src/.
+      - name: the capability register claims only what its routes and checks support
+        run: node register-check.mjs
+
       # The CSP names a hash of the inline script. If the two ever disagree the
       # site is blank in production and fine everywhere else, so it is checked
       # against the built file rather than trusted.
@@ -218,6 +227,10 @@ jobs:
       # a derived line is null exactly when an input is, a split withholds
       # every per-share rate, a label is the company's own — and pins three
       # revenue figures to their filings, looked up by fiscal-year label.
+      # It also carries the Phase 2 research QA checklist (docs/phase2-qa.md):
+      # every filer's statement table against data/us.json, ratios against
+      # the 10-Ks, persistence across a reload, exports against the table,
+      # the watchlist contract, and the loading and failed-load states.
       - name: the filed statements are labelled and derived as they claim
         run: node equity-test.mjs http://localhost:8123
 
