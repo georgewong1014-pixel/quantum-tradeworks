@@ -372,7 +372,13 @@ function rollWheelLeg(openLeg, closeDebitPerShare, newContract) {
   const shares = num0(openLeg.shares);
   const closeCash = -(num0(closeDebitPerShare) * shares) - num0(newContract.closeCommission);
   const realised = num0(openLeg.netCash) + closeCash;
-  addWheelLeg({ ...openLeg, id: undefined, action:'close', status:'resolved',
+  /* Built field by field rather than spread from the opening leg. The spread
+     carried the opening leg's fees, capital committed and close cost into the
+     close, so the ledger counted the opening fees twice, and its `id: undefined`
+     overwrote the id addWheelLeg had just generated. The close carries only
+     what the close itself cost. */
+  addWheelLeg({ phase: openLeg.phase, action:'close', status:'resolved',
+    contractLabel: openLeg.contractLabel, strike: openLeg.strike, expiry: openLeg.expiry, shares,
     parentLegId: openLeg.id, netCash: closeCash, realisedPnl: realised,
     grossPremium: -(num0(closeDebitPerShare) * shares),
     commissions: num0(newContract.closeCommission), note:'Closing the previous contract.' });
@@ -384,7 +390,10 @@ function rollWheelLeg(openLeg, closeDebitPerShare, newContract) {
     contractLabel: newContract.label, strike: newContract.strike, expiry: newContract.expiry,
     shares: newContract.shares, grossPremium: num0(newContract.creditPerShare) * num0(newContract.shares),
     commissions: num0(newContract.openCommission), netCash: openCash,
-    capitalCommitted: num0(newContract.strike) * num0(newContract.shares),
+    /* A covered call commits the shares already held, not new cash — the same
+       zero the register records when a call is opened directly. Only a rolled
+       put reserves strike × shares. */
+    capitalCommitted: openLeg.phase === 'call' ? 0 : num0(newContract.strike) * num0(newContract.shares),
     rollGroupId: openLeg.id, note:'New contract opened as part of a roll. A separate obligation, not a continuation.' });
   saveWheelLegs();
   return { realisedOnClose: realised, openedFor: openCash, netRollCash: closeCash + openCash };
@@ -601,6 +610,18 @@ function fitGrade(r, key, tier) {
     out.score = Math.round(clamp(q, 0, 100));
   }
 
+  /* The Basic Directory tier tells the reader, in its own tooltip, that there
+     is not enough here to assess a strategy — and then Rivian carried a
+     compounder D and a Wheel D beside it. The tier's statement wins: a score
+     reached on a directory-tier company is withheld as missing evidence. The
+     early returns above still stand, because "not applicable" and "not built"
+     are statements about the business or the product, not about coverage. */
+  if (isNum(out.score) && tier.id === 'directory') {
+    out.score = null;
+    out.missing.push('Data coverage above the Basic Directory tier. Identity and partial figures are not enough to grade a strategy.');
+    return out;
+  }
+
   if (isNum(out.score) && !out.missing.length) {
     out.state = 'graded';
     out.grade = out.score >= 80 ? 'A' : out.score >= 65 ? 'B' : out.score >= 50 ? 'C' : 'D';
@@ -632,7 +653,11 @@ function strategyLens(r) {
      top-scoring fit, so a company whose best score was DCA reported no return
      role at all while three roles sat graded beneath it. */
   const roleOf = { income:'income', compounder:'compounder', cyclical:'cyclical', value:'value', catalyst:'catalyst' };
-  const roleFits = graded.filter(f => roleOf[f.key]);
+  /* A D is the grade for evidence that meets a strategy's requirements poorly,
+     so it cannot also be the stated reason to own the company — 52 filers
+     read "Why it might be owned: Long-term compounding" off a compounder D.
+     A role is named only from a fit graded C or better. */
+  const roleFits = graded.filter(f => roleOf[f.key] && f.grade !== 'D');
   const primary = roleFits[0] ? RETURN_ROLES[roleOf[roleFits[0].key]] : null;
   const secondary = roleFits[1] ? RETURN_ROLES[roleOf[roleFits[1].key]] : null;
   /* notSuited was computed here and never rendered — dead since it was written,
@@ -719,13 +744,17 @@ VIEWS.researchHome = () => {
   search.append(results);
   wrap.append(search);
 
-  /* Collections, described by what they contain. */
+  /* Collections, described by what they contain. applyTemplate only sets the
+     screen and re-renders whatever view is current, so the three template
+     cards used to leave the reader on this page with nothing visibly changed;
+     each now goes to the screener it has just set up, as the market cards do. */
+  const viaTemplate = (id) => () => { applyTemplate(SCREEN_TEMPLATES.find(t => t.id === id)); navigate('/discover/screener'); };
   const colls = [
     ['Bursa Malaysia',  'Malaysian listings in the beta universe.',      () => { const s = blankScreen(); s.universe='MY'; State.screen=s; State.appliedTemplate=null; navigate('/discover/screener'); }],
     ['US equities',     'US listings, filed with the SEC.',              () => { const s = blankScreen(); s.universe='US'; State.screen=s; State.appliedTemplate=null; navigate('/discover/screener'); }],
-    ['Banks',           'Deposit takers, on measures that fit a bank balance sheet.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'my-banks'))],
-    ['REITs',           'Property trusts, on distribution and gearing.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'my-reits'))],
-    ['Dividend research','Payout covered by cash rather than borrowing.', () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'div-cover'))],
+    ['Banks',           'Deposit takers, on measures that fit a bank balance sheet.', viaTemplate('my-banks')],
+    ['REITs',           'Property trusts, on distribution and gearing.', viaTemplate('my-reits')],
+    ['Dividend research','Payout covered by cash rather than borrowing.', viaTemplate('div-cover')],
     ['Sarawak Economy Watch','Companies with material exposure to the Sarawak economy. Descriptive, not a preference.', () => navigate('/discover/sarawak')],
   ];
   const cg = el('div', { class: 'grid grid-3' });
@@ -959,7 +988,11 @@ VIEWS.research = () => {
           lens.secondary ? el('p', { class: 'metaline', style: 'margin-top:4px' }, `Secondary: ${lens.secondary.label}.`) : null,
         ])
       : el('p', { class: 'body', style: 'font-size:13px;margin:0;color:var(--bronze)' },
-          'Not stated. No strategy could be assessed from the data held, and naming a return role without one would be a guess dressed as a classification.'),
+          /* Two different reasons reach here, and the old single sentence
+             claimed the first even when fits had been graded. */
+          lens.assessable
+            ? 'Not stated. No return role graded above D, and a weak fit is not a reason to own anything.'
+            : 'Not stated. No strategy could be assessed from the data held, and naming a return role without one would be a guess dressed as a classification.'),
   ]));
   lensCard.append(idRow);
 
@@ -1084,9 +1117,23 @@ VIEWS.research = () => {
   const jump = el('div', { class: 'ts-jump' });
   ident.append(jump);
   stick.append(ident);
-  const sub = el('div', { class: 'subnav' });
+  /* role="tab" needs a tablist around it and arrow keys between the tabs, or a
+     screen reader announces a tab with no set to belong to. The selected tab is
+     the one Tab stop; the arrows, Home and End move focus along the strip, and
+     Enter or Space opens the focused one, as the buttons already do. */
+  const sub = el('div', { class: 'subnav', role: 'tablist', 'aria-label': `Sections of the ${c.name} report` });
+  sub.addEventListener('keydown', e => {
+    const tabs = [...sub.querySelectorAll('[role=tab]')];
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+    if (to == null) return;
+    e.preventDefault();
+    tabs[(to + tabs.length) % tabs.length].focus();
+  });
   RESEARCH_TABS.forEach(t => sub.append(el('button', {
     role: 'tab', 'aria-selected': State.researchTab === t.id ? 'true' : 'false',
+    tabindex: t.id === (RESEARCH_TABS.some(x => x.id === State.researchTab) ? State.researchTab : 'snapshot') ? '0' : '-1',
     /* Through the address, so Back returns to the previous tab and a link
        carries the one it was copied from. */
     onclick: () => openResearch(State.ticker, t.id) }, t.label)));
@@ -1266,8 +1313,19 @@ function tabSnapshot(r) {
     { sub: c.type === 'bank' ? `ROE ${fmtPct(m.roe)}` : `EPS ${fmtMoney(m.eps, c.ccy)}` }));
   tg.append(statTile(c.type === 'reit' ? 'Distribution yield' : 'Dividend yield', fmtPct(m.dy, 2),
     { sub: isNum(m.cashPayout) ? `${fmtPct(m.cashPayout, 0)} of free cash flow` : (isNum(m.payout) ? `${fmtPct(m.payout, 0)} of earnings` : '—') }));
+  /* Assumptions edited in the Valuation tab live in State.valuation and drive
+     that tab's run only. This tile, the range below and every score stay on
+     the derived defaults, so each company is compared on the same basis — and
+     once the reader has edited them, the snapshot says which run it shows
+     rather than sitting silently beside a different number one tab away. */
+  const ed = State.valuation?.[c.id];
+  const assumptionsEdited = !!ed && [...new Set([...Object.keys(r.inputs || {}), ...Object.keys(ed)])]
+    .some(k => JSON.stringify(ed[k]) !== JSON.stringify(r.inputs?.[k]));
+  /* No price means no gap to measure, and the dash for it was drawn in the
+     negative colour, where it read as a shortfall. */
   tg.append(statTile('vs base-case value', val.mos ? withSign(val.mos.base, 1) : '—',
-    { sub: `${val.pack.name.split('/')[0].trim()} · ${val.confBand} confidence`, tone: val.mos && val.mos.base >= 0 ? '--ok-text' : '--dn-text' }));
+    { sub: `${val.pack.name.split('/')[0].trim()} · ${val.confBand} confidence${assumptionsEdited ? ' · default assumptions' : ''}`,
+      tone: isNum(val.mos?.base) ? (val.mos.base >= 0 ? '--ok-text' : '--dn-text') : null }));
   tiles.append(tg);
   main.append(tiles);
 
@@ -1279,6 +1337,8 @@ function tabSnapshot(r) {
   else {
     /* A bear or bull case its published shift took out of bounds; the base stands. */
     (val.caseNotes || []).forEach(t => vr.append(el('div', { class: 'guardrail', html: `${icon('alert')}<span>${esc(t)}</span>` })));
+    if (assumptionsEdited) vr.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm);color:var(--bronze)' },
+      'Default assumptions. You have edited them on the Valuation tab, which shows the run from your edits; this range and the scores stay on the derived defaults so every company is read on the same basis.'));
     vr.append(rangeStrip(val.vals.bear, val.vals.base, val.vals.bull, c.px.p, c.ccy));
     const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--lg)' });
     [['Bear', val.vals.bear, val.mos?.bear], ['Base', val.vals.base, val.mos?.base], ['Bull', val.vals.bull, val.mos?.bull]].forEach(([label, v, mos]) => {
@@ -1368,13 +1428,20 @@ function tabSnapshot(r) {
         ? 'This company was loaded from SEC filings, which carry statements and not market data. A price series needs a licensed feed. Everything above that does not depend on a price — statements, quality, the valuation itself — is computed from the filings as normal.'
         : 'No price series is attached to this company.'));
   } else {
-    pc.append(cardHead('Price, last 52 weeks', 'Weekly closes reconstructed from the sample dataset.'));
+    /* priceHistory is a seeded walk pinned to the sample price, range and
+       12-month return — nothing was reconstructed, so the subtitle says it was
+       generated. The distance from the high is computed here from the same
+       sample price and high the range line prints: m.from52 is measured on
+       observed closes where any were imported, and set beside the sample range
+       it read −12.8% for a price 3.4% below the high it sat next to. */
+    pc.append(cardHead('Price, last 52 weeks', 'A generated illustration consistent with the sample price, 52-week range and 12-month return. Not observed closes.'));
     const ph = el('div', { style: 'width:100%' });
     pc.append(ph);
     lineChart(ph, { values: hist, labels: hist.map((_, i) => i === hist.length - 1 ? AS_OF : `Week ${i + 1}`), fmt: v => fmtMoney(v, c.ccy, 2), varName: '--s1' });
+    const fromHigh = c.px.hi > 0 ? (c.px.p - c.px.hi) / c.px.hi * 100 : null;
     pc.append(el('div', { class: 'row row-wrap', style: 'gap:var(--lg);margin-top:var(--sm)' }, [
       el('span', { class: 'metaline' }, `52-week range ${fmtMoney(c.px.lo, c.ccy)} – ${fmtMoney(c.px.hi, c.ccy)}`),
-      el('span', { class: 'metaline' }, `${fmtPct(m.from52)} from the high`),
+      el('span', { class: 'metaline' }, `${fmtPct(fromHigh)} from the high`),
       el('span', { class: 'metaline ' + signClass(c.px.m12) }, `${withSign(c.px.m12)} over 12 months`),
     ]));
   }
@@ -1394,8 +1461,10 @@ function tabSnapshot(r) {
     ph2.append(el('h3', { class: 'h-card' }, 'Closest peers'));
     ph2.append(el('p', { class: 'caption', style: 'margin-top:2px' },
       `Matched on business model (${c.type}) as well as sector — the metrics below mean the same thing across these companies.`));
+    /* Capped at the plan's Compare limit, as the Business tab's button is. A
+       fixed 8 put six columns on Free under "Choose up to 2 companies". */
     ph2.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:6px;padding:0',
-      onclick: () => { State.compare = [c.id, ...peers.map(p => p.c.id)].slice(0, 8); store.write('compare', State.compare); go('compare'); } }, 'Open full comparison →'));
+      onclick: () => { State.compare = [c.id, ...peers.map(p => p.c.id)].slice(0, LIMITS.compare); store.write('compare', State.compare); go('compare'); } }, 'Open full comparison →'));
     pcard.append(ph2);
     const tw2 = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
     const t2 = el('table', { class: 'dt' });
@@ -1551,7 +1620,10 @@ function tabBusiness(r) {
         el('td', { html: isNum(own) ? f(own) : NA }),
         el('td', { html: isNum(med) ? f(med) : NA }),
         el('td', {}, rank ? `${rank} of ${vals.length}` : '—'),
+        /* In an odd-sized set the median is one of the values, so the company
+           that IS the median was always told it was below its peers. */
         el('td', { html: !isNum(own) || !isNum(med) ? '<span class="caption">—</span>'
+          : own === med ? sevChip('info', 'At median').outerHTML
           : (better ? sevChip('good', 'Above peers').outerHTML : sevChip('warning', 'Below peers').outerHTML) }),
       ]);
     })));
@@ -1570,6 +1642,25 @@ function tabBusiness(r) {
 
 /* ------------------------------------------------------------- financials */
 State.finMode = 'abs';
+
+/* WHAT THE EBIT SERIES HOLDS, BY WHERE IT CAME FROM.
+   The illustrative banks carry pre-provision operating profit in that slot, by
+   construction. A filed bank does not: most banks present no operating-income
+   line, so the SEC ingest falls back to pre-tax income, which is struck after
+   credit-loss provisions. Labelling JPMorgan's pre-tax income "Pre-provision
+   profit" understated that measure by the whole provision charge. A filed
+   company's label follows the concept the ingest recorded — and BlackRock, a
+   bank here that files OperatingIncomeLoss, reads as operating profit. */
+function ebitLabel(c) {
+  const concept = c.real && c.provenance && typeof c.provenance === 'object' ? String(c.provenance.ebit?.concept || '') : '';
+  if (/BeforeIncomeTaxes/.test(concept)) {
+    if (/OperatingIncomeLoss/.test(concept)) return 'Operating or pre-tax profit';
+    return c.type === 'bank' ? 'Profit before tax, after provisions' : 'Profit before tax';
+  }
+  if (c.type === 'bank' && !c.real) return 'Pre-provision profit';
+  return 'Operating profit';
+}
+
 function tabFinancials(r) {
   const { c, d, m } = r;
   const isBank = c.type === 'bank';
@@ -1582,7 +1673,7 @@ function tabFinancials(r) {
      who assumes December is a full half-year wrong about when these figures
      stop. */
   const fyEnd = fmtFyEnd(fyEndOf(c, last(yrs)));
-  chartCard.append(cardHead('Revenue, operating profit and free cash flow',
+  chartCard.append(cardHead(`${isBank ? 'Total income' : 'Revenue'}, ${ebitLabel(c).toLowerCase()}${isBank ? '' : ' and free cash flow'}`,
     `Reported ${c.ccy} billions, FY${yrs[0]}–FY${last(yrs)}${fyEnd ? ` — the latest fiscal year ended ${fyEnd}` : ''}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
     el('div', { class: 'segmented' }, [['abs', 'Reported'], ['idx', 'Indexed to 100']].map(([v, l]) =>
       el('button', { 'aria-selected': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
@@ -1592,7 +1683,7 @@ function tabFinancials(r) {
   const idx = (arr) => { const b = arr.find(isNum); return arr.map(v => isNum(v) && b ? v / b * 100 : null); };
   const series = [
     { key:'rev', label:isBank ? 'Total income' : 'Revenue', values:State.finMode === 'idx' ? idx(d.rev) : d.rev, varName:'--s1' },
-    { key:'ebit', label:isBank ? 'Pre-provision profit' : 'Operating profit', values:State.finMode === 'idx' ? idx(d.ebit) : d.ebit, varName:'--s2' },
+    { key:'ebit', label:ebitLabel(c), values:State.finMode === 'idx' ? idx(d.ebit) : d.ebit, varName:'--s2' },
   ];
   if (!isBank) series.push({ key:'fcf', label:'Free cash flow', values:State.finMode === 'idx' ? idx(d.fcf) : d.fcf, varName:'--s3' });
 
@@ -1620,7 +1711,7 @@ function tabFinancials(r) {
   const neg = (arr) => arr.map(v => isNum(v) ? -v : null);
   const diff = (a, b) => a.map((v, i) => isNum(v) && isNum(b[i]) ? v - b[i] : null);
   const lines = [
-    ['Revenue', d.rev, false], ['Operating profit', d.ebit, false], ['Net profit', d.ni, false],
+    ['Revenue', d.rev, false], [ebitLabel(c), d.ebit, false], ['Net profit', d.ni, false],
     ...(isBank ? [] : [['Operating cash flow', d.ocf, false], ['Capital expenditure', neg(d.capex), false], ['Free cash flow', d.fcf, true]]),
     ['Shareholders’ equity', d.eq, false], [isBank ? 'Borrowings' : 'Total debt', d.debt, false],
     ...(isBank ? [] : [['Cash and equivalents', d.cash, false], ['Net debt', diff(d.debt, d.cash), true]]),
@@ -1646,14 +1737,14 @@ function tabFinancials(r) {
     const withheld = perShare && split && isNum(g0);
     const g = withheld ? null : g0;
     tr.append(el('td', { class: signClass(g), html: isNum(g) ? withSign(g, 1)
-      : withheld ? '<span class="caption" title="The share count moves by a corporate action inside this window, so a growth rate over any per-share line would measure the split. Withheld.">withheld</span>'
+      : withheld ? '<span class="caption" title="The share count jumps inside this window — a split, merger or offering — so a growth rate over any per-share line would measure that event. Withheld.">withheld</span>'
       : '<span class="caption">n/m</span>' }));
     tb.append(tr);
   });
   t.append(tb); tw.append(t); stmt.append(tw);
   stmt.append(el('div', { style: 'padding:var(--sm) var(--lg)' },
     el('p', { class: 'metaline' }, 'CAGR is null where the base period is non-positive — shown as n/m rather than as a computed number that would not mean anything.'
-      + (split ? ` Per-share growth is withheld: the share count moves from ${fmtNum(split.from, 2)}bn to ${fmtNum(split.to, 2)}bn inside this window, which is a corporate action, and the filings are not restated for it.` : ''))));
+      + (split ? ` Per-share growth is withheld: the share count moves from ${fmtNum(split.from, 2)}bn to ${fmtNum(split.to, 2)}bn inside this window — a split, merger or offering, which the filings are not restated for and no source here identifies.` : ''))));
   wrap.append(stmt);
 
   /* Quarters, for the illustrative set only. They are annual figures split by
@@ -1778,9 +1869,19 @@ function tabQuality(r) {
        figures were actually computed over travels with the metrics, so the card
        can correct its own labels instead of letting a shorter series pass as a
        longer one. */
-    if (k === 'growth' && isNum(r.m.growthYears) && r.m.growthYears < 4)
+    /* growthYears counts the REPORTED revenue points in the last five years
+       held, not the statements held. BlackRock carries ten annual statements
+       with revenue missing from six of them, and this sentence told the reader
+       only four statements were held. The count is stated as what it is. */
+    if (k === 'growth' && isNum(r.m.growthYears) && r.m.growthYears < 4) {
+      const held = Math.min(5, (r.d.rev || []).length);
+      const pts = r.m.growthYears + 1;
+      const why = pts < held
+        ? `revenue is reported for only ${pts} of the last ${held} years held`
+        : `only ${held} annual statement${held === 1 ? ' is' : 's are'} held for this company`;
       card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
-        `Computed over ${r.m.growthYears} year${r.m.growthYears === 1 ? '' : 's'}, not four — only ${r.m.growthYears + 1} annual statements are held for this company. The labels above read "(4y)" because that is the field definition; the window is what is stated here, and a shorter window makes a growth rate more sensitive to its endpoints.`));
+        `Computed over ${r.m.growthYears} year${r.m.growthYears === 1 ? '' : 's'}, not four — ${why}. The labels above read "(4y)" because that is the field definition; the window is what is stated here, and a shorter window makes a growth rate more sensitive to its endpoints.`));
+    }
     wrap.append(card);
   });
 
@@ -1812,6 +1913,12 @@ function tabQuality(r) {
     el('td', { html: isNum(part.score) ? `<b style="color:var(--ink)">${Math.round(part.score * part.w)}</b>` : NA }),
   ]))));
   mtw.append(mt); mc.append(mtw);
+  /* momentumOf divides by the weight of the inputs it could compute, as the
+     pillars do, so the listed contributions sum to less than the headline
+     whenever one is missing (AbbVie: 30 + 12 against 85). The pillars say so;
+     this card did not. */
+  if (isNum(r.mom.score) && r.mom.coverage < 100) mc.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `Weights are re-based across the inputs that could be computed — ${r.mom.coverage}% of the weight here — so the contributions above sum to ${r.mom.coverage}% of the score shown, not all of it.`));
   wrap.append(mc);
   return wrap;
 }
@@ -1958,16 +2065,23 @@ function tabOwnership(r) {
      report Apple's four-for-one as "share count rising 12.0% a year, which
      dilutes per-share growth" — the reverse of the truth for a company that has
      bought back stock for a decade. Rather than print a number that is wrong in
-     its sign, the measure is withheld and the discontinuity is named. */
+     its sign, the measure is withheld and the discontinuity is named.
+
+     Named, not diagnosed. This note used to say no issuance could move a count
+     that far in a year, and called every break a split — Realty Income's 1.64×
+     is the all-stock VEREIT merger and Rivian's 9× is its IPO and conversion,
+     both issuance. Nothing here can tell a split from a merger or an offering,
+     so the note says the jump is too large to read as a rate and leaves the
+     cause open. */
   if (m.shareSeriesBreak) {
     const b = m.shareSeriesBreak;
     act.append(el('div', { class: 'note', style: 'margin-top:var(--md);border-left:3px solid var(--warn)' },
       el('p', { class: 'body', style: 'font-size:13px' },
         `Share count CAGR and net buyback yield are withheld for this company. The series moves from `
         + `${fmtNum(b.from, 3)}bn to ${fmtNum(b.to, 3)}bn between two consecutive years — a factor of ${b.ratio}× — `
-        + `which is a corporate action rather than a financing decision, since no issuance or buyback moves a share `
-        + `count that far in a year. The filings are reported unadjusted for splits and no corporate-action source is `
-        + `licensed here to restate them, so a growth rate over this series would measure the split, not the company. `
+        + `a discontinuity too large to read as a growth rate. It may be a split, a merger or an offering: the filings `
+        + `are reported unadjusted for splits, and no corporate-action source is licensed here to tell which, so a `
+        + `growth rate over this series would measure that one event rather than the company's issuance and buybacks. `
         + `The year-by-year counts above are as filed and remain correct on their own terms.`)));
   }
   wrap.append(act);
@@ -2065,9 +2179,13 @@ function tabFilings(r) {
     c.mkt === 'US'
       ? 'In production these would be retrieved from EDGAR with the filing index and the extracted facts linked to each claim.'
       : 'In production these would come from a licensed Bursa feed. Announcement content and redistribution rights are a commercial prerequisite, not a scraping exercise.'));
+  /* A chip does not wrap, and the whole sentence in one ran 61px past a 390px
+     screen. The chip carries the label; the sentence sits beside it as text,
+     which wraps. */
   hd.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-    sevChip('info', 'Sample document list — illustrative, not retrieved from any exchange'),
+    sevChip('info', 'Illustrative sample'),
     el('span', { class: 'chip' }, `${docs.length} documents`),
+    el('span', { class: 'metaline' }, 'A sample document list, not retrieved from any exchange.'),
   ]));
   wrap.append(hd);
 
@@ -2098,7 +2216,11 @@ function tabFilings(r) {
 
     const acts = el('div', { class: 'row', style: 'gap:6px;margin-top:var(--md)' });
     acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => addToThesis(c.id) }, 'Add to thesis'));
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { go('alerts'); toast('Alert rule builder opened'); } }, 'Create alert'));
+    /* This went to the alerts page and toasted "Alert rule builder opened",
+       with no builder open and nothing about the company carried. The only
+       rule editor that exists is the price alert, so the button opens it here,
+       on this company, and says that is what it is. */
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { State.ticker = c.id; openPriceAlertEditor(); } }, 'Create a price alert'));
     card.append(acts);
     wrap.append(card);
   });

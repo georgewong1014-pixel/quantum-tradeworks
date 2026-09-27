@@ -37,7 +37,11 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                    past a 390px screen and 35px past 360 — a member row of
                    ticker, sparkline, price and model difference that could
                    not shrink — and no route here ever opened them. */
-                '/discover?tab=ideas', '/discover?tab=heatmap', '/discover/value-map'];
+                '/discover?tab=ideas', '/discover?tab=heatmap', '/discover/value-map',
+                /* The illustrative Filings tab: its "sample list" chip carried a
+                   whole sentence, did not wrap, and ran 61px past 390. Only the
+                   default tab of a company page was measured above. */
+                '/company/MAYBANK?tab=filings'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
