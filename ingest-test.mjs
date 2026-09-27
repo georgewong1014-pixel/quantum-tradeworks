@@ -16,7 +16,7 @@
  * Every fact here is invented and shaped like the real thing; the numbers
  * are arbitrary. The test is about WHICH fact wins, not what it says.
  */
-import { annualSeries, resolveLine, assembleFin, classify, LINES } from './ingest/sec.mjs';
+import { annualSeries, resolveLine, assembleFin, classify, listingFromSubmissions, LINES } from './ingest/sec.mjs';
 
 let failures = 0, passes = 0;
 const fail = (msg, detail) => { failures++; console.error(`FAIL  ${msg}`); if (detail !== undefined) console.error(`      ${JSON.stringify(detail)}`); };
@@ -173,6 +173,16 @@ const FY_ENDS = { 2023: '2023-09-30', 2024: '2024-09-28', 2025: '2025-09-27' };
   const v = classify('7389');
   if (v.sector === 'Communication Services') fail('7389 (Visa, Mastercard, Accenture) is still filed as Communication Services', v);
   else ok(`7389, miscellaneous business services, is ${v.assumed ? 'left unclassified and marked assumed' : v.sector} rather than media`);
+}
+
+/* 8 — the listing venue comes from the submissions record, beside the
+     ticker it belongs to, and is null rather than guessed where none is named. */
+{
+  const sub = { tickers: ['BRK-A', 'BRK-B'], exchanges: ['NYSE', 'NYSE'] };
+  eq('the venue beside the ticker is the listing (Nasdaq for MSFT)', listingFromSubmissions({ tickers: ['MSFT'], exchanges: ['Nasdaq'] }, 'msft'), 'Nasdaq');
+  eq('a ticker not in the record takes the first venue named', listingFromSubmissions(sub, 'BRK.B'), 'NYSE');
+  eq('a record that names no exchange gives null, not a guess', listingFromSubmissions({ tickers: ['X'], exchanges: [] }, 'X'), null);
+  eq('a missing record gives null', listingFromSubmissions(null, 'X'), null);
 }
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} ingest rules hold`);

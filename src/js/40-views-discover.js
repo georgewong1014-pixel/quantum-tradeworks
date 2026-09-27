@@ -1419,18 +1419,37 @@ function openSourceDrawer(r, f) {
 
   const kv = el('dl', { class: 'kv' });
   const fy = latestFy(c);
+  /* The statement lines this measure reads, for the rows that describe what
+     happened to them on the way in. Each clause is said only where one of
+     them needs it: a margin is not told its debt was summed. */
+  const stmtLines = (FIELD_INPUTS[f.k] || []).filter(l => LINE_COL[l] != null);
+  const transform = (() => {
+    if (!stmtLines.length) return 'None to statement lines — this measure reads none.';
+    if (!c.real || c.personal) return lineTransformation(c, stmtLines[0], fy);
+    const out = [];
+    const has = (l) => stmtLines.includes(l);
+    const tag = (pk) => c.provenance?.[pk]?.byYear?.[fy] || c.provenance?.[pk]?.byYear?.[String(fy)];
+    if (stmtLines.some(l => l !== 'sh' && l !== 'dps')) out.push('Filed in whole US dollars; stored ÷ 1,000,000,000 as USD billions.');
+    if (has('sh')) out.push('The share count is filed as a count and stored in billions.');
+    if (has('dps')) out.push('Dividend per share is stored as filed, not scaled.');
+    if (has('debt')) out.push('Total debt is the non-current line plus the current portion, summed into one figure.');
+    if (has('sh') && !tag('sh') && tag('shWtd')) out.push('No year-end share count was filed for this year, so the weighted-average diluted count stands in.');
+    out.push('Where a period was filed more than once, the latest filing is used, so a restatement replaces the first-reported figure.');
+    out.push(`The measure itself is computed on this page: ${f.formula}.`);
+    return out.join(' ');
+  })();
   const rows = [
     [st.available ? 'What it is' : 'Why it is absent', st.text],
     ['Formula', f.formula],
-    ['Reporting period', `FY${fy}${fyEndOf(c, fy) ? ` (ended ${fmtFyEnd(fyEndOf(c, fy))})` : ''}, as reported`],
+    ['Reporting period', stmtLines.length ? periodEndText(c, stmtLines[0], fy) : `FY${fy}${fyEndOf(c, fy) ? ` (ended ${fmtFyEnd(fyEndOf(c, fy))})` : ''}, as reported`],
     ['Prior period', priceBased ? 'not shown — this measure needs the price on the day, and no price history for the prior year is held' : isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev, r)}` : 'not computable'],
     ['Currency', c.ccy],
-    ['Source', c.real
-      ? (c.personal ? `Annual statements you supplied — personal research, retrieved ${c.retrieved}` : `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`)
-      : 'Synthetic sample statement — not a filing'],
-    ['Transformation', c.real && !c.personal
-      ? 'Filed values scaled to billions. Debt is the non-current plus the current line. Where a filer reports no year-end share count, the weighted diluted count stands in. The latest-filed value for each year is used, so a restatement replaces the original. Nothing else is adjusted.'
-      : c.real ? 'Statements as supplied, scaled to billions. Nothing else is adjusted.' : 'Synthetic lines. Nothing is adjusted.'],
+    ['Source', sourceSentence(c)],
+    /* Filing date and form, read from the record whether or not it holds them
+       yet — the row says which, rather than leaving the reader to wonder
+       whether the page forgot. */
+    ['Filing', stmtLines.length ? filingText(c, stmtLines[0], fy) : 'none — this measure reads no statement line'],
+    ['Transformation', transform],
     ['Data completeness', `${m.coverage}% of applicable measures are computable for this company`],
     ['Model version', MODEL_VERSION],
     ['Computed', `at page load, from ${dataDateLabel(c)}`],
@@ -1453,10 +1472,10 @@ function openSourceDrawer(r, f) {
     const last = c.fin?.[c.fin.length - 1] || [];
     const tw = el('div', { class: 'tablewrap' });
     const t = el('table', { class: 'dt' });
-    t.append(el('thead', {}, el('tr', {}, ['Line', 'Latest value', 'Period', 'Source'].map(h => el('th', {}, h)))));
+    t.append(el('thead', {}, el('tr', {}, ['Line', 'Latest value', 'Period', 'Original unit', 'Source'].map(h => el('th', {}, h)))));
     const tb = el('tbody');
     inputs.forEach(l => {
-      let val, period, src, present = true;
+      let val, period, src, present = true, unit0 = '—';
       if (l === 'price') {
         present = isNum(c.px?.p);
         val = present ? `${fmtNum(c.px.p, 2)} ${c.ccy}` : 'none';
@@ -1472,11 +1491,10 @@ function openSourceDrawer(r, f) {
         present = isNum(x);
         val = present ? (l === 'sh' ? `${fmtNum(x, 3)}bn shares` : l === 'dps' ? `${fmtNum(x, 3)} per share` : `${fmtNum(x, 3)}bn ${c.ccy}`) : 'not reported';
         period = `FY${fy}`;
+        unit0 = lineOriginalUnit(c, l);
         if (c.real && c.provenance && typeof c.provenance === 'object') {
-          const spec = LINE_PROV[l] || { keys: [l], mode: 'first' };
           const tagOf = (pk) => c.provenance[pk]?.byYear?.[fy] || c.provenance[pk]?.byYear?.[String(fy)] || null;
-          const tags = spec.mode === 'sum' ? spec.keys.map(tagOf).filter(Boolean) : [spec.keys.map(tagOf).find(Boolean)].filter(Boolean);
-          src = tags.length ? tags.join(' + ') : `no tag recorded for FY${fy}`;
+          src = lineConcept(c, l, fy) || `no tag recorded for FY${fy}`;
           /* The corrected ingest records the route each assembled column took;
              a withheld cell says why it is empty. */
           if (c.withheld?.[l]?.years?.includes(fy)) src = `withheld — ${c.withheld[l].why}`;
@@ -1488,10 +1506,19 @@ function openSourceDrawer(r, f) {
         el('td', { class: 'ident' }, LINE_LABEL[l] || l),
         el('td', { class: present ? '' : 'caption' }, val),
         el('td', {}, period),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:160px' }, unit0),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:260px' }, src),
       ]));
     });
     t.append(tb); tw.append(t); body.append(tw);
+  }
+
+  /* Where to check it: the filer's EDGAR record, from the same builder the
+     Filings tab uses. */
+  const links = stmtLines.length ? edgarLinkRow(c, { fy, lines: stmtLines }) : null;
+  if (links) {
+    body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Check it against the source'));
+    body.append(links);
   }
 
   if (METRIC_HELP[f.k]) {
@@ -1499,6 +1526,256 @@ function openSourceDrawer(r, f) {
       onclick: () => explainMetric(f.k) }, 'What does this measure mean?'));
   }
   openDrawer(f.label, body);
+}
+
+/* ==========================================================================
+   LINEAGE — one statement line, one year
+
+   The drawer above explains a measure. A reader looking at the statements
+   themselves asks a narrower question — where did this one figure come from —
+   and until now the raw reported lines were the only numbers on the company
+   page with no answer: the "reported" kind was defined and attached to
+   nothing a reader could click. These helpers answer it for a single line in a
+   single year, and the measure drawer reuses them for its inputs, so the two
+   cannot describe the same filing two ways.
+   ========================================================================== */
+
+/* The provenance keys behind a tuple column (debt and shares are assembled
+   from more than one), and the concept that supplied a given year. */
+const lineProvKeys = (l) => (LINE_PROV[l] || { keys: [l] }).keys;
+function lineConcept(c, l, fy) {
+  if (!c?.real || !c.provenance || typeof c.provenance !== 'object') return null;
+  const spec = LINE_PROV[l] || { keys: [l], mode: 'first' };
+  const tagOf = (pk) => c.provenance[pk]?.byYear?.[fy] || c.provenance[pk]?.byYear?.[String(fy)] || null;
+  const tags = spec.mode === 'sum' ? spec.keys.map(tagOf).filter(Boolean) : [spec.keys.map(tagOf).find(Boolean)].filter(Boolean);
+  return tags.length ? tags.join(' + ') : null;
+}
+
+/* The unit the filer used, before the ingest scaled it. us.json records it
+   per line ('USD', 'shares', 'USD/shares'); the page stores billions and
+   per-share amounts, and a reader checking a figure against the filing needs
+   to know which of the two they are holding. */
+const ORIGINAL_UNIT_WORDS = { USD: 'USD, whole dollars as filed', shares: 'shares, a whole count as filed',
+  'USD/shares': 'USD per share, as filed', pure: 'a pure number, as filed' };
+function lineOriginalUnit(c, l) {
+  if (!c?.real) return 'none — a synthetic sample line, authored in billions';
+  if (c.personal || typeof c.provenance !== 'object' || !c.provenance) return 'as written in the statements you supplied';
+  const units = [...new Set(lineProvKeys(l).map(k => c.provenance[k]?.unit).filter(Boolean))];
+  return units.length ? units.map(u => ORIGINAL_UNIT_WORDS[u] || u).join('; ') : 'not recorded for this line';
+}
+
+/* Filing date, form, period end and accession for one line and year. The
+   ingest has recorded the first three since 26 September; the statements
+   shipped here were retrieved on 3 August and carry none of them, and no
+   accession number is read at all yet. Read defensively, so the day the data
+   carries them they appear with no change here. */
+function lineFiling(c, l, fy) {
+  const out = { filed: null, form: null, end: null, accn: null };
+  if (!c?.real || c.personal || !c.provenance || typeof c.provenance !== 'object') return out;
+  const at = (o) => (o && (o[fy] ?? o[String(fy)])) || null;
+  for (const k of lineProvKeys(l)) {
+    const p = c.provenance[k] || {};
+    out.filed = out.filed || at(p.filedByYear);
+    out.form = out.form || at(p.formByYear);
+    out.end = out.end || at(p.endByYear);
+    out.accn = out.accn || at(p.accnByYear);
+  }
+  out.end = out.end || fyEndOf(c, fy);
+  return out;
+}
+const NOT_YET_HELD = 'not in this dataset yet — the shipped statements predate the ingest that records it, and it fills in here when they are regenerated';
+function filingText(c, l, fy) {
+  if (!c?.real) return 'None — a synthetic sample statement is not a filing.';
+  if (c.personal) return 'None held — annual statements you supplied, with no filing index behind them.';
+  const f = lineFiling(c, l, fy);
+  if (!f.filed && !f.form) return `Filing date and form are ${NOT_YET_HELD}.`;
+  return `${f.form || 'form not recorded'}${f.filed ? `, filed ${f.filed}` : ''}`;
+}
+function periodEndText(c, l, fy) {
+  const end = lineFiling(c, l, fy).end || fyEndOf(c, fy);
+  if (end) return `FY${fy}, ended ${fmtFyEnd(end)}`;
+  if (!c?.real) return `FY${fy} of the sample set`;
+  return c.personal ? `FY${fy}, as labelled in your statements` : `FY${fy}. The period end date is ${NOT_YET_HELD}.`;
+}
+
+/* What the ingest did to a filed figure before it reached this page, for one
+   line and year. Each clause is emitted only where it applies to that line, so
+   a revenue figure does not claim a debt sum and a dividend is not said to
+   have been scaled. */
+function lineTransformation(c, l, fy) {
+  if (!c?.real) return 'Synthetic sample line, authored in billions. Nothing was filed, so nothing was transformed.';
+  if (c.personal) return l === 'dps' ? 'As supplied, per share. Nothing else is adjusted.' : 'As supplied, scaled to billions. Nothing else is adjusted.';
+  const parts = [];
+  if (l === 'dps') parts.push('Filed per share and stored as filed — not scaled.');
+  else if (l === 'sh') parts.push('Filed as a count of shares; stored ÷ 1,000,000,000 as billions of shares.');
+  else parts.push('Filed in whole US dollars; stored ÷ 1,000,000,000 as USD billions.');
+  const basis = c.basis?.[l]?.[fy] || c.basis?.[l]?.[String(fy)] || null;
+  if (l === 'debt') parts.push(basis ? `This year’s route: ${basis}.` : 'Total debt is the non-current line plus the current portion, summed into one figure; the concepts for this year are named above.');
+  if (l === 'sh') {
+    const tag = (pk) => c.provenance?.[pk]?.byYear?.[fy] || c.provenance?.[pk]?.byYear?.[String(fy)];
+    parts.push(basis ? `This year’s route: ${basis}.`
+      : tag('sh') ? 'The year-end count of shares outstanding.'
+      : tag('shWtd') ? 'No year-end count was filed for this year, so the weighted-average diluted count stands in.'
+      : 'No share count resolved for this year.');
+  }
+  if (l === 'capex') parts.push('Filed as a positive payment; the statement table shows it negative, as the outflow it is.');
+  parts.push('Where a period was filed more than once, the latest filing is used, so a restatement replaces the first-reported figure.');
+  if (lineProvKeys(l).some(k => c.provenance?.[k]?.mixedTags))
+    parts.push('This line is assembled from more than one XBRL concept across the years, so part of a year-to-year change can be a change of definition.');
+  return parts.join(' ');
+}
+
+/* The EDGAR addresses a filer's figures can be checked against, built from
+   the CIK alone. One builder, used by the Filings tab and every drawer, so a
+   link cannot be spelled two ways. The link to the exact filing needs an
+   accession number the ingest does not read yet; it is added for any line and
+   year whose record carries one, and is otherwise absent rather than pointed
+   at a guess. */
+function edgarLinks(c, { fy = null, lines = [] } = {}) {
+  if (!c?.real || c.personal || !c.cik) return [];
+  const cik10 = padCik(c.cik), bare = String(Number(cik10));
+  const out = [];
+  if (fy != null) {
+    const seen = new Set();
+    lines.forEach(l => {
+      const f = lineFiling(c, l, fy);
+      if (!f.accn || !/^\d{10}-\d{2}-\d{6}$/.test(f.accn) || seen.has(f.accn)) return;
+      seen.add(f.accn);
+      out.push({ exact: true, href: `https://www.sec.gov/Archives/edgar/data/${bare}/${f.accn.replace(/-/g, '')}/${f.accn}-index.htm`,
+        label: `The ${f.form || 'filing'} that supplied FY${fy}` });
+    });
+  }
+  out.push(
+    { href: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&type=10-K&dateb=&owner=include&count=40`, label: 'Annual reports on EDGAR' },
+    { href: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&owner=include&count=40`, label: 'Every filing on EDGAR' },
+    { href: `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, label: 'The companyfacts record this page was built from' },
+  );
+  return out;
+}
+function edgarLinkRow(c, opts) {
+  const links = edgarLinks(c, opts);
+  if (!links.length) return null;
+  const row = el('div', { class: 'row row-wrap', style: 'gap:8px' }, links.map(x =>
+    el('a', { class: 'btn btn-ghost btn-sm', href: x.href, target: '_blank', rel: 'noopener noreferrer', html: `${esc(x.label)} ${icon('ext', 10)}` })));
+  /* Said beside the links, where the missing one would have been. */
+  if (opts?.fy != null && !links.some(x => x.exact)) return el('div', {}, [row,
+    el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `No link to the exact filing: that needs its accession number, which the ingest does not record yet. The FY${opts.fy} annual report is in the list above — the one whose period matches.`)]);
+  return row;
+}
+
+/* The source line of every drawer, in one sentence per kind of company. */
+const sourceSentence = (c) => c.real
+  ? (c.personal ? `Annual statements you supplied — personal research, not redistributable, retrieved ${c.retrieved}` : `SEC EDGAR companyfacts, CIK ${c.cik}, retrieved ${c.retrieved}`)
+  : 'Synthetic sample statement — not a filing';
+
+/* THE STATUS OF ONE STATEMENT CELL. Present: reported, calculated (a derived
+   line) or illustrative. Absent: which of the five reasons, for this line in
+   this year — the cell prints the short form and carries the sentence, as the
+   screener's cells do. A blanket "n/a" said nothing could be said, and for a
+   filed line something always can: which tag failed, or which rule withheld. */
+function lineCellStatus(r, line, i) {
+  const { c } = r;
+  const fy = yearsOf(c)[i];
+  const v = line.arr[i];
+  if (isNum(v)) {
+    const id = !c.real ? 'illustrative' : line.derived ? 'calculated' : 'reported';
+    return { id, available: true, label: PROVENANCE[id].label, text: PROVENANCE[id].note };
+  }
+  const why = (reason, text) => ({ id: 'unavailable', available: false, reason, label: ABSENCE[reason].short, text });
+  const keys = line.derived ? line.inputs : [line.key];
+  const held = keys.filter(k => c.withheld?.[k]?.years?.includes(fy));
+  if (held.length) return why('withheld', held.map(k => `${LINE_LABEL[k]} for FY${fy} is withheld: ${c.withheld[k].why}.`).join(' ') + ' The ingest rule has been corrected; the figure returns when the statements are regenerated.');
+  if (line.derived) {
+    const missing = line.inputs.filter(k => !isNum(c.fin?.[i]?.[LINE_COL[k]]));
+    if (missing.length) return why('not reported', `${missing.map(k => LINE_LABEL[k]).join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not in the stored statements for FY${fy}, and a derived line needs every input from the same year. Nothing is imputed.`);
+    return why('not meaningful', `Every input is present for FY${fy}, but the arithmetic has no meaning on them — a share count of zero.`);
+  }
+  if (!c.real) return why('not reported', `Not in the sample statement for FY${fy}. Nothing is imputed.`);
+  if (c.personal) return why('not reported', `Not in the statements you supplied for FY${fy}. Nothing is imputed.`);
+  const pk = lineProvKeys(line.key);
+  const gap = (c.gaps || []).find(g => pk.includes(g.line) && Array.isArray(g.missingYears) && g.missingYears.map(Number).includes(Number(fy)))
+    || (c.gaps || []).find(g => pk.includes(g.line) && g.reason && !g.withheld);
+  const tagWords = gap?.missingYears ? `${gap.concept} and its fallbacks returned no annual value for this year`
+    : gap?.reason ? gap.reason : 'no XBRL concept in the fallback chain resolved for this year';
+  return why('not reported', `Not in the FY${fy} statements held for this filer — ${tagWords}. Nothing is imputed.`
+    + (line.key === 'dps' ? ' A company that declared no dividend files no dividend tag, so this can also mean none was declared.' : ''));
+}
+
+/* A figure as the statements show it, with its unit. */
+const lineUnit = (line, c) => line.unit === 'shares' ? 'bn shares' : line.unit === 'perShare' ? `${c.ccy} per share` : `${c.ccy} bn`;
+/* Per-share lines keep two places throughout, so a row reads as one series;
+   totals take fewer as they grow. */
+const lineFmt = (v, line) => fmtNum(v, line?.unit === 'perShare' ? 2 : Math.abs(v) < 10 ? (Math.abs(v) < 1 ? 3 : 2) : 1);
+
+/* The drawer behind one statement cell: the line, the year, the value, its
+   unit then and now, the XBRL concept that supplied that year, the filing
+   where the data carries it, what the ingest did to it, and the EDGAR record
+   to check it against. A derived line lists its inputs for the same year. */
+function openLineDrawer(r, line, i) {
+  const { c } = r;
+  const yrs = yearsOf(c), fy = yrs[i];
+  const v = line.arr[i], prev = i > 0 ? line.arr[i - 1] : null;
+  const st = lineCellStatus(r, line, i);
+  const body = el('div', { class: 'stack' });
+  body.append(el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
+    statusChip(st), el('span', { class: 'chip' }, `${c.tk} · ${c.name}`), illusChip(c),
+  ]));
+  const d = isNum(v) && isNum(prev) ? v - prev : null;
+  const change = isNum(d)
+    ? `FY${yrs[i - 1]}: ${lineFmt(prev, line)} · change ${withSign(d, Math.abs(d) < 10 ? 2 : 1, '')}${prev > 0 ? ` (${withSign(d / prev * 100, 1)})` : ''}`
+    : null;
+  body.append(el('div', { class: 'panel' }, statTile(`${line.label}, FY${fy}`,
+    isNum(v) ? `${lineFmt(v, line)} ${lineUnit(line, c)}` : `unavailable — ${st.reason}`, { sub: change })));
+
+  const kv = el('dl', { class: 'kv' });
+  const concept = line.derived ? null : lineConcept(c, line.key, fy);
+  const rows = [
+    [st.available ? 'What it is' : 'Why it is absent', st.available && line.derived
+      ? `A derived line: ${line.formula}. Computed on this page from the stored lines for FY${fy}; it is not stored separately.`
+      : st.available && st.id === 'reported'
+        ? `A reported line: the figure the filer tagged for FY${fy}, stored as the Transformation row below describes. No estimate or adjustment beyond that.`
+        : st.text],
+    ['Line', `${line.label} — ${line.groupLabel.toLowerCase()}`],
+    ['Reporting period', periodEndText(c, line.derived ? line.inputs[0] : line.key, fy)],
+    ['Value', isNum(v) ? `${v} ${lineUnit(line, c)}${line.sign === -1 ? ' (shown negative, as an outflow)' : ''}` : 'none held'],
+    ...(line.derived ? [] : [
+      ['Original unit', lineOriginalUnit(c, line.key)],
+      ['XBRL concept', !c.real ? 'none — a synthetic sample line' : c.personal ? 'none — statements you supplied carry no XBRL'
+        : concept || `no concept recorded for FY${fy}`],
+      ['Filing', filingText(c, line.key, fy)],
+    ]),
+    ['Source', sourceSentence(c)],
+    ['Transformation', line.derived ? `None beyond the arithmetic: ${line.formula}, from the same year’s lines, or nothing if either is absent.` : lineTransformation(c, line.key, fy)],
+    ['Currency', c.ccy],
+  ];
+  rows.forEach(([k2, v2]) => { kv.append(el('dt', {}, k2)); kv.append(el('dd', { style: 'text-align:left' }, v2)); });
+  body.append(kv);
+
+  if (line.derived) {
+    body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Inputs'));
+    const tw = el('div', { class: 'tablewrap' });
+    const t = el('table', { class: 'dt' });
+    t.append(el('thead', {}, el('tr', {}, ['Line', `FY${fy}`, 'Original unit', 'Source'].map(h => el('th', {}, h)))));
+    t.append(el('tbody', {}, line.inputs.map(l => {
+      const x = c.fin?.[i]?.[LINE_COL[l]];
+      return el('tr', {}, [
+        el('td', { class: 'ident' }, LINE_LABEL[l]),
+        el('td', { class: isNum(x) ? '' : 'caption' }, isNum(x) ? `${lineFmt(x)} ${l === 'sh' ? 'bn shares' : l === 'dps' ? 'per share' : c.ccy + ' bn'}` : 'not reported'),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, lineOriginalUnit(c, l)),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:240px' },
+          !c.real ? 'synthetic sample' : c.personal ? 'statements you supplied' : lineConcept(c, l, fy) || `no tag recorded for FY${fy}`),
+      ]);
+    })));
+    tw.append(t); body.append(tw);
+  }
+
+  const links = edgarLinkRow(c, { fy, lines: line.derived ? line.inputs : [line.key] });
+  if (links) {
+    body.append(el('h4', { class: 'h-card', style: 'margin:var(--md) 0 6px' }, 'Check it against the source'));
+    body.append(links);
+  }
+  openDrawer(`${line.label} · FY${fy}`, body);
 }
 
 function openMetricInfo(f) {

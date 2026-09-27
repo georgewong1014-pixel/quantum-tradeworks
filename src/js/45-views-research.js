@@ -702,6 +702,12 @@ const RESEARCH_TABS = [
   { id:'thesis',    label:'Thesis' },
 ];
 
+/* Where a company lists, said honestly. The illustrative and personal sets
+   name their exchange; a filer's is in the SEC submissions record, which the
+   ingest now reads but the shipped statements predate. */
+const EXCH_UNKNOWN = 'SEC companyfacts carries no listing venue. The ingest records it from the filer’s submissions record, and it appears here once data/us.json is regenerated.';
+const listingOf = (c) => (c.cik && !c.exchKnown ? 'an exchange not recorded in this dataset' : c.exch);
+
 /* The one toggle in the app, on top of the watchlist service — so a company
    page and the watchlists page cannot disagree about what is in a list. */
 function toggleWatch(id, wlIdx = State.wlIdx) {
@@ -710,6 +716,51 @@ function toggleWatch(id, wlIdx = State.wlIdx) {
   const r = had ? wlRemove(wl.id, id) : wlAdd(wl.id, id);
   toast(r.ok ? (had ? `Removed from “${wl.name}”` : `Added to “${wl.name}”`) : r.why);
   render();
+}
+
+/* THE COMPANY PAGE'S ACTIONS.
+   Four things a reader does with a company, each a real link or button so it
+   works from the keyboard and a link opens in a new tab. The valuation tab is
+   one tab away in the strip below, so it no longer needs a button here.
+
+   The scanner is the exception, and says so. It reads only price history the
+   reader supplied — the deployed site ships none, by design — so it is live
+   only where that history is loaded, and otherwise shown switched off with the
+   reason beside it. Nothing here implies it scans anything else. */
+const scannerLaneOn = () => !!(scanHistoryFile?.series && Object.keys(scanHistoryFile.series).length);
+function companyActions(r) {
+  const { c } = r;
+  const box = el('div', { class: 'company-acts' });
+  const acts = el('div', { class: 'row row-wrap', style: 'gap:6px;justify-content:flex-end' });
+  const link = (path, label, { before, ...attrs } = {}) => el('a', { class: 'btn btn-ghost btn-sm', href: href(path), ...attrs,
+    onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); before?.(); navigate(path); } }, label);
+  const watching = State.watchlist.includes(c.id);
+  acts.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': watching ? 'true' : 'false',
+    onclick: () => toggleWatch(c.id) }, watching ? '✓ On your watchlist' : 'Add to watchlist'));
+  /* Compare adds this company to the selection already held, rather than
+     replacing it, and drops the oldest when the plan's cap is reached — with a
+     toast naming it, so a comparison is never cut silently. */
+  const cap = lim('compare');
+  const held = (State.compare || []).filter(x => x !== c.id && BY_ID.has(x));
+  const next = [...held.slice(Math.max(0, held.length - (cap - 1))), c.id];
+  const dropped = held.filter(x => !next.includes(x));
+  acts.append(link(`/compare?companies=${next.map(encodeURIComponent).join(',')}`, 'Compare', {
+    title: held.length ? `Compare with ${next.filter(x => x !== c.id).map(x => BY_ID.get(x)?.c.tk).join(', ')}` : 'Open a comparison with this company',
+    before: () => { if (dropped.length) toast(`${cap} is the most a comparison holds — ${dropped.map(x => BY_ID.get(x)?.c.tk).join(', ')} left it`); } }));
+  const thesis = (State.theses || []).find(t => t.ticker === c.id);
+  acts.append(el('button', { class: 'btn btn-ghost btn-sm',
+    title: 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind',
+    onclick: () => addToThesis(c.id) }, thesis ? 'Open your investment case' : 'Save research'));
+  const sym = c.tk || c.code || c.id;
+  const on = scannerLaneOn();
+  if (on) acts.append(link(`/my/scanner?from=${encodeURIComponent(c.id)}&symbol=${encodeURIComponent(sym)}`, 'Open scanner',
+    { title: 'Personal-lane scanner: it scans only the price history you supplied' }));
+  else acts.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: '', 'aria-describedby': `scan-off-${c.id}` }, 'Open scanner'));
+  box.append(acts);
+  box.append(el('p', { class: 'metaline', id: `scan-off-${c.id}`, style: 'margin-top:6px;text-align:right' },
+    on ? `The scanner is a personal-lane tool: it scans only price history you supplied${scanHistoryFile.series[sym] ? `, which holds ${sym}` : `, which holds no series for ${sym}`}.`
+       : 'Scanner switched off here: it scans only price history you supplied, and none is loaded.'));
+  return box;
 }
 
 /* /research is a way in, not a company. It used to fall through to whichever
@@ -873,7 +924,12 @@ VIEWS.research = () => {
        the page every reader sees. */
     c.real ? null : el('span', { class: 'chip chip-bronze',
       title: 'Financial figures for this company are synthetic — created for interface demonstration. They are not filed, and they are not real.' }, 'illustrative figures'),
-    el('span', { class: 'chip' }, `${c.exch} · ${c.code}`),
+    /* A filer's listing venue is not in companyfacts, and "SEC filer · MSFT"
+       read as though the SEC were an exchange. Said as unknown until the
+       statements carry it. */
+    c.cik && !c.exchKnown
+      ? el('span', { class: 'chip', title: EXCH_UNKNOWN }, `Exchange not in this dataset · ${c.code}`)
+      : el('span', { class: 'chip' }, `${c.exch} · ${c.code}`),
     /* A withheld classification says why on hover, rather than reading as a
        filer nobody had classified. */
     el('span', c.sectorWithheld ? { class: 'chip chip-bronze', title: c.sectorWithheld } : { class: 'chip' }, c.sectorWithheld ? 'Sector withheld' : c.sector),
@@ -909,16 +965,16 @@ VIEWS.research = () => {
   const pxBase = toBase(c.px.p, c.ccy);
   if (State.baseCcy !== c.ccy && isNum(pxBase)) pxBlock.append(el('div', { class: 'metaline', style: 'margin-top:2px' },
     `${baseSym()}${pxBase.toFixed(2)} in ${State.baseCcy} at ${FX.USDMYR.toFixed(2)}`));
-  const acts = el('div', { class: 'row', style: 'gap:6px;justify-content:flex-end;margin-top:10px' });
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => toggleWatch(c.id) },
-    State.watchlist.includes(c.id) ? '✓ Watching' : '+ Watchlist'));
-  acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Valuation Studio'));
-  pxBlock.append(acts);
+  pxBlock.append(companyActions(r));
   top.append(pxBlock);
   head.append(top);
 
+  /* One freshness line, in the same place for every company: which year the
+     statements run to, where they came from and when, and how the price is
+     dated. The filed strip below says more for a filer; this line is the part
+     every company has. */
   head.append(el('div', { style: 'margin-top:var(--md);padding-top:var(--sm);border-top:1px solid var(--grid)' },
-    provenance(r, [`<b>Model</b> ${r.val.pack.name}`, `<b>Confidence</b> ${r.val.confBand}`])));
+    provenance(r, [`<b>Model</b> ${r.val.pack.name}`, `<b>Confidence</b> ${r.val.confBand}`], { freshness: true })));
 
   /* Real-data companies get their own provenance strip: which filer, how
      complete, which XBRL tags, and the price gap with a way to close it. */
@@ -937,7 +993,6 @@ VIEWS.research = () => {
       el('span', { class: 'chip' }, `${Math.round(c.completeness * 100)}% of lines present`),
       isNum(c.fin?.length) && c.fin.length < 6
         ? el('span', { class: 'chip chip-bronze' }, `${c.fin.length} years held`) : null,
-      el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
       c.px?.eod ? (c.pricePersonal
           ? el('span', { class: 'chip chip-bronze' }, `read from your screen${c.px.asOf ? ' ' + c.px.asOf : ''}`)
           : sevChip('good', `end-of-day close${c.px.asOf ? ' ' + c.px.asOf : ''}`))
@@ -1221,7 +1276,7 @@ function companySummary(r) {
 
   /* 1. What it does — from the company's own description, kept short. */
   const does = String(c.desc || '').split(/(?<=\.)\s+/).slice(0, 2).join(' ')
-    || `${c.name} is listed on ${c.exch}. No business description has been recorded for it.`;
+    || `${c.name} is listed on ${listingOf(c)}. No business description has been recorded for it.`;
   grid.append(block('What the company does', does,
     `${c.sector}${c.industry && c.industry !== c.sector ? ' · ' + c.industry : ''}`));
 
@@ -1271,10 +1326,66 @@ function companySummary(r) {
 }
 
 /* --------------------------------------------------------------- snapshot */
+/* A stat tile that opens something, as a real button so the keyboard reaches
+   it. The tile inside keeps its own markup; the button only adds the
+   affordance and the focus ring. */
+function tileButton(node, label, onclick) {
+  const b = el('button', { type: 'button', class: 'tile-btn', 'aria-label': label, onclick });
+  b.append(node);
+  return b;
+}
+
+/* THE OVERVIEW TILES.
+   What the business reported in its latest year, before anything is scored
+   or priced: revenue, net income, operating cash flow and equity. They read
+   the same statement lines the Financials table shows — no arithmetic here —
+   and each names its fiscal year, carries a badge for the kind of source
+   (filed, illustrative, personal) and opens the source drawer for that line
+   and year. Every company has these four lines, priced or not, so the top of
+   the page is never a row of dashes. */
+function overviewTiles(r) {
+  const { c } = r;
+  const yrs = yearsOf(c), i = yrs.length - 1, fy = yrs[i];
+  const lines = statementLines(r);
+  const end = fyEndOf(c, fy);
+  const badge = c.real
+    ? (c.personal
+        ? el('span', { class: 'chip chip-bronze', title: 'Annual statements you supplied for personal research. Not redistributable.' }, 'Personal')
+        : el('span', { class: 'chip chip-ok', title: `Filed with the SEC. From EDGAR companyfacts, CIK ${c.cik}.` }, 'Filed'))
+    : el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'Illustrative');
+  const card = el('div', { class: 'card' });
+  card.append(cardHead('Latest reported year',
+    `FY${fy}${end ? `, ended ${fmtFyEnd(end)}` : ''} · ${c.ccy} billions${c.real && !c.personal && !end ? ' · the period end date is not in this dataset yet' : ''}. Select a figure for its source.`,
+    null));
+  const g = el('div', { class: 'grid g-4 overview-tiles' });
+  [['rev', 'Revenue'], ['ni', 'Net income'], ['ocf', 'Operating cash flow'], ['eq', 'Total equity']].forEach(([k, label]) => {
+    const line = lines.find(l => l.key === k);
+    /* A bank's operating cash flow is not left out silently: the tile is
+       there, and says why it holds no figure. */
+    if (!line) {
+      g.append(el('div', { class: 'tile-static' }, statTile(label, 'not shown',
+        { sub: 'Not a meaningful measure for a deposit-taking balance sheet, so the statements omit it for a bank.' })));
+      return;
+    }
+    const v = line.arr[i], st = lineCellStatus(r, line, i), ch = lineChange(r, line, i);
+    const tile = statTile(label, isNum(v) ? fmtNum(v, Math.abs(v) < 10 ? 2 : 1) : st.label,
+      { sub: `FY${fy}${isNum(ch.pct) ? ` · ${withSign(ch.pct, 1)} on FY${yrs[i - 1]}` : ''}` });
+    if (!isNum(v)) tile.querySelector('.stat-value').classList.add('stat-absent');
+    tile.append(el('div', { class: 'row', style: 'gap:6px;margin-top:4px' }, [badge.cloneNode(true),
+      isNum(v) ? null : el('span', { class: 'metaline', title: st.text }, st.reason)]));
+    g.append(tileButton(tile, `${label}, FY${fy}: ${isNum(v) ? `${fmtNum(v, 2)} ${c.ccy} billion` : `unavailable, ${st.reason}`} — show source`,
+      () => openLineDrawer(r, line, i)));
+  });
+  card.append(g);
+  return card;
+}
+
 function tabSnapshot(r) {
   const { c, m, val } = r;
   const wrap = el('div', { class: 'research-layout' });
   const main = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md);min-width:0' });
+
+  main.append(overviewTiles(r));
 
   /* Research-case composite, section 14. Shown with its divisor: a number that
      hides how much of the framework it covers is worse than no number. */
@@ -1328,14 +1439,6 @@ function tabSnapshot(r) {
   ])));
   main.append(rcCard);
 
-  /* key figures */
-  const tiles = el('div', { class: 'card' });
-  const tg = el('div', { class: 'grid g-4' });
-  tg.append(statTile('Market capitalisation', fmtCap(toBase(m.mcap, c.ccy), State.baseCcy), { sub: `${fmtNum(last(r.d.sh), 2)}bn shares` }));
-  tg.append(statTile(c.type === 'bank' ? 'Price / book' : 'Price / earnings', c.type === 'bank' ? fmtX(m.pb, 2) : (isNum(m.pe) ? fmtX(m.pe) : 'n/m'),
-    { sub: c.type === 'bank' ? `ROE ${fmtPct(m.roe)}` : `EPS ${fmtMoney(m.eps, c.ccy)}` }));
-  tg.append(statTile(c.type === 'reit' ? 'Distribution yield' : 'Dividend yield', fmtPct(m.dy, 2),
-    { sub: isNum(m.cashPayout) ? `${fmtPct(m.cashPayout, 0)} of free cash flow` : (isNum(m.payout) ? `${fmtPct(m.payout, 0)} of earnings` : '—') }));
   /* Assumptions edited in the Valuation tab live in State.valuation and drive
      that tab's run only. This tile, the range below and every score stay on
      the derived defaults, so each company is compared on the same basis — and
@@ -1344,13 +1447,34 @@ function tabSnapshot(r) {
   const ed = State.valuation?.[c.id];
   const assumptionsEdited = !!ed && [...new Set([...Object.keys(r.inputs || {}), ...Object.keys(ed)])]
     .some(k => JSON.stringify(ed[k]) !== JSON.stringify(r.inputs?.[k]));
-  /* No price means no gap to measure, and the dash for it was drawn in the
-     negative colour, where it read as a shortfall. */
-  tg.append(statTile('vs base-case value', val.mos ? withSign(val.mos.base, 1) : '—',
-    { sub: `${val.pack.name.split('/')[0].trim()} · ${val.confBand} confidence${assumptionsEdited ? ' · default assumptions' : ''}`,
-      tone: isNum(val.mos?.base) ? (val.mos.base >= 0 ? '--ok-text' : '--dn-text') : null }));
-  tiles.append(tg);
-  main.append(tiles);
+  /* Market measures. Every one divides by or compares to a price, and on a
+     company with none they were a row of four dashes at the top of the page —
+     a dashboard of absences. Without a price the row is one sentence saying
+     what would fill it; with one, each tile opens the same source drawer as
+     the screener's cell for that measure. */
+  const tiles = el('div', { class: 'card' });
+  if (!isNum(c.px.p)) {
+    tiles.append(cardHead('Market measures', 'Market capitalisation, price multiples, yield and the difference to the model estimate all need a price.'));
+    tiles.append(el('p', { class: 'body', style: 'font-size:13px' },
+      c.real ? 'No licensed price is connected, so none is shown rather than a row of dashes. Enter a price in the header to compute them, labelled as a figure you supplied.'
+        : 'This illustrative company carries no sample price.'));
+    main.append(tiles);
+  } else {
+    const tg = el('div', { class: 'grid g-4' });
+    const tileFor = (k, node) => { const f = FIELD_BY_K[k]; return f ? tileButton(node, `${f.label} — show source`, () => openSourceDrawer(r, f)) : node; };
+    tg.append(tileFor('mcap', statTile('Market capitalisation', fmtCap(toBase(m.mcap, c.ccy), State.baseCcy), { sub: `${fmtNum(last(r.d.sh), 2)}bn shares` })));
+    tg.append(tileFor(c.type === 'bank' ? 'pb' : 'pe', statTile(c.type === 'bank' ? 'Price / book' : 'Price / earnings', c.type === 'bank' ? fmtX(m.pb, 2) : (isNum(m.pe) ? fmtX(m.pe) : 'n/m'),
+      { sub: c.type === 'bank' ? `ROE ${fmtPct(m.roe)}` : `EPS ${fmtMoney(m.eps, c.ccy)}` })));
+    tg.append(tileFor('dy', statTile(c.type === 'reit' ? 'Distribution yield' : 'Dividend yield', fmtPct(m.dy, 2),
+      { sub: isNum(m.cashPayout) ? `${fmtPct(m.cashPayout, 0)} of free cash flow` : (isNum(m.payout) ? `${fmtPct(m.payout, 0)} of earnings` : '—') })));
+    /* No price means no gap to measure, and the dash for it was drawn in the
+       negative colour, where it read as a shortfall. */
+    tg.append(tileFor('mosBase', statTile('vs base-case value', val.mos ? withSign(val.mos.base, 1) : '—',
+      { sub: `${val.pack.name.split('/')[0].trim()} · ${val.confBand} confidence${assumptionsEdited ? ' · default assumptions' : ''}`,
+        tone: isNum(val.mos?.base) ? (val.mos.base >= 0 ? '--ok-text' : '--dn-text') : null })));
+    tiles.append(tg);
+    main.append(tiles);
+  }
 
   /* valuation range */
   const vr = el('div', { class: 'card' });
@@ -1595,7 +1719,7 @@ function tabBusiness(r) {
   prof.append(cardHead('Business profile', 'How this company is classified, and what that means for the models it is routed to.'));
   const kv = el('dl', { class: 'kv' });
   [['Business model', c.type], ['Model pack', r.val.pack.name], ['Reporting currency', c.ccy],
-   ['Primary listing', `${c.exch} · ${c.tk}`], ['Sector / industry', `${c.sector} — ${c.industry}`],
+   ['Primary listing', `${listingOf(c)} · ${c.tk}`], ['Sector / industry', `${c.sector} — ${c.industry}`],
    ['Cyclicality', isNum(m.revDD) ? `Revenue drawdown ${fmtPct(m.revDD, 0)} in the window` : '—'],
    ['Capital intensity', isNum(m.reinv) ? `Capex is ${fmtPct(m.reinv, 0)} of operating cash flow` : 'Not meaningful'],
    ['Shares in issue', m.shareSeriesBreak
@@ -1684,6 +1808,220 @@ function ebitLabel(c) {
   return 'Operating profit';
 }
 
+/* ---------------------------------------------------------- the statements
+   THE LINES, DEFINED ONCE.
+   The table, its CSV and its drawers read this list, so the three cannot
+   disagree about which lines exist, which are derived, or what unit each is
+   in. Grouped the way a filing is read — income statement, balance sheet,
+   cash flow — rather than in tuple order. The tuple holds ten lines a year and
+   nothing below them, so a group has no sub-lines to expand into; the four
+   derived lines are marked, and none is stored. A bank drops the lines that
+   mean nothing on a deposit-taking balance sheet, as it always has. */
+const STATEMENT_GROUPS = [
+  { id: 'is', label: 'Income statement' },
+  { id: 'bs', label: 'Balance sheet' },
+  { id: 'cf', label: 'Cash flow' },
+];
+function statementLines(r) {
+  const { c, d } = r;
+  const isBank = c.type === 'bank';
+  /* Derived cells follow derive()'s own rule: both inputs or nothing. `-v` on
+     a missing capex printed "-0.000", and `v - cash` on a missing debt line
+     printed a net cash position — the table asserting, in a cell beside the
+     word "derived", the two things the engine had just declined to assert. */
+  const neg = (arr) => arr.map(v => isNum(v) ? -v : null);
+  const diff = (a, b) => a.map((v, i) => isNum(v) && isNum(b[i]) ? v - b[i] : null);
+  const L = (group, key, label, arr, o = {}) => ({ group, groupLabel: STATEMENT_GROUPS.find(g => g.id === group).label,
+    key, label, arr, derived: false, unit: 'bn', ...o });
+  return [
+    L('is', 'rev', 'Revenue', d.rev),
+    L('is', 'ebit', ebitLabel(c), d.ebit),
+    L('is', 'ni', 'Net profit', d.ni),
+    L('is', 'eps', 'Earnings per share', d.eps, { derived: true, inputs: ['ni', 'sh'], formula: 'net profit ÷ shares in issue', unit: 'perShare', perShare: true }),
+    L('bs', 'eq', 'Shareholders’ equity', d.eq),
+    L('bs', 'debt', isBank ? 'Borrowings' : 'Total debt', d.debt),
+    ...(isBank ? [] : [
+      L('bs', 'cash', 'Cash and equivalents', d.cash),
+      L('bs', 'netDebt', 'Net debt', diff(d.debt, d.cash), { derived: true, inputs: ['debt', 'cash'], formula: 'total debt − cash and equivalents' })]),
+    L('bs', 'sh', 'Shares in issue (bn)', d.sh, { unit: 'shares', perShare: true }),
+    L('bs', 'bvps', 'Book value per share', d.bvps, { derived: true, inputs: ['eq', 'sh'], formula: 'shareholders’ equity ÷ shares in issue', unit: 'perShare', perShare: true }),
+    ...(isBank ? [] : [
+      L('cf', 'ocf', 'Operating cash flow', d.ocf),
+      L('cf', 'capex', 'Capital expenditure', neg(d.capex), { sign: -1 }),
+      L('cf', 'fcf', 'Free cash flow', d.fcf, { derived: true, inputs: ['ocf', 'capex'], formula: 'operating cash flow − capital expenditure' })]),
+    L('cf', 'dps', c.type === 'reit' ? 'Distribution per unit' : 'Dividend per share', d.dps, { unit: 'perShare', perShare: true }),
+  ];
+}
+
+/* One year's change on one line, by changeSummary's rule: a percentage over
+   the absolute base, none on a zero base, and none on a per-share line in a
+   year the share count moved by a corporate action — that change is the
+   split, not the company. Absolute change is withheld on the same per-share
+   lines for the same reason. */
+function lineChange(r, line, i) {
+  const a = line.arr[i - 1], b = line.arr[i], sh = r.d.sh;
+  if (i < 1) return { abs: null, pct: null, why: 'first year held — nothing to compare with' };
+  if (!isNum(a) || !isNum(b)) return { abs: null, pct: null, why: `needs FY${yearsOf(r.c)[i - 1]} and FY${yearsOf(r.c)[i]}; ${!isNum(b) ? 'this year' : 'the prior year'} is not held` };
+  const ratio = isNum(sh[i - 1]) && isNum(sh[i]) && sh[i - 1] > 0 ? sh[i] / sh[i - 1] : null;
+  if (line.perShare && r.m.shareSeriesBreak && isNum(ratio) && (ratio > 1.5 || ratio < 0.67))
+    return { abs: null, pct: null, withheld: true, why: 'The share count moves by a corporate action between these two years, so a change in a per-share line measures the split. Withheld.' };
+  return { abs: b - a, pct: a !== 0 ? (b - a) / Math.abs(a) * 100 : null, why: a === 0 ? 'the prior year is zero, so a percentage has no meaning' : null };
+}
+
+/* THE CSV. Long rather than wide: one row per line per year, because every
+   cell carries its own concept, status and — once the data holds them —
+   period end, filing date and form, and a wide file would need four parallel
+   tables to say that. Values are the stored numbers at full precision, not the
+   rounded figures on screen, so the file reproduces the table rather than a
+   picture of it. Pure: it returns the text, and the button does the saving. */
+const csvCell = (x) => (x == null ? '' : /[",\n]/.test(String(x)) ? `"${String(x).replace(/"/g, '""')}"` : String(x));
+function statementsCsv(r) {
+  const { c } = r;
+  const yrs = yearsOf(c);
+  const cols = ['ticker', 'company', 'statement', 'line', 'line_key', 'kind', 'fiscal_year', 'period_end', 'value', 'unit',
+    'original_unit', 'currency', 'xbrl_concept', 'filed', 'form', 'status', 'note', 'source'];
+  const out = [cols.join(',')];
+  const src = sourceSentence(c);
+  let anyEnd = false, anyFiled = false;
+  statementLines(r).forEach(line => yrs.forEach((fy, i) => {
+    const v = line.arr[i];
+    const st = lineCellStatus(r, line, i);
+    const f = line.derived ? { end: fyEndOf(c, fy) } : lineFiling(c, line.key, fy);
+    anyEnd = anyEnd || !!f.end; anyFiled = anyFiled || !!f.filed;
+    out.push([c.tk, c.name, line.groupLabel, line.label, line.key, line.derived ? 'derived' : 'reported', fy, f.end || '',
+      isNum(v) ? String(v) : '', lineUnit(line, c),
+      line.derived ? 'derived — see inputs' : lineOriginalUnit(c, line.key), c.ccy,
+      line.derived ? `derived: ${line.formula}` : (lineConcept(c, line.key, fy) || ''),
+      f.filed || '', f.form || '',
+      st.available ? st.label.toLowerCase() : `unavailable: ${st.reason}`,
+      st.available ? (line.sign === -1 ? 'outflow shown negative; filed as a positive payment' : '') : st.text,
+      src].map(csvCell).join(','));
+  }));
+  out.push('');
+  out.push(`# Quantum Tradeworks statements export · ${c.name} (${c.tk}) · ${MODEL_VERSION}`);
+  out.push(`# ${src}. ${dataDateLabel(c)}.`);
+  out.push(`# Units: ${c.ccy} billions; shares in billions; per-share lines in ${c.ccy} per share. Values are stored figures at full precision.`);
+  if (c.real && !c.personal && !anyEnd) out.push('# period_end: not in this dataset yet — the statements were retrieved before the ingest recorded it.');
+  if (c.real && !c.personal && !anyFiled) out.push('# filed, form: not in this dataset yet — the statements were retrieved before the ingest recorded them.');
+  if (!c.real) out.push('# Illustrative: every figure here is synthetic, created for interface demonstration. Not filed and not real.');
+  out.push('# Research only. Not for investment use.');
+  return out.join('\n');
+}
+/* Saving it. Two rules decide first: the Free plan carries no exports, as for
+   the screener, and statements from the personal lane are not
+   redistributable, so they are not written into a file this product hands
+   out — the reader already holds the file they came from. */
+function exportStatements(r) {
+  const { c } = r;
+  if (c.personal) { toast('Not exported: these statements are personal research and not redistributable. The file you loaded them from is already yours.'); return; }
+  if (!lim('exports')) { toast('Exports are part of Equities Research'); go('plans'); return; }
+  const blob = new Blob([statementsCsv(r)], { type: 'text/csv' });
+  const a = el('a', { href: URL.createObjectURL(blob), download: `${slug(c.tk)}-statements.csv` });
+  document.body.append(a); a.click(); a.remove();
+  toast(`Exported ${statementLines(r).length} lines × ${yearsOf(c).length} years for ${c.tk}`);
+}
+
+/* The statements card: grouped rows, a year-on-year change on request, every
+   cell a way into its source, and the row labels pinned while the years
+   scroll. */
+function statementTable(r) {
+  const { c, m } = r;
+  const yrs = yearsOf(c);
+  const lines = statementLines(r);
+  const showChg = !!State.finChanges;
+  const stmt = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
+  const sh = el('div', { class: 'stmt-hd' });
+  const titles = el('div', { style: 'min-width:0;flex:1 1 420px' });
+  titles.append(el('h3', { class: 'h-card' }, 'Financial statements'));
+  titles.append(el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
+    `${c.ccy} billions unless stated, FY${yrs[0]}–FY${last(yrs)}. Derived lines are marked and computed from the reported lines — not stored separately. Select any figure for its source.`));
+  sh.append(titles);
+  const tools = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' });
+  tools.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': showChg ? 'true' : 'false',
+    onclick: () => { State.finChanges = !showChg; render(); } }, showChg ? 'Hide changes' : 'Show changes'));
+  const csvBtn = el('button', { class: 'btn btn-ghost btn-sm', onclick: () => exportStatements(r),
+    'aria-describedby': 'stmt-csv-note' }, 'Download CSV');
+  if (c.personal) csvBtn.disabled = true;
+  tools.append(csvBtn);
+  sh.append(tools);
+  stmt.append(sh);
+  /* The export rule, stated where the button is rather than discovered by
+     pressing it. */
+  stmt.append(el('p', { class: 'metaline stmt-note', id: 'stmt-csv-note' },
+    c.personal ? 'CSV is not offered here: these statements are personal research and not redistributable.'
+    : !lim('exports') ? 'CSV export is part of Equities Research; on the Free plan the button explains and does not download.'
+    : c.real ? 'CSV: every line and year at full precision, with unit, currency, source and the XBRL concept for each cell.'
+    : 'CSV: every line and year at full precision, with unit, currency and source — every figure labelled illustrative.'));
+
+  const tw = el('div', { class: 'tablewrap stmt-wrap', style: 'border:0;border-radius:0' });
+  const t = el('table', { class: 'dt stmt-table' + (showChg ? ' with-chg' : '') });
+  const hr = el('tr', {}, [el('th', { class: 'pin', scope: 'col' }, 'Line')]);
+  yrs.forEach((y, i) => {
+    hr.append(el('th', { scope: 'col' }, `FY${y}`));
+    if (showChg && i > 0) {
+      hr.append(el('th', { class: 'chg', scope: 'col', title: `Change from FY${yrs[i - 1]} to FY${y}, in the line’s unit` }, 'Δ'));
+      hr.append(el('th', { class: 'chg', scope: 'col', title: `Percentage change from FY${yrs[i - 1]} to FY${y}` }, 'Δ%'));
+    }
+  });
+  hr.append(el('th', { scope: 'col' }, `${yrs.length - 1}y CAGR`));
+  t.append(el('thead', {}, hr));
+  const ncol = 1 + yrs.length + (showChg ? 2 * (yrs.length - 1) : 0) + 1;
+  const tb = el('tbody');
+  const split = m.shareSeriesBreak;
+  STATEMENT_GROUPS.forEach(g => {
+    const gl = lines.filter(l => l.group === g.id);
+    if (!gl.length) return;
+    tb.append(el('tr', { class: 'grp' }, [
+      el('th', { class: 'pin', scope: 'colgroup' }, g.label),
+      el('td', { colspan: ncol - 1 }),
+    ]));
+    gl.forEach(line => {
+      const tr = el('tr');
+      tr.append(el('td', { class: 'pin ident', html: esc(line.label) + (line.derived ? ' <span class="chip chip-derived">derived</span>' : '') }));
+      line.arr.forEach((v, i) => {
+        const st = lineCellStatus(r, line, i);
+        const td = el('td', { class: 'cell-sourced', tabindex: '0', role: 'button',
+          html: isNum(v) ? lineFmt(v, line) : `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>`,
+          'aria-label': `${line.label}, FY${yrs[i]}: ${isNum(v) ? `${lineFmt(v, line)} ${lineUnit(line, c)}` : `unavailable, ${st.reason}`} — show source` });
+        td.addEventListener('click', () => openLineDrawer(r, line, i));
+        td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLineDrawer(r, line, i); } });
+        tr.append(td);
+        if (showChg && i > 0) {
+          const ch = lineChange(r, line, i);
+          tr.append(el('td', { class: 'chg ' + signClass(ch.abs), html: isNum(ch.abs) ? withSign(ch.abs, Math.abs(ch.abs) < 10 ? 2 : 1, '')
+            : `<span class="caption" title="${esc(ch.why)}">${ch.withheld ? 'withheld' : '–'}</span>` }));
+          tr.append(el('td', { class: 'chg ' + signClass(ch.pct), html: isNum(ch.pct) ? withSign(ch.pct, 1)
+            : `<span class="caption" title="${esc(ch.why || 'the prior year is zero, so a percentage has no meaning')}">${ch.withheld ? 'withheld' : isNum(ch.abs) ? 'n/m' : '–'}</span>` }));
+        }
+      });
+      /* A per-share series that crosses a split has no growth rate — the same
+         withholding the corporate-actions card applies to the share count.
+         Withheld only where a rate would otherwise exist: a dividend line that
+         is empty throughout has nothing to withhold and reads n/m as before. */
+      const g0 = cagr(line.arr);
+      const withheld = line.perShare && split && isNum(g0);
+      const gr = withheld ? null : g0;
+      tr.append(el('td', { class: signClass(gr), html: isNum(gr) ? withSign(gr, 1)
+        : withheld ? '<span class="caption" title="The share count jumps inside this window — a split, merger or offering — so a growth rate over any per-share line would measure that event. Withheld.">withheld</span>'
+        : '<span class="caption" title="No growth rate: the base year is zero, negative or not held.">n/m</span>' }));
+      tb.append(tr);
+    });
+  });
+  t.append(tb); tw.append(t); stmt.append(tw);
+  /* The latest years are the ones read first. Where the table is wider than
+     its card — every phone, and any desktop with changes shown — it opens
+     scrolled to them, and the edge shadow on the left says earlier years are
+     there. */
+  requestAnimationFrame(() => { if (tw.scrollWidth > tw.clientWidth + 4) tw.scrollLeft = tw.scrollWidth; });
+  stmt.append(el('div', { style: 'padding:var(--sm) var(--lg)' }, [
+    el('p', { class: 'metaline stmt-swipe' }, 'The line names stay pinned; swipe the table sideways for the other years.'),
+    el('p', { class: 'metaline' }, 'CAGR is null where the base period is non-positive — shown as n/m rather than as a computed number that would not mean anything.'
+      + (split ? ` Per-share growth is withheld: the share count moves from ${fmtNum(split.from, 2)}bn to ${fmtNum(split.to, 2)}bn inside this window — a split, merger or offering, which the filings are not restated for and no source here identifies.` : '')
+      + (yrs.length < 5 ? ` Only ${yrs.length} years are held for this company.` : '')),
+  ]));
+  return stmt;
+}
+
 function tabFinancials(r) {
   const { c, d, m } = r;
   const isBank = c.type === 'bank';
@@ -1715,60 +2053,11 @@ function tabFinancials(r) {
   chartCard.append(leg);
   chartCard.append(tableTwin('Show the table view',
     ['Line', ...yrs.map(y => `FY${y}`)],
-    series.map(s => [s.label, ...s.values.map(v => isNum(v) ? fmtNum(v, 2) : 'n/a')])));
+    series.map(s => [s.label, ...s.values.map(v => isNum(v) ? fmtNum(v, 2) : 'not reported')])));
   wrap.append(chartCard);
   columnChart(host, { cats: yrs.map(y => `FY${y}`), series, fmt: v => State.finMode === 'idx' ? fmtNum(v, 0) : fmtNum(v, Math.abs(v) < 10 ? 1 : 0), title: 'Reported financials' });
 
-  /* statement table */
-  const stmt = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
-  const sh = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
-  sh.append(el('h3', { class: 'h-card' }, 'Normalised statements'));
-  sh.append(el('p', { class: 'caption', style: 'margin-top:2px' },
-    `All values in ${c.ccy} billions unless stated. Derived lines are marked — they are computed from the reported lines above them, not stored separately.`));
-  stmt.append(sh);
-
-  /* Derived cells follow derive()'s own rule: both inputs or nothing. `-v` on a
-     missing capex printed "-0.000", and `v - cash` on a missing debt line
-     printed a net cash position — the table asserting, in a cell beside the
-     word "derived", the two things the engine had just declined to assert. */
-  const neg = (arr) => arr.map(v => isNum(v) ? -v : null);
-  const diff = (a, b) => a.map((v, i) => isNum(v) && isNum(b[i]) ? v - b[i] : null);
-  const lines = [
-    ['Revenue', d.rev, false], [ebitLabel(c), d.ebit, false], ['Net profit', d.ni, false],
-    ...(isBank ? [] : [['Operating cash flow', d.ocf, false], ['Capital expenditure', neg(d.capex), false], ['Free cash flow', d.fcf, true]]),
-    ['Shareholders’ equity', d.eq, false], [isBank ? 'Borrowings' : 'Total debt', d.debt, false],
-    ...(isBank ? [] : [['Cash and equivalents', d.cash, false], ['Net debt', diff(d.debt, d.cash), true]]),
-    ['Shares in issue (bn)', d.sh, false, true],
-    [c.type === 'reit' ? 'Distribution per unit' : 'Dividend per share', d.dps, false, true],
-    ['Earnings per share', d.eps, true, true],
-    ['Book value per share', d.bvps, true, true],
-  ];
-  const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
-  const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, 'Line'), ...yrs.map(y => el('th', {}, `FY${y}`)), el('th', {}, `${yrs.length - 1}y CAGR`)])));
-  const tb = el('tbody');
-  const split = m.shareSeriesBreak;
-  lines.forEach(([label, arr, derivedLine, perShare]) => {
-    const tr = el('tr');
-    tr.append(el('td', { class: 'pin ident', html: esc(label) + (derivedLine ? ' <span class="chip" style="height:16px;font-size:12px;padding:0 5px">derived</span>' : '') }));
-    arr.forEach(v => tr.append(el('td', { html: isNum(v) ? fmtNum(v, Math.abs(v) < 10 ? (Math.abs(v) < 1 ? 3 : 2) : 1) : NA })));
-    /* A per-share series that crosses a split has no growth rate — the same
-       withholding the corporate-actions card applies to the share count. */
-    /* Withheld only where a rate would otherwise exist: a dividend line that
-       is empty throughout has nothing to withhold and reads n/m as before. */
-    const g0 = cagr(arr);
-    const withheld = perShare && split && isNum(g0);
-    const g = withheld ? null : g0;
-    tr.append(el('td', { class: signClass(g), html: isNum(g) ? withSign(g, 1)
-      : withheld ? '<span class="caption" title="The share count jumps inside this window — a split, merger or offering — so a growth rate over any per-share line would measure that event. Withheld.">withheld</span>'
-      : '<span class="caption">n/m</span>' }));
-    tb.append(tr);
-  });
-  t.append(tb); tw.append(t); stmt.append(tw);
-  stmt.append(el('div', { style: 'padding:var(--sm) var(--lg)' },
-    el('p', { class: 'metaline' }, 'CAGR is null where the base period is non-positive — shown as n/m rather than as a computed number that would not mean anything.'
-      + (split ? ` Per-share growth is withheld: the share count moves from ${fmtNum(split.from, 2)}bn to ${fmtNum(split.to, 2)}bn inside this window — a split, merger or offering, which the filings are not restated for and no source here identifies.` : ''))));
-  wrap.append(stmt);
+  wrap.append(statementTable(r));
 
   /* Quarters, for the illustrative set only. They are annual figures split by
      a seeded seasonal shape — one more piece of the same fiction, labelled as
@@ -2159,9 +2448,8 @@ function tabFilings(r) {
     return wrap;
   }
   if (c.real) {
-    /* A filed company: the real index, and nothing standing in for it. */
-    const cik10 = String(c.cik).padStart(10, '0');
-    const ext = (href, label) => el('a', { class: 'btn btn-ghost btn-sm', href, target: '_blank', rel: 'noopener noreferrer', html: `${esc(label)} ${icon('ext', 10)}` });
+    /* A filed company: the real index, and nothing standing in for it. The
+       links come from edgarLinks, the builder every source drawer uses. */
     const hd = el('div', { class: 'card' });
     hd.append(cardHead('SEC filings',
       'This build holds no filing index. The statements on this page are XBRL facts from EDGAR’s companyfacts record — the numbers, not the documents — and the documents themselves are one link away on SEC.gov. Nothing here stands in for them.'));
@@ -2170,11 +2458,8 @@ function tabFilings(r) {
       el('span', { class: 'chip' }, `CIK ${c.cik}`),
       el('span', { class: 'chip' }, `retrieved ${c.retrieved}`),
     ]));
-    hd.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
-      ext(`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&type=10-K&dateb=&owner=include&count=40`, 'Annual reports on EDGAR'),
-      ext(`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${cik10}&owner=include&count=40`, 'Every filing on EDGAR'),
-      ext(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik10}.json`, 'The companyfacts record this page was built from'),
-    ]));
+    const links = edgarLinkRow(c);
+    if (links) { links.style.marginTop = 'var(--sm)'; hd.append(links); }
     wrap.append(hd);
 
     const ch = changeSummary(c) || [];

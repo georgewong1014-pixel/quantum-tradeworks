@@ -676,7 +676,10 @@ function realToCompany(r) {
     ? { p: manualPrices[id], d1: null, m1: null, m3: null, m12: null, lo: null, hi: null, manual: true }
     : { p: null, d1: null, m1: null, m3: null, m12: null, lo: null, hi: null };
   return {
-    id, name: r.name, tk: r.id, code: r.id, exch: 'SEC filer', mkt: 'US', ccy: 'USD',
+    /* The listing venue, where the ingest recorded it from the filer's
+       submissions record; the statements shipped here predate that, so every
+       filer reads as unknown until they are regenerated. */
+    id, name: r.name, tk: r.id, code: r.id, exch: r.exch || 'SEC filer', exchKnown: !!r.exch, mkt: 'US', ccy: 'USD',
     sector, industry, type: REAL_TYPES[r.id] || r.type || 'mature',
     /* Recorded so the page can say the model was assumed rather than let a
        default read as a decision. */

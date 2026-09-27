@@ -1359,7 +1359,7 @@ VIEWS.compare = () => {
       why:'Deposit takers are compared on the return they earn on equity, the quality of their funding and their loan book — free cash flow and EV multiples are not meaningful for a bank balance sheet.',
       rows: [
         ['— Returns —', null],
-        ['Return on equity', r => fmtPct(r.m.roe)],
+        ['Return on equity', r => fmtPct(r.m.roe), 'roe'],
         ['Net interest margin', r => isNum(r.c.bank?.nim) ? fmtPct(r.c.bank.nim, 2) : NA],
         ['Cost-to-income', r => isNum(r.c.bank?.cir) ? fmtPct(r.c.bank.cir, 1) : NA],
         ['— Funding and capital —', null],
@@ -1369,19 +1369,19 @@ VIEWS.compare = () => {
         ['— Asset quality —', null],
         ['Gross impaired loans', r => isNum(r.c.bank?.npl) ? fmtPct(r.c.bank.npl, 2) : NA],
         ['— Valuation and payout —', null],
-        ['Price / book', r => fmtX(r.m.pb, 2)],
-        ['Price / earnings', r => isNum(r.m.pe) ? fmtX(r.m.pe) : NA],
-        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        ['Price / book', r => fmtX(r.m.pb, 2), 'pb'],
+        ['Price / earnings', r => isNum(r.m.pe) ? fmtX(r.m.pe) : NA, 'pe'],
+        ['Dividend yield', r => fmtPct(r.m.dy, 2), 'dy'],
         NET_DY,
-        ['Payout ratio', r => isNum(r.m.payout) ? fmtPct(r.m.payout, 0) : NA],
+        ['Payout ratio', r => isNum(r.m.payout) ? fmtPct(r.m.payout, 0) : NA, 'payout'],
       ] },
     reit: { id:'reit', name:'REIT comparison',
       why:'Property trusts distribute most of what they earn, so the comparison is on the distribution, what backs it, and how much debt sits against the portfolio — not on earnings multiples.',
       rows: [
         ['— Distribution —', null],
-        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        ['Dividend yield', r => fmtPct(r.m.dy, 2), 'dy'],
         NET_DY,
-        ['Distribution growth (4y)', r => isNum(r.m.dps5) ? fmtPct(r.m.dps5) : NA],
+        ['Distribution growth (4y)', r => isNum(r.m.dps5) ? fmtPct(r.m.dps5) : NA, 'dps5'],
         ['Distribution cover', r => isNum(r.m.dpuCover) ? fmtPct(r.m.dpuCover, 0) : NA],
         ['— Portfolio —', null],
         ['Occupancy', r => isNum(r.c.reit?.occ) ? fmtPct(r.c.reit.occ, 1) : NA],
@@ -1389,7 +1389,7 @@ VIEWS.compare = () => {
         ['Capitalisation rate', r => isNum(r.c.reit?.cap) ? fmtPct(r.c.reit.cap, 1) : NA],
         ['— Leverage —', null],
         ['Gearing', r => isNum(r.c.reit?.gearing) ? fmtPct(r.c.reit.gearing, 1) : NA],
-        ['Interest cover', r => isNum(r.m.icov) ? fmtX(r.m.icov) : NA],
+        ['Interest cover', r => isNum(r.m.icov) ? fmtX(r.m.icov) : NA, 'icov'],
         ['— Valuation —', null],
         ['Price / NAV', r => isNum(r.m.pnav) ? fmtX(r.m.pnav, 2) : fmtX(r.m.pb, 2)],
       ] },
@@ -1397,18 +1397,18 @@ VIEWS.compare = () => {
       why:'Capital efficiency, margin, cash conversion and what the whole business costs including its debt.',
       rows: [
         ['— Returns —', null],
-        ['Return on invested capital', r => isNum(r.m.roic) ? fmtPct(r.m.roic) : NA],
-        ['Operating margin', r => fmtPct(r.m.om)],
-        ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA],
+        ['Return on invested capital', r => isNum(r.m.roic) ? fmtPct(r.m.roic) : NA, 'roic'],
+        ['Operating margin', r => fmtPct(r.m.om), 'om'],
+        ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA, 'fcfm'],
         ['— Growth —', null],
-        ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : NA],
-        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.shareSeriesBreak ? NA_SPLIT : NA],
+        ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : NA, 'rev5'],
+        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.shareSeriesBreak ? NA_SPLIT : NA, 'eps5'],
         ['— Balance sheet —', null],
-        ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA],
+        ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA, 'ndEbit'],
         ['— Valuation —', null],
-        ['EV / EBIT', r => isNum(r.m.evebit) ? fmtX(r.m.evebit) : NA],
-        ['Free cash flow yield', r => isNum(r.m.fcfy) ? fmtPct(r.m.fcfy, 2) : NA],
-        ['Dividend yield', r => fmtPct(r.m.dy, 2)],
+        ['EV / EBIT', r => isNum(r.m.evebit) ? fmtX(r.m.evebit) : NA, 'evebit'],
+        ['Free cash flow yield', r => isNum(r.m.fcfy) ? fmtPct(r.m.fcfy, 2) : NA, 'fcfy'],
+        ['Dividend yield', r => fmtPct(r.m.dy, 2), 'dy'],
         NET_DY,
       ] },
   };
@@ -1425,13 +1425,13 @@ VIEWS.compare = () => {
 
   const METRIC_ROWS = [
     ['Price', r => fmtMoney(r.c.px.p, r.c.ccy)],
-    ['Market capitalisation', r => fmtCap(showLocal ? r.m.mcap : toBase(r.m.mcap, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy)],
+    ['Market capitalisation', r => fmtCap(showLocal ? r.m.mcap : toBase(r.m.mcap, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy), 'mcap'],
     ['Business model', r => r.c.type],
     ['Model pack', r => r.val.pack.name],
     ...pack.rows,
     ['— Valuation —', null],
     ['Base-case model estimate', r => isNum(r.val.vals?.base) ? fmtMoney(r.val.vals.base, r.c.ccy) : NA],
-    ['Difference to price', r => isNum(r.val.mos?.base) ? `<span class="${diffClass(r.val.mos.base)}">${withSign(r.val.mos.base, 0)}</span>` : NA],
+    ['Difference to price', r => isNum(r.val.mos?.base) ? `<span class="${diffClass(r.val.mos.base)}">${withSign(r.val.mos.base, 0)}</span>` : NA, 'mosBase'],
     ['Valuation confidence', r => r.val.confBand],
     ['— Scores —', null],
     ['Business Quality', r => scorePill(r.scores.quality.score, r.pct.quality)],
@@ -1451,7 +1451,25 @@ VIEWS.compare = () => {
   rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}${r.c.real ? '' : ' <span class="illus" title="' + esc(ILLUS_TITLE) + '">illustrative</span>'}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
-  METRIC_ROWS.forEach(([label, get]) => {
+  /* A row keyed to a screener field reads like a screener cell: present, it
+     opens the source drawer for that measure; absent, it prints which of the
+     five reasons applies, with the sentence as a title, and opens the same
+     drawer, which names the line behind the absence. Rows on a bank's or a
+     REIT's own disclosures (margin, CASA, occupancy) and on the model are not
+     statement arithmetic, and keep their plain cell. */
+  const sourcedCell = (r, get, k) => {
+    const fld = FIELD_BY_K[k];
+    const present = isNum(r.m[k]);
+    const st = present ? null : metricStatus(r, k);
+    const td = el('td', { class: 'cell-sourced', role: 'button', tabindex: '0',
+      html: present ? get(r) : `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>` });
+    /* Read off the cell, so a converted money figure is announced as shown. */
+    td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${present ? td.textContent.trim() : `unavailable, ${st.reason}`} — show source`);
+    td.addEventListener('click', () => openSourceDrawer(r, fld));
+    td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSourceDrawer(r, fld); } });
+    return td;
+  };
+  METRIC_ROWS.forEach(([label, get, k]) => {
     if (!get) {
       const tr = el('tr');
       tr.append(el('td', { class: 'pin ident', colspan: rows.length + 1,
@@ -1461,10 +1479,12 @@ VIEWS.compare = () => {
     }
     const tr = el('tr');
     tr.append(el('td', { class: 'pin ident' }, label));
-    rows.forEach(r => tr.append(el('td', { html: get(r) })));
+    rows.forEach(r => tr.append(k && FIELD_BY_K[k] ? sourcedCell(r, get, k) : el('td', { html: get(r) })));
     tb.append(tr);
   });
   t.append(tb); tw.append(t); tcard.append(tw);
+  tcard.append(el('p', { class: 'metaline', style: 'padding:var(--sm) var(--lg)' },
+    'Select any measure computed from the statements for its source: the formula, the fiscal year, the lines it reads with their XBRL concepts, and the EDGAR record for a filer. An empty cell names its reason. Rows from a bank’s or REIT’s own disclosures, and the model rows, are not statement arithmetic and open nothing.'));
   wrap.append(tcard);
 
   /* quality / valuation matrix */

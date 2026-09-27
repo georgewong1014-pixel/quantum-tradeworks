@@ -566,6 +566,61 @@ body[data-surface="public"] .disclosure-long { display: none; }
   transition: opacity 160ms ease;
 }
 .cell-sourced:hover::after { opacity: .5; }
+/* A stat tile that opens its source. The whole tile is the target, so it is a
+   button; it lifts on hover like a card and takes the brand ring on focus. */
+.tile-btn {
+  appearance: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  display: block; width: 100%; padding: var(--sm) var(--md); margin: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.tile-btn:hover { border-color: var(--line-2); box-shadow: 0 12px 32px -18px rgba(20, 25, 22, 0.28), 0 1px 3px rgba(20, 25, 22, 0.06); transform: translateY(-1px); }
+.tile-btn:active { transform: translateY(0); }
+.tile-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.tile-static { padding: var(--sm) var(--md); border: 1px dashed var(--line); border-radius: var(--r-md); }
+.stat-value.stat-absent { font-size: 16px; font-weight: 600; color: var(--bronze); letter-spacing: 0; }
+@media (prefers-reduced-motion: reduce) { .tile-btn, .tile-btn:hover { transform: none; } }
+
+/* The statements card. The header holds the title and two controls, which
+   wrap under the title on a phone rather than squeezing it. */
+.stmt-hd { display: flex; flex-wrap: wrap; gap: var(--sm) var(--md); align-items: flex-start; justify-content: space-between;
+  padding: var(--md) var(--lg) 6px; }
+.stmt-note { padding: 0 var(--lg) var(--sm); border-bottom: 1px solid var(--line); }
+/* Group rows: the statement a block of lines belongs to, as a quiet band. */
+table.dt tr.grp th, table.dt tr.grp td { background: var(--surface-sunk); padding-top: 6px; padding-bottom: 6px; }
+table.dt tr.grp th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; text-align: left; }
+table.dt tbody tr.grp:hover { background: none; }
+table.dt tbody tr.grp:hover .pin { background: var(--surface-sunk); }
+.chip-derived { height: 16px; font-size: 12px; padding: 0 5px; margin-left: 4px; vertical-align: 1px; }
+/* Change columns sit beside the value they describe, smaller and receded so
+   the year's figure still reads first. */
+table.dt th.chg, table.dt td.chg { font-size: 12px; padding-left: 6px; padding-right: 8px; background: color-mix(in srgb, var(--surface-sunk) 45%, transparent); }
+table.dt thead th.chg { color: var(--ink-3); }
+/* THE SCROLL CUE. The .subnav technique, one-sided: a "local" cover travels
+   with the table and hides the "scroll" shadow once the last column is in
+   view, so the right edge shadows only while later columns remain. Earlier
+   years pass under the pinned line column, whose own edge shadow marks them,
+   and on a phone a line under the table says the table scrolls. */
+.tablewrap.stmt-wrap {
+  background:
+    linear-gradient(to left, var(--surface-2) 70%, transparent) right center / 28px 100% no-repeat local,
+    linear-gradient(to left, rgba(20, 20, 20, 0.14), transparent) right center / 14px 100% no-repeat scroll,
+    var(--surface-2);
+}
+.stmt-swipe { display: none; }
+@media (max-width: 768px) {
+  .stmt-swipe { display: block; margin-bottom: 4px; }
+  .stmt-hd { padding: var(--md) var(--md) 6px; }
+  .stmt-note { padding: 0 var(--md) var(--sm); }
+}
+/* Four year columns beside the pinned label on a 360px phone. */
+@media (max-width: 560px) {
+  table.stmt-table th, table.stmt-table td { padding: 7px 10px; }
+  table.stmt-table td.pin { white-space: normal; min-width: 128px; max-width: 150px; }
+}
+.company-acts { margin-top: 10px; max-width: 600px; margin-left: auto; }
+@media (max-width: 680px) { .company-acts { margin-left: 0; max-width: none; } .company-acts .metaline { text-align: left !important; } }
+
 
 /* Density. Comfortable is the default; compact fits roughly a third more rows
    on screen for someone scanning a long result set. */
@@ -1533,3 +1588,10 @@ details > summary::marker { content: ''; }
 .rulelist { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .rulelist li { font-size: 13px; line-height: 1.5; color: var(--ink-2); padding-left: 14px; position: relative; font-variant-numeric: tabular-nums; }
 .rulelist li::before { content: '·'; position: absolute; left: 2px; color: var(--ink-3); font-weight: 700; }
+
+/* Two overview tiles a row on a phone: four stacked full-width tiles pushed
+   the research case a whole screen down for four short numbers. */
+@media (max-width: 620px) {
+  .grid.overview-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--xs); }
+  .overview-tiles .tile-btn, .overview-tiles .tile-static { padding: var(--xs) var(--sm); }
+}

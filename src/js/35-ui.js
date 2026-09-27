@@ -80,15 +80,27 @@ function dataDateLabel(c) {
 }
 
 /* Freshness + lineage, shown on every analytical surface. */
-function provenance(row, extra = []) {
+function provenance(row, extra = [], { freshness = false } = {}) {
   const { c, m } = row;
   /* AS_OF is the sample set's fixed stamp. A company carrying a real supplied
      price has its own date, and showing the sample stamp next to it would
      misdate the number on every analytical surface. */
   const priceStamp = priceAsOfLabel(c);
+  /* The company header's form: the statements' period, their source and their
+     date lead, because on a company with no price they are the only fresh
+     thing to state. Optioned, since the screener and compare share this strip
+     and carry the source on every row already. The period end is read where
+     the data holds it and said to be missing where it does not. */
+  const fy = latestFy(c), end = fyEndOf(c, fy);
+  const lead = freshness ? [
+    `<b>Statements</b> FY${fy}${end ? ` ended ${esc(fmtFyEnd(end))}` : c.real && !c.personal ? ' <span title="The period end date is not in this dataset yet: the statements were retrieved before the ingest recorded it.">(period end not yet held)</span>' : ''}`,
+    `<b>Source</b> ${c.real ? (c.personal ? 'your annual statements, personal research' : `SEC EDGAR companyfacts, CIK ${esc(String(Number(c.cik)))}`) : 'synthetic sample, not a filing'}`,
+    `<b>As of</b> ${esc(dataDateLabel(c))}`,
+  ] : [];
   const bits = [
+    ...lead,
     `<b>Price</b> ${priceStamp}`,
-    `<b>Period</b> FY${latestFy(c)} reported`,
+    ...(freshness ? [] : [`<b>Period</b> FY${latestFy(c)} reported`]),
     `<b>Currency</b> ${c.ccy}`,
     `<b>Coverage</b> <span title="Computable ÷ applicable metrics${m.inapplicable ? `. ${m.inapplicable} dictionary metrics do not apply to this business model and are excluded from the denominator rather than counted as missing.` : ''}">${m.coverage}%${m.inapplicable ? ` <span style="color:var(--ink-3)">(${m.inapplicable} n/a)</span>` : ''}</span>`,
     ...extra,
