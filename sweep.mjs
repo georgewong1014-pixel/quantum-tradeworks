@@ -50,7 +50,9 @@ const bin = CANDIDATES.find(existsSync);
 if (!bin) { console.error('no Chrome or Edge found'); process.exit(1); }
 
 const profile = join(tmpdir(), `cdp-sweep-${process.pid}`);
-const port = 9800 + (process.pid % 150);
+/* CDP_PORT pins the debugging port, so harnesses run side by side (several
+   worktrees, or CI jobs on one runner) cannot land on the same Chrome. */
+const port = Number(process.env.CDP_PORT) || 9800 + (process.pid % 150);
 const proc = spawn(bin, [`--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
   '--headless=new', '--no-first-run', '--no-default-browser-check',
   '--disable-extensions', '--disable-gpu', 'about:blank', ...CI_FLAGS], { stdio: 'ignore' });

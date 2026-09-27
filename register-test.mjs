@@ -139,7 +139,9 @@ if (!bin) { console.error('no Chrome or Edge found — set CHROME_PATH'); proces
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const profile = join(tmpdir(), `qt-register-${process.pid}`);
-const port = 9250 + (process.pid % 40);
+/* CDP_PORT pins the debugging port, so harnesses run side by side (several
+   worktrees, or CI jobs on one runner) cannot land on the same Chrome. */
+const port = Number(process.env.CDP_PORT) || 9250 + (process.pid % 40);
 const proc = spawn(bin, [`--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
   '--headless=new', '--no-first-run', '--no-default-browser-check',
   '--disable-extensions', '--disable-gpu', 'about:blank', ...CI_FLAGS], { stdio: 'ignore' });

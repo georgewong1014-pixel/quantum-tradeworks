@@ -58,7 +58,9 @@ if (!browserPath) {
   process.exit(1);
 }
 
-const port = 9000 + Math.floor(process.pid % 900);
+/* CDP_PORT pins the debugging port, so harnesses run side by side (several
+   worktrees, or CI jobs on one runner) cannot land on the same Chrome. */
+const port = Number(process.env.CDP_PORT) || 9000 + Math.floor(process.pid % 900);
 const profile = join(tmpdir(), `cdp-shot-${process.pid}`);
 
 const child = spawn(browserPath, [
