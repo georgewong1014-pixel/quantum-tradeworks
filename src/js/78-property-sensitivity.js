@@ -59,7 +59,11 @@ function propertySensitivity(d) {
   }
   const baseIrr = base.irrPct;
 
-  const drivers = PROPERTY_DRIVERS.map(p => {
+  /* Only drivers this class has. A parcel's rent, vacancy and service
+     charge move nothing the model uses, so they ranked at 0.00 pp and were
+     named as "the two that move it least" — a statement about inputs the
+     page says it withholds. */
+  const drivers = PROPERTY_DRIVERS.filter(p => propertyInputApplies(d, p.k)).map(p => {
     const cur = num0(d[p.k]);
     const step = isNum(p.step) ? p.step : Math.abs(cur * (p.pct / 100));
     if (!(step > 0)) return null;
@@ -69,6 +73,9 @@ function propertySensitivity(d) {
     const at = (v) => {
       if (v < 0) return null;
       if ((p.k === 'holdYears' || p.k === 'tenureYears') && v < 1) return null;
+      /* Past the longest hold the model runs, a step would be clamped back
+         to it and read as a driver that moves nothing. */
+      if (p.k === 'holdYears' && v > HOLD_YEARS_MAX) return null;
       if (p.k === 'vacancyPct' && v > 100) return null;
       const m = dealModel({ ...d, [p.k]: v });
       return isNum(m.irrPct) ? m.irrPct : null;
@@ -238,7 +245,8 @@ function propertySensitivityPanel(d, m) {
       fmt: v => fmtPct(v, 1), room: v => `${fmtPct(Math.abs(v - num0(d.vacancyPct)), 1)} more vacancy`,
       now: fmtPct(num0(d.vacancyPct), 1),
       none: 'Does not cover itself even at zero vacancy, so a perfect letting record does not fix it.' },
-  ].map(r => ({ ...r, res: propertyBreakPoint(d, r.key, { measure: 'cashflow', lo: r.lo, hi: r.hi }) }));
+  ].filter(r => propertyInputApplies(d, r.key))
+   .map(r => ({ ...r, res: propertyBreakPoint(d, r.key, { measure: 'cashflow', lo: r.lo, hi: r.hi }) }));
 
   const bt = el('table', { class: 'dt' });
   bt.append(el('thead', {}, el('tr', {}, ['Assumption', 'Now', 'Turns negative at']
@@ -259,8 +267,9 @@ function propertySensitivityPanel(d, m) {
     ]);
   });
   /* Cites the figure the model already publishes rather than solving for it a
-     second time and risking two different numbers on one screen. */
-  body.push(el('tr', {}, [
+     second time and risking two different numbers on one screen. Not for a
+     class with no tenancy, which has no break-even rent. */
+  if (propertyInputApplies(d, 'rent')) body.push(el('tr', {}, [
     el('th', { scope: 'row', style: 'text-align:left' }, [
       el('div', {}, 'Rent, before tax'),
       el('div', { class: 'caption', style: 'font-weight:400;white-space:normal;margin-top:2px' },
@@ -297,7 +306,7 @@ function propertySensitivityPanel(d, m) {
           + 'available to pay the tax on itself — so a property that exactly covers its costs still generates a bill.'),
       ]));
     }
-  } else {
+  } else if (propertyInputApplies(d, 'rent')) {
     card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
       'These are before tax on the rent. Enter your marginal rate above and the after-tax break-even appears here — it is higher '
       + 'than this one, because the principal inside the instalment is taxed but not deductible.'));

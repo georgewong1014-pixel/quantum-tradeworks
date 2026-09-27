@@ -174,7 +174,11 @@ function loanReadiness(b, m) {
   else if (score >= 50) band = 'Marginal';
   else band = 'Currently weak';
 
-  return { score, band, scores, notes, unknowns, affordability: a,
+  /* And withheld from the tile as well as the band. The tile printed "46/100
+     · Not assessed" while the disclosure below it said a total is withheld
+     while any of these is open. The partial figure is kept as rawScore, as
+     propertyFinanceability keeps its own. */
+  return { score: band === 'Not assessed' ? null : score, rawScore: score, band, scores, notes, unknowns, affordability: a,
            coverage: testedWeight / total,
            components: READINESS_COMPONENTS.map(c => ({ ...c, score: scores[c.k], note: notes[c.k] })) };
 }
@@ -273,15 +277,18 @@ function propertyFinanceability(d, m) {
     : 'Flood history has not been answered, and insurance availability follows from it.';
   if (scores.condition == null) gates.push('Flood history and insurability are unanswered, and financing commonly requires insurance.');
 
+  /* Credited only when the resale period has been established. Any answer
+     at all — "No" and "Not sure" included — used to lift this from 55 to 75. */
   const resale = d.checks?.['resale-time'];
-  scores.liquidity = m.proj?.custom ? 40 : (resale ? 75 : 55);
+  scores.liquidity = m.proj?.custom ? 40 : (resale === 'yes' ? 75 : 55);
   notes.liquidity = m.proj?.custom
     ? 'No transacted evidence is held for this location, so the buyer pool and realistic sale period are unknown.'
     : 'Sample comparable transactions exist for this project.';
 
-  const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
+  /* "Not sure" is the reader saying the question is still open. */
+  const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id] && d.checks[c.id] !== 'unknown').length;
   scores.documents = Math.round(answered / SARAWAK_CHECKS.length * 100);
-  notes.documents = `${answered} of ${SARAWAK_CHECKS.length} verification questions answered.`;
+  notes.documents = `${answered} of ${SARAWAK_CHECKS.length} verification questions answered — "Not sure" counts as open.`;
 
   const tested = FINANCEABILITY_COMPONENTS.filter(c => isNum(scores[c.k]));
   const testedWeight = tested.reduce((s, c) => s + c.weight, 0);
@@ -432,9 +439,17 @@ function propertyGrade(d, m) {
      half is the operating plan, which arrives in a later release — so it is
      named as absent inside this pillar rather than carried as a separate weight
      nothing can earn. */
-  const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
-  scores.demand = Math.round(answered / SARAWAK_CHECKS.length * 100);
-  notes.demand = `${answered} of ${SARAWAK_CHECKS.length} local demand questions answered. Management readiness is not yet modelled in this build and contributes nothing to this pillar either way.`;
+  /* By what the answers say, not by how many there are. It counted any answer,
+     so "yes" to flood, single-employer demand and unsold supply scored 100 —
+     the same as "no" to all of them. Each question now earns its share only
+     when it is settled without an adverse finding; an adverse answer and an
+     open one ("Not sure", or unanswered) both earn nothing. No weight is
+     invented between the questions: each is one tenth. */
+  const settled = SARAWAK_CHECKS.filter(c => { const a = d.checks?.[c.id]; return a && a !== 'unknown' && a !== c.adverse; }).length;
+  const adverseN = SARAWAK_CHECKS.filter(c => c.adverse && d.checks?.[c.id] === c.adverse).length;
+  const openN = SARAWAK_CHECKS.length - settled - adverseN;
+  scores.demand = Math.round(settled / SARAWAK_CHECKS.length * 100);
+  notes.demand = `${settled} of ${SARAWAK_CHECKS.length} checklist questions settled without an adverse finding; ${adverseN} adverse, ${openN} open or not sure. Management readiness is not yet modelled in this build and contributes nothing to this pillar either way.`;
 
 
   /* ---- weighted score over what was actually tested -------------------- */
@@ -470,6 +485,9 @@ function propertyGrade(d, m) {
 }
 
 function dealModel(d) {
+  /* The input, the address and the stored deal all normalise the hold; this
+     covers every other caller — a register record, a probe, an old store. */
+  if (d.holdYears !== normHoldYears(d.holdYears)) d = { ...d, holdYears: normHoldYears(d.holdYears) };
   const proj = activeProject(d);
 
   /* ---- financing basis (specification 29.2) ---------------------------- */
@@ -705,6 +723,21 @@ function dealModel(d) {
      the default deal. With no loan there is genuinely nothing to service. */
   const debtUnknown = loan > 0 && !isNum(instalment);
   const annualDebtService = debtUnknown ? null : num0(instalment) * 12;
+  /* THE LOAN ENDS WHEN ITS TENURE DOES. A hold longer than the tenure used to
+     go on paying the full instalment every year after the last one — with a
+     five-year loan and a ten-year hold, years six to ten each paid RM114,608
+     against a balance of nought, and booked all of it as deductible interest.
+     These give the months of instalment actually owed in a year of the hold,
+     and in the months after it while the property sells. */
+  const tenureMonths = tenureValid ? num0(d.tenureYears) * 12 : 0;
+  const debtInYear = (y) => debtUnknown ? null
+    : num0(instalment) * clamp(tenureMonths - (y - 1) * 12, 0, 12);
+  const instalmentWhileSelling = (yrs, months) => debtUnknown ? null
+    : num0(instalment) * clamp(tenureMonths - yrs * 12, 0, months);
+  /* The balance owed after a number of months: unknown with the debt service,
+     nothing without a loan. */
+  const balanceAt = (months) => debtUnknown ? null
+    : loan > 0 ? balanceAfter(loan, d.ratePct, d.tenureYears, months) : 0;
 
   const grossYield = (letsToTenant && d.price > 0) ? grossAnnualRentN / d.price * 100 : null;
   const netYield = (letsToTenant && d.price > 0) ? noiN / d.price * 100 : null;
@@ -737,7 +770,10 @@ function dealModel(d) {
      rent turns out to be. */
   const fixedOperatingCosts = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtFixedAnnual;
   const beDenominator = 12 * (1 - num0(d.vacancyPct) / 100) * (1 - variableCostRate);
-  const breakEvenRent = (letsToTenant && beDenominator > 0)
+  /* No break-even while the debt service is unknown: adding a null loan
+     payment added nothing, and the page quoted the rent that covers the
+     running costs alone as the rent that covers "everything". */
+  const breakEvenRent = (letsToTenant && beDenominator > 0 && !debtUnknown)
     ? (fixedOperatingCosts + annualDebtService) / beDenominator
     : null;
 
@@ -746,7 +782,7 @@ function dealModel(d) {
      full it is — which is a different and more serious statement than a thin
      margin, and one of the grade's hard gates. */
   const beOccDenominator = letsToTenant ? grossAnnualRentN * (1 - variableCostRate) : 0;
-  const breakEvenOccupancy = beOccDenominator > 0
+  const breakEvenOccupancy = (beOccDenominator > 0 && !debtUnknown)
     ? (fixedOperatingCosts + annualDebtService) / beOccDenominator * 100
     : null;
   /* What the owner pays each year to hold a property that does not pay for
@@ -781,11 +817,12 @@ function dealModel(d) {
   const renoRecovered = num0(d.renovation) * num0(d.renoValueRecoveryPct) / 100;
   const exitValueAt = (y) => d.price * Math.pow(1 + d.apprecPct / 100, y) + renoRecovered;
   const exitValue = exitValueAt(d.holdYears);
-  const outstanding = debtUnknown ? null : balanceAfter(loan, d.ratePct, d.tenureYears, d.holdYears * 12);
+  const outstanding = balanceAt(d.holdYears * 12);
   const agentFee = exitValue * num0(d.agentPct) / 100;
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
   const sellMonths = num0(d.sellMonths);
-  const carryWhileSelling = sellMonths * (instalment + (opex / 12));
+  const carryWhileSelling = debtUnknown ? null
+    : instalmentWhileSelling(d.holdYears, sellMonths) + sellMonths * (opex / 12);
   /* Renovation that is still reflected in the property at disposal is an
      allowable enhancement cost. Leaving it out overstated the gain by whatever
      was spent improving the asset. */
@@ -797,7 +834,11 @@ function dealModel(d) {
   });
   const gain = rpgtResult.chargeableGain;
   const rpgt = rpgtResult.tax;
-  const netExitProceeds = exitValue - outstanding - agentFee - exitLegal - rpgt - carryWhileSelling;
+  /* Without a repayment schedule the balance at the sale is unknown, and so
+     is what the sale returns. It was the price less costs, as if the loan had
+     vanished. */
+  const netExitProceeds = debtUnknown ? null
+    : exitValue - outstanding - agentFee - exitLegal - rpgt - carryWhileSelling;
 
   /* Cumulative rental cash flow across the hold, with rent growth, now after
      tax on the rent. */
@@ -834,25 +875,28 @@ function dealModel(d) {
       interest: interestY, marginalTaxPct: d.marginalTaxPct,
     });
 
-    const cfPreTax = debtUnknown ? null : effY - opexY - annualDebtService;
+    const debtY = debtInYear(y);
+    const cfPreTax = debtUnknown ? null : effY - opexY - debtY;
     const cf = debtUnknown ? null : cfPreTax - taxY.tax;
-    return { y, rent: effY, opex: opexY, debt: annualDebtService,
-             interest: interestY, principal: Math.max(0, annualDebtService - interestY),
+    return { y, rent: effY, opex: opexY, debt: debtY,
+             interest: interestY, principal: debtUnknown ? null : Math.max(0, debtY - interestY),
              taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
              cfPreTax, cf,
              value: exitValueAt(y),
-             balance: balanceAfter(loan, d.ratePct, d.tenureYears, y * 12) };
+             balance: balanceAt(y * 12) };
   };
   let cumCash = 0, cumTax = 0, cumPreTax = 0;
   const path = [];
   for (let y = 1; y <= d.holdYears; y++) {
     const f = yearFlow(y);
     cumPreTax += f.cfPreTax; cumCash += f.cf; cumTax += f.tax;
-    path.push({ ...f, cum: cumCash });
+    path.push({ ...f, cum: debtUnknown ? null : cumCash });
   }
+  /* A sum of unknown years is unknown, not the nought `0 + null` makes it. */
+  if (debtUnknown) { cumCash = null; cumPreTax = null; }
   const taxComputed = isNum(d.marginalTaxPct) && d.marginalTaxPct > 0;
-  const totalProfit = cumCash + netExitProceeds - acquisitionCost;
-  const multiple = acquisitionCost > 0 ? (cumCash + netExitProceeds) / acquisitionCost : null;
+  const totalProfit = debtUnknown ? null : cumCash + netExitProceeds - acquisitionCost;
+  const multiple = (acquisitionCost > 0 && !debtUnknown) ? (cumCash + netExitProceeds) / acquisitionCost : null;
 
   /* Kept, renamed, and no longer presented as a rate of return: it is the
      annualised multiple, which is a much cruder statement. The real internal
@@ -866,7 +910,11 @@ function dealModel(d) {
      point does this stop working". Rate and vacancy are the two that move, and
      renovation is the one that overruns. */
   const monthlyAt = ({ ratePct = d.ratePct, vacancyPct = d.vacancyPct } = {}) => {
-    const inst = monthlyInstalment(loan, ratePct, d.tenureYears);
+    /* With no repayment schedule the instalment came back as Infinity, every
+       stressed month read −Infinity and the deal was declared structurally
+       negative. Unknown is reported as unknown. */
+    if (debtUnknown) return null;
+    const inst = loan > 0 ? monthlyInstalment(loan, ratePct, d.tenureYears) : 0;
     const eff = grossAnnualRentN * (1 - vacancyPct / 100);
     return ((eff - opexAt(eff)) / 12) - inst;
   };
@@ -902,7 +950,7 @@ function dealModel(d) {
          total with the entered renovation swapped for the stressed one. */
       const cash = acquisitionCost - renovation + reno;
       return { label: over === 0 ? 'as budgeted' : `+${over}% over`, renovation: reno, cash,
-               cashOnCash: (letsToTenant && isNum(cash) && cash > 0)
+               cashOnCash: (letsToTenant && !debtUnknown && isNum(cash) && cash > 0)
                  ? (noiN - annualDebtService) / cash * 100 : null };
     }),
   };
@@ -915,6 +963,7 @@ function dealModel(d) {
      "negative at every rate" and "positive at every rate" both to null is how a
      failing deal gets displayed as one that never fails. */
   const crossing = (fn, lo, hi) => {
+    if (!isNum(fn(lo)) || !isNum(fn(hi))) return { value: null, reason: 'unknown' };
     if (fn(lo) <= 0) return { value: null, reason: 'never-positive' };
     if (fn(hi) > 0) return { value: null, reason: 'always-positive' };
     for (let i = 0; i < 60; i++) {
@@ -928,15 +977,16 @@ function dealModel(d) {
   const breakEvenRate = rateBE.value, breakEvenRateWhy = rateBE.reason;
   const breakEvenVacancy = vacBE.value, breakEvenVacancyWhy = vacBE.reason;
   /* The genuinely structural case: no rate and no occupancy level fixes it. */
-  const negativeAtBest = monthlyAt({ ratePct: 0, vacancyPct: 0 }) <= 0;
+  const bestMonth = monthlyAt({ ratePct: 0, vacancyPct: 0 });
+  const negativeAtBest = isNum(bestMonth) && bestMonth <= 0;
 
   /* ---- five and ten year exits ----------------------------------------- */
   const exitAt = (yrs) => {
     const val = exitValueAt(yrs);
-    const bal = balanceAfter(loan, d.ratePct, d.tenureYears, yrs * 12);
+    const bal = balanceAt(yrs * 12);
     const agent = val * num0(d.agentPct) / 100;
     const lg = Math.max(500, val * num0(d.exitLegalPct) / 100);
-    const carry = sellMonths * (instalment + (opex / 12));
+    const carry = debtUnknown ? null : instalmentWhileSelling(yrs, sellMonths) + sellMonths * (opex / 12);
     const rc = rpgtCharge({
       disposalPrice: val, acquisitionPrice: d.price,
       acquisitionCosts: duty + legal, disposalCosts: agent + lg,
@@ -944,28 +994,19 @@ function dealModel(d) {
       holdYears: yrs, categoryId: d.disposerCategory,
     });
     const tax = rc.tax;
-    const net = val - bal - agent - lg - tax - carry;
+    const net = debtUnknown ? null : val - bal - agent - lg - tax - carry;
     /* After tax on the rent, the same as the year-by-year path — see yearFlow. */
     let cum = 0, cumPre = 0;
     for (let y = 1; y <= yrs; y++) { const f = yearFlow(y); cum += f.cf; cumPre += f.cfPreTax; }
-    const profit = cum + net - acquisitionCost;
-    const mult = acquisitionCost > 0 ? (cum + net) / acquisitionCost : null;
+    if (debtUnknown) { cum = null; cumPre = null; }
+    const profit = debtUnknown ? null : cum + net - acquisitionCost;
+    const mult = (acquisitionCost > 0 && !debtUnknown) ? (cum + net) / acquisitionCost : null;
     return { yrs, value: val, outstanding: bal, agentFee: agent, exitLegal: lg, carry,
-             rpgtPct: rc.rate, rpgtRelief: rc.relief, rpgt: tax, sellingCosts: agent + lg + tax + carry,
+             rpgtPct: rc.rate, rpgtRelief: rc.relief, rpgt: tax, sellingCosts: debtUnknown ? null : agent + lg + tax + carry,
              net, cumCash: cum, cumCashPreTax: cumPre, profit,
              annualised: isNum(mult) && mult > 0 ? (Math.pow(mult, 1 / yrs) - 1) * 100 : null };
   };
   const exits = [5, 10].map(exitAt);
-
-  /* ---- the same cash, in equities -------------------------------------- */
-  /* Not a recommendation and not a forecast — the point is that the deposit
-     has an alternative use, and a property model that never mentions it is
-     answering an easier question than the one being asked. */
-  const equity = exits.map(e => {
-    const grown = acquisitionCost * Math.pow(1 + num0(d.equityReturnPct) / 100, e.yrs);
-    return { yrs: e.yrs, value: grown, profit: grown - acquisitionCost,
-             annualised: num0(d.equityReturnPct), vsProperty: e.profit - (grown - acquisitionCost) };
-  });
 
   /* Three months of instalment and running cost, held rather than spent. Not
      part of the purchase price, but part of what the purchase requires — a
@@ -1077,18 +1118,41 @@ function dealModel(d) {
      the model's own case, so the last row must equal irrPct — a definition
      the test suite holds it to. Bounded at thirty years: past that the
      figures describe a different owner. */
+  /* The reason travels with the rate. The exits card printed "the capital
+     does not come back" for every missing rate, beside a positive profit on
+     the same sale when the real reason was a second sign change. */
   const exitIrr = (e) => {
     const cfs = Array.from({ length: e.yrs }, (_, y) => yearFlow(y + 1).cf);
-    if (!cfs.every(isNum) || !isNum(e.net)) return null;
+    if (!cfs.every(isNum) || !isNum(e.net)) return { rate: null, why: 'The loan’s instalment could not be computed, so neither can the cash flows.' };
     const fl = [-equityOut, ...cfs];
     fl[fl.length - 1] += e.net + num0(reserveCash);
-    return irrOf(fl).rate;
+    return irrOf(fl);
   };
-  const holdVsSell = Array.from({ length: clamp(Math.round(num0(d.holdYears)) || 1, 1, 30) }, (_, k) => {
+  /* One row per year of the hold, which normHoldYears keeps to thirty — so
+     the final row is always the model's own case. */
+  const holdVsSell = Array.from({ length: path.length }, (_, k) => {
     const e = exitAt(k + 1);
-    return { ...e, irrPct: exitIrr(e) };
+    const r = exitIrr(e);
+    return { ...e, irrPct: r.rate, irrWhy: r.why };
   });
-  exits.forEach(e => { e.irrPct = exitIrr(e); });
+  exits.forEach(e => { const r = exitIrr(e); e.irrPct = r.rate; e.irrWhy = r.why; });
+
+  /* ---- the same cash, in equities -------------------------------------- */
+  /* Not a recommendation and not a forecast — the point is that the deposit
+     has an alternative use, and a property model that never mentions it is
+     answering an easier question than the one being asked.
+
+     On the equity the rate of return is measured on — every ringgit committed
+     at the start, the reserve included — so the comparison and the rate beside
+     it describe the same capital. It grew the cash before the reserve, while
+     the card printed the rate on the cash after it. The property's profit is
+     the same on either base: the reserve goes in and comes back out. */
+  const equity = exits.map(e => {
+    const grown = equityOut * Math.pow(1 + num0(d.equityReturnPct) / 100, e.yrs);
+    const profit = grown - equityOut;
+    return { yrs: e.yrs, committed: equityOut, value: grown, profit, propertyProfit: e.profit,
+             annualised: num0(d.equityReturnPct), vsProperty: isNum(e.profit) ? e.profit - profit : null };
+  });
   /* NPV at the return the reader says their capital could earn elsewhere —
      already collected for the opportunity-cost comparison and never used for
      this. Positive means the deal beats that alternative after tax. */
@@ -1202,17 +1266,22 @@ function propertyRiskFlags(d, m) {
       n:'A short remaining lease can shorten the tenure a lender will offer and narrow the pool of buyers at your own exit. Thresholds vary between lenders and are theirs to state — confirm with the intended lender rather than relying on a rule of thumb, including this well.' });
 
   /* Answers the buyer gave to the checklist, surfaced as findings. */
+  /* Raised on the ADVERSE answer, which is 'no' for the questions that ask
+     whether something good is established. A 'yes' to "has the strata title
+     issued" used to be raised as a risk, and so did 'yes' to the resale
+     question. Read from the deal passed in, not State.deal, so a register
+     record's flags are its own. */
   for (const chk of SARAWAK_CHECKS) {
-    if (State.deal.checks?.[chk.id] === 'yes' && chk.id !== 'comparables' && chk.id !== 'lease-remaining')
-      out.push({ sev: chk.sev, t: chk.q.replace(/\?$/, ''), n: `${chk.why} Confirm with: ${chk.who}.` });
-    if (chk.id === 'comparables' && State.deal.checks?.[chk.id] === 'no')
-      out.push({ sev:'serious', t:'Rental comparables have not been verified',
+    if (!chk.adverse || d.checks?.[chk.id] !== chk.adverse) continue;
+    if (chk.id === 'comparables')
+      out.push({ sev:'serious', t: chk.flag,
         n:'Every figure on this page is driven by the rent assumption. Until a transacted rent is confirmed, the outputs are arithmetic on a guess.' });
+    else out.push({ sev: chk.sev, t: chk.flag || chk.q.replace(/\?$/, ''), n: `${chk.why} Confirm with: ${chk.who}.` });
   }
 
   /* Provenance is itself a risk. A model whose two largest drivers came from
      the seller is a sales projection wearing a spreadsheet. */
-  const weak = ['price', 'rent'].filter(k => ['developer', 'assumed'].includes(State.deal.evidence?.[k]));
+  const weak = ['price', 'rent'].filter(k => ['developer', 'assumed'].includes(d.evidence?.[k]));
   if (weak.length) out.push({ sev:'warning', t:'Key figures are not independently evidenced',
     n:`${weak.join(' and ')} ${weak.length === 1 ? 'is' : 'are'} marked as supplied by the seller or assumed by this tool. Those two drive every output here.` });
 
@@ -1367,30 +1436,49 @@ VIEWS.sarawak = () => {
       'Completeness counts the eleven fields section 19.2 asks for. A thin record cannot pass for a researched one.'));
     recs.forEach((rec, i) => {
       const theme = SARAWAK_THEMES.find(t => t.id === rec.theme);
-      const pct = exposureCompleteness(rec);
       const det = el('details', { style: 'border-top:1px solid var(--line);padding:10px 0' });
       /* Both numbers on the summary line, never averaged into one. A record can
          be fully written and entirely unsourced, and a reader has to be able to
          see that without opening it. */
-      const src = exposureSourcing(rec);
+      /* EDITS UPDATE THE RECORD IN PLACE. The sourcing fields used to call
+         render(), which rebuilt the page with this record closed and focus on
+         the body — so filling the three in order meant reopening it after
+         each — while the eleven exposure fields saved without any update, and
+         the summary's "% of fields recorded" stayed at whatever it was when
+         the page was drawn. Every figure that depends on a field is now a
+         node this closure rewrites. */
+      const pctNode = el('span', { class: 'metaline' });
+      const sumChip = el('span', { style: 'margin-left:8px' });
+      const metaChip = el('span', { style: 'margin-left:auto' });
+      const basisNote = el('p', { class: 'metaline', style: 'margin-top:4px' });
+      const staleNote = el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' });
+      const paint = () => {
+        const s = exposureSourcing(rec);
+        pctNode.textContent = `  ${theme?.label} · ${exposureCompleteness(rec)}% of fields recorded`;
+        sumChip.className = s.score === 100 ? 'chip chip-ok' : 'chip chip-bronze';
+        sumChip.textContent = s.score === 100
+          ? `sourced${rec.basis && rec.basis !== 'unstated' ? ' · ' + rec.basis : ''}`
+          : `${s.missing.length} sourcing gap${s.missing.length === 1 ? '' : 's'}`;
+        metaChip.className = s.score === 100 ? 'chip chip-ok' : 'chip chip-bronze';
+        metaChip.textContent = s.score === 100 ? 'sourced, dated and classified' : s.missing.join(' · ');
+        basisNote.textContent = (EXPOSURE_BASIS.find(b => b.id === (rec.basis || 'unstated')) || EXPOSURE_BASIS[2]).note;
+        const age = exposureStale(rec);
+        staleNote.textContent = age != null && age > 365
+          ? `Last verified ${Math.floor(age / 30)} months ago. An order book or a project status moves faster than that.` : '';
+        staleNote.style.display = staleNote.textContent ? '' : 'none';
+      };
       det.append(el('summary', { style: 'cursor:pointer' }, [
         el('span', { style: 'font-weight:600' }, `${rec.tk} — ${rec.name}`),
-        el('span', { class: 'metaline' }, `  ${theme?.label} · ${pct}% of fields recorded`),
-        el('span', { class: src.score === 100 ? 'chip chip-ok' : 'chip chip-bronze', style: 'margin-left:8px' },
-          src.score === 100
-            ? `sourced${rec.basis && rec.basis !== 'unstated' ? ' · ' + rec.basis : ''}`
-            : `${src.missing.length} sourcing gap${src.missing.length === 1 ? '' : 's'}`),
+        pctNode, sumChip,
       ]));
       /* How it was established, before what it says. A reader scanning the
          record should meet the sourcing first — it qualifies everything below
          it, and putting it at the bottom would make it a footnote to claims
          they have already read. */
       const meta = el('div', { style: 'padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px;background:var(--surface-sunk)' });
-      const srcState = exposureSourcing(rec);
       meta.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline;margin-bottom:8px' }, [
         el('h4', { class: 'eyebrow', style: 'margin:0' }, 'How this was established'),
-        el('span', { class: srcState.score === 100 ? 'chip chip-ok' : 'chip chip-bronze', style: 'margin-left:auto' },
-          srcState.score === 100 ? 'sourced, dated and classified' : srcState.missing.join(' · ')),
+        metaChip,
       ]));
 
       EXPOSURE_META.forEach(f => {
@@ -1400,7 +1488,7 @@ VIEWS.sarawak = () => {
           ? el('input', { class: 'input', type: 'date', value: rec.verified || '', 'aria-label': f.label })
           : el('textarea', { class: 'input', rows: '2', placeholder: 'Not recorded', 'aria-label': f.label });
         if (f.kind !== 'date') inp.value = rec[f.k] || '';
-        inp.addEventListener('change', () => { rec[f.k] = inp.value; saveExposures(); render(); });
+        inp.addEventListener('change', () => { rec[f.k] = inp.value; saveExposures(); paint(); });
         row.append(inp);
         row.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, f.hint));
         meta.append(row);
@@ -1411,15 +1499,11 @@ VIEWS.sarawak = () => {
       const basisSel = el('select', { class: 'select', 'aria-label': 'Exposure classification' });
       EXPOSURE_BASIS.forEach(b => basisSel.append(el('option', { value: b.id,
         selected: (rec.basis || 'unstated') === b.id ? '' : null }, b.label)));
-      basisSel.addEventListener('change', () => { rec.basis = basisSel.value; saveExposures(); render(); });
+      basisSel.addEventListener('change', () => { rec.basis = basisSel.value; saveExposures(); paint(); });
       basisRow.append(basisSel);
-      basisRow.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
-        (EXPOSURE_BASIS.find(b => b.id === (rec.basis || 'unstated')) || EXPOSURE_BASIS[2]).note));
+      basisRow.append(basisNote);
       meta.append(basisRow);
-
-      const age = exposureStale(rec);
-      if (age != null && age > 365) meta.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
-        `Last verified ${Math.floor(age / 30)} months ago. An order book or a project status moves faster than that.`));
+      meta.append(staleNote);
       det.append(meta);
 
       EXPOSURE_FIELDS.forEach(f => {
@@ -1430,7 +1514,7 @@ VIEWS.sarawak = () => {
         ta.value = rec.fields?.[f.k] || '';
         ta.addEventListener('change', () => {
           rec.fields = { ...(rec.fields || {}), [f.k]: ta.value };
-          saveExposures();
+          saveExposures(); paint();
         });
         row.append(ta);
         det.append(row);
@@ -1441,6 +1525,7 @@ VIEWS.sarawak = () => {
         } }, 'Remove'),
         el('span', { class: 'metaline' }, `Added ${rec.added}. If a field is blank it is unresearched, not zero.`),
       ]));
+      paint();
       list.append(det);
     });
     wrap.append(list);
@@ -1451,6 +1536,30 @@ VIEWS.sarawak = () => {
   return wrap;
 };
 
+/* INCLUDED PROPERTY REPORTS ARE COUNTED. A plan that includes two a month
+   used to unlock every report for every deal — any allowance above nought
+   was read as unlimited. They are now metered the way company reports are:
+   per calendar month, by project, and reopening one already used this month
+   never costs another. Spent only when the reader chooses to use one, not
+   on browsing, so looking at a deal does not use up the month. */
+State.propertyReportLog = store.read('propertyReportLog', { month: new Date().toISOString().slice(0, 7), ids: [] });
+function propertyReportLogNow() {
+  const month = new Date().toISOString().slice(0, 7);
+  if (State.propertyReportLog?.month !== month) State.propertyReportLog = { month, ids: [] };
+  return State.propertyReportLog;
+}
+const propertyReportsLeft = () => Math.max(0, num0(lim('propertyReports')) - propertyReportLogNow().ids.length);
+const propertyReportUnlocked = (id) =>
+  State.propertyReportsBought.includes(id) || (num0(lim('propertyReports')) > 0 && propertyReportLogNow().ids.includes(id));
+function usePropertyReport(id) {
+  const log = propertyReportLogNow();
+  if (log.ids.includes(id)) return true;
+  if (!(propertyReportsLeft() > 0)) return false;
+  State.propertyReportLog = { ...log, ids: [...log.ids, id] };
+  store.write('propertyReportLog', State.propertyReportLog);
+  return true;
+}
+
 VIEWS.property = () => {
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
@@ -1460,7 +1569,7 @@ VIEWS.property = () => {
   if (arrival.replaced) setTimeout(() => toast('Opened the linked deal — your previous deal is kept; restore it beside the link'), 0);
   const d = State.deal;
   const m = dealModel(d);
-  const paid = lim('propertyReports') > 0 || State.propertyReportsBought.includes(d.projectId);
+  const paid = propertyReportUnlocked(d.projectId);
   const wrap = el('div');
 
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
@@ -1614,12 +1723,12 @@ VIEWS.property = () => {
     const wf = el('details', { style: 'margin-top:var(--md)' });
     wf.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
       `Where ${fmtAmount(m.safeCashRequired, 'MYR')} of safe cash goes`));
-    const steps = [
-      ...(m.costGroups || []).map(grp => [grp.label,
-        grp.items.reduce((a, it) => a + (isNum(it[1]) ? it[1] : 0), 0)]),
-      ['Rent-ready cash', m.improvementCash],
-      ['Reserve held back', m.reserveCash],
-    ].filter(([, v]) => isNum(v) && v > 0);
+    /* The cost groups already include the improvement costs and the reserve.
+       Two further rows for them counted both twice, so the parts of RM130.1k
+       added to RM165.1k and every bar was drawn against the wrong total. */
+    const steps = (m.costGroups || []).map(grp => [grp.label,
+        grp.items.reduce((a, it) => a + (isNum(it[1]) ? it[1] : 0), 0)])
+      .filter(([, v]) => isNum(v) && v > 0);
     const total = steps.reduce((a, [, v]) => a + v, 0) || 1;
     const bars = el('div', { style: 'display:flex;flex-direction:column;gap:8px;margin-top:var(--md)' });
     steps.forEach(([label, v]) => {
@@ -1710,7 +1819,9 @@ VIEWS.property = () => {
   finCard.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md)' },
     b.assessed && isNum(lr.score)
       ? `Loan Readiness ${lr.score}/100 is a diagnostic score, not a ${lr.score}% chance of approval. No approval probability is offered anywhere in this product, because calculating one honestly would need a lender's own record of applications and outcomes, and nobody outside a lender has that. Each lender applies its own credit policy and its own final assessment.`
-      : 'Loan readiness has not been assessed. That is shown as unassessed rather than as a favourable default — an unanswered affordability question is not a passed one.'));
+      : b.assessed
+        ? `No Loan Readiness total is shown while ${lr.unknowns.filter(u => u === 'credit conduct' || u === 'affordability').join(' and ') || 'a critical item'} is open — a partial score would hide the gap inside it.`
+        : 'Loan readiness has not been assessed. That is shown as unassessed rather than as a favourable default — an unanswered affordability question is not a passed one.'));
 
   if (pf.gates.length) {
     finCard.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Verify before a lender can be approached'));
@@ -1734,7 +1845,16 @@ VIEWS.property = () => {
     f.append(el('label', { for: `b-${k}` }, label));
     f.append(el('input', { class: 'input input-inline', id: `b-${k}`, type: 'number', step: step || 100,
       value: String(b[k] ?? 0), style: 'text-align:right',
-      onchange: e => { b[k] = num0(e.target.value); b.assessed = true; saveBorrower(); render(); } }));
+      onchange: e => {
+        /* Empty is not nought here either: a cleared debt box read as no
+           existing debt, and affordability improved by whatever had been in it. */
+        if (String(e.target.value).trim() === '') {
+          e.target.value = String(b[k] ?? 0);
+          toast(`An empty box is not zero — it stays at ${num0(b[k])}. Type 0 if you mean nought.`);
+          return;
+        }
+        b[k] = num0(e.target.value); b.assessed = true; saveBorrower(); render();
+      } }));
     return f;
   };
   bd.append(el('p', { class: 'eyebrow', style: 'margin:10px 0 6px' }, 'Income and commitments, monthly'));
@@ -1858,10 +1978,10 @@ VIEWS.property = () => {
      the fields it describes, and a sentence saying what travels with it. */
   loc.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-bottom:10px' }, [
     el('button', { class: 'btn btn-ghost btn-sm', onclick: async () => {
-      try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every figure on this screen'); }
+      try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every input of this deal'); }
       catch { toast('Could not reach the clipboard — copy the address bar instead'); }
     } }, 'Copy a link to this deal'),
-    el('span', { class: 'metaline' }, 'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. The Sarawak checklist answers do not travel.'),
+    el('span', { class: 'metaline' }, 'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. It carries the Sarawak checklist answers too, with how each was established. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. Your loan-readiness inputs are about you, not the deal, and do not travel.'),
     store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); render(); } } }, 'Restore my previous deal') : null,
   ]));
 
@@ -1906,8 +2026,8 @@ VIEWS.property = () => {
      the file was never fetched. */
   if (geoLoadState === 'idle') loadSarawakLayers();
   const mapAreas = sarawakGeo?.cities?.[d.city]?.areas;
+  const mapWrap = el('div', { style: 'margin-top:14px' });
   if (mapAreas && Object.keys(mapAreas).length) {
-    const mapWrap = el('div', { style: 'margin-top:14px' });
     mapWrap.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' },
       `${cityDef.name} areas`));
     mapWrap.append(cityMap(d.city, d.district, (name) => {
@@ -1921,8 +2041,15 @@ VIEWS.property = () => {
         (AREA_CONFIDENCE[a.confidence] || {}).label || a.confidence])));
     mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `${sarawakGeo.attribution} · ${sarawakGeo.licence}`));
+  }
 
-    /* What has been recorded for the selected area, and a way to add to it. */
+  /* What has been recorded for the selected area, and a way to add to it —
+     for every town, not only the four with coordinates. The recorder sat
+     inside the map's block, so Bau, Sri Aman, Sarikei and the other unmapped
+     towns had none, while the empty register told the reader to record from
+     here. Only the map needs coordinates; a record needs a city and a
+     district, which every deal has. */
+  {
     const obs = observationsFor(d.city, d.district);
     const oc = el('div', { class: 'panel', style: 'margin-top:12px' });
     oc.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' },
@@ -2252,7 +2379,21 @@ VIEWS.property = () => {
       f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
       f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
         value: d[k] ?? 0, style: 'text-align:right',
-        onchange: e => { d[k] = num0(e.target.value); markTouched(d, k); saveDeal(); render(); } }));
+        ...(k === 'holdYears' ? { min: 1, max: HOLD_YEARS_MAX } : {}),
+        onchange: e => {
+          /* AN EMPTIED BOX IS NOT ZERO. It was stored as 0, so clearing the
+             price modelled a free property and clearing the rent a vacant
+             one, with every figure beside them computed as if that had been
+             typed. The model has no way to carry an absent price, so the
+             box keeps its figure and says so; a nought has to be typed. */
+          if (String(e.target.value).trim() === '') {
+            e.target.value = d[k] ?? '';
+            toast(`An empty box is not zero — “${label}” stays at ${isNum(d[k]) ? d[k] : 'its last figure'}. Type 0 if you mean nought.`);
+            return;
+          }
+          d[k] = k === 'holdYears' ? normHoldYears(e.target.value) : num0(e.target.value);
+          markTouched(d, k); saveDeal(); render();
+        } }));
       /* Said beside the number rather than only in the evidence section below,
          because this is where a reader decides whether to trust it. */
       if (EVIDENCE_DRIVERS.includes(k) && shownEvidence(d, k) === 'illustrative_default')
@@ -2265,7 +2406,7 @@ VIEWS.property = () => {
   /* Provenance for the figures that actually move the answer. */
   rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, '9 · Evidence quality'));
   rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
-    'Where each of the two figures that drive every output came from.'));
+    'Where each of the four figures below came from — the price and the rent drive every output.'));
   [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
     .forEach(([k, label]) => {
       const f = el('div', { class: 'assumption' });
@@ -2310,7 +2451,8 @@ VIEWS.property = () => {
   const srows = [
     [tr('grossYield'),       fmtPct(m.grossYield, 2)],
     [tr('netYield'),         fmtPct(m.netYield, 2)],
-    [tr('netCashFlow'),      fmtAmount(m.cashflowMonthly, 'MYR') + ' / bln'],
+    /* The unit in the reader's language: "/ bln" is Malay, and was shown in all three. */
+    [tr('netCashFlow'),      isNum(m.cashflowMonthly) ? `${fmtAmount(m.cashflowMonthly, 'MYR')} ${sc.perMonth}` : '—'],
     [tr('breakEvenRent'),    fmtAmount(m.breakEvenRent, 'MYR')],
     [tr('monthlyInstalment'),fmtAmount(m.instalment, 'MYR')],
     [tr('totalInitialCash'), fmtAmount(m.totalInitialCash, 'MYR')],
@@ -2553,7 +2695,12 @@ VIEWS.property = () => {
     const kv = el('dl', { class: 'kv' });
     [['Purchase price', fmtAmount(d.price, 'MYR')],
      ['Bank or valuer estimate', fmtAmount(m.bankValuation, 'MYR')],
-     ['Value the loan is calculated on', `${fmtAmount(m.lenderValueBasis, 'MYR')} — the lower of the two`],
+     /* Named by the rule in force. It always said "the lower of the two",
+        including under a valuation-only rule lending on more than the price. */
+     ['Value the loan is calculated on', `${fmtAmount(m.lenderValueBasis, 'MYR')} — ${
+       m.valuationRule === 'valuation_only' ? 'the valuation, under a valuation-only rule'
+       : m.valuationRule === 'lower_of' ? 'the lower of the two'
+       : 'the purchase price, under the rule in force'}`],
      ['Margin of finance applied', fmtPct(m.marginOfFinancePct, 0)],
      ['Loan', fmtAmount(m.loan, 'MYR')],
      ['Share of the price this funds', fmtPct(m.financingCoverageOfPrice, 1)]]
@@ -2629,7 +2776,7 @@ VIEWS.property = () => {
      sure neither is skipped. */
   const chk = el('div', { class: 'card' });
   chk.append(cardHead('Before the numbers mean anything',
-    'Ten questions that decide more than the price does. Nothing here is scored — answering "yes" to a risk simply raises it in the findings below, with who can confirm it.'));
+    'Ten questions that decide more than the price does. No figure in the model moves on your answers. An adverse answer is raised in the findings below with who can confirm it, and the grade\'s local-demand pillar counts each question only once it is settled without one — an adverse or open answer earns nothing there.'));
   const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
   chk.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:var(--md)' }, [
     el('span', { class: answered === SARAWAK_CHECKS.length ? 'chip chip-ok' : 'chip chip-bronze' },
@@ -2693,7 +2840,7 @@ VIEWS.property = () => {
 
     /* What it bears on, and how to settle it. */
     if (c.affects?.length) row.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `Bears on: ${c.affects.join(' · ')}. This tool changes no figure on the strength of your answer — it has no basis for a coefficient, and inventing one would be worse than leaving the number alone.`));
+      `Bears on: ${c.affects.join(' · ')}. This tool changes no modelled cash figure on the strength of your answer — it has no basis for a coefficient, and inventing one would be worse than leaving the number alone.`));
     if (c.steps?.length) {
       const det = el('details', { style: 'margin-top:8px' });
       det.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'How to establish this'));
@@ -2719,6 +2866,11 @@ VIEWS.property = () => {
      it crosses somewhere, it is never positive, or it is always positive. */
   const beTile = (label, value, why, entered, fmt, copy) => {
     const never = why === 'never-positive', always = why === 'always-positive';
+    /* A fourth case: no monthly position to cross zero, because the loan's
+       instalment could not be computed. It used to fall through to "any
+       rate", in green. */
+    if (why === 'unknown') return el('div', { class: 'panel' }, statTile(label, '—',
+      { sub: 'Not computable — the loan’s instalment could not be worked out from the entered tenure.' }));
     return el('div', { class: 'panel' }, statTile(label,
       isNum(value) ? fmt(value) : never ? copy.neverValue : copy.alwaysValue,
       { sub: isNum(value) ? copy.crosses(entered) : never ? copy.never : copy.always,
@@ -2733,18 +2885,25 @@ VIEWS.property = () => {
       always: 'Stays positive at every rate tested, up to 25%.',
       good: (v, e) => v > e + 1,
     }));
-  stressGrid.append(beTile('Survives vacancy to', m.breakEvenVacancy, m.breakEvenVacancyWhy, d.vacancyPct,
-    v => fmtPct(v, 0), {
-      neverValue: 'none', alwaysValue: 'fully vacant',
-      crosses: e => `Vacancy at which it reaches zero. You assumed ${fmtPct(e, 0)}.`,
-      never: 'Negative even with the unit never empty. Vacancy is not what makes this negative.',
-      always: 'Covers its costs even with no tenant at all.',
-      good: (v, e) => v > e + 10,
-    }));
-  stressGrid.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
-    { sub: `Rent needed to cover everything. You expect ${fmtAmount(d.rent, 'MYR')}.`,
-      tone: d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
+  /* Vacancy and a break-even rent are tenancy quantities. The rail says they
+     are withheld for a class with no tenant, and this card went on printing
+     them — "You expect RM1.9k" of a bare parcel. */
+  if (m.letsToTenant) {
+    stressGrid.append(beTile('Survives vacancy to', m.breakEvenVacancy, m.breakEvenVacancyWhy, d.vacancyPct,
+      v => fmtPct(v, 0), {
+        neverValue: 'none', alwaysValue: 'fully vacant',
+        crosses: e => `Vacancy at which it reaches zero. You assumed ${fmtPct(e, 0)}.`,
+        never: 'Negative even with the unit never empty. Vacancy is not what makes this negative.',
+        always: 'Covers its costs even with no tenant at all.',
+        good: (v, e) => v > e + 10,
+      }));
+    stressGrid.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
+      { sub: `Rent needed to cover everything. You expect ${fmtAmount(d.rent, 'MYR')}.`,
+        tone: !isNum(m.breakEvenRent) ? null : d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
+  }
   stressCard.append(stressGrid);
+  if (!m.letsToTenant) stressCard.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
+    'No vacancy or break-even rent is tested: this class has no tenancy. The rate stress below is the carrying cost of the loan and the outgoings.'));
 
   const stressTable = (caption, rows, cols) => {
     const t = el('table', { class: 'dt' });
@@ -2764,7 +2923,7 @@ VIEWS.property = () => {
     { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
   ]));
-  stressCard.append(stressTable('If it sits empty for longer', m.stress.vacancy, [
+  if (m.letsToTenant) stressCard.append(stressTable('If it sits empty for longer', m.stress.vacancy, [
     { label: 'Vacancy', get: r2 => r2.label },
     { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
@@ -2889,8 +3048,22 @@ VIEWS.property = () => {
     out.append(upsell(`Full investor report — RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
         ? `Adds net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
-        : 'Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Bought per report, or included twice monthly on All-Access.'));
+        /* Bought per report. The line also offered it "included twice monthly
+           on All-Access", a tier that is not launched and must not appear
+           purchasable; it returns when the tier does. */
+        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Bought per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''}.`));
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
+    const included = num0(lim('propertyReports'));
+    if (included > 0) {
+      const left = propertyReportsLeft();
+      buy.append(el('button', { class: 'btn btn-primary btn-sm', disabled: left > 0 ? null : '',
+        onclick: () => {
+          if (!usePropertyReport(d.projectId)) { toast(`This month's ${included} included reports are used`); return; }
+          toast(`Included report used — ${propertyReportsLeft()} left this month`); render();
+        } }, left > 0
+          ? `Use an included report — ${left} of ${included} left this month`
+          : `All ${included} included reports used this month`));
+    }
     buy.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
       State.propertyReportsBought = [...State.propertyReportsBought, d.projectId];
       store.write('propertyReportsBought', State.propertyReportsBought);
@@ -2913,16 +3086,20 @@ VIEWS.property = () => {
   const exBody = el('tbody');
   const exRows = [
     ['Sale value', e => fmtAmount(e.value, 'MYR')],
-    ['Loan outstanding', e => `−${fmtAmount(e.outstanding, 'MYR')}`],
+    ['Loan outstanding', e => isNum(e.outstanding) ? `−${fmtAmount(e.outstanding, 'MYR')}` : '—'],
     ['Agent commission', e => `−${fmtAmount(e.agentFee, 'MYR')}`],
     ['Legal on exit', e => `−${fmtAmount(e.exitLegal, 'MYR')}`],
-    [`Carried while selling`, e => `−${fmtAmount(e.carry, 'MYR')}`],
+    [`Carried while selling`, e => isNum(e.carry) ? `−${fmtAmount(e.carry, 'MYR')}` : '—'],
     ['Real property gains tax', e => `−${fmtAmount(e.rpgt, 'MYR')} (${e.rpgtPct}%)`],
     ['Net proceeds', e => fmtAmount(e.net, 'MYR')],
     [m.taxComputed ? 'Rental cash over the hold, after tax on the rent' : 'Rental cash over the hold, before tax', e => fmtAmount(e.cumCash, 'MYR')],
     ['Total profit on cash invested', e => fmtAmount(e.profit, 'MYR')],
     ['Annualised', e => isNum(e.annualised) ? fmtPct(e.annualised, 2) : '—'],
-    ['Rate of return if sold then', e => isNum(e.irrPct) ? fmtPct(e.irrPct, 2) : 'no rate — the capital does not come back'],
+    /* The model's own reason for a missing rate, never a fixed one: the old
+       "the capital does not come back" sat beside a positive profit whenever
+       the flows had two rates rather than none. */
+    ['Rate of return if sold then', e => isNum(e.irrPct) ? fmtPct(e.irrPct, 2)
+      : el('span', { class: 'caption', style: 'white-space:normal' }, `No rate. ${e.irrWhy || ''}`.trim())],
   ];
   exRows.forEach(([label, get], i) => {
     const strong = i >= exRows.length - 2;
@@ -2958,7 +3135,7 @@ VIEWS.property = () => {
       el('td', { class: 'num' }, `${e.rpgtPct}%`),
       el('td', { class: 'num' }, fmtAmount(e.net, 'MYR')),
       el('td', { class: 'num' }, fmtAmount(e.cumCash, 'MYR')),
-      el('td', { class: 'num' + (isNum(e.irrPct) ? '' : ' caption') }, isNum(e.irrPct) ? fmtPct(e.irrPct, 2) : 'no rate'),
+      el('td', { class: 'num' + (isNum(e.irrPct) ? '' : ' caption'), title: isNum(e.irrPct) ? null : (e.irrWhy || null) }, isNum(e.irrPct) ? fmtPct(e.irrPct, 2) : 'no rate'),
     ])));
     t.append(tb);
     card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
@@ -3094,7 +3271,7 @@ VIEWS.property = () => {
   /* equity comparison — the cross-asset point of the whole product */
   const eq2 = el('div', { class: 'card' });
   eq2.append(cardHead('The same cash in equities',
-    `What ${fmtAmount(m.acquisitionCost, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`));
+    `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`));
   /* The real rate, not the annualised multiple. Comparing a property against
      a compounding alternative on a figure that ignores timing was the least
      defensible place the old approximation appeared. */
@@ -3102,22 +3279,35 @@ VIEWS.property = () => {
   const eg = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
   eg.append(el('div', { class: 'panel' }, statTile('Property, internal rate of return', isNum(need) ? fmtPct(need, 2) : '—',
     { sub: `Including leverage, costs and ${m.rpgtPct}% RPGT` })));
-  eg.append(el('div', { class: 'panel' }, statTile('Cash committed', fmtAmount(m.acquisitionCost, 'MYR'), { sub: 'Deposit plus entry costs' })));
-  eg.append(el('div', { class: 'panel' }, statTile('Monthly commitment', fmtAmount(Math.max(0, -m.cashflowMonthly), 'MYR'),
-    { sub: m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
+  /* The capital the rate of return is measured on, the reserve included —
+     the returns panel states the same figure. This tile showed the cash
+     before the reserve beside a rate computed on the cash after it. */
+  eg.append(el('div', { class: 'panel' }, statTile('Cash committed', fmtAmount(m.equityOut, 'MYR'),
+    { sub: 'Deposit, entry costs and the reserve — what the rate of return is measured on' })));
+  eg.append(el('div', { class: 'panel' }, statTile('Monthly commitment',
+    isNum(m.cashflowMonthly) ? fmtAmount(Math.max(0, -m.cashflowMonthly), 'MYR') : '—',
+    { sub: !isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown'
+      : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
   eq2.append(eg);
-  const dyRows = U.filter(x => x.c.mkt === 'MY' && x.m.dy > 3).sort((a, b) => b.m.dy - a.m.dy).slice(0, 5);
+  /* THE READER'S OWN ALTERNATIVE, NOT A PICK LIST. This table was the five
+     Bursa names with the highest dividend yield in the dataset — sorted,
+     cut to five, each with a quality score and an upside against a model
+     estimate, and unlabelled although the rows were illustrative. A ranked
+     selection of securities on a property page is a recommendation by
+     another name. What the card is for is the reader's stated alternative:
+     the equity return they entered, applied to the same capital. */
   const etw = el('div', { class: 'tablewrap' });
   const et = el('table', { class: 'dt' });
-  et.append(el('thead', {}, el('tr', {}, ['Bursa alternative', 'Gross yield', 'Net yield after withholding', 'Quality', 'vs base-case model estimate'].map(h => el('th', {}, h)))));
-  et.append(el('tbody', {}, dyRows.map(x => el('tr', {}, [
-    el('td', { class: 'ident' }, `${x.c.tk} — ${x.c.name}`),
-    el('td', {}, fmtPct(x.m.dy, 2)),
-    el('td', {}, fmtPct(netYield(x.m.dy, x.c.mkt), 2)),
-    el('td', { html: scorePill(x.scores.quality.score, x.pct.quality) }),
-    el('td', { class: diffClass(x.val.mos?.base) }, withSign(x.val.mos?.base, 0)),
-  ]))));
+  et.append(el('thead', {}, el('tr', {}, ['', ...m.equity.map(q => `Year ${q.yrs}`)].map((h, i) => el('th', { class: i ? 'num' : '' }, h)))));
+  et.append(el('tbody', {}, [
+    ['The same cash at your equity return', q => fmtAmount(q.value, 'MYR')],
+    ['Profit in equities', q => fmtAmount(q.profit, 'MYR')],
+    ['Profit in this property', q => fmtAmount(q.propertyProfit, 'MYR')],
+    ['Property less equities', q => isNum(q.vsProperty) ? `${q.vsProperty > 0 ? '+' : ''}${fmtAmount(q.vsProperty, 'MYR')}` : '—'],
+  ].map(([label, get]) => el('tr', {}, [el('td', {}, label), ...m.equity.map(q => el('td', { class: 'num' }, get(q)))]))));
   etw.append(et); eq2.append(etw);
+  eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    `At the ${fmtPct(num0(d.equityReturnPct), 1)} a year you entered under “Assumed equity return” — your figure, not a forecast, and no security is named or preferred.`));
   eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     `The property scenario shows a net yield of ${fmtPct(m.netYield, 2)} before leverage and ${isNum(need) ? fmtPct(need, 2) : '—'} annualised on cash after it. Equities are liquid, divisible and carry no maintenance; property is leveraged, lumpy and illiquid. The comparison is of returns, not of risk.`));
   out.append(eq2);

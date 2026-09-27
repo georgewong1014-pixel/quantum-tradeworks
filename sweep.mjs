@@ -37,6 +37,10 @@ const ROUTES = [
   '/property/calculator?city=bintulu', '/learn', '/learn/glossary', '/methodology',
   '/data-sources', '/corrections', '/status', '/learn/product-boundaries', '/pricing', '/about', '/contact', '/privacy', '/terms',
   '/decision-record', '/methodology/ips',
+  /* A town with no coordinates, which now has the recorder; and a link that
+     carries a checklist answer, an over-long hold and a loan with no tenure. */
+  '/property/calculator?city=bau',
+  '/property/calculator?type=land&d=holdYears:40~tenureYears:0~check.flood:yes~checkev.flood:verified',
 ];
 
 const CANDIDATES = [

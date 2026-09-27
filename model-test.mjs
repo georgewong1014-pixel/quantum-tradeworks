@@ -649,6 +649,274 @@ try {
     else ok('a register record is modelled on its own checklist, and an unpriced one on the calculator\'s price rather than 0', r);
   }
 
+  /* ---------------------------------------------------------------------
+     35–50: the property stream's audit findings. */
+  const FRESH = `({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} })`;
+
+  /* 35 — no repayment schedule is not an unlevered deal anywhere: no break-even
+         rent, no exit proceeds, no profit, and not "structurally negative". */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel({ ...${FRESH}, tenureYears: 0 });
+      return { be: m.breakEvenRent, beOcc: m.breakEvenOccupancy, net: m.netExitProceeds, profit: m.totalProfit,
+               exitNet: m.exits.map(e => e.net), stress: m.stress.rate.map(x => x.monthly), negBest: m.negativeAtBest,
+               why: m.breakEvenRateWhy };
+    })()`);
+    const leaked = [r.be, r.beOcc, r.net, r.profit, ...r.exitNet, ...r.stress].filter(v => v !== null);
+    if (leaked.length || r.negBest || r.why !== 'unknown') fail('with no computable instalment, an unlevered figure is still reported', r);
+    else ok('with no computable instalment, break-even, exit proceeds, profit and every stressed month are unknown, not unlevered', r);
+  }
+
+  /* 36 — the loan ends with its tenure: a hold longer than the loan pays no
+         instalment and books no interest after the last one. */
+  {
+    const r = await evaluate(`(() => {
+      const m = dealModel({ ...${FRESH}, tenureYears: 5, holdYears: 10 });
+      return { after: m.path.slice(5).map(p => [p.y, p.debt, p.interest, p.balance]), y1: m.path[0].debt, carry: m.carryWhileSelling, opexCarry: m.opex / 12 * 6 };
+    })()`);
+    const bad = r.after.filter(([, debt, int]) => debt !== 0 || int !== 0);
+    if (bad.length || !(r.y1 > 0)) fail('a repaid loan is still charged, or booked as interest, after its tenure', r);
+    else if (Math.abs(r.carry - r.opexCarry) > 1e-6) fail('the carry while selling still includes an instalment after the loan is repaid', r);
+    else ok('after a five-year loan is repaid, years 6–10 pay no instalment and book no interest', r);
+  }
+
+  /* 37 — one holding period everywhere: a fractional or over-long hold is
+         normalised, and the year table always ends at the model's own case. */
+  {
+    const r = await evaluate(`(() => [7.5, 35, 40, 0].map(h => {
+      const m = dealModel({ ...${FRESH}, holdYears: h });
+      const back = ${FRESH}; applyDealParam(back, 'holdYears:' + h);
+      return { h, path: m.path.length, hs: m.holdVsSell.length, lastIrr: m.holdVsSell.at(-1).irrPct, irr: m.irrPct, fromLink: back.holdYears };
+    }))()`);
+    const bad = r.filter(x => x.path !== x.hs || !Number.isInteger(x.fromLink) || x.fromLink > 30 || x.fromLink < 1
+      || (x.irr != null && Math.abs(x.lastIrr - x.irr) > 1e-9));
+    if (bad.length) fail('a hold the table cannot reproduce reaches the model or the address', bad);
+    else ok('a fractional or over-long hold is normalised, and the final exit row is always the model\'s own rate', r);
+  }
+
+  /* 38 — two rates are named, not reported as none; the exits card never says
+         "the capital does not come back" beside a profit. */
+  {
+    const r = await evaluate(`(() => {
+      const two = irrOf([-100, 230, -132]);
+      const m = dealModel({ ...${FRESH}, rent: 6000, apprecPct: -5 });
+      return { rate: two.rate, rates: two.rates, why: two.why, one: irrOf([-100, 110]).rate,
+               e10: { irr: m.exits[1].irrPct, why: m.exits[1].irrWhy, profit: m.exits[1].profit } };
+    })()`);
+    const roots = (r.rates || []).map(x => Math.round(x));
+    if (r.rate !== null || roots.join() !== '10,20') fail('flows with two rates of return are not reported as two rates', r);
+    else if (Math.abs(r.one - 10) > 1e-6) fail('a single rate is no longer found', r);
+    else if (!/more than one rate/.test(r.e10.why || '')) fail('the exit card gives a false reason for a missing rate', r);
+    else ok('flows with two rates name both and choose neither; the exit reason is the model\'s own', r);
+  }
+
+  /* 39 — the cash waterfall's parts are the total. */
+  {
+    const r = await evaluate(`(async () => {
+      State.deal = ${FRESH}; saveDeal(); navigate('/property/calculator'); await new Promise(res => setTimeout(res, 300));
+      const det = [...document.querySelectorAll('details')].find(x => /of safe cash goes/.test(x.querySelector('summary')?.textContent || ''));
+      const rows = det ? det.querySelectorAll('div > div.row').length : -1;
+      const m = dealModel(State.deal);
+      const parts = m.costGroups.map(g => g.items.reduce((a, it) => a + (isNum(it[1]) ? it[1] : 0), 0)).filter(v => v > 0);
+      return { rows, groups: parts.length, sum: parts.reduce((a, b) => a + b, 0), safe: m.safeCashRequired };
+    })()`);
+    if (r.rows !== r.groups || Math.abs(r.sum - r.safe) > 0.01) fail('the safe-cash waterfall lists a part twice or does not sum to its heading', r);
+    else ok(`the safe-cash waterfall has ${r.rows} parts summing to its heading`, r);
+  }
+
+  /* 40 — the checklist is read by what it says: adverse answers lower the
+         demand pillar, "Not sure" credits nothing, and only an adverse answer
+         is raised as a risk. */
+  {
+    const r = await evaluate(`(() => {
+      const all = v => ({ ...${FRESH}, checks: Object.fromEntries(SARAWAK_CHECKS.map(c => [c.id, v])) });
+      const dem = v => { const d = all(v); return propertyGrade(d, dealModel(d)).scores.demand; };
+      const liq = a => { const d = { ...${FRESH}, checks: { 'resale-time': a } }; return propertyFinanceability(d, dealModel(d)).scores.liquidity; };
+      const flags = d => propertyRiskFlags(d, dealModel(d)).map(f => f.t);
+      return { yes: dem('yes'), no: dem('no'), unsure: dem('unknown'), liqYes: liq('yes'), liqNo: liq('no'), liqUnsure: liq('unknown'),
+               strataYesFlag: flags({ ...${FRESH}, checks: { 'strata-issued': 'yes' } }).some(t => /strata/i.test(t)),
+               strataNoFlag: flags({ ...${FRESH}, checks: { 'strata-issued': 'no' } }).some(t => /strata/i.test(t)),
+               floodYesFlag: flags({ ...${FRESH}, checks: { flood: 'yes' } }).some(t => /flood/i.test(t)) };
+    })()`);
+    if (r.yes === r.no || r.unsure !== 0) fail('the demand pillar still counts answers rather than reading them', r);
+    else if (!(r.liqYes > r.liqNo) || r.liqNo !== r.liqUnsure) fail('any answer to the resale question still credits liquidity', r);
+    else if (r.strataYesFlag || !r.strataNoFlag || !r.floodYesFlag) fail('a risk flag is raised on the favourable answer, or missed on the adverse one', r);
+    else ok(`the checklist is read by its answers — demand ${r.yes} all-yes, ${r.no} all-no, ${r.unsure} not sure`, r);
+  }
+
+  /* 41 — a loan-readiness total is withheld while credit or affordability is open. */
+  {
+    const r = await evaluate(`(() => {
+      const lr = loanReadiness({ assessed: true, verifiedNetMonthlyIncome: 9000, existingMonthlyDebtPayments: 800 }, dealModel(${FRESH}));
+      return { score: lr.score, raw: lr.rawScore, band: lr.band };
+    })()`);
+    if (r.band !== 'Not assessed' || r.score !== null || !(r.raw > 0)) fail('a loan-readiness total is shown beside "Not assessed"', r);
+    else ok('no loan-readiness total is shown while a critical item is open', r);
+  }
+
+  /* 42 — the checklist travels in the address, and only its own answers. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...${FRESH}, checks: { flood: 'yes', comparables: 'no' }, checkEvidence: { flood: 'verified' } };
+      const s = dealToParam(d);
+      const back = ${FRESH};
+      applyDealParam(back, s + '~check.bogus:yes~check.parking:maybe~checkev.flood2:verified~price:null');
+      return { s, checks: back.checks, ev: back.checkEvidence, price: back.price };
+    })()`);
+    if (r.checks.flood !== 'yes' || r.checks.comparables !== 'no' || r.ev?.flood !== 'verified') fail('the checklist does not travel in the address', r);
+    else if (Object.keys(r.checks).length !== 2 || Object.keys(r.ev).length !== 1 || r.price !== 572000) fail('the address accepted a question, an answer or a null the deal does not have', r);
+    else ok('the checklist and its evidence travel in the address; unknown questions and a null price do not', r);
+  }
+
+  /* 43 — a bare parcel is not tested on a rent it does not have. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...${FRESH}, propertyType: 'Land', propertyClassOverride: 'land' };
+      const m = dealModel(d);
+      return { rvb: rentVersusBuy(d, m, 4).ok, drivers: propertySensitivity(d).drivers.map(x => x.k),
+               queue: propertyReviewQueue(d).map(f => f.k) };
+    })()`);
+    const rentish = ['rent', 'vacancyPct', 'maintenance'];
+    if (r.rvb || r.drivers.some(k => rentish.includes(k)) || r.queue.some(k => rentish.includes(k))) fail('a parcel is still tested on rent, vacancy or a service charge', r);
+    else ok('a parcel\'s rent-versus-buy, drivers and review queue leave out rent, vacancy and maintenance', r);
+  }
+
+  /* 44 — the equity card compares the reader's own return on the capital the
+         rate is measured on, and ranks no security. */
+  {
+    const r = await evaluate(`(async () => {
+      State.deal = ${FRESH}; saveDeal();
+      State.propertyReportsBought = [...State.propertyReportsBought, State.deal.projectId];
+      navigate('/property/calculator'); await new Promise(res => setTimeout(res, 300));
+      const m = dealModel(State.deal);
+      const card = [...document.querySelectorAll('.card')].find(c => /The same cash in equities/.test(c.textContent));
+      return { committed: m.equity.map(q => q.committed), equityOut: m.equityOut,
+               bursa: /Bursa alternative|Quality|model estimate/.test(card?.textContent || ''), found: !!card,
+               showsOut: (card?.textContent || '').includes(fmtAmount(m.equityOut, 'MYR')) };
+    })()`);
+    if (!r.found) fail('the equity comparison card did not render on an unlocked report', r);
+    else if (r.bursa) fail('the equity card still lists ranked securities', r);
+    else if (r.committed.some(c => c !== r.equityOut) || !r.showsOut) fail('the equity comparison is not on the capital the rate of return is measured on', r);
+    else ok('the equity card compares the reader\'s own return on the committed capital, and names no security', r);
+  }
+
+  /* 45 — included property reports are counted, not unlimited. */
+  {
+    const r = await evaluate(`(() => {
+      const plan = State.plan; State.plan = 'all';
+      State.propertyReportLog = { month: new Date().toISOString().slice(0, 7), ids: [] };
+      const a = usePropertyReport('x1'), b = usePropertyReport('x2'), c = usePropertyReport('x3'), again = usePropertyReport('x1');
+      const unlocked3 = propertyReportUnlocked('x3');
+      State.plan = plan;
+      return { a, b, c, again, unlocked3 };
+    })()`);
+    if (!r.a || !r.b || r.c || !r.again || r.unlocked3) fail('an allowance of two property reports a month is not metered', r);
+    else ok('two included reports a month are counted, and reopening one costs nothing', r);
+  }
+
+  /* 46 — the worked example never replaces a wheel contract the reader entered. */
+  {
+    const r = await evaluate(`(() => {
+      const before = { ...State.wheel };
+      if (hasWorkedExample()) clearWorkedExample();
+      State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, putStrike: 42, contracts: 3, putCredit: 0.9, isWorkedExample: false };
+      seedWorkedExample(); const seeded = { strike: State.wheel.putStrike, c: State.wheel.contracts };
+      clearWorkedExample(); const cleared = { strike: State.wheel.putStrike, c: State.wheel.contracts };
+      State.wheel = before;
+      return { seeded, cleared };
+    })()`);
+    if (r.seeded.strike !== 42 || r.cleared.strike !== 42 || r.cleared.c !== 3) fail('loading or removing the worked example changed the reader\'s wheel contract', r);
+    else ok('the worked example leaves the reader\'s wheel contract as it was', r);
+  }
+
+  /* 47 — every wheel state has a way on: no dead end after an expiry, a
+         buy-back or a call-away, and Paused and Complete are reachable. */
+  {
+    const r = await evaluate(`(async () => {
+      const before = { ...State.wheel }, legs = [...(State.wheelLegs || [])];
+      navigate('/us-options/wheel'); await new Promise(res => setTimeout(res, 200));
+      const out = {};
+      for (const st of ['put_planned', 'put_expired', 'put_closed', 'call_expired', 'call_closed', 'called_away', 'shares_held', 'paused', 'complete']) {
+        State.wheel = { ...before, ...WHEEL_WORKED_EXAMPLE, state: st }; State.wheelLegs = [];
+        render(); await new Promise(res => setTimeout(res, 50));
+        const labels = [...document.querySelectorAll('button')].map(b => b.textContent.trim());
+        const want = (WHEEL_TRANSITIONS[st] || []).filter(t => !['put_open', 'call_open'].includes(t));
+        out[st] = { want: want.length, offered: labels.filter(l => /candidate|Shares held|complete|Pause|Resume|Cancel the planned|Start a cycle|Plan a covered call|Begin again/.test(l)).length };
+      }
+      State.wheel = before; State.wheelLegs = legs; render();
+      return out;
+    })()`);
+    const dead = Object.entries(r).filter(([, v]) => v.want > 0 && v.offered < v.want);
+    if (dead.length) fail('a wheel state offers fewer transitions than it permits', dead);
+    else ok('every wheel state offers each transition it permits', r);
+  }
+
+  /* 48 — the exit gate counts only sourced, real transactions; the return-engine
+         gate does not pass on a seeded renovation budget. */
+  {
+    const r = await evaluate(`(() => {
+      const keep = State.observations;
+      const d = { ...${FRESH} };
+      const mk = (extra) => ({ city: d.city, area: d.district, kind: 'sold-price', value: 500000, date: '2026-01-01', evidence: 'user', sourceRef: 'deed 1', ...extra });
+      State.observations = [mk({ sample: true }), mk({ sample: true }), mk({ sourceRef: '' }), mk({})];
+      const m = dealModel(d), g = propertyGrade(d, m);
+      const exit = propertyIpsAnswers(d, m, g).find(a => a.id === 'exit').verdict.id;
+      State.observations = keep;
+      const r0 = { ...d, rent: 0 }, m0 = dealModel(r0);
+      const engine = propertyIpsAnswers(r0, m0, propertyGrade(r0, m0)).find(a => a.id === 'engine').verdict.id;
+      const r1 = { ...r0, touched: { renovation: true }, renoValueRecoveryPct: 50 }, m1 = dealModel(r1);
+      const engineRecorded = propertyIpsAnswers(r1, m1, propertyGrade(r1, m1)).find(a => a.id === 'engine').verdict.id;
+      return { exit, engine, engineRecorded };
+    })()`);
+    if (r.exit !== 'partial') fail('the exit gate counts worked-example or unsourced rows as transactions', r);
+    else if (r.engine !== 'fail' || r.engineRecorded !== 'pass') fail('the return-engine gate reads a seeded renovation budget as value-add', r);
+    else ok('the exit gate counts one sourced sale of four rows, and a seeded renovation is not a return engine', r);
+  }
+
+  /* 49 — NAPIC ranges say whether they matched the locality, and how many
+         were cut; Kota Samarahan reads its own division. */
+  {
+    const r = await evaluate(`(async () => {
+      for (let i = 0; i < 40 && !napicStatus.ok; i++) { if (!napicStatus.tried) loadNapic(); await new Promise(res => setTimeout(res, 100)); }
+      if (!napicStatus.ok) return { skip: true };
+      const bau = napicBenchmarks('Kuching', { locality: 'Bau town' }), tab = napicBenchmarks('Kuching', { locality: 'Tabuan' });
+      const panel = officialBenchmarkPanel('bau', 'Bau town').textContent;
+      return { bau: { matched: bau.matched, total: bau.total, n: bau.rows.length }, tab: { matched: tab.matched, total: tab.total, n: tab.rows.length },
+               says: /No NAPIC scheme name contains/.test(panel) && /showing the first 40 of/.test(panel),
+               ks: localityDivision('kuching', 'Kota Samarahan'), tb: localityDivision('kuching', 'Tabuan') };
+    })()`);
+    if (r.skip) fail('the NAPIC dataset did not load');
+    else if (r.bau.matched || !r.tab.matched || !(r.tab.total > r.tab.n) || !r.says) fail('the NAPIC panel does not say what it matched or what it cut', r);
+    else if (r.ks !== 'Samarahan' || r.tb !== 'Kuching') fail('a locality outside its town\'s division reads the town\'s division', r);
+    else ok('NAPIC ranges state a failed locality match and a cut, and Kota Samarahan reads the Samarahan Division', r);
+  }
+
+  /* 50 — a comparables file comes back with every field it went out with. */
+  {
+    const r = await evaluate(`(async () => {
+      const keep = State.observations;
+      State.observations = [];
+      seedWorkedExample();
+      const file = JSON.stringify({ format: 'quantum-tradeworks/comparables', version: 2, records: State.observations });
+      clearWorkedExample();
+      openComparableImport();
+      const ta = [...document.querySelectorAll('textarea')].at(-1);
+      ta.value = file;
+      [...document.querySelectorAll('button')].find(b => b.textContent === 'Check this paste').click();
+      await new Promise(res => setTimeout(res, 50));
+      [...document.querySelectorAll('button')].find(b => /^Import \\d+ record/.test(b.textContent)).click();
+      await new Promise(res => setTimeout(res, 50));
+      const back = State.observations;
+      const land = back.find(o => o.kind === 'land-sold');
+      const vac = back.find(o => o.kind === 'vacancy');
+      const out = { n: back.length, samples: back.filter(o => o.sample).length, landSqft: land?.landSqft, landUnit: land?.landUnit, vacSqft: vac?.sqft };
+      clearWorkedExample(); State.observations = keep; saveObservations(); closeDrawer();
+      return out;
+    })()`);
+    if (r.samples !== r.n || !(r.landSqft > 0) || r.landUnit !== 'point' || r.vacSqft !== null) fail('a comparables export does not import back as it left', r);
+    else ok(`a worked-example export imports back as ${r.n} marked examples, with land areas and absent areas intact`, r);
+  }
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

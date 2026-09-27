@@ -47,6 +47,11 @@ async function loadNapic() {
    by division, and a division holds several towns — so a division figure is
    labelled as the division's, never as the town's. */
 const townDivision = (cityId) => (SARAWAK_CITIES.find(c => c.id === cityId) || {}).division || null;
+/* A locality can sit in a different division from the town it is listed
+   under. The town's division is the answer only when the locality names
+   none of its own. */
+const localityDivision = (cityId, area) =>
+  (SARAWAK_CITIES.find(c => c.id === cityId) || {}).localityDivision?.[area] || townDivision(cityId);
 
 const napicActivity = (division, period = 'H1 2025') =>
   !napic ? [] : napic.summary.filter(r => r.division === division && r.periodCode === period);
@@ -55,15 +60,21 @@ const napicActivity = (division, period = 'H1 2025') =>
    scheme name, and it is deliberately shown as "schemes NAPIC surveyed in this
    division" rather than "prices in your locality" — the survey does not claim
    to cover a locality and neither should this. */
+/* Says what it returned. It fell back to the whole division when no scheme
+   name contained the locality, and cut to forty, and said neither — so Bau
+   town showed forty Kuching-city schemes and Tabuan forty of its forty-six,
+   under a heading about the locality. `matched` and `total` let the panel
+   state both. */
 function napicBenchmarks(division, { locality = null, limit = 40 } = {}) {
-  if (!napic) return [];
-  let rows = napic.benchmarks.filter(b => b.division === division);
+  if (!napic) return { rows: [], matched: false, total: 0, divisionTotal: 0 };
+  const all = napic.benchmarks.filter(b => b.division === division);
+  let rows = all, matched = false;
   if (locality) {
     const l = String(locality).toLowerCase();
-    const hit = rows.filter(b => String(b.scheme).toLowerCase().includes(l));
-    if (hit.length) rows = hit;
+    const hit = all.filter(b => String(b.scheme).toLowerCase().includes(l));
+    if (hit.length) { rows = hit; matched = true; }
   }
-  return rows.slice(0, limit);
+  return { rows: rows.slice(0, limit), matched, total: rows.length, divisionTotal: all.length };
 }
 
 const napicUnitLabel = (b) => ({
@@ -72,12 +83,17 @@ const napicUnitLabel = (b) => ({
 
 /* ------------------------------------------------------------------ panel --- */
 function officialBenchmarkPanel(city, area) {
-  const division = townDivision(city);
-  const cityName = (SARAWAK_CITIES.find(c => c.id === city) || {}).name || city;
+  const division = localityDivision(city, area);
+  const cityDef = SARAWAK_CITIES.find(c => c.id === city) || {};
+  const cityName = cityDef.name || city;
   const card = el('div', { class: 'card' });
   card.append(cardHead('Official market benchmarks by locality and property type',
     'Published by NAPIC for the half-year. Three kinds of evidence, shown apart because they answer different questions '
     + 'and none of them is a transaction record.'));
+  if (division !== townDivision(city)) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    `${area} is listed under ${cityName} here, but it lies in the ${division} Division, and these are that division’s figures.`));
+  if (cityDef.ambiguousLocality?.[area]) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' },
+    cityDef.ambiguousLocality[area]));
 
   if (!napicStatus.ok) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
@@ -108,16 +124,25 @@ function officialBenchmarkPanel(city, area) {
     gridKeyboard(t, `Official transaction activity for the ${division} Division. Arrow keys move between cells.`);
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `Whole of the ${division} Division, H1 2025 — not ${area} and not ${cityName}. `
-      + 'The implied aggregate average is total value over total count for the category; it is not the price of any property, '
-      + 'and half the transactions in a category sit below it by construction.'));
+      /* A mean, not a median. The line said half the transactions sit below it
+         "by construction", which is true of a median; with prices skewed to
+         the right, more than half usually sit below a mean. */
+      + 'The implied aggregate average is total value over total count for the category — a mean, not a median. It is not the price of any property, '
+      + 'and where a few large sales pull it up, most transactions in the category can sit below it.'));
   }
 
   /* ---- 2. observed ranges ---- */
   card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' }, 'Observed price and rental ranges'));
-  const bm = napicBenchmarks(division, { locality: area });
+  const bmr = napicBenchmarks(division, { locality: area });
+  const bm = bmr.rows;
   if (!bm.length) {
     card.append(el('p', { class: 'metaline' }, `NAPIC surveyed no schemes in the ${division} Division for this period.`));
   } else {
+    card.append(el('p', { class: 'metaline', style: bmr.matched ? null : 'color:var(--bronze)' },
+      (bmr.matched
+        ? `${bmr.total} scheme${bmr.total === 1 ? '' : 's'} whose NAPIC name contains “${area}”`
+        : `No NAPIC scheme name contains “${area}”, so these are schemes from across the ${division} Division, not from ${area}`)
+      + (bm.length < bmr.total ? ` — showing the first ${bm.length} of ${bmr.total}.` : '.')));
     const t2 = el('table', { class: 'dt' });
     t2.append(el('thead', {}, el('tr', {}, ['Scheme or location', 'Type', 'Sample', 'Observed range', 'Basis', 'Change', 'Reported gross yield']
       .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));

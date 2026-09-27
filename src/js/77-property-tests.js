@@ -204,10 +204,22 @@ function environmentalAllowance(d) {
    purchase can be perfectly rational as consumption. It simply must not be
    modelled as income when it is not producing any. */
 function rentVersusBuy(d, m, weeksOfOwnUsePerYear) {
+  /* A class with no tenancy has no market rent to rent it at. The rent box
+     still holds the default for a parcel, and this compared owning land
+     against renting it at RM1,850 a month — a figure the page says it
+     withholds for this class. */
+  if (!PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant) {
+    return { ok: false, why: `A ${PROPERTY_CLASSES[propertyClassOf(d)].label.toLowerCase()} class has no tenancy, so there is no market rent to set owning it against. The test does not apply.` };
+  }
   const price = num0(d.price);
   const annualRent = num0(d.rent) * 12;
   if (!(price > 0) || !(annualRent > 0)) {
     return { ok: false, why: 'A price and a market rent are both needed before the two can be compared.' };
+  }
+  /* The cost of owning includes the loan. Without a computable instalment it
+     would be the outgoings alone — ownership made to look cheaper than it is. */
+  if (!isNum(m.annualDebtService)) {
+    return { ok: false, why: 'The loan’s instalment could not be computed from the entered tenure, so the cost of owning is not known.' };
   }
   const priceToRent = price / annualRent;
 
@@ -316,15 +328,24 @@ function propertyIpsAnswers(d, m, g) {
   /* 4 — RETURN ENGINE. Named rather than scored: rent, value-add or
      appreciation, and the IPS is explicit that unsupported appreciation is an
      auto-reject rather than an engine. */
+  /* A renovation is a value-add engine only when it is the reader's own
+     budget AND something it returns is recorded — a share of the rent that
+     depends on it, or a share of the spend recovered at the sale. A budget
+     alone is spending, not a return. The calculator seeds RM25,000 of
+     renovation, so a deal with no income at all passed this gate on a
+     figure nobody entered, and the appreciation-only refusal never fired. */
   const noi = num0(m.noi), reno = num0(d.renovation);
-  const apprecOnly = noi <= 0 && reno <= 0;
+  const renoReturns = reno > 0 && isTouched(d, 'renovation')
+    && (num0(d.renoValueRecoveryPct) > 0 || (noi > 0 && num0(d.renoRentUpliftPct) > 0));
+  const apprecOnly = noi <= 0 && !renoReturns;
   A.push(apprecOnly
     ? ipsAnswer('engine', 'fail',
-        'Net operating income is not positive and no value-add is planned, which leaves appreciation as the only return engine. '
+        'Net operating income is not positive and no value-add is recorded, which leaves appreciation as the only return engine. '
+        + (reno > 0 ? `The ${fmtMoney(reno, 'MYR', 0)} renovation budget is not counted: ${isTouched(d, 'renovation') ? 'nothing it returns — a rent share or a recovery at the sale — is entered' : 'it is the calculator’s starting figure, not yours'}. ` : '')
         + 'IPS §6.9 treats dependence on unsupported appreciation as an auto-reject condition.')
     : ipsAnswer('engine', 'pass',
         [noi > 0 ? `Net rent of ${fmtMoney(noi, 'MYR', 0)} a year` : null,
-         reno > 0 ? `value-add of ${fmtMoney(reno, 'MYR', 0)}` : null].filter(Boolean).join(' and ')
+         renoReturns ? `value-add of ${fmtMoney(reno, 'MYR', 0)}, with what it returns entered` : null].filter(Boolean).join(' and ')
         + `. Appreciation is assumed at ${fmtPct(num0(d.apprecPct), 1)} a year and is not counted as an engine.`));
 
   /* 5 — NET ECONOMICS. Positive or not, and the environmental allowance the
@@ -374,18 +395,29 @@ function propertyIpsAnswers(d, m, g) {
 
   /* 8 — EXIT. Recorded transactions are the only evidence of a resale market
      this product holds, and their absence is the finding. */
-  const mx = areaMetrics(d.city, d.district);
-  const sales = (mx.soldN || 0) + (mx.lastLand ? 1 : 0);
+  /* Only transactions that are evidence count: not a worked-example row, which
+     was invented, and not a figure with no source, which the register itself
+     calls a note. Both used to count — the worked example alone answered this
+     gate for Tabuan with three invented sales. Those left out are named. */
+  const inArea = (State.observations || []).filter(o => o.city === d.city && o.area === d.district
+    && (o.kind === 'sold-price' || o.kind === 'land-sold') && isNum(o.value));
+  const counted = inArea.filter(o => !o.sample && observationStanding(o).id !== 'unsourced');
+  const leftOut = inArea.length - counted.length;
+  const sales = counted.length;
+  const latest = [...counted].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+  const leftOutNote = leftOut
+    ? ` ${leftOut} more recorded here ${leftOut === 1 ? 'is' : 'are'} not counted: worked-example rows and figures with no source are not evidence of a market.`
+    : '';
   A.push(sales >= 3
     ? ipsAnswer('exit', 'pass',
-        `${sales} transactions recorded in ${d.district}. The most recent is ${mx.lastSold ? mx.lastSold.date : mx.lastLand.date}.`)
+        `${sales} sourced transactions recorded in ${d.district}. The most recent is ${latest?.date || 'undated'}.${leftOutNote}`)
     : sales > 0
       ? ipsAnswer('exit', 'partial',
-          `${sales} transaction${sales === 1 ? '' : 's'} recorded in ${d.district}. `
-          + 'One or two sales is not a resale market; it is an anecdote about a resale market.')
+          `${sales} sourced transaction${sales === 1 ? '' : 's'} recorded in ${d.district}. `
+          + `One or two sales is not a resale market; it is an anecdote about a resale market.${leftOutNote}`)
       : ipsAnswer('exit', 'unknown',
-          `No transactions recorded in ${d.district}. `
-          + 'IPS §6.9 makes the absence of a credible exit market an auto-reject, and this product holds no licensed transaction source that could answer it for you.'));
+          `No sourced transactions recorded in ${d.district}.${leftOutNote} `
+          + 'IPS §6.9 makes the absence of a credible exit market an auto-reject; an absence of records is not evidence that there is no market, so the gate stays open rather than refusing. This product holds no licensed transaction source that could answer it for you.'));
 
   return A;
 }

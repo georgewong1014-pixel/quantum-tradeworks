@@ -82,7 +82,8 @@ function decisionRecordProperty() {
   t.append(el('thead', {}, el('tr', {}, ['Input', 'Value', 'Where it came from', 'What it affects']
     .map(h => el('th', { style: 'text-align:left' }, h)))));
   const tb = el('tbody');
-  PROPERTY_REVIEW.forEach(f => {
+  /* Only the inputs this class uses: a parcel's record does not rest on a rent. */
+  PROPERTY_REVIEW.filter(f => propertyInputApplies(d, f.k)).forEach(f => {
     const p = inputProvenance(d, f.k);
     tb.append(el('tr', {}, [
       el('td', { style: 'text-align:left' }, f.label),
