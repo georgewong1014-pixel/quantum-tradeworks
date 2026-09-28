@@ -389,7 +389,10 @@ const RAW = [
   moat:{ kind:'Cost advantage (feedstock)', dur:'3–5 years', conf:'Medium',
     support:['Domestic feedstock supply arrangements place the plants low on the regional cash-cost curve.'],
     counter:['Product prices are set by global supply; a cost advantage does not prevent a loss-making spread.','Regional capacity additions have compressed the olefins spread for three consecutive years.'] },
-  qrisk:'Earnings have fallen roughly 75% peak-to-trough within the reported window — any valuation anchored on peak-cycle earnings will overstate value.',
+  /* "Roughly 75%" against the net income on the rows above: 8.44 in FY2022
+     to 1.34 in FY2023 is a fall of 84%, and the backcast years hold neither
+     a higher peak nor a lower trough. */
+  qrisk:'Earnings have fallen about 84% peak-to-trough within the reported window — any valuation anchored on peak-cycle earnings will overstate value.',
   own:{ insider:0.0, inst:79.8, top:[['Petroliam Nasional Berhad',64.4],['Employees Provident Fund',8.2],['Kumpulan Wang Persaraan',2.6]] } },
 
 { id:'IHH', name:'IHH Healthcare Berhad', tk:'5225', exch:'Bursa Main', mkt:'MY', ccy:'MYR', sector:'Healthcare', industry:'Health Care Facilities', type:'mature',
@@ -573,7 +576,11 @@ const RAW = [
     support:['A specialised offshore fleet and installed regional track record retain some scarcity value.'],
     counter:['Shareholders’ funds are negative — the capital structure, not the operations, determines the outcome.','Contract awards depend on operators’ capital budgets, which the company does not influence.'] },
   qrisk:'Classified under PN17 with negative shareholders’ funds. Equity value is a residual claim behind a restructuring, and could reasonably be zero.',
-  own:{ insider:0.3, inst:41.2, top:[['Permodalan Nasional Berhad',40.0],['Employees Provident Fund',4.1],['Retail and other',55.6]] } },
+  /* inst was 41.2 — less than the two institutions listed beneath it hold
+     (40.0 + 4.1 = 44.1), so the ownership tab put the implied free float at
+     58.5% over a holder table ending "Retail and other 55.6%". 44.1 is the
+     figure the rows were written from: 100 − 44.1 − 0.3 = 55.6. */
+  own:{ insider:0.3, inst:44.1, top:[['Permodalan Nasional Berhad',40.0],['Employees Provident Fund',4.1],['Retail and other',55.6]] } },
 
 /* --------------------------------------------- broader sector coverage */
 { id:'CAT', name:'Caterpillar Inc.', tk:'CAT', exch:'NYSE', mkt:'US', ccy:'USD', sector:'Industrials', industry:'Construction Machinery', type:'cyclical',

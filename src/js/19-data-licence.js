@@ -45,9 +45,15 @@ const DATA_LICENCES = [
     show: true, export: true, publish: true,
     note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap geocoding sits here, under ODbL.' },
 
+  /* Not exported. The row said it was, beside the data-sources page's own
+     sentence that licence-pending records are "excluded from export and never
+     republished" — and whether exports are allowed at all is one of the seven
+     questions NAPIC has not answered (NAPIC_LICENCE_QUESTIONS), which the
+     NAPIC file itself repeats: bulk export stays disabled until JPPH confirms
+     redistribution rights. A permission still being asked for is not held. */
   { id: 'licence-pending', label: 'Held — licence pending', rank: 2,
-    show: true, export: true, publish: false,
-    note: 'Sourced from an official publisher whose reuse terms have not yet been confirmed in writing. Usable as internal evidence and for your own analysis; not republished, and excluded from anything this product would show to another subscriber.' },
+    show: true, export: false, publish: false,
+    note: 'Sourced from an official publisher whose reuse terms have not yet been confirmed in writing. Usable as internal evidence and for your own analysis; not exported, not republished, and excluded from anything this product would show to another subscriber.' },
 
   { id: 'derived-only', label: 'Derived statistics only', rank: 2,
     show: true, export: false, publish: true,

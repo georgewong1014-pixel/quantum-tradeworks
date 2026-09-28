@@ -358,12 +358,18 @@ const METRICS = [
     help: { simple: 'How much the share price has moved over the last year.',
       context: 'Describes what happened to the price, not why. Computed only from closes you imported or captured; with none, it is absent.',
       technical: 'Latest close ÷ close 252 trading sessions earlier − 1.' } },
+  /* The high is the high of the range where the history holds highs and lows
+     (trendContext reads them since round 3), and the highest close only where
+     it does not. The definition said "highest close" throughout, so with a
+     provider's highs loaded the dictionary described a different number from
+     the one in the cell — on equity-test's round 3 fixture, −16.5% against a
+     closing high where the engine printed −18.6% against the day's high. */
   { k: 'from52', g: 'Market and eligibility', cat: 'market', label: 'Distance from 52-week high',
     unit: 'pct', dp: 1, kind: 'market', counted: false,
     formula: '(price − 52-week high) ÷ 52-week high', inputs: ['history'], period: 'closes',
-    help: { simple: 'How far the share price sits below its highest close of the last year.',
-      context: 'Zero means it closed at a one-year high. A large distance is a fact about the price path, not a sign that it will recover.',
-      technical: '(Latest close − highest close over 252 sessions) ÷ that high.' } },
+    help: { simple: 'How far the share price sits below its highest point of the last year.',
+      context: 'Zero means the latest close is the year’s high. A large distance is a fact about the price path, not a sign that it will recover.',
+      technical: '(Latest close − 52-week high) ÷ that high, over 252 sessions. The high is the highest daily high where your history holds highs and lows for every one of those sessions, and the highest close where it does not; the trend context on the company page says which.' } },
   { k: 'sma200d', g: 'Market and eligibility', cat: 'market', label: 'Distance from 200-day average',
     unit: 'pct', dp: 1, kind: 'market', counted: false,
     formula: '(price − 200-day simple moving average) ÷ 200-day average', inputs: ['history'], period: 'sma',

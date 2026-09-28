@@ -460,5 +460,37 @@ try {
 }
 /* ---- end round 3: data ---- */
 
+/* ---- bugfix: equities-data ---- */
+/* THE PASTE PARSER READS A CLOSE WHOLE OR REFUSES IT, AND ONLY CALENDAR
+   DATES. It split every line on comma, semicolon and tab at once, so a
+   spreadsheet copy "KLSE<tab>2026-01-02<tab>1,612.35" and the quoted CSV of
+   the same row stored a close of 1, a semicolon export's "12,5" stored 12,
+   and "31/02/2026" and "2026-02-30" were kept as sessions — all without a
+   rejected row. */
+{
+  const uni = readFileSync(join(ROOT, 'src/js/25-universe.js'), 'utf8');
+  const a = uni.indexOf('function parseCloses(');
+  const parseCloses = new Function(`${uni.slice(a, uni.indexOf('\n}\n', a) + 2)}; return parseCloses;`)();
+  const one = (t) => { const r = parseCloses(t, 'X'); return r.rejected.length ? 'refused' : Object.values(r.series)[0] && Object.entries(Object.values(r.series)[0])[0]; };
+  const got = {
+    tab: one('KLSE\t2026-01-02\t1,612.35'), quoted: one('"KLSE","2026-01-02","1,612.35"'), twoCol: one('2026-01-02\t60,123.40'),
+    plain: one('KLSE,2026-01-02,1612.35'), currency: one('KLSE,2026-01-02,RM 4.18'), semi: one('KLSE;2026-01-02;4.18'),
+    semiComma: one('KLSE;2026-01-02;12,5'), cut: one('KLSE,2026-01-02,1,612.35'), euro: one('KLSE\t2026-01-02\t1.612,35'),
+  };
+  const want = {
+    tab: ['2026-01-02', 1612.35], quoted: ['2026-01-02', 1612.35], twoCol: ['2026-01-02', 60123.4],
+    plain: ['2026-01-02', 1612.35], currency: ['2026-01-02', 4.18], semi: ['2026-01-02', 4.18],
+    semiComma: 'refused', cut: 'refused', euro: 'refused',
+  };
+  check(same(got, want), 'bugfix equities-data: the paste parser reads "1,612.35" from a spreadsheet copy or a quoted CSV as 1,612.35, and refuses a decimal comma or a close cut at its thousands separator rather than storing 12 or 1', { got, want });
+  const cells = ['31/02/2026', '2026-02-30', '29/02/2027', '29/02/2028', '2026-02-28'];
+  const browser = cells.map(c => { const r = parseCloses(`X,${c},1`); return r.rejected.length ? 'refused' : Object.keys(r.series.X || {})[0]; });
+  const store = cells.map(c => { const r = parseDateCell(c); return r.error ? 'refused' : r.date; });
+  const month13 = parseCloses('X,2026-13-01,1');
+  check(same(browser, store) && browser[0] === 'refused' && browser[3] === '2028-02-29' && month13.rejected.length === 1 && !month13.accepted,
+    'bugfix equities-data: the paste parser refuses the dates the calendar does not have (31 and 30 February, 29 February 2027, month 13) as the history import does, and keeps 29 February 2028', { browser, store, month13: month13.rejected });
+}
+/* ---- end bugfix: equities-data ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

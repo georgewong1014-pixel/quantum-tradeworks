@@ -24,8 +24,13 @@
    scores 1.4.0 because the second of those reaches the risk grade: a bank
    no longer carries a "negative free cash flow" flag (Citigroup and Goldman
    Sachs did), for the reason every other cash-flow measure on a bank is
-   not applicable. */
-const MODEL_VERSION = 'metrics 1.7.0 · scores 1.4.0 · valuation 1.5.0';
+   not applicable. metrics 1.7.1 withholds the four-year per-share rates
+   only for a share-count break inside the five years they read, not one
+   anywhere in the stored ten, so eleven filers regain earnings, book-value
+   or dividend growth; scores 1.4.1 because those are growth, strength and
+   capital-allocation inputs, and valuation 1.5.1 because dividend growth
+   sets the distribution model's default growth (Realty Income). */
+const MODEL_VERSION = 'metrics 1.7.1 · scores 1.4.1 · valuation 1.5.1';
 const AS_OF = '30 Jul 2026';
 
 /* ONE STAMP ON EVERYTHING THAT IS SAVED.
@@ -434,8 +439,15 @@ function growthVol(series) {
   return Math.sqrt(sum(g.map(v => (v - mean) ** 2)) / g.length);
 }
 
-/* Largest peak-to-trough fall in a series, as a positive percentage. */
+/* Largest peak-to-trough fall in a series, as a positive percentage. Null
+   below two reported points: a fall needs a year to fall from, and the
+   registry says the drawdown is absent when fewer than two years of revenue
+   are held — but this returned 0 for one year or none, which the dictionary
+   reads as "sales never fell below an earlier year in the window". A
+   company with a single reported year was described as having no cyclicality
+   at all. */
 function maxDrawdown(series) {
+  if (series.filter(isNum).length < 2) return null;
   let peak = -Infinity, worst = 0;
   for (const v of series) {
     if (!isNum(v)) continue;
@@ -708,14 +720,17 @@ function derive(c) {
      a corporate action, not a financing decision — real issuance and buybacks
      do not move a share count by that much in a year. Where one is present the
      measure is withheld and the reason is recorded. */
-  const shSeries = sh.filter(isNum);
-  let shBreak = null;
-  for (let k = 1; k < shSeries.length; k++) {
-    const prev = shSeries[k - 1], cur = shSeries[k];
-    if (!(prev > 0) || !(cur > 0)) continue;
-    const ratio = cur / prev;
-    if (ratio > 1.5 || ratio < 0.67) { shBreak = { from: prev, to: cur, ratio: +ratio.toFixed(2) }; break; }
-  }
+  const shareBreak = (series) => {
+    const s = series.filter(isNum);
+    for (let k = 1; k < s.length; k++) {
+      const prev = s[k - 1], cur = s[k];
+      if (!(prev > 0) || !(cur > 0)) continue;
+      const ratio = cur / prev;
+      if (ratio > 1.5 || ratio < 0.67) return { from: prev, to: cur, ratio: +ratio.toFixed(2) };
+    }
+    return null;
+  };
+  const shBreak = shareBreak(sh);
   m.shareSeriesBreak = shBreak;
   /* The split reaches every per-share series, not just the share count. Nvidia
      reports 2.47bn shares one year and 24.6bn the next — a tenfold count
@@ -725,7 +740,25 @@ function derive(c) {
      book value and dividend growth are therefore withheld on the same
      evidence that withholds share-count growth — the whole-company lines
      (revenue, cash flow) are unaffected and keep their rates. */
-  if (shBreak) { m.eps5 = null; m.bv5 = null; m.dps5 = null; m.eps10 = null; m.dps10 = null; }
+  /* ACROSS THAT BOUNDARY — WHICH MEANS INSIDE THE WINDOW THE RATE READS.
+     The four-year rates were withheld on a break anywhere in the ten stored
+     years, so Apple (whose stored count breaks between FY2018 and FY2019),
+     Alphabet, Amazon, Walmart, Sherwin-Williams, NextEra, Intuitive
+     Surgical, Tesla, GE, Linde and Realty Income had their four-year
+     per-share rates withheld over windows held on one basis throughout —
+     Apple's earnings per share run 5.76 to 7.58 across FY2021–FY2025 — and
+     every page that explained the gap said the count moved "inside the
+     window".
+     It did not. The four-year rates now look for a break among the five rows
+     they read; the ten-year rates, the share-count rate and the buyback
+     yield read the whole series and keep the whole-series test.
+     perShareBreak is the break those four-year rates were withheld on — for
+     Nvidia the tenfold step into FY2024, not the FY2021 step outside the
+     window that shareSeriesBreak, the first in the series, names. */
+  const windowBreak = shareBreak(W(sh));
+  m.perShareBreak = windowBreak;
+  if (windowBreak) { m.eps5 = null; m.bv5 = null; m.dps5 = null; }
+  if (shBreak) { m.eps10 = null; m.dps10 = null; }
   const shCagr = shBreak ? null : cagr(sh);
   m.dilution = isNum(shCagr) ? shCagr : null;          /* +ve = issuing */
   m.buyback  = isNum(shCagr) ? -shCagr : null;         /* +ve = shrinking */
@@ -957,8 +990,14 @@ const SCORECARD_COVERAGE = [
     tested: ['Operating margin', 'Free cash flow margin', 'Revenue growth stability', 'Revenue CAGR'],
     untested: ['Recurring or contracted share of revenue', 'Customer concentration', 'Geographic and product diversification', 'Cash collection and receivable quality'],
     why: 'Segment and customer disclosures are narrative in the filings and are not carried in this dataset.' },
-  { pillar: 'Balance Sheet', weight: 20, state: 'tested',
-    tested: ['Net debt / EBIT', 'Debt / equity', 'Net gearing', 'Gearing ratio and CET1 where the model applies'],
+  /* Partial, like every other pillar with an untested factor: interest cover,
+     the current ratio and the maturity profile are listed as untested right
+     below, and "tested" made the quality tab say one pillar of five was
+     tested in full when none is. Net gearing is computed and published but
+     is not a Financial Strength input (PILLARS.strength says why), so it is
+     not something this score tests. */
+  { pillar: 'Balance Sheet', weight: 20, state: 'partial',
+    tested: ['Net debt / EBIT', 'Debt / equity', 'Gearing ratio and CET1 where the model applies'],
     untested: ['Interest coverage', 'Current ratio', 'Debt maturity profile and refinancing risk'],
     why: 'Interest expense and current assets and liabilities are not yet extracted from the filings; the metrics report as missing rather than being estimated.' },
   { pillar: 'Competitive Moat', weight: 20, state: 'not scored',
