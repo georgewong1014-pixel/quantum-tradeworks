@@ -350,12 +350,20 @@ data, so no signal is claimed to work.
    data…" > CSV, saved into `watchlist-shots/` (git-ignored: it is
    TradingView's licensed data, for your own research). The file is
    `OANDA_XAUUSD, 1D.csv`. Do the same on the weekly (1W) and monthly (1M)
-   charts: those two files are for checking and are never imported.
-2. **Import the daily file:**
+   charts, scrolled back as far: `OANDA_XAUUSD, 1W.csv` and `, 1M.csv`.
+2. **Import the three files:**
 
    ```bash
    node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+   node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1W.csv"
+   node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1M.csv"
    ```
+
+   The daily bars go to the daily series and the weekly and monthly bars
+   beside it, as TradingView drew them. **The bot's weekly and monthly
+   criteria read the imported weeks and months where they are held**, and
+   weeks and months built from your daily bars for every period after the
+   last imported one; each reading says which it read.
 
    The symbol (XAUUSD) is read from the name and its market (FX: a day that
    opens at 17:00 New York the evening before) from `data/instruments.json`,
@@ -492,19 +500,26 @@ trades every weekday: five a week, about 21¾ a month):
 | 5 — hot money against 10 | 41 | 41 | — | — |
 
 - **Your export of 28 September** holds about 300 daily bars (from 31 July
-  2025): about 60 weeks and 14 closed months. Every daily criterion is known; weekly
-  criteria 1, 2 and 4 and the weekly histogram are known; **weekly criterion 3
-  is unknown** (200 weeks), so Trade TF Tier 1 Buy, Trade TF Tier 2 Sell, WEAK
-  BUY and both STRONG SELL alerts cannot hold on the week yet; **every monthly
-  criterion is unknown**, so no monthly signal can hold.
+  2025): about 60 weeks and 14 closed months. On the daily file alone, every
+  daily criterion is known; weekly criteria 1, 2 and 4 and the weekly
+  histogram are known; **weekly criterion 3 is unknown** (200 weeks), so
+  Trade TF Tier 1 Buy, Trade TF Tier 2 Sell, WEAK BUY and both STRONG SELL
+  alerts cannot hold on the week; **every monthly criterion is unknown**, so
+  no monthly signal can hold. **With the weekly and monthly exports
+  imported** — 300 weeks from January 2021, 300 months from October 2001 —
+  every weekly and monthly criterion is known, read on the imported weeks
+  and months; the setup page and the bot's card count them, imported and
+  built.
 - **At the history's limit.** The history keeps the newest 2,000 bars of each
   series, and every write trims to that, the daily run's included
   (`ingest/history-store.mjs`): about 7⅔ years of sessions, 400 weeks, 92
   months. That is enough for every daily and weekly criterion. **Monthly
-  criterion 3 needs 200 months and cannot be computed within it**, so on the
-  month Trade TF Tier 1 Buy, Trade TF Tier 2 Sell, WEAK BUY and both STRONG
-  SELL alerts can never hold, and Trade TF Tier 2 Buy and Tier 1 Sell hold
-  only where criterion 4 settles them (the banker above 5).
+  criterion 3 needs 200 months and cannot be computed from the daily bars
+  within it**: without an imported monthly export, on the month Trade TF
+  Tier 1 Buy, Trade TF Tier 2 Sell, WEAK BUY and both STRONG SELL alerts can
+  never hold, and Trade TF Tier 2 Buy and Tier 1 Sell hold only where
+  criterion 4 settles them (the banker above 5). The imported months are kept
+  apart from the daily series, each frame to its own newest 2,000 periods.
 - **Computed is not yet TradingView's number.** An EMA, Wilder's RSI and
   WaveTrend remember where a history begins, and TradingView computes on all of
   its own. Close to a crossing, the scanner's value can differ from the

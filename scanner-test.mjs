@@ -3085,9 +3085,13 @@ try {
     ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'sma_cross', fast: 5, slow: 10, field: 'crossUp' }, op: 'EQUALS', right: { value: 1 } }] } };
   const xRun = PN.scanRun([xSetup], { series: { XAU: xSeries } }, { now: PN.scanReplayNow(xDates[29]) });
   const xa = xRun.alerts[0];
-  check(xRun.alerts.length === 1 && xa.eventType === 'NEW_MATCH' && xa.candleDate === xDates[29] && xa.matchedConditions[0].text === 'SMA Cross SMA5 crosses over SMA10 1 equal to 1'
-    && PN.scanValidate([xSetup]).setups.length === 1,
-    'a run records a Pine crossing like any other rule: one NEW_MATCH on the bar SMA5 crosses over SMA10, whose text prints the flag as 1, not 1.00', xRun.alerts.map(a => a.matchedConditions[0].text));
+  /* The text was "SMA Cross SMA5 crosses over SMA10 1 equal to 1" until the
+     engine said a yes-or-no reading as true or false itself (H3, A6:
+     scanFlagLiteral); the flag, its value 1 and the right side are as
+     before. */
+  check(xRun.alerts.length === 1 && xa.eventType === 'NEW_MATCH' && xa.candleDate === xDates[29] && xa.matchedConditions[0].text === 'SMA Cross SMA5 crosses over SMA10 is true'
+    && xa.matchedConditions[0].left === 1 && xa.matchedConditions[0].right === 1 && PN.scanValidate([xSetup]).setups.length === 1,
+    'a run records a Pine crossing like any other rule: one NEW_MATCH on the bar SMA5 crosses over SMA10, whose text says the flag is true (its value 1, not 1.00)', xRun.alerts.map(a => a.matchedConditions[0].text));
 
   /* ------------------------------------------------------------- monthly -- */
   const mh = (to, drop = () => false, atOf = null) => {
@@ -3332,11 +3336,13 @@ try {
     'bot engine B2: before any week or month has closed, the condition is untested, and the reason names the timeframe, the date and the bars needed and held', first);
   /* A crossing is the weekly bar against the weekly bar before: the week
      of 2 March closes 124 (from 119 the week before), crossing 121.5 on
-     Friday the 6th — not on the Wednesday its daily close first passed it. */
+     Friday the 6th — not on the Wednesday its daily close first passed it.
+     The sentence names the bar's origin since the engine reads imported
+     weeks (H3, A4): "(built from daily bars)" here, where no frame is held. */
   const cross = { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'CROSSES_ABOVE', right: { value: 121.5 }, timeframe: '1W' }] };
   const xs = ['2026-03-04', '2026-03-05', '2026-03-06', '2026-03-09'].map(d => BE.scanEvaluate(cross, wk, { at: wk.dates.indexOf(d) }).state);
   check(same(xs, ['NOT_MET', 'NOT_MET', 'MET', 'MET']) && wk.closes[wk.dates.indexOf('2026-03-04')] === 122
-    && /^weekly bar of 2026-03-06: price 124\.00 crossed above 121\.50$/.test(BE.scanEvaluate(cross, wk, { at: wk.dates.indexOf('2026-03-06') }).conditions[0].text),
+    && /^weekly bar of 2026-03-06 \(built from daily bars\): price 124\.00 crossed above 121\.50$/.test(BE.scanEvaluate(cross, wk, { at: wk.dates.indexOf('2026-03-06') }).conditions[0].text),
     'bot engine B2: a weekly crossing compares the closed week with the week before it, and stays the reading until the next week closes', xs);
   /* A week with sessions and no bar: the week after it reads the week
      before the gap as stale until it closes itself. */
@@ -3555,6 +3561,632 @@ try {
     { baj: baj[1].filter(v => v != null).length, alc: alc[1].filter(v => v != null).length, first: baj[2] });
 }
 /* ---- end bot: engine ---- */
+
+/* ---- frames: engine ---- */
+/* IMPORTED WEEKS AND MONTHS, READ BY THE ENGINE (H3-A; the reader's
+   decision of 29 September: where a symbol holds an imported weekly or
+   monthly series, the bot's weekly and monthly criteria are computed from
+   it rather than from the short daily file). One builder, scanFrameBars,
+   makes a weekly or monthly setup's own bars and the bars a condition on a
+   higher timeframe reads. Proved here on synthetic histories — no export
+   of the reader's is read:
+   1. an independent transcription of the merge rule — its own period keys,
+      sessions, New York session ends, statuses, validation and precedence
+      — gives what scanFrameBars gives, field by field: the frame before,
+      after and across the daily range, gaps, a corrected week, invalid rows
+      (a high below the close, a key that is not a Monday, a week not yet
+      begun), a provisional last bar with and without a built one, a frame
+      refused for a recorded split and read when the export is adjusted by
+      its provider after it, on FX and US, weekday and inferred calendars,
+      with holidays and months that end on a weekend; with no frame the
+      builder is scanResample, exactly;
+   2. a weekly setup's own bars are the bars a weekly condition reads; the
+      record, historical testing and a condition's sentence say which bar
+      was imported;
+   3. the bot pack on daily bars and imported weeks and months equals a
+      direct transcription of the script's logic reading the imported bars
+      (B5, extended) on every daily bar — where the monthly EMA 200 can be
+      read only from the imported months;
+   4. no look-ahead: at sampled bars, what a history cut there gives (the
+      daily bars to that day, the frames holding only the periods complete
+      by then); a replay (--as-of) reads the week in progress as
+      provisional, not its values captured later;
+   5. the data version changes on a re-import; a yes-or-no condition says
+      "is true" or "is false"; the warm-up counts imported and built bars;
+      the worker's list hands out scanWeekOf, so the store evaluates the
+      region once;
+   6. the digest of everything a setup evaluates on histories with no frame
+      (the bot engine's 76 hashes) is main's, once the yes-or-no sentences
+      are read back into main's wording. */
+{
+  const FE = E;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+  /* ------------------------------------------ the transcription's own days -- */
+  const DAY = 86400000;
+  const ms = (d) => Date.parse(`${d}T00:00:00Z`);
+  const iso = (t) => new Date(t).toISOString().slice(0, 10);
+  const plus = (d, n) => iso(ms(d) + n * DAY);
+  const dow = (d) => new Date(ms(d)).getUTCDay();
+  const wkday = (d) => dow(d) >= 1 && dow(d) <= 5;
+  const p2 = (n) => String(n).padStart(2, '0');
+  /* A week is keyed by its Monday, a month by its 1st. */
+  const keyOf = (T) => (T === '1M' ? (d) => `${d.slice(0, 7)}-01` : (d) => plus(d, -((dow(d) + 6) % 7)));
+  const daysIn = (T, k) => { const K = keyOf(T), out = []; for (let d = k; K(d) === k; d = plus(d, 1)) out.push(d); return out; };
+  const nextKey = (T, k) => (T === '1M' ? keyOf('1M')(plus(k, 32)) : plus(k, 7));
+  const setOf = new WeakMap();
+  const isSess = (cal, d) => {
+    if (!cal.days.includes(dow(d))) return false;
+    if (cal.basis !== 'inferred' || d < cal.from || d > cal.to) return true;
+    if (!setOf.has(cal)) setOf.set(cal, new Set(cal.sessions));
+    return setOf.get(cal).has(d);
+  };
+  /* New York is on daylight time from the second Sunday of March to the
+     first of November. A session ends at 17:00 there for FX, at 16:00 and
+     a 30-minute settle for US, and at midnight UTC for a market with no row. */
+  const sunday = (y, m, n) => { let d = `${y}-${p2(m)}-01`; while (dow(d) !== 0) d = plus(d, 1); return plus(d, 7 * (n - 1)); };
+  const edt = (d) => d >= sunday(+d.slice(0, 4), 3, 2) && d < sunday(+d.slice(0, 4), 11, 1);
+  const ny = (mk) => mk === 'FX' || mk === 'US';
+  const sessionEnd = (mk, d) => (ny(mk) ? ms(d) + (mk === 'FX' ? 17 * 60 : 16 * 60 + 30) * 60000 + (edt(d) ? 4 : 5) * 3600000 : ms(d) + DAY);
+  const nyAt = (t) => { const l = t - (edt(iso(t - 5 * 3600000)) ? 4 : 5) * 3600000; return { date: iso(l), min: Math.floor((((l % DAY) + DAY) % DAY) / 60000) }; };
+  const sessionToday = (mk, now) => { if (!ny(mk)) return iso(Date.parse(now)); const L = nyAt(Date.parse(now)); return mk === 'FX' && L.min >= 17 * 60 ? plus(L.date, 1) : L.date; };
+  const localDate = (mk, t) => (ny(mk) ? nyAt(Date.parse(t)).date : iso(Date.parse(t)));
+  const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+  const codesOf = (b, today) => {
+    const c = [];
+    if (today && b.first > today) c.push('FUTURE');
+    if (!(fin(b.close) && b.close > 0) || [b.open, b.high, b.low, b.close].some(p => p != null && !(fin(p) && p > 0))) c.push('NEG_PRICE');
+    if (b.volume != null && !(fin(b.volume) && b.volume >= 0)) c.push('NEG_VOLUME');
+    const has = (v) => fin(v) && v > 0;
+    if (has(b.high) && [b.open, b.close, b.low].some(v => has(v) && b.high < v)) c.push('HIGH_BELOW');
+    if (has(b.low) && [b.open, b.close, b.high].some(v => has(v) && b.low > v)) c.push('LOW_ABOVE');
+    return c;
+  };
+
+  /* ------------------------------------------ 1. the merge, transcribed ---- */
+  /* What the merged weeks or months must be: the imported bar where the
+     frame holds the period and it is not provisional (or no built bar
+     exists), dated by the period's last expected session; the bar built
+     from the daily bars everywhere else. */
+  const expectMerge = (h, sym, T, { market = null, now = null, cal }) => {
+    const daily = FE.scanBars(h, sym, { market, now, calendar: cal });
+    const built = FE.scanResample(daily, T, { calendar: cal });
+    const f = h.frames?.[T]?.[sym];
+    if (!f || !Object.keys(f.series || {}).length) return { plain: built };
+    const K = keyOf(T), keys = Object.keys(f.series).sort(), meta = f.meta || {};
+    const acts = (h.adjustments || []).filter(a => String(a.symbol).toUpperCase() === String(sym).toUpperCase() && a.ratio !== 1 && a.date >= keys[0]);
+    if (acts.some(a => !keys.every(k => meta[k]?.adjusted === 'provider' && (meta[k].at == null || localDate(market, meta[k].at) >= a.date)))) {
+      return { refused: true, dates: built.dates, origin: built.dates.map(() => 'daily') };
+    }
+    const corrected = new Set((f.corrections || []).map(c => c.date));
+    const today = now ? sessionToday(market, now) : null, clock = now ? Date.parse(now) : null;
+    const imp = new Map(), bad = [];
+    for (const k of keys) {
+      if (K(k) !== k) { bad.push([k, 'NOT_PERIOD_KEY']); continue; }
+      const days = daysIn(T, k), wd = days.filter(wkday), ss = days.filter(d => isSess(cal, d));
+      const last = ss.length ? ss[ss.length - 1] : wd[wd.length - 1];
+      const row = f.ohlc?.[k] || [];
+      const b = { open: row[0] ?? null, high: row[1] ?? null, low: row[2] ?? null, close: f.series[k], volume: f.volume?.[k] ?? null };
+      const codes = codesOf({ ...b, first: wd[0] }, today);
+      if (codes.length) { bad.push([k, codes.join()]); continue; }
+      const at = meta[k]?.at ?? null, end = sessionEnd(market, last);
+      const status = clock != null && clock < end ? 'PROVISIONAL' : corrected.has(k) ? 'CORRECTED' : at == null ? 'UNKNOWN' : Date.parse(at) >= end ? 'FINAL' : 'PROVISIONAL';
+      imp.set(k, { ...b, date: last, status, src: meta[k]?.src ?? null, at });
+    }
+    const bk = new Map(built.dates.map((d, i) => [K(d), i]));
+    const all = [...new Set([...bk.keys(), ...imp.keys()])].sort();
+    const o = { dates: [], open: [], high: [], low: [], closes: [], volumes: [], status: [], source: [], capturedAt: [], complete: [], missingDays: [], origin: [], gapBefore: [], breakBefore: [] };
+    const fromBuilt = ['dates', 'open', 'high', 'low', 'closes', 'volumes', 'status', 'source', 'capturedAt', 'complete', 'missingDays'];
+    all.forEach((k, j) => {
+      const I = imp.get(k), i = bk.get(k);
+      if (I && (I.status !== 'PROVISIONAL' || i == null)) {
+        [I.date, I.open, I.high, I.low, I.close, I.volume, I.status, I.src, I.at, I.status !== 'PROVISIONAL', []].forEach((v, x) => o[fromBuilt[x]].push(v));
+        o.origin.push('imported');
+      } else {
+        fromBuilt.forEach(x => o[x].push(built[x][i]));
+        o.origin.push('daily');
+      }
+      o.breakBefore.push(i == null ? 0 : built.breakBefore[i]);
+      let g = 0;
+      if (j) for (let q = nextKey(T, all[j - 1]); q < k; q = nextKey(T, q)) if (daysIn(T, q).some(d => isSess(cal, d))) g++;
+      o.gapBefore.push(g);
+    });
+    let stale = null;
+    if (daily.stale) { let a = o.dates.length - 1; while (a >= 0 && o.status[a] === 'PROVISIONAL') a--; if (a >= 0) stale = { ...daily.stale, at: a }; }
+    return { o, stale, bad };
+  };
+  /* The first field in which scanFrameBars (through scanBars, as a weekly
+     or monthly setup reads it) and the transcription differ, or null. */
+  const diffMerge = (h, sym, T, opts) => {
+    const X = expectMerge(h, sym, T, opts);
+    const M = FE.scanBars(h, sym, { market: opts.market ?? null, now: opts.now ?? null, calendar: opts.cal, timeframe: T });
+    if (X.plain) return same(M, X.plain) ? null : 'no frame, and not scanResample';
+    if (X.refused) return M.frameRefused && /not recorded as adjusted by their provider/.test(M.frameRefused.reason) && same(M.origin, X.origin) && same(M.dates, X.dates) ? null : `refusal: ${JSON.stringify(M.frameRefused)}`;
+    if (M.frameRefused) return `refused: ${M.frameRefused.reason}`;
+    for (const k of Object.keys(X.o)) if (!same(M[k], X.o[k])) return `${k}: ${JSON.stringify(M[k]).slice(0, 400)} against ${JSON.stringify(X.o[k]).slice(0, 400)}`;
+    if (!same(M.stale, X.stale)) return `stale: ${JSON.stringify(M.stale)} against ${JSON.stringify(X.stale)}`;
+    const mb = M.invalid.filter(x => x.origin === 'imported').map(x => [x.date, x.codes.join()]);
+    if (!same(mb, X.bad)) return `invalid: ${JSON.stringify(mb)} against ${JSON.stringify(X.bad)}`;
+    return null;
+  };
+
+  /* Daily bars on the given sessions — a slow rise with a wave, open, high
+     and low about the close, a volume and a capture an hour after each
+     close — and a frame of n periods from k0 whose values are its own, so a
+     bar read from the frame is never mistaken for one built from the days. */
+  const putDaily = (h, sym, dates, base, market = null) => {
+    for (const m of ['series', 'ohlc', 'volume', 'meta']) h[m] ||= {};
+    h.series[sym] = {}; h.ohlc[sym] = {}; h.volume[sym] = {}; h.meta[sym] = {};
+    dates.forEach((d, i) => {
+      const c = +(base * (1 + i * 0.002 + 0.03 * Math.sin(i / 6))).toFixed(3);
+      h.series[sym][d] = c; h.ohlc[sym][d] = [+(c * 0.998).toFixed(3), +(c * 1.006).toFixed(3), +(c * 0.993).toFixed(3)];
+      h.volume[sym][d] = 1000 + (i % 7) * 10; h.meta[sym][d] = { src: 'import:SYN, 1D.csv', at: new Date(sessionEnd(market, d) + 3600000).toISOString() };
+    });
+  };
+  const frameOf = (T, k0, n, base, at, { skip = [], ohlc = true, volume = true } = {}) => {
+    const f = { series: {}, ohlc: {}, volume: {}, meta: {} };
+    for (let k = k0, j = 0; j < n; k = nextKey(T, k), j++) {
+      if (skip.includes(k)) continue;
+      const c = +(base * (1 + j * 0.01 + 0.05 * Math.cos(j / 3))).toFixed(3);
+      f.series[k] = c;
+      if (ohlc) f.ohlc[k] = [+(c * 0.99).toFixed(3), +(c * 1.02).toFixed(3), +(c * 0.97).toFixed(3)];
+      if (volume) f.volume[k] = 50000 + j;
+      f.meta[k] = at === null ? { src: `import:SYN, ${T}.csv` } : { src: `import:SYN, ${T}.csv`, at };
+    }
+    return f;
+  };
+  const weekdays = (from, to, hol = []) => { const out = []; for (let d = from; d <= to; d = plus(d, 1)) if (wkday(d) && !hol.includes(d)) out.push(d); return out; };
+
+  /* SA — FX (XAUUSD's market), the weekday calendar, read at 22:00 New York
+     on Wednesday 17 June 2026. Daily bars from 5 January, New Year's Day,
+     Good Friday, Thursday 30 April (a month's last weekday) and Memorial
+     Day missing; January, February and May end on a weekend. Weeks
+     imported from 2 June 2025 — before the daily bars begin and across
+     them — with the week of 24 November missing, 8 September corrected,
+     6 October's high below its close, a row under Wednesday 13 August, and
+     the week of 22 June not yet begun; saved at 16:00 New York on 17 June,
+     so the week of 15 June is provisional and the daily bars hold it.
+     Months from January 2024, June provisional. */
+  const saHol = ['2026-01-01', '2026-04-03', '2026-04-30', '2026-05-25'];
+  const SA = { schema: 2, generated: '2026-06-18T02:00:00Z' };
+  putDaily(SA, 'XAU', weekdays('2026-01-05', '2026-06-17', saHol), 2000, 'FX');
+  putDaily(SA, 'EUR', weekdays('2026-01-05', '2026-06-17', saHol), 1.1, 'FX');
+  const saAt = '2026-06-17T20:00:00Z';
+  const saW = frameOf('1W', '2025-06-02', 56, 1800, saAt, { skip: ['2025-11-24'] });
+  saW.ohlc['2025-10-06'][1] = +(saW.series['2025-10-06'] * 0.985).toFixed(3);
+  saW.series['2025-08-13'] = 1900; saW.meta['2025-08-13'] = { src: 'import:SYN, 1W.csv', at: saAt };
+  saW.corrections = [{ date: '2025-09-08', field: 'close', from: 1, to: saW.series['2025-09-08'], src: 'import:SYN, 1W.csv', at: saAt, prevSrc: 'import:SYN, 1W.csv' }];
+  SA.frames = { '1W': { XAU: saW }, '1M': { XAU: frameOf('1M', '2024-01-01', 30, 1700, saAt) } };
+  const saInst = [{ symbol: 'XAU', market: 'FX' }, { symbol: 'EUR', market: 'FX' }];
+  const saNow = '2026-06-18T02:00:00Z';
+  const saCal = FE.scanCalendar(SA, saInst, 'FX');
+
+  /* SB — US, a calendar inferred from six series: Christmas, New Year,
+     Martin Luther King Day, Presidents' Day, Good Friday, Tuesday 31 March
+     (a month's last weekday), Memorial Day, Friday 19 June and 3 July
+     missing from every one. S0: weeks imported from January 2025 across
+     the start of the daily bars, months from 2023 ending with December
+     2025; S1: weeks from May 2026, across the week whose Friday is a
+     holiday, and months from June 2025 to July 2026, across March. */
+  const sbHol = ['2025-12-25', '2026-01-01', '2026-01-19', '2026-02-16', '2026-03-31', '2026-04-03', '2026-05-25', '2026-06-19', '2026-07-03'];
+  const SB = { schema: 2 };
+  const sbSyms = ['S0', 'S1', 'S2', 'S3', 'S4', 'S5'];
+  sbSyms.forEach((s, k) => putDaily(SB, s, weekdays('2025-09-01', '2026-07-15', sbHol), 100 + 10 * k, 'US'));
+  SB.frames = { '1W': { S0: frameOf('1W', '2025-01-06', 60, 90, '2026-02-27T22:00:00Z'), S1: frameOf('1W', '2026-05-04', 8, 105, '2026-07-15T22:00:00Z') }, '1M': { S0: frameOf('1M', '2023-01-01', 36, 80, '2026-01-02T22:00:00Z'), S1: frameOf('1M', '2025-06-01', 14, 95, '2026-07-15T22:00:00Z') } };
+  const sbInst = sbSyms.map(symbol => ({ symbol, market: 'US' }));
+  const sbNow = '2026-07-16T12:00:00Z';
+  const sbCal = FE.scanCalendar(SB, sbInst, 'US');
+
+  /* SC — no market row (weekdays, midnight UTC) and no clock. Daily bars
+     through 2024; weeks imported only after them, closes alone and no
+     capture time; months imported before them (to June 2023) and after
+     them, June 2025 saved on the 10th — provisional, with no built bar. */
+  const SC = { schema: 2 };
+  putDaily(SC, 'C', weekdays('2024-02-01', '2024-12-31'), 50);
+  SC.frames = { '1W': { C: frameOf('1W', '2025-02-03', 30, 60, null, { ohlc: false, volume: false }) },
+                '1M': { C: { ...frameOf('1M', '2020-01-01', 42, 40, '2023-07-05T00:00:00Z') } } };
+  const scLate = frameOf('1M', '2025-01-01', 6, 70, '2025-06-10T00:00:00Z');
+  for (const m of ['series', 'ohlc', 'volume', 'meta']) Object.assign(SC.frames['1M'].C[m], scLate[m]);
+  const scCal = FE.scanWeekdayCalendar(null);
+
+  /* SD — a recorded split of 2 on 2 March 2026 against weeks imported from
+     October 2025: not adjusted by their provider (refused), adjusted and
+     saved after it (read), adjusted but saved before it (refused); a ratio
+     of 1 (read), and a split before the frame's first week (read). */
+  const sdOf = (acts, adjusted = null, at = '2026-06-30T22:00:00Z') => {
+    const h = { schema: 2 };
+    putDaily(h, 'D', weekdays('2026-01-05', '2026-06-30'), 300, 'FX');
+    const f = frameOf('1W', '2025-10-06', 30, 280, at);
+    if (adjusted) Object.values(f.meta).forEach(m => { m.adjusted = adjusted; });
+    h.frames = { '1W': { D: f } };
+    return FE.scanAttachAdjustments(h, { schema: 1, actions: acts });
+  };
+  const split = (date, ratio = 2) => [{ symbol: 'D', date, ratio, kind: ratio === 1 ? 'other' : 'split' }];
+  const SD = { refused: sdOf(split('2026-03-02')), provider: sdOf(split('2026-03-02'), 'provider'), early: sdOf(split('2026-03-02'), 'provider', '2026-02-20T22:00:00Z'),
+               one: sdOf(split('2026-03-02', 1)), before: sdOf(split('2025-01-06')) };
+  const sdCal = FE.scanWeekdayCalendar('FX');
+
+  const cases = [];
+  for (const T of ['1W', '1M']) {
+    for (const now of [saNow, null]) cases.push([`FX weekday ${T}${now ? '' : ', no clock'}`, SA, 'XAU', T, { market: 'FX', now, cal: saCal }], [`FX no frame ${T}`, SA, 'EUR', T, { market: 'FX', now, cal: saCal }]);
+    /* Read at midnight in New York on Thursday 11 June, before the export
+       was saved: its week of 8 June has values captured later, and the
+       week had not closed. */
+    cases.push([`FX weekday ${T}, read before the export was saved`, SA, 'XAU', T, { market: 'FX', now: '2026-06-11T04:00:00Z', cal: saCal }]);
+    for (const s of ['S0', 'S1', 'S2']) cases.push([`US inferred ${s} ${T}`, SB, s, T, { market: 'US', now: sbNow, cal: sbCal }]);
+    cases.push([`no market, no clock ${T}`, SC, 'C', T, { market: null, now: null, cal: scCal }]);
+    for (const [k, h] of Object.entries(SD)) cases.push([`split: ${k} ${T}`, h, 'D', T, { market: 'FX', now: null, cal: sdCal }]);
+  }
+  const mergeDiffs = cases.map(([name, h, sym, T, o]) => [name, diffMerge(h, sym, T, o)]).filter(([, d]) => d);
+  const saWk = FE.scanBars(SA, 'XAU', { market: 'FX', now: saNow, calendar: saCal, timeframe: '1W' });
+  const saMo = FE.scanBars(SA, 'XAU', { market: 'FX', now: saNow, calendar: saCal, timeframe: '1M' });
+  const scMo = FE.scanBars(SC, 'C', { calendar: scCal, timeframe: '1M' }), scWk = FE.scanBars(SC, 'C', { calendar: scCal, timeframe: '1W' });
+  const sbWk = FE.scanBars(SB, 'S0', { market: 'US', now: sbNow, calendar: sbCal, timeframe: '1W' });
+  const sbMo = FE.scanBars(SB, 'S0', { market: 'US', now: sbNow, calendar: sbCal, timeframe: '1M' });
+  const at = (b, k) => b.dates.findIndex(d => keyOf(b.timeframe)(d) === k);
+  const branch = {
+    before: saWk.origin[0] === 'imported' && saWk.dates[0] === '2025-06-06' && saWk.origin[at(saWk, '2026-01-05')] === 'imported',
+    gap: saWk.gapBefore[at(saWk, '2025-12-01')] === 1,
+    corrected: saWk.status[at(saWk, '2025-09-08')] === 'CORRECTED',
+    invalid: same(saWk.invalid.filter(x => x.origin === 'imported').map(x => [x.date, x.codes]), [['2025-08-13', ['NOT_PERIOD_KEY']], ['2025-10-06', ['HIGH_BELOW']], ['2026-06-22', ['FUTURE']]]),
+    provisionalYields: saWk.origin[saWk.origin.length - 1] === 'daily' && saWk.status[saWk.status.length - 1] === 'PROVISIONAL' && saWk.dates[saWk.dates.length - 1] === '2026-06-17'
+      && saMo.origin[saMo.origin.length - 1] === 'daily' && saMo.origin[saMo.origin.length - 2] === 'imported',
+    readBeforeSaved: (() => { const e = FE.scanBars(SA, 'XAU', { market: 'FX', now: '2026-06-11T04:00:00Z', calendar: saCal, timeframe: '1W' }), j = at(e, '2026-06-08'), p = at(e, '2026-06-01');
+      return e.origin[j] === 'daily' && e.status[j] === 'PROVISIONAL' && e.origin[p] === 'imported' && e.status[p] === 'FINAL' && j === e.dates.length - 1; })(),
+    weekendMonthEnds: ['2026-01-01', '2026-02-01', '2026-05-01'].map(k => saMo.dates[at(saMo, k)]).join() === '2026-01-30,2026-02-27,2026-05-29',
+    inferredHolidays: (() => { const w1 = FE.scanBars(SB, 'S1', { market: 'US', now: sbNow, calendar: sbCal, timeframe: '1W' }), m1 = FE.scanBars(SB, 'S1', { market: 'US', now: sbNow, calendar: sbCal, timeframe: '1M' });
+      return sbCal.basis === 'inferred' && w1.dates[at(w1, '2026-06-15')] === '2026-06-18' && w1.origin[at(w1, '2026-06-15')] === 'imported'
+        && m1.dates[at(m1, '2026-03-01')] === '2026-03-30' && m1.origin[at(m1, '2026-03-01')] === 'imported' && m1.origin[m1.origin.length - 1] === 'daily'
+        && sbWk.origin[at(sbWk, '2025-09-01')] === 'imported' && sbMo.dates[at(sbMo, '2025-12-01')] === '2025-12-31'; })(),
+    after: scWk.origin.slice(-30).every(o => o === 'imported') && scWk.gapBefore[scWk.origin.indexOf('imported')] > 0 && scWk.status.slice(-30).every(s => s === 'UNKNOWN'),
+    provisionalStays: scMo.origin[scMo.origin.length - 1] === 'imported' && scMo.status[scMo.status.length - 1] === 'PROVISIONAL' && scMo.complete[scMo.complete.length - 1] === false,
+    refused: !!FE.scanBars(SD.refused, 'D', { calendar: sdCal, market: 'FX', timeframe: '1W' }).frameRefused && !FE.scanBars(SD.provider, 'D', { calendar: sdCal, market: 'FX', timeframe: '1W' }).frameRefused
+      && !!FE.scanBars(SD.early, 'D', { calendar: sdCal, market: 'FX', timeframe: '1W' }).frameRefused && !FE.scanBars(SD.one, 'D', { calendar: sdCal, market: 'FX', timeframe: '1W' }).frameRefused
+      && !FE.scanBars(SD.before, 'D', { calendar: sdCal, market: 'FX', timeframe: '1W' }).frameRefused,
+  };
+  check(!mergeDiffs.length && Object.values(branch).every(Boolean) && cases.length === 28,
+    `frames engine A2: an independent transcription of the merge — its own week and month keys, sessions, New York closes, statuses, validation and precedence — gives scanFrameBars' bars field by field in ${cases.length} cases: a frame before, across and after the daily bars, a gap, a corrected week, a high below its close, a row under a Wednesday, a week not yet begun, a provisional week giving way to the one built from the daily bars and a provisional month kept with none, weeks and months ending on a weekend and on inferred holidays, FX and US, weekday and inferred calendars, with and without a clock; a recorded split refuses a frame not adjusted by its provider after it, and none where it is, where the ratio is 1 or where the split is older than the frame; with no frame, scanResample exactly`,
+    { mergeDiffs: mergeDiffs.slice(0, 4), branch });
+
+  /* ------------------------ 2. one builder: a weekly setup's bars and a read -- */
+  const htf = [];
+  for (const [name, h, sym, T, o] of cases) {
+    if (!h.frames?.[T]?.[sym]) continue;
+    const own = FE.scanBars(h, sym, { market: o.market, now: o.now, calendar: o.cal, timeframe: T });
+    const read = FE.scanFrame(FE.scanBars(h, sym, { market: o.market, now: o.now, calendar: o.cal }), T).bars;
+    if (!same({ ...own, stale: null }, read)) htf.push(name);
+  }
+  const cond = (tf, extra = {}) => ({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 }, ...(tf ? { timeframe: tf } : {}), ...extra });
+  const setupOf = (id, tf, children) => ({ id, version: 1, name: id, enabled: true, universe: { kind: 'symbols', symbols: ['XAU'] }, timeframe: tf, confirmationMode: 'BAR_CLOSE',
+    cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null, ruleTree: { type: 'group', logic: 'ALL', children } });
+  const saRun = FE.scanRun([setupOf('d-w', '1D', [cond(null), cond('1W'), cond('1M')]), setupOf('w', '1W', [cond(null)]), setupOf('m', '1M', [cond(null)])], SA, { now: saNow, instruments: saInst });
+  const recOf = (id) => saRun.alerts.find(a => a.setupId === id);
+  const dw = recOf('d-w'), rw = recOf('w'), rm = recOf('m');
+  const hw = FE.scanHistorical(setupOf('w', '1W', [cond(null)]), SA, { instruments: saInst });
+  const noFrameRun = FE.scanRun([{ ...setupOf('w2', '1W', [cond(null)]), universe: { kind: 'symbols', symbols: ['EUR'] } }], SA, { now: saNow, instruments: saInst });
+  const rec = {
+    daily: dw && dw.candleDate === '2026-06-17' && !('barOrigin' in dw) && same(dw.matchedConditions.map(c => [c.timeframe ?? null, c.barDate ?? null, c.barOrigin ?? null]), [[null, null, null], ['1W', '2026-06-12', 'imported'], ['1M', '2026-05-29', 'imported']])
+      && /^weekly bar of 2026-06-12 \(imported\): price [\d.]+ above 1/.test(dw.matchedConditions[1].text),
+    weekly: rw && rw.candleDate === '2026-06-12' && rw.barOrigin === 'imported' && rw.dataSourceId === 'import:SYN, 1W.csv' && rw.dataVersion === FE.scanDataVersion(saWk, at(saWk, '2026-06-08')),
+    monthly: rm && rm.candleDate === '2026-05-29' && rm.barOrigin === 'imported',
+    historical: hw.matches.length > 30 && hw.matches.every(m => m.barOrigin === 'imported' || m.barOrigin === 'daily') && hw.matches.some(m => m.barOrigin === 'imported')
+      && hw.matches.find(m => m.bar === '2025-06-06')?.barOrigin === 'imported',
+    noFrame: noFrameRun.alerts.length === 1 && !('barOrigin' in noFrameRun.alerts[0]) && noFrameRun.alerts[0].dataSourceId === 'import:SYN, 1D.csv',
+    provisional: saRun.provisional.some(p => p.symbol === 'XAU' && p.timeframe === '1W' && p.bar === '2026-06-17'),
+  };
+  check(!htf.length && Object.values(rec).every(Boolean),
+    'frames engine A1/A3/A4: a weekly or monthly setup\'s own bars are, field for field, the bars a condition on that timeframe reads (both through scanFrameBars with the frame registered beside the daily bars and the same clock); the record of a daily setup names each weekly and monthly condition\'s bar, its date and "imported" ("weekly bar of 2026-06-12 (imported): …"), a weekly setup\'s own record carries barOrigin and the export as its source, historical testing marks each match, and a symbol with no frame records as before',
+    { htf, rec, dw: dw?.matchedConditions?.map(c => c.text), rw: rw && { bar: rw.candleDate, o: rw.barOrigin, s: rw.dataSourceId } });
+  /* The split: the run says the weeks are not read, and why. */
+  const sdRun = FE.scanRun([{ ...setupOf('sd', '1W', [cond(null)]), universe: { kind: 'all' } }], SD.refused, { instruments: [{ symbol: 'D', market: 'FX' }] });
+  const sdWarm = FE.scanBotWarmup(FE.scanBars(SD.refused, 'D', { market: 'FX' }), { tradeTimeframes: ['1W'] });
+  check(sdRun.framesRefused?.length === 1 && sdRun.framesRefused[0].timeframe === '1W' && /split of ratio 2 on 2026-03-02 falls inside or after the imported weekly bars/.test(sdRun.framesRefused[0].why)
+    && sdRun.alerts[0]?.barOrigin === 'daily' && /your imported weekly bars are not read: your record of a split/.test(sdWarm[1].text) && !('framesRefused' in saRun),
+    'frames engine A2: imported weeks refused for a split recorded against them are named once in the run, with the reason; the weeks it reads are built from the daily bars, and its warm-up line says the imported ones are not read',
+    { refused: sdRun.framesRefused, warm: sdWarm[1]?.text });
+
+  /* -------------------------------------- 3. the bot on imported bars (B5) -- */
+  /* Twenty-five years of weekdays, with Friday and month-end holidays and
+     prices that rise, cycle, crash through the long averages and rebound
+     (B5's). The history holds the last 2,000 sessions, from September 2018;
+     the weekly and monthly exports hold 300 weeks and 300 months of the
+     whole, each value moved by a few hundredths of a per cent so that a
+     bar read from the export cannot pass for one built from the days, and
+     were saved on Wednesday 17 December 2025: that week and that month are
+     provisional, and the daily bars hold them. */
+  const lastWd = (y, m) => { let d = plus(`${m === 12 ? y + 1 : y}-${p2(m === 12 ? 1 : m + 1)}-01`, -1); while (!wkday(d)) d = plus(d, -1); return d; };
+  const nthFri = (y, m, k) => { let d = `${y}-${p2(m)}-01`; while (dow(d) !== 5) d = plus(d, 1); return plus(d, 7 * (k - 1)); };
+  const bHol = new Set();
+  for (let y = 2000; y <= 2026; y++) [`${y}-01-01`, `${y}-12-25`, nthFri(y, 4, 1), nthFri(y, 9, 3), lastWd(y, 5), lastWd(y, 10)].forEach(d => { if (wkday(d)) bHol.add(d); });
+  const all5 = [];
+  for (let d = '2000-10-02'; d <= '2026-06-30'; d = plus(d, 1)) if (wkday(d) && !bHol.has(d)) all5.push(d);
+  const px5 = { o: [], h: [], l: [], c: [] };
+  { let x = 400; all5.forEach((d, i) => { const prev = x, a5 = i / all5.length;
+      x *= 1 + (a5 < 0.9 ? 0.00045 : a5 < 0.945 ? -0.006 : 0.0035) + 0.0035 * Math.sin((2 * Math.PI * i) / 700 + 1) + 0.011 * Math.sin(i * 0.23 + 1) + 0.006 * Math.sin(i * 0.071 + 2) + 0.004 * Math.cos(i * 1.37 + 1);
+      px5.o.push(+prev.toFixed(3)); px5.h.push(+(Math.max(prev, x) * (1.002 + 0.004 * Math.abs(Math.sin(i * 0.9 + 1)))).toFixed(3));
+      px5.l.push(+(Math.min(prev, x) * (0.998 - 0.004 * Math.abs(Math.cos(i * 0.7 + 1)))).toFixed(3)); px5.c.push(+x.toFixed(3)); }); }
+  const held5 = all5.length - 2000;
+  const BH = { schema: 2, series: { G: {} }, ohlc: { G: {} } };
+  for (let i = held5; i < all5.length; i++) { BH.series.G[all5[i]] = px5.c[i]; BH.ohlc.G[all5[i]] = [px5.o[i], px5.h[i], px5.l[i]]; }
+  const bAt = '2025-12-17T15:00:00Z';
+  const exportOf = (T, n) => {
+    const K = keyOf(T), last = K('2025-12-17'), G = new Map();
+    all5.forEach((d, i) => { if (d > '2025-12-17') return; const k = K(d); const g = G.get(k); if (g) { g.h = Math.max(g.h, px5.h[i]); g.l = Math.min(g.l, px5.l[i]); g.c = px5.c[i]; } else G.set(k, { o: px5.o[i], h: px5.h[i], l: px5.l[i], c: px5.c[i] }); });
+    const keys = [...G.keys()].filter(k => k <= last).slice(-n);
+    const f = { series: {}, ohlc: {}, volume: {}, meta: {} };
+    keys.forEach((k, j) => { const g = G.get(k), s = 1 + 0.0004 * Math.sin(j * 1.7); f.series[k] = +(g.c * s).toFixed(3); f.ohlc[k] = [+(g.o * s).toFixed(3), +(g.h * s).toFixed(3), +(g.l * s).toFixed(3)]; f.meta[k] = { src: `import:SYN, ${T}.csv`, at: bAt }; });
+    return f;
+  };
+  BH.frames = { '1W': { G: exportOf('1W', 300) }, '1M': { G: exportOf('1M', 300) } };
+  const bCal = FE.scanWeekdayCalendar(null);
+  const bDaily = FE.scanBars(BH, 'G', { calendar: bCal });
+  /* The transcription: B5's criteria and signals, on the daily bars and on
+     each timeframe's merged bars — the transcribed merge above — read on
+     the last bar closed by each day. */
+  const K3 = { and: (...a) => (a.some(v => v === false) ? false : a.some(v => v == null) ? null : true),
+               or: (...a) => (a.some(v => v === true) ? true : a.some(v => v == null) ? null : false), not: (v) => (v == null ? null : !v) };
+  let nearMargin = 0;
+  const gt = (a, b) => { if (a == null || b == null) return null; if (Math.abs(a - b) <= Math.max(1e-12, 1e-9 * Math.max(Math.abs(a), Math.abs(b)))) nearMargin++; return a > b; };
+  const crit = (bars) => {
+    const wt = FE.scanPineWaveTrend(bars, FE.scanParams({ indicator: 'wavetrend' }).params).fields;
+    const md = FE.scanPineBotMacd(bars, { fast: 12, slow: 26, signal: 9 }).fields;
+    const ma = FE.scanEma(bars.closes, 200);
+    const mx = FE.scanPineMcdx(bars, FE.scanParams({ indicator: 'mcdx' }).params).fields;
+    return (k) => (k < 0 ? {} : {
+      c1: wt.wt1[k] == null || wt.wt2[k] == null ? null : wt.wt1[k] > wt.wt2[k], c2: md.macd[k] == null || md.signal[k] == null ? null : md.macd[k] > md.signal[k],
+      c3: gt(bars.closes[k], ma[k]), c4: gt(mx.banker[k], 5), c5: gt(10, mx.hotMoney[k]),
+      hu: k < 1 || md.hist[k] == null || md.hist[k - 1] == null ? null : md.hist[k] > md.hist[k - 1], hd: k < 1 || md.hist[k] == null || md.hist[k - 1] == null ? null : md.hist[k] < md.hist[k - 1] });
+  };
+  const D5 = crit(FE.scanSeriesBars(bDaily.closes, { dates: bDaily.dates, open: bDaily.open, high: bDaily.high, low: bDaily.low }));
+  const tfOf = (T) => {
+    const x = expectMerge(BH, 'G', T, { market: null, now: null, cal: bCal }).o;
+    const K = keyOf(T);
+    const closedOn = x.dates.map(d => { const le = daysIn(T, K(d)).filter(z => isSess(bCal, z)).pop(); return le && le > d ? le : d; });
+    return { x, at: crit(FE.scanSeriesBars(x.closes, { dates: x.dates, open: x.open, high: x.high, low: x.low })), closedOn, k: -1 };
+  };
+  const F5 = { w: tfOf('1W'), m: tfOf('1M') };
+  const rows5 = bDaily.dates.map((d, i) => {
+    const x = D5(i);
+    const EB = K3.and(x.c1, x.c2, x.c3, x.c4), ES = K3.and(K3.not(x.c1), K3.not(x.c2), K3.not(x.c3), K3.not(x.c4), x.c5);
+    const row = { 'mtfbot-d-entry-buy': EB, 'mtfbot-d-entry-sell': ES, 'mtfbot-d-entry-trade': K3.or(EB, ES) };
+    for (const L of ['w', 'm']) {
+      const f = F5[L];
+      while (f.k + 1 < f.closedOn.length && f.closedOn[f.k + 1] <= d) f.k++;
+      const t = f.k >= 0 && f.x.status[f.k] === 'PROVISIONAL' ? {} : f.at(f.k);
+      const tier2 = K3.and(t.c1, t.c2, K3.or(t.c3, t.c4)), tier2s = K3.and(K3.not(t.c1), K3.not(t.c2), K3.not(t.c3), K3.not(t.c4));
+      const T1B = K3.and(t.c1, t.c2, K3.not(t.c3), K3.not(t.c4)), T1S = K3.and(K3.not(t.c1), K3.not(t.c2), K3.or(t.c3, t.c4));
+      const sbb = K3.and(tier2, EB), ssb = K3.and(tier2s, ES);
+      const s = { 'tier1-buy': T1B, 'tier2-buy': tier2, 'tier1-sell': T1S, 'tier2-sell': tier2s,
+        'strong-buy-continuous': K3.and(sbb, t.hu), 'strong-buy-reversal': K3.and(sbb, t.hd), 'strong-sell-continuous': K3.and(ssb, t.hd), 'strong-sell-reversal': K3.and(ssb, t.hu),
+        'weak-buy': K3.and(T1B, EB), 'weak-sell': K3.and(T1S, ES) };
+      s['any-strong'] = K3.or(s['strong-buy-continuous'], s['strong-buy-reversal'], s['strong-sell-continuous'], s['strong-sell-reversal']);
+      s['any-weak'] = K3.or(s['weak-buy'], s['weak-sell']);
+      for (const [k, v] of Object.entries(s)) row[`mtfbot-${L}-${k}`] = v;
+      row[`c3:${L}`] = t.c3; row[`origin:${L}`] = f.k >= 0 ? f.x.origin[f.k] : null;
+    }
+    return row;
+  });
+  const pack5 = FE.scanBotPack({ symbols: ['G'] });
+  const C5 = FE.scanCache();
+  const b5 = { differ: [], tally: { T: 0, F: 0, U: 0 }, everTrue: 0 };
+  for (const s of pack5) {
+    let t = 0;
+    for (let i = 0; i < bDaily.dates.length; i++) {
+      const st = FE.scanEvaluate(s.ruleTree, bDaily, { at: i, cache: C5 }).state;
+      const v = st === 'MET' ? true : st === 'NOT_MET' ? false : null;
+      b5.tally[v === true ? 'T' : v === false ? 'F' : 'U']++;
+      if (v === true) t++;
+      if (v !== rows5[i][s.id]) b5.differ.push([s.id, bDaily.dates[i], st, rows5[i][s.id]]);
+    }
+    if (t) b5.everTrue++;
+  }
+  const c3m = { T: rows5.filter(r => r['c3:m'] === true).length, F: rows5.filter(r => r['c3:m'] === false).length, U: rows5.filter(r => r['c3:m'] == null).length };
+  const orig = { m: new Set(rows5.map(r => r['origin:m'])), w: new Set(rows5.map(r => r['origin:w'])) };
+  /* The same daily bars with no export: 92 months, and the monthly EMA 200
+     is never read. */
+  const bare = { schema: 2, series: BH.series, ohlc: BH.ohlc };
+  const bareDaily = FE.scanBars(bare, 'G', { calendar: bCal });
+  const c3Tree = { type: 'group', logic: 'ALL', children: [{ ...FE.scanBotTree('tier2-buy', '1M', FE.scanBotCriteria()).children[2].children[0] }] };
+  const bareC3 = bareDaily.dates.map((_, i) => FE.scanEvaluate(c3Tree, bareDaily, { at: i }).state);
+  const warm5 = FE.scanBotWarmup(bDaily), bareWarm = FE.scanBotWarmup(bareDaily);
+  check(!b5.differ.length && !nearMargin && b5.tally.T > 0 && b5.tally.F > 0 && b5.tally.U > 0 && pack5.length === 27 && b5.everTrue >= 20
+    && c3m.T > 0 && c3m.F > 0 && orig.m.has('imported') && orig.m.has('daily') && orig.w.has('imported') && orig.w.has('daily')
+    && bareC3.every(s => s === 'UNAVAILABLE') && c3Tree.children[0].left.indicator === 'price' && c3Tree.children[0].timeframe === '1M'
+    && warm5[2].ready && !bareWarm[2].ready && warm5[2].imported === 299 && warm5[1].imported === 299,
+    `frames engine B5 on imported bars: the bot pack (27 setups) on 2,000 daily bars and 300 imported weeks and months equals a direct transcription of the script's logic reading the transcribed merge — imported where held, built from the daily bars after the export's provisional last week and month — on every daily bar and signal: ${b5.tally.T} true, ${b5.tally.F} false, ${b5.tally.U} unknown, ${b5.everTrue} signals true somewhere; the monthly close against its EMA 200 is read on ${c3m.T + c3m.F} daily bars (${c3m.T} above, ${c3m.F} not) from the imported months, and on none from the daily bars alone`,
+    { differ: b5.differ.slice(0, 4), n: b5.differ.length, near: nearMargin, tally: b5.tally, everTrue: b5.everTrue, c3m, orig: [...orig.m, ...orig.w], warm: warm5.map(w => w.text), bare: bareWarm[2]?.text });
+  check(/^weekly: \d+ closed weekly bars held, 299 imported \(weeks of \d{4}-\d{2}-\d{2} … 2025-12-08\) and \d+ built from daily bars \(weeks of 2018-\d{2}-\d{2} … \d{4}-\d{2}-\d{2}\) — every criterion can be read$/.test(warm5[1].text)
+    && /^monthly: \d+ closed monthly bars held, 299 imported \(months of 2001-01 … 2025-11\) and \d+ built from daily bars \(months of 2025-12 … 2026-06\) — every criterion can be read$/.test(warm5[2].text)
+    && same(warm5[2].importedRange, ['2001-01-01', '2025-11-01']) && warm5[2].built === warm5[2].held - 299 && warm5[2].built === 7
+    && /^monthly: 9\d closed monthly bars held; criterion 3 \(the close above its EMA200\) needs 200 — untested until 1\d\d more months are held \(about [\d.]+ years of daily history\)$/.test(bareWarm[2].text) && !('imported' in bareWarm[2]),
+    `frames engine A5: the bot's warm-up counts the merged closed bars and says where they come from — "${warm5[2].text}"; with no frame, as before: "${bareWarm[2].text}"`,
+    warm5.concat(bareWarm).map(w => w.text));
+
+  /* ------------------------------------------------ 4. no look-ahead (A3) -- */
+  /* A history cut at a day: the daily bars to it, and each export holding
+     only the periods whose last expected session is on or before it. */
+  const cutAt = (h, d) => {
+    const keep = (T, f) => { const out = { series: {}, ohlc: {}, volume: {}, meta: {} };
+      for (const k of Object.keys(f.series)) { const le = daysIn(T, k).filter(z => isSess(bCal, z)).pop(); if (le && le <= d) for (const m of Object.keys(out)) if (f[m]?.[k] !== undefined) out[m][k] = f[m][k]; }
+      return out; };
+    const byDay = (m) => Object.fromEntries(Object.entries(m).filter(([x]) => x <= d));
+    return { schema: 2, series: { G: byDay(h.series.G) }, ohlc: { G: byDay(h.ohlc.G) }, frames: { '1W': { G: keep('1W', h.frames['1W'].G) }, '1M': { G: keep('1M', h.frames['1M'].G) } } };
+  };
+  const wkSetup = { id: 'wk-m', version: 1, name: 'wk-m', enabled: true, universe: { kind: 'symbols', symbols: ['G'] }, timeframe: '1W', confirmationMode: 'BAR_CLOSE', cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null,
+    ruleTree: { type: 'group', logic: 'ANY', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'ema', n: 20 } },
+      { type: 'condition', left: { indicator: 'wavetrend', field: 'bull' }, op: 'EQUALS', right: { value: 1 }, timeframe: '1M' }] } };
+  const la = { setups: [pack5.find(s => s.id === 'mtfbot-w-strong-buy-continuous'), pack5.find(s => s.id === 'mtfbot-m-tier2-sell'), pack5.find(s => s.id === 'mtfbot-m-any-weak')], cuts: 0, differ: [] };
+  const hist5 = la.setups.map(s => FE.scanHistorical(s, BH, { maxBars: 5000 }));
+  const bWeekly = FE.scanBars(BH, 'G', { calendar: bCal, timeframe: '1W' });
+  const histW = FE.scanHistorical(wkSetup, BH, { maxBars: 5000 });
+  const view = (r) => [r.state, r.conditions.map(c => [c.state, c.text, c.leftValue ?? null, c.rightValue ?? null, c.barDate ?? null, c.barOrigin ?? null])];
+  const sample = bDaily.dates.filter((d, i) => i % 41 === 7 || (i > 1990) || ['2025-12-12', '2025-12-15', '2025-12-17', '2025-12-18', '2025-12-19', '2025-12-31', '2026-01-02', '2025-11-28', '2025-12-01'].includes(d));
+  for (const d of sample) {
+    const i = bDaily.dates.indexOf(d);
+    const cut = cutAt(BH, d), cb = FE.scanBars(cut, 'G', { calendar: bCal });
+    la.cuts++;
+    la.setups.forEach((s, j) => {
+      const full = FE.scanEvaluate(s.ruleTree, bDaily, { at: i, cache: C5 }), part = FE.scanEvaluate(s.ruleTree, cb, { at: cb.dates.length - 1 });
+      if (!same(view(full), view(part))) la.differ.push([s.id, d, 'evaluate']);
+      const m = hist5[j].matches.find(x => x.bar === d);
+      if (!!m !== (part.state === 'MET') || (m && !same(m.conditions.map(c => c.text), part.conditions.map(c => c.text)))) la.differ.push([s.id, d, 'historical']);
+    });
+    /* A weekly setup reading a monthly condition, on the week that had
+       closed by then. */
+    const cw = FE.scanBars(cut, 'G', { calendar: bCal, timeframe: '1W' });
+    const lastW = cw.dates.length - 1 - (cw.status[cw.dates.length - 1] === 'PROVISIONAL' ? 1 : 0);
+    const k = bWeekly.dates.indexOf(cw.dates[lastW]);
+    if (k < 0 || !same(view(FE.scanEvaluate(wkSetup.ruleTree, bWeekly, { at: k })), view(FE.scanEvaluate(wkSetup.ruleTree, cw, { at: lastW })))) la.differ.push(['wk-m', d, 'weekly']);
+  }
+  /* A replay of Wednesday 10 June 2026 on SA: the week of 8 June is held in
+     the export (saved on the 17th) with its whole week's values, and the
+     replay must read it as the week in progress — as a history cut that
+     evening would have it. */
+  const replaySetups = [setupOf('d-w', '1D', [cond('1W', { op: 'CROSSES_ABOVE', right: { value: 1900 } }), cond('1W')]), setupOf('w', '1W', [cond(null)])];
+  const replay = FE.scanRun(replaySetups, SA, { asOf: '2026-06-10', instruments: saInst });
+  const saCut = { schema: 2, series: { XAU: {}, EUR: {} }, ohlc: { XAU: {}, EUR: {} }, volume: { XAU: {}, EUR: {} }, meta: { XAU: {}, EUR: {} }, frames: { '1W': { XAU: { series: {}, ohlc: {}, volume: {}, meta: {} } }, '1M': { XAU: { series: {}, ohlc: {}, volume: {}, meta: {} } } } };
+  for (const m of ['series', 'ohlc', 'volume', 'meta']) for (const s of ['XAU', 'EUR']) for (const [d, v] of Object.entries(SA[m][s])) if (d <= '2026-06-10') saCut[m][s][d] = v;
+  for (const T of ['1W', '1M']) for (const k of Object.keys(SA.frames[T].XAU.series)) {
+    const le = daysIn(T, k).filter(wkday).pop();
+    if (keyOf(T)(k) === k && le <= '2026-06-10') for (const m of ['series', 'ohlc', 'volume', 'meta']) saCut.frames[T].XAU[m][k] = SA.frames[T].XAU[m][k];
+  }
+  saCut.frames['1W'].XAU.corrections = SA.frames['1W'].XAU.corrections;
+  const direct = FE.scanRun(replaySetups, saCut, { now: FE.scanReplayNow('2026-06-10'), instruments: saInst });
+  const rview = (r) => r.alerts.map(a => [a.setupId, a.candleDate, a.barOrigin ?? null, a.matchedConditions.map(c => [c.state, c.text, c.barDate ?? null, c.barOrigin ?? null])]);
+  const rpW = replay.alerts.find(a => a.setupId === 'w');
+  check(!la.differ.length && la.cuts > 50 && same(rview(replay), rview(direct)) && rpW?.candleDate === '2026-06-05' && rpW?.barOrigin === 'imported'
+    && replay.provisional.some(p => p.symbol === 'XAU' && p.timeframe === '1W' && p.bar === '2026-06-10'),
+    `frames engine A3: no look-ahead — at ${la.cuts} sampled days, three of the pack's weekly and monthly setups and a weekly setup reading a monthly condition give on the whole history, and in its historical testing, exactly what the history cut at that day gives (the daily bars to it, the exports holding only the periods complete by then); a replay of Wednesday 10 June reads the week of 8 June as the week in progress — the export's later values unread — and records what a run on the history as it stood that evening records`,
+    { differ: la.differ.slice(0, 5), n: la.differ.length, replay: rview(replay), direct: rview(direct) });
+
+  /* ---------------------------------------------------------- 5. the rest -- */
+  /* The data version: a re-import names a new series — a later capture of
+     the same values, a changed value — and the same history twice the same
+     one; with no frame, the bars' data version is scanResample's. */
+  const dv = (h) => FE.scanBars(h, 'XAU', { market: 'FX', now: saNow, calendar: saCal, timeframe: '1W' }).dataVersion;
+  const reimport = JSON.parse(JSON.stringify(SA)), changed = JSON.parse(JSON.stringify(SA));
+  Object.values(reimport.frames['1W'].XAU.meta).forEach(m => { m.at = '2026-06-18T21:30:00Z'; });
+  changed.frames['1W'].XAU.series['2025-07-07'] += 0.5;
+  const eurW = FE.scanBars(SA, 'EUR', { market: 'FX', now: saNow, calendar: saCal, timeframe: '1W' });
+  check(dv(SA) === dv(JSON.parse(JSON.stringify(SA))) && dv(reimport) !== dv(SA) && dv(changed) !== dv(SA) && dv(changed) !== dv(reimport)
+    && eurW.dataVersion === FE.scanResample(FE.scanBars(SA, 'EUR', { market: 'FX', now: saNow, calendar: saCal }), '1W', { calendar: saCal }).dataVersion && !('origin' in eurW),
+    'frames engine A2: the merged bars\' data version covers where each bar came from — a re-import of the same weekly values captured later is a new version, as is a changed value; the same history read twice is the same version; a symbol with no frame keeps scanResample\'s',
+    { same: dv(SA), reimport: dv(reimport), changed: dv(changed) });
+  /* A yes-or-no condition says "is true" or "is false" (A6). */
+  const flagC = (v, tf = null) => ({ type: 'condition', left: { indicator: 'wavetrend', field: 'bull' }, op: 'EQUALS', right: { value: v }, ...(tf ? { timeframe: tf } : {}) });
+  const bullAt = bDaily.dates.length - 1;
+  const bullV = FE.scanIndicator({ indicator: 'wavetrend', field: 'bull' }, bDaily, { at: bullAt }).value;
+  const flagTexts = [1, 0].map(v => FE.scanEvaluate({ type: 'group', logic: 'ALL', children: [flagC(v)] }, bDaily, { at: bullAt }).conditions[0].text);
+  const w1 = FE.scanSideLabel({ indicator: 'wavetrend', field: 'bull' });
+  check(FE.scanConditionProse(flagC(1)) === `${w1} is true` && FE.scanConditionProse(flagC(0, '1W')) === `weekly: ${w1} is false`
+    && FE.scanConditionProse({ left: { indicator: 'price' }, op: 'EQUALS', right: { value: 100 } }) === 'price equals 100'
+    && FE.scanConditionProse({ left: { indicator: 'sma_cross', field: 'crossUp' }, op: 'EQUALS', right: 1 }) === `${FE.scanSideLabel({ indicator: 'sma_cross', field: 'crossUp' })} is true`
+    && (bullV === 1 ? same(flagTexts, [`${w1} is true`, `${w1} is true, not false`]) : same(flagTexts, [`${w1} is false, not true`, `${w1} is false`]))
+    && FE.scanFlagLiteral(flagC(1)) === 1 && FE.scanFlagLiteral({ left: { indicator: 'price' }, op: 'EQUALS', right: { value: 1 } }) === null,
+    'frames engine A6: a yes-or-no reading asked EQUALS 1 or 0 reads "… is true" or "… is false" in the condition\'s sentence (with its timeframe first) and in what an evaluation read — "… is false, not true" where it did not hold; a price equal to a level still reads "equals"',
+    { prose: [FE.scanConditionProse(flagC(1)), FE.scanConditionProse(flagC(0, '1W'))], flagTexts });
+  /* The worker's list hands out scanWeekOf and the builders (A7): the store
+     finds every name it needs there and loads the region once. */
+  const HS = await import('./ingest/history-store.mjs');
+  const SE = await HS.loadStoreEngine();
+  check(['scanWeekOf', 'scanMonthOf', 'scanFramesOf', 'scanFrameBars'].every(n => ENGINE_EXPORTS.includes(n) && typeof E[n] === 'function')
+    && HS.STORE_ENGINE_NAMES.every(n => ENGINE_EXPORTS.includes(n)) && same(Object.keys(SE).sort(), [...ENGINE_EXPORTS].sort()) && E.scanWeekOf('2026-09-27') === '2026-09-21',
+    'frames engine A7: scanner/scan.mjs hands out scanWeekOf, scanFramesOf and scanFrameBars; every name the store needs is on the list, so loadStoreEngine returns the worker\'s engine as it is, without evaluating the region a second time',
+    HS.STORE_ENGINE_NAMES.filter(n => !ENGINE_EXPORTS.includes(n)));
+
+  /* ------------------------------------------ 6. nothing else changed ---- */
+  /* The bot engine's digest (its scratch digest.mjs, carried here): the
+     fixture's run and historical testing, the self-test, validation, a
+     three-year three-symbol history across daily, weekly and monthly
+     setups on every field of every indicator, and every Pine field and
+     plot — 76 hashes, on histories with no frame. Its combined hash on
+     main before this work was d427abf4. The sentences of yes-or-no
+     conditions are read back into main's wording ("X is true" was
+     "X 1 equal to 1") before hashing: the one change A6 makes to them. */
+  {
+    const FLAG = /^(.*) is (true|false)(?:, not (true|false))?$/;
+    const back = (t) => { const m = FLAG.exec(t); if (!m) return t; const b = (w) => (w === 'true' ? '1' : '0'); return m[3] ? `${m[1]} ${b(m[2])} not equal to ${b(m[3])}` : `${m[1]} ${b(m[2])} equal to ${b(m[2])}`; };
+    let mapped = 0;
+    const walk = (x) => (Array.isArray(x) ? x.map(walk) : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, k === 'text' && typeof v === 'string' && FLAG.test(v) ? (mapped++, back(v)) : walk(v)])) : x);
+    const HD = (x) => FE.scanHash(JSON.stringify(walk(x)));
+    const out = {};
+    const NEWF = { wavetrend: ['bull'], cm_macd: ['bull', 'histUp', 'histDown', 'histMoved'], bot_macd: ['histMoved'] };
+    const NEWP = ['Divergencias Bajistas', 'Divergencias Alcistas'];
+    const isNew = (id, f) => (NEWF[id] || []).includes(f);
+    const fx = FE.scanFixture();
+    out.fixtureRun = HD(FE.scanRun([fx.setup, fx.setupV2], fx.history, { now: fx.now, runId: 'd', origin: 'd' }));
+    out.fixtureHist = HD(FE.scanHistorical(fx.setupV2, fx.history));
+    out.fixtureHist1 = HD(FE.scanHistorical(fx.setup, fx.history));
+    out.selfTest = HD(FE.scanSelfTest());
+    out.validateExample = HD(FE.scanValidate(FE.SCAN_EXAMPLES ? FE.SCAN_EXAMPLES : []));
+    const dates = [];
+    const hol = new Set(['2023-12-25', '2024-01-01', '2024-03-29', '2024-05-31', '2024-12-25', '2025-01-01', '2025-04-18', '2025-10-31']);
+    for (let d = '2023-06-01'; d <= '2026-06-30'; d = FE.scanAddDays(d, 1)) { const w = FE.scanWeekday(d); if (w >= 1 && w <= 5 && !hol.has(d)) dates.push(d); }
+    const mk = (seed) => {
+      const s = {}, v = {}, o = {};
+      let c = 100 + seed * 10;
+      dates.forEach((d, i) => {
+        const prev = c;
+        c = Math.max(5, c * (1 + 0.012 * Math.sin(i * 0.37 + seed) + 0.008 * Math.sin(i * 0.071 * (seed + 1)) + 0.004 * Math.cos(i * 1.3)));
+        const hi = Math.max(prev, c) * (1 + 0.004 + 0.003 * Math.abs(Math.sin(i + seed)));
+        const lo = Math.min(prev, c) * (1 - 0.004 - 0.003 * Math.abs(Math.cos(i * 0.7 + seed)));
+        s[d] = Number(c.toFixed(3)); v[d] = 1000 + Math.round(500 * Math.abs(Math.sin(i / 3 + seed))); o[d] = [Number(prev.toFixed(3)), Number(hi.toFixed(3)), Number(lo.toFixed(3)), Number(c.toFixed(3))];
+      });
+      return { s, v, o };
+    };
+    const syms = ['AAA', 'BBB', 'CCC'];
+    const hist = { series: {}, volume: {}, ohlc: {} };
+    syms.forEach((sym, k) => { const m = mk(k); hist.series[sym] = m.s; hist.volume[sym] = m.v; hist.ohlc[sym] = m.o; });
+    const now = FE.scanReplayNow(dates[dates.length - 1]);
+    const conds = [];
+    for (const [id, def] of Object.entries(FE.SCAN_INDICATORS)) {
+      const fields = def.fields ? Object.keys(def.fields).filter(f => !isNew(id, f)) : [null];
+      for (const f of fields) {
+        const left = f ? { indicator: id, field: f } : { indicator: id };
+        const unit = FE.scanUnitOf(left);
+        const val = unit === 'flag' ? 1 : unit === 'direction' ? 1 : unit === 'osc_0_100' ? 50 : unit === 'mcdx' ? 5 : unit === 'price' ? 100 : unit === 'volume' ? 1000 : unit === 'ratio' ? 1 : 0;
+        conds.push({ type: 'condition', left, op: unit === 'flag' || unit === 'direction' ? 'EQUALS' : 'GREATER_THAN', right: { value: val } });
+      }
+    }
+    const setups = [];
+    ['1D', '1W', '1M'].forEach(tf => {
+      for (let k = 0; k < conds.length; k += 6) {
+        setups.push({ id: `s-${tf}-${k}`, version: 1, name: 'x', enabled: true, universe: { kind: 'all' }, timeframe: tf, confirmationMode: 'BAR_CLOSE',
+          cooldownMode: k % 12 ? 'EVERY_MATCH' : 'NEW_MATCH', cooldownBars: k % 3, expires: null,
+          ruleTree: { type: 'group', logic: k % 2 ? 'ANY' : 'ALL', children: conds.slice(k, k + 6) } });
+      }
+      setups.push({ id: `x-${tf}`, version: 1, name: 'x', enabled: true, universe: { kind: 'all' }, timeframe: tf, confirmationMode: 'BAR_CLOSE', cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null,
+        ruleTree: { type: 'group', logic: 'ANY', children: [
+          { type: 'condition', left: { indicator: 'price' }, op: 'CROSSES_ABOVE', right: { indicator: 'ema', n: 20 } },
+          { type: 'condition', left: { indicator: 'wavetrend', field: 'wt1' }, op: 'CROSSES_BELOW', right: { indicator: 'wavetrend', field: 'wt2' } },
+          { type: 'condition', left: { indicator: 'cm_macd', field: 'macd' }, op: 'CROSSES_ABOVE', right: { indicator: 'cm_macd', field: 'signal' } },
+          { type: 'condition', left: { indicator: 'rsi', n: 5 }, op: 'BETWEEN', range: [{ value: 30 }, { value: 70 }] },
+        ] } });
+    });
+    const val = FE.scanValidate({ setups });
+    out.validateHashes = HD(val.setups.map(s => s.hash));
+    out.validateProblems = HD(val.problems);
+    const pairs = {};
+    setups.forEach(s => syms.forEach(sym => { pairs[FE.scanPairKey(s.id, 1, sym, s.timeframe)] = { lastEvaluatedBar: dates[dates.length - 40] }; }));
+    out.longRun = HD(FE.scanRun(setups, hist, { now, runId: 'd', origin: 'd' }));
+    out.longRunCatchUp = HD(FE.scanRun(setups, hist, { now, runId: 'd', origin: 'd', pairs, catchUpCap: 50 }));
+    out.longHist = HD(setups.filter((_, i) => i % 4 === 0).map(s => FE.scanHistorical(s, hist, { maxBars: 300 })));
+    const bars = FE.scanBars(hist, 'AAA', {});
+    out.pine = {};
+    for (const [id, def] of Object.entries(FE.SCAN_PINE_INDICATORS)) {
+      const r = def.pine(bars, FE.scanParams({ indicator: id }).params);
+      out.pine[id] = { fields: Object.fromEntries(Object.entries(r.fields).filter(([k]) => !isNew(id, k)).map(([k, a]) => [k, HD(a)])), plots: r.plots.filter(([t]) => !NEWP.includes(t)).map(([t, s, f]) => [t, HD(s), f]) };
+    }
+    out.catalogue = HD(Object.fromEntries(Object.entries(FE.SCAN_INDICATORS).map(([id, d]) => [id, { label: d.label, params: d.params, fields: d.fields ? Object.fromEntries(Object.entries(d.fields).filter(([k]) => !isNew(id, k))) : d.fields, calcVersion: d.calcVersion, needs: d.fields ? Object.keys(d.fields).filter(k => !isNew(id, k)).map(k => d.needs(FE.scanParams({ indicator: id }).params, k)) : d.needs(FE.scanParams({ indicator: id }).params) }])));
+    const flat = (o, p = '') => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' && !Array.isArray(v) ? flat(v, `${p}${k}.`) : [[`${p}${k}`, v]]));
+    const leaves = flat(out).length;
+    const combined = FE.scanHash(JSON.stringify(out));
+    check(leaves === 76 && combined === 'd427abf4' && mapped > 100,
+      `frames engine: nothing a setup already evaluates changed — all ${leaves} hashes of the bot engine's digest (the fixture, the self-test, validation, a three-year history's run, catch-up and historical testing on daily, weekly and monthly setups over every indicator field, every Pine field and plot, the catalogue) combine to main's d427abf4, with the ${mapped} yes-or-no sentences read back into main's wording`,
+      { leaves, combined, mapped, out });
+  }
+}
+/* ---- end frames: engine ---- */
 
 /* ---- bot: tools ---- */
 /* TV-VERIFY ON WEEKLY AND MONTHLY EXPORTS, AND THE BARS THE ENGINE BUILDS

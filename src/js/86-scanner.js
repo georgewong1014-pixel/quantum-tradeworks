@@ -680,7 +680,8 @@ function scanSetupChips(s, extra = []) {
 }
 /* A CONDITION MAY READ A HIGHER TIMEFRAME THAN ITS SETUP'S (contract B1–B3).
    A setup on daily bars can hold a condition read on the last closed weekly
-   or monthly bar, built from the same daily bars — how the reader's
+   or monthly bar — imported from the reader's TradingView export where the
+   history holds one, else built from the same daily bars — how the reader's
    TradingView bot judges its trade timeframe. Absent, a condition reads the
    setup's own. The engine validates, hashes and evaluates it; these pages
    say it in the condition's own sentence, so a weekly criterion never reads
@@ -693,20 +694,18 @@ const scanTfPeriod = (tf) => ({ '1D': 'session', '1W': 'week', '1M': 'month' }[s
    setup's own: the built ones above it, never one below. */
 const scanHigherTfs = (tf) => Object.values(SCAN_TIMEFRAMES)
   .filter(t => t.built && SCAN_TF_RANK[t.id] != null && SCAN_TF_RANK[t.id] > (SCAN_TF_RANK[scanTimeframe(tf)] ?? 0)).map(t => t.id);
-/* A condition in words: the engine's sentence, with two things it leaves to
-   its reader said here. A yes-or-no reading (unit 'flag') compared with 1 or
-   0 reads "is true" or "is false" — "equals 1" asked the reader to know
-   the encoding — and a condition read on a timeframe other than its
-   setup's names it ("on the last closed weekly bar"). The engine's own
-   words stand wherever they already say either. */
+/* A condition in words: the engine's sentence, with the timeframe said
+   here. A yes-or-no reading (unit 'flag') compared with 1 or 0 reads "is
+   true" or "is false" in the engine's own sentence now (scanFlagLiteral);
+   these pages rewrote "equals 1" until it did, and the rewrite, which no
+   longer found anything to change, is gone. A condition read on a
+   timeframe other than its setup's names it ("on the last closed weekly
+   bar"), unless the engine's words already say one. */
 function scanCondSentence(c, setupTf = null) {
   let t = scanConditionProse(c);
   /* The engine names a condition's own timeframe first ("weekly: …"); these
      pages say it last, and only where it is not the setup's own. */
   t = t.replace(/^(daily|weekly|monthly): /i, '');
-  if (c && typeof c === 'object' && scanUnitOf(c.left) === 'flag' && scanOpName(c.op) === 'EQUALS'
-    && c.right && typeof c.right === 'object' && c.right.indicator == null && scanNumeric(c.right.value) && [0, 1].includes(Number(c.right.value)))
-    t = t.replace(/ equals [01](?=$| on | \()/, Number(c.right.value) === 1 ? ' is true' : ' is false');
   const tf = scanCondTf(c);
   if (tf && tf !== scanTimeframe(setupTf) && !/\b(daily|weekly|monthly)\b/i.test(t)) t += ` on the last closed ${scanTfWord(tf)} bar`;
   return t;
@@ -741,25 +740,36 @@ const scanTreeList = (tree, setupTf = null) => el('ul', { class: 'rulelist' }, s
 /* Where a recorded condition was read (B3): the record carries the
    timeframe and the date of the bar read only when they differ from the
    setup's own, so a condition without them was read on the alert's own
-   bar. A weekly or monthly bar is dated by its last session. */
+   bar. A weekly or monthly bar is dated by its last session, and says
+   whether it was imported or built from the daily bars: a condition read
+   on a higher timeframe carries `barOrigin`, and so does a weekly or
+   monthly setup's own record where the history held imported bars for it.
+   A record without one read a bar built from the daily bars — every weekly
+   and monthly bar was, before imported ones were read. */
 function scanReadOn(c, a) {
   const own = scanTimeframe(a?.timeframe);
   const tf = c?.timeframe != null && c.timeframe !== '' ? scanTimeframe(c.timeframe) : null;
   const other = !!tf && tf !== own;
   const t = other ? tf : own, date = other ? (c.barDate || null) : scanAlertBar(a) || null;
-  return { tf: t, date, other, text: date ? `${SCAN_TIMEFRAMES[t]?.label || t} bar closing ${date}` : `${SCAN_TIMEFRAMES[t]?.label || t} bar — the record does not say which` };
+  const origin = t === '1W' || t === '1M' ? ((other ? c?.barOrigin : a?.barOrigin) === 'imported' ? 'imported' : 'daily') : null;
+  const originText = origin === 'imported' ? 'imported' : origin === 'daily' ? 'built from daily bars' : '';
+  return { tf: t, date, other, origin, originText,
+    text: date ? `${SCAN_TIMEFRAMES[t]?.label || t} bar closing ${date}${originText ? ` · ${originText}` : ''}` : `${SCAN_TIMEFRAMES[t]?.label || t} bar — the record does not say which` };
 }
 /* The bars of other timeframes a record's conditions were read on, in
-   words: "weekly bar closing 2026-09-25 and the monthly bar closing
-   2026-08-31". */
+   words: "weekly bar closing 2026-09-25 · imported and the monthly bar
+   closing 2026-08-31 · built from daily bars". */
 const scanReadOnOthers = (a) => [...new Set((Array.isArray(a?.matchedConditions) ? a.matchedConditions : []).map(c => scanReadOn(c, a)).filter(r => r.other)
   .map(r => r.text.replace(/^\w/, ch => ch.toLowerCase())))].join(' and the ');
 const scanDriftChip = (row) => (row ? el('span', { class: `chip ${SCAN_DRIFT[row.state].chip}`, title: row.text }, SCAN_DRIFT[row.state].label) : null);
 /* Monthly joined weekly as a timeframe built from the daily bars; the page
-   said "daily bars" of a monthly setup until it was named here. */
+   said "daily bars" of a monthly setup until it was named here. Weeks and
+   months are the imported ones where the history holds a TradingView
+   weekly or monthly export for the instrument (the engine's scanFrameBars),
+   and built from the daily bars elsewhere. */
 const scanTimeframeProse = (s) => {
   const hi = scanTreeTfs(s.ruleTree, s.timeframe), n = scanTreeTfCount(s.ruleTree, s.timeframe);
-  return (s.timeframe === '1W' ? 'weekly bars derived from your daily ones' : s.timeframe === '1M' ? 'monthly bars derived from your daily ones' : 'daily bars') + ', each evaluated once its session has closed'
+  return (s.timeframe === '1W' ? 'weekly bars, imported where your history holds them and otherwise derived from your daily ones' : s.timeframe === '1M' ? 'monthly bars, imported where your history holds them and otherwise derived from your daily ones' : 'daily bars') + ', each evaluated once its session has closed'
     + (hi.length ? `; ${scanPlural(n, 'condition')} ${n === 1 ? 'reads' : 'read'} the last closed ${hi.map(scanTfWord).join(' or ')} bar instead` : '');
 };
 const scanAlertsOf = (id) => scanAlertList().filter(a => a.setupId === id);
@@ -839,9 +849,10 @@ function scanExportControls({ primary = false } = {}) {
    come. The run says so bar by bar; this says it once, per instrument, in
    words. What an operand needs is the engine's own count (SCAN_INDICATORS'
    `needs`, and one bar more for a crossing, which reads the bar before);
-   what is held is the engine's bars, daily and resampled, counting only
-   the weeks and months that have closed — the last closed bar is the one a
-   condition reads.
+   what is held is the engine's bars — daily, and the weeks and months a
+   condition reads, imported where the history holds them and built from
+   the daily bars elsewhere — counting only the weeks and months that have
+   closed: the last closed bar is the one a condition reads.
    ===================================================================== */
 /* A list in words: "a", "a and b", "a, b and c". */
 const scanAnd = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
@@ -893,8 +904,17 @@ function scanNeedsOf(setups) {
   return new Map([...byTf].sort((a, b) => (SCAN_TF_RANK[a[0]] ?? 9) - (SCAN_TF_RANK[b[0]] ?? 9)));
 }
 /* One instrument's history as the engine reads it: its valid daily bars,
-   and the weeks and months among them that have closed. Kept for the
-   history object it was read from, and the calendar per market with it. */
+   and the weeks and months that have closed — the ones a condition reads
+   (the engine's scanFrame of the daily bars): imported where the history
+   holds a TradingView weekly or monthly export for the instrument, built
+   from the daily bars elsewhere. Counted from the daily bars alone, 300
+   sessions were 60 weeks, and the pack card and the setup page said the
+   monthly criteria were years away while 300 imported months made every
+   one of them readable. `frames` says, per timeframe, how many of the
+   closed bars were imported and over which periods, or why a frame held
+   is not read; `dailyWeeks` is the weeks the daily bars alone make, which
+   is what a week is worth in sessions. Kept for the history object it was
+   read from, and the calendar per market with it. */
 let scanHeldMemo = { history: null, map: new Map(), cal: new Map() };
 function scanHeldOf(symbol, history = scanHistoryFile) {
   if (scanHeldMemo.history !== history) scanHeldMemo = { history, map: new Map(), cal: new Map() };
@@ -906,19 +926,48 @@ function scanHeldOf(symbol, history = scanHistoryFile) {
     if (!scanHeldMemo.cal.has(mkt || '')) scanHeldMemo.cal.set(mkt || '', scanCalendar(history, reg, mkt));
     const cal = scanHeldMemo.cal.get(mkt || '');
     const d = scanBars(history, symbol, { market: mkt, calendar: cal });
-    const closed = (T) => (scanResample(d, T, { calendar: cal }).complete || []).filter(Boolean).length;
-    out = { symbol, daily: d.dates.length, from: d.dates[0] || null, to: d.dates[d.dates.length - 1] || null, weeks: closed('1W'), months: closed('1M'), hasOHLC: !!d.hasOHLC };
+    const frames = {};
+    const closed = (T) => {
+      const w = scanFrame(d, T)?.bars || scanResample(d, T, { calendar: cal });
+      const idx = [];
+      (w.complete || []).forEach((c, k) => { if (c) idx.push(k); });
+      if (Array.isArray(w.origin)) {
+        const imp = idx.filter(k => w.origin[k] === 'imported');
+        const key = (k) => (T === '1M' ? scanMonthOf(w.dates[k]) : scanWeekOf(w.dates[k]));
+        frames[T] = { imported: imp.length, built: idx.length - imp.length, first: imp.length ? key(imp[0]) : null, last: imp.length ? key(imp[imp.length - 1]) : null,
+                      refused: w.frameRefused?.reason || null, hasOHLC: !!w.hasOHLC };
+      }
+      return idx.length;
+    };
+    const dailyWeeks = (scanResample(d, '1W', { calendar: cal }).complete || []).filter(Boolean).length;
+    out = { symbol, daily: d.dates.length, from: d.dates[0] || null, to: d.dates[d.dates.length - 1] || null, weeks: closed('1W'), months: closed('1M'), hasOHLC: !!d.hasOHLC, dailyWeeks, frames };
   }
   scanHeldMemo.map.set(symbol, out);
   return out;
 }
 const scanHeldCount = (held, tf) => (tf === '1W' ? held.weeks : tf === '1M' ? held.months : held.daily);
+/* Where a timeframe's closed bars came from, in words, when the history
+   holds imported bars for it: " — 299 imported (weeks of 2021-01-04 …
+   2026-09-21)", and how many were built from the daily bars; or why the
+   imported ones are not read. Empty where no frame is held. */
+function scanHeldOrigin(held, tf) {
+  const f = held?.frames?.[tf];
+  if (!f) return '';
+  const unit = tf === '1M' ? 'months' : 'weeks', per = (p) => (tf === '1M' ? String(p).slice(0, 7) : p);
+  if (f.refused) return ` — all built from your daily bars: your imported ${scanTfWord(tf)} bars are not read, because ${f.refused}`;
+  const parts = [f.imported ? `${f.imported.toLocaleString('en-US')} imported (${unit} of ${per(f.first)}${f.imported > 1 ? ` … ${per(f.last)}` : ''})` : null,
+    f.built ? `${f.built.toLocaleString('en-US')} built from your daily bars` : null].filter(Boolean);
+  return parts.length ? ` — ${parts.join(' and ')}` : '';
+}
 /* A count of bars of a timeframe, with what it means in daily bars: a week
    is as many sessions as the instrument's own weeks hold (five for gold on
-   its FX session, seven for a coin), a month a twelfth of a year. */
+   its FX session, seven for a coin), a month a twelfth of a year. The
+   weeks the daily bars make are the measure: imported weeks hold no
+   daily bars to count. */
 function scanNeedWords(tf, n, held) {
   if (tf === '1W') {
-    const per = held?.weeks ? Math.max(1, Math.round(held.daily / held.weeks)) : 5;
+    const wk = held?.dailyWeeks ?? held?.weeks;
+    const per = wk ? Math.max(1, Math.round(held.daily / wk)) : 5;
     const d = n * per;
     return `${scanPlural(n, 'weekly bar')} (about ${(d >= 1000 ? Math.round(d / 50) * 50 : d).toLocaleString('en-US')} daily bars)`;
   }
@@ -936,19 +985,23 @@ function scanHistoryNeeds(symbols, byTf, history = scanHistoryFile) {
     const lines = [...byTf].filter(([, m]) => m.size).map(([tf, m]) => {
       const needs = [...m.values()];
       const have = scanHeldCount(held, tf);
-      const heldText = tf === '1D' ? `${scanPlural(have, 'daily bar')} held` : `${scanPlural(have, `closed ${scanTfPeriod(tf)}`)} held`;
+      const heldText = tf === '1D' ? `${scanPlural(have, 'daily bar')} held` : `${scanPlural(have, `closed ${scanTfPeriod(tf)}`)} held${scanHeldOrigin(held, tf)}`;
       const label = SCAN_TIMEFRAMES[tf]?.label || tf;
-      const short = needs.filter(x => (x.ohlc && !held.hasOHLC) || x.needs > have);
+      const ohlcHeld = held.frames?.[tf] ? held.frames[tf].hasOHLC : held.hasOHLC;
+      const short = needs.filter(x => (x.ohlc && !ohlcHeld) || x.needs > have);
       unknown += short.length;
       if (!short.length) {
         const most = needs.reduce((a, x) => (x.needs > a.needs ? x : a), needs[0]);
         return { tf, known: true, text: `${label} — ${heldText}. Every condition can be read: the longest warm-up, ${most.label}, needs ${scanNeedWords(tf, most.needs, held)}.` };
       }
-      const why = short.map(x => (x.ohlc && !held.hasOHLC ? `${x.label}, which reads highs and lows this series does not hold` : `${x.label}, which needs ${scanNeedWords(tf, x.needs, held)}`));
+      const why = short.map(x => (x.ohlc && !ohlcHeld ? `${x.label}, which reads highs and lows this series does not hold` : `${x.label}, which needs ${scanNeedWords(tf, x.needs, held)}`));
       return { tf, known: false, text: `${label} — ${heldText}. Unknown: ${why.join('; ')}.` };
     });
+    /* Where imported weeks or months are held, the head says how many of
+       each count were imported; the lines below say over which periods. */
+    const imp = (tf) => (held.frames?.[tf]?.imported ? ` (${held.frames[tf].imported.toLocaleString('en-US')} imported)` : '');
     return { symbol: sym, unknown, held, lines,
-      head: `${sym} — ${held.daily.toLocaleString('en-US')} daily bars held${held.from ? ` (${held.from} to ${held.to})` : ''}: ${scanPlural(held.weeks, 'closed week')} and ${scanPlural(held.months, 'closed month')}.` };
+      head: `${sym} — ${held.daily.toLocaleString('en-US')} daily bars held${held.from ? ` (${held.from} to ${held.to})` : ''}: ${scanPlural(held.weeks, 'closed week')}${imp('1W')} and ${scanPlural(held.months, 'closed month')}${imp('1M')}.` };
   });
 }
 /* The same, as a block of the page: at most `max` instruments, then how
@@ -1395,7 +1448,7 @@ VIEWS.scannerSetup = () => {
     const hiTfs = scanTreeTfs(cur.ruleTree, cur.timeframe);
     const hiN = scanTreeTfCount(cur.ruleTree, cur.timeframe);
     facts.append(scanFact('Timeframe', `${SCAN_TIMEFRAMES[cur.timeframe]?.label || cur.timeframe}${hiTfs.length ? `, with ${hiTfs.map(t => scanTfWord(t)).join(' and ')} conditions` : ''}`,
-      `${SCAN_TIMEFRAMES[cur.timeframe]?.note || ''}${hiTfs.length ? `${SCAN_TIMEFRAMES[cur.timeframe]?.note ? '. ' : ''}${scanPlural(hiN, 'condition')} ${hiN === 1 ? 'reads' : 'read'} the last closed ${hiTfs.map(scanTfPeriod).join(' or ')} instead, built from the same daily bars — never the one in progress, and on each bar the one that had closed by then.` : ''}` || null));
+      `${SCAN_TIMEFRAMES[cur.timeframe]?.note || ''}${hiTfs.length ? `${SCAN_TIMEFRAMES[cur.timeframe]?.note ? '. ' : ''}${scanPlural(hiN, 'condition')} ${hiN === 1 ? 'reads' : 'read'} the last closed ${hiTfs.map(scanTfPeriod).join(' or ')} instead — imported where your history holds your TradingView ${hiTfs.map(scanTfWord).join(' or ')} export, and otherwise built from the same daily bars — never the one in progress, and on each bar the one that had closed by then.` : ''}` || null));
     facts.append(scanFact('Confirmation', 'Bar close', 'Only a completed bar is evaluated; a provisional bar never confirms a match.'));
     facts.append(scanFact('Recording', cur.cooldownMode === 'NEW_MATCH' ? 'New match' : 'Every match', `${cur.cooldownMode === 'NEW_MATCH' ? 'Only the bar a match begins is recorded.' : 'Every bar the conditions hold is recorded.'}${cur.cooldownBars ? ` Then ${scanPlural(cur.cooldownBars, 'bar')} of cooldown per instrument.` : ' No cooldown.'}`));
     facts.append(scanFact('Expires', cur.expires || 'Never'));
@@ -1937,7 +1990,7 @@ function scanBuilder(d, ctx) {
     g2.append(field('Market', select(u.market, mkts.map(m => [m, m === 'MY' ? 'MY — Bursa Malaysia' : m === 'US' ? 'US — United States' : m]), v => { u.market = v; }),
       { hint: 'Membership is read from data/instruments.json, the file the worker reads. A series with no row there has no market and is listed as skipped when you test.', path: 'universe' }));
   }
-  const tfOpts = Object.values(SCAN_TIMEFRAMES).map(t => [t.id, t.built ? `${t.label}${t.derivedFrom ? ' — derived from your daily bars' : ''}` : `${t.label} — not available`, !t.built]);
+  const tfOpts = Object.values(SCAN_TIMEFRAMES).map(t => [t.id, t.built ? `${t.label}${t.derivedFrom ? ' — imported where held, else from your daily bars' : ''}` : `${t.label} — not available`, !t.built]);
   const notBuilt = Object.values(SCAN_TIMEFRAMES).filter(t => !t.built);
   g2.append(field('Timeframe', select(d.timeframe, tfOpts, v => { d.timeframe = v; }), {
     hint: `${SCAN_TIMEFRAMES[d.timeframe]?.note ? `${SCAN_TIMEFRAMES[d.timeframe].note[0].toUpperCase()}${SCAN_TIMEFRAMES[d.timeframe].note.slice(1)}. ` : ''}${notBuilt.length ? `${notBuilt.map(t => t.label).join(', ')}: not available — ${notBuilt[0].reason}.` : ''}`, path: 'timeframe' }));
@@ -2000,8 +2053,9 @@ function scanBuilder(d, ctx) {
           { hint: `${p.min}–${p.max}${p.integer ? ', whole' : ''}; blank is ${p.def}` }));
       });
       /* The timeframe the condition reads (B1): the setup's own, or one
-         above it — that timeframe's last closed bar, built from the same
-         daily bars. One not above the setup's is refused by the engine,
+         above it — that timeframe's last closed bar, imported where the
+         history holds the reader's export, else built from the same daily
+         bars. One not above the setup's is refused by the engine,
          with the reason, and shows here as that rather than as a choice. */
       const ownTf = scanTimeframe(d.timeframe), hiTfs = scanHigherTfs(ownTf), ctf = scanCondTf(c);
       const tfSet = ctf && ctf !== ownTf ? ctf : '';
@@ -2763,7 +2817,7 @@ VIEWS.scannerAlert = () => {
     /* Each condition with the bar it was read on (B3): the alert's own,
        or — for a condition on a higher timeframe — the weekly or monthly
        bar that had closed by then, which the record dates. */
-    if (mc.some(c => scanReadOn(c, a).other)) c3.append(el('p', { class: 'caption', style: 'margin:0 0 6px;max-width:72ch' }, `Some conditions read a higher timeframe than the setup’s ${scanTfWord(a.timeframe)} bars: each on that timeframe’s last closed bar as of ${bar}, dated in “Read on” by its last session.`));
+    if (mc.some(c => scanReadOn(c, a).other)) c3.append(el('p', { class: 'caption', style: 'margin:0 0 6px;max-width:72ch' }, `Some conditions read a higher timeframe than the setup’s ${scanTfWord(a.timeframe)} bars: each on that timeframe’s last closed bar as of ${bar}, dated in “Read on” by its last session, which says whether that bar was imported from your TradingView export or built from your daily bars.`));
     t.append(el('thead', {}, el('tr', {}, ['Path', 'Condition', 'State', 'Left', 'Right', 'Read on', 'Status'].map(h => el('th', { scope: 'col', class: h === 'Left' || h === 'Right' ? 'num' : null }, h)))));
     /* Both sides of a condition round together and in its left side's
        unit, as the engine's sentence beside them prints them. */
@@ -2773,7 +2827,7 @@ VIEWS.scannerAlert = () => {
       el('td', {}, el('span', { class: `chip ${c.state === 'MET' ? 'chip-ok' : c.state === 'UNAVAILABLE' ? 'chip-warn' : ''}` }, String(c.state || '—').replace('_', ' ').toLowerCase())),
       el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.leftLabel || ''), Array.isArray(c.left) ? c.left.map(fv).join(' → ') : fv(c.left)]),
       el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.rightLabel || ''), Array.isArray(c.right) ? c.right.map(fv).join(' – ') : fv(c.right)]),
-      el('td', { class: ro.other ? 'scan-read-on scan-read-other' : 'scan-read-on', style: 'text-align:left;white-space:normal' }, [el('span', { style: 'display:block;font-weight:600' }, SCAN_TIMEFRAMES[ro.tf]?.label || ro.tf), el('span', { class: 'caption' }, ro.date ? `bar closing ${ro.date}` : 'bar not dated on the record')]),
+      el('td', { class: ro.other ? 'scan-read-on scan-read-other' : 'scan-read-on', style: 'text-align:left;white-space:normal' }, [el('span', { style: 'display:block;font-weight:600' }, SCAN_TIMEFRAMES[ro.tf]?.label || ro.tf), el('span', { class: 'caption' }, ro.date ? `bar closing ${ro.date}${ro.originText ? ` · ${ro.originText}` : ''}` : 'bar not dated on the record')]),
       el('td', { class: 'caption', style: 'text-align:left' }, `${String(c.status || '').replace('_', ' ').toLowerCase()}${c.reason ? ` · ${c.reason}` : ''}`),
     ]); })));
   } else {

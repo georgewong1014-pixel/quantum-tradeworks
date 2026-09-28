@@ -7377,47 +7377,25 @@ try {
         daily bars held;
      4. the setup page and the alert page say each condition's timeframe,
         and the alert page and the setup's matches the bar each was read on.
-     On synthetic data only. Where this build's engine does not yet carry
-     B1 (a condition's timeframe kept through normalising) or B4
-     (SCAN_BOT_SIGNALS, scanBotPack), a stand-in written to the contract is
-     installed for the length of the block and removed after, so the checks
-     read the pages, and hold on the engine that does carry them. */
-  {
+     On synthetic data only. The engine carries B1 (a condition's timeframe
+     kept through normalising) and B4 (SCAN_BOT_SIGNALS, scanBotPack): the
+     stand-ins this block installed while the pages were built ahead of the
+     engine are gone (H3, A10), and the block fails if either is missing,
+     rather than read the pages on a stand-in. A condition read on a higher
+     timeframe says in "Read on" whether its bar was imported or built from
+     the daily bars (H3, A9); the record here reads an imported week. */
+  botPages: {
     const r = await evaluate(`(async () => {
       const w = (ms) => new Promise(res => setTimeout(res, ms));
       const main = () => document.querySelector('main');
-      const keep = { h: scanHistoryFile, a: scanAlertsFile, s: scanSetupsFile, store: localStorage.getItem('vl.scanSetups'), n: window.scanNormaliseNode, c: window.scanCanonicalOf,
+      const keep = { h: scanHistoryFile, a: scanAlertsFile, s: scanSetupsFile, store: localStorage.getItem('vl.scanSetups'),
         bot: JSON.stringify(scanBotState), draft: scanDraft };
-      const out = { stub: { b1: 'real', b4: 'real' } };
+      /* The engine's own B1 and B4, or the block stops here and fails. */
+      const out = { engine: {
+        b1: typeof scanNormaliseNode === 'function' && scanNormaliseNode({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 }, timeframe: '1W' }).timeframe === '1W',
+        b4: typeof scanBotPack === 'function' && typeof SCAN_BOT_SIGNALS !== 'undefined' && Array.isArray(SCAN_BOT_SIGNALS) && SCAN_BOT_SIGNALS.length > 0 } };
+      if (!out.engine.b1 || !out.engine.b4) return out;
       try {
-        /* The stand-ins, only where the engine lacks the real thing. */
-        if (scanNormaliseNode({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 }, timeframe: '1W' }).timeframe !== '1W') {
-          out.stub.b1 = 'stub';
-          const n0 = keep.n, c0 = keep.c;
-          window.scanNormaliseNode = (node) => { const x = n0(node); if (x && x.type === 'condition' && node && node.timeframe != null) x.timeframe = node.timeframe; return x; };
-          window.scanCanonicalOf = (s) => { const t = []; const walk = (n, p) => { if (n && n.type === 'group') (n.children || []).forEach((c, j) => walk(c, p + '.' + (j + 1))); else if (n && n.timeframe != null) t.push(p + '=' + n.timeframe); }; walk(s.ruleTree, ''); return c0(s) + (t.length ? '|tf:' + t.join(',') : ''); };
-        }
-        if (typeof scanBotPack !== 'function') {
-          out.stub.b4 = 'stub';
-          const S = (id, title, needs, description) => ({ id, title, description, needsTradeTimeframe: needs });
-          window.SCAN_BOT_SIGNALS = [S('tier1-buy', 'Trade TF Tier 1 Buy', true, 'd'), S('tier2-buy', 'Trade TF Tier 2 Buy', true, 'd'), S('tier1-sell', 'Trade TF Tier 1 Sell', true, 'd'),
-            S('tier2-sell', 'Trade TF Tier 2 Sell', true, 'd'), S('entry-buy', 'Entry TF Buy', false, 'd'), S('entry-sell', 'Entry TF Sell', false, 'd'), S('entry-trade', 'Entry TF Trade', false, 'd'),
-            S('strong-buy-continuous', 'STRONG BUY CONTINUOUS', true, 'd'), S('strong-buy-reversal', 'STRONG BUY REVERSAL', true, 'd'), S('strong-sell-continuous', 'STRONG SELL CONTINUOUS', true, 'd'),
-            S('strong-sell-reversal', 'STRONG SELL REVERSAL', true, 'd'), S('weak-buy', 'WEAK BUY', true, 'd'), S('weak-sell', 'WEAK SELL', true, 'd'), S('any-strong', 'ANY STRONG SIGNAL', true, 'd'), S('any-weak', 'ANY WEAK SIGNAL', true, 'd')];
-          window.scanBotPack = ({ symbols = [], universe = null, tradeTimeframes = ['1W', '1M'], signals = [], cooldownMode = 'NEW_MATCH', criterion3 = 'ema' } = {}) => {
-            const C = (left, op, right, tf) => ({ type: 'condition', left, op, right, ...(tf !== '1D' ? { timeframe: tf } : {}) });
-            const k = (tf) => ({ c1: C({ indicator: 'wavetrend', field: 'wt1' }, 'GREATER_THAN', { indicator: 'wavetrend', field: 'wt2' }, tf),
-              c2: C({ indicator: 'bot_macd', field: 'bull' }, 'EQUALS', { value: 1 }, tf), c3: C({ indicator: 'price' }, 'GREATER_THAN', { indicator: criterion3 === 'sma' ? 'sma' : 'ema', n: 200 }, tf),
-              c4: C({ indicator: 'mcdx', field: 'banker' }, 'GREATER_THAN', { value: 5 }, tf), up: C({ indicator: 'bot_macd', field: 'histUp' }, 'EQUALS', { value: 1 }, tf) });
-            const out2 = [];
-            window.SCAN_BOT_SIGNALS.filter(s => signals.includes(s.id)).forEach(s => (s.needsTradeTimeframe ? tradeTimeframes : ['1D']).forEach(T => {
-              const t = k(T), d = k('1D');
-              out2.push({ id: 'mtfbot-' + ({ '1W': 'w', '1M': 'm' }[T] || 'd') + '-' + s.id, name: 'MTF bot · ' + T + ' · ' + s.title, enabled: true, universe: universe || { kind: 'symbols', symbols },
-                timeframe: '1D', cooldownMode, ruleTree: { type: 'group', logic: 'ALL', children: T === '1D' ? [d.c1, d.c2, d.c3, d.c4] : [t.c1, t.c2, { type: 'group', logic: 'ANY', children: [t.c3, t.c4] }, d.c1, d.c2, d.c3, d.c4, t.up] } });
-            }));
-            return out2;
-          };
-        }
         /* Synthetic: 300 weekday sessions of three instruments, with highs and lows. */
         const series = {}, ohlc = {}, days = [];
         for (let d = new Date('2026-09-25T00:00:00Z'); days.length < 300; d.setUTCDate(d.getUTCDate() - 1)) if (d.getUTCDay() % 6) days.unshift(d.toISOString().slice(0, 10));
@@ -7496,7 +7474,7 @@ try {
         out.setupNeeds = cur.querySelector('.scan-needs')?.innerText || '';
         out.title = scanBotSignals().find(x => x.id === 'strong-buy-continuous')?.title || null;
         out.origin = [main().querySelector('.scan-bot-origin')?.textContent || ''];
-        const mc = conds.map(([n, p]) => ({ path: p, text: scanConditionProse(n), state: 'MET', status: 'VALID', left: 1, right: 1, ...(n.timeframe ? { timeframe: n.timeframe, barDate: '2026-09-18' } : {}) }));
+        const mc = conds.map(([n, p]) => ({ path: p, text: scanConditionProse(n), state: 'MET', status: 'VALID', left: 1, right: 1, ...(n.timeframe ? { timeframe: n.timeframe, barDate: '2026-09-18', barOrigin: 'imported' } : {}) }));
         scanAlertsFile = { alerts: [{ id: 'abf0b07a', key: id + '|v1|XAUUSD|1D|2026-09-24|NEW_MATCH', setupId: id, setupName: s.name, setupVersion: 1, setupHash: s.hash, symbol: 'XAUUSD',
           timeframe: '1D', candleDate: '2026-09-24', close: 2100.5, eventType: 'NEW_MATCH', detectedAt: '2026-09-24T22:05:00Z', setupSnapshot: JSON.parse(JSON.stringify(s)), matchedConditions: mc }] };
         navigate('/app/scanner/alerts/abf0b07a'); await w(200);
@@ -7509,15 +7487,16 @@ try {
         out.mini = main().querySelector('.scan-alert-mini')?.textContent || '';
         return out;
       } finally {
-        window.scanNormaliseNode = keep.n; window.scanCanonicalOf = keep.c;
-        if (out.stub.b4 === 'stub') { delete window.scanBotPack; delete window.SCAN_BOT_SIGNALS; }
         scanHistoryFile = keep.h; scanAlertsFile = keep.a; scanSetupsFile = keep.s; scanDraft = keep.draft;
         if (keep.store == null) localStorage.removeItem('vl.scanSetups'); else localStorage.setItem('vl.scanSetups', keep.store);
         Object.assign(scanBotState, JSON.parse(keep.bot));
         navigate('/learn');
       }
     })()`);
-    const via = `(B1 ${r.stub.b1}, B4 ${r.stub.b4})`;
+    if (!r.engine?.b1 || !r.engine?.b4) {
+      fail('bot pages: the engine carries a condition\'s own timeframe through normalising (B1) and SCAN_BOT_SIGNALS and scanBotPack (B4) — the pages are no longer read on a stand-in', r.engine);
+      break botPages;
+    }
 
     const p1 = [];
     if (JSON.stringify(r.tfDaily) !== JSON.stringify(['', '1W', '1M'])) p1.push(`a daily setup's condition offers ${JSON.stringify(r.tfDaily)}, not the setup's, weekly and monthly`);
@@ -7555,8 +7534,8 @@ try {
     if (JSON.stringify(r.saved) !== JSON.stringify([...r.expected].sort()) || !r.saved.every(x => /^mtfbot-[wmd]-/.test(x))) p3.push(`saved ${JSON.stringify(r.saved)} for ${JSON.stringify(r.expected)}`);
     if (JSON.stringify(r.sources) !== '["bot"]') p3.push(`saved from ${JSON.stringify(r.sources)}`);
     if (!new RegExp(`^Saved ${r.expected.length} setups in this browser`).test(r.status) || !r.status.includes('until you export scan-setups.json above') || !r.stillOpen || r.focus !== 'bot-create') p3.push(`after saving: "${r.status}", open ${r.stillOpen}, focus ${r.focus}`);
-    if (p3.length) fail(`bot pages: "Add your TradingView bot’s signals" offers the script's alerts as its own and saves what scanBotPack makes ${via}`, p3);
-    else ok(`bot pages: "Add your TradingView bot’s signals" offers XAUUSD first and ticked, weekly and monthly, all ${r.signals.length} of the script's alerts labelled "your script’s …" in three groups with ANY STRONG, ANY WEAK and Entry TF Trade unticked, new matches and the EMA 200 by default; it names what weekly and monthly need against 300 daily bars (about 1,000 daily bars, 4 and 17 years), saves the ${r.expected.length} setups scanBotPack makes, and says they must be exported ${via}`);
+    if (p3.length) fail(`bot pages: "Add your TradingView bot’s signals" offers the script's alerts as its own and saves what the engine's scanBotPack makes`, p3);
+    else ok(`bot pages: "Add your TradingView bot’s signals" offers XAUUSD first and ticked, weekly and monthly, all ${r.signals.length} of the script's alerts labelled "your script’s …" in three groups with ANY STRONG, ANY WEAK and Entry TF Trade unticked, new matches and the EMA 200 by default; it names what weekly and monthly need against 300 daily bars (about 1,000 daily bars, 4 and 17 years), saves the ${r.expected.length} setups the engine's scanBotPack makes, and says they must be exported`);
 
     const p4 = [];
     const weeklyLines = r.setupLines.filter(l => / on the last closed weekly bar$/.test(l)).length;
@@ -7564,12 +7543,14 @@ try {
     if (!/with weekly conditions/.test(r.setupTf) || !/reads? the last closed week/.test(r.setupTf)) p4.push(`its Timeframe fact: ${r.setupTf}`);
     if (!/XAUUSD — 300 daily bars held/.test(r.setupNeeds) || !/Weekly — 60 closed weeks held/.test(r.setupNeeds)) p4.push(`its history note: ${r.setupNeeds.slice(0, 300)}`);
     if (!r.head.includes('Read on')) p4.push(`the alert's conditions table has no "Read on": ${r.head.join(', ')}`);
-    const wk = r.rows.filter(x => x[1] === 'Weekly bar closing 2026-09-18').length, dy = r.rows.filter(x => x[1] === 'Daily bar closing 2026-09-24').length;
+    /* The record's weekly conditions read an imported week (barOrigin), and
+       "Read on" says so; the daily ones name no origin. */
+    const wk = r.rows.filter(x => x[1] === 'Weekly bar closing 2026-09-18 · imported').length, dy = r.rows.filter(x => x[1] === 'Daily bar closing 2026-09-24').length;
     if (wk !== r.weeklyConds || wk + dy !== r.rows.length) p4.push(`read on: ${JSON.stringify(r.rows)}`);
-    if (!/read on the weekly bar closing 2026-09-18/.test(r.mini)) p4.push(`the setup's matches: ${r.mini}`);
+    if (!/read on the weekly bar closing 2026-09-18 · imported/.test(r.mini)) p4.push(`the setup's matches: ${r.mini}`);
     r.origin.forEach((o, i) => { if (!r.title || !o.startsWith(`Your script’s ${r.title}, with its trade timeframe read on the last closed weekly bar`)) p4.push(`the ${i ? 'alert' : 'setup'} page does not name the alert as the script's: "${o}"`); });
     if (p4.length) fail('bot pages: the setup and alert pages say each condition’s timeframe and the bar it was read on', p4);
-    else ok(`bot pages: the setup page names each of the ${r.weeklyConds} weekly conditions "on the last closed weekly bar", says what the history holds for them, and the alert page reads each condition on its bar — ${wk} on the weekly bar closing 2026-09-18, ${dy} on the daily bar of the alert — as the setup's matches do; both pages name it "your script’s ${r.title}"`);
+    else ok(`bot pages: the setup page names each of the ${r.weeklyConds} weekly conditions "on the last closed weekly bar", says what the history holds for them, and the alert page reads each condition on its bar — ${wk} on the imported weekly bar closing 2026-09-18, ${dy} on the daily bar of the alert — as the setup's matches do; both pages name it "your script’s ${r.title}"`);
   }
   /* ---- end bot: pages ---- */
 
