@@ -302,6 +302,13 @@ const PORTABLE_KEYS = [
      comparisons. Every kind the workspace lists travels in this one file. */
   { k:'valuation',         label:'Valuation assumptions you edited' },
   { k:'comparisons',       label:'Saved comparisons' },
+  /* The scanner's three: the setups with every version (the export to the
+     worker's file carries only the current ones), which recorded matches
+     were read or archived here, and the scanner's notification and display
+     preferences. The match record itself is the worker's file, not this. */
+  { k:'scanSetups',        label:'Scanner setups and their versions' },
+  { k:'scanAlertState',    label:'Scanner alerts read or archived' },
+  { k:'scanPrefs',         label:'Scanner notification and display preferences' },
 ];
 
 function exportEverything() {

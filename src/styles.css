@@ -1748,6 +1748,83 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .rulelist li { font-size: 13px; line-height: 1.5; color: var(--ink-2); padding-left: 14px; position: relative; font-variant-numeric: tabular-nums; }
 .rulelist li::before { content: '·'; position: absolute; left: 2px; color: var(--ink-3); font-weight: 700; }
 
+/* Phase 3 — user: the scanner's setups, builder, alerts and settings
+   (86-scanner.js). Built from the tokens above; nothing new in the palette.
+   A group line in a rule tree reads as a heading of the lines under it. */
+.scan-page { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+.scan-builder { display: flex; flex-direction: column; gap: var(--md); }
+.rulelist li.scan-group-line { font-weight: 600; color: var(--ink); }
+.scan-grid { gap: var(--sm) var(--md); align-items: start; }
+.scan-wide { grid-column: 1 / -1; }
+.scan-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--md) var(--lg); }
+.scan-fact { min-width: 0; }
+.scan-fact-v { font-size: 14px; font-weight: 600; color: var(--ink); margin-top: 2px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.scan-note { padding: 8px 10px; border-left: 3px solid var(--line-2); background: var(--surface-sunk); border-radius: 0 var(--r-sm) var(--r-sm) 0; max-width: 72ch; }
+.scan-warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.scan-empty { text-align: center; }
+.scan-empty .body { max-width: 60ch; }
+.scan-drift { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.scan-drift li { padding: 10px 0; border-top: 1px solid var(--grid); }
+.scan-drift li:first-child { border-top: 0; padding-top: 0; }
+.scan-setup-row + .scan-setup-row { margin-top: var(--sm); }
+.scan-setup-row .row + .row { margin-top: 6px; }
+.scan-setup-name { font-size: 15px; font-weight: 600; }
+.scan-json { margin-top: var(--sm); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; padding: var(--sm);
+  background: var(--surface-sunk); border-radius: var(--r-sm); font-size: 12px; line-height: 1.5; color: var(--ink-2); }
+.scan-boundary > summary, .scan-version > summary { cursor: pointer; }
+.scan-version { border-top: 1px solid var(--grid); padding: 10px 0; }
+.scan-version:first-of-type { border-top: 0; }
+.scan-version > summary { min-height: 32px; display: flex; align-items: center; }
+.scan-alert-mini { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.scan-radios { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px var(--lg); }
+.scan-radios > legend { font-size: 14px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; padding: 0; width: 100%; }
+.scan-radio { align-items: flex-start; gap: 8px; flex: 1 1 240px; max-width: 420px; }
+.scan-radio input { margin-top: 3px; }
+.scan-radio-l { font-weight: 600; color: var(--ink); }
+.scan-cond { margin-bottom: var(--sm); }
+.scan-cond.scan-invalid { border-color: color-mix(in srgb, var(--critical) 45%, var(--line)); }
+.scan-prose { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.scan-cond > .row { margin-bottom: var(--sm); }
+.scan-problems { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.scan-problems li { font-size: 12px; line-height: 1.5; color: var(--critical-text); padding-left: 14px; position: relative; }
+.scan-problems li::before { content: '!'; position: absolute; left: 3px; font-weight: 700; }
+.scan-problems-all { margin-top: var(--xs); }
+.field.scan-invalid .input, .field.scan-invalid .select { border-color: color-mix(in srgb, var(--critical) 55%, var(--line)); }
+.scan-status { font-size: 14px; font-weight: 600; color: var(--ok-text); }
+.scan-status.scan-status-bad { color: var(--ink-2); }
+.scan-test-out:not(:empty) { margin-top: var(--sm); }
+.scan-page table.dt th, .scan-page table.dt td { text-align: left; vertical-align: middle; }
+.scan-page table.dt th.num, .scan-page table.dt td.num { text-align: right; }
+.scan-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.scan-tick { width: 36px; text-align: center; }
+.scan-tick input { width: 18px; height: 18px; }
+.scan-alerts-t tr.scan-new td { background: color-mix(in srgb, var(--brand-wash) 55%, transparent); }
+.scan-lineage { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .scan-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* A phone reads each match as a short card rather than scrolling an
+     eight-column table sideways: the tick, then the bar and status, the
+     setup, the instrument and event, the close and the link. */
+  .scan-alerts-t, .scan-alerts-t tbody { display: block; }
+  .scan-alerts-t thead tr { display: flex; align-items: center; }
+  .scan-alerts-t thead th:not(.scan-tick) { display: none; }
+  .scan-alerts-t tbody tr { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 4px; border-top: 1px solid var(--grid); }
+  .scan-alerts-t tbody tr.scan-new { background: color-mix(in srgb, var(--brand-wash) 55%, transparent); }
+  .scan-page table.scan-alerts-t td { padding: 0; white-space: normal; text-align: left; border: 0; background: transparent; }
+  .scan-alerts-t td:nth-child(1) { grid-column: 1; grid-row: 1 / span 4; }
+  .scan-alerts-t td:nth-child(2) { grid-column: 3; grid-row: 1; justify-self: end; }
+  .scan-alerts-t td:nth-child(3) { grid-column: 2; grid-row: 1; }
+  .scan-alerts-t td:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .scan-alerts-t td:nth-child(5) { grid-column: 2; grid-row: 3; }
+  .scan-alerts-t td:nth-child(6) { grid-column: 2; grid-row: 4; }
+  .scan-page table.scan-alerts-t td:nth-child(7) { grid-column: 3; grid-row: 4; text-align: right; }
+  .scan-alerts-t td:nth-child(8) { grid-column: 3; grid-row: 2 / span 2; justify-self: end; align-self: center; }
+  .scan-alerts-t td:nth-child(8) a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+  .scan-facts { grid-template-columns: minmax(0, 1fr); gap: var(--sm); }
+  .scan-radio { max-width: none; }
+  .scan-tick input { width: 22px; height: 22px; }
+}
+
 /* Two overview tiles a row on a phone: four stacked full-width tiles pushed
    the research case a whole screen down for four short numbers. */
 @media (max-width: 620px) {

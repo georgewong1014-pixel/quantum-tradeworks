@@ -61,7 +61,11 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                    and the Studio's two-column rail; /status gained a priority
                    column and the release card. */
                 '/my/watchlists', '/compare', '/app/equities/explore', '/app/equities/compare',
-                '/app/equities/aapl/valuation', '/status'];
+                '/app/equities/aapl/valuation', '/status',
+                /* Phase 3 — user: the builder (a condition row of up to eight
+                   fields), the setups list, the alerts centre and settings. */
+                '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/watchlists',
+                '/app/scanner/alerts', '/app/scanner/settings'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -116,7 +120,7 @@ const smallTargets = [];
    overflow, a pass for the pages this check was extended to cover. */
 /* The /app/ aliases and the list pages wait on the same set: a watchlist's
    rows and the scanner's universe are drawn only once the filers are in. */
-const DATA_ROUTES = /^\/(company\/|discover|research|compare|app\/equities|app\/watchlists|my\/watchlists|my\/scanner|$)/;
+const DATA_ROUTES = /^\/(company\/|discover|research|compare|app\/equities|app\/watchlists|my\/watchlists|my\/scanner|app\/scanner|$)/;
 try {
 for (const w of WIDTHS) {
   await send('Emulation.setDeviceMetricsOverride',

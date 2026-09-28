@@ -359,6 +359,20 @@ const ROUTES = [
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
   { path: '/my/scanner',          view: 'scanner',   title: 'Trade-setup scanner' },
+  /* Phase 3 — user */
+  /* The reader's scanner pages (86-scanner.js). /setups/new sits above
+     /setups/:setup, which would otherwise read "new" as a setup id; the
+     parameters are :setup and :alert, never :id, which the router reads as
+     a company. */
+  { path: '/app/scanner/setups',             view: 'scannerSetups',     title: 'Scanner setups' },
+  { path: '/app/scanner/setups/new',         view: 'scannerSetupNew',   title: 'New scanner setup' },
+  { path: '/app/scanner/setups/:setup',      view: 'scannerSetup',      title: 'Scanner setup' },
+  { path: '/app/scanner/setups/:setup/edit', view: 'scannerSetupEdit',  title: 'Edit scanner setup' },
+  { path: '/app/scanner/watchlists',         view: 'scannerWatchlists', title: 'Watchlist scanner' },
+  { path: '/app/scanner/alerts',             view: 'scannerAlerts',     title: 'Scanner alerts' },
+  { path: '/app/scanner/alerts/:alert',      view: 'scannerAlert',      title: 'Scanner alert' },
+  { path: '/app/scanner/settings',           view: 'scannerSettings',   title: 'Scanner settings' },
+  /* end Phase 3 — user */
   { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data' },
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },

@@ -53,6 +53,13 @@ const ROUTES = [
      carries a checklist answer, an over-long hold and a loan with no tenure. */
   '/property/calculator?city=bau',
   '/property/calculator?type=land&d=holdYears:40~tenureYears:0~check.flood:yes~checkev.flood:verified',
+  /* Phase 3 — user: the reader's scanner pages, an unknown setup and an
+     unknown alert (each a "not in your record" card, never the not-found
+     page), the builder opened from a company page, and the old address
+     with a symbol. */
+  '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/setups/new?symbol=MSFT', '/app/scanner/setups/no-such-setup',
+  '/app/scanner/setups/no-such-setup/edit', '/app/scanner/watchlists', '/app/scanner/alerts', '/app/scanner/alerts/a00000000',
+  '/app/scanner/settings', '/my/scanner?symbol=MSFT',
 ];
 
 const CANDIDATES = [

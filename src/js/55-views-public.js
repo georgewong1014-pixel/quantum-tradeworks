@@ -856,7 +856,8 @@ VIEWS.watchlists = () => {
     head.append(el('span', { class: 'spacer' }));
     head.append(el('button', { class: 'btn btn-ghost btn-sm', title: 'Open the scanner builder with this list as the universe', onclick: () => {
       scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } };
-      navigate('/my/scanner');
+      scanIdAuto = true;
+      navigate('/app/scanner/setups/new');
     } }, 'Use as scanner universe'));
     if (lists.length > 1) head.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Delete “${w.name}”?`)) return;
@@ -1154,7 +1155,7 @@ VIEWS.privacy = () => trustPage('Privacy',
          assume the rest is not there. The borrower profile in particular —
          income, commitments, credit conduct — is the most personal thing this
          product holds and was not on this page. */
-      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs and the valuation assumptions you edit, saved comparisons, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency. '
+      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs and the valuation assumptions you edit, saved comparisons, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, your scanner setups with every version of each, which scanner alerts you have read or archived, your scanner notification and display preferences, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency. '
        /* Named after an audit compared this list with every key the code
           writes. The report log is a per-company reading record of the same
           kind as recently viewed, and was missing with the rest. */
