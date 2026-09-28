@@ -206,17 +206,27 @@ VIEWS.researchReport = () => {
      capital expenditure, free cash flow and cash, which the page omits as
      meaningless on a deposit-taking balance sheet (JPMorgan's headline read
      "Operating cash flow −$147.8B"); and it printed a dividend CAGR across a
-     share-count break the page withholds (Apple, 4.7%). statementLines is
+     share-count break the page withholds (Broadcom). statementLines is
      what the page's table reads, so the report now reads it too. */
   const pageLines = statementLines(row);
   const pageLine = (k) => pageLines.find(l => l.key === k) || null;
   const figs = el('div', { class: 'dr-figs' });
+  /* An absent headline figure says why, by the statement table's reason for
+     the latest-year cell it is read from — net debt from the debt line, then
+     cash. Every one read "Not reported", so Adobe's, Eaton's and Honeywell's
+     net debt, whose debt line is held and withheld for an ingest rule since
+     corrected, were called unreported. */
+  const absentFig = (k) => {
+    const st = (k === 'debt' ? ['debt', 'cash'] : [k]).map(pageLine).filter(Boolean)
+      .map(l => lineCellStatus(row, l, l.arr.length - 1)).find(s => !s.available);
+    return st ? el('span', { title: st.text }, st.label.charAt(0).toUpperCase() + st.label.slice(1)) : 'Not reported';
+  };
   [['Revenue', last(d.rev), 'rev'], [pageLine('ebit')?.label || 'Operating profit', last(d.ebit), 'ebit'], ['Net income', last(d.ni), 'ni'],
    ['Operating cash flow', last(d.ocf), 'ocf'], ['Free cash flow', m.fcf, 'fcf'],
    ['Net debt', m.netDebt, 'debt']].forEach(([label, v, k]) => {
     const na = k === 'debt' ? c.type === 'bank' : !pageLine(k);
     figs.append(reportFig(label,
-      na ? 'Not applicable' : isNum(v) ? fmtCap(v, c.ccy) : 'Not reported',
+      na ? 'Not applicable' : isNum(v) ? fmtCap(v, c.ccy) : absentFig(k),
       !na && isNum(v) ? (k === 'debt' ? (c.real ? 'Calculated — debt less cash' : 'Illustrative') : kindOfLine(k, true)) : null));
   });
   out.append(figs);
@@ -255,19 +265,39 @@ VIEWS.researchReport = () => {
   ht.append(el('thead', {}, el('tr', {}, ['Line', ...hy.map(y => `FY${y}`), '4-year CAGR', 'Kind'].map((h, i) =>
     el('th', { style: i === 0 || i === hy.length + 2 ? 'text-align:left' : null }, h)))));
   const hb = el('tbody');
+  let anyWithheld = false;
   REPORT_LINES.filter(k => pageLine(k)).forEach(k => {
     const line = pageLine(k), label = line.label;
     const series = colOf[k] || [];
     const tail = series.slice(-span);
     const g0 = ['rev', 'ebit', 'ni', 'ocf', 'fcf', 'eq', 'dps'].includes(k) ? cagr(series.slice(-5)) : null;
     /* The statement table's rule: a per-share line across a share-count
-       break has no growth rate, only the break. */
-    const withheld = line.perShare && m.shareSeriesBreak && isNum(g0);
+       break has no growth rate, only the break. ACROSS it — so the break
+       that counts is one among the five rows this rate reads
+       (perShareBreak), the test derive() withholds the four-year rates on,
+       not the first break anywhere in the stored years (shareSeriesBreak),
+       which is the test for a rate over the whole series. Keyed on the
+       whole series, Apple's dividend rate read "withheld" over a step
+       between FY2018 and FY2019, outside its window, while Ownership & actions
+       printed its 4.7%; GE's read "withheld" beside the 45.6% the engine
+       holds; and Nvidia's footnote named its FY2021 step rather than the
+       tenfold one inside the window. */
+    const withheld = line.perShare && m.perShareBreak && isNum(g0);
+    if (withheld) anyWithheld = true;
     const g = withheld ? null : g0;
     hb.append(el('tr', {}, [
       el('td', { style: 'text-align:left' }, label),
-      ...tail.map(v => el('td', {}, isNum(v) ? fmtNum(v, k === 'dps' ? 3 : 2) : el('span', { class: 'caption' }, 'not reported'))),
-      el('td', {}, isNum(g) ? fmtPct(g) : withheld ? el('span', { class: 'caption', title: 'The share count jumps inside the stored window — a split, merger or offering — so a growth rate over a per-share line would measure that event. Withheld, as on the company page.' }, 'withheld') : '—'),
+      /* An absent cell takes the statement table's reason for it. Every one
+         read "not reported", so Coca-Cola's and AbbVie's share counts — held,
+         and withheld for an ingest rule since corrected, as the company page
+         says in the same cells — were reported missing: 267 withheld cells
+         across the filed set. */
+      ...tail.map((v, j) => {
+        if (isNum(v)) return el('td', {}, fmtNum(v, k === 'dps' ? 3 : 2));
+        const st = lineCellStatus(row, line, series.length - tail.length + j);
+        return el('td', {}, el('span', { class: 'caption', title: st.text }, st.label));
+      }),
+      el('td', {}, isNum(g) ? fmtPct(g) : withheld ? el('span', { class: 'caption', title: 'The share count jumps between two of the five years this rate reads — a split, merger or offering — so a growth rate over a per-share line would measure that event. Withheld, as on the company page.' }, 'withheld') : '—'),
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, kindOfLine(k)),
     ]));
   });
@@ -275,7 +305,11 @@ VIEWS.researchReport = () => {
   out.append(el('div', { class: 'tablewrap' }, ht));
   out.append(el('p', { class: 'metaline' },
     `Billions of ${c.ccy}, except shares (billions) and dividend per share (${c.ccy}). Fiscal-year labels are the company’s own. A CAGR needs a positive figure at both ends of the window and is otherwise left blank.`
-    + (m.shareSeriesBreak ? ` A per-share CAGR is withheld: the share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn between two years held — a split, merger or offering, which the filings are not restated for.` : '')
+    /* Said where a rate above was withheld, naming the step it was
+       withheld on. It fired on any break in the stored years, so Alphabet's
+       report said a per-share CAGR was withheld beside a dividend row that
+       has no rate to withhold. */
+    + (anyWithheld ? ` A per-share CAGR is withheld: the share count moves from ${fmtNum(m.perShareBreak.from, 2)}bn to ${fmtNum(m.perShareBreak.to, 2)}bn between two of the five years that rate reads — a split, merger or offering, which the filings are not restated for.` : '')
     + (c.type === 'bank' ? ' Operating cash flow, capital expenditure, free cash flow and cash are not shown for a bank, as on the company page: they are not meaningful measures for a deposit-taking balance sheet.' : '')));
 
   /* ---------- 6. valuation and the reader's assumptions ---------- */

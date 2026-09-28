@@ -4912,7 +4912,11 @@ try {
       out.jpm = { lab: jpmLab,
         rows: [...document.querySelectorAll('.rr-hist tbody tr')].map(tr => tr.cells[0].textContent),
         figs: [...document.querySelectorAll('.dr-fig')].slice(0, 6).map(x => [x.children[0].textContent, x.children[1].textContent]) };
-      const split = U.find(x => x.m.shareSeriesBreak && isNum(cagr(x.d.dps.slice(-5))));
+      /* A break among the five rows the four-year rate reads (bugfix4:
+         equities). On the whole-series break this picked Apple, whose break
+         lies outside its window, and passed only while the report withheld
+         a rate the engine and Ownership & actions both print. */
+      const split = U.find(x => x.m.perShareBreak && isNum(cagr(x.d.dps.slice(-5))));
       navigate(companyPath(split.c) + '/report');
       out.split = { id: split.c.id, dps: [...document.querySelectorAll('.rr-hist tbody tr')].find(tr => tr.cells[0].textContent === (split.c.type === 'reit' ? 'Distribution per unit' : 'Dividend per share'))
         ?.cells[8 - 1 - (6 - Math.min(6, yearsOf(split.c).length))]?.textContent ?? null };
@@ -6929,6 +6933,241 @@ try {
     try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && U.some(r => r.c.real)`)) break; } catch { /* booting */ }
   }
   /* ---- end bugfix4: shell ---- */
+
+  /* ---- bugfix4: equities ---- */
+  /* FOURTH PASS, EQUITIES: the report withheld a per-share rate on a break
+     outside the window it reads and named the wrong step; the value map
+     printed "+0%", "-0%" and a hyphen for a minus, handed the chart 50 for a
+     company with no percentile (whose mark then read "quality percentile
+     50"), said nothing in the market cohort and the wrong thing in the
+     sector one, and left the confidence filter's drop-outs uncounted; the
+     compounder fit graded a REIT on a quality score nobody measured; and the
+     company tabs and the report gave an absent figure "n/a", "n/m" or "not
+     reported" whatever the cause, where the screener names it. */
+  const eq4Wait = `const w = (ms) => new Promise(r => setTimeout(r, ms));`;
+  {
+    /* 1. The report's four-year per-share CAGR is withheld only for a break
+       among the five rows it reads, and its footnote names that step; an
+       absent statement cell and an absent headline figure say why. */
+    const r = await evaluate(`(async () => {
+      ${eq4Wait}
+      const out = { wrong: [], checked: [] };
+      const rowOf = (re) => [...document.querySelectorAll('#views .rr-hist tbody tr')].find(tr => re.test(tr.cells[0].textContent));
+      const note = () => [...document.querySelectorAll('#views p.metaline')].map(p => p.textContent).find(t => /^Billions of/.test(t)) || '';
+      const has = (x) => isNum(cagr(x.d.dps.slice(-5)));
+      const pick = [
+        ...['AAPL-SEC', 'GE-SEC'].map(id => BY_ID.get(id)).filter(x => x && x.m.shareSeriesBreak && !x.m.perShareBreak && has(x)),
+        ...U.filter(x => x.c.real && x.m.shareSeriesBreak && !x.m.perShareBreak && has(x) && !['AAPL-SEC', 'GE-SEC'].includes(x.c.id)).slice(0, 2),
+        ...U.filter(x => x.c.real && x.m.perShareBreak && has(x)).slice(0, 2),
+        ...U.filter(x => x.c.real && x.m.shareSeriesBreak && !x.m.perShareBreak && !has(x)).slice(0, 1),
+      ];
+      for (const x of pick) {
+        navigate(companyPath(x.c) + '/report'); await w(250);
+        const tr = rowOf(/^(Dividend per share|Distribution per unit)$/), cell = tr ? tr.cells[tr.cells.length - 2].textContent : null, n = note();
+        out.checked.push(x.c.tk + ' ' + cell);
+        if (x.m.perShareBreak) {
+          if (cell !== 'withheld') out.wrong.push(x.c.tk + ': a break inside the window and the rate reads ' + cell);
+          if (!n.includes(fmtNum(x.m.perShareBreak.to, 2) + 'bn') || !/five years that rate reads/.test(n)) out.wrong.push(x.c.tk + ': the footnote does not name the in-window step: ' + n.slice(-240));
+        } else {
+          const want = isNum(x.m.dps5) ? fmtPct(x.m.dps5) : '—';
+          if (cell !== want) out.wrong.push(x.c.tk + ': no break in the window, the engine holds ' + want + ' and the report reads ' + cell);
+          if (/per-share CAGR is withheld/.test(n)) out.wrong.push(x.c.tk + ': the footnote says a per-share CAGR is withheld with no break in its window');
+        }
+      }
+      /* A share count held and withheld: its cells say withheld, as the
+         company page's statement table does, not "not reported". */
+      const held = U.find(x => x.c.real && x.c.withheld?.sh?.years?.includes(latestFy(x.c)));
+      if (held) {
+        navigate(companyPath(held.c) + '/report'); await w(250);
+        const tr = rowOf(/^Shares in issue/), ys = yearsOf(held.c).slice(-6);
+        const cells = tr ? [...tr.cells].slice(1, 1 + ys.length).map(td => td.textContent) : [];
+        out.checked.push(held.c.tk + ' shares ' + cells.join('/'));
+        if (!cells.length || cells.some((t, j) => held.c.withheld.sh.years.includes(ys[j]) && t !== 'withheld')) out.wrong.push(held.c.tk + ': a withheld share count reads ' + JSON.stringify(cells));
+      } else out.wrong.push('no filed company with a withheld share count to check');
+      /* A debt line held and withheld: the headline's net debt says so. */
+      const debt = U.find(x => x.c.real && x.c.type !== 'bank' && !isNum(x.m.netDebt) && x.c.withheld?.debt?.years?.includes(latestFy(x.c)));
+      if (debt) {
+        navigate(companyPath(debt.c) + '/report'); await w(250);
+        const fig = [...document.querySelectorAll('#views .dr-fig')].find(f => f.children[0].textContent === 'Net debt');
+        const t = fig ? fig.children[1].textContent : null;
+        out.checked.push(debt.c.tk + ' net debt ' + t);
+        if (t !== 'Withheld') out.wrong.push(debt.c.tk + ': net debt, its debt line withheld, reads ' + t);
+      } else out.wrong.push('no filed company with a withheld debt line to check');
+      return out;
+    })()`);
+    if (r.wrong.length || r.checked.length < 6) fail('bugfix4 equities: the report withholds a per-share CAGR only inside its own window and says why a figure is absent', r);
+    else ok(`bugfix4 equities: the report withholds a per-share CAGR only inside its own window and says why a figure is absent — ${r.checked.join(', ')}`);
+  }
+  {
+    /* 2. The value map: its differences print with withSign; a company with
+       no percentile reaches the chart as null, not as the midpoint's 50; the
+       unranked are counted with their reason; and the confidence filter's
+       drop-outs are counted with the rest. */
+    const r = await evaluate(`(async () => {
+      ${eq4Wait}
+      const keep = { ...State.radar };
+      const orig = scatterChart; let cap = null;
+      window.scatterChart = function (host, o) { cap = o; return orig(host, o); };
+      const out = {};
+      try {
+        const draw = async (patch) => { Object.assign(State.radar, keep, patch); cap = null; navigate('/discover/value-map'); render(); await w(300);
+          return { points: (cap?.points || []).map(p => ({ tk: p.label, y: p.y })),
+                   ticks: cap ? [-12.4, 0.12, -0.3, 38].map(v => cap.xFmt(v)) : [],
+                   labels: [...document.querySelectorAll('#views svg g[role=button]')].map(g => g.getAttribute('aria-label')),
+                   notes: [...document.querySelectorAll('#views p.metaline')].map(p => p.textContent),
+                   rows: [...document.querySelectorAll('#views details tbody tr')].map(tr => [tr.children[0].textContent.split(' ')[0], tr.children[4]?.textContent]) }; };
+        out.market = await draw({ cohort: 'market', minConf: 'all', universe: 'all', yi: YEARS.length - 1 });
+        out.sector = await draw({ cohort: 'sector', minConf: 'all', universe: 'all', yi: YEARS.length - 1 });
+        const high = await draw({ cohort: 'market', minConf: 'high', universe: 'all', yi: YEARS.length - 1 });
+        out.high = { marks: high.labels.length, scoped: universeAsOf(YEARS.length - 1).length, note: high.notes.find(t => /not plotted/.test(t)) || '' };
+        out.alone = universeAsOf(YEARS.length - 1).filter(x => x.val.mos && isNum(x.q.score) && x.qpctSector == null).map(x => x.c.tk);
+      } finally { window.scatterChart = orig; Object.assign(State.radar, keep); }
+      return out;
+    })()`);
+    const p = [];
+    if (JSON.stringify(r.market.ticks) !== JSON.stringify(['−12%', '0%', '0%', '+38%'])) p.push(`the difference axis and marks print ${JSON.stringify(r.market.ticks)} for −12.4, +0.12, −0.3 and 38`);
+    const bad = r.market.labels.filter(l => /(^|\s)-\d|[+−-]0%/.test(l));
+    if (bad.length) p.push(`marks read ${bad.slice(0, 3).join(' | ')}`);
+    /* Each point's height is the table's percentile, or null where the
+       table says there is none. */
+    for (const k of ['market', 'sector']) {
+      const rows = new Map(r[k].rows);
+      const off = r[k].points.filter(pt => pt.y === null ? !/^— \(/.test(rows.get(pt.tk) || '') : rows.get(pt.tk) !== String(pt.y));
+      if (!r[k].points.length || off.length) p.push(`${k}: a point's height is not the table's percentile: ${JSON.stringify(off.slice(0, 3).map(pt => [pt.tk, pt.y, rows.get(pt.tk)]))}`);
+    }
+    const alonePts = r.sector.points.filter(pt => r.alone.includes(pt.tk));
+    const aloneRows = r.sector.rows.filter(([tk]) => r.alone.includes(tk));
+    if (!r.alone.length || alonePts.some(pt => pt.y !== null) || aloneRows.some(([, t]) => t !== '— (no sector peer)')) p.push(`the only company in its sector: points ${JSON.stringify(alonePts)}, rows ${JSON.stringify(aloneRows)}`);
+    const secNote = r.sector.notes.find(t => /no sector percentile/.test(t)) || '';
+    if (!/only company in its sector/.test(secNote) || /fewer than two peers/.test(r.sector.notes.join(' '))) p.push(`the sector note reads "${secNote}"`);
+    const m = r.high.note.match(/^(\d+) of (\d+) companies/);
+    if (!m || Number(m[1]) !== r.high.scoped - r.high.marks || !/confidence filter/.test(r.high.note)) p.push(`at "High only" ${r.high.marks} of ${r.high.scoped} are drawn and the page says "${r.high.note}"`);
+    if (p.length) fail('bugfix4 equities: the value map signs its differences, gives no unranked company a percentile and counts every company it leaves off', p);
+    else ok(`bugfix4 equities: the value map signs its differences (${r.market.ticks.join(', ')}), hands the chart no percentile for ${r.alone.join(', ')} ("— (no sector peer)"), and counts the confidence filter's drop-outs — "${r.high.note}"`);
+  }
+  {
+    /* 3. A company with no quality score is not graded a compounder on one
+       read as 50; and an absent figure on the Quality, Ownership & actions,
+       Business, Snapshot and Moat tabs gives the reason the screener gives. */
+    const r = await evaluate(`(async () => {
+      ${eq4Wait}
+      const graded = U.filter(x => !isNum(x.scores?.quality?.score)).map(x => [x.c.tk, strategyLens(x).fits.find(f => f.key === 'compounder')])
+        .filter(([, f]) => f.state === 'graded').map(([tk, f]) => tk + ' ' + f.grade);
+      /* Realty Income read "Long-term compounding" off a B on a quality of 50. */
+      const noQ = [BY_ID.get('O-SEC'), ...U].find(x => x && x.c.real && !isNum(x.scores?.quality?.score) && isNum(x.m.rev5) && isNum(x.m.roe));
+      let role = null;
+      if (noQ) { openResearch(noQ.c.id, 'snapshot'); await w(300);
+        const lab = [...document.querySelectorAll('#views p.metaline')].find(p => p.textContent === 'Why it might be owned');
+        role = { tk: noQ.c.tk, text: lab?.nextElementSibling?.textContent || null }; }
+      const wrong = [], cases = [];
+      const cellsOf = (label, n) => [...document.querySelectorAll('#views table.dt tbody tr')].filter(tr => (!n || tr.cells.length === n) && tr.cells[0]?.textContent === label).map(tr => tr.cells[1].textContent);
+      const ddOf = (label) => { const dt = [...document.querySelectorAll('#views dl.kv dt')].find(d => d.textContent === label); return dt ? dt.nextElementSibling.textContent : null; };
+      /* Quality: one company per absent reason among the scored inputs the screener lists. */
+      const seen = new Set();
+      for (const x of U) for (const pk of ['quality', 'growth', 'strength', 'capital']) for (const part of x.scores[pk].parts) {
+        if (isNum(part.raw) || !FIELD_BY_K[part.k]) continue;
+        const st = metricStatus(x, part.k);
+        if (seen.has(st.reason) && !(x.c.id === 'AAPL-SEC' && part.k === 'buyback')) continue;
+        seen.add(st.reason);
+        openResearch(x.c.id, 'quality'); await w(200);
+        const got = cellsOf(part.label, 7);
+        cases.push('quality ' + x.c.tk + ' ' + part.label + ' ' + st.label);
+        if (!got.length || got.some(t => t !== st.label)) wrong.push('quality ' + x.c.tk + ' ' + part.label + ': ' + JSON.stringify(got) + ', the screener says ' + st.label);
+      }
+      /* Ownership & actions: an absent figure with no break note below it. */
+      const own = [['Share count CAGR', 'dilution', x => !x.m.shareSeriesBreak], ['Net buyback yield', 'buyback', x => !x.m.shareSeriesBreak],
+        ['Dividend per share CAGR', 'dps5', x => !x.m.perShareBreak && x.c.type !== 'reit'], ['Payout ratio', 'payout', () => true],
+        ['Dividends as % of free cash flow', 'cashPayout', () => true]];
+      const ownSeen = new Set();
+      for (const x of [BY_ID.get('GOOGL-SEC'), ...U]) for (const [label, k, applies] of own) {
+        if (!x || isNum(x.m[k]) || !applies(x)) continue;
+        const st = metricStatus(x, k);
+        if (ownSeen.has(k + st.reason)) continue;
+        ownSeen.add(k + st.reason);
+        openResearch(x.c.id, 'ownership'); await w(200);
+        const got = ddOf(label);
+        cases.push('ownership ' + x.c.tk + ' ' + k + ' ' + got);
+        if (got !== st.label) wrong.push('ownership ' + x.c.tk + ' ' + label + ': "' + got + '", the screener says ' + st.label);
+      }
+      /* Business: a filer's absent share count, withheld or not reported. */
+      for (const [x, want] of [[U.find(x => x.c.real && !isNum(last(x.d.sh)) && x.c.withheld?.sh?.years?.includes(latestFy(x.c))), 'withheld'],
+                               [U.find(x => x.c.real && !isNum(last(x.d.sh)) && !x.c.withheld?.sh), 'not reported']]) {
+        if (!x) { wrong.push('no filer whose share count is ' + want); continue; }
+        openResearch(x.c.id, 'business'); await w(200);
+        const got = ddOf('Shares in issue');
+        cases.push('business ' + x.c.tk + ' shares "' + got + '"');
+        if (got !== want + ' for FY' + latestFy(x.c)) wrong.push('business ' + x.c.tk + ': shares in issue reads "' + got + '", the count is ' + want);
+      }
+      /* Snapshot peers: an unpriced filer's P/E and FCF yield need a price. */
+      const unpriced = U.find(x => x.c.real && !isNum(x.c.px?.p) && !['bank', 'reit'].includes(x.c.type) && metricStatus(x, 'pe').reason === 'needs a price' && metricStatus(x, 'fcfy').reason === 'needs a price');
+      if (unpriced) {
+        openResearch(unpriced.c.id, 'snapshot'); await w(250);
+        const pt = [...document.querySelectorAll('#views table')].find(t => [...t.querySelectorAll('thead th')].some(th => th.textContent === 'P/E'));
+        const hs = pt ? [...pt.querySelectorAll('thead th')].map(th => th.textContent) : [];
+        const row0 = pt?.querySelector('tbody tr');
+        const got = row0 ? [row0.cells[hs.indexOf('P/E')]?.textContent, row0.cells[hs.indexOf('FCF yield')]?.textContent] : null;
+        cases.push('snapshot ' + unpriced.c.tk + ' P/E, FCF yield ' + JSON.stringify(got));
+        if (!got || got.some(t => t !== 'no price')) wrong.push('snapshot ' + unpriced.c.tk + ': unpriced, its P/E and FCF yield read ' + JSON.stringify(got));
+      } else wrong.push('no unpriced filer to check');
+      /* Business and Moat: a withheld return on invested capital. */
+      const roicW = U.find(x => x.c.real && !['bank', 'reit'].includes(x.c.type) && !isNum(x.m.roic) && metricStatus(x, 'roic').reason === 'withheld');
+      if (roicW) for (const tab of ['business', 'moat']) {
+        openResearch(roicW.c.id, tab); await w(250);
+        const got = cellsOf('Return on invested capital');
+        cases.push(tab + ' ' + roicW.c.tk + ' ROIC ' + JSON.stringify(got));
+        if (!got.length || got.some(t => t !== 'withheld')) wrong.push(tab + ' ' + roicW.c.tk + ': a withheld return on invested capital reads ' + JSON.stringify(got));
+      } else wrong.push('no filer with a withheld return on invested capital');
+      return { graded, role, cases, wrong };
+    })()`);
+    const p = [];
+    if (r.graded.length) p.push(`graded a compounder with no quality score: ${r.graded.join(', ')}`);
+    if (r.role && /compounding/i.test(r.role.text || '')) p.push(`${r.role.tk}, with no quality score, "Why it might be owned: ${r.role.text}"`);
+    if (!r.cases.some(c => /^quality AAPL Net buyback yield withheld$/.test(c)) || !r.cases.some(c => /^ownership GOOGL dps5 not reported$/.test(c))) p.push(`the cases checked miss Apple's buyback yield or Alphabet's dividend growth: ${JSON.stringify(r.cases)}`);
+    p.push(...r.wrong.slice(0, 6));
+    if (p.length) fail('bugfix4 equities: no compounder grade on an absent quality score, and every company tab says why a figure is absent', p);
+    else ok(`bugfix4 equities: no compounder grade on an absent quality score (${r.role ? r.role.tk + ' reads "' + (r.role.text || '').slice(0, 40) + '"' : 'none unscored'}), and every company tab says why a figure is absent — ${r.cases.join('; ')}`);
+  }
+  {
+    /* 4. A filed REIT given a price reaches the map without a quality score:
+       it is counted and named in the market cohort too, and its point has no
+       percentile rather than the midpoint's 50. */
+    const keep = await evaluate(`localStorage.getItem('vl.manualPrices')`);
+    const boot = async (value) => {
+      if (value == null) await evaluate(`localStorage.removeItem('vl.manualPrices'); true`);
+      else await evaluate(`localStorage.setItem('vl.manualPrices', ${JSON.stringify(value)}); true`);
+      await send('Page.reload', {}, sessionId);
+      let up = null;
+      for (let i = 0; i < 60 && !up; i++) { await sleep(500); try { up = await evaluate(`typeof realPending !== 'undefined' && !realPending ? true : null`); } catch { /* booting */ } }
+      await sleep(300);
+      return up;
+    };
+    let r = null;
+    try {
+      const ids = await evaluate(`U.filter(x => x.c.real && x.c.type === 'reit' && !isNum(x.scores?.quality?.score)).slice(0, 2).map(x => x.c.id)`);
+      const seeded = { ...(keep ? JSON.parse(keep) : {}), ...Object.fromEntries(ids.map(id => [id, 50])) };
+      await boot(JSON.stringify(seeded));
+      r = await evaluate(`(async () => {
+        ${eq4Wait}
+        const orig = scatterChart; let cap = null;
+        window.scatterChart = function (host, o) { cap = o; return orig(host, o); };
+        try {
+          Object.assign(State.radar, { cohort: 'market', minConf: 'all', universe: 'all', yi: YEARS.length - 1 });
+          navigate('/discover/value-map'); render(); await w(300);
+          const ids = ${JSON.stringify(ids)}.map(id => BY_ID.get(id).c.tk);
+          const rows = new Map([...document.querySelectorAll('#views details tbody tr')].map(tr => [tr.children[0].textContent.split(' ')[0], tr.children[4]?.textContent]));
+          return { ids,
+            points: (cap?.points || []).filter(p => ids.includes(p.label)).map(p => [p.label, p.y, rows.get(p.label)]),
+            note: [...document.querySelectorAll('#views p.metaline')].map(p => p.textContent).find(t => /no market percentile/.test(t)) || '' };
+        } finally { window.scatterChart = orig; }
+      })()`);
+    } finally { await boot(keep); }
+    const p = [];
+    if (!r || r.ids.length < 1 || r.points.length !== r.ids.length || r.points.some(([, y, t]) => y !== null || t !== '— (no quality score)')) p.push(`the priced REITs' points: ${JSON.stringify(r)}`);
+    if (!r || !/have no quality score|has no quality score/.test(r.note) || !/plotting position, not a rank/.test(r.note)) p.push(`the market cohort does not say who is drawn without a percentile: "${r?.note}"`);
+    if (p.length) fail('bugfix4 equities: a priced company with no quality score is named on the value map, not given the median', p);
+    else ok(`bugfix4 equities: a priced company with no quality score is named on the value map, not given the median — ${r.points.map(x => x[0] + ' ' + x[2]).join(', ')}; "${r.note.slice(0, 90)}…"`);
+  }
+  /* ---- end bugfix4: equities ---- */
 
 } catch (e) {
   fail('harness error', e.message);

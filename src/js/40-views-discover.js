@@ -2113,16 +2113,38 @@ function renderRadar() {
      and "23 eligible" under a 138-company universe said nothing about the
      other 115. The past-year text already named its drop-out; now the
      default view does too. */
-  const unplotted = scoped.length - rows.length;
   const unpriced = scoped.filter(r => !r.val.mos && !isNum(r.price)).length;
+  const noModel = scoped.length - rows.length - unpriced;
+  const modelled = rows.length;
   if (rr.minConf === 'med') rows = rows.filter(r => r.val.confBand !== 'Low');
   if (rr.minConf === 'high') rows = rows.filter(r => r.val.confBand === 'High');
+  /* The confidence filter leaves companies off too. The count was taken
+     before it ran, so at "High only" the map drew 7 of 138 and said 115 were
+     not plotted, all for want of a price — 16 were missing from both. */
+  const belowConf = modelled - rows.length;
+  const unplotted = scoped.length - rows.length;
 
   const RISK_VAR = { Low:'--seq-6', Medium:'--seq-4', High:'--seq-2' };
-  const yOf = (r) => (rr.cohort === 'sector' ? r.qpctSector : r.qpctMarket) ?? 50;
+  /* A company with no percentile in the chosen cohort has no height on this
+     chart. Two things leave a company without one, and the page named only
+     the first, for the sector cohort only, and wrongly: no other company in
+     its sector at all (IHH — the note said "fewer than two peers", but one
+     peer is enough for a rank), or no quality score — a filed REIT, whose
+     quality inputs are not among the lines the statements carry, once the
+     reader gives it a price. Such a REIT was drawn at 50 in either cohort,
+     and the market cohort said nothing about it.
+     The point carries the percentile or null, never a stand-in. yOf() handed
+     the chart 50, and the mark's name and tooltip printed it as "quality
+     percentile 50", a measured median rank; IHH read 50 in the sector cohort
+     beside a table that said it had none. scatterChart draws a point whose
+     y is null at the midpoint and says it has no percentile. */
+  const pctOf = (r) => { const p = rr.cohort === 'sector' ? r.qpctSector : r.qpctMarket; return isNum(p) ? p : null; };
+  const noPctWhy = (r) => !isNum(r.q?.score) ? 'no quality score' : rr.cohort === 'sector' ? 'no sector peer' : 'no rank';
+  /* The table prints the percentile that exists, or says there is none and why. */
+  const pctText = (r) => { const p = pctOf(r); return isNum(p) ? String(p) : `— (${noPctWhy(r)})`; };
   const points = rows.map(r => ({
     id: r.c.id, label: r.c.tk, name: r.c.name,
-    x: r.val.mos.base, y: yOf(r), size: toBase(r.d.m.mcap, r.c.ccy),
+    x: r.val.mos.base, y: pctOf(r), size: toBase(r.d.m.mcap, r.c.ccy),
     capLabel: fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy),
     model: r.val.pack.name, conf: r.val.confBand,
     varName: rr.colorBy === 'market' ? (r.c.mkt === 'US' ? '--s1' : '--s2')
@@ -2153,12 +2175,12 @@ function renderRadar() {
       `<b>Model</b> ${MODEL_VERSION}`,
     ].join('<span class="dotsep"></span>') })));
   if (unplotted) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-    `${unplotted} of ${scoped.length} companies in this universe are not plotted: ${unpriced} carry no price${rr.yi === YEARS.length - 1 ? '' : ` for FY${YEARS[rr.yi]}`}, so no difference to a model estimate can be computed${unplotted > unpriced ? `; ${unplotted - unpriced} have a price but no base-case model estimate` : ''}.`));
+    `${unplotted} of ${scoped.length} companies in this universe are not plotted: ${[
+      unpriced ? `${unpriced} ${unpriced === 1 ? 'carries' : 'carry'} no price${rr.yi === YEARS.length - 1 ? '' : ` for FY${YEARS[rr.yi]}`}, so no difference to a model estimate can be computed` : null,
+      noModel ? `${noModel} ${noModel === 1 ? 'has' : 'have'} a price but no base-case model estimate` : null,
+      belowConf ? `${belowConf} ${belowConf === 1 ? 'has' : 'have'} a model confidence below ${rr.minConf === 'high' ? 'High' : 'Medium'}, the least the confidence filter admits` : null,
+    ].filter(Boolean).join('; ')}.`));
 
-  /* The table prints the percentile that exists, or says there is none. The
-     midpoint is a plotting position for a company with no sector peers, and
-     printed as "50" it read as a measured median rank. */
-  const pctText = (r) => { const p = rr.cohort === 'sector' ? r.qpctSector : r.qpctMarket; return isNum(p) ? String(p) : `— (no ${rr.cohort === 'sector' ? 'sector peers' : 'rank'})`; };
   card.append(tableTwin('Show the table view of every plotted company',
     ['Company', 'Market', rr.yi === YEARS.length - 1 ? 'Price' : `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
     rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
@@ -2173,14 +2195,22 @@ function renderRadar() {
     xLabelShort: 'Difference to model estimate vs base-case model estimate',
     yLabel: `Quality percentile within ${cohortLabel} cohort`,
     yLabelShort: `Quality percentile (${cohortLabel})`,
-    xFmt: v => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`,
+    /* withSign, as the table beside it prints: Maybank's +0.12% read "+0%"
+       (a sign on a figure that rounds to nought), -0.3% read "-0%", and every
+       price above the estimate took an ASCII hyphen for its minus. */
+    xFmt: v => withSign(v, 0),
     onPick: id => openRadarDetail(id, rr.yi),
   });
 
-  if (rr.cohort === 'sector') {
-    const thin = rows.filter(r => r.qpctSector == null).length;
-    if (thin) wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-      `${thin} of ${rows.length} companies have fewer than two peers in their sector within this sample, so no sector percentile can be computed for them. They are plotted at the midpoint rather than dropped, and should be read as "no sector ranking available".`));
+  const unranked = rows.filter(r => !isNum(pctOf(r)));
+  if (unranked.length) {
+    const noScore = unranked.filter(r => !isNum(r.q?.score)).length, alone = unranked.length - noScore;
+    const why = [
+      noScore ? `${noScore} ${noScore === 1 ? 'has' : 'have'} no quality score, because the inputs it reads are not among the figures held for ${noScore === 1 ? 'it' : 'them'}` : null,
+      alone ? `${alone} ${alone === 1 ? 'is the only company' : 'are each the only company'} in ${alone === 1 ? 'its' : 'their'} sector in this dataset, so there is no sector cohort to rank against` : null,
+    ].filter(Boolean).join('; ');
+    wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+      `${unranked.length} of ${rows.length} plotted companies have no ${cohortLabel} percentile: ${why}. They are plotted at the midpoint rather than dropped — the height of those marks is a plotting position, not a rank — and the table view says so for each.`));
   }
   wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'Language note: a mark on the right edge is the largest modelled discount among eligible companies — not "the most undervalued". Confidence and model applicability qualify every position.'));
