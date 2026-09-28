@@ -3019,7 +3019,9 @@ try {
       if (r.view !== 'scannerSetupNew') p.push(`view ${r.view}`);
       if (r.id !== 'qa-builder-cross') p.push(`id from the name: "${r.id}"`);
       if (r.readyDisabled !== false) p.push('Save disabled on a valid draft');
-      if (r.rsiRight.join() !== 'value,rsi') p.push(`right side offered for RSI: ${r.rsiRight.join()}`);
+      /* The engine's RSI and TradingView's (the pine section: its RSI, its
+         RSI-based MA and bands) measure the same 0–100 scale. */
+      if (r.rsiRight.join() !== 'value,rsi,tv_rsi.rsi,tv_rsi.ma,tv_rsi.bbUpper,tv_rsi.bbLower') p.push(`right side offered for RSI: ${r.rsiRight.join()}`);
       if (r.eqRight.join() !== 'value') p.push(`right side offered for RSI equals: ${r.eqRight.join()}`);
       if (!/outside what RSI14 can be/.test(r.domain) || !r.domainDisabled) p.push(`RSI 150: "${r.domain}", Save disabled ${r.domainDisabled}`);
       if (!/cannot be compared with volume/.test(r.unit) || !/not comparable/.test(r.unitOption) || !r.unitDisabled) p.push(`RSI vs volume: "${r.unit}" / "${r.unitOption}", Save disabled ${r.unitDisabled}`);
@@ -3027,7 +3029,7 @@ try {
       if (r.editView !== 'scannerSetupEdit' || r.idLocked !== true || !/saving creates v2/.test(r.status)) p.push(`edit: ${r.editView}, id locked ${r.idLocked}, "${r.status}"`);
       if (r.edited.v !== 2 || r.edited.versions.join() !== '1,2' || r.edited.ops.join() !== 'CROSSES_ABOVE,CROSSES_BELOW') p.push(`edited: ${JSON.stringify(r.edited)}`);
       if (p.length) fail('the scanner builder writes valid rules, refuses invalid operand combinations, and edits as a new version', p);
-      else ok('the scanner builder writes valid rules and refuses invalid ones — RSI is offered only a fixed value or another RSI, EQUALS on RSI no indicator, RSI 150 and RSI-versus-volume are refused at their condition with Save disabled; saved as v1, edited to v2 with v1 kept and the id locked');
+      else ok('the scanner builder writes valid rules and refuses invalid ones — RSI is offered only a fixed value or another RSI (the engine\'s, or TradingView\'s with its average and bands), EQUALS on RSI no indicator, RSI 150 and RSI-versus-volume are refused at their condition with Save disabled; saved as v1, edited to v2 with v1 kept and the id locked');
     }
 
     /* VERSIONS BUMP ONLY ON WHAT IS EVALUATED, AND ALERTS KEEP THEIRS. A
@@ -3854,14 +3856,14 @@ try {
         })()`);
         const p = [];
         if (r.options.join() !== exIds.join() || !r.caption) p.push(`the examples offered: ${r.options.join()} (file: ${exIds.join()}), labelled ${r.caption}`);
-        if (r.tf.on.join() !== '1D,1W' || r.tf.off.join() !== '1H:true,15M:true,5M:true') p.push(`timeframes: ${JSON.stringify(r.tf)}`);
+        if (r.tf.on.join() !== '1D,1W,1M' || r.tf.off.join() !== '1H:true,15M:true,5M:true') p.push(`timeframes: ${JSON.stringify(r.tf)}`);
         if (r.tree.name !== 'Trend breakout, written as a rule tree' || !r.tree.nested || !r.tree.readOnly || !r.tree.note || r.tree.focus !== 'Start from an example') p.push(`the rule-tree example: ${JSON.stringify(r.tree)}`);
         if (r.refused.name !== 'Changed' || r.refused.sel !== '') p.push(`refusing kept ${JSON.stringify(r.refused)}`);
         if (r.replaced.name !== 'RSI below 30' || r.replaced.left !== 'rsi' || r.replaced.op !== 'LESS_THAN') p.push(`replacing: ${JSON.stringify(r.replaced)}`);
         if (r.foreign.notes || r.foreign.name !== 'From elsewhere' || !r.foreign.ask) p.push(`a draft set by another page: ${JSON.stringify(r.foreign)}`);
         if (r.copyDoc.n !== 1 || !r.copyDoc.disabled || !r.copyDoc.same) p.push(`the example configuration: ${JSON.stringify(r.copyDoc)}`);
         if (p.length) fail('round 3 user: the builder starts from a committed example, and offers no intraday timeframe', p);
-        else ok(`round 3 user: the builder starts from a committed example, and offers no intraday timeframe — all ${r.options.length} examples of scanner/setups.example.json, labelled an illustration and not a suggestion; the rule tree loads read-only with focus kept on the select; a changed draft is replaced only when the reader agrees; "Copy example configuration" is the file's rule-tree example, disabled; 1D and 1W are the only enabled timeframes, 1H, 15M and 5M shown as not available`);
+        else ok(`round 3 user: the builder starts from a committed example, and offers no intraday timeframe — all ${r.options.length} examples of scanner/setups.example.json, labelled an illustration and not a suggestion; the rule tree loads read-only with focus kept on the select; a changed draft is replaced only when the reader agrees; "Copy example configuration" is the file's rule-tree example, disabled; 1D, 1W and 1M (weeks and months from the daily bars) are the only enabled timeframes, 1H, 15M and 5M shown as not available`);
       }
 
       /* SC-303 4 — ONE CACHE FOR THE SESSION. "Evaluate now" computes the

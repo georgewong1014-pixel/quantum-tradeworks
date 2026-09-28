@@ -405,7 +405,7 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
   check(E.SCAN_TOLERANCE.relative === 1e-9 && E.SCAN_TOLERANCE.absolute === 1e-12 && /0\.1 \+ 0\.2 equals 0\.3/.test(E.SCAN_TOLERANCE.text), 'EQUALS has a stated tolerance: 1e-9 relative, 1e-12 absolute, in words');
   const IDS = ['price', 'volume', 'sma', 'ema', 'rsi', 'macd', 'volume_avg', 'bb', 'atr', 'high_n', 'low_n', 'close_high_n', 'close_low_n', 'change', 'rvol'];
   const thin = IDS.filter(id => { const d = E.SCAN_INDICATORS[id]; return !d || !d.label || !d.params || !Array.isArray(d.inputs) || !(d.unit || d.fields) || typeof d.needs !== 'function' || !d.formula || !Number.isInteger(d.calcVersion); });
-  check(!thin.length && same(Object.keys(E.SCAN_INDICATORS), IDS), 'SCAN_INDICATORS holds all fifteen indicators, each with label, params, inputs, unit or fields, needs, formula and calcVersion', thin);
+  check(!thin.length && same(Object.keys(E.SCAN_INDICATORS).slice(0, IDS.length), IDS), 'SCAN_INDICATORS holds all fifteen engine indicators first, in order, each with label, params, inputs, unit or fields, needs, formula and calcVersion (the Pine indicators follow: pine block)', thin);
   check(same(Object.keys(E.SCAN_INDICATORS.macd.fields), ['line', 'signal', 'hist']) && same(Object.keys(E.SCAN_INDICATORS.bb.fields), ['upper', 'middle', 'lower', 'width', 'pctb'])
     && E.SCAN_INDICATORS.rsi.calcVersion === 2 && /Wilder/.test(E.SCAN_INDICATORS.rsi.formula) && /Wilder/.test(E.SCAN_INDICATORS.atr.formula) && /POPULATION/.test(E.SCAN_INDICATORS.bb.formula),
     'MACD has line/signal/hist, Bollinger upper/middle/lower/width/%b; RSI (calcVersion 2) and ATR are Wilder\'s; Bollinger states its population deviation');
@@ -626,7 +626,7 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
   const UNIT_OPS = { price: { indicator: 'sma', n: 5 }, price_delta: { indicator: 'atr' }, volume: { indicator: 'volume_avg' }, osc_0_100: { indicator: 'rsi' },
                      percent: { indicator: 'change', n: 5 }, ratio: { indicator: 'rvol' }, position: { indicator: 'bb', field: 'pctb' } };
   const units = Object.keys(UNIT_OPS);
-  check(same(units.slice().sort(), Object.keys(E.SCAN_UNITS).sort()) && units.every(u => E.scanUnitOf(UNIT_OPS[u]) === u), 'every unit has a representative operand, and each operand reads as its unit');
+  check(same(units, Object.keys(E.SCAN_UNITS).slice(0, units.length)) && units.every(u => E.scanUnitOf(UNIT_OPS[u]) === u), 'every engine unit has a representative operand, and each operand reads as its unit (the Pine units follow them: pine block)');
   const matrix = [];
   for (const lu of units) for (const ru of units) for (const op of Object.keys(E.SCAN_OPERATORS)) {
     const cond = op === 'BETWEEN' ? { left: UNIT_OPS[lu], op, range: [UNIT_OPS[ru], UNIT_OPS[ru]] } : { left: UNIT_OPS[lu], op, right: UNIT_OPS[ru] };
@@ -2883,6 +2883,341 @@ try {
   finally { await rm(base4, { recursive: true, force: true }); }
 }
 /* ---- end bugfix4: scanner ---- */
+
+/* ---- pine: indicators ---- */
+/* THE READER'S TRADINGVIEW INDICATORS (the engine's pine section) AND THE
+   MONTHLY TIMEFRAME. Each Pine primitive against values worked by hand —
+   the EMA's seeding, the RSI's edges, the SAR through two reversals, a
+   crossing from equality; each of the ten indicators' shape and its
+   relations to an independent computation written here; the catalogue
+   through validation, evaluation and a run; months resampled from days;
+   the existing indicators' outputs and the weekly bars unchanged, by
+   digests taken from the engine before the section existed; and
+   scanner/tv-verify.mjs on a file this block builds. No export of the
+   reader's is read: their chart's header is written out below, and the
+   header is titles, not prices. */
+{
+  const PN = E;
+  const IDS_ENGINE = ['price', 'volume', 'sma', 'ema', 'rsi', 'macd', 'volume_avg', 'bb', 'atr', 'high_n', 'low_n', 'close_high_n', 'close_low_n', 'change', 'rvol'];
+  const eq =(a, b, eps = 1e-9) => a.length === b.length && a.every((v, i) => (v == null ? b[i] == null : b[i] != null && Math.abs(v - b[i]) <= eps));
+
+  /* ---------------------------------------------------------- primitives -- */
+  check(eq(PN.scanPineEma([1, 2, 3, 4, 5], 3), [null, null, 2, 3, 4]) && eq(PN.scanPineEma([1, 2, null, 3, 4, 5], 2), [null, 1.5, null, null, 3.5, 4.5]),
+    'pine ema: seeded with the SMA of its first n values at bar n (1..5, EMA3: 2, 3, 4); after an na it seeds afresh — [1,2,na,3,4,5] EMA2 is 1.5, na, na, 3.5, 4.5', PN.scanPineEma([1, 2, null, 3, 4, 5], 2));
+  check(eq(PN.scanPineRma([1, 2, 3, 4, 5], 3), [null, null, 2, 8 / 3, 31 / 9]), 'pine rma: SMA-seeded, then alpha 1/n — 1..5 RMA3 is 2, 8/3, 31/9', PN.scanPineRma([1, 2, 3, 4, 5], 3));
+  const r5 = PN.scanPineRsi([1, 2, 1, 2, 1], 2);
+  check(eq(r5, [null, null, 50, 75, 37.5]), 'pine rsi: +1 −1 +1 −1 with RSI2 is 50, then 75 (gain 0.75, loss 0.25), then 37.5 (0.375 against 0.625)', r5);
+  const flatR = PN.scanPineRsi([5, 5, 5, 5], 2), riseR = PN.scanPineRsi([1, 2, 3, 4], 2), fallR = PN.scanPineRsi([4, 3, 2, 1], 2);
+  check(eq(flatR, [null, null, 100, 100]) && eq(riseR, [null, null, 100, 100]) && eq(fallR, [null, null, 0, 0]) && PN.scanRsi([5, 5, 5, 5], 2).slice(2).every(v => v === null),
+    'pine rsi edges: a flat window is 100 (down is 0), as TradingView draws it — the engine\'s own RSI still calls it undefined; only rises is 100, only falls is 0', { flatR, fallR });
+  check(near(PN.scanPineWma([1, 2, 3], 3)[2], 7 / 3) && near(PN.scanPineVwma([1, 2, 3], [1, 1, 2], 3)[2], 2.25) && PN.scanPineVwma([1, 2, 3], [0, 0, 0], 3)[2] === null,
+    'pine wma of 1, 2, 3 is 7/3 (weights 3:2:1); vwma of 1, 2, 3 on volumes 1, 1, 2 is 2.25; with no volume it has no value');
+  const lin = Array.from({ length: 10 }, (_, i) => i + 1);
+  const hma = PN.scanPineHma(lin, 4);
+  check(hma.slice(0, 4).every(v => v === null) && lin.slice(4).every((v, j) => near(hma[j + 4], v)) && PN.scanPineHma(lin, 1).every(v => v === null),
+    'pine hma(4) of a straight line is the line itself from bar 4 (wma(2·wma2 − wma4, 2)); below a length of 2 there is none', hma);
+  const k7 = new Array(12).fill(7);
+  const tema = PN.scanPineTema(k7, 3), dema = PN.scanPineDema(k7, 3);
+  const e1 = PN.scanEma(lin, 3), e2 = PN.scanEma(e1, 3), e3 = PN.scanEma(e2, 3), tl = PN.scanPineTema(lin, 3);
+  check(tema.slice(0, 6).every(v => v === null) && tema.slice(6).every(v => near(v, 7)) && dema.slice(0, 4).every(v => v === null) && dema.slice(4).every(v => near(v, 7))
+    && tl.every((v, i) => (e3[i] == null ? v === null : near(v, 3 * (e1[i] - e2[i]) + e3[i]))),
+    'pine dema and tema of a constant are the constant, from bars 2n−2 and 3n−3; tema is 3·(e1 − e2) + e3 bar for bar');
+  const sd = PN.scanPineStdev([2, 4, 4, 4, 5, 5, 7, 9], 8), sds = PN.scanPineStdev([2, 4, 4, 4, 5, 5, 7, 9], 8, false);
+  check(near(sd[7], 2) && near(sds[7], Math.sqrt(32 / 7)) && PN.scanPineStdev([3, 3, 3], 3)[2] === 0, 'pine stdev of 2 4 4 4 5 5 7 9 is 2 (population), √(32/7) as a sample; a flat window is exactly 0');
+  check(eq(PN.scanPineHighest([3, 1, 4, 1, 5], 3), [null, null, 4, 4, 5]) && eq(PN.scanPineLowest([3, 1, 4, 1, 5], 3), [null, null, 1, 1, 1])
+    && eq(PN.scanPineChange([1, 3, 6]), [null, 2, 3]) && eq(PN.scanPineChange([1, 3, 6], 2), [null, null, 5])
+    && eq(PN.scanPineNz([null, 1, NaN]), [0, 1, 0]) && PN.scanPineNz(null, 5) === 5,
+    'pine highest/lowest over 3 (the bar included), change over 1 and 2 bars, and nz of na, a number and NaN');
+  const xo = PN.scanPineCrossover([1, 2, 3], [2, 2, 2]), xu = PN.scanPineCrossunder([3, 2, 1], 2), touch = PN.scanPineCrossover([1, 2, 1], 2);
+  const xna = PN.scanPineCrossover([1, null, 3, 4], [2, 2, 2, 2]), both = PN.scanPineCross([1, 3, 1], 2);
+  check(JSON.stringify(xo) === '[null,false,true]' && JSON.stringify(xu) === '[null,false,true]' && JSON.stringify(touch) === '[null,false,false]'
+    && JSON.stringify(xna) === '[null,null,null,false]' && JSON.stringify(both) === '[null,true,true]',
+    'pine crossover is exact: from equal to above is a cross (2,2 → 3,2), touching the level is not, a bar with na reads null (Pine: false); cross is either way', { xo, xu, touch, xna, both });
+  check(JSON.stringify(PN.scanPineRising([1, 2, 3, 3], 2)) === '[null,null,true,false]' && JSON.stringify(PN.scanPineFalling([3, 2, 1, 1], 2)) === '[null,null,true,false]'
+    && JSON.stringify(PN.scanPineRising([1, null, 3, 4], 1)) === '[null,null,null,true]',
+    'pine rising/falling: above (below) each of the `len` values before, equal is neither; na in the window reads null');
+  /* SAR, worked by hand: up from bar 1 (close rose), three new highs, a
+     reversal down on bar 4, two new lows, a reversal up on bar 7. */
+  const sH = [10, 11, 12, 13, 12.5, 9, 8, 14], sL = [9, 10, 11, 12, 8, 7, 6, 7], sC = [9.5, 10.5, 11.5, 12.5, 8.5, 7.5, 6.5, 13];
+  const sar = PN.scanPineSarState(sH, sL, sC, 0.02, 0.02, 0.2);
+  check(eq(sar.sar, [null, 9, 9, 9.12, 13, 13, 12.76, 6]) && JSON.stringify(sar.trend) === '[null,1,1,1,-1,-1,-1,1]',
+    'pine sar(0.02, 0.02, 0.2) by hand: 9, 9 (held under the lows before), 9.12, a reversal to 13 on the crash, 13, 12.76, a reversal to 6 — and the trend 1 then −1 then 1', sar);
+  const sarGap = PN.scanPineSar([10, 11, null, 10, 11, 12], [9, 10, null, 9, 10, 11], [9.5, 10.5, 10, 9.5, 10.5, 11.5], 0.02, 0.02, 0.2);
+  check(sarGap[2] === null && sarGap[3] === null && sarGap[4] === 9, 'pine sar starts again after a bar with no high or low, as a chart beginning there would', sarGap);
+  check(eq(PN.scanPineXsa([1, 2, 3, 4, 5, 6, 7], 3, 1), [null, null, null, 3, 11 / 3, 40 / 9, 143 / 27]),
+    'the blackcat xsa(src, 3, 1) of 1..7: none until src[3] exists, then the mean 3, then (src + 2·previous) / 3 — 11/3, 40/9, 143/27');
+
+  /* ---------------------------------------------------------- indicators -- */
+  const NP = 700, pc = [], po = [], ph = [], pl = [], pv = [];
+  for (let i = 0; i < NP; i++) {
+    const c = 200 + 30 * Math.sin(i / 17) + 12 * Math.sin(i / 5.3) + i * 0.05;
+    const o = i ? pc[i - 1] + Math.sin(i * 1.7) : c;
+    pc.push(c); po.push(o); ph.push(Math.max(o, c) + 1 + Math.abs(Math.sin(i * 0.9))); pl.push(Math.min(o, c) - 1 - Math.abs(Math.cos(i * 1.3))); pv.push(1000 + Math.round(400 * Math.abs(Math.sin(i / 4))));
+  }
+  const PB = PN.scanSeriesBars(pc, { open: po, high: ph, low: pl, volumes: pv });
+  const PIDS = ['wavetrend', 'cm_macd', 'bot_macd', 'mcdx', 'color_ma', 'sma_cross', 'psar', 'sr_ma', 'banker_entry', 'tv_rsi'];
+  const lv = (w) => Array.from({ length: 8 }, (_, k) => `Level ${k + 1} ${w}`);
+  const TITLES = {
+    wavetrend: ['WT Average-WT1', 'Signal average-WT2', 'Level 0', ...lv('overbought'), ...lv('oversold'), 'Sell when overbought', 'All sales', 'Buy when oversold', 'All purchases', 'Histogramme', 'MA PLOT_ST'],
+    cm_macd: ['MACD', 'Signal Line', 'Histogram', 'Cross'], bot_macd: [], mcdx: ['Retailer', 'Hot Money', 'Banker', '5', '10', '15', 'Banker_MA', 'HotMoney_MA'],
+    color_ma: ['Color MA'], sma_cross: ['Plot', 'Plot', 'Chars', 'Chars'], psar: ['ParabolicSAR'], sr_ma: ['SR MA', 'Top Range', 'Bottom Range'],
+    banker_entry: ['Plot', 'Plot', 'Plot'], tv_rsi: ['RSI', 'RSI-based MA', 'Upper Bollinger Band', 'Lower Bollinger Band'],
+  };
+  const DOM = { flag: v => v === 0 || v === 1, direction: v => v === -1 || v === 0 || v === 1, mcdx: v => v >= 0 && v <= 20, osc_0_100: v => v >= 0 && v <= 100 };
+  const shapeBad = [];
+  const RUN = {};
+  for (const id of PIDS) {
+    const def = PN.SCAN_INDICATORS[id], p = PN.scanParams({ indicator: id }).params;
+    const r = RUN[id] = def.pine(PB, p);
+    for (const [f, unit] of Object.entries(def.fields)) {
+      if (id === 'tv_rsi' && /^bb/.test(f)) continue;
+      const a = r.fields[f], need = def.needs(p, f);
+      if (!Array.isArray(a) || a.length !== NP) { shapeBad.push(`${id}.${f}: not ${NP} long`); continue; }
+      if (a.slice(0, need - 1).some(v => v != null)) shapeBad.push(`${id}.${f}: a value before bar ${need - 1}`);
+      if (a[need - 1] == null) shapeBad.push(`${id}.${f}: no value on bar ${need - 1}, where its need of ${need} bars says it starts`);
+      if (DOM[unit] && a.some(v => v != null && !DOM[unit](v))) shapeBad.push(`${id}.${f}: a value outside ${unit}`);
+    }
+    if (JSON.stringify(r.plots.map(x => x[0])) !== JSON.stringify(TITLES[id])) shapeBad.push(`${id}: plots ${JSON.stringify(r.plots.map(x => x[0]))}`);
+    if (r.plots.some(([, s, first]) => s.length !== NP || !Number.isInteger(first) || first < 0)) shapeBad.push(`${id}: a plot not ${NP} long or without its first bar`);
+  }
+  check(!shapeBad.length, 'each of the ten Pine indicators on 700 synthetic bars: every field as long as the bars, null before its stated need and a value on it, flags 1/0, directions 1/0/−1, MCDX within 0–20, RSIs within 0–100; its plots under their TradingView titles in the script\'s order', shapeBad.slice(0, 6));
+
+  /* Independent computations, written the plain way. */
+  const iSma = (x, n) => x.map((_, i) => { if (i < n - 1) return null; let s = 0; for (let k = i - n + 1; k <= i; k++) { if (x[k] == null) return null; s += x[k]; } return s / n; });
+  const iEma = (x, n) => { const a = 2 / (n + 1), out = x.map(() => null); const st = x.findIndex(v => v != null); let prev = null;
+    for (let i = 0; i < x.length; i++) { if (x[i] == null || st < 0) continue; if (prev == null) { if (i - st + 1 < n) continue; let s = 0; for (let k = i - n + 1; k <= i; k++) s += x[k]; prev = s / n; } else prev = a * x[i] + (1 - a) * prev; out[i] = prev; } return out; };
+  const ap = pc.map((c, i) => (ph[i] + pl[i] + c) / 3), esa = iEma(ap, 10);
+  const dd = iEma(ap.map((v, i) => (esa[i] == null ? null : Math.abs(v - esa[i]))), 10);
+  const iwt1 = iEma(ap.map((v, i) => (esa[i] == null || dd[i] == null ? null : (v - esa[i]) / (0.015 * dd[i]))), 21), iwt2 = iSma(iwt1, 4);
+  const W = RUN.wavetrend.fields;
+  const iUp = iwt1.map((v, i) => (i < 1 || v == null || iwt1[i - 1] == null || iwt2[i] == null || iwt2[i - 1] == null ? null : v > iwt2[i] && iwt1[i - 1] <= iwt2[i - 1] ? 1 : 0));
+  check(eq(W.wt1, iwt1, 1e-9) && eq(W.wt2, iwt2, 1e-9) && eq(W.crossUp, iUp) && W.crossUpOs.every(v => v == null || v === 0) && W.crossDownOb.every(v => v == null || v === 0)
+    && W.crossUp.some(v => v === 1) && eq(W.hist, iwt1.map((v, i) => (v == null || iwt2[i] == null ? null : v - iwt2[i]))),
+    'wavetrend: wt1, wt2 and the crossings agree with a plain computation of the WT-4h script; with both switches off (the reader\'s chart) every crossing counts and the level-bound ones never do');
+  const Won = PN.scanPineWaveTrend(PB, { ...PN.scanParams({ indicator: 'wavetrend' }).params, obSwitch: 1, osSwitch: 1 }).fields;
+  check(Won.crossUp.every(v => v == null || v === 0) && Won.crossDown.every(v => v == null || v === 0)
+    && Won.crossUpOs.every((v, i) => v !== 1 || (W.crossUp[i] === 1 && W.wt1[i] <= -53)) && Won.crossDownOb.every((v, i) => v !== 1 || (W.crossDown[i] === 1 && W.wt1[i] >= 53)),
+    'wavetrend with both switches on: only a crossing at or beyond its level counts (crossUpOs at or below −53, crossDownOb at or above 53), and the all-crossings fields are 0');
+  const CM = RUN.cm_macd.fields, BM = RUN.bot_macd.fields, EM = PN.scanMacd(pc, 12, 26, 9);
+  check(eq(CM.macd, EM.line) && eq(CM.signal, iSma(CM.macd, 9)) && eq(BM.signal, EM.signal) && eq(BM.hist, EM.hist)
+    && CM.histUpAbove.every((v, i) => v == null || v === (CM.hist[i] > CM.hist[i - 1] && CM.hist[i] > 0 ? 1 : 0)),
+    'cm_macd is the MACD line with an SMA(9) signal; bot_macd is the engine\'s own MACD (EMA signal) bar for bar; the four histogram states read against zero and the bar before');
+  const iBank = PN.scanPineRsi(pc, 50).map(r => (r == null ? null : Math.min(20, Math.max(0, 1.5 * (r - 50)))));
+  check(eq(RUN.mcdx.fields.banker, iBank) && eq(RUN.mcdx.fields.bankerMa, iEma(iBank, 5)), 'mcdx: banker is 1.5 × (RSI50 − 50) held within 0–20, and Banker_MA its EMA(5)');
+  check(eq(RUN.color_ma.fields.ma, iSma(pc, 200)) && eq(PN.scanPineColorMa(PB, { n: 20, type: 2 }).fields.ma, iEma(pc, 20)) && eq(RUN.sma_cross.fields.slow, iSma(pc, 200)),
+    'color_ma is an SMA of 200 on the reader\'s chart (type 1) and an EMA as type 2; sma_cross\'s slow line is the SMA of 200');
+  /* The blackcat model and the Sentiment Range MA, line for line. */
+  const bx = pc.map((c, i) => (i < 26 ? null : (c - Math.min(...pl.slice(i - 26, i + 1))) / (Math.max(...ph.slice(i - 26, i + 1)) - Math.min(...pl.slice(i - 26, i + 1))) * 100));
+  const ixsa = (src, len, wei) => { const sumf = [], out = []; for (let i = 0; i < src.length; i++) { const s = src[i], back = i >= len ? src[i - len] : null;
+    sumf[i] = s == null ? null : ((i ? sumf[i - 1] : null) ?? 0) - (back ?? 0) + s; const ma = back == null || sumf[i] == null ? null : sumf[i] / len;
+    out[i] = (i ? out[i - 1] : null) == null ? ma : s == null ? null : (s * wei + out[i - 1] * (len - wei)) / len; } return out; };
+  const b1 = ixsa(bx, 5, 1), b2 = ixsa(b1, 3, 1), model = b1.map((v, i) => (v == null || b2[i] == null ? null : 3 * v - 2 * b2[i]));
+  check(eq(RUN.banker_entry.fields.model, model) && RUN.banker_entry.plots[1][1].every((v, i) => v === (model[i] != null && model[i] <= 3 ? 50 : 0)),
+    'banker_entry: the model 3·xsa(x,5,1) − 2·xsa(xsa(x,5,1),3,1) of the 27-bar stochastic agrees with a line-by-line computation; its plot is 50 while the model is at or below 3');
+  const tTop = po.map((o, i) => Math.max(o, pc[i])), tBot = po.map((o, i) => Math.min(o, pc[i]));
+  const sTop = iSma(tTop, 5), sBot = iSma(tBot, 5), tAtr = iSma(tTop.map((t, i) => t - tBot[i]), 200);
+  const held = [], hTop = [], hBot = [];
+  let hm = null, hr = null, ht = null, hb = null;
+  for (let i = 0; i < NP; i++) {
+    if ((sTop[i] != null && ht != null && sTop[i] > ht) || (sBot[i] != null && hb != null && sBot[i] < hb) || hr == null) { hm = pc[i]; hr = tAtr[i] == null ? null : tAtr[i] * 6; ht = hr == null ? null : hm + hr; hb = hr == null ? null : hm - hr; }
+    held.push(hm); hTop.push(ht); hBot.push(hb);
+  }
+  const srF = (x) => PN.scanPineWma(iSma(x, 21), 21);
+  check(eq(RUN.sr_ma.fields.ma, srF(held)) && eq(RUN.sr_ma.fields.top, srF(hTop)) && eq(RUN.sr_ma.fields.bottom, srF(hBot)),
+    'sr_ma: the held close and its range (6 × the 200-bar SMA of the body), reset when the 5-bar SMA of the tops or bottoms breaks out, filtered by WMA21 of SMA21, agree with a line-by-line computation');
+  const TR = RUN.tv_rsi.fields;
+  check(eq(TR.rsi, PN.scanPineRsi(pc, 5)) && eq(TR.ma, iSma(PN.scanPineRsi(pc, 5), 14)) && TR.bbUpper.every(v => v === null)
+    && eq(PN.scanPineRsiStudy(PB, { n: 5, maType: 7, maLen: 14, bbMult: 2 }).fields.bbUpper, iSma(TR.rsi, 14).map((m, i) => (m == null ? null : m + 2 * PN.scanPineStdev(TR.rsi, 14)[i]))),
+    'tv_rsi: RSI5 with an SMA(14) — the reader\'s chart; with type 7 the bands are the SMA ± 2 population deviations');
+
+  /* ----------------------------------------------------------- catalogue -- */
+  const pd = PN.SCAN_PINE_INDICATORS;
+  const thinP = PIDS.filter(id => { const d = PN.SCAN_INDICATORS[id]; return d !== pd[id] || !d.label || !d.params || !Array.isArray(d.inputs) || !d.fields || !(d.defaultField in d.fields)
+    || typeof d.needs !== 'function' || typeof d.pine !== 'function' || !d.formula || d.calcVersion !== 1; });
+  check(!thinP.length && same(Object.keys(PN.SCAN_INDICATORS), [...IDS_ENGINE, ...PIDS]) && same(Object.keys(PN.SCAN_UNITS), ['price', 'price_delta', 'volume', 'osc_0_100', 'percent', 'ratio', 'position', 'wavetrend', 'mcdx', 'banker_model', 'flag', 'direction']),
+    'SCAN_INDICATORS holds the fifteen engine indicators, then the ten Pine ones, each with label, params, inputs, fields, needs, formula, calcVersion 1 and its script; SCAN_UNITS adds wavetrend, mcdx, banker_model, flag and direction', thinP);
+  const vOne = (left, op = 'GREATER_THAN', right = { value: 0 }) => PN.scanValidate([{ id: 'p', ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left, op, right }] } }]);
+  const every = [];
+  for (const id of PIDS) for (const [f, unit] of Object.entries(pd[id].fields)) {
+    if (id === 'tv_rsi' && /^bb/.test(f)) continue;
+    const v = vOne({ indicator: id, field: f }, 'GREATER_THAN_OR_EQUAL', { value: unit === 'direction' ? -1 : unit === 'price' ? 1 : 0 });
+    if (!v.setups.length) every.push(`${id}.${f}: ${v.problems.join('; ')}`);
+  }
+  check(!every.length, 'every field of every Pine indicator validates in a setup against a value of its unit', every.slice(0, 4));
+  const code = (v) => (v.setups.length ? 'ok' : Object.values(v.problemsBySetup)[0][0].code);
+  const named = PN.scanParams({ indicator: 'color_ma', type: 'ema' }), sw = PN.scanParams({ indicator: 'wavetrend', obSwitch: true, osSwitch: 'on' });
+  check(code(vOne({ indicator: 'wavetrend', field: 'crossUp' }, 'EQUALS', { value: 2 })) === 'INVALID_LITERAL'
+    && code(vOne({ indicator: 'wavetrend', field: 'wt1' }, 'GREATER_THAN', { indicator: 'rsi' })) === 'UNIT_MISMATCH'
+    && code(vOne({ indicator: 'wavetrend', field: 'wt1' }, 'CROSSES_ABOVE', { indicator: 'wavetrend', field: 'wt2' })) === 'ok'
+    && code(vOne({ indicator: 'tv_rsi', field: 'bbUpper' })) === 'BAD_PARAMS' && code(vOne({ indicator: 'tv_rsi', field: 'bbUpper', maType: 7 })) === 'ok'
+    && code(vOne({ indicator: 'color_ma', type: 'TEMA' })) === 'BAD_PARAMS' && code(vOne({ indicator: 'tv_rsi', maType: 3 })) === 'BAD_PARAMS'
+    && code(vOne({ indicator: 'color_ma', type: 3, n: 1 })) === 'BAD_PARAMS' && code(vOne({ indicator: 'mcdx', field: 'nope' })) === 'BAD_FIELD'
+    && named.params.type === 2 && !named.problems.length && sw.params.obSwitch === 1 && sw.params.osSwitch === 1
+    && PN.scanSpecKey({ indicator: 'color_ma', type: 'EMA', n: 20 }) === PN.scanSpecKey({ indicator: 'color_ma', type: 2, n: 20 }),
+    'validation: a flag compares with 1 or 0 only, WaveTrend with WaveTrend (not RSI), the RSI\'s bands only with type 7, a type by its name ("ema" is 2) or its number within its list, a switch as true or "on"; a Hull needs a length of 2');
+  const L = (s) => PN.scanSideLabel(s);
+  check(L({ indicator: 'wavetrend' }) === 'WaveTrend(10,21) WT1' && L({ indicator: 'cm_macd' }) === 'CM MACD(12,26,9) histogram' && L({ indicator: 'color_ma' }) === 'Color MA SMA200'
+    && L({ indicator: 'sma_cross', field: 'crossUp' }) === 'SMA Cross SMA50 crosses over SMA200' && L({ indicator: 'psar', field: 'direction' }) === 'SAR(0.02,0.02,0.2) direction'
+    && L({ indicator: 'tv_rsi', field: 'ma' }) === 'RSI5 (TradingView) SMA14' && L({ indicator: 'mcdx', bankerPeriod: 40 }) === 'MCDX (bankerPeriod 40) banker'
+    && L({ indicator: 'wavetrend', field: 'crossDownOb', overbought: 60 }) === 'WaveTrend(10,21) (overbought 60) WT1 crosses under WT2 at or above 60',
+    'each Pine operand says itself: its script and settings (those differing from the reader\'s chart named) and its field',
+    ['wavetrend', 'cm_macd', 'color_ma'].map(id => L({ indicator: id })));
+  /* Evaluation: needs, inputs, and a flag printed as the number it is. */
+  const closesOnly = PN.scanSeriesBars(pc.slice(0, 100));
+  const wtS = PN.scanIndicatorSeries({ indicator: 'wavetrend' }, PB), wtC = PN.scanIndicatorSeries({ indicator: 'wavetrend' }, closesOnly);
+  const noOpen = PN.scanSeriesBars(pc, { open: po.map((o, i) => (i === NP - 1 ? null : o)), high: ph, low: pl });
+  const srS = PN.scanIndicatorSeries({ indicator: 'sr_ma' }, noOpen), srW = PN.scanIndicatorSeries({ indicator: 'sr_ma', range: 'Wick' }, noOpen);
+  const vwS = PN.scanIndicatorSeries({ indicator: 'color_ma', type: 5, n: 10 }, PN.scanSeriesBars(pc, { open: po, high: ph, low: pl }));
+  check(wtS.status[37] === 'INSUFFICIENT_DATA' && wtS.status[38] === 'VALID' && near(wtS.values[38], W.wt1[38]) && /needs 39 bars; 38 held/.test(wtS.reason[37].text)
+    && wtC.status[99] === 'INVALID_INPUT' && wtC.reason[99].code === 'NO_HIGH_LOW'
+    && srS.status[NP - 1] === 'INVALID_INPUT' && /open, high and low are not held for 1 of the last 41 bars/.test(srS.reason[NP - 1].text) && srW.status[NP - 1] === 'VALID'
+    && vwS.status[NP - 1] === 'INVALID_INPUT' && vwS.reason[NP - 1].code === 'NO_VOLUME'
+    && PN.scanBreakSpan('wavetrend', PN.scanParams({ indicator: 'wavetrend' }).params, 'wt1', 39) > 39,
+    'evaluation: WaveTrend is untested for its first 38 bars and valid on the 39th; it needs highs and lows; the body-style SR MA needs opens (the wick style does not); a VWMA Color MA needs volume; a break is remembered past the window',
+    { wt37: wtS.reason[37], sr: srS.reason[NP - 1], vw: vwS.reason[NP - 1] });
+  /* A run: SMA5 crosses over SMA10 on the last session, as a NEW_MATCH (a
+     rise of 28%, inside the 1.5× the engine reads as a price break). */
+  const xDates = [], xSeries = {};
+  for (let d = '2026-01-05'; xDates.length < 30; d = PN.scanAddDays(d, 1)) if (PN.scanWeekday(d) >= 1 && PN.scanWeekday(d) <= 5) xDates.push(d);
+  xDates.forEach((d, i) => { xSeries[d] = i < 29 ? 100 - i * 0.5 : 110; });
+  const xSetup = { id: 'pine-cross', version: 1, name: 'SMA Cross 5/10', enabled: true, universe: { kind: 'all' }, timeframe: '1D', confirmationMode: 'BAR_CLOSE', cooldownMode: 'NEW_MATCH', cooldownBars: 0, expires: null,
+    ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'sma_cross', fast: 5, slow: 10, field: 'crossUp' }, op: 'EQUALS', right: { value: 1 } }] } };
+  const xRun = PN.scanRun([xSetup], { series: { XAU: xSeries } }, { now: PN.scanReplayNow(xDates[29]) });
+  const xa = xRun.alerts[0];
+  check(xRun.alerts.length === 1 && xa.eventType === 'NEW_MATCH' && xa.candleDate === xDates[29] && xa.matchedConditions[0].text === 'SMA Cross SMA5 crosses over SMA10 1 equal to 1'
+    && PN.scanValidate([xSetup]).setups.length === 1,
+    'a run records a Pine crossing like any other rule: one NEW_MATCH on the bar SMA5 crosses over SMA10, whose text prints the flag as 1, not 1.00', xRun.alerts.map(a => a.matchedConditions[0].text));
+
+  /* ------------------------------------------------------------- monthly -- */
+  const mh = (to, drop = () => false, atOf = null) => {
+    const h = { schema: 2, series: { GLD: {} }, volume: { GLD: {} }, ohlc: { GLD: {} }, meta: { GLD: {} } };
+    let i = 0;
+    for (let d = '2026-01-05'; d <= to; d = PN.scanAddDays(d, 1)) {
+      const wd = PN.scanWeekday(d);
+      if (wd < 1 || wd > 5 || drop(d)) continue;
+      const c = 100 + i++;
+      h.series.GLD[d] = c; h.volume.GLD[d] = 10; h.ohlc.GLD[d] = [c - 0.5, c + 1, c - 1];
+      h.meta.GLD[d] = { src: 'test', at: atOf ? atOf(d) : `${PN.scanAddDays(d, 1)}T02:00:00Z` };
+    }
+    return h;
+  };
+  const M1 = PN.scanBars(mh('2026-03-18'), 'GLD', { timeframe: '1M', market: 'US', now: '2026-03-19T12:00:00Z' });
+  const D1 = PN.scanBars(mh('2026-03-18'), 'GLD', { market: 'US', now: '2026-03-19T12:00:00Z' });
+  const jan = D1.dates.map((d, i) => [d, i]).filter(([d]) => d < '2026-02-01').map(([, i]) => i);
+  check(PN.scanTimeframe('1M') === '1M' && PN.scanTimeframe('1m') === '1m' && PN.SCAN_TIMEFRAMES['1M'].built && PN.SCAN_TIMEFRAMES['1M'].derivedFrom === '1D'
+    && PN.scanValidate([{ ...xSetup, timeframe: '1M' }]).setups.length === 1 && code(PN.scanValidate([{ ...xSetup, id: 'x', timeframe: '1m' }])) === 'UNKNOWN_TIMEFRAME',
+    '1M is the monthly timeframe, built from 1D and accepted by validation; a lower-case 1m (a minute, beside 5m and 15m) is not read as it');
+  check(M1.timeframe === '1M' && same(M1.dates, ['2026-01-30', '2026-02-27', '2026-03-18']) && same(M1.complete, [true, true, false]) && same(M1.status, ['FINAL', 'FINAL', 'PROVISIONAL'])
+    && M1.open[0] === D1.open[jan[0]] && M1.closes[0] === D1.closes[jan[jan.length - 1]] && M1.high[1] === Math.max(...D1.high.filter((_, i) => D1.dates[i].startsWith('2026-02')))
+    && M1.low[1] === Math.min(...D1.low.filter((_, i) => D1.dates[i].startsWith('2026-02'))) && M1.volumes[0] === null && M1.volumes[1] === 200 && M1.volumes[2] === 130
+    && same(M1.missingDays[0], ['2026-01-01', '2026-01-02']),
+    'monthly bars from daily: dated by the last session held, first open, highest high, lowest low, last close; volume summed only over a month held whole (January lacks the 1st and 2nd); the month in progress is incomplete and PROVISIONAL', M1);
+  const M2 = PN.scanBars(mh('2026-03-31'), 'GLD', { timeframe: '1M', market: 'US', now: '2026-04-01T12:00:00Z' });
+  const M3 = PN.scanBars(mh('2026-03-31', () => false, (d) => (d === '2026-03-31' ? '2026-03-31T15:00:00Z' : `${PN.scanAddDays(d, 1)}T02:00:00Z`)), 'GLD', { timeframe: '1M', market: 'US', now: '2026-04-01T12:00:00Z' });
+  const M4 = PN.scanBars(mh('2026-03-31', (d) => d.startsWith('2026-02')), 'GLD', { timeframe: '1M', market: 'US' });
+  check(M2.complete[2] === true && M2.status[2] === 'FINAL' && M3.complete[2] === true && M3.status[2] === 'PROVISIONAL'
+    && same(M4.dates, ['2026-01-30', '2026-03-31']) && same(M4.gapBefore, [0, 1]) && /^1 month with sessions and no bar lies between the monthly bar of 2026-01-30 and this one of 2026-03-31$/.test(PN.scanGapText(M4, 1)?.text || ''),
+    'a month is complete once its last session is held; it is FINAL only when that session was captured after its close (captured at 11:00 in New York it stays PROVISIONAL); a month with no bar is a gap of one month', { m3: M3.status, gap: PN.scanGapText(M4, 1) });
+  const mSetup = { id: 'monthly', name: 'Monthly', enabled: true, universe: { kind: 'all' }, timeframe: '1M', confirmation: 'close', logic: 'AND', cooldownBars: 0, expires: null,
+    rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: 1 } }] };
+  const mRun = PN.scanRun([mSetup], mh('2026-03-18'), { now: '2026-03-19T12:00:00Z' });
+  check(mRun.alerts.length === 1 && mRun.alerts[0].candleDate === '2026-02-27' && mRun.alerts[0].timeframe === '1M' && /\|1M\|2026-02-27\|MATCH$/.test(mRun.alerts[0].key)
+    && /the 2026-03-18 month is not complete, so it is provisional; the bar of 2026-02-27 was evaluated instead/.test(mRun.provisional[0]?.why || '') && mRun.stale.length === 0,
+    'a monthly run evaluates the last complete month (February, on the 18th of March), says the month in progress is provisional, and does not call a current series stale because its last complete month ended weeks ago', { alerts: mRun.alerts.map(a => a.key), prov: mRun.provisional, stale: mRun.stale });
+
+  /* ----------------------------------------------------- nothing changed -- */
+  /* Digests of every engine indicator's values, statuses, reasons, needs,
+     unit and label on a fixed series, and of weekly bars on a fixed history,
+     taken from the engine as it stood before the pine section (0e4cd48). */
+  const DN = 260, dc = [], dop = [], dh = [], dl = [], dv = [];
+  for (let i = 0; i < DN; i++) {
+    const c = i >= 120 && i < 140 ? 100 : 100 + 10 * Math.sin(i / 7) + i * 0.1 + 3 * Math.sin(i / 2.3);
+    dc.push(c); dop.push(i ? dc[i - 1] : c); dh.push(c + 1 + Math.abs(Math.sin(i))); dl.push(c - 1 - Math.abs(Math.cos(i)));
+    dv.push(i >= 120 && i < 140 ? 1000 : Math.round(1000 + 500 * Math.abs(Math.sin(i / 3))));
+  }
+  const DB = PN.scanSeriesBars(dc, { open: dop, high: dh, low: dl, volumes: dv });
+  const DIGESTS = { 'price()': 'c9953c87', 'volume()': '0c6cf257', 'sma(n=20)': '85f07d2d', 'ema(n=20)': '03090d69', 'rsi(n=14)': '6e9786e0',
+    'macd(fast=12,slow=26,signal=9).line': '0f95ed25', 'macd(fast=12,slow=26,signal=9).signal': '6c2de7bc', 'macd(fast=12,slow=26,signal=9).hist': 'b4997806',
+    'volume_avg(n=20)': 'bdc21178', 'bb(n=20,k=2).upper': 'b7eba6b5', 'bb(n=20,k=2).middle': '9cb2fac8', 'bb(n=20,k=2).lower': '5594fd21', 'bb(n=20,k=2).width': 'f21eef0e',
+    'bb(n=20,k=2).pctb': '261af1f5', 'atr(n=14)': '87e7cbdd', 'high_n(n=252)': '9d84baa7', 'low_n(n=252)': 'e2dee368', 'close_high_n(n=252)': '1cca5cfc',
+    'close_low_n(n=252)': 'cf0e360c', 'change(n=1)': 'e31d7a07', 'rvol(n=20)': '4af1b0da', 'sma(n=5)': '62f1f9a3', 'ema(n=3)': 'cf19fd0e', 'rsi(n=3)': '4b38fa76',
+    'bb(n=10,k=1).pctb': '3bccd220', 'macd(fast=5,slow=9,signal=4).hist': '5609c97a', 'atr(n=5)': 'a3d0bc36', 'change(n=3)': '86ab35d0', 'rvol(n=5)': '4c3aab3c' };
+  const dSpecs = [];
+  for (const id of IDS_ENGINE) { const d = PN.SCAN_INDICATORS[id]; (d.fields ? Object.keys(d.fields) : [null]).forEach(f => dSpecs.push(f ? { indicator: id, field: f } : { indicator: id })); }
+  dSpecs.push({ indicator: 'sma', n: 5 }, { indicator: 'ema', n: 3 }, { indicator: 'rsi', n: 3 }, { indicator: 'bb', n: 10, k: 1, field: 'pctb' }, { indicator: 'macd', fast: 5, slow: 9, signal: 4, field: 'hist' }, { indicator: 'atr', n: 5 }, { indicator: 'change', n: 3 }, { indicator: 'rvol', n: 5 });
+  const moved = dSpecs.filter(s => { const r = PN.scanIndicatorSeries(s, DB);
+    return PN.scanHash(JSON.stringify({ v: r.values, s: r.status, r: r.reason.map(x => x?.code ?? null), needs: r.needs, unit: r.unit, label: r.label })) !== DIGESTS[PN.scanSpecKey(s)]; }).map(s => PN.scanSpecKey(s));
+  check(dSpecs.length === 29 && !moved.length, 'no engine indicator\'s output changed: the values, statuses, reasons, needs, units and labels of all fifteen (29 operands) hash as they did before the pine section', moved);
+  const wh = { schema: 2, series: { X: {} }, volume: { X: {} }, ohlc: { X: {} }, meta: { X: {} } };
+  const skip = ['2026-02-16', '2026-03-03', '2026-03-04', '2026-03-05', '2026-03-06', '2026-03-09', '2026-03-10', '2026-03-11', '2026-03-12', '2026-03-13'];
+  for (let d = '2026-01-05', i = 0; d <= '2026-04-15'; d = PN.scanAddDays(d, 1)) {
+    const wd = PN.scanWeekday(d);
+    if (wd < 1 || wd > 5 || skip.includes(d)) continue;
+    const c = 100 + 5 * Math.sin(i / 4) + i * 0.2;
+    wh.series.X[d] = c; wh.volume.X[d] = i % 17 === 0 ? null : 1000 + i; wh.ohlc.X[d] = [c - 0.5, c + 1, c - 1]; wh.meta.X[d] = { src: 'test', at: `${PN.scanAddDays(d, 1)}T02:00:00Z` };
+    i++;
+  }
+  const wDig = ['2026-04-15T12:00:00Z', '2026-04-18T12:00:00Z', null].map(now => { const w = PN.scanBars(wh, 'X', { timeframe: '1W', market: 'US', now });
+    return [PN.scanHash(JSON.stringify(w)), PN.scanHash(JSON.stringify(w.gapBefore.map((x, j) => (x ? PN.scanGapText(w, j) : null)).filter(Boolean)))]; });
+  check(same(wDig, [['8de0e522', 'cb0c50fb'], ['251c28cc', 'cb0c50fb'], ['8de0e522', 'cb0c50fb']]), 'weekly bars (and their gap texts) hash as they did before months were added, on a history with a holiday, a missing week and a partial week', wDig);
+
+  /* ------------------------------------------------------------ tv-verify -- */
+  const TV = await import('./scanner/tv-verify.mjs');
+  const OWNER_HEADER = ['time', 'open', 'high', 'low', 'close', 'ParabolicSAR', 'Plot', 'Plot', 'Chars', 'Chars', 'Volume', 'SR MA', 'Top Range', 'Bottom Range', 'Entry TF Buy', 'Entry TF Sell',
+    'Color MA', 'MACD', 'Histogram', 'Cross', 'Retailer', 'Hot Money', 'Banker', '5', '10', '15', 'Banker_MA', 'Plot', 'Plot', 'Plot', 'RSI', 'RSI-based MA', 'Regular Bullish',
+    'Regular Bullish Label', 'Regular Bearish', 'Regular Bearish Label', 'WT Average-WT1', 'Signal average-WT2', 'Level 0', ...lv('overbought'), ...lv('oversold'),
+    'Sell when overbought', 'All sales', 'Buy when oversold', 'All purchases', 'Histogramme', 'Divergencias Bajistas', 'Divergencias Alcistas', 'Bearish Regular Divergence',
+    'Bearish Hidden Divergence', 'Bullish Regular Divergence', 'Bullish Regular Divergence', 'MA PLOT_ST'];
+  const titlesOf = Object.fromEntries(TV.CHART.filter(c => c.id).map(c => [c.id, RUN[c.id].plots.map(x => x[0])]));
+  const om = TV.mapColumns(OWNER_HEADER, titlesOf);
+  const at = (i) => om[i - 1];
+  check(om.length === 67 && at(7).id === 'sma_cross' && at(7).plot === 0 && at(8).plot === 1 && at(10).plot === 3 && at(28).id === 'banker_entry' && at(28).plot === 0 && at(30).plot === 2
+    && at(15).kind === 'none' && at(11).kind === 'input' && at(66).kind === 'none' && at(67).id === 'wavetrend' && at(67).title === 'MA PLOT_ST',
+    'tv-verify reads the reader\'s chart header (67 columns): the first two "Plot" columns are SMA Cross, the last three the blackcat script, the second "Chars" SMA Cross\'s cross under; Entry TF and the divergences are known and not computed');
+  const threw = (f) => { try { f(); return null; } catch (e) { return e.message; } };
+  const unknown = threw(() => TV.mapColumns([...OWNER_HEADER.slice(0, 20), 'Stoch RSI', ...OWNER_HEADER.slice(20)], titlesOf));
+  const sixth = threw(() => TV.mapColumns([...OWNER_HEADER, 'Plot'], titlesOf));
+  const noClose = threw(() => TV.mapColumns(['time', 'open', 'high', 'low', 'Close price'], titlesOf));
+  check(/^column 21 “Stoch RSI” is not a column of the chart this tool knows/.test(unknown || '') && /^column 68 “Plot” is the 6th column of that title, and the chart this tool knows has 5$/.test(sixth || '')
+    && /^column 5 “Close price” should be “close”/.test(noClose || ''),
+    'tv-verify refuses a header it does not recognise and names the column: an unknown title, a sixth "Plot", a fifth column that is not the close', { unknown, sixth, noClose });
+  /* A file built here: the chart's columns from the engine's own plots of
+     400 synthetic bars — every computed column MATCHes or is NOT SETTLED;
+     one changed value DIFFERS, at its bar; a short file does not settle. */
+  const mkCsv = (nb, tweak = null) => {
+    const bars = PN.scanSeriesBars(pc.slice(0, nb), { open: po.slice(0, nb), high: ph.slice(0, nb), low: pl.slice(0, nb), volumes: pv.slice(0, nb) });
+    const plots = Object.fromEntries(TV.CHART.filter(c => c.id).map(c => [c.id, PN.SCAN_INDICATORS[c.id].pine(bars, PN.scanParams({ indicator: c.id }).params).plots]));
+    const m = TV.mapColumns(OWNER_HEADER, Object.fromEntries(Object.entries(plots).map(([id, ps]) => [id, ps.map(x => x[0])])));
+    const cols = m.map((c, j) => (j < 5 ? [null, bars.open, bars.high, bars.low, bars.closes][j] : c.kind === 'input' ? bars.volumes : c.kind === 'plot' ? plots[c.id][c.plot][1] : null));
+    const lines = [OWNER_HEADER.map(t => (t.includes(',') ? `"${t}"` : t)).join(',')];
+    for (let i = 0; i < nb; i++) lines.push(cols.map((c, j) => { if (j === 0) return String(1753909200 + i * 86400); const v = c ? c[i] : null; const w = tweak ? tweak(j, i, v) : v; return w == null ? '' : String(w); }).join(','));
+    return lines.join('\n');
+  };
+  const rep = await TV.verify(mkCsv(400), { E: PN, file: 'synthetic' });
+  const row = (col) => rep.rows.find(r => r.column === col);
+  const colMa = OWNER_HEADER.indexOf('Color MA');
+  const bent = await TV.verify(mkCsv(400, (j, i, v) => (j === colMa && i === 350 ? v * 1.01 : v)), { E: PN, file: 'bent' });
+  const shortRep = await TV.verify(mkCsv(60), { E: PN, file: 'short' });
+  const setRep = await TV.verify(mkCsv(400), { E: PN, sets: TV.parseSets(['sma_cross.fast=20'], PN), file: 'set' });
+  check(rep.summary.differs === 0 && rep.summary.match > 30 && row(17).result === 'MATCH' && row(7).result === 'MATCH' && row(67).result === 'NOT SETTLED' && /needs 636 bars/.test(row(67).note)
+    && row(15).result === 'NOT COMPARED' && bent.summary.differs === 1 && bent.rows.find(r => r.column === 17).worstAt.bar === 350
+    && shortRep.rows.find(r => r.column === 8).result === 'NOT SETTLED' && setRep.rows.find(r => r.column === 7).result === 'DIFFERS' && setRep.rows.find(r => r.column === 8).result === 'MATCH',
+    'tv-verify on a file of its own plots: nothing DIFFERS (the TEMA of 200 needs 636 bars, NOT SETTLED; Entry TF NOT COMPARED); one value off by 1% DIFFERS at its bar; 60 bars leave the SMA of 200 NOT SETTLED; --set sma_cross.fast=20 makes the first "Plot" DIFFER',
+    { summary: rep.summary, bent: bent.summary, c67: row(67) });
+  const tvDir = join(tmpdir(), `qt-pine-tv-${process.pid}`);
+  await mkdir(tvDir, { recursive: true });
+  try {
+    await writeFile(join(tvDir, 'good.csv'), mkCsv(400));
+    await writeFile(join(tvDir, 'bent.csv'), mkCsv(400, (j, i, v) => (j === colMa && i === 350 ? v * 1.01 : v)));
+    await writeFile(join(tvDir, 'bad.csv'), mkCsv(400).replace('Color MA', 'Colour MA'));
+    const cli = async (f) => { try { const r = await run(process.execPath, [join(ROOT, 'scanner/tv-verify.mjs'), '--csv', join(tvDir, f)]); return { code: 0, out: r.stdout, err: r.stderr }; } catch (e) { return { code: e.code, out: e.stdout || '', err: e.stderr || '' }; } };
+    const [g, b, x] = [await cli('good.csv'), await cli('bent.csv'), await cli('bad.csv')];
+    check(g.code === 0 && /\n 17  Color MA +color_ma · Color MA +bar 199 +201  0 +MATCH\n/.test(g.out) && b.code === 1 && /DIFFERS — worst at bar 350/.test(b.out)
+      && x.code === 2 && /column 17 “Colour MA” is not a column of the chart this tool knows/.test(x.err),
+      'node scanner/tv-verify.mjs --csv: exit 0 with the table when nothing differs, 1 naming the bar when a column DIFFERS, 2 naming the column it does not recognise', { g: g.out.split('\n').find(l => / 17 /.test(l)), b: b.code, x: x.err });
+  } finally { await rm(tvDir, { recursive: true, force: true }); }
+}
+/* ---- end pine: indicators ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

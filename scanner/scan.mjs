@@ -215,6 +215,13 @@ export const ENGINE_EXPORTS = [
   /* round 3 (worker): watchlist resolution, catch-up and gaps */
   'scanResolveUniverse', 'scanPairKey', 'SCAN_CATCH_UP_CAP', 'scanGapText', 'scanGapNote',
   'scanFixture', 'scanSelfTest',
+  /* the reader's TradingView indicators (the engine's pine section): TradingView's primitives, the ten scripts, their catalogue; months */
+  'SCAN_PINE_INDICATORS', 'SCAN_PINE_MA_TYPES', 'SCAN_PINE_RSI_MA',
+  'scanPineNz', 'scanPineSma', 'scanPineEma', 'scanPineRma', 'scanPineRsi', 'scanPineWma', 'scanPineVwma', 'scanPineHma', 'scanPineDema', 'scanPineTema',
+  'scanPineStdev', 'scanPineHighest', 'scanPineLowest', 'scanPineChange', 'scanPineCrossover', 'scanPineCrossunder', 'scanPineCross',
+  'scanPineRising', 'scanPineFalling', 'scanPineSar', 'scanPineSarState', 'scanPineXsa', 'scanPineMa',
+  'scanPineWaveTrend', 'scanPineCmMacd', 'scanPineBotMacd', 'scanPineMcdx', 'scanPineColorMa', 'scanPineSmaCross', 'scanPinePsar',
+  'scanPineSrMa', 'scanPineBankerEntry', 'scanPineRsiStudy', 'scanMonthOf',
 ];
 
 /* ------------------------------------------------------------ validation -- */
