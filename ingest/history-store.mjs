@@ -47,8 +47,10 @@
  * DATES. A bar is dated by its exchange's session in the exchange's time
  * zone — never by the UTC day of a timestamp or of the machine that read it.
  * parseDateCell reads an import's date cell and refuses a day/month order it
- * cannot know (03/04/2026), as the browser's paste parser does; readingSession
- * dates a reading taken at an instant (a screen capture, a quote).
+ * cannot know (03/04/2026), as the browser's paste parser does, and dates an
+ * export's stamp by the session it opens (epochDate: OANDA's gold bar stamped
+ * 17:00 New York on Sunday is Monday's); readingSession dates a reading taken
+ * at an instant (a screen capture, a quote).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -242,9 +244,12 @@ export function mergeBars(hist, symbol, rows, { source, capturedAt = null, marke
   const count = new Map();
   list.forEach(r => count.set(r.date, (count.get(r.date) || 0) + 1));
   list.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  /* FUTURE is judged against the session day that has begun at `now`, not
+     the market's calendar date (sessionToday). */
+  const today = sessionToday(E, market, now);
   for (const r of list) {
     const bar = { date: r.date, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume };
-    const codes = count.get(r.date) > 1 ? ['DUPLICATE_DATE'] : E.scanValidateBar(bar, { market, now });
+    const codes = count.get(r.date) > 1 ? ['DUPLICATE_DATE'] : E.scanValidateBar(bar, { market, now, today });
     if (codes.length) { out.rejected.push({ symbol: sym, date: r.date ?? null, codes, source, capturedAt: r.at || null, row: { open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume } }); continue; }
     const d = r.date, at = r.at || null;
     const held = barAt(hist, sym, d);
@@ -294,7 +299,7 @@ export function mergeBars(hist, symbol, rows, { source, capturedAt = null, marke
     /* A merged bar is validated again: kept open/high/low from the held bar
        must still bracket the close. */
     if (filled || changed) {
-      const again = E.scanValidateBar({ date: d, open: next.open, high: next.high, low: next.low, close: next.close, volume: next.volume }, { market, now });
+      const again = E.scanValidateBar({ date: d, open: next.open, high: next.high, low: next.low, close: next.close, volume: next.volume }, { market, now, today });
       if (again.length) { out.rejected.push({ symbol: sym, date: d, codes: again, source, capturedAt: at, row: { open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume }, why: 'merged with the held bar it fails validation' }); continue; }
       writeBar(hist, sym, d, next, metaOf(source, at));
       if (filled) out.filled++;
@@ -450,15 +455,58 @@ const realDay = (d) => {
   return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === d;
 };
 
+/* The wall-clock minute of the day at an instant in a time zone. */
+const DTF_MIN = new Map();
+function minuteInZone(ms, tz) {
+  let f = DTF_MIN.get(tz);
+  if (!f) { f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', hour: '2-digit', minute: '2-digit' }); DTF_MIN.set(tz, f); }
+  const p = Object.fromEntries(f.formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+  return (Number(p.hour) % 24) * 60 + Number(p.minute);
+}
+const hhmm = (s) => { const [h, m] = String(s).split(':').map(Number); return h * 60 + (m || 0); };
+const nextDay = (d) => new Date(Date.parse(`${d}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+
+/* The minute, in its own zone, at which a market's session day opens on the
+   EVENING BEFORE — or null for a market whose day opens on the day itself.
+   `session` is the market's row in the engine's SCAN_MARKETS ({ tz, open,
+   close }). A row with no open trades the whole day up to its close: FX's
+   17:00 New York close makes its day run from 17:00 the evening before, the
+   day OANDA's gold and every currency pair trade. An open later than the
+   close is an evening open too. An exchange that opens and closes on one
+   day (New York 09:30–16:00), and a day that closes at midnight (crypto,
+   and the default market), open on the day itself. */
+export function eveningOpen(session) {
+  if (!session || typeof session !== 'object') return null;
+  const close = hhmm(session.close || '24:00');
+  if (session.open) { const open = hhmm(session.open); return open > close ? open : null; }
+  return close < 1440 ? close : null;
+}
+
 /* A daily bar's epoch. Exports disagree about what instant stands for a
    session: some write midnight UTC of the session date, some midnight in the
    exchange's zone, some the session's open. Midnight UTC exactly is read as
    a UTC date; anything else is dated in the exchange's zone. The two readings
    differ only for a zone far from UTC, and there only this rule gets both
-   conventions right. */
-export function epochDate(ms, tz = 'UTC') {
+   conventions right.
+   A SESSION THAT OPENS THE EVENING BEFORE. TradingView stamps a daily bar
+   at the instant its session OPENS, and OANDA's gold day opens at 17:00 New
+   York the evening before: Monday's bar is stamped Sunday 21:00 UTC, and
+   dated in the zone it was a Sunday — refused as NON_SESSION_DAY, and every
+   Tuesday to Friday filed a day early, the shift history-check reports on
+   the currency pairs. Given the market's session, a stamp at or after the
+   hour its day opens the evening before is the NEXT day's session: the
+   session the bar closes. A stamp before that hour (a vendor's local
+   midnight) is its own day, as before. A stamp that opens a day the market
+   does not trade (Friday 17:00) is dated that day and refused as
+   NON_SESSION_DAY, never moved onto Monday's bar. An exchange's stamp at its
+   own open, and crypto's midnight UTC, are their own day under either
+   rule. */
+export function epochDate(ms, tz = 'UTC', session = null) {
   if (!Number.isFinite(ms)) return null;
-  return ms % 86400000 === 0 ? new Date(ms).toISOString().slice(0, 10) : dateInZone(ms, tz);
+  if (ms % 86400000 === 0) return new Date(ms).toISOString().slice(0, 10);
+  const day = dateInZone(ms, tz);
+  const opens = eveningOpen(session);
+  return opens != null && minuteInZone(ms, tz) >= opens ? nextDay(day) : day;
 }
 
 /* One date cell from an import. ISO first; a 10- or 13-digit epoch through
@@ -469,11 +517,13 @@ export function epochDate(ms, tz = 'UTC') {
    order and anything else is refused as ambiguous: 03/04/2026 is 3 April in
    Kuala Lumpur and 4 March in New York, and picking one silently shifts a
    series by a month. Never `new Date(text)`, which guesses month-first and
-   then shifts the result by the machine's own zone. */
-export function parseDateCell(raw, { tz = 'UTC' } = {}) {
+   then shifts the result by the machine's own zone. `session`, the market's
+   SCAN_MARKETS row, dates an instant by the session it opens (epochDate);
+   without it, an instant is its day in `tz`. */
+export function parseDateCell(raw, { tz = 'UTC', session = null } = {}) {
   const s = String(raw ?? '').trim().replace(/^["']|["']$/g, '');
-  if (/^\d{10}$/.test(s)) return { date: epochDate(Number(s) * 1000, tz) };
-  if (/^\d{13}$/.test(s)) return { date: epochDate(Number(s), tz) };
+  if (/^\d{10}$/.test(s)) return { date: epochDate(Number(s) * 1000, tz, session) };
+  if (/^\d{13}$/.test(s)) return { date: epochDate(Number(s), tz, session) };
   const iso = s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)\s*(Z|[+-]\d{2}:?\d{2})?)?$/i);
   if (iso) {
     const [, day, time, zone] = iso;
@@ -493,7 +543,7 @@ export function parseDateCell(raw, { tz = 'UTC' } = {}) {
          "2026-04-13T00:00:00Z" — a whole UTC-stamped export for New York
          or São Paulo a day early, its Mondays on Sundays. A time with no
          zone is no instant; the day it is written under stands. */
-      if (zone) return { date: epochDate(ms, tz) };
+      if (zone) return { date: epochDate(ms, tz, session) };
     }
     return { date: day };
   }
@@ -531,6 +581,24 @@ export function readingSession(E, market, instant) {
     if (ms >= start && ms < end) return { date: day, status: 'PROVISIONAL', inSession: true };
   }
   return { date: E.scanSessionDateAt(market, ms), status: 'FINAL', inSession: false };
+}
+
+/* The latest session day that has begun at `now`: what "today" means for
+   the store's FUTURE check. The engine's scanValidateBar, given only `now`,
+   takes the market's calendar date — but a market whose day opens the
+   evening before is trading tomorrow's session from that hour. At 18:00 New
+   York on a Sunday (06:00 on Monday in Kuala Lumpur) readingSession dates a
+   currency pair to Monday, and the store refused that Monday bar as FUTURE:
+   the in-progress row of a TradingView export made then was lost, and so
+   was a screen reading. From the hour the day opens, today is the next
+   day; otherwise it is the calendar date in the market's zone, as before. */
+export function sessionToday(E, market, now) {
+  const ms = typeof now === 'number' ? now : Date.parse(now);
+  if (!Number.isFinite(ms)) return null;
+  const M = E.scanMarket(market);
+  const local = dateInZone(ms, M.tz);
+  const opens = eveningOpen(M);
+  return opens != null && minuteInZone(ms, M.tz) >= opens ? nextDay(local) : local;
 }
 
 /* The instrument registry, and a symbol's market from it (null without a

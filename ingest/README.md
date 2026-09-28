@@ -293,6 +293,7 @@ all go through it.
 
 ```bash
 node ingest/history-import.mjs --in KLSE.csv --symbol KLSE    # an export, open/high/low kept
+node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1D.csv" --symbol XAUUSD   # a TradingView export
 node ingest/history.mjs --in data/personal-prices.json       # what the daily run does
 node ingest/live.mjs --history --days 400                     # a provider (personal lane)
 ```
@@ -340,20 +341,60 @@ pairs' Monday bars on Sunday. Now:
   `captured_at` and `bar_status` columns before the free-text ones;
   `prices.mjs` carries `captured_at` through.
 - **Imports** read ISO dates as written. A 10- or 13-digit epoch, or a
-  date-time with a zone, is dated in the instrument's zone (its registry
-  market, or `--tz`), except an instant at exactly midnight UTC, which is read
-  as that UTC date — the two conventions exports use. Day-first and month-first dates follow the browser's paste rule: a day
+  date-time with a zone, is an instant, dated by the session it opens in the
+  instrument's market (its registry row, or `--market`; `--tz` changes only
+  the zone), except an instant at exactly midnight UTC, which is read as that
+  UTC date. Day-first and month-first dates follow the browser's paste rule: a day
   above 12 settles the order, and `03/04/2026` is refused as ambiguous rather
   than guessed (the old parser read it as 3 March and then, on a machine in
   Kuala Lumpur, shifted it to the 2nd). The test checks this under two machine
   zones and against the page's own parser.
+
+**TradingView exports** stamp each daily bar at the instant its session
+*opens*, and the import dates it by the session it *closes*:
+
+| Market (its `SCAN_MARKETS` row) | A daily stamp | The session |
+|---|---|---|
+| A day that opens the evening before — `FX`: the currency pairs and OANDA's spot gold, 17:00 New York | Sunday 17:00 New York (21:00 UTC in summer, 22:00 in winter) | **Monday** — any stamp at or after 17:00 is the next day |
+| An exchange (`US`, `MY`, …) | its own open, New York 09:30 | that day |
+| `CRYPTO`, and the default market | 00:00 UTC | that day, weekends included |
+
+So OANDA's gold export, stamped Sunday to Thursday, lands Monday to Friday.
+Dated in the zone alone, Monday's bar was a Sunday — refused as
+NON_SESSION_DAY — and every other bar a day early. A stamp at 17:00 on a
+Friday would open a Saturday: it is refused, never moved onto Monday's bar.
+The rule is read off the market's session (no open and a close before
+midnight, or an open later than the close), so it holds for any market given
+such a row. The store's FUTURE check follows it too: at 18:00 New York on a
+Sunday — 06:00 on Monday in Kuala Lumpur — Monday's currency and gold bar is
+the session in progress, not a future one (the store refused it until now,
+losing an export's last row and a screen reading made then).
+
+- **The capture time** is the file's modification time (TradingView writes
+  none), or `--captured-at`: the last row of an export saved while its
+  session traded is PROVISIONAL, and the next import after the close
+  replaces it. The output names each file's last bar and its status.
+- **Volume** from a spot currency or metals broker (market `FX`) is a tick
+  count — how many times the broker's price changed, not ounces, lots or
+  contracts traded. It is recorded as given, and the output says so.
+- **Indicator columns** — a TradingView export carries one per plot on the
+  chart — are not stored; the output counts them. The history holds bars,
+  not what a chart drew on them: anything comparing indicators with
+  TradingView's reads the export file itself.
+- **The file name** is TradingView's `<EXCHANGE>_<SYMBOL>, <INTERVAL>.csv`:
+  without `--symbol` (and under `--dir`) the symbol is read from it
+  (`OANDA_XAUUSD, 1D.csv` is `XAUUSD`), and a file whose name says any
+  interval but the day (`1W`, `240`) is refused — a weekly bar read as a
+  daily one would write the week's close over Monday's.
 
 Each bar's capture time is what the engine's bar status reads: FINAL when
 captured at or after the session's close plus its settle margin, PROVISIONAL
 before, UNKNOWN for bars written before this store existed. The exchanges'
 zones and published hours are the engine's `SCAN_MARKETS`, now a row for every
 market in `data/instruments.json` except commodities (which trade nearly round
-the clock and stay on the conservative default). They are typed by hand, not a
+the clock and stay on the conservative default) — save spot gold, `XAUUSD`,
+which is on `FX`: it trades the currency session, 17:00 New York to 17:00 New
+York, as OANDA quotes it. They are typed by hand, not a
 maintained calendar, and each errs late: a late close only delays when a bar is
 called final.
 
