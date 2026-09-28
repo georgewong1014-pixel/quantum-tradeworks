@@ -1104,6 +1104,16 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   /* A list of one-line buttons that are not .btn — the dashboard's research
      loop, six 34px rows two pixels apart. */
   .tap-row { min-height: 44px; }
+  /* A figure that opens its source is a button — role, tab stop, Enter — in
+     the statements table, the comparison and the screener, and it was 39px
+     tall at 360 and 390px, row after row of them a finger apart. A table
+     cell takes its height as a floor, so a label that wraps still grows it. */
+  .cell-sourced { height: 44px; }
+  /* So is a link that is everything its cell holds — a watchlist's ticker, a
+     source named as its row's header, a build-status row's path. It is the
+     row's way on, not a word in a sentence, and at 390px it measured 34×19
+     ("AAPL"), 38×19 ("Brickz") and 42×44 ("/status"). */
+  td > a:only-child, th > a:only-child { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
 }
 
 /* THE DECISION DOCK.
@@ -1885,6 +1895,9 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .scan-tick-hit { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 @media (pointer: coarse), (max-width: 768px) {
   .scan-tick-hit { min-width: 44px; min-height: 44px; }
+  /* The setup's name opens it, and in the list of setups against the
+     worker's file it was a 22px line of text above its explanation. */
+  .scan-drift li > .row > a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 .scan-alerts-t tr.scan-new td { background: color-mix(in srgb, var(--brand-wash) 55%, transparent); }
 .scan-lineage { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
@@ -2767,6 +2780,30 @@ function noteReportRead(id) {
 }
 const reportsLeft = () => Math.max(0, lim('reportsPerMonth') - State.reportLog.ids.length);
 
+/* WHERE FOCUS GOES WHEN A REDRAW TAKES THE CONTROL AWAY.
+   render() replaces the whole view, so a button whose action redraws the
+   page destroys itself under the keyboard, and focus fell to <body>: a
+   screen reader lost its place and the next Tab started again from the top.
+   Where the same control comes back under the same id, renderKeepFocus
+   (40-views-discover.js) hands focus back to it. Where the action changes
+   what is there — a button that comes back as the disabled "Current plan",
+   a record that is gone, an offer that has been taken up — focus goes to the
+   first of `targets` the redrawn page holds (a selector, an element, or a
+   function that finds one), and to <main> only when there is none. A heading
+   or a card takes tabindex=-1, so it can hold focus without joining the Tab
+   order. */
+function focusAfterRedraw(...targets) {
+  for (const t of targets) {
+    const n = typeof t === 'function' ? t() : typeof t === 'string' ? document.querySelector(t) : t;
+    if (!n || !n.isConnected) continue;
+    if (!n.matches('a[href], button, input, select, textarea, summary, [tabindex]')) n.setAttribute('tabindex', '-1');
+    n.focus();
+    if (document.activeElement === n) return n;
+  }
+  focusMain();
+  return null;
+}
+
 function setPlan(id) {
   State.plan = id; store.write('plan', id);
   /* And again when the plan changes in the session. Enforced at load only,
@@ -2774,7 +2811,14 @@ function setPlan(id) {
      comparison that the page, a click later, said holds up to two. */
   clampToPlan();
   toast(`Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
+  /* The button pressed on /pricing comes back from the redraw as the
+     disabled "Current plan", which cannot hold focus, so a keyboard reader
+     who switched plan was left on <body>. Focus goes to the heading of the
+     plan now in force — the card the button was in, now marked Current. */
+  const pressed = document.activeElement;
   render();
+  if (pressed && pressed !== document.body && !pressed.isConnected)
+    focusAfterRedraw(() => $$('#views .card h3').find(h => h.textContent.trim() === PLANS[id].name));
 }
 
 /* An upgrade prompt that names the limit rather than hiding behind a paywall. */
@@ -4379,6 +4423,10 @@ const WORK_KINDS = {
 
 const loadWork = () => store.read('savedWork', []);
 const persistWork = (list) => store.write('savedWork', list);
+/* STORE_REFUSED's counterpart for a removal the browser refused to write:
+   the thing is still there, and a page that said "Deleted" would be wrong
+   about it after the next render. */
+const STORE_UNDELETED = 'Not deleted — this browser refused the write (its storage is full or switched off), so it is still there.';
 
 /* A monotonic counter, because timestamps collide.
    The first version keyed records on Date.now() plus a sub-millisecond figure
@@ -4413,8 +4461,10 @@ function saveWork(kind, nameOverride) {
     stamp: buildStamp(kind),
     payload,
   };
-  persistWork([rec, ...loadWork()]);
-  return rec;
+  /* A record the browser refused is not a record. This returned it whether
+     or not the write was kept, so a caller that trusted the return said
+     "Saved" over nothing — with the quota full, loadWork() never held it. */
+  return persistWork([rec, ...loadWork()]) ? rec : null;
 }
 
 /* Resume writes the record's keys back and re-reads State from them, so the
@@ -4441,8 +4491,8 @@ function duplicateWork(id) {
   const copy = { ...rec, id: nextWorkId(rec.kind),
     name: `${rec.name} (copy)`.slice(0, 80),
     savedAt: new Date().toISOString().replace('T', ' ').slice(0, 16) };
-  persistWork([copy, ...loadWork()]);
-  return copy;
+  /* As saveWork: a copy the browser did not keep is not returned. */
+  return persistWork([copy, ...loadWork()]) ? copy : null;
 }
 
 const deleteWork = (id) => persistWork(loadWork().filter(r => r.id !== id));
@@ -4475,14 +4525,37 @@ function backupPayload() {
 }
 
 /* Returns {ok, restored, error}. Refuses anything that is not one of our own
-   backups rather than writing arbitrary JSON into the app's storage. */
+   backups rather than writing arbitrary JSON into the app's storage.
+
+   ALL OR NOTHING. Every key was counted as restored whether or not the
+   browser kept it, so with the quota full the page said "Restored N items —
+   reloading" and reloaded into a mixture: the keys before the refusal
+   replaced, the rest as they were — the half-merged state the restore card
+   promises it never makes. A refused key now puts back every key already
+   written, as it was, and the restore reports that it did not happen. */
 function restoreBackup(text) {
   let obj;
   try { obj = JSON.parse(text); } catch { return { ok:false, error:'That file is not valid JSON.' }; }
   if (!obj || obj.format !== 'quantum-tradeworks-backup' || !obj.data || typeof obj.data !== 'object')
     return { ok:false, error:'That file is not a Quantum Tradeworks backup.' };
+  const before = [];
   let restored = 0;
-  Object.entries(obj.data).forEach(([k, v]) => { store.write(k, v); restored++; });
+  for (const [k, v] of Object.entries(obj.data)) {
+    let prior = null;
+    try { prior = localStorage.getItem(STORE_PREFIX + k); } catch { /* storage unreadable: the write below is refused too */ }
+    if (!store.write(k, v)) {
+      let unrestored = 0;
+      before.reverse().forEach(([key, raw]) => {
+        try { if (raw === null) localStorage.removeItem(STORE_PREFIX + key); else localStorage.setItem(STORE_PREFIX + key, raw); }
+        catch { unrestored++; }
+      });
+      return { ok:false, restored:0, error: unrestored
+        ? `Not restored — this browser refused part of the backup (its storage is full or switched off), and ${unrestored} of the items already written could not be put back as they were.`
+        : 'Not restored — this browser refused part of the backup (its storage is full or switched off), so what it held before is left as it was.' };
+    }
+    before.push([k, prior]);
+    restored++;
+  }
   return { ok:true, restored };
 }
 
@@ -9228,12 +9301,60 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
      an attempt; the last success is the latest run on the history as it
      stands. */
   const replayed = (r) => !!r?.replayAsOf || r?.trigger === 'replay';
-  const lastSuccess = [...byTime].reverse().find(r => (r.status === 'COMPLETED' || r.status === 'PARTIAL') && !evaluatedNothing(r) && !replayed(r))
+  /* A RETRY ANSWERS FOR THE RUN IT RETRIED. --retry re-runs a logged run on
+     the history cut where that run read it, by that run's clock: it is a
+     scan of that run's moment, not of its own. Placed by its own start, a
+     retry of Friday's run made after Monday's had scanned Monday's bar was
+     "the last scan" — the dashboard went behind ("the last scan ran today
+     on bars of Friday") with Friday's matches as the last scan's — and a
+     failed one hid that Monday's had succeeded. So a run is placed at the
+     start of the run it answers for: a retry at its run's (through a retry
+     of a retry), unless that run read no history — the retry then read the
+     history as it stands, and answers for itself. A run the log no longer
+     holds is placed by the clock the retry read by, which is its run's. A
+     retry of the latest run still comes after it, as that run's scan.
+     Replays answer for no moment of the scanning, and are left out of
+     these runs altogether (above). */
+  const byId = new Map(runList.filter(r => r.id != null).map(r => [r.id, r]));
+  const answersFor = (r) => {
+    let x = r;
+    const seen = new Set();
+    while (x.trigger === 'retry' && x.retryOf != null && !seen.has(x.retryOf)) {
+      seen.add(x.retryOf);
+      const o = byId.get(x.retryOf);
+      if (!o) return String(x.now || x.startedAt || '');
+      if (!o.historyNewest) break;
+      x = o;
+    }
+    return String(x.startedAt || '');
+  };
+  const nonReplays = byTime.filter(r => !replayed(r)).map((r, i) => ({ r, i, at: answersFor(r) }))
+    .sort((a, b) => a.at.localeCompare(b.at) || a.i - b.i).map(x => x.r);
+  /* THE STATE IS THE SCANNING'S, NOT A REPLAY'S. A replay was left out of
+     the last success, but the latest attempt still judged the state: a
+     replay that failed on a typo in --setup put FAILED over a scanner that
+     was current, one that evaluated no bar put it behind, and a completed
+     one hid a scheduled run that had failed before it. The state reads the
+     latest run that is not a replay; a replay stays the latest attempt,
+     shown as one. */
+  const lastNonReplay = nonReplays[nonReplays.length - 1] || (legacy && !replayed(legacy) ? legacy : null);
+  const lastSuccess = [...nonReplays].reverse().find(r => (r.status === 'COMPLETED' || r.status === 'PARTIAL') && !evaluatedNothing(r))
     || (legacy && !evaluatedNothing(legacy) && !replayed(legacy) ? legacy : null);
   const today = now != null && Number.isFinite(scanMs(now)) ? new Date(scanMs(now)).toISOString().slice(0, 10) : null;
   const v = setupsDoc ? scanValidate(setupsDoc) : { setups: [], problems: [] };
+  /* REFUSED COUNTS SETUPS. It counted problems, and one setup can have
+     several: a setup with a bad timeframe and a bad group logic was "2
+     refused" in --status. A setup passes whole or is refused whole, so the
+     refused are the entries that did not pass — two entries sharing an id
+     are two, though problemsBySetup keys them once. A file that is not a
+     list is refused whole, and how many setups it meant to hold is not
+     known: null, with the reason in fileRefused, never a 0. problems counts
+     the reasons. */
+  const setupList = Array.isArray(setupsDoc) ? setupsDoc : Array.isArray(setupsDoc?.setups) ? setupsDoc.setups : null;
   const active = { valid: v.setups.length, enabled: v.setups.filter(s => s.enabled).length, disabled: v.setups.filter(s => !s.enabled).length,
-                   expired: v.setups.filter(s => s.enabled && s.expires && today && s.expires < today).length, refused: v.problems.length };
+                   expired: v.setups.filter(s => s.enabled && s.expires && today && s.expires < today).length,
+                   refused: !setupsDoc ? 0 : setupList ? setupList.length - v.setups.length : null, problems: v.problems.length,
+                   fileRefused: setupsDoc && !setupList ? v.problems[0] || null : null };
   const histSyms = Array.isArray(historyMeta?.symbols) ? historyMeta.symbols : null;
   let monitored = null;
   if (histSyms) {
@@ -9251,14 +9372,19 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
   const day = (t) => (t ? String(t).slice(0, 10) : '—');
   if (!lastAttempt) { state = 'never'; reasons.push('No scan has been recorded on this machine: neither a run log nor a last run in the alerts file.'); }
   if (control?.paused) { if (state !== 'never') state = 'paused'; reasons.push(`The worker is paused${control.since ? ` since ${day(control.since)}` : ''}${control.reason ? `: ${control.reason}` : ''}.`); }
-  if (lastAttempt && lastAttempt.status === 'FAILED') {
+  /* With a later attempt that answers for an older moment — a replay, or a
+     retry of an older run — the run the state reads is named as the latest
+     on the history as it stands, not as the latest attempt. */
+  const latest = (noun) => (lastNonReplay === lastAttempt ? `latest ${noun}` : `latest ${noun} on your history as it stands`);
+  const nonReplayFailed = !!lastNonReplay && lastNonReplay.status === 'FAILED';
+  if (nonReplayFailed) {
     if (state === 'current') state = 'failed';
-    reasons.push(`The latest attempt${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} failed${lastAttempt.error?.message ? `: ${lastAttempt.error.message}` : ''}.`);
+    reasons.push(`The ${latest('attempt')}${lastNonReplay.id ? ` (${lastNonReplay.id})` : ''} on ${day(lastNonReplay.startedAt)} failed${lastNonReplay.error?.message ? `: ${lastNonReplay.error.message}` : ''}.`);
   }
-  if (lastAttempt && (lastAttempt.status === 'COMPLETED' || lastAttempt.status === 'PARTIAL') && evaluatedNothing(lastAttempt)) {
-    const held = Array.isArray(lastAttempt.skippedMarkets) ? lastAttempt.skippedMarkets : [];
+  if (lastNonReplay && (lastNonReplay.status === 'COMPLETED' || lastNonReplay.status === 'PARTIAL') && evaluatedNothing(lastNonReplay)) {
+    const held = Array.isArray(lastNonReplay.skippedMarkets) ? lastNonReplay.skippedMarkets : [];
     if (state === 'current') state = 'behind';
-    reasons.push(`The latest run${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} evaluated no bar${held.length
+    reasons.push(`The ${latest('run')}${lastNonReplay.id ? ` (${lastNonReplay.id})` : ''} on ${day(lastNonReplay.startedAt)} evaluated no bar${held.length
       ? `: every market it would have scanned was held back as not ready — ${held.map(m => m.reason || m.market || 'no market row').join('; ')}` : ''}.`);
   }
   const newestBar = historyMeta?.newestBar || null;
@@ -9272,26 +9398,30 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
     if (ageReason) behind.push(ageReason);
     if (behind.length && state === 'current') state = 'behind';
     reasons.push(...behind);
-  } else if (lastAttempt && evaluatedNothing(lastAttempt)) {
+  } else if (lastNonReplay && evaluatedNothing(lastNonReplay)) {
     /* Held back with no success before it: an old history is usually why. */
     if (ageReason) reasons.push(ageReason);
-  } else if (lastAttempt && lastAttempt.status !== 'FAILED') {
-    /* NO SUCCESS, AND AN ATTEMPT THAT DID NOT FAIL. This read "failed" with
+  } else if (lastAttempt && !nonReplayFailed) {
+    /* NO SUCCESS, AND NO FAILURE BUT A REPLAY'S. This read "failed" with
        no reason at all, so a first run still RUNNING, one skipped for want
        of a setups file, a cancelled one or a lone replay put "The latest
        scan failed." over an empty list, beside a tile saying the attempt
        was running or skipped. Nothing has succeeded, so it is not current;
-       nothing failed, so it is behind — and it says which attempt, when,
-       and what became of it. A FAILED attempt has its reason above. */
-    const s = lastAttempt.status;
-    const what = replayed(lastAttempt) && (s === 'COMPLETED' || s === 'PARTIAL')
-      ? `was a replay of ${lastAttempt.replayAsOf || 'a past session'}, which evaluates that session as though the history ended there`
+       nothing but a replay failed, so it is behind — and it says which
+       attempt, when, and what became of it: the latest that is not a
+       replay, or with none, the replay (one that failed says so here). A
+       run that is not a replay and FAILED has its reason above. */
+    const x = lastNonReplay || lastAttempt, s = x.status;
+    const done = s === 'COMPLETED' || s === 'PARTIAL';
+    const what = replayed(x) && done
+      ? `was a replay of ${x.replayAsOf || 'a past session'}, which evaluates that session as though the history ended there`
       : s === 'RUNNING' || s === 'PENDING' ? 'has not finished'
       : s === 'CANCELLED' ? 'was cancelled before it finished'
-      : String(s || '').startsWith('SKIPPED') ? `was skipped${lastAttempt.skipReason ? `: ${String(lastAttempt.skipReason).replace(/\.\s*$/, '')}` : ''}`
+      : s === 'FAILED' ? `failed${x.error?.message ? `: ${String(x.error.message).replace(/\.\s*$/, '')}` : ''}`
+      : String(s || '').startsWith('SKIPPED') ? `was skipped${x.skipReason ? `: ${String(x.skipReason).replace(/\.\s*$/, '')}` : ''}`
       : `ended ${s ? String(s).toLowerCase().replace(/_/g, ' ') : 'with no status recorded'}`;
     if (state === 'current') state = 'behind';
-    reasons.push(`No scan of your history as it stands has succeeded on this machine: the latest attempt${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} ${what}.`);
+    reasons.push(`No scan of your history as it stands has succeeded on this machine: the ${x === lastAttempt ? 'latest attempt' : 'latest attempt on it'}${x.id ? ` (${x.id})` : ''} on ${day(x.startedAt)}${replayed(x) && !done ? `, a replay of ${x.replayAsOf || 'a past session'},` : ''} ${what}.`);
     if (ageReason) reasons.push(ageReason);
   }
   const order = new Map(v.setups.map((s, i) => [s.id, i]));
@@ -9444,6 +9574,20 @@ let userData = store.read(USER_DATA_KEY, null) || { series: {}, statements: {}, 
 userData.series = userData.series || {};
 userData.statements = userData.statements || {};
 const saveUserData = () => store.write(USER_DATA_KEY, userData);
+/* A change to the reader's prices, kept only if the browser keeps it. The
+   paste, the restore and both removals changed the series in memory, wrote,
+   and said so whatever the write returned: with the quota full, "2 closes
+   read … Reload to apply" reloaded into a page holding none of them. The
+   change runs on a copy of the series map; a refused write puts the map
+   and its date back, and the caller says nothing was kept. */
+function commitUserData(change) {
+  const was = { series: userData.series, added: userData.added };
+  userData.series = { ...userData.series };
+  change();
+  if (saveUserData()) return true;
+  Object.assign(userData, was);
+  return false;
+}
 
 const userSeriesCount = () => Object.keys(userData.series).length;
 const userCloseCount = () => Object.values(userData.series)
@@ -9959,6 +10103,24 @@ function documents(c) {
   });
 }
 
+/* WHAT THE EBIT SERIES HOLDS, BY WHERE IT CAME FROM.
+   The illustrative banks carry pre-provision operating profit in that slot, by
+   construction. A filed bank does not: most banks present no operating-income
+   line, so the SEC ingest falls back to pre-tax income, which is struck after
+   credit-loss provisions. Labelling JPMorgan's pre-tax income "Pre-provision
+   profit" understated that measure by the whole provision charge. A filed
+   company's label follows the concept the ingest recorded — and BlackRock, a
+   bank here that files OperatingIncomeLoss, reads as operating profit. */
+function ebitLabel(c) {
+  const concept = c.real && c.provenance && typeof c.provenance === 'object' ? String(c.provenance.ebit?.concept || '') : '';
+  if (/BeforeIncomeTaxes/.test(concept)) {
+    if (/OperatingIncomeLoss/.test(concept)) return 'Operating or pre-tax profit';
+    return c.type === 'bank' ? 'Profit before tax, after provisions' : 'Profit before tax';
+  }
+  if (c.type === 'bank' && !c.real) return 'Pre-provision profit';
+  return 'Operating profit';
+}
+
 /* "What changed" is computed from the company's own last two reported years —
    it is a diff, not a generated narrative. */
 function changeSummary(c) {
@@ -9972,13 +10134,22 @@ function changeSummary(c) {
   const ratio = isNum(d.sh[i-1]) && isNum(d.sh[i]) && d.sh[i-1] > 0 ? d.sh[i] / d.sh[i-1] : null;
   const splitHere = !!r.m.shareSeriesBreak && isNum(ratio) && (ratio > 1.5 || ratio < 0.67);
   const SPLIT_WHY = 'The share count moves by a corporate action between these two years, so a one-year change in a per-share figure measures the split.';
-  const perShare = (label, a, b) => splitHere ? { label, v: null, withheld: SPLIT_WHY } : { label, v: pctChange(a, b) };
+  /* THE ROW IS NAMED AS THE STATEMENT NAMES IT, AND CARRIES ITS LINE'S KEY.
+     The EBIT row was "Operating profit" for every company, while the
+     statement table beside it calls a filed bank's line "Profit before tax,
+     after provisions" and an illustrative bank's "Pre-provision profit"
+     (ebitLabel): JPMorgan's snapshot and Filings tab reported a change in an
+     operating profit it does not file. The label now comes from ebitLabel,
+     and the key lets a table find the row's series without matching on
+     words that are free to change. */
+  const row = (key, label, v) => ({ key, label, v });
+  const perShare = (key, label, a, b) => splitHere ? { key, label, v: null, withheld: SPLIT_WHY } : row(key, label, pctChange(a, b));
   return [
-    { label:'Revenue',            v:pctChange(d.rev[i-1], d.rev[i]) },
-    { label:'Operating profit',   v:pctChange(d.ebit[i-1], d.ebit[i]) },
-    { label:'Net profit',         v:pctChange(d.ni[i-1], d.ni[i]) },
-    perShare(c.type==='reit' ? 'Distribution per unit' : 'Dividend per share', d.dps[i-1], d.dps[i]),
-    perShare('Shares in issue', d.sh[i-1], d.sh[i]),
+    row('rev',  'Revenue',     pctChange(d.rev[i-1], d.rev[i])),
+    row('ebit', ebitLabel(c),  pctChange(d.ebit[i-1], d.ebit[i])),
+    row('ni',   'Net profit',  pctChange(d.ni[i-1], d.ni[i])),
+    perShare('dps', c.type==='reit' ? 'Distribution per unit' : 'Dividend per share', d.dps[i-1], d.dps[i]),
+    perShare('sh', 'Shares in issue', d.sh[i-1], d.sh[i]),
   ].filter(x => isNum(x.v) || x.withheld);
 }
 /* How a change row renders where it is a number and where it was withheld. */
@@ -10044,9 +10215,16 @@ const realEnabled = () => {
 /* A price a user typed in themselves. Explicitly not market data, and labelled
    as such everywhere it is used. */
 const manualPrices = store.read('manualPrices', {});
+/* Returns whether the browser kept it. The field reloads the page to price
+   the company, and a refused write came back as the price it replaced, with
+   no word said: the reader's figure was simply gone. A refused one is put
+   back as it was and the caller says so instead of reloading. */
 const setManualPrice = (id, p) => {
+  const had = Object.prototype.hasOwnProperty.call(manualPrices, id), was = manualPrices[id];
   if (isNum(p) && p > 0) manualPrices[id] = p; else delete manualPrices[id];
-  store.write('manualPrices', manualPrices);
+  if (store.write('manualPrices', manualPrices)) return true;
+  if (had) manualPrices[id] = was; else delete manualPrices[id];
+  return false;
 };
 
 /* Business model drives the valuation router, and SEC filings do not carry a
@@ -11958,6 +12136,43 @@ function cardHead(title, subtitle, right) {
   return h;
 }
 
+/* THE PAGE DECIDES A HEADING'S LEVEL, NOT THE COMPONENT THAT DREW IT.
+   ---------------------------------------------------------------------------
+   cardHead titles every card h3, because h2 was kept for section headings —
+   and most pages have none. Forty-one of fifty-three routes measured stepped
+   from their h1 straight to an h3 or an h4 (the property calculator's first
+   heading under its h1 was an h4), and the printable record and report
+   opened on an h3 above their h1. A screen reader listing the headings heard
+   every card as part of a section that is not there, and "next heading at
+   level 2" found nothing on most of the product. A card cannot know where it
+   will sit — the same card is a page's section on one page and part of a
+   section on another — and some 220 cards and 150 other headings are drawn
+   by twenty-two view files. So the level is read off the page once the
+   heading is on it. The order the author wrote is kept: a heading written
+   deeper than the one before it belongs to that one, and one written at the
+   same depth or shallower closes it. Only the size of each step changes, to
+   exactly one. A heading above the page's h1 belongs to the page.
+
+   It is stated as aria-level, which is the level assistive technology reads,
+   rather than by changing the tag: a tag cannot change without replacing the
+   element, and that would drop the focus the scanner pages put on a result
+   heading as they draw it, and every style and selector written for an h3
+   or an h4. A heading already at its level carries no attribute. `parent` is
+   the level of the heading the region sits under: 1 for a page, whose h1 is
+   inside it, and 2 for the drawer's body, under the drawer's h2 title. */
+function fitHeadingLevels(root, parent = 1) {
+  if (!root) return;
+  const open = [{ tag: parent, level: parent }];
+  for (const h of root.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
+    const tag = Number(h.tagName[1]);
+    while (open.length > 1 && open[open.length - 1].tag >= tag) open.pop();
+    let level = tag;
+    if (tag > parent) { level = Math.min(6, open[open.length - 1].level + 1); open.push({ tag, level }); }
+    if (level === tag) h.removeAttribute('aria-level');
+    else if (h.getAttribute('aria-level') !== String(level)) h.setAttribute('aria-level', String(level));
+  }
+}
+
 function emptyState(text) {
   return el('div', { class: 'emptystate', html: `${icon('search', 30)}<p>${esc(text)}</p>` });
 }
@@ -11992,6 +12207,8 @@ function openDrawer(title, node) {
   } else if (drawer.hidden || !drawer.contains(document.activeElement)) lastFocus = document.activeElement;
   drawerTitle.textContent = title;
   drawerBody.replaceChildren(node);
+  /* The body sits under the drawer's h2 title; its headings step from there. */
+  fitHeadingLevels(drawerBody, 2);
   drawer.hidden = false;
   const seq = ++drawerSeq;
   requestAnimationFrame(() => { if (seq !== drawerSeq) return; drawer.dataset.open = '1'; scrim.dataset.open = '1'; });
@@ -12078,6 +12295,14 @@ const SCANNER_VIEWS = ['scanner', 'scannerDashboard', 'scannerMarket', 'scannerS
 
 const VIEWS = {};
 const viewRoot = $('#views');
+/* Some views draw part of themselves without render() — a market screen's
+   or a simulation's result, "Evaluate now" on a setup — and a drawer can
+   repaint its own body. Each brings headings at the level they were written
+   at, so the levels are fitted again after every such change. Only children
+   are watched: fitting sets attributes, which do not call it back. */
+const headingWatch = new MutationObserver(() => { fitHeadingLevels(viewRoot); fitHeadingLevels(drawerBody, 2); });
+headingWatch.observe(viewRoot, { childList: true, subtree: true });
+headingWatch.observe(drawerBody, { childList: true, subtree: true });
 
 /* --------------------------------------------------------------- routing */
 /* Real paths, not fragments. Previously go() changed State and re-rendered
@@ -12822,6 +13047,9 @@ function render() {
   if (!(realPending && UNIVERSE_VIEWS.has(State.view))) mountFlagNotice(node, State.view, State.researchTab);
   const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
+  /* Now, not only when headingWatch next runs, so anything that reads the
+     page straight after a render reads the levels it states. */
+  fitHeadingLevels(viewRoot);
 
   /* The dock is mounted at body level, not inside the view. A fixed element is
      positioned against the viewport only while no ancestor establishes a
@@ -13208,8 +13436,14 @@ VIEWS.home = () => {
     const unreadable = realStatus?.priceSource?.unreadable
       ? ` ${realStatus.priceSource.unreadable} of the ${realStatus.priceSource.count ?? 'listed'} entries in ${realStatus.priceSource.file} carry no readable close and were skipped.` : '';
     freshCard.append(el('div', { class: 'metaline', style: 'margin-top:4px' },
-      realStatus === null ? 'Loading filings from SEC EDGAR…'
-      : realStatus.ok ? `${n} companies loaded from SEC EDGAR. Statements are audited and real. `
+      /* Loaded from this site, not from SEC EDGAR. The statements were
+         retrieved from EDGAR when the dataset was built and ship in
+         data/us.json; the page cannot reach sec.gov at all (the CSP allows
+         connections to its own origin only), so "loading filings from SEC
+         EDGAR" described a request that is never made — the claim the
+         loading card was corrected for. */
+      realStatus === null ? 'Loading the filed statements…'
+      : realStatus.ok ? `${n} companies’ statements loaded — retrieved from SEC EDGAR when this dataset was built, not fetched now. Statements are audited and real. `
           + (realStatus.broken?.length ? `${realStatus.broken.length} could not be built and were skipped (${realStatus.broken.map(b => b.id).join(', ')}). ` : '')
           + (realStatus.priced
               ? (realStatus.priceSource?.personal
@@ -14203,7 +14437,11 @@ function renderScreener() {
       /* alert-on-new-match toggle, per screen */
       const lab = el('label', { class: 'checkline', style: 'gap:6px', title: 'Alert me when a new company matches this screen' });
       lab.append(el('input', { type: 'checkbox', checked: s.alertOnMatch !== false ? '' : null,
-        onchange: e => { s.alertOnMatch = e.target.checked; store.write('savedScreens', State.savedScreens); render(); } }));
+        onchange: e => {
+          const was = s.alertOnMatch; s.alertOnMatch = e.target.checked;
+          if (!store.write('savedScreens', State.savedScreens)) { s.alertOnMatch = was; toast(STORE_REFUSED); }
+          render();
+        } }));
       lab.append(el('span', {}, 'Alert on new match'));
       row.append(lab);
       row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openSavedScreen(i) }, 'Detail'));
@@ -14352,8 +14590,22 @@ function metricStatus(r, k) {
     [['om', 'nm', 'fcfm', 'ocfm'], m.revenueSuspect],
     [['roe'], m.roeWithheld],
     [['payout', 'nm', 'roe', 'pe', 'cashconv', 'ni5', 'niYoY'], m.perShareScaleBroken],
-    [['eps5', 'dps5', 'dilution', 'buyback'], m.shareSeriesBreak
-      ? `The share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn inside the window — a corporate action, not issuance, and no corporate-action source is licensed here to undo it. A rate over a per-share line across that boundary would measure the split, so it is withheld.`
+    /* Each rate by the break it was withheld on. derive() withholds the
+       four-year per-share rates on a break among the five rows they read
+       (perShareBreak), and the share-count rate and buyback yield on the
+       first break in the whole series (shareSeriesBreak). Keyed on the
+       whole-series break, GE's earnings growth — absent because its FY2021
+       earnings were negative — and Alphabet's dividend growth — no dividend
+       in FY2021 — both read "withheld: the share count moves inside the
+       window", about a break years before it; book-value growth, withheld
+       on the same evidence, was not listed at all. And "a corporate action,
+       not issuance" named a cause nothing here can know: Realty Income's
+       1.64× is a merger paid in shares, which is issuance. */
+    [['eps5', 'bv5', 'dps5'], m.perShareBreak
+      ? `The share count moves from ${fmtNum(m.perShareBreak.from, 2)}bn to ${fmtNum(m.perShareBreak.to, 2)}bn between two of the five years this rate reads — a split, a merger or an offering, which the filings are not restated for and no source here identifies. A rate over a per-share line across that step would measure the event, not the company, so it is withheld.`
+      : null],
+    [['dilution', 'buyback'], m.shareSeriesBreak
+      ? `The share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn between two consecutive years in the stored series — a split, a merger or an offering, which the filings are not restated for and no source here identifies. A growth rate over the series would measure that one event rather than the company's issuance and buybacks, so it is withheld.`
       : null],
   ];
   for (const [keys, text] of W) if (text && keys.includes(k)) return why('withheld', text);
@@ -14927,9 +15179,13 @@ function saveScreen() {
   /* The currency a money threshold was typed in travels with the screen. */
   def.moneyCcy = screenMoneyCcy(def);
   const snapshot = screenSnapshot(def);
-  State.savedScreens = [...State.savedScreens, {
+  /* Said saved only when the browser kept it. With the quota full this
+     toasted 'Saved "…" — 56 matches frozen' and listed the screen until the
+     next reload, which had never stored it. */
+  const was = State.savedScreens;
+  State.savedScreens = [...was, {
     name, def, snapshot, alertOnMatch: true, asOf: snapshot.asOf, model: snapshot.model }];
-  store.write('savedScreens', State.savedScreens);
+  if (!store.write('savedScreens', State.savedScreens)) { State.savedScreens = was; toast(STORE_REFUSED); render(); return; }
   toast(`Saved "${name}" — ${snapshot.matches.length} matches frozen with their scores`);
   render();
 }
@@ -15008,12 +15264,16 @@ function openSavedScreen(idx) {
     State.screen = def; closeDrawer(); render(); toast(`Loaded "${s.name}"`);
   } }, 'Load these criteria'));
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-    s.snapshot = screenSnapshot(s.def); store.write('savedScreens', State.savedScreens);
+    /* As saveScreen: refreshed only if the browser keeps it. */
+    const was = s.snapshot; s.snapshot = screenSnapshot(s.def);
+    if (!store.write('savedScreens', State.savedScreens)) { s.snapshot = was; toast(STORE_REFUSED); return; }
     closeDrawer(); render(); toast('Snapshot refreshed to today');
   } }, 'Mark reviewed — refresh snapshot'));
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-    State.savedScreens = State.savedScreens.filter((_, i) => i !== idx);
-    store.write('savedScreens', State.savedScreens); closeDrawer(); render(); toast('Screen deleted');
+    const was = State.savedScreens;
+    State.savedScreens = was.filter((_, i) => i !== idx);
+    if (!store.write('savedScreens', State.savedScreens)) { State.savedScreens = was; toast(STORE_UNDELETED); return; }
+    closeDrawer(); render(); toast('Screen deleted');
   } }, 'Delete'));
   body.append(acts);
   openDrawer('Saved screen', body);
@@ -16745,7 +17005,10 @@ VIEWS.research = () => {
     f.append(el('label', { for: 'realpx' }, `Price (${c.ccy || 'USD'})`));
     f.append(el('input', { class: 'input input-inline', id: 'realpx', type: 'number', step: '0.01',
       value: isNum(c.px?.p) ? c.px.p : '', placeholder: 'not available',
-      onchange: e => { setManualPrice(c.id, parseFloat(e.target.value)); location.reload(); } }));
+      onchange: e => {
+        if (setManualPrice(c.id, parseFloat(e.target.value))) { location.reload(); return; }
+        e.target.value = isNum(c.px?.p) ? c.px.p : ''; toast(STORE_REFUSED);
+      } }));
     pr.append(f);
     pr.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
       c.px?.eod && c.pricePersonal
@@ -16892,12 +17155,18 @@ VIEWS.research = () => {
   ft.append(el('thead', {}, el('tr', {}, ['Strategy', 'Grade', 'Supports', 'Weakens or missing'].map((h, i) =>
     el('th', { style: i === 1 ? null : 'text-align:left' }, h)))));
   const fb = el('tbody');
+  /* Sentences wrap between words. .caption breaks anywhere, which let the
+     table give "Supports" the width of one letter beside the columns that do
+     not wrap: at 390px it was 85px and "Distributions" and "compounding"
+     were cut in two. Whole words and a readable measure; the table scrolls
+     in its .tablewrap. */
+  const prose = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
   lens.fits.forEach(f => fb.append(el('tr', {}, [
     el('td', { style: 'text-align:left' }, f.label),
     el('td', {}, f.state === 'graded' ? f.grade : (FIT_STATES[f.state] || FIT_STATES.missing).token),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+    el('td', { class: 'caption', style: prose },
       f.supports.length ? f.supports.join(' ') : '—'),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+    el('td', { class: 'caption', style: prose },
       [...f.weakens, ...f.missing.map(x => `Missing: ${x}`), ...(f.cap ? [f.cap] : [])].join(' ') || '—'),
   ])));
   ft.append(fb);
@@ -17517,23 +17786,8 @@ function tabBusiness(r) {
 /* ------------------------------------------------------------- financials */
 State.finMode = 'abs';
 
-/* WHAT THE EBIT SERIES HOLDS, BY WHERE IT CAME FROM.
-   The illustrative banks carry pre-provision operating profit in that slot, by
-   construction. A filed bank does not: most banks present no operating-income
-   line, so the SEC ingest falls back to pre-tax income, which is struck after
-   credit-loss provisions. Labelling JPMorgan's pre-tax income "Pre-provision
-   profit" understated that measure by the whole provision charge. A filed
-   company's label follows the concept the ingest recorded — and BlackRock, a
-   bank here that files OperatingIncomeLoss, reads as operating profit. */
-function ebitLabel(c) {
-  const concept = c.real && c.provenance && typeof c.provenance === 'object' ? String(c.provenance.ebit?.concept || '') : '';
-  if (/BeforeIncomeTaxes/.test(concept)) {
-    if (/OperatingIncomeLoss/.test(concept)) return 'Operating or pre-tax profit';
-    return c.type === 'bank' ? 'Profit before tax, after provisions' : 'Profit before tax';
-  }
-  if (c.type === 'bank' && !c.real) return 'Pre-provision profit';
-  return 'Operating profit';
-}
+/* ebitLabel — what the EBIT series holds, by where it came from — lives in
+   25-universe.js beside changeSummary, which labels the same row. */
 
 /* ---------------------------------------------------------- the statements
    THE LINES, DEFINED ONCE.
@@ -17901,8 +18155,11 @@ function tabQuality(r) {
       const tr = el('tr');
       tr.append(el('td', { class: 'ident' }, part.label));
       /* A per-share growth input withheld for a split says so, rather than
-         reading as "not meaningful". */
-      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.shareSeriesBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }));
+         reading as "not meaningful" — on the break inside its own five rows
+         (perShareBreak), which is what withheld it. On the whole-series
+         break, GE's earnings growth, absent for a negative FY2021 base, read
+         "withheld" over a split years outside the window. */
+      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.perShareBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }));
       tr.append(el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}${part.inv ? ' (inverted)' : ''}</span>` }));
       tr.append(el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }));
       tr.append(el('td', {}, `${Math.round(part.w * 100)}%`));
@@ -17955,7 +18212,7 @@ function tabQuality(r) {
   mt.append(el('thead', {}, el('tr', {}, ['Input', 'Raw value', 'Anchor range', 'Input score', 'Weight', 'Contribution'].map(h => el('th', {}, h)))));
   mt.append(el('tbody', {}, r.mom.parts.map(part => el('tr', {}, [
     el('td', { class: 'ident' }, part.label),
-    el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.shareSeriesBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }),
+    el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.perShareBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }),
     el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}</span>` }),
     el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }),
     el('td', {}, `${Math.round(part.w * 100)}%`),
@@ -18108,7 +18365,10 @@ function tabOwnership(r) {
   const kv2 = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
   [['Share count CAGR', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.dilution, 2)],
    ['Net buyback yield', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.buyback, 2)],
-   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : m.shareSeriesBreak ? 'Withheld — see below' : 'n/m'],
+   /* Withheld on a break inside the five years it reads, not anywhere in
+      the series: Alphabet's, absent because no dividend was paid in FY2021,
+      read "Withheld" over a split years before its window. */
+   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : m.perShareBreak ? 'Withheld — see below' : 'n/m'],
    ['Payout ratio', isNum(m.payout) ? fmtPct(m.payout, 0) : 'n/m'],
    ['Dividends as % of free cash flow', isNum(m.cashPayout) ? fmtPct(m.cashPayout, 0) : 'n/a']]
    .forEach(([k, v]) => { kv2.append(el('dt', {}, k)); kv2.append(el('dd', {}, v)); });
@@ -18136,7 +18396,14 @@ function tabOwnership(r) {
         + `a discontinuity too large to read as a growth rate. It may be a split, a merger or an offering: the filings `
         + `are reported unadjusted for splits, and no corporate-action source is licensed here to tell which, so a `
         + `growth rate over this series would measure that one event rather than the company's issuance and buybacks. `
-        + `The year-by-year counts above are as filed and remain correct on their own terms.`)));
+        + `The year-by-year counts above are as filed and remain correct on their own terms.`
+        /* The dividend row above says "see below" when a step falls inside
+           the five years its rate reads; this is where that is said, and
+           which step it is — for Nvidia not the one named first. */
+        + (m.perShareBreak
+          ? ` The ${c.type === 'reit' ? 'distribution per unit' : 'dividend per share'} CAGR is withheld for the same reason: the count moves from `
+            + `${fmtNum(m.perShareBreak.from, 3)}bn to ${fmtNum(m.perShareBreak.to, 3)}bn inside the five years that rate reads.`
+          : ''))));
   }
   wrap.append(act);
   columnChart(host, { cats: yearsOf(c).map(y => `FY${y}`), series: [{ key:'sh', label:'Shares in issue', values:d.sh, varName:'--s1' }], fmt: v => fmtNum(v, 2) });
@@ -18156,13 +18423,15 @@ function tabFilings(r) {
     const tw = el('div', { class: 'tablewrap' });
     const t = el('table', { class: 'dt' });
     t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, `FY${yrs[li - 1]}`), el('th', {}, `FY${yrs[li]}`), el('th', {}, 'Change')])));
-    const map = { 'Revenue':r.d.rev, 'Operating profit':r.d.ebit, 'Net profit':r.d.ni, 'Dividend per share':r.d.dps, 'Distribution per unit':r.d.dps, 'Shares in issue':r.d.sh };
-    t.append(el('tbody', {}, changed.map(x => el('tr', {}, [
+    /* By the row's key, not its words: keyed on the label, a row renamed to
+       the statement's own name (a bank's pre-tax line) would have found no
+       series and printed both years as absent. */
+    t.append(el('tbody', {}, changed.map(x => { const s = r.d[x.key] || []; return el('tr', {}, [
       el('td', { class: 'ident' }, x.label),
-      el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
-      el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
+      el('td', { html: isNum(s[li - 1]) ? fmtNum(s[li - 1], 2) : NA }),
+      el('td', { html: isNum(s[li]) ? fmtNum(s[li], 2) : NA }),
       el('td', { class: signClass(x.v), title: x.withheld || null }, changeCell(x)),
-    ]))));
+    ]); })));
     tw.append(t);
     return tw;
   };
@@ -19864,6 +20133,23 @@ function sevenSteps(r, t) {
   const { c, d, m } = r;
   const wacc = isNum(r.inputs.wacc) ? r.inputs.wacc : null;
   const moatRead = (c.moat.support?.length || 0) + (c.moat.counter?.length || 0);
+  /* AN UNSCORED PILLAR IS NOT A SCORE. A bank loaded from filings has none of
+     the Financial Strength inputs — CET1, impaired loans and the loan-to-
+     deposit ratio sit in regulatory returns, not in the statements — and a
+     filed REIT none of the Business Quality ones, so the pillar is null. The
+     note printed "Financial Strength null/100" for JPMorgan and BlackRock and
+     "Business Quality null/100" for Realty Income and American Tower, and the
+     step compared null with 50. It now says the pillar
+     is not scored and which inputs it lacks, and the step stays open, because
+     nothing was checked. */
+  const pillarNote = (p, label, also) => isNum(p.score) ? `${label} ${p.score}/100${also ? `, ${also}` : ''}.`
+    : `${label} is not scored — none of its ${p.parts.length} inputs (${p.parts.map(x => x.label).join(', ')}) is available for ${c.tk}.${also ? ` ${also.charAt(0).toUpperCase()}${also.slice(1)}.` : ''}`;
+  /* "Not assessed" is not an assessment. A company loaded from filings or
+     statements alone carries a placeholder moat whose one "counter" line says
+     no review exists, and the step read "Not assessed, low confidence,
+     durability —. 1 piece(s) of counter-evidence" — a confidence nobody gave
+     and a sentence counted as evidence. */
+  const moatAssessed = c.moat.kind !== 'Not assessed';
   return [
     { n:1, title:'Understand what the business sells',
       ok: (c.seg || []).length >= 2,
@@ -19872,16 +20158,18 @@ function sevenSteps(r, t) {
         : 'Segment disclosure is thin for this company — the revenue mix cannot be broken down.',
       go: () => openResearch(c.id, 'business') },
     { n:2, title:'Check it can survive a bad year',
-      ok: r.scores.strength.score >= 50,
-      note: `Financial Strength ${r.scores.strength.score}/100${isNum(m.ndEbit) ? `, net debt ${fmtX(m.ndEbit)} EBIT` : ''}. ${r.flags.filter(f => f.sev === 'serious' || f.sev === 'critical').length} serious flag(s).`,
+      ok: isNum(r.scores.strength.score) && r.scores.strength.score >= 50,
+      note: `${pillarNote(r.scores.strength, 'Financial Strength', isNum(m.ndEbit) ? `net debt ${fmtX(m.ndEbit)} EBIT` : '')} ${r.flags.filter(f => f.sev === 'serious' || f.sev === 'critical').length} serious flag(s).`,
       go: () => openResearch(c.id, 'risks') },
     { n:3, title:'Judge the quality of the returns',
-      ok: r.scores.quality.score >= 50,
-      note: `Business Quality ${r.scores.quality.score}/100${isNum(m.roic) && isNum(wacc) ? `, return on invested capital ${fmtPct(m.roic)} against a ${fmtPct(wacc)} cost of capital` : ''}.`,
+      ok: isNum(r.scores.quality.score) && r.scores.quality.score >= 50,
+      note: pillarNote(r.scores.quality, 'Business Quality', isNum(m.roic) && isNum(wacc) ? `return on invested capital ${fmtPct(m.roic)} against a ${fmtPct(wacc)} cost of capital` : ''),
       go: () => openResearch(c.id, 'quality') },
     { n:4, title:'Test whether the advantage lasts',
-      ok: moatRead >= 2 && c.moat.conf !== 'Low',
-      note: `${c.moat.kind}, ${c.moat.conf.toLowerCase()} confidence, durability ${c.moat.dur.toLowerCase()}. ${c.moat.counter.length} piece(s) of counter-evidence.`,
+      ok: moatAssessed && moatRead >= 2 && c.moat.conf !== 'Low',
+      note: moatAssessed
+        ? `${c.moat.kind}, ${c.moat.conf.toLowerCase()} confidence, durability ${c.moat.dur.toLowerCase()}. ${c.moat.counter.length} piece(s) of counter-evidence.`
+        : `Not assessed — no moat review has been made for ${c.tk}. Moat evidence is analyst work, not a computed field.`,
       go: () => openResearch(c.id, 'moat') },
     { n:5, title:'Value it with a model that fits',
       ok: r.val.confBand !== 'Low' && !r.val.err,
@@ -20595,7 +20883,12 @@ VIEWS.compare = () => {
         ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA, 'fcfm'],
         ['— Growth —', null],
         ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : NA, 'rev5'],
-        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.shareSeriesBreak ? NA_SPLIT : NA, 'eps5'],
+        /* Withheld for a split only when the break falls inside the five rows
+           the four-year rate reads (perShareBreak). shareSeriesBreak is the
+           first break anywhere in the stored years: GE's is outside the
+           window, and its earnings rate is absent because FY2021 earnings
+           per share are negative — which this cell called "withheld". */
+        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.perShareBreak ? NA_SPLIT : NA, 'eps5'],
         ['— Balance sheet —', null],
         ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA, 'ndEbit'],
         ['— Valuation —', null],
@@ -20747,17 +21040,32 @@ VIEWS.compare = () => {
     el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(--s1)"></span>United States` }),
     el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(--s2)"></span>Bursa Malaysia` }),
   ]));
+  /* ONLY WHAT HAS BOTH AXES IS DRAWN, AND WHAT IS NOT IS NAMED. A company
+     with no quality percentile — a filed REIT, whose Business Quality inputs
+     are not in the statements — was drawn at 50, and its mark read "quality
+     percentile 50": the middle of the axis given as a measured rank. An
+     unpriced company was dropped with nothing said, so three selected
+     companies drew two marks. Each is now left off and named beneath with
+     its reason. The difference prints as it does everywhere else (withSign):
+     Maybank at +0.12% read "+0%", and a discount "-12%" with a hyphen. */
+  const plotted = rows.filter(r => isNum(r.val.mos?.base) && isNum(r.pct.quality));
+  const offChart = rows.filter(r => !plotted.includes(r)).map(r =>
+    !isNum(r.c.px?.p) ? `${r.c.tk} carries no price, so there is no difference to a model estimate`
+    : !isNum(r.val.mos?.base) ? `${r.c.tk} has a price but no base-case model estimate`
+    : isNum(r.scores.quality.score) ? `${r.c.tk} has no quality percentile`
+    : `${r.c.tk} has no Business Quality score, so no quality percentile`);
+  if (offChart.length) mx.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `Not plotted: ${offChart.join('; ')}.`));
   wrap.append(mx);
   scatterChart(host, {
-    points: rows.filter(r => r.val.mos).map(r => ({
-      id:r.c.id, label:r.c.tk, name:r.c.name, x:r.val.mos.base, y:r.pct.quality ?? 50,
+    points: plotted.map(r => ({
+      id:r.c.id, label:r.c.tk, name:r.c.name, x:r.val.mos.base, y:r.pct.quality,
       size:toBase(r.m.mcap, r.c.ccy), capLabel:fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       model:r.val.pack.name, conf:r.val.confBand, varName:r.c.mkt === 'US' ? '--s1' : '--s2' })),
     xLabel:'Difference to model estimate vs base-case value — right of the line is below it',
     xLabelShort:'Difference to model estimate vs base-case model estimate',
     yLabel:'Quality percentile within market cohort',
     yLabelShort:'Quality percentile',
-    xFmt:v => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`,
+    xFmt:v => withSign(v, 0),
     onPick:id => openResearch(id),
   });
   return wrap;
@@ -20887,9 +21195,15 @@ const appendSampleBanner = (wrap) => { const b = sampleBanner(); if (b) wrap.app
 function fmtAmount(v, ccy) {
   if (!isNum(v)) return '—';
   const sym = ccy === 'MYR' ? 'RM' : '$';
-  const a = Math.abs(v), sign = v < 0 ? '−' : '';
-  if (a >= 1e6) return `${sign}${sym}${(a / 1e6).toFixed(2)}m`;
-  if (a >= 1e3) return `${sign}${sym}${(a / 1e3).toFixed(1)}k`;
+  /* The sign and the unit are chosen on the figure as it will print, as
+     fmtMoney and fmtCap do. The payoff crosses zero at the break-even by
+     construction and floating point put it a hair below (−3e-13), so the
+     table view printed "−$0"; and 999.6 rounded to "$1000" and 999,960 to
+     "$1000.0k", which belong a unit up. Below half a unit is nought, 999.5
+     and up prints in thousands, 999,950 and up in millions. */
+  const a = Math.abs(v) < 0.5 ? 0 : Math.abs(v), sign = v < 0 && a ? '−' : '';
+  if (a >= 999950) return `${sign}${sym}${(a / 1e6).toFixed(2)}m`;
+  if (a >= 999.5) return `${sign}${sym}${(a / 1e3).toFixed(1)}k`;
   return `${sign}${sym}${a.toFixed(0)}`;
 }
 
@@ -22250,7 +22564,9 @@ VIEWS.userdata = () => {
         el('td', { class: 'metaline' }, `${r.modelVersion} · data ${r.asOf} · ${r.editor}`),
         el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
           if (!confirm(`Delete "${r.name}"?`)) return;
-          deleteWork(r.id); render(); toast('Deleted');
+          /* deleteWork returns the write's result; a refused one said
+             "Deleted" over a record still listed after the render. */
+          const gone = deleteWork(r.id); render(); toast(gone ? 'Deleted' : STORE_UNDELETED);
         } }, 'Delete')),
       ]));
     });
@@ -22283,7 +22599,7 @@ VIEWS.userdata = () => {
         el('td', { class: 'num' }, dates[0] || '—'),
         el('td', { class: 'num' }, dates[dates.length - 1] || '—'),
         el('td', {}, el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-          delete userData.series[sym]; saveUserData();
+          if (!commitUserData(() => { delete userData.series[sym]; })) { toast(STORE_UNDELETED); return; }
           toast(`${sym} removed`); location.reload();
         } }, 'Remove')),
       ]));
@@ -22302,7 +22618,8 @@ VIEWS.userdata = () => {
     } }, 'Export these prices'));
     exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!confirm('Remove every price you have added? This cannot be undone and there is no copy on any server.')) return;
-      userData.series = {}; saveUserData(); location.reload();
+      if (!commitUserData(() => { userData.series = {}; })) { toast(STORE_UNDELETED); return; }
+      location.reload();
     } }, 'Remove all'));
     status.append(exp);
   } else {
@@ -22376,20 +22693,22 @@ VIEWS.userdata = () => {
     report.replaceChildren();
     if (!res.accepted && !res.rejected.length) { report.append(el('p', { class: 'metaline' }, 'Nothing to read.')); return; }
 
-    if (res.accepted) {
+    const kept = !res.accepted || commitUserData(() => {
       for (const [sym, series] of Object.entries(res.series)) {
         userData.series[sym] = { ...(userData.series[sym] || {}), ...series };
       }
       userData.added = new Date().toISOString().slice(0, 10);
-      saveUserData();
-    }
+    });
 
     /* Both halves reported, always. A partial import that only announces its
-       successes is how a reader ends up trusting a series with holes in it. */
+       successes is how a reader ends up trusting a series with holes in it.
+       And a read that the browser refused to keep says so, with no reload
+       offered: the reload would have shown none of it. */
     const summary = el('p', { class: 'body', style: 'font-size:13px' },
       `${res.accepted} close${res.accepted === 1 ? '' : 's'} read across ${res.symbols.length} symbol${res.symbols.length === 1 ? '' : 's'}`
       + (res.rejected.length ? `, and ${res.rejected.length} row${res.rejected.length === 1 ? '' : 's'} could not be read.` : '.'));
     report.append(summary);
+    if (!kept) report.append(el('p', { class: 'body', style: 'font-size:13px;color:var(--bronze)', role: 'alert' }, STORE_REFUSED));
 
     if (res.rejected.length) {
       const det = el('details', { style: 'margin-top:8px' });
@@ -22404,7 +22723,7 @@ VIEWS.userdata = () => {
       report.append(det);
     }
 
-    if (res.accepted) {
+    if (res.accepted && kept) {
       report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:10px',
         onclick: () => location.reload() },
         'Reload to apply'));
@@ -22429,12 +22748,14 @@ VIEWS.userdata = () => {
       const j = JSON.parse(await f.text());
       if (!j?.series || typeof j.series !== 'object') { toast('That file has no price series in it'); return; }
       let n = 0;
-      for (const [sym, series] of Object.entries(j.series)) {
-        if (!series || typeof series !== 'object') continue;
-        userData.series[sym] = { ...(userData.series[sym] || {}), ...series };
-        n += Object.keys(series).length;
-      }
-      saveUserData();
+      const kept = commitUserData(() => {
+        for (const [sym, series] of Object.entries(j.series)) {
+          if (!series || typeof series !== 'object') continue;
+          userData.series[sym] = { ...(userData.series[sym] || {}), ...series };
+          n += Object.keys(series).length;
+        }
+      });
+      if (!kept) { e.target.value = ''; toast(STORE_REFUSED); return; }
       toast(`${n} closes restored`);
       location.reload();
     } catch { toast('That file could not be read as JSON'); }
@@ -22475,7 +22796,24 @@ VIEWS.watchlists = () => {
     const file = fileInp.files?.[0]; if (!file) return;
     try {
       const rep = watchlistsImport(JSON.parse(await file.text()));
-      toast(rep.ok ? `Imported: ${rep.created} list(s) created, ${rep.added} added, ${rep.duplicate} already present${rep.unresolved.length ? `, ${rep.unresolved.length} not recognised: ${rep.unresolved.slice(0, 4).join(', ')}` : ''}` : rep.why);
+      /* The refusals too. A list refused for the plan's limit, and each
+         company refused for a list's, are in rep.refused, which this never
+         read: a Free-plan import of two lists, one of thirty, said "0 list(s)
+         created, 25 added" and nothing of the second list or the five
+         companies over the limit. Grouped by reason, so five refusals for one
+         limit read as one line with their count. */
+      const byWhy = new Map();
+      (rep.refused || []).forEach(x => {
+        const s = String(x), at = s.indexOf(': ');
+        const why = at < 0 ? s : s.slice(at + 2);
+        if (!byWhy.has(why)) byWhy.set(why, []);
+        byWhy.get(why).push(at < 0 ? null : s.slice(0, at));
+      });
+      const refused = [...byWhy].map(([why, who]) => {
+        const named = who.filter(Boolean);
+        return `${who.length} refused — ${why}${named.length ? ` (${named.slice(0, 3).join(', ')}${named.length > 3 ? ` and ${named.length - 3} more` : ''})` : ''}`;
+      }).join('; ');
+      toast(rep.ok ? `Imported: ${rep.created} list(s) created, ${rep.added} added, ${rep.duplicate} already present${rep.unresolved.length ? `, ${rep.unresolved.length} not recognised: ${rep.unresolved.slice(0, 4).join(', ')}` : ''}${refused ? `; ${refused}` : ''}` : rep.why);
       render();
     } catch (e) { toast(`Could not read that file: ${e.message}`); }
   });
@@ -22514,6 +22852,12 @@ VIEWS.watchlists = () => {
     if (w.updatedAt) head.append(el('span', { class: 'chip' }, `updated ${String(w.updatedAt).slice(0, 10)}`));
     head.append(el('span', { class: 'spacer' }));
     head.append(el('button', { class: 'btn btn-ghost btn-sm', title: 'Open the scanner builder with this list as the universe', onclick: () => {
+      /* A draft with changes in it was replaced without a word — a name
+         typed into the builder, then this button, and the name was gone —
+         where the scanner's own "New setup on this list" and every other
+         start the builder offers ask first. */
+      if (typeof scanDraftUntouched === 'function' && scanDraft && !scanDraftUntouched()
+        && !confirm('Replace the draft open in the builder with a new setup on this list? What is in the draft now is not kept.')) return;
       scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } };
       scanIdAuto = true;
       navigate('/app/scanner/setups/new');
@@ -23047,6 +23391,11 @@ VIEWS.workspace = () => {
   /* Filters: by kind, and by the company or name a row carries. */
   const W = State.workspace;
   const counts = Object.fromEntries(WORKSPACE_KINDS.map(k => [k.id, all.filter(i => i.kind === k.id).length]));
+  /* A kind with nothing left has no button below, so a filter still set to it
+     could be neither seen nor pressed off. Deleting the last screen with
+     Screens pressed left no button pressed and "Nothing saved matches that
+     filter" over two saved cases. The filter goes back to All. */
+  if (W.kind !== 'all' && !counts[W.kind]) W.kind = 'all';
   const moved = all.filter(i => ['model', 'data', 'both'].includes(i.diff.status)).length;
   const bar = el('div', { class: 'card ws-filters' });
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Show saved items of one kind', style: 'flex-wrap:wrap' });
@@ -23829,11 +24178,13 @@ VIEWS.alerts = () => {
   ALERT_KINDS.forEach(k => {
     const built = k.built !== false;
     const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
-    lab.append(el('input', { type: 'checkbox', checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
+    /* An id and renderKeepFocus: render() rebuilt the switch, so Space on
+       one dropped focus on <body> and the next Tab started from the top. */
+    lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
       style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
       onchange: e => {
         State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
-        saveAlertKinds(); render();
+        saveAlertKinds(); renderKeepFocus();
       } }));
     const tx = el('div');
     tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
@@ -24286,7 +24637,7 @@ function learnTrust() {
   /* The reader's own cases, above the sample log — a case they raised and
      cannot find again is a case they have no reason to believe was kept. */
   const mine = State.corrections || [];
-  const mineCard = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  const mineCard = el('div', { class: 'card', id: 'my-cases', style: 'margin-bottom:var(--md)' });
   mineCard.append(cardHead(`Cases you have recorded — ${mine.length}`,
     'Held in this browser only. Nothing has been sent, because there is no server behind this build and no contact address published yet.'));
   if (!mine.length) {
@@ -24297,13 +24648,13 @@ function learnTrust() {
     mt.append(el('thead', {}, el('tr', {}, ['Case', 'Raised', 'Item', 'Status', ''].map(h =>
       el('th', { style: 'text-align:left' }, h)))));
     const mb = el('tbody');
-    mine.forEach(c => mb.append(el('tr', {}, [
+    mine.forEach((c, row) => mb.append(el('tr', {}, [
       el('td', { class: 'ident', style: 'text-align:left' }, c.id),
       el('td', { class: 'caption', style: 'text-align:left' }, c.createdAt),
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
         `${c.item}${c.subject ? ` · ${c.subject}` : ''}`),
       el('td', { style: 'text-align:left' }, el('span', { class: 'chip chip-bronze' }, c.status)),
-      el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm',
+      el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm', id: `case-open-${row}`,
         onclick: () => openDrawer(`Case ${c.id}`, (() => {
           const w = el('div');
           /* Named, as every field on this page is: a bare textarea is announced
@@ -24322,7 +24673,13 @@ function learnTrust() {
                  the id fix can hold two with the same id, and Delete must
                  remove only the one that was opened. */
               State.corrections = (State.corrections || []).filter(x => x !== c);
-              saveCorrections(); closeDrawer(); render(); toast(`${c.id} deleted`);
+              /* The drawer handed focus back to the Open button it came from,
+                 which the redraw had just removed with its row, so focus
+                 fell to <body>. It goes to the Open button of the case that
+                 took the row, or the one before, or the list's heading. */
+              saveCorrections(); closeDrawer({ restore: false }); render();
+              focusAfterRedraw(`#case-open-${row}`, `#case-open-${row - 1}`, '#my-cases h3');
+              toast(`${c.id} deleted`);
             } }, 'Delete this case'),
           ]));
           return w;
@@ -24386,7 +24743,7 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', 'Every data item in the product is reportable, and a report is tied to the exact item rather than to a general inbox.'));
-  rep.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openReportError() }, 'Open the report form'));
+  rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the report form'));
   wrap.append(rep);
   return wrap;
 }
@@ -24578,6 +24935,8 @@ function waitlistCard() {
 }
 
 function openReportError() {
+  /* What opened the form, for the redraw below to find again. */
+  const opener = document.activeElement;
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
     'This records a case in this browser and gives it an identifier. It does not send anything — there is no server behind this build and no contact address published yet — so the last step hands you the case to send yourself.'));
@@ -24636,7 +24995,15 @@ function openReportError() {
     };
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
     saveCorrections();
-    closeDrawer();
+    /* The page is redrawn first, so the list on /corrections holds the new
+       case — and that redraw replaced "Open the report form", the button the
+       drawer was to hand focus back to, so closing the confirmation dropped
+       focus on <body>. Focus goes to the button's replacement (or stays on
+       an opener the redraw did not touch, like the footer's) before the
+       confirmation opens, and openDrawer records that as where to return. */
+    render();
+    const back = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
+    if (back && back !== document.body) back.focus({ preventScroll: true });
     openDrawer(`Case ${c.id} recorded`, (() => {
       const w = el('div');
       w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
@@ -24656,7 +25023,6 @@ function openReportError() {
       ]));
       return w;
     })());
-    render();
   } }, 'Record this case'));
   openDrawer('Report a data error', body);
 }
@@ -24694,8 +25060,10 @@ function openReportError() {
    so 1 point = 40.468564224 m², and 1 hectare = 107,639.10416... sq ft
 
    The rounded 40.47 m² that circulates in listings is fine for conversation
-   and wrong for a register: applied to a 60-point parcel it moves the area by
-   nearly a square metre, and every price-per-unit derived from it inherits the
+   and wrong for a register: it is 0.0014 m² a point too large, so applied to
+   a 60-point parcel it moves the area by 0.086 m², and to a 700-point estate
+   by a whole square metre — small, but a register that holds a figure has to
+   hold the figure, and every price-per-unit derived from it inherits the
    error. Nothing here rounds until it is displayed.
    ========================================================================== */
 
@@ -26828,6 +27196,7 @@ const AREA_CONFIDENCE = {
    it, each point takes the layer's colour and an area with nothing recorded
    keeps a hollow, dashed mark. That distinction is the whole point: an
    unexamined area must never be able to look like a safe one. */
+let cityMapFocus = null;
 function cityMap(cityId, selectedArea, onPick, paint) {
   const city = sarawakGeo?.cities?.[cityId];
   const areas = Object.entries(city?.areas || {});
@@ -26835,6 +27204,14 @@ function cityMap(cityId, selectedArea, onPick, paint) {
   if (!areas.length) return host;
 
   chartHost(host, (w) => {
+    /* The point to hand focus back to once this drawing replaces the last:
+       the one that holds it now, when the map is only being redrawn — the
+       host is observed, and a drawing that changes its height draws it
+       again — or the one picked on the map this page replaced (see pick). */
+    const held = document.activeElement;
+    const focusBack = held && host.contains(held) && held.dataset?.area ? held.dataset.area
+      : cityMapFocus && cityMapFocus.city === cityId ? cityMapFocus.name : null;
+    cityMapFocus = null;
     const pad = 40;
     const lats = areas.map(([, a]) => a.lat), lons = areas.map(([, a]) => a.lon);
     const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
@@ -26922,7 +27299,7 @@ function cityMap(cityId, selectedArea, onPick, paint) {
       const cf = AREA_CONFIDENCE[a.confidence] || AREA_CONFIDENCE['landmark-proxy'];
       const cx = sx(a.lon * kx), cy = sy(-a.lat);
       const on = name === selectedArea;
-      const g = mk('g', { tabindex:'0', role:'button', style:'cursor:pointer',
+      const g = mk('g', { tabindex:'0', role:'button', style:'cursor:pointer', 'data-area': name,
         'aria-label': name + '. ' + cf.label + '. '
           + (paint ? (paint.describe ? paint.describe(name) + '. ' : '') : '')
           + (State.observations || []).filter(o => o.city === cityId && o.area === name).length
@@ -27012,7 +27389,17 @@ function cityMap(cityId, selectedArea, onPick, paint) {
         g.append(t);
       } else unlabelled.push(name);
 
-      const pick = () => onPick && onPick(name);
+      /* Both callers redraw the page on a pick, and the map with it, so the
+         point that had focus was destroyed and focus fell to <body> — a
+         keyboard reader choosing an area had to Tab back from the top of the
+         page. The point is remembered and takes focus again when the new map
+         is drawn, which happens a frame later: the host has no width until it
+         is in the page, so chartHost draws it from its resize observer. */
+      if (focusBack === name) queueMicrotask(() => { if (g.isConnected) g.focus({ preventScroll: true }); });
+      const pick = () => {
+        if (document.activeElement === g) cityMapFocus = { city: cityId, name };
+        if (onPick) onPick(name);
+      };
       g.addEventListener('click', pick);
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
       svg.append(g);
@@ -27370,6 +27757,42 @@ const OBS_BY_ID = Object.fromEntries(OBSERVATION_KINDS.map(k => [k.id, k]));
 const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map(e => [e.id, e]));
 
 const saveObservations = () => store.write('observations', State.observations);
+
+/* A SECOND TAB'S RECORDS ARE KEPT, NOT OVERWRITTEN.
+   The register's projections are read once, at boot, and every writer saves
+   the whole of one: State.observations, State.areaProfiles, State.demand. So
+   with the calculator open in one tab and the comparables in another, a
+   record added in the first was dropped by the next save in the second —
+   written over by a copy read before it existed. The log kept both events,
+   so the register then reported its history did not account for its
+   records, and the lost record was gone from every page.
+
+   Each tab takes the other's writes as they land: the browser fires
+   `storage` in every OTHER tab of this origin when a key changes, and the
+   projection is read again. Every writer already starts from State, so
+   every save made here afterwards carries the other tab's records. The page
+   is not redrawn under the reader — whatever they have half typed in this
+   tab stays — and the next thing done here draws from the fresh copy. A
+   `null` key is localStorage.clear() in the other tab.
+
+   The same held for the other lists these pages save whole: a Sarawak
+   exposure recorded in one tab was dropped by the next Add in another, and a
+   report unlocked in one tab was locked again by an unlock in the other —
+   the second tab wrote back a list without it. */
+const PROPERTY_SHARED_KEYS = {
+  observations:          () => { State.observations = store.read('observations', []); },
+  areaProfiles:          () => { State.areaProfiles = store.read('areaProfiles', {}); },
+  demand:                () => { State.demand = store.read('demand', {}); },
+  sarawakExposure:       () => { State.sarawakExposure = store.read('sarawakExposure', []); },
+  propertyReportsBought: () => { State.propertyReportsBought = store.read('propertyReportsBought', []); },
+  propertyReportLog:     () => { State.propertyReportLog = store.read('propertyReportLog', { month: meterMonth(), ids: [] }); },
+};
+window.addEventListener('storage', (e) => {
+  if (e.storageArea && e.storageArea !== localStorage) return;
+  if (e.key === null) { Object.values(PROPERTY_SHARED_KEYS).forEach(f => f()); return; }
+  const k = String(e.key).startsWith('vl.') ? String(e.key).slice(3) : null;
+  if (k && Object.hasOwn(PROPERTY_SHARED_KEYS, k)) PROPERTY_SHARED_KEYS[k]();
+});
 
 /* THE COMPARABLES REGISTER IS THIS, EXTENDED — NOT A SECOND STORE.
    ---------------------------------------------------------------------------
@@ -28226,8 +28649,11 @@ function borrowerAffordability(b, m) {
   const essentials = num0(b.essentialMonthlyCommitments);
   const instalment = isNum(m?.instalment) ? m.instalment : null;
   /* Three points above the entered rate, the top of the range 31.7 asks for. */
-  const stressedInstalment = (isNum(m?.loan) && m?.tenureValid)
-    ? monthlyInstalment(m.loan, num0(m.inputRatePct) + 3, num0(m.tenureYears)) : null;
+  /* No loan, no instalment to stress — nought at any rate, as the model's own
+     instalment is, rather than unknown because the tenure box reads 0. */
+  const stressedInstalment = !isNum(m?.loan) ? null
+    : !(m.loan > 0) ? 0
+    : m.tenureValid ? monthlyInstalment(m.loan, num0(m.inputRatePct) + 3, num0(m.tenureYears)) : null;
 
   const ok = income > 0 && isNum(instalment);
   return {
@@ -28544,6 +28970,21 @@ function propertyGrade(d, m) {
     notes.price = 'No bank or valuer estimate has been entered, so there is nothing to test the price against.';
   }
 
+  /* A PILLAR THAT CANNOT APPLY IS NOT ONE WAITING FOR EVIDENCE.
+     Debt-service cover and rental cash flow are both measured on rent, and a
+     non-letting class has none — so on a financed parcel the two are null
+     whatever is entered, 40% of the weight, and at most 60% can ever be
+     scored against the 80% a grade needs. The grade was still reported as
+     "Not enough evidence", and the page said the grade was withheld for want
+     of coverage, as though more evidence could lift it. No evidence can.
+     The model is unchanged — the pillars stay out of the score and the grade
+     stays withheld — and the words now say why: the class, not the file.
+     How such a class should be graded, if at all, is a decision for the
+     framework, not for this sentence. */
+  const noTenancy = m.letsToTenant === false;
+  const classWord = String(PROPERTY_CLASSES[m.propertyClass]?.label || 'non-letting').toLowerCase();
+  const inapplicable = [];
+
   if (isNum(m.dscr)) {
     /* 1.00x is the floor at which rent just covers the loan before tax and any
        major repair. 1.50x is comfortable. */
@@ -28551,6 +28992,9 @@ function propertyGrade(d, m) {
     notes.financing = `Debt-service cover ${fmtX(m.dscr, 2)}.`;
   } else if (m.loan === 0) {
     scores.financing = 100; notes.financing = 'Cash purchase — no financing risk.';
+  } else if (noTenancy) {
+    scores.financing = null; inapplicable.push('financing');
+    notes.financing = `Does not apply: debt-service cover is rent over the instalment, and a ${classWord} class has no tenancy to pay rent.`;
   } else { scores.financing = null; notes.financing = 'Debt-service cover could not be computed.'; }
 
   if (isNum(m.netYield) && isNum(m.cashflowMonthly)) {
@@ -28560,6 +29004,9 @@ function propertyGrade(d, m) {
     notes.cashflow = m.annualOwnerSubsidy > 0
       ? `Net yield ${fmtPct(m.netYield, 2)}, and the property costs ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold.`
       : `Net yield ${fmtPct(m.netYield, 2)}, cash-flow positive.`;
+  } else if (noTenancy) {
+    scores.cashflow = null; inapplicable.push('cashflow');
+    notes.cashflow = `Does not apply: a ${classWord} class earns no rent, so there is no yield to score. What it costs to hold is stated above, and the downside pillar tests it.`;
   } else { scores.cashflow = null; notes.cashflow = 'Operating cash flow could not be computed.'; }
 
   /* Downside rests on the stress the model already runs. Its own resilience is
@@ -28607,6 +29054,11 @@ function propertyGrade(d, m) {
   const score = testedWeight > 0
     ? Math.round(tested.reduce((s, p) => s + scores[p.k] * p.weight, 0) / testedWeight)
     : null;
+  /* The most that could ever be scored for this class, with every input
+     evidenced. Below 80% no grade is reachable; below 90%, no A. */
+  const inapplicableWeight = GRADE_PILLARS.filter(p => inapplicable.includes(p.k)).reduce((s, p) => s + p.weight, 0);
+  const reachable = (totalWeight - inapplicableWeight) / totalWeight;
+  const classUngradeable = reachable < 0.80;
 
   /* ---- grade ---------------------------------------------------------- */
   const capU = gates.some(g => g.caps === 'U');
@@ -28614,7 +29066,7 @@ function propertyGrade(d, m) {
   let grade, verdict;
   if (capU || coverage < 0.80 || score == null) {
     grade = 'U';
-    verdict = 'Not enough evidence';
+    verdict = classUngradeable ? 'Not gradeable for this class' : 'Not enough evidence';
   } else {
     if (score >= 80 && coverage >= 0.90) grade = 'A';
     else if (score >= 65 && coverage >= 0.80) grade = 'B';
@@ -28628,7 +29080,8 @@ function propertyGrade(d, m) {
   }
 
   return { grade, verdict, score, coverage, scores, notes, gates,
-           pillars: GRADE_PILLARS.map(p => ({ ...p, score: scores[p.k], note: notes[p.k] })) };
+           reachable, classUngradeable, inapplicable,
+           pillars: GRADE_PILLARS.map(p => ({ ...p, score: scores[p.k], note: notes[p.k], applies: !inapplicable.includes(p.k) })) };
 }
 
 function dealModel(d) {
@@ -28777,11 +29230,19 @@ function dealModel(d) {
      negative instalment, a zero reserve and a closing balance several times the
      principal, none of it flagged. Reported as not computable instead. */
   const tenureValid = num0(d.tenureYears) > 0;
-  const instalment = tenureValid ? monthlyInstalment(loan, d.ratePct, d.tenureYears) : null;
+  /* With no loan there is no schedule to need: the instalment is nought
+     whatever the tenure box says. A cash purchase with a tenure of 0 was given
+     a null instalment, so its reserve could not be computed and "Emergency
+     reserve" was listed as a missing cost line on a purchase with nothing to
+     service — and the page warned that the instalment, the reserve and the
+     closing balance were unavailable. Only a loan makes the tenure matter. */
+  const instalment = !(loan > 0) ? 0
+    : tenureValid ? monthlyInstalment(loan, d.ratePct, d.tenureYears) : null;
   /* A cleared rate box reads as 0 through num0, and 0% is a legitimate entry —
      so the two cannot be told apart from the value alone, and a zero rate cuts
-     the instalment by roughly half. Flagged rather than guessed at. */
-  const zeroRateModelled = num0(d.ratePct) === 0;
+     the instalment by roughly half. Flagged rather than guessed at — where
+     there is a loan for the rate to be charged on. */
+  const zeroRateModelled = num0(d.ratePct) === 0 && loan > 0;
   /* WHICH QUANTITIES THIS ASSET ACTUALLY HAS.
      ------------------------------------------------------------------------
      The class was asked for, displayed and then discarded: this model never
@@ -29039,8 +29500,12 @@ function dealModel(d) {
     cumPreTax += f.cfPreTax; cumCash += f.cf; cumTax += f.tax;
     path.push({ ...f, cum: debtUnknown ? null : cumCash });
   }
-  /* A sum of unknown years is unknown, not the nought `0 + null` makes it. */
+  /* A sum of unknown years is unknown, not the nought `0 + null` makes it.
+     The tax too: with the interest unknown every year's tax is null, and
+     the running sum left RM0 behind — which the decision record printed as
+     "after tax on the rent at 24%, totalling RM0 across the hold". */
   if (debtUnknown) { cumCash = null; cumPreTax = null; }
+  if (!path.every(p => isNum(p.tax))) cumTax = null;
   const taxComputed = isNum(d.marginalTaxPct) && d.marginalTaxPct > 0;
   const totalProfit = debtUnknown ? null : cumCash + netExitProceeds - acquisitionCost;
   const multiple = (acquisitionCost > 0 && !debtUnknown) ? (cumCash + netExitProceeds) / acquisitionCost : null;
@@ -29397,7 +29862,9 @@ function propertyRiskFlags(d, m) {
   if (m.proj.custom) out.push({ sev:'warning', t:'No comparable attached',
     n:`This tool holds no transacted price, rental band or vacancy observation for ${m.proj.area}. The price, rent and vacancy below are entirely yours, and none of them has been checked against a market.` });
   if (d.holdYears <= 5) out.push({ sev:'warning', t:'Real property gains tax applies at this holding period',
-    n:`Selling in year ${d.holdYears} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.short.toLowerCase()}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
+    /* The category as a sentence names it. Lower-casing the short label
+       printed "charged at 30% for citizen or pr" — `who` exists for this. */
+    n:`Selling in year ${d.holdYears} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.who}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
   if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
     n:'Financing and resale liquidity both tighten as the remaining lease shortens. Check the balance term before committing.' });
   /* Title class outranks everything financial. A restricted class is not a
@@ -29435,6 +29902,10 @@ function propertyRiskFlags(d, m) {
   if (!out.length) out.push({ sev:'good', t:'No threshold breached', n:'On the assumptions entered, none of the modelled risk thresholds is crossed. That is a statement about the assumptions, not about the property.' });
   return out;
 }
+
+/* A recorded exposure's summary, by company and theme — the pair Add refuses
+   to record twice — so focus can be handed to a record after a redraw. */
+const swkRecordId = (rec) => `swk-rec-${slugParam(`${rec.id}-${rec.theme}`)}`;
 
 VIEWS.sarawak = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
@@ -29558,17 +30029,25 @@ VIEWS.sarawak = () => {
   coSel.addEventListener('change', syncTheme);
   const addRow = el('div', { style: 'display:grid;grid-template-columns:2fr 2fr auto;gap:8px;align-items:end' });
   addRow.append(coSel); addRow.append(thSel);
-  addRow.append(el('button', { class: 'btn', onclick: () => {
+  /* Add and Remove redraw the page. Add keeps focus on itself, by id; Remove
+     takes it with the record it removes, so focus moves to the record that
+     took its place, or the one before it, or back to Add when none is left.
+     Both called render() and dropped the keyboard on <body>. */
+  addRow.append(el('button', { class: 'btn', id: 'swk-add', onclick: () => {
     const co = candidates.find(x => x.id === coSel.value);
     if (!co) return;
-    if (recs.some(r => r.id === co.id && r.theme === thSel.value)) { toast('Already recorded under that theme'); return; }
-    State.sarawakExposure = [...recs, { id: co.id, tk: co.tk, name: co.name,
+    /* The list as it is now, not as it was drawn: another tab's record lands
+       in State between the two (70-property.js), and appending to the drawn
+       copy wrote it away. */
+    const cur = State.sarawakExposure || [];
+    if (cur.some(r => r.id === co.id && r.theme === thSel.value)) { toast('Already recorded under that theme'); return; }
+    State.sarawakExposure = [...cur, { id: co.id, tk: co.tk, name: co.name,
       theme: thSel.value, fields: {}, evidence: 'user', source: co.source,
       hasFundamentals: co.hasFundamentals,
       /* The reader's calendar day, not UTC's: before 08:00 in Kuching the UTC
          date is yesterday's. caseRaisedAt formats on the local clock. */
       added: caseRaisedAt(new Date()).slice(0, 10) }];
-    saveExposures(); toast(`${co.tk} added — the ${EXPOSURE_FIELDS.length} exposure fields are still empty`); render();
+    saveExposures(); toast(`${co.tk} added — the ${EXPOSURE_FIELDS.length} exposure fields are still empty`); renderKeepFocus();
   } }, 'Add'));
   add.append(addRow);
   queueMicrotask(syncTheme);
@@ -29601,6 +30080,18 @@ VIEWS.sarawak = () => {
       const metaChip = el('span', { style: 'margin-left:auto' });
       const basisNote = el('p', { class: 'metaline', style: 'margin-top:4px' });
       const staleNote = el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' });
+      /* An edit is written to the record as it is held NOW. The list is read
+         again when another tab saves it, so the object this page was drawn
+         from can be a copy the save no longer contains — an edit made only
+         to it would be lost without a word. Same company, same theme: the
+         pair Add will not record twice. */
+      const same = (r) => r.id === rec.id && r.theme === rec.theme;
+      const write = (change) => {
+        change(rec);
+        const live = (State.sarawakExposure || []).find(same);
+        if (live && live !== rec) change(live);
+        saveExposures(); paint();
+      };
       const paint = () => {
         const s = exposureSourcing(rec);
         pctNode.textContent = `  ${theme?.label} · ${exposureCompleteness(rec)}% of fields recorded`;
@@ -29616,7 +30107,7 @@ VIEWS.sarawak = () => {
           ? `Last verified ${Math.floor(age / 30)} months ago. An order book or a project status moves faster than that.` : '';
         staleNote.style.display = staleNote.textContent ? '' : 'none';
       };
-      det.append(el('summary', { style: 'cursor:pointer' }, [
+      det.append(el('summary', { id: swkRecordId(rec), style: 'cursor:pointer' }, [
         el('span', { style: 'font-weight:600' }, `${rec.tk} — ${rec.name}`),
         pctNode, sumChip,
       ]));
@@ -29637,7 +30128,7 @@ VIEWS.sarawak = () => {
           ? el('input', { class: 'input', type: 'date', value: rec.verified || '', 'aria-label': f.label })
           : el('textarea', { class: 'input', rows: '2', placeholder: 'Not recorded', 'aria-label': f.label });
         if (f.kind !== 'date') inp.value = rec[f.k] || '';
-        inp.addEventListener('change', () => { rec[f.k] = inp.value; saveExposures(); paint(); });
+        inp.addEventListener('change', () => write(r => { r[f.k] = inp.value; }));
         row.append(inp);
         row.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, f.hint));
         meta.append(row);
@@ -29648,7 +30139,7 @@ VIEWS.sarawak = () => {
       const basisSel = el('select', { class: 'select', 'aria-label': 'Exposure classification' });
       EXPOSURE_BASIS.forEach(b => basisSel.append(el('option', { value: b.id,
         selected: (rec.basis || 'unstated') === b.id ? '' : null }, b.label)));
-      basisSel.addEventListener('change', () => { rec.basis = basisSel.value; saveExposures(); paint(); });
+      basisSel.addEventListener('change', () => write(r => { r.basis = basisSel.value; }));
       basisRow.append(basisSel);
       basisRow.append(basisNote);
       meta.append(basisRow);
@@ -29661,16 +30152,20 @@ VIEWS.sarawak = () => {
         const ta = el('textarea', { class: 'input', rows: '2', placeholder: 'Not recorded',
           'aria-label': f.label });
         ta.value = rec.fields?.[f.k] || '';
-        ta.addEventListener('change', () => {
-          rec.fields = { ...(rec.fields || {}), [f.k]: ta.value };
-          saveExposures(); paint();
-        });
+        ta.addEventListener('change', () => write(r => { r.fields = { ...(r.fields || {}), [f.k]: ta.value }; }));
         row.append(ta);
         det.append(row);
       });
       det.append(el('div', { class: 'row', style: 'margin-top:10px;gap:8px' }, [
         el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-          State.sarawakExposure = recs.filter((_, j) => j !== i); saveExposures(); render();
+          /* By company and theme in the list as it is now, not by position
+             in the list as it was drawn — see Add. */
+          const cur = State.sarawakExposure || [];
+          const at = cur.findIndex(same);
+          const left = cur.filter(r => !same(r));
+          const next = at < 0 ? null : left[at] || left[at - 1] || null;
+          State.sarawakExposure = left; saveExposures(); render();
+          document.getElementById(next ? swkRecordId(next) : 'swk-add')?.focus();
         } }, 'Remove'),
         el('span', { class: 'metaline' }, `Added ${rec.added}. If a field is blank it is unresearched, not zero.`),
       ]));
@@ -29691,9 +30186,13 @@ VIEWS.sarawak = () => {
    per calendar month, by project, and reopening one already used this month
    never costs another. Spent only when the reader chooses to use one, not
    on browsing, so looking at a deal does not use up the month. */
-State.propertyReportLog = store.read('propertyReportLog', { month: new Date().toISOString().slice(0, 7), ids: [] });
-function propertyReportLogNow() {
-  const month = new Date().toISOString().slice(0, 7);
+/* The reader's calendar month (meterMonth, 05-plans.js), as the company
+   report meter counts it. This keyed on toISOString — the UTC month — so in
+   Kuching the month's used reports went on counting until 08:00 on the 1st,
+   and a reader who had used them was told none were left. */
+State.propertyReportLog = store.read('propertyReportLog', { month: meterMonth(), ids: [] });
+function propertyReportLogNow(now = new Date()) {
+  const month = meterMonth(now);
   if (State.propertyReportLog?.month !== month) State.propertyReportLog = { month, ids: [] };
   return State.propertyReportLog;
 }
@@ -29721,6 +30220,8 @@ function usePropertyReport(id) {
    moved focus on, so focus lands where the reader went rather than back on
    the field they left. */
 const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
+/* Whether the borrower's financing disclosure is open — see its <details>. */
+let borrowerPanelOpen = false;
 
 VIEWS.property = () => {
   /* The address is read when it is new — a link, a bookmark, Back — and not on
@@ -29824,9 +30325,17 @@ VIEWS.property = () => {
         `Scored on ${fmtPct(g.coverage * 100, 0)} of framework weight`),
     ]),
   ]));
+  /* Why a class that can never be graded is not graded: the pillars that do
+     not apply, and the ceiling they leave — not a shortfall in evidence the
+     reader could make up. */
+  const notApplying = g.pillars.filter(p => p.applies === false).map(p => p.label.toLowerCase());
+  const withheldBecause = g.classUngradeable
+    ? `${notApplying.join(' and ')} ${notApplying.length === 1 ? 'does' : 'do'} not apply to a ${String(PROPERTY_CLASSES[m.propertyClass]?.label || '').toLowerCase()} class, so at most ${fmtPct(g.reachable * 100, 0)} of the framework weight can ever be scored, against the 80% a grade requires — no further evidence changes that`
+    : g.coverage < 0.80 ? `only ${fmtPct(g.coverage * 100, 0)} of the framework weight could be scored, against the 80% a grade requires`
+    : 'a hard gate below is unmet';
   onePage.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     (g.grade === 'U' && isNum(g.score)
-      ? `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${g.coverage < 0.80 ? `only ${fmtPct(g.coverage * 100, 0)} of the framework weight could be scored, against the 80% a grade requires` : 'a hard gate below is unmet'}. `
+      ? `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${withheldBecause}. `
       : '')
     + 'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
 
@@ -29863,7 +30372,10 @@ VIEWS.property = () => {
          is conditional", so a D — "Does not meet the selected underwriting
          criteria" — and an A that "Meets" them both called their findings
          conditions. Conditional is the B verdict's word and only B's. */
-      ({ U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade]
+      /* A class that cannot be graded is not ungraded because of these, and
+         clearing them would not grade it — the sentence above says why. */
+      (g.classUngradeable ? 'Still to check'
+        : { U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade]
         || 'Why this falls short')));
     const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:13px' }, [
       el('span', { class: x.severity === 'critical' ? 'chip chip-bronze' : null,
@@ -29952,7 +30464,8 @@ VIEWS.property = () => {
   g.pillars.forEach(p => pb.append(el('tr', {}, [
     el('td', { style: 'text-align:left' }, p.label),
     el('td', { class: 'num' }, `${p.weight}%`),
-    el('td', { class: 'num' }, isNum(p.score) ? String(p.score) : el('span', { class: 'caption' }, 'not tested')),
+    el('td', { class: 'num' }, isNum(p.score) ? String(p.score)
+      : el('span', { class: 'caption' }, p.applies === false ? 'does not apply' : 'not tested')),
     el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, p.note || ''),
   ])));
   pt.append(pb);
@@ -29961,7 +30474,12 @@ VIEWS.property = () => {
     /* Counted from the registry rather than written out. The sentence said
        "all seven" against six pillars — a number in prose beside the list it
        describes will eventually disagree with it. */
-    `The score is weighted across the pillars that could be tested, not across all ${GRADE_PILLARS.length} — a pillar with no evidence reduces coverage rather than scoring zero, so nothing loses points for data nobody has. Coverage is ${fmtPct(g.coverage * 100, 0)} of the framework weight; an A needs 90% and a B needs 80%.`));
+    `The score is weighted across the pillars that could be tested, not across all ${GRADE_PILLARS.length} — a pillar with no evidence reduces coverage rather than scoring zero, so nothing loses points for data nobody has. Coverage is ${fmtPct(g.coverage * 100, 0)} of the framework weight; an A needs 90% and a B needs 80%.`
+    /* And where the class rules pillars out, the ceiling that leaves — a
+       cash parcel can reach a B and never an A, a financed one no grade. */
+    + (notApplying.length
+      ? ` For this class ${notApplying.join(' and ')} ${notApplying.length === 1 ? 'does' : 'do'} not apply, so ${fmtPct(g.reachable * 100, 0)} is the most that can be scored${g.reachable < 0.80 ? ' — short of the 80% any grade needs' : g.reachable < 0.90 ? ' — short of the 90% an A needs' : ''}.`
+      : '')));
   onePage.append(pw);
   wrap.append(onePage);
 
@@ -30004,7 +30522,14 @@ VIEWS.property = () => {
 
   /* Borrower inputs, behind a disclosure because they are the most sensitive
      data here and most readers modelling a property will not want them. */
-  const bd = el('details', { style: 'margin-top:var(--md)' });
+  /* Open across a redraw once the reader has opened it. Every field inside
+     saves and redraws, and the disclosure came back closed — so focus, which
+     renderKeepFocus hands to the rebuilt field by id, had nowhere to go: a
+     field inside a closed <details> cannot take it, and it fell to <body>
+     after each figure, with the section shut on the reader. Held in memory
+     only, like the rest of what is open on the page. */
+  const bd = el('details', { style: 'margin-top:var(--md)', open: borrowerPanelOpen ? '' : null });
+  bd.addEventListener('toggle', () => { borrowerPanelOpen = bd.open; });
   bd.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
     b.assessed ? 'Your financing position — entered' : 'Assess your loan readiness'));
   bd.append(el('p', { class: 'metaline', style: 'margin:8px 0' },
@@ -30094,12 +30619,15 @@ VIEWS.property = () => {
 
   /* Modelling states that change every figure below and cannot be inferred from
      the numbers themselves. */
-  if (m.zeroRateModelled || !m.tenureValid || !m.reserveComputable) {
+  /* A tenure matters only to a loan. A cash purchase with the box at 0 has an
+     instalment of nought and a reserve, and was told both were unavailable. */
+  const noSchedule = !m.tenureValid && m.loan > 0;
+  if (m.zeroRateModelled || noSchedule || !m.reserveComputable) {
     const flags = el('div', { class: 'card', style: 'border-left:3px solid var(--dn-text)' });
     const ul = el('ul', { class: 'ticklist' });
     if (m.zeroRateModelled) ul.append(el('li', {},
       'The loan interest rate is 0%. If that was intended, the instalment below is right; if the box was cleared, it is roughly half what it should be. This tool cannot tell the two apart from the value.'));
-    if (!m.tenureValid) ul.append(el('li', {},
+    if (noSchedule) ul.append(el('li', {},
       'The loan tenure is zero or negative, so there is no repayment schedule. The instalment, reserve and closing balance are not computable and are shown as unavailable rather than calculated.'));
     if (!m.reserveComputable) ul.append(el('li', {},
       'The reserve could not be computed because the instalment or the running costs could not be. It is reported as missing rather than counted as nothing.'));
@@ -30319,7 +30847,10 @@ VIEWS.property = () => {
       placeholder:'Source — listing, tenancy, filing', 'aria-label':'Source reference' });
     const addrInp = el('input', { class:'input input-sm', type:'text',
       placeholder:'Address or project', 'aria-label':'Address or project' });
-    const addBtn = el('button', { class:'btn btn-sm', onclick: () => {
+    /* By id, so Record keeps focus through the redraw that shows the new
+       record. It called render() and left the keyboard on <body>, a page's
+       length from the form the reader was working through. */
+    const addBtn = el('button', { class:'btn btn-sm', id:'obs-record', onclick: () => {
       const v = Number(valInp.value);
       if (!Number.isFinite(v) || v <= 0) { toast('Enter an amount above zero'); return; }
       const k = OBS_BY_ID[kindSel.value] || {};
@@ -30338,7 +30869,7 @@ VIEWS.property = () => {
       toast(srcInp.value.trim()
         ? `Recorded for ${d.district}${hasArea ? '' : ' — no area, so no price per unit from this one'}`
         : `Recorded for ${d.district} — no source, so it counts as a note`);
-      render();
+      renderKeepFocus();
     } }, 'Record');
     [kindSel, valInp, areaWrap, titleSel, evSel, dateInp, addrInp, srcInp, addBtn].forEach(x => form.append(x));
     syncKind();
@@ -32620,6 +33151,18 @@ function propertySensitivityPanel(d, m) {
    THE IPS ON SCREEN — THE DOCUMENT, THE GATES AND THE THREE NEW TESTS
    ========================================================================== */
 
+/* A SENTENCE IN A TABLE CELL WRAPS BETWEEN WORDS, NEVER INSIDE ONE.
+   .caption carries overflow-wrap:anywhere (styles.css, for the 62-letter XBRL
+   tags), and 'anywhere' takes a column's narrowest width down to one letter.
+   Every table here sits beside columns that do not wrap, so on a phone the
+   table was already wider than the screen and each prose column was given
+   that narrowest width: at 390px the gates' "Why" was 28px, narrower than
+   "instalment", the demand notes 32px, the evidence tiers 32px, and the
+   gates card ran to 6,000px with a word broken on every line. 'normal'
+   keeps each word whole and 12rem a measure a sentence can be read at;
+   the table scrolls inside its .tablewrap, as it already had to. */
+const IPS_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
+
 /* ---- the eight gates, for whichever asset supplied the answers ---- */
 function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
   const a = assessment;
@@ -32639,7 +33182,7 @@ function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
       el('th', { scope: 'row', style: 'text-align:left' }, String(x.gate.n)),
       el('td', { style: 'text-align:left', title: x.gate.ask }, x.gate.label),
       el('td', { style: 'text-align:left' }, el('span', { class: x.verdict.tone }, x.verdict.label)),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, x.why),
+      el('td', { class: 'caption', style: IPS_PROSE_CELL }, x.why),
     ]));
   });
   t.append(tb);
@@ -32695,7 +33238,7 @@ function demandPanel(city, area) {
       el('td', { style: 'text-align:left' }, i.counts
         ? el('span', { class: 'chip chip-ok' }, 'yes')
         : el('span', { class: 'caption' }, i.state ? 'no' : '—')),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+      el('td', { class: 'caption', style: IPS_PROSE_CELL },
         i.state ? i.state.note : i.source.ask),
       el('td', {}, ''),
     ]));
@@ -32735,7 +33278,7 @@ function environmentalPanel(d) {
         `${ATTR_BY_ID[i.triggeredBy] ? ATTR_BY_ID[i.triggeredBy].short : i.triggeredBy}: ${i.triggeredByClass}`),
       el('td', { class: 'num' }, fmtPct(i.pctOfValue, 2)),
       el('td', { class: 'num' }, fmtMoney(i.annual, 'MYR', 0)),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, i.note),
+      el('td', { class: 'caption', style: IPS_PROSE_CELL }, i.note),
     ]));
   });
   tb.append(el('tr', { style: 'background:var(--surface-sunk)' }, [
@@ -32830,7 +33373,7 @@ VIEWS.ips = () => {
     ['Watch / Hold', '"Conditions not yet met", naming each one',
      'The outstanding gates are listed, which is more than a Hold would have told you.'],
   ].map(r => el('tr', {}, r.map((c, i) =>
-    el(i ? 'td' : 'th', { scope: i ? null : 'row', class: i === 2 ? 'caption' : '', style: 'text-align:left;white-space:normal' }, c))))));
+    el(i ? 'td' : 'th', { scope: i ? null : 'row', class: i === 2 ? 'caption' : '', style: i === 2 ? IPS_PROSE_CELL : 'text-align:left;white-space:normal' }, c))))));
   dev.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, dl));
   wrap.append(dev);
 
@@ -32857,7 +33400,7 @@ VIEWS.ips = () => {
   gt.append(el('tbody', {}, IPS_GATES.map(g => el('tr', {}, [
     el('th', { scope: 'row', style: 'text-align:left' }, String(g.n)),
     el('td', { style: 'text-align:left' }, g.label),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, g.ask),
+    el('td', { class: 'caption', style: IPS_PROSE_CELL }, g.ask),
   ]))));
   gates.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, gt));
   wrap.append(gates);
@@ -32871,12 +33414,12 @@ VIEWS.ips = () => {
     .map((h, i) => el('th', { style: i ? 'text-align:left' : null }, h)))));
   et.append(el('tbody', {}, IPS_EVIDENCE_TIERS.map(t => el('tr', {}, [
     el('th', { scope: 'row', class: 'num' }, String(t.tier)),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, t.label),
+    el('td', { class: 'caption', style: IPS_PROSE_CELL }, t.label),
     el('td', { style: 'text-align:left' }, t.maps.length
       ? t.maps.map(id => el('span', { class: 'chip', style: 'margin-right:4px' },
           (EVIDENCE.find(e => e.id === id) || { label: id }).label))
       : el('span', { class: 'chip chip-bronze' }, 'empty here')),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, t.note),
+    el('td', { class: 'caption', style: IPS_PROSE_CELL }, t.note),
   ]))));
   ev.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, et));
   wrap.append(ev);
@@ -33463,8 +34006,10 @@ VIEWS.wheel = () => {
       'A fully collateralised cash-secured put and covered call cycle, modelled from figures you enter. Research and arithmetic — no chain data, no recommended contract, no execution.'),
   ])));
 
-  const wLink = workspaceLinkBanner('wheel', p, () => { saveWheel(); render(); });
-  if (wLink) wrap.append(wLink);
+  /* "Fill in the identity" is gone once used, so focus goes to the banner's
+     "Linked to …" heading rather than falling to <body>. */
+  const wLink = workspaceLinkBanner('wheel', p, () => { saveWheel(); render(); focusAfterRedraw('#wheel-link h3'); });
+  if (wLink) { wLink.id = 'wheel-link'; wrap.append(wLink); }
 
   /* Reset clears the figures on screen, and the cycle built from them: the
      contract, the legs, the cycle's state and basis, and the share count —
@@ -33493,9 +34038,13 @@ VIEWS.wheel = () => {
     start.append(cardHead('Nothing entered yet',
       'This tool computes a collateral position and an expiry payoff from one contract. Enter yours, or load a worked one to see what it returns first.'));
     start.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+      /* This card goes once a contract is in, taking the button with it, and
+         focus fell to <body>. It goes to the banner that replaces the card,
+         on the control that undoes the load. */
       el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
         State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true };
-        saveWheel(); render(); toast('Worked contract loaded — illustrative figures');
+        saveWheel(); render(); focusAfterRedraw('#wheel-clear-example');
+        toast('Worked contract loaded — illustrative figures');
       } }, 'Load a worked contract'),
       el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
         const f = document.querySelector('#wheel-inputs input');
@@ -33524,13 +34073,19 @@ VIEWS.wheel = () => {
          state and basis were computed from the example's figures. Once this
          banner goes, nothing else would mark them, so they go with it — and
          so do the shares its assignments added, and only those. */
-      el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto', onclick: () => {
+      /* It says "enter my own", and it left focus on <body> with the banner
+         gone. It now does what "Enter my own contract" does: the contract
+         card to the top, and the caret in its first field. */
+      el('button', { class: 'btn btn-quiet btn-sm', id: 'wheel-clear-example', style: 'margin-left:auto', onclick: () => {
         const cycle = State.wheelLegs || [];
         const added = Math.max(0, wheelLedger(cycle).sharesHeld);
         State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, ...WHEEL_BLANK_CYCLE,
           eligibleShares: Math.max(0, num0(State.wheel.eligibleShares) - added), isWorkedExample: false };
         State.wheelLegs = [];
         saveWheel(); saveWheelLegs(); render();
+        const f = document.querySelector('#wheel-inputs input');
+        f?.closest('.card')?.scrollIntoView({ block: 'start' });
+        focusAfterRedraw(f);
         toast(cycle.length ? 'Contract and its illustrative cycle cleared' : 'Contract cleared');
       } }, 'Clear and enter my own'),
     ]));
@@ -34003,7 +34558,9 @@ VIEWS.wheel = () => {
         creditPerShare:numFrom('r-credit'),
         openCommission:numFrom('r-comm'), closeCommission:numFrom('r-comm') });
       toast(`Closed leg realised ${fmtMoney(res.realisedOnClose, 'USD')}; net roll ${fmtMoney(res.netRollCash, 'USD')}`);
-      render();
+      /* As go() does for every other change to the cycle: the redraw took
+         the button, and focus goes to the cycle's state, not to <body>. */
+      render(); focusAfterRedraw('#wheel-cycle-state');
     } }, 'Record the roll'));
     cyc.append(rollBox);
   }
@@ -34012,6 +34569,7 @@ VIEWS.wheel = () => {
     if (!confirm('Clear this cycle and all its legs?')) return;
     State.wheelLegs = []; saveWheelLegs(); p.state = 'candidate'; p.phase = 'put';
     p.economicShareBasisOverride = null; p.shareCostBasisOverride = null; saveWheel(); render();
+    focusAfterRedraw('#wheel-cycle-state');
   } }, 'Clear the cycle'));
   cyc.append(acts);
 
@@ -34893,8 +35451,11 @@ VIEWS.tradingIndex = () => {
       + 'It carries no weight in the research composite and does not replace the Strategy Lens — fundamentals first, technicals second.'),
   ])));
 
-  const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); });
-  if (qLink) wrap.append(qLink);
+  /* "Fill in the identity" is gone once it has been used — the banner comes
+     back as "Linked to …" — so focus fell to <body>. It goes to that
+     heading, which says what the press did. */
+  const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); focusAfterRedraw('#qtti-link h3'); });
+  if (qLink) { qLink.id = 'qtti-link'; wrap.append(qLink); }
 
   /* Reset here means a blank plan, which for this tool IS the useful starting
      point — every panel is the reader's own transcription and there is no
@@ -35381,7 +35942,7 @@ VIEWS.opportunities = () => {
   wrap.append(rules);
 
   if (!list.length) {
-    const empty = el('div', { class: 'card' });
+    const empty = el('div', { class: 'card', id: 'opp-empty' });
     empty.append(cardHead('No properties recorded yet', 'This is a register, not a feed — it holds what you put in it.'));
     empty.append(el('p', { class: 'body', style: 'font-size:13px' },
       'Quantum Tradeworks holds no property listings and does not source them. There is no permitted feed of Sarawak listings this product can republish, and inventing candidates would be worse than an empty page. Add a property you are actually looking at, and the underwriting engine will model it and grade it on whatever evidence you have.'));
@@ -35423,7 +35984,11 @@ VIEWS.opportunities = () => {
   add.append(f('Where you found it — listing reference, agent, or how you heard', 'source'));
   add.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     'A reference, not a copy. Record enough to find it again; do not paste listing content you have no right to store.'));
-  add.append(el('button', { class: 'btn btn-primary', style: 'margin-top:10px', onclick: () => {
+  /* Add and Remove redraw the page, and both dropped focus on <body>. Add
+     keeps it on Add, with the form emptied for the next one; Remove hands it
+     to the record that took the removed one's place, or the one before it,
+     or the empty register's heading when none is left. */
+  add.append(el('button', { class: 'btn btn-primary', style: 'margin-top:10px', id: 'opp-add', onclick: () => {
     if (!draft.name.trim()) { toast('Give the property a name or address first'); return; }
     State.opportunities = [{
       id: `opp-${Date.now().toString(36)}${(OPP_SEQ++).toString(36)}-${draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`,
@@ -35443,7 +36008,7 @@ VIEWS.opportunities = () => {
       negotiatedPrice: null, valuerEstimate: null,
       nextAction: '', nextActionOwner: '', nextActionDue: '',
     }, ...State.opportunities];
-    saveOpportunities(); toast(`${draft.name} recorded`); render();
+    saveOpportunities(); toast(`${draft.name} recorded`); render(); focusAfterRedraw('#opp-add');
   } }, 'Add to register'));
   wrap.append(add);
 
@@ -35488,7 +36053,7 @@ VIEWS.opportunities = () => {
     const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[grade.grade];
     card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
       el('div', {}, [
-        el('h3', { class: 'h-card', style: 'margin:0' }, o.name),
+        el('h3', { class: 'h-card', id: `opp-${i}-name`, style: 'margin:0' }, o.name),
         el('p', { class: 'metaline', style: 'margin-top:2px' },
           `${(SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).name || '—'}${o.deal.district ? ' · ' + o.deal.district : ''} · ${o.deal.propertyType}`),
       ]),
@@ -35637,6 +36202,7 @@ VIEWS.opportunities = () => {
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Remove ${o.name} from the register?`)) return;
       State.opportunities = list.filter((_, j) => j !== i); saveOpportunities(); render();
+      focusAfterRedraw(`#opp-${i}-name`, `#opp-${i - 1}-name`, '#opp-empty h3');
     } }, 'Remove'));
     card.append(acts);
     if (o.source) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Source: ${o.source}`));
@@ -36269,9 +36835,39 @@ function scanPrefsRead() {
   return out;
 }
 const scanPrefsWrite = (patch) => store.write('scanPrefs', { ...scanPrefsRead(), ...patch });
-/* A recorded value as the preference asks: every significant digit the
-   engine keeps, or rounded as the tables round. */
-const scanValueText = (v, prefs = scanPrefsRead()) => (v == null || !Number.isFinite(Number(v)) ? '—' : prefs.precision === 'rounded' ? scanFmt(Number(v)) : scanDec(Number(v)));
+/* A CLOSE PRINTS AS A PRICE. It went through scanFmt's defaults, which are
+   a volume's — two decimals, shortened from 10,000 — so the alerts table
+   and a run's summary read 0.34 for a close of 0.345, on the line where the
+   engine's own rule read "price 0.345 below 0.500", and 45.1k for 45,120.5
+   and 45,149.9 alike. The engine's rule is that a price is never shortened
+   and prints at the precision it is quoted in. A lone close has no series
+   to read that from, so it is read from the close itself: at least two
+   decimals and at most four, as scanSeriesDp reads a series. */
+const scanPriceDp = (v) => Math.max(2, Math.min(4, scanDecimals(v)));
+const scanPriceText = (v) => (isNum(v) ? scanFmt(v, scanPriceDp(v), false) : '—');
+/* Recorded values as the preference asks: every significant digit the
+   engine keeps, or rounded as the tables round. Rounded, a price was
+   shortened too (a close of 45,120.5 read 45.1k), and values printed
+   together were rounded one at a time, so a close that had moved by 0.004
+   read "recorded 96.60, now 96.60". Rounded now goes through the engine's
+   scanFmtAll, which adds a decimal until different values read
+   differently, and `unit` 'price' rounds as a price. */
+function scanValuesFmt(vals, prefs = scanPrefsRead(), unit = null) {
+  const xs = vals.flat().map(Number).filter(Number.isFinite);
+  const f = prefs.precision !== 'rounded' ? scanDec
+    : scanFmtAll(xs, unit === 'price' ? { dp: Math.max(2, ...xs.map(scanPriceDp)), compact: false } : {});
+  return (v) => (v == null || !Number.isFinite(Number(v)) ? '—' : f(Number(v)));
+}
+const scanValueText = (v, prefs = scanPrefsRead(), unit = null) => scanValuesFmt([v], prefs, unit)(v);
+/* The unit a recorded condition's values are in: its left side's, the one
+   the engine prints both sides in — read off the setup the record carries,
+   at the condition's path ('2.1' is the first child of the second). Null
+   when the record carries no tree, and the values round as before. */
+function scanCondUnit(tree, path) {
+  let n = tree;
+  if (n?.type === 'group') for (const k of String(path || '').split('.')) n = Array.isArray(n?.children) ? n.children[Number(k) - 1] : null;
+  return n?.type === 'condition' ? scanUnitOf(n.left) : null;
+}
 
 /* A route parameter of the current address, decoded. The router keeps only
    a company id in State; the scanner's :setup and :alert are read here. */
@@ -36313,7 +36909,7 @@ function scanRunSummary(r, note) {
   if (r.sessionCache) box.append(el('p', { class: 'caption scan-cache-line', style: 'margin-top:2px' }, `Indicators: ${r.sessionCache.misses} computed, ${r.sessionCache.hits} reused from earlier in this session. The page keeps one cache while it is open, keyed by each series’ data version, so a changed close is computed afresh.`));
   if (r.alerts.length) {
     const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
-    r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
+    r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanPriceText(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
     box.append(ul);
   }
   /* Every pair that was not a plain met-or-failed, with its reason: untested
@@ -37592,7 +38188,7 @@ VIEWS.scannerAlerts = () => {
       el('td', { style: 'text-align:left' }, [a.setupName || a.setupId, a.setupVersion != null ? el('span', { class: 'caption' }, ` v${a.setupVersion}`) : null]),
       el('td', { style: 'text-align:left' }, scanSymbolLink(a.symbol)),
       el('td', { class: 'caption', style: 'text-align:left' }, `${(a.eventType || 'MATCH').replace('_', ' ').toLowerCase()}${a.gapBefore === true ? ' · across a gap' : ''}`),
-      el('td', { class: 'num' }, isNum(a.close) ? scanFmt(a.close) : '—'),
+      el('td', { class: 'num' }, scanPriceText(a.close)),
       el('td', {}, scanLink(scanAlertPath(a), 'Open', { 'aria-label': `Open ${a.setupName || a.setupId} on ${a.symbol}, ${scanAlertBar(a)}` })),
     ]);
   })));
@@ -37784,7 +38380,7 @@ VIEWS.scannerAlert = () => {
   f1.append(scanFact('Bar status', a.barStatus || nr, a.barStatus ? SCAN_BAR_STATUS_TEXT[a.barStatus] : null));
   f1.append(scanFact('Instrument', el('span', {}, [scanSymbolLink(a.symbol), a.instrumentId && a.instrumentId !== a.symbol ? el('span', { class: 'caption' }, ` · ${a.instrumentId}`) : null]),
     a.instrumentId ? null : legacy ? nr : 'no row in data/instruments.json, so no canonical id'));
-  f1.append(scanFact('Close on the bar', isNum(a.close) ? scanValueText(a.close, prefs) : null));
+  f1.append(scanFact('Close on the bar', isNum(a.close) ? scanValueText(a.close, prefs, 'price') : null));
   /* Volume on the bar (C2's barVolume). Recorded as null, the history held
      none — which is not a volume of nought. Absent, the record predates
      the field, and the history's reading now is offered as that, not as
@@ -37843,14 +38439,16 @@ VIEWS.scannerAlert = () => {
   t.append(el('caption', { class: 'sr-only' }, 'Conditions evaluated on this bar'));
   if (mc) {
     t.append(el('thead', {}, el('tr', {}, ['Path', 'Condition', 'State', 'Left', 'Right', 'Status'].map(h => el('th', { scope: 'col', class: h === 'Left' || h === 'Right' ? 'num' : null }, h)))));
-    t.append(el('tbody', {}, mc.map(c => el('tr', {}, [
+    /* Both sides of a condition round together and in its left side's
+       unit, as the engine's sentence beside them prints them. */
+    t.append(el('tbody', {}, mc.map(c => { const fv = scanValuesFmt([c.left, c.right], prefs, scanCondUnit(a.setupSnapshot?.ruleTree, c.path)); return el('tr', {}, [
       el('td', { class: 'ident' }, c.path || '—'),
       el('td', { style: 'text-align:left;white-space:normal;min-width:200px' }, c.text || '—'),
       el('td', {}, el('span', { class: `chip ${c.state === 'MET' ? 'chip-ok' : c.state === 'UNAVAILABLE' ? 'chip-warn' : ''}` }, String(c.state || '—').replace('_', ' ').toLowerCase())),
-      el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.leftLabel || ''), Array.isArray(c.left) ? c.left.map(v => scanValueText(v, prefs)).join(' → ') : scanValueText(c.left, prefs)]),
-      el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.rightLabel || ''), Array.isArray(c.right) ? c.right.map(v => scanValueText(v, prefs)).join(' – ') : scanValueText(c.right, prefs)]),
+      el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.leftLabel || ''), Array.isArray(c.left) ? c.left.map(fv).join(' → ') : fv(c.left)]),
+      el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.rightLabel || ''), Array.isArray(c.right) ? c.right.map(fv).join(' – ') : fv(c.right)]),
       el('td', { class: 'caption', style: 'text-align:left' }, `${String(c.status || '').replace('_', ' ').toLowerCase()}${c.reason ? ` · ${c.reason}` : ''}`),
-    ]))));
+    ]); })));
   } else {
     t.append(el('thead', {}, el('tr', {}, ['Condition', 'Held'].map(h => el('th', { scope: 'col' }, h)))));
     t.append(el('tbody', {}, (a.rules || []).map(r => el('tr', {}, [el('td', { style: 'text-align:left;white-space:normal' }, r.text || '—'), el('td', {}, r.met === true ? 'yes' : r.met === false ? 'no' : 'untested')]))));
@@ -37871,22 +38469,25 @@ VIEWS.scannerAlert = () => {
     sp.setAttribute('style', 'width:100%;max-width:360px;height:auto;display:block');
     sp.classList.add('scan-spark');
     const lo = Math.min(...cl.filter(isNum)), hi = Math.max(...cl.filter(isNum));
+    const fc = scanValuesFmt([lo, hi, cl[cl.length - 1]], prefs, 'price');
     c5.append(el('figure', { class: 'row row-wrap', style: 'gap:var(--sm) var(--lg);align-items:center;margin:0' }, [
       el('div', { style: 'flex:1 1 260px;max-width:360px;min-width:0' }, sp),
-      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${scanValueText(lo, prefs)}, highest ${scanValueText(hi, prefs)}; the marked point is ${bar}, at ${scanValueText(cl[cl.length - 1], prefs)}.`),
+      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${fc(lo)}, highest ${fc(hi)}; the marked point is ${bar}, at ${fc(cl[cl.length - 1])}.`),
     ]));
   } else c5.append(el('p', { class: 'caption' }, rep.state === 'NO_HISTORY' || rep.state === 'NO_SERIES' || rep.state === 'NO_BAR' ? 'No closes are drawn: ' + rep.text.charAt(0).toLowerCase() + rep.text.slice(1) : 'Fewer than two bars are held up to this one, so no line is drawn.'));
   const verdict = el('p', { class: `scan-reproduce scan-note${rep.state === 'REPRODUCES' ? '' : ' scan-warn'}`, role: 'status', style: 'margin-top:var(--sm)' }, rep.text);
   c5.append(verdict);
   if (rep.values.length) c5.append(el('ul', { class: 'rulelist' }, rep.values.map(v => el('li', { class: 'caption' }, `${v.path}: recorded “${v.text}”; now “${v.now}”`))));
   if (rep.bars) {
-    const fmtC = (v) => (isNum(v) ? scanValueText(v, prefs) : 'not held');
+    /* Each line's two closes round together, so a close that moved never
+       reads as the one it moved from. */
+    const pair = (x) => { const f = scanValuesFmt([x.recorded, x.now], prefs, 'price'); return [x.recorded, x.now].map(v => (isNum(v) ? f(v) : 'not held')); };
     c5.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, rep.closes.length
       ? `${scanPlural(rep.closes.length, 'bar')} up to ${bar} ${rep.closes.length === 1 ? 'has a close' : 'have closes'} that differ from the record:`
       : `No close the record holds for ${a.symbol} up to ${bar} differs from the history, and its corrections log names none changed since this was detected.`));
-    if (rep.closes.length) c5.append(el('ul', { class: 'rulelist scan-close-diffs' }, rep.closes.slice(0, 20).map(x => el('li', { class: 'caption' }, x.via === 'record'
-      ? `${x.date} — recorded ${fmtC(x.recorded)}, now ${fmtC(x.now)}`
-      : `${x.date} — corrected${x.at ? ` ${scanStamp(x.at)}` : ' (time not recorded)'}${x.src ? ` by ${x.src}` : ''}, from ${fmtC(x.recorded)} to ${fmtC(x.now)}`))));
+    if (rep.closes.length) c5.append(el('ul', { class: 'rulelist scan-close-diffs' }, rep.closes.slice(0, 20).map(x => { const [was, is] = pair(x); return el('li', { class: 'caption' }, x.via === 'record'
+      ? `${x.date} — recorded ${was}, now ${is}`
+      : `${x.date} — corrected${x.at ? ` ${scanStamp(x.at)}` : ' (time not recorded)'}${x.src ? ` by ${x.src}` : ''}, from ${was} to ${is}`); })));
     if (rep.closes.length > 20) c5.append(el('p', { class: 'caption' }, `Showing the latest 20 of ${rep.closes.length}.`));
   }
   wrap.append(c5);
@@ -38121,6 +38722,12 @@ function scanOpsUnread() {
 }
 
 /* ----------------------------------------------------------------- pieces -- */
+/* A close, as the engine prints a price: never shortened, at the decimals
+   it is quoted in, two to four (the alerts pages' scanPriceText, from the
+   engine's own functions so this file stands without them). scanFmt's
+   defaults are a volume's: a screened close of 0.345 read 0.34 beside the
+   condition "price 0.345 below 0.500", and 45,120.5 read 45.1k. */
+const scanOpsPrice = (v) => (isNum(v) ? scanFmt(v, Math.max(2, Math.min(4, scanDecimals(v))), false) : '—');
 const scanOpsDay = (t) => (t ? String(t).slice(0, 10) : '—');
 const scanOpsWhen = (t) => (t ? `${String(t).replace('T', ' ').slice(0, 16)} UTC` : '—');
 /* How long ago, in calendar days of the same UTC date scanOpsDay prints
@@ -38176,10 +38783,20 @@ const SCANNER_SUBNAV = [
   { id: 'backtest',   label: 'Historical',           path: '/app/scanner/backtest' },
   { id: 'settings',   label: 'Settings',             path: '/app/scanner/settings' },
 ];
+/* The Alerts link carries the unread count — "Alerts · n", named "Alerts,
+   n unread" — as the alerts pages' own strip did (SC-309 as built). This
+   strip replaces that one on every scanner page and had dropped it, so the
+   main navigation read "Scanner 24" over a strip that read only "Alerts".
+   No count when nothing is counted (no alerts file, in-app off) or none is
+   unread, as the main navigation's badge. */
 function scannerSubnav(active) {
   const row = el('nav', { class: 'segmented scan-subnav', 'aria-label': 'Scanner sections' });
-  SCANNER_SUBNAV.forEach(s => row.append(scanOpsLink(s.path, s.label, {
-    'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null })));
+  const unread = scanOpsUnread();
+  SCANNER_SUBNAV.forEach(s => {
+    const n = s.id === 'alerts' && unread > 0 ? unread : 0;
+    row.append(scanOpsLink(s.path, n ? `${s.label} · ${n}` : s.label, {
+      'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null, 'aria-label': n ? `${s.label}, ${n} unread` : null }));
+  });
   return row;
 }
 const SCANNER_OPS_NAV = [
@@ -38554,11 +39171,18 @@ VIEWS.scannerDashboard = () => {
     x.setupName || x.setupId || '—', x.symbol || x.instrumentId || '—', scanOpsAlertLink(x, x.candleDate || x.bar || '—'),
     x.eventType ? x.eventType.replace(/_/g, ' ').toLowerCase() : 'match',
     (x.matchedConditions || x.rules || []).map(c => c.text).join('; ') || '—']), { wrapCols: [4] });
+  /* The last scan's matches are those on its newest bar and those it
+     recorded itself, which can sit on an earlier bar it evaluated — a
+     caught-up day, or a market a session behind another. The heading named
+     only the newest ("bars of 2026-09-25" over a row of 2026-09-24, beside
+     a tile reading "2026-09-24 … 2026-09-25"); it names the run's range of
+     bars, as the tile does. "As of" stays the newest: it dates the scan. */
   if (ls) {
+    const bars = ls.asOf ? scanBarRange(ls.asOfFrom, ls.asOf) : '—';
     const mc = el('section', { class: 'card' });
-    mc.append(cardHead(current ? `Matched on the last scan — bars of ${ls.asOf || '—'}` : `Matches as of ${ls.asOf || '—'} — not current`,
+    mc.append(cardHead(current ? `Matched on the last scan — bars of ${bars}` : `Matches as of ${ls.asOf || '—'} — not current`,
       current ? 'In the order your setups are written, then the instruments. Nothing is ranked.'
-              : `The last successful scan evaluated bars of ${ls.asOf || '—'}. It is ${S.label.toLowerCase()}, so these are a record of that scan, not a statement about today.`));
+              : `The last successful scan evaluated bars of ${bars}. It is ${S.label.toLowerCase()}, so these are a record of that scan, not a statement about today.`));
     mc.append(lm.length ? matchRows(lm) : el('p', { class: 'body', style: 'font-size:13px' }, 'No match was recorded on that scan’s bars.'));
     wrap.append(mc);
   }
@@ -38865,7 +39489,7 @@ function scanScreenResult(R) {
     sec.append(el('p', { class: 'metaline', style: 'margin-bottom:6px' }, note));
     if (!rows.length) { sec.append(el('p', { class: 'metaline' }, 'None.')); box.append(sec); return; }
     sec.append(scanOpsPaged(rows, (list) => scanOpsTable(['Instrument', 'Market', 'Bar', 'Close', state === 'UNAVAILABLE' ? 'Why untested' : 'Conditions'],
-      list.map(r => [r.symbol, r.market || 'no market row', r.bar || '—', isNum(r.close) ? scanFmt(r.close) : '—',
+      list.map(r => [r.symbol, r.market || 'no market row', r.bar || '—', scanOpsPrice(r.close),
         state === 'UNAVAILABLE' ? el('span', {}, r.why) : scanOpsConds(r.conditions)]), { wrapCols: [4], caption: `${title}, in symbol order` }), { step: 50, noun: 'instruments' }));
     box.append(sec);
   });
@@ -39059,7 +39683,7 @@ function scanBacktestResult(R) {
       const det = el('details', { class: 'scan-row-det' });
       det.append(el('summary', { class: 'caption' }, `${(m.conditions || []).filter(x => x.state === 'MET').length} of ${(m.conditions || []).length} conditions held${m.barStatus === 'UNKNOWN' ? ' · no capture time recorded for the bar' : m.barStatus ? ` · bar ${m.barStatus.toLowerCase()}` : ''}`));
       det.append(scanOpsConds(m.conditions));
-      return [r.symbol, r.bar, isNum(r.close) ? scanFmt(r.close) : '—', r.eventType ? r.eventType.replace(/_/g, ' ').toLowerCase() : 'held', det];
+      return [r.symbol, r.bar, scanOpsPrice(r.close), r.eventType ? r.eventType.replace(/_/g, ' ').toLowerCase() : 'held', det];
     }), { wrapCols: [4], caption: `${cur[1]}, symbol then date order` }), { step: 100, noun: 'dates' }));
   box.append(dates);
   return box;
@@ -39458,8 +40082,10 @@ VIEWS.scannerAdminJobs = () => {
   if (!runs.length) {
     card.append(cardHead('No run recorded', scanRunsFile ? 'The run log is present and holds no scan run.' : 'There is no run log on this machine.'));
     card.append(scanOpsFileState('scan-runs.json', scanRunsFile, 'The worker (node scanner/scan.mjs) writes it on every attempt, success or failure.'));
+    /* The run's range of bars, as its lastRun records it (asOfFrom), not
+       only the newest of them. */
     const lr = scanOpsAlertsDoc()?.lastRun;
-    if (lr) card.append(el('p', { class: 'metaline' }, `The alerts file records one successful run, ${scanOpsWhen(lr.at)} on bars of ${lr.asOf || '—'} (${lr.engine || 'engine unknown'}). It is overwritten by the next success, and a failure writes nothing, so it is not a history.`));
+    if (lr) card.append(el('p', { class: 'metaline' }, `The alerts file records one successful run, ${scanOpsWhen(lr.at)} on bars of ${lr.asOf ? scanBarRange(lr.asOfFrom, lr.asOf) : '—'} (${lr.engine || 'engine unknown'}). It is overwritten by the next success, and a failure writes nothing, so it is not a history.`));
     if (!scanRunsFile) card.append(scanOpsOpenFiles());
     wrap.append(card);
   } else {
@@ -39682,6 +40308,8 @@ State.areaScreen = { city:'kuching', layer:'flood', classes:{}, minRecords:0, ma
    hand focus back to it — see renderAfterTyping in 75-property-grade.js. A
    locality's Record button is found again by its name. */
 const areaRowButtonId = (n) => `area-rec-${String(n).replace(/[^A-Za-z0-9]+/g, '-')}`;
+/* A comparable's Open button, found again by the record it opens. */
+const obsOpenId = (o) => `obs-open-${String(o.id).replace(/[^A-Za-z0-9]+/g, '-')}`;
 
 VIEWS.areas = () => {
   const S = State.areaScreen;
@@ -39945,11 +40573,15 @@ VIEWS.areas = () => {
        An amount without a date is the
        most misleading figure a property register can print: RM620,000 reads as
        current until you learn it was 2017. Both, or neither. */
-    const last = m.lastSold || m.lastLand;
+    /* The newer of the two by the date it happened — areaMetrics' own
+       lastTransaction, which the age layer reads too. `lastSold || lastLand`
+       showed a 2019 house sale beside last month's parcel, and marked a sale
+       as land only when no built sale existed at all. */
+    const last = m.lastTransaction;
     const lastCell = () => {
       if (!last) return el('span', { class: 'caption' }, 'none recorded');
       const age = monthsSince(last.date);
-      const isLand = last === m.lastLand && !m.lastSold;
+      const isLand = last.kind === 'land-sold';
       return el('span', { title: `${OBS_BY_ID[last.kind] ? OBS_BY_ID[last.kind].label : last.kind}`
         + `${last.address ? ` · ${last.address}` : ''} · ${observationStanding(last).label}` }, [
         el('span', {}, fmtMoney(last.value, 'MYR', 0)),
@@ -40250,7 +40882,7 @@ VIEWS.comparables = () => {
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.address || '—'),
         el('td', { class: 'caption', style: 'text-align:left' }, o.date || '—'),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.sourceRef || '—'),
-        el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm',
+        el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm', id: obsOpenId(o),
           onclick: () => openObservationDrawer(o) }, 'Open')),
       ]));
     });
@@ -40300,7 +40932,7 @@ VIEWS.comparables = () => {
               : c === 'standing' ? observationStanding(o).id : o[c])).join(',')));
       dl('quantum-comparables.csv', lines.join('\n'), 'text/csv');
     } }, 'Export CSV'),
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => openComparableImport() }, 'Import'),
+    el('button', { class: 'btn btn-primary btn-sm', id: 'register-import', onclick: () => openComparableImport() }, 'Import'),
   ]));
   io.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'CSV is for reading; JSON brings back every field of each record, worked-example marks and land areas included. The file also carries the change history for reading — an import starts each record\'s history afresh, at the import. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));
@@ -40442,7 +41074,11 @@ function openComparableImport() {
         `${unsourced} of these carry no source reference and will be held as notes rather than evidence.`));
       report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)', onclick: () => {
         ok.forEach(x => addObservation(x));
-        closeDrawer(); render();
+        /* The drawer hands focus back to the Import button that opened it —
+           which render() has just replaced, so it fell to <body>. Back to the
+           new one, by id. */
+        closeDrawer({ restore: false }); render();
+        document.getElementById('register-import')?.focus();
         toast(`${ok.length} record${ok.length === 1 ? '' : 's'} imported${dup.length ? `, ${dup.length} skipped` : ''}`);
       } }, `Import ${ok.length} record${ok.length === 1 ? '' : 's'}`));
     } }, 'Check this paste'),
@@ -40524,10 +41160,18 @@ function openObservationDrawer(o) {
   body.append(histHost);
   paint();
 
+  /* The row that opened the drawer is gone, so focus cannot go back to it —
+     the drawer tried, found it detached, and left the keyboard on <body>.
+     It goes to the row that took its place, or the one before it, or to
+     Undo when the register is empty — the toast points there. */
   body.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--md)', onclick: () => {
     recordObservationDeleted(State.observations.find(x => x.id === o.id) || o);
+    const at = State.observations.findIndex(x => x.id === o.id);
     State.observations = State.observations.filter(x => x.id !== o.id);
-    saveObservations(); closeDrawer(); render(); toast('Record deleted — undo from the register');
+    const next = at < 0 ? null : State.observations[at] || State.observations[at - 1] || null;
+    saveObservations(); closeDrawer({ restore: false }); render();
+    document.getElementById(next ? obsOpenId(next) : 'register-undo')?.focus();
+    toast('Record deleted — undo from the register');
   } }, 'Delete this record'));
   openDrawer(`${OBS_BY_ID[o.kind] ? OBS_BY_ID[o.kind].label : 'Observation'} · ${fmtNum(o.value, 0)}`, body);
 }
@@ -41165,18 +41809,26 @@ function clearWorkedExample() {
   return gone.length;
 }
 
-/* The control, wherever an empty state would otherwise be the whole screen. */
+/* The control, wherever an empty state would otherwise be the whole screen.
+   Load and Remove are one control in two states, and the redraw either
+   brings back the other one or, where the page offers none (the area
+   screen's warning goes with the example), leaves nothing to return to.
+   Focus fell to <body> after both; it now goes to the counterpart, marked
+   data-worked-example, or to <main> where there is none (focusAfterRedraw,
+   05-plans.js). */
 function workedExampleControls({ compact = false } = {}) {
   const row = el('div', { class: 'row row-wrap', style: `gap:8px;${compact ? '' : 'margin-top:var(--md)'}` });
   if (hasWorkedExample()) {
-    row.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+    row.append(el('button', { class: 'btn btn-ghost btn-sm', data: { workedExample: 'remove' }, onclick: () => {
       const n = clearWorkedExample();
-      render(); toast(`Worked example removed — ${n} record${n === 1 ? '' : 's'}. Anything you recorded is untouched.`);
+      render(); focusAfterRedraw('#views [data-worked-example]');
+      toast(`Worked example removed — ${n} record${n === 1 ? '' : 's'}. Anything you recorded is untouched.`);
     } }, 'Remove the worked example'));
   } else {
-    row.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    row.append(el('button', { class: 'btn btn-primary btn-sm', data: { workedExample: 'load' }, onclick: () => {
       const r = seedWorkedExample();
-      render(); toast(`${r.added} illustrative records loaded across ${r.areas} districts. Every one is marked as invented.`);
+      render(); focusAfterRedraw('#views [data-worked-example]');
+      toast(`${r.added} illustrative records loaded across ${r.areas} districts. Every one is marked as invented.`);
     } }, 'Load the worked example'));
   }
   return row;
@@ -41651,7 +42303,12 @@ const DOCKS = {
       figs: [
         { label: 'Trend regime', value: r.assessable ? String(r.regime) : null },
         { label: 'First-tranche readiness', value: r.assessable ? String(r.tranche) : null },
-        { label: 'Screenshot confidence', value: r.assessable ? String(r.confidence) : null },
+        /* Confidence is scored apart from the run: a run is assessable before
+           its five components are, and qttiRun leaves it null until all five
+           are. String(null) put "Screenshot confidence: null" in the dock
+           under a page that says it has not been scored. The decision record
+           guards the same figure the same way. */
+        { label: 'Screenshot confidence', value: r.assessable && isNum(r.confidence) ? String(r.confidence) : null },
       ],
       /* reject[] is what makes a run unassessable at all, so it outranks the
          gates that merely block a tranche. Both are arrays of STRINGS — the
