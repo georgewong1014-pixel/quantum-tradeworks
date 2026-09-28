@@ -6630,6 +6630,194 @@ try {
   }
   /* ---- end bugfix3: sweep ---- */
 
+  /* ---- bugfix4: shell ---- */
+  /* The shell's fourth pass. Everything it changes in this browser —
+     saved work, the three tools' figures, a comparable edited, a correction
+     case — is put back at the end, and the page reloaded from it, so a
+     block after this one starts from the state it would have had. */
+  const bf4 = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+    const btn = (t) => [...document.querySelectorAll('button')].find(x => x.offsetParent !== null && x.textContent.trim() === t);
+    const press = async (n, ms = 200) => { if (!n) return false; n.focus(); n.click(); await w(ms); return true; };
+    const at = () => { const a = document.activeElement; return !a || a === document.body ? 'BODY'
+      : a.tagName + (a.id ? '#' + a.id : '') + ' ' + (a.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 40); };
+    window.confirm = () => true; window.prompt = (m, d) => d;`;
+  const bf4Saved = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])))`);
+  {
+    /* THE FOOTER'S HEADINGS STEP FROM THE PAGE'S. Its four column headings
+       were h4, and main ends on an h2 or an h3, so every route's outline
+       skipped a level into the footer — 2→4 on each page measured here.
+       The whole document is walked, footer included; the closed drawer is
+       not on the page. They keep their 12px uppercase look. */
+    const r = await evaluate(`(async () => {
+      ${bf4}
+      const lv = (h) => Number(h.getAttribute('aria-level') || h.tagName[1]);
+      const out = {};
+      for (const p of ['/about', '/contact', '/privacy', '/terms', '/discover/value-map', '/app/scanner/alerts', '/learn', '/company/AAPL-SEC']) {
+        navigate(p); await w(150);
+        const hs = [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')].filter(h => !h.closest('#drawer'));
+        let prev = 0; const bad = [];
+        hs.forEach(h => { const l = lv(h); if (l > prev + 1) bad.push(prev + '→' + l + ' "' + h.textContent.trim().slice(0, 24) + '"'); prev = l; });
+        if (bad.length) out[p] = bad;
+      }
+      const fh = [...document.querySelectorAll('footer.footer .footer-grid h1, footer.footer .footer-grid h2, footer.footer .footer-grid h3, footer.footer .footer-grid h4')];
+      const cs = fh[0] ? getComputedStyle(fh[0]) : null;
+      return { out, n: fh.length, tags: [...new Set(fh.map(h => h.tagName))].join(','), size: cs?.fontSize, tt: cs?.textTransform };
+    })()`);
+    if (Object.keys(r.out).length || r.n !== 4 || r.tags !== 'H2' || r.size !== '12px' || r.tt !== 'uppercase')
+      fail('bugfix4 shell: no page skips a heading level into the footer, whose four headings are h2 at 12px uppercase', r);
+    else ok('bugfix4 shell: no page skips a heading level into the footer — its four column headings are h2, still 12px uppercase');
+  }
+  {
+    /* A MARKET CAP UNDER HALF A MILLION BELOW ZERO IS NOUGHT. fmtCap took
+       the sign from the raw value, so −0.00001 and −0.0004 billion printed
+       "−$0M". The sign belongs to the figure as it prints, as fmtMoney's
+       does; anything that still prints a digit keeps it. */
+    const got = await evaluate(`[fmtCap(-0.00001, 'USD'), fmtCap(-0.0004, 'MYR'), fmtCap(-0.0006, 'USD'), fmtCap(-51.5, 'USD'), fmtCap(-0.99951, 'USD'), fmtCap(-1200, 'MYR'), fmtCap(0, 'USD')]`);
+    const want = ['$0M', 'RM0M', '−$1M', '−$51.5B', '−$1.0B', '−RM1.20T', '$0M'];
+    if (JSON.stringify(got) !== JSON.stringify(want)) fail('bugfix4 shell: fmtCap never prints a signed zero', { got, want });
+    else ok(`bugfix4 shell: fmtCap never prints a signed zero (${got.slice(0, 3).join(', ')}), and keeps the sign on a figure that prints one`);
+  }
+  {
+    /* SAVE, RESUME, DUPLICATE LATEST AND RESET KEEP THE KEYBOARD'S PLACE.
+       Each redrew the page with render(), which replaced the bar and the
+       control in it, and focus fell to <body> — on all three tools. Pressed
+       as Enter presses them, focus must be back on the same control. */
+    const r = await evaluate(`(async () => {
+      ${bf4}
+      const out = {};
+      for (const [p, k] of [['/research/trading-index', 'trading'], ['/us-options/wheel', 'wheel'], ['/property/calculator', 'property']]) {
+        navigate(p); await w(200);
+        const o = out[k] = {};
+        o.save = await press(document.getElementById('wb-' + k + '-save') || btn('Save')) && at();
+        o.dup = await press(document.getElementById('wb-' + k + '-dup') || btn('Duplicate latest')) && at();
+        const sel = document.getElementById('wb-' + k + '-resume') || document.querySelector('#views select[aria-label^="Resume a saved"]');
+        if (sel) { sel.focus(); sel.value = sel.options[1]?.value || ''; sel.dispatchEvent(new Event('change', { bubbles: true })); await w(200); o.resume = at(); }
+        o.reset = await press(document.getElementById('wb-' + k + '-reset') || btn('Reset')) && at();
+      }
+      return out;
+    })()`);
+    const p = [];
+    for (const k of ['trading', 'wheel', 'property']) for (const [what, want] of [['save', 'save'], ['dup', 'dup'], ['resume', 'resume'], ['reset', 'reset']])
+      if (!new RegExp(`^(BUTTON|SELECT)#wb-${k}-${want}\\b`).test(r[k]?.[what] || '')) p.push(`${k} ${what}: ${r[k]?.[what]}`);
+    if (p.length) fail('bugfix4 shell: the work bar\'s Save, Resume, Duplicate latest and Reset keep focus on the control pressed', p);
+    else ok('bugfix4 shell: the work bar\'s Save, Resume, Duplicate latest and Reset keep focus on the control pressed — trading index, Cash Wheel, property calculator');
+  }
+  {
+    /* A DRAWER WHOSE OPENER A REDRAW REPLACED HANDS FOCUS TO ITS SUCCESSOR.
+       closeDrawer gave focus back only to the very node that opened it, so a
+       drawer whose own action redraws the page — an edit to a comparable —
+       closed onto <body>. The control that came back under the opener's id
+       takes focus; with none, <main> does. Focus a close did not lose (put
+       somewhere on purpose) is left where it is. */
+    const r = await evaluate(`(async () => {
+      ${bf4}
+      const out = {};
+      navigate('/property/comparables'); await w(200);
+      if (!document.querySelector('#views [id^="obs-open-"]')) await press(btn('Load the worked example'), 300);
+      const o = document.querySelector('#views [id^="obs-open-"]');
+      if (!o) return { missing: 'no comparable to open' };
+      const oid = o.id;
+      await press(o, 400);
+      const f = document.getElementById('obs-edit-reviewedBy') || document.querySelector('#drawerBody input');
+      f.focus(); f.value = (f.value || '') + ' bf4'; f.dispatchEvent(new Event('change', { bubbles: true })); await w(100);
+      out.detached = !o.isConnected;
+      await press(document.querySelector('#drawer [data-close-drawer]'), 450);
+      out.comparable = at(); out.oid = oid;
+
+      navigate('/corrections'); await w(200);
+      await press(btn('Open the report form'), 400);
+      const d = document.getElementById('err-description');
+      d.value = 'bf4 case'; d.dispatchEvent(new Event('input', { bubbles: true }));
+      await press(btn('Record this case'), 400);
+      closeDrawer(); await w(450);
+      await press(document.getElementById('case-open-0'), 400);
+      render(); await w(50);
+      closeDrawer(); await w(450);
+      out.caseAfterRedraw = at();
+
+      await press(document.getElementById('case-open-0'), 400);
+      render(); await w(50);
+      closeDrawer(); document.getElementById('open-report-form').focus(); await w(450);
+      out.placed = at();
+
+      navigate('/learn/glossary'); await w(200);
+      await press(document.querySelector('#views table.dict .metric-label'), 400);
+      render(); await w(50);
+      closeDrawer(); await w(450);
+      out.noId = at();
+      return out;
+    })()`);
+    const p = [];
+    if (r.missing) p.push(r.missing);
+    else {
+      if (!r.detached) p.push('the edit did not redraw the register, so the case is not exercised');
+      if (!(r.comparable || '').startsWith('BUTTON#' + r.oid)) p.push(`closing a comparable after an edit: ${r.comparable}`);
+      if (!/^BUTTON#case-open-0 /.test(r.caseAfterRedraw)) p.push(`closing a case after a redraw: ${r.caseAfterRedraw}`);
+      if (!/^BUTTON#open-report-form /.test(r.placed)) p.push(`focus placed by the action was moved: ${r.placed}`);
+      if (!/^MAIN#main/.test(r.noId)) p.push(`an opener with no id, redrawn away: ${r.noId}`);
+    }
+    if (p.length) fail('bugfix4 shell: closing a drawer whose opener a redraw replaced returns focus to the replacement, or to <main>', p);
+    else ok('bugfix4 shell: closing a drawer whose opener a redraw replaced returns focus to the control under its id (a comparable, a correction case), or to <main>');
+  }
+  {
+    /* A MARK WITH NO QUALITY PERCENTILE SAYS SO. scatterChart printed p.y, so
+       a company the value map could not rank — plotted at 50 — read "quality
+       percentile 50", and one given no y at all read "quality percentile
+       null" and sat on the zero line. A y that is not a number is drawn at
+       the midpoint and named as having no percentile, in the mark's name and
+       its tooltip; a ranked mark is unchanged. */
+    const r = await evaluate(`(async () => {
+      ${bf4}
+      const host = document.createElement('div'); host.style.width = '640px'; document.body.append(host);
+      const pt = (id, x, y, size) => ({ id, label: id, name: id + ' Bhd', x, y, size, capLabel: 'RM1.0B', model: 'm', conf: 'Low', varName: '--s1' });
+      scatterChart(host, { points: [pt('NORANK', 12, null, 1), pt('RANKED', -20, 70, 2)], xLabel: 'x', yLabel: 'y', xFmt: v => withSign(v, 0), onPick: () => {} });
+      const gs = [...host.querySelectorAll('g[role="button"]')];
+      const nr = gs.find(g => g.getAttribute('aria-label').startsWith('NORANK'));
+      const rk = gs.find(g => g.getAttribute('aria-label').startsWith('RANKED'));
+      const mid = [...host.querySelectorAll('line.gridline')].filter(l => l.getAttribute('x1') !== l.getAttribute('x2'))[2]?.getAttribute('y1');
+      nr?.focus(); await w(50);
+      const tip = document.getElementById('viztip').textContent.replace(/\\s+/g, ' ');
+      nr?.blur(); host.remove();
+      return { nr: nr?.getAttribute('aria-label'), rk: rk?.getAttribute('aria-label'), cy: nr?.querySelector('circle')?.getAttribute('cy'), mid, tip };
+    })()`);
+    if (!/no quality percentile/.test(r.nr || '') || /null|percentile 50/.test(r.nr || '') || !/quality percentile 70$/.test(r.rk || '')
+      || !r.mid || Number(r.cy) !== Number(r.mid) || !/Quality percentile ?none/.test(r.tip) || /null/.test(r.tip))
+      fail('bugfix4 shell: a value-map mark with no quality percentile is drawn at the midpoint and says it has none', r);
+    else ok(`bugfix4 shell: a value-map mark with no quality percentile is drawn at the midpoint and says so ("${r.nr}")`);
+  }
+  {
+    /* A TILE TOO SMALL TO DRAW IS STILL OFFERED. The treemap dropped a tile
+       under 2px either way with nothing said, so a company in the table view
+       could be neither seen, pointed at nor reached by Tab. It is offered as
+       a button under the map that opens what the tile would have. */
+    const r = await evaluate(`(async () => {
+      ${bf4}
+      const host = document.createElement('div'); host.style.width = '900px'; document.body.append(host);
+      const picked = [];
+      const it = (id, value) => ({ id, label: id, name: id, value, change: 0.5, capLabel: '$1B', metricLabel: 'Day change' });
+      treemap(host, { items: [it('BIG', 1e6), it('MID', 4e5), it('TINY', 0.001)], valueFmt: v => withSign(v, 2), onPick: id => picked.push(id) });
+      const tiles = [...host.querySelectorAll('g[role="button"]')].map(g => g.getAttribute('aria-label').split(',')[0]);
+      const b = [...host.querySelectorAll('button')].find(x => /^TINY /.test(x.getAttribute('aria-label') || ''));
+      b?.click();
+      const text = host.textContent;
+      host.remove();
+      return { tiles, offered: !!b, picked, text: text.slice(0, 80) };
+    })()`);
+    if (r.tiles.includes('TINY') || !r.offered || r.picked.join() !== 'TINY' || !/Too small to (draw|tap)/.test(r.text))
+      fail('bugfix4 shell: a heatmap tile too small to draw is offered as a button that opens it', r);
+    else ok('bugfix4 shell: a heatmap tile too small to draw is named under the map as a button that opens it');
+  }
+  /* Everything this block wrote is put back, and the page reloaded from it. */
+  await evaluate(`(() => { const s = ${JSON.stringify(bf4Saved)}; const keep = JSON.parse(s);
+    Object.keys(localStorage).forEach(k => { if (!(k in keep)) localStorage.removeItem(k); });
+    Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v)); return true; })()`);
+  await send('Page.navigate', { url: `${BASE}/research` }, sessionId);
+  for (let i = 0; i < 60; i++) {
+    await sleep(300);
+    try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && U.some(r => r.c.real)`)) break; } catch { /* booting */ }
+  }
+  /* ---- end bugfix4: shell ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

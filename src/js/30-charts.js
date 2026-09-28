@@ -52,6 +52,12 @@ function niceTicks(lo, hi, count = 4) {
   return { ticks, lo: start, hi: end };
 }
 
+/* WHERE A FINGER IS THE POINTER. The same test the stylesheet's 44px rule
+   uses (styles.css, "44px TOUCH TARGETS"): a coarse pointer, or a phone-width
+   window. A mark that is a control is a tap target there like any other. */
+const TOUCH_TARGET = 44;
+const touchLayout = () => matchMedia('(pointer: coarse), (max-width: 768px)').matches;
+
 /* Re-render on container resize so charts stay responsive without a library. */
 const RESIZERS = new WeakMap();
 function chartHost(container, draw) {
@@ -531,18 +537,27 @@ function decisionDock({ figs, blocker, next }) {
    directly under the page heading on all of them so a returning reader looks in
    one place. `onReset` is passed in rather than derived: what "empty" means is
    the tool's business, and a generic reset that guessed would eventually clear
-   the wrong keys. */
+   the wrong keys.
+
+   Every control here redraws the page, and render() replaces the bar with
+   the rest of it: Save, Resume, Duplicate latest and Reset each destroyed
+   itself under the keyboard, and focus fell to <body> on the trading index,
+   the Cash Wheel and the property calculator alike. Each carries an id per
+   kind and redraws through renderKeepFocus, which hands focus to the control
+   that comes back under that id — all four come back, since a save or a
+   reset leaves the saved list at least as long as it was. */
 function workBar(kind, onReset) {
   const def = WORK_KINDS[kind];
   if (!def) return null;
   const saved = loadWork().filter(r => r.kind === kind);
+  const wid = (what) => `wb-${kind}-${what}`;
 
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' });
 
   row.append(el('span', { class: 'eyebrow', style: 'margin-right:2px' }, 'This browser only'));
 
-  row.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+  row.append(el('button', { class: 'btn btn-ghost btn-sm', id: wid('save'), onclick: () => {
     const suggested = def.name();
     const name = prompt(`Name this ${def.label.toLowerCase()}`, suggested);
     if (name === null) return;
@@ -551,15 +566,15 @@ function workBar(kind, onReset) {
        'Saved' over a record that was never written. */
     const refused = store.failed;
     const rec = saveWork(kind, name.trim() || suggested);
-    render(); toast(store.failed !== refused ? STORE_REFUSED : rec ? `Saved "${rec.name}"` : 'Could not save');
+    renderKeepFocus(); toast(store.failed !== refused ? STORE_REFUSED : rec ? `Saved "${rec.name}"` : 'Could not save');
   } }, 'Save'));
 
   if (saved.length) {
-    const sel = el('select', { class: 'select select-sm', 'aria-label': `Resume a saved ${def.label.toLowerCase()}`,
+    const sel = el('select', { class: 'select select-sm', id: wid('resume'), 'aria-label': `Resume a saved ${def.label.toLowerCase()}`,
       onchange: e => {
         const id = e.target.value;
         if (!id) return;
-        if (resumeWork(id)) { render(); toast('Resumed'); }
+        if (resumeWork(id)) { renderKeepFocus(); toast('Resumed'); }
         else { e.target.value = ''; toast('That record holds no figures to restore — it was saved before anything had been entered.'); }
       } });
     sel.append(el('option', { value: '' }, `Resume… (${saved.length})`));
@@ -568,16 +583,16 @@ function workBar(kind, onReset) {
     saved.forEach(r => sel.append(el('option', { value: r.id }, `${r.name} · ${fmtSaved(r.savedAt)}`)));
     row.append(sel);
 
-    row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+    row.append(el('button', { class: 'btn btn-quiet btn-sm', id: wid('dup'), onclick: () => {
       const refused = store.failed;
       const copy = duplicateWork(saved[0].id);
-      render(); toast(store.failed !== refused ? STORE_REFUSED : copy ? `Duplicated "${saved[0].name}"` : 'Nothing to duplicate');
+      renderKeepFocus(); toast(store.failed !== refused ? STORE_REFUSED : copy ? `Duplicated "${saved[0].name}"` : 'Nothing to duplicate');
     } }, 'Duplicate latest'));
   }
 
-  row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+  row.append(el('button', { class: 'btn btn-quiet btn-sm', id: wid('reset'), onclick: () => {
     if (!confirm('Clear the figures currently on screen? Anything you saved stays saved.')) return;
-    onReset(); render(); toast('Cleared');
+    onReset(); renderKeepFocus(); toast('Cleared');
   } }, 'Reset'));
 
   row.append(el('a', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto',
@@ -751,18 +766,38 @@ function lineChart(container, { values, labels, fmt = v => fmtNum(v, 2), varName
 
 /* ----------------------------------------------------------- scatter plot */
 /* Colour is either 2 categorical slots (market) or a 3-step ordinal ramp
-   (risk band) — never 8 slots, which cannot clear the all-pairs CVD gate. */
+   (risk band) — never 8 slots, which cannot clear the all-pairs CVD gate.
+
+   A point whose y is not a number has no quality percentile. It is drawn at
+   the midpoint, where the value map says it draws a company its cohort
+   cannot rank, and its mark and tooltip say it has none. They printed p.y,
+   so the plotting position a caller had substituted for the missing rank
+   read "quality percentile 50" — a measured median, which it is not. */
 function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelShort, xFmt, onPick }) {
   chartHost(container, (W) => {
     const narrow = W < 560;
     const H = narrow ? 320 : Math.max(340, Math.min(480, W * 0.52));
     const padL = narrow ? 40 : 56, padR = narrow ? 12 : 20, padT = 18, padB = 46;
     const iw = W - padL - padR, ih = H - padT - padB;
-    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    const xs = points.map(p => p.x);
     const xlo = Math.min(-40, Math.floor(Math.min(...xs) / 10) * 10), xhi = Math.max(40, Math.ceil(Math.max(...xs) / 10) * 10);
     const ylo = 0, yhi = 100;
     const X = v => padL + (v - xlo) / (xhi - xlo) * iw;
     const Y = v => padT + ih - (v - ylo) / (yhi - ylo) * ih;
+    const yAt = p => isNum(p.y) ? p.y : (ylo + yhi) / 2;
+    const yWords = p => isNum(p.y) ? `quality percentile ${p.y}` : 'no quality percentile, drawn at the midpoint';
+    /* ON A PHONE EVERY MARK IS A 44px TARGET. The marks measured 26 to 29px
+       at 390px on the value map and in Compare, each a button. The ring the
+       eye sees keeps its size; the transparent hit circle in the mark grows
+       to 44px. Grown, it reached over its neighbours' marks — a tap on the
+       dot of one company opened the smaller one beside it — so on a phone
+       each mark's drawn circle is laid again in a layer above every grown
+       one, in the same order: a tap on a drawn mark opens the mark drawn
+       there, and only a tap in the margin around it goes to the padding. */
+    const touch = touchLayout();
+    /* A pixel over half: at exactly 22 the box measured 43.99999px. */
+    const hitMin = touch ? TOUCH_TARGET / 2 + 1 : 13;
+    const own = touch ? sv('g', { 'aria-hidden': 'true' }) : null;
     const maxCap = Math.max(...points.map(p => p.size));
     const R = v => (narrow ? 3.5 : 5) + Math.sqrt(v / maxCap) * (narrow ? 11 : 20);
 
@@ -798,17 +833,19 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
       const g = sv('g', { style: 'cursor:pointer' });
       g.setAttribute('tabindex', '0');
       g.setAttribute('role', 'button');
-      g.setAttribute('aria-label', `${p.label}, ${xFmt(p.x)} to base-case model estimate, quality percentile ${p.y}`);
+      g.setAttribute('aria-label', `${p.label}, ${xFmt(p.x)} to base-case model estimate, ${yWords(p)}`);
       const fill = `var(${p.varName})`;
-      g.append(sv('circle', { cx: X(p.x), cy: Y(p.y), r: R(p.size), fill, opacity: .30 }));
+      const cy = Y(yAt(p));
+      g.append(sv('circle', { cx: X(p.x), cy, r: R(p.size), fill, opacity: .30 }));
       /* 2px surface ring keeps overlapping marks legible */
-      g.append(sv('circle', { cx: X(p.x), cy: Y(p.y), r: R(p.size), fill: 'none', stroke: fill, 'stroke-width': 1.5 }));
-      g.append(sv('circle', { cx: X(p.x), cy: Y(p.y), r: 3.2, fill, stroke: 'var(--surface)', 'stroke-width': 2 }));
-      /* hit target never smaller than ~24px */
-      const hit = sv('circle', { cx: X(p.x), cy: Y(p.y), r: Math.max(13, R(p.size)), fill: 'transparent' });
+      g.append(sv('circle', { cx: X(p.x), cy, r: R(p.size), fill: 'none', stroke: fill, 'stroke-width': 1.5 }));
+      g.append(sv('circle', { cx: X(p.x), cy, r: 3.2, fill, stroke: 'var(--surface)', 'stroke-width': 2 }));
+      /* hit target never smaller than ~26px, or 44px on a phone */
+      const hit = sv('circle', { cx: X(p.x), cy, r: Math.max(hitMin, R(p.size)), fill: 'transparent' });
+      const core = own && sv('circle', { cx: X(p.x), cy, r: R(p.size), fill: 'transparent', style: 'cursor:pointer' });
       const tip = () => `<div class="t-title">${esc(p.label)} · ${esc(p.name)}</div>
         <div class="t-row"><span>vs base-case model estimate</span><b>${xFmt(p.x)}</b></div>
-        <div class="t-row"><span>Quality percentile</span><b>${p.y}</b></div>
+        <div class="t-row"><span>Quality percentile</span><b>${isNum(p.y) ? p.y : 'none — drawn at the midpoint'}</b></div>
         <div class="t-row"><span>Market cap</span><b>${p.capLabel}</b></div>
         <div class="t-row"><span>Model</span><b>${esc(p.model)}</b></div>
         <div class="t-note">${esc(p.conf)} confidence · click to open the valuation</div>`;
@@ -816,19 +853,28 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
       hit.addEventListener('pointermove', show);
       hit.addEventListener('pointerleave', hideTip);
       hit.addEventListener('click', () => onPick(p.id));
+      /* The upper layer is outside the button, so it focuses the button
+         first: the drawer hands focus back to the mark, as a direct tap does. */
+      if (core) {
+        core.addEventListener('pointermove', show);
+        core.addEventListener('pointerleave', hideTip);
+        core.addEventListener('click', () => { g.focus({ preventScroll: true }); onPick(p.id); });
+        own.append(core);
+      }
       g.addEventListener('focus', () => { const b = g.getBoundingClientRect(); showTip(tip(), b.left + b.width / 2, b.top + b.height / 2); });
       g.addEventListener('blur', hideTip);
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(p.id); } });
       g.append(hit);
       s.append(g);
     });
+    if (own) s.append(own);
 
     /* Selective direct labels: the three largest discounts among quality names.
        Labels are pushed below the mark when they would collide with the top
        annotation. On a narrow chart they are dropped entirely — converging
        labels read as noise, and the legend, tooltip and table view still carry
        the identity. */
-    (narrow ? [] : [...points].filter(p => p.y >= 45).sort((a, b) => b.x - a.x).slice(0, 3)).forEach(p => {
+    (narrow ? [] : [...points].filter(p => isNum(p.y) && p.y >= 45).sort((a, b) => b.x - a.x).slice(0, 3)).forEach(p => {
       const above = Y(p.y) - R(p.size) - 6;
       const flip = above < padT + 12;
       const t = sv('text', { class: 'dl', x: X(p.x), y: flip ? Y(p.y) + R(p.size) + 13 : above, 'text-anchor': 'middle' });
@@ -881,16 +927,32 @@ function squarify(items, x, y, w, h) {
    else, so the drawer behind them — and the table view offers no action —
    could not be reached from a keyboard at all. The svg is a group rather than
    an image, because an image's children are not exposed as controls.
-   `pickNote` is the tooltip's last line: what selecting a tile opens. */
+   `pickNote` is the tooltip's last line: what selecting a tile opens.
+
+   A TILE A FINGER CANNOT HIT IS OFFERED AS A BUTTON BENEATH THE MAP.
+   Area is market capitalisation, so the smallest company's tile is a share
+   of the plot, not a size anyone chose: at 390px Bursa's smallest tiles
+   measured 30x42 and 29x42, a US one 33x56, and every Bursa tile reaches
+   44px only on a map some 12,000px tall. Padding a tile's hit area
+   past its edges does not work either, because the small tiles are laid out
+   last, together in one corner, and each padded area would cover its
+   neighbours. So on a phone every tile under 44px either way is also a
+   44px button under the map that opens the same thing — as is, at any
+   width, a tile too small to draw at all, which was left out with nothing
+   said, unreachable by pointer or by Tab. */
 function treemap(container, { items, valueFmt, onPick, full = 8, pickNote = 'Select for the "Why moved?" attribution' }) {
   chartHost(container, (W) => {
     const H = Math.max(320, Math.min(520, W * 0.5));
+    const touch = touchLayout();
+    const drawn = new Set(), unreachable = [];
     const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'group', tabindex: '0', 'aria-label': 'Market heatmap, tile area is market capitalisation. Tab to a tile and press Enter to open it.' });
     const laid = squarify([...items].sort((a, b) => b.value - a.value), 0, 0, W, H);
     const GAP = 2;                                   /* surface gap, not a border */
     laid.forEach(t => {
       const w = Math.max(0, t.w - GAP), h = Math.max(0, t.h - GAP);
       if (w < 2 || h < 2) return;
+      drawn.add(t.id);
+      if (touch && (t.w < TOUCH_TARGET || t.h < TOUCH_TARGET)) unreachable.push(t);
       const fillVar = divergingVar(t.change, full);
       const fill = cssVar(fillVar) || '#888';
       const g = sv('g', { class: 'tile', style: 'cursor:pointer' });
@@ -924,7 +986,20 @@ function treemap(container, { items, valueFmt, onPick, full = 8, pickNote = 'Sel
       g.append(hit);
       s.append(g);
     });
-    return s;
+    /* In the map's own order, largest first; an undrawn tile is the smallest. */
+    const undrawn = [...items].sort((a, b) => b.value - a.value).filter(t => !drawn.has(t.id));
+    const offer = [...unreachable, ...undrawn];
+    if (!offer.length) return s;
+    const list = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:var(--sm);align-items:center' });
+    list.append(el('span', { class: 'metaline' }, touch
+      ? `Too small to tap on the map (${offer.length}):`
+      : `Too small to draw at this width (${offer.length}):`));
+    /* The name opens with the words the button shows, so a reader who says
+       what they see — "PGR +0.36%" — names the button. */
+    offer.forEach(t => list.append(el('button', { type: 'button', class: 'btn btn-ghost btn-sm',
+      'aria-label': `${t.label} ${valueFmt(t.change)}, ${t.metricLabel}, market cap ${t.capLabel}`,
+      onclick: () => onPick(t.id) }, `${t.label} ${valueFmt(t.change)}`)));
+    return el('div', {}, s, list);
   });
 }
 

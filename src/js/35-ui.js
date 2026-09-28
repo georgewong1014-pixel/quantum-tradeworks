@@ -259,7 +259,21 @@ function closeDrawer({ restore = true } = {}) {
   closeTimer = setTimeout(() => {
     closeTimer = null; closingBack = null;
     drawer.hidden = true;
-    if (restore && back && back !== document.body && document.contains(back)) back.focus?.({ preventScroll: true });
+    if (!restore || !back || back === document.body) return;
+    if (document.contains(back)) { back.focus?.({ preventScroll: true }); return; }
+    /* THE OPENER A REDRAW REPLACED. A drawer whose own action redraws the
+       page — an edit to a comparable, a recorded correction case — detaches
+       the button that opened it, and the hand-back above found nothing and
+       left the keyboard on <body>. The redraw brought the same control back
+       under the same id, as renderKeepFocus relies on, so focus goes there;
+       with no such control, to <main>, as focusAfterRedraw's last resort.
+       Only while focus is lost: an action that put it somewhere on purpose,
+       or a navigation that has focused the new page, keeps it. */
+    const at = document.activeElement;
+    if (at && at !== document.body && !drawer.contains(at)) return;
+    const again = back.id ? document.getElementById(back.id) : null;
+    if (again) again.focus({ preventScroll: true });
+    if (!again || document.activeElement !== again) focusMain();
   }, 300);
   closeSearch();
 }

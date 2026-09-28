@@ -147,8 +147,15 @@
           <span class="chip chip-my">Bursa Malaysia</span>
         </div>
       </div>
+      <!-- The four column headings are h2: sections of the page beside
+           main's, not parts of whatever main ended on. As h4 they skipped a
+           level wherever main closed on an h2, as it does on /about, /privacy,
+           /learn and a company page, so a screen reader's heading list stepped
+           2→4 into the footer. main's levels are fitted to its outline
+           (fitHeadingLevels); the footer's are written, and an h2 follows any
+           of them. `.footer h2` keeps the 12px uppercase look. -->
       <div>
-        <h4>Methodology</h4>
+        <h2>Methodology</h2>
         <ul>
           <li><a href="/learn/glossary" data-path="/learn/glossary">Metric dictionary</a></li>
           <li><a href="/learn?tab=scoring" data-path="/learn?tab=scoring">Scoring architecture</a></li>
@@ -157,7 +164,7 @@
         </ul>
       </div>
       <div>
-        <h4>Trust</h4>
+        <h2>Trust</h2>
         <ul>
           <li><a href="/data-sources" data-path="/data-sources">Data sources &amp; rights</a></li>
           <li><a href="/corrections" data-path="/corrections">Corrections log</a></li>
@@ -166,7 +173,7 @@
         </ul>
       </div>
       <div>
-        <h4>Coverage</h4>
+        <h2>Coverage</h2>
         <ul>
           <li><a href="/discover/screener" data-path="/discover/screener">S&amp;P 500 (sample)</a></li>
           <li><a href="/discover/screener" data-path="/discover/screener">FBM KLCI (sample)</a></li>
@@ -179,7 +186,7 @@
            the opportunity register. The footer is where a reader looks for
            exactly these, and it carried none of them. -->
       <div>
-        <h4>Product</h4>
+        <h2>Product</h2>
         <ul>
           <li><a href="/about" data-path="/about">About</a></li>
           <li><a href="/contact" data-path="/contact">Contact</a></li>
