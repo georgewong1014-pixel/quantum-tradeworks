@@ -694,9 +694,12 @@ try {
     await writeFile(pp, JSON.stringify({ ...day1, source: join(BD, 'another.csv') }));
     const po = await pricesRun(review);
     const bo = JSON.parse(await readFile(pp, 'utf8'));
-    check(pk.code === 0 && /accepted : 1/.test(pk.stdout) && bk.prices.BBB?.close === 10.2 && same(bk.prices.AAA, day1.prices.AAA) && !bk.prices.USDMYR && bk.asOf === '2026-09-26'
+    /* fx.mjs's rate names its own source and is carried, not kept as a
+       refused symbol's price (bugfix5: ingest — it was dropped, and this
+       check asserted that it was). */
+    check(pk.code === 0 && /accepted : 1/.test(pk.stdout) && bk.prices.BBB?.close === 10.2 && same(bk.prices.AAA, day1.prices.AAA) && same(bk.prices.USDMYR, day1.prices.USDMYR) && bk.asOf === '2026-09-26'
       && /kept\s+: 1 refused symbol/.test(pk.stdout) && po.code === 0 && !bo.prices.AAA && bo.prices.BBB?.close === 10.2,
-      'bugfix2 ingest: a symbol held back keeps the price the file held for it (214.30 stays the baseline a second 814.30 is checked against), only from a file written from the same input, never another writer\'s row', { pk: pk.stdout.slice(0, 400), prices: bk.prices, other: bo.prices });
+      'bugfix2 ingest: a symbol held back keeps the price the file held for it (214.30 stays the baseline a second 814.30 is checked against), only from a file written from the same input, never another writer\'s unlabelled row', { pk: pk.stdout.slice(0, 400), prices: bk.prices, other: bo.prices });
 
     const eod = join(BD, 'eod.csv'), eodOut = join(BD, 'eod.json');
     await writeFile(eod, 'symbol,date,close\nCCC,2026-09-25T10:60:00Z,5\nDDD,2026-13-01,6\nEEE,2026-09-25,7\n');
@@ -851,10 +854,12 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
       'bugfix4 ingest: daily.mjs\'s FX line names the source the rate came from and whether a second source agreed — it said "from Bank Negara Malaysia, cross-checked" for Frankfurter\'s rate with Bank Negara down, and for a rate nothing checked',
       fxSay);
 
-    /* Both FX sources down. The import that wrote the price file did not
-       carry the rate the file held (prices.mjs keeps no row that names its
-       own source), so "the previous rate is unchanged" was false; where
-       nothing was imported the file, and its rate, stand. */
+    /* Both FX sources down. "The previous rate is unchanged" was printed
+       whatever the file held; the line now names the rate it holds. The
+       import that wrote the price file dropped the rate the file held, and
+       this check asserted that it had (bugfix5: ingest): prices.mjs now
+       carries it, so the file still holds it after an import, as where
+       nothing was imported. */
     const withRate = { ...held, prices: { ...held.prices, USDMYR: { close: 4.2, date: '2026-09-24', d1: null, hi: null, lo: null, m12: null, src: 'Bank Negara Malaysia', crossChecked: null } } };
     await reset(HEAD + 'AAA,2026-09-25,216.1,214.3,0.84,accept,2026-09-25T10:30:00.000Z,FINAL,,x\nBBB,2026-09-25,10.2,10.1,1,accept,2026-09-25T10:30:00.000Z,FINAL,,x\n');
     await writeFile(join(DD, 'data/personal-prices.json'), JSON.stringify(withRate));
@@ -867,8 +872,8 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
     const r7 = await lastRun();
     const file7 = JSON.parse(await readFile(join(DD, 'data/personal-prices.json'), 'utf8'));
     const fxLine = (d) => (d.stdout.match(/^fx\s+(.+)$/m) || [])[1] || null;
-    check(d6.code === 2 && file6.prices.USDMYR === undefined && stepOf(r6, 'fx') === 'failed'
-      && fxLine(d6) === 'could not refresh — data/personal-prices.json holds no USD/MYR rate now: the import replaced the file, and the rate it held (4.2 from Bank Negara Malaysia, 2026-09-24) was not carried over'
+    check(d6.code === 2 && same(file6.prices.USDMYR, withRate.prices.USDMYR) && stepOf(r6, 'fx') === 'failed'
+      && fxLine(d6) === 'could not refresh — data/personal-prices.json holds USD/MYR 4.2 from Bank Negara Malaysia (2026-09-24)'
       && d7.code === 1 && same(file7.prices.USDMYR, withRate.prices.USDMYR) && stepOf(r7, 'fx') === 'failed'
       && fxLine(d7) === 'could not refresh — data/personal-prices.json holds USD/MYR 4.2 from Bank Negara Malaysia (2026-09-24)'
       && [[d6, r6], [d7, r7]].every(([d, r]) => detailOf(r, 'fx') === fxLine(d).replace(/^could not refresh — /, '') && !/previous rate is unchanged/.test(d.stdout)),
@@ -881,6 +886,132 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
   }
 }
 /* ---- end bugfix4: ingest ---- */
+
+/* ---- bugfix5: ingest ---- */
+/* AN IMPORT KEEPS THE RATE; A MERGE KEEPS THE FILE. prices.mjs replaced
+   the price file with the rows it accepted, so every import — the daily
+   run's, and the re-run daily.mjs tells the reader to make — dropped the
+   USD/MYR rate fx.mjs had merged in, and ?personal=1 converted at the 4.42
+   sample rate until fx.mjs next succeeded. The same input spelled ./ or .\
+   kept no refused symbol's price, and a file saved with a byte-order mark
+   read as no file (or, as a JSON input, crashed). fx.mjs took any file it
+   could not read for a first run and wrote the rate alone over it, saying
+   the other rows were left untouched; and it moved the file's as-of to the
+   rate's date, which history.mjs then used for an undated close. No
+   network: fetch is a stub, every file temporary. */
+{
+  const BD = join(tmpdir(), `qt-bugfix5-ingest-${process.pid}`);
+  await rm(BD, { recursive: true, force: true });
+  await mkdir(BD, { recursive: true });
+  const node = (args, opts = {}) => run(process.execPath, args, { cwd: ROOT, ...opts }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  const HEAD = 'symbol,date,close,prev,move_pct,verdict,captured_at,bar_status,why,ocr_line\n';
+  const RATE = { close: 4.2, date: '2026-09-24', d1: null, hi: null, lo: null, m12: null, src: 'Bank Negara Malaysia', crossChecked: null };
+  const held = (source) => ({ generated: '2026-09-24T11:00:00.000Z', source, asOf: '2026-09-24', basis: 'end-of-day', licence: 'personal research', count: 3,
+    prices: { AAA: { close: 214.3, date: '2026-09-24', capturedAt: '2026-09-24T10:30:00.000Z', d1: null, hi: null, lo: null, m12: null },
+              BBB: { close: 10.1, date: '2026-09-24', capturedAt: '2026-09-24T10:30:00.000Z', d1: null, hi: null, lo: null, m12: null },
+              USDMYR: RATE }, rejected: [] });
+  const pp = join(BD, 'personal-prices.json');
+  const readBook = async () => JSON.parse((await readFile(pp, 'utf8')).replace(/^\uFEFF/, ''));
+  /* prices.mjs run from BD, so the input can be named as a reader types it. */
+  const importAs = (inArg) => node([join(ROOT, 'ingest/prices.mjs'), '--in', inArg, '--out', pp, '--licence', 'personal research'], { cwd: BD });
+  try {
+    await writeFile(join(BD, 'watchlist-review.csv'), HEAD + 'AAA,2026-09-25,216.1,214.3,0.84,accept,2026-09-25T10:30:00.000Z,FINAL,,x\nBBB,2026-09-25,10.2,10.1,1,CHECK,2026-09-25T10:30:00.000Z,FINAL,conflict,x\n');
+
+    /* The re-run as daily.mjs prints it: same input, same spelling. */
+    await writeFile(pp, JSON.stringify(held('watchlist-review.csv')));
+    const r1 = await importAs('watchlist-review.csv');
+    const b1 = await readBook();
+    /* A vendor's dump named by its day: a different input. */
+    await writeFile(join(BD, 'eod-0925.csv'), 'symbol,date,close\nAAA,2026-09-25,216.1\n');
+    await writeFile(pp, JSON.stringify(held('eod-0924.csv')));
+    const r2 = await importAs('eod-0925.csv');
+    const b2 = await readBook();
+    /* An input that reads USD/MYR itself: accepted, it is the input's; held back, the rate stands. */
+    await writeFile(join(BD, 'fx-screen.csv'), HEAD + 'AAA,2026-09-25,216.1,214.3,0.84,accept,2026-09-25T10:30:00.000Z,FINAL,,x\nUSDMYR,2026-09-25,4.215,4.2,0.36,accept,2026-09-25T10:30:00.000Z,FINAL,,x\n');
+    await writeFile(pp, JSON.stringify(held('fx-screen.csv')));
+    const r3 = await importAs('fx-screen.csv');
+    const b3 = await readBook();
+    await writeFile(join(BD, 'fx-check.csv'), HEAD + 'AAA,2026-09-25,216.1,214.3,0.84,accept,2026-09-25T10:30:00.000Z,FINAL,,x\nUSDMYR,2026-09-25,42.15,4.2,903,CHECK,2026-09-25T10:30:00.000Z,FINAL,implies +903%,x\n');
+    await writeFile(pp, JSON.stringify(held('fx-check.csv')));
+    const r4 = await importAs('fx-check.csv');
+    const b4 = await readBook();
+    check(r1.code === 0 && same(b1.prices.USDMYR, RATE) && same(b1.prices.BBB, held('').prices.BBB) && b1.prices.AAA?.close === 216.1 && b1.asOf === '2026-09-25' && b1.count === 3
+      && /carried\s+: 1 row\(s\) naming their own source.*USDMYR 4\.2 from Bank Negara Malaysia \(2026-09-24\)/.test(r1.stdout)
+      && r2.code === 0 && same(b2.prices.USDMYR, RATE) && !b2.prices.BBB && b2.asOf === '2026-09-25'
+      && r3.code === 0 && b3.prices.USDMYR?.close === 4.215 && !b3.prices.USDMYR?.src && !/carried/.test(r3.stdout)
+      && r4.code === 0 && same(b4.prices.USDMYR, RATE) && (b4.rejected || []).some(x => x.symbol === 'USDMYR'),
+      'bugfix5 ingest: prices.mjs carries the USD/MYR rate fx.mjs merged in (a row naming its own source) into the file it writes, with its own date and without moving the file\'s as-of, whatever input wrote the file — every import, and the re-run daily.mjs prints, dropped it and ?personal=1 fell back to the 4.42 sample rate; a USD/MYR the input reads itself is still the input\'s',
+      { r1: [r1.code, r1.stdout.slice(0, 500)], b1: b1.prices.USDMYR ?? null, b2: b2.prices.USDMYR ?? null, b3: b3.prices.USDMYR ?? null, b4: b4.prices.USDMYR ?? null });
+
+    /* The same review file named as a reader types it. */
+    const spelt = {};
+    for (const s of ['./watchlist-review.csv', ...(process.platform === 'win32' ? ['.\\watchlist-review.csv', 'WATCHLIST-REVIEW.CSV'] : [])]) {
+      await writeFile(pp, JSON.stringify(held('watchlist-review.csv')));
+      const r = await importAs(s);
+      const b = await readBook();
+      spelt[s] = { code: r.code, bbb: b.prices.BBB?.close ?? null, kept: /kept\s+: 1 refused symbol/.test(r.stdout) };
+    }
+    check(Object.values(spelt).every(x => x.code === 0 && x.bbb === 10.1 && x.kept),
+      'bugfix5 ingest: a refused symbol keeps its price when the same review file is named ./watchlist-review.csv or .\\watchlist-review.csv — the recorded source was compared as a string, so the refused symbol lost its price and with it the day-move check\'s baseline',
+      spelt);
+
+    /* A byte-order mark: on --out, and on a JSON input. */
+    await writeFile(pp, '\uFEFF' + JSON.stringify(held('watchlist-review.csv')));
+    const r5 = await importAs('watchlist-review.csv');
+    const b5 = await readBook();
+    await writeFile(join(BD, 'vendor.json'), '\uFEFF' + JSON.stringify({ prices: { AAA: { close: 216.1, date: '2026-09-25' } } }));
+    const r6 = await node([join(ROOT, 'ingest/prices.mjs'), '--in', join(BD, 'vendor.json'), '--out', join(BD, 'vendor-out.json')]);
+    const b6 = existsSync(join(BD, 'vendor-out.json')) ? JSON.parse(await readFile(join(BD, 'vendor-out.json'), 'utf8')) : null;
+    check(r5.code === 0 && b5.prices.BBB?.close === 10.1 && same(b5.prices.USDMYR, RATE) && r6.code === 0 && b6?.prices?.AAA?.close === 216.1,
+      'bugfix5 ingest: prices.mjs reads a JSON file that opens with a byte-order mark — an --out so saved read as no file, so the refused symbol\'s price and the rate were dropped, and a JSON input so saved crashed the import',
+      { r5: r5.code, b5: Object.keys(b5.prices), r6: [r6.code, r6.stderr.slice(0, 200)] });
+
+    /* fx.mjs against files it may not replace, on a stubbed fetch. */
+    await writeFile(join(BD, 'fetch.mjs'), `globalThis.fetch = async (url) => {
+  if (String(url).includes('bnm.gov.my')) return { ok: true, status: 200, json: async () => ({ data: { rate: { date: '2026-09-25', buying_rate: 4.2, selling_rate: 4.22, middle_rate: null } } }) };
+  return { ok: true, status: 200, json: async () => ({ date: '2026-09-25', rates: { MYR: 4.2135 } }) };
+};\n`);
+    const fx = (out) => node(['--import', pathToFileURL(join(BD, 'fetch.mjs')).href, join(ROOT, 'ingest/fx.mjs'), '--out', out]);
+    const good = JSON.stringify(held('watchlist-review.csv'), null, 2);
+    const cases = {};
+    for (const [k, text] of [['bom', '\uFEFF' + good], ['cut', good.slice(0, 120)], ['list', JSON.stringify({ prices: [{ symbol: 'AAA', close: 214.3 }] })]]) {
+      const f = join(BD, `fx-${k}.json`);
+      await writeFile(f, text);
+      const r = await fx(f);
+      const after = await readFile(f, 'utf8');
+      let keys = null; try { keys = Object.keys(JSON.parse(after.replace(/^\uFEFF/, '')).prices); } catch { /* still damaged */ }
+      cases[k] = { code: r.code, untouched: after === text, keys, err: r.stderr.trim().split('\n').pop() };
+    }
+    const fresh = join(BD, 'fx-new.json');
+    const rn = await fx(fresh);
+    const bn = existsSync(fresh) ? JSON.parse(await readFile(fresh, 'utf8')) : {};
+    check(cases.bom.code === 0 && same(cases.bom.keys, ['AAA', 'BBB', 'USDMYR'])
+      && cases.cut.code === 1 && cases.cut.untouched && /Refusing to write: .* not a price file .* not JSON/.test(cases.cut.err)
+      && cases.list.code === 1 && cases.list.untouched && /not keyed by symbol/.test(cases.list.err)
+      && rn.code === 0 && same(Object.keys(bn.prices || {}), ['USDMYR']) && bn.asOf === '2026-09-25',
+      'bugfix5 ingest: fx.mjs merges into a price file saved with a byte-order mark and refuses, leaving it as it was, one cut short or holding its prices as a list — it took any file it could not read for a first run and wrote the rate alone over it ("other rows in the file were left untouched (1 symbols total)"); a missing file is still a new one',
+      cases);
+
+    /* An undated vendor close, then the rate, then the history. */
+    await writeFile(join(BD, 'undated.csv'), 'symbol,close\n1155,9.87\n');
+    const up = join(BD, 'undated.json'), uh = join(BD, 'undated-history.json'), ui = join(BD, 'instruments.json');
+    await writeFile(ui, JSON.stringify({ instruments: [{ symbol: '1155', market: 'MY' }] }));
+    const u1 = await node([join(ROOT, 'ingest/prices.mjs'), '--in', join(BD, 'undated.csv'), '--out', up]);
+    const u2 = await fx(up);
+    const ub = JSON.parse(await readFile(up, 'utf8'));
+    const u3 = await node([join(ROOT, 'ingest/history.mjs'), '--in', up, '--out', uh, '--instruments', ui]);
+    const uhist = existsSync(uh) ? JSON.parse(await readFile(uh, 'utf8')) : { series: {} };
+    check(u1.code === 0 && u2.code === 0 && ub.asOf === null && ub.prices.USDMYR?.date === '2026-09-25' && ub.prices['1155']?.date === null
+      && u3.code === 0 && !uhist.series?.['1155'] && /skipped\s+: 1 \(no usable close or date\)/.test(u3.stdout),
+      'bugfix5 ingest: fx.mjs leaves the as-of of a file holding other rows alone — it set it to the rate\'s date, and history.mjs filed a close the vendor gave no date under the day Bank Negara published the rate',
+      { asOf: ub.asOf, series: uhist.series, out: u3.stdout.slice(0, 300) });
+  } catch (e) {
+    fail('bugfix5 ingest: the test threw', e.stack || e.message);
+  } finally {
+    await rm(BD, { recursive: true, force: true }).catch(() => {});
+  }
+}
+/* ---- end bugfix5: ingest ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

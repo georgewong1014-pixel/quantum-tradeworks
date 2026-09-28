@@ -106,10 +106,30 @@ if (chosen.rate < 2 || chosen.rate > 8) {
 }
 
 /* --- merge, never overwrite ---------------------------------------------- */
+/* Only a file that is not there is a first run. Every failure to read the
+   file was taken for one, and a new file holding the rate alone was written
+   over it — "other rows in the file were left untouched (1 symbols total)":
+   a price file saved with a byte-order mark (which the browser reads past),
+   or one cut short, lost every price it held; one whose prices were a list
+   took the rate as a key the list does not keep, and lost it. A mark is
+   read past; a file that is still not a price file of symbols is refused,
+   and nothing is written over it. */
 let book = { generated: null, source: null, asOf: null, basis: 'end-of-day',
              delayMinutes: null, licence: null, count: 0, prices: {}, rejected: [] };
-try { book = { ...book, ...JSON.parse(await readFile(outPath, 'utf8')) }; }
-catch { /* first run — a new file */ }
+let text = null;
+try { text = await readFile(outPath, 'utf8'); }
+catch (e) {
+  if (e.code !== 'ENOENT') { console.error(`\nRefusing to write: ${outPath} could not be read (${e.message}), and writing would replace the rows it holds.`); process.exit(1); }
+}
+if (text != null) {
+  let held, why = null;
+  try { held = JSON.parse(text.replace(/^\uFEFF/, '')); } catch (e) { why = `it is not JSON: ${e.message}`; }
+  const isMap = (v) => v != null && typeof v === 'object' && !Array.isArray(v);
+  if (!why && !isMap(held)) why = 'it holds no object';
+  if (!why && held.prices != null && !isMap(held.prices)) why = 'its prices are not keyed by symbol';
+  if (why) { console.error(`\nRefusing to write: ${outPath} is not a price file this can merge into — ${why}. Writing would replace the rows it holds; correct or move it, then run again.`); process.exit(1); }
+  book = { ...book, ...held, prices: held.prices ?? {} };
+}
 
 const before = book.prices.USDMYR?.close ?? null;
 book.prices.USDMYR = {
@@ -124,7 +144,14 @@ book.prices.USDMYR = {
 };
 book.count = Object.keys(book.prices).length;
 book.generated = new Date().toISOString();
-if (!book.asOf || (chosen.date && chosen.date > book.asOf)) book.asOf = chosen.date;
+/* The file's as-of is its rows', and the rate carries its own date. It was
+   moved to the rate's date whenever that was later, and a close the file
+   holds with no date of its own is read at the file's as-of — by the app,
+   and by history.mjs, which filed an undated vendor close under the day
+   Bank Negara published the rate. Only a file holding the rate alone takes
+   the rate's date. */
+const others = Object.keys(book.prices).filter(k => k !== 'USDMYR').length;
+if (!others && (!book.asOf || (chosen.date && chosen.date > book.asOf))) book.asOf = chosen.date;
 
 await mkdir(dirname(outPath), { recursive: true });
 await writeFile(outPath, JSON.stringify(book, null, 2));
