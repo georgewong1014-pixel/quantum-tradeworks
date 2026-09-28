@@ -6160,6 +6160,107 @@ try {
   }
   /* ---- end bugfix2: shell ---- */
 
+  /* ---- bugfix2: studio ---- */
+  /* S2 — the studio says what its figures are. An unscored pillar is not
+          "null/100" and an unassessed moat is not a low-confidence one; the
+          comparison calls an earnings rate withheld only for a split inside
+          its window; the compact money figure never prints a signed zero or
+          a unit it has rounded past; and the comparison chart draws only what
+          has both axes and names the rest. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms = 200) => new Promise(res => setTimeout(res, ms));
+      const out = {};
+      const keepCompare = [...State.compare];
+      let restoreQ = null;
+      try {
+        /* 1. The seven-step review on an unscored pillar and an unassessed moat. */
+        const bank = U.find(x => x.c.real && x.c.type === 'bank' && !isNum(x.scores.strength.score));
+        const reit = U.find(x => x.c.real && x.c.type === 'reit' && !isNum(x.scores.quality.score));
+        out.pre = { bank: bank?.c.id || null, reit: reit?.c.id || null };
+        if (bank && reit) {
+          const sb = sevenSteps(bank, null), sr = sevenSteps(reit, null);
+          out.steps = { bank2: sb[1].note, bank2ok: sb[1].ok, reit3: sr[2].note, reit3ok: sr[2].ok, moat: sb[3].note, moatOk: sb[3].ok };
+          openResearch(bank.c.id, 'thesis'); await wait(300);
+          out.nullOnPage = /null\\/100/.test(document.querySelector('main').innerText);
+        }
+
+        /* 2. The comparison's earnings-rate cell, as the saved snapshot keeps it. */
+        const notSplit = U.find(x => x.c.real && !isNum(x.m.eps5) && x.m.shareSeriesBreak && !x.m.perShareBreak && !['bank', 'reit'].includes(x.c.type));
+        const split = U.find(x => x.c.real && !isNum(x.m.eps5) && x.m.perShareBreak && !['bank', 'reit'].includes(x.c.type));
+        out.cmpPre = { notSplit: notSplit?.c.id || null, split: split?.c.id || null };
+        if (notSplit && split) {
+          navigate('/compare?companies=' + [notSplit.c.id, split.c.id].join(',')); await wait(400);
+          const snap = CMP_LIVE && CMP_LIVE.snapshotNow();
+          out.cmp = snap ? { notSplit: snap[notSplit.c.id]?.cells['Earnings CAGR (4y)'], split: snap[split.c.id]?.cells['Earnings CAGR (4y)'] } : null;
+        }
+
+        /* 3. The compact money figure, and the payoff table that showed it. */
+        out.amt = [-3e-13, -0.4, -0.5, 999.4, 999.6, -999.6, 999949, 999960, 1e6].map(v => fmtAmount(v, 'USD'));
+        const p = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE }, m = wheelMath(p);
+        const host = document.createElement('div'); document.body.append(host);
+        payoffChart(host, m, p);
+        out.beRow = [...host.querySelectorAll('tr')].map(tr => [...tr.cells].map(td => td.textContent.trim())).find(c => /Break-even/.test(c[2] || '')) || null;
+        host.remove();
+
+        /* 4. The comparison chart: a company with no quality percentile is not
+              drawn at 50, an unpriced one is named, and a difference under half
+              a point carries no sign. */
+        const noQ = U.find(x => x.c.real && !isNum(x.pct.quality) && isNum(x.val.vals?.base));
+        const unpriced = U.find(x => x.c.real && !isNum(x.c.px?.p) && isNum(x.pct.quality));
+        const small = U.find(x => isNum(x.val.mos?.base) && Math.abs(x.val.mos.base) < 0.5 && isNum(x.pct.quality));
+        const priced = U.find(x => isNum(x.val.mos?.base) && x.val.mos.base <= -0.5 && isNum(x.pct.quality) && x !== small);
+        out.chartPre = { noQ: noQ?.c.id || null, unpriced: unpriced?.c.id || null, small: small?.c.id || null, priced: priced?.c.id || null };
+        if (noQ && unpriced && small && priced) {
+          /* Priced as a typed price would price it, so the company without a
+             quality score has a difference and would otherwise be drawn. */
+          const px0 = noQ.c.px, val0 = noQ.val;
+          restoreQ = () => { noQ.c.px = px0; noQ.val = val0; };
+          noQ.c.px = { p: 50, manual: true }; noQ.val = valuationRun(noQ.c, noQ.d, noQ.inputs);
+          navigate('/compare?companies=' + [noQ.c.id, unpriced.c.id, small.c.id, priced.c.id].join(',')); await wait(500);
+          const card = [...document.querySelectorAll('main h3')].find(h => /Quality against valuation/.test(h.textContent))?.closest('.card');
+          out.chart = card ? {
+            labels: [...card.querySelectorAll('g[role=button]')].map(g => g.getAttribute('aria-label')),
+            note: [...card.querySelectorAll('p.metaline')].map(x => x.textContent).join(' '),
+            noQ: noQ.c.tk, unpriced: unpriced.c.tk, small: small.c.tk, priced: priced.c.tk } : null;
+        }
+      } finally {
+        restoreQ?.();
+        State.compare = keepCompare; store.write('compare', keepCompare);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (!r.pre.bank || !r.pre.reit) p.push(`no filed bank without a Financial Strength score, or filed REIT without a Business Quality score, to test (${JSON.stringify(r.pre)})`);
+    else {
+      if (/null/.test(r.steps.bank2) || !/not scored/.test(r.steps.bank2) || r.steps.bank2ok) p.push(`step 2 on ${r.pre.bank} reads "${r.steps.bank2}" (satisfied: ${r.steps.bank2ok})`);
+      if (/null/.test(r.steps.reit3) || !/not scored/.test(r.steps.reit3) || r.steps.reit3ok) p.push(`step 3 on ${r.pre.reit} reads "${r.steps.reit3}" (satisfied: ${r.steps.reit3ok})`);
+      if (/confidence|counter-evidence/.test(r.steps.moat) || !/Not assessed/.test(r.steps.moat) || r.steps.moatOk) p.push(`step 4 on an unassessed moat reads "${r.steps.moat}"`);
+      if (r.nullOnPage) p.push(`the thesis tab of ${r.pre.bank} still prints "null/100"`);
+    }
+    if (!r.cmpPre.notSplit || !r.cmpPre.split) p.push(`no pair of filers to test the earnings-rate cell (${JSON.stringify(r.cmpPre)})`);
+    else if (!r.cmp || r.cmp.notSplit !== 'n/a' || r.cmp.split !== 'withheld')
+      p.push(`the comparison's earnings rate reads ${JSON.stringify(r.cmp)} — ${r.cmpPre.notSplit}'s break is outside its window and should read n/a, ${r.cmpPre.split}'s is inside and should read withheld`);
+    const wantAmt = ['$0', '$0', '−$1', '$999', '$1.0k', '−$1.0k', '$999.9k', '$1.00m', '$1.00m'];
+    if (JSON.stringify(r.amt) !== JSON.stringify(wantAmt)) p.push(`fmtAmount gives ${JSON.stringify(r.amt)}, wanted ${JSON.stringify(wantAmt)}`);
+    if (!r.beRow || r.beRow[1] !== '$0') p.push(`the worked contract's break-even row reads ${JSON.stringify(r.beRow)}`);
+    if (!r.chartPre.noQ || !r.chartPre.unpriced || !r.chartPre.small || !r.chartPre.priced) p.push(`no companies to test the comparison chart (${JSON.stringify(r.chartPre)})`);
+    else if (!r.chart) p.push('the comparison chart card did not render');
+    else {
+      const { labels, note, noQ, unpriced, small, priced } = r.chart;
+      if (labels.some(l => l.startsWith(noQ + ','))) p.push(`${noQ}, with no quality percentile, is drawn: ${labels.find(l => l.startsWith(noQ + ','))}`);
+      if (!new RegExp(noQ + ' has no Business Quality score').test(note)) p.push(`${noQ} is not named as unplotted: "${note}"`);
+      if (!new RegExp(unpriced + ' carries no price').test(note)) p.push(`${unpriced} is not named as unplotted: "${note}"`);
+      const sl = labels.find(l => l.startsWith(small + ','));
+      if (!sl || !/, 0% to base-case/.test(sl)) p.push(`${small}'s mark reads "${sl}"`);
+      const pl = labels.find(l => l.startsWith(priced + ','));
+      if (!pl || !/, −\d+% to base-case/.test(pl)) p.push(`${priced}'s mark reads "${pl}"`);
+    }
+    if (p.length) fail('bugfix2 studio: the studio says what its figures are', p);
+    else ok(`bugfix2 studio: the studio says what its figures are — an unscored pillar reads "not scored" with its missing inputs (${r.pre.bank}, ${r.pre.reit}) and an unassessed moat "Not assessed"; ${r.cmpPre.notSplit}'s earnings rate is n/a and ${r.cmpPre.split}'s withheld; the break-even row reads $0 and 999.6 reads $1.0k; the comparison chart leaves ${r.chart.noQ} and ${r.chart.unpriced} off and names why, and ${r.chart.small} reads 0%`);
+  }
+  /* ---- end bugfix2: studio ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
