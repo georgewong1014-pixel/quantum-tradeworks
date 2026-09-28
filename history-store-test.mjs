@@ -1013,5 +1013,48 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
 }
 /* ---- end bugfix5: ingest ---- */
 
+/* ---- bugfix: merge ingest ---- */
+/* THE TWO READERS AND THE WRITER THE FIFTH PASS NAMED OUTSIDE ITS FILES.
+   live.mjs --quotes wrote its file whole from the quotes, so the USD/MYR rate
+   fx.mjs had merged in (a row naming its own src) was lost, as prices.mjs's
+   was before the fifth pass; and history.mjs and watchlist.mjs could not read
+   a price file opening with a byte-order mark, which PowerShell 5.1 writes.
+   A stubbed vendor; every file temporary. */
+{
+  const { run: runP } = { run };
+  const MD = join(tmpdir(), `qt-merge-ingest-${process.pid}`);
+  await rm(MD, { recursive: true, force: true });
+  await mkdir(MD, { recursive: true });
+  const nodeM = (args, opts = {}) => runP(process.execPath, args, { cwd: ROOT, ...opts }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  try {
+    const stubPath = join(MD, 'td-stub.mjs');
+    await writeFile(stubPath, "globalThis.fetch = async () => ({ ok: true, json: async () => ({ symbol: '1155', close: '10.5', timestamp: null, datetime: '2026-09-25', currency: 'MYR' }) });\n");
+    const out = join(MD, 'personal-prices.json');
+    const bnmRow = { close: 4.2, currency: 'MYR', date: '2026-09-24', src: 'Bank Negara Malaysia' };
+    await writeFile(out, '﻿' + JSON.stringify({ generated: '2026-09-24T10:00:00Z', source: 'fx', prices: { USDMYR: bnmRow, OLD: { close: 1 } } }));
+    const env = { ...process.env, TWELVEDATA_KEY: 'k' }; delete env.TWELVEDATA_REDIST;
+    const q = await nodeM(['--import', pathToFileURL(stubPath).href, join(ROOT, 'ingest/live.mjs'), '--quotes', '--provider', 'twelvedata', '--symbols', '1155', '--out', out], { env });
+    const doc = existsSync(out) ? JSON.parse(String(await readFile(out, 'utf8')).replace(/^﻿/, '')) : {};
+    check(q.code === 0 && doc.prices?.['1155']?.close === 10.5 && doc.prices?.USDMYR?.close === 4.2 && doc.prices.USDMYR.src === 'Bank Negara Malaysia'
+      && doc.prices.USDMYR.date === '2026-09-24' && !doc.prices.OLD && /carried\s+: 1 row/.test(q.stdout),
+      'bugfix merge ingest: live.mjs --quotes keeps the USD/MYR rate fx.mjs merged into its file (a row naming its own source, with its own date), reads past a byte-order mark, and drops the rows it replaces',
+      { code: q.code, prices: doc.prices, out: q.stdout.slice(-300), err: q.stderr.slice(-300) });
+
+    const bomIn = join(MD, 'bom-prices.json');
+    await writeFile(bomIn, '﻿' + JSON.stringify({ generated: '2026-09-25T10:30:00Z', source: 'review.csv', prices: { '1155': { close: 10.5, date: '2026-09-25', capturedAt: '2026-09-25T10:30:00Z' } } }));
+    const hist = join(MD, 'price-history.json');
+    const h = await nodeM([join(ROOT, 'ingest/history.mjs'), '--in', bomIn, '--out', hist]);
+    const held = existsSync(hist) ? JSON.parse(await readFile(hist, 'utf8')) : {};
+    check(h.code !== 1 && held.series?.['1155']?.['2026-09-25'] === 10.5,
+      'bugfix merge ingest: history.mjs reads a price file that opens with a byte-order mark instead of failing with "Unexpected token"',
+      { code: h.code, err: h.stderr.slice(-300), series: held.series });
+
+    const wl = readFileSync(join(ROOT, 'ingest/watchlist.mjs'), 'utf8');
+    check(/prev = JSON\.parse\(String\(await readFile\(baseline, 'utf8'\)\)\.replace\(\/\^\\uFEFF\/, ''\)\)/.test(wl),
+      'bugfix merge ingest: watchlist.mjs reads its baseline past a byte-order mark, so the day-move gate has a previous close');
+  } finally { await rm(MD, { recursive: true, force: true }); }
+}
+/* ---- end bugfix: merge ingest ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

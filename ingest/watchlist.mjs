@@ -423,7 +423,11 @@ try {
 const { candidates, skipped } = extractCandidates(rows, known);
 
 let prev = {};
-try { prev = JSON.parse(await readFile(baseline, 'utf8')).prices || {}; } catch { /* first run */ }
+/* Past a byte-order mark, as prices.mjs and fx.mjs read it: a price file saved
+   by PowerShell 5.1 opens with one, and read as "first run" it gave every row
+   no previous close, so the day-move gate that holds back a misread digit
+   never ran. */
+try { prev = JSON.parse(String(await readFile(baseline, 'utf8')).replace(/^\uFEFF/, '')).prices || {}; } catch { /* first run */ }
 
 /* The last close the baseline holds for a symbol, in either shape a price
    file has had: { close } (prices.mjs, and live.mjs now), or { price, asOf }

@@ -39,7 +39,10 @@ const outPath = resolve(flag('out', 'data/price-history.json'));
 const KEEP_N  = Number(flag('keep', KEEP));    /* points per symbol — the store's, unless asked */
 
 let book;
-try { book = JSON.parse(await readFile(inPath, 'utf8')); }
+/* Past a byte-order mark: a price file saved by PowerShell 5.1 opens with one,
+   and this read failed on it with "Unexpected token" where prices.mjs, fx.mjs
+   and the page all read it. */
+try { book = JSON.parse(String(await readFile(inPath, 'utf8')).replace(/^\uFEFF/, '')); }
 catch (e) { console.error(`cannot read ${inPath}: ${e.message}`); process.exit(1); }
 
 /* Where the file's prices came from decides their rank: live.mjs --quotes

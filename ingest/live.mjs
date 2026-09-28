@@ -230,6 +230,23 @@ if (WANT_QUOTES) {
     await sleep(120);                      /* courteous, not adversarial */
   }
 
+  /* THE FILE'S OTHER SOURCES ARE KEPT. fx.mjs merges Bank Negara's USD/MYR rate
+     into this same file as a row that names its own source (src). Written
+     whole from the quotes alone, the file lost it, and the page converted at
+     the 4.42 sample rate until fx.mjs ran again — the bug prices.mjs had, in
+     the other writer of these files. A row naming its own src, with a close,
+     that this run did not quote is carried as it stood, with its own date. */
+  const carried = [];
+  try {
+    const held = JSON.parse(String(await readFile(target, 'utf8')).replace(/^\uFEFF/, ''));
+    for (const [symbol, row] of Object.entries(held?.prices && typeof held.prices === 'object' && !Array.isArray(held.prices) ? held.prices : {})) {
+      if (prices[symbol] || !row || !row.src || typeof row.close !== 'number' || !Number.isFinite(row.close)) continue;
+      prices[symbol] = row;
+      carried.push(`${symbol} ${row.close} from ${row.src}${row.date ? ` (${row.date})` : ''}`);
+    }
+  } catch { /* no file yet, or one that cannot be read: nothing to carry */ }
+  if (carried.length) console.log(`carried  : ${carried.length} row(s) naming their own source — ${carried.join('; ')}`);
+
   const payload = {
     generated: new Date().toISOString(),
     source: provider.name,
