@@ -2493,12 +2493,16 @@ function renderHeatmap() {
 
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md);margin-bottom:var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md)' });
-  row.append(el('div', { class: 'row', style: 'gap:8px' }, [
+  /* seg-group, as the area screen's strips are: the label keeps its width and
+     goes above the strip when the two do not fit side by side. As a plain row
+     the six-button strip took the width and crushed its label to "Me / asu /
+     re", three lines for one word, at every width from 360 to 768px. */
+  row.append(el('div', { class: 'row seg-group', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Measure'),
     el('div', { class: 'segmented' }, HEAT_MODES.map(m =>
       el('button', { 'aria-selected': st.mode === m.id ? 'true' : 'false', onclick: () => { st.mode = m.id; render(); } }, m.label))),
   ]));
-  row.append(el('div', { class: 'row', style: 'gap:8px' }, [
+  row.append(el('div', { class: 'row seg-group', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Universe'),
     /* Named for what they filter — the market — as on the value map. "FBM
        KLCI" drew eighteen Bursa tiles, four of them not index constituents;
@@ -2554,9 +2558,16 @@ function renderHeatmap() {
 
   /* scale legend — required for any continuous colour scale */
   const leg = el('div', { class: 'row row-wrap', style: 'gap:var(--md);margin-top:var(--md);padding-top:var(--sm);border-top:1px solid var(--grid)' });
-  const ramp = el('div', { class: 'row', style: 'gap:0' });
+  /* The two end labels do not wrap; the ramp gives way instead. A .metaline
+     may break anywhere, so at 390px the 220px ramp squeezed "−3.00%" onto two
+     lines, "−3.00" above "%", on either side of it — a scale whose ends read
+     as a number and a stray sign. min-width:0 lets the ramp shrink below the
+     sum of its 20px steps, which it could not while the labels were the only
+     thing that would. */
+  const ramp = el('div', { class: 'row', style: 'gap:0;min-width:0' });
   DIVERGING.forEach(v => ramp.append(el('span', { style: `width:20px;height:9px;background:var(${v})` })));
-  leg.append(el('span', { class: 'legend-item' }, [el('span', { class: 'metaline' }, mode.fmt(-mode.full)), ramp, el('span', { class: 'metaline' }, mode.fmt(mode.full))]));
+  const rampEnd = (v) => el('span', { class: 'metaline', style: 'white-space:nowrap' }, mode.fmt(v));
+  leg.append(el('span', { class: 'legend-item', style: 'min-width:0' }, [rampEnd(-mode.full), ramp, rampEnd(mode.full)]));
   const missingWhat = mode.price ? `observed ${mode.id === 'd1' ? 'day' : mode.label} change` : mode.label.toLowerCase().replace(/^vs /, 'difference to ');
   /* A price move is dated by the prices it is computed from, which are fixed
      files and sample figures, not a feed — so the caption names their dates. */

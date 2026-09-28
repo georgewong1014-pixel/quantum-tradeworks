@@ -68,9 +68,19 @@ VIEWS.marketing = () => {
 
   /* 1 — the property engine on its own default deal. */
   const pm = dealModel(State.deal);
+  /* What is still to be paid, as the calculator, its ledger and the decision
+     record all say. This printed the whole completion figure, booking deposit
+     included, so with RM5,000 paid at offer the card read "Cash to complete
+     RM95.3k" beside a calculator that read RM90.3k under the same name.
+     And a total with a line it cannot price says so, as those surfaces do:
+     with the reserve unpriced (a loan tenure of 0) the card printed the safe
+     cash as the answer where the calculator calls it "so far". Completion is
+     short only by an acquisition or financing line, as the record reckons it;
+     safe cash by any line. */
+  const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   proof.append(proofCard('Sarawak property', 'your inputs', [
-    ['Cash to complete', fmtAmount(pm.transactionCash, 'MYR')],
-    ['Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
+    [pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.'));
