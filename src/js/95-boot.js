@@ -410,9 +410,14 @@ const DOCKS = {
     const worst = (g.gates || []).slice().sort((a, b) =>
       (b.severity === 'critical') - (a.severity === 'critical'))[0];
     const queue = propertyReviewQueue(d);
+    /* A safe cash with a cost line unpriced is a total so far, and the dock
+       says so as the capstrip, the tile and the decision record do. With the
+       reserve unpriced (a loan tenure of 0) it read "RM121.8k Safe cash" as
+       the whole answer under a strip reading "So far — a line is unpriced". */
+    const short = (m.missingCostLines || []).length > 0;
     return {
       figs: [
-        { label: 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
+        { label: short ? 'Safe cash so far' : 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
         { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
           tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
         { label: g.verdict || 'Grade', value: g.grade },
@@ -434,13 +439,18 @@ const DOCKS = {
   wheel: () => {
     const p = State.wheel, m = wheelMath(p), fit = wheelFit(p, m, null);
     const entered = num0(p.putStrike) > 0;
-    const buffer = entered ? num0(p.eligibleCashUsd) - num0(m.requiredAssignmentCash) : null;
+    /* The buffer is cash against an obligation, so it waits for one. A
+       contract with no deliverable (no contracts, or an adjusted contract
+       not yet verified) computes no obligation, and num0 made it nought: the
+       dock read "$5.0k Cash buffer" in the colour of a surplus above a page
+       saying collateral is suppressed until the terms are known. */
+    const buffer = entered && isNum(m.requiredAssignmentCash) ? num0(p.eligibleCashUsd) - m.requiredAssignmentCash : null;
     return {
       figs: [
-        { label: 'Assignment cash', value: entered ? fmtAmount(m.requiredAssignmentCash, 'USD') : null },
+        { label: 'Assignment cash', value: entered && isNum(m.requiredAssignmentCash) ? fmtAmount(m.requiredAssignmentCash, 'USD') : null },
         { label: 'Cash buffer', value: buffer == null ? null : fmtAmount(buffer, 'USD'),
           tone: buffer == null ? null : (buffer < 0 ? '--dn-text' : '--ok-text') },
-        { label: 'Worst case at zero', value: entered ? fmtAmount(m.putMaxLossIfZero, 'USD') : null, tone: '--dn-text' },
+        { label: 'Worst case at zero', value: entered && isNum(m.putMaxLossIfZero) ? fmtAmount(m.putMaxLossIfZero, 'USD') : null, tone: '--dn-text' },
         { label: 'Phase', value: p.phase === 'call' ? 'Covered call' : 'Cash-secured put' },
       ],
       blocker: entered ? (fit.gates && fit.gates[0]) || null : 'No contract entered, so nothing is calculated yet.',

@@ -7214,6 +7214,149 @@ try {
   }
   /* ---- end bugfix4: misc ---- */
 
+  /* ---- bugfix5: shell ---- */
+  /* The shell's fifth pass. The deal and the wheel this block edits are put
+     back at the end, and the page reloaded from them. */
+  const bf5Saved = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])))`);
+  {
+    /* THE RANGE STRIP'S LABELS NEITHER BREAK NOR MEET. Bear and Bull were
+       absolute boxes placed by percentage and free to wrap, so at 390px on
+       JPM's valuation "Bull $503.10", at 91% of a 310px strip, had 27px and
+       was cut in two down three lines; at 360px "Bear $196.89" ran into the
+       Base label. Drawn at JPM's figures in strips 310 and 280px wide, and
+       with the bull not computable in one of 200px, every label is one line
+       inside the strip and none overlaps another; a line too long for the
+       strip breaks between its cases, never inside one. At 800px the three
+       cases keep their own places. */
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const draw = async (width, bull) => {
+        const host = document.createElement('div'); host.style.cssText = 'width:' + width + 'px;position:absolute;left:0;top:0';
+        document.body.append(host);
+        host.append(rangeStrip(196.89, 318.26, bull, 268.90, 'USD'));
+        await w(120);
+        const hb = host.getBoundingClientRect();
+        /* The text's own box: a label in the flow carries the bar's height as padding. */
+        const labs = [...host.querySelectorAll('.metaline')].map(l => { const rg = document.createRange(); rg.selectNodeContents(l); const b = rg.getBoundingClientRect();
+          return { t: l.textContent, x: b.left - hb.left, r: b.right - hb.left, y: b.top, bottom: b.bottom, h: b.height,
+            flow: getComputedStyle(l).position !== 'absolute',
+            split: [...l.querySelectorAll('span')].filter(s => s.getClientRects().length > 1).map(s => s.textContent) }; });
+        host.remove();
+        const p = [];
+        labs.forEach(l => {
+          if (!l.flow && l.h > 22) p.push(width + 'px: "' + l.t + '" is ' + Math.round(l.h) + 'px tall');
+          if (l.split.length) p.push(width + 'px: split inside ' + l.split.join(', '));
+          if (l.x < -0.5 || l.r > width + 0.5) p.push(width + 'px: "' + l.t + '" runs outside the strip (' + Math.round(l.x) + ' to ' + Math.round(l.r) + ')');
+        });
+        for (let i = 0; i < labs.length; i++) for (let j = i + 1; j < labs.length; j++) {
+          const a = labs[i], b = labs[j];
+          if (a.x < b.r && b.x < a.r && a.y < b.bottom && b.y < a.bottom) p.push(width + 'px: "' + a.t + '" overlaps "' + b.t + '"');
+        }
+        return { p, n: labs.length, texts: labs.map(l => l.t) };
+      };
+      const out = { narrow: await draw(310, 503.10), narrower: await draw(280, 503.10), missing: await draw(200, null), wide: await draw(800, 503.10) };
+      return out;
+    })()`);
+    const p = [...r.narrow.p, ...r.narrower.p, ...r.missing.p, ...r.wide.p];
+    if (!r.narrow.n || !r.missing.texts.some(t => /bull not computable/i.test(t))) p.push('the strip drew no labels, or did not name the bull case it could not compute: ' + JSON.stringify(r));
+    if (r.wide.n !== 4) p.push(`at 800px the cases do not keep their own places: ${JSON.stringify(r.wide.texts)}`);
+    if (p.length) fail('bugfix5 shell: the valuation range strip breaks a price across lines or lets its labels meet on a narrow strip', p);
+    else ok(`bugfix5 shell: the valuation range strip keeps every label whole, inside the strip and clear of the others at 310, 280 and 200px ("${r.narrow.texts[0]}"), and its own places at 800px`);
+  }
+  {
+    /* THE VALUE MAP'S CAPTION AND TICKS STAY ON THE CHART ON A PHONE. The
+       short x caption measured 318px, so at 390px (a 310px chart) it ran past
+       the right edge and at 360px (280px) past both; the last tick, centred
+       on the plot's edge, clipped the "%" of "+70%". Drawn with the value
+       map's own captions in charts 310 and 280px wide, every text sits inside
+       the chart and the caption is whole across its lines; at 900px it is
+       one line, as it was. */
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const pt = (id, x, y) => ({ id, label: id, name: id, x, y, size: 1, capLabel: '$1B', model: 'm', conf: 'Low', varName: '--s1' });
+      const short = 'Difference to model estimate vs base-case model estimate', long = 'Difference to model estimate vs base-case value — right of the line is below it, left is above it';
+      const draw = async (width, cap) => {
+        const host = document.createElement('div'); host.style.cssText = 'width:' + width + 'px;position:absolute;left:0;top:0';
+        document.body.append(host);
+        scatterChart(host, { points: [pt('A', -35, 20), pt('B', 64, 80), pt('C', 10, null)],
+          xLabel: long, xLabelShort: short,
+          yLabel: 'Quality percentile within market cohort', yLabelShort: 'Quality percentile (market)', xFmt: v => withSign(v, 0), onPick: () => {} });
+        await w(60);
+        const svg = host.querySelector('svg'), sb = svg.getBoundingClientRect();
+        /* The rotated y caption's box is its line height, not its ink. */
+        const texts = [...svg.querySelectorAll('text')].filter(t => !t.hasAttribute('transform')).map(t => { const b = t.getBoundingClientRect(); return { t: t.textContent, l: b.left - sb.left, r: b.right - sb.left, y: t.getAttribute('y') }; });
+        host.remove();
+        const out = texts.filter(x => x.l < -0.5 || x.r > sb.width + 0.5).map(x => width + 'px: "' + x.t + '" runs from ' + Math.round(x.l) + ' to ' + Math.round(x.r) + ' of ' + Math.round(sb.width));
+        const capLines = texts.filter(x => cap.includes(x.t) && x.t.split(' ').length > 1 && x.t !== 'Base-case model estimate');
+        if (capLines.map(x => x.t).join(' ') !== cap) out.push(width + 'px: the caption reads "' + capLines.map(x => x.t).join(' / ') + '"');
+        return { out, lines: capLines.length, ticks: texts.map(x => x.t).filter(t => /%$/.test(t)) };
+      };
+      const n310 = await draw(310, short), n280 = await draw(280, short), wide = await draw(900, long);
+      return { p: [...n310.out, ...n280.out, ...wide.out], lines: [n310.lines, n280.lines, wide.lines], ticks: n310.ticks };
+    })()`);
+    const p = [...r.p];
+    if (r.lines[2] !== 1) p.push(`at 900px the caption takes ${r.lines[2]} lines`);
+    if (!r.ticks.includes('+70%')) p.push(`the ticks are not the ones this check describes: ${r.ticks.join(' ')}`);
+    if (p.length) fail('bugfix5 shell: the value map lets its caption or its last tick run off the chart on a phone', p);
+    else ok(`bugfix5 shell: the value map's caption and ticks stay on the chart at 310 and 280px (caption in ${r.lines[0]} and ${r.lines[1]} lines), one line at 900px`);
+  }
+  {
+    /* THE DOCK SAYS WHAT THE PAGE SAYS. With the reserve unpriced (a loan
+       tenure of 0) the property dock read "Safe cash" beside a total the
+       capstrip above calls so far; it says "Safe cash so far" while a cost
+       line is unpriced, and "Safe cash" again once none is. And on a Cash
+       Wheel contract with no deliverable — no contracts, or an adjusted
+       contract not yet verified — the dock read "$5.0k Cash buffer" in the
+       colour of a surplus above a page suppressing the collateral; the
+       buffer waits for an obligation, and a withheld figure takes no tone,
+       as "Worst case at zero" did in the loss colour on a blank contract. */
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const figs = () => [...document.querySelectorAll('.dock .dock-fig')].map(f => ({
+        k: f.querySelector('.dock-fig-k').textContent, v: f.querySelector('.dock-fig-v').textContent,
+        tone: f.querySelector('.dock-fig-v').getAttribute('style') || '' }));
+      const out = {};
+      navigate('/property/calculator'); await w(150);
+      State.deal.tenureYears = 0; saveDeal(); render(); await w(150);
+      out.short = { figs: figs(), strip: /So far/.test(document.querySelector('main').textContent), missing: dealModel(State.deal).missingCostLines.length };
+      State.deal.tenureYears = 35; saveDeal(); render(); await w(150);
+      out.whole = { figs: figs(), missing: dealModel(State.deal).missingCostLines.length };
+      navigate('/wheel'); await w(150);
+      const set = async (patch) => { State.wheel = { ...State.wheel, ...patch }; saveWheel(); render(); await w(150); return figs(); };
+      out.adjusted = await set({ ...WHEEL_WORKED_EXAMPLE, adjustedContract: true, adjustmentVerified: false });
+      out.noContracts = await set({ ...WHEEL_WORKED_EXAMPLE, adjustedContract: false, contracts: 0 });
+      out.worked = await set({ ...WHEEL_WORKED_EXAMPLE, adjustedContract: false });
+      out.blank = await set({ ...WHEEL_BLANK_CONTRACT });
+      return out;
+    })()`);
+    const p = [];
+    const f = (list, k) => (list || []).find(x => x.k === k || x.k.startsWith(k));
+    const safeShort = f(r.short.figs, 'Safe cash'), safeWhole = f(r.whole.figs, 'Safe cash');
+    if (!r.short.missing || !r.short.strip) p.push(`tenure 0 no longer leaves a line unpriced (${r.short.missing}) — this check needs another way in`);
+    if (safeShort?.k !== 'Safe cash so far') p.push(`tenure 0: the dock reads "${safeShort?.v} ${safeShort?.k}" under a capstrip reading "So far"`);
+    if (r.whole.missing || safeWhole?.k !== 'Safe cash') p.push(`tenure 35: the dock reads "${safeWhole?.k}" with ${r.whole.missing} line(s) unpriced`);
+    for (const [name, list] of [['adjusted, unverified', r.adjusted], ['no contracts', r.noContracts]]) {
+      const buf = f(list, 'Cash buffer');
+      if (buf?.v !== '—' || buf?.tone) p.push(`${name}: Cash buffer "${buf?.v}" ${buf?.tone}`);
+    }
+    const wBuf = f(r.worked, 'Cash buffer'), wWorst = f(r.worked, 'Worst case at zero');
+    if (wBuf?.v !== '$0' || !/--ok-text/.test(wBuf?.tone) || !/--dn-text/.test(wWorst?.tone || '')) p.push(`the worked contract changed: ${JSON.stringify(r.worked)}`);
+    const bWorst = f(r.blank, 'Worst case at zero');
+    if (bWorst?.v !== '—' || bWorst?.tone) p.push(`blank contract: Worst case at zero "${bWorst?.v}" ${bWorst?.tone}`);
+    if (p.length) fail('bugfix5 shell: the dock shows a short safe cash as whole, or a cash buffer against an obligation the page does not compute', p);
+    else ok('bugfix5 shell: the dock reads "Safe cash so far" while a cost line is unpriced, withholds the Cash Wheel buffer until there is an obligation, and tones no withheld figure');
+  }
+  /* The deal and the wheel are put back, and the page reloaded from them. */
+  await evaluate(`(() => { const keep = JSON.parse(${JSON.stringify(bf5Saved)});
+    Object.keys(localStorage).forEach(k => { if (!(k in keep)) localStorage.removeItem(k); });
+    Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v)); return true; })()`);
+  await send('Page.navigate', { url: `${BASE}/research` }, sessionId);
+  for (let i = 0; i < 60; i++) {
+    await sleep(300);
+    try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && U.some(r => r.c.real)`)) break; } catch { /* booting */ }
+  }
+  /* ---- end bugfix5: shell ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

@@ -510,8 +510,11 @@ function decisionDock({ figs, blocker, next }) {
   (figs || []).forEach(f => {
     if (!f) return;
     const box = el('div', { class: 'dock-fig' });
-    box.append(el('span', { class: 'dock-fig-v', style: f.tone ? `color:var(${f.tone})` : null },
-      f.value == null || f.value === '' ? '—' : f.value));
+    /* A withheld figure takes no tone: "Worst case at zero" drew its dash in
+       the loss colour on a Cash Wheel with no contract entered. */
+    const withheld = f.value == null || f.value === '';
+    box.append(el('span', { class: 'dock-fig-v', style: f.tone && !withheld ? `color:var(${f.tone})` : null },
+      withheld ? '—' : f.value));
     box.append(el('span', { class: 'dock-fig-k' }, f.label));
     fg.append(box);
   });
@@ -776,8 +779,32 @@ function lineChart(container, { values, labels, fmt = v => fmtNum(v, 2), varName
 function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelShort, xFmt, onPick }) {
   chartHost(container, (W) => {
     const narrow = W < 560;
-    const H = narrow ? 320 : Math.max(340, Math.min(480, W * 0.52));
-    const padL = narrow ? 40 : 56, padR = narrow ? 12 : 20, padT = 18, padB = 46;
+    /* A CAPTION WIDER THAN THE CHART GOES ONTO TWO LINES, AND NO TICK LEAVES IT.
+       SVG text does not wrap, and the short caption is only shorter: the
+       value map's measured 318px, so at 390px it ran 18px past the chart's
+       right edge and at 360px past both; and the last tick, centred on the
+       plot's right edge with 12px beyond it, clipped the "%" of "+70%".
+       Measured, as the tornado's labels are — a caption that does not fit is
+       broken at the word that best balances its two lines, and the chart is
+       one line taller for it; each tick and the estimate line's name keep
+       their place unless that would run them off the chart. The canvas
+       measures semibold a few per cent narrow, hence the allowance. */
+    const tw = (t, weight = 400) => textWidth(t, 12, weight) * 1.04 + 2;
+    const cap = narrow ? (xLabelShort || xLabel) : xLabel;
+    let capLines = [cap];
+    if (tw(cap, 600) > W - 8) {
+      const words = String(cap).split(' ');
+      let best = Infinity;
+      for (let i = 1; i < words.length; i++) {
+        const a = words.slice(0, i).join(' '), b = words.slice(i).join(' ');
+        const m = Math.max(tw(a, 600), tw(b, 600));
+        if (m < best) { best = m; capLines = [a, b]; }
+      }
+    }
+    const capExtra = (capLines.length - 1) * 15;
+    const inside = (x, t, weight) => { const h = tw(t, weight) / 2; return clamp(x, h, Math.max(h, W - h)); };
+    const H = (narrow ? 320 : Math.max(340, Math.min(480, W * 0.52))) + capExtra;
+    const padL = narrow ? 40 : 56, padR = narrow ? 12 : 20, padT = 18, padB = 46 + capExtra;
     const iw = W - padL - padR, ih = H - padT - padB;
     const xs = points.map(p => p.x);
     const xlo = Math.min(-40, Math.floor(Math.min(...xs) / 10) * 10), xhi = Math.max(40, Math.ceil(Math.max(...xs) / 10) * 10);
@@ -813,18 +840,21 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
     for (let v = xlo; v <= xhi; v += (xhi - xlo) / 4) xticks.push(v);
     xticks.forEach(v => {
       s.append(sv('line', { class: 'gridline', x1: X(v), x2: X(v), y1: padT, y2: padT + ih }));
-      const t = sv('text', { class: 'ax-label', x: X(v), y: H - 26, 'text-anchor': 'middle' });
+      const t = sv('text', { class: 'ax-label', x: inside(X(v), xFmt(v)), y: padT + ih + 20, 'text-anchor': 'middle' });
       t.textContent = xFmt(v); s.append(t);
     });
     /* fair-value line at zero discount */
     s.append(sv('line', { class: 'ax-line', x1: X(0), x2: X(0), y1: padT, y2: padT + ih, 'stroke-width': 1.5 }));
-    const zl = sv('text', { class: 'ax-label', x: X(0), y: padT - 5, 'text-anchor': 'middle', 'font-weight': 600 });
+    const zl = sv('text', { class: 'ax-label', x: inside(X(0), 'Base-case model estimate', 600), y: padT - 5, 'text-anchor': 'middle', 'font-weight': 600 });
     zl.textContent = 'Base-case model estimate'; s.append(zl);
 
     /* Long captions do not wrap in SVG, so a narrow chart takes the short form
-       rather than letting the text run past the plot. */
-    const ax = sv('text', { class: 'ax-label', x: padL + iw / 2, y: H - 8, 'text-anchor': 'middle', 'font-weight': 600 });
-    ax.textContent = narrow ? (xLabelShort || xLabel) : xLabel; s.append(ax);
+       rather than letting the text run past the plot — and one still too long
+       takes the two lines measured above. */
+    capLines.forEach((line, i) => {
+      const ax = sv('text', { class: 'ax-label', x: inside(padL + iw / 2, line, 600), y: padT + ih + 38 + i * 15, 'text-anchor': 'middle', 'font-weight': 600 });
+      ax.textContent = line; s.append(ax);
+    });
     const ay = sv('text', { class: 'ax-label', x: 12, y: padT + ih / 2, 'text-anchor': 'middle', 'font-weight': 600, transform: `rotate(-90 12 ${padT + ih / 2})` });
     ay.textContent = narrow ? (yLabelShort || yLabel) : yLabel; s.append(ay);
 
@@ -1163,6 +1193,19 @@ function waterfallChart(container, { steps, fmt, ccy }) {
 }
 
 /* ------------------------------------------------------ value range strip */
+/* THE LABELS ARE LAID OUT IN PIXELS, ON THE STRIP'S OWN WIDTH.
+   The Bear and Bull labels were absolute boxes placed by percentage and free
+   to wrap. An absolute box is only as wide as the room between its left edge
+   and the strip's right edge, so at 390px on JPM's valuation "Bull $503.10",
+   at 91% of a 310px strip, got 27px, and the stylesheet's break-anywhere rule
+   cut the price in two, three lines deep. A percentage says nothing about
+   width: at 360px "Bear $196.89" and the Base label overlapped, though the
+   bear-to-bull spread was over the 24% that was taken to leave room.
+   The strip is now drawn through chartHost, which knows the width. No label
+   wraps; each is measured, placed on its point as before and kept inside the
+   strip. The three case labels take the one-line form whenever they would
+   meet — as they already did when the range was squeezed — and a line too
+   long for the strip wraps between its cases, never inside a figure. */
 function rangeStrip(bearIn, base, bullIn, price, ccy) {
   /* A bear or bull case can be not computable while the base stands (its
      shift took the model out of bounds). The strip then ends at the base on
@@ -1178,9 +1221,6 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
   const hi = hi0 > lo ? hi0 : lo + 1;
   const at = v => clamp((v - lo) / (hi - lo) * 100, 0, 100);
 
-  /* Keep a label inside the strip instead of letting it hang off either end. */
-  const anchor = (pct) => pct > 88 ? 'translateX(-100%)' : pct < 12 ? 'translateX(0)' : 'translateX(-50%)';
-
   /* When the price sits far outside the modelled range — a business trading at
      a large premium or discount to its own model — the scale has to span both,
      which squeezes bear/base/bull into a sliver and collides their three
@@ -1188,34 +1228,69 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
      one thing the strip exists to show honestly, collapse the three labels into
      one line placed under the compressed range. */
   const spread = at(bull) - at(bear);
-  const tight = spread < 24;
   const mid = (at(bear) + at(bull)) / 2;
+  const baseText = `Base ${fmtMoney(base, ccy)}${isNum(bearIn) ? '' : ' · bear not computable'}${isNum(bullIn) ? '' : ' · bull not computable'}`;
+  const oneLine = [caseLabel('Bear', bearIn), `Base ${fmtMoney(base, ccy)}`, caseLabel('Bull', bullIn)];
 
-  const labels = tight
-    ? [el('div', { class: 'metaline', style: `position:absolute;left:${clamp(mid, 0, 100)}%;top:36px;transform:${anchor(mid)};white-space:nowrap` },
-        `${caseLabel('Bear', bearIn)} · Base ${fmtMoney(base, ccy)} · ${caseLabel('Bull', bullIn)}`)]
-    : [
-        /* A missing case has no position of its own — it would sit on the base
-           label — so it is named beside the base instead. */
-        isNum(bearIn) ? el('div', { class: 'metaline', style: `position:absolute;left:${at(bear)}%;top:36px;transform:${anchor(at(bear))}` }, caseLabel('Bear', bearIn)) : null,
-        isNum(bullIn) ? el('div', { class: 'metaline', style: `position:absolute;left:${at(bull)}%;top:36px;transform:${anchor(at(bull))}` }, caseLabel('Bull', bullIn)) : null,
-        el('div', { class: 'metaline', style: `position:absolute;left:${at(base)}%;top:36px;transform:${anchor(at(base))};color:var(--ink);font-weight:600;white-space:nowrap` },
-          `Base ${fmtMoney(base, ccy)}${isNum(bearIn) ? '' : ' · bear not computable'}${isNum(bullIn) ? '' : ' · bull not computable'}`),
-      ].filter(Boolean);
+  /* Reserve the strip's height before the first draw, which waits for a
+     width: a microtask, as the Valuation tab's other charts are drawn, by
+     when the caller has put the strip on the page, or the resize observer
+     once it is laid out. */
+  const host = el('div', { style: 'min-height:56px;margin-top:var(--xs)' });
+  queueMicrotask(() => chartHost(host, (W) => {
+    /* The .metaline text, 12px. The canvas measures the semibold labels a few
+       per cent narrow of the page (69.4px for 71.2px), so each width carries
+       that allowance rather than let a label run into the next. */
+    const wOf = (t, weight = 400) => Math.ceil(textWidth(t, 12, weight) * 1.04) + 2;
+    /* Near an end a label sits inside its point rather than centred on it,
+       and it never leaves the strip. */
+    const leftOf = (pct, w) => {
+      const x = pct / 100 * W;
+      return clamp(pct > 88 ? x - w : pct < 12 ? x : x - w / 2, 0, Math.max(0, W - w));
+    };
+    const place = (text, pct, style = '') => {
+      const w = wOf(text, /font-weight:600/.test(style) ? 600 : 400);
+      return { text, w, x: leftOf(pct, w), style };
+    };
+    const baseStyle = 'color:var(--ink);font-weight:600';
+    /* A missing case has no position of its own — it would sit on the base
+       label — so it is named beside the base instead. */
+    const row = [
+      isNum(bearIn) ? place(caseLabel('Bear', bearIn), at(bear)) : null,
+      place(baseText, at(base), baseStyle),
+      isNum(bullIn) ? place(caseLabel('Bull', bullIn), at(bull)) : null,
+    ].filter(Boolean);
+    const byX = [...row].sort((a, b) => a.x - b.x);
+    const meet = byX.some((a, i) => i > 0 && byX[i - 1].x + byX[i - 1].w + 8 > a.x);
+    const line = oneLine.join(' · ');
+    const lineW = wOf(line);
+    const tight = spread < 24 || meet;
+    const abs = (t, x, top, style = '') => el('div', { class: 'metaline',
+      style: `position:absolute;left:${x.toFixed(1)}px;top:${top}px;white-space:nowrap${style ? ';' + style : ''}` }, t);
 
-  return el('div', { style: 'position:relative;height:56px;margin-top:var(--xs)' }, [
-    /* A minimum width so the range stays visible as a bar rather than becoming
-       a dot when the price dwarfs it. */
-    /* A neutral ramp, not red-to-green. The green end was the higher valuation,
-       so a price sitting there was rendered in the colour of a good outcome
-       while actually meaning expensive — the opposite of what a reader would
-       take from it. Lightness alone carries the bear-to-bull direction. */
-    el('div', { style: `position:absolute;left:${at(bear)}%;width:${Math.max(spread, 3)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,color-mix(in srgb, var(--s3) 22%, transparent),color-mix(in srgb, var(--s3) 55%, transparent))` }),
-    el('div', { style: `position:absolute;left:${at(base)}%;top:16px;width:2px;height:20px;background:var(--ink);transform:translateX(-1px)` }),
-    hasPx ? el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
-      `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }) : null,
-    ...labels,
-    hasPx ? el('div', { class: 'metaline', style: `position:absolute;left:${at(price)}%;top:0;transform:${anchor(at(price))};color:var(--s2-text);font-weight:600;white-space:nowrap` }, `Price ${fmtMoney(price, ccy)}`) : null,
-  ]);
+    const labels = !tight ? row.map(l => abs(l.text, l.x, 36, l.style))
+      : lineW <= W ? [abs(line, leftOf(clamp(mid, 0, 100), lineW), 36)]
+      /* Too long for the strip even as one line: in the flow under the bar, so
+         the strip grows to hold it, breaking only between the cases. */
+      : [el('div', { class: 'metaline', style: 'padding-top:36px' },
+          oneLine.flatMap((t, i) => [i ? ' · ' : null, el('span', { style: 'white-space:nowrap' }, t)]).filter(Boolean))];
+
+    const priceText = `Price ${fmtMoney(price, ccy)}`;
+    return el('div', { style: 'position:relative;min-height:56px' }, [
+      /* A minimum width so the range stays visible as a bar rather than becoming
+         a dot when the price dwarfs it. */
+      /* A neutral ramp, not red-to-green. The green end was the higher valuation,
+         so a price sitting there was rendered in the colour of a good outcome
+         while actually meaning expensive — the opposite of what a reader would
+         take from it. Lightness alone carries the bear-to-bull direction. */
+      el('div', { style: `position:absolute;left:${at(bear)}%;width:${Math.max(spread, 3)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,color-mix(in srgb, var(--s3) 22%, transparent),color-mix(in srgb, var(--s3) 55%, transparent))` }),
+      el('div', { style: `position:absolute;left:${at(base)}%;top:16px;width:2px;height:20px;background:var(--ink);transform:translateX(-1px)` }),
+      hasPx ? el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
+        `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }) : null,
+      ...labels,
+      hasPx ? abs(priceText, leftOf(at(price), wOf(priceText, 600)), 0, 'color:var(--s2-text);font-weight:600') : null,
+    ]);
+  }));
+  return host;
 }
 
