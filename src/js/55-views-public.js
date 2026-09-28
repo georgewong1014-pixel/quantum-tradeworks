@@ -834,9 +834,17 @@ VIEWS.watchlists = () => {
       const a = el('a', { href: URL.createObjectURL(blob), download: `quantum-tradeworks-watchlists-${new Date().toISOString().slice(0, 10)}.json` });
       document.body.append(a); a.click(); a.remove();
     } }, 'Export JSON'),
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => fileInp.click() }, 'Import JSON'), fileInp]));
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => fileInp.click() }, 'Import JSON'), fileInp,
+    /* The same export, named for the scanner's worker (round 3 contract
+       C3): saved as data/watchlists.json, it is what a setup resolved
+       "from your latest export" reads at each run. The scanner records when
+       it was made, so its pages can say when a list has moved on since. */
+    typeof scanExportWatchlists === 'function' ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
+      scanExportWatchlists();
+      toast('Exported watchlists.json — save it as data/watchlists.json on the machine the scanner’s worker runs on');
+    } }, 'Export for the scanner') : null]));
   ctl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'The export carries each member’s canonical instrument id and market — the shape a scanner takes as its universe — and says it belongs to this browser.'));
+    'The export carries each member’s canonical instrument id and market — the shape a scanner takes as its universe — and says it belongs to this browser. “Export for the scanner” writes the same file as watchlists.json: the scanner’s worker cannot read this browser, so a setup resolved from your latest export sees the lists as they were when you last exported them.'));
   wrap.append(ctl);
 
   if (!lists.length) {

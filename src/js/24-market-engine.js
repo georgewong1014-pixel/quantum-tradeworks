@@ -224,6 +224,118 @@ function scanTimeframe(tf) {
    history keeps. */
 const SCAN_LIMITS = { maxDepth: 3, maxConditions: 20, maxPeriod: 520, maxSetups: 200 };
 
+/* ---------------------------------------------------------------- examples -- */
+/* SCAN_EXAMPLES — scanner/setups.example.json, held here so the builder's
+   "Start from an example" loads exactly what the committed file says (the
+   round 3 contract, C7: this spot is the user pages' block, and no other
+   owner edits it). The page cannot read the repository's files and the
+   deployed site has none of them, so the file is copied rather than
+   fetched; scanner-test fails when the two differ, so they cannot drift the
+   way SCAN_EXAMPLE_DOC once did. Illustrations of the syntax, not
+   suggestions: the builder labels them so, and every part of one is the
+   reader's to replace. */
+const SCAN_EXAMPLES = {
+  _note: 'Copy this file to data/scan-setups.json (git-ignored) and edit it. Every setup is yours: the product '
+    + 'proposes none, ranks none, and delivers nothing. Ids are part of every alert key, so renaming a setup '
+    + 'starts its history afresh. The first four are written in the 0.2 form (logic and rules), which engine '
+    + '0.3.0 reads unchanged. The fifth, trend-breakout-tree, is the 0.3 form the builder writes: a version, a '
+    + 'ruleTree of ALL/ANY groups that may nest (up to three deep and twenty conditions), operands that are an '
+    + 'indicator or { "value": n }, cooldownMode NEW_MATCH or EVERY_MATCH, and timeframe 1D or 1W (weekly bars '
+    + 'derived from the daily ones). It holds the first setup’s conditions, so it is disabled: enabled beside '
+    + 'it, both would record the same crossings. Bars are evaluated on the last final bar your history holds: a '
+    + 'bar captured before its session closed is provisional and never confirms a match, and a history behind '
+    + 'the session expected by now is stale and is reported as untested. A watchlist universe carries the '
+    + 'symbols the page snapshotted when the setup was saved — the worker cannot read a browser; with '
+    + '"resolve": "export" the worker resolves the list from data/watchlists.json (the watchlists page’s '
+    + '"Export for the scanner") and evaluates the snapshot when the list is not in that file. Volume rules '
+    + '(trend-breakout below) need a recorded volume: the screen capture (ingest/daily.mjs) records closes '
+    + 'only, so on that history alone they are untested and the setup cannot match — volume comes from '
+    + 'ingest/live.mjs or an export imported with a volume column (ingest/history-import.mjs).',
+  setups: [
+    {
+      id: 'trend-breakout',
+      name: 'Trend breakout',
+      enabled: true,
+      universe: { kind: 'symbols', symbols: ['NVDA', 'AAPL', '1155'] },
+      timeframe: 'daily',
+      confirmation: 'close',
+      logic: 'AND',
+      rules: [
+        { left: { indicator: 'price' }, op: 'crosses_above', right: { indicator: 'ema', n: 50 } },
+        { left: { indicator: 'volume' }, op: 'above', right: { indicator: 'volume_avg', n: 20, multiplier: 1.5 } },
+        { left: { indicator: 'rsi', n: 14 }, op: 'between', range: [50, 70] },
+      ],
+      cooldownBars: 5,
+      expires: null,
+    },
+    {
+      id: 'sma-50-200-cross',
+      name: '50-bar average crosses above 200-bar average',
+      enabled: true,
+      universe: { kind: 'market', market: 'US' },
+      timeframe: 'daily',
+      confirmation: 'close',
+      logic: 'AND',
+      rules: [{ left: { indicator: 'sma', n: 50 }, op: 'crosses_above', right: { indicator: 'sma', n: 200 } }],
+      cooldownBars: 20,
+      expires: null,
+    },
+    {
+      id: 'rsi-below-30',
+      name: 'RSI below 30',
+      enabled: false,
+      universe: { kind: 'all' },
+      timeframe: 'daily',
+      confirmation: 'close',
+      logic: 'AND',
+      rules: [{ left: { indicator: 'rsi', n: 14 }, op: 'below', right: { value: 30 } }],
+      cooldownBars: 10,
+      expires: null,
+    },
+    {
+      id: 'watchlist-rsi-recovery',
+      name: 'RSI crosses back above 30 on a watchlist',
+      enabled: false,
+      universe: { kind: 'watchlist', watchlistId: 'wl-1', name: 'Core watchlist', symbols: ['NVDA', 'AAPL', '1155'], asOf: '2026-09-27', unresolved: [] },
+      timeframe: 'daily',
+      confirmation: 'close',
+      logic: 'AND',
+      rules: [{ left: { indicator: 'rsi', n: 14 }, op: 'crosses_above', right: { value: 30 } }],
+      cooldownBars: 10,
+      expires: null,
+    },
+    {
+      id: 'trend-breakout-tree',
+      version: 1,
+      name: 'Trend breakout, written as a rule tree',
+      description: 'The first setup’s conditions in the 0.3 form, with volume OR relative volume in a nested group, recording only the bar a match begins.',
+      enabled: false,
+      universe: { kind: 'symbols', symbols: ['NVDA', 'AAPL', '1155'] },
+      timeframe: '1D',
+      confirmationMode: 'BAR_CLOSE',
+      cooldownMode: 'NEW_MATCH',
+      cooldownBars: 5,
+      expires: null,
+      ruleTree: {
+        type: 'group',
+        logic: 'ALL',
+        children: [
+          { type: 'condition', left: { indicator: 'price' }, op: 'CROSSES_ABOVE', right: { indicator: 'ema', n: 50 } },
+          {
+            type: 'group',
+            logic: 'ANY',
+            children: [
+              { type: 'condition', left: { indicator: 'volume' }, op: 'GREATER_THAN', right: { indicator: 'volume_avg', n: 20, multiplier: 1.5 } },
+              { type: 'condition', left: { indicator: 'rvol', n: 20 }, op: 'GREATER_THAN', right: { value: 1.5 } },
+            ],
+          },
+          { type: 'condition', left: { indicator: 'rsi', n: 14 }, op: 'BETWEEN', range: [{ value: 50 }, { value: 70 }] },
+        ],
+      },
+    },
+  ],
+};
+
 /* THE FLOAT RULE. 0.1 + 0.2 is not 0.3 in binary, and a rule that says
    "equals 0.3" means the decimal. Two values are equal when they differ by
    no more than a billionth of the larger (never less than 1e-12); a strict

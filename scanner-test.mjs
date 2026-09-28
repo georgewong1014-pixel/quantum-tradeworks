@@ -922,7 +922,9 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
      and 0.3 calls undefined (rsi@2) — FLAT's RSI rules move from failed to
      untested; no match changes. */
   const expect02 = { 'trend-breakout': ['MET', 'NOT_MET'], 'sma-50-200-cross': ['UNAVAILABLE', 'UNAVAILABLE'], 'rsi-below-30': ['NOT_MET', 'UNAVAILABLE'], 'watchlist-rsi-recovery': ['MET', 'UNAVAILABLE'] };
-  const exNow = exDoc.setups.map(s => [s.id, ['MATCH', 'FLAT'].map(sym => E.scanSetup({ ...s, universe: { kind: 'all' } }, sym, E.scanBars(history, sym)).state)]);
+  /* The 0.2-form examples only: a rule-tree example has no 0.2.0 answer to
+     keep, and is checked in round 3's block below. */
+  const exNow = exDoc.setups.filter(s => s.ruleTree == null).map(s => [s.id, ['MATCH', 'FLAT'].map(sym => E.scanSetup({ ...s, universe: { kind: 'all' } }, sym, E.scanBars(history, sym)).state)]);
   check(exNow.every(([id, st]) => same(st, expect02[id])), 'every committed 0.2 example normalises and evaluates to engine 0.2.0\'s matches on the fixture (only the flat-RSI rule moves, from failed to untested)', exNow);
   check(st.ok && st.legacy === 0 && st.tree === 1 && st.stale === 0 && st.key === `fixture-breakout|v1|MATCH|1D|${lastBar}|MATCH`,
     'the self-test keeps its guarantee (one alert, none on a second pass) and adds three: none against the 0.2 key, one NEW_MATCH from the tree form, none on a stale clock', st);
@@ -1286,6 +1288,34 @@ try {
   const newFiles = ['data/scan-runs.json', 'data/scan.lock', 'data/scan-control.json', 'data/scan-deliveries.json', 'data/ingest-runs.json', 'data/price-history.rejects.json'];
   check(newFiles.every(f => ignore.split(/\r?\n/).includes(f) && ci.includes(`'${f}'`)), 'every new data file is git-ignored AND in CI\'s "no licensed data" list', newFiles.filter(f => !ignore.includes(f) || !ci.includes(`'${f}'`)));
 } catch { ok('git is not available here — the tracked-files check runs in CI'); }
+
+/* ---- round 3: user ---- */
+/* THE EXAMPLES THE BUILDER OFFERS ARE THE COMMITTED FILE. SCAN_EXAMPLES
+   (contract C7) is sliced out of index.html as the worker slices the engine
+   and compared, whole, with scanner/setups.example.json: a note or a setup
+   changed on one side only fails here. The file now carries a rule-tree
+   example (SC-304 1); it validates, normalises idempotently, and evaluates
+   on the fixture to the answers recorded when it was added — and to the
+   same answers as the 0.2 setup whose conditions it restates. */
+{
+  const html = await readFile(join(ROOT, 'index.html'), 'utf8');
+  const EX = new Function(`const isNum = (v) => typeof v === 'number' && Number.isFinite(v); ${extractEngine(html)}; return typeof SCAN_EXAMPLES === 'undefined' ? null : SCAN_EXAMPLES;`)();
+  check(EX && JSON.stringify(EX) === JSON.stringify(exDoc), 'round 3 user: SCAN_EXAMPLES in the engine region is scanner/setups.example.json, note and every setup, key for key',
+    EX ? { engine: EX.setups?.map(s => s.id), file: exDoc.setups.map(s => s.id) } : 'SCAN_EXAMPLES is not defined in the engine region');
+  const trees = exDoc.setups.filter(s => s.ruleTree != null);
+  const expectTree = { 'trend-breakout-tree': ['MET', 'NOT_MET'] };
+  const vt = validateSetups({ setups: trees }, E);
+  const treeNow = trees.map(s => [s.id, ['MATCH', 'FLAT'].map(sym => E.scanSetup({ ...s, universe: { kind: 'all' } }, sym, E.scanBars(history, sym)).state)]);
+  const twin = exDoc.setups.find(s => s.id === 'trend-breakout');
+  const twinNow = ['MATCH', 'FLAT'].map(sym => E.scanSetup({ ...twin, universe: { kind: 'all' } }, sym, E.scanBars(history, sym)).state);
+  const idem = trees.every(s => { const a = E.scanNormaliseSetup(s); return JSON.stringify(E.scanNormaliseSetup(a)) === JSON.stringify(a); });
+  check(trees.length >= 1 && vt.problems.length === 0 && vt.setups.length === trees.length && idem
+    && treeNow.length === Object.keys(expectTree).length && treeNow.every(([id, st]) => same(st, expectTree[id])) && same(treeNow[0][1], twinNow)
+    && trees.every(s => s.enabled === false && Number.isInteger(s.version) && JSON.stringify(s.ruleTree).includes('"type":"group","logic":"ANY"')),
+    'round 3 user: the committed file carries a disabled rule-tree example with a nested ANY group; it validates, normalises idempotently and evaluates on the fixture as recorded (MATCH met, FLAT not met), as its 0.2 twin does',
+    { problems: vt.problems, treeNow, twinNow, idem });
+}
+/* ---- end round 3: user ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

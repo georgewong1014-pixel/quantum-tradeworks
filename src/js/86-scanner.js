@@ -70,15 +70,54 @@ Object.assign(META, {
    that runs. A missing value prints as '?', never as a number. A 0.2 rule
    and a V2 condition read the same through scanConditionProse. */
 const scanRuleProse = (r) => scanConditionProse(scanNormaliseNode(r));
+/* A watchlist universe is resolved one of two ways (round 3 contract C3):
+   from the snapshot of symbols the setup carries, which is the default and
+   what an absent `resolve` means, or by the worker from the lists last
+   exported for it (data/watchlists.json). Only the second changes who
+   decides the members at run time, so only it is named. */
+const scanResolvesByExport = (u) => u?.kind === 'watchlist' && u.resolve === 'export';
 const scanUniverseProse = (u) => !u || u.kind === 'all' ? 'every instrument with a series in your history'
   : u.kind === 'market' ? `the ${u.market === 'MY' ? 'Bursa Malaysia' : u.market || '?'} instruments in your history`
-  : u.kind === 'watchlist' ? `watchlist “${u.name || u.watchlistId || '?'}” — ${(u.symbols || []).length} symbol${(u.symbols || []).length === 1 ? '' : 's'} as of ${u.asOf || '?'}: ${(u.symbols || []).join(', ') || '—'}`
+  : u.kind === 'watchlist' ? (scanResolvesByExport(u)
+    ? `watchlist “${u.name || u.watchlistId || '?'}”, resolved at run time from your latest export of it (data/watchlists.json) — its snapshot of ${u.asOf || '?'} (${(u.symbols || []).join(', ') || '—'}) stands in when the export does not hold it`
+    : `watchlist “${u.name || u.watchlistId || '?'}” — ${(u.symbols || []).length} symbol${(u.symbols || []).length === 1 ? '' : 's'} as of ${u.asOf || '?'}: ${(u.symbols || []).join(', ') || '—'}`)
   : `${(u.symbols || []).length} named instrument${(u.symbols || []).length === 1 ? '' : 's'}: ${(u.symbols || []).join(', ') || '—'}`;
 const scanDay = (t) => (t ? String(t).slice(0, 10) : '—');
 const scanStamp = (t) => (t ? String(t).replace('T', ' ').slice(0, 16) : '—');
 const scanPlural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const scanRegistryList = () => (typeof instruments !== 'undefined' && instruments?.instruments) || [];
 const scanClone = (x) => (x == null ? x : JSON.parse(JSON.stringify(x)));
+
+/* ONE INDICATOR CACHE FOR THE PAGE SESSION. "Evaluate now", the builder's
+   Test and an alert's re-evaluation each built a cache for one click, so
+   the same EMA50 on the same series was computed again at every click. The
+   page keeps one, keyed exactly as a run's is — symbol, timeframe, the
+   series' data version, the operand without its multiplier, and the
+   formula's calcVersion — so a changed close is a new data version and a
+   miss, never a stale hit. Nothing is stored: at a hundred series of a few
+   hundred bars recomputing costs milliseconds, so the cache is dropped when
+   the history object is replaced, or past a size no session of clicks
+   reaches. */
+const SCAN_SESSION_CACHE_MAX = 20000;
+let scanSessionCache = null, scanSessionCacheOf = null;
+function scanPageCache() {
+  if (!scanSessionCache || scanSessionCacheOf !== scanHistoryFile || scanSessionCache.size() > SCAN_SESSION_CACHE_MAX) {
+    scanSessionCache = scanCache();
+    scanSessionCacheOf = scanHistoryFile;
+  }
+  return scanSessionCache;
+}
+/* A run on this page, on the session's cache. The run's own cacheStats are
+   the cache's totals since the session began; what this run computed and
+   what it found already computed are the difference, which its summary
+   states. */
+function scanRunHere(setups, history, opts = {}) {
+  const C = scanPageCache();
+  const h0 = C.stats.hits, m0 = C.stats.misses;
+  const r = scanRun(setups, history, { ...opts, cache: C });
+  r.sessionCache = { hits: C.stats.hits - h0, misses: C.stats.misses - m0 };
+  return r;
+}
 
 /* A symbol in the record, as a link to what the app knows about it: the
    company page where the symbol is a company's, the Tracked view where it is
@@ -95,7 +134,13 @@ function scanLink(path, text, attrs = {}) {
   return el('a', { href: href(path), ...attrs, onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(path); } }, text);
 }
 const scanSetupPath = (id, version = null) => `/app/scanner/setups/${encodeURIComponent(id)}${version != null ? `?version=${version}` : ''}`;
-const scanAlertPath = (a) => `/app/scanner/alerts/${encodeURIComponent(scanAlertIdOf(a) || '')}`;
+/* An alert's address is its id. Two different keys can, rarely, hash to
+   one eight-digit id; where the loaded record holds such a pair, each one's
+   address also carries its key, so every row still opens its own record. */
+const scanAlertPath = (a) => {
+  const id = scanAlertIdOf(a) || '';
+  return `/app/scanner/alerts/${encodeURIComponent(id)}${a?.key && scanIdCollisions().has(id) ? `?key=${encodeURIComponent(a.key)}` : ''}`;
+};
 
 /* The scanner's section strip. The operations pages own the dashboard and
    may define scannerSubnav(); where they have, every scanner page shares
@@ -219,6 +264,14 @@ function scanBrowserSetups({ st = scanStoreRead(), deleted = false } = {}) {
    or enabled flag is not. A setup adopted from the file keeps the file's
    version number when it is ahead, so the alerts the worker recorded under
    it still name the version the browser now holds. */
+/* THE RESOLVE CHOICE IS PART OF THE VERSION. A watchlist universe resolved
+   from the export can evaluate different symbols from its snapshot, so
+   switching between the two changes what the setup evaluates. The engine's
+   hash covers the universe's kind, market and symbols; until it also
+   covers `resolve`, the page compares it beside the hash, so a switch saves
+   as a new version instead of being taken for "no change" and dropped. */
+const scanResolveOf = (s) => (scanResolvesByExport(s?.universe) ? 'export' : 'snapshot');
+const scanSameVersion = (stored, s) => !!stored && !!s && stored.hash === s.hash && scanResolveOf(stored.setup || stored) === scanResolveOf(s);
 function scanSaveSetup(draft, { source = 'builder', now = new Date().toISOString(), st = scanStoreRead() } = {}) {
   const v = scanValidate({ setups: [draft] });
   if (v.problems.length) return { ok: false, problems: v.problems, problemsBySetup: v.problemsBySetup };
@@ -236,14 +289,14 @@ function scanSaveSetup(draft, { source = 'builder', now = new Date().toISOString
   const metaChanged = rec.name !== meta.name || (rec.description || '') !== meta.description || (rec.enabled !== false) !== meta.enabled || !!rec.deleted;
   Object.assign(rec, meta);
   rec.deleted = null;
-  if (cur && cur.hash === s.hash) {
+  if (scanSameVersion(cur, s)) {
     if (metaChanged) rec.updated = now;
     scanStoreWrite(st);
     return { ok: true, id: s.id, version: rec.current, created: false, bumped: false, metaChanged, setup: scanRecordSetup(rec) };
   }
   /* The file's version already held here with this content: adopting it
      makes it current again, rather than a copy under a new number. */
-  const same = source === 'file' ? rec.versions.find(x => x.version === s.version && x.hash === s.hash) : null;
+  const same = source === 'file' ? rec.versions.find(x => x.version === s.version && scanSameVersion(x, s)) : null;
   if (same) { rec.current = same.version; rec.updated = now; scanStoreWrite(st); return { ok: true, id: s.id, version: same.version, created: false, bumped: false, reverted: true, setup: scanRecordSetup(rec) }; }
   const max = Math.max(0, ...rec.versions.map(x => x.version));
   const next = source === 'file' && s.version > max ? s.version : max + 1;
@@ -287,6 +340,38 @@ function scanMarkExported(doc, { st = scanStoreRead() } = {}) {
   scanStoreWrite(st);
 }
 const scanExportName = () => 'scan-setups.json';
+
+/* THE LISTS FILE FOR THE WORKER (round 3 contract C3). A setup whose
+   watchlist universe resolves by export is resolved by the worker from
+   data/watchlists.json: the watchlists export exactly as watchlistsExport()
+   writes it, saved under that name. The worker cannot read this browser,
+   so "the list at run time" is the list as of the last export, and the
+   pages say so rather than call it current. What was exported — when, and
+   each list's symbols — is recorded beside the setups, so a page can say
+   where a list and the file have parted; the file itself is not kept. */
+const SCAN_WATCHLISTS_FILE = 'watchlists.json';
+function scanExportWatchlists({ st = scanStoreRead() } = {}) {
+  const doc = watchlistsExport();
+  scanDownload(SCAN_WATCHLISTS_FILE, doc);
+  st.watchlistsExported = { at: doc.exportedAt,
+    lists: Object.fromEntries((doc.watchlists || []).map(w => [w.id, { name: w.name, symbols: (w.items || []).filter(i => i.symbol).map(i => i.symbol) }])) };
+  scanStoreWrite(st);
+  return doc;
+}
+/* A list against its last export for the scanner, in words: never
+   exported from this browser, not in that export, deleted here since, the
+   same, or changed (which members). */
+function scanWatchlistExportState(wlId, st = scanStoreRead()) {
+  const ex = st.watchlistsExported;
+  if (!ex?.at) return { state: 'NEVER', text: 'Not exported for the scanner from this browser. Until data/watchlists.json holds this list, the worker evaluates each setup’s snapshot instead and marks the run partial.' };
+  const held = ex.lists?.[wlId];
+  if (!held) return { state: 'NOT_IN_EXPORT', at: ex.at, text: `Not in the export of ${scanStamp(ex.at)} — made before this list existed. Until you export again, the worker evaluates each setup’s snapshot instead and marks the run partial.` };
+  if (!wlById(wlId)) return { state: 'DELETED', at: ex.at, text: `Deleted here since the export of ${scanStamp(ex.at)}, which still holds it with ${scanPlural(held.symbols.length, 'symbol')}; the worker resolves that until you export again.` };
+  const d = scanSnapshotDrift(held.symbols, watchlistSymbols(wlId).symbols);
+  const parts = [d.added.length ? `${d.added.length} added (${d.added.join(', ')})` : null, d.removed.length ? `${d.removed.length} removed (${d.removed.join(', ')})` : null].filter(Boolean);
+  return d.same ? { state: 'IN_STEP', at: ex.at, text: `Exported for the scanner ${scanStamp(ex.at)}, as the list stands now (${scanPlural(held.symbols.length, 'symbol')}).` }
+    : { state: 'CHANGED', at: ex.at, text: `Changed since the export of ${scanStamp(ex.at)}: ${parts.join(', ')}. The worker resolves the export until you export again.` };
+}
 
 /* THE DRIFT, per setup, in the words the pages use. The engine's
    scanSetupDrift says which ids differ and which side has the higher
@@ -382,6 +467,19 @@ const scanAlertList = () => (Array.isArray(scanAlertsFile?.alerts) ? scanAlertsF
 /* An alert written before engine 0.3.0 carries a key but no id; its id is
    the one the engine would give that key, so its address is stable. */
 const scanAlertIdOf = (a) => a?.id || (a?.key ? scanAlertId(a.key) : null);
+/* Ids that records with different keys share, in the loaded record. The id
+   is 'a' + an eight-hex-digit FNV-1a of the key, so among a few thousand
+   records a collision is unlikely but possible, and a page must never show
+   one record's evidence at another's address (NAV 1). Worked out once per
+   list: the file's own array, until the file is replaced. */
+let scanCollisionMemo = { list: null, ids: new Set() };
+function scanIdCollisions(list = scanAlertList()) {
+  if (scanCollisionMemo.list === list) return scanCollisionMemo.ids;
+  const keys = new Map();
+  list.forEach(a => { const id = scanAlertIdOf(a); if (!id) return; if (!keys.has(id)) keys.set(id, new Set()); keys.get(id).add(a.key ?? ''); });
+  scanCollisionMemo = { list, ids: new Set([...keys].filter(([, k]) => k.size > 1).map(([id]) => id)) };
+  return scanCollisionMemo.ids;
+}
 const scanAlertBar = (a) => a?.candleDate || a?.bar || '';
 function scanAlertStateRead() {
   const s = store.read('scanAlertState', {});
@@ -464,6 +562,9 @@ const scanAlertsOf = (id) => scanAlertList().filter(a => a.setupId === id);
 function scanRunSummary(r, note) {
   const box = el('div');
   box.append(el('p', { class: 'metaline' }, `${scanPlural(r.setups, 'setup')} · ${scanPlural(r.evaluated, 'evaluation')}, each on its instrument’s last final bar${r.asOf ? ` (${scanBarRange(r.asOfFrom, r.asOf)})` : ''} · ${scanPlural(r.matched, 'match', 'matches')} · ${r.untested} untested · ${r.skipped.length} skipped. ${note || ''}`));
+  /* What the session's cache saved this run, so a reader can see the
+     second click reuse the first one's series. */
+  if (r.sessionCache) box.append(el('p', { class: 'caption scan-cache-line', style: 'margin-top:2px' }, `Indicators: ${r.sessionCache.misses} computed, ${r.sessionCache.hits} reused from earlier in this session. The page keeps one cache while it is open, keyed by each series’ data version, so a changed close is computed afresh.`));
   if (r.alerts.length) {
     const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
     r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
@@ -656,7 +757,7 @@ VIEWS.scannerSetups = () => {
   const host = el('div', { style: 'margin-top:var(--sm)' });
   const fileSetups = fileCheck?.setups || [];
   const run = (list, which) => {
-    const r = scanRun(list, history, { instruments: scanRegistryList(), existing: scanAlertList(), now: new Date().toISOString() });
+    const r = scanRunHere(list, history, { instruments: scanRegistryList(), existing: scanAlertList(), now: new Date().toISOString() });
     host.replaceChildren(scanRunSummary(r, `Evaluated ${which} — nothing recorded.`));
   };
   ev.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
@@ -829,7 +930,10 @@ function scanDraftSetup(d) {
   if (out.cooldownBars == null) delete out.cooldownBars;
   if (d.universe?.kind === 'watchlist' && wlById(d.universe.watchlistId)) {
     const snap = watchlistSymbols(d.universe.watchlistId);
-    out.universe = { kind: 'watchlist', watchlistId: d.universe.watchlistId, name: snap.name, symbols: snap.symbols, asOf: snap.asOf, ...(snap.unresolved.length ? { unresolved: snap.unresolved } : {}) };
+    /* The snapshot is taken either way: resolved by export, it is what
+       the worker falls back to when the export does not hold the list. */
+    out.universe = { kind: 'watchlist', watchlistId: d.universe.watchlistId, ...(scanResolvesByExport(d.universe) ? { resolve: 'export' } : {}),
+      name: snap.name, symbols: snap.symbols, asOf: snap.asOf, ...(snap.unresolved.length ? { unresolved: snap.unresolved } : {}) };
   }
   return out;
 }
@@ -904,29 +1008,115 @@ function scanFitCondition(c) {
   if (c.right && !fits(c.right)) c.right = { value: null };
   if (Array.isArray(c.range)) c.range = c.range.map(b => (b && typeof b === 'object' && fits(b) ? b : { value: null }));
 }
+/* "Copy example configuration": the committed rule-tree example as a
+   one-setup file, disabled so that pasting it runs nothing until the
+   reader means it to. Taken from SCAN_EXAMPLES (scanner/setups.example.json
+   in the engine region), so the copy and the file cannot say different
+   things, as this constant's own hand-written example once did. */
 const SCAN_EXAMPLE_DOC = {
   kind: 'quantum-tradeworks-scan-setups', schema: 2,
-  _note: 'An illustration of the file’s syntax, not a suggestion: the product proposes no setup, and no condition here is claimed to mean anything. It is disabled so that pasting it runs nothing. Groups may nest (ALL / ANY) up to three deep; operands are an indicator or { "value": n }.',
-  setups: [{
-    id: 'example-syntax', version: 1, name: 'Syntax example — replace every part of it', enabled: false,
-    universe: { kind: 'symbols', symbols: ['AAPL', '1155'] }, timeframe: '1D', confirmationMode: 'BAR_CLOSE', cooldownMode: 'NEW_MATCH', cooldownBars: 5, expires: null,
-    ruleTree: { type: 'group', logic: 'ALL', children: [
-      { type: 'condition', left: { indicator: 'price' }, op: 'CROSSES_ABOVE', right: { indicator: 'ema', n: 50 } },
-      { type: 'group', logic: 'ANY', children: [
-        { type: 'condition', left: { indicator: 'volume' }, op: 'GREATER_THAN', right: { indicator: 'volume_avg', n: 20, multiplier: 1.5 } },
-        { type: 'condition', left: { indicator: 'rvol', n: 20 }, op: 'GREATER_THAN', right: { value: 1.5 } },
-      ] },
-      { type: 'condition', left: { indicator: 'rsi', n: 14 }, op: 'BETWEEN', range: [{ value: 50 }, { value: 70 }] },
-    ] },
-  }],
+  _note: 'An illustration of the file’s syntax, not a suggestion: the product proposes no setup, and no condition here is claimed to mean anything. It is disabled so that pasting it runs nothing. Groups may nest (ALL / ANY) up to three deep; operands are an indicator or { "value": n }. The whole example file is scanner/setups.example.json.',
+  setups: SCAN_EXAMPLES.setups.filter(s => s.ruleTree != null).map(s => ({ ...scanClone(s), enabled: false })),
 };
+
+/* THE BUILDER'S DOORS (round 3 contract C5). The address can start a
+   draft: ?from=<setup> copies a setup's evaluation fields under a new id
+   and "Copy of …"; ?fromAlert=<alert> does the same from the setup snapshot
+   the alert recorded; ?market= makes the universe that market's
+   instruments in the history; ?symbol= names one instrument, as the company
+   page's link always has. They combine — a copy, on another market. A link
+   starts a draft once: coming back to the same address keeps what was typed
+   since. A link to a different start while a changed draft is open asks,
+   rather than dropping the draft; an untouched draft is simply replaced.
+   The seed remembers which draft it made, which address it came from, the
+   draft as it was seeded (to tell untouched from changed) and what the page
+   should say about where it came from. A draft set some other way — the
+   watchlist pages' "New setup on this list" — is not the seed's, so the
+   seed's words are not shown over it, and it counts as changed unless it
+   is blank. */
+let scanDraftSeed = null;
+const SCAN_SEED_PARAMS = ['from', 'fromAlert', 'key', 'market', 'symbol'];
+const scanSeedSig = (qs = new URLSearchParams(location.search)) => SCAN_SEED_PARAMS.filter(k => qs.get(k)).map(k => `${k}=${qs.get(k)}`).join('&');
+const scanSeedOwns = () => !!scanDraft && scanDraftSeed?.draft === scanDraft;
+const scanDraftUntouched = () => !!scanDraft && JSON.stringify(scanDraft) === (scanSeedOwns() ? scanDraftSeed.json : JSON.stringify(scanBlankDraft()));
+function scanSetDraft(d, sig, notes = []) {
+  scanDraft = d;
+  scanIdAuto = !d.id;
+  scanDraftSeed = { draft: d, sig, json: JSON.stringify(d), notes };
+}
+/* A setup by id: this browser's current version, else the worker's file
+   (validated as the worker validates it), else a deleted one kept here. */
+function scanFindSetup(id) {
+  const rec = scanStoreRead().setups[id];
+  if (rec && !rec.deleted) return { setup: scanRecordSetup(rec), where: `saved here, v${rec.current}` };
+  const f = scanSetupsFile ? scanValidate(scanSetupsFile).setups.find(s => s.id === id) : null;
+  if (f) return { setup: f, where: `in the worker’s file, v${f.version}` };
+  if (rec) return { setup: scanRecordSetup(rec), where: `deleted here, v${rec.current}` };
+  return null;
+}
+/* An id for a copy that no setup saved here uses. */
+function scanCopyId(id, st = scanStoreRead()) {
+  const base = `${String(id || 'setup').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30) || 'setup'}-copy`;
+  let out = base, n = 2;
+  while (st.setups[out]) out = `${base}-${n++}`;
+  return out;
+}
+/* The record an address names: by id, and by key where two records share
+   the id (the key rides along only then). */
+function scanFindAlert(id, key = null, list = scanAlertList()) {
+  const byId = list.filter(x => scanAlertIdOf(x) === id);
+  return (key ? byId.find(x => x.key === key) : null) || byId[0] || list.find(x => x.key === id) || null;
+}
+/* The setup a record names, as the engine reads a setup: the snapshot the
+   record carries, or — for a record that predates snapshots — the version
+   this browser holds under that number. */
+function scanAlertSetup(a) {
+  if (!a) return null;
+  if (a.setupSnapshot) return { setup: scanNormaliseSetup({ ...a.setupSnapshot, id: a.setupId }), from: 'snapshot' };
+  const rec = scanStoreRead().setups[a.setupId];
+  const s = rec ? scanRecordSetup(rec, a.setupVersion ?? 1) : null;
+  return s ? { setup: s, from: 'browser' } : null;
+}
+function scanSeedDraft(qs) {
+  const notes = [];
+  let d = null;
+  const from = qs.get('from'), fromAlert = qs.get('fromAlert');
+  const copyOf = (s, name, whence) => {
+    const x = scanAsDraft(s);
+    Object.assign(x, { id: scanCopyId(s.id), name: `Copy of ${name || s.name || s.id}`, description: '', enabled: true });
+    notes.push(whence);
+    return x;
+  };
+  if (fromAlert) {
+    const a = scanFindAlert(fromAlert, qs.get('key'));
+    const src = scanAlertSetup(a);
+    if (src) d = copyOf(src.setup, a.setupName, `Started from the setup that recorded ${a.symbol} on ${scanAlertBar(a)}: ${a.setupName || a.setupId} v${a.setupVersion ?? 1}, ${src.from === 'snapshot' ? 'as the record’s own copy of it holds it' : 'as this browser holds that version (the record predates engine 0.3.0 and carries no copy)'}. A copy under its own id; the setup and the record are unchanged.`);
+    else notes.push(!a ? `No alert “${fromAlert}” is in ${scanAlertsFile ? 'data/scan-alerts.json' : 'a loaded alerts file — data/scan-alerts.json cannot be seen from here'}, so the draft starts blank.`
+      : `The record of ${a.symbol} on ${scanAlertBar(a)} predates engine 0.3.0 and carries no copy of its setup, and this browser does not hold v${a.setupVersion ?? 1} of ${a.setupId}, so the draft starts blank.`);
+  } else if (from) {
+    const f = scanFindSetup(from);
+    if (f) d = copyOf(f.setup, f.setup.name, `Started from ${f.setup.name || f.setup.id} (${f.where}): its conditions, universe, timeframe and recording, under a new id. The original is unchanged.`);
+    /* The company page's link names the company it was opened from as
+       ?from= beside ?symbol=. That is where the reader came from, not a
+       setup to copy, so it is not reported as missing. */
+    else if (!(typeof BY_ID !== 'undefined' && BY_ID.has(from))) notes.push(`No setup “${from}” is saved here${scanSetupsFile ? ' or in the worker’s file' : ''}, so the draft starts blank.`);
+  }
+  d = d || scanBlankDraft();
+  const market = String(qs.get('market') || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+  const symbol = String(qs.get('symbol') || '').trim().toUpperCase().replace(/[^A-Z0-9.^=:-]/g, '');
+  if (market) {
+    d.universe = { kind: 'market', market };
+    if (from || fromAlert || symbol) notes.push(`Its universe is the ${market} instruments in your history, as the link asked${symbol ? ` (the link’s ${symbol} is set aside: a universe is a market or a list, not both)` : ''}.`);
+  } else if (symbol) d.universe = { kind: 'symbols', symbols: [symbol] };
+  return { d, notes };
+}
 const scanTreeIsFlat = (t) => t?.type === 'group' && Array.isArray(t.children) && t.children.every(c => c?.type !== 'group');
 
 function scanBuilderView(mode) {
   const wrap = scanPage();
   wrap.append(scanSubnav('setups'));
   const st = scanStoreRead();
-  let rec = null, d;
+  let rec = null, d, ask = null;
   if (mode === 'edit') {
     const id = scanParam('setup');
     rec = st.setups[id] || null;
@@ -939,19 +1129,64 @@ function scanBuilderView(mode) {
     if (!scanEditDraft || scanEditDraft.id !== id || scanEditDraft.base !== rec.current) scanEditDraft = { id, base: rec.current, d: scanAsDraft(scanRecordSetup(rec)) };
     d = scanEditDraft.d;
   } else {
-    /* Opened from a company page, the builder starts on that company's
-       symbol — the ?symbol= the page's link carries. Only a fresh draft
-       takes it, so returning to a half-written setup never loses it. */
-    const fromSymbol = String(new URLSearchParams(location.search).get('symbol') || '').trim().toUpperCase().replace(/[^A-Z0-9.^=:-]/g, '');
-    if (!scanDraft) { scanDraft = scanBlankDraft(); scanIdAuto = true; if (fromSymbol) scanDraft.universe = { kind: 'symbols', symbols: [fromSymbol] }; }
+    /* The address's doors (see scanSeedDraft). A fresh draft takes the
+       link; a returning one keeps what was typed; a different link over a
+       changed draft asks below. */
+    const qs = new URLSearchParams(location.search);
+    const sig = scanSeedSig(qs);
+    if (!scanDraft) { const s = sig ? scanSeedDraft(qs) : { d: scanBlankDraft(), notes: [] }; scanSetDraft(s.d, sig, s.notes); }
     else if (!scanDraft.ruleTree) scanDraft = scanAsDraft(scanDraft);
+    else if (sig && !(scanSeedOwns() && scanDraftSeed.sig === sig)) {
+      if (scanDraftUntouched()) { const s = scanSeedDraft(qs); scanSetDraft(s.d, sig, s.notes); }
+      else ask = sig;
+    }
     d = scanDraft;
   }
   wrap.append(mode === 'edit'
     ? scanPageHead(`Edit ${rec.name || rec.id}`, `Currently v${rec.current}. A change to what it evaluates saves as v${Math.max(...rec.versions.map(v => v.version)) + 1} and keeps every earlier version; a change to the name, description or enabled flag does not.`, 'Scanner setup · edit')
     : scanPageHead('New setup', 'Conditions you choose, evaluated on your own history. Test it here, then save it as version 1; the setups page exports it to the file the worker reads.', 'Scanner setup · new'));
+  if (ask) {
+    const p = el('div', { class: 'card scan-seed-ask', role: 'region', 'aria-label': 'A draft is already open' });
+    p.append(cardHead('A draft is already open', 'This address starts a new draft, and the one open here has changes. Nothing is replaced until you choose.'));
+    p.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+      el('button', { class: 'btn btn-primary btn-sm', onclick: () => { const s = scanSeedDraft(new URLSearchParams(location.search)); scanSetDraft(s.d, ask, s.notes); render(); } }, 'Start from this link'),
+      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { scanDraftSeed = { draft: scanDraft, sig: ask, json: scanSeedOwns() ? scanDraftSeed.json : null, notes: [] }; render(); } }, 'Keep my draft'),
+    ]));
+    wrap.append(p);
+  } else if (mode === 'new' && scanSeedOwns() && scanDraftSeed.notes?.length && scanDraftSeed.sig === scanSeedSig()) {
+    wrap.append(el('div', { class: 'scan-note scan-seed-notes', role: 'status', style: 'display:flex;flex-direction:column;gap:4px' }, scanDraftSeed.notes.map(t => el('p', { class: 'caption', style: 'margin:0' }, t))));
+  }
+  if (mode === 'new') wrap.append(scanExamplePicker());
   wrap.append(scanBuilder(d, { mode, rec }));
   return wrap;
+}
+/* START FROM AN EXAMPLE (SC-305). The committed examples, from
+   SCAN_EXAMPLES, loaded into the draft as they are written — ids, names,
+   universes and conditions — for the reader to replace. Offering them is
+   the one place the product puts conditions in front of the reader, so it
+   says what they are: illustrations of the file's syntax, not suggestions,
+   and none claimed to mean anything. A changed draft is not replaced
+   without asking. */
+function scanExamplePicker() {
+  const card = el('div', { class: 'card scan-examples' });
+  const id = `scanf-${++scanFieldSeq}`;
+  const s = el('select', { class: 'select', id, 'aria-label': 'Start from an example', onchange: (e) => {
+    const ex = SCAN_EXAMPLES.setups.find(x => x.id === e.target.value);
+    if (!ex) return;
+    if (!scanDraftUntouched() && !confirm('Replace the draft with this example? What is in the draft now is not kept.')) { e.target.value = ''; return; }
+    const d = scanAsDraft(ex);
+    if (scanStoreRead().setups[d.id]) d.id = scanCopyId(d.id);
+    scanSetDraft(d, scanSeedSig(), [`Started from the example “${ex.name}” (scanner/setups.example.json) — an illustration of the syntax, not a suggestion. Its id, name, universe and every condition are yours to replace.`]);
+    render();
+    document.querySelector('main [aria-label="Start from an example"]')?.focus();
+  } });
+  s.append(el('option', { value: '' }, 'Choose an example…'));
+  SCAN_EXAMPLES.setups.forEach(x => s.append(el('option', { value: x.id }, `${x.name} — ${x.ruleTree != null ? 'rule tree (0.3 form)' : 'rules (0.2 form)'}${x.enabled === false ? ', disabled' : ''}`)));
+  card.append(el('div', { class: 'row row-wrap', style: 'gap:var(--sm) var(--md);align-items:flex-end' }, [
+    el('div', { class: 'field', style: 'flex:1 1 260px;min-width:0;margin:0' }, [el('label', { for: id }, 'Start from an example'), s]),
+    el('p', { class: 'caption', style: 'flex:2 1 320px;margin:0;max-width:62ch' }, `The ${SCAN_EXAMPLES.setups.length} examples in scanner/setups.example.json, loaded into the draft as written. An illustration of the syntax, not a suggestion: the product proposes no setup, and no condition in them is claimed to mean anything.`),
+  ]));
+  return card;
 }
 VIEWS.scannerSetupNew = () => scanBuilderView('new');
 VIEWS.scannerSetupEdit = () => scanBuilderView('edit');
@@ -1019,7 +1254,7 @@ function scanBuilder(d, ctx) {
   const slug = (v) => v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
   const idInput = text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); scanIdAuto = !d.id; }, mode === 'edit' ? { readonly: '', 'aria-readonly': 'true' } : {});
   g1.append(field('Name', text(d.name, v => { d.name = v; if (mode === 'new' && scanIdAuto) { d.id = slug(v); idInput.value = d.id; } }, { autocomplete: 'off' })));
-  g1.append(field('Id', idInput, { hint: mode === 'edit' ? null : 'Letters, digits and hyphens. Filled from the name until you type one.', path: 'id' }));
+  g1.append(field('Id', idInput, { hint: mode === 'edit' ? null : `Letters, digits and hyphens.${scanIdAuto ? ' Filled from the name until you type one.' : ''}`, path: 'id' }));
   g1.append(field('Description (optional)', text(d.description, v => { d.description = v; }, { autocomplete: 'off' }), { wide: true }));
   c1.append(g1);
   const en = el('label', { class: 'checkline', style: 'margin-top:var(--sm);gap:8px' });
@@ -1044,6 +1279,24 @@ function scanBuilder(d, ctx) {
     const lists = State.watchlists || [];
     if (lists.length) g2.append(field('Watchlist', select(u.watchlistId, [...(wlById(u.watchlistId) || !u.watchlistId ? [] : [[u.watchlistId, `${u.name || u.watchlistId} — not in this browser`]]), ...lists.map(w => [w.id, `${w.name} (${(w.ids || []).length})`])], v => { u.watchlistId = v; }), { path: 'universe' }));
     else g2.append(el('div', { class: 'scan-wide' }, [el('p', { class: 'caption' }, ['You have no watchlist yet. ', scanLink('/my/watchlists', 'Make one'), ', or name the instruments instead.']), problemHost('universe')]));
+    /* How the worker resolves the list (C3). Either way the setup carries a
+       snapshot; by export, the worker reads data/watchlists.json at run
+       time and falls back to the snapshot when the list is not in it. The
+       worker cannot read this browser, so "at run time" means as of the
+       reader's last export, and the choice says so. */
+    const rs = el('div', { class: 'scan-wide' });
+    rs.append(radios(`scan-resolve-${scanFieldSeq}`, scanResolvesByExport(u) ? 'export' : 'snapshot', [
+      ['snapshot', 'The list as you save it', 'the setup carries the list’s symbols from the moment you save; saving again takes the list as it is then'],
+      ['export', 'Your latest export for the scanner', 'resolved from your latest export — the worker cannot read this browser, so it reads data/watchlists.json at each run, and the snapshot stands in when that file does not hold the list']],
+      v => { if (v === 'export') u.resolve = 'export'; else delete u.resolve; }, 'Resolve the list from'));
+    if (u.watchlistId && wlById(u.watchlistId)) {
+      const ex = scanWatchlistExportState(u.watchlistId);
+      rs.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-top:6px' }, [
+        el('p', { class: 'caption scan-export-state', style: 'margin:0;flex:1 1 280px;max-width:72ch' }, ex.text),
+        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => { scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); rebuild('Export for the scanner (watchlists.json)'); } }, 'Export for the scanner'),
+      ]));
+    }
+    g2.append(rs);
   }
   /* The markets the registry the worker reads actually holds, in its own
      order. */
@@ -1183,7 +1436,7 @@ function scanBuilder(d, ctx) {
   const testBtn = el('button', { class: 'btn btn-ghost', 'aria-label': 'Test against your history (not recorded)', onclick: () => {
     const chk = scanDraftCheck(d, { mode });
     if (!chk.ready) return;
-    const r = scanRun([{ ...chk.normalised, id: d.id || 'draft', enabled: true }], history, { instruments: registry, existing: scanAlertList(), now: new Date().toISOString() });
+    const r = scanRunHere([{ ...chk.normalised, id: d.id || 'draft', enabled: true }], history, { instruments: registry, existing: scanAlertList(), now: new Date().toISOString() });
     outHost.replaceChildren(scanRunSummary(r, `A test of the draft${d.enabled ? '' : ' (disabled, tested anyway)'} against data/price-history.json. Nothing is recorded.`));
   } }, 'Test against your history');
   const pre = el('pre', { class: 'scan-json', hidden: '' });
@@ -1193,7 +1446,7 @@ function scanBuilder(d, ctx) {
     const s = chk.normalised ? { ...chk.normalised } : chk.setup;
     if (mode === 'edit' && chk.normalised) {
       const cur = scanVersionOf(rec);
-      s.version = cur && cur.hash === chk.normalised.hash ? rec.current : Math.max(...rec.versions.map(v => v.version)) + 1;
+      s.version = scanSameVersion(cur, chk.normalised) ? rec.current : Math.max(...rec.versions.map(v => v.version)) + 1;
       s.hash = chk.normalised.hash;
     }
     return { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: [s] };
@@ -1214,7 +1467,13 @@ function scanBuilder(d, ctx) {
   c5.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
     saveBtn, testBtn, copyBtn,
     mode === 'edit' ? el('a', { class: 'btn btn-quiet btn-sm', href: href(scanSetupPath(rec.id)), onclick: (e) => { scanEditDraft = null; if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); navigate(scanSetupPath(rec.id)); } }, 'Cancel')
-      : el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': 'Start over', onclick: () => { scanDraft = scanBlankDraft(); scanIdAuto = true; rebuild('Name'); } }, 'Start over'),
+      : el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': 'Start over', onclick: () => {
+        /* Blank, and settled against this address: the link that seeded
+           the draft does not seed it again on the next render. */
+        scanSetDraft(scanBlankDraft(), scanSeedSig());
+        render();
+        document.querySelector('main [aria-label="Name"]')?.focus();
+      } }, 'Start over'),
   ]));
   const testWhy = el('p', { class: 'caption', style: 'margin-top:6px' });
   c5.append(testWhy);
@@ -1248,7 +1507,7 @@ function scanBuilder(d, ctx) {
     let what = '';
     if (chk.ready && mode === 'edit') {
       const cur = scanVersionOf(rec);
-      what = cur && cur.hash === chk.normalised.hash ? ` No change to what it evaluates — saving keeps v${rec.current}.` : ` The conditions differ from v${rec.current} — saving creates v${Math.max(...rec.versions.map(v => v.version)) + 1}.`;
+      what = scanSameVersion(cur, chk.normalised) ? ` No change to what it evaluates — saving keeps v${rec.current}.` : ` What it evaluates differs from v${rec.current} — saving creates v${Math.max(...rec.versions.map(v => v.version)) + 1}.`;
     }
     status.textContent = chk.ready ? `Ready to save.${what}` : `Not ready — ${scanPlural(chk.problems.length, 'problem')}, each shown where it is.`;
     status.classList.toggle('scan-status-bad', !chk.ready);
@@ -1260,7 +1519,9 @@ function scanBuilder(d, ctx) {
     if (gaps.missing.length) note += ` No series, so not scanned: ${gaps.missing.join(', ')}.`;
     if (setup.universe?.kind === 'watchlist') {
       const snap = setup.universe;
-      note = `${scanPlural((snap.symbols || []).length, 'symbol')} as of ${snap.asOf || '?'}: ${(snap.symbols || []).join(', ') || '—'}${snap.unresolved?.length ? ` · not resolvable to a symbol: ${snap.unresolved.join(', ')}` : ''}. ${note} The worker cannot read this browser, so the setup carries this snapshot; saving again takes the list as it is then.`;
+      note = `${scanPlural((snap.symbols || []).length, 'symbol')} as of ${snap.asOf || '?'}: ${(snap.symbols || []).join(', ') || '—'}${snap.unresolved?.length ? ` · not resolvable to a symbol: ${snap.unresolved.join(', ')}` : ''}. ${note} ${scanResolvesByExport(snap)
+        ? 'The worker resolves the list from your latest export of it and falls back to this snapshot when the export does not hold it; Test here evaluates the list as it stands in this browser.'
+        : 'The worker cannot read this browser, so the setup carries this snapshot; saving again takes the list as it is then.'}`;
       if (mode === 'edit') { const wd = scanWatchlistDrift(scanRecordSetup(rec)); if (wd && !wd.same) note += ` ${wd.text}`; }
     }
     uniNote.textContent = note;
@@ -1281,8 +1542,22 @@ function scanBuilder(d, ctx) {
 VIEWS.scannerWatchlists = () => {
   const wrap = scanPage();
   wrap.append(scanSubnav('watchlists'));
-  wrap.append(scanPageHead('Watchlist scanner', 'Your watchlists as scanner universes. The worker cannot read this browser, so a setup carries a snapshot of its list’s symbols; this page says where a snapshot and its list have parted.'));
+  wrap.append(scanPageHead('Watchlist scanner', 'Your watchlists as scanner universes. The worker cannot read this browser, so a setup carries a snapshot of its list’s symbols, or is resolved from your latest export of the lists; this page says where either has parted from the list.'));
   const lists = State.watchlists || [];
+  /* The file the worker resolves export-resolved setups from, and when
+     this browser last wrote it. */
+  if (lists.length) {
+    const ex = scanStoreRead().watchlistsExported;
+    const xc = el('div', { class: 'card' });
+    xc.append(cardHead('The lists file the worker reads', ex?.at
+      ? `Last exported for the scanner from this browser ${scanStamp(ex.at)}, with ${scanPlural(Object.keys(ex.lists || {}).length, 'list')}.`
+      : 'Not exported for the scanner from this browser yet.',
+      el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
+        scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); render();
+      } }, 'Export for the scanner')));
+    xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'Save the download as data/watchlists.json (git-ignored) where the worker runs. A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
+    wrap.append(xc);
+  }
   const history = scanHistoryFile;
   const held = new Set(Object.keys(history?.series || {}).map(s => s.toUpperCase()));
   const setups = scanBrowserSetups();
@@ -1308,6 +1583,10 @@ VIEWS.scannerWatchlists = () => {
       el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
         el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `New setup on ${w.name}`, onclick: () => { scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } }; scanIdAuto = true; navigate('/app/scanner/setups/new'); } }, 'New setup on this list'),
       ])));
+    if (users.some(x => scanResolvesByExport(x.s.universe))) {
+      const xs = scanWatchlistExportState(w.id);
+      card.append(el('p', { class: `caption scan-note${xs.state === 'IN_STEP' ? '' : ' scan-warn'}`, style: 'margin:0 0 var(--sm)' }, `For the setups resolved from your latest export: ${xs.text}`));
+    }
     if (!items.length) card.append(el('p', { class: 'caption' }, 'No members yet. A setup on an empty list has nothing to scan and is refused until the list holds a company with a symbol.'));
     else {
       const t = el('table', { class: 'dt' });
@@ -1329,6 +1608,7 @@ VIEWS.scannerWatchlists = () => {
       p.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
         scanLink(scanSetupPath(s.id), s.name || s.id, { style: 'font-weight:600' }), el('span', { class: 'chip' }, `v${s.version}`),
         where === 'file' ? el('span', { class: 'chip chip-bronze' }, 'in the file only') : null,
+        scanResolvesByExport(s.universe) ? el('span', { class: 'chip' }, 'resolved from your latest export') : null,
         el('span', { class: `chip ${wd?.same ? 'chip-ok' : 'chip-warn'}` }, wd?.same ? 'snapshot matches the list' : 'snapshot differs'),
       ]));
       p.append(el('p', { class: 'caption', style: 'margin-top:4px' }, wd?.text || ''));
@@ -1378,6 +1658,14 @@ VIEWS.scannerAlerts = () => {
   const qs = new URLSearchParams(location.search);
   const f = { setup: qs.get('setup') || '', symbol: (qs.get('symbol') || '').toUpperCase(), status: (qs.get('status') || prefs.statusFilter).toUpperCase(), page: Math.max(1, parseInt(qs.get('page') || '1', 10) || 1) };
   if (!['OPEN', 'NEW', 'READ', 'ARCHIVED', 'ALL'].includes(f.status)) f.status = 'OPEN';
+  /* The bar range, held in the address like the other filters (?from= and
+     ?to=, inclusive session dates). A value that is not a date bounds
+     nothing, and the page says it was set aside rather than guess at it. */
+  const dayQ = (k) => { const v = String(qs.get(k) || '').trim(); return scanIsDay(v) ? { v, bad: null } : { v: '', bad: v || null }; };
+  const fromQ = dayQ('from'), toQ = dayQ('to');
+  f.from = fromQ.v; f.to = toQ.v;
+  const inRange = (a) => { const b = scanAlertBar(a); return (!f.from || b >= f.from) && (!f.to || b <= f.to); };
+  const rangeText = f.from && f.to ? `between ${f.from} and ${f.to}` : f.from ? `on or after ${f.from}` : f.to ? `on or before ${f.to}` : '';
   const unread = scanUnreadCount();
   wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first — a record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
   if (!scanAlertsFile) {
@@ -1396,7 +1684,7 @@ VIEWS.scannerAlerts = () => {
   wrap.append(el('div', { class: 'card' }, tiles));
   const setIds = [...new Set(all.map(a => a.setupId).filter(Boolean))];
   const symbols = [...new Set(all.map(a => String(a.symbol || '').toUpperCase()).filter(Boolean))].sort();
-  const shown = all.filter(a => (!f.setup || a.setupId === f.setup) && (!f.symbol || String(a.symbol || '').toUpperCase() === f.symbol)
+  const shown = all.filter(a => (!f.setup || a.setupId === f.setup) && (!f.symbol || String(a.symbol || '').toUpperCase() === f.symbol) && inRange(a)
     && (f.status === 'ALL' || (f.status === 'OPEN' ? scanAlertStatus(a, st) !== 'ARCHIVED' : scanAlertStatus(a, st) === f.status)));
   const size = prefs.pageSize;
   const pages = Math.max(1, Math.ceil(shown.length / size));
@@ -1414,7 +1702,8 @@ VIEWS.scannerAlerts = () => {
     render();
   };
   const card = el('div', { class: 'card' });
-  const fl = el('div', { class: 'grid g-4 scan-grid scan-filters' });
+  /* Five filters: one row on a desktop, one column on a phone. */
+  const fl = el('div', { class: 'grid scan-grid scan-filters', style: 'grid-template-columns:repeat(auto-fit, minmax(180px, 1fr))' });
   const fsel = (label, val, opts, key) => {
     const id = `scanf-${++scanFieldSeq}`;
     const s = el('select', { class: 'select', id, 'aria-label': label, onchange: e => setQ({ [key]: e.target.value }) });
@@ -1425,7 +1714,25 @@ VIEWS.scannerAlerts = () => {
   fl.append(fsel('Setup', f.setup, [['', 'Every setup'], ...setIds.map(id => [id, nameOf(id)])], 'setup'));
   fl.append(fsel('Symbol', f.symbol, [['', 'Every symbol'], ...symbols.map(s => [s, s])], 'symbol'));
   fl.append(fsel('Status', f.status, [['OPEN', 'New and read'], ['NEW', 'New'], ['READ', 'Read'], ['ARCHIVED', 'Archived'], ['ALL', 'All, archived included']], 'status'));
+  /* A date is applied when the field is left or Enter is pressed, not on
+     each keystroke: a typed year passes through 0002 and 0020 on its way to
+     2026, and re-drawing the page at each would take the field away from
+     the cursor. */
+  const fdate = (label, val, key) => {
+    const id = `scanf-${++scanFieldSeq}`;
+    const commit = (e) => { const v = e.target.value || ''; if (v !== (val || '') && (!v || scanIsDay(v))) setQ({ [key]: v }); };
+    return el('div', { class: 'field' }, [el('label', { for: id }, label),
+      el('input', { class: 'input', type: 'date', id, value: val || '', 'aria-label': label, onblur: commit, onkeydown: (e) => { if (e.key === 'Enter') commit(e); } })]);
+  };
+  fl.append(fdate('Bar from', f.from, 'from'));
+  fl.append(fdate('Bar to', f.to, 'to'));
   card.append(fl);
+  const setAside = [fromQ.bad ? `“${fromQ.bad}” (from)` : null, toQ.bad ? `“${toQ.bad}” (to)` : null].filter(Boolean);
+  if (rangeText || setAside.length) card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-top:var(--sm)' }, [
+    rangeText ? el('span', { class: 'metaline' }, `Bars ${rangeText}, inclusive.`) : null,
+    setAside.length ? el('span', { class: 'caption' }, `${setAside.join(' and ')} ${setAside.length === 1 ? 'is' : 'are'} not a date (YYYY-MM-DD), so ${setAside.length === 1 ? 'it bounds' : 'they bound'} nothing.`) : null,
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => setQ({ from: '', to: '' }) }, 'Clear the dates'),
+  ]));
 
   if (!all.length) {
     card.append(el('div', { class: 'scan-empty', style: 'padding:var(--lg) 0 var(--sm)' }, [
@@ -1437,8 +1744,8 @@ VIEWS.scannerAlerts = () => {
   if (!shown.length) {
     card.append(el('div', { class: 'scan-empty', style: 'padding:var(--lg) 0 var(--sm)' }, [
       el('h2', { class: 'h-card' }, 'No match fits these filters'),
-      el('p', { class: 'body', style: 'margin:6px auto 0' }, `${scanPlural(all.length, 'match', 'matches')} ${all.length === 1 ? 'is' : 'are'} recorded; none is ${f.status === 'OPEN' ? 'new or read' : f.status === 'ALL' ? 'left' : f.status.toLowerCase()}${f.setup ? ` for ${nameOf(f.setup)}` : ''}${f.symbol ? ` on ${f.symbol}` : ''}.`),
-      el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--sm)' }, el('button', { class: 'btn btn-ghost btn-sm', onclick: () => setQ({ setup: '', symbol: '', status: 'ALL' }) }, 'Show every match'))]));
+      el('p', { class: 'body', style: 'margin:6px auto 0' }, `${scanPlural(all.length, 'match', 'matches')} ${all.length === 1 ? 'is' : 'are'} recorded; none is ${f.status === 'OPEN' ? 'new or read' : f.status === 'ALL' ? 'left' : f.status.toLowerCase()}${f.setup ? ` for ${nameOf(f.setup)}` : ''}${f.symbol ? ` on ${f.symbol}` : ''}${rangeText ? ` with a bar ${rangeText}` : ''}.${f.from && f.to && f.from > f.to ? ' The range ends before it begins.' : ''}`),
+      el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--sm)' }, el('button', { class: 'btn btn-ghost btn-sm', onclick: () => setQ({ setup: '', symbol: '', status: 'ALL', from: '', to: '' }) }, 'Show every match'))]));
     wrap.append(card);
     return wrap;
   }
@@ -1490,7 +1797,7 @@ VIEWS.scannerAlerts = () => {
       el('td', { class: 'ident' }, scanAlertBar(a) || '—'),
       el('td', { style: 'text-align:left' }, [a.setupName || a.setupId, a.setupVersion != null ? el('span', { class: 'caption' }, ` v${a.setupVersion}`) : null]),
       el('td', { style: 'text-align:left' }, scanSymbolLink(a.symbol)),
-      el('td', { class: 'caption', style: 'text-align:left' }, (a.eventType || 'MATCH').replace('_', ' ').toLowerCase()),
+      el('td', { class: 'caption', style: 'text-align:left' }, `${(a.eventType || 'MATCH').replace('_', ' ').toLowerCase()}${a.gapBefore === true ? ' · across a gap' : ''}`),
       el('td', { class: 'num' }, isNum(a.close) ? scanFmt(a.close) : '—'),
       el('td', {}, scanLink(scanAlertPath(a), 'Open', { 'aria-label': `Open ${a.setupName || a.setupId} on ${a.symbol}, ${scanAlertBar(a)}` })),
     ]);
@@ -1523,15 +1830,116 @@ const SCAN_BAR_STATUS_TEXT = {
   UNKNOWN: 'Unknown — no capture time is recorded for this bar (every bar captured before capture times were kept). It was evaluated once its session had closed.',
   CORRECTED: 'Corrected — the source revised this bar after it was first captured.',
 };
+/* THE RECORD, EVALUATED AGAIN (SC-310). The setup the record names — its
+   snapshot, or for a record that predates snapshots the version this
+   browser holds under that number — on the history as loaded, cut at the
+   alert's bar and read as the run read it: the same market, the calendar
+   inferred from the cut history, and the clock of the moment it was
+   detected. So nothing after the bar can reach the answer. It reproduces
+   when the conditions hold on that bar again, the event is the one
+   recorded, and every value the record holds comes back within the
+   engine's float tolerance.
+   Either way, the bars whose closes differ from the record are named. The
+   record holds a close for every bar it recorded on this instrument (this
+   alert's and any other setup's), and the history's corrections log names
+   closes changed after this one was detected; a change the record cannot
+   see — an open, a volume, a bar added or trimmed — is said to be there,
+   not guessed at. */
+function scanReproduce(a, { history = scanHistoryFile, list = scanAlertList() } = {}) {
+  const bar = scanAlertBar(a), sym = a.symbol;
+  const out = { bar, sym, bars: null, at: -1, closes: [], values: [], state: null, text: '' };
+  if (!history?.series) return { ...out, state: 'NO_HISTORY', text: 'The price history is not loaded here, so the bar cannot be evaluated again — on the deployed site it never is.' };
+  if (!history.series[sym]) return { ...out, state: 'NO_SERIES', text: `The history holds no series ${sym}, so the bar cannot be evaluated again.` };
+  const heldNow = history.series[sym];
+  const since = a.detectedAt || a.recordedAt || null;
+  const diffs = new Map();
+  const note = (x) => {
+    const d = scanAlertBar(x);
+    if (!x || x.symbol !== sym || !d || d > bar || !isNum(x.close) || diffs.has(d)) return;
+    const now = heldNow[d];
+    if (!isNum(now) || Math.abs(now - x.close) > scanTol(now, x.close)) diffs.set(d, { date: d, recorded: x.close, now: isNum(now) ? now : null, via: 'record' });
+    else diffs.set(d, null);
+  };
+  note(a);
+  list.forEach(note);
+  (Array.isArray(history.corrections?.[sym]) ? history.corrections[sym] : []).forEach(c => {
+    if (c?.field !== 'close' || !c.date || c.date > bar || diffs.get(c.date)) return;
+    if (since && c.at && String(c.at) <= String(since)) return;
+    diffs.set(c.date, { date: c.date, recorded: c.from ?? null, now: c.to ?? null, via: 'correction', at: c.at || null, src: c.src || null });
+  });
+  out.closes = [...diffs.values()].filter(Boolean).sort((x, y) => y.date.localeCompare(x.date));
+  const src = scanAlertSetup(a);
+  const reg = scanRegistryList();
+  const mkt = 'market' in a ? a.market : scanMarketOf(sym, reg);
+  const cut = scanTruncateHistory(history, bar);
+  const bars = scanBars(cut, sym, { timeframe: scanTimeframe(a.timeframe), market: mkt, now: a.detectedAt || scanReplayNow(bar), calendar: scanCalendar(cut, reg, mkt) });
+  const at = bars.dates.length - 1;
+  Object.assign(out, { bars, at });
+  if (at < 0 || bars.dates[at] !== bar) return { ...out, state: 'NO_BAR', text: `The history no longer holds the ${bar} bar for ${sym}, so it cannot be evaluated again.` };
+  if (!src) return { ...out, state: 'NO_SETUP', text: `The record carries no copy of its setup (it predates engine 0.3.0), and this browser does not hold v${a.setupVersion ?? 1} of ${a.setupId}, so there are no conditions to evaluate again.` };
+  const C = scanPageCache();
+  const r = scanEvaluate(src.setup.ruleTree, bars, { at, cache: C });
+  let event = null;
+  if (r.state === 'MET') {
+    if (src.setup.cooldownMode === 'NEW_MATCH') {
+      const p = scanEvaluate(src.setup.ruleTree, bars, { at: at - 1, cache: C });
+      event = p.state === 'MET' ? 'CONTINUING' : p.state === 'NOT_MET' ? 'NEW_MATCH' : 'FIRST_OBSERVED';
+    } else event = 'MATCH';
+  }
+  const sameV = (x, y) => (Array.isArray(x) || Array.isArray(y)
+    ? Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v, i) => sameV(v, y[i]))
+    : x == null || y == null ? x == null && y == null : isNum(x) && isNum(y) && Math.abs(x - y) <= scanTol(x, y));
+  (Array.isArray(a.matchedConditions) ? a.matchedConditions : []).forEach(c => {
+    const n = r.conditions.find(x => x.path === c.path);
+    if (!n || !sameV(c.left, n.leftValue) || !sameV(c.right, n.rightValue)) out.values.push({ path: c.path, text: c.text, now: n ? n.text : 'no such condition now' });
+  });
+  const eventOk = a.eventType ? event === a.eventType : r.state === 'MET';
+  const ev = (e) => ({ NEW_MATCH: 'a new match', MATCH: 'a match', FIRST_OBSERVED: 'a first observation', CONTINUING: 'a match continuing from the bar before' }[e] || 'no match');
+  out.eval = r; out.event = event; out.from = src.from;
+  if (r.state === 'MET' && eventOk && !out.values.length) {
+    out.state = 'REPRODUCES';
+    out.text = `Reproduces. Evaluated again on data/price-history.json as loaded, cut at ${bar}: the conditions hold on that bar${a.eventType && a.eventType !== 'MATCH' ? ` as ${ev(event)}` : ''}, and ${a.matchedConditions ? 'every value the record holds comes back the same' : 'the record holds no values to compare (it predates engine 0.3.0)'}.`;
+  } else {
+    out.state = 'DIFFERS';
+    const why = [];
+    if (r.state !== 'MET') why.push(`the setup is ${r.state === 'NOT_MET' ? 'not met' : 'untested'} on that bar now${r.state === 'UNAVAILABLE' && r.reason?.text ? ` (${r.reason.text})` : ''}`);
+    else if (!eventOk) why.push(`the bar is now ${ev(event)}, where the record holds ${ev(a.eventType)}`);
+    if (out.values.length) why.push(`${scanPlural(out.values.length, 'condition')} ${out.values.length === 1 ? 'reads' : 'read'} different values from the record`);
+    out.text = `Does not reproduce. Evaluated again on data/price-history.json as loaded, cut at ${bar}: ${why.join('; ')}.`;
+  }
+  return out;
+}
+
 VIEWS.scannerAlert = () => {
   const wrap = scanPage();
   const want = scanParam('alert');
+  const wantKey = new URLSearchParams(location.search).get('key');
   const list = scanAlertList();
-  const a = list.find(x => scanAlertIdOf(x) === want) || list.find(x => x.key === want) || null;
+  /* By id — and where records with different keys share that id (NAV 1),
+     by the key the address carries, or not at all: the page lists every
+     record under the id rather than show one of them as though it were the
+     only one. A 0.2 record with no id resolves by the id its key gives. */
+  const byId = list.filter(x => scanAlertIdOf(x) === want);
+  const clash = new Set(byId.map(x => x.key ?? '')).size > 1 ? byId : null;
+  const a = clash ? (wantKey ? clash.find(x => x.key === wantKey) || null : null) : byId[0] || list.find(x => x.key === want) || null;
   /* Opening an alert is reading it — before the strip is drawn, so its
      unread count already leaves this one out. */
   if (a && scanAlertStatus(a) === 'NEW') scanSetAlertStatus([scanAlertIdOf(a)], 'READ');
   wrap.append(scanSubnav('alerts'));
+  if (clash && !a) {
+    const card = el('div', { class: 'card scan-collision' });
+    card.append(el('p', { class: 'eyebrow' }, 'One id, several records'));
+    card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, `${scanPlural(clash.length, 'record')} share the id ${want}`));
+    card.append(el('p', { class: 'body', style: 'margin-top:8px;max-width:72ch' }, `An alert’s id is an eight-digit hash of its key, so two different keys can, rarely, give the same id. Each record is listed with its own key and opens by it. Their read and archived status in this browser is shared, because status is kept by id.${wantKey ? ` None of them has the key ${wantKey}.` : ''}`));
+    const ul = el('ul', { class: 'scan-alert-mini', style: 'margin-top:var(--sm)' });
+    clash.forEach(x => ul.append(el('li', {}, [
+      scanLink(`/app/scanner/alerts/${encodeURIComponent(want)}?key=${encodeURIComponent(x.key ?? '')}`, `${scanAlertBar(x) || '—'} · ${x.setupName || x.setupId} · ${x.symbol}`), ' ',
+      el('span', { class: 'caption' }, `${(x.eventType || 'MATCH').replace('_', ' ').toLowerCase()} · detected ${scanStamp(x.detectedAt || x.recordedAt)} · key ${x.key ?? '—'}`),
+    ])));
+    card.append(ul);
+    wrap.append(card);
+    return wrap;
+  }
   if (!a) {
     wrap.append(scanNotInRecord(`No alert “${want}”`, scanAlertsFile
       ? `data/scan-alerts.json holds ${scanPlural(list.length, 'record')}, and none has that id. An alert’s id is taken from its key, so it does not change; a record removed from the file cannot be shown.`
@@ -1553,6 +1961,13 @@ VIEWS.scannerAlert = () => {
     el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { scanSetAlertStatus([id], 'NEW'); toast('Marked new'); render(); } }, 'Mark new'),
   ]));
   wrap.append(head);
+  if (clash) {
+    wrap.append(el('div', { class: 'card', role: 'note' }, [
+      el('p', { class: 'caption scan-note scan-warn', style: 'margin:0' }, `This id is shared by ${scanPlural(clash.length, 'record')} with different keys; this page shows the one whose key is ${a.key}. Their status in this browser is shared, because status is kept by id. The others:`),
+      el('ul', { class: 'scan-alert-mini' }, clash.filter(x => x !== a).map(x => el('li', {}, scanLink(`/app/scanner/alerts/${encodeURIComponent(want)}?key=${encodeURIComponent(x.key ?? '')}`, `${scanAlertBar(x) || '—'} · ${x.setupName || x.setupId} · ${x.symbol} · key ${x.key ?? '—'}`)))),
+    ]));
+  }
+  const rep = scanReproduce(a);
 
   /* ---- the bar ---- */
   const mk = a.market ? scanMarket(a.market) : null;
@@ -1564,7 +1979,18 @@ VIEWS.scannerAlert = () => {
   f1.append(scanFact('Instrument', el('span', {}, [scanSymbolLink(a.symbol), a.instrumentId && a.instrumentId !== a.symbol ? el('span', { class: 'caption' }, ` · ${a.instrumentId}`) : null]),
     a.instrumentId ? null : legacy ? nr : 'no row in data/instruments.json, so no canonical id'));
   f1.append(scanFact('Close on the bar', isNum(a.close) ? scanValueText(a.close, prefs) : null));
-  f1.append(scanFact('Event', (a.eventType || (legacy ? 'MATCH' : null))?.replace('_', ' ').toLowerCase(), SCAN_EVENT_TEXT[a.eventType || 'MATCH']));
+  /* Volume on the bar (C2's barVolume). Recorded as null, the history held
+     none — which is not a volume of nought. Absent, the record predates
+     the field, and the history's reading now is offered as that, not as
+     the record's. */
+  const volNow = rep.bars && rep.at >= 0 && rep.bars.dates[rep.at] === bar ? rep.bars.volumes[rep.at] : null;
+  f1.append('barVolume' in a
+    ? scanFact('Volume on the bar', a.barVolume == null ? 'none held' : scanValueText(a.barVolume, prefs), a.barVolume == null ? 'The history held no volume for this bar when it was evaluated — a missing volume is not a volume of nought.' : 'as the record holds it')
+    : scanFact('Volume on the bar', null, isNum(volNow) ? `Not on the record, which predates the field. The history as loaded holds ${scanValueText(volNow, prefs)} for this bar now.` : 'Not on the record, which predates the field, and the history as loaded holds none for this bar.'));
+  /* A NEW_MATCH across a missing session (C2's gapBefore): the bar before
+     it was not the previous session, and the record says which. */
+  const gap = a.gapBefore === true ? ` Across a gap: ${a.gapText || 'a session is missing between this bar and the bar before it.'}` : '';
+  f1.append(scanFact('Event', `${(a.eventType || (legacy ? 'MATCH' : '')).replace('_', ' ').toLowerCase()}${a.gapBefore === true ? ' · across a gap' : ''}` || null, `${SCAN_EVENT_TEXT[a.eventType || 'MATCH']}${gap}`));
   f1.append(scanFact('Detected', scanStamp(a.detectedAt || a.recordedAt), a.runId ? `run ${a.runId}${a.origin ? ` · ${a.origin}` : ''}` : legacy ? nr : null));
   c1.append(f1);
   wrap.append(c1);
@@ -1582,12 +2008,25 @@ VIEWS.scannerAlert = () => {
     [a.setupHash ? `hash ${a.setupHash}` : null, legacy ? 'a 0.2 record — read as version 1' : null,
      cur ? (cur.version === version && (!a.setupHash || cur.hash === a.setupHash) ? 'still the current version' : `the setup is now v${cur.version}`) : 'not saved in this browser'].filter(Boolean).join(' · ')));
   f2.append(scanFact('Recording', a.cooldownMode ? (a.cooldownMode === 'NEW_MATCH' ? 'New match' : 'Every match') : nr));
-  c2.append(f2);
   const snap = a.setupSnapshot ? scanNormaliseSetup({ ...a.setupSnapshot, id: a.setupId }) : heldV ? scanRecordSetup(rec, version) : null;
+  /* Where the worker took a watchlist's members from on that run (C2's
+     universeResolvedFrom): the snapshot the setup carried, or the export
+     it read. */
+  const urf = a.universeResolvedFrom && typeof a.universeResolvedFrom === 'object' ? a.universeResolvedFrom : null;
+  if (urf || snap?.universe?.kind === 'watchlist') f2.append(scanFact('Universe resolved from',
+    urf ? (urf.source === 'export' ? `your export of ${scanStamp(urf.exportedAt)}` : `the snapshot of ${urf.asOf || '?'}`) : null,
+    urf ? (urf.source === 'export' ? 'data/watchlists.json as the worker read it at run time — the list as of that export, not as it stands in this browser' : 'the symbols the setup carried; the list was not taken from an export on that run')
+      : 'The record does not say whether the worker read the snapshot or an export.'));
+  c2.append(f2);
   if (snap) {
     c2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `Universe: ${scanUniverseProse(snap.universe)}${a.setupSnapshot ? '' : ' (from the version held in this browser; the record carries no snapshot)'}.`));
     c2.append(scanTreeList(snap.ruleTree));
   }
+  /* The setup behind this record, as a new draft (C5's ?fromAlert=). */
+  const build = `/app/scanner/setups/new?fromAlert=${encodeURIComponent(id)}${clash ? `&key=${encodeURIComponent(a.key ?? '')}` : ''}`;
+  c2.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-top:var(--sm)' }, snap
+    ? [scanLink(build, 'Build a setup from this one', { class: 'btn btn-ghost btn-sm' }), el('span', { class: 'caption' }, 'A copy of these conditions in the builder, under a new id. The setup and this record are unchanged.')]
+    : [el('span', { class: 'caption' }, `No copy of the setup to build from: the record carries none, and this browser does not hold v${version ?? '?'} of ${a.setupId}.`)]));
   wrap.append(c2);
 
   /* ---- every condition, with its values ---- */
@@ -1613,15 +2052,52 @@ VIEWS.scannerAlert = () => {
   c3.append(el('div', { class: 'tablewrap' }, t));
   wrap.append(c3);
 
+  /* ---- the closes up to it, and the bar evaluated again ---- */
+  const c5 = el('div', { class: 'card' });
+  c5.append(cardHead('Evaluated again', 'The closes up to this bar and no further, and the same conditions on the history as it is loaded now, cut at the bar.'));
+  /* The sparkline draws the cut series only, so no close after the bar is
+     on it; the text beside it says what it shows, for anyone who cannot
+     see the line. */
+  if (rep.bars && rep.at >= 1 && rep.bars.dates[rep.at] === bar) {
+    const n = Math.min(60, rep.at + 1), from = rep.at + 1 - n;
+    const cl = rep.bars.closes.slice(from, rep.at + 1);
+    const sp = sparkline(cl, { w: 360, h: 72 });
+    sp.setAttribute('style', 'width:100%;max-width:360px;height:auto;display:block');
+    sp.classList.add('scan-spark');
+    const lo = Math.min(...cl.filter(isNum)), hi = Math.max(...cl.filter(isNum));
+    c5.append(el('figure', { class: 'row row-wrap', style: 'gap:var(--sm) var(--lg);align-items:center;margin:0' }, [
+      el('div', { style: 'flex:1 1 260px;max-width:360px;min-width:0' }, sp),
+      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${scanValueText(lo, prefs)}, highest ${scanValueText(hi, prefs)}; the marked point is ${bar}, at ${scanValueText(cl[cl.length - 1], prefs)}.`),
+    ]));
+  } else c5.append(el('p', { class: 'caption' }, rep.state === 'NO_HISTORY' || rep.state === 'NO_SERIES' || rep.state === 'NO_BAR' ? 'No closes are drawn: ' + rep.text.charAt(0).toLowerCase() + rep.text.slice(1) : 'Fewer than two bars are held up to this one, so no line is drawn.'));
+  const verdict = el('p', { class: `scan-reproduce scan-note${rep.state === 'REPRODUCES' ? '' : ' scan-warn'}`, role: 'status', style: 'margin-top:var(--sm)' }, rep.text);
+  c5.append(verdict);
+  if (rep.values.length) c5.append(el('ul', { class: 'rulelist' }, rep.values.map(v => el('li', { class: 'caption' }, `${v.path}: recorded “${v.text}”; now “${v.now}”`))));
+  if (rep.bars) {
+    const fmtC = (v) => (isNum(v) ? scanValueText(v, prefs) : 'not held');
+    c5.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, rep.closes.length
+      ? `${scanPlural(rep.closes.length, 'bar')} up to ${bar} ${rep.closes.length === 1 ? 'has a close' : 'have closes'} that differ from the record:`
+      : `No close the record holds for ${a.symbol} up to ${bar} differs from the history, and its corrections log names none changed since this was detected.`));
+    if (rep.closes.length) c5.append(el('ul', { class: 'rulelist scan-close-diffs' }, rep.closes.slice(0, 20).map(x => el('li', { class: 'caption' }, x.via === 'record'
+      ? `${x.date} — recorded ${fmtC(x.recorded)}, now ${fmtC(x.now)}`
+      : `${x.date} — corrected${x.at ? ` ${scanStamp(x.at)}` : ' (time not recorded)'}${x.src ? ` by ${x.src}` : ''}, from ${fmtC(x.recorded)} to ${fmtC(x.now)}`))));
+    if (rep.closes.length > 20) c5.append(el('p', { class: 'caption' }, `Showing the latest 20 of ${rep.closes.length}.`));
+  }
+  wrap.append(c5);
+
   /* ---- the data behind it ---- */
   const c4 = el('div', { class: 'card' });
   c4.append(cardHead('The data behind it', 'Where the bar came from, and whether the history still holds it as it was.'));
   const f4 = el('div', { class: 'scan-facts' });
   f4.append(scanFact('Data source', a.dataSourceId || nr, a.dataSourceId ? 'as the history names it — per bar where it records one, otherwise for the whole file' : null));
   f4.append(scanFact('Data version', a.dataVersion || nr, a.dataVersion ? 'a hash of every bar up to this one — date, open, high, low, close, volume and status' : null));
+  /* C2's historyGenerated: the history file's own stamp when the worker
+     read it — file-level provenance, labelled as such. */
+  f4.append(scanFact('History file', a.historyGenerated ? scanStamp(a.historyGenerated) : null, a.historyGenerated ? 'when data/price-history.json was generated, as the worker read it — the whole file’s stamp, not this bar’s' : 'The record does not carry the history file’s generated time.'));
   /* The same bars now: the dataset's version recomputed from the history as
      loaded, up to this bar. Equal means the evidence is unchanged; not equal
-     names that the history moved, not which way. */
+     names that the history moved — the closes above say where, when the
+     record can tell. */
   let now = null;
   if (scanHistoryFile?.series?.[a.symbol] && a.dataVersion) {
     /* Read as the run read it: the same market, the same inferred calendar,
@@ -1646,9 +2122,9 @@ VIEWS.scannerAlert = () => {
   f4.append(scanFact('Run', a.runId || (legacy ? nr : null), run ? `${run.status || '?'}${run.trigger ? ` · ${run.trigger}` : ''} · started ${scanStamp(run.startedAt)}` : runs ? 'not in the loaded run log' : 'the run log (data/scan-runs.json) is not loaded'));
   c4.append(f4);
   const lineage = el('ol', { class: 'scan-lineage' }, [
-    el('li', {}, `data/price-history.json${scanHistoryFile?.generated ? `, generated ${scanStamp(scanHistoryFile.generated)}` : ''}${scanHistoryFile?.source ? `, source “${scanHistoryFile.source}”` : ''}`),
+    el('li', {}, `data/price-history.json${a.historyGenerated ? `, generated ${scanStamp(a.historyGenerated)} when this was evaluated` : scanHistoryFile?.generated ? `, generated ${scanStamp(scanHistoryFile.generated)} as loaded now` : ''}${scanHistoryFile?.source ? `, source “${scanHistoryFile.source}”` : ''}`),
     el('li', {}, `series ${a.symbol}${a.instrumentId && a.instrumentId !== a.symbol ? ` (${a.instrumentId})` : ''}, ${SCAN_TIMEFRAMES[scanTimeframe(a.timeframe)]?.label?.toLowerCase() || 'daily'} bars up to ${bar}${a.dataVersion ? ` — data version ${a.dataVersion}` : ''}`),
-    el('li', {}, `engine ${a.engine || '?'} evaluated setup ${a.setupId} v${version ?? '?'}${a.runId ? ` in run ${a.runId}` : ''}`),
+    el('li', {}, `engine ${a.engine || '?'} evaluated setup ${a.setupId} v${version ?? '?'}${a.runId ? ` in run ${a.runId}` : ''}${urf ? `, its list resolved from ${urf.source === 'export' ? `the export of ${scanStamp(urf.exportedAt)}` : `its snapshot of ${urf.asOf || '?'}`}` : ''}`),
     el('li', {}, 'written to data/scan-alerts.json; read here. Nothing was sent.'),
   ]);
   c4.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Lineage'));
