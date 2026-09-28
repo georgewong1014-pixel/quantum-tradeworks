@@ -7359,6 +7359,220 @@ try {
   }
   /* ---- end bugfix5: shell ---- */
 
+  /* ---- bot: pages ---- */
+  /* THE READER'S TRADINGVIEW BOT ON THE SCANNER PAGES (the bot contract,
+     B1–B4, 86-scanner.js):
+     1. the builder offers each condition the setup's timeframe and the
+        higher ones only, and names the one chosen in the condition's
+        sentence ("… on the last closed weekly bar");
+     2. a yes-or-no left side becomes "equals 1", reads "is true" or "is
+        false", and its right side is a true-or-false choice, not a number;
+     3. "Add your TradingView bot's signals" on the setups page offers the
+        history's instruments with XAUUSD first and ticked, weekly and
+        monthly ticked, every one of the script's alert titles as the
+        script's in three groups with its three aggregates unticked, new
+        matches and the EMA 200 by default; it saves what scanBotPack makes
+        into this browser, says they must be exported, and says per
+        instrument what weekly and monthly conditions need against the
+        daily bars held;
+     4. the setup page and the alert page say each condition's timeframe,
+        and the alert page and the setup's matches the bar each was read on.
+     On synthetic data only. Where this build's engine does not yet carry
+     B1 (a condition's timeframe kept through normalising) or B4
+     (SCAN_BOT_SIGNALS, scanBotPack), a stand-in written to the contract is
+     installed for the length of the block and removed after, so the checks
+     read the pages, and hold on the engine that does carry them. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const main = () => document.querySelector('main');
+      const keep = { h: scanHistoryFile, a: scanAlertsFile, s: scanSetupsFile, store: localStorage.getItem('vl.scanSetups'), n: window.scanNormaliseNode, c: window.scanCanonicalOf,
+        bot: JSON.stringify(scanBotState), draft: scanDraft };
+      const out = { stub: { b1: 'real', b4: 'real' } };
+      try {
+        /* The stand-ins, only where the engine lacks the real thing. */
+        if (scanNormaliseNode({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 }, timeframe: '1W' }).timeframe !== '1W') {
+          out.stub.b1 = 'stub';
+          const n0 = keep.n, c0 = keep.c;
+          window.scanNormaliseNode = (node) => { const x = n0(node); if (x && x.type === 'condition' && node && node.timeframe != null) x.timeframe = node.timeframe; return x; };
+          window.scanCanonicalOf = (s) => { const t = []; const walk = (n, p) => { if (n && n.type === 'group') (n.children || []).forEach((c, j) => walk(c, p + '.' + (j + 1))); else if (n && n.timeframe != null) t.push(p + '=' + n.timeframe); }; walk(s.ruleTree, ''); return c0(s) + (t.length ? '|tf:' + t.join(',') : ''); };
+        }
+        if (typeof scanBotPack !== 'function') {
+          out.stub.b4 = 'stub';
+          const S = (id, title, needs, description) => ({ id, title, description, needsTradeTimeframe: needs });
+          window.SCAN_BOT_SIGNALS = [S('tier1-buy', 'Trade TF Tier 1 Buy', true, 'd'), S('tier2-buy', 'Trade TF Tier 2 Buy', true, 'd'), S('tier1-sell', 'Trade TF Tier 1 Sell', true, 'd'),
+            S('tier2-sell', 'Trade TF Tier 2 Sell', true, 'd'), S('entry-buy', 'Entry TF Buy', false, 'd'), S('entry-sell', 'Entry TF Sell', false, 'd'), S('entry-trade', 'Entry TF Trade', false, 'd'),
+            S('strong-buy-continuous', 'STRONG BUY CONTINUOUS', true, 'd'), S('strong-buy-reversal', 'STRONG BUY REVERSAL', true, 'd'), S('strong-sell-continuous', 'STRONG SELL CONTINUOUS', true, 'd'),
+            S('strong-sell-reversal', 'STRONG SELL REVERSAL', true, 'd'), S('weak-buy', 'WEAK BUY', true, 'd'), S('weak-sell', 'WEAK SELL', true, 'd'), S('any-strong', 'ANY STRONG SIGNAL', true, 'd'), S('any-weak', 'ANY WEAK SIGNAL', true, 'd')];
+          window.scanBotPack = ({ symbols = [], universe = null, tradeTimeframes = ['1W', '1M'], signals = [], cooldownMode = 'NEW_MATCH', criterion3 = 'ema' } = {}) => {
+            const C = (left, op, right, tf) => ({ type: 'condition', left, op, right, ...(tf !== '1D' ? { timeframe: tf } : {}) });
+            const k = (tf) => ({ c1: C({ indicator: 'wavetrend', field: 'wt1' }, 'GREATER_THAN', { indicator: 'wavetrend', field: 'wt2' }, tf),
+              c2: C({ indicator: 'bot_macd', field: 'bull' }, 'EQUALS', { value: 1 }, tf), c3: C({ indicator: 'price' }, 'GREATER_THAN', { indicator: criterion3 === 'sma' ? 'sma' : 'ema', n: 200 }, tf),
+              c4: C({ indicator: 'mcdx', field: 'banker' }, 'GREATER_THAN', { value: 5 }, tf), up: C({ indicator: 'bot_macd', field: 'histUp' }, 'EQUALS', { value: 1 }, tf) });
+            const out2 = [];
+            window.SCAN_BOT_SIGNALS.filter(s => signals.includes(s.id)).forEach(s => (s.needsTradeTimeframe ? tradeTimeframes : ['1D']).forEach(T => {
+              const t = k(T), d = k('1D');
+              out2.push({ id: 'mtfbot-' + ({ '1W': 'w', '1M': 'm' }[T] || 'd') + '-' + s.id, name: 'MTF bot · ' + T + ' · ' + s.title, enabled: true, universe: universe || { kind: 'symbols', symbols },
+                timeframe: '1D', cooldownMode, ruleTree: { type: 'group', logic: 'ALL', children: T === '1D' ? [d.c1, d.c2, d.c3, d.c4] : [t.c1, t.c2, { type: 'group', logic: 'ANY', children: [t.c3, t.c4] }, d.c1, d.c2, d.c3, d.c4, t.up] } });
+            }));
+            return out2;
+          };
+        }
+        /* Synthetic: 300 weekday sessions of three instruments, with highs and lows. */
+        const series = {}, ohlc = {}, days = [];
+        for (let d = new Date('2026-09-25T00:00:00Z'); days.length < 300; d.setUTCDate(d.getUTCDate() - 1)) if (d.getUTCDay() % 6) days.unshift(d.toISOString().slice(0, 10));
+        [['XAUUSD', 2000, 1], ['EURUSD', 1.1, 0.001], ['BTCUSD', 60000, 30]].forEach(([sym, base, step], si) => { series[sym] = {}; ohlc[sym] = {};
+          days.forEach((day, i) => { const c = +(base + step * (Math.sin(i / 9 + si) * 20 + i * 0.3)).toFixed(4); series[sym][day] = c; ohlc[sym][day] = [c, +(c + 3 * step).toFixed(4), +(c - 3 * step).toFixed(4), c]; }); });
+        scanHistoryFile = { generated: '2026-09-25T22:00:00Z', series, ohlc, volume: {} };
+        scanAlertsFile = { alerts: [] }; scanSetupsFile = null;
+        localStorage.removeItem('vl.scanSetups');
+        Object.assign(scanBotState, { open: false, symbols: null, tfs: ['1W', '1M'], signals: null, cooldownMode: 'NEW_MATCH', criterion3: 'ema', result: null });
+
+        /* 1 and 2 — the builder. */
+        scanDraft = null;
+        navigate('/app/scanner/setups/new'); await w(200);
+        const sel = (l) => main().querySelector('select[aria-label="' + l + '"]');
+        const pick = async (l, v) => { const s = sel(l); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); await w(60); };
+        const prose = () => main().querySelector('.scan-cond .scan-prose')?.textContent || '';
+        out.tfDaily = [...(sel('Condition 1: timeframe')?.options || [])].map(o => o.value);
+        await pick('Condition 1: timeframe', '1W');
+        out.tfProse = prose(); out.tfDraft = scanDraft.ruleTree.children[0].timeframe;
+        await pick('Timeframe', '1W');
+        out.tfWeekly = [...(sel('Condition 1: timeframe')?.options || [])].map(o => o.value + (o.disabled ? '!' : ''));
+        out.tfWeeklyProse = prose();
+        await pick('Timeframe', '1M');
+        out.tfMonthly = [...(sel('Condition 1: timeframe')?.options || [])].map(o => o.value + (o.disabled ? '!' : ''));
+        await pick('Timeframe', '1D');
+        await pick('Condition 1: timeframe', '');
+        out.tfCleared = 'timeframe' in scanDraft.ruleTree.children[0];
+        await pick('Condition 1: timeframe', '1M');
+        await pick('Condition 1: left side', 'wavetrend.crossUp');
+        const c0 = scanDraft.ruleTree.children[0];
+        out.flag = { op: c0.op, right: { ...c0.right }, prose: prose(), number: !!main().querySelector('input[aria-label="Condition 1: right side value"]'),
+          choices: [...(sel('Condition 1: right side value')?.options || [])].map(o => o.value) };
+        await pick('Condition 1: right side value', '0');
+        out.flagFalse = prose();
+        scanDraft = null;
+
+        /* 3 — the bot's signals on the setups page. */
+        navigate('/app/scanner/setups'); await w(200);
+        const card = () => main().querySelector('details.scan-bot');
+        out.cardClosed = !!card() && !card().open && /^Add your TradingView bot’s signals/.test(card().querySelector('summary').textContent);
+        card().querySelector('summary').click(); await w(150);
+        const boxes = (sels) => [...card().querySelectorAll(sels)];
+        out.syms = boxes('.scan-bot-syms input').map(i => i.getAttribute('aria-label').replace('Instrument ', '') + (i.checked ? '*' : ''));
+        out.tfs = boxes('input[aria-label^="Trade timeframe "]').map(i => i.getAttribute('aria-label').replace('Trade timeframe ', '') + (i.checked ? '*' : ''));
+        out.legends = boxes('fieldset.scan-bot-set > legend').map(l => l.textContent);
+        const sig = scanBotSignals();
+        out.signals = sig.map(s => ({ id: s.id, title: s.title, aggregate: s.aggregate, group: s.group,
+          boxes: boxes('input[aria-label="Your script’s ' + s.title + '"]').map(i => i.checked),
+          label: boxes('input[aria-label="Your script’s ' + s.title + '"]').map(i => i.closest('label').querySelector('.scan-radio-l').textContent)[0] || null }));
+        out.defaults = { record: card().querySelector('input[aria-label="Record: New matches"]')?.checked, crit: card().querySelector('input[aria-label="Criterion 3: Close above the EMA 200"]')?.checked };
+        out.needs = card().querySelector('.scan-needs')?.innerText || '';
+        out.expected = scanBotPack(scanBotOptions()).map(s => s.id);
+        card().querySelector('input[aria-label="Criterion 3: Close above the SMA 200"]').click(); await w(40);
+        out.sma = scanBotOptions().criterion3;
+        card().querySelector('input[aria-label="Criterion 3: Close above the EMA 200"]').click(); await w(40);
+        out.button = card().querySelector('button[data-scan-focus="bot-create"]').textContent;
+        const save = card().querySelector('button[data-scan-focus="bot-create"]');
+        save.focus(); save.click(); await w(250);
+        const st = scanStoreRead();
+        out.saved = Object.keys(st.setups).sort();
+        out.sources = [...new Set(Object.values(st.setups).map(r => r.versions[0]?.source))];
+        out.status = card()?.querySelector('.scan-bot-status')?.textContent || '';
+        out.stillOpen = !!card()?.open;
+        out.focus = document.activeElement?.dataset?.scanFocus || null;
+
+        /* 4 — the setup page, and a record of it read on a closed week. */
+        const id = 'mtfbot-w-strong-buy-continuous';
+        const s = scanBrowserSetups().find(x => x.id === id);
+        const conds = []; const walk = (n, p) => { if (n.type === 'group') n.children.forEach((c, j) => walk(c, p ? p + '.' + (j + 1) : String(j + 1))); else conds.push([n, p]); };
+        walk(s.ruleTree, '');
+        out.weeklyConds = conds.filter(([n]) => n.timeframe === '1W').length;
+        navigate('/app/scanner/setups/' + id); await w(200);
+        const cur = [...main().querySelectorAll('.card')].find(c => /^Current version/.test(c.querySelector('h2, h3')?.textContent || ''));
+        out.setupLines = [...cur.querySelectorAll('.rulelist li')].map(li => li.textContent);
+        out.setupTf = [...cur.querySelectorAll('.scan-fact')].find(f => f.querySelector('.stat-label')?.textContent === 'Timeframe')?.innerText || '';
+        out.setupNeeds = cur.querySelector('.scan-needs')?.innerText || '';
+        out.title = scanBotSignals().find(x => x.id === 'strong-buy-continuous')?.title || null;
+        out.origin = [main().querySelector('.scan-bot-origin')?.textContent || ''];
+        const mc = conds.map(([n, p]) => ({ path: p, text: scanConditionProse(n), state: 'MET', status: 'VALID', left: 1, right: 1, ...(n.timeframe ? { timeframe: n.timeframe, barDate: '2026-09-18' } : {}) }));
+        scanAlertsFile = { alerts: [{ id: 'abf0b07a', key: id + '|v1|XAUUSD|1D|2026-09-24|NEW_MATCH', setupId: id, setupName: s.name, setupVersion: 1, setupHash: s.hash, symbol: 'XAUUSD',
+          timeframe: '1D', candleDate: '2026-09-24', close: 2100.5, eventType: 'NEW_MATCH', detectedAt: '2026-09-24T22:05:00Z', setupSnapshot: JSON.parse(JSON.stringify(s)), matchedConditions: mc }] };
+        navigate('/app/scanner/alerts/abf0b07a'); await w(200);
+        const t = [...main().querySelectorAll('table.dt')].find(x => /Conditions evaluated/.test(x.querySelector('caption')?.textContent || ''));
+        out.head = [...t.querySelectorAll('thead th')].map(h => h.textContent);
+        const ri = out.head.indexOf('Read on');
+        out.rows = [...t.querySelectorAll('tbody tr')].map(tr => { const c = [...tr.children]; return [c[0].textContent, ri < 0 ? '' : c[ri].innerText.replace(/\\s+/g, ' ')]; });
+        out.origin.push(main().querySelector('.scan-bot-origin')?.textContent || '');
+        navigate('/app/scanner/setups/' + id); await w(200);
+        out.mini = main().querySelector('.scan-alert-mini')?.textContent || '';
+        return out;
+      } finally {
+        window.scanNormaliseNode = keep.n; window.scanCanonicalOf = keep.c;
+        if (out.stub.b4 === 'stub') { delete window.scanBotPack; delete window.SCAN_BOT_SIGNALS; }
+        scanHistoryFile = keep.h; scanAlertsFile = keep.a; scanSetupsFile = keep.s; scanDraft = keep.draft;
+        if (keep.store == null) localStorage.removeItem('vl.scanSetups'); else localStorage.setItem('vl.scanSetups', keep.store);
+        Object.assign(scanBotState, JSON.parse(keep.bot));
+        navigate('/learn');
+      }
+    })()`);
+    const via = `(B1 ${r.stub.b1}, B4 ${r.stub.b4})`;
+
+    const p1 = [];
+    if (JSON.stringify(r.tfDaily) !== JSON.stringify(['', '1W', '1M'])) p1.push(`a daily setup's condition offers ${JSON.stringify(r.tfDaily)}, not the setup's, weekly and monthly`);
+    if (!/ on the last closed weekly bar$/.test(r.tfProse) || r.tfDraft !== '1W') p1.push(`weekly chosen: "${r.tfProse}", draft ${r.tfDraft}`);
+    if (JSON.stringify(r.tfWeekly) !== JSON.stringify(['', '1M']) || / on the last closed/.test(r.tfWeeklyProse)) p1.push(`a weekly setup: offers ${JSON.stringify(r.tfWeekly)}, and its weekly condition reads "${r.tfWeeklyProse}"`);
+    if (JSON.stringify(r.tfMonthly) !== JSON.stringify(['', '1W!'])) p1.push(`a monthly setup with a weekly condition offers ${JSON.stringify(r.tfMonthly)} — the lower one should show as refused, not as a choice`);
+    if (r.tfCleared) p1.push('"the setup’s timeframe" left a timeframe on the condition');
+    if (p1.length) fail('bot pages: a condition in the builder reads the setup’s timeframe or a higher one, named in its sentence', p1);
+    else ok(`bot pages: a condition in the builder offers the setup's timeframe and the higher ones only — daily: setup's, weekly, monthly; weekly: setup's, monthly; a weekly condition under a monthly setup shows as refused — and says the one chosen: "${r.tfProse}"`);
+
+    const p2 = [];
+    if (r.flag.op !== 'EQUALS' || r.flag.right?.value !== 1) p2.push(`a yes-or-no left side left the condition at ${r.flag.op} ${JSON.stringify(r.flag.right)}, not equals 1`);
+    if (!/crosses over WT2 is true on the last closed monthly bar$/.test(r.flag.prose)) p2.push(`its sentence: "${r.flag.prose}"`);
+    if (r.flag.number || JSON.stringify(r.flag.choices) !== JSON.stringify(['1', '0'])) p2.push(`its right side: a number box ${r.flag.number}, choices ${JSON.stringify(r.flag.choices)}`);
+    if (!/ is false on the last closed monthly bar$/.test(r.flagFalse)) p2.push(`false chosen: "${r.flagFalse}"`);
+    if (p2.length) fail('bot pages: a yes-or-no condition is "is true" or "is false", chosen, not typed', p2);
+    else ok(`bot pages: a yes-or-no left side becomes equals 1 with a true-or-false choice for its right side, no number box, and reads "${r.flag.prose}" / "… is false …"`);
+
+    const p3 = [];
+    if (!r.cardClosed) p3.push('the setups page has no closed "Add your TradingView bot’s signals" card');
+    if (JSON.stringify(r.syms) !== JSON.stringify(['XAUUSD*', 'BTCUSD', 'EURUSD'])) p3.push(`instruments ${JSON.stringify(r.syms)} — XAUUSD first and ticked, the rest unticked`);
+    if (JSON.stringify(r.tfs) !== JSON.stringify(['Weekly*', 'Monthly*'])) p3.push(`trade timeframes ${JSON.stringify(r.tfs)}`);
+    ['Trade timeframe', 'Entry (daily)', 'Combined'].forEach(g => { if (!r.legends.includes(g)) p3.push(`no "${g}" group`); });
+    if (r.signals.length < 15) p3.push(`${r.signals.length} of the script's 15 alerts listed`);
+    r.signals.forEach(s => {
+      if (s.boxes.length !== 1) p3.push(`${s.title}: ${s.boxes.length} boxes`);
+      else if (s.boxes[0] === s.aggregate) p3.push(`${s.title} is ${s.boxes[0] ? '' : 'un'}ticked by default`);
+      if (s.label !== 'your script’s ' + s.title) p3.push(`${s.title} is labelled "${s.label}", not as the script's`);
+    });
+    const agg = r.signals.filter(s => s.aggregate).map(s => s.title).sort();
+    if (agg.length !== 3 || ![/^ANY STRONG/i, /^ANY WEAK/i, /^Entry TF Trade$/i].every(re => agg.some(t => re.test(t)))) p3.push(`the aggregates read as ${JSON.stringify(agg)}`);
+    if (!r.defaults.record || !r.defaults.crit || r.sma !== 'sma') p3.push(`defaults ${JSON.stringify(r.defaults)}, SMA switch ${r.sma}`);
+    ['XAUUSD — 300 daily bars held', '200 weekly bars (about 1,000 daily bars)', 'about 17 years', 'about 4 years'].forEach(x => { if (!r.needs.includes(x)) p3.push(`the history note lacks "${x}": ${r.needs.slice(0, 400)}`); });
+    if (r.button !== `Save ${r.expected.length} setups` || !r.expected.length) p3.push(`the button reads "${r.button}" for ${r.expected.length}`);
+    if (JSON.stringify(r.saved) !== JSON.stringify([...r.expected].sort()) || !r.saved.every(x => /^mtfbot-[wmd]-/.test(x))) p3.push(`saved ${JSON.stringify(r.saved)} for ${JSON.stringify(r.expected)}`);
+    if (JSON.stringify(r.sources) !== '["bot"]') p3.push(`saved from ${JSON.stringify(r.sources)}`);
+    if (!new RegExp(`^Saved ${r.expected.length} setups in this browser`).test(r.status) || !r.status.includes('until you export scan-setups.json above') || !r.stillOpen || r.focus !== 'bot-create') p3.push(`after saving: "${r.status}", open ${r.stillOpen}, focus ${r.focus}`);
+    if (p3.length) fail(`bot pages: "Add your TradingView bot’s signals" offers the script's alerts as its own and saves what scanBotPack makes ${via}`, p3);
+    else ok(`bot pages: "Add your TradingView bot’s signals" offers XAUUSD first and ticked, weekly and monthly, all ${r.signals.length} of the script's alerts labelled "your script’s …" in three groups with ANY STRONG, ANY WEAK and Entry TF Trade unticked, new matches and the EMA 200 by default; it names what weekly and monthly need against 300 daily bars (about 1,000 daily bars, 4 and 17 years), saves the ${r.expected.length} setups scanBotPack makes, and says they must be exported ${via}`);
+
+    const p4 = [];
+    const weeklyLines = r.setupLines.filter(l => / on the last closed weekly bar$/.test(l)).length;
+    if (!r.weeklyConds || weeklyLines < r.weeklyConds) p4.push(`${weeklyLines} lines of the setup page name the weekly bar, for ${r.weeklyConds} weekly conditions`);
+    if (!/with weekly conditions/.test(r.setupTf) || !/reads? the last closed week/.test(r.setupTf)) p4.push(`its Timeframe fact: ${r.setupTf}`);
+    if (!/XAUUSD — 300 daily bars held/.test(r.setupNeeds) || !/Weekly — 60 closed weeks held/.test(r.setupNeeds)) p4.push(`its history note: ${r.setupNeeds.slice(0, 300)}`);
+    if (!r.head.includes('Read on')) p4.push(`the alert's conditions table has no "Read on": ${r.head.join(', ')}`);
+    const wk = r.rows.filter(x => x[1] === 'Weekly bar closing 2026-09-18').length, dy = r.rows.filter(x => x[1] === 'Daily bar closing 2026-09-24').length;
+    if (wk !== r.weeklyConds || wk + dy !== r.rows.length) p4.push(`read on: ${JSON.stringify(r.rows)}`);
+    if (!/read on the weekly bar closing 2026-09-18/.test(r.mini)) p4.push(`the setup's matches: ${r.mini}`);
+    r.origin.forEach((o, i) => { if (!r.title || !o.startsWith(`Your script’s ${r.title}, with its trade timeframe read on the last closed weekly bar`)) p4.push(`the ${i ? 'alert' : 'setup'} page does not name the alert as the script's: "${o}"`); });
+    if (p4.length) fail('bot pages: the setup and alert pages say each condition’s timeframe and the bar it was read on', p4);
+    else ok(`bot pages: the setup page names each of the ${r.weeklyConds} weekly conditions "on the last closed weekly bar", says what the history holds for them, and the alert page reads each condition on its bar — ${wk} on the weekly bar closing 2026-09-18, ${dy} on the daily bar of the alert — as the setup's matches do; both pages name it "your script’s ${r.title}"`);
+  }
+  /* ---- end bot: pages ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
