@@ -3,6 +3,7 @@
  * Accumulates a price series from each day's import.
  *
  *   node ingest/history.mjs --in data/personal-prices.json
+ *   node ingest/history.mjs --in data/personal-prices.json --out <file> --keep 2000 --source screen
  *
  * A price file holds one close per symbol — today's. Trends need yesterday's
  * too, and nothing else in the pipeline keeps them. This appends each run's
@@ -12,57 +13,69 @@
  * publishes no machine-readable financials, so a Malaysian listing can only
  * ever be a price here — which makes its price history the entire signal
  * rather than a supporting detail.
+ *
+ * The write goes through ingest/history-store.mjs, the one writer of the
+ * history: the engine's bar validation, the source-rank conflict policy (a
+ * screen reading never replaces an imported close), a trim that keeps
+ * closes, volume, open/high/low and provenance together, and an atomic write.
+ * Each price carries the instant it was captured (watchlist.mjs writes it,
+ * prices.mjs passes it through), and its date is already its exchange's
+ * session date — so the engine can tell a close read after the session from
+ * one read while it traded.
+ *
+ *   exit 0  written;  exit 1  nothing could be written (unreadable input,
+ *   damaged history, engine missing);  exit 2  written, but rows were refused
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, KEEP } from './history-store.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 
 const inPath  = flag('in', 'data/personal-prices.json');
-const outPath = flag('out', 'data/price-history.json');
-const KEEP    = Number(flag('keep', 500));    /* points per symbol */
+const outPath = resolve(flag('out', 'data/price-history.json'));
+const KEEP_N  = Number(flag('keep', KEEP));    /* points per symbol — the store's, unless asked */
 
 let book;
 try { book = JSON.parse(await readFile(inPath, 'utf8')); }
 catch (e) { console.error(`cannot read ${inPath}: ${e.message}`); process.exit(1); }
 
-let hist = { generated: null, series: {} };
-try { hist = { ...hist, ...JSON.parse(await readFile(outPath, 'utf8')) }; }
-catch { /* first run */ }
+/* Where the file's prices came from decides their rank: live.mjs --quotes
+   names its provider; prices.mjs names the review CSV it read, which is the
+   screen. */
+const SOURCE = flag('source', /yahoo/i.test(book.source || '') ? 'yahoo' : /twelvedata/i.test(book.source || '') ? 'twelvedata' : 'screen');
 
-let added = 0, updated = 0, skipped = 0;
-for (const [symbol, p] of Object.entries(book.prices || {})) {
-  if (!p || typeof p.close !== 'number' || !(p.close > 0)) { skipped++; continue; }
-  const date = (p.date || book.asOf || '').slice(0, 10);
-  /* A point without a date cannot be placed on a time axis, and guessing today
-     would silently misdate it. */
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }
+let E;
+try { E = await engine(); }
+catch (e) { console.error(`cannot load the scan engine out of index.html — the store validates bars with it: ${e.message}`); process.exit(1); }
+const instruments = await loadInstruments(flag('instruments', 'data/instruments.json'));
 
-  const s = hist.series[symbol] || (hist.series[symbol] = {});
-  if (s[date] === undefined) { s[date] = p.close; added++; }
-  else if (s[date] !== p.close) { s[date] = p.close; updated++; }   /* a correction wins */
-}
+let skipped = 0;
+let run;
+try {
+  run = await updateHistory(outPath, (hist) => {
+    const results = [];
+    for (const [symbol, p] of Object.entries(book.prices || {})) {
+      const date = String(p?.date || book.asOf || '').slice(0, 10);
+      /* A point without a date cannot be placed on a time axis, and guessing
+         today would silently misdate it. */
+      if (!p || typeof p.close !== 'number' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }
+      results.push(mergeBars(hist, symbol, [{ date, close: p.close, volume: p.volume ?? null }],
+        { source: SOURCE, capturedAt: p.capturedAt || null, market: marketOf(symbol, instruments), E }));
+    }
+    return results;
+  }, { keep: KEEP_N });
+} catch (e) { console.error(`history not written: ${e.message}`); process.exit(1); }
 
-/* Bound each series so the file cannot grow without limit. */
-let trimmed = 0;
-for (const [symbol, s] of Object.entries(hist.series)) {
-  const dates = Object.keys(s).sort();
-  if (dates.length <= KEEP) continue;
-  for (const d of dates.slice(0, dates.length - KEEP)) { delete s[d]; trimmed++; }
-}
-
-hist.generated = new Date().toISOString();
-hist.source = inPath;
-hist.symbols = Object.keys(hist.series).length;
-
-await mkdir(dirname(outPath), { recursive: true });
-await writeFile(outPath, JSON.stringify(hist, null, 2));
-
+const { hist, results, trim } = run;
+const { totals, lines } = describeMerge(results, trim);
 const depth = Object.values(hist.series).map(s => Object.keys(s).length);
 console.log(`wrote ${outPath}`);
+console.log(`  source    : ${SOURCE}`);
 console.log(`  symbols   : ${hist.symbols}`);
-console.log(`  new points: ${added}${updated ? `, ${updated} corrected` : ''}${skipped ? `, ${skipped} skipped (no usable close or date)` : ''}`);
+lines.forEach(l => console.log(l));
+if (skipped) console.log(`  skipped   : ${skipped} (no usable close or date)`);
 console.log(`  depth     : ${depth.length ? `${Math.min(...depth)}-${Math.max(...depth)} day(s) per symbol` : 'none'}`);
-if (trimmed) console.log(`  trimmed   : ${trimmed} point(s) beyond --keep ${KEEP}`);
+process.exit(totals.rejected || totals.outranked ? 2 : 0);

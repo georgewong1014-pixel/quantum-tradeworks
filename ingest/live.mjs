@@ -24,12 +24,26 @@
  * SYMBOLS
  *   Bursa codes become Yahoo's form automatically: 1155 -> 1155.KL. Indices and
  *   currency pairs pass through as written (^KLSE, USDMYR=X).
+ *
+ * DATES AND FINALITY
+ *   A quote is dated by its exchange's session in the exchange's zone (the
+ *   provider names the zone), not by the UTC day of its timestamp, and carries
+ *   the instant it was fetched. History goes through ingest/history-store.mjs
+ *   with open, high and low kept and the fetch instant as every bar's capture
+ *   time, so a bar fetched while its session still traded is PROVISIONAL and
+ *   is replaced by the next fetch after the close — it is never written as
+ *   though it were the day's close.
+ *
+ *   Nothing intraday is fetched, in either lane. Intraday bars need a data
+ *   licence this product does not hold (SC-317), and Yahoo's interval=1h
+ *   endpoint sits outside its terms like the rest of it.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { yahooProvider, twelveDataProvider } from './providers.mjs';
+import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, readingSession, dateInZone } from './history-store.mjs';
 
 const argv = process.argv.slice(2);
 const has  = (f) => argv.includes(`--${f}`);
@@ -41,7 +55,7 @@ const DAYS         = Number(flag('days', 400));
 const PROVIDER     = flag('provider', 'yahoo');
 const SERVED       = 'data/prices.json';
 const PERSONAL     = flag('out', 'data/personal-prices.json');
-const HISTORY      = 'data/price-history.json';
+const HISTORY      = resolve(flag('history-out', 'data/price-history.json'));
 
 if (!WANT_QUOTES && !WANT_HISTORY) {
   console.error(`usage:
@@ -152,14 +166,22 @@ if (WANT_QUOTES) {
 
   const prices = {};
   let ok = 0, miss = 0;
+  const E = await engine();
+  const instruments = await loadInstruments();
   for (const sym of symbols) {
     const q = await provider.quote(toVendor(sym, provider.name));
+    const fetchedAt = new Date().toISOString();
     if (q && Number.isFinite(q.price)) {
       /* The shape prices.mjs writes and the app reads: `close` and `date`.
          This wrote `price` and `asOf`, which history.mjs skipped as "no
          usable close" and applyPrices ignored — a licensed run into
-         data/prices.json attached no price to anything, with no error. */
-      prices[sym] = { close: q.price, currency: q.currency, date: q.asOf ? String(q.asOf).slice(0, 10) : null,
+         data/prices.json attached no price to anything, with no error.
+         The date is the session the quote's own time falls in — in the zone
+         the provider names, else the registry market's — and capturedAt is
+         when it was fetched, which is what finality is judged by. */
+      const market = marketOf(sym, instruments);
+      const date = q.asOf ? (q.tz ? dateInZone(q.asOf, q.tz) : readingSession(E, market, q.asOf).date) : null;
+      prices[sym] = { close: q.price, currency: q.currency, date, capturedAt: fetchedAt,
                       d1: null, hi: null, lo: null, m12: null };
       ok++;
     } else { miss++; console.warn(`  no quote: ${sym}`); }
@@ -181,34 +203,35 @@ if (WANT_QUOTES) {
 
 /* ----------------------------------------------------------------- history */
 if (WANT_HISTORY) {
-  const to = new Date().toISOString().slice(0, 10);
+  /* One day past today: the provider's end bound is exclusive, and the
+     session in progress (if any) is fetched and marked PROVISIONAL by its
+     capture time rather than left out. */
+  const to = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const from = new Date(Date.now() - DAYS * 86400000).toISOString().slice(0, 10);
-  const hist = await readJson(HISTORY, { generated: null, series: {}, volume: {} });
-  hist.series = hist.series || {}; hist.volume = hist.volume || {};
+  const E = await engine();
+  const instruments = await loadInstruments();
+  const source = provider.name.startsWith('yahoo') ? 'yahoo' : provider.name;
 
-  let added = 0, symbolsDone = 0;
+  /* Fetched first, then written in one locked, atomic update: the network
+     is slow and the history lock is held for the write alone. */
+  const fetched = [];
   for (const sym of symbols) {
     const rows = await provider.history(toVendor(sym, provider.name), from, to);
+    const capturedAt = new Date().toISOString();
     if (!rows?.length) { console.warn(`  no history: ${sym}`); await sleep(150); continue; }
-    const s = hist.series[sym] = hist.series[sym] || {};
-    const v = hist.volume[sym] = hist.volume[sym] || {};
-    for (const row of rows) {
-      if (s[row.date] === undefined) added++;
-      s[row.date] = row.close;
-      if (row.volume != null) v[row.date] = row.volume;
-    }
-    symbolsDone++;
+    fetched.push({ sym, rows, capturedAt });
     await sleep(150);
   }
-
-  hist.generated = new Date().toISOString();
-  hist.symbols = Object.keys(hist.series).length;
-  await mkdir(dirname(HISTORY), { recursive: true });
-  await writeFile(HISTORY, JSON.stringify(hist, null, 2));
+  const run = await updateHistory(HISTORY, (hist) => fetched.map(f =>
+    mergeBars(hist, f.sym, f.rows, { source, capturedAt: f.capturedAt, market: marketOf(f.sym, instruments), E })));
+  const { hist, results, trim } = run;
+  const { lines } = describeMerge(results, trim);
+  const withOhlc = fetched.filter(f => f.rows.some(r => r.high != null && r.low != null)).length;
 
   const depths = Object.values(hist.series).map(x => Object.keys(x).length);
   const deepest = depths.length ? Math.max(...depths) : 0;
-  console.log(`\nhistory  : ${added} new closes across ${symbolsDone} symbols -> ${HISTORY}`);
+  console.log(`\nhistory  : ${fetched.length} symbols fetched (${withOhlc} with open/high/low) -> ${HISTORY}`);
+  lines.forEach(l => console.log(l));
   console.log(`deepest series: ${deepest} points`);
   for (const [need, what] of [[20, '20-day average'], [50, '50-day average'],
                               [200, '200-day average and the 50/200 crossover'],

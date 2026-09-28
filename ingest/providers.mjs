@@ -13,13 +13,23 @@
  *                                   and redistribute the data to end users
  *   markets      : string[]         e.g. ['US'] or ['US','MY']
  *   delayMinutes : number           0 for real time, 15 for delayed, etc.
- *   quote(symbol)          -> { symbol, price, currency, asOf, delayMinutes, source }
- *   history(symbol, from, to) -> [{ date, close, volume? }]
+ *   quote(symbol)          -> { symbol, price, currency, asOf, tz, delayMinutes, source }
+ *   history(symbol, from, to) -> [{ date, open, high, low, close, volume, tsUtc }]
  *
  * Anything the provider cannot supply must come back null. A provider must
  * never invent a price — a missing quote is a visible gap; a fabricated one is
- * a wrong valuation.
+ * a wrong valuation. So open, high and low are null where the vendor sends
+ * none, never the close standing in for them: an ATR or a 52-week high built
+ * on closes would be a different quantity under the same name.
+ *
+ * `date` is the bar's SESSION date in the exchange's own time zone. The UTC
+ * day of the bar's timestamp is not it: Yahoo stamps a New Zealand session at
+ * 10:00 NZ time, which is the previous day in UTC, and dating by UTC put 66 of
+ * NZ50's bars on Sundays. `tsUtc` keeps the vendor's instant as sent. `tz` on
+ * a quote is the exchange's zone, so the reader can date `asOf` the same way.
  */
+
+import { dateInZone } from './history-store.mjs';
 
 /* ==========================================================================
    WHY THERE IS NO YAHOO FINANCE OR TRADINGVIEW ADAPTER HERE
@@ -207,6 +217,7 @@ export function yahooProvider({ userAgent } = {}) {
       return {
         symbol, price: m.regularMarketPrice, currency: m.currency || null,
         asOf: m.regularMarketTime ? new Date(m.regularMarketTime * 1000).toISOString() : null,
+        tz: m.exchangeTimezoneName || null,
         delayMinutes: Number.isFinite(m.exchangeDataDelayedBy)
           ? Math.round(m.exchangeDataDelayedBy / 60) : null,
         source: 'Yahoo Finance (unofficial endpoint, personal research only)',
@@ -218,13 +229,19 @@ export function yahooProvider({ userAgent } = {}) {
       const res = await chart(symbol, `interval=1d&period1=${p1}&period2=${p2}`);
       const ts = res?.timestamp, q = res?.indicators?.quote?.[0];
       if (!ts || !q) return null;
+      /* The session date in the exchange's zone, which Yahoo names. Without
+         a zone the bar cannot be dated honestly, so the series is refused
+         rather than dated by UTC. */
+      const tz = res?.meta?.exchangeTimezoneName;
+      if (!tz) return null;
+      const px = (v) => (Number.isFinite(v) && v > 0 ? v : null);
       const out = [];
       for (let i = 0; i < ts.length; i++) {
         const close = q.close?.[i];
         /* A null close is a non-trading day, not a zero. */
         if (!Number.isFinite(close)) continue;
-        out.push({ date: new Date(ts[i] * 1000).toISOString().slice(0, 10), close,
-                   volume: Number.isFinite(q.volume?.[i]) ? q.volume[i] : null });
+        out.push({ date: dateInZone(ts[i] * 1000, tz), open: px(q.open?.[i]), high: px(q.high?.[i]), low: px(q.low?.[i]), close,
+                   volume: Number.isFinite(q.volume?.[i]) ? q.volume[i] : null, tsUtc: new Date(ts[i] * 1000).toISOString() });
       }
       /* Yahoo answers 0 on every bar for an FX pair, an index or a yield:
          nothing trades, so there is no volume, and a column of zeros stored
@@ -391,15 +408,18 @@ export function twelveDataProvider({ apiKey, redistribution = false } = {}) {
       const j = await call('quote', `symbol=${encodeURIComponent(symbol)}`);
       if (!j || !Number.isFinite(Number(j.close))) return null;
       return { symbol, price: Number(j.close), currency: j.currency || null,
-               asOf: j.datetime || null, delayMinutes: null, source: 'Twelve Data' };
+               asOf: Number.isFinite(Number(j.timestamp)) ? new Date(Number(j.timestamp) * 1000).toISOString() : j.datetime || null,
+               tz: null, delayMinutes: null, source: 'Twelve Data' };
     },
     async history(symbol, from, to) {
       const j = await call('time_series',
         `symbol=${encodeURIComponent(symbol)}&interval=1day&start_date=${from}&end_date=${to}&outputsize=5000`);
       if (!Array.isArray(j?.values)) return null;
+      /* A daily bar's datetime is already the exchange's session date. */
+      const px = (v) => { const n = v == null ? NaN : Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
       return j.values
-        .map(v => ({ date: v.datetime, close: Number(v.close),
-                     volume: v.volume != null ? Number(v.volume) : null }))
+        .map(v => ({ date: String(v.datetime).slice(0, 10), open: px(v.open), high: px(v.high), low: px(v.low), close: Number(v.close),
+                     volume: v.volume != null && Number.isFinite(Number(v.volume)) ? Number(v.volume) : null, tsUtc: null }))
         .filter(x => Number.isFinite(x.close))
         .reverse();
     },

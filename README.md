@@ -241,7 +241,11 @@ instrument holds is **untested** for it — a third state, never met or failed �
 and an AND setup with an untested rule cannot match.
 
 Volume and average volume need a recorded volume, and the screen capture
-(`ingest/daily.mjs`) records closes only. Volume reaches the history from
+(`ingest/daily.mjs`) records closes only. Every writer of the history goes
+through `ingest/history-store.mjs` (see [ingest/README.md](ingest/README.md)):
+bars validated by the engine, a source rank (an export or a provider outranks
+the screen), open/high/low kept wherever the source has them, and each bar
+dated by its exchange's session and stamped with when it was captured. Volume reaches the history from
 `ingest/live.mjs` or from an export imported with a volume column
 (`ingest/history-import.mjs`). A volume rule is untested on a bar with no
 recorded volume — so on history built by the screen capture alone, the
@@ -253,29 +257,65 @@ Closes pasted on the Your data page live in one browser, so the scanner names
 them as left out rather than scanning series the worker cannot see. A named
 symbol with no series, and — for a market universe — a series with no row in
 `data/instruments.json`, is listed as skipped with the reason. Each pair is
-evaluated on its own instrument's last bar; a series whose last bar is more
-than ten days behind the newest in the file is flagged. Paths given to
-`scan.mjs` are taken from the current directory, and the alert record is
-written to a temporary file and renamed over the old one, which is kept as
-`data/scan-alerts.json.bak`.
+evaluated on its own instrument's last final bar — a bar captured before its
+session closed is provisional and never evaluated — and a series behind the
+session that should be held by now is stale and reported untested. Paths
+given to `scan.mjs` are taken from the current directory, and every file the
+worker writes is written to a temporary file and renamed over the old one,
+which is kept as `.bak`.
 
 ```bash
-node scanner/scan.mjs --check   # self-test only
-node scanner/scan.mjs --dry     # evaluate and print; write nothing
-node scanner/scan.mjs           # evaluate data/scan-setups.json, append to data/scan-alerts.json
+node scanner/scan.mjs --check               # self-test only
+node scanner/scan.mjs --dry                 # evaluate and print; write nothing, log nothing
+node scanner/scan.mjs                       # evaluate data/scan-setups.json, append to data/scan-alerts.json
+node scanner/scan.mjs --status              # the dashboard's answers, in words (--json for the object)
+node scanner/scan.mjs --runs 10             # the last ten runs from data/scan-runs.json
+node scanner/scan.mjs --as-of 2026-08-06    # replay a session; nothing already recorded is recorded again
+node scanner/scan.mjs --retry <run id>      # re-run a logged run on its own session dates
+node scanner/scan.mjs --pause "why"         # every run is SKIPPED_PAUSED until --resume
+node scanner/scan.mjs --unlock              # remove a lock a dead run left (a live one needs --force)
+node scanner/scan.mjs --backtest <setup id> --from 2026-01-01 --json   # bars a setup held on: a simulation
 ```
+
+**The worker's own files**, all git-ignored and in CI's "no licensed data"
+list, live beside the alert record (or in `--data DIR`):
+
+| File | What it holds |
+|---|---|
+| `data/scan-runs.json` | `{ schema: 1, runs, audit }` — the newest 500 runs, each written PENDING when it takes the lock, RUNNING after the self-test, then COMPLETED, PARTIAL, FAILED, CANCELLED, SKIPPED_NO_DATA, SKIPPED_NO_SETUPS, SKIPPED_LOCKED or SKIPPED_PAUSED, with counts, readiness per market, errors (a category and a correlation id, printed beside the message) and duration; `audit` records every replay, retry, pause, resume, unlock and lock takeover |
+| `data/scan.lock` | the one run holding the record, opened `wx`; a lock whose process is dead or which is over an hour old is taken over, recorded, and its run closed FAILED/ABANDONED |
+| `data/scan-control.json` | `{ paused, since, reason, by }` — the pause switch |
+| `data/scan-deliveries.json` | `{ channels, deliveries }` — IN_APP ACTIVE, one SENT row per new alert (meaning: written to the record the app reads); EMAIL, TELEGRAM and PUSH NOT_CONFIGURED, each with its reason |
+| `data/ingest-runs.json` | the daily run's own log (`ingest/daily.mjs`): each step's outcome and the scanner's status and run id |
+
+Exit codes: `0` completed, `1` failed, `2` partial (a setup left out, skipped
+or untested everywhere, or the delivery record not written — the alerts are),
+`3` skipped (paused, locked by another run, no setups, or no data: no history,
+nothing on or before a replay date, or nothing changed since the last run).
+A run on exactly the engine, setups, history and record the last run read
+cannot record anything new, so it is skipped and names that run.
+
+Nothing is sent. Email needs a server and a contact address held under a
+privacy notice; Telegram a server-held bot token; push a push service and the
+intraday scanner, which is not built — intraday bars need a licensed feed,
+and no intraday fetch exists in either lane. Each is recorded as not
+configured, never as a failure of something attempted.
 
 Copy `scanner/setups.example.json` to `data/scan-setups.json`, or build a
 setup on the page and copy its JSON. Both data files are git-ignored and CI
-fails if either is tracked. `ingest/daily.mjs` runs the worker after it
-updates the history, when a setups file exists. Like the Trading Index batch,
+fails if either is tracked. `ingest/daily.mjs` runs the worker with
+`--trigger daily` only when its history step succeeded, and only when a
+setups file exists. Like the Trading Index batch,
 the worker slices its engine out of `index.html` between `@scan-engine-start`
 and `@scan-engine-end`, self-tests on a fixture before every run, and writes
 alerts in setup-then-instrument order — never sorted by anything. Each alert is
 one setup, one instrument, one bar, keyed `setupId|symbol|daily|barDate`, so
 the same bar is never recorded twice, and a cooldown counts bars rather than
 days. `scanner-test.mjs` checks the arithmetic on hand-worked series and the
-worker's exit codes.
+worker itself on temporary folders: the runs log, two workers at once, a dead
+and a stale lock, pause, replay and retry (idempotent and audited), the
+delivery record and its failure, the backtest CLI, every exit code, and
+`daily.mjs` with each step stubbed.
 
 A watchlist can be a setup's universe. The builder on `/my/scanner` (and the
 "Use as scanner universe" button on `/my/watchlists`) expands the list into the

@@ -274,6 +274,88 @@ for the American side.
 
 ---
 
+## Price history: one store, every bar dated by its session
+
+`data/price-history.json` (git-ignored) is the series the trend engine and the
+scanner read. It has one writer, `ingest/history-store.mjs`, and the three
+scripts that add to it — `history.mjs` (the daily screen capture),
+`history-import.mjs` (a CSV export) and `live.mjs --history` (a provider) —
+all go through it.
+
+```bash
+node ingest/history-import.mjs --in KLSE.csv --symbol KLSE    # an export, open/high/low kept
+node ingest/history.mjs --in data/personal-prices.json       # what the daily run does
+node ingest/live.mjs --history --days 400                     # a provider (personal lane)
+```
+
+What the store decides, so no writer decides it differently:
+
+| | |
+|---|---|
+| **Validation** | the engine's own `scanValidateBar` (loaded out of `index.html`, as the scanner loads it): BAD_DATE, FUTURE, NEG_PRICE, NEG_VOLUME, HIGH_BELOW, LOW_ABOVE, NON_SESSION_DAY — so the page, the worker and the ingest refuse the same bars. Two rows for one date in one batch are both refused (DUPLICATE_DATE). |
+| **Conflicts** | a source rank: an import or a provider (`import:<file>`, `yahoo`, `twelvedata`) outranks the screen, and a bar with no recorded source ranks with the screen. A lower rank never replaces a higher one — the row is reported as outranked. An equal or higher rank that disagrees replaces the bar, and every changed field is recorded in `corrections`, which the engine reads as a CORRECTED bar. |
+| **Provisional bars** | a bar captured before its session closed is superseded by any later capture, whatever its rank, and that is not a correction — it was never the session's value. |
+| **A bar is one source's reading** | when the close changes, open, high, low and volume come from the new source too (absent where it has none); a high from one vendor beside another's close describes no real session. |
+| **Refused rows** | written to `data/price-history.rejects.json` (git-ignored) with their codes — never into the history, never silently dropped. |
+| **Trim** | the newest 2000 bars per symbol, with volume, open/high/low, provenance and corrections dropped together. (The daily writer kept 500 and trimmed no volume; a 600-bar import plus one daily run left 500 closes and 600 volumes.) |
+| **Write** | under a lock (`data/price-history.json.lock`), to a temporary file renamed over the old one, the previous file kept as `.bak`. |
+
+The file is additive — history v2:
+
+```text
+{ schema: 2, generated, symbols,
+  series:      { SYM: { date: close } },
+  volume:      { SYM: { date: volume } },
+  ohlc:        { SYM: { date: [open, high, low] } },       only where a source has them
+  meta:        { SYM: { date: { src, at } } },             source, and when it was captured
+  corrections: { SYM: [{ date, field, from, to, src, at, prevSrc }] } }
+```
+
+A close-only file reads exactly as before.
+
+**Every bar is dated by its exchange's session, in the exchange's own zone.**
+Yahoo stamps an Auckland session at 10:00 local — the previous day in UTC — and
+dating by the UTC day put 66 of NZ50's bars on Sundays, 27 of ASX200's, and FX
+pairs' Monday bars on Sunday. Now:
+
+- **Providers** date each bar in the zone the provider names (Yahoo's
+  `exchangeTimezoneName`; a series without one is refused), and keep open, high
+  and low — null where the vendor has none, never the close standing in.
+- **The screen capture** takes the screenshot's own time (its file time, or
+  `--captured-at`) and dates each row by its instrument's exchange: the session
+  in progress if one was trading — a reading, marked PROVISIONAL — else the last
+  session that had closed. A screen read at 18:30 in Kuala Lumpur dates Bursa to
+  that day, New York to its previous session, Tokyo and Sydney to their closed
+  day, and London to a session still trading. `watchlist.mjs` writes
+  `captured_at` and `bar_status` columns before the free-text ones;
+  `prices.mjs` carries `captured_at` through.
+- **Imports** read ISO dates as written. A 10- or 13-digit epoch is dated in the
+  instrument's zone (its registry market, or `--tz`), except one at exactly
+  midnight UTC, which is read as that UTC date — the two conventions exports
+  use. Day-first and month-first dates follow the browser's paste rule: a day
+  above 12 settles the order, and `03/04/2026` is refused as ambiguous rather
+  than guessed (the old parser read it as 3 March and then, on a machine in
+  Kuala Lumpur, shifted it to the 2nd). The test checks this under two machine
+  zones and against the page's own parser.
+
+Each bar's capture time is what the engine's bar status reads: FINAL when
+captured at or after the session's close plus its settle margin, PROVISIONAL
+before, UNKNOWN for bars written before this store existed. The exchanges'
+zones and published hours are the engine's `SCAN_MARKETS`, now a row for every
+market in `data/instruments.json` except commodities (which trade nearly round
+the clock and stay on the conservative default). They are typed by hand, not a
+maintained calendar, and each errs late: a late close only delays when a bar is
+called final.
+
+**What is not solved.** No provider here confirms a session is final; the
+capture-time rule is the stand-in. Existing weekend-dated bars are not rewritten
+— the store never moves a date; re-fetching adds the correctly dated bar, and
+the old one stays listed as invalid (NON_SESSION_DAY) until it is trimmed.
+Nothing intraday is fetched, in either lane: intraday bars need a data licence
+this product does not hold.
+
+`node history-store-test.mjs` (in CI) checks all of it on temporary files.
+
 ## Screenshots of your own watchlist — personal research only
 
 A separate path, deliberately walled off from the one above.
@@ -359,6 +441,16 @@ cannot catch this: unchanged prices produce a 0% move, which looks normal.
 
 The review gate still applies unattended. `prices.mjs` refuses any row marked
 `CHECK`, so clean rows land automatically and doubtful ones wait for you.
+
+**The scanner runs only on a history this run updated.** If the history step
+failed, the scan is skipped and the report says why — a scan of yesterday's file
+is not today's scan. Otherwise `scanner/scan.mjs --trigger daily` runs, and its
+exit codes are read: `0` completed, `2` partial, `3` skipped (paused, locked
+by another run, no setups, or nothing new), `1` failed. A failure, a partial
+scan or a lock held by another run make the daily run exit `2`; a pause you
+asked for, or a day with nothing new, does not. Every daily run — whatever its
+exit — is appended to `data/ingest-runs.json` (git-ignored): each step's
+outcome, the scanner's status and run id, and the duration.
 
 ### Why this is separate, and why it stays separate
 

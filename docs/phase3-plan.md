@@ -251,6 +251,8 @@ files except the route table, where each adds its own delimited block.
 
 ### SC-301 — Market-data ingestion
 
+**As built (this batch — data, round 2).** ingest/history-store.mjs is the one writer of data/price-history.json (loadHistory, mergeBars, trimHistory, saveHistory, updateHistory under a lock); history.mjs, history-import.mjs and live.mjs go through it. Validation is the engine's scanValidateBar loaded out of index.html; the conflict policy is an explicit source rank (import/provider 2 > screen 1; unknown ranks with the screen) — a lower rank is reported OUTRANKED and written to the git-ignored data/price-history.rejects.json, an equal or higher rank that disagrees is recorded in corrections (read by the engine as CORRECTED), and a PROVISIONAL bar is superseded by any later capture without a correction. Open/high/low are kept from import CSV columns, Yahoo and Twelve Data (null where absent). Every bar is dated by its exchange's session in its own zone: Yahoo by exchangeTimezoneName, imports by parseDateCell (ISO; epochs in the market zone, midnight-UTC epochs as UTC dates; ambiguous day/month refused exactly as the browser's parseCloses — tested against it and under two machine zones), the screen capture by readingSession at the screenshot's time (watchlist.mjs writes captured_at and bar_status; prices.mjs passes capturedAt through). meta {src, at} per bar lets scanBarStatus say FINAL or PROVISIONAL. Keep is 2000 in every writer, trimming volume/ohlc/meta/corrections together. To date readings honestly the engine's SCAN_MARKETS gained rows for the registry's other markets (AU … MX, hours typed by hand and erring late; COM stays on _default). daily.mjs runs the scanner only after a successful history step. Not built: ingest/history-check.mjs --report/--refetch (scanDataHealth lists weekend-dated bars as NON_SESSION_DAY; existing mis-dated bars are never rewritten), a scan.mjs --ready flag (readiness is judged inside scanRun). Blocked as before: an authorised feed, a provider-confirmed finality signal, ingestion for anyone else.
+
 **Priority** P0 · **Status** partial
 
 **What exists.** Four writers put bars into one git-ignored file, data/price-history.json, shaped { generated, series:{SYM:{date:close}}, volume:{SYM:{date:vol}}, symbols } (probe: 105 symbols, 35,617 points, depth 2–504, last bars 2026-08-06/07, so it is 7 weeks old today). (1) Screen capture: ingest/daily.mjs:46-109 runs autoshot → watchlist.mjs (OCR, review CSV with header symbol,date,close,prev,move_pct,verdict,why,ocr_line at :447) → prices.mjs (rejects CHECK rows, non-positive or future closes, :79-92) → history.mjs (appends the close, :36-46). This path carries the close only: no open/high/low and no volume. (2) Import: ingest/history-import.mjs:57-99 reads date/close/volume from any CSV and ignores the other columns (:25). Its KEEP default is 2000 (:39), and it overwrites a conflicting close and reports it (:130). (3) Provider: ingest/live.mjs:183-207 goes through ingest/providers.mjs. yahooProvider.history (:215-235) keeps only close and volume and dates each bar by its UTC calendar day (:226). twelveDataProvider.history (:396-405) also keeps only close and volume. (4) A paste box in the browser (src/js/25-universe.js:55-116) is merged into trackedHistory for charts only; the scanner deliberately does not scan it (86-scanner.js:517-519, 25-universe.js:866-869). The provider contract (providers.mjs:9-21) is history → [{date, close, volume?}]. The licence lanes are enforced: live.mjs:143-151, history-import.mjs:51-55, and the registry's assertLicensedFor at providers.mjs:131-142. daily.mjs:111-129 runs scanner/scan.mjs after the history step.
@@ -356,6 +358,8 @@ Adding capturedAt to the review CSV changes the column contract prices.mjs split
 ### SC-302 — OHLCV storage and validation
 
 **As built (this batch — engine, round 1).** In src/js/24-market-engine.js: SCAN_MARKETS (US, MY, FX, CRYPTO, _default; zone, close, settle, weekdays), which 26-instruments' MARKETS now reads its time zones from; scanValidateBar with all seven codes; scanBars reading history v2 additively (ohlc, meta, corrections optional — a close-only history reads exactly as before) and listing invalid bars with their codes instead of dropping them; scanSessionDateAt and scanBarStatus (FINAL / PROVISIONAL / UNKNOWN / CORRECTED, by close plus settle in the market's zone, DST-correct); scanCalendar (inferred, labelled so; weekday fallback below five series); gapBefore per bar; staleness against the clock; scanReadiness per market; scanPriceBreaks (detection only); scanDataVersion. Two rulings the contract left open: a bar with no capture time (every bar held today) is UNKNOWN and is evaluated once its session has closed — the alert records barStatus UNKNOWN — rather than never, which would stop every setup until round 2's ingest records capture times; and the weekday-fallback calendar tolerates a gap of up to two weekdays as a possible holiday (an inferred calendar tolerates none). Still to build (round 2): history-store and the ingest writing ohlc/meta/corrections, the data-health page. Adjustment for corporate actions (scanAdjust, UNADJUSTED_BREAK) is not built — breaks are detected and named, closes are not adjusted. Blocked as before: exchange calendars, corporate-action history, a server store.
+
+**As built (this batch — data, round 2).** The ingest half: the store writes history v2 (ohlc, meta {src, at}, corrections) with the engine's validation on every row and refused rows in data/price-history.rejects.json; the engine's scanDataHealth "at the keep limit" now reads SCAN_HISTORY_KEEP (2000, the store's KEEP; the store's test holds them equal). Still not built: scanAdjust / UNADJUSTED_BREAK (breaks detected only).
 
 **Priority** P0 · **Status** partial
 
@@ -926,6 +930,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 ### SC-307 — Daily scanner scheduler
 
+**As built (this batch — data, round 2).** scanner/scan.mjs logs every exit path to data/scan-runs.json ({schema 1, runs, audit}; capped 500, written atomically): PENDING at the lock, RUNNING after the self-test, then COMPLETED / PARTIAL / FAILED / CANCELLED (SIGINT/SIGTERM before the record is written) / SKIPPED_NO_DATA / SKIPPED_NO_SETUPS / SKIPPED_LOCKED / SKIPPED_PAUSED, with counts, readiness, stale/provisional counts, history hash and newest bar, logical key, errors [{category, message, correlationId}] and duration; an engine that cannot load is logged too. data/scan.lock (open 'wx'; a dead or hour-old holder is taken over, the takeover audited and its run closed FAILED/ABANDONED); data/scan-control.json with --pause "why" / --resume; --trigger manual|daily; --as-of DATE replay (never skipped, deduplicated, audited); --retry RUNID (the logged run's history cut and clock, audited); --unlock [--force]; --status [--json] (scanStatus); --runs [n] [--json]; --backtest SETUPID [--from --to --symbols --json] on scanHistorical; --data DIR puts every file in one folder and the worker's files default to the alert record's folder. Exit codes 0 completed, 1 failed/cancelled, 2 partial, 3 skipped. A live run on exactly the inputs the last evaluating run read (engine, setups hash, history bytes, recorded keys) is SKIPPED_NO_DATA. daily.mjs passes --trigger daily, maps the codes, and writes data/ingest-runs.json. Not built: the catch-up ledger (item 3) — a missed day is recovered with --as-of, not automatically. Blocked as before: provider-confirmed final data, a worker off the reader's machine.
+
 **Priority** P0 · **Status** partial
 
 **What exists.** The worker is separate from the frontend: scanner/scan.mjs slices the engine from index.html (58-90), self-tests on every run (197-205), validates (135), dedupes and applies cooldown (86-scanner.js:377-393), writes atomically with a .bak (scan.mjs:115-122) and records lastRun (160-162). Exit codes: 0 ok, 1 could not run, 2 ran with warnings (14-17). Scheduling is ingest/daily.mjs, run by Windows Task Scheduler with the exit code as the last-run result (daily.mjs:7-12). It calls the scanner after the history step (daily.mjs:111-129). Idempotence on the same bar is tested (scanner-test.mjs:190-193). Stale series more than 10 days behind are reported (86-scanner.js:359-364). The page shows lastRun (86-scanner.js:653-662). MARKETS carries a tz per market (26-instruments.js:41-44).
@@ -1036,6 +1042,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 
 ### SC-309 — Email notifications (and the in-app notification centre)
+
+**As built (this batch — data, round 2).** The delivery record: data/scan-deliveries.json with channels IN_APP ACTIVE and EMAIL, TELEGRAM, PUSH NOT_CONFIGURED (each with its reason), and one IN_APP SENT row per new alert (none on a rerun or for a replayed alert already recorded), written after the alerts so a failure leaves them recorded and the run PARTIAL with a DELIVERY error. The notification centre and unread count are the setups-and-alerts batch's. Email stays blocked (no server, no contact address held under a privacy notice).
 
 **Priority** P0 · **Status** blocked
 
@@ -1304,6 +1312,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 ### SC-315 — Telegram notifications
 
+**As built (this batch — data, round 2).** Recorded honestly: channels.TELEGRAM in data/scan-deliveries.json is NOT_CONFIGURED with its reason (a server-held bot token, a chat id held under a privacy notice); no row is written for it and scan.mjs --status says so. Delivery stays blocked.
+
 **Priority** P1 · **Status** blocked
 
 **What exists.** None, by design (86-scanner.js:26-27, 587; docs/platform-plan.md:384).
@@ -1369,6 +1379,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 ### SC-317 — Intraday scanner infrastructure
 
+**As built (this batch — data, round 2).** Stated, not built: no intraday fetch exists in either lane (live.mjs says so in its header), SCAN_TIMEFRAMES still refuses 1H/15M/5M, and scan.mjs --status prints that only daily and weekly are built because intraday bars need a licensed feed. Each bar's capture instant is now recorded (meta.at), which an intraday store would also need. Blocked as before.
+
 **Priority** P2 · **Status** blocked
 
 **What exists.** Nothing intraday. scanValidate refuses any timeframe but 'daily' (86-scanner.js:435), and scanRun skips one (:340). Alert keys already carry a timeframe segment (:310). MARKETS records tz and session strings for display only (26-instruments.js:37-46). providers.mjs quote() returns asOf and delayMinutes (:16), and yahooProvider reads exchangeDataDelayedBy (:210-211), but no intraday bars are fetched or stored. The capability register lists the scanner as daily-only and personal-lane (80-registers.js:147-150).
@@ -1405,6 +1417,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 
 ### SC-318 — Live push notifications
+
+**As built (this batch — data, round 2).** Recorded honestly: channels.PUSH in data/scan-deliveries.json is NOT_CONFIGURED with its reason (a push service and a server holding subscriptions; the live scanner, SC-317, is not built). Web push stays blocked.
 
 **Priority** P2 · **Status** blocked
 
