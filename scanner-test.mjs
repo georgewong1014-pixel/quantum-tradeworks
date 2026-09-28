@@ -2454,5 +2454,30 @@ try {
 }
 /* ---- end bugfix: engine ---- */
 
+/* ---- bugfix: equities-data ---- */
+/* THE TREND CONTEXT DATES A CLOSE BY ITS OWN DAY. The closes were filtered
+   for unusable readings and the dates were not, so after a 0 or a null every
+   close was dated by its neighbour's key: a seam from 1 January's 10 to 5
+   January's 20 read "1 to 2 January", the crossover landed a session early,
+   and a series ending on an unusable key reported that key as its last date. */
+{
+  const html = await readFile(join(ROOT, 'index.html'), 'utf8');
+  const src60 = await readFile(join(ROOT, 'src/js/60-trend.js'), 'utf8');
+  const region = src60.slice(src60.indexOf('const TREND_INDICATORS'), src60.indexOf('/* Real observed history'));
+  const T = new Function(`const isNum = (v) => typeof v === 'number' && Number.isFinite(v); ${extractEngine(html)}; ${region}; return { trendContext };`)();
+  const short = T.trendContext({ '2026-01-01': 10, '2026-01-02': 0, '2026-01-05': 20, '2026-01-06': null, '2026-01-07': 21, '2026-01-08': -1 });
+  const seam = short.seams[0] || {};
+  /* A cross, then the same series with one unusable reading keyed before it. */
+  const days = []; for (let d = new Date('2024-01-01T00:00:00Z'); days.length < 320; d.setUTCDate(d.getUTCDate() + 1)) if (d.getUTCDay() % 6) days.push(d.toISOString().slice(0, 10));
+  const clean = Object.fromEntries(days.map((d, i) => [d, 100 + (i < 220 ? -i * 0.2 : -44 + (i - 220) * 1.5)]));
+  const dirty = { '2023-12-29': 0, ...clean };
+  const cc = T.trendContext(clean).values.cross, cd = T.trendContext(dirty).values.cross;
+  check(short.points === 3 && short.first === '2026-01-01' && short.lastDate === '2026-01-07' && seam.from === '2026-01-01' && seam.to === '2026-01-05' && seam.gapDays === 4
+    && cc && cd && cc.date === cd.date,
+    'bugfix equities-data: the trend context dates each close by its own day when a reading is unusable — the seam runs 1 to 5 January, the series ends on 7 January, and the 50/200 crossover keeps its date',
+    { short: { points: short.points, first: short.first, lastDate: short.lastDate, seams: short.seams }, cross: [cc, cd] });
+}
+/* ---- end bugfix: equities-data ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

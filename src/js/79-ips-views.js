@@ -55,10 +55,14 @@ function demandPanel(city, area) {
     el('th', { style: i ? null : 'text-align:left' }, h)))));
   const tb = el('tbody');
   test.items.forEach(i => {
-    const sel = el('select', { class: 'select select-sm', 'aria-label': `State of ${i.source.label} demand`,
+    /* An id and renderKeepFocus, because render() rebuilds the page: a
+       keyboard reader changing a source's state with the arrow keys was put
+       back at the top of the document after every step, a long calculator
+       above the control they had just used. */
+    const sel = el('select', { class: 'select select-sm', id: `demand-${i.source.id}`, 'aria-label': `State of ${i.source.label} demand`,
       onchange: e => {
         setDemand(city, area, i.source.id, e.target.value ? { state: e.target.value, asOf: new Date().toISOString().slice(0, 10) } : null);
-        render();
+        renderKeepFocus();
       } });
     sel.append(el('option', { value: '' }, 'Not recorded'));
     DEMAND_STATES.forEach(s => sel.append(el('option', { value: s.id, title: s.note,
@@ -148,8 +152,11 @@ function rentVersusBuyPanel(d, m) {
   f.append(el('input', { class: 'input a-text', id: 'ownUseWeeks', type: 'number', min: '0', max: '52',
     value: weeks > 0 ? String(weeks) : '',
     placeholder: 'e.g. 4',
-    'aria-label': 'Weeks a year of your own use',
-    onchange: e => { State.deal.ownUseWeeks = Number(e.target.value) || 0; saveDeal(); render(); } }));
+    /* Named by the visible label above it. An aria-label of different words
+       ("Weeks a year of your own use") replaced that name, so a voice-control
+       reader saying the words on screen reached nothing (WCAG 2.5.3). */
+    /* renderKeepFocus, for the reason the demand selects above use it. */
+    onchange: e => { State.deal.ownUseWeeks = Number(e.target.value) || 0; saveDeal(); renderKeepFocus(); } }));
   card.append(f);
 
   const r = rentVersusBuy(d, m, weeks > 0 ? weeks : null);

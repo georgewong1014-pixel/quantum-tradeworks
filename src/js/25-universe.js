@@ -56,7 +56,24 @@ function parseCloses(text, defaultSymbol) {
   lines.forEach((raw, i) => {
     const line = raw.trim();
     if (!line || line.startsWith('#')) return;
-    const cells = line.split(/[,;\t]/).map(s => s.trim().replace(/^["']|["']$/g, ''));
+    /* ONE SEPARATOR PER LINE, AND NEVER INSIDE QUOTES. Splitting on comma,
+       semicolon and tab at once cut a formatted close in two: a spreadsheet
+       copy of the KLCI, "KLSE<tab>2026-01-02<tab>1,612.35", stored a close of
+       1, as did the quoted CSV "KLSE","2026-01-02","1,612.35" — and a
+       semicolon export's "12,5" stored 12. Each was accepted without a word,
+       the failure this function exists to prevent. A line is now split on the
+       one separator it uses — a tab if it has one (a spreadsheet copy), then
+       a semicolon, then a comma — outside double quotes. */
+    const delim = line.includes('\t') ? '\t' : line.includes(';') ? ';' : ',';
+    const parts = [];
+    let cur = '', quoted = false;
+    for (const ch of line) {
+      if (ch === '"') { quoted = !quoted; continue; }
+      if (ch === delim && !quoted) { parts.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    parts.push(cur);
+    const cells = parts.map(s => s.trim().replace(/^'|'$/g, ''));
     if (cells.length < 2) { rejected.push({ line: i + 1, text: line, why: 'fewer than two columns' }); return; }
 
     /* A header names its columns rather than holding a date, so it fails the
@@ -87,8 +104,30 @@ function parseCloses(text, defaultSymbol) {
       }
     }
     if (!iso) { rejected.push({ line: i + 1, text: line, why: `date "${d}" not recognised — use YYYY-MM-DD` }); return; }
+    /* A date the calendar has. "31/02/2026" became 2026-02-31 and
+       "2026-02-30" was kept as written: a session that never happened, which
+       the trend context's date arithmetic reads as 2 or 3 March. The
+       history import (parseDateCell) refuses both, and this now agrees. */
+    const cal = new Date(`${iso}T00:00:00Z`);
+    if (Number.isNaN(cal.getTime()) || cal.toISOString().slice(0, 10) !== iso) {
+      rejected.push({ line: i + 1, text: line, why: `"${d}" is not a date on the calendar` }); return;
+    }
 
-    const close = Number(String(closeCell).replace(/[^0-9.\-]/g, ''));
+    /* The close is read whole or refused. A comma in it is accepted only as
+       a thousands separator in the grouped form "1,612.35" — and not in a
+       semicolon export without a decimal point, where "1,612" may mean
+       1.612. A comma-separated line whose close was cut at its thousands
+       separator ("1" then "612.35") is refused, never stored as 1. */
+    const num = String(closeCell).replace(/[^0-9.,\-]/g, '');
+    const next = cells.length >= 3 ? cells[3] : undefined;
+    if (delim === ',' && /^\d{1,3}$/.test(num) && /^\d{3}(\.\d+)?$/.test(next || '')) {
+      rejected.push({ line: i + 1, text: line, why: `the close looks cut at a thousands separator ("${closeCell},${next}") — quote it or write it without the comma` }); return;
+    }
+    const grouped = /^\d{1,3}(,\d{3})+(\.\d+)?$/.test(num) && (delim !== ';' || num.includes('.'));
+    if (num.includes(',') && !grouped) {
+      rejected.push({ line: i + 1, text: line, why: `"${closeCell}" cannot be read as a price without guessing — use a full stop for decimals and no other separator` }); return;
+    }
+    const close = num === '' ? NaN : Number(num.replace(/,/g, ''));
     if (!Number.isFinite(close) || close <= 0) {
       rejected.push({ line: i + 1, text: line, why: `"${closeCell}" is not a positive price` }); return;
     }
@@ -547,9 +586,15 @@ function buildFeed() {
     if (isNum(c.px?.m3) && Math.abs(c.px.m3) > 10)
       feed.push({ kind:'price', sev: c.px.m3 > 0 ? 'good' : 'warning', id:c.id, title:`${c.tk} ${c.px.m3 > 0 ? 'up' : 'down'} ${fmtPct(Math.abs(c.px.m3),1)} over three months`,
         detail:'Price move only. Check the "Why moved?" attribution before treating this as new information.' });
+    /* The router reads the business type, not the drawdown. Pfizer, 3M and
+       Mastercard fell more than 25% inside the window and are valued on the
+       FCFF pack from their latest year, while this line told a reader
+       watching them that the model had been routed to the mid-cycle pack. */
     if (isNum(m.revDD) && m.revDD > 25)
       feed.push({ kind:'fundamental', sev:'warning', id:c.id, title:`${c.tk} revenue drawdown of ${fmtPct(m.revDD,0)} in the reported window`,
-        detail:'Cyclical profile — the valuation model has been routed to a mid-cycle normalised pack.' });
+        detail: val.pack.id === 'dcfMid'
+          ? 'Cyclical profile — the valuation model has been routed to a mid-cycle normalised pack.'
+          : `A cyclical revenue profile, but this company is valued on the ${val.pack.name} pack, which does not normalise for the cycle.` });
     if (r.risk.band === 'High')
       feed.push({ kind:'risk', sev:'serious', id:c.id, title:`${c.tk} carries a High composite risk grade`,
         detail:`${r.flags.filter(f => f.sev !== 'good').length} open risk flags, led by "${r.flags.find(f => f.sev !== 'good')?.title}".` });

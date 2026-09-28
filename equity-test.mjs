@@ -244,13 +244,15 @@ try {
     else ok('free cash flow is null exactly where operating cash flow or capex is, in every year of every filed company');
   }
 
-  /* 5 — a split withholds every per-share growth rate. */
+  /* 5 — a split withholds every per-share growth rate whose window spans it:
+         the whole-series rates on a break anywhere, the four-year rates on a
+         break among the five rows they read (perShareBreak). */
   {
     const r = await evaluate(`(() => {
       const split = U.filter(r => r.c.real && r.m.shareSeriesBreak);
       const leaks = [];
       for (const r of split) for (const k of ['eps5', 'bv5', 'dps5', 'eps10', 'dps10', 'dilution', 'buyback'])
-        if (isNum(r.m[k])) leaks.push({ id: r.c.id, k, v: r.m[k] });
+        if (isNum(r.m[k]) && (!['eps5', 'bv5', 'dps5'].includes(k) || r.m.perShareBreak)) leaks.push({ id: r.c.id, k, v: r.m[k] });
       return { n: split.length, leaks, ids: split.map(r => r.c.tk).slice(0, 8) };
     })()`);
     if (!r.n) fail('no filed company shows a share-series break — the split rule is untested', r);
@@ -5424,6 +5426,183 @@ try {
     }
   }
   /* ---- end bugfix: scanner-user ---- */
+
+  /* ---- bugfix: equities-data ---- */
+  /* THE FOUR-YEAR PER-SHARE RATES READ A BREAK INSIDE THEIR OWN WINDOW. A
+     share-count break anywhere in the ten stored years withheld earnings,
+     book-value and dividend growth over FY2021–FY2025, and the pages said the
+     count moved "inside the window": Apple's stored count breaks between
+     FY2018 and FY2019. Now withheld only on a break among the five rows read. */
+  {
+    const r = await evaluate(`(() => {
+      const a = BY_ID.get('AAPL-SEC'), n = BY_ID.get('NVDA-SEC');
+      const want = (x) => { const w = x.d.eps.slice(-5); return w.length >= 2 && isNum(w[0]) && isNum(w[w.length - 1]) ? cagr(w) : null; };
+      const outside = U.filter(x => x.c.real && x.m.shareSeriesBreak && !x.m.perShareBreak);
+      const wrong = outside.filter(x => { const v = want(x); return !(v === x.m.eps5 || (isNum(v) && isNum(x.m.eps5) && Math.abs(v - x.m.eps5) < 1e-9)); }).map(x => x.c.tk);
+      const leak = U.filter(x => x.m.perShareBreak && ['eps5', 'bv5', 'dps5'].some(k => isNum(x.m[k]))).map(x => x.c.tk);
+      return { a: { eps5: a.m.eps5, want: want(a), series: !!a.m.shareSeriesBreak, window: a.m.perShareBreak },
+               n: { ratio: n.m.perShareBreak?.ratio ?? null, eps5: n.m.eps5 }, outside: outside.map(x => x.c.tk), wrong, leak };
+    })()`);
+    const p = [];
+    if (!r.a.series || r.a.window || typeof r.a.eps5 !== 'number' || Math.abs(r.a.eps5 - r.a.want) > 1e-9) p.push(`Apple's four-year EPS growth over a window with no break: ${JSON.stringify(r.a)}`);
+    if (!(r.n.ratio > 5) || r.n.eps5 !== null) p.push(`Nvidia's in-window ten-for-one is the break its per-share rates are withheld on: ${JSON.stringify(r.n)}`);
+    if (r.outside.length < 5 || r.wrong.length) p.push(`companies with a break only outside the window: ${r.outside.length}, eps5 differing from the window's own rate: ${r.wrong.join(', ')}`);
+    if (r.leak.length) p.push(`a per-share rate survives a break inside its window: ${r.leak.join(', ')}`);
+    if (p.length) fail('bugfix equities-data: the four-year per-share rates are withheld only for a split inside their five rows', p);
+    else ok(`bugfix equities-data: the four-year per-share rates are withheld only for a split inside their five rows — Apple's EPS growth is ${r.a.eps5.toFixed(2)}% over a window its stored count's FY2019 break does not reach, Nvidia's is withheld on its in-window ×${r.n.ratio}, and ${r.outside.length} filers with a break outside the window carry their window's own rate`);
+  }
+
+  /* A DRAWDOWN NEEDS TWO YEARS. One reported year of revenue read as a
+     revenue drawdown of exactly 0% — "sales never fell" — where the registry
+     says the measure is absent. */
+  {
+    const r = await evaluate(`(() => {
+      const c = BY_ID.get('AAPL-SEC').c;
+      const at = (k) => derive({ ...c, fin: c.fin.slice(-k), years: c.years.slice(-k) }).m;
+      const one = at(1), two = at(2);
+      return { one: [one.revDD, one.revDD10], two: two.revDD, why: NM_WHY.revDD };
+    })()`);
+    if (r.one[0] !== null || r.one[1] !== null || typeof r.two !== 'number') fail('bugfix equities-data: a revenue drawdown over one reported year is absent, not 0%', r);
+    else ok(`bugfix equities-data: a revenue drawdown over one reported year is absent, not 0% — with two it is ${r.two.toFixed(1)}%; the registry's reason: "${r.why}"`);
+  }
+
+  /* LICENCE PENDING IS NOT EXPORTED. The ladder said it was, on the page
+     whose next card says licence-pending records are "excluded from export". */
+  {
+    const r = await evaluate(`(async () => {
+      navigate('/data-sources');
+      await new Promise(res => setTimeout(res, 400));
+      const main = document.querySelector('main');
+      const t = [...main.querySelectorAll('table.dt')].find(x => /In an export/.test(x.tHead?.textContent || ''));
+      const row = t && [...t.tBodies[0].rows].find(x => /licence pending/i.test(x.cells[0].textContent));
+      return { export: row ? row.cells[2].textContent.trim() : null, said: /excluded from export/.test(main.innerText),
+               ladder: LICENCE_BY_ID['licence-pending'].export, asked: NAPIC_LICENCE_QUESTIONS.some(q => /export/i.test(q)) };
+    })()`);
+    if (r.export !== 'no' || r.ladder !== false || !r.said || !r.asked) fail('bugfix equities-data: a licence-pending record is not exported, as the data-sources page says', r);
+    else ok('bugfix equities-data: a licence-pending record is not exported — the licence ladder\'s "In an export" reads no, beside the sentence "excluded from export" and the open NAPIC question on exports');
+  }
+
+  /* THE 52-WEEK HIGH IS DEFINED AS THE ENGINE READS IT. With highs and lows
+     held the distance is from the day's high; the dictionary said "highest
+     close" in all three depths. */
+  {
+    const r = await evaluate(`(() => { const h = METRIC_BY_K.from52.help; return { h, learn: METRIC_HELP.from52?.technical === h.technical }; })()`);
+    const all = `${r.h.simple} ${r.h.context} ${r.h.technical}`;
+    if (!/highs and lows/.test(r.h.technical) || /highest close of the last year|highest close over 252 sessions\) ÷/.test(all) || !r.learn) fail('bugfix equities-data: the distance from the 52-week high is defined on the high the engine uses', r.h);
+    else ok('bugfix equities-data: the distance from the 52-week high is defined on the high the engine uses — the day\'s high where highs and lows are held, the highest close where they are not');
+  }
+
+  /* NO "null" IN THE ALERT FEED. A filed company entering a saved screen
+     read "Quality 72, Value null" — its valuation pillar is unscored without
+     a price. */
+  {
+    const r = await evaluate(`(async () => {
+      const keep = { screens: State.savedScreens, kinds: State.alertKinds };
+      try {
+        const def = JSON.parse(JSON.stringify(State.screen));
+        const snap = screenSnapshot(def);
+        const filed = snap.matches.filter(m => BY_ID.get(m.id)?.c.real).length;
+        snap.matches = snap.matches.filter(m => !BY_ID.get(m.id)?.c.real);
+        State.savedScreens = [{ name: 'bugfix probe', def, snapshot: snap, alertOnMatch: true, asOf: snap.asOf, model: snap.model }];
+        State.alertKinds = [...new Set([...(State.alertKinds || []), 'screen'])];
+        navigate('/my/alerts');
+        await new Promise(res => setTimeout(res, 400));
+        const text = document.querySelector('main').innerText;
+        return { filed, entered: (text.match(/is a new match for/g) || []).length, nulls: text.split('\\n').filter(l => /\\bnull\\b|undefined|NaN/.test(l)).slice(0, 3) };
+      } finally { State.savedScreens = keep.screens; State.alertKinds = keep.kinds; navigate('/learn'); }
+    })()`);
+    if (!r.filed || !r.entered || r.nulls.length) fail('bugfix equities-data: a screen\'s new matches print an unscored pillar as a dash, never "null"', r);
+    else ok(`bugfix equities-data: a screen's new matches print an unscored pillar as a dash, never "null" — ${r.entered} filed companies entering a saved screen, no null in the feed`);
+  }
+
+  /* FOCUS STAYS ON THE CONTROL. The demand selects and the weeks-of-use box
+     re-render the calculator; with render() the keyboard reader landed on
+     the document body after every change. */
+  {
+    const r = await evaluate(`(async () => {
+      const keep = { weeks: State.deal.ownUseWeeks, demand: JSON.parse(JSON.stringify(State.demand || {})) };
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const change = async (sel, value) => {
+        const n = document.querySelector(sel); if (!n) return 'missing';
+        n.focus();
+        const proto = n.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(n, value);
+        n.dispatchEvent(new Event('change', { bubbles: true }));
+        await w(120);
+        return document.activeElement?.id || document.activeElement?.tagName;
+      };
+      try {
+        navigate('/property/calculator');
+        await w(400);
+        const box = document.querySelector('#ownUseWeeks');
+        const named = !!box && !box.hasAttribute('aria-label') && box.labels?.[0]?.textContent.trim() === 'Weeks a year you would use it yourself';
+        const weeks = await change('#ownUseWeeks', '6');
+        const demand = await change('#demand-employment', 'operating');
+        return { weeks, demand, named };
+      } finally {
+        State.deal.ownUseWeeks = keep.weeks; saveDeal();
+        State.demand = keep.demand; saveDemand();
+        navigate('/learn');
+      }
+    })()`);
+    if (r.weeks !== 'ownUseWeeks' || r.demand !== 'demand-employment' || !r.named) fail('bugfix equities-data: changing a demand source or the weeks of own use keeps keyboard focus on the control, and the weeks box is named by its visible label', r);
+    else ok('bugfix equities-data: changing a demand source or the weeks of own use keeps keyboard focus on the control through the re-render, and the weeks box is named by its visible label');
+  }
+
+  /* THE ILLUSTRATIVE SET AGREES WITH ITSELF. Sapura's institutional stake
+     (41.2%) was less than the two institutions listed under it hold (44.1%),
+     so the implied free float disagreed with the holder table's "Retail and
+     other"; Petronas Chemicals' risk note put a fall of 84% at "roughly 75%". */
+  {
+    const r = await evaluate(`(() => {
+      const bad = [];
+      for (const x of U.filter(x => !x.c.real && x.c.own)) {
+        const o = x.c.own;
+        const inst = o.top.filter(([n]) => !/founder|retail/i.test(n)).reduce((s, [, p]) => s + p, 0);
+        if (inst > o.inst + 0.05) bad.push(x.c.tk + ': listed institutions ' + inst.toFixed(1) + '% above institutional ' + o.inst + '%');
+        const retail = o.top.find(([n]) => /retail and other/i.test(n));
+        if (retail && Math.abs(100 - o.inst - o.insider - retail[1]) > 0.05) bad.push(x.c.tk + ': free float ' + (100 - o.inst - o.insider).toFixed(1) + '% against "Retail and other" ' + retail[1] + '%');
+        const said = /fallen (?:about|roughly) (\\d+)% peak-to-trough/.exec(x.c.qrisk || '');
+        if (said) { const dd = maxDrawdown(x.d.ni); if (Math.abs(dd - Number(said[1])) > 2) bad.push(x.c.tk + ': says ' + said[1] + '%, net income fell ' + dd.toFixed(1) + '%'); }
+      }
+      return bad;
+    })()`);
+    if (r.length) fail('bugfix equities-data: the illustrative ownership and risk notes agree with the figures beside them', r);
+    else ok('bugfix equities-data: the illustrative ownership and risk notes agree with the figures beside them — no listed institutions above the institutional stake, every "Retail and other" equal to the implied free float, every stated earnings fall equal to the rows');
+  }
+
+  /* WHAT THE SCORE TESTS, STATED AS IT IS. Balance Sheet was "tested" — in
+     full — over its own list of three untested factors, and named net
+     gearing, which no pillar scores. */
+  {
+    const r = await evaluate(`(async () => {
+      const scored = new Set([...Object.values(PILLARS).flatMap(p => Object.values(p).filter(Array.isArray).flat()), ...VALUE_PILLAR.all].map(i => i.k));
+      const full = SCORECARD_COVERAGE.filter(p => p.state === 'tested' && p.untested.length).map(p => p.pillar);
+      const unscored = SCORECARD_COVERAGE.flatMap(p => p.tested).filter(l => l === METRIC_BY_K.netGearing.label && !scored.has('netGearing'));
+      openResearch('AAPL-SEC', 'quality');
+      await new Promise(res => setTimeout(res, 500));
+      const said = (document.querySelector('main').innerText.match(/\\d of 5 pillars are tested in full[^.]*/) || [''])[0];
+      navigate('/learn');
+      return { full, unscored, said };
+    })()`);
+    if (r.full.length || r.unscored.length || !/^0 of 5 pillars are tested in full/.test(r.said)) fail('bugfix equities-data: the scorecard coverage calls no pillar tested in full while it lists untested factors, and names only scored inputs', r);
+    else ok(`bugfix equities-data: the scorecard coverage calls no pillar tested in full while it lists untested factors, and names only scored inputs — "${r.said}"`);
+  }
+
+  /* THE FEED NAMES THE PACK A COMPANY IS VALUED ON. A revenue drawdown over
+     25% said the model "has been routed to a mid-cycle normalised pack" for
+     every company, and the router reads the business type: Pfizer, 3M and
+     Mastercard are valued on the FCFF pack. */
+  {
+    const r = await evaluate(`(() => {
+      const items = FEED.filter(f => f.kind === 'fundamental' && /revenue drawdown/.test(f.title));
+      const wrong = items.filter(f => /routed to a mid-cycle/.test(f.detail) !== (BY_ID.get(f.id).val.pack.id === 'dcfMid')).map(f => f.id);
+      return { n: items.length, other: items.filter(f => BY_ID.get(f.id).val.pack.id !== 'dcfMid').map(f => BY_ID.get(f.id).c.tk), wrong };
+    })()`);
+    if (!r.other.length || r.wrong.length) fail('bugfix equities-data: a drawdown in the change feed names the pack the company is actually valued on', r);
+    else ok(`bugfix equities-data: a drawdown in the change feed names the pack the company is actually valued on — ${r.n} drawdown items, ${r.other.join(', ')} not on the mid-cycle pack and not said to be`);
+  }
+  /* ---- end bugfix: equities-data ---- */
 
 } catch (e) {
   fail('harness error', e.message);

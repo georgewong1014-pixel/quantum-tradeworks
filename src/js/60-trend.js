@@ -57,8 +57,14 @@ const TREND_BY_ID = Object.fromEntries(TREND_INDICATORS.map(i => [i.id, i]));
    when any bar in the year lacks them, the closing extremes are used and
    `labels` says so. */
 function trendContext(series, { ohlc = null } = {}) {
-  const dates = Object.keys(series || {}).sort();
-  const closes = dates.map(d => series[d]).filter(v => isNum(v) && v > 0);
+  /* The dates of the closes that are kept, not of every key. The closes
+     were filtered and the dates were not, so after one unusable reading (a
+     restored file with a 0 or a null in it) closes[i] and dates[i] named
+     different days: a seam from 1 January's 10 to 5 January's 20 was dated
+     1 to 2 January — the day with no price — and the crossover date and the
+     series' first and last dates slid the same way. */
+  const dates = Object.keys(series || {}).filter(d => isNum(series[d]) && series[d] > 0).sort();
+  const closes = dates.map(d => series[d]);
   const n = closes.length;
   const last = n ? closes[n - 1] : null;
   const out = { points: n, first: dates[0] || null, lastDate: dates[dates.length - 1] || null,
@@ -66,7 +72,7 @@ function trendContext(series, { ohlc = null } = {}) {
 
   let high = null, low = null;
   if (ohlc && typeof ohlc === 'object') {
-    const kept = dates.filter(d => isNum(series[d]) && series[d] > 0);
+    const kept = dates;
     /* A high and low are used only where they bracket the close beside
        them: a close pasted in this browser over a held date is not the bar
        the file's range describes, and that day then has no range. */
@@ -568,7 +574,11 @@ VIEWS.alerts = () => {
       sev:'good', kind:'screen', id:r.c.id,
       title:`${r.c.tk}${illusText(r.c)} is a new match for “${s.name}”`,
       what:`It did not clear this screen when the snapshot was taken on ${s.snapshot?.saved ?? s.asOf}.`,
-      detail:`Quality ${r.scores.quality.score}, Value ${r.scores.value.score}, ${withSign(r.val.mos?.base, 0)} vs base-case model estimate.`,
+      /* Through scoreText, as the saved-screen table prints the same scores.
+         Interpolated raw, an unscored pillar printed "Value null" — every
+         filed company without a price, which is nearly all of them, entered
+         a screen with the word null where its valuation score should be. */
+      detail:`Quality ${scoreText(r.scores.quality.score)}, Value ${scoreText(r.scores.value.score)}, ${withSign(r.val.mos?.base, 0)} vs base-case model estimate.`,
       source:`Screen saved ${s.snapshot?.saved ?? s.asOf} · ${s.snapshot?.model ?? s.model}`,
     }));
     diff.left.forEach(m => items.push({
