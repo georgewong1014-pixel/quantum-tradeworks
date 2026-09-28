@@ -222,6 +222,9 @@ export const ENGINE_EXPORTS = [
   'scanPineRising', 'scanPineFalling', 'scanPineSar', 'scanPineSarState', 'scanPineXsa', 'scanPineMa',
   'scanPineWaveTrend', 'scanPineCmMacd', 'scanPineBotMacd', 'scanPineMcdx', 'scanPineColorMa', 'scanPineSmaCross', 'scanPinePsar',
   'scanPineSrMa', 'scanPineBankerEntry', 'scanPineRsiStudy', 'scanMonthOf',
+  /* the bot contract: conditions read on a higher timeframe (their last closed bar), and the reader's Multi-Timeframe Trading Bot as setups */
+  'SCAN_TF_RANK', 'scanTimeframeRank', 'scanTimeframeWord', 'scanFrame', 'scanFrameAt', 'scanTreeNeeds',
+  'SCAN_BOT_SIGNALS', 'scanBotCriteria', 'scanBotTree', 'scanBotPack', 'scanBotWarmup',
 ];
 
 /* ------------------------------------------------------------ validation -- */

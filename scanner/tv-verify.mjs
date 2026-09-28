@@ -81,8 +81,8 @@ export const CHART = [
   { titles: ['Regular Bullish', 'Regular Bullish Label', 'Regular Bearish', 'Regular Bearish Label'],
     why: 'the RSI script’s divergences (drawn only with its Calculate Divergence setting on), which the engine does not compute' },
   { id: 'wavetrend' },
-  { titles: ['Divergencias Bajistas', 'Divergencias Alcistas', 'Bearish Regular Divergence', 'Bearish Hidden Divergence', 'Bullish Regular Divergence', 'Bullish Regular Divergence'],
-    why: 'the WaveTrend script’s fractal divergences, whose code was not supplied in full, so the engine does not compute them' },
+  { titles: ['Bearish Regular Divergence', 'Bearish Hidden Divergence', 'Bullish Regular Divergence', 'Bullish Regular Divergence'],
+    why: 'the WaveTrend script’s divergence labels, which it draws only with its divergence switches on (off by default, and on your chart); the engine computes the fractal plots beside them (Divergencias Bajistas and Alcistas), not these' },
 ];
 export const INPUTS = ['time', 'open', 'high', 'low', 'close'];
 export const DROPS = [1, 2, 3, 5, 8, 13, 21, 34];
