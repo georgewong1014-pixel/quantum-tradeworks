@@ -21,6 +21,13 @@ const ICON = {
   grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   home:'<path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  /* The sidebar's (Release A). */
+  layout:'<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9h18M9 21V9"/>',
+  list:'<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+  database:'<ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><path d="M4 11.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+  tag:'<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
+  chev:'<path d="m6 9 6 6 6-6"/>',
 };
 const icon = (name, size = 14) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${ICON[name] || ''}</svg>`;
@@ -292,28 +299,163 @@ function toast(msg) {
 /* ==========================================================================
    NAVIGATION AND ROUTING
 
-   Five destinations, not eleven. The previous header gave equal weight to
-   Home, Compare, Thesis, Portfolio, Alerts, Tracked and Plans, which made
-   nothing look important. Compare belongs inside Research, the four personal
-   surfaces belong together, and pricing is reached from the call to action
-   and the footer rather than competing with the product.
+   TWO CHROMES, FOUR PRODUCTS (Release A). The header's six destinations —
+   Discover, Research, Scanner, My Investments, Property, Learn — were the
+   code's sections, and a first-time visitor had to learn that map before
+   doing anything. The product is four products and a personal workspace, so
+   the chrome says that, and which chrome a page wears follows who the page
+   is for (chromeOf):
 
-   Six since Phase 3, and the sixth is earned rather than added: the scanner
-   is a workflow of its own — setups, a daily run, a record of matches, the
-   worker's operations — with fifteen addresses, and the Phase 3 brief puts it
-   in the main navigation straight after equities. As a tab of My Investments
-   it was one page among eight, and the dashboard that says whether the last
-   scan is current could not be found from anywhere. It leaves that subnav, so
-   one page does not live in two sections.
+   PUBLIC — the front door, How it works, pricing and the trust and method
+   pages — wear a header: Products, How it works, Pricing, Resources, the
+   theme, and one action, "Open workspace". There is no Sign In because there
+   are no accounts: everything a visitor saves lives in their browser.
+
+   APP — every page a reader works in — wear a sidebar: their own workspace
+   first (dashboard, watchlists, alerts, saved models), then the products,
+   then their data and the plans. Below 1024px it is a drawer behind a slim
+   bar that keeps the search one tap away.
+
+   Nothing was removed to get here. Screener, Value map, Sarawak Economy
+   Watch and the Cash Wheel are tabs of Equities Research (PRODUCT_TABS); the
+   Trading Index is a section of the Scanner; every address that opened a
+   page before still opens it. docs/route-map.md is the whole map.
    ========================================================================== */
-const NAV = [
-  { id:'discover',  label:'Discover',       icon:'grid',      path:'/discover' },
-  { id:'research',  label:'Research',       icon:'chart',     path:'/research' },
-  { id:'scanner',   label:'Scanner',        icon:'target',    path:'/app/scanner' },
-  { id:'my',        label:'My Investments', icon:'briefcase', path:'/my/portfolio' },
-  { id:'property',  label:'Property',       icon:'home',      path:'/property' },
-  { id:'learn',     label:'Learn',          icon:'book',      path:'/learn' },
+
+/* THE FOUR PRODUCTS. The one list the header, the sidebar, the footer, the
+   homepage and How it works read, so a product's name, its status and the
+   sentence qualifying that status cannot differ between two of them. Each
+   status was checked against what the code does, not what the brief hoped:
+
+   - Equities is Beta. The US companies are audited SEC filings (data/us.json);
+     the Malaysian ones are the illustrative set (10-dataset.js); no market-data
+     licence is held for either exchange, so a filed company carries no price.
+   - The Scanner is Beta. Setups, the builder and every page work anywhere,
+     but every evaluation reads data/price-history.json — git-ignored, built on
+     the reader's own machine — and matches are written by a worker on that
+     machine and never sent (86-scanner.js). The hosted site has nothing to
+     scan, which is what the note says rather than a Live badge implying it.
+   - Property is Live. Every figure is dealModel() over the inputs on the page
+     (70-property.js); what is not the reader's own — the seeded example deal,
+     the sample projects' synthetic transactions, fee lines still placeholders
+     — is labelled where it shows, and the note says so.
+   - Business Intelligence is not built. It is text with a badge, never a
+     link or a button, and SHOW_UNBUILT keeps it out of the app sidebar. */
+const PRODUCTS = [
+  { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
+    task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
+    question: 'How is this company performing financially?', action: 'Research a company', actionPath: '/research',
+    status: 'beta', statusNote: 'US companies from their audited SEC filings and Malaysian companies from illustrative figures, with no licensed prices for either market.' },
+  { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
+    task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
+    question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
+    status: 'beta', statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
+  { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
+    task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
+    question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
+    status: 'live', statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.' },
+  { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
+    task: 'Plan my business', blurb: 'Cash flow, profitability and financing scenarios.',
+    question: 'What will happen to my company’s cash flow?', action: null, actionPath: null,
+    status: 'soon', statusNote: 'Not built yet — nothing to open.' },
 ];
+const PRODUCT_STATUS = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
+/* A product that is not built never appears in the app's navigation. */
+const SHOW_UNBUILT = false;
+/* "Reports" joins My Workspace once a list of reports exists. Today a report
+   is printed from a company page and nothing keeps it, so an item would open
+   a list that is not there. */
+const SHOW_REPORTS = false;
+const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
+
+/* The badge a product wears, with its note as the title. It is an element,
+   for el() children; its own markup when put in a template string, because
+   the pages that call it build both ways. */
+function productBadge(id) {
+  const p = productById(id);
+  if (!p) return null;
+  const b = el('span', { class: `status-badge status-${p.status}`, title: p.statusNote }, PRODUCT_STATUS[p.status] || p.status);
+  b.toString = () => b.outerHTML;
+  return b;
+}
+/* The product a view belongs to, or null — the dashboard, the personal pages
+   and the public pages belong to none. Read from SECTION_OF (below), the one
+   table that says where every view sits. */
+function productOf(view) {
+  const s = SECTION_OF[view];
+  return PRODUCTS.some(p => p.id === s) ? s : null;
+}
+
+/* Which chrome a view wears. Everything not listed is a page a reader works
+   in. The not-found card is public: a stranger who followed a dead link is
+   not in anyone's workspace. */
+const PUBLIC_VIEWS = new Set(['marketing', 'howItWorks', 'plans', 'about', 'contact', 'privacy', 'terms',
+  'learn', 'boundaries', 'status', 'ips', 'notfound']);
+const chromeOf = (view) => (PUBLIC_VIEWS.has(view) ? 'public' : 'app');
+
+/* The Resources menu, and the footer's Resources column less the four that
+   sit under Company there. */
+const RESOURCES = [
+  { label: 'Methodology',                   path: '/methodology',               group: 'method' },
+  { label: 'Data sources',                  path: '/data-sources',              group: 'method' },
+  { label: 'Glossary',                      path: '/learn/glossary',            group: 'method' },
+  { label: 'Learn',                         path: '/learn',                     group: 'method' },
+  { label: 'Corrections',                   path: '/corrections',               group: 'method' },
+  { label: 'What this product will not do', path: '/learn/product-boundaries',  group: 'method' },
+  { label: 'Build status',                  path: '/status',                    group: 'company' },
+  { label: 'About',                         path: '/about',                     group: 'company' },
+  { label: 'Contact',                       path: '/contact',                   group: 'company' },
+  { label: 'Privacy',                       path: '/privacy',                   group: 'company' },
+  { label: 'Terms',                         path: '/terms',                     group: 'company' },
+];
+
+/* The sidebar. My Workspace, then the products (from PRODUCTS), then the
+   reader's data and the plans. Each id is a SECTION_OF value. */
+const APP_NAV_WORKSPACE = [
+  { id: 'dashboard',  label: 'My Dashboard', icon: 'layout', path: '/app' },
+  { id: 'watchlists', label: 'Watchlists',   icon: 'list',   path: '/my/watchlists' },
+  { id: 'alerts',     label: 'My Alerts',    icon: 'bell',   path: '/my/alerts' },
+  { id: 'workspace',  label: 'Saved Models', icon: 'folder', path: '/my/workspace' },
+];
+const APP_NAV_FOOT = [
+  { id: 'userdata', label: 'Your data & settings', icon: 'database', path: '/my/data' },
+  { id: 'plans',    label: 'Plans',                icon: 'tag',      path: '/pricing' },
+];
+const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', business: 'briefcase' };
+
+/* ONE ROW OF TABS PER PRODUCT, above the product's pages. The tools the
+   brief does not name are here rather than gone: Screener, Value map,
+   Sarawak Economy Watch and the Cash Wheel are Equities pages. A tab is
+   current for the views it lists (and, on the discover view, for its own
+   tabs), so the Screener tab stays lit on the strategies and heatmap tabs
+   that share its page. The Scanner keeps its own section strip (scanSubnav,
+   86-scanner.js), where the Trading Index is its last section.
+
+   Property has no Overview tab. /property and /property/calculator are one
+   view — the calculator, whose canonical address is /property — so an
+   "Overview" beside "Calculator" would be two names for the same page, the
+   second one promising a summary that does not exist. The row gains it when
+   a Property overview is built (docs/route-map.md). */
+const PRODUCT_TABS = {
+  equities: [
+    { id: 'overview', label: 'Overview',       path: '/research',           views: ['researchHome'] },
+    { id: 'screener', label: 'Screener',       path: '/discover/screener',  views: ['discover'], tabs: ['screener', 'ideas', 'heatmap'] },
+    { id: 'valuemap', label: 'Value map',      path: '/discover/value-map', views: ['discover'], tabs: ['radar'] },
+    { id: 'compare',  label: 'Compare',        path: '/compare',            views: ['compare'] },
+    { id: 'queue',    label: 'Research queue', path: '/research/queue',     views: ['researchQueue'] },
+    { id: 'sarawak',  label: 'Sarawak watch',  path: '/discover/sarawak',   views: ['sarawak'] },
+    { id: 'wheel',    label: 'Cash Wheel',     path: '/us-options/wheel',   views: ['wheel'] },
+  ],
+  property: [
+    { id: 'calculator',    label: 'Calculator',    path: '/property/calculator',    views: ['property'] },
+    { id: 'areas',         label: 'Area screen',   path: '/property/areas',         views: ['areas'] },
+    { id: 'comparables',   label: 'Comparables',   path: '/property/comparables',   views: ['comparables'] },
+    { id: 'opportunities', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'] },
+  ],
+};
+/* The company page and its report belong to Equities but keep their own
+   tabs; a second row above them would be two strips of tabs on one page. */
+const NO_PRODUCT_TABS = new Set(['research', 'researchReport']);
 
 /* Views reachable by URL but not in the header. */
 const SUBNAV_MY = [
@@ -415,8 +557,15 @@ function companyFromSlug(s) {
 }
 
 const ROUTES = [
-  { path: '/',                    view: 'marketing', title: 'Quantum Tradeworks — research the company, test the property' },
-  { path: '/app',                 view: 'home',      title: 'Dashboard' },
+  { path: '/',                    view: 'marketing', title: 'Quantum Tradeworks — your financial decision workspace' },
+  { path: '/app',                 view: 'home',      title: 'My Dashboard' },
+  /* Release A: how each product works, with the examples that left the
+     homepage (55-views-public.js); and the Equities research queue, which
+     was the dashboard's body until the dashboard became the reader's own
+     (40-views-discover.js). Until a branch that defines a view is merged,
+     its route shows the not-found card (applyRoute), never a blank page. */
+  { path: '/how-it-works',        view: 'howItWorks', title: 'How it works' },
+  { path: '/research/queue',      view: 'researchQueue', title: 'Research queue' },
   { path: '/welcome',             view: 'onboarding',title: 'Get started' },
   { path: '/discover',            view: 'discover',  title: 'Discover' },
   { path: '/discover/screener',   view: 'discover',  tab: 'screener',  title: 'Screener' },
@@ -528,7 +677,9 @@ const ROUTES = [
 ];
 
 const META = {
-  marketing: 'Transparent research tools for Bursa Malaysia and US equities, plus property cash-flow analysis built for Malaysian investors.',
+  marketing: 'Your financial decision workspace: research companies, monitor your own market setups and evaluate property investments in one place. Business planning is next. Research only — no recommendations.',
+  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — and what Live, Beta, Demo and Coming soon mean.',
+  researchQueue: 'The Equities research queue: companies drawn from the statements held for each, each labelled filed or illustrative, with no recommendations.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
@@ -551,7 +702,7 @@ const META = {
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'Your dashboard: a research queue built from the statements held for each company, each labelled filed or illustrative, with no recommendations.',
+  home:        'My Dashboard: what changed since your last visit, which of your setups matched, and what you monitor and have saved — read from this browser, with nothing recommended.',
   onboarding:  'Five questions that decide where you land in Quantum Tradeworks, and nothing else.',
   launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
@@ -761,12 +912,19 @@ function navigate(path, { push = true, replace = false } = {}) {
 function afterRoute(beforeView) {
   const pathChanged = location.pathname !== lastPath;
   lastPath = location.pathname;
+  /* A menu or the navigation drawer that led here has done its job, and the
+     new page takes focus, so neither hands focus back. Chosen from one of
+     them, the page already on screen takes focus too: the link that had it
+     is about to be hidden with its menu, and focus would fall to <body>. */
+  const fromMenu = openMenuLi || sheetOpen || navDrawerOpen;
+  closeShellMenus({ restore: false });
   if (State.view !== beforeView || pathChanged) {
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (drawer.dataset.open === '1') closeDrawer({ restore: false });
     focusMain();
   } else {
     document.querySelector('.subnav [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+    if (fromMenu) focusMain();
   }
 }
 
@@ -788,13 +946,20 @@ const COMPANY_ROUTE_VIEWS = new Set(['research', 'researchReport']);
 function applyRoute() {
   const route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
+  /* A route whose view is defined in a module this build does not carry —
+     How it works and the research queue arrive with their own branches — is
+     the not-found card, not a page reading "Not found" in plain text under
+     the route's own title, and not a throw. */
+  if (!VIEWS[route.view]) { State.view = 'notfound'; State.notFoundWhat = null; setDocumentMeta(null); render(); return; }
 
-  /* Onboarding intercepts the dashboard only. Everything else is a legitimate
-     entry point: a shared company link, a screener someone was sent, a
-     property calculator found by search. Putting a setup sequence in front of
-     any of those loses the visitor the link was meant to bring — they asked
-     for a specific page, not to start a product. */
-  const ENTRY = ['home'];
+  /* Onboarding intercepted the dashboard, and only the dashboard: every other
+     address is a legitimate entry point, and a setup sequence in front of a
+     shared link loses the visitor the link was meant to bring. Since Release
+     A it intercepts nothing. My Dashboard's first-time state is itself the
+     onboarding — a checklist read from what the visitor has actually done —
+     so a gate in front of it would ask five questions before showing the
+     page that answers them. /welcome is still a page anyone can open. */
+  const ENTRY = [];
   if (!onboarded() && ENTRY.includes(route.view)) {
     State.view = 'onboarding';
     setDocumentMeta({ ...route, view: 'onboarding', title: 'Get started' });
@@ -959,46 +1124,353 @@ function openResearch(id, tab) {
   navigate(withQuery(companyPath(row ? row.c : id), tab || carriedResearchTab()));
 }
 
-/* Which header section a view belongs to, where that is not the view's own
-   id. The header matched on the view id alone, so Research home, every
-   /app/equities address, Sarawak, Property's registers and Learn's sub-pages
-   left the header with no current item. The decision record serves property,
-   the wheel and the trading index alike, and the dashboard sits above every
-   section, so neither is claimed by one. */
+/* Which sidebar item a view sits under — the one table that says where every
+   page belongs, read by the sidebar's current item and by productOf(). The
+   header it replaced matched on the view id alone, so sub-pages left it with
+   no current item; every view that belongs somewhere is listed. The personal
+   pages that are not items of their own sit where they fit: holdings and
+   investment cases are things a reader saved (Saved Models), and tracked
+   instruments are followed like a watchlist. The Trading Index is a section
+   of the Scanner, as its page's strip says. The decision record serves
+   property, the wheel and the trading index alike, and onboarding and the
+   goal launcher sit before any of them, so none of those is claimed; nor is
+   any public page — the sidebar is not on them. */
 const SECTION_OF = {
-  researchHome: 'research', compare: 'research', tradingIndex: 'research', wheel: 'research', researchReport: 'research',
-  sarawak: 'discover',
-  opportunities: 'property', comparables: 'property', areas: 'property',
-  boundaries: 'learn', ips: 'learn', status: 'learn',
-  ...Object.fromEntries(SUBNAV_MY.map(s => [s.id, 'my'])),
+  home: 'dashboard',
+  watchlists: 'watchlists', tracked: 'watchlists',
+  alerts: 'alerts',
+  workspace: 'workspace', thesis: 'workspace', portfolio: 'workspace',
+  userdata: 'userdata', plans: 'plans',
+  researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
+  discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
+  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property',
+  tradingIndex: 'scanner',
   /* Every scanner page, the operations pages included: they are the
      scanner's, even though the navigation carries no link to them. */
   ...Object.fromEntries(SCANNER_VIEWS.map(v => [v, 'scanner'])),
 };
-function buildNav() {
-  const nav = $('#mainnav');
-  /* Real anchors, so the whole browser contract works: middle-click, open in
-     a new tab, copy link address, and the status bar showing where it goes. */
-  nav.replaceChildren(...NAV.map(n => {
-    const active = State.view === n.id || SECTION_OF[State.view] === n.id;
-    /* The scanner's unread alerts, counted by the alerts page's own function
-       (scanUnreadCount, null when no alerts file is visible). A count is shown
-       only when there is one: a 0 or a blank would claim a record exists. The
-       label stays the link's first text, and the count is announced with
-       what it counts. */
-    const unread = n.id === 'scanner' && typeof scanUnreadCount === 'function' ? navUnread() : null;
-    return el('a', {
-      class: 'navlink', href: href(n.path), 'aria-current': active ? 'page' : null,
-      'aria-label': unread ? `${n.label}, ${unread} unread alert${unread === 1 ? '' : 's'}` : null,
-      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(n.path); },
-    }, n.label, unread ? el('span', { class: 'nav-count', 'aria-hidden': 'true' }, unread > 99 ? '99+' : String(unread)) : null);
-  }));
-}
 /* Guarded twice: the function may not exist in a build without the alerts
-   pages, and a throw inside the header would take every page down with it. */
+   pages, and a throw inside the chrome would take every page down with it. */
 function navUnread() {
   try { const n = scanUnreadCount(); return Number.isInteger(n) && n > 0 ? n : null; } catch { return null; }
 }
+
+/* ------------------------------------------------------------ the chrome */
+/* Built once, then kept current by buildNav() on every render. Rebuilt on
+   every render, as the old header was, a link that had focus was destroyed
+   under the keyboard by any redraw — a theme switch, a scanner status
+   change — and an open menu snapped shut. Real anchors throughout (data-path
+   routes them in-app), so middle-click, open in a new tab and copy link
+   address all work. */
+const shellEl = {
+  pubbar: $('#pubbar'), pubnav: $('#pubnav'), sheet: $('#pubSheet'), sheetBtn: $('#pubMenuBtn'),
+  appbar: $('#appbar'), sidebar: $('#sidebar'), appnav: $('#appnav'), navOpen: $('#navOpen'), navClose: $('#navClose'),
+  navScrim: $('#navScrim'), tabsHost: $('#productTabs'),
+};
+const shellLink = (path, attrs, ...kids) => el('a', { href: href(path), 'data-path': path, ...attrs }, ...kids);
+const shellIcon = (name, size = 18, cls = 'sb-ico') => el('span', { class: cls, 'aria-hidden': 'true', html: icon(name, size) });
+
+/* A resource link is current when it names the page on screen: its own
+   address first, then the page its route opens — the alias /learn and
+   /learn/glossary both open the dictionary, and the address decides which. */
+function resourceHere() {
+  const here = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
+  const exact = RESOURCES.find(r => r.path === (here.replace(/\/+$/, '') || '/'));
+  if (exact) return exact;
+  return RESOURCES.find(r => {
+    const rt = matchRoute(r.path);
+    if (!rt || rt.view !== State.view) return false;
+    if (rt.view === 'learn') return (LEARN_TAB_ALIAS[rt.tab] || rt.tab || 'dictionary') === State.learnTab;
+    return true;
+  }) || null;
+}
+
+/* The four products as rows: name, badge, blurb. A product that is not built
+   is a row of text — no link, no button, nothing to press. */
+function productRows() {
+  return PRODUCTS.map(p => {
+    const kids = [
+      el('span', { class: 'pp-ico', 'aria-hidden': 'true', html: icon(PRODUCT_ICON[p.id] || 'grid', 18) }),
+      el('span', { class: 'pp-body' }, [
+        el('span', { class: 'pp-head' }, [el('span', { class: 'pp-name' }, p.name), productBadge(p.id)]),
+        el('span', { class: 'pp-blurb' }, p.blurb),
+      ]),
+    ];
+    return el('li', {}, p.path
+      ? shellLink(p.path, { class: 'pp-row', 'data-product': p.id }, kids)
+      : el('div', { class: 'pp-row pp-row-off', 'data-product': p.id }, kids));
+  });
+}
+/* Drawn twice — the menu and the phone sheet — so each copy's labels carry
+   their own ids. */
+function resourceLists(prefix) {
+  const group = (g, label) => el('div', { class: 'rs-group' }, [
+    el('p', { class: 'rs-label', id: `${prefix}-rs-${g}` }, label),
+    el('ul', { class: 'rs-list', 'aria-labelledby': `${prefix}-rs-${g}` },
+      RESOURCES.filter(r => r.group === g).map(r => el('li', {}, shellLink(r.path, { class: 'rs-link' }, r.label)))),
+  ]);
+  return [group('method', 'Method and data'), group('company', 'This build and its terms')];
+}
+
+/* A disclosure menu of the public header: a button that says whether it is
+   open, and the panel after it in the reading order, so Tab walks into it. */
+function pubMenu(id, label, panelKids, cls) {
+  const btn = el('button', { type: 'button', class: 'publink pubmenu-btn', id: `${id}Btn`, 'aria-expanded': 'false', 'aria-controls': id },
+    label, shellIcon('chev', 14, 'pub-chev'));
+  const panel = el('div', { class: `pubpanel ${cls}`, id }, panelKids);
+  panel.hidden = true;
+  const li = el('li', { class: 'pubmenu' }, [btn, panel]);
+  btn.addEventListener('click', () => (openMenuLi === li ? closeMenu() : openMenu(li)));
+  btn.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown') return;
+    e.preventDefault(); openMenu(li, { focusFirst: true });
+  });
+  /* Arrow keys walk the panel's links; Tab still leaves it, and leaving by
+     Tab closes it. A pointer leaving does nothing — only a click outside. */
+  panel.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const items = [...panel.querySelectorAll('a')];
+    const i = items.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+  });
+  li.addEventListener('focusout', (e) => {
+    if (openMenuLi === li && e.relatedTarget && !li.contains(e.relatedTarget)) closeMenu({ restore: false });
+  });
+  return li;
+}
+
+let openMenuLi = null, sheetOpen = false, navDrawerOpen = false, navDrawerTimer = null;
+function openMenu(li, { focusFirst = false } = {}) {
+  if (openMenuLi && openMenuLi !== li) closeMenu({ restore: false });
+  const btn = li.querySelector('.pubmenu-btn'), panel = li.querySelector('.pubpanel');
+  openMenuLi = li;
+  panel.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => { if (openMenuLi === li) panel.dataset.open = '1'; });
+  if (focusFirst) panel.querySelector('a')?.focus();
+}
+/* restore: focus goes back to the button — Escape's contract. A click
+   elsewhere or a navigation leaves focus where it went. */
+function closeMenu({ restore = true } = {}) {
+  const li = openMenuLi;
+  if (!li) return false;
+  openMenuLi = null;
+  const btn = li.querySelector('.pubmenu-btn'), panel = li.querySelector('.pubpanel');
+  panel.hidden = true; delete panel.dataset.open;
+  btn.setAttribute('aria-expanded', 'false');
+  if (restore) btn.focus();
+  return true;
+}
+function openSheet() {
+  if (sheetOpen) return;
+  sheetOpen = true;
+  shellEl.sheet.hidden = false;
+  shellEl.sheetBtn.setAttribute('aria-expanded', 'true');
+  shellEl.sheetBtn.setAttribute('aria-label', 'Close the menu');
+  requestAnimationFrame(() => { if (sheetOpen) shellEl.sheet.dataset.open = '1'; });
+}
+function closeSheet({ restore = true } = {}) {
+  if (!sheetOpen) return false;
+  sheetOpen = false;
+  shellEl.sheet.hidden = true; delete shellEl.sheet.dataset.open;
+  shellEl.sheetBtn.setAttribute('aria-expanded', 'false');
+  shellEl.sheetBtn.setAttribute('aria-label', 'Menu');
+  if (restore) shellEl.sheetBtn.focus();
+  return true;
+}
+/* THE SIDEBAR AS A DRAWER, below 1024px. A modal dialog while it is open —
+   role, aria-modal and a label, focus on its close button, Tab kept inside
+   it (95-boot.js), Escape and the scrim close it — and a plain part of the
+   page again once it is closed, when it is also invisible and out of the
+   tab order. Only transform moves; visibility changes at the ends. */
+function openNavDrawer() {
+  if (navDrawerOpen || !shellEl.sidebar) return;
+  clearTimeout(navDrawerTimer);
+  navDrawerOpen = true;
+  const sb = shellEl.sidebar;
+  sb.setAttribute('role', 'dialog'); sb.setAttribute('aria-modal', 'true'); sb.setAttribute('aria-label', 'Menu');
+  sb.dataset.drawer = 'opening';
+  shellEl.navScrim.hidden = false;
+  shellEl.navOpen.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!navDrawerOpen) return;
+    sb.dataset.drawer = 'open'; shellEl.navScrim.dataset.open = '1';
+  }));
+  shellEl.navClose.focus({ preventScroll: true });
+}
+function closeNavDrawer({ restore = true, instant = false } = {}) {
+  if (!navDrawerOpen) return false;
+  navDrawerOpen = false;
+  const sb = shellEl.sidebar;
+  ['role', 'aria-modal', 'aria-label'].forEach(a => sb.removeAttribute(a));
+  shellEl.navOpen.setAttribute('aria-expanded', 'false');
+  shellEl.navScrim.dataset.open = '0';
+  const done = () => { sb.dataset.drawer = 'closed'; shellEl.navScrim.hidden = true; };
+  if (instant) done();
+  else { sb.dataset.drawer = 'closing'; navDrawerTimer = setTimeout(done, 260); }
+  if (restore) shellEl.navOpen.focus({ preventScroll: true });
+  return true;
+}
+function closeShellMenus({ restore = false } = {}) {
+  closeMenu({ restore });
+  closeSheet({ restore });
+  closeNavDrawer({ restore });
+}
+
+let shellBuilt = false;
+function buildShell() {
+  if (shellBuilt) return;
+  shellBuilt = true;
+  /* The public header: Products, How it works, Pricing, Resources. */
+  if (shellEl.pubnav) {
+    shellEl.pubnav.append(el('ul', { class: 'pubnav-list' }, [
+      pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows())], 'pubpanel-products'),
+      el('li', {}, shellLink('/how-it-works', { class: 'publink', 'data-pub': 'howItWorks' }, 'How it works')),
+      el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Pricing')),
+      pubMenu('menuResources', 'Resources', resourceLists('menu'), 'pubpanel-resources'),
+    ]));
+  }
+  /* The same items, as the phone's sheet. The theme lives here below 1024px,
+     where the header has room only for the brand and the one action. */
+  if (shellEl.sheet) {
+    shellEl.sheet.append(el('div', { class: 'sheet-in' }, [
+      el('p', { class: 'rs-label', id: 'sheet-products' }, 'Products'),
+      el('ul', { class: 'pp-list', 'aria-labelledby': 'sheet-products' }, productRows()),
+      el('ul', { class: 'sheet-links' }, [
+        el('li', {}, shellLink('/how-it-works', { class: 'sheet-link', 'data-pub': 'howItWorks' }, 'How it works')),
+        el('li', {}, shellLink('/pricing', { class: 'sheet-link', 'data-pub': 'plans' }, 'Pricing')),
+      ]),
+      el('div', { class: 'sheet-resources' }, resourceLists('sheet')),
+      el('button', { type: 'button', class: 'sheet-link sheet-theme', 'data-theme-toggle': '', 'aria-label': 'Switch colour theme' }, [
+        el('span', { class: 'sb-ico', 'aria-hidden': 'true', 'data-theme-icon': '', html: '' }),
+        el('span', { 'data-theme-label': '' }, 'Theme'),
+      ]),
+    ]));
+    shellEl.sheetBtn.addEventListener('click', () => (sheetOpen ? closeSheet() : openSheet()));
+  }
+  /* The sidebar: My Workspace, Products, then the reader's data and plans. */
+  if (shellEl.appnav) {
+    const item = (n, extra = []) => el('li', { class: 'sb-item', 'data-item': n.id }, [
+      shellLink(n.path, { class: 'sb-link', 'data-nav-id': n.id }, [shellIcon(n.icon), el('span', { class: 'sb-text' }, n.label), ...extra]),
+    ]);
+    const products = PRODUCTS.filter(p => SHOW_UNBUILT || p.path);
+    shellEl.appnav.append(
+      el('p', { class: 'sb-label', id: 'sb-ws' }, 'My workspace'),
+      el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-ws' }, APP_NAV_WORKSPACE.map(n => item(n))),
+      el('p', { class: 'sb-label', id: 'sb-products' }, 'Products'),
+      el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-products' },
+        products.map(p => item({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path }, [productBadge(p.id)]))),
+      el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => item(n))),
+    );
+    shellEl.navOpen?.addEventListener('click', openNavDrawer);
+    shellEl.navClose?.addEventListener('click', () => closeNavDrawer());
+    shellEl.navScrim?.addEventListener('click', () => closeNavDrawer());
+    /* Widened past the breakpoint with the drawer open, the sidebar becomes
+       the persistent one; the drawer's state must not linger on it. The
+       sheet belongs to the narrow header and closes the same way. */
+    matchMedia('(min-width: 1024px)').addEventListener('change', (e) => {
+      if (!e.matches) return;
+      closeNavDrawer({ restore: false, instant: true });
+      closeSheet({ restore: false });
+    });
+  }
+  /* The footer's Products and Resources, from the same tables. */
+  const footP = $('#footProducts'), footR = $('#footResources');
+  if (footP) footP.append(...PRODUCTS.map(p => el('li', {}, p.path
+    ? shellLink(p.path, { class: 'foot-product' }, [p.name, productBadge(p.id)])
+    : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))));
+  if (footR) footR.append(
+    ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),
+    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')));
+  /* A click outside an open menu or the sheet closes it. */
+  document.addEventListener('click', (e) => {
+    if (openMenuLi && !openMenuLi.contains(e.target)) closeMenu({ restore: false });
+    if (sheetOpen && !shellEl.pubbar.contains(e.target)) closeSheet({ restore: false });
+  });
+  /* The chrome the address will wear, now, rather than at the first render
+     after the rest of the modules load: an app page otherwise showed the
+     public header for as long as that took. */
+  document.documentElement.dataset.chrome = chromeOf(matchRoute(location.pathname)?.view || 'notfound');
+}
+
+/* The current page, in both chromes, on every render. */
+function buildNav() {
+  buildShell();
+  const chrome = chromeOf(State.view);
+  document.documentElement.dataset.chrome = chrome;
+  /* A drawer or a sheet belongs to the chrome that opened it. */
+  if (chrome === 'public') closeNavDrawer({ restore: false, instant: true });
+  else closeSheet({ restore: false });
+  const section = SECTION_OF[State.view] || null;
+  shellEl.appnav?.querySelectorAll('a.sb-link').forEach(a => {
+    if (a.dataset.navId === section) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  /* THE SCANNER'S UNREAD ALERTS, on My Alerts. Counted by the alerts page's
+     own function (scanUnreadCount, null when no alerts file is visible); a
+     count is shown only when there is one, since a 0 would claim a record
+     exists. The count is a link of its own, to the page that lists those
+     alerts: /my/alerts is the research alert feed and does not list the
+     scanner's matches, so a count on its link would promise alerts the page
+     it opens does not show. */
+  const alertsLi = shellEl.appnav?.querySelector('[data-item="alerts"]');
+  if (alertsLi) {
+    alertsLi.querySelector('.sb-count')?.remove();
+    const unread = typeof scanUnreadCount === 'function' ? navUnread() : null;
+    if (unread) {
+      const said = `${unread} unread scanner alert${unread === 1 ? '' : 's'}`;
+      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': said, title: said },
+        el('span', { class: 'nav-count' }, unread > 99 ? '99+' : String(unread))));
+    }
+  }
+  /* The public header's current link, and a mark on the menu that holds it. */
+  const res = chrome === 'public' ? resourceHere() : null;
+  document.querySelectorAll('#pubnav a, #pubSheet a').forEach(a => {
+    const on = a.dataset.pub ? a.dataset.pub === State.view : res ? a.dataset.path === res.path : false;
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  $('#menuResourcesBtn')?.toggleAttribute('data-current', !!res);
+}
+
+/* THE PRODUCT'S TABS, above its pages. Drawn into their own host in <main>,
+   outside the view, so a tab change does not replay the view's entrance on
+   the strip the reader just pressed. A nav landmark named for the product;
+   the tab for the page on screen is current. */
+function renderProductTabs() {
+  const host = shellEl.tabsHost;
+  if (!host) return;
+  const pid = productOf(State.view);
+  const tabs = PRODUCT_TABS[pid];
+  if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; return; }
+  const p = productById(pid);
+  const here = tabs.find(t => t.views.includes(State.view) && (!t.tabs || t.tabs.includes(State.discoverTab)))
+    || tabs.find(t => t.views.includes(State.view));
+  const nav = el('nav', { class: 'ptabs', 'aria-label': `${p.name} sections` }, [
+    el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]),
+    el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {},
+      shellLink(t.path, { class: 'ptab', 'aria-current': t === here ? 'page' : null }, t.label)))),
+  ]);
+  host.replaceChildren(el('div', { class: 'shell' }, nav));
+  host.hidden = false;
+  /* Where the row is narrower than its tabs it scrolls: the current tab is
+     brought into it, so the page's own name is never the one scrolled out of
+     sight, and the row fades at whichever end has more — the sign that there
+     is more, which a hidden scrollbar does not give. */
+  const list = nav.querySelector('.ptabs-list'), cur = nav.querySelector('.ptab[aria-current]');
+  if (list && cur && list.scrollWidth > list.clientWidth + 1) {
+    const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
+    list.scrollLeft += (c.left + c.width / 2) - (l.left + l.width / 2);
+  }
+  if (list) { list.addEventListener('scroll', () => fadeTabs(list), { passive: true }); fadeTabs(list); }
+}
+function fadeTabs(list) {
+  const max = list.scrollWidth - list.clientWidth;
+  const f = max <= 1 ? '' : list.scrollLeft <= 1 ? 'end' : list.scrollLeft >= max - 1 ? 'start' : 'both';
+  if (f) list.dataset.fade = f; else delete list.dataset.fade;
+}
+window.addEventListener('resize', () => { const l = document.querySelector('#productTabs .ptabs-list'); if (l) fadeTabs(l); });
+buildShell();
 
 let stickyObserver = null;
 let stickySizer = null;
@@ -1009,13 +1481,18 @@ let fitRails = () => {};
 /* A viewport that changes height changes which rails fit, and a
    ResizeObserver on the rail itself never hears about it. */
 window.addEventListener('resize', () => fitRails());
-/* The topbar's real height, for scroll-padding-top. --topbar-h is the 60px
-   single-row design value; below 1220px the nav wraps under the brand and the
-   bar is 100-167px, so the constant would clear barely a third of it. */
+/* The topbar's real height, for scroll-padding-top and everything that sticks
+   under it. --topbar-h is the design value; the measured one is what is
+   actually stuck to the top of the viewport. Two bars since Release A, and at
+   most one shows: the public header, or the app's slim bar below 1024px.
+   With the sidebar beside the page nothing is stuck to the top at all, and
+   the measure is 0 — a sticky strip, a rail or a jumped-to heading comes to
+   rest at the edge instead of 60px under a bar that is not there. */
 {
-  const bar = document.querySelector('.topbar');
-  if (bar) new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-live',
-    `${Math.round(bar.getBoundingClientRect().height)}px`)).observe(bar);
+  const bars = [...document.querySelectorAll('.topbar')];
+  const publish = () => document.documentElement.style.setProperty('--topbar-live',
+    `${Math.round(Math.max(0, ...bars.map(b => b.getBoundingClientRect().height)))}px`);
+  if (bars.length) { const ro = new ResizeObserver(publish); bars.forEach(b => ro.observe(b)); }
 }
 /* THE FIRST PAINT WAS A DIFFERENT PRODUCT
    ---------------------------------------------------------------------------
@@ -1047,6 +1524,9 @@ let realPending = false;
 const UNIVERSE_VIEWS = new Set([
   'home', 'discover', 'research', 'researchHome', 'compare', 'portfolio',
   'watchlists', 'thesis', 'alerts', 'tracked', 'scanner', 'sarawak', 'plans',
+  /* The Equities research queue is the dashboard's former body, drawn from
+     the whole universe, so it waits for the filings as the dashboard did. */
+  'researchQueue',
   /* Both name companies: the report is one, and the workspace lists saved
      items by company and says whether each one's data has moved. */
   'researchReport', 'workspace',
@@ -1081,6 +1561,7 @@ function bootSkeleton() {
 
 function render() {
   buildNav();
+  renderProductTabs();
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
     ? bootSkeleton()
     : (VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found'));

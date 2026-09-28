@@ -744,9 +744,11 @@ try {
       navigate('/learn?tab=scoring'); navigate('/corrections'); navigate('/learn');
       out.learn = State.learnTab;
       out.nav = {};
+      /* Release A: the app's sidebar or, on a public page, the header's
+         Resources menu — whichever chrome the page wears marks it. */
       for (const p of ['/app/equities', '/discover/sarawak', '/property/areas', '/learn/product-boundaries', '/my/scanner']) {
         navigate(p);
-        out.nav[p] = document.querySelector('#mainnav a[aria-current=page]')?.firstChild?.textContent || null;
+        out.nav[p] = (document.querySelector('#appnav a[aria-current=page] .sb-text') || document.querySelector('#pubnav a[aria-current=page]'))?.textContent.trim() || null;
       }
       const canon = () => document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '');
       navigate('/app/equities/aapl'); const c1 = canon();
@@ -771,7 +773,7 @@ try {
     if (r.carried !== 'financials') p.push(`moving to JPM from /app/equities/aapl/financials landed on ${r.carried}`);
     if (r.plans !== '/pricing?real=1') p.push(`go('plans') from the calculator went to ${r.plans}`);
     if (r.learn !== 'dictionary') p.push(`/learn after /corrections shows the ${r.learn} tab`);
-    const wantNav = { '/app/equities': 'Research', '/discover/sarawak': 'Discover', '/property/areas': 'Property', '/learn/product-boundaries': 'Learn', '/my/scanner': 'Scanner' };
+    const wantNav = { '/app/equities': 'Equities Research', '/discover/sarawak': 'Equities Research', '/property/areas': 'Property Intelligence', '/learn/product-boundaries': 'What this product will not do', '/my/scanner': 'Quantum Scanner' };
     for (const [k, v] of Object.entries(wantNav)) if (r.nav[k] !== v) p.push(`${k}: the header marks ${r.nav[k]}, not ${v}`);
     if (r.canon[0] !== r.canon[1] || !/^\/company\/aapl-/.test(r.canon[0])) p.push(`AAPL's canonicals: ${r.canon.join(' vs ')}`);
     if (r.chip && (r.chip[1] !== r.chip[0] || r.chip[2] !== null)) p.push(`a ${r.chip[0]} instrument shows the chip ${r.chip[1]} and currency ${r.chip[2]}`);
@@ -3280,17 +3282,21 @@ try {
       scanDeliveriesFile = keep.d; ingestRunsFile = keep.i; scanOpsClock = keep.k; scanOpsRead = keep.read; scanMarketState.result = null; scanBacktestState.result = null; };`;
   const opsWait = `const w = (ms) => new Promise(r => setTimeout(r, ms));`;
 
-  /* NAVIGATION. Scanner is the third destination, every scanner address
-     marks it current, /my/scanner is an alias whose canonical is
-     /app/scanner, and My Investments no longer carries a scanner tab. */
+  /* NAVIGATION. The scanner is the product after Equities Research — in the
+     app's sidebar since Release A, the header's successor — every scanner
+     address (and the Trading Index, a section of it now) marks it current,
+     /my/scanner is an alias whose canonical is /app/scanner, and My
+     Investments no longer carries a scanner tab. */
   {
     const r = await evaluate(`(async () => {
-      const out = { labels: NAV.map(n => n.label), my: SUBNAV_MY.map(s => s.id), cur: {}, views: {} };
-      for (const p of ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery', '/my/scanner']) {
+      const out = { labels: [...document.querySelectorAll('#appnav a.sb-link .sb-text')].map(n => n.textContent.trim()), my: SUBNAV_MY.map(s => s.id), cur: {}, views: {} };
+      for (const p of ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery', '/my/scanner', '/research/trading-index']) {
         navigate(p);
-        out.cur[p] = document.querySelector('#mainnav a[aria-current=page]')?.firstChild?.textContent || null;
+        out.cur[p] = document.querySelector('#appnav a[aria-current=page] .sb-text')?.textContent.trim() || null;
         out.views[p] = State.view;
       }
+      out.trading = document.querySelector('main nav[aria-label="Scanner sections"] a[aria-current=page]')?.textContent.trim() || null;
+      navigate('/my/scanner');
       out.canon = document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '');
       navigate('/my/scanner?symbol=MSFT');
       out.symbol = { view: State.view, path: location.pathname };
@@ -3300,18 +3306,20 @@ try {
       return out;
     })()`);
     const p = [];
-    if (r.labels.join() !== 'Discover,Research,Scanner,My Investments,Property,Learn') p.push(`header ${r.labels.join(', ')}`);
+    if (r.labels.join() !== 'My Dashboard,Watchlists,My Alerts,Saved Models,Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans') p.push(`sidebar ${r.labels.join(', ')}`);
     if (r.my.includes('scanner')) p.push('My Investments still carries a scanner tab');
-    for (const [k, v] of Object.entries(r.cur)) if (v !== 'Scanner') p.push(`${k} marks ${v}`);
+    for (const [k, v] of Object.entries(r.cur)) if (v !== 'Quantum Scanner') p.push(`${k} marks ${v}`);
+    if (r.trading !== 'Trading Index') p.push(`the Trading Index page's scanner strip marks ${r.trading}`);
     const wantView = { '/app/scanner': 'scannerDashboard', '/app/scanner/market': 'scannerMarket', '/app/scanner/backtest': 'scannerBacktest', '/admin/scanner': 'scannerAdmin',
-      '/admin/scanner/data': 'scannerAdminData', '/admin/scanner/jobs': 'scannerAdminJobs', '/admin/scanner/delivery': 'scannerAdminDelivery', '/my/scanner': 'scannerDashboard' };
+      '/admin/scanner/data': 'scannerAdminData', '/admin/scanner/jobs': 'scannerAdminJobs', '/admin/scanner/delivery': 'scannerAdminDelivery', '/my/scanner': 'scannerDashboard',
+      '/research/trading-index': 'tradingIndex' };
     for (const [k, v] of Object.entries(wantView)) if (r.views[k] !== v) p.push(`${k} renders ${r.views[k]}, not ${v}`);
     if (r.canon !== '/app/scanner') p.push(`/my/scanner's canonical is ${r.canon}`);
     if (r.symbol.view === 'notfound' || !(r.symbol.path === '/app/scanner/setups/new' || r.symbol.view === 'scannerDashboard')) p.push(`/my/scanner?symbol=MSFT went to ${JSON.stringify(r.symbol)}`);
     if (!r.section) p.push('a scanner view is not in the Scanner section');
     if (!r.noId) p.push('a scanner route names a parameter :id, which the router reads as a company');
     if (p.length) fail('the scanner is in the header after Research, on every scanner address', p);
-    else ok(`the scanner is in the header after Research, on every scanner address — ${Object.keys(r.cur).length} addresses mark it current, /my/scanner canonicalises to /app/scanner, and /my/scanner?symbol= opens ${r.symbol.path === '/app/scanner/setups/new' ? 'the builder' : 'the dashboard (no builder in this build)'}`);
+    else ok(`the scanner is in the header after Research, on every scanner address — the app sidebar lists Quantum Scanner straight after Equities Research, ${Object.keys(r.cur).length} addresses mark it current (the Trading Index among them, its strip naming itself), /my/scanner canonicalises to /app/scanner, and /my/scanner?symbol= opens ${r.symbol.path === '/app/scanner/setups/new' ? 'the builder' : 'the dashboard (no builder in this build)'}`);
   }
 
   /* THE DASHBOARD'S STATES, from injected records only: never, current,
@@ -5142,7 +5150,8 @@ try {
         const r = await evaluate(`(async () => {
           const w = (ms) => new Promise(r => setTimeout(r, ms));
           ${scanSeedP3};
-          const navCount = () => { const n = [...document.querySelectorAll('#mainnav a')].find(x => /^Scanner/.test(x.textContent.trim())); return n?.querySelector('.nav-count')?.textContent || null; };
+          /* The main navigation's count sits on My Alerts in the sidebar since Release A. */
+          const navCount = () => document.querySelector('#appnav [data-item="alerts"] .sb-count .nav-count')?.textContent || null;
           const a = scanAlertsInOrder().find(x => x.id && scanAlertStatus(x) === 'NEW');
           const id = scanAlertIdOf(a);
           navigate('/app/scanner/alerts/' + id); await w(80);
@@ -6781,9 +6790,10 @@ try {
       const cs = fh[0] ? getComputedStyle(fh[0]) : null;
       return { out, n: fh.length, tags: [...new Set(fh.map(h => h.tagName))].join(','), size: cs?.fontSize, tt: cs?.textTransform };
     })()`);
-    if (Object.keys(r.out).length || r.n !== 4 || r.tags !== 'H2' || r.size !== '12px' || r.tt !== 'uppercase')
-      fail('bugfix4 shell: no page skips a heading level into the footer, whose four headings are h2 at 12px uppercase', r);
-    else ok('bugfix4 shell: no page skips a heading level into the footer — its four column headings are h2, still 12px uppercase');
+    /* Three columns since Release A — Products, Resources, Company. */
+    if (Object.keys(r.out).length || r.n !== 3 || r.tags !== 'H2' || r.size !== '12px' || r.tt !== 'uppercase')
+      fail('bugfix4 shell: no page skips a heading level into the footer, whose three headings are h2 at 12px uppercase', r);
+    else ok('bugfix4 shell: no page skips a heading level into the footer — its three column headings are h2, still 12px uppercase');
   }
   {
     /* A MARKET CAP UNDER HALF A MILLION BELOW ZERO IS NOUGHT. fmtCap took

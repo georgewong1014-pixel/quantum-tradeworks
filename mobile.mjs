@@ -296,21 +296,28 @@ for (const w of [375, 1440]) {
   }
 }
 
-/* SIX DESTINATIONS AT 360. Phase 3 put Scanner in the header, and a sixth
-   item is how the topbar overflowed before: every link must sit wholly
-   inside the viewport, none clipped by the row, each a 44px target. */
+/* EVERY DESTINATION AT 360. Phase 3 put Scanner in the header, and a sixth
+   item is how the topbar overflowed before. Since Release A the header is a
+   drawer on a phone: opened, every link in it must sit wholly inside the
+   viewport, none clipped, each a 44px target, with Quantum Scanner the
+   product after Equities Research. */
 await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId);
 await send('Page.navigate', { url: BASE + '/app/scanner' }, sessionId);
 await sleep(2500);
 {
-  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
-    const links = [...document.querySelectorAll('#mainnav a')];
+  const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    document.getElementById('navOpen').click();
+    await new Promise(res => setTimeout(res, 450));
+    const links = [...document.querySelectorAll('#appnav a.sb-link')];
     const bad = links.filter(a => { const b = a.getBoundingClientRect(); return b.width === 0 || b.left < 0 || b.right > innerWidth || b.height < 44; })
       .map(a => a.textContent.trim());
-    return { n: links.length, bad, labels: links.map(a => a.firstChild?.textContent.trim()) };
+    const labels = links.map(a => a.querySelector('.sb-text')?.textContent.trim());
+    closeNavDrawer({ restore: false });
+    return { n: links.length, bad, labels };
   })()` }, sessionId);
   const v = r.result?.result?.value;
-  if (!v || v.n !== 6 || v.bad.length || v.labels[2] !== 'Scanner') { bad++; console.log(`FAIL 360px header — ${v ? `${v.n} links (${v.labels.join(', ')}), outside or under 44px: ${v.bad.join(', ') || 'none'}` : 'not measured'}`); }
+  const at = v ? v.labels.indexOf('Quantum Scanner') : -1;
+  if (!v || v.n < 9 || v.bad.length || at < 1 || v.labels[at - 1] !== 'Equities Research') { bad++; console.log(`FAIL 360px navigation — ${v ? `${v.n} links (${v.labels.join(', ')}), outside or under 44px: ${v.bad.join(', ') || 'none'}` : 'not measured'}`); }
 }
 
 /* THE STUCK COMPANY STRIP HAS TO BE ON TOP. On a phone it sticks at top:0
@@ -375,7 +382,8 @@ await sleep(2500);
     const strip = document.querySelector('.ticker-sticky');
     if (!strip || !strip.classList.contains('is-stuck')) return 'the strip never stuck';
     const row = strip.querySelector('.ts-ident').getBoundingClientRect();
-    const bar = document.querySelector('.topbar').getBoundingClientRect();
+    /* The bar on screen — none beside the sidebar since Release A. */
+    const bar =[...document.querySelectorAll('.topbar')].find(b => b.getClientRects().length)?.getBoundingClientRect() || { height: 0, bottom: 0 };
     const t = document.elementFromPoint(row.left + 12, row.top + row.height / 2);
     return t && strip.contains(t) ? '' : 'identity row at ' + Math.round(row.top) + 'px is under the ' + Math.round(bar.height) + 'px topbar';
   })()` }, sessionId);
@@ -397,7 +405,8 @@ await sleep(2500);
     window.scrollTo(0, 600);
     await new Promise(r => setTimeout(r, 500));
     if (getComputedStyle(rail).position !== 'sticky') return '';
-    const bar = document.querySelector('.topbar').getBoundingClientRect();
+    /* The bar on screen — none beside the sidebar since Release A. */
+    const bar =[...document.querySelectorAll('.topbar')].find(b => b.getClientRects().length)?.getBoundingClientRect() || { height: 0, bottom: 0 };
     const top = rail.getBoundingClientRect().top;
     return top >= bar.bottom ? '' : 'rail stuck at ' + Math.round(top) + 'px, under the ' + Math.round(bar.bottom) + 'px topbar';
   })()` }, sessionId);
@@ -755,6 +764,186 @@ for (const w of [360, 390, 768]) {
   }
 }
 /* ---- end bugfix5: views ---- */
+/* ---- release-a: shell ---- */
+/* THE TWO CHROMES (Release A). A public page wears the header and an app
+   page the sidebar — never both, never neither — at a desktop and a phone
+   width; every link the header, its menus, the phone sheet, the sidebar, the
+   product tabs and the footer offer opens a route that renders, and Business
+   Intelligence, which is not built, is a link or a button nowhere and absent
+   from the sidebar; the menus and the sheet open and close from the keyboard
+   and hand focus back; the sidebar drawer keeps Tab inside it and closes on
+   Escape; and nothing the chrome opens pushes the page sideways at 360, 768,
+   1024 or 1440. Keys are real key events (Input.dispatchKeyEvent). */
+{
+  const KEYS = { Enter: [13, '\r'], Escape: [27, ''], Tab: [9, ''], ArrowDown: [40, ''] };
+  const press = async (key, shift = false) => {
+    const [vk, text] = KEYS[key];
+    const modifiers = shift ? 8 : 0;
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: vk, text, modifiers }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: vk, modifiers }, sessionId);
+    await sleep(120);
+  };
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    return r.result?.exceptionDetails ? { error: r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text } : r.result?.result?.value;
+  };
+  const load = async (path, w, h = 900) => {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 40; i++) {
+      await sleep(400);
+      if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined'`)) break;
+    }
+    await sleep(300);
+  };
+  const fails = [];
+  const PUBLIC = ['/', '/pricing', '/about', '/contact', '/privacy', '/terms', '/learn', '/learn/glossary', '/methodology', '/data-sources',
+    '/corrections', '/learn/product-boundaries', '/status', '/methodology/ips', '/no-such-page'];
+  const APP = ['/app', '/research', '/discover/screener', '/discover/value-map', '/compare', '/discover/sarawak', '/us-options/wheel',
+    '/company/AAPL-SEC', '/app/scanner', '/app/scanner/alerts', '/research/trading-index', '/property', '/property/areas',
+    '/my/watchlists', '/my/alerts', '/my/workspace', '/my/data', '/my/portfolio', '/decision-record', '/welcome', '/start'];
+  const chromeProbe = (paths) => `(async () => {
+    const shown = (s) => { const n = document.querySelector(s); return !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden'; };
+    const out = {};
+    for (const p of ${JSON.stringify(paths)}) {
+      navigate(p); await new Promise(r => setTimeout(r, 40));
+      out[p] = { chrome: document.documentElement.dataset.chrome, pub: shown('#pubbar'), side: shown('#sidebar'), bar: shown('#appbar'), view: State.view };
+    }
+    return out;
+  })()`;
+  try {
+    /* 1. Each chrome on the right views, at 1440 and at 390. */
+    for (const w of [1440, 390]) {
+      await load('/', w);
+      const r = await ev(chromeProbe([...PUBLIC, ...APP]));
+      if (!r || r.error) { fails.push(`${w}px chrome probe: ${r?.error || 'no result'}`); continue; }
+      for (const p of PUBLIC) {
+        const v = r[p];
+        if (v.chrome !== 'public' || !v.pub || v.side || v.bar) fails.push(`${w}px ${p} (${v.view}) wears ${JSON.stringify(v)}, not the public header alone`);
+      }
+      for (const p of APP) {
+        const v = r[p];
+        const ok = v.chrome === 'app' && !v.pub && (w >= 1024 ? v.side && !v.bar : v.bar && !v.side);
+        if (!ok) fails.push(`${w}px ${p} (${v.view}) wears ${JSON.stringify(v)}, not the app chrome`);
+      }
+    }
+
+    /* 2. Every chrome link opens a route that renders. Views another Release
+       A branch brings (How it works, the research queue) are named as
+       awaiting it while this build has no such view; once it does, they are
+       held to the same rule. */
+    await load('/discover/screener', 1440);
+    const links = await ev(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const seen = new Map();
+      const take = (sel, where) => document.querySelectorAll(sel).forEach(a => { const p = a.dataset.path || a.getAttribute('href'); if (!seen.has(p)) seen.set(p, where); });
+      take('#pubnav a, #pubSheet a', 'header'); take('#appnav a, #sidebar .sb-top a, #appbar a', 'sidebar');
+      take('#footProducts a, #footResources a, .footer a', 'footer'); take('#productTabs a', 'equities tabs');
+      navigate('/property/areas'); await w(60); take('#productTabs a', 'property tabs');
+      const pending = [], bad = [];
+      for (const [p, where] of seen) {
+        const rt = matchRoute(p.split('?')[0]);
+        if (!rt) { bad.push(where + ' ' + p + ': no route'); continue; }
+        if (!VIEWS[rt.view]) { if (['howItWorks', 'researchQueue'].includes(rt.view)) pending.push(p); else bad.push(where + ' ' + p + ': view ' + rt.view + ' is not defined'); continue; }
+        navigate(p); await w(40);
+        if (State.view === 'notfound') bad.push(where + ' ' + p + ': the not-found card');
+      }
+      const things = [...document.querySelectorAll('a, button')].filter(n => /Business Intelligence/.test(n.textContent));
+      const inSidebar = /Business Intelligence/.test(document.getElementById('sidebar')?.textContent || '');
+      const tabsPresent = !!document.querySelector('#productTabs nav[aria-label="Property Intelligence sections"]');
+      /* The chrome draws some lists twice (the menu and the phone sheet);
+         an id repeated between them breaks every label that points at it. */
+      const ids = [...document.querySelectorAll('#pubbar [id], #appbar [id], #sidebar [id], #productTabs [id], footer [id]')].map(n => n.id);
+      const dupIds = [...new Set(ids.filter((x, i) => ids.indexOf(x) !== i))];
+      return { n: seen.size, pending, bad, business: things.map(n => n.tagName + ' in ' + (n.closest('[id]')?.id || '?')), inSidebar, tabsPresent, dupIds };
+    })()`);
+    if (!links || links.error) fails.push(`link walk: ${links?.error || 'no result'}`);
+    else {
+      if (links.n < 30) fails.push(`only ${links.n} chrome links found — the chrome changed shape`);
+      links.bad.forEach(b => fails.push(`a chrome link leads nowhere: ${b}`));
+      if (links.business.length) fails.push(`Business Intelligence is a control: ${links.business.join(', ')}`);
+      if (links.inSidebar) fails.push('Business Intelligence is in the app sidebar');
+      if (!links.tabsPresent) fails.push('the Property product tabs did not render');
+      if (links.dupIds.length) fails.push(`ids repeated in the chrome: ${links.dupIds.join(', ')}`);
+    }
+
+    /* 3. The header's menus from the keyboard: Enter opens and says so,
+       Escape closes and returns focus, ArrowDown opens onto the first link,
+       Tab out of the panel closes it, a click outside closes it. */
+    await load('/', 1440);
+    for (const id of ['menuProducts', 'menuResources']) {
+      await ev(`document.getElementById('${id}Btn').focus(); true`);
+      await press('Enter');
+      const opened = await ev(`({ exp: document.getElementById('${id}Btn').getAttribute('aria-expanded'), shown: !document.getElementById('${id}').hidden && document.getElementById('${id}').getClientRects().length > 0 })`);
+      await press('Escape');
+      /* Closed means not laid out at all: a panel merely transparent is
+         still in the tab order and under the pointer. */
+      const closed = await ev(`({ exp: document.getElementById('${id}Btn').getAttribute('aria-expanded'), hidden: document.getElementById('${id}').hidden && !document.getElementById('${id}').getClientRects().length, focus: document.activeElement?.id })`);
+      await press('ArrowDown');
+      const arrow = await ev(`({ exp: document.getElementById('${id}Btn').getAttribute('aria-expanded'), inside: document.getElementById('${id}').contains(document.activeElement) && document.activeElement.tagName === 'A' })`);
+      const count = await ev(`document.querySelectorAll('#${id} a').length`);
+      for (let i = 0; i < count + 1; i++) await press('Tab');
+      const tabbed = await ev(`({ exp: document.getElementById('${id}Btn').getAttribute('aria-expanded'), hidden: document.getElementById('${id}').hidden && !document.getElementById('${id}').getClientRects().length })`);
+      await ev(`document.getElementById('${id}Btn').click(); document.querySelector('main').click(); true`);
+      const outside = await ev(`document.getElementById('${id}').hidden && !document.getElementById('${id}').getClientRects().length`);
+      if (opened?.exp !== 'true' || !opened.shown) fails.push(`${id}: Enter did not open it: ${JSON.stringify(opened)}`);
+      if (closed?.exp !== 'false' || !closed.hidden || closed.focus !== `${id}Btn`) fails.push(`${id}: Escape left ${JSON.stringify(closed)}`);
+      if (arrow?.exp !== 'true' || !arrow.inside) fails.push(`${id}: ArrowDown left ${JSON.stringify(arrow)}`);
+      if (tabbed?.exp !== 'false' || !tabbed.hidden) fails.push(`${id}: tabbing out left it open`);
+      if (outside !== true) fails.push(`${id}: a click outside left it open`);
+    }
+
+    /* 4. The phone's sheet, and the sidebar drawer's focus trap. */
+    await load('/', 390, 844);
+    await ev(`document.getElementById('pubMenuBtn').focus(); true`);
+    await press('Enter');
+    const sheet = await ev(`({ exp: document.getElementById('pubMenuBtn').getAttribute('aria-expanded'), shown: document.getElementById('pubSheet').getClientRects().length > 0,
+      over: document.documentElement.scrollWidth - innerWidth })`);
+    await press('Escape');
+    const sheetClosed = await ev(`({ hidden: document.getElementById('pubSheet').hidden, focus: document.activeElement?.id })`);
+    if (sheet?.exp !== 'true' || !sheet.shown) fails.push(`the sheet did not open from the keyboard: ${JSON.stringify(sheet)}`);
+    if (sheet?.over > 2) fails.push(`the open sheet pushes the page ${sheet.over}px sideways at 390`);
+    if (!sheetClosed?.hidden || sheetClosed.focus !== 'pubMenuBtn') fails.push(`Escape left the sheet ${JSON.stringify(sheetClosed)}`);
+
+    for (const w of [390, 768]) {
+      await load('/app/scanner', w, 844);
+      await ev(`document.getElementById('navOpen').focus(); true`);
+      await press('Enter');
+      await sleep(350);
+      const open = await ev(`({ modal: document.getElementById('sidebar').getAttribute('aria-modal'), exp: document.getElementById('navOpen').getAttribute('aria-expanded'),
+        inside: document.getElementById('sidebar').contains(document.activeElement), n: [...document.getElementById('sidebar').querySelectorAll('a, button')].filter(n => n.getClientRects().length).length,
+        over: document.documentElement.scrollWidth - innerWidth })`);
+      let escaped = 0;
+      for (let i = 0; i < (open?.n || 10) + 3; i++) {
+        await press('Tab');
+        if (!(await ev(`document.getElementById('sidebar').contains(document.activeElement)`))) escaped++;
+      }
+      await ev(`document.querySelector('#sidebar .sb-top a').focus(); true`);
+      await press('Tab', true);
+      const back = await ev(`document.getElementById('sidebar').contains(document.activeElement)`);
+      await press('Escape');
+      await sleep(350);
+      const shut = await ev(`({ exp: document.getElementById('navOpen').getAttribute('aria-expanded'), modal: document.getElementById('sidebar').getAttribute('aria-modal'),
+        vis: getComputedStyle(document.getElementById('sidebar')).visibility, focus: document.activeElement?.id })`);
+      if (open?.modal !== 'true' || open.exp !== 'true' || !open.inside) fails.push(`${w}px: the drawer opened as ${JSON.stringify(open)}`);
+      if (open?.over > 2) fails.push(`${w}px: the open drawer pushes the page ${open.over}px sideways`);
+      if (escaped || !back) fails.push(`${w}px: Tab left the open drawer ${escaped} time(s)${back ? '' : ', and Shift+Tab from its first control left it'}`);
+      if (shut?.exp !== 'false' || shut.modal || shut.vis !== 'hidden' || shut.focus !== 'navOpen') fails.push(`${w}px: Escape left the drawer ${JSON.stringify(shut)}`);
+    }
+
+    /* 5. Nothing the chrome opens pushes the page sideways. */
+    for (const [w, path, open] of [[360, '/', 'pubMenuBtn'], [360, '/app/scanner', 'navOpen'], [768, '/', 'pubMenuBtn'], [768, '/discover/screener', 'navOpen'],
+      [1024, '/', 'menuResourcesBtn'], [1024, '/discover/screener', null], [1440, '/', 'menuProductsBtn'], [1440, '/property/areas', null]]) {
+      await load(path, w);
+      if (open) { await ev(`document.getElementById('${open}').click(); true`); await sleep(350); }
+      const over = await ev(`document.documentElement.scrollWidth - innerWidth`);
+      if (typeof over !== 'number' || over > 2) fails.push(`${w}px ${path}${open ? ` with #${open} open` : ''}: overflow ${over}px`);
+    }
+  } catch (e) { fails.push(`the shell checks threw: ${e.message}`); }
+  if (fails.length) { bad++; console.log(`FAIL release-a shell — ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+  else console.log('ok   release-a shell: each chrome on its views at 1440 and 390, every chrome link renders, menus and the sheet work from the keyboard, the drawer traps focus and closes on Escape, no overflow at 360/768/1024/1440');
+}
+/* ---- /release-a: shell ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

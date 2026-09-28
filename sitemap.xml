@@ -12,6 +12,11 @@
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://quantum-tradeworks.vercel.app/</loc><priority>1.0</priority></url>
+  <!-- Release A: how each product works (with the examples that left the
+       homepage), and the Equities research queue. docs/route-map.md lists
+       every route and which of them are canonical. -->
+  <url><loc>https://quantum-tradeworks.vercel.app/how-it-works</loc><priority>0.9</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/research/queue</loc><priority>0.7</priority></url>
 
   <!-- /property/calculator is the same page as /property, and its canonical
        link names /property; listing both offered one page twice. -->
