@@ -54,11 +54,12 @@
  *   saved is PROVISIONAL until an import made after its last session.
  *
  * DATES
- *   ISO dates are read as written. A 10- or 13-digit epoch, or a date-time
- *   with a zone, is an instant, and TradingView stamps each daily bar at the
- *   instant its session OPENS. So an instant is dated by the session it
- *   opens, in the instrument's market (its registry row, or --market; --tz
- *   changes only the zone): for a market whose day opens the evening before
+ *   ISO dates are read as written. An epoch (9 or 10 digits in seconds, 12
+ *   or 13 in milliseconds), or a date-time with a zone, is an instant, and
+ *   TradingView stamps each daily bar at the instant its session OPENS. So
+ *   an instant is dated by the session it opens, in the instrument's market
+ *   (its registry row, or --market; --tz changes only the zone): for a
+ *   market whose day opens the evening before
  *   — the currency pairs and OANDA's gold, 17:00 New York — a stamp at or
  *   after that hour is the next day's session, and an export's Sunday-to-
  *   Thursday stamps are Monday to Friday; an exchange's stamp at its own

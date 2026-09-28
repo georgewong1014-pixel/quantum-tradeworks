@@ -1493,7 +1493,8 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
    an earlier one; offered over a final bar, one with no capture time, or a
    later provisional one, it is not written, is listed with why, and goes to
    the rejects file as PROVISIONAL_READING. The same rule for daily bars.
-   Synthetic rows; temporary files. */
+   Synthetic rows; temporary files. And a monthly export reaching back
+   before September 2001, whose nine-digit epoch stamps were refused. */
 {
   const S = await import('./ingest/history-store.mjs');
   const { mergeFrameBars } = S;
@@ -1558,6 +1559,23 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
       && rej.rejects.some(x => x.codes.includes('PROVISIONAL_READING') && x.date === '2026-09-21') && /PROVISIONAL_READING/.test(rej.note),
       'frames verify: history-import of an older weekly export after a newer one keeps the final week, says the older reading was taken while the week still traded (not "a higher-ranked source"), names no last week of its own (it holds none it wrote), exits 2, and lists the row in the rejects file as PROVISIONAL_READING',
       { i1: i1.code, i2: [i2.code, i2.stdout.split('\n').filter(l => /GLD|last|outranked|not written/.test(l))], held: held.series, rej: rej.rejects?.map(x => [x.date, x.codes]) });
+
+    /* A monthly export scrolled back before 9 September 2001: its stamps
+       are nine-digit epoch seconds, and every one was refused as a date
+       not recognised (the compare owner's report). July to October 2001,
+       each stamped at 17:00 New York the evening before its first session. */
+    const fx = { tz: 'America/New_York', session: E.scanMarket('FX') };
+    const sec = (iso) => String(Date.parse(iso) / 1000);
+    const cells = { jul: sec('2001-07-01T21:00:00Z'), aug: sec('2001-07-31T21:00:00Z'), sep: sec('2001-09-02T21:00:00Z'), oct: sec('2001-09-30T21:00:00Z') };
+    const mf = join(VR, 'OANDA_GLD, 1M.csv'), mout = join(VR, 'months.json');
+    await writeFile(mf, ['time,open,high,low,close,Volume', ...[['jul', 270], ['aug', 275], ['sep', 290], ['oct', 280]].map(([k, c]) => [cells[k], c - 2, c + 5, c - 6, c, 0].join(','))].join('\n') + '\n');
+    const m1 = await run(process.execPath, [join(ROOT, 'ingest/history-import.mjs'), '--in', mf, '--instruments', reg, '--out', mout, '--captured-at', '2026-09-28T17:27:00Z'], { cwd: ROOT }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+    const months = Object.keys(JSON.parse(await readFile(mout, 'utf8')).frames?.['1M']?.GLD?.series || {});
+    check(cells.jul.length === 9 && cells.oct.length === 10 && parseDateCell(cells.aug, fx).date === '2001-08-01' && parseDateCell(cells.sep, fx).date === '2001-09-03'
+      && parseDateCell(cells.aug + '000', fx).date === '2001-08-01' && parseDateCell('20260928').error === 'BAD_DATE' && parseDateCell('12345678').error === 'BAD_DATE'
+      && m1.code === 0 && same(months, ['2001-07-01', '2001-08-01', '2001-09-01', '2001-10-01']),
+      'frames verify: a nine-digit epoch stamp (seconds before 9 September 2001) and a twelve-digit one (milliseconds) are dated as the ten- and thirteen-digit ones are, so a monthly export reaching back before September 2001 imports; an eight-digit number is still no date',
+      { cells, aug: parseDateCell(cells.aug, fx), code: m1.code, months, out: (m1.stdout + m1.stderr).slice(0, 600) });
   } catch (e) {
     fail('frames verify: the test threw', e.stack || e.message);
   } finally {

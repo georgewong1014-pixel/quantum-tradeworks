@@ -778,9 +778,10 @@ export function epochDate(ms, tz = 'UTC', session = null) {
   return opens != null && minuteInZone(ms, tz) >= opens ? nextDay(day) : day;
 }
 
-/* One date cell from an import. ISO first; a 10- or 13-digit epoch through
-   epochDate; a date-time with a zone through epochDate too (the exchange's
-   zone, midnight UTC exactly its UTC date); then the
+/* One date cell from an import. ISO first; an epoch (9 or 10 digits of
+   seconds, 12 or 13 of milliseconds) through epochDate; a date-time with
+   a zone through epochDate too (the exchange's zone, midnight UTC exactly
+   its UTC date); then the
    day-first and month-first forms, where — exactly as the browser's paste
    parser (src/js/25-universe.js parseCloses) — a day above 12 settles the
    order and anything else is refused as ambiguous: 03/04/2026 is 3 April in
@@ -791,8 +792,12 @@ export function epochDate(ms, tz = 'UTC', session = null) {
    without it, an instant is its day in `tz`. */
 export function parseDateCell(raw, { tz = 'UTC', session = null } = {}) {
   const s = String(raw ?? '').trim().replace(/^["']|["']$/g, '');
-  if (/^\d{10}$/.test(s)) return { date: epochDate(Number(s) * 1000, tz, session) };
-  if (/^\d{13}$/.test(s)) return { date: epochDate(Number(s), tz, session) };
+  /* Epoch seconds of 9 or 10 digits, milliseconds of 12 or 13. A 10-digit
+     second begins on 9 September 2001, so a TradingView monthly export
+     scrolled back before it — its stamps nine digits long — was refused
+     cell by cell as a date not recognised. */
+  if (/^\d{9,10}$/.test(s)) return { date: epochDate(Number(s) * 1000, tz, session) };
+  if (/^\d{12,13}$/.test(s)) return { date: epochDate(Number(s), tz, session) };
   const iso = s.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)\s*(Z|[+-]\d{2}:?\d{2})?)?$/i);
   if (iso) {
     const [, day, time, zone] = iso;

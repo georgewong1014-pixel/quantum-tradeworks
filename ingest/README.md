@@ -340,12 +340,13 @@ pairs' Monday bars on Sunday. Now:
   day, and London to a session still trading. `watchlist.mjs` writes
   `captured_at` and `bar_status` columns before the free-text ones;
   `prices.mjs` carries `captured_at` through.
-- **Imports** read ISO dates as written. A 10- or 13-digit epoch, or a
-  date-time with a zone, is an instant, dated by the session it opens in the
-  instrument's market (its registry row, or `--market`; `--tz` changes only
-  the zone), except an instant at exactly midnight UTC, which is read as that
-  UTC date. Day-first and month-first dates follow the browser's paste rule: a day
-  above 12 settles the order, and `03/04/2026` is refused as ambiguous rather
+- **Imports** read ISO dates as written. An epoch (9 or 10 digits in
+  seconds, 12 or 13 in milliseconds), or a date-time with a zone, is an
+  instant, dated by the session it opens in the instrument's market (its
+  registry row, or `--market`; `--tz` changes only the zone), except an
+  instant at exactly midnight UTC, which is read as that UTC date. Day-first
+  and month-first dates follow the browser's paste rule: a day above 12
+  settles the order, and `03/04/2026` is refused as ambiguous rather
   than guessed (the old parser read it as 3 March and then, on a machine in
   Kuala Lumpur, shifted it to the 2nd). The test checks this under two machine
   zones and against the page's own parser.
