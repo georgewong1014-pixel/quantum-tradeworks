@@ -1872,7 +1872,7 @@ try {
   {
     const r = await evaluate(`(() => {
       scanDraft = null;
-      navigate('/my/scanner?symbol=MSFT');
+      navigate('/app/scanner/setups/new?symbol=MSFT');
       const inp = [...document.querySelectorAll('main input')].find(i => /Instruments/.test(i.getAttribute('aria-label') || ''));
       const v = inp ? inp.value : null;
       scanDraft = null;
@@ -2881,33 +2881,39 @@ try {
     ws.addEventListener('message', listen);
     try {
       const r = await evaluate(`(async () => {
-        const keep = { h: scanHistoryFile, s: scanSetupsFile, a: scanAlertsFile, d: scanDraft };
+        const keep = { h: scanHistoryFile, s: scanSetupsFile, a: scanAlertsFile, d: scanDraft, st: localStorage.getItem('vl.scanSetups') };
         const fx = scanFixture();
         scanHistoryFile = fx.history; scanSetupsFile = { setups: [fx.setup, fx.setupV2] }; scanAlertsFile = { alerts: [], lastRun: null };
+        localStorage.removeItem('vl.scanSetups');
+        scanAdoptFromFile(fx.setup.id); scanAdoptFromFile(fx.setupV2.id);
         scanDraft = { ...scanBlankDraft(), id: 'qa-draft', name: 'QA draft', universe: { kind: 'symbols', symbols: ['MATCH'] } };
-        navigate('/my/scanner');
+        navigate('/app/scanner/setups');
         await new Promise(r => setTimeout(r, 300));
-        const main = document.querySelector('main');
+        let main = document.querySelector('main');
         const out = { h1: main.querySelector('h1')?.textContent || '', chips: [...main.querySelectorAll('.chip')].map(c => c.textContent).filter(t => /^v\\d+$|condition|new matches|every match/.test(t)),
                       tree: [...main.querySelectorAll('.rulelist li')].map(l => l.textContent).filter(t => /any of:|crosses above EMA50|between 50 and 70/.test(t)).length };
-        const ev = [...main.querySelectorAll('button')].find(b => /Evaluate now/.test(b.textContent));
+        const ev = [...main.querySelectorAll('button')].find(b => /Evaluate the file/.test(b.textContent));
         ev?.click();
         await new Promise(r => setTimeout(r, 200));
         out.summary = [...main.querySelectorAll('details summary, .metaline')].map(x => x.textContent).join(' | ');
         out.stale = [...main.querySelectorAll('details li')].some(li => /stale series is not evaluated/.test(li.textContent));
+        navigate('/app/scanner/setups/new');
+        await new Promise(r => setTimeout(r, 300));
+        main = document.querySelector('main');
         const test = [...main.querySelectorAll('button')].find(b => /Test against your history/.test(b.textContent));
         out.testDisabled = test ? test.disabled : null;
         test?.click();
         await new Promise(r => setTimeout(r, 200));
         out.tested = [...(test?.closest('.card')?.querySelectorAll('.metaline') || [])].some(x => /1 setup · 1 evaluation/.test(x.textContent));
-        const ops = [...main.querySelectorAll('select')].find(s => /Operator/.test(s.getAttribute('aria-label') || ''));
+        const ops = [...main.querySelectorAll('select')].find(s => /operator/i.test(s.getAttribute('aria-label') || ''));
         out.ops = ops ? [...ops.options].map(o => o.value) : [];
         scanHistoryFile = keep.h; scanSetupsFile = keep.s; scanAlertsFile = keep.a; scanDraft = keep.d;
+        if (keep.st == null) localStorage.removeItem('vl.scanSetups'); else localStorage.setItem('vl.scanSetups', keep.st);
         return out;
       })()`);
       const thrown = events.map(m => m.params.exceptionDetails?.exception?.description?.split('\n')[0]);
       const p = [];
-      if (!/scanner/i.test(r.h1)) p.push(`heading "${r.h1}"`);
+      if (!/Your setups/.test(r.h1)) p.push(`heading "${r.h1}"`);
       if (!r.chips.includes('v1') || !r.chips.some(c => /new matches only/.test(c)) || !r.chips.some(c => /every match/.test(c))) p.push(`chips ${JSON.stringify(r.chips)}`);
       if (r.tree < 3) p.push(`only ${r.tree} tree lines`);
       if (!/2 setups · 4 evaluations/.test(r.summary) || !r.stale) p.push(`evaluate-now summary: ${r.summary.slice(0, 200)} (stale named: ${r.stale})`);
@@ -2915,8 +2921,351 @@ try {
       if (r.ops.join() !== 'GREATER_THAN,LESS_THAN,GREATER_THAN_OR_EQUAL,LESS_THAN_OR_EQUAL,EQUALS,CROSSES_ABOVE,CROSSES_BELOW,BETWEEN') p.push(`builder operators ${r.ops.join()}`);
       if (thrown.length) p.push(`exceptions: ${thrown.join('; ')}`);
       if (p.length) fail('the scanner page renders and evaluates on engine 0.3.0', p);
-      else ok('the scanner page renders and evaluates on engine 0.3.0 — V2 setups listed with version, mode and tree lines; "Evaluate now" reports the months-old fixture as stale, not matched; the builder offers all eight operators');
+      else ok('the scanner setups page renders and evaluates on engine 0.3.0 — setups adopted from the file listed with version, mode and tree lines; "Evaluate the file’s setups" reports the months-old fixture as stale, not matched; the builder tests its draft and offers all eight operators');
     } finally { ws.removeEventListener('message', listen); }
+  }
+
+
+  /* ===================================================================== */
+  /* PHASE 3 — user: setups, versions, the builder, alerts and settings     */
+  /* ===================================================================== */
+  /* The reader's scanner pages run on fixture files injected into the page
+     and a clean scanner store; everything is put back afterwards. The seed
+     replays an EVERY_MATCH setup and the fixture's tree over the fixture
+     history, so the alerts are the engine's own V2 records, plus one 0.2
+     record with no id. */
+  const scanSeedP3 = `(() => {
+    window.__p3keep = window.__p3keep || { h: scanHistoryFile, s: scanSetupsFile, a: scanAlertsFile, d: scanDraft,
+      st: localStorage.getItem('vl.scanSetups'), as: localStorage.getItem('vl.scanAlertState'), pr: localStorage.getItem('vl.scanPrefs') };
+    ['vl.scanSetups', 'vl.scanAlertState', 'vl.scanPrefs'].forEach(k => localStorage.removeItem(k));
+    const fx = scanFixture();
+    const above = { id: 'qa-above', name: 'QA close above SMA5', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D',
+      cooldownMode: 'EVERY_MATCH', cooldownBars: 0, ruleTree: { type: 'group', logic: 'ALL', children: [
+        { type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 5 } }] } };
+    let alerts = [];
+    Object.keys(fx.history.series.MATCH).sort().slice(20).forEach(d => {
+      const r = scanRun([above, fx.setupV2], fx.history, { existing: alerts, asOf: d, now: scanReplayNow(d), runId: 'run-' + d, origin: 'replay' });
+      alerts = alerts.concat(r.alerts);
+    });
+    alerts.push({ key: 'old-setup|MATCH|daily|2026-02-02', setupId: 'old-setup', setupName: 'A 0.2 setup', symbol: 'MATCH', timeframe: 'daily', bar: '2026-02-02',
+      close: 101.2, recordedAt: '2026-02-03T01:00:00Z', rules: [{ text: 'price above SMA20', met: true }], engine: 'scan 0.2.0' });
+    scanHistoryFile = fx.history; scanAlertsFile = { alerts, lastRun: null }; scanSetupsFile = { setups: [above, fx.setupV2] };
+    scanDraft = null; scanEditDraft = null;
+    return { n: alerts.length, above, tree: fx.setupV2 };
+  })()`;
+  const scanRestoreP3 = `(() => { const k = window.__p3keep; if (!k) return true;
+    scanHistoryFile = k.h; scanSetupsFile = k.s; scanAlertsFile = k.a; scanDraft = k.d; scanEditDraft = null;
+    [['vl.scanSetups', k.st], ['vl.scanAlertState', k.as], ['vl.scanPrefs', k.pr]].forEach(([n, v]) => { if (v == null) localStorage.removeItem(n); else localStorage.setItem(n, v); });
+    delete window.__p3keep; navigate('/research'); return true; })()`;
+  const p3events = [];
+  const p3listen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') p3events.push(m.params.exceptionDetails?.exception?.description?.split('\n')[0]); };
+  ws.addEventListener('message', p3listen);
+  try {
+    await evaluate(scanSeedP3);
+
+    /* THE BUILDER WRITES VALID RULES AND REFUSES INVALID ONES. A new setup
+       from the form alone saves as v1; RSI is offered no price or volume
+       on its right (only a fixed value or another RSI); EQUALS on RSI
+       offers no indicator at all; an RSI of 150 and an RSI-versus-volume
+       condition typed into the draft are refused at their condition, and
+       Save stays disabled. */
+    {
+      const r = await evaluate(`(async () => {
+        const w = (ms) => new Promise(r => setTimeout(r, ms));
+        const main = () => document.querySelector('main');
+        const q = (lab) => [...main().querySelectorAll('[aria-label]')].find(n => n.getAttribute('aria-label') === lab);
+        const set = (n, v) => { const proto = n.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+          Object.getOwnPropertyDescriptor(proto, 'value').set.call(n, v); n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+        navigate('/app/scanner/setups/new'); await w(200);
+        const out = { view: State.view };
+        set(q('Name'), 'QA builder cross'); await w(50);
+        out.id = q('Id').value;
+        set(q('Instruments (comma-separated symbols as they appear in your history)'), 'MATCH, FLAT'); await w(50);
+        const save = [...main().querySelectorAll('button')].find(b => b.textContent.trim() === 'Save');
+        out.readyDisabled = save.disabled;
+        set(q('Condition 1: left side'), 'rsi'); await w(80);
+        out.rsiRight = [...q('Condition 1: right side').options].map(o => o.value);
+        set(q('Condition 1: operator'), 'EQUALS'); await w(80);
+        out.eqRight = [...q('Condition 1: right side').options].filter(o => !o.disabled).map(o => o.value);
+        set(q('Condition 1: operator'), 'GREATER_THAN'); await w(80);
+        set(q('Condition 1: right side value'), '150'); await w(50);
+        const c1 = () => main().querySelector('.scan-cond .scan-problems');
+        out.domain = c1()?.hidden ? '' : c1()?.textContent || '';
+        out.domainDisabled = [...main().querySelectorAll('button')].find(b => b.textContent.trim() === 'Save').disabled;
+        scanDraft.ruleTree.children[0].right = { indicator: 'volume' };
+        navigate('/app/scanner/setups/new?x=1'); await w(200);
+        out.unit = c1()?.hidden ? '' : c1()?.textContent || '';
+        out.unitOption = q('Condition 1: right side')?.selectedOptions[0]?.textContent || '';
+        out.unitDisabled = [...main().querySelectorAll('button')].find(b => b.textContent.trim() === 'Save').disabled;
+        scanDraft.ruleTree.children[0] = scanBlankCondition();
+        navigate('/app/scanner/setups/new'); await w(200);
+        [...main().querySelectorAll('button')].find(b => b.textContent.trim() === 'Save').click(); await w(250);
+        const rec = scanStoreRead().setups['qa-builder-cross'];
+        out.saved = rec ? { v: rec.current, n: rec.versions.length, path: location.pathname, view: State.view } : null;
+        /* Edit: the operator changes, so v2; v1 stays. */
+        navigate('/app/scanner/setups/qa-builder-cross/edit'); await w(200);
+        out.editView = State.view;
+        out.idLocked = q('Id')?.readOnly;
+        set(q('Condition 1: operator'), 'CROSSES_BELOW'); await w(80);
+        out.status = main().querySelector('.scan-status')?.textContent || '';
+        [...main().querySelectorAll('button')].find(b => /Save \\(new version\\)/.test(b.textContent)).click(); await w(250);
+        const rec2 = scanStoreRead().setups['qa-builder-cross'];
+        out.edited = { v: rec2.current, versions: rec2.versions.map(v => v.version), ops: rec2.versions.map(v => v.setup.ruleTree.children[0].op) };
+        return out;
+      })()`);
+      const p = [];
+      if (r.view !== 'scannerSetupNew') p.push(`view ${r.view}`);
+      if (r.id !== 'qa-builder-cross') p.push(`id from the name: "${r.id}"`);
+      if (r.readyDisabled !== false) p.push('Save disabled on a valid draft');
+      if (r.rsiRight.join() !== 'value,rsi') p.push(`right side offered for RSI: ${r.rsiRight.join()}`);
+      if (r.eqRight.join() !== 'value') p.push(`right side offered for RSI equals: ${r.eqRight.join()}`);
+      if (!/outside what RSI14 can be/.test(r.domain) || !r.domainDisabled) p.push(`RSI 150: "${r.domain}", Save disabled ${r.domainDisabled}`);
+      if (!/cannot be compared with volume/.test(r.unit) || !/not comparable/.test(r.unitOption) || !r.unitDisabled) p.push(`RSI vs volume: "${r.unit}" / "${r.unitOption}", Save disabled ${r.unitDisabled}`);
+      if (!r.saved || r.saved.v !== 1 || r.saved.n !== 1 || r.saved.view !== 'scannerSetup' || r.saved.path !== '/app/scanner/setups/qa-builder-cross') p.push(`save: ${JSON.stringify(r.saved)}`);
+      if (r.editView !== 'scannerSetupEdit' || r.idLocked !== true || !/saving creates v2/.test(r.status)) p.push(`edit: ${r.editView}, id locked ${r.idLocked}, "${r.status}"`);
+      if (r.edited.v !== 2 || r.edited.versions.join() !== '1,2' || r.edited.ops.join() !== 'CROSSES_ABOVE,CROSSES_BELOW') p.push(`edited: ${JSON.stringify(r.edited)}`);
+      if (p.length) fail('the scanner builder writes valid rules, refuses invalid operand combinations, and edits as a new version', p);
+      else ok('the scanner builder writes valid rules and refuses invalid ones — RSI is offered only a fixed value or another RSI, EQUALS on RSI no indicator, RSI 150 and RSI-versus-volume are refused at their condition with Save disabled; saved as v1, edited to v2 with v1 kept and the id locked');
+    }
+
+    /* VERSIONS BUMP ONLY ON WHAT IS EVALUATED, AND ALERTS KEEP THEIRS. A
+       rename is metadata (no version); a period change is v2, v1 kept with
+       its hash. An alert recorded under v1 still names v1 on the setup page
+       and on its own page, whose link opens that version. */
+    {
+      const r = await evaluate(`(async () => {
+        const w = (ms) => new Promise(r => setTimeout(r, ms));
+        const { above } = ${scanSeedP3};
+        const a1 = scanSaveSetup(above, { source: 'file' });
+        const a2 = scanSaveSetup({ ...above, name: 'Renamed' });
+        const a3 = scanSaveSetup({ ...above, name: 'Renamed', ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 7 } }] } });
+        const rec = scanStoreRead().setups['qa-above'];
+        const v1Alert = scanAlertList().find(a => a.setupId === 'qa-above');
+        navigate('/app/scanner/setups/qa-above'); await w(200);
+        const v1 = document.getElementById('v1');
+        const out = { a1: [a1.version, a1.bumped], a2: [a2.version, a2.bumped, a2.metaChanged], a3: [a3.version, a3.bumped],
+          hashes: rec.versions.map(v => v.hash), canon: scanHash(scanCanonical(above)), name: rec.name,
+          v1Links: v1 ? v1.querySelectorAll('.scan-alert-mini a').length : -1, v1Count: scanAlertList().filter(a => a.setupId === 'qa-above' && a.setupVersion === 1).length,
+          v2Open: document.getElementById('v2')?.open, alertVersion: v1Alert.setupVersion };
+        navigate('/app/scanner/setups/qa-above?version=1'); await w(150);
+        out.v1Open = document.getElementById('v1')?.open;
+        navigate(scanAlertPath(v1Alert)); await w(150);
+        out.link = [...document.querySelectorAll('main a')].find(x => /^v\\d+$/.test(x.textContent))?.getAttribute('href') || '';
+        out.nowText = document.querySelector('main').innerText.includes('the setup is now v2');
+        return out;
+      })()`);
+      const p = [];
+      if (r.a1.join() !== '1,true' || r.a2.join() !== '1,false,true' || r.a3.join() !== '2,true') p.push(`saves: ${JSON.stringify([r.a1, r.a2, r.a3])}`);
+      if (r.hashes[0] !== r.canon || r.hashes[0] === r.hashes[1] || r.name !== 'Renamed') p.push(`hashes ${r.hashes.join(',')} vs canonical ${r.canon}; name ${r.name}`);
+      if (r.alertVersion !== 1 || r.v1Links < 1 || r.v1Links !== Math.min(20, r.v1Count) || !r.v2Open) p.push(`v1 lists ${r.v1Links} of ${r.v1Count} alerts; v2 open ${r.v2Open}`);
+      if (!r.v1Open || !/\/app\/scanner\/setups\/qa-above\?version=1$/.test(r.link) || !r.nowText) p.push(`?version=1 open ${r.v1Open}; alert's version link ${r.link}; "now v2" ${r.nowText}`);
+      if (p.length) fail('scanner versions bump on evaluation fields only, and alerts keep the version that recorded them', p);
+      else ok(`scanner versions bump on evaluation fields only — a rename stays v1, a period change is v2 with v1's hash (the engine's canonical hash) kept; the ${r.v1Count} alerts recorded under v1 stay under v1, and an alert's version link opens v1 while saying the setup is now v2`);
+    }
+
+    /* THE EXPORT ROUND-TRIPS, AND THE DRIFT NAMES EVERY STATE. The export is
+       the schema-2 document; scanValidate reads it with no problem and the
+       same versions and hashes. The example configuration validates too. */
+    {
+      const r = await evaluate(`(() => {
+        ${scanSeedP3};
+        const fx = scanFixture();
+        const base = { version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D', cooldownMode: 'NEW_MATCH',
+          ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'ema', n: 20 } }] } };
+        const mk = (id, n = 20) => ({ ...base, id, name: id, ruleTree: { ...base.ruleTree, children: [{ ...base.ruleTree.children[0], right: { indicator: 'ema', n } }] } });
+        ['same', 'ahead', 'behind', 'mine'].forEach(id => scanSaveSetup(mk(id), { source: 'file', now: '2026-01-01T00:00:00Z' }));
+        scanSaveSetup(mk('ahead', 30), { now: '2026-02-01T00:00:00Z' });
+        const doc = scanExportDoc();
+        const v = scanValidate(doc);
+        const rt = { problems: v.problems.length, kind: doc.kind, schema: doc.schema, n: doc.setups.length,
+          same: v.setups.every(s => { const b = scanBrowserSetups().find(x => x.id === s.id); return b && b.version === s.version && b.hash === s.hash; }) };
+        const ex = scanValidate(SCAN_EXAMPLE_DOC);
+        const file = { setups: [mk('same'), mk('ahead'), { ...mk('behind', 50), version: 2 }, mk('theirs')] };
+        const states = Object.fromEntries(scanDriftRows({ fileDoc: file }).map(x => [x.id, x.state]));
+        const hidden = Object.fromEntries(scanDriftRows({ fileDoc: null }).map(x => [x.id, x.state]));
+        scanMarkExported(scanExportDoc());
+        const after = Object.fromEntries(scanDriftRows({ fileDoc: null }).map(x => [x.id, x.state]));
+        const adopted = (() => { scanSetupsFile = file; const o = scanAdoptFromFile('behind'); return [o.ok, o.version]; })();
+        return { rt, ex: [ex.problems.length, ex.setups.length], states, hidden, after, adopted };
+      })()`);
+      const p = [];
+      if (r.rt.problems || r.rt.kind !== 'quantum-tradeworks-scan-setups' || r.rt.schema !== 2 || r.rt.n !== 4 || !r.rt.same) p.push(`round trip ${JSON.stringify(r.rt)}`);
+      if (r.ex[0] || r.ex[1] !== 1) p.push(`example: ${r.ex}`);
+      const want = { same: 'IN_STEP', ahead: 'NOT_EXPORTED', behind: 'FILE_NEWER', mine: 'BROWSER_ONLY', theirs: 'FILE_ONLY' };
+      Object.entries(want).forEach(([id, s]) => { if (r.states[id] !== s) p.push(`${id}: ${r.states[id]}, not ${s}`); });
+      if (Object.values(r.hidden).some(s => s !== 'NOT_EXPORTED') || Object.values(r.after).some(s => s !== 'UNCONFIRMED')) p.push(`no file: ${JSON.stringify(r.hidden)} then ${JSON.stringify(r.after)}`);
+      if (r.adopted.join() !== 'true,2') p.push(`adopting the file's v2: ${r.adopted}`);
+      if (p.length) fail('the scanner export round-trips through scanValidate and the drift names every state', p);
+      else ok('the scanner export round-trips — the schema-2 document validates with no problem and the same versions and hashes, as does the example configuration; drift reads in step, not exported, file newer, browser only and file only, and with no file visible "not exported" until exported, then "file not visible", never in step; adopting keeps the file\'s v2');
+    }
+
+    /* ALERT STATUS PERSISTS ACROSS A RELOAD, AND THE UNREAD COUNT FOLLOWS IT.
+       Mark read and archive from the page's bulk actions; reload; the status
+       is still there. The count is null with no file, and leaves out a
+       muted setup and everything when in-app is off. */
+    {
+      const before = await evaluate(`(async () => {
+        const w = (ms) => new Promise(r => setTimeout(r, ms));
+        ${scanSeedP3};
+        const noFile = (() => { const k = scanAlertsFile; scanAlertsFile = null; const u = scanUnreadCount(); scanAlertsFile = k; return u; })();
+        const total = scanUnreadCount();
+        navigate('/app/scanner/alerts'); await w(200);
+        const boxes = [...document.querySelectorAll('main tbody input[type=checkbox]')];
+        boxes[0].click(); boxes[1].click();
+        [...document.querySelectorAll('main button')].find(b => b.textContent.trim() === 'Mark read').click(); await w(150);
+        const b2 = [...document.querySelectorAll('main tbody input[type=checkbox]')];
+        b2[2].click();
+        [...document.querySelectorAll('main button')].find(b => b.textContent.trim() === 'Archive').click(); await w(150);
+        const st = scanAlertStateRead();
+        const ordered = scanAlertsInOrder();
+        return { noFile, total, after: scanUnreadCount(), st, ids: ordered.slice(0, 3).map(scanAlertIdOf), rows: document.querySelectorAll('main tbody tr').length,
+          chips: [...document.querySelectorAll('main tbody tr')].slice(0, 3).map(tr => tr.querySelector('.chip')?.textContent) };
+      })()`);
+      await send('Page.reload', {}, sessionId);
+      let back = null;
+      for (let i = 0; i < 60 && !back; i++) { await sleep(500); try { back = await evaluate(`typeof realPending !== 'undefined' && !realPending ? true : null`); } catch { /* booting */ } }
+      const after = await evaluate(`(async () => {
+        const w = (ms) => new Promise(r => setTimeout(r, ms));
+        const st = scanAlertStateRead();
+        const fx = scanFixture();
+        /* The page reloaded, so the injected record is gone; put the same one back without clearing storage. */
+        const above = { id: 'qa-above', name: 'QA close above SMA5', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D',
+          cooldownMode: 'EVERY_MATCH', cooldownBars: 0, ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 5 } }] } };
+        let alerts = [];
+        Object.keys(fx.history.series.MATCH).sort().slice(20).forEach(d => { alerts = alerts.concat(scanRun([above, fx.setupV2], fx.history, { existing: alerts, asOf: d, now: scanReplayNow(d), runId: 'run-' + d, origin: 'replay' }).alerts); });
+        alerts.push({ key: 'old-setup|MATCH|daily|2026-02-02', setupId: 'old-setup', setupName: 'A 0.2 setup', symbol: 'MATCH', timeframe: 'daily', bar: '2026-02-02',
+          close: 101.2, recordedAt: '2026-02-03T01:00:00Z', rules: [{ text: 'price above SMA20', met: true }], engine: 'scan 0.2.0' });
+        scanAlertsFile = { alerts }; scanHistoryFile = fx.history;
+        navigate('/app/scanner/alerts?status=ALL'); await w(200);
+        const chips = [...document.querySelectorAll('main tbody tr')].slice(0, 3).map(tr => tr.querySelector('.chip')?.textContent);
+        scanPrefsWrite({ muted: { 'fixture-breakout-v2': true } });
+        const muted = scanUnreadCount();
+        scanPrefsWrite({ muted: {}, inApp: false });
+        const off = scanUnreadCount();
+        scanPrefsWrite({ inApp: true });
+        return { st, chips, muted, off, all: alerts.length, treeNew: alerts.filter(a => a.setupId === 'fixture-breakout-v2' && !st[a.id]).length };
+      })()`);
+      const p = [];
+      if (before.noFile !== null) p.push(`unread with no file: ${before.noFile}`);
+      if (before.total !== 24 || before.after !== 21) p.push(`unread ${before.total} then ${before.after}`);
+      if (before.st[before.ids[0]] !== 'READ' || before.st[before.ids[1]] !== 'READ' || Object.values(before.st).filter(s => s === 'ARCHIVED').length !== 1) p.push(`state ${JSON.stringify(before.st)}`);
+      if (JSON.stringify(after.st) !== JSON.stringify(before.st)) p.push(`after reload the state is ${JSON.stringify(after.st)}`);
+      if (after.chips.slice(0, 2).join() !== 'read,read') p.push(`after reload the first rows read ${after.chips.join(',')}`);
+      if (after.muted !== 21 - after.treeNew || after.off !== null) p.push(`muted count ${after.muted} (tree NEW ${after.treeNew}), off ${after.off}`);
+      if (p.length) fail('scanner alert status persists across a reload and the unread count follows it', p);
+      else ok(`scanner alert status persists across a reload — two marked read and one archived from the bulk actions are still so after it; unread ${before.total} → ${before.after}, no count at all with no alerts file, a muted setup left out, and none with in-app off`);
+    }
+
+    /* ALERT DETAIL RESOLVES FROM ITS ID. Every fact the page states comes
+       from the record: candle date, bar status, source, data version, the
+       setup and its version, each condition with its values, the event and
+       the lineage; the same bars recomputed read "unchanged". A 0.2 record
+       with no id resolves from the id its key gives it. An unknown id is a
+       card, not the not-found page. */
+    {
+      const r = await evaluate(`(async () => {
+        const w = (ms) => new Promise(r => setTimeout(r, ms));
+        ${scanSeedP3};
+        const a = scanAlertList().find(x => x.setupId === 'fixture-breakout-v2');
+        navigate('/app/scanner/alerts/' + a.id); await w(200);
+        const main = document.querySelector('main'), text = main.innerText;
+        const out = { view: State.view, h1: main.querySelector('h1')?.textContent || '', title: document.title,
+          has: ['Candle date', 'Bar status', 'Data source', 'Data version', 'Lineage', 'Every condition, with its values', a.candleDate, a.dataVersion, a.dataSourceId, a.barStatus, 'new match'].filter(t => !text.toLowerCase().includes(String(t).toLowerCase())),
+          rows: main.querySelectorAll('.card:nth-of-type(n) table.dt tbody tr').length, conds: a.matchedConditions.length,
+          left: a.matchedConditions.map(c => scanDec(c.left)), unchanged: /bars up to [0-9-]+ are as they were/.test(text),
+          read: scanAlertStatus(a), advice: /\\b(buy|sell|enter|exit|target|stop)\\b/i.test(text) };
+        out.leftShown = out.left.every(v => text.includes(v));
+        const legacy = scanAlertList().find(x => !x.id);
+        navigate('/app/scanner/alerts/' + scanAlertIdOf(legacy)); await w(150);
+        out.legacy = { view: State.view, h1: document.querySelector('main h1')?.textContent || '', nr: /predates engine 0.3.0/.test(document.querySelector('main').innerText) };
+        navigate('/app/scanner/alerts/a00000000'); await w(150);
+        out.unknown = { view: State.view, card: /Not in your record/i.test(document.querySelector('main').innerText) };
+        navigate('/app/scanner/setups/no-such-setup'); await w(150);
+        out.unknownSetup = { view: State.view, card: /Not in your record/i.test(document.querySelector('main').innerText) };
+        return out;
+      })()`);
+      const p = [];
+      if (r.view !== 'scannerAlert' || !/Fixture breakout \(tree\) · MATCH · 2026-/.test(r.h1)) p.push(`view ${r.view}, h1 "${r.h1}"`);
+      if (r.has.length) p.push(`missing from the page: ${r.has.join(', ')}`);
+      if (!r.leftShown || !r.unchanged) p.push(`values shown ${r.leftShown} (${r.left.join(', ')}); data unchanged ${r.unchanged}`);
+      if (r.read !== 'READ') p.push(`opening it left it ${r.read}`);
+      if (r.advice) p.push('an instruction word on the alert page');
+      if (r.legacy.view !== 'scannerAlert' || !/A 0.2 setup/.test(r.legacy.h1) || !r.legacy.nr) p.push(`legacy: ${JSON.stringify(r.legacy)}`);
+      if (r.unknown.view !== 'scannerAlert' || !r.unknown.card || r.unknownSetup.view !== 'scannerSetup' || !r.unknownSetup.card) p.push(`unknown: ${JSON.stringify(r.unknown)} ${JSON.stringify(r.unknownSetup)}`);
+      if (p.length) fail('a scanner alert\'s page resolves from its id and states the record', p);
+      else ok(`a scanner alert's page resolves from its id — candle date, bar status, source, data version, setup version, ${r.conds} conditions with their unrounded values, the event and the lineage, the bars recomputed as unchanged, and opening it marks it read; a 0.2 record resolves from its key's id and says what it predates; an unknown alert or setup is a card, not the not-found page`);
+    }
+
+    /* EMPTY STATES. No alerts file (the deployed site), a file with none,
+       filters that exclude everything, no setups saved, and a builder with no
+       history to test on: each says which, and none says "0 unread". */
+    {
+      const r = await evaluate(`(async () => {
+        const w = (ms) => new Promise(r => setTimeout(r, ms));
+        ${scanSeedP3};
+        const t = () => document.querySelector('main').innerText;
+        const out = {};
+        navigate('/app/scanner/alerts?symbol=NOPE'); await w(150); out.filtered = /No match fits these filters/.test(t());
+        scanAlertsFile = { alerts: [] }; navigate('/app/scanner/alerts'); await w(150); out.none = /Nothing recorded yet/.test(t());
+        scanAlertsFile = null; navigate('/app/scanner/alerts'); await w(150); out.noFile = /cannot be seen from here/.test(t()) && !/0 unread/.test(t());
+        out.subnav = [...document.querySelectorAll('main nav a')].map(a => a.textContent).join('|');
+        localStorage.removeItem('vl.scanSetups'); scanSetupsFile = null; navigate('/app/scanner/setups'); await w(150);
+        out.noSetups = /No setups saved in this browser/.test(t()) && /cannot be seen from here/.test(t());
+        scanHistoryFile = null; navigate('/app/scanner/setups/new'); await w(150);
+        const test = [...document.querySelectorAll('main button')].find(b => /Test against your history/.test(b.textContent));
+        out.noHistory = test?.disabled === true && /nothing to test against/.test(t());
+        navigate('/app/scanner/watchlists'); await w(150); out.watch = State.view === 'scannerWatchlists' && /Watchlist scanner/.test(t());
+        navigate('/app/scanner/settings'); await w(150);
+        out.settings = ['Email', 'Telegram', 'Push'].every(c => new RegExp(c + '\\\\s*not configured', 'i').test(t())) && document.querySelectorAll('main input[type=checkbox]').length >= 1
+          && ![...document.querySelectorAll('main input')].some(i => /email|telegram|push/i.test(i.getAttribute('aria-label') || ''));
+        out.portable = ['scanSetups', 'scanAlertState', 'scanPrefs'].every(k => PORTABLE_KEYS.some(x => x.k === k));
+        navigate('/privacy'); await w(150); out.privacy = /scanner setups with every version/.test(t()) && /scanner alerts you have read or archived/.test(t());
+        return out;
+      })()`);
+      const p = Object.entries(r).filter(([k, v]) => k !== 'subnav' && v !== true).map(([k]) => k);
+      if (/Alerts ·/.test(r.subnav)) p.push(`subnav shows a count with no file: ${r.subnav}`);
+      if (p.length) fail('the scanner pages state their empty cases, and the three store keys travel and are named', p);
+      else ok('the scanner pages state their empty cases — no alerts file (and no count), none recorded, filters excluding all, no setups saved, no history to test on; settings list email, Telegram and push as not configured with no switch; scanSetups, scanAlertState and scanPrefs are portable and named on the privacy page');
+    }
+
+    /* THE BUILDER BY KEYBOARD. Real key events: Tab walks from the name to
+       the id; a select changed from the keyboard keeps focus through the
+       rebuild; typing in a number field does not rebuild under the cursor;
+       Enter on "Add a condition" lands on the new condition's left side. */
+    {
+      const key = async (k, code, vk, text) => {
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk, ...(text ? { text } : {}) }, sessionId);
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk }, sessionId);
+        await sleep(80);
+      };
+      await evaluate(`${scanSeedP3}; navigate('/app/scanner/setups/new'); document.querySelector('main [aria-label="Name"]').focus(); true`);
+      await sleep(200);
+      await key('Tab', 'Tab', 9);
+      const tab = await evaluate(`document.activeElement?.getAttribute('aria-label')`);
+      await evaluate(`document.querySelector('main [aria-label="Condition 1: operator"]').focus(); true`);
+      await key('ArrowDown', 'ArrowDown', 40);
+      const sel = await evaluate(`({ label: document.activeElement?.getAttribute('aria-label'), value: document.activeElement?.value, draft: scanDraft.ruleTree.children[0].op })`);
+      await evaluate(`window.__p3n = document.querySelector('main [aria-label="Condition 1: right side period (bars)"]'); window.__p3n.focus(); window.__p3n.select(); true`);
+      await send('Input.insertText', { text: '34' }, sessionId);
+      await sleep(80);
+      const typed = await evaluate(`({ same: document.activeElement === window.__p3n && window.__p3n.isConnected, n: scanDraft.ruleTree.children[0].right.n })`);
+      await evaluate(`document.querySelector('main [aria-label="Add a condition"]').focus(); true`);
+      await key('Enter', 'Enter', 13, '\r');
+      await sleep(120);
+      const added = await evaluate(`({ label: document.activeElement?.getAttribute('aria-label'), n: scanDraft.ruleTree.children.length })`);
+      const p = [];
+      if (tab !== 'Id') p.push(`Tab from Name reached "${tab}"`);
+      if (sel.label !== 'Condition 1: operator' || sel.draft !== sel.value || sel.value === 'CROSSES_ABOVE') p.push(`operator by keyboard: ${JSON.stringify(sel)}`);
+      if (!typed.same || typed.n !== 34) p.push(`typing a period: ${JSON.stringify(typed)}`);
+      if (added.label !== 'Condition 2: left side' || added.n !== 2) p.push(`Enter on Add: ${JSON.stringify(added)}`);
+      if (p.length) fail('the scanner builder works from the keyboard', p);
+      else ok('the scanner builder works from the keyboard — Tab from the name reaches the id, an operator changed by arrow key keeps focus through the rebuild, a typed period keeps the cursor in its field, and Enter on "Add a condition" lands on the new condition');
+    }
+    if (p3events.length) fail('the Phase 3 scanner pages threw', p3events.slice(0, 5));
+    else ok('the Phase 3 scanner pages ran every check above with no exception');
+  } finally {
+    ws.removeEventListener('message', p3listen);
+    await evaluate(scanRestoreP3).catch(() => null);
   }
 
 } catch (e) {
