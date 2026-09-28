@@ -4892,7 +4892,10 @@ try {
       out.wale = [...document.querySelectorAll('main table tbody tr')].find(tr => tr.cells[0].textContent === 'Weighted lease expiry')?.cells[1].textContent ?? null;
 
       /* 2. A model difference is never the green of a gain. */
-      navigate('/app');
+      /* The research queue is what /app was before Release A (40-views-discover.js).
+         release-a: fallback until shell merges — drawn directly where the
+         route /research/queue is not yet in this build. */
+      navigate('/research/queue'); if (State.view !== 'researchQueue') { State.view = 'researchQueue'; render(); }
       const cardEl = [...document.querySelectorAll('main h3.h-card')].find(h => /Largest differences/.test(h.textContent))?.closest('.card');
       const cells = cardEl ? [...cardEl.querySelectorAll('.num')].filter(x => /%$/.test(x.textContent)) : [];
       out.largest = { n: cells.length, pos: cells.filter(x => x.classList.contains('pos')).length,
@@ -6461,7 +6464,9 @@ try {
         await w(250);
         out.blankAsked = !!asked; out.opened = location.pathname; out.universe = scanDraft && scanDraft.universe && scanDraft.universe.kind;
       } finally { window.confirm = keepConfirm; scanDraft = keepDraft; }
-      navigate('/app'); await w(300);
+      /* The freshness card moved with the research queue (Release A). release-a:
+         fallback until shell merges — drawn directly where the route is not yet in this build. */
+      navigate('/research/queue'); if (State.view !== 'researchQueue') { State.view = 'researchQueue'; render(); } await w(300);
       const fresh = () => [...document.querySelectorAll('#views .card')].find(c => /Freshness/.test(c.textContent));
       out.loaded = fresh() ? fresh().textContent : null;
       const keepStatus = realStatus; realStatus = null; render(); await w(60);
@@ -7358,6 +7363,107 @@ try {
     try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && U.some(r => r.c.real)`)) break; } catch { /* booting */ }
   }
   /* ---- end bugfix5: shell ---- */
+
+  /* ---- release-a: dashboard ---- */
+  /* MY DASHBOARD COUNTS ONLY WHAT IS THE VISITOR'S, AND EVERY COUNT IS A DOOR.
+     /app was the equities research queue; Release A makes it the visitor's
+     own dashboard and moves the queue to /research/queue. The rules it must
+     keep: with nothing of the visitor's own saved it is a checklist, never
+     tiles of zeros; the samples seeded on a first visit are never counted as
+     the visitor's; an absent scanner record is said to be absent, never a
+     nought; "new since the last visit" is by when the worker recorded a match
+     and survives a redraw inside the visit; a setup's name is quoted as the
+     visitor's own; and every link on the page opens a route that renders. A
+     clean profile is loaded for it (onboarded, so the router's gate is not
+     what is measured), and the reader's storage is put back after. */
+  {
+    const keepLs = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])))`);
+    const reload = async (path) => {
+      await send('Page.navigate', { url: `${BASE}${path}` }, sessionId);
+      for (let i = 0; i < 60; i++) {
+        await sleep(300);
+        try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && U.some(r => r.c.real)`)) break; } catch { /* booting */ }
+      }
+    };
+    await evaluate(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+      localStorage.setItem('vl.plan', JSON.stringify('pro'));
+      localStorage.setItem('vl.onboarding', JSON.stringify({ done: true, at: '2026-09-27T00:00:00Z' })); return true; })()`);
+    await reload('/app');
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const main = () => document.querySelector('#views');
+      /* Every link the page draws, by the route it opens. */
+      const deadLinks = () => [...main().querySelectorAll('a[href]')].map(a => new URL(a.href).pathname)
+        .filter(p => { const rt = matchRoute(p); return !rt || !VIEWS[rt.view]; });
+      const tiles = () => Object.fromEntries([...main().querySelectorAll('.dash-tile')].map(t => [t.querySelector('.stat-label').textContent, { v: t.querySelector('.dash-tile-v').textContent, href: new URL(t.href).pathname }]));
+      const out = {};
+      /* The deployed site: the worker's files are never there. */
+      scanSetupsFile = null; scanAlertsFile = null; navigate('/app'); await w(200);
+      out.first = { view: State.view, start: !!main().querySelector('.dash-start'), tiles: main().querySelectorAll('.dash-tile').length,
+        steps: [...main().querySelectorAll('.dash-step')].map(s => s.dataset.done).join(''), progress: main().querySelector('.dash-progress-t')?.textContent,
+        primary: main().querySelectorAll('.dash-start .btn-primary').length, samples: !!main().querySelector('.dash-note'), seeded: hasSeededData(),
+        prefs: !!main().querySelector('a[href$="/welcome"]'), start2: !!main().querySelector('a[href$="/start"]'), dead: deadLinks() };
+      /* Two steps taken: a company read, and a list of the reader's own. */
+      openResearch('MAYBANK'); await w(200); openResearch('MSFT-SEC'); await w(200);
+      const made = wlCreate('release-a list'); wlAdd(made.watchlist.id, 'MSFT-SEC'); wlAdd(made.watchlist.id, 'MAYBANK');
+      navigate('/app'); await w(200);
+      out.second = { tiles: tiles(), steps: [...main().querySelectorAll('.dash-step')].length, dead: deadLinks(),
+        text: main().textContent.replace(/\\s+/g, ' ') };
+      /* A visit two hours ago, and the worker's record: two matches found
+         since, one before, one of them read here. */
+      store.write('dashVisit', { prev: null, seen: new Date(Date.now() - 2 * 3600e3).toISOString() });
+      const now = new Date().toISOString();
+      scanAlertsFile = { alerts: [
+        { id: 'a0ra00001', setupId: 'ra-wt', setupName: 'WaveTrend Buy', setupVersion: 1, symbol: 'MSFT', candleDate: '2026-09-28', eventType: 'NEW_MATCH', close: 510, detectedAt: now },
+        { id: 'a0ra00002', setupId: 'ra-wt', setupName: 'WaveTrend Buy', setupVersion: 1, symbol: 'AAPL', candleDate: '2026-09-28', eventType: 'MATCH', close: 230, detectedAt: now },
+        { id: 'a0ra00003', setupId: 'ra-wt', setupName: 'WaveTrend Buy', setupVersion: 1, symbol: 'NVDA', candleDate: '2026-09-24', eventType: 'MATCH', close: 180, detectedAt: '2026-09-25T00:00:00Z' },
+      ] };
+      scanSetAlertStatus(['a0ra00002'], 'READ');
+      navigate('/app'); await w(200);
+      const rows = () => [...main().querySelectorAll('.dash-matches a.dash-row')];
+      out.third = { tiles: tiles(), lede: main().querySelector('.dash-hd .body-lg').textContent,
+        rows: rows().map(a => ({ href: new URL(a.href).pathname, text: a.textContent.replace(/\\s+/g, ' ').trim() })), dead: deadLinks() };
+      /* A redraw inside the same visit keeps the count. */
+      render(); await w(100);
+      out.redraw = tiles()['New scanner alerts']?.v;
+      /* The research queue is the old dashboard, whole. */
+      navigate('/research/queue'); if (State.view !== 'researchQueue') { State.view = 'researchQueue'; render(); } await w(200);
+      out.queue = { h1: main().querySelector('h1')?.textContent, fresh: /Freshness/.test(main().textContent), largest: /Largest differences/.test(main().textContent),
+        waits: UNIVERSE_VIEWS.has('researchQueue') };
+      return out;
+    })()`);
+    const p = [];
+    const f = r.first;
+    if (f.view !== 'home' || !f.start || f.tiles !== 0) p.push(`first time: view ${f.view}, checklist ${f.start}, ${f.tiles} tiles`);
+    if (f.steps !== '0000' || f.progress !== '0 of 4 done') p.push(`first time: steps ${f.steps}, "${f.progress}" — the seeded samples were counted as the visitor's`);
+    if (f.primary !== 1) p.push(`first time: ${f.primary} primary actions in the checklist, not one`);
+    if (!f.seeded || !f.samples) p.push(`first time: the seeded samples (${f.seeded}) are not named on the page (${f.samples})`);
+    if (!f.prefs || !f.start2) p.push(`first time: "Set your preferences" ${f.prefs}, "Not sure where to start?" ${f.start2}`);
+    const s = r.second, t2 = s.tiles;
+    if (t2['Instruments watchlisted']?.v !== '2') p.push(`one list of two companies reads ${JSON.stringify(t2['Instruments watchlisted'])} — the samples were counted`);
+    if (t2['Scanner alerts']?.v !== 'No record') p.push(`with no record visible the alerts tile reads ${JSON.stringify(t2['Scanner alerts'])}, not "No record"`);
+    if (t2['Active setups']?.v !== '0' || t2['Saved models']?.v !== '0') p.push(`counts with nothing saved: ${JSON.stringify(t2)}`);
+    if (s.steps !== 2) p.push(`next steps list ${s.steps} steps, not the two not taken`);
+    const hrefs = { 'Active setups': '/app/scanner/setups', 'Scanner alerts': '/app/scanner/alerts', 'Instruments watchlisted': '/my/watchlists', 'Saved models': '/my/workspace' };
+    for (const [k, h] of Object.entries(hrefs)) if (!t2[k] || !t2[k].href.endsWith(h)) p.push(`the ${k} tile opens ${t2[k]?.href}, not ${h}`);
+    if (!/MSFT/.test(s.text) || !/illustrative/i.test(s.text)) p.push('the recently read companies are not named, or the illustrative one is not marked');
+    const t = r.third;
+    if (t.tiles['New scanner alerts']?.v !== '2' || r.redraw !== '2') p.push(`new since the visit: ${t.tiles['New scanner alerts']?.v}, after a redraw ${r.redraw} — want 2 and 2`);
+    if (!/2 new matches/.test(t.lede)) p.push(`the lede does not say what changed: "${t.lede}"`);
+    if (t.rows.length !== 3 || t.rows.some(x => !/^\/app\/scanner\/alerts\/a0ra0000[123]$/.test(x.href))) p.push(`match rows: ${JSON.stringify(t.rows.map(x => x.href))}`);
+    if (t.rows.some(x => !/Your setup “WaveTrend Buy”/.test(x.text))) p.push(`a setup's name is not quoted as the visitor's own: ${JSON.stringify(t.rows.map(x => x.text))}`);
+    if (!/^MSFT/.test(t.rows[0]?.text || '') || !/new/.test(t.rows[0]?.text || '') || /new/.test((t.rows[1]?.text || '').replace(/new match/, ''))) p.push(`order or read state: ${JSON.stringify(t.rows.map(x => x.text))}`);
+    const dead = [...f.dead, ...s.dead, ...t.dead];
+    if (dead.length) p.push(`links to routes that do not render: ${[...new Set(dead)].join(', ')}`);
+    if (r.queue.h1 !== 'Research queue' || !r.queue.fresh || !r.queue.largest || !r.queue.waits) p.push(`the research queue: ${JSON.stringify(r.queue)}`);
+    if (p.length) fail('release-a dashboard: the visitor’s own counts, doors and record', p);
+    else ok(`release-a dashboard: a clean profile gets the four-step checklist (0 of 4, samples named and not counted, one primary action); a list of its own reads 2 instruments, an absent record reads "No record", and ${t.tiles['New scanner alerts'].v} matches recorded since the last visit stay ${r.redraw} after a redraw; each of ${t.rows.length} rows opens its alert as “your setup”, no link leads to a route that does not render, and the research queue keeps the old dashboard`);
+    await evaluate(`(() => { const keep = JSON.parse(${JSON.stringify(keepLs)});
+      Object.keys(localStorage).forEach(k => { if (!(k in keep)) localStorage.removeItem(k); });
+      Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v)); return true; })()`);
+    await reload('/research');
+  }
+  /* ---- end release-a: dashboard ---- */
 
 } catch (e) {
   fail('harness error', e.message);

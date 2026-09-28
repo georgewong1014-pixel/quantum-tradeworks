@@ -2028,3 +2028,198 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
 .scan-results h3[tabindex="-1"]:focus, .scan-page h3[tabindex="-1"]:focus { outline: none; }
 .scan-cmd-code.scan-nowrap { white-space: nowrap; overflow-wrap: normal; }
 @media (max-width: 560px) { .scan-q-link { margin-top: 4px; } }
+
+/* ---- release-a: dashboard ---- */
+/* MY DASHBOARD (/app) — 40-views-discover.js, VIEW — MY DASHBOARD. Built from
+   the system's own tokens: the surfaces, the lift scale, the spacing scale
+   and the brand blue; no colour of its own. Only transform and box-shadow
+   are transitioned. */
+.dash { display: flex; flex-direction: column; gap: var(--lg); }
+.dash > .page-hd { margin-bottom: 0; }
+.dash-hd .body-lg { max-width: 64ch; }
+/* The site clamps a page's standfirst to two lines on a phone (the
+   progressive-disclosure rule above). Here it is not preamble: it is the
+   answer to "what changed since my last visit", and a clamp cut the count off
+   at 360px. It is shown whole. */
+@media (max-width: 760px) {
+  .dash-hd .body-lg { display: block; -webkit-line-clamp: unset; overflow: visible; }
+}
+
+/* The first-time card. The one thing on the page, so it takes the page's
+   deepest lift and a quiet field of the brand and the bronze behind it. */
+.dash-start {
+  padding: var(--xl);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--brand) 9%, transparent), transparent 55%),
+    radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--bronze) 9%, transparent), transparent 60%),
+    var(--surface);
+  box-shadow: var(--lift-3);
+}
+.dash-start-top {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--md) var(--lg); flex-wrap: wrap; margin-bottom: var(--sm);
+}
+.dash-start-top > div:first-child { flex: 1 1 320px; min-width: 0; }
+.dash-progress { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.dash-progress-t { font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.dash-progress-bar {
+  display: block; width: 180px; height: 6px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.dash-progress-bar > i {
+  display: block; height: 100%; border-radius: inherit; background: var(--brand);
+  transform-origin: left center; transition: transform 320ms ease;
+}
+
+/* A step: its mark, what it is, its one action. */
+.dash-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.dash-step {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center;
+  gap: var(--md); padding: var(--md) 0; border-top: 1px solid var(--grid);
+}
+.dash-steps-sm .dash-step { grid-template-columns: 26px minmax(0, 1fr) auto; gap: var(--sm); padding: var(--sm) 0; }
+.dash-steps-sm .dash-step:first-child { border-top: 0; padding-top: 0; }
+.dash-step-mark {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px dashed color-mix(in srgb, var(--ink-3) 70%, transparent); background: var(--surface-2);
+}
+.dash-steps-sm .dash-step-mark { width: 26px; height: 26px; }
+.dash-step[data-done="1"] .dash-step-mark { border: 0; background: var(--brand); color: var(--surface-2); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--brand) 60%, transparent); }
+.dash-step-mark svg { width: 15px; height: 15px; }
+.dash-step-t { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+.dash-step[data-done="1"] .dash-step-t .h-card { color: var(--ink-2); }
+.dash-step-body .caption { margin-top: 2px; max-width: 64ch; }
+.dash-step-go { white-space: nowrap; }
+
+/* The checklist, and beside it the two ways in that are not steps:
+   preferences and the goal launcher. */
+.dash-first { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: var(--lg); align-items: start; }
+.dash-more { display: flex; flex-direction: column; gap: var(--sm); margin-top: var(--sm); }
+.dash-more-link {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 44px;
+  padding: var(--sm) var(--md); border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink); text-decoration: none;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.dash-more-link strong { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.dash-more-link:hover { transform: translateY(-1px); box-shadow: var(--lift-2); }
+.dash-more-link:active { transform: none; box-shadow: var(--lift-1); }
+.dash-more-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Four counts, each a link to the page it counts. */
+.dash-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--md); }
+.dash-tile {
+  position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  padding: var(--lg) calc(var(--lg) + 20px) var(--lg) var(--lg);
+  background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--lift-2);
+  color: inherit; text-decoration: none;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+.dash-tile:hover { transform: translateY(-2px); box-shadow: var(--lift-3); }
+.dash-tile:active { transform: translateY(0); box-shadow: var(--lift-2); }
+.dash-tile:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.dash-tile-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.dash-tile-ic {
+  width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center;
+  background: var(--brand-wash); color: var(--brand);
+}
+.dash-tile-v {
+  font-size: 30px; font-weight: var(--weight-bold); letter-spacing: -.025em; line-height: 1.1;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.dash-tile-v.is-text { font-size: 18px; letter-spacing: -.01em; line-height: 1.35; }
+.dash-tile-note { font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--bronze); }
+.dash-tile-go {
+  position: absolute; top: var(--lg); right: var(--md); width: 18px; height: 18px; color: var(--ink-3);
+  transition: transform 220ms ease;
+}
+.dash-tile:hover .dash-tile-go { transform: translateX(2px); }
+
+/* Matches on the left, what to continue and what is next on the right. */
+.dash-split { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: var(--lg); align-items: start; }
+.dash-side { display: flex; flex-direction: column; gap: var(--lg); min-width: 0; }
+.dash-scanline { gap: 8px; margin: calc(var(--xs) * -1) 0 var(--sm); }
+
+/* A list whose every row is a link (or carries its own action). */
+.dash-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.dash-list > li + li { border-top: 1px solid var(--grid); }
+.dash-row {
+  display: flex; align-items: center; gap: var(--sm); min-height: 56px;
+  padding: var(--sm) var(--xs); margin: 0 calc(var(--xs) * -1); border-radius: var(--r-md);
+  color: inherit; text-decoration: none;
+}
+a.dash-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+a.dash-row:hover .dash-row-go { transform: translateX(2px); }
+a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
+.dash-row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dash-row-k { font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.dash-row-t { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; font-size: var(--text-sm); }
+.dash-row-t strong { font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.dash-row-s { font-size: var(--text-label); color: var(--ink-3); overflow-wrap: anywhere; }
+.dash-row-go { flex: none; width: 16px; height: 16px; color: var(--ink-3); transition: transform 200ms ease; }
+.dash-row-act > .btn { flex: none; }
+
+/* An empty sub-section says what to do, with the action that does it. */
+.dash-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: var(--md); border-radius: var(--r-md);
+  background: var(--surface-sunk); border: 1px dashed var(--line-2);
+}
+.dash-empty-t { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.dash-empty .caption { max-width: 60ch; }
+.dash-empty .btn { margin-top: 4px; }
+
+.dash-cos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.dash-co {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px;
+  border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+  font-size: var(--text-sm); color: var(--ink); text-decoration: none;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.dash-co:hover { transform: translateY(-1px); box-shadow: var(--lift-1); }
+.dash-co:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.dash-note {
+  display: flex; align-items: center; gap: var(--sm) var(--md); flex-wrap: wrap;
+  padding: var(--md) var(--lg); border-radius: var(--r-lg);
+  background: var(--bronze-wash); border: 1px solid color-mix(in srgb, var(--bronze) 26%, transparent);
+}
+.dash-note .caption { flex: 1 1 320px; margin: 0; color: var(--ink-2); }
+.dash-side .dash-note { flex-direction: column; align-items: flex-start; }
+.dash-side .dash-note .caption { flex: none; }
+.dash-foot { max-width: 80ch; }
+.dash-inline { color: var(--brand); font-weight: var(--weight-semibold); text-underline-offset: 3px; }
+.dash-inline:hover { text-decoration-thickness: 2px; }
+
+@media (max-width: 1024px) {
+  .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-split, .dash-first { grid-template-columns: minmax(0, 1fr); }
+}
+/* A phone: one count to a row, its figure beside what it counts, so the four
+   take a screen's third rather than its whole height. */
+@media (max-width: 560px) {
+  .dash { gap: var(--md); }
+  .dash-start { padding: var(--lg) var(--md); }
+  .dash-progress { align-items: flex-start; }
+  .dash-step { grid-template-columns: 28px minmax(0, 1fr); gap: var(--sm); }
+  .dash-step-mark { width: 28px; height: 28px; }
+  .dash-step-go { grid-column: 2; justify-self: start; }
+  .dash-tiles { grid-template-columns: minmax(0, 1fr); gap: var(--sm); }
+  .dash-tile {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--md); row-gap: 2px;
+    padding: var(--sm) 40px var(--sm) var(--md);
+  }
+  .dash-tile-hd { margin-bottom: 0; }
+  .dash-tile-ic { width: 26px; height: 26px; border-radius: 8px; }
+  .dash-tile > :not(.dash-tile-v):not(.dash-tile-go) { grid-column: 1; }
+  .dash-tile-v { grid-column: 2; grid-row: 1 / span 3; align-self: center; text-align: right; }
+  .dash-tile-v.is-text { font-size: 15px; }
+  .dash-tile-go { top: 50%; margin-top: -9px; }
+  .dash-note { padding: var(--md); }
+}
+@media (pointer: coarse), (max-width: 768px) {
+  .dash-co { min-height: 44px; }
+  .dash-scanline .dash-inline { display: inline-flex; align-items: center; min-height: 44px; }
+}
+/* ---- /release-a: dashboard ---- */
