@@ -35,13 +35,17 @@
    ========================================================================== */
 
 /* The two markets this product knows. Session hours are the exchanges'
-   published regular sessions, recorded for display; nothing derives bar
-   timing from them, and holiday calendars are not held (a hand-typed list
-   goes stale, and a maintained one comes with a licensed feed). */
+   published regular sessions, recorded here for display. Bar timing is
+   derived in one place only — SCAN_MARKETS in the market engine
+   (24-market-engine.js), which dates bars by session and decides when a bar
+   is final — so the time zone below is read from there rather than typed a
+   second time; equity-test asserts the two agree. Holiday calendars are not
+   held (a hand-typed list goes stale, and a maintained one comes with a
+   licensed feed); the engine infers sessions from the reader's history. */
 const MARKETS = {
-  US: { code: 'US', country: 'US', currency: 'USD', label: 'United States', tz: 'America/New_York',
+  US: { code: 'US', country: 'US', currency: 'USD', label: 'United States', tz: SCAN_MARKETS.US.tz,
         session: '09:30–16:00 local', exchanges: ['XNAS', 'XNYS'], calendar: 'not held — needs a licensed exchange calendar' },
-  MY: { code: 'MY', country: 'MY', currency: 'MYR', label: 'Malaysia', tz: 'Asia/Kuala_Lumpur',
+  MY: { code: 'MY', country: 'MY', currency: 'MYR', label: 'Malaysia', tz: SCAN_MARKETS.MY.tz,
         session: '09:00–12:30 and 14:30–17:00 local', exchanges: ['XKLS'], calendar: 'not held — needs a licensed exchange calendar' },
 };
 

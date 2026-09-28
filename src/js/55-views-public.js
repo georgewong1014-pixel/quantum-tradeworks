@@ -1050,7 +1050,7 @@ function openTrendDrawer(row, t) {
     if (ind.id === 'cross') shown = v ? `${v.dir === 'up' ? 'upward' : 'downward'} on ${v.date}` : (pend ? '—' : 'none in the window');
     else if (isNum(v)) shown = ind.kind === 'pct' ? withSign(v, 2) : fmtNum(v, 2);
     tb2.append(el('tr', {}, [
-      el('td', {}, ind.label),
+      el('td', {}, t.labels?.[ind.id] || ind.label),
       el('td', { class: 'num' }, shown),
       el('td', { class: 'metaline' }, pend ? `needs ${pend.more} more close${pend.more === 1 ? '' : 's'}` : 'computed'),
     ]));

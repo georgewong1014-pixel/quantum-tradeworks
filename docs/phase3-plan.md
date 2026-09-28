@@ -355,6 +355,8 @@ Adding capturedAt to the review CSV changes the column contract prices.mjs split
 
 ### SC-302 — OHLCV storage and validation
 
+**As built (this batch — engine, round 1).** In src/js/24-market-engine.js: SCAN_MARKETS (US, MY, FX, CRYPTO, _default; zone, close, settle, weekdays), which 26-instruments' MARKETS now reads its time zones from; scanValidateBar with all seven codes; scanBars reading history v2 additively (ohlc, meta, corrections optional — a close-only history reads exactly as before) and listing invalid bars with their codes instead of dropping them; scanSessionDateAt and scanBarStatus (FINAL / PROVISIONAL / UNKNOWN / CORRECTED, by close plus settle in the market's zone, DST-correct); scanCalendar (inferred, labelled so; weekday fallback below five series); gapBefore per bar; staleness against the clock; scanReadiness per market; scanPriceBreaks (detection only); scanDataVersion. Two rulings the contract left open: a bar with no capture time (every bar held today) is UNKNOWN and is evaluated once its session has closed — the alert records barStatus UNKNOWN — rather than never, which would stop every setup until round 2's ingest records capture times; and the weekday-fallback calendar tolerates a gap of up to two weekdays as a possible holiday (an inferred calendar tolerates none). Still to build (round 2): history-store and the ingest writing ohlc/meta/corrections, the data-health page. Adjustment for corporate actions (scanAdjust, UNADJUSTED_BREAK) is not built — breaks are detected and named, closes are not adjusted. Blocked as before: exchange calendars, corporate-action history, a server store.
+
 **Priority** P0 · **Status** partial
 
 **What exists.** Storage is data/price-history.json (closes and volume only; see SC-301). Validation that exists:
@@ -510,6 +512,8 @@ FNV-1a collisions are irrelevant at this scale but should not be presented as a 
 
 ### SC-303 — Technical indicator engine
 
+**As built (this batch — engine, round 1).** The engine region moved to src/js/24-market-engine.js (markers kept; scan.mjs and the tests slice it from index.html as before). SCAN_INDICATORS carries label, params with defaults and bounds, fields, inputs, unit, needs, formula text and calcVersion for price, volume, sma, ema, rsi (Wilder; a flat window is now ZERO_DENOMINATOR, calcVersion 2), macd, volume_avg, bb (population σ; upper/middle/lower/width/%b), atr (Wilder; needs highs and lows), high_n/low_n (need highs and lows), close_high_n/close_low_n (labelled closing highs and lows), change and rvol (reference excludes the current bar). scanIndicatorSeries and scanIndicator return the IndicatorResult with status and reason codes (NEEDS_BARS, MISSING_SESSION, NO_VOLUME, NO_HIGH_LOW, ZERO_DENOMINATOR, BAD_PARAMS, UNKNOWN_INDICATOR, STALE); the value is null whenever the status is not VALID. scanCache keys symbol|tf|dataVersion|specKey|calcVersion. 60-trend's trendContext and volumeContext read the engine — values bit-identical to before (pinned in scanner-test against the old code), a 52-week high from closes now labelled a closing high. scanner-test checks every indicator against hand-worked values and against a naive textbook implementation over a 300-bar synthetic OHLCV series. Not built: the committed TA-Lib/pandas-ta reference file (layer 2 of item 3) — no such library is available to generate it here. Blocked as before.
+
 **Priority** P0 · **Status** partial
 
 **What exists.** The pure engine region at src/js/86-scanner.js:35-510 is sliced by scanner/scan.mjs:57-86. Every run self-tests (scan.mjs:193-201; fixture 86-scanner.js:480-509).
@@ -661,6 +665,8 @@ Moving the engine region to another file must keep scan.mjs's self-test, which a
 
 
 ### SC-304 — Rule evaluation engine
+
+**As built (this batch — engine, round 1).** SetupV2 with rule trees (RuleGroup ALL/ANY, Condition, Operand); scanNormaliseSetup, the only reader of 0.2 setups (a 0.2 setup reads as EVERY_MATCH, since that is what it did; a tree defaults to NEW_MATCH); scanValidate over the tree with problems, problemsBySetup ({path, code, text}), SCAN_LIMITS, unit compatibility (UNIT_MISMATCH, EQUALS_NOT_ALLOWED), literal domains (INVALID_LITERAL), EXTRA_OPERAND, TOO_DEEP, TOO_MANY_CONDITIONS, TIMEFRAME_NOT_BUILT and route-safe ids. SCAN_OPERATORS under the specification's names with the 0.2 names as aliases, every comparison through scanCompare with the stated tolerance. scanEvaluate at any bar with Kleene groups, crossings only between consecutive sessions (MISSING_SESSION), and PROVISIONAL bars never confirming. scanResample builds 1W with a completeness flag. The current /my/scanner page lists V2 setups and its builder offers the eight operators; the rebuilt builder is round 2's.
 
 **Priority** P0 · **Status** partial
 
@@ -985,6 +991,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 ### SC-308 — Alert event engine
 
+**As built (this batch — engine, round 1).** scanKey is `id|vN|instrument|timeframe|bar|event` (instrument is MARKET:SYMBOL with a registry row, else the symbol); a version-1 daily setup is also deduplicated against the 0.2 key, so the first 0.3.0 run over a 0.2.0 alerts file records nothing again (tested through the CLI). scanAlertId = 'a' + FNV-1a-32. scanRun writes the V2 alert (id, key, setup version/hash/snapshot, instrumentId, market, candleDate, detectedAt, eventType NEW_MATCH / MATCH / FIRST_OBSERVED, cooldownMode, barStatus, matchedConditions with values, dataSourceId, dataVersion up to the bar, runId, origin, engine) with bar, rules and recordedAt kept as aliases; cooldownBars applies on top, per setup version, counted in bars. The worker writes these alerts and names the run in lastRun. Still to build: alert status in the browser and the detail page (round 2). Blocked as before.
+
 **Priority** P0 · **Status** partial
 
 **What exists.** The record is immutable in practice: the worker only appends (scan.mjs:163) and writes atomically (115-122). The dedupe key is scanKey = `${setupId}|${symbol}|${timeframe}|${bar}` (86-scanner.js:310). It is checked against existing keys (329, 377-378) and tested as 'the same bar is not recorded twice' (scanner-test.mjs:121-123). Cooldown is counted in bars and survives removed bars (86-scanner.js:379-393). The alert record is { key, setupId, setupName, symbol, timeframe:'daily', bar, close, recordedAt, rules:[{text,met}], engine } (394-396). Rule results already compute the left and right values (scanRule returns left/right at 208, 237), but they are dropped from the record. Display is at 86-scanner.js:646-678: a table sorted by bar, newest first, capped at 200, with factual 'what held' text and no instructions.
@@ -1154,6 +1162,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 ### SC-312 — Scanner dashboard
 
+**As built (this batch — engine part only).** scanStatus({ runs, alertsDoc, setupsDoc, historyMeta, control, now, instruments, alertState }) answers the four questions with state never / paused / failed / behind / current and a dated sentence per reason; it reads the alerts file's lastRun as a success until the run log exists. scanSetupsHash names a setups file as the worker would run it, and the worker now records it in lastRun. Tested on the exact local case (run 27 September on bars of 7 August → behind, 52 days). Still to build (round 2): the runs log in the worker and the dashboard page.
+
 **Priority** P0 · **Status** partial
 
 **What exists.** scan.mjs writes a single lastRun into data/scan-alerts.json on each successful run: { at, asOf, asOfFrom, engine, setups, evaluated, matched, recorded, untested, skipped, problems, untestedEverywhere, stale } (scanner/scan.mjs:160-163). Each run overwrites it. The page prints it as one sentence plus problems (86-scanner.js:653-662). ingest/daily.mjs runs the worker after the history step and writes a text report, data/daily-report.txt, that each run overwrites (ingest/daily.mjs:116-129, 158-164). Setups are validated on the page with the worker's own scanValidate (86-scanner.js:575). The local state shows the problem. lastRun.at is 2026-09-27T01:07Z on bars 2026-08-07, and price-history.json was generated 2026-08-07, so the scan is 51 days behind its data's capture date and the page prints it without comment. lastRun.engine is 'scan 0.1.0' while the page runs 0.2.0.
@@ -1197,6 +1207,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 
 ### SC-313 — Administrative monitoring — /admin/scanner, /data, /jobs, /delivery
+
+**As built (this batch — engine part only).** scanDataHealth(history, instruments, now) returns the file summary, per market (zone, session, calendar basis with inferred holidays and ambiguous days, the session expected by now, stale series) and per series (bars, invalid bars with codes, dropped keys and values, gaps against the calendar, close-to-close breaks tagged with the nearest split ratio or 'unexplained', volume coverage, bar statuses, the 500-point keep). scanReadiness gives the per-market readiness line the worker now prints. Still to build (round 2): the worker's controls, lock and runs log, and the four pages. Blocked as before.
 
 **Priority** P0 · **Status** missing
 
@@ -1243,6 +1255,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 
 ### SC-314 — Historical testing (simulation of match dates, not a performance backtest)
+
+**As built (this batch — engine part).** scanHistorical(setup, history, { symbols, from, to, maxBars, instruments, cache }) runs scanEvaluate at every completed bar and returns matches, events (NEW_MATCH / FIRST_OBSERVED), what the worker's dedupe and cooldown would have recorded, coverage per symbol (testable from, unavailable bars, invalid bars, missing sessions) and the missing sessions, marked simulation with the fixed note; no return, entry or exit exists in it. scanner-test pins no look-ahead two ways (evaluating at bar i equals evaluating the history cut at i, at all 260 bars of a nested nine-indicator tree; fifty noise bars appended change no earlier row) and that the recorded list equals a day-by-day scanRun replay. Still to build (round 2): the /app/scanner/backtest page and the worker's --backtest flag. Performance backtesting stays blocked.
 
 **Priority** P1 · **Status** missing
 
