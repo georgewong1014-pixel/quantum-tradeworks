@@ -640,6 +640,9 @@ function scanValuesFmt(vals, prefs = scanPrefsRead(), unit = null) {
   const xs = vals.flat().map(Number).filter(Number.isFinite);
   const f = prefs.precision !== 'rounded' ? scanDec
     : scanFmtAll(xs, unit === 'price' ? { dp: Math.max(2, ...xs.map(scanPriceDp)), compact: false } : {});
+  /* A yes-or-no reading (unit 'flag') is 1 or 0 to the engine and true or
+     false to its reader, as the condition's sentence says it. */
+  if (unit === 'flag') return (v) => (Number(v) === 1 ? 'true (1)' : Number(v) === 0 ? 'false (0)' : v == null || !Number.isFinite(Number(v)) ? '—' : f(Number(v)));
   return (v) => (v == null || !Number.isFinite(Number(v)) ? '—' : f(Number(v)));
 }
 const scanValueText = (v, prefs = scanPrefsRead(), unit = null) => scanValuesFmt([v], prefs, unit)(v);
@@ -675,14 +678,87 @@ function scanSetupChips(s, extra = []) {
     ...extra,
   ]);
 }
+/* A CONDITION MAY READ A HIGHER TIMEFRAME THAN ITS SETUP'S (contract B1–B3).
+   A setup on daily bars can hold a condition read on the last closed weekly
+   or monthly bar, built from the same daily bars — how the reader's
+   TradingView bot judges its trade timeframe. Absent, a condition reads the
+   setup's own. The engine validates, hashes and evaluates it; these pages
+   say it in the condition's own sentence, so a weekly criterion never reads
+   as a daily one. */
+const SCAN_TF_RANK = { '1D': 0, '1W': 1, '1M': 2 };
+const scanCondTf = (c) => (c && typeof c === 'object' && c.timeframe != null && c.timeframe !== '' ? scanTimeframe(c.timeframe) : null);
+const scanTfWord = (tf) => ({ '1D': 'daily', '1W': 'weekly', '1M': 'monthly' }[scanTimeframe(tf)] || String(tf || '').toLowerCase());
+const scanTfPeriod = (tf) => ({ '1D': 'session', '1W': 'week', '1M': 'month' }[scanTimeframe(tf)] || 'bar');
+/* The timeframes a condition in a setup on `tf` may read besides the
+   setup's own: the built ones above it, never one below. */
+const scanHigherTfs = (tf) => Object.values(SCAN_TIMEFRAMES)
+  .filter(t => t.built && SCAN_TF_RANK[t.id] != null && SCAN_TF_RANK[t.id] > (SCAN_TF_RANK[scanTimeframe(tf)] ?? 0)).map(t => t.id);
+/* A condition in words: the engine's sentence, with two things it leaves to
+   its reader said here. A yes-or-no reading (unit 'flag') compared with 1 or
+   0 reads "is true" or "is false" — "equals 1" asked the reader to know
+   the encoding — and a condition read on a timeframe other than its
+   setup's names it ("on the last closed weekly bar"). The engine's own
+   words stand wherever they already say either. */
+function scanCondSentence(c, setupTf = null) {
+  let t = scanConditionProse(c);
+  if (c && typeof c === 'object' && scanUnitOf(c.left) === 'flag' && scanOpName(c.op) === 'EQUALS'
+    && c.right && typeof c.right === 'object' && c.right.indicator == null && scanNumeric(c.right.value) && [0, 1].includes(Number(c.right.value)))
+    t = t.replace(/ equals [01](?=$| on | \()/, Number(c.right.value) === 1 ? ' is true' : ' is false');
+  const tf = scanCondTf(c);
+  if (tf && tf !== scanTimeframe(setupTf) && !/\b(daily|weekly|monthly)\b/i.test(t)) t += ` on the last closed ${scanTfWord(tf)} bar`;
+  return t;
+}
+/* The tree as indented lines, as the engine's scanTreeLines walks it, in
+   the sentences above. */
+function scanTreeLinesAt(tree, setupTf = null) {
+  const out = [];
+  const walk = (n, depth) => {
+    if (n?.type === 'group') {
+      if (depth > 0) out.push({ depth, text: `${n.logic === 'ANY' ? 'any' : 'all'} of:`, group: true });
+      (Array.isArray(n.children) ? n.children : []).forEach(c => walk(c, depth + 1));
+    } else out.push({ depth, text: scanCondSentence(n, setupTf) });
+  };
+  walk(tree, 0);
+  return out;
+}
+/* The timeframes other than `setupTf` a tree's conditions read, lowest
+   first, and how many of its conditions read one. */
+const scanTreeTfs = (tree, setupTf) => {
+  const out = new Set();
+  const walk = (n) => { if (n?.type === 'group') (n.children || []).forEach(walk); else { const t = scanCondTf(n); if (t && t !== scanTimeframe(setupTf)) out.add(t); } };
+  walk(tree);
+  return [...out].sort((a, b) => (SCAN_TF_RANK[a] ?? 9) - (SCAN_TF_RANK[b] ?? 9));
+};
+const scanTreeTfCount = (tree, setupTf) => { let n = 0; const w = (x) => { if (x?.type === 'group') (x.children || []).forEach(w); else { const t = scanCondTf(x); if (t && t !== scanTimeframe(setupTf)) n++; } }; w(tree); return n; };
 /* The tree as written: a nested group is a line of its own, and its
-   conditions sit one step in. */
-const scanTreeList = (tree) => el('ul', { class: 'rulelist' }, scanTreeLines(tree).map(l =>
+   conditions sit one step in. Given the setup's timeframe, a condition read
+   on another says which. */
+const scanTreeList = (tree, setupTf = null) => el('ul', { class: 'rulelist' }, scanTreeLinesAt(tree, setupTf).map(l =>
   el('li', { style: l.depth > 1 ? `margin-left:${(l.depth - 1) * 16}px` : null, class: l.group ? 'scan-group-line' : null }, l.text)));
+/* Where a recorded condition was read (B3): the record carries the
+   timeframe and the date of the bar read only when they differ from the
+   setup's own, so a condition without them was read on the alert's own
+   bar. A weekly or monthly bar is dated by its last session. */
+function scanReadOn(c, a) {
+  const own = scanTimeframe(a?.timeframe);
+  const tf = c?.timeframe != null && c.timeframe !== '' ? scanTimeframe(c.timeframe) : null;
+  const other = !!tf && tf !== own;
+  const t = other ? tf : own, date = other ? (c.barDate || null) : scanAlertBar(a) || null;
+  return { tf: t, date, other, text: date ? `${SCAN_TIMEFRAMES[t]?.label || t} bar closing ${date}` : `${SCAN_TIMEFRAMES[t]?.label || t} bar — the record does not say which` };
+}
+/* The bars of other timeframes a record's conditions were read on, in
+   words: "weekly bar closing 2026-09-25 and the monthly bar closing
+   2026-08-31". */
+const scanReadOnOthers = (a) => [...new Set((Array.isArray(a?.matchedConditions) ? a.matchedConditions : []).map(c => scanReadOn(c, a)).filter(r => r.other)
+  .map(r => r.text.replace(/^\w/, ch => ch.toLowerCase())))].join(' and the ');
 const scanDriftChip = (row) => (row ? el('span', { class: `chip ${SCAN_DRIFT[row.state].chip}`, title: row.text }, SCAN_DRIFT[row.state].label) : null);
 /* Monthly joined weekly as a timeframe built from the daily bars; the page
    said "daily bars" of a monthly setup until it was named here. */
-const scanTimeframeProse = (s) => (s.timeframe === '1W' ? 'weekly bars derived from your daily ones' : s.timeframe === '1M' ? 'monthly bars derived from your daily ones' : 'daily bars') + ', each evaluated once its session has closed';
+const scanTimeframeProse = (s) => {
+  const hi = scanTreeTfs(s.ruleTree, s.timeframe), n = scanTreeTfCount(s.ruleTree, s.timeframe);
+  return (s.timeframe === '1W' ? 'weekly bars derived from your daily ones' : s.timeframe === '1M' ? 'monthly bars derived from your daily ones' : 'daily bars') + ', each evaluated once its session has closed'
+    + (hi.length ? `; ${scanPlural(n, 'condition')} ${n === 1 ? 'reads' : 'read'} the last closed ${hi.map(scanTfWord).join(' or ')} bar instead` : '');
+};
 const scanAlertsOf = (id) => scanAlertList().filter(a => a.setupId === id);
 
 /* A run's outcome as a card body: what matched, what was untested, what was
@@ -749,6 +825,357 @@ function scanExportControls({ primary = false } = {}) {
   return box;
 }
 
+/* =====================================================================
+   HOW MUCH HISTORY A TIMEFRAME'S CONDITIONS NEED, AGAINST WHAT IS HELD
+
+   A weekly EMA of 200 bars needs 200 closed weeks — about 1,000 daily bars
+   — and a monthly one about seventeen years. Until the history holds them
+   the condition is unknown on every bar, and a setup that turns on it is
+   untested there, never recorded as not met: without this, a reader with a
+   year of daily bars would wait for weekly and monthly alerts that cannot
+   come. The run says so bar by bar; this says it once, per instrument, in
+   words. What an operand needs is the engine's own count (SCAN_INDICATORS'
+   `needs`, and one bar more for a crossing, which reads the bar before);
+   what is held is the engine's bars, daily and resampled, counting only
+   the weeks and months that have closed — the last closed bar is the one a
+   condition reads.
+   ===================================================================== */
+/* A list in words: "a", "a and b", "a, b and c". */
+const scanAnd = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+/* Per timeframe, each indicator the conditions read — one entry for an
+   indicator and its settings, naming the fields read from it (WaveTrend's
+   WT1 and WT2 are one warm-up) — with the most bars any of them needs and
+   whether it reads highs and lows. A bare price needs one bar and is left
+   out: it is never what keeps a condition unknown. */
+function scanNeedsOf(setups) {
+  const byTf = new Map();
+  const add = (tf, o, prev) => {
+    if (!o || typeof o !== 'object' || o.indicator == null) return;
+    const def = SCAN_INDICATORS[o.indicator];
+    if (!def) return;
+    const { params, problems } = scanParams(o);
+    if (problems.length) return;
+    const f = scanFieldOf(o);
+    const n = (Number(def.needs(params, f)) || 1) + (prev ? 1 : 0);
+    const inputs = (def.inputsOf ? def.inputsOf(params) : def.inputs) || [];
+    const ohlc = inputs.includes('high') || inputs.includes('low');
+    if (n <= 1 && !ohlc) return;
+    /* One entry per indicator where its fields have their own names (the
+       Pine indicators); the engine's own MACD and Bollinger name the field
+       in their label, so each field is its own entry. */
+    const key = def.sideLabel ? scanSpecKey(o, { multiplier: false }).replace(/\)\.\w+$/, ')') : scanSpecKey(o, { multiplier: false });
+    const head = def.sideLabel ? def.sideLabel(params, null) : scanSideLabel({ ...o, multiplier: undefined });
+    const fl = def.sideLabel && f ? def.fieldLabels?.[f] : null;
+    const field = typeof fl === 'function' ? fl(params) : fl || (def.sideLabel && f && !def.fieldLabels ? f : '');
+    if (!byTf.has(tf)) byTf.set(tf, new Map());
+    const m = byTf.get(tf);
+    const e = m.get(key) || { key, head, fields: [], needs: 0, ohlc: false };
+    if (field && !e.fields.includes(field)) e.fields.push(field);
+    e.needs = Math.max(e.needs, n);
+    e.ohlc = e.ohlc || ohlc;
+    e.label = e.fields.length ? `${e.head} ${scanAnd(e.fields)}` : e.head;
+    m.set(key, e);
+  };
+  (setups || []).forEach(s => {
+    const own = scanTimeframe(s?.timeframe);
+    const walk = (n) => {
+      if (n?.type === 'group') { (Array.isArray(n.children) ? n.children : []).forEach(walk); return; }
+      if (!n || typeof n !== 'object') return;
+      const tf = scanCondTf(n) || own, prev = !!SCAN_OPERATORS[scanOpName(n.op)]?.needsPrev;
+      add(tf, n.left, prev); add(tf, n.right, prev);
+      if (Array.isArray(n.range)) n.range.forEach(r => add(tf, r, false));
+    };
+    walk(s?.ruleTree);
+  });
+  return new Map([...byTf].sort((a, b) => (SCAN_TF_RANK[a[0]] ?? 9) - (SCAN_TF_RANK[b[0]] ?? 9)));
+}
+/* One instrument's history as the engine reads it: its valid daily bars,
+   and the weeks and months among them that have closed. Kept for the
+   history object it was read from, and the calendar per market with it. */
+let scanHeldMemo = { history: null, map: new Map(), cal: new Map() };
+function scanHeldOf(symbol, history = scanHistoryFile) {
+  if (scanHeldMemo.history !== history) scanHeldMemo = { history, map: new Map(), cal: new Map() };
+  if (scanHeldMemo.map.has(symbol)) return scanHeldMemo.map.get(symbol);
+  let out = null;
+  if (history?.series?.[symbol]) {
+    const reg = scanRegistryList();
+    const mkt = scanMarketOf(symbol, reg);
+    if (!scanHeldMemo.cal.has(mkt || '')) scanHeldMemo.cal.set(mkt || '', scanCalendar(history, reg, mkt));
+    const cal = scanHeldMemo.cal.get(mkt || '');
+    const d = scanBars(history, symbol, { market: mkt, calendar: cal });
+    const closed = (T) => (scanResample(d, T, { calendar: cal }).complete || []).filter(Boolean).length;
+    out = { symbol, daily: d.dates.length, from: d.dates[0] || null, to: d.dates[d.dates.length - 1] || null, weeks: closed('1W'), months: closed('1M'), hasOHLC: !!d.hasOHLC };
+  }
+  scanHeldMemo.map.set(symbol, out);
+  return out;
+}
+const scanHeldCount = (held, tf) => (tf === '1W' ? held.weeks : tf === '1M' ? held.months : held.daily);
+/* A count of bars of a timeframe, with what it means in daily bars: a week
+   is as many sessions as the instrument's own weeks hold (five for gold on
+   its FX session, seven for a coin), a month a twelfth of a year. */
+function scanNeedWords(tf, n, held) {
+  if (tf === '1W') {
+    const per = held?.weeks ? Math.max(1, Math.round(held.daily / held.weeks)) : 5;
+    const d = n * per;
+    return `${scanPlural(n, 'weekly bar')} (about ${(d >= 1000 ? Math.round(d / 50) * 50 : d).toLocaleString('en-US')} daily bars)`;
+  }
+  if (tf === '1M') return `${scanPlural(n, 'monthly bar')} (about ${n < 18 ? scanPlural(n, 'month') : scanPlural(Math.round(n / 12), 'year')} of daily bars)`;
+  return scanPlural(n, `${scanTfWord(tf)} bar`);
+}
+/* Per instrument: a line saying what is held, then one per timeframe the
+   conditions read — every indicator computable, or each one that is not
+   named with what it needs. `unknown` counts those that stay unknown. */
+function scanHistoryNeeds(symbols, byTf, history = scanHistoryFile) {
+  return (symbols || []).map(sym => {
+    const held = scanHeldOf(sym, history);
+    if (!held) return { symbol: sym, unknown: null, head: `${sym} — no series in your history, so nothing is evaluated for it until you import one.`, lines: [] };
+    let unknown = 0;
+    const lines = [...byTf].filter(([, m]) => m.size).map(([tf, m]) => {
+      const needs = [...m.values()];
+      const have = scanHeldCount(held, tf);
+      const heldText = tf === '1D' ? `${scanPlural(have, 'daily bar')} held` : `${scanPlural(have, `closed ${scanTfPeriod(tf)}`)} held`;
+      const label = SCAN_TIMEFRAMES[tf]?.label || tf;
+      const short = needs.filter(x => (x.ohlc && !held.hasOHLC) || x.needs > have);
+      unknown += short.length;
+      if (!short.length) {
+        const most = needs.reduce((a, x) => (x.needs > a.needs ? x : a), needs[0]);
+        return { tf, known: true, text: `${label} — ${heldText}. Every condition can be read: the longest warm-up, ${most.label}, needs ${scanNeedWords(tf, most.needs, held)}.` };
+      }
+      const why = short.map(x => (x.ohlc && !held.hasOHLC ? `${x.label}, which reads highs and lows this series does not hold` : `${x.label}, which needs ${scanNeedWords(tf, x.needs, held)}`));
+      return { tf, known: false, text: `${label} — ${heldText}. Unknown: ${why.join('; ')}.` };
+    });
+    return { symbol: sym, unknown, held, lines,
+      head: `${sym} — ${held.daily.toLocaleString('en-US')} daily bars held${held.from ? ` (${held.from} to ${held.to})` : ''}: ${scanPlural(held.weeks, 'closed week')} and ${scanPlural(held.months, 'closed month')}.` };
+  });
+}
+/* The same, as a block of the page: at most `max` instruments, then how
+   many more, and what an unknown criterion does. */
+function scanHistoryNeedsBlock(symbols, byTf, { max = 8, history = scanHistoryFile } = {}) {
+  const box = el('div', { class: 'scan-needs' });
+  if (!history?.series) { box.append(el('p', { class: 'caption' }, 'No price history is loaded here, so what it holds against what these conditions need cannot be counted — on the deployed site it never is.')); return box; }
+  const rows = scanHistoryNeeds(symbols.slice(0, max), byTf, history);
+  const ul = el('ul', { class: 'scan-needs-list' });
+  rows.forEach(r => ul.append(el('li', {}, [el('p', { class: 'scan-needs-hd' }, r.head),
+    r.lines.length ? el('ul', { class: 'rulelist' }, r.lines.map(l => el('li', { class: l.known ? null : 'scan-needs-short' }, l.text))) : null])));
+  box.append(ul);
+  if (symbols.length > max) box.append(el('p', { class: 'caption' }, `And ${scanPlural(symbols.length - max, 'more instrument')}, not counted here.`));
+  if (rows.some(r => r.unknown)) box.append(el('p', { class: 'caption', style: 'margin-top:6px;max-width:80ch' }, 'A condition that cannot be read is untested on that bar, never failed: a setup that turns on it records nothing where the conditions that can be read do not decide it, and each run names the timeframe that is short. It becomes readable once the history is long enough — importing your older TradingView bars is how.'));
+  return box;
+}
+
+/* =====================================================================
+   YOUR TRADINGVIEW BOT'S SIGNALS, AS SETUPS (contract B4)
+
+   The reader's "Multi-Timeframe Trading Bot" script raises alerts from five
+   criteria read on a trade timeframe and on an entry timeframe. The
+   engine's scanBotPack writes each alert as an ordinary setup — daily bars,
+   the trade timeframe's criteria read on the last closed weekly or monthly
+   bar — and this card chooses which alerts, on which instruments, and
+   saves them here like any setup, to be exported for the worker. The
+   titles are the script's own and are shown as the script's: a match is a
+   record that the reader's conditions held, not this product's call.
+   The defaults are the reader's decisions of 2026-09-29: weekly and monthly
+   trade timeframes, the EMA signal and the EMA 200 as the script computes
+   them, and new matches only; ANY STRONG, ANY WEAK and Entry TF Trade are
+   the script's aggregates of the others, so they start unticked.
+   ===================================================================== */
+const SCAN_BOT_GROUPS = [
+  { id: 'trade', legend: 'Trade timeframe', note: 'Read on the last closed bar of each trade timeframe ticked above.' },
+  { id: 'entry', legend: 'Entry (daily)', note: 'Read on each daily bar; one setup each, whatever the trade timeframes.' },
+  { id: 'combined', legend: 'Combined', note: 'A daily entry with each trade timeframe ticked above.' },
+];
+const scanBotState = { open: false, symbols: null, tfs: ['1W', '1M'], signals: null, cooldownMode: 'NEW_MATCH', criterion3: 'ema', result: null };
+/* The engine's list of the script's alerts, read whichever way a field is
+   spelled, with its group: the script's own titles say it ("Trade TF …",
+   "Entry TF …"), and an alert that needs no trade timeframe is an entry. */
+function scanBotSignals() {
+  const raw = typeof SCAN_BOT_SIGNALS !== 'undefined' ? SCAN_BOT_SIGNALS : null;
+  const list = Array.isArray(raw) ? raw : raw && typeof raw === 'object' ? Object.entries(raw).map(([id, s]) => ({ id, ...s })) : [];
+  return list.filter(s => s && typeof s === 'object' && s.id).map(s => {
+    const title = String(s.title ?? s.alertTitle ?? s.alert ?? s.name ?? s.id);
+    const needs = s.needsTradeTimeframe ?? s.needsTrade ?? s.tradeTimeframe ?? s.needsTradeTf ?? null;
+    const g = String(s.group || '').toLowerCase();
+    const group = /entry/.test(g) ? 'entry' : /combin|strong|weak|any/.test(g) ? 'combined' : /trade|tier/.test(g) ? 'trade'
+      : /^entry\b/i.test(title) || needs === false ? 'entry' : /^trade\b/i.test(title) ? 'trade' : 'combined';
+    const aggregate = s.aggregate != null ? !!s.aggregate : /^any\b/i.test(title) || /^entry tf trade$/i.test(title.trim());
+    return { id: String(s.id), title, description: String(s.description ?? s.text ?? ''), needsTrade: needs == null ? group !== 'entry' : !!needs, group, aggregate };
+  });
+}
+/* A setup the card saved, known by its id (mtfbot-<w|m|d>-<alert>): which
+   of the script's alerts it is and on which trade timeframe, so every page
+   that names it can say whose alert it is. */
+function scanBotOrigin(id) {
+  const m = /^mtfbot-([wmd])-(.+)$/.exec(String(id || ''));
+  if (!m) return null;
+  const sig = scanBotSignals().find(s => s.id === m[2]);
+  return { tf: { w: '1W', m: '1M', d: '1D' }[m[1]], signal: m[2], title: sig?.title || null };
+}
+const scanBotOriginText = (o) => `Your script’s ${o.title || 'alert'}${o.tf === '1D' ? ', read on the daily bar' : `, with its trade timeframe read on the last closed ${scanTfWord(o.tf)} bar`} — added from your TradingView bot’s signals. A match records that your script’s conditions held on that bar; it is not a signal from this product.`;
+/* The history's instruments, gold first when it is held: the reader's
+   chart is OANDA:XAUUSD. */
+function scanBotSymbols(history = scanHistoryFile) {
+  const all = Object.keys(history?.series || {}).sort((a, b) => a.localeCompare(b));
+  return all.includes('XAUUSD') ? ['XAUUSD', ...all.filter(s => s !== 'XAUUSD')] : all;
+}
+/* What the card hands scanBotPack. */
+function scanBotOptions(st = scanBotState) {
+  const symbols = [...(st.symbols || [])];
+  return { symbols, universe: { kind: 'symbols', symbols: [...symbols] }, tradeTimeframes: ['1W', '1M'].filter(t => st.tfs.includes(t)),
+    signals: [...(st.signals || [])], cooldownMode: st.cooldownMode, criterion3: st.criterion3, macdSignal: 'ema' };
+}
+/* The setups the card would save now, or why none. */
+function scanBotPreview(st = scanBotState) {
+  const o = scanBotOptions(st);
+  if (!o.symbols.length) return { setups: [], why: 'Choose at least one instrument.' };
+  if (!o.signals.length) return { setups: [], why: 'Choose at least one of your script’s alerts.' };
+  let setups;
+  try { setups = scanBotPack(o); } catch (e) { return { setups: [], why: `The engine refused these choices — ${String(e?.message || e)}` }; }
+  setups = Array.isArray(setups) ? setups.filter(s => s && typeof s === 'object') : [];
+  return { setups, why: setups.length ? null : 'No trade timeframe is ticked, and every alert chosen needs one — tick Weekly or Monthly, or an entry alert.' };
+}
+function scanBotCreate() {
+  const pv = scanBotPreview();
+  if (!pv.setups.length) return null;
+  const st = scanStoreRead();
+  const res = { at: new Date().toISOString(), created: 0, bumped: 0, same: 0, restored: 0, refused: [], ids: [] };
+  pv.setups.forEach(s => {
+    const was = st.setups[s.id];
+    const out = scanSaveSetup(s, { source: 'bot', st });
+    if (!out.ok) { res.refused.push(`${s.id}: ${out.problems[0]}`); return; }
+    res.ids.push(out.id);
+    if (was?.deleted) res.restored++;
+    if (out.created) res.created++; else if (out.bumped) res.bumped++; else res.same++;
+  });
+  scanBotState.result = res;
+  return res;
+}
+function scanBotCard() {
+  const det = el('details', { class: 'card scan-bot', open: scanBotState.open ? '' : null });
+  det.append(el('summary', {}, [el('span', { class: 'h-card' }, 'Add your TradingView bot’s signals'),
+    el('span', { class: 'caption scan-bot-sub' }, 'Your “Multi-Timeframe Trading Bot” script’s alerts, as setups of your own: entries on the daily bar, the trade timeframe on the last closed weekly and monthly bar.')]));
+  const body = el('div', { class: 'scan-bot-body' });
+  det.append(body);
+  let built = false;
+  const fill = () => { built = true; body.replaceChildren(...scanBotForm()); };
+  if (scanBotState.open) fill();
+  det.addEventListener('toggle', () => { scanBotState.open = det.open; if (det.open && !built) fill(); });
+  return det;
+}
+function scanBotForm() {
+  const out = [];
+  const signals = scanBotSignals();
+  if (typeof scanBotPack !== 'function' || !signals.length) {
+    out.push(el('p', { class: 'caption scan-note' }, 'This build’s engine does not carry your script’s alerts (scanBotPack), so they cannot be added here.'));
+    return out;
+  }
+  const st = scanBotState;
+  const history = scanHistoryFile;
+  const syms = scanBotSymbols(history);
+  if (st.symbols == null) st.symbols = syms.includes('XAUUSD') ? ['XAUUSD'] : [];
+  if (st.signals == null) st.signals = signals.filter(s => !s.aggregate).map(s => s.id);
+  out.push(el('p', { class: 'body scan-bot-intro' }, 'Your script raises its alerts from five criteria — WaveTrend’s WT1 against WT2, the MACD line against its EMA signal, the close against the 200 EMA, MCDX’s banker above 5 and, for sells, its hot money below 10 — read on a trade timeframe and on the daily entry timeframe. Each alert you tick becomes a setup of your own on daily bars, with the trade timeframe’s criteria read on the last closed weekly bar and, as a second trade timeframe, the last closed monthly bar — never the week or month in progress. A match records that your script’s conditions held on that bar, under your script’s own alert title. It is not a signal from this product, and nothing here says what to do.'));
+  const check = (label, on, set, { aria = null, sub = null, focus = null } = {}) => {
+    const lab = el('label', { class: 'checkline scan-bot-check' });
+    lab.append(el('input', { type: 'checkbox', checked: on ? '' : null, 'aria-label': aria || label, data: focus ? { scanFocus: focus } : {}, onchange: e => { set(e.target.checked); refresh(); } }));
+    lab.append(el('span', {}, [el('span', { class: 'scan-radio-l' }, label), sub ? el('span', { class: 'caption', style: 'display:block' }, sub) : null]));
+    return lab;
+  };
+  const radios = (legend, val, opts, set) => {
+    const fs = el('fieldset', { class: 'scan-radios' });
+    fs.append(el('legend', {}, legend));
+    const name = `scan-bot-${legend.replace(/\W+/g, '-').toLowerCase()}`;
+    opts.forEach(([v, l, sub]) => {
+      const lab = el('label', { class: 'checkline scan-radio' });
+      lab.append(el('input', { type: 'radio', name, value: v, checked: val === v ? '' : null, 'aria-label': `${legend}: ${l}`, onchange: e => { if (e.target.checked) { set(v); refresh(); } } }));
+      lab.append(el('span', {}, [el('span', { class: 'scan-radio-l' }, l), sub ? el('span', { class: 'caption', style: 'display:block' }, sub) : null]));
+      fs.append(lab);
+    });
+    return fs;
+  };
+  const toggle = (list, v, on) => (on ? [...new Set([...list, v])] : list.filter(x => x !== v));
+
+  /* ---- instruments ---- */
+  const fi = el('fieldset', { class: 'scan-bot-set' });
+  fi.append(el('legend', {}, 'Instruments'));
+  if (!syms.length) fi.append(el('p', { class: 'caption' }, 'No price history is loaded here, so there is no instrument to choose — on the deployed site there never is. On the machine the worker runs on, import your OANDA:XAUUSD export into data/price-history.json first.'));
+  else {
+    fi.append(el('p', { class: 'caption', style: 'margin:0 0 6px' }, `The ${scanPlural(syms.length, 'instrument')} your history holds a series for${syms[0] === 'XAUUSD' ? ', XAUUSD — your chart’s — first' : '; XAUUSD, your chart’s, is not among them yet'}. The setups scan every one ticked.`));
+    const box = el('div', { class: 'scan-bot-syms' });
+    syms.forEach(sym => box.append(check(sym, st.symbols.includes(sym), on => { st.symbols = toggle(st.symbols, sym, on); }, { aria: `Instrument ${sym}` })));
+    fi.append(box);
+  }
+  out.push(fi);
+
+  /* ---- trade timeframes ---- */
+  const ft = el('fieldset', { class: 'scan-bot-set' });
+  ft.append(el('legend', {}, 'Trade timeframes'));
+  const tfRow = el('div', { class: 'scan-bot-row' });
+  [['1W', 'Weekly', 'the last closed week — your script’s trade timeframe'], ['1M', 'Monthly', 'the last closed month — a second trade timeframe, as you asked']]
+    .forEach(([t, l, sub]) => tfRow.append(check(l, st.tfs.includes(t), on => { st.tfs = toggle(st.tfs, t, on); }, { aria: `Trade timeframe ${l}`, sub })));
+  ft.append(tfRow);
+  out.push(ft);
+
+  /* ---- the script's alerts, by group ---- */
+  SCAN_BOT_GROUPS.forEach(g => {
+    const list = signals.filter(s => s.group === g.id);
+    if (!list.length) return;
+    const fs = el('fieldset', { class: 'scan-bot-set' });
+    fs.append(el('legend', {}, g.legend));
+    fs.append(el('p', { class: 'caption', style: 'margin:0 0 6px' }, g.note));
+    const grid = el('div', { class: 'scan-bot-signals' });
+    list.forEach(s => grid.append(check(`your script’s ${s.title}`, st.signals.includes(s.id), on => { st.signals = toggle(st.signals, s.id, on); },
+      { aria: `Your script’s ${s.title}`, sub: [s.description, s.aggregate ? 'The script’s aggregate of the alerts above — ticked with them, it records the same bars twice.' : null].filter(Boolean).join(' ') })));
+    fs.append(grid);
+    out.push(fs);
+  });
+
+  /* ---- how, and criterion 3 ---- */
+  const opts = el('div', { class: 'grid g-2 scan-grid scan-bot-opts' });
+  opts.append(radios('Record', st.cooldownMode, [
+    ['NEW_MATCH', 'New matches', 'the bar an alert’s conditions begin to hold — they held, and did not on the bar before'],
+    ['EVERY_MATCH', 'Every match', 'every bar on which they hold']], v => { st.cooldownMode = v; }));
+  opts.append(radios('Criterion 3', st.criterion3, [
+    ['ema', 'Close above the EMA 200', 'as your script computes it — its criterion 3'],
+    ['sma', 'Close above the SMA 200', 'as your chart draws it (Color MA and SMA Cross)']], v => { st.criterion3 = v; }));
+  out.push(opts);
+  out.push(el('p', { class: 'caption', style: 'margin:0' }, 'Criterion 2 compares the MACD line with its EMA signal, as your script does; the CM MACD on your chart draws an SMA signal, and the two disagree on some bars.'));
+
+  /* ---- what it makes, what the history holds, and the button ---- */
+  const preview = el('p', { class: 'metaline scan-bot-preview', 'aria-live': 'polite' });
+  const needsHost = el('div', { class: 'scan-bot-needs' });
+  const btn = el('button', { class: 'btn btn-primary', data: { scanFocus: 'bot-create' }, onclick: () => {
+    const res = scanBotCreate();
+    if (!res) return;
+    toast(res.ids.length ? `Saved ${scanPlural(res.ids.length, 'setup')} in this browser — export scan-setups.json for the worker to run them` : `Not saved — ${res.refused[0]}`);
+    scanRender();
+  } }, 'Save these setups');
+  const status = el('div', { class: 'scan-bot-status', role: 'status' });
+  const r = st.result;
+  if (r) {
+    status.append(el('p', { class: 'scan-note', style: 'margin:0' }, `Saved ${scanPlural(r.ids.length, 'setup')} in this browser at ${scanStamp(r.at)}: ${r.created} new, ${scanPlural(r.bumped, 'new version')}, ${r.same} unchanged${r.restored ? `, ${r.restored} restored from deleted` : ''}${r.refused.length ? `, ${r.refused.length} refused` : ''}. They are in this browser only: the worker runs data/scan-setups.json, so none of them records a match until you export scan-setups.json above and save it over that file.`));
+    if (r.refused.length) status.append(el('ul', { class: 'scan-problems' }, r.refused.map(t => el('li', {}, t))));
+  }
+  const tail = el('div', { class: 'scan-bot-tail' }, [preview, needsHost, el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [btn]), status]);
+  out.push(tail);
+  function refresh() {
+    const pv = scanBotPreview(st);
+    const n = pv.setups.length;
+    btn.disabled = !n;
+    btn.textContent = n ? `Save ${scanPlural(n, 'setup')}` : 'Save these setups';
+    /* The ids say each setup's trade timeframe (mtfbot-w-…, -m-, -d- for
+       an entry), so the count can say how they divide. */
+    const per = new Map();
+    pv.setups.forEach(s => { const k = /^mtfbot-([wmd])-/.exec(String(s.id))?.[1]; if (k) per.set(k, (per.get(k) || 0) + 1); });
+    const split = [['w', 'weekly'], ['m', 'monthly'], ['d', 'daily entry']].filter(([k]) => per.get(k)).map(([k, w]) => `${per.get(k)} ${w}`).join(', ');
+    preview.textContent = n
+      ? `${scanPlural(n, 'setup')}, one per alert and trade timeframe${split ? ` (${split})` : ''}, each scanning ${scanPlural(st.symbols.length, 'instrument')}. One saved here already becomes a new version only if what it evaluates changed.`
+      : pv.why;
+    needsHost.replaceChildren(...(n ? [el('h3', { class: 'eyebrow', style: 'margin:0 0 4px' }, 'What your history holds for them'), scanHistoryNeedsBlock(st.symbols, scanNeedsOf(pv.setups), { history })] : []));
+  }
+  refresh();
+  return out;
+}
+
 /* The boundary, stated once on the setups page and not implied anywhere. */
 function scanBoundaryDetails() {
   const det = el('details', { class: 'card scan-boundary' });
@@ -759,7 +1186,7 @@ function scanBoundaryDetails() {
     el('li', {}, 'Nothing is ranked or sorted by strength. Matches appear in date order, then in the order of your setups and your instruments.'),
     el('li', {}, 'Nothing is delivered. The worker writes a file; these pages read it. Email, Telegram and push need a server and a contact address held under a privacy notice, and this build has neither.'),
     el('li', {}, 'Setups are kept in this browser and in git-ignored files on this machine. That is not access control: there are no accounts, and anyone with this machine or browser profile can read them.'),
-    el('li', {}, 'Daily bars, and weekly bars derived from them. A bar captured before its session closed is provisional and never confirms a match; sessions are inferred from your own history, not from an exchange calendar. Intraday needs a licensed feed.'),
+    el('li', {}, 'Daily bars, and weekly and monthly bars derived from them; a condition can read a higher timeframe than its setup’s, on that timeframe’s last closed bar. A bar captured before its session closed is provisional and never confirms a match; sessions are inferred from your own history, not from an exchange calendar. Intraday needs a licensed feed.'),
   ]));
   return det;
 }
@@ -824,6 +1251,9 @@ VIEWS.scannerSetups = () => {
   exp.style.marginTop = 'var(--md)';
   dc.append(exp);
   wrap.append(dc);
+  /* The reader's TradingView bot's alerts, as setups — below the export,
+     which is what makes them run. */
+  wrap.append(scanBotCard());
 
   /* ---- the setups ---- */
   if (!setups.length) {
@@ -843,6 +1273,7 @@ VIEWS.scannerSetups = () => {
       p.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
         scanLink(scanSetupPath(s.id), s.name || s.id, { class: 'scan-setup-name' }),
         el('span', { class: 'chip' }, s.id),
+        scanBotOrigin(s.id) ? el('span', { class: 'chip chip-bronze', title: scanBotOriginText(scanBotOrigin(s.id)) }, 'your script’s alert') : null,
         scanDriftChip(driftById.get(s.id)),
         el('span', { class: 'spacer' }),
         el('button', { class: 'btn btn-quiet btn-sm', data: { scanFocus: `toggle:${s.id}` }, 'aria-label': `${s.enabled ? 'Disable' : 'Enable'} ${s.name || s.id}`, onclick: () => {
@@ -853,7 +1284,7 @@ VIEWS.scannerSetups = () => {
       p.append(scanSetupChips(s));
       if (s.description) p.append(el('p', { class: 'body', style: 'margin-top:6px;font-size:13px' }, s.description));
       p.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `Universe: ${scanUniverseProse(s.universe)} · ${scanTimeframeProse(s)}.`));
-      p.append(scanTreeList(s.ruleTree));
+      p.append(scanTreeList(s.ruleTree, s.timeframe));
       const wd = scanWatchlistDrift(s);
       if (wd && !wd.same) p.append(el('p', { class: 'caption scan-note', style: 'margin-top:6px' }, wd.text));
       p.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, nAlerts
@@ -941,28 +1372,47 @@ VIEWS.scannerSetup = () => {
   } }, 'Adopt from file'));
   head.append(acts);
   wrap.append(head);
+  /* One of the reader's TradingView bot's alerts: its title is the
+     script's, and the page says so before anything else. */
+  const origin = scanBotOrigin(id);
+  if (origin) wrap.append(el('p', { class: 'caption scan-note scan-bot-origin', style: 'margin:0' }, scanBotOriginText(origin)));
 
   /* ---- the current version ---- */
   if (cur) {
     const cv = el('div', { class: 'card' });
     const ver = rec ? scanVersionOf(rec) : null;
     cv.append(cardHead(`${rec ? 'Current version' : 'In the file only'} — v${cur.version}`, rec
-      ? `Saved ${scanStamp(ver?.savedAt)}${ver?.source === 'file' ? ', adopted from the file' : ' from the builder'}. Hash ${cur.hash} — the engine’s name for exactly these conditions.`
+      ? `Saved ${scanStamp(ver?.savedAt)}${ver?.source === 'file' ? ', adopted from the file' : ver?.source === 'bot' ? ', added from your TradingView bot’s signals' : ' from the builder'}. Hash ${cur.hash} — the engine’s name for exactly these conditions.`
       : `Not adopted into this browser. Hash ${cur.hash}.`));
     cv.append(scanSetupChips(cur, [el('span', { class: 'chip' }, cur.id), scanDriftChip(drift)]));
     const facts = el('div', { class: 'scan-facts', style: 'margin-top:var(--md)' });
     facts.append(scanFact('Universe', scanUniverseProse(cur.universe)));
-    facts.append(scanFact('Timeframe', SCAN_TIMEFRAMES[cur.timeframe]?.label || cur.timeframe, SCAN_TIMEFRAMES[cur.timeframe]?.note));
+    /* A condition on a higher timeframe reads that timeframe's last closed
+       bar, and the fact says so beside the setup's own. */
+    const hiTfs = scanTreeTfs(cur.ruleTree, cur.timeframe);
+    const hiN = scanTreeTfCount(cur.ruleTree, cur.timeframe);
+    facts.append(scanFact('Timeframe', `${SCAN_TIMEFRAMES[cur.timeframe]?.label || cur.timeframe}${hiTfs.length ? `, with ${hiTfs.map(t => scanTfWord(t)).join(' and ')} conditions` : ''}`,
+      `${SCAN_TIMEFRAMES[cur.timeframe]?.note || ''}${hiTfs.length ? `${SCAN_TIMEFRAMES[cur.timeframe]?.note ? '. ' : ''}${scanPlural(hiN, 'condition')} ${hiN === 1 ? 'reads' : 'read'} the last closed ${hiTfs.map(scanTfPeriod).join(' or ')} instead, built from the same daily bars — never the one in progress, and on each bar the one that had closed by then.` : ''}` || null));
     facts.append(scanFact('Confirmation', 'Bar close', 'Only a completed bar is evaluated; a provisional bar never confirms a match.'));
     facts.append(scanFact('Recording', cur.cooldownMode === 'NEW_MATCH' ? 'New match' : 'Every match', `${cur.cooldownMode === 'NEW_MATCH' ? 'Only the bar a match begins is recorded.' : 'Every bar the conditions hold is recorded.'}${cur.cooldownBars ? ` Then ${scanPlural(cur.cooldownBars, 'bar')} of cooldown per instrument.` : ' No cooldown.'}`));
     facts.append(scanFact('Expires', cur.expires || 'Never'));
     facts.append(scanFact('Created · updated', rec ? `${scanDay(rec.created)} · ${scanDay(rec.updated)}` : `${scanDay(cur.created)} · ${scanDay(cur.updated)}`));
     cv.append(facts);
     cv.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Conditions'));
-    cv.append(scanTreeList(cur.ruleTree));
+    cv.append(scanTreeList(cur.ruleTree, cur.timeframe));
     if (drift) cv.append(el('p', { class: 'caption scan-note', style: 'margin-top:var(--sm)' }, drift.text));
     const wd = scanWatchlistDrift(cur);
     if (wd) cv.append(el('p', { class: 'caption scan-note', style: 'margin-top:6px' }, wd.text));
+    /* Conditions on a higher timeframe need years of daily bars before
+       they can be read, and the bot's criteria read highs and lows; per
+       instrument, what is held against that. */
+    if (hiTfs.length || origin) {
+      const u = cur.universe || { kind: 'all' };
+      const syms = u.kind === 'symbols' || u.kind === 'watchlist' ? (u.symbols || []).map(s => String(s).toUpperCase())
+        : scanHistoryFile ? scanUniverse(cur, scanHistoryFile, scanRegistryList()) : [];
+      cv.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 4px' }, 'What your history holds for these conditions'));
+      cv.append(scanHistoryNeedsBlock(syms, scanNeedsOf([cur])));
+    }
     wrap.append(cv);
   }
 
@@ -983,21 +1433,24 @@ VIEWS.scannerSetup = () => {
     det.append(el('summary', {}, el('span', { class: 'row row-wrap', style: 'gap:6px;display:inline-flex' }, [
       el('strong', {}, `v${v}`),
       rec && v === rec.current ? el('span', { class: 'chip chip-ok' }, 'current') : null,
-      el('span', { class: 'caption' }, hv ? `saved ${scanStamp(hv.savedAt)}${hv.source === 'file' ? ' · adopted from the file' : ''}` : snap ? 'known from its matches' : 'not held'),
+      el('span', { class: 'caption' }, hv ? `saved ${scanStamp(hv.savedAt)}${hv.source === 'file' ? ' · adopted from the file' : hv.source === 'bot' ? ' · from your bot’s signals' : ''}` : snap ? 'known from its matches' : 'not held'),
       el('span', { class: 'chip' }, scanPlural(va.length, 'match', 'matches')),
       hv ? el('span', { class: 'caption' }, `hash ${hv.hash}`) : null,
     ])));
     if (snap) {
       det.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `${scanUniverseProse(snap.universe)} · ${SCAN_TIMEFRAMES[snap.timeframe]?.label || snap.timeframe} · ${snap.cooldownMode === 'NEW_MATCH' ? 'new matches only' : 'every match'}${snap.cooldownBars ? ` · cooldown ${snap.cooldownBars}` : ''}${snap.expires ? ` · expires ${snap.expires}` : ''}`));
-      det.append(scanTreeList(snap.ruleTree));
+      det.append(scanTreeList(snap.ruleTree, snap.timeframe));
       if (!hv) det.append(el('p', { class: 'caption', style: 'margin-top:4px' }, 'Not saved in this browser: shown from the snapshot the worker wrote into its matches.'));
     } else det.append(el('p', { class: 'caption', style: 'margin-top:6px' }, 'Its conditions are not held here, and its matches were recorded before alerts carried a snapshot of the setup (engine 0.3.0).'));
     if (va.length) {
       const ul = el('ul', { class: 'scan-alert-mini' });
-      va.slice(0, 20).forEach(a => ul.append(el('li', {}, [
+      /* Each match with the bars of other timeframes its conditions were
+         read on (B3): the daily bar it names, and the weekly or monthly
+         bar that had closed by then. */
+      va.slice(0, 20).forEach(a => { const other = scanReadOnOthers(a); ul.append(el('li', {}, [
         scanLink(scanAlertPath(a), `${scanAlertBar(a)} · ${a.symbol}`), ' ',
-        el('span', { class: 'caption' }, `${a.eventType || 'MATCH'} · ${scanAlertStatus(a, stAlerts).toLowerCase()}`),
-      ])));
+        el('span', { class: 'caption' }, `${a.eventType || 'MATCH'} · ${scanAlertStatus(a, stAlerts).toLowerCase()}${other ? ` · read on the ${other}` : ''}`),
+      ])); });
       det.append(ul);
       if (va.length > 20) det.append(el('p', { class: 'caption' }, [`Showing the newest 20 of ${va.length}. `, scanLink(`/app/scanner/alerts?setup=${encodeURIComponent(id)}`, 'All of them')]));
     }
@@ -1498,7 +1951,7 @@ function scanBuilder(d, ctx) {
     : 'This setup’s conditions nest groups inside groups, which the file allows and this builder does not edit. They are shown as written; the rest of the setup can be edited and saved around them.'));
   const proseSpans = [];
   if (!flat) {
-    c3.append(el('div', { class: 'panel' }, [el('p', { class: 'metaline', style: 'font-weight:600' }, `${tree.logic === 'ANY' ? 'Any' : 'All'} of:`), scanTreeList(tree)]));
+    c3.append(el('div', { class: 'panel' }, [el('p', { class: 'metaline', style: 'font-weight:600' }, `${tree.logic === 'ANY' ? 'Any' : 'All'} of:`), scanTreeList(tree, d.timeframe)]));
     c3.append(problemHost('rules'));
     c3.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:var(--sm)', 'aria-label': 'Replace the nested conditions with one group', onclick: () => {
       if (!confirm('Replace these conditions with one editable group? The nested tree is dropped from the draft; the saved versions keep it.')) return;
@@ -1516,7 +1969,7 @@ function scanBuilder(d, ctx) {
       const unit = scanUnitOf(c.left);
       const U = SCAN_UNITS[unit];
       const row = el('div', { class: 'panel scan-cond' });
-      const prose = el('span', { class: 'scan-prose' }, scanConditionProse(c));
+      const prose = el('span', { class: 'scan-prose' }, scanCondSentence(c, d.timeframe));
       proseSpans.push([prose, c]);
       row.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:baseline' }, [
         el('span', { class: 'eyebrow' }, L), prose, el('span', { class: 'spacer' }),
@@ -1543,7 +1996,27 @@ function scanBuilder(d, ctx) {
           { type: 'number', inputmode: p.integer ? 'numeric' : 'decimal', min: String(p.min), max: String(p.max), step: p.integer ? '1' : 'any', placeholder: String(p.def), 'aria-label': `${L}: ${side.toLowerCase()} ${scanParamLabelOf(o.indicator, k)}` }),
           { hint: `${p.min}–${p.max}${p.integer ? ', whole' : ''}; blank is ${p.def}` }));
       });
-      grid.append(field('Left side', select(scanOperandKey(c.left), byUnit, v => { c.left = scanOperandFromKey(v); scanFitCondition(c); }, { 'aria-label': `${L}: left side` })));
+      /* The timeframe the condition reads (B1): the setup's own, or one
+         above it — that timeframe's last closed bar, built from the same
+         daily bars. One not above the setup's is refused by the engine,
+         with the reason, and shows here as that rather than as a choice. */
+      const ownTf = scanTimeframe(d.timeframe), hiTfs = scanHigherTfs(ownTf), ctf = scanCondTf(c);
+      const tfSet = ctf && ctf !== ownTf ? ctf : '';
+      if (hiTfs.length || tfSet) {
+        const items = [['', `The setup’s timeframe (${scanTfWord(ownTf)})`], ...hiTfs.map(t => [t, `${SCAN_TIMEFRAMES[t].label} — the last closed ${scanTfPeriod(t)}`])];
+        if (tfSet && !hiTfs.includes(tfSet)) items.push([tfSet, `${SCAN_TIMEFRAMES[tfSet]?.label || tfSet} — not above the setup’s ${scanTfWord(ownTf)}, so refused`, true]);
+        grid.append(field('Timeframe', select(tfSet, items, v => { if (v) c.timeframe = v; else delete c.timeframe; }, { 'aria-label': `${L}: timeframe` }),
+          { hint: tfSet && hiTfs.includes(tfSet) ? `On each ${scanTfWord(ownTf)} bar, the ${scanTfPeriod(tfSet)} that had closed by then — never the one in progress.` : null }));
+      }
+      /* A yes-or-no reading (unit 'flag') is asked whether it holds: chosen
+         as a left side, the condition becomes "is true" — equals 1 — rather
+         than keep an operator and a right side that meant a number. */
+      grid.append(field('Left side', select(scanOperandKey(c.left), byUnit, v => {
+        const was = scanUnitOf(c.left);
+        c.left = scanOperandFromKey(v);
+        scanFitCondition(c);
+        if (scanUnitOf(c.left) === 'flag' && was !== 'flag') { c.op = 'EQUALS'; delete c.range; c.right = { value: 1 }; }
+      }, { 'aria-label': `${L}: left side` })));
       params(c.left, 'Left');
       grid.append(field('Operator', select(scanOpName(c.op) || c.op, OPS, v => {
         const was = scanOpName(c.op);
@@ -1559,6 +2032,18 @@ function scanBuilder(d, ctx) {
         const cur = scanOperandKey(o);
         const items = [['value', 'a fixed value'], ...compat.map(x => [x.key, x.label])];
         if (cur !== 'value' && !compat.some(x => x.key === cur)) items.push([cur, `${SCAN_PICK_LABEL[o.indicator] || o.indicator} — not comparable with ${U?.label || 'the left side'}`, true]);
+        /* A yes-or-no reading equals true or false and nothing else: the
+           right side is that choice, not a number box that took any number
+           and refused all but two, nor a choice of "a fixed value" alone. */
+        const yesNo = unit === 'flag' && o?.indicator == null;
+        if (yesNo) {
+          const v = scanNumeric(o?.value) ? String(Number(o.value)) : '';
+          const opts = [...(v === '1' || v === '0' ? [] : [['', v === '' ? 'Choose true or false…' : `${o.value} — not true or false`, v === '']]), ['1', 'true (1)'], ['0', 'false (0)']];
+          if (compat.length) grid.append(field(side, select(cur, items, v2 => { set(v2 === 'value' ? { value: 1 } : scanOperandFromKey(v2)); }, { 'aria-label': `${L}: ${side.toLowerCase()}` })));
+          grid.append(field(compat.length ? `${side} value` : `${side} — true or false`, select(v, opts, v2 => { o.value = v2 === '' ? null : Number(v2); }, { 'aria-label': `${L}: ${side.toLowerCase()} value` }),
+            { hint: 'True is 1, false is 0 — the only two values a yes-or-no reading takes.' }));
+          return;
+        }
         grid.append(field(side, select(cur, items, v => { set(v === 'value' ? { value: null } : scanOperandFromKey(v)); }, { 'aria-label': `${L}: ${side.toLowerCase()}` }),
           { hint: compat.length ? null : scanOpName(c.op) === 'EQUALS' ? `Exact equality of two ${U?.label || ''} readings is noise; compare with a fixed value.` : null }));
         if (o?.indicator != null) {
@@ -1695,7 +2180,7 @@ function scanBuilder(d, ctx) {
     }
     status.textContent = chk.ready ? `Ready to save.${what}` : `Not ready — ${scanPlural(chk.problems.length, 'problem')}, each shown where it is.`;
     status.classList.toggle('scan-status-bad', !chk.ready);
-    proseSpans.forEach(([span, c]) => { span.textContent = scanConditionProse(c); });
+    proseSpans.forEach(([span, c]) => { span.textContent = scanCondSentence(c, d.timeframe); });
     const setup = chk.setup;
     const inUni = haveHistory ? scanUniverse(setup, history, registry) : [];
     const gaps = haveHistory ? scanUniverseGaps(setup, history, registry) : { missing: [], unplaced: [] };
@@ -2236,6 +2721,8 @@ VIEWS.scannerAlert = () => {
   const cur = rec ? scanRecordSetup(rec) : null;
   const heldV = rec ? scanVersionOf(rec, version) : null;
   c2.append(cardHead('The setup that recorded it', 'The version is the one in force when the bar was evaluated; later edits do not change it.'));
+  const origin = scanBotOrigin(a.setupId);
+  if (origin) c2.append(el('p', { class: 'caption scan-note scan-bot-origin', style: 'margin:0 0 var(--sm)' }, scanBotOriginText(origin)));
   const f2 = el('div', { class: 'scan-facts' });
   f2.append(scanFact('Setup', scanLink(scanSetupPath(a.setupId), a.setupName || a.setupId), `id ${a.setupId}`));
   f2.append(scanFact('Version', version != null ? scanLink(scanSetupPath(a.setupId, version), `v${version}`) : null,
@@ -2254,7 +2741,7 @@ VIEWS.scannerAlert = () => {
   c2.append(f2);
   if (snap) {
     c2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `Universe: ${scanUniverseProse(snap.universe)}${a.setupSnapshot ? '' : ' (from the version held in this browser; the record carries no snapshot)'}.`));
-    c2.append(scanTreeList(snap.ruleTree));
+    c2.append(scanTreeList(snap.ruleTree, snap.timeframe));
   }
   /* The setup behind this record, as a new draft (C5's ?fromAlert=). */
   const build = `/app/scanner/setups/new?fromAlert=${encodeURIComponent(id)}${clash ? `&key=${encodeURIComponent(a.key ?? '')}` : ''}`;
@@ -2270,15 +2757,20 @@ VIEWS.scannerAlert = () => {
   const t = el('table', { class: 'dt' });
   t.append(el('caption', { class: 'sr-only' }, 'Conditions evaluated on this bar'));
   if (mc) {
-    t.append(el('thead', {}, el('tr', {}, ['Path', 'Condition', 'State', 'Left', 'Right', 'Status'].map(h => el('th', { scope: 'col', class: h === 'Left' || h === 'Right' ? 'num' : null }, h)))));
+    /* Each condition with the bar it was read on (B3): the alert's own,
+       or — for a condition on a higher timeframe — the weekly or monthly
+       bar that had closed by then, which the record dates. */
+    if (mc.some(c => scanReadOn(c, a).other)) c3.append(el('p', { class: 'caption', style: 'margin:0 0 6px;max-width:72ch' }, `Some conditions read a higher timeframe than the setup’s ${scanTfWord(a.timeframe)} bars: each on that timeframe’s last closed bar as of ${bar}, dated in “Read on” by its last session.`));
+    t.append(el('thead', {}, el('tr', {}, ['Path', 'Condition', 'State', 'Left', 'Right', 'Read on', 'Status'].map(h => el('th', { scope: 'col', class: h === 'Left' || h === 'Right' ? 'num' : null }, h)))));
     /* Both sides of a condition round together and in its left side's
        unit, as the engine's sentence beside them prints them. */
-    t.append(el('tbody', {}, mc.map(c => { const fv = scanValuesFmt([c.left, c.right], prefs, scanCondUnit(a.setupSnapshot?.ruleTree, c.path)); return el('tr', {}, [
+    t.append(el('tbody', {}, mc.map(c => { const fv = scanValuesFmt([c.left, c.right], prefs, scanCondUnit(a.setupSnapshot?.ruleTree, c.path)); const ro = scanReadOn(c, a); return el('tr', {}, [
       el('td', { class: 'ident' }, c.path || '—'),
       el('td', { style: 'text-align:left;white-space:normal;min-width:200px' }, c.text || '—'),
       el('td', {}, el('span', { class: `chip ${c.state === 'MET' ? 'chip-ok' : c.state === 'UNAVAILABLE' ? 'chip-warn' : ''}` }, String(c.state || '—').replace('_', ' ').toLowerCase())),
       el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.leftLabel || ''), Array.isArray(c.left) ? c.left.map(fv).join(' → ') : fv(c.left)]),
       el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.rightLabel || ''), Array.isArray(c.right) ? c.right.map(fv).join(' – ') : fv(c.right)]),
+      el('td', { class: ro.other ? 'scan-read-on scan-read-other' : 'scan-read-on', style: 'text-align:left;white-space:normal' }, [el('span', { style: 'display:block;font-weight:600' }, SCAN_TIMEFRAMES[ro.tf]?.label || ro.tf), el('span', { class: 'caption' }, ro.date ? `bar closing ${ro.date}` : 'bar not dated on the record')]),
       el('td', { class: 'caption', style: 'text-align:left' }, `${String(c.status || '').replace('_', ' ').toLowerCase()}${c.reason ? ` · ${c.reason}` : ''}`),
     ]); })));
   } else {

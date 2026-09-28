@@ -359,12 +359,18 @@ const scanRunCacheText = (cs) => (cs && typeof cs === 'object' && (Number.isFini
   ? `${Number.isFinite(cs.hits) ? fmtNum(cs.hits, 0) : 'not recorded'} reused, ${Number.isFinite(cs.misses) ? fmtNum(cs.misses, 0) : 'not recorded'} computed` : null);
 
 /* A condition list: each line says whether it held, then the engine's own
-   sentence with the values it compared. Untested is not failed. */
+   sentence with the values it compared. Untested is not failed. A
+   condition read on a higher timeframe than its setup's carries the
+   timeframe and the date of the bar read (contract B3), and the line says
+   which bar that was, unless the engine's sentence already does. */
 function scanOpsConds(conds) {
   const tag = { MET: ['held', 'scan-c-met'], NOT_MET: ['not held', 'scan-c-not'], UNAVAILABLE: ['untested', 'scan-c-na'] };
   return el('ul', { class: 'scan-conds' }, (conds || []).map(c => {
     const [label, cls] = tag[c.state] || ['—', 'scan-c-na'];
-    return el('li', {}, [el('span', { class: `scan-c ${cls}` }, label), ' ', c.text || '(no text)']);
+    const tf = c.timeframe != null && c.timeframe !== '' ? scanTimeframe(c.timeframe) : null;
+    const word = tf ? (SCAN_TIMEFRAMES[tf]?.label || tf).toLowerCase() : null;
+    const at = tf && c.barDate && !String(c.text || '').includes(c.barDate) ? ` — on the ${word} bar closing ${c.barDate}` : '';
+    return el('li', {}, [el('span', { class: `scan-c ${cls}` }, label), ' ', `${c.text || '(no text)'}${at}`]);
   }));
 }
 /* A plain table: first column an identifier, the rest as given. No header

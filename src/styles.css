@@ -2028,3 +2028,49 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
 .scan-results h3[tabindex="-1"]:focus, .scan-page h3[tabindex="-1"]:focus { outline: none; }
 .scan-cmd-code.scan-nowrap { white-space: nowrap; overflow-wrap: normal; }
 @media (max-width: 560px) { .scan-q-link { margin-top: 4px; } }
+
+/* ---- bot: pages ---- */
+/* The reader's TradingView bot's signals as setups (86-scanner.js): the
+   card on the setups page, what the history holds against what a
+   timeframe's conditions need, and the bar each recorded condition was
+   read on. Built from the tokens above; nothing new in the palette. */
+/* A disclosure that says it is one: a + beside the title, − once open, as
+   the Studio's explanations mark theirs. */
+.scan-bot > summary { cursor: pointer; min-height: 44px; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: start; padding: 2px 0; }
+.scan-bot > summary::before { content: '+'; grid-row: 1 / span 2; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-top: 1px;
+  border-radius: 999px; border: 1px solid var(--line-2); font-size: 14px; line-height: 1; color: var(--ink-2); background: var(--surface-sunk); }
+.scan-bot[open] > summary::before { content: '−'; }
+.scan-bot > summary:hover::before { border-color: var(--ink-3); color: var(--ink); }
+.scan-bot > summary .h-card { display: block; grid-column: 2; }
+.scan-bot-sub { display: block; grid-column: 2; margin-top: 2px; max-width: 72ch; }
+.scan-bot-body { display: flex; flex-direction: column; gap: var(--md); margin-top: var(--md); min-width: 0; }
+.scan-bot-intro { margin: 0; max-width: 72ch; }
+.scan-bot-set { border: 0; margin: 0; padding: 0; min-width: 0; }
+.scan-bot-set > legend { font-size: 14px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; padding: 0; }
+.scan-bot-check { align-items: flex-start; }
+.scan-bot-check input { margin-top: 3px; }
+.scan-bot-syms { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 0 var(--sm); max-height: 232px; overflow: auto;
+  padding: 6px var(--sm); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-sunk); }
+.scan-bot-syms .scan-bot-check { align-items: center; }
+.scan-bot-syms .scan-bot-check input { margin-top: 0; }
+.scan-bot-row { display: flex; flex-wrap: wrap; gap: 4px var(--lg); }
+.scan-bot-row .scan-bot-check { flex: 1 1 240px; max-width: 420px; }
+.scan-bot-signals { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 6px var(--lg); }
+.scan-bot-opts { align-items: start; }
+.scan-bot-opts .scan-radio { flex-basis: 100%; max-width: 60ch; }
+.scan-bot-tail { display: flex; flex-direction: column; gap: var(--sm); padding-top: var(--md); border-top: 1px solid var(--grid); min-width: 0; }
+.scan-bot-preview { margin: 0; max-width: 80ch; }
+.scan-bot-status:empty { display: none; }
+.scan-needs { min-width: 0; }
+.scan-needs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sm); }
+.scan-needs-hd { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.scan-needs-list .rulelist li { max-width: 80ch; overflow-wrap: anywhere; }
+.scan-needs-list .rulelist li.scan-needs-short { color: var(--ink); }
+.scan-needs-list .rulelist li.scan-needs-short::before { content: '!'; color: var(--bronze); }
+.scan-read-on { min-width: 8.5rem; }
+.scan-read-other > span:first-child { color: var(--bronze); }
+@media (max-width: 620px) {
+  .scan-bot-row .scan-bot-check { max-width: none; }
+  .scan-bot-syms { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); max-height: 264px; }
+}
+/* ---- end bot: pages ---- */

@@ -755,6 +755,100 @@ for (const w of [360, 390, 768]) {
   }
 }
 /* ---- end bugfix5: views ---- */
+/* ---- bot: pages ---- */
+/* THE BOT'S SIGNALS ON A PHONE. "Add your TradingView bot’s signals" is
+   the longest run of controls on the setups page — a box of instruments,
+   the trade timeframes, fifteen of the script's alerts, two choices and the
+   history note — and it is drawn only when opened, so the sweep above
+   measured it closed. Open, with two dozen synthetic instruments, at 360
+   and 390: nothing runs sideways, every tick box, the disclosure and the
+   button are 44px targets, and none sits past the screen's edge. Then the
+   pages it leads to — a saved setup with weekly conditions, a record of it
+   read on a closed week, and the builder with a condition on a higher
+   timeframe and a true-or-false right side — do not run sideways either.
+   The engine's bot contract (B1, B4) is stood in for where this build's
+   engine lacks it, on synthetic data, and everything is put back. */
+for (const w of [360, 390]) {
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await send('Page.navigate', { url: BASE + '/app/scanner/setups' }, sessionId);
+  let ready = false;
+  for (let i = 0; i < 40 && !ready; i++) {
+    await sleep(500);
+    const p = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+    ready = p.result?.result?.value === true;
+  }
+  const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    const wait = (ms) => new Promise(res => setTimeout(res, ms));
+    const keep = { h: scanHistoryFile, a: scanAlertsFile, store: localStorage.getItem('vl.scanSetups'), n: window.scanNormaliseNode, bot: JSON.stringify(scanBotState) };
+    const stubbed = typeof scanBotPack !== 'function';
+    const out = { over: {}, small: [], outside: [] };
+    const over = () => document.documentElement.scrollWidth - document.documentElement.clientWidth;
+    try {
+      if (scanNormaliseNode({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 }, timeframe: '1W' }).timeframe !== '1W')
+        window.scanNormaliseNode = (node) => { const x = keep.n(node); if (x && x.type === 'condition' && node && node.timeframe != null) x.timeframe = node.timeframe; return x; };
+      if (stubbed) {
+        const T = ['Trade TF Tier 1 Buy', 'Trade TF Tier 2 Buy', 'Trade TF Tier 1 Sell', 'Trade TF Tier 2 Sell', 'Entry TF Buy', 'Entry TF Sell', 'Entry TF Trade', 'STRONG BUY CONTINUOUS', 'STRONG BUY REVERSAL',
+          'STRONG SELL CONTINUOUS', 'STRONG SELL REVERSAL', 'WEAK BUY', 'WEAK SELL', 'ANY STRONG SIGNAL', 'ANY WEAK SIGNAL'];
+        window.SCAN_BOT_SIGNALS = T.map(t => ({ id: t.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title: t, description: 'The script’s own alert of that name, read on its last closed bars.', needsTradeTimeframe: !/^Entry/.test(t) }));
+        window.scanBotPack = ({ symbols = [], tradeTimeframes = [], signals = [], cooldownMode = 'NEW_MATCH' } = {}) => window.SCAN_BOT_SIGNALS.filter(s => signals.includes(s.id)).flatMap(s =>
+          (s.needsTradeTimeframe ? tradeTimeframes : ['1D']).map(tf => ({ id: 'mtfbot-' + ({ '1W': 'w', '1M': 'm' }[tf] || 'd') + '-' + s.id, name: 'MTF bot · ' + tf + ' · ' + s.title, enabled: true,
+            universe: { kind: 'symbols', symbols }, timeframe: '1D', cooldownMode, ruleTree: { type: 'group', logic: 'ALL', children: [
+              { type: 'condition', left: { indicator: 'wavetrend', field: 'wt1' }, op: 'GREATER_THAN', right: { indicator: 'wavetrend', field: 'wt2' }, ...(tf === '1D' ? {} : { timeframe: tf }) },
+              { type: 'condition', left: { indicator: 'bot_macd', field: 'histUp' }, op: 'EQUALS', right: { value: 1 }, ...(tf === '1D' ? {} : { timeframe: tf }) },
+              { type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'ema', n: 200 } }] } })));
+      }
+      const series = {}, days = [];
+      for (let d = new Date('2026-09-25T00:00:00Z'); days.length < 300; d.setUTCDate(d.getUTCDate() - 1)) if (d.getUTCDay() % 6) days.unshift(d.toISOString().slice(0, 10));
+      ['XAUUSD', ...Array.from({ length: 23 }, (_, i) => 'SYNTH' + String.fromCharCode(65 + i) + 'USD')].forEach((sym, si) => { series[sym] = {}; days.forEach((day, i) => { series[sym][day] = 100 + si + Math.sin(i / 7) * 5 + i * 0.05; }); });
+      scanHistoryFile = { generated: '2026-09-25T22:00:00Z', series, volume: {} };
+      localStorage.removeItem('vl.scanSetups');
+      Object.assign(scanBotState, { open: true, symbols: null, tfs: ['1W', '1M'], signals: null, cooldownMode: 'NEW_MATCH', criterion3: 'ema', result: null });
+      navigate('/app/scanner/setups'); await wait(250);
+      const card = document.querySelector('details.scan-bot');
+      out.open = !!card?.open;
+      out.over.card = over();
+      const targets = [card.querySelector('summary'), ...card.querySelectorAll('label.checkline'), card.querySelector('button[data-scan-focus="bot-create"]')];
+      out.targets = targets.length;
+      /* Half a pixel of slack: a 44px row laid out at a fractional offset
+         measures 43.99 from its rounded edges. */
+      targets.forEach(n => { const b = n.getBoundingClientRect();
+        if (b.height < 43.5 || b.width < 43.5) out.small.push((n.textContent || '').trim().slice(0, 30) + ' ' + b.width.toFixed(2) + '×' + b.height.toFixed(2));
+        if (b.right > innerWidth + 0.5 || b.left < -0.5) out.outside.push((n.textContent || '').trim().slice(0, 30)); });
+      card.querySelector('button[data-scan-focus="bot-create"]').click(); await wait(250);
+      out.over.saved = over();
+      const id = scanBrowserSetups().map(s => s.id).find(x => /^mtfbot-w-/.test(x));
+      navigate('/app/scanner/setups/' + id); await wait(200);
+      out.over.setup = over();
+      const s = scanBrowserSetups().find(x => x.id === id);
+      const mc = []; const walk = (n, p) => { if (n.type === 'group') n.children.forEach((c, j) => walk(c, p ? p + '.' + (j + 1) : String(j + 1))); else mc.push({ path: p, text: scanConditionProse(n), state: 'MET', status: 'VALID', left: 1, right: 1, ...(n.timeframe ? { timeframe: n.timeframe, barDate: '2026-09-18' } : {}) }); };
+      walk(s.ruleTree, '');
+      scanAlertsFile = { alerts: [{ id: 'abf0b07b', key: id + '|k', setupId: id, setupName: s.name, setupVersion: 1, symbol: 'XAUUSD', timeframe: '1D', candleDate: '2026-09-24', close: 101.5, eventType: 'NEW_MATCH', detectedAt: '2026-09-24T22:05:00Z', setupSnapshot: JSON.parse(JSON.stringify(s)), matchedConditions: mc }] };
+      navigate('/app/scanner/alerts/abf0b07b'); await wait(200);
+      out.over.alert = over();
+      scanDraft = null;
+      navigate('/app/scanner/setups/new'); await wait(200);
+      const pick = async (l, v) => { const x = document.querySelector('main select[aria-label="' + l + '"]'); x.value = v; x.dispatchEvent(new Event('change', { bubbles: true })); await wait(60); };
+      await pick('Condition 1: timeframe', '1M');
+      await pick('Condition 1: left side', 'wavetrend.crossUp');
+      out.over.builder = over();
+      scanDraft = null;
+      return out;
+    } finally {
+      window.scanNormaliseNode = keep.n;
+      if (stubbed) { delete window.scanBotPack; delete window.SCAN_BOT_SIGNALS; }
+      scanHistoryFile = keep.h; scanAlertsFile = keep.a;
+      if (keep.store == null) localStorage.removeItem('vl.scanSetups'); else localStorage.setItem('vl.scanSetups', keep.store);
+      Object.assign(scanBotState, JSON.parse(keep.bot));
+    }
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  const wide = v ? Object.entries(v.over).filter(([, x]) => x > 0).map(([k, x]) => `${k} ${x}px`) : [];
+  if (!v || !v.open || v.targets < 20 || wide.length || v.small.length || v.outside.length) {
+    bad++; console.log(`FAIL ${w}px the bot's signals on the scanner pages — ${v ? [v.open ? `${v.targets} targets measured` : 'the card did not open', ...wide.map(x => `overflow: ${x}`),
+      ...v.small.slice(0, 4).map(x => `under 44px: ${x}`), ...v.outside.slice(0, 4).map(x => `past the edge: ${x}`)].join('; ') : `not measured${r.result?.exceptionDetails ? ` (${r.result.exceptionDetails.exception?.description?.split('\n')[0]})` : ''}`}`);
+  }
+}
+/* ---- end bot: pages ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);
