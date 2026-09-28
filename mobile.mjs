@@ -706,6 +706,50 @@ for (const [route, heads] of [
 }
 await send('Runtime.evaluate', { expression: `localStorage.removeItem('vl.borrowerProfile'); true` }, sessionId);
 /* ---- end bugfix4: misc ---- */
+/* ---- bugfix5: views ---- */
+/* THE HEATMAP'S LABELS STAY WHOLE. At 390px the colour scale's end labels
+   broke "−3.00" above "%" on either side of the ramp (and "−15.0" / "%" on
+   three months), and from 360 to 768px the six-button strip crushed its
+   label to "Me / asu / re". Each scale end is one line in every mode, and no
+   word of a strip's label is cut across two lines. */
+for (const w of [360, 390, 768]) {
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+  await send('Page.navigate', { url: BASE + '/discover?tab=heatmap' }, sessionId);
+  let ready = false;
+  for (let i = 0; i < 40 && !ready; i++) {
+    await sleep(500);
+    const p = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+    ready = p.result?.result?.value === true;
+  }
+  await sleep(600);
+  const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    const tops = (node, from = 0, to = node.data.length) => { const rg = document.createRange(); rg.setStart(node, from); rg.setEnd(node, to);
+      return new Set([...rg.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top))).size; };
+    const text = (el) => el.firstChild && el.firstChild.nodeType === 3 ? el.firstChild : null;
+    const cut = [];
+    let ends = 0;
+    for (const mode of HEAT_MODES.map(m => m.id)) {
+      State.heat.mode = mode; render();
+      await new Promise(res => setTimeout(res, 120));
+      const item = [...document.querySelectorAll('#views .legend-item')].find(x => x.querySelectorAll(':scope > .metaline').length === 2);
+      if (!item) { cut.push(mode + ': no scale legend'); continue; }
+      item.querySelectorAll(':scope > .metaline').forEach(s => { ends++; const t = text(s); if (t && tops(t) > 1) cut.push(mode + ' scale end "' + s.textContent + '" on ' + tops(t) + ' lines'); });
+      const it = item.getBoundingClientRect(), pr = item.parentElement.getBoundingClientRect();
+      if (it.right > pr.right + 0.5) cut.push(mode + ': the scale runs ' + Math.round(it.right - pr.right) + 'px past its card');
+    }
+    State.heat.mode = 'd1'; render();
+    await new Promise(res => setTimeout(res, 120));
+    const labels = [...document.querySelectorAll('#views .segmented')].map(s => s.previousElementSibling).filter(x => x && x.matches('span.caption'));
+    labels.forEach(l => { const t = text(l); if (!t) return; const re = /\\S+/g; let m;
+      while ((m = re.exec(t.data))) if (tops(t, m.index, m.index + m[0].length) > 1) cut.push('strip label "' + m[0] + '" cut across lines'); });
+    return { ends, labels: labels.length, cut, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || v.ends !== 12 || v.labels < 2 || v.cut.length || v.overflow > 0) {
+    bad++; console.log(`FAIL ${w}px /discover?tab=heatmap — a scale end or strip label is broken across lines: ${v ? [`${v.ends} scale ends, ${v.labels} strip labels measured`, ...v.cut.slice(0, 5), ...(v.overflow > 0 ? [`page overflows by ${v.overflow}px`] : [])].join('; ') : 'not measured'}`);
+  }
+}
+/* ---- end bugfix5: views ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

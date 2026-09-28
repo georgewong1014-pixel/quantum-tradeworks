@@ -1896,6 +1896,53 @@ try {
     else ok(`misc: "Cash to complete" reads ${r.still} on the strip, the tile and the record with RM5,000 paid at offer (the whole completion figure is ${r.whole})`);
   }
   /* ---- end bugfix4: misc ---- */
+  /* ---- bugfix5: views ---- */
+  /* V1 — the landing page's property card is the calculator's figure, and a
+          short total says so. With RM5,000 paid at offer the card read "Cash
+          to complete RM95.3k", the whole completion figure, beside a
+          calculator and record at RM90.3k. With the reserve unpriced (tenure
+          0) it printed "Safe cash RM121.8k" as the answer the calculator
+          calls "so far". Completion is short only by an acquisition or
+          financing line — one is unset in the fee registry for the last
+          case, and put back. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = State.deal;
+      const card = async (d) => {
+        State.deal = d; navigate('/'); render();
+        await new Promise(res => setTimeout(res, 200));
+        const c = document.querySelector('#views .proof-card');
+        const m = dealModel(d);
+        const pk = c ? [...c.querySelectorAll('.pk')].map(x => x.textContent) : [];
+        const pv = c ? [...c.querySelectorAll('.pv')].map(x => x.textContent) : [];
+        return { pk, pv, still: fmtAmount(m.cashStillRequiredToComplete, 'MYR'), whole: fmtAmount(m.transactionCash, 'MYR'),
+          safe: fmtAmount(m.safeCashRequired, 'MYR'), missing: (m.missingCostLines || []).map(x => x.groupId) };
+      };
+      const line = FEE_TABLE.lines.disbursements, was = line.status;
+      let paid, unpriced, whole, noFee;
+      try {
+        paid = await card({ ...window.__T.base, bookingDepositPaid: 5000 });
+        unpriced = await card({ ...window.__T.base, bookingDepositPaid: 5000, tenureYears: 0 });
+        whole = await card({ ...window.__T.base, tenureYears: 30 });
+        line.status = 'unset';
+        noFee = await card({ ...window.__T.base, tenureYears: 30 });
+      } finally { line.status = was; State.deal = kept; saveDeal(); render(); }
+      return JSON.stringify({ paid, unpriced, whole, noFee });
+    })()`));
+    const p = [];
+    const { paid, unpriced, whole, noFee } = r;
+    if (paid.pk[0] !== 'Cash to complete' || paid.pv[0] !== paid.still || paid.still === paid.whole)
+      p.push(`RM5,000 paid: card "${paid.pk[0]} ${paid.pv[0]}", calculator ${paid.still}, whole ${paid.whole}`);
+    if (unpriced.pk[1] !== 'Safe cash so far' || unpriced.pv[1] !== unpriced.safe || unpriced.pk[0] !== 'Cash to complete')
+      p.push(`reserve unpriced (${unpriced.missing.join(', ')}): card "${unpriced.pk[0]}" / "${unpriced.pk[1]} ${unpriced.pv[1]}"`);
+    if (whole.missing.length || whole.pk[0] !== 'Cash to complete' || whole.pk[1] !== 'Safe cash' || whole.pv[0] !== whole.whole)
+      p.push(`a priced deal is flagged or moved: ${JSON.stringify(whole)}`);
+    if (!noFee.missing.includes('acquisition') || noFee.pk[0] !== 'Cash to complete so far' || noFee.pk[1] !== 'Safe cash so far')
+      p.push(`an unset acquisition fee: card "${noFee.pk[0]}" / "${noFee.pk[1]}" (${noFee.missing.join(', ')})`);
+    if (p.length) fail('views: the landing page\'s property card prints a different cash to complete from the calculator, or a short total as whole', p);
+    else ok(`views: the landing card reads ${paid.still} to complete with RM5,000 paid at offer, and marks a total with an unpriced line "so far"`);
+  }
+  /* ---- end bugfix5: views ---- */
 
 } catch (e) {
   fail('harness error', e.message);
