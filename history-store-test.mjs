@@ -1483,5 +1483,88 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
 }
 /* ---- end frames ---- */
 
+/* ---- frames: verify ---- */
+/* H3-D: AN OLDER EXPORT IMPORTED AFTER A NEWER ONE. A reading taken while
+   its session — or, for an imported bar, its week or month — still traded
+   replaced any bar held, whatever that bar's capture: importing last
+   Wednesday's weekly export after Monday's wrote Wednesday's mid-week close
+   over the week's final bar and recorded it as a correction, which the
+   engine reads as CORRECTED, a final bar. Such a reading now replaces only
+   an earlier one; offered over a final bar, one with no capture time, or a
+   later provisional one, it is not written, is listed with why, and goes to
+   the rejects file as PROVISIONAL_READING. The same rule for daily bars.
+   Synthetic rows; temporary files. */
+{
+  const S = await import('./ingest/history-store.mjs');
+  const { mergeFrameBars } = S;
+  const VR = join(tmpdir(), `qt-frames-verify-${process.pid}`);
+  await rm(VR, { recursive: true, force: true });
+  await mkdir(VR, { recursive: true });
+  try {
+    const src = 'import:OANDA_GLD, 1W.csv';
+    const opt = (capturedAt) => ({ source: src, capturedAt, market: 'FX', E, now: NOW });
+    /* The week of Monday 21 September closes at 17:00 New York on Friday the 25th (21:00Z). */
+    const wk = (close, high = close + 5) => [{ date: '2026-09-21', open: 100, high, low: 95, close, volume: 10 }];
+    const h = emptyHistory();
+    const a = mergeFrameBars(h, '1W', 'GLD', wk(2026), opt('2026-09-23T16:00:00Z'));
+    const b = mergeFrameBars(h, '1W', 'GLD', wk(2100, 2150), opt('2026-09-28T16:00:00Z'));
+    const c = mergeFrameBars(h, '1W', 'GLD', wk(2026), opt('2026-09-23T16:00:00Z'));
+    const W = h.frames['1W'].GLD;
+    const frameOk = a.added === 1 && b.superseded.length === 1 && c.outranked.length === 1 && c.outranked[0].provisional === true && c.corrected.length === 0
+      && /^captured at 2026-09-23T16:00:00Z, before its period closed, and the bar held was captured after it closed; the held bar stands$/.test(c.outranked[0].why)
+      && W.series['2026-09-21'] === 2100 && W.meta['2026-09-21'].at === '2026-09-28T16:00:00Z' && !W.corrections
+      && E.scanFrameBars(E.scanBars(h, 'GLD', { market: 'FX' }), '1W', { frame: E.scanFramesOf(h, 'GLD', { market: 'FX' })['1W'] }).status[0] === 'FINAL';
+    /* Daily bars: Thursday 24 September closes at 21:00Z. */
+    const day = (d, close) => [{ date: d, close }];
+    const dsrc = 'import:OANDA_GLD, 1D.csv';
+    const dopt = (capturedAt) => ({ source: dsrc, capturedAt, market: 'FX', E, now: NOW });
+    const d0 = emptyHistory();
+    mergeBars(d0, 'GLD', day('2026-09-24', 50), dopt('2026-09-24T22:00:00Z'));
+    const dFinal = mergeBars(d0, 'GLD', day('2026-09-24', 51), dopt('2026-09-24T15:00:00Z'));
+    mergeBars(d0, 'GLD', day('2026-09-22', 60), dopt('2026-09-22T18:00:00Z'));
+    const dEarlier = mergeBars(d0, 'GLD', day('2026-09-22', 59), dopt('2026-09-22T16:00:00Z'));
+    const dLater = mergeBars(d0, 'GLD', day('2026-09-22', 61), dopt('2026-09-22T19:00:00Z'));
+    mergeBars(d0, 'GLD', day('2026-09-23', 70), dopt(null));
+    const dUnknownDiff = mergeBars(d0, 'GLD', day('2026-09-23', 71), dopt('2026-09-23T15:00:00Z'));
+    const dUnknownSame = mergeBars(d0, 'GLD', day('2026-09-23', 70), dopt('2026-09-23T15:00:00Z'));
+    const dailyOk = dFinal.outranked[0]?.provisional && d0.series.GLD['2026-09-24'] === 50 && !d0.corrections.GLD
+      && dEarlier.outranked[0]?.provisional && /the bar held was captured later \(2026-09-22T18:00:00Z\)/.test(dEarlier.outranked[0].why)
+      && dLater.superseded.length === 1 && d0.series.GLD['2026-09-22'] === 61
+      && dUnknownDiff.outranked[0]?.provisional && /recorded with no capture time/.test(dUnknownDiff.outranked[0].why) && dUnknownSame.unchanged === 1
+      && d0.series.GLD['2026-09-23'] === 70 && !d0.meta.GLD['2026-09-23'].at;
+    const desc = describeMerge([c]).lines.join('\n');
+    check(frameOk && dailyOk && /outranked : 1 row\(s\) not written — read while its session, week or month still traded, where a final or later reading is held:/.test(desc)
+      && /GLD 1W 2026-09-21: held 2100 .*, offered 2026 .*, captured 2026-09-23T16:00:00Z before it closed/.test(desc)
+      && /a higher-ranked source holds a different value/.test(describeMerge([{ outranked: [{ symbol: 'X', date: 'd', held: { close: 1 }, heldSource: 'import', offered: { close: 2 }, source: 'screen' }] }]).lines.join('\n')),
+      'frames verify: a reading taken while its week (or session) still traded replaces only an earlier such reading — offered over a final bar, one with no capture time or a later provisional one it is not written and says why; the older of two weekly exports imported after the newer leaves the final week as it was, with no correction recorded',
+      { a: a.added, b: b.superseded.length, c: c.outranked, W: W.series, dFinal: dFinal.outranked, dEarlier: dEarlier.outranked, dLater: dLater.superseded, d0: d0.series.GLD, desc });
+
+    /* Through the import itself, as the reader would do it: Monday's export, then last Wednesday's again. */
+    const reg = join(VR, 'instruments.json');
+    await writeFile(reg, JSON.stringify({ instruments: [{ symbol: 'GLD', market: 'FX' }] }));
+    const f = join(VR, 'OANDA_GLD, 1W.csv'), out = join(VR, 'price-history.json');
+    /* TradingView stamps a week at 17:00 New York on the Sunday before it (21:00Z in September). */
+    const put = async (rows) => writeFile(f, ['time,open,high,low,close,Volume', ...rows.map(r => [Date.parse(r[0]) / 1000, ...r.slice(1)].join(','))].join('\n') + '\n');
+    const older = [['2026-09-13T21:00:00Z', 90, 101, 89, 100, 7], ['2026-09-20T21:00:00Z', 100, 2031, 95, 2026, 8]];
+    const newer = [['2026-09-13T21:00:00Z', 90, 101, 89, 100, 7], ['2026-09-20T21:00:00Z', 100, 2150, 95, 2100, 9], ['2026-09-27T21:00:00Z', 2100, 2110, 2090, 2105, 1]];
+    const imp = async (at) => run(process.execPath, [join(ROOT, 'ingest/history-import.mjs'), '--in', f, '--instruments', reg, '--out', out, '--captured-at', at], { cwd: ROOT }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+    await put(newer); const i1 = await imp('2026-09-28T16:00:00Z');
+    await put(older); const i2 = await imp('2026-09-23T16:00:00Z');
+    const held = JSON.parse(await readFile(out, 'utf8')).frames['1W'].GLD;
+    const rej = JSON.parse(await readFile(rejectsPathFor(out), 'utf8'));
+    check(i1.code === 0 && i2.code === 2 && held.series['2026-09-21'] === 2100 && !held.corrections
+      && /GLD 1W +0 new .*\(1 read while the week still traded, where a final or later reading is held — not written\)/.test(i2.stdout) && !/held by a higher-ranked source/.test(i2.stdout)
+      && /last week 2026-09-28 PROVISIONAL/.test(i1.stdout) && !/last week/.test(i2.stdout)
+      && rej.rejects.some(x => x.codes.includes('PROVISIONAL_READING') && x.date === '2026-09-21') && /PROVISIONAL_READING/.test(rej.note),
+      'frames verify: history-import of an older weekly export after a newer one keeps the final week, says the older reading was taken while the week still traded (not "a higher-ranked source"), names no last week of its own (it holds none it wrote), exits 2, and lists the row in the rejects file as PROVISIONAL_READING',
+      { i1: i1.code, i2: [i2.code, i2.stdout.split('\n').filter(l => /GLD|last|outranked|not written/.test(l))], held: held.series, rej: rej.rejects?.map(x => [x.date, x.codes]) });
+  } catch (e) {
+    fail('frames verify: the test threw', e.stack || e.message);
+  } finally {
+    await rm(VR, { recursive: true, force: true }).catch(() => {});
+  }
+}
+/* ---- end frames: verify ---- */
+
 console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

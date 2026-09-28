@@ -108,6 +108,16 @@ const VOL_KEYS   = ['volume', 'vol', 'total volume'];
 /* What the reader says about the export's prices (see ADJUSTED OR NOT). */
 export const ADJUSTED = ['provider', 'none', 'unknown'];
 
+/* The rows a merge did not write, in the import's line: held by a
+   higher-ranked source, or read while the session (week, month) still
+   traded where a final or later reading is held — the older of two
+   exports of one chart, imported after the newer. */
+const notWritten = (r, unit) => {
+  const pv = r.outranked.filter(o => o.provisional).length, rk = r.outranked.length - pv;
+  return `${rk ? `  (${rk} held by a higher-ranked source — not written)` : ''}`
+    + `${pv ? `  (${pv} read while the ${unit} still traded, where a final or later reading is held — not written)` : ''}`;
+};
+
 /* Marks the bars an import now holds as its own with what the reader said
    about their adjustment. Only bars whose source is this import: a bar a
    higher-ranked source kept, or one this import left unchanged under
@@ -368,7 +378,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
             `  ${keys[0] || '—'} to ${keys[keys.length - 1] || '—'}` +
             `  ${kept.length === 3 ? 'open/high/low kept' : 'close only'}${parsed.columns.volume ? `, volume kept${ticks ? ' (a tick count)' : ''}` : ', no volume column'}` +
             `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — recorded)` : ''}` +
-            `${r.outranked.length ? `  (${r.outranked.length} held by a higher-ranked source — not written)` : ''}` +
+            `${notWritten(r, unit)}` +
             `${r.rejected.length ? `  (${r.rejected.length} row(s) refused: ${[...new Set(r.rejected.flatMap(x => x.codes))].join(', ')})` : ''}`);
           tail();
           if (noCount.length) {
@@ -379,7 +389,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
              last expected session had closed when the file was saved,
              PROVISIONAL while the week or month still traded. */
           const meta = hist.frames?.[tf]?.[f.symbol]?.meta || {};
-          const last = parsed.rows.map(x => periodKey(E, tf, x.date)).filter(pk => pk && meta[pk]?.src === source).sort().pop();
+          const last = parsed.rows.map(x => periodKey(E, tf, x.date)).filter(pk => pk && meta[pk]?.src === source && meta[pk]?.at === capturedAt).sort().pop();
           if (last) {
             const status = periodStatus(E, tf, last, market, capturedAt);
             report.push(`${pad}last ${unit} ${last} ${status}${status === 'PROVISIONAL' ? ` — the file was saved at ${capturedAt}, before the ${unit}'s last session (${periodLastSession(E, tf, last, market)}) closed; the next import made after it replaces this bar` : ''}`);
@@ -399,12 +409,12 @@ Export from TradingView: open the chart, then the menu beside the symbol >
           `  ${dates[0] || '—'} to ${dates[dates.length - 1] || '—'}` +
           `  ${kept.length === 3 ? 'open/high/low kept' : 'close only'}${parsed.columns.volume ? `, volume kept${ticks ? ' (a tick count)' : ''}` : ', no volume column'}` +
           `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — recorded)` : ''}` +
-          `${r.outranked.length ? `  (${r.outranked.length} held by a higher-ranked source — not written)` : ''}` +
+          `${notWritten(r, 'session')}` +
           `${r.rejected.length ? `  (${r.rejected.length} row(s) refused: ${[...new Set(r.rejected.flatMap(x => x.codes))].join(', ')})` : ''}`);
         tail();
         /* The newest row this import holds: FINAL once its session had closed
            when the file was saved, PROVISIONAL while it still traded. */
-        const last = parsed.rows.map(x => x.date).filter(d => hist.meta[f.symbol]?.[d]?.src === source).sort().pop();
+        const last = parsed.rows.map(x => x.date).filter(d => hist.meta[f.symbol]?.[d]?.src === source && hist.meta[f.symbol][d].at === capturedAt).sort().pop();
         if (last) {
           const status = E.scanBarStatus(market, last, capturedAt);
           report.push(`${pad}last bar ${last} ${status}${status === 'PROVISIONAL' ? ` — the file was saved at ${capturedAt}, before that session closed; the next import made after the close replaces it` : ''}`);

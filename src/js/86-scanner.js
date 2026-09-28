@@ -980,7 +980,12 @@ function scanNeedWords(tf, n, held) {
 function scanHistoryNeeds(symbols, byTf, history = scanHistoryFile) {
   return (symbols || []).map(sym => {
     const held = scanHeldOf(sym, history);
-    if (!held) return { symbol: sym, unknown: null, head: `${sym} — no series in your history, so nothing is evaluated for it until you import one.`, lines: [] };
+    /* Imported weeks or months with no daily series are not read: the
+       engine reads them beside a symbol's daily bars, never without them. */
+    const framed = !held ? ['1W', '1M'].filter(tf => history?.frames?.[tf]?.[sym] && Object.keys(history.frames[tf][sym].series || {}).length).map(scanTfWord) : [];
+    if (!held) return { symbol: sym, unknown: null, head: framed.length
+      ? `${sym} — no daily series in your history, only imported ${framed.join(' and ')} bars, which are read beside a daily series and never without one: nothing is evaluated for it until you import its daily export.`
+      : `${sym} — no series in your history, so nothing is evaluated for it until you import one.`, lines: [] };
     let unknown = 0;
     const lines = [...byTf].filter(([, m]) => m.size).map(([tf, m]) => {
       const needs = [...m.values()];
@@ -2878,7 +2883,15 @@ VIEWS.scannerAlert = () => {
   c4.append(cardHead('The data behind it', 'Where the bar came from, and whether the history still holds it as it was.'));
   const f4 = el('div', { class: 'scan-facts' });
   f4.append(scanFact('Data source', a.dataSourceId || nr, a.dataSourceId ? 'as the history names it — per bar where it records one, otherwise for the whole file' : null));
-  f4.append(scanFact('Data version', a.dataVersion || nr, a.dataVersion ? 'a hash of every bar up to this one — date, open, high, low, close, volume and status' : null));
+  /* The weeks and months the conditions read, where the history held
+     imported ones: the record names their version beside its own. */
+  const readVersions = [];
+  (Array.isArray(a.matchedConditions) ? a.matchedConditions : []).forEach(c => {
+    if (!c?.barVersion || !c.timeframe || !c.barDate || readVersions.some(x => x.tf === scanTimeframe(c.timeframe) && x.date === c.barDate)) return;
+    readVersions.push({ tf: scanTimeframe(c.timeframe), date: c.barDate, was: c.barVersion });
+  });
+  const readWords = (x) => `the ${scanTfWord(x.tf)} bars up to ${x.date}`;
+  f4.append(scanFact('Data version', a.dataVersion || nr, a.dataVersion ? `a hash of every bar up to this one — date, open, high, low, close, volume and status${readVersions.length ? `, and where a week or month was imported, the file and when it was captured; ${readVersions.map(x => `${readWords(x)} its conditions read: ${x.was}`).join('; ')}` : ''}` : null));
   /* C2's historyGenerated: the history file's own stamp when the worker
      read it — file-level provenance, labelled as such. */
   f4.append(scanFact('History file', a.historyGenerated ? scanStamp(a.historyGenerated) : null, a.historyGenerated ? 'when data/price-history.json was generated, as the worker read it — the whole file’s stamp, not this bar’s' : 'The record does not carry the history file’s generated time.'));
@@ -2895,10 +2908,20 @@ VIEWS.scannerAlert = () => {
     const bars = scanBars(scanHistoryFile, a.symbol, { timeframe: scanTimeframe(a.timeframe), market: mkt, instruments: reg, now: a.detectedAt || null,
       calendar: scanCalendar(scanHistoryFile, reg, mkt) });
     const at = bars.dates.indexOf(bar);
+    /* The weeks and months the conditions read, recomputed the same way:
+       an imported week is not among the setup's own bars, so the record's
+       own version could say "unchanged" of a week re-imported since. */
+    const moved = readVersions.map(x => {
+      const F = scanFrame(bars, x.tf), k = F ? F.bars.dates.indexOf(x.date) : -1;
+      return { ...x, now: k < 0 ? null : scanDataVersion(F.bars, k) };
+    }).filter(x => x.now !== x.was);
+    const also = readVersions.length ? `, and ${readVersions.map(readWords).join(' and ')} its conditions read,` : '';
+    const movedText = moved.map(x => (x.now ? `${readWords(x)} its conditions read are ${x.now}, not ${x.was}` : `the history no longer holds the ${scanTfWord(x.tf)} bar of ${x.date} its conditions read`)).join('; ');
     now = at < 0 ? { text: `The history no longer holds the ${bar} bar for ${a.symbol}.`, same: false } : (() => {
       const v = scanDataVersion(bars, at);
-      return v === a.dataVersion ? { text: `Recomputed from data/price-history.json as loaded: ${v} — the bars up to ${bar} are as they were when this was recorded.`, same: true }
-        : { text: `Recomputed from data/price-history.json as loaded: ${v}, not ${a.dataVersion} — the history up to ${bar} has changed since this was recorded (a correction, an import or a trim).`, same: false };
+      if (v !== a.dataVersion) return { text: `Recomputed from data/price-history.json as loaded: ${v}, not ${a.dataVersion} — the history up to ${bar} has changed since this was recorded (a correction, an import or a trim)${moved.length ? `; ${movedText}` : ''}.`, same: false };
+      return !moved.length ? { text: `Recomputed from data/price-history.json as loaded: ${v} — the bars up to ${bar}${also} are as they were when this was recorded.`, same: true }
+        : { text: `Recomputed from data/price-history.json as loaded: ${v} — the bars up to ${bar} are as they were, but ${movedText}: your imported bars have changed since this was recorded (a re-import or a correction).`, same: false };
     })();
   }
   f4.append(scanFact('The same bars now', now ? (now.same ? 'unchanged' : 'changed') : null, now ? now.text : !scanHistoryFile ? 'The price history is not loaded here.' : legacy ? nr : `The history holds no series ${a.symbol}.`));

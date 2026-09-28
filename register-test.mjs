@@ -590,41 +590,65 @@ try {
       return r.result.result.value;
     };
     const KEYS = `['registerLog','observations','areaProfiles','demand','sarawakExposure','propertyReportsBought']`;
+    /* WAITED FOR, NOT SLEPT ON. Each tab takes the other's writes when the
+       browser's storage event reaches it, and the check slept a fixed 300ms
+       for that between one tab's write and the other's next action (and a
+       fixed 3.5s for the second tab to boot). Under a loaded machine the
+       event reached the first tab later than that, its edit saved the list
+       as it held it — without the second tab's record — and the check
+       failed ("Sarawak exposures 1") on a product doing what it says: no
+       reader acts in one tab within 300ms of a save in another. Each step
+       now waits, up to 20s, for the tab about to act to hold what the
+       other wrote — in State, which only the storage listener refreshes, so
+       a tab that never takes the other's writes still fails here, and says
+       which step it never saw. */
+    const notSeen = [];
+    const until = async (run, expr, what) => {
+      for (let t = Date.now(); Date.now() - t < 20000; await sleep(100)) { try { if (await run(expr)) return true; } catch { /* booting */ } }
+      notSeen.push(`${what} — not seen in 20s`);
+      return false;
+    };
     await evaluate(`(() => { ${KEYS}.forEach(k => localStorage.removeItem('vl.' + k));
       State.observations = []; State.areaProfiles = {}; State.demand = {}; State.sarawakExposure = []; State.propertyReportsBought = [];
       loadRegisterLog(); navigate('/property/calculator'); return true; })()`);
     /* The second tab opens now — after the first, before either records. */
     await send('Page.navigate', { url: `${BASE}/property/comparables` }, sidB);
-    await sleep(3500);
+    await until(evalB, `typeof addObservation === 'function' && typeof setAreaAttr === 'function' && typeof setDemand === 'function' && !!State && Array.isArray(State.observations)`, 'the second tab booted');
     await evaluate(`(() => { addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 111, date:'2026-05-01', evidence:'user', sourceRef:'tab A' });
       setAreaAttr('kuching', 'Tabuan', 'flood', { class: 'occasional', source: 'site', asOf: '2026-05-01' });
       setDemand('kuching', 'Tabuan', 'employment', { state: 'operating', asOf: '2026-05-01' });
       State.propertyReportsBought = [...State.propertyReportsBought, 'proj-A']; store.write('propertyReportsBought', State.propertyReportsBought);
       return true; })()`);
-    await sleep(300);
+    await until(evalB, `State.observations.some(o => o.sourceRef === 'tab A') && !!State.areaProfiles['kuching|Tabuan'] && !!State.demand['kuching|Tabuan'] && State.propertyReportsBought.includes('proj-A')`,
+      'the second tab holding the first tab\'s record, area attribute, demand source and unlocked report');
     await evalB(`(() => { addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 222, date:'2026-05-02', evidence:'user', sourceRef:'tab B' });
       setAreaAttr('kuching', 'Stutong', 'flood', { class: 'occasional', source: 'site', asOf: '2026-05-02' });
       setDemand('kuching', 'Stutong', 'employment', { state: 'operating', asOf: '2026-05-02' });
       State.propertyReportsBought = [...State.propertyReportsBought, 'proj-B']; store.write('propertyReportsBought', State.propertyReportsBought);
       return true; })()`);
-    await sleep(300);
+    await until(evaluate, `State.observations.some(o => o.sourceRef === 'tab B') && !!State.areaProfiles['kuching|Stutong'] && !!State.demand['kuching|Stutong'] && State.propertyReportsBought.includes('proj-B')`,
+      'the first tab holding the second tab\'s record, area attribute, demand source and unlocked report');
     /* Sarawak exposures through the page's own controls: Add in each tab,
        then an edit in the first tab to the record it drew before the second
        tab's Add — the object it holds is no longer the one in the list. */
     await evaluate(`(() => { navigate('/discover/sarawak'); return true; })()`);
     await evalB(`(() => { navigate('/discover/sarawak'); return true; })()`);
-    await sleep(500);
+    const addReady = `(document.querySelector('main select[aria-label="Company"]')?.options.length || 0) > 1 && [...document.querySelectorAll('main button')].some(x => x.textContent.trim() === 'Add')`;
+    await until(evaluate, addReady, 'the first tab\'s Sarawak page with its Add control');
+    await until(evalB, addReady, 'the second tab\'s Sarawak page with its Add control');
     const addWith = (idx) => `(() => { const s = document.querySelector('main select[aria-label="Company"]'); s.selectedIndex = ${idx}; s.dispatchEvent(new Event('change', { bubbles: true }));
       [...document.querySelectorAll('main button')].find(x => x.textContent.trim() === 'Add').click(); return true; })()`;
     await evaluate(addWith(0));
-    await sleep(300);
+    await until(evalB, `(State.sarawakExposure || []).length === 1`, 'the second tab holding the first tab\'s Sarawak exposure');
     await evalB(addWith(1));
-    await sleep(300);
+    await until(evaluate, `(State.sarawakExposure || []).length === 2`, 'the first tab holding the second tab\'s Sarawak exposure');
     await evaluate(`(() => { const d = document.querySelector('main details'); d.open = true;
       const ta = d.querySelector('textarea[aria-label]'); ta.value = 'edited in tab A'; ta.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
-    await sleep(300);
+    await until(evalB, `(State.sarawakExposure || []).some(x => Object.values(x).concat(Object.values(x.fields || {})).includes('edited in tab A'))`, 'the second tab holding the first tab\'s edit');
+    /* The page before the reload answers until the new one replaces it: marked, so the read below is the reloaded page's. */
+    await evalB('window.__beforeReload = true');
     await send('Page.reload', {}, sidB);
-    await sleep(3500);
+    await until(evalB, `!window.__beforeReload && typeof registerIntegrity === 'function' && !!State && Array.isArray(State.sarawakExposure)`, 'the second tab reloaded');
     const r = JSON.parse(await evalB(`JSON.stringify({ obs: State.observations.map(o => o.sourceRef).sort(), areas: Object.keys(State.areaProfiles).sort(),
       demand: Object.keys(State.demand).sort(), integrity: registerIntegrity().state, bought: [...State.propertyReportsBought].sort(),
       exposures: State.sarawakExposure.length, edited: State.sarawakExposure.some(x => Object.values(x).concat(Object.values(x.fields || {})).includes('edited in tab A')) })`));
@@ -632,7 +656,7 @@ try {
       State.observations = []; State.areaProfiles = {}; State.demand = {}; State.sarawakExposure = []; State.propertyReportsBought = [];
       loadRegisterLog(); return true; })()`);
     await send('Target.closeTarget', { targetId: tidB });
-    const lost = [];
+    const lost = [...notSeen];
     if (r.obs.join() !== 'tab A,tab B') lost.push(`comparables ${r.obs.join(', ')}`);
     if (r.areas.join() !== 'kuching|Stutong,kuching|Tabuan') lost.push(`area attributes ${r.areas.join(', ')}`);
     if (r.demand.join() !== 'kuching|Stutong,kuching|Tabuan') lost.push(`demand ${r.demand.join(', ')}`);

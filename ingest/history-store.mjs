@@ -28,7 +28,10 @@
  *               recorded in hist.corrections, which the engine reads as a
  *               CORRECTED bar. A bar captured before its session closed
  *               (PROVISIONAL) is superseded by any later capture, and that is
- *               not a correction: it was never a final value.
+ *               not a correction: it was never a final value. Nor does such a
+ *               reading replace anything but an earlier one: offered over a
+ *               final bar, or one captured later, it is not written, and goes
+ *               to the rejects file as PROVISIONAL_READING.
  *   A BAR IS ONE SOURCE'S READING. When a winning source changes the close,
  *               the bar's open, high, low and volume become that source's
  *               too (absent where it has none) — a high from one vendor
@@ -271,7 +274,7 @@ export async function appendRejects(path, rejects, { now = new Date().toISOStrin
   doc.rejects.push(...rejects.map(r => ({ at: now, ...r })));
   if (doc.rejects.length > cap) doc.rejects = doc.rejects.slice(-cap);
   doc.updatedAt = now;
-  doc.note = 'Rows the price-history store refused: failed validation (the engine\'s scanValidateBar codes), or offered by a lower-ranked source than the bar already held (OUTRANKED). None of these reached data/price-history.json.';
+  doc.note = 'Rows the price-history store refused: failed validation (the engine\'s scanValidateBar codes), or offered by a lower-ranked source than the bar already held (OUTRANKED), or read while its session, week or month still traded where a final or later reading is held (PROVISIONAL_READING). None of these reached data/price-history.json.';
   await writeAtomic(path, JSON.stringify(doc, null, 1) + '\n');
   return rejects.length;
 }
@@ -379,6 +382,20 @@ function mergeRows(hist, symbol, rows, { source, capturedAt = null, market = nul
     const ohlcOffered = hasOhlc(bar);
     const differs = !sameClose || (bar.volume != null && !sameNum(held.volume, bar.volume, tolerance))
       || (ohlcOffered && hasOhlc(held) && ['open', 'high', 'low'].some(k => !sameNum(held[k], bar[k], tolerance)));
+    /* ...and the converse: a reading taken while its session traded (its
+       week or month, for an imported period) replaces nothing else — not a
+       bar held final or with no capture time, and not a provisional one
+       captured after it. Re-importing an older export after a newer one
+       wrote the older file's mid-week value over the week's final bar and
+       recorded it as a correction, which the engine then read as
+       CORRECTED — a final bar holding a week that had not closed. The held
+       bar stands, and the offered reading is listed with why. */
+    if (at && how.statusOf(E, market, d, at) === 'PROVISIONAL') {
+      if (differs) out.outranked.push({ symbol: sym, date: d, source, capturedAt: at, heldSource: heldSrc, held: { close: held.close, volume: held.volume }, offered: { close: bar.close, volume: bar.volume }, provisional: true,
+                                        why: `captured at ${at}, before its ${how.name === 'mergeFrameBars' ? 'period' : 'session'} closed, and the bar held was ${heldStatus === 'PROVISIONAL' ? `captured later (${held.meta?.at})` : heldStatus === 'UNKNOWN' ? 'recorded with no capture time' : 'captured after it closed'}; the held bar stands` });
+      else out.unchanged++;
+      continue;
+    }
     if (rank < heldRank) {
       if (differs) out.outranked.push({ symbol: sym, date: d, source, capturedAt: at, heldSource: heldSrc, held: { close: held.close, volume: held.volume }, offered: { close: bar.close, volume: bar.volume },
                                         why: `${heldSrc} ranks above ${source}; the held bar stands` });
@@ -583,7 +600,7 @@ export async function updateHistory(path, fn, { keep = KEEP, frameKeep = KEEP, n
     const results = [].concat((await fn(hist)) || []);
     const trim = trimHistory(hist, keep);
     trim.frames = trimFrames(hist, frameKeep);
-    const refused = results.flatMap(r => [...(r.rejected || []), ...(r.outranked || []).map(o => ({ ...o, codes: ['OUTRANKED'] }))]);
+    const refused = results.flatMap(r => [...(r.rejected || []), ...(r.outranked || []).map(o => ({ ...o, codes: [o.provisional ? 'PROVISIONAL_READING' : 'OUTRANKED'] }))]);
     if (!dry) {
       await saveHistory(path, hist, { now });
       if (refused.length) await appendRejects(rejectsPath || rejectsPathFor(path), refused, { now });
@@ -603,8 +620,14 @@ export function describeMerge(results, trim = null, rejectsPath = 'data/price-hi
   if (t.superseded) lines.push(`  finalised : ${t.superseded} provisional bar(s) replaced by a later capture`);
   if (t.corrected) lines.push(`  corrected : ${t.corrected} field(s) changed by an equal or higher-ranked source — recorded in corrections`);
   if (t.outranked) {
-    lines.push(`  outranked : ${t.outranked} row(s) not written — a higher-ranked source holds a different value:`);
-    results.flatMap(r => r.outranked).slice(0, 5).forEach(o => lines.push(`              ${o.symbol}${o.timeframe ? ` ${o.timeframe}` : ''} ${o.date}: held ${o.held.close} (${o.heldSource}), offered ${o.offered.close} (${o.source})`));
+    /* A reading taken while its session traded, offered where a final or
+       later one is held, is not written either — and not because of a
+       rank: the older of two exports of the same chart ranks the same. */
+    const pv = results.flatMap(r => r.outranked).filter(o => o.provisional).length;
+    const why = [t.outranked > pv ? 'a higher-ranked source holds a different value' : null,
+      pv ? `${pv === t.outranked ? '' : `${pv} `}read while ${pv === 1 ? 'its' : 'their'} session, week or month still traded, where a final or later reading is held` : null].filter(Boolean).join('; ');
+    lines.push(`  outranked : ${t.outranked} row(s) not written — ${why}:`);
+    results.flatMap(r => r.outranked).slice(0, 5).forEach(o => lines.push(`              ${o.symbol}${o.timeframe ? ` ${o.timeframe}` : ''} ${o.date}: held ${o.held.close} (${o.heldSource}), offered ${o.offered.close} (${o.source})${o.provisional ? `, captured ${o.capturedAt} before it closed` : ''}`));
   }
   if (t.rejected) {
     lines.push(`  rejected  : ${t.rejected} row(s) failed validation:`);

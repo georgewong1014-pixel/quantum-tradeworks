@@ -2028,7 +2028,9 @@ function scanFramesOf(history, symbol, { market = null } = {}) {
    - bars built from the daily ones (scanResample) fill every period the
      frame does not hold: before its first, after its last, and any gap.
    An imported bar is dated by its period's last expected session — the
-   date a complete built bar gets once that session is held — and is
+   date a complete built bar gets once that session is held — or by the
+   last daily bar the symbol holds in the period where that is later (a
+   day the calendar calls ambiguous), and is
    complete (unless PROVISIONAL) with no missing days. Every bar says where
    it came from (`origin`: 'imported' or 'daily'), with its source (for an
    imported bar, the frame's: the export file). gapBefore counts the whole
@@ -2068,6 +2070,8 @@ function scanFrameBars(daily, tf = '1W', { calendar = null, now = null, frame = 
   const px = (x) => (x == null ? null : typeof x === 'number' ? x : NaN);
   const invalid = [];
   const imp = new Map();
+  const bi = new Map();
+  built.dates.forEach((d, k) => bi.set(periodOf(d), k));
   const series = frame.series && typeof frame.series === 'object' ? frame.series : {};
   for (const p of Object.keys(series).sort()) {
     if (!scanIsDay(p) || periodOf(p) !== p) { invalid.push({ date: p, codes: [scanIsDay(p) ? 'NOT_PERIOD_KEY' : 'BAD_DATE'], timeframe: T, origin: 'imported' }); continue; }
@@ -2078,14 +2082,22 @@ function scanFrameBars(daily, tf = '1W', { calendar = null, now = null, frame = 
                   close: typeof series[p] === 'number' ? series[p] : NaN, volume: v == null ? null : typeof v === 'number' ? v : NaN };
     const codes = scanValidateBar(bar, { market: mk, today });
     if (codes.length) { invalid.push({ date: p, codes, timeframe: T, origin: 'imported' }); continue; }
-    const last = lastExpectedOf(p);
+    /* The imported bar closes on its period's last expected session — or
+       on the last daily bar the symbol holds in the period, when that is
+       later: a day an inferred calendar calls ambiguous (too few of the
+       market's series hold it to call it a session) is in the export's
+       week when the symbol traded it, and the week built from the daily
+       bars is dated by it. Dated by the calendar alone, the imported week
+       was read on the Thursday's close with the Friday's close already in
+       it — historical testing read a day ahead of a history cut that
+       Thursday. */
+    const le = lastExpectedOf(p), held = bi.has(p) ? built.dates[bi.get(p)] : null;
+    const last = held && held > le ? held : le;
     const m = frame.meta?.[p] && typeof frame.meta[p] === 'object' ? frame.meta[p] : {};
     const status = clock && scanMs(now) < scanSessionEnd(mk, last) ? 'PROVISIONAL'
       : corrected.has(p) || m.status === 'CORRECTED' ? 'CORRECTED' : scanBarStatus(mk, last, m.at, clock ? now : null);
     imp.set(p, { ...bar, date: last, status, src: m.src ?? null, at: m.at ?? null });
   }
-  const bi = new Map();
-  built.dates.forEach((d, k) => bi.set(periodOf(d), k));
   const keys = [...new Set([...bi.keys(), ...imp.keys()])].sort();
   const w = { symbol: built.symbol, market: built.market, instrumentId: built.instrumentId, timeframe: T,
               dates: [], timestamps: [], closes: [], volumes: [], open: [], high: [], low: [], status: [], source: [], capturedAt: [],
@@ -3363,8 +3375,15 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
          the setup, only outside what was asked for. */
       if (!symbols.length) { out.narrowed.setupsOutside.push(s.id); continue; }
     }
-    if (!symbols.length) { out.skipped.push({ setup: s.id, why: `no instrument in its universe has a series${gaps.missing.length ? ` (${gaps.missing.join(', ')})` : ''}` }); continue; }
-    gaps.missing.forEach(sym => out.skipped.push({ setup: s.id, symbol: sym, why: 'no series in the price history' }));
+    /* A symbol the history holds only imported weeks or months for has
+       no series to evaluate: they are read beside its daily bars, never
+       without them (the entry criteria, the clock and staleness are the
+       daily bars'). Said so, rather than "no series". */
+    const framedOnly = (sym) => ['1W', '1M'].filter(tf => hist?.frames?.[tf] && typeof hist.frames[tf] === 'object'
+      && Object.keys(hist.frames[tf]).some(k => k.toUpperCase() === String(sym).toUpperCase())).map(scanTimeframeWord);
+    const noSeries = (sym) => { const f = framedOnly(sym); return f.length ? `no daily series in the price history — only imported ${f.join(' and ')} bars, which are read beside a daily series and never without one` : 'no series in the price history'; };
+    if (!symbols.length) { out.skipped.push({ setup: s.id, why: `no instrument in its universe has a series${gaps.missing.length ? ` (${gaps.missing.join(', ')})` : ''}${gaps.missing.some(x => framedOnly(x).length) ? ` — ${gaps.missing.filter(x => framedOnly(x).length).join(', ')}: ${noSeries(gaps.missing.find(x => framedOnly(x).length))}` : ''}` }); continue; }
+    gaps.missing.forEach(sym => out.skipped.push({ setup: s.id, symbol: sym, why: noSeries(sym) }));
     gaps.unplaced.forEach(sym => out.skipped.push({ setup: s.id, symbol: sym, why: 'not in data/instruments.json, so it has no market to be scanned under' }));
     resolution.unresolved.forEach(m => out.skipped.push({ setup: s.id, symbol: m, why: 'in the watchlist export with no symbol your history uses' }));
     let looked = 0, blind = 0;
@@ -3494,6 +3513,23 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
                            confirmationMode: s.confirmationMode, cooldownMode: s.cooldownMode, cooldownBars: s.cooldownBars, expires: s.expires, ruleTree: s.ruleTree };
         const gap = scanGapText(bars, j, calFor(marketRow(sym)));
         const vol = bars.volumes?.[j];
+        /* The weeks or months a condition read on a higher timeframe, hashed
+           up to the bar it read (scanDataVersion), where the history holds
+           imported bars for that timeframe. The record's dataVersion hashes
+           the setup's own bars only, and an imported week is not in them:
+           a re-import that changed the week the bot's criteria read left
+           the record's version as it was, and the alert page said the bars
+           were unchanged. Where no frame is held there is none — every week
+           and month is built from the daily bars the dataVersion covers. */
+        const barVersions = new Map();
+        const barVersionOf = (tf, d) => {
+          const k0 = `${tf}|${d}`;
+          if (!barVersions.has(k0)) {
+            const F = d ? scanFrame(bars, tf) : null, k = F && Array.isArray(F.bars.origin) ? F.bars.dates.indexOf(d) : -1;
+            barVersions.set(k0, k < 0 ? null : scanDataVersion(F.bars, k));
+          }
+          return barVersions.get(k0);
+        };
         const rec = {
           id: scanAlertId(key), key, setupId: s.id, setupName: s.name || s.id, setupVersion: s.version, setupHash: s.hash, setupSnapshot: snapshot,
           instrumentId, symbol: sym, market: bars.market, timeframe: s.timeframe, candleDate: jb, detectedAt: now || null,
@@ -3512,10 +3548,13 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
           /* A condition read on a higher timeframe than the setup's says
              which, the date of the bar it read and whether that bar was
              imported or built from the daily bars (null when none could
-             be read); one on the setup's own carries none of them. */
+             be read), and — where imported bars are held for it — the
+             version of that timeframe's bars up to the one read
+             (barVersion); one on the setup's own carries none of them. */
           matchedConditions: r.conditions.map(c => ({ path: c.path, text: c.text, state: c.state, left: c.leftValue, right: c.rightValue,
             leftLabel: c.leftLabel, rightLabel: c.rightLabel, status: c.state === 'UNAVAILABLE' ? (c.left?.status || 'INVALID_INPUT') : 'VALID', reason: c.reason?.code || null,
-            ...(c.timeframe ? { timeframe: c.timeframe, barDate: c.barDate ?? null, barOrigin: c.barOrigin ?? null } : {}) })),
+            ...(c.timeframe ? { timeframe: c.timeframe, barDate: c.barDate ?? null, barOrigin: c.barOrigin ?? null,
+              ...((v) => (v ? { barVersion: v } : {}))(barVersionOf(c.timeframe, c.barDate)) } : {}) })),
           /* An imported week or month names the export it came from; a
              built one, the daily bar's source as before. */
           dataSourceId: (bars.origin?.[j] === 'imported' ? bars.source?.[j] : null) || hist?.meta?.[sym]?.[jb]?.src || hist?.source || 'personal-history',
@@ -3827,7 +3866,7 @@ function scanBotPack({ symbols = null, universe = null, tradeTimeframes = ['1W',
 }
 /* WHAT THE READER'S HISTORY HOLDS AGAINST WHAT THE BOT NEEDS, per
    timeframe, for one instrument's daily bars: the closed bars held as of
-   its last bar, the bars each criterion needs, and a sentence. 300 daily
+   its last closed bar, the bars each criterion needs, and a sentence. 300 daily
    bars are about 60 weekly and 14 monthly ones, and the 200-bar average of
    criterion 3 needs 200 of each — so on such a history the weekly
    criterion 3 and every monthly criterion are untested for years, and the
@@ -3841,7 +3880,14 @@ function scanBotPack({ symbols = null, universe = null, tradeTimeframes = ['1W',
    their first and last periods; a frame held and not read says why. */
 function scanBotWarmup(bars, { tradeTimeframes = ['1W', '1M'], criterion3 = 'ema', macdSignal = 'ema' } = {}) {
   const K = scanBotCriteria({ criterion3, macdSignal });
-  const n = bars?.dates?.length || 0, last = n ? bars.dates[n - 1] : null;
+  /* The closed bars: a last bar captured while its session traded
+     (PROVISIONAL) is not one, and a run evaluates the bar before it. The
+     count was every bar held, so a history exported mid-session read "300
+     closed daily bars held" of 299; the weeks and months are counted as
+     of the last closed session as well. */
+  let n = bars?.dates?.length || 0;
+  while (n > 0 && bars.status?.[n - 1] === 'PROVISIONAL') n--;
+  const last = n ? bars.dates[n - 1] : null;
   const needOf = (key) => Math.max(...[K[key].left, K[key].yes[1]].map(o => (o?.indicator ? SCAN_INDICATORS[o.indicator].needs(scanParams(o).params, scanFieldOf(o)) : 0)));
   const names = { c1: 'criterion 1', c2: 'criterion 2', c3: 'criterion 3', c4: 'criterion 4', c5: 'criterion 5', histUp: 'the histogram test' };
   return ['1D', ...(Array.isArray(tradeTimeframes) ? tradeTimeframes : [tradeTimeframes]).map(scanTimeframe).filter(t => t === '1W' || t === '1M')].map(tf => {

@@ -7554,6 +7554,65 @@ try {
   }
   /* ---- end bot: pages ---- */
 
+  /* ---- frames: verify ---- */
+  /* H3-D: an alert of a daily setup whose conditions read imported weeks and
+     months. "The same bars now" recomputed the setup's own (daily) bars only,
+     so after a re-import that changed the week the conditions read it still
+     said the bars were as they were. The record now carries each such
+     timeframe's version (barVersion) and the page recomputes it. A symbol
+     the history holds only imported weeks for says so in "What your history
+     holds". Synthetic history, the worker's own scanRun for the record. */
+  framesVerify: {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = { h: scanHistoryFile, a: scanAlertsFile, s: scanSetupsFile };
+      const out = {};
+      try {
+        const days = [];
+        for (let d = new Date('2026-09-25T00:00:00Z'); days.length < 320; d.setUTCDate(d.getUTCDate() - 1)) if (d.getUTCDay() % 6) days.unshift(d.toISOString().slice(0, 10));
+        const series = { XAUUSD: {} }, ohlc = { XAUUSD: {} }, meta = { XAUUSD: {} };
+        days.forEach((d, i) => { const c = +(2000 + i * 0.7 + 20 * Math.sin(i / 7)).toFixed(3); series.XAUUSD[d] = c; ohlc.XAUUSD[d] = [c, +(c + 4).toFixed(3), +(c - 4).toFixed(3)]; meta.XAUUSD[d] = { src: 'import:SYN, 1D.csv', at: d + 'T23:00:00Z' }; });
+        const frame = (key) => { const f = { series: {}, ohlc: {}, volume: {}, meta: {} }, g = new Map();
+          days.forEach(d => { const k = key(d); if (!g.has(k)) g.set(k, []); g.get(k).push(d); });
+          for (const [k, ds] of g) { f.series[k] = +(series.XAUUSD[ds[ds.length - 1]] * 1.001).toFixed(3); f.ohlc[k] = [ohlc.XAUUSD[ds[0]][0], Math.max(...ds.map(d => ohlc.XAUUSD[d][1])), Math.min(...ds.map(d => ohlc.XAUUSD[d][2]))]; f.meta[k] = { src: 'import:SYN, x.csv', at: '2026-09-26T12:00:00Z' }; }
+          return f; };
+        const H = { schema: 2, generated: '2026-09-26T12:00:00Z', series, ohlc, meta, volume: {}, frames: { '1W': { XAUUSD: frame(scanWeekOf) }, '1M': { XAUUSD: frame(scanMonthOf) } } };
+        const cond = (tf) => ({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 }, timeframe: tf });
+        const setup = scanNormaliseSetup({ id: 'fv-dv', version: 1, name: 'frames verify', enabled: true, universe: { kind: 'symbols', symbols: ['XAUUSD'] }, timeframe: '1D', confirmationMode: 'BAR_CLOSE',
+          cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null, ruleTree: { type: 'group', logic: 'ALL', children: [cond('1W'), cond('1M')] } });
+        const run = scanRun([setup], H, { now: '2026-09-26T12:00:00Z', instruments: scanRegistryList(), runId: 'fv', origin: 'test' });
+        const a = run.alerts[0];
+        out.read = a ? a.matchedConditions.map(c => [c.timeframe, c.barDate, c.barOrigin, !!c.barVersion]) : null;
+        if (!a) return out;
+        scanHistoryFile = H; scanAlertsFile = { alerts: [a] }; scanSetupsFile = { setups: [setup] };
+        const fact = (label) => [...document.querySelectorAll('main .scan-fact')].find(f => f.querySelector('.stat-label')?.textContent === label)?.innerText.replace(/\\s+/g, ' ') || '';
+        const open = async () => { navigate('/app/scanner/setups'); await w(80); navigate('/app/scanner/alerts/' + a.id); await w(250); };
+        await open();
+        out.version = fact('Data version'); out.before = fact('The same bars now');
+        /* A re-import: the week the conditions read, and nothing else. */
+        const wk = scanWeekOf(a.matchedConditions[0].barDate);
+        const H2 = JSON.parse(JSON.stringify(H)); H2.frames['1W'].XAUUSD.series[wk] = +(H2.frames['1W'].XAUUSD.series[wk] * 1.01).toFixed(3);
+        scanHistoryFile = H2; await open();
+        out.after = fact('The same bars now');
+        const only = JSON.parse(JSON.stringify(H)); only.frames['1W'].ONLYW = only.frames['1W'].XAUUSD;
+        out.onlyHead = scanHistoryNeeds(['ONLYW', 'NOSUCH'], new Map(), only).map(x => x.head);
+        return out;
+      } finally {
+        scanHistoryFile = keep.h; scanAlertsFile = keep.a; scanSetupsFile = keep.s;
+        navigate('/learn');
+      }
+    })()`);
+    const p = [];
+    if (!r.read || r.read.length !== 2 || !r.read.every(x => x[2] === 'imported' && x[3])) p.push(`the record's reads: ${JSON.stringify(r.read)}`);
+    if (!/the weekly bars up to \d{4}-\d{2}-\d{2} its conditions read: fnv1a:[0-9a-f]+; the monthly bars up to \d{4}-\d{2}-\d{2} its conditions read: fnv1a:/.test(r.version || '')) p.push(`Data version: ${r.version}`);
+    if (!/^The same bars now unchanged .* — the bars up to \d{4}-\d{2}-\d{2}, and the weekly bars up to \d{4}-\d{2}-\d{2} and the monthly bars up to \d{4}-\d{2}-\d{2} its conditions read, are as they were when this was recorded\.$/.test(r.before || '')) p.push(`before: ${r.before}`);
+    if (!/^The same bars now changed .* the bars up to \d{4}-\d{2}-\d{2} are as they were, but the weekly bars up to \d{4}-\d{2}-\d{2} its conditions read are fnv1a:[0-9a-f]+, not fnv1a:[0-9a-f]+: your imported bars have changed since this was recorded/.test(r.after || '')) p.push(`after a re-import: ${r.after}`);
+    if (!/^ONLYW — no daily series in your history, only imported weekly bars, which are read beside a daily series and never without one/.test(r.onlyHead?.[0] || '') || !/^NOSUCH — no series in your history/.test(r.onlyHead?.[1] || '')) p.push(`history needs: ${JSON.stringify(r.onlyHead)}`);
+    if (p.length) fail('frames verify: an alert whose conditions read imported weeks says whether those weeks are as they were', p);
+    else ok('frames verify: an alert of a daily setup whose conditions read imported weeks and months names their versions, says "unchanged" while they are, and "changed" once the week read is re-imported with another close (it said "unchanged", recomputing the daily bars only); a symbol held only as imported weeks says it has no daily series');
+  }
+  /* ---- end frames: verify ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

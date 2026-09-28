@@ -4848,5 +4848,137 @@ try {
 }
 /* ---- end frames: compare ---- */
 
+/* ---- frames: verify ---- */
+/* H3-D: IMPORTED WEEKS AND MONTHS, TRIED AGAINST WHAT BREAKS THEM. Each
+   check failed on the merged branch before its fix; every history is
+   synthetic and every file temporary.
+   1. No look-ahead on an inferred calendar. A Friday too few of the
+      market's series hold to call a session (ambiguous) is not an expected
+      session, and an imported week was dated by the calendar alone — the
+      Thursday — so historical testing read, on the Thursday's close, a week
+      whose close was the Friday's. Such a week is dated by the last daily
+      bar the symbol holds in it, the date its built week gets.
+   2. The record names the version of the imported weeks and months its
+      conditions read (barVersion): the record's dataVersion hashes the
+      setup's own bars, so a re-import that changed the week the bot's
+      criteria read left it as it was.
+   3. The bot's warm-up counts closed daily bars: a last bar captured while
+      its session traded is not one.
+   4. A symbol the history holds only imported weeks for is skipped with
+      that said, not "no series".
+   5. The worker's --status says weeks and months are imported where held. */
+{
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const FXD = E.scanMarket('FX').days;
+  const days = [];
+  for (let d = '2025-06-02'; d <= '2026-09-25'; d = E.scanAddDays(d, 1)) if (FXD.includes(E.scanWeekday(d))) days.push(d);
+  /* Seven series on FX, so the calendar is inferred; Friday 12 June 2026 is
+     held by two of them (below the 60% quorum: ambiguous), XAU among them,
+     and XAU's close that day jumps by 50. */
+  const AMB = '2026-06-12', THU = '2026-06-11';
+  const syms = ['XAU', 'A', 'B', 'C', 'D', 'F', 'G'];
+  const VH = { schema: 2, series: {}, ohlc: {}, volume: {}, meta: {} };
+  syms.forEach((s, si) => { for (const m of ['series', 'ohlc', 'volume', 'meta']) VH[m][s] = {};
+    days.forEach((d, i) => {
+      if (d === AMB && !['XAU', 'A'].includes(s)) return;
+      const c = +(100 + si + i * 0.1 + 3 * Math.sin(i / 5) + (d === AMB ? 50 : 0)).toFixed(3);
+      VH.series[s][d] = c; VH.ohlc[s][d] = [+(c - 0.5).toFixed(3), +(c + 1).toFixed(3), +(c - 1).toFixed(3)]; VH.volume[s][d] = 1000 + i;
+      VH.meta[s][d] = { src: 'import:SYN, 1D.csv', at: `${E.scanAddDays(d, 1)}T02:00:00Z` };
+    }); });
+  /* XAU's weeks and months as TradingView draws them: from every session it
+     traded, the ambiguous Friday included, saved on Saturday 26 September. */
+  const frameOf = (key) => { const g = new Map(); days.forEach(d => { if (!(d in VH.series.XAU)) return; const k = key(d); if (!g.has(k)) g.set(k, []); g.get(k).push(d); });
+    const f = { series: {}, ohlc: {}, volume: {}, meta: {} };
+    for (const [k, ds] of g) { f.series[k] = VH.series.XAU[ds[ds.length - 1]]; f.ohlc[k] = [VH.ohlc.XAU[ds[0]][0], Math.max(...ds.map(d => VH.ohlc.XAU[d][1])), Math.min(...ds.map(d => VH.ohlc.XAU[d][2]))];
+      f.volume[k] = ds.reduce((t, d) => t + VH.volume.XAU[d], 0); f.meta[k] = { src: 'import:SYN, ' + (key === E.scanMonthOf ? '1M' : '1W') + '.csv', at: '2026-09-26T12:00:00Z' }; }
+    return f; };
+  VH.frames = { '1W': { XAU: frameOf(E.scanWeekOf) }, '1M': { XAU: frameOf(E.scanMonthOf) } };
+  const VI = syms.map(symbol => ({ symbol, market: 'FX' }));
+  const vCal = E.scanCalendar(VH, VI, 'FX');
+  const vDaily = E.scanBars(VH, 'XAU', { market: 'FX', calendar: vCal });
+  const vW = E.scanFrame(vDaily, '1W').bars, vBuilt = E.scanResample(vDaily, '1W', { calendar: vCal });
+  const kAmb = vW.dates.findIndex(d => E.scanWeekOf(d) === E.scanWeekOf(AMB));
+  /* Wherever an imported week is read and the daily bars make the whole of
+     the same week, the two close on the same day. */
+  const bIdx = new Map(vBuilt.dates.map((d, i) => [E.scanWeekOf(d), i]));
+  const dateOff = vW.dates.map((d, k) => [d, k]).filter(([d, k]) => vW.origin[k] === 'imported' && bIdx.has(E.scanWeekOf(d)) && vBuilt.complete[bIdx.get(E.scanWeekOf(d))] && vBuilt.dates[bIdx.get(E.scanWeekOf(d))] !== d);
+  const wkCond = (extra = {}) => ({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 0 }, timeframe: '1W', ...extra });
+  const vSetup = { id: 'v-la', version: 1, name: 'v-la', enabled: true, universe: { kind: 'symbols', symbols: ['XAU'] }, timeframe: '1D', confirmationMode: 'BAR_CLOSE', cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null,
+    ruleTree: { type: 'group', logic: 'ANY', children: [wkCond(), wkCond({ op: 'CROSSES_ABOVE', right: { indicator: 'sma', n: 3 } })] } };
+  const vFull = E.scanHistorical(vSetup, VH, { instruments: VI, maxBars: 5000 });
+  const viewOf = (m) => (m ? m.conditions.map(c => [c.state, c.barDate ?? null, c.left ?? null, c.barOrigin ?? null]) : null);
+  const la = [];
+  const sample = days.filter((d, i) => (d >= '2026-06-01' && d <= '2026-06-19') || i % 23 === 5);
+  for (const d of sample) {
+    const cut = E.scanTruncateHistory(VH, d);
+    const part = E.scanHistorical(vSetup, cut, { instruments: VI, from: d, to: d });
+    const a = viewOf(vFull.matches.find(m => m.bar === d)), b = viewOf(part.matches.find(m => m.bar === d));
+    if (!same(a, b)) la.push([d, a, b]);
+  }
+  const atThu = viewOf(vFull.matches.find(m => m.bar === THU));
+  check(vCal.basis === 'inferred' && vCal.ambiguous.includes(AMB) && vW.origin[kAmb] === 'imported' && vW.dates[kAmb] === AMB && !dateOff.length
+    && !la.length && sample.length > 20 && atThu?.[0]?.[1] === '2026-06-05',
+    `frames verify 1: no look-ahead on an inferred calendar — the imported week holding a Friday the calendar calls ambiguous (${AMB}, traded by the symbol) closes on that Friday, as the week built from the daily bars does, so on the Thursday historical testing reads the week before; at ${sample.length} sampled days the whole history gives what the history cut that day gives`,
+    { ambiguous: vCal.ambiguous.includes(AMB), dated: vW.dates[kAmb], dateOff: dateOff.slice(0, 3), la: la.slice(0, 3), atThu });
+
+  /* 2 — the version of the weeks and months a record's conditions read. */
+  const dvSetup = { ...vSetup, id: 'v-dv', cooldownMode: 'EVERY_MATCH', ruleTree: { type: 'group', logic: 'ALL', children: [wkCond(), { ...wkCond(), timeframe: '1M' }] } };
+  const vNow = '2026-09-26T12:00:00Z';
+  const recOf = (h) => E.scanRun([dvSetup], h, { now: vNow, instruments: VI }).alerts[0];
+  const r0 = recOf(VH);
+  const fw = (h, tf) => E.scanFrame(E.scanBars(h, 'XAU', { market: 'FX', now: vNow, calendar: E.scanCalendar(h, VI, 'FX') }), tf).bars;
+  const want = (h, tf, d) => { const b = fw(h, tf); return E.scanDataVersion(b, b.dates.indexOf(d)); };
+  const bump = (tf, k) => { const h = JSON.parse(JSON.stringify(VH)); h.frames[tf].XAU.series[k] = +(h.frames[tf].XAU.series[k] * 1.01).toFixed(3); return h; };
+  const readW = r0?.matchedConditions?.[0], readM = r0?.matchedConditions?.[1];
+  const earlierWeek = bump('1W', '2026-09-14'), laterMonth = bump('1M', '2026-09-01');
+  const rW = recOf(earlierWeek), rM = recOf(laterMonth);
+  const noFrame = { ...VH }; delete noFrame.frames;
+  const rN = recOf(noFrame);
+  check(r0 && readW?.barOrigin === 'imported' && readM?.barOrigin === 'imported' && /^fnv1a:/.test(readW.barVersion || '') && readW.barVersion === want(VH, '1W', readW.barDate) && readM.barVersion === want(VH, '1M', readM.barDate)
+    && rW.dataVersion === r0.dataVersion && rW.matchedConditions[0].barVersion !== readW.barVersion && rW.matchedConditions[1].barVersion === readM.barVersion
+    && rM.dataVersion === r0.dataVersion && rM.matchedConditions[1].barVersion === readM.barVersion
+    && rN && rN.matchedConditions.every(c => !('barVersion' in c)) && rN.dataVersion === r0.dataVersion,
+    'frames verify 2: a record names the version of the imported weeks and months its conditions read, up to the bar read (barVersion) — a re-imported week at or before it is a new version while the record\'s own dataVersion stays; a month after the one read changes nothing; with no frame held the record is as before',
+    { r0: readW && [readW.barDate, readW.barVersion, readM?.barDate, readM?.barVersion], rW: rW?.matchedConditions?.map(c => c.barVersion), rN: rN?.matchedConditions?.map(c => Object.keys(c)) });
+
+  /* 3 — the warm-up's closed daily bars. */
+  const pv = JSON.parse(JSON.stringify(VH));
+  pv.meta.XAU['2026-09-25'] = { src: 'import:SYN, 1D.csv', at: '2026-09-25T15:00:00Z' };
+  const pvBars = E.scanBars(pv, 'XAU', { market: 'FX', calendar: vCal });
+  const pvWarm = E.scanBotWarmup(pvBars), okWarm = E.scanBotWarmup(vDaily);
+  const nD = vDaily.dates.length;
+  check(pvBars.status[nD - 1] === 'PROVISIONAL' && pvWarm[0].held === nD - 1 && new RegExp(`^daily: ${nD - 1} closed daily bars held`).test(pvWarm[0].text) && okWarm[0].held === nD
+    && pvWarm[1].held === okWarm[1].held - 1 && pvWarm[1].imported === okWarm[1].imported - 1,
+    `frames verify 3: the bot's warm-up counts the closed daily bars — a last bar captured while its session traded is not one (${nD - 1} of ${nD}) — and the weeks closed as of the last closed session`,
+    { pv: pvWarm.map(w => w.text.slice(0, 120)), ok: okWarm.map(w => w.held) });
+
+  /* 4 — imported weeks and no daily series. */
+  const only = { schema: 2, series: {}, frames: { '1W': { ONLY: VH.frames['1W'].XAU } } };
+  const onlySetup = (symbols) => ({ ...vSetup, id: 'v-only', timeframe: '1W', universe: { kind: 'symbols', symbols }, ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 0 } }] } });
+  const onlyInst = [...VI, { symbol: 'ONLY', market: 'FX' }, { symbol: 'NONE', market: 'FX' }];
+  const onlyRun = E.scanRun([onlySetup(['XAU', 'ONLY', 'NONE'])], { ...VH, frames: { '1W': { ...VH.frames['1W'], ONLY: VH.frames['1W'].XAU } } }, { now: vNow, instruments: onlyInst });
+  const onlyAlone = E.scanRun([onlySetup(['ONLY'])], { ...VH, frames: { '1W': { ONLY: VH.frames['1W'].XAU } } }, { now: vNow, instruments: onlyInst });
+  const why = (s) => onlyRun.skipped.find(x => x.symbol === s)?.why || '';
+  check(/^no daily series in the price history — only imported weekly bars, which are read beside a daily series and never without one$/.test(why('ONLY')) && why('NONE') === 'no series in the price history'
+    && / — ONLY: no daily series in the price history — only imported weekly bars/.test(onlyAlone.skipped[0]?.why || '') && onlyRun.alerts.length === 1,
+    'frames verify 4: a symbol the history holds only imported weeks for is skipped saying so — its weeks are read beside a daily series, never without one — and one with nothing says "no series" as before',
+    { skipped: onlyRun.skipped, alone: onlyAlone.skipped });
+
+  /* 5 — --status. */
+  const sDir = join(tmpdir(), `qt-frames-verify-${process.pid}`);
+  await rm(sDir, { recursive: true, force: true });
+  await mkdir(sDir, { recursive: true });
+  try {
+    await writeFile(join(sDir, 'scan-setups.json'), JSON.stringify({ setups: [dvSetup] }));
+    const status = async (h) => { await writeFile(join(sDir, 'price-history.json'), JSON.stringify(h)); const r = await run(process.execPath, [join(ROOT, 'scanner/scan.mjs'), '--data', sDir, '--status'], { cwd: ROOT }).catch(e => e); return (r.stdout || '').split('\n').find(l => l.startsWith('timeframe')) || ''; };
+    const withF = await status(VH), withoutF = await status(noFrame);
+    check(/weekly and monthly imported where your history holds a TradingView export — weekly for XAU; monthly for XAU — and otherwise built from daily/.test(withF)
+      && /weekly and monthly built from daily; your history holds no imported weekly or monthly bars/.test(withoutF),
+      'frames verify 5: the worker\'s --status says the weeks and months are imported where the history holds an export, and for which instruments — not "built from daily" of both',
+      { withF, withoutF });
+  } finally { await rm(sDir, { recursive: true, force: true }); }
+}
+/* ---- end frames: verify ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

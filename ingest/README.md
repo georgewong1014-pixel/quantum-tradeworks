@@ -304,7 +304,7 @@ What the store decides, so no writer decides it differently:
 |---|---|
 | **Validation** | the engine's own `scanValidateBar` (loaded out of `index.html`, as the scanner loads it): BAD_DATE, FUTURE, NEG_PRICE, NEG_VOLUME, HIGH_BELOW, LOW_ABOVE, NON_SESSION_DAY — so the page, the worker and the ingest refuse the same bars. Two different rows for one date in one batch are both refused (DUPLICATE_DATE); the same row repeated is read once. |
 | **Conflicts** | a source rank: an import or a provider (`import:<file>`, `yahoo`, `twelvedata`) outranks the screen, and a bar with no recorded source ranks with the screen. A lower rank never replaces a higher one — the row is reported as outranked. An equal or higher rank that disagrees replaces the bar, and every changed field is recorded in `corrections`, which the engine reads as a CORRECTED bar. |
-| **Provisional bars** | a bar captured before its session closed is superseded by any later capture, whatever its rank, and that is not a correction — it was never the session's value. |
+| **Provisional bars** | a bar captured before its session closed is superseded by any later capture, whatever its rank, and that is not a correction — it was never the session's value. Such a reading replaces nothing else: offered over a bar captured after the close, one with no capture time, or a provisional one captured later (the older of two exports, imported after the newer), it is not written, the import says so, and it goes to the rejects file as PROVISIONAL_READING. |
 | **A bar is one source's reading** | when the close changes, open, high, low and volume come from the new source too (absent where it has none); a high from one vendor beside another's close describes no real session. |
 | **Refused rows** | written to `data/price-history.rejects.json` (git-ignored) with their codes — never into the history, never silently dropped. |
 | **Trim** | the newest 2000 bars per symbol, with volume, open/high/low, provenance and corrections dropped together. (The daily writer kept 500 and trimmed no volume; a 600-bar import plus one daily run left 500 closes and 600 volumes.) |
@@ -817,7 +817,10 @@ same bars:
 
 - **Imported where held.** A period the frame holds is read from it, dated by
   the period's last expected session (the date a complete week built from
-  daily bars gets). Its status is the daily rule on that session: FINAL when
+  daily bars gets) — or by the last daily bar the symbol holds in it, where
+  that is later: a Friday your inferred calendar calls ambiguous is in the
+  export's week when the symbol traded it, so the week closes that Friday,
+  never on the Thursday before it. Its status is the daily rule on that session: FINAL when
   the export was saved after it closed, CORRECTED when the frame's own
   corrections name it, and PROVISIONAL while it was still trading. Each bar
   is validated again as the engine reads it; an invalid one, or one filed
@@ -832,7 +835,9 @@ same bars:
   daily bars)"), and the alert record carries it (`barOrigin`), as does a
   weekly or monthly setup's own alert where a frame is held. The series'
   data version covers where each bar came from, so a re-import is a new
-  version.
+  version; and a condition that read an imported week or month carries that
+  timeframe's version up to the bar it read (`barVersion`), so the alert
+  page can say whether the weeks behind an alert are still as they were.
 - **Not mixed with adjusted daily bars.** A split or consolidation you have
   recorded (`data/price-adjustments.json`) dated inside or after the
   frame's periods adjusts the daily bars on read. Unless the export was
