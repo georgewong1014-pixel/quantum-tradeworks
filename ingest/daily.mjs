@@ -8,8 +8,10 @@
  * silent failure becomes visible in the one place you would look:
  *
  *   0  everything imported cleanly
- *   1  the run failed outright — nothing was imported
- *   2  imported, but something needs your eyes (rows held back, or stale)
+ *   1  the run failed outright, or nothing was imported (every row held
+ *      back, or none read)
+ *   2  something needs your eyes: rows held back, a later step that failed
+ *      or was partial — or a stale capture, which imports nothing
  *
  * Every run, whatever its exit, is appended to data/ingest-runs.json
  * (git-ignored): each step's outcome, the scanner's status and run id, and
@@ -76,6 +78,21 @@ const step = (name, status, detail = null, extra = {}) => steps.push({ step: nam
 const scanner = { ran: false, exit: null, status: null, runId: null, recorded: null, skippedMarkets: [] };
 const counts = {};
 
+/* What a failed step's output says went wrong: the lines the report prints,
+   and the one the run log keeps. A script that throws ends its stderr with
+   Node's stack and a "Node.js v24.x" line, and that last line was logged as
+   the step's detail, the stack frames above it printed as the reason — an
+   import whose review file had no close column was recorded as failing with
+   "Node.js v24.21.0". The thrown error's own line is named where there is
+   one; otherwise the last lines that are not the stack. */
+const failure = (e, n = 4) => {
+  const ls = `${e.stdout || ''}\n${e.stderr || ''}`.split(/\r?\n/).map(l => l.trim())
+    .filter(l => l && !/^Node\.js v\d/.test(l) && !/^at /.test(l) && !/^\^+$/.test(l));
+  const thrown = ls.find(l => /^(?:[A-Z]\w*)?Error(?: \[\w+\])?: /.test(l));
+  const shown = thrown ? [thrown] : ls.slice(-n);
+  return { shown: shown.map(s => '          ' + s).join('\n'), detail: thrown || ls.at(-1) || e.message?.split('\n')[0] || null };
+};
+
 /* 1 ------------------------------------------------------------- capture */
 let pages = 0, staleRun = false;
 try {
@@ -94,9 +111,10 @@ try {
     say(`          nothing imported.`);
     await finish(2);
   }
+  const f = failure(e);
   say(`capture   FAILED`);
-  say(String(out).trim().split('\n').slice(-4).map(s => '          ' + s).join('\n'));
-  step('capture', 'failed', String(out).trim().split('\n').filter(Boolean).pop() || null);
+  if (f.shown) say(f.shown);
+  step('capture', 'failed', f.detail);
   await finish(1);
 }
 
@@ -112,16 +130,20 @@ try {
   step('read', 'ok', `${candidates} instrument(s), ${flagged} flagged`);
   for (const l of stdout.split('\n')) if (/^ {10}\S/.test(l) && /:/.test(l)) say(`          ${l.trim()}`);
 } catch (e) {
+  const f = failure(e);
   say(`read      FAILED`);
-  say(String(e.stdout || e.stderr || '').trim().split('\n').slice(-4).map(s => '          ' + s).join('\n'));
-  step('read', 'failed', String(e.stderr || e.stdout || '').trim().split('\n').filter(Boolean).pop() || null);
+  if (f.shown) say(f.shown);
+  step('read', 'failed', f.detail);
   await finish(1);
 }
 
 /* 3 -------------------------------------------------------------- import */
 /* prices.mjs refuses any row still marked CHECK, so the review gate keeps
    working unattended: clean rows land, doubtful ones wait for you. */
-let accepted = 0, rejected = 0;
+let accepted = 0, rejected = 0, nothingImported = false;
+/* The USD/MYR rate the price file holds before the import replaces it, for
+   the FX step to say what became of it. */
+const fxBefore = await fxHeld();
 try {
   const { stdout } = await node(['ingest/prices.mjs', '--in', REVIEW, '--out', PRICES,
     '--licence', 'personal research — not for redistribution']);
@@ -131,10 +153,33 @@ try {
   Object.assign(counts, { accepted, rejected });
   step('import', 'ok', `${accepted} accepted, ${rejected} held back`);
 } catch (e) {
-  say(`import    FAILED`);
-  say(String(e.stdout || e.stderr || '').trim().split('\n').slice(-4).map(s => '          ' + s).join('\n'));
-  step('import', 'failed', String(e.stderr || e.stdout || '').trim().split('\n').filter(Boolean).pop() || null);
-  await finish(1);
+  /* prices.mjs accepts no row — every row held back, or none read — by
+     writing nothing and exiting 1, its own "not written:" report on stdout.
+     Every exit 1 was read as "import FAILED" and the run stopped there: the
+     FX rate went unrefreshed, and the closing lines this run keeps for that
+     day — "NOTHING IMPORTED — every row was held back", and which file to
+     open and correct — were never reached. It is read as what it is: the
+     price file stands as it was, so the history and the scanner (which would
+     read that unchanged file as today's) are skipped, FX still runs, and the
+     verdict below closes the run with exit 1. */
+  const so = String(e.stdout || '');
+  if (e.code === 1 && /^not written: .*no row was accepted/m.test(so) && /^\s*accepted\s*:\s*0\s*$/m.test(so)) {
+    nothingImported = true;
+    rejected = Number((so.match(/rejected\s*:\s*(\d+)/) || [])[1] || 0);
+    /* "the prices it holds stand" only where prices.mjs found a file to leave standing. */
+    const what = `${rejected ? `nothing accepted, ${rejected} held back for review` : 'nothing accepted, the review file holds no row'} — ${PRICES} was not written${/ it holds stand/.test(so) ? '; the prices it holds stand' : ''}`;
+    say(`import    ${what}`);
+    const why = (so.match(/^\s*rejected\s*:\s*\d+ — (.+)$/m) || [])[1];
+    if (why) say(`          ${why}`);
+    Object.assign(counts, { accepted: 0, rejected });
+    step('import', 'warn', what);
+  } else {
+    const f = failure(e);
+    say(`import    FAILED`);
+    if (f.shown) say(f.shown);
+    step('import', 'failed', f.detail);
+    await finish(1);
+  }
 }
 
 /* 4 ------------------------------------------------------------- history */
@@ -152,7 +197,10 @@ const historyLine = (stdout) => {
   counts.newBars = added != null ? Number(added) : null;
   return `${syms || '?'} symbol(s), ${added ?? '?'} new bar(s), ${depth || '?'} day(s) deep`;
 };
-try {
+if (nothingImported) {
+  say(`history   skipped — nothing was imported, so ${PRICES} holds no reading from this run`);
+  step('history', 'skipped', 'nothing imported');
+} else try {
   const { stdout } = await node(['ingest/history.mjs', '--in', PRICES]);
   historyUpdated = true;
   say(`history   ${historyLine(stdout)}`);
@@ -164,9 +212,10 @@ try {
     for (const l of String(e.stdout || '').split('\n')) if (/^\s+(outranked|rejected|\s{8,}\S)/.test(l)) say(`          ${l.trim()}`);
     step('history', 'warn', 'written; rows refused — see data/price-history.rejects.json');
   } else {
+    const f = failure(e, 2);
     say(`history   could not be updated — today's prices are still imported`);
-    say(String(e.stderr || e.stdout || '').trim().split('\n').slice(-2).map(s => '          ' + s).join('\n'));
-    step('history', 'failed', String(e.stderr || e.stdout || '').trim().split('\n').filter(Boolean).pop() || null);
+    if (f.shown) say(f.shown);
+    step('history', 'failed', f.detail);
   }
   bump(2);
 }
@@ -239,12 +288,30 @@ if (!SKIP_FX) {
   try {
     const { stdout } = await node(['ingest/fx.mjs', '--out', PRICES]);
     const rate = (stdout.match(/USD\/MYR\s*:\s*(?:[\d.]+\s*->\s*)?([\d.]+)/) || [])[1];
-    say(`fx        USD/MYR ${rate || '?'} from Bank Negara Malaysia, cross-checked`);
-    step('fx', 'ok', rate ? `USD/MYR ${rate}` : null);
+    /* Where the rate came from, and whether a second source agreed, as
+       fx.mjs printed them. The report said "from Bank Negara Malaysia,
+       cross-checked" whatever happened: with Bank Negara down the rate
+       written is Frankfurter's, and with either source down nothing checked
+       it — the file records both (src, crossChecked); the report now does. */
+    const src = (stdout.match(/^\s*source\s*:\s*(.+?)\s*$/m) || [])[1];
+    const apart = (stdout.match(/sources differ by ([\d.]+%)/) || [])[1];
+    const how = `from ${src || 'a source fx.mjs did not name'}, ${apart ? `cross-checked (the two sources ${apart} apart)`
+      : /only one source responded/.test(stdout) ? 'not cross-checked — only one source responded' : 'not cross-checked'}`;
+    say(`fx        USD/MYR ${rate || '?'} ${how}`);
+    step('fx', 'ok', `USD/MYR ${rate || '?'} ${how}`);
   } catch (e) {
-    /* Not fatal: the prices imported fine and the previous rate still stands. */
-    say(`fx        could not refresh — the previous rate is unchanged`);
-    step('fx', 'failed', 'the previous rate is unchanged');
+    /* Not fatal, and said as it is. "The previous rate is unchanged" was
+       printed whatever the file held: an import that accepted a row replaces
+       the price file, and prices.mjs carries no row that names its own
+       source — fx.mjs's rate among them — so after it the file held no
+       USD/MYR rate at all. The rate the file holds now is named, or its
+       absence and what became of the one it held. */
+    const now = await fxHeld();
+    const rateOf = (p, sep) => `${p.close}${p.src ? ` from ${p.src}` : ''}${p.date ? `${sep}${p.date}` : ''}`;
+    const what = now ? `${PRICES} holds USD/MYR ${rateOf(now, ' (')}${now.date ? ')' : ''}`
+      : `${PRICES} holds no USD/MYR rate now${fxBefore && !nothingImported ? `: the import replaced the file, and the rate it held (${rateOf(fxBefore, ', ')}) was not carried over` : ''}`;
+    say(`fx        could not refresh — ${what}`);
+    step('fx', 'failed', what);
     bump(2);
   }
 }
@@ -260,13 +327,25 @@ if (rejected > 0 || flagged > 0) bump(2);
    history or FX step that failed, a scan that could not run. */
 if (accepted === 0) { say(''); say(candidates === 0 && rejected === 0 ? 'NOTHING IMPORTED — no row was read from the capture.' : 'NOTHING IMPORTED — every row was held back.'); worst = 1; }
 
+/* The re-run names the history step too. It named the import alone, and
+   the import writes only the price file — which the next run replaces with
+   the next day's rows — so a close corrected as told never reached the
+   history: the series skipped that session for good. */
 say('');
 say(rejected > 0 || flagged > 0
-  ? `Open ${REVIEW}, correct the rows marked CHECK, then re-run:\n  node ingest/prices.mjs --in ${REVIEW} --out ${PRICES} --licence "personal research — not for redistribution"`
+  ? `Open ${REVIEW}, correct the rows marked CHECK, then re-run the import and add them to the history:\n  node ingest/prices.mjs --in ${REVIEW} --out ${PRICES} --licence "personal research — not for redistribution"\n  node ingest/history.mjs --in ${PRICES}`
   : worst > 0 ? `Something above needs your attention — this run exits ${worst}.`
   : 'Nothing needs your attention.');
 
 await finish(worst);
+
+/* The USD/MYR row the price file holds — fx.mjs's key — or null. */
+async function fxHeld() {
+  try {
+    const p = JSON.parse(await readFile(PRICES, 'utf8'))?.prices?.USDMYR;
+    return p && typeof p.close === 'number' ? p : null;
+  } catch { return null; }
+}
 
 async function finish(code) {
   const secs = ((Date.now() - started) / 1000).toFixed(1);
