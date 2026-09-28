@@ -6261,6 +6261,218 @@ try {
   }
   /* ---- end bugfix2: studio ---- */
 
+  /* ---- bugfix2: equities ---- */
+  /* SECOND PASS, EQUITIES: what the first pass's owners reported in these
+     files — a bank's pre-tax line named "Operating profit", per-share rates
+     withheld on a break outside their window, saves and restores that said
+     they were kept when the browser refused them, an import that hid its
+     refusals, a builder draft replaced without asking, and a freshness line
+     that claimed a live fetch. */
+  const eq2Wait = `const w = (ms) => new Promise(r => setTimeout(r, ms));`;
+  {
+    /* The EBIT row of "What changed" is named as the statement names it, and
+       the Filings table finds its figures by the row's key. */
+    const r = await evaluate(`(async () => {
+      ${eq2Wait}
+      const rows = (id) => { const c = BY_ID.get(id).c, ch = changeSummary(c) || [], e = ch.find(x => x.key === 'ebit');
+        return { label: e ? e.label : null, want: ebitLabel(c), keyless: ch.filter(x => !x.key).length }; };
+      const out = { jpm: rows('JPM-SEC'), maybank: rows('MAYBANK'), msft: rows('MSFT-SEC') };
+      navigate('/company/JPM-SEC?tab=snapshot');
+      let card = null;
+      for (let i = 0; i < 20 && !card; i++) { await w(100); card = [...document.querySelectorAll('#views .card')].find(c => /^What changed/.test((c.querySelector('h2,h3') || {}).textContent || '')); }
+      out.rail = card ? [...card.querySelectorAll('dl.kv dt')].map(x => x.textContent) : [];
+      navigate('/company/JPM-SEC?tab=filings'); await w(400);
+      const trs = [...document.querySelectorAll('#views table.dt tbody tr')];
+      const tr = trs.find(t => t.firstElementChild && t.firstElementChild.textContent === out.jpm.want);
+      const d = BY_ID.get('JPM-SEC').d, i = d.ebit.length - 1;
+      out.filings = tr ? [...tr.children].slice(1, 3).map(x => x.textContent) : null;
+      out.want = [fmtNum(d.ebit[i - 1], 2), fmtNum(d.ebit[i], 2)];
+      out.opRow = trs.some(t => t.firstElementChild && t.firstElementChild.textContent === 'Operating profit');
+      return out;
+    })()`);
+    const p = [];
+    for (const k of ['jpm', 'maybank', 'msft']) if (r[k].label !== r[k].want || r[k].keyless) p.push(`${k}: the change row reads "${r[k].label}", the statement "${r[k].want}"${r[k].keyless ? `, ${r[k].keyless} row(s) without a key` : ''}`);
+    if (!r.rail.includes(r.jpm.want) || r.rail.includes('Operating profit')) p.push(`JPMorgan's snapshot "What changed" lists ${JSON.stringify(r.rail.slice(0, 8))}`);
+    if (r.opRow || JSON.stringify(r.filings) !== JSON.stringify(r.want)) p.push(`JPMorgan's Filings table: row ${JSON.stringify(r.filings)} against ${JSON.stringify(r.want)}${r.opRow ? ', and an "Operating profit" row' : ''}`);
+    if (p.length) fail('bugfix2 equities: "What changed" names the EBIT row as the statement does, and the Filings table reads it by key', p);
+    else ok(`bugfix2 equities: "What changed" names the EBIT row as the statement does — JPMorgan "${r.jpm.want}" (${r.filings.join(' → ')}), Maybank "${r.maybank.want}", Microsoft "${r.msft.want}" — on the snapshot and the Filings table`);
+  }
+  {
+    /* The four-year per-share rates are said to be withheld only for a
+       break inside their own five rows; the share-count rate names no cause
+       nothing here can know. */
+    const r = await evaluate(`(async () => {
+      ${eq2Wait}
+      const wrong = [];
+      U.forEach(x => ['eps5', 'dps5', 'bv5'].forEach(k => {
+        if (isNum(x.m[k])) return;
+        const s = metricStatus(x, k), said = s.reason === 'withheld' && /share count moves/.test(s.text || '');
+        if (said && !x.m.perShareBreak) wrong.push(x.c.tk + ' ' + k + ' withheld with no break in its window');
+        if (!said && x.m.perShareBreak && s.reason !== 'not applicable') wrong.push(x.c.tk + ' ' + k + ' not said withheld: ' + s.reason);
+      }));
+      const nv = BY_ID.get('NVDA-SEC'), ge = metricStatus(BY_ID.get('GE-SEC'), 'eps5'), nvs = metricStatus(nv, 'eps5'), o = metricStatus(BY_ID.get('O-SEC'), 'dilution');
+      navigate('/company/GE-SEC?tab=quality'); await w(400);
+      const geRow = [...document.querySelectorAll('#views table.dt tbody tr')].find(t => t.firstElementChild && t.firstElementChild.textContent === 'Earnings CAGR (4y)');
+      navigate('/company/GOOGL-SEC?tab=ownership'); await w(400);
+      const dt = [...document.querySelectorAll('#views dl.kv dt')].find(d => /Dividend per share CAGR/.test(d.textContent));
+      return { wrong, ge: ge.reason, nv: nvs.reason, nvNames: (nvs.text || '').includes(fmtNum(nv.m.perShareBreak.to, 2) + 'bn'), oCause: /not issuance/.test(o.text || ''),
+        geCell: geRow ? geRow.children[1].textContent : null, googlDps: dt ? dt.nextElementSibling.textContent : null };
+    })()`);
+    const p = [...r.wrong.slice(0, 6)];
+    if (r.ge === 'withheld' || r.geCell === 'withheld') p.push(`GE's earnings growth (a negative FY2021 base) reads withheld: drawer ${r.ge}, quality tab "${r.geCell}"`);
+    if (r.nv !== 'withheld' || !r.nvNames) p.push(`Nvidia's earnings growth is not withheld on its in-window step: ${r.nv}`);
+    if (r.oCause) p.push('Realty Income\'s share-count rate calls its merger "a corporate action, not issuance"');
+    if (/Withheld/.test(r.googlDps || '')) p.push(`Alphabet's dividend CAGR reads "${r.googlDps}" with no break in its window`);
+    if (p.length) fail('bugfix2 equities: a per-share rate is said withheld only for a break inside its own window', p);
+    else ok(`bugfix2 equities: a per-share rate is said withheld only for a break inside its own window — GE's earnings growth reads "${r.geCell}" (${r.ge}), Alphabet's dividend CAGR "${r.googlDps}", Nvidia's is withheld naming its in-window step`);
+  }
+  {
+    /* A refused write is never confirmed: the saved-work helpers return
+       nothing, a backup restores all or nothing, and the data page, the
+       screener and a typed price say so instead of "Saved", "Deleted" or a
+       silent reload. */
+    const r = await evaluate(`(async () => {
+      ${eq2Wait}
+      const keepSet = Storage.prototype.setItem, keepPrompt = window.prompt, keepConfirm = window.confirm;
+      const full = () => { Storage.prototype.setItem = function () { throw new DOMException('full', 'QuotaExceededError'); }; };
+      const unfull = () => { Storage.prototype.setItem = keepSet; };
+      const toast = () => document.getElementById('toast').textContent;
+      const out = {};
+      const base = saveWork('wheel', 'bf2-eq base');
+      try {
+        full(); try { out.save = saveWork('wheel', 'bf2-eq refused'); out.dup = duplicateWork(base.id); } finally { unfull(); }
+        out.kept = loadWork().filter(x => /^bf2-eq/.test(x.name)).length;
+        localStorage.setItem('vl.bf2A', JSON.stringify('before')); localStorage.removeItem('vl.bf2B');
+        let n = 0; Storage.prototype.setItem = function (k, v) { if (++n === 2) throw new DOMException('full', 'QuotaExceededError'); return keepSet.call(this, k, v); };
+        try { out.restore = restoreBackup(JSON.stringify({ format: 'quantum-tradeworks-backup', version: 1, data: { bf2A: 'after', bf2B: 'after' } })); } finally { unfull(); }
+        out.restoreA = localStorage.getItem('vl.bf2A'); out.restoreB = localStorage.getItem('vl.bf2B');
+        localStorage.removeItem('vl.bf2A'); localStorage.removeItem('vl.bf2B');
+        navigate('/my/data'); await w(250);
+        window.confirm = () => true;
+        const del = [...document.querySelectorAll('#views button')].find(x => x.textContent.trim() === 'Delete');
+        full(); try { del.click(); } finally { unfull(); window.confirm = keepConfirm; }
+        await w(60); out.delToast = toast(); out.delKept = loadWork().some(x => x.id === base.id);
+        const ta = document.querySelector('#views textarea[aria-label="Paste closes"]');
+        ta.value = '2026-08-06,7.93'; document.getElementById('ud-sym').value = 'BF2EQ';
+        full(); try { [...document.querySelectorAll('#views button')].find(x => x.textContent.trim() === 'Read what I pasted').click(); } finally { unfull(); }
+        await w(60);
+        const card = ta.closest('.card');
+        out.pasteReload = [...card.querySelectorAll('button')].some(x => x.textContent.trim() === 'Reload to apply');
+        out.pasteSays = card.textContent.includes(STORE_REFUSED); out.pasteMemory = !!userData.series.BF2EQ;
+        navigate('/discover/screener'); await w(300);
+        const s0 = State.savedScreens.length; window.prompt = () => 'bf2-eq screen';
+        full(); try { saveScreen(); } finally { unfull(); window.prompt = keepPrompt; }
+        await w(60); out.screenToast = toast(); out.screenHeld = State.savedScreens.length - s0;
+      } finally {
+        Storage.prototype.setItem = keepSet; window.prompt = keepPrompt; window.confirm = keepConfirm;
+        loadWork().filter(x => /^bf2-eq/.test(x.name)).forEach(x => deleteWork(x.id));
+        State.savedScreens = State.savedScreens.filter(x => x.name !== 'bf2-eq screen'); store.write('savedScreens', State.savedScreens);
+      }
+      return out;
+    })()`);
+    /* A typed price reloads the page when it is kept. Refused, it reloaded
+       anyway and came back without it, saying nothing — so the page is
+       marked, and a reload is seen as the mark gone. */
+    await evaluate(`(async () => { ${eq2Wait} navigate('/company/JPM-SEC'); await w(400);
+      const keepSet = Storage.prototype.setItem, px = document.getElementById('realpx');
+      window.__bf2Had = manualPrices['JPM-SEC'] ?? null; px.value = '123.45';
+      Storage.prototype.setItem = function () { throw new DOMException('full', 'QuotaExceededError'); };
+      try { px.dispatchEvent(new Event('change', { bubbles: true })); } finally { Storage.prototype.setItem = keepSet; }
+      return true; })()`);
+    await sleep(300); await waitFiled();
+    Object.assign(r, await evaluate(`({ pxToast: document.getElementById('toast').textContent, pxReloaded: window.__bf2Had === undefined,
+      pxHeld: window.__bf2Had !== undefined && (manualPrices['JPM-SEC'] ?? null) === window.__bf2Had })`));
+    /* A saved screen's Delete, and Remove on a pasted series (which reloads
+       when it is kept), each under a refused write. */
+    Object.assign(r, await evaluate(`(async () => { ${eq2Wait}
+      const keepSet = Storage.prototype.setItem, keepPrompt = window.prompt;
+      const full = () => { Storage.prototype.setItem = function () { throw new DOMException('full', 'QuotaExceededError'); }; };
+      const out = {};
+      navigate('/discover/screener'); await w(300);
+      window.prompt = () => 'bf2-eq screen'; try { saveScreen(); } finally { window.prompt = keepPrompt; }
+      openSavedScreen(State.savedScreens.findIndex(x => x.name === 'bf2-eq screen')); await w(150);
+      const del = [...document.querySelectorAll('button')].filter(x => x.textContent.trim() === 'Delete').pop();
+      full(); try { del.click(); } finally { Storage.prototype.setItem = keepSet; }
+      await w(60); out.screenDelToast = document.getElementById('toast').textContent;
+      out.screenDelHeld = State.savedScreens.some(x => x.name === 'bf2-eq screen');
+      closeDrawer();
+      State.savedScreens = State.savedScreens.filter(x => x.name !== 'bf2-eq screen'); store.write('savedScreens', State.savedScreens);
+      userData.series.BF2EQ = { '2026-08-06': 7.93 }; saveUserData();
+      navigate('/my/data'); await w(250);
+      window.__bf2Mark = 1;
+      const rm = [...document.querySelectorAll('#views tr')].find(t => t.firstElementChild && t.firstElementChild.textContent === 'BF2EQ');
+      full(); try { rm.querySelector('button').click(); } finally { Storage.prototype.setItem = keepSet; }
+      return out;
+    })()`));
+    await sleep(300); await waitFiled();
+    Object.assign(r, await evaluate(`(() => { const out = { rmReloaded: window.__bf2Mark === undefined, rmToast: document.getElementById('toast').textContent, rmHeld: !!userData.series.BF2EQ };
+      delete userData.series.BF2EQ; saveUserData(); return out; })()`));
+    const p = [];
+    if (r.pxReloaded) p.push('a typed price the browser refused reloaded the page, which came back without it and said nothing');
+    if (!/^Not deleted/.test(r.screenDelToast || '') || !r.screenDelHeld) p.push(`a saved screen's refused Delete toasts "${r.screenDelToast}" and ${r.screenDelHeld ? 'keeps' : 'drops'} it`);
+    if (r.rmReloaded || !/^Not deleted/.test(r.rmToast || '') || !r.rmHeld) p.push(`Remove on a pasted series under a refused write: ${JSON.stringify({ reloaded: r.rmReloaded, toast: r.rmToast, held: r.rmHeld })}`);
+    if (r.save || r.dup) p.push(`saveWork/duplicateWork returned a record the browser refused: ${JSON.stringify({ save: !!r.save, dup: !!r.dup })}`);
+    if (r.kept !== 1) p.push(`${r.kept} bf2 records held, not the one base record`);
+    if (!r.restore || r.restore.ok || r.restoreA !== '"before"' || r.restoreB !== null) p.push(`a backup refused part-way reports ${JSON.stringify(r.restore)} and leaves A=${r.restoreA}, B=${r.restoreB}`);
+    if (!/^Not deleted/.test(r.delToast || '') || !r.delKept) p.push(`/my/data Delete under a refused write toasts "${r.delToast}"`);
+    if (r.pasteReload || !r.pasteSays || r.pasteMemory) p.push(`a paste the browser refused offers "Reload to apply": ${JSON.stringify({ reload: r.pasteReload, says: r.pasteSays, memory: r.pasteMemory })}`);
+    if (!/^Not saved/.test(r.screenToast || '') || r.screenHeld) p.push(`a refused screen save toasts "${r.screenToast}" and lists ${r.screenHeld} screen(s)`);
+    if (!/^Not saved/.test(r.pxToast || '') || !r.pxHeld) p.push(`a refused price toasts "${r.pxToast}"`);
+    if (p.length) fail('bugfix2 equities: a write the browser refuses is never confirmed as kept', p);
+    else ok('bugfix2 equities: a write the browser refuses is never confirmed as kept — saveWork and duplicateWork return nothing, a backup refused part-way puts back what it wrote, and /my/data, the screener and a typed price say "Not saved" or "Not deleted"');
+  }
+  {
+    /* The import toast carries the refusals; "Use as scanner universe" asks
+       before replacing a changed draft; the freshness line claims no fetch. */
+    const r = await evaluate(`(async () => {
+      ${eq2Wait}
+      const keepPlan = State.plan, keepLists = JSON.parse(JSON.stringify(State.watchlists)), keepRaw = localStorage.getItem('vl.watchlists'), keepIdx = State.wlIdx;
+      const keepConfirm = window.confirm, keepDraft = scanDraft;
+      const out = {};
+      try {
+        State.plan = 'free';
+        navigate('/my/watchlists'); await w(250);
+        const ids = U.filter(x => x.c.real).slice(0, 30).map(x => x.c.id);
+        const doc = { watchlists: [{ name: State.watchlists[0].name, items: ids.map(companyId => ({ companyId })) }, { name: 'bf2-eq second', ids: ids.slice(0, 2) }] };
+        const inp = document.querySelector('#views input[type=file][aria-label="Import a watchlists file"]');
+        const dt = new DataTransfer(); dt.items.add(new File([JSON.stringify(doc)], 'w.json', { type: 'application/json' }));
+        inp.files = dt.files; inp.dispatchEvent(new Event('change', { bubbles: true }));
+        await w(300); out.toast = document.getElementById('toast').textContent;
+      } finally {
+        State.plan = keepPlan; State.watchlists = keepLists; State.wlIdx = keepIdx;
+        if (keepRaw === null) localStorage.removeItem('vl.watchlists'); else localStorage.setItem('vl.watchlists', keepRaw);
+      }
+      try {
+        navigate('/my/watchlists'); await w(250);
+        scanDraft = { ...scanBlankDraft(), name: 'bf2-eq typed' };
+        let asked = null; window.confirm = (m) => { asked = m; return false; };
+        [...document.querySelectorAll('#views button')].find(x => x.textContent.trim() === 'Use as scanner universe').click();
+        await w(150);
+        out.asked = !!asked; out.kept = scanDraft && scanDraft.name === 'bf2-eq typed'; out.stayed = location.pathname;
+        scanDraft = null; asked = null;
+        navigate('/my/watchlists'); await w(250);
+        [...document.querySelectorAll('#views button')].find(x => x.textContent.trim() === 'Use as scanner universe').click();
+        await w(250);
+        out.blankAsked = !!asked; out.opened = location.pathname; out.universe = scanDraft && scanDraft.universe && scanDraft.universe.kind;
+      } finally { window.confirm = keepConfirm; scanDraft = keepDraft; }
+      navigate('/app'); await w(300);
+      const fresh = () => [...document.querySelectorAll('#views .card')].find(c => /Freshness/.test(c.textContent));
+      out.loaded = fresh() ? fresh().textContent : null;
+      const keepStatus = realStatus; realStatus = null; render(); await w(60);
+      out.loading = fresh() ? fresh().textContent : null;
+      realStatus = keepStatus; render();
+      return out;
+    })()`);
+    const p = [];
+    if (!/[0-9]+ refused — [^;]*maximum of 25/.test(r.toast) || !/bf2-eq second/.test(r.toast)) p.push(`the Free-plan import toast: "${r.toast}"`);
+    if (!r.asked || !r.kept || r.stayed !== '/my/watchlists') p.push(`a changed draft and "Use as scanner universe": ${JSON.stringify({ asked: r.asked, kept: r.kept, at: r.stayed })}`);
+    if (r.blankAsked || r.opened !== '/app/scanner/setups/new' || r.universe !== 'watchlist') p.push(`with no draft open: ${JSON.stringify({ asked: r.blankAsked, at: r.opened, universe: r.universe })}`);
+    for (const [k, t] of [['loaded', r.loaded], ['loading', r.loading]]) if (!t || /(from|filings from) SEC EDGAR[.…]/.test(t) || /Loading filings from SEC EDGAR|loaded from SEC EDGAR/.test(t)) p.push(`the ${k} freshness line claims a fetch from SEC EDGAR: "${(t || 'no card').slice(0, 200)}"`);
+    if (p.length) fail('bugfix2 equities: the import names its refusals, the scanner draft is asked for, the freshness line claims no fetch', p);
+    else ok(`bugfix2 equities: the import names its refusals ("${(r.toast.match(/[0-9]+ refused — [^(]*/) || [''])[0].trim()}"), a changed scanner draft is asked for and an empty one is not, and the freshness line says the statements were retrieved when the dataset was built`);
+  }
+  /* ---- end bugfix2: equities ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

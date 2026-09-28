@@ -179,6 +179,10 @@ const WORK_KINDS = {
 
 const loadWork = () => store.read('savedWork', []);
 const persistWork = (list) => store.write('savedWork', list);
+/* STORE_REFUSED's counterpart for a removal the browser refused to write:
+   the thing is still there, and a page that said "Deleted" would be wrong
+   about it after the next render. */
+const STORE_UNDELETED = 'Not deleted — this browser refused the write (its storage is full or switched off), so it is still there.';
 
 /* A monotonic counter, because timestamps collide.
    The first version keyed records on Date.now() plus a sub-millisecond figure
@@ -213,8 +217,10 @@ function saveWork(kind, nameOverride) {
     stamp: buildStamp(kind),
     payload,
   };
-  persistWork([rec, ...loadWork()]);
-  return rec;
+  /* A record the browser refused is not a record. This returned it whether
+     or not the write was kept, so a caller that trusted the return said
+     "Saved" over nothing — with the quota full, loadWork() never held it. */
+  return persistWork([rec, ...loadWork()]) ? rec : null;
 }
 
 /* Resume writes the record's keys back and re-reads State from them, so the
@@ -241,8 +247,8 @@ function duplicateWork(id) {
   const copy = { ...rec, id: nextWorkId(rec.kind),
     name: `${rec.name} (copy)`.slice(0, 80),
     savedAt: new Date().toISOString().replace('T', ' ').slice(0, 16) };
-  persistWork([copy, ...loadWork()]);
-  return copy;
+  /* As saveWork: a copy the browser did not keep is not returned. */
+  return persistWork([copy, ...loadWork()]) ? copy : null;
 }
 
 const deleteWork = (id) => persistWork(loadWork().filter(r => r.id !== id));
@@ -275,14 +281,37 @@ function backupPayload() {
 }
 
 /* Returns {ok, restored, error}. Refuses anything that is not one of our own
-   backups rather than writing arbitrary JSON into the app's storage. */
+   backups rather than writing arbitrary JSON into the app's storage.
+
+   ALL OR NOTHING. Every key was counted as restored whether or not the
+   browser kept it, so with the quota full the page said "Restored N items —
+   reloading" and reloaded into a mixture: the keys before the refusal
+   replaced, the rest as they were — the half-merged state the restore card
+   promises it never makes. A refused key now puts back every key already
+   written, as it was, and the restore reports that it did not happen. */
 function restoreBackup(text) {
   let obj;
   try { obj = JSON.parse(text); } catch { return { ok:false, error:'That file is not valid JSON.' }; }
   if (!obj || obj.format !== 'quantum-tradeworks-backup' || !obj.data || typeof obj.data !== 'object')
     return { ok:false, error:'That file is not a Quantum Tradeworks backup.' };
+  const before = [];
   let restored = 0;
-  Object.entries(obj.data).forEach(([k, v]) => { store.write(k, v); restored++; });
+  for (const [k, v] of Object.entries(obj.data)) {
+    let prior = null;
+    try { prior = localStorage.getItem(STORE_PREFIX + k); } catch { /* storage unreadable: the write below is refused too */ }
+    if (!store.write(k, v)) {
+      let unrestored = 0;
+      before.reverse().forEach(([key, raw]) => {
+        try { if (raw === null) localStorage.removeItem(STORE_PREFIX + key); else localStorage.setItem(STORE_PREFIX + key, raw); }
+        catch { unrestored++; }
+      });
+      return { ok:false, restored:0, error: unrestored
+        ? `Not restored — this browser refused part of the backup (its storage is full or switched off), and ${unrestored} of the items already written could not be put back as they were.`
+        : 'Not restored — this browser refused part of the backup (its storage is full or switched off), so what it held before is left as it was.' };
+    }
+    before.push([k, prior]);
+    restored++;
+  }
   return { ok:true, restored };
 }
 
