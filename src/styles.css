@@ -1395,6 +1395,19 @@ table.dt .num, .num { overflow-wrap: normal; }
    "docume / nt exists". Here a table scrolls inside its wrapper instead, and a
    word breaks only where it cannot fit whole. */
 table.dt.register-dt td.caption { overflow-wrap: break-word; }
+/* A COLUMN OF ACTIONS STAYS IN VIEW. Whole words make the comparables register
+   as wide as its longest words, which depends on the reader's fonts: with
+   Inter it filled a 1440px card exactly, and with a wider fallback (Linux,
+   where CI runs) it ran 142px past the card, the Open button scrolled out of
+   sight. The last column is pinned to the right edge, as .pin holds the first
+   to the left, so the control each row exists for is reachable whatever the
+   fonts. */
+table.dt .pin-end {
+  position: sticky; right: 0; z-index: 1; background: var(--surface-2);
+  box-shadow: -1px 0 0 var(--line-2), -8px 0 10px -8px var(--ring);
+}
+table.dt thead .pin-end { z-index: 3; background: var(--surface-sunk); }
+table.dt tbody tr:hover .pin-end { background: color-mix(in srgb, var(--brand) 5%, var(--surface-2)); }
 
 /* --------------------------------------------------------------- footer */
 .footer { border-top: 1px solid var(--line); background: var(--surface); padding: var(--xxl) 0 var(--xl); margin-top: var(--xxl); }

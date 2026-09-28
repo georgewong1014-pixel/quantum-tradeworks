@@ -526,7 +526,25 @@ try {
         const w = td.textContent.split(/\\s+/).filter(Boolean).find(x => ctx.measureText(x).width > room + 1);
         if (w) broken.push(w);
       }
-      const fit = { table: Math.round(t.getBoundingClientRect().width), wrap: t.parentElement.clientWidth };
+      /* Whether the table fits its card depends on the reader's fonts: it
+         filled 1440px exactly with Inter and ran 142px past it on Linux, where
+         CI runs. What must hold everywhere is that the Open buttons, the
+         control each row exists for, stay in view: as the page draws, and
+         with the text widened past the card (letter-spacing), which a wider
+         font does on another machine. */
+      const openOut = () => {
+        const wr = t.parentElement.getBoundingClientRect();
+        return [...t.querySelectorAll('tbody button')].filter(bt => bt.textContent.trim() === 'Open')
+          .filter(bt => { const q = bt.getBoundingClientRect(); return q.right > wr.right + 1 || q.left < wr.left - 1; }).length;
+      };
+      const fit = { table: Math.round(t.getBoundingClientRect().width), wrap: t.parentElement.clientWidth, hidden: openOut() };
+      const widen = document.createElement('style');
+      widen.textContent = 'table.dt.register-dt { letter-spacing: .12em; }';
+      document.head.append(widen);
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      t.parentElement.scrollLeft = 0;
+      const wide = { table: Math.round(t.getBoundingClientRect().width), wrap: t.parentElement.clientWidth, hidden: openOut() };
+      widen.remove();
       /* A locality's recorded transactions, the same words in the same kind
          of cell, on the area screen. */
       navigate('/property/areas'); State.areaScreen = { ...State.areaScreen, city: 'kuching', editing: 'Tabuan' }; render();
@@ -541,12 +559,14 @@ try {
       }
       State.areaScreen.editing = null;
       clearWorkedExample(); ['registerLog', 'observations', 'areaProfiles'].forEach(x => localStorage.removeItem('vl.' + x));
-      return JSON.stringify({ broken: [...new Set(broken)].slice(0, 6), transactions: !!lt, ...fit });
+      return JSON.stringify({ broken: [...new Set(broken)].slice(0, 6), transactions: !!lt, ...fit, wide });
     })()`));
     if (!r.transactions) fail('the recorded-transactions table did not render for the worked example', r);
     else if (r.broken.length) fail('a register table breaks words mid-word at 1440px', r);
-    else if (r.table > r.wrap) fail(`the comparables table runs ${r.table - r.wrap}px past its card at 1440px`, r);
-    else console.log(`ok    the register tables keep their words whole, and the comparables table fits its card at 1440px (${r.table}/${r.wrap}px)`);
+    else if (r.hidden) fail(`${r.hidden} Open button(s) of the comparables register are out of view at 1440px`, r);
+    else if (!(r.wide.table > r.wide.wrap)) fail('widening the text did not push the comparables table past its card, so the pinned column went untested', r.wide);
+    else if (r.wide.hidden) fail(`with the text wider than the card (${r.wide.table}/${r.wide.wrap}px), ${r.wide.hidden} Open button(s) scrolled out of view`, r.wide);
+    else console.log(`ok    the register tables keep their words whole, and every Open button stays in view at 1440px — as drawn (${r.table}/${r.wrap}px) and with the text wider than the card (${r.wide.table}/${r.wide.wrap}px)`);
   }
   /* ---- end bugfix: grade-area-registers ---- */
 

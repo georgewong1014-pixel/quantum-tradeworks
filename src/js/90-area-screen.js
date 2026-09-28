@@ -557,8 +557,8 @@ VIEWS.comparables = () => {
   if (rows.length) {
     const t = el('table', { class: 'dt register-dt' });
     t.append(el('thead', {}, el('tr', {}, ['Standing', 'What', 'Amount', 'Area', 'Rate', 'Ownership',
-      'Where', 'Address or project', 'Dated', 'Source', ''].map(h =>
-      el('th', { style: 'text-align:left' }, h)))));
+      'Where', 'Address or project', 'Dated', 'Source', ''].map((h, i, all) =>
+      el('th', { class: i === all.length - 1 ? 'pin-end' : null, style: 'text-align:left' }, h)))));
     const tb = el('tbody');
     stand.forEach(({ o, s }) => {
       const kind = OBS_BY_ID[o.kind];
@@ -598,7 +598,9 @@ VIEWS.comparables = () => {
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.address || '—'),
         el('td', { class: 'caption', style: 'text-align:left' }, o.date || '—'),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.sourceRef || '—'),
-        el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm', id: obsOpenId(o),
+        /* Pinned to the right edge (.pin-end): the control each row exists for
+           stays in view when the table is wider than its card. */
+        el('td', { class: 'pin-end', style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm', id: obsOpenId(o),
           onclick: () => openObservationDrawer(o) }, 'Open')),
       ]));
     });
