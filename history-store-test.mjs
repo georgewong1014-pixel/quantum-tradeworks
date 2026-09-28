@@ -1056,5 +1056,125 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
 }
 /* ---- end bugfix: merge ingest ---- */
 
-console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
+/* ---- pine: tvimport ---- */
+/* TRADINGVIEW EXPORTS, DATED BY THE SESSION EACH BAR CLOSES. TradingView
+   stamps a daily bar at its session's opening. OANDA's gold day, like every
+   currency pair's, opens at 17:00 New York the evening before, so the
+   owner's export is stamped Sunday to Thursday: dated in the zone, Monday's
+   bar was a Sunday (refused as NON_SESSION_DAY) and the rest a day early.
+   Three shapes of stamp, on synthetic files whose sessions are worked out by
+   hand in the comments beside them; every file temporary, no network, no
+   personal data. */
+{
+  const TV = join(tmpdir(), `qt-tvimport-${process.pid}`);
+  await rm(TV, { recursive: true, force: true });
+  await mkdir(join(TV, 'exports'), { recursive: true });
+  const { eveningOpen, sessionToday } = await import('./ingest/history-store.mjs');
+  const { tradingViewName, isDailyInterval } = await import('./ingest/history-import.mjs');
+  const nodeT = (args) => run(process.execPath, args, { cwd: ROOT }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  const sec = (iso) => String(Date.parse(iso) / 1000);
+  try {
+    /* The session rule, from the engine's own market rows. */
+    const FX = E.scanMarket('FX');
+    check(FX.tz === 'America/New_York' && FX.close === '17:00' && !FX.open && eveningOpen(FX) === 17 * 60
+      && eveningOpen(E.scanMarket('US')) === null && eveningOpen(E.scanMarket('CRYPTO')) === null && eveningOpen(E.scanMarket(null)) === null
+      && eveningOpen({ tz: 'America/New_York', open: '18:00', close: '17:00' }) === 18 * 60,
+      'pine tvimport: a market whose day opens the evening before is read off its session — FX (no open, a 17:00 New York close) opens at 17:00; New York stocks, crypto and the default market open on the day itself; an open later than the close is an evening open too');
+    const inst = JSON.parse(readFileSync(join(ROOT, 'data/instruments.json'), 'utf8')).instruments;
+    check(marketOf('XAUUSD', inst) === 'FX' && marketOf('OANDA:XAUUSD', inst) === 'FX' && marketOf('GOLD', inst) === 'FX',
+      'pine tvimport: the registry puts OANDA\'s spot gold (XAUUSD, also OANDA:XAUUSD) on FX, the 24-hour session closing 17:00 New York — on COM it fell to the default market\'s UTC day');
+    /* 1790542800 is the owner's last stamp: Sunday 27 September 2026, 21:00
+       UTC = 17:00 New York (daylight time), the opening of Monday's session. */
+    const dated = (cell, market) => parseDateCell(cell, { tz: E.scanMarket(market).tz, session: E.scanMarket(market) }).date;
+    check(parseDateCell('1790542800', { tz: 'America/New_York' }).date === '2026-09-27' && dated('1790542800', 'FX') === '2026-09-28'
+      && dated('2026-09-27T17:00:00-04:00', 'FX') === '2026-09-28' && dated('2026-09-24T16:59:00-04:00', 'FX') === '2026-09-24',
+      'pine tvimport: the stamp 1790542800 (Sunday 17:00 New York) is Monday 28 September\'s bar on FX, as an epoch and as an ISO time with its offset; without the session it was the Sunday; 16:59 is still its own day');
+
+    /* Three exports named as TradingView names them, and the registry they are read against. */
+    const reg = join(TV, 'instruments.json');
+    await writeFile(reg, JSON.stringify({ instruments: [{ symbol: 'GLD', market: 'FX' }, { symbol: 'STK', market: 'US' }, { symbol: 'BTC', market: 'CRYPTO' }] }));
+    const csv = (stamps) => ['time,open,high,low,close,Plot,Volume,RSI', ...stamps.map((s, i) => `${sec(s)},${100 + i},${102 + i},${99 + i},${101 + i},5,${1000 + i},50`)].join('\n');
+    /* Gold, FX. Session by hand (New York wall clock; 17:00 or later is the next day):
+         0 2026-01-04T22:00Z  Sun 17:00 EST        → Mon 2026-01-05
+         1 2026-01-06T05:00Z  Tue 00:00 EST        → Tue 2026-01-06 (a vendor's local midnight)
+         2 2026-01-07T00:00Z  midnight UTC         → Wed 2026-01-07 (Tue 19:00 EST: both rules agree)
+         3 2026-01-08T22:00Z  Thu 17:00 EST        → Fri 2026-01-09
+         4 2026-01-09T22:00Z  Fri 17:00 EST        → Sat 2026-01-10, refused NON_SESSION_DAY (never moved onto Monday)
+         5 2026-03-05T22:00Z  Thu 17:00 EST        → Fri 2026-03-06
+         6 2026-03-08T21:00Z  Sun 17:00 EDT (the day the clocks went forward) → Mon 2026-03-09
+         7 2026-09-24T20:59Z  Thu 16:59 EDT        → Thu 2026-09-24
+         8 2026-09-24T21:00Z  Thu 17:00 EDT        → Fri 2026-09-25
+         9 2026-09-27T21:00Z  Sun 17:00 EDT        → Mon 2026-09-28, still trading when saved (13:41 UTC Monday) */
+    const gold = ['2026-01-04T22:00:00Z', '2026-01-06T05:00:00Z', '2026-01-07T00:00:00Z', '2026-01-08T22:00:00Z', '2026-01-09T22:00:00Z',
+                  '2026-03-05T22:00:00Z', '2026-03-08T21:00:00Z', '2026-09-24T20:59:00Z', '2026-09-24T21:00:00Z', '2026-09-27T21:00:00Z'];
+    /* A New York stock stamped at its own 09:30 open is that day, Friday included:
+         2026-01-05T14:30Z Mon, 2026-01-09T14:30Z Fri, 2026-03-09T13:30Z Mon (EDT), 2026-09-25T13:30Z Fri,
+         and 2026-09-28T00:00Z (midnight UTC, the other convention) Mon 28 September. */
+    const stock = ['2026-01-05T14:30:00Z', '2026-01-09T14:30:00Z', '2026-03-09T13:30:00Z', '2026-09-25T13:30:00Z', '2026-09-28T00:00:00Z'];
+    /* Crypto at 00:00 UTC is that day, Saturday and Sunday included. */
+    const coin = ['2026-09-26T00:00:00Z', '2026-09-27T00:00:00Z', '2026-09-28T00:00:00Z'];
+    const files = { 'OANDA_GLD, 1D.csv': [gold, '2026-09-28T13:41:00Z'], 'NASDAQ_STK, 1D.csv': [stock, '2026-09-28T21:00:00Z'],
+                     'BINANCE_BTC, 1D.csv': [coin, '2026-09-28T13:41:00Z'], 'OANDA_GLD, 1W.csv': [['2026-09-20T21:00:00Z'], '2026-09-28T13:41:00Z'] };
+    for (const [name, [stamps, saved]] of Object.entries(files)) {
+      const p = join(TV, 'exports', name);
+      await writeFile(p, csv(stamps));
+      await utimes(p, new Date(saved), new Date(saved));        /* the export's only capture time is its file's */
+    }
+    const out = join(TV, 'history.json');
+    const r = await nodeT([join(ROOT, 'ingest/history-import.mjs'), '--dir', join(TV, 'exports'), '--instruments', reg, '--out', out]);
+    const h = existsSync(out) ? JSON.parse(await readFile(out, 'utf8')) : { series: {}, ohlc: {}, volume: {}, meta: {} };
+    const days = (s) => Object.keys(h.series[s] || {}).sort();
+    const rej = existsSync(rejectsPathFor(out)) ? JSON.parse(await readFile(rejectsPathFor(out), 'utf8')).rejects : [];
+    check(same(days('GLD'), ['2026-01-05', '2026-01-06', '2026-01-07', '2026-01-09', '2026-03-06', '2026-03-09', '2026-09-24', '2026-09-25', '2026-09-28'])
+      && rej.length === 1 && rej[0].symbol === 'GLD' && rej[0].date === '2026-01-10' && same(rej[0].codes, ['NON_SESSION_DAY'])
+      && days('GLD').every(d => [1, 2, 3, 4, 5].includes(E.scanWeekday(d))),
+      'pine tvimport: gold on FX — a stamp at or after 17:00 New York is the next day\'s session (Sunday → Monday, Thursday → Friday, across both clock changes), one before it is its own day, and a Friday 17:00 stamp opens a Saturday that is refused, not filed on Monday',
+      { gld: days('GLD'), rej, err: r.stderr.slice(-300) });
+    check(same(days('STK'), ['2026-01-05', '2026-01-09', '2026-03-09', '2026-09-25', '2026-09-28']) && same(days('BTC'), ['2026-09-26', '2026-09-27', '2026-09-28']),
+      'pine tvimport: a New York stock stamped at its own 09:30 open is that day (Friday stays Friday), midnight UTC its UTC date, and crypto at 00:00 UTC that day, weekend included',
+      { stk: days('STK'), btc: days('BTC') });
+    /* Row 9 of the gold file: open 109, high 111, low 108, close 110, volume 1009. */
+    check(h.series.GLD?.['2026-09-28'] === 110 && same(h.ohlc.GLD?.['2026-09-28'], [109, 111, 108]) && h.volume.GLD?.['2026-09-28'] === 1009
+      && !JSON.stringify(h).includes('"Plot"') && !JSON.stringify(h).includes('"RSI"') && same(Object.keys(h.series).sort(), ['BTC', 'GLD', 'STK']),
+      'pine tvimport: each bar\'s open, high, low, close and volume are stored under its session; the indicator columns are not, and the symbol is read from TradingView\'s file name ("OANDA_GLD, 1D.csv" is GLD)',
+      { close: h.series.GLD?.['2026-09-28'], ohlc: h.ohlc.GLD?.['2026-09-28'], vol: h.volume.GLD?.['2026-09-28'], syms: Object.keys(h.series) });
+    const at = h.meta.GLD?.['2026-09-28']?.at;
+    check(at === '2026-09-28T13:41:00.000Z' && E.scanBarStatus('FX', '2026-09-28', at) === 'PROVISIONAL' && E.scanBarStatus('FX', '2026-09-25', h.meta.GLD['2026-09-25'].at) === 'FINAL'
+      && E.scanBarStatus('US', '2026-09-28', h.meta.STK?.['2026-09-28']?.at) === 'FINAL' && E.scanBarStatus('CRYPTO', '2026-09-28', h.meta.BTC?.['2026-09-28']?.at) === 'PROVISIONAL',
+      'pine tvimport: the file\'s modification time is each bar\'s capture time, so gold\'s Monday bar, saved at 09:41 New York, is PROVISIONAL and the Friday before it FINAL; the stock saved after its close is FINAL',
+      { at, stk: h.meta.STK?.['2026-09-28'], btc: h.meta.BTC?.['2026-09-28'] });
+    const line = (sym) => r.stdout.split('\n').find(l => l.startsWith(sym.padEnd(10)) && /points/.test(l)) || '';
+    check(r.code === 2 && /volume kept \(a tick count\)/.test(line('GLD')) && /volume kept(?! \()/.test(line('STK')) && /volume    : a tick count for GLD — /.test(r.stdout) && !/tick count for [^\n]*STK/.test(r.stdout)
+      && /dated by session: 7 stamp\(s\) at 17:00 America\/New_York or later/.test(r.stdout)
+      && /last bar 2026-09-28 PROVISIONAL/.test(r.stdout) && /last bar 2026-09-28 FINAL/.test(r.stdout)
+      && /not stored: 2 other column\(s\) — the chart's indicators \(Plot, RSI\)/.test(r.stdout)
+      && /GLD +FAILED — the file name says a 1W export/.test(r.stdout),
+      'pine tvimport: the output says gold\'s volume is a tick count (a spot metals broker\'s count of price changes) and the stock\'s is not, how many stamps were dated to the next session, each file\'s last bar and its status, the indicator columns left out, and refuses a weekly export by its name',
+      r.stdout.slice(0, 1500));
+    check(same(tradingViewName('OANDA_XAUUSD, 1D.csv'), { exchange: 'OANDA', symbol: 'XAUUSD', interval: '1D' }) && tradingViewName('FX_IDC_USDMYR, 1D (1).csv')?.symbol === 'USDMYR'
+      && tradingViewName('KLSE.csv') === null && isDailyInterval('1D') && isDailyInterval('D') && !isDailyInterval('1W') && !isDailyInterval('240'),
+      'pine tvimport: TradingView\'s file name gives the exchange, the symbol and the interval (an exchange may hold an underscore; a browser\'s " (1)" is dropped); any other name is not read as one');
+
+    /* FUTURE is judged by the session that has begun. At Sunday 18:00 New York
+       (22:00 UTC; Monday 06:00 in Kuala Lumpur) FX trades Monday's session;
+       New York stocks are still on Sunday. */
+    const now = '2026-09-27T22:00:00Z';
+    const hf = emptyHistory();
+    const mf = mergeBars(hf, 'GLD', [{ date: '2026-09-28', close: 10 }, { date: '2026-09-29', close: 10 }], { source: 'import:x.csv', capturedAt: now, market: 'FX', E, now });
+    const mu = mergeBars(hf, 'STK', [{ date: '2026-09-28', close: 10 }], { source: 'import:y.csv', capturedAt: now, market: 'US', E, now });
+    check(mf.added === 1 && hf.series.GLD?.['2026-09-28'] === 10 && same(mf.rejected.map(x => [x.date, x.codes]), [['2026-09-29', ['FUTURE']]])
+      && same(mu.rejected.map(x => x.codes), [['FUTURE']])
+      && sessionToday(E, 'FX', '2026-09-27T20:59:00Z') === '2026-09-27' && sessionToday(E, 'FX', '2026-09-27T21:00:00Z') === '2026-09-28'
+      && sessionToday(E, 'CRYPTO', now) === '2026-09-27' && sessionToday(E, 'US', now) === '2026-09-27',
+      'pine tvimport: an export or reading made at 18:00 New York on a Sunday keeps Monday\'s in-progress FX bar — the store refused it as FUTURE though readingSession dates it there — and still refuses Tuesday, and a New York stock\'s Monday',
+      { gld: mf.rejected, stk: mu.rejected });
+  } catch (e) {
+    fail('pine tvimport: the test threw', e.stack || e.message);
+  } finally {
+    await rm(TV, { recursive: true, force: true }).catch(() => {});
+  }
+}
+/* ---- end pine: tvimport ---- */
+
+console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

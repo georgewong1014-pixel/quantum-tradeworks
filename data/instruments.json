@@ -1,6 +1,7 @@
 {
   "note": "Identity for instruments that are tracked by price alone. Edit freely — this is a plain list, not generated. Bursa stock codes are transcribed from public listings and should be checked against your own broker before you rely on one; a wrong code silently attaches a price to the wrong company.",
   "aliasNote": "Vendors name the same index several ways — the S&P 500 is SPX, US500 or ES1! depending on where you look. Aliases are matched case-insensitively so a registry entry is found whichever form your watchlist shows.",
+  "sessionNote": "An entry's market is the session its bars are dated and made final by (the engine's SCAN_MARKETS). Spot gold, XAUUSD as OANDA quotes it, is on FX: like every currency pair it trades from 17:00 New York on Sunday to 17:00 New York on Friday, each day opening at 17:00 the evening before, so a TradingView export's Sunday 17:00 stamp is Monday's bar and a bar is final at 17:00 New York. On COM, which the engine does not hold, it fell to the default market (the UTC day), where that Monday bar was a Sunday. The other commodities stay on COM.",
   "fundamentals": {
     "MY": "Bursa Malaysia publishes no machine-readable financial statements, and no Malaysian issuer files XBRL anywhere this product can reach — so these are tracked by price and trend only. No valuation, no scorecard, no coverage figure. That gap is the single largest one in this product, and it is a licensing and disclosure problem rather than an engineering one.",
     "index": "not applicable — an index has no financial statements",
@@ -726,11 +727,12 @@
     {
       "symbol": "XAUUSD",
       "name": "Gold (spot, USD/oz)",
-      "market": "COM",
+      "market": "FX",
       "kind": "commodity",
       "aliases": [
         "GOLD",
-        "GC1!"
+        "GC1!",
+        "OANDA:XAUUSD"
       ]
     },
     {
