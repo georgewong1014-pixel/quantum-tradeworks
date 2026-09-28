@@ -28,6 +28,16 @@ function sv(tag, attrs = {}, text) {
   return n;
 }
 
+/* The rendered width of a line of chart text, for a layout that has to know
+   whether a label fits before it is placed. SVG text does not wrap, and an
+   estimate from the character count is wrong by a word either way. */
+let textCanvas = null;
+function textWidth(str, px, weight = 400) {
+  textCanvas ??= document.createElement('canvas').getContext('2d');
+  textCanvas.font = `${weight} ${px}px ${getComputedStyle(document.body).fontFamily}`;
+  return textCanvas.measureText(String(str ?? '')).width;
+}
+
 /* Axis ticks land on clean numbers (0 / 500 / 1,000), never on raw data bounds. */
 function niceTicks(lo, hi, count = 4) {
   const span = (hi - lo) || Math.abs(hi) || 1;
@@ -461,10 +471,13 @@ function timeframeScoreBars(container, tfs, floors) {
   });
   container.append(notes);
 
+  /* "Clears" through the engine's test as well, the one the bars and the gate
+     list use. The table compared the unrounded score, so a 59.5 against a
+     floor of 60 read "60 · 60 · no" in the table and clear on the bar above. */
   container.append(tableTwin('Show the table view',
     ['Timeframe', 'Weight', 'Score', 'Floor', 'Clears', 'Coverage'],
     rows.map(r => [r.t.label, `${Math.round(r.t.w * 100)}%`, String(Math.round(r.x.score)),
-      String(r.floor), r.x.score >= r.floor ? 'yes' : 'no',
+      String(r.floor), qttiClearsFloor(r.x.score, r.floor) ? 'yes' : 'no',
       `${Math.round(r.x.coverage * 100)}%`])));
 }
 
@@ -533,8 +546,12 @@ function workBar(kind, onReset) {
     const suggested = def.name();
     const name = prompt(`Name this ${def.label.toLowerCase()}`, suggested);
     if (name === null) return;
+    /* saveWork hands back the record whether or not the browser kept it, so
+       the confirmation asks the store: with the quota full this said
+       'Saved' over a record that was never written. */
+    const refused = store.failed;
     const rec = saveWork(kind, name.trim() || suggested);
-    render(); toast(rec ? `Saved "${rec.name}"` : 'Could not save');
+    render(); toast(store.failed !== refused ? STORE_REFUSED : rec ? `Saved "${rec.name}"` : 'Could not save');
   } }, 'Save'));
 
   if (saved.length) {
@@ -546,12 +563,15 @@ function workBar(kind, onReset) {
         else { e.target.value = ''; toast('That record holds no figures to restore — it was saved before anything had been entered.'); }
       } });
     sel.append(el('option', { value: '' }, `Resume… (${saved.length})`));
-    saved.forEach(r => sel.append(el('option', { value: r.id }, `${r.name} · ${r.savedAt}`)));
+    /* savedAt is written from toISOString — a UTC clock time — and was shown
+       bare, so a record saved at 15:28 in Kuching read 07:28. */
+    saved.forEach(r => sel.append(el('option', { value: r.id }, `${r.name} · ${fmtSaved(r.savedAt)}`)));
     row.append(sel);
 
     row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+      const refused = store.failed;
       const copy = duplicateWork(saved[0].id);
-      render(); toast(copy ? `Duplicated "${saved[0].name}"` : 'Nothing to duplicate');
+      render(); toast(store.failed !== refused ? STORE_REFUSED : copy ? `Duplicated "${saved[0].name}"` : 'Nothing to duplicate');
     } }, 'Duplicate latest'));
   }
 
@@ -561,7 +581,11 @@ function workBar(kind, onReset) {
   } }, 'Reset'));
 
   row.append(el('a', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto',
-    href: href('/my/data'), onclick: (e) => { e.preventDefault(); navigate('/my/data'); } }, 'Back up everything'));
+    /* A modified click is the browser's, as on every other in-app link: a
+       Ctrl- or Shift-click here was swallowed and navigated the current tab
+       instead of opening the backup page beside the tool. */
+    href: href('/my/data'), onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+      e.preventDefault(); navigate('/my/data'); } }, 'Back up everything'));
 
   bar.append(row);
   bar.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
@@ -610,9 +634,17 @@ function columnChart(container, { cats, series, fmt = v => fmtNum(v, 1), title =
     const H = 210, padL = 52, padR = 12, padT = 14, padB = 30;
     const iw = W - padL - padR, ih = H - padT - padB;
     const all = series.flatMap(s => s.values).filter(isNum);
+    /* NOTHING TO DRAW IS SAID, NOT DRAWN. 32 of the 119 filed companies hold
+       no share count, and their Ownership tab drew this chart from nulls: both
+       ends of the scale at 0, every y a division by zero, and the axis and
+       its label written as NaN — a console error for each, and an empty
+       frame where the absence belonged. An all-zero series has the same flat
+       scale, so the span is floored at 1 as the waterfall's is. */
+    if (!all.length) return el('p', { class: 'caption', style: 'padding:var(--sm) 0' },
+      'No figure is held for any period shown, so there is nothing to draw.');
     const nt = niceTicks(Math.min(0, ...all), Math.max(0, ...all) * 1.06, 4);
     const top = nt.hi, bot = nt.lo;
-    const y = v => padT + ih - ((v - bot) / (top - bot)) * ih;
+    const y = v => padT + ih - ((v - bot) / ((top - bot) || 1)) * ih;
     const band = iw / cats.length;
     const GAP = 2;                                  /* the surface gap */
     const barW = Math.max(3, Math.min(24, (band - 18) / series.length - GAP));
@@ -871,8 +903,10 @@ function treemap(container, { items, valueFmt, onPick, full = 8, pickNote = 'Sel
       if (w > 52 && h > 30) {
         const a = sv('text', { x: t.x + GAP / 2 + 7, y: t.y + GAP / 2 + 17, fill: ink, 'font-size': Math.min(13, w / 4.6), 'font-weight': 640 });
         a.textContent = t.label; g.append(a);
+        /* Full strength: at .85 the figure blended toward its tile and fell to
+           3.85:1 on light --dn-4, under the floor the label above it clears. */
         if (h > 46) {
-          const b = sv('text', { x: t.x + GAP / 2 + 7, y: t.y + GAP / 2 + 33, fill: ink, 'font-size': Math.min(12, w / 5.6), opacity: .85, 'font-variant-numeric': 'tabular-nums' });
+          const b = sv('text', { x: t.x + GAP / 2 + 7, y: t.y + GAP / 2 + 33, fill: ink, 'font-size': Math.min(12, w / 5.6), 'font-variant-numeric': 'tabular-nums' });
           b.textContent = valueFmt(t.change); g.append(b);
         }
       }
@@ -900,7 +934,15 @@ function matrixChart(container, { grid, xSteps, ySteps, xLabel, yLabel, base, pr
     const cellW = Math.max(56, Math.min(110, (W - 96) / xSteps.length));
     const cellH = 40, padL = 92, padT = 42;
     const H = padT + ySteps.length * cellH + 14;
-    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Sensitivity of value per share to two assumptions' });
+    /* A cell has a floor of 56px because its figure needs it, so five columns
+       and the row labels need 376px — more than a phone gives the card. The
+       grid was drawn into the card's width regardless and cut off: at 390px
+       the fifth column was gone and the fourth read "RM13.6". It is drawn
+       at the width it needs and scrolls sideways inside its card instead,
+       as a wide table does. */
+    const SW = Math.max(W, Math.ceil(padL + xSteps.length * cellW + 4));
+    const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${SW} ${H}`, role: 'img', tabindex: '0', 'aria-label': 'Sensitivity of value per share to two assumptions',
+      style: SW > W ? `width:${SW}px;max-width:none` : null });
 
     const xt = sv('text', { class: 'ax-label', x: padL + xSteps.length * cellW / 2, y: 13, 'text-anchor': 'middle', 'font-weight': 600 });
     xt.textContent = xLabel; s.append(xt);
@@ -940,7 +982,7 @@ function matrixChart(container, { grid, xSteps, ySteps, xLabel, yLabel, base, pr
         s.append(g);
       });
     });
-    return s;
+    return SW > W ? el('div', { class: 'chart-scroll', style: 'overflow-x:auto;max-width:100%' }, s) : s;
   });
 }
 
@@ -953,7 +995,16 @@ function tornadoChart(container, { drivers, fmt = v => withSign(v),
   note = 'Change in base-case model estimate per share',
   spanFmt = (v) => `\u00b1${fmtNum(v, 1)}%` }) {
   chartHost(container, (W) => {
-    const rowH = 34, padL = Math.min(190, W * 0.38), padR = 46, padT = 8;
+    /* A LABEL THAT DOES NOT FIT ITS COLUMN GOES ABOVE ITS BAR.
+       The label column is 38% of the width, which on a phone is 106px, and
+       SVG text does not wrap: at 360px "Terminal operating margin" began
+       47px left of the chart and read "erminal operating margin", with the
+       card edge cutting it. Measured, not guessed — when the longest label
+       does not fit beside the bars, every label takes its own line above its
+       bar, and the bars take the full width. */
+    const colL = Math.min(190, W * 0.38);
+    const stacked = Math.max(0, ...drivers.map(d => textWidth(d.label, 12))) + 14 > colL;
+    const rowH = stacked ? 46 : 34, padL = stacked ? 0 : colL, padR = 46, padT = 8;
     const H = padT + drivers.length * rowH + 8;
     const iw = W - padL - padR, cx = padL + iw / 2;
     const max = Math.max(...drivers.map(d => d.span), 1);
@@ -961,7 +1012,7 @@ function tornadoChart(container, { drivers, fmt = v => withSign(v),
     s.append(sv('line', { class: 'ax-line', x1: cx, x2: cx, y1: padT, y2: H - 8 }));
 
     drivers.forEach((d, i) => {
-      const y = padT + i * rowH + 7;
+      const y = padT + i * rowH + 7 + (stacked ? 14 : 0);
       const h = 16, r = 4;
       const bar = (v, varName) => {
         if (!isNum(v) || Math.abs(v) < 0.01) return;
@@ -976,12 +1027,12 @@ function tornadoChart(container, { drivers, fmt = v => withSign(v),
       bar(d.hi, d.hi >= 0 ? '--up-4' : '--dn-4');
       bar(d.lo, d.lo >= 0 ? '--up-4' : '--dn-4');
 
-      const lbl = sv('text', { class: 'ax-label', x: padL - 12, y: y + 12, 'text-anchor': 'end', fill: cssVar('--ink-2'), 'font-size': 11.5 });
+      const lbl = sv('text', { class: 'ax-label', x: stacked ? 0 : padL - 12, y: stacked ? y - 5 : y + 12, 'text-anchor': stacked ? 'start' : 'end', fill: cssVar('--ink-2'), 'font-size': 11.5 });
       lbl.textContent = d.label; s.append(lbl);
       const val = sv('text', { class: 'ax-label', x: W - 8, y: y + 12, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600 });
       val.textContent = spanFmt(d.span); s.append(val);
 
-      const hit = sv('rect', { x: 0, y: y - 6, width: W, height: rowH - 2, fill: 'transparent' });
+      const hit = sv('rect', { x: 0, y: stacked ? y - 20 : y - 6, width: W, height: rowH - 2, fill: 'transparent' });
       hit.addEventListener('pointermove', e => showTip(
         `<div class="t-title">${esc(d.label)}</div>
          <div class="t-row"><span>+${esc(d.stepLabel || (d.unit === 'pp' ? fmtNum(d.step, 2) + ' pp' : d.unit))}</span><b>${fmt(d.hi)}</b></div>

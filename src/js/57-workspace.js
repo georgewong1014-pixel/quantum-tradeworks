@@ -121,10 +121,14 @@ function workspaceItems() {
 }
 
 const WS_STATUS_CLASS = { current: 'chip chip-ok', model: 'chip chip-warn', data: 'chip chip-warn', both: 'chip chip-warn', unstamped: 'chip' };
+/* Every clock time saved here comes from toISOString, so it is UTC in both of
+   its forms — the ISO one, and the tool snapshot's "2026-09-28 07:28", which
+   was printed with no zone and read eight hours early in Malaysia. A bare
+   date has no clock time to place. */
 const fmtSaved = (v) => {
   if (!v) return 'date not recorded';
   const s = String(v);
-  return s.length > 10 ? `${s.slice(0, 16).replace('T', ' ')}${s.includes('T') ? ' UTC' : ''}` : s;
+  return s.length > 10 ? `${s.slice(0, 16).replace('T', ' ')} UTC` : s;
 };
 
 VIEWS.workspace = () => {
@@ -177,7 +181,15 @@ VIEWS.workspace = () => {
   const q = el('div', { class: 'field ws-search' });
   q.append(el('label', { for: 'ws-q' }, 'Company or name'));
   q.append(el('input', { class: 'input', id: 'ws-q', type: 'search', value: W.q, placeholder: 'AAPL, Maybank, deal…', autocomplete: 'off',
-    oninput: e => { W.q = e.target.value; renderKeepFocus(); } }));
+    /* The re-render replaces the field, and focus alone put the caret back at
+       the start: every keystroke after the first landed in front of the last,
+       so typing "alpha" searched for "ahpla". The caret goes back where it was. */
+    oninput: e => {
+      const at = e.target.selectionStart;
+      W.q = e.target.value; renderKeepFocus();
+      const f = document.getElementById('ws-q');
+      if (f && at != null) f.setSelectionRange(at, at);
+    } }));
   bar.append(el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:flex-end' }, [seg, q]));
   bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     `${all.length} saved item${all.length === 1 ? '' : 's'}${moved ? `; ${moved} saved under a model or data version this build no longer carries` : '; none saved under a model or data version this build has since replaced'}.`));
@@ -197,15 +209,31 @@ VIEWS.workspace = () => {
   list.append(el('li', { class: 'ws-row ws-head', 'aria-hidden': 'true' }, [
     el('span', {}, 'Item'), el('span', {}, 'Saved'), el('span', {}, 'Calculation and data versions'), el('span', {}, 'Status'), el('span', {}, ''),
   ]));
-  shown.forEach(i => {
+  shown.forEach((i, idx) => {
     const status = el('span', { class: WS_STATUS_CLASS[i.diff.status] || 'chip', title: i.diff.text }, i.diff.label);
     const acts = el('div', { class: 'ws-acts' });
     acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
     (i.extra || []).forEach(([label, path]) => acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(path),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label)));
-    if (i.duplicate) acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { i.duplicate(); render(); toast('Duplicated'); } }, 'Duplicate'));
+    /* Confirmed only if the browser kept it: a refused write left the list as
+       it was under a toast that said otherwise. And focus is put back: the
+       re-render destroyed the button that was pressed and dropped focus on
+       <body>, so the next Tab started from the top of the page. A duplicate
+       returns to its own Duplicate button; a deletion to the Open button of
+       the row that took its place, or the search field when none is left. */
+    const kept = (act, done, refocus) => {
+      const refused = store.failed; act(); render(); refocus();
+      toast(store.failed !== refused ? STORE_REFUSED : done);
+    };
+    if (i.duplicate) acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `ws-dup-${i.key}`,
+      onclick: () => kept(i.duplicate, 'Duplicated', () => document.getElementById(`ws-dup-${i.key}`)?.focus()) }, 'Duplicate'));
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Delete ${i.name}`,
-      onclick: () => { if (!confirm(`Delete "${i.name}"? This browser holds the only copy.`)) return; i.remove(); render(); toast('Deleted'); } }, 'Delete'));
+      onclick: () => { if (!confirm(`Delete "${i.name}"? This browser holds the only copy.`)) return;
+        kept(i.remove, 'Deleted', () => {
+          const opens = $$('#views .ws-row .ws-acts > .btn-primary');
+          const next = opens[Math.min(idx, opens.length - 1)] || document.getElementById('ws-q');
+          if (next) next.focus(); else focusMain();
+        }); } }, 'Delete'));
     list.append(el('li', { class: 'ws-row' }, [
       el('div', { class: 'ws-name' }, [
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [

@@ -744,7 +744,13 @@ table.dt thead th.chg { color: var(--ink-3); }
 }
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(27,79,204,.32), 0 14px 28px -10px rgba(27,79,204,.55); }
 .btn-primary:active { transform: translateY(0); }
-:root[data-theme="dark"] .btn-primary, html:where(:not([data-theme="light"])) .btn-primary { color: #0A1A33; }
+/* Dark only: an explicit dark theme, or no theme chosen and the OS dark — the
+   .chip-my rule's form. The first selector list also carried
+   `html:where(:not([data-theme="light"]))`, which is every visitor who has not
+   picked a theme, light OS included, and it out-ranks the #fff above: every
+   primary button on a first visit printed #0A1A33 on the light brand blue,
+   2.5:1 on #1B4FCC. White there is 6.9:1. */
+:root[data-theme="dark"] .btn-primary { color: #0A1A33; }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .btn-primary { color: #0A1A33; } }
 
 .btn-ghost { background: var(--surface-2); border-color: var(--line); color: var(--ink-2); }
@@ -1382,7 +1388,10 @@ table.dt .num, .num { overflow-wrap: normal; }
 @media (max-width: 940px) { .home-split { grid-template-columns: minmax(0, 1fr); } }
 
 /* Sticky side rails, disabled once the layout stacks. */
-.rail-sticky { align-self: start; position: sticky; top: calc(var(--topbar-h) + 12px); }
+/* Under the topbar as it is measured (--topbar-live), not the 60px single-row
+   design value: from 1041 to 1220px the topbar wraps to two rows, 101px, and a
+   rail stuck at 72px hid its first 29px under it. */
+.rail-sticky { align-self: start; position: sticky; top: calc(var(--topbar-live, var(--topbar-h)) + 12px); }
 @media (max-width: 1040px) { .rail-sticky { position: static; } }
 /* Set by render() when the rail is taller than the viewport below the topbar:
    a stuck rail that does not fit can never show its bottom, and Tab lands
@@ -1415,8 +1424,14 @@ table.dt .num, .num { overflow-wrap: normal; }
 @media (max-width: 900px) { .thesis-layout { grid-template-columns: minmax(0, 1fr); } }
 
 /* Sticky company identity + tabs on the research page. */
+/* It comes to rest under the topbar as measured. --topbar-h is the 60px
+   single-row design value, but from 781 to 1220px the nav wraps under the
+   brand and the bar is 101px: stuck at 59px, the strip's identity row — the
+   ticker, the price and the section jump — sat underneath the topbar at
+   1024px, focusable and invisible. Below 781px the rule further down puts it
+   at 0 over the topbar instead. */
 .ticker-sticky {
-  position: sticky; top: calc(var(--topbar-h) - 1px); z-index: 25;
+  position: sticky; top: calc(var(--topbar-live, var(--topbar-h)) - 1px); z-index: 25;
   background: color-mix(in srgb, var(--plane) 92%, transparent);
   backdrop-filter: saturate(1.4) blur(12px);
   margin: 0 calc(var(--xl) * -1) var(--lg);

@@ -359,5 +359,25 @@ if (RELEASE && RELEASE_PHASE === 3) {
   if (!blocked.length && !open.length) ok('every Phase 3 P0 row is complete, in an operational state, with its checks named');
 }
 
+/* ---- bugfix: shell ---- */
+/* A personal page is disallowed at every address that opens it. robots.txt
+   keeps /my/ out of the index and says an alias of a /my/ page goes with it
+   — /app/watchlists did — but /app/workspace, the alias of /my/workspace
+   (everything saved in this browser), was left crawlable. A view whose own
+   address is under /my/ must be disallowed under every route to it. */
+{
+  const robots = existsSync('robots.txt') ? read('robots.txt') : '';
+  const dis = [...robots.matchAll(/^Disallow:\s*(\S+)/gmi)].map(m => m[1]);
+  const covered = (p) => dis.some(d => p === d || p.startsWith(d.endsWith('/') ? d : `${d}/`) || (d.endsWith('/') && p === d.slice(0, -1)));
+  const home = (view) => ROUTES.find(r => r.view === view && !r.alias && !r.path.includes(':'))?.path || '';
+  const personal = [...new Set(ROUTES.map(r => r.view))].filter(v => home(v).startsWith('/my/'));
+  const paths = ROUTES.filter(r => personal.includes(r.view)).map(r => r.path);
+  const bad = paths.filter(p => !covered(p)).map(p => `${p} opens a personal page and is not disallowed`);
+  if (personal.length < 5) bad.push(`only ${personal.length} views found under /my/ — the route table changed shape`);
+  if (bad.length) fail('robots.txt keeps every address of a personal page out of crawlers', bad);
+  else ok(`robots.txt keeps every address of a personal page out of crawlers — ${paths.length} routes to ${personal.length} views whose own address is under /my/`);
+}
+/* ---- end bugfix: shell ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} register rules hold`);
 process.exitCode = failures ? 1 : 0;

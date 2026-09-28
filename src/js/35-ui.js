@@ -180,11 +180,16 @@ let lastFocus = null, closeTimer = null, closingBack = null;
    now cancels the pending close and inherits the element that close would have
    handed focus back to, because the button that opened this drawer sits in the
    body about to be replaced. */
+/* A drawer that repaints ITSELF — a metric's explanation switching depth, say —
+   opens again while already open, and its opener is still the one to go back
+   to. Taking document.activeElement then recorded the depth button inside the
+   drawer, which the new body replaces, so closing it handed focus to a
+   detached node and dropped it on <body>. */
 function openDrawer(title, node) {
   if (closeTimer) {
     clearTimeout(closeTimer); closeTimer = null;
     lastFocus = closingBack; closingBack = null;
-  } else lastFocus = document.activeElement;
+  } else if (drawer.hidden || !drawer.contains(document.activeElement)) lastFocus = document.activeElement;
   drawerTitle.textContent = title;
   drawerBody.replaceChildren(node);
   drawer.hidden = false;
@@ -426,7 +431,11 @@ const ROUTES = [
   { path: '/options',             view: 'wheel',     title: 'US Options Cash Wheel' },
   { path: '/my/wheel',            view: 'wheel',     title: 'US Options Cash Wheel' },
   { path: '/my/options',          view: 'wheel',     title: 'US Options Cash Wheel' },
-  { path: '/trading-index',       view: 'tradingIndex', title: 'QT Trading Index' },
+  /* The short form is an alias, as sitemap.xml has always said: the page's
+     address is /research/trading-index, in the section it belongs to.
+     Unmarked, it was the view's first row, so all three addresses named
+     /trading-index as their canonical — the one the sitemap leaves out. */
+  { path: '/trading-index',       view: 'tradingIndex', title: 'QT Trading Index', alias: true },
   { path: '/research/trading-index', view: 'tradingIndex', title: 'QT Trading Index' },
   /* §18.1 asks for /learn/trading-index as well. It resolves to the same view
      rather than a second page: the methodology is on the page beside the thing
@@ -590,7 +599,13 @@ function canonicalPath(route) {
     const p = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
     return p.replace(/\/+$/, '') || '/';
   }
-  const same =ROUTES.find(r => !r.path.includes(':') && r.view === route.view && (r.tab || null) === (route.tab || null));
+  /* Never an alias row. The brief's aliases sit ABOVE the canonical rows (so
+     that matchRoute reads them first), and go() already skips them for that
+     reason; this lookup did not, so /compare named /app/equities/compare as
+     its canonical, /methodology named /equities/methodology, and
+     /my/watchlists named /app/watchlists — an address robots.txt disallows. */
+  const fits = (r) => !r.path.includes(':') && r.view === route.view && (r.tab || null) === (route.tab || null);
+  const same = ROUTES.find(r => !r.alias && fits(r)) || ROUTES.find(fits);
   return same ? same.path : route.path;
 }
 
@@ -977,8 +992,13 @@ function bootSkeleton() {
   const card = el('div', { class: 'card' });
   card.append(el('p', { class: 'eyebrow' }, 'Loading filings'));
   card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, 'Reading the audited statements'));
+  /* Loading from this site, not from EDGAR. The statements were retrieved from
+     SEC EDGAR when the dataset was built and ship in data/us.json; the page
+     cannot reach sec.gov at all (the policy allows connections to this origin
+     only), so "being fetched from SEC EDGAR" described a request that never
+     happens and made a stored snapshot sound live. */
   card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;max-width:60ch' },
-    'Annual statements for the US companies are being fetched from SEC EDGAR. This page waits for them '
+    'The US companies’ annual statements, retrieved from SEC EDGAR when this dataset was built, are loading from this site. This page waits for them '
     + 'rather than showing the illustrative sample first — a sample company and a filed one can share a '
     + 'ticker, and the sample carries a price the filed company does not have.'));
   const bars = el('div', { style: 'display:flex;flex-direction:column;gap:10px;margin-top:var(--lg)' });
@@ -1065,9 +1085,18 @@ function render() {
          top of the page. The observer alone misses a jump straight from
          "past" to "not yet reached" (Home, a back-to-top link, restored
          scroll), since neither state intersects; the scroll check catches it. */
-      const edge = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) + 8;
+      /* Where the strip comes to rest, when that is below the 60px design
+         height: from 781 to 1220px it sticks under a two-row, 101px topbar,
+         and measured against 60px it read as not yet stuck for the 40px it
+         was already stuck. At top:0 (a phone) the edge stays 68px, as it was. */
+      const edgeNow = () => Math.max(parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')),
+        parseFloat(getComputedStyle(strip).top) || 0) + 8;
+      const edge = edgeNow();
+      /* Read at each check rather than once: the topbar's measured height
+         (--topbar-live, which the strip's top follows) lands a frame after
+         the first render. */
       const check = () => {
-        const stuck = sentinel.isConnected && sentinel.getBoundingClientRect().bottom < edge;
+        const stuck = sentinel.isConnected && sentinel.getBoundingClientRect().bottom < edgeNow();
         strip.classList.toggle('is-stuck', stuck);
         /* The phone topbar steps aside while the strip is stuck (styles.css). */
         document.documentElement.classList.toggle('strip-stuck', stuck);

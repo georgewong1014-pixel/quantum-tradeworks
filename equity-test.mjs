@@ -4462,6 +4462,308 @@ try {
   }
   /* ---- end integration: round 3 ---- */
 
+  /* ---- bugfix: shell ---- */
+  /* THE SHELL: search, drawer, plans, charts, storage, theme and the router's
+     legacy links, each checked against the defect it had. */
+  const shellWait = `const w = (ms) => new Promise(r => setTimeout(r, ms));`;
+  {
+    /* A search closed and reopened inside its 200ms fade: the close's timer
+       hid the new box and emptied it while searchOpen said it was open. */
+    const r = await evaluate(`(async () => {
+      ${shellWait}
+      navigate('/learn'); await w(60);
+      openSearch(); await w(250); closeSearch(); openSearch(); await w(350);
+      const out = { open: searchOpen, hidden: searchModal.hidden, results: searchResults.children.length, focus: document.activeElement === searchInput };
+      closeSearch(); await w(260);
+      return out;
+    })()`);
+    if (!r.open || r.hidden || !r.results || !r.focus) fail('shell: a search reopened while the last one is still fading stays open, filled and focused', r);
+    else ok(`shell: a search reopened while the last one is still fading stays open, filled and focused (${r.results} rows)`);
+  }
+  {
+    /* A drawer that repaints itself (a metric's explanation changing depth)
+       recorded its own button as the opener, so closing it lost focus. And
+       Escape with the search open over a drawer closed both. */
+    const r = await evaluate(`(async () => {
+      ${shellWait}
+      const depth0 = State.explainDepth;
+      navigate('/company/AAPL-SEC'); await w(150);
+      const opener = document.querySelector('main .metric-label');
+      if (!opener) return { missing: true };
+      opener.focus(); opener.click(); await w(350);
+      const btn = [...document.querySelectorAll('#drawerBody .segmented button')][2];
+      btn.focus(); btn.click(); await w(80);
+      closeDrawer(); await w(420);
+      const back = document.activeElement === opener;
+      setExplainDepth(depth0 || 'simple');
+      openDrawer('Check', el('div', {}, el('button', { id: 'bf-shell-inner', type: 'button' }, 'inside')));
+      await w(350);
+      document.getElementById('bf-shell-inner').focus();
+      openSearch(); await w(80);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await w(300);
+      const esc1 = { search: searchOpen, drawer: drawer.dataset.open, focus: document.activeElement?.id || document.activeElement?.tagName };
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await w(420);
+      return { back, esc1, esc2: drawer.dataset.open };
+    })()`);
+    const p = [];
+    if (r.missing) p.push('no metric label on /company/AAPL-SEC');
+    if (!r.missing && !r.back) p.push('closing a drawer that repainted itself did not return focus to the control that opened it');
+    if (!r.missing && (r.esc1.search || r.esc1.drawer !== '1' || r.esc1.focus !== 'bf-shell-inner')) p.push(`one Escape over a drawer should close only the search and return focus inside the drawer: ${JSON.stringify(r.esc1)}`);
+    if (!r.missing && r.esc2 !== '0') p.push('a second Escape did not close the drawer');
+    if (p.length) fail('shell: a drawer keeps its opener across a repaint, and Escape closes the top dialog only', p);
+    else ok('shell: a drawer keeps its opener across a repaint, and Escape closes the search over a drawer without closing the drawer');
+  }
+  {
+    /* A plan switch left a comparison of five under a page that said two. */
+    const r = await evaluate(`(() => {
+      const keep = { plan: State.plan, compare: State.compare.slice() };
+      State.plan = 'pro'; State.compare = ['AAPL-SEC', 'MSFT-SEC', 'NVDA-SEC', 'MAYBANK', 'PBBANK'];
+      setPlan('free');
+      const out = { n: State.compare.length, cap: lim('compare') };
+      State.plan = keep.plan; store.write('plan', keep.plan); State.compare = keep.compare; render();
+      return out;
+    })()`);
+    if (r.n > r.cap) fail('shell: switching to a lower plan clamps the comparison to its cap', r);
+    else ok(`shell: switching to a lower plan clamps the comparison to its cap (${r.n} of ${r.cap})`);
+  }
+  {
+    /* The report meter keyed on the UTC month. At 00:30 on the first of a
+       month in Kuala Lumpur it is still the last day of the old month in UTC,
+       so the old month's spent allowance still blocked the reader. */
+    await send('Emulation.setTimezoneOverride', { timezoneId: 'Asia/Kuala_Lumpur' }, sessionId);
+    let r;
+    try {
+      r = await evaluate(`(() => {
+        const keep = { plan: State.plan, log: JSON.stringify(State.reportLog) };
+        const M = new Date().toISOString().slice(0, 7);
+        const [y, m] = M.split('-').map(Number);
+        const firstLocal = new Date(Date.UTC(y, m, 1, 0, 30) - 8 * 3600e3);
+        State.plan = 'free';
+        State.reportLog = { month: M, ids: ['A', 'B', 'C', 'D', 'E'] };
+        const res = reportAllowed('F', firstLocal);
+        const out = { ok: res.ok, month: State.reportLog.month, utc: firstLocal.toISOString() };
+        State.plan = keep.plan; State.reportLog = JSON.parse(keep.log);
+        return out;
+      })()`);
+    } finally { await send('Emulation.setTimezoneOverride', { timezoneId: '' }, sessionId); }
+    if (!r.ok) fail('shell: the company-report meter resets on the reader\'s own first of the month', r);
+    else ok(`shell: the company-report meter resets on the reader's own first of the month (${r.utc} is ${r.month} in Kuala Lumpur)`);
+  }
+  {
+    /* The table under the timeframe bars judged the floor on the unrounded
+       score while the bars and the gates round it: 59.5 read "clear" above
+       and "no" below. And a column chart given no figure at all divided by a
+       zero span and wrote NaN into the axis — the Ownership tab of every
+       filed company without a share count. */
+    const r = await evaluate(`(() => {
+      const host = el('div', { style: 'width:600px' }); document.body.append(host);
+      const tf = (s) => ({ present: true, score: s, coverage: 1, unknown: [] });
+      timeframeScoreBars(host, { monthly: tf(59.5), weekly: tf(70), daily: tf(80) }, { monthly: 60, weekly: 50, daily: 40 });
+      const bar = /Monthly 60 against a floor of 60, clear/.test(host.querySelector('svg').getAttribute('aria-label'));
+      const cell = [...host.querySelectorAll('tbody tr')][0].children[4].textContent;
+      host.replaceChildren();
+      const nan = (n) => [...n.querySelectorAll('*')].filter(x => [...x.attributes].some(a => /NaN|Infinity/.test(a.value))).length;
+      columnChart(host, { cats: ['FY2023', 'FY2024'], series: [{ key: 'x', label: 'X', values: [null, null], varName: '--s1' }] });
+      const empty = { nan: nan(host), said: /nothing to draw/.test(host.textContent) };
+      host.replaceChildren();
+      columnChart(host, { cats: ['FY2023', 'FY2024'], series: [{ key: 'x', label: 'X', values: [0, 0], varName: '--s1' }] });
+      const zero = nan(host);
+      host.remove();
+      return { bar, cell, empty, zero };
+    })()`);
+    const p = [];
+    if (!r.bar || r.cell !== 'yes') p.push(`a monthly 59.5 against 60: the bar says ${r.bar ? 'clear' : 'short'}, the table says "${r.cell}"`);
+    if (r.empty.nan || !r.empty.said) p.push(`a column chart with no figure: ${r.empty.nan} NaN attributes, absence ${r.empty.said ? '' : 'not '}stated`);
+    if (r.zero) p.push(`an all-zero column chart wrote ${r.zero} NaN attributes`);
+    if (p.length) fail('shell: the timeframe table clears a floor as the engine does; an empty or flat column chart draws no NaN', p);
+    else ok('shell: the timeframe table clears a floor as the engine does (59.5 against 60), and a column chart with no figure says so instead of drawing NaN');
+  }
+  {
+    /* A multiple that rounds to zero printed with a hyphen — Nvidia's net
+       debt of −0.016× EBIT read "-0.0×" — and a capitalisation a hair under
+       a unit printed as 1000 of the unit below it. */
+    const r = await evaluate(`({ nz: fmtX(-0.016), neg: fmtX(-1.24), pos: fmtX(2.5, 2), t: fmtCap(999.97, 'USD'), b: fmtCap(0.9997, 'MYR'), m: fmtCap(0.4, 'MYR'),
+      page: (() => { const m = BY_ID.get('NVDA-SEC')?.m?.ndEbit; return isNum(m) ? fmtX(m) : null; })() })`);
+    const want = { nz: '0.0×', neg: '−1.2×', pos: '2.50×', t: '$1.00T', b: 'RM1.0B', m: 'RM400M' };
+    const p = Object.entries(want).filter(([k, v]) => r[k] !== v).map(([k, v]) => `${k}: ${r[k]} (want ${v})`);
+    if (r.page && /^-/.test(r.page)) p.push(`NVDA net debt / EBIT prints ${r.page}`);
+    if (p.length) fail('shell: multiples and capitalisations round before they take a sign or a unit', p);
+    else ok(`shell: multiples and capitalisations round before they take a sign or a unit (NVDA net debt / EBIT ${r.page})`);
+  }
+  {
+    /* Labels inside a coloured cell: the ink switched at luminance 0.42 and
+       put white on mid-tone fills at 2.3-2.9:1. Every diverging step, both
+       themes, must now clear 4.5:1 with the ink inkOn picks. */
+    const r = await evaluate(`(async () => {
+      ${shellWait}
+      const lum = (h) => { const m = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).map(c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
+      const six = (h) => h.length === 4 ? '#' + [...h.slice(1)].map(x => x + x).join('') : h;
+      const had = document.documentElement.dataset.theme;
+      const bad = [];
+      for (const t of ['light', 'dark']) {
+        document.documentElement.dataset.theme = t; await w(30);
+        DIVERGING.forEach(v => { const f = cssVar(v), ink = six(inkOn(f)); const a = lum(f), b = lum(ink);
+          const cr = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); if (cr < 4.5) bad.push(t + ' ' + v + ' ' + f + ' ' + ink + ' ' + cr.toFixed(2)); });
+      }
+      if (had) document.documentElement.dataset.theme = had; else delete document.documentElement.dataset.theme;
+      return bad;
+    })()`);
+    if (r.length) fail('shell: a label inside a diverging fill clears 4.5:1 in both themes', r);
+    else ok('shell: a label inside a diverging fill clears 4.5:1 on every step of the ramp in both themes');
+  }
+  {
+    /* With no theme chosen the palette follows the OS, and what is drawn with
+       colours read from it must follow as well: an OS switch left the heatmap
+       in the other theme's fills and the toggle offering the theme showing. */
+    const had = await evaluate(`(() => { const t = document.documentElement.dataset.theme || null; delete document.documentElement.dataset.theme; return t; })()`);
+    let r;
+    try {
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] }, sessionId);
+      await evaluate(`(async () => { navigate('/discover?tab=heatmap'); await new Promise(r => setTimeout(r, 400)); return true; })()`);
+      const before = await evaluate(`document.querySelector('g.tile rect')?.getAttribute('fill') || null`);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+      await sleep(500);
+      r = await evaluate(`(() => { const g = document.querySelector('g.tile rect'); return { fill: g?.getAttribute('fill') || null, plane: cssVar('--plane'), label: themeToggle.getAttribute('aria-label'), valueOpacity: [...document.querySelectorAll('g.tile text')].filter(t => t.hasAttribute('opacity')).length }; })()`);
+      r.before = before;
+    } finally {
+      await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+      if (had) await evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(had)}; render(); true`);
+    }
+    const p = [];
+    if (!r.before) p.push('no heatmap tile drawn');
+    else if (r.fill === r.before) p.push(`the tiles kept the light fills after the OS went dark: ${r.before} under a ${r.plane} page`);
+    if (r.label !== 'Switch to the light theme') p.push(`the toggle says "${r.label}" in the dark theme`);
+    if (r.valueOpacity) p.push(`${r.valueOpacity} tile labels are drawn translucent, under the contrast floor`);
+    if (p.length) fail('shell: an OS theme switch with no theme chosen repaints the drawn colours and the toggle', p);
+    else ok(`shell: an OS theme switch with no theme chosen repaints the drawn colours (${r.before} → ${r.fill}) and the toggle`);
+  }
+  {
+    /* A refused storage write was swallowed and the tool said "Saved" over
+       a record that was never written. The backup link swallowed a
+       modified click. Saved clock times are UTC and must say so. */
+    const r = await evaluate(`(async () => {
+      ${shellWait}
+      navigate('/us-options/wheel'); await w(200);
+      const out = {};
+      const keepPrompt = window.prompt, keepSet = Storage.prototype.setItem;
+      const count = () => loadWork().length;
+      const n0 = count();
+      try {
+        window.prompt = () => 'bf-shell refused';
+        Storage.prototype.setItem = function () { throw new DOMException('full', 'QuotaExceededError'); };
+        [...document.querySelectorAll('main button')].find(b => b.textContent.trim() === 'Save').click();
+        await w(60);
+      } finally { Storage.prototype.setItem = keepSet; window.prompt = keepPrompt; }
+      out.toast = document.getElementById('toast').textContent;
+      out.kept = count() - n0;
+      const a = [...document.querySelectorAll('main a')].find(x => x.textContent.trim() === 'Back up everything');
+      let seen = null;
+      window.addEventListener('click', (e) => { seen = e.defaultPrevented; e.preventDefault(); }, { once: true });
+      a?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true, button: 0 }));
+      out.ctrlPrevented = seen;
+      out.path = location.pathname;
+      out.stamp = fmtSaved('2026-09-28 07:28');
+      return out;
+    })()`);
+    const p = [];
+    if (/^Saved/.test(r.toast) || !/Not saved/.test(r.toast)) p.push(`a refused write was confirmed: "${r.toast}"`);
+    if (r.kept) p.push(`${r.kept} record(s) appeared although the write was refused`);
+    if (r.ctrlPrevented !== false || r.path !== '/us-options/wheel') p.push(`Ctrl-click on "Back up everything" was taken over by the page: ${JSON.stringify({ prevented: r.ctrlPrevented, path: r.path })}`);
+    if (!/ UTC$/.test(r.stamp)) p.push(`a saved clock time prints without its zone: "${r.stamp}"`);
+    if (p.length) fail('shell: a refused save is not confirmed, a modified click is the browser\'s, and saved times say UTC', p);
+    else ok('shell: a refused save says it was not saved, a Ctrl-click on the backup link is left to the browser, and saved clock times say UTC');
+  }
+  {
+    /* The workspace's Duplicate and Delete re-rendered the list and dropped
+       focus on <body>. */
+    const r = await evaluate(`(async () => {
+      ${shellWait}
+      const keepConfirm = window.confirm;
+      const made = [saveWork('wheel', 'bf-shell A'), saveWork('wheel', 'bf-shell B')].map(x => x.id);
+      const who = () => { const a = document.activeElement; return !a || a === document.body ? 'body' : (a.id || a.textContent.trim()); };
+      const out = {};
+      try {
+        window.confirm = () => true;
+        navigate('/my/workspace'); await w(150);
+        const dup = document.getElementById('ws-dup-' + made[0]) || [...document.querySelectorAll('main .ws-acts button')].find(x => x.textContent.trim() === 'Duplicate');
+        dup.focus(); dup.click(); await w(60);
+        out.afterDuplicate = who();
+        const del = [...document.querySelectorAll('main .ws-acts button')].find(b => b.getAttribute('aria-label') === 'Delete bf-shell B');
+        del.focus(); del.click(); await w(60);
+        out.afterDelete = who();
+      } finally {
+        window.confirm = keepConfirm;
+        loadWork().filter(x => /^bf-shell/.test(x.name)).forEach(x => deleteWork(x.id));
+        render();
+      }
+      return out;
+    })()`);
+    if (!/^ws-dup-/.test(r.afterDuplicate) || r.afterDelete === 'body') fail('shell: focus stays in the workspace list after Duplicate and Delete', r);
+    else ok(`shell: focus stays in the workspace list after Duplicate (${r.afterDuplicate.slice(0, 22)}…) and Delete ("${r.afterDelete}")`);
+  }
+  {
+    /* Typing in the workspace's search re-renders the list, and the caret
+       came back at the start of the field: "alp" searched for "pla". Real
+       key presses, because a scripted value never moves a caret. */
+    await evaluate(`(async () => { saveWork('wheel', 'bf-shell Alpha'); navigate('/my/workspace'); await new Promise(r => setTimeout(r, 150)); document.getElementById('ws-q').focus(); return true; })()`);
+    for (const k of ['a', 'l', 'p']) {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, text: k, windowsVirtualKeyCode: k.toUpperCase().charCodeAt(0) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: k.toUpperCase().charCodeAt(0) }, sessionId);
+      await sleep(60);
+    }
+    const r = await evaluate(`(() => { const out = { value: document.getElementById('ws-q')?.value, rows: document.querySelectorAll('main .ws-row:not(.ws-head)').length };
+      State.workspace.q = ''; loadWork().filter(x => /^bf-shell/.test(x.name)).forEach(x => deleteWork(x.id)); render(); return out; })()`);
+    if (r.value !== 'alp' || r.rows < 1) fail('shell: typing in the workspace search keeps the caret where it was', r);
+    else ok('shell: typing in the workspace search keeps the caret where it was ("alp" finds the saved "bf-shell Alpha")');
+  }
+  {
+    /* ONE PAGE, ONE ADDRESS, AND THE SITEMAP AGREES. The canonical lookup took
+       the first row for a view, alias rows included, and the aliases sit above
+       the rows they alias: /compare named /app/equities/compare, /methodology
+       /equities/methodology, /my/watchlists the disallowed /app/watchlists.
+       Every sitemap address must be its own canonical, and no address may
+       name an alias as its canonical. */
+    const sm = await (await fetch(`${BASE}/sitemap.xml`)).text();
+    const locs = [...sm.matchAll(/<loc>https?:\/\/[^/<]+([^<]*)<\/loc>/g)].map(m => m[1] || '/');
+    const r = await evaluate(`(() => {
+      const locs = ${JSON.stringify(locs)};
+      const own = locs.map(p => { const rt = matchRoute(p); return [p, rt ? canonicalPath(rt) : 'no route']; }).filter(([p, c]) => p !== c);
+      const aliasPaths = new Set(ROUTES.filter(x => x.alias).map(x => x.path));
+      const toAlias = ROUTES.filter(x => !x.path.includes(':')).map(x => [x.path, canonicalPath(x)]).filter(([, c]) => aliasPaths.has(c));
+      return { n: locs.length, own, toAlias };
+    })()`);
+    const p = [];
+    if (r.n < 20) p.push(`only ${r.n} addresses read from sitemap.xml`);
+    r.own.forEach(([a, c]) => p.push(`sitemap lists ${a}, whose canonical is ${c}`));
+    r.toAlias.forEach(([a, c]) => p.push(`${a} names the alias ${c} as its canonical`));
+    if (p.length) fail('shell: every sitemap address is its own canonical, and no page names an alias as its canonical', p);
+    else ok(`shell: every sitemap address is its own canonical (${r.n}), and no page names an alias as its canonical`);
+  }
+  {
+    /* The loading card said the statements were "being fetched from SEC
+       EDGAR". They load from this site's data/us.json, and the policy the
+       site is served under lets the page connect to its own origin only. */
+    const csp = (await fetch(`${BASE}/`)).headers.get('content-security-policy') || '';
+    const t = await evaluate(`bootSkeleton().textContent`);
+    const p = [];
+    if (/fetched from SEC EDGAR/i.test(t) || !/loading from this site/.test(t)) p.push(`the loading card says: "${t.slice(0, 160)}"`);
+    if (!/connect-src 'self'/.test(csp)) p.push(`the served policy no longer limits connections to the site itself: "${csp.slice(0, 120)}"`);
+    if (p.length) fail('shell: the loading card says where the statements load from', p);
+    else ok('shell: the loading card says the statements load from this site, as the policy (connect-src to its own origin) makes true');
+  }
+  {
+    /* An old #research link to a filed company is read at boot, before the
+       filings arrive — and fell through to /research, losing the company. */
+    await send('Page.navigate', { url: `${BASE}/#research/abbv/financials` }, sessionId);
+    const loaded = await waitFiled();
+    const r = loaded ? await evaluate(`({ path: location.pathname + location.search, view: State.view, ticker: State.ticker, tab: State.researchTab })`) : null;
+    if (!r || r.view !== 'research' || r.ticker !== 'ABBV-SEC' || r.tab !== 'financials') fail('shell: a legacy #research link to a filed company opens that company once the filings land', r);
+    else ok(`shell: a legacy #research link to a filed company opens that company once the filings land (${r.path})`);
+  }
+  /* ---- end bugfix: shell ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
