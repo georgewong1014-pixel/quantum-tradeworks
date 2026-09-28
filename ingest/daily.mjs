@@ -38,7 +38,10 @@ import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { writeAtomic } from './history-store.mjs';
+/* The worker's atomic write: it waits out a reader holding the file open on
+   Windows, and keeps its .bak writable. */
+import { writeAtomic, renameRetrying } from '../scanner/scan.mjs';
+import { withLock } from './lockfile.mjs';
 
 const run = promisify(execFile);
 const argv = process.argv.slice(2);
@@ -228,11 +231,16 @@ if (rejected > 0 || flagged > 0) bump(2);
 /* Overrides rather than bumps. "Some rows need review" and "no price reached
    the file at all" are different situations, and the second must not be
    reported as the milder of the two just because it happened second. */
-if (accepted === 0) { say(''); say('NOTHING IMPORTED — every row was held back.'); worst = 1; }
+/* The closing lines say what the exit code says. "Every row was held back"
+   was printed when no row had been read at all, and "Nothing needs your
+   attention" closed runs that exit 1 or 2 — a capture that read nothing, a
+   history or FX step that failed, a scan that could not run. */
+if (accepted === 0) { say(''); say(candidates === 0 && rejected === 0 ? 'NOTHING IMPORTED — no row was read from the capture.' : 'NOTHING IMPORTED — every row was held back.'); worst = 1; }
 
 say('');
 say(rejected > 0 || flagged > 0
   ? `Open ${REVIEW}, correct the rows marked CHECK, then re-run:\n  node ingest/prices.mjs --in ${REVIEW} --out ${PRICES} --licence "personal research — not for redistribution"`
+  : worst > 0 ? `Something above needs your attention — this run exits ${worst}.`
   : 'Nothing needs your attention.');
 
 await finish(worst);
@@ -240,24 +248,48 @@ await finish(worst);
 async function finish(code) {
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   lines.push('', `finished in ${secs}s with exit ${code}`);
-  await mkdir(dirname(REPORT), { recursive: true });
-  await writeFile(REPORT, lines.join('\n') + '\n');
-  console.log(`\nreport written to ${REPORT}`);
+  /* A report that cannot be written (its path taken, the file held open)
+     is said, and the run is still logged with its own exit code. Unhandled,
+     it crashed a run that had imported cleanly into exit 1 with a stack
+     trace, and the run never reached data/ingest-runs.json. */
+  try {
+    await mkdir(dirname(REPORT), { recursive: true });
+    await writeFile(REPORT, lines.join('\n') + '\n');
+    console.log(`\nreport written to ${REPORT}`);
+  } catch (e) { console.error(`\nthe report ${REPORT} could not be written: ${e.message}`); }
   try { await logRun(code); } catch (e) { console.error(`the ingest run log ${RUNS} could not be written: ${e.message}`); }
   process.exit(code);
 }
 
 /* One entry per run in data/ingest-runs.json, newest last, capped. Written
    on every exit path, so a run that failed at the capture is as visible as
-   one that finished. */
+   one that finished.
+
+   Read, changed and written under the log's own short lock, as the
+   scanner's run log is: two daily runs at once (the scheduled one and
+   schedule.ps1 -RunNow) each read the log, added their entry and renamed
+   the same .tmp over it, so one entry was lost or the write failed. A log
+   that is not JSON is set aside before a new one is begun; begun again in
+   place, the damaged copy became the .bak and the good copy was lost. */
 async function logRun(code) {
-  let doc = { schema: 1, runs: [] };
-  try { const d = JSON.parse(await readFile(RUNS, 'utf8')); if (Array.isArray(d?.runs)) doc = { ...d, schema: 1 }; } catch { /* first run, or damaged: begun again */ }
-  const finishedAt = new Date().toISOString();
-  doc.runs.push({ id: `ingest-${started.toISOString().replace(/[-:.]/g, '').slice(0, 15)}-${process.pid}`, kind: 'ingest', trigger: TRIGGER,
-                  status: code === 0 ? 'COMPLETED' : code === 2 ? 'PARTIAL' : 'FAILED', exitCode: code,
-                  startedAt: started.toISOString(), finishedAt, durationMs: Date.now() - started, steps, counts, scanner, report: REPORT });
-  if (doc.runs.length > RUNS_CAP) doc.runs = doc.runs.slice(-RUNS_CAP);
-  doc.updatedAt = finishedAt;
-  await writeAtomic(RUNS, JSON.stringify(doc, null, 1) + '\n');
+  await mkdir(dirname(RUNS), { recursive: true });
+  await withLock(`${RUNS}.lock`, async () => {
+    let doc = { schema: 1, runs: [] };
+    if (existsSync(RUNS)) {
+      try { const d = JSON.parse(await readFile(RUNS, 'utf8')); if (Array.isArray(d?.runs)) doc = { ...d, schema: 1 }; }
+      catch (e) {
+        if (!(e instanceof SyntaxError)) throw e;
+        const aside = `${RUNS}.damaged-${Date.now()}`;
+        await renameRetrying(RUNS, aside);
+        console.error(`the ingest run log ${RUNS} was not valid JSON — set aside as ${aside}, and a new log begun`);
+      }
+    }
+    const finishedAt = new Date().toISOString();
+    doc.runs.push({ id: `ingest-${started.toISOString().replace(/[-:.]/g, '').slice(0, 15)}-${process.pid}`, kind: 'ingest', trigger: TRIGGER,
+                    status: code === 0 ? 'COMPLETED' : code === 2 ? 'PARTIAL' : 'FAILED', exitCode: code,
+                    startedAt: started.toISOString(), finishedAt, durationMs: Date.now() - started, steps, counts, scanner, report: REPORT });
+    if (doc.runs.length > RUNS_CAP) doc.runs = doc.runs.slice(-RUNS_CAP);
+    doc.updatedAt = finishedAt;
+    await writeAtomic(RUNS, JSON.stringify(doc, null, 1) + '\n');
+  });
 }

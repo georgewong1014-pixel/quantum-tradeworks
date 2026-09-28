@@ -44,7 +44,8 @@
  *
  *   exit 0  COMPLETED — whatever matched is recorded (or a command succeeded)
  *   exit 1  FAILED (or CANCELLED) — engine missing, self-test failed, a file
- *           unreadable; nothing was written over the record
+ *           unreadable or the record or run log unwritable, or an argument
+ *           refused; nothing was written over the record
  *   exit 2  PARTIAL — ran and recorded, but a setup was left out or skipped (its
  *           version refused by the ledger among them), could not be tested
  *           anywhere in its universe, read a watchlist snapshot because the
@@ -137,7 +138,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { readFile, writeFile, mkdir, rename, copyFile, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, copyFile, rm, stat, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -238,14 +239,49 @@ const readJson = async (p) => JSON.parse(await readFile(p, 'utf8'));
    empty, and every later run then refused to touch it. So the record is
    written beside itself and renamed over the old one — a rename within one
    volume is all or nothing — and the previous record is kept as .bak. Every
-   file this worker writes goes the same way. */
+   file this worker writes goes the same way.
+
+   ON WINDOWS a rename over a file another process has open fails (EPERM,
+   EACCES or EBUSY) for as long as that handle is open — and the local server
+   answering the operations pages, a --status in another window, or the lock
+   holder reading the runs log while a run it turned away writes there, each
+   hold one for a moment.
+   A single attempt failed most runs made while the pages were being read:
+   the alert record's write failed the run, the runs log's crashed it with
+   the lock left behind. So the rename is retried for a few seconds before
+   it gives up, and then says what usually holds a file. And copyFile carries
+   a read-only attribute onto the .bak: once the reader cleared it on the
+   file, every later write still failed, on the copy. The .bak is made
+   writable before it is replaced and after it is written. */
+const RENAME_RETRY = new Set(['EPERM', 'EACCES', 'EBUSY']);
+export async function renameRetrying(from, to, { budgetMs = 3000 } = {}) {
+  const until = Date.now() + budgetMs;
+  for (let wait = 10; ; wait = Math.min(wait * 2, 250)) {
+    try { return await rename(from, to); }
+    catch (e) {
+      if (!RENAME_RETRY.has(e.code)) throw e;
+      if (Date.now() + wait > until) {
+        throw Object.assign(new Error(`${e.message} — still refused after ${Math.round(budgetMs / 1000)} s: the file is read-only, or another program holds it open`), { code: e.code });
+      }
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+}
+const ownerWritable = async (p) => {
+  try { const st = await stat(p); if (!(st.mode & 0o200)) await chmod(p, st.mode | 0o200); } catch { /* absent */ }
+};
 export async function writeAtomic(path, text) {
   await mkdir(dirname(path), { recursive: true });
   const tmp = `${path}.tmp`;
   await writeFile(tmp, text);
   try {
-    if (existsSync(path)) await copyFile(path, `${path}.bak`);
-    await rename(tmp, path);
+    if (existsSync(path)) {
+      const bak = `${path}.bak`;
+      await ownerWritable(bak);
+      await copyFile(path, bak);
+      await ownerWritable(bak);
+    }
+    await renameRetrying(tmp, path);
   } catch (e) { await rm(tmp, { force: true }); throw e; }
 }
 
@@ -278,7 +314,7 @@ function newestBar(history) {
 export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrumentsPath, dry = false, now = new Date().toISOString(),
                                 runId = `run-${now.replace(/[-:.]/g, '').slice(0, 15)}-${process.pid}`, origin = 'cli', trigger = 'manual',
                                 asOf = null, truncateAt = null, unchangedKey = null, onRead = null,
-                                ledgerPath = null, catchUp = false, ready = false, narrow = null, watchlistsPath = null }) {
+                                ledgerPath = null, catchUp = false, ready = false, narrow = null, watchlistsPath = null, beforeWrite = null }) {
   if (!existsSync(setupsPath)) throw fail('NO_SETUPS', `no setups file at ${setupsPath}`);
   let doc;
   try { doc = await readJson(setupsPath); }
@@ -311,13 +347,18 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   }
   /* @adjustments-end */
   const historyHash = `sha256:${createHash('sha256').update(historyText).digest('hex').slice(0, 16)}`;
+  /* A retry's cut comes first, so the newest bar this run reports is the
+     newest it read. Taken from the whole file, a retry logged the file's
+     newest bar as its own, and a retry of that retry cut the history there —
+     a session neither run had evaluated — while saying it read the history
+     "as the retried run read it". */
+  if (truncateAt) history = E.scanTruncateHistory(history, truncateAt);
   const historyNewest = newestBar(history);
   onRead?.({ historyHash, historyNewest, setupsHash: E.scanSetupsHash(doc) });
-  if (!historyNewest) throw fail('NO_DATA', `${historyPath} holds no bars`);
+  if (!historyNewest) throw fail('NO_DATA', truncateAt ? `${historyPath} holds no bar on or before ${truncateAt}` : `${historyPath} holds no bars`);
   if (asOf && !Object.values(history.series || {}).some(s => Object.keys(s || {}).some(d => d <= asOf))) {
     throw fail('NO_DATA', `no series in ${historyPath} holds a bar on or before ${asOf} (the first is later)`);
   }
-  if (truncateAt) history = E.scanTruncateHistory(history, truncateAt);
   let instruments = [];
   if (instrumentsPath && existsSync(instrumentsPath)) {
     try { const reg = await readJson(instrumentsPath); instruments = Array.isArray(reg) ? reg : (reg?.instruments || []); } catch { instruments = []; }
@@ -399,6 +440,9 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   const out = { engine: r.engine, updatedAt: now, lastRun, alerts: [...existing, ...r.alerts] };
   let written = false;
   if (!dry) {
+    /* The last moment the run can still be cancelled: beforeWrite says
+       whether to write, and after it the write is committed. */
+    if (beforeWrite && beforeWrite() === false) throw fail('CANCELLED', 'cancelled before the alert record was written; nothing was written', 'CANCELLED');
     await mkdir(dirname(alertsPath), { recursive: true });
     await writeAtomic(alertsPath, JSON.stringify(out, null, 2) + '\n');
     written = true;
@@ -559,27 +603,35 @@ export const CHANNELS = Object.freeze({
 const operator = () => { try { return userInfo().username; } catch { return null; } };
 const emptyRuns = () => ({ schema: 1, runs: [], audit: [] });
 
-export async function readRunsDoc(path) {
+/* A damaged log is not a reason to stop scanning: the writer (updateRuns,
+   under the log's lock) sets it aside (the .bak holds the previous good
+   copy) and starts a new one whose first audit entry is the reset. Every
+   other reader — --runs, --status, a retry looking up its run — is handed
+   `damaged` and says so. Those readers used to set the log aside too: the
+   read-only commands moved the file, printed "no runs logged", and the
+   reset's audit entry was never written, because the next writer found no
+   file at all. */
+export async function readRunsDoc(path, { setAside = false } = {}) {
   if (!existsSync(path)) return emptyRuns();
   try {
     const d = await readJson(path);
     return { ...d, schema: 1, runs: Array.isArray(d?.runs) ? d.runs : [], audit: Array.isArray(d?.audit) ? d.audit : [] };
-  } catch {
-    /* A damaged log is not a reason to stop scanning: it is set aside
-       (the .bak holds the previous good copy) and a new one started, and
-       the reset is the new log's first audit entry. */
+  } catch (e) {
+    const why = `the run log ${path} ${e instanceof SyntaxError ? 'is not valid JSON' : 'could not be read'} (${e.message})`;
+    if (!setAside) return { ...emptyRuns(), damaged: why };
     const aside = `${path}.damaged-${Date.now()}`;
-    await rename(path, aside).catch(() => {});
-    return { ...emptyRuns(), audit: [{ at: new Date().toISOString(), action: 'runs-log-reset', detail: { setAside: aside } }] };
+    await renameRetrying(path, aside);
+    return { ...emptyRuns(), audit: [{ at: new Date().toISOString(), action: 'runs-log-reset', detail: { setAside: aside, why } }] };
   }
 }
+const runsDamagedText = (doc, path) => `${doc.damaged}. Nothing in it can be read here; the next run sets it aside as ${path}.damaged-<time> and starts a new log${existsSync(`${path}.bak`) ? `, and ${path}.bak holds the copy before its last write` : ''}.`;
 
 /* Read, change and write the runs log under its own short lock: a run
    holding the scan lock and a run being turned away both write to it. */
 export async function updateRuns(path, fn) {
   await mkdir(dirname(path), { recursive: true });
   return withLock(`${path}.lock`, async () => {
-    const doc = await readRunsDoc(path);
+    const doc = await readRunsDoc(path, { setAside: true });
     const res = await fn(doc);
     if (doc.runs.length > RUNS_CAP) doc.runs = doc.runs.slice(-RUNS_CAP);
     if (doc.audit.length > AUDIT_CAP) doc.audit = doc.audit.slice(-AUDIT_CAP);
@@ -594,7 +646,9 @@ const auditEntry = (action, extra = {}) => ({ at: new Date().toISOString(), acti
 export async function readControl(path) {
   if (!existsSync(path)) return { schema: 1, paused: false };
   try { return { schema: 1, paused: false, ...(await readJson(path)) }; }
-  catch { return { schema: 1, paused: false, damaged: true }; }
+  /* Read as not paused, and said wherever it is read: --status printed
+     "not paused" for a file it could not read. */
+  catch (e) { return { schema: 1, paused: false, damaged: `the control file ${path} is not valid JSON (${e.message}), so it is read as not paused; --pause or --resume writes it afresh` }; }
 }
 
 /* The in-app delivery record: one row per new alert, the channels block
@@ -603,7 +657,15 @@ export async function writeDeliveries(path, alerts, { runId, now = new Date().to
   let doc = { schema: 1, deliveries: [] };
   if (existsSync(path)) {
     try { const d = await readJson(path); if (Array.isArray(d?.deliveries)) doc = d; }
-    catch { /* rewritten below; the .bak keeps the damaged copy's predecessor */ }
+    catch (e) {
+      /* A record that is not JSON is set aside, as a damaged runs log is,
+         before a new one is begun. Rewritten in place, the damaged copy
+         became the .bak and the good copy the .bak held was lost — the
+         opposite of what this said. One that cannot be read at all is a
+         record that cannot be written either: the run says so (PARTIAL). */
+      if (!(e instanceof SyntaxError)) throw e;
+      await renameRetrying(path, `${path}.damaged-${Date.now()}`);
+    }
   }
   const have = new Set(doc.deliveries.map(x => x?.id));
   let added = 0;
@@ -661,6 +723,9 @@ async function saveRun(runsPath, run) {
 }
 
 function setStatus(run, status) {
+  /* A run that has ended stays ended: a signal can close it while the scan
+     is between two awaits, and the scan must not then mark it RUNNING. */
+  if (run.finishedAt && ['PENDING', 'RUNNING'].includes(status)) return;
   run.status = status;
   run.transitions.push({ status, at: new Date().toISOString() });
   if (!['PENDING', 'RUNNING'].includes(status)) {
@@ -671,8 +736,12 @@ function setStatus(run, status) {
 }
 
 /* A run a dead process left PENDING or RUNNING is closed, never left to
-   look as though it were still going. */
-function closeOrphan(doc, holder, why) {
+   look as though it were still going. `why` is the lock's verdict ('dead',
+   'stale') or 'forced' — --unlock --force on a lock whose process, as far as
+   this machine could tell, was still running, which --unlock used to record
+   as "its process ended". `unlocked` is true when --unlock removed the lock
+   rather than a run taking it over. */
+function closeOrphan(doc, holder, why, { unlocked = false } = {}) {
   const orphan = holder?.runId ? doc.runs.find(r => r.id === holder.runId) : null;
   if (!orphan || !['PENDING', 'RUNNING'].includes(orphan.status)) return null;
   const at = new Date().toISOString();
@@ -681,7 +750,11 @@ function closeOrphan(doc, holder, why) {
   orphan.finishedAt = at;
   orphan.durationMs = Math.max(0, Date.parse(at) - Date.parse(orphan.startedAt));
   orphan.exitCode = 1;
-  const e = { category: 'ABANDONED', message: `its process (pid ${holder.pid} on ${holder.host}) ${why === 'dead' ? 'ended' : 'held the lock for over an hour'} before the run finished; the lock was ${why === 'dead' ? 'taken over' : 'taken over as stale'}`, correlationId: `${orphan.id}/e${(orphan.errors || []).length + 1}` };
+  const proc = `its process (pid ${holder.pid} on ${holder.host})`;
+  const message = why === 'forced'
+    ? `the lock was removed with --unlock --force while ${proc} still answered as running, so how this run ended is not known here`
+    : `${proc} ${why === 'dead' ? 'ended' : 'held the lock for over an hour'} before the run finished; the lock was ${unlocked ? 'removed with --unlock' : why === 'dead' ? 'taken over' : 'taken over as stale'}`;
+  const e = { category: 'ABANDONED', message, correlationId: `${orphan.id}/e${(orphan.errors || []).length + 1}` };
   orphan.errors = [...(orphan.errors || []), e];
   orphan.error = orphan.error || { category: e.category, message: e.message, correlationId: e.correlationId };
   return orphan.id;
@@ -697,9 +770,22 @@ function parseArgs(argv) {
   return { has, flag };
 }
 
+/* The flags that take a value, and would otherwise fall back to their
+   default when it is missing: --as-of with no date ran a live scan that
+   recorded and caught up, --data with no folder read and wrote the
+   repository's own files, --now with no instant took the real clock.
+   --retry, --setup, --market and --backtest print their own usage below;
+   --pause's reason and --runs' count are optional. */
+const VALUE_FLAGS = ['data', 'setups', 'history', 'alerts', 'instruments', 'html', 'watchlists', 'now', 'as-of', 'trigger', 'from', 'to', 'symbols', 'hold'];
+
 async function main() {
   const argv = process.argv.slice(2);
   const { has, flag } = parseArgs(argv);
+  const valueless = VALUE_FLAGS.filter(f => has(f) && flag(f, null) == null);
+  if (valueless.length) {
+    console.error(`${valueless.map(f => `--${f}`).join(', ')} ${valueless.length === 1 ? 'needs a value' : 'need values'} — nothing was run. The usage is the comment at the top of scanner/scan.mjs.`);
+    process.exit(1);
+  }
 
   /* A path the reader types is taken from where they are standing; only the
      defaults live in the repository. Resolving typed paths against the repo
@@ -724,21 +810,26 @@ async function main() {
   const now = nowFlag != null ? new Date(Date.parse(nowFlag)).toISOString() : new Date().toISOString();
 
   /* ------------------------------------------ commands that need no engine */
+  /* A file these commands cannot write is said in a sentence and exit 1 —
+     it was an unhandled rejection with a stack trace. */
+  const cannot = (what, e) => { console.error(`${what}: ${e.message}`); process.exit(1); };
   if (has('pause') || has('resume')) {
     const ctl = await readControl(W.control);
+    if (ctl.damaged) console.log(ctl.damaged);
     if (has('pause')) {
       const reason = flag('pause', null);
       if (ctl.paused) { console.log(`already paused since ${ctl.since}${ctl.reason ? ` — ${ctl.reason}` : ''}`); process.exit(0); }
       const next = { schema: 1, paused: true, since: new Date().toISOString(), reason, by: operator(), updatedAt: new Date().toISOString() };
-      await writeAtomic(W.control, JSON.stringify(next, null, 2) + '\n');
-      await updateRuns(W.runs, (doc) => { doc.audit.push(auditEntry('pause', { reason })); });
+      await writeAtomic(W.control, JSON.stringify(next, null, 2) + '\n').catch(e => cannot(`not paused — the control file ${W.control} could not be written`, e));
+      await updateRuns(W.runs, (doc) => { doc.audit.push(auditEntry('pause', { reason })); }).catch(e => cannot(`paused, but the pause could not be recorded in the run log ${W.runs}`, e));
       console.log(`paused${reason ? ` — ${reason}` : ''}. Every run is now logged SKIPPED_PAUSED and exits 3 until: node scanner/scan.mjs --resume`);
     } else {
-      if (!ctl.paused) { console.log('not paused — nothing to resume'); process.exit(0); }
+      /* A damaged control file is written afresh, not paused. */
+      if (!ctl.paused && !ctl.damaged) { console.log('not paused — nothing to resume'); process.exit(0); }
       const next = { schema: 1, paused: false, since: null, reason: null, resumedAt: new Date().toISOString(), by: operator(), lastPause: { since: ctl.since || null, reason: ctl.reason || null }, updatedAt: new Date().toISOString() };
-      await writeAtomic(W.control, JSON.stringify(next, null, 2) + '\n');
-      await updateRuns(W.runs, (doc) => { doc.audit.push(auditEntry('resume', { pausedSince: ctl.since || null, reason: ctl.reason || null })); });
-      console.log(`resumed (paused since ${ctl.since || '—'}). The next run evaluates as usual.`);
+      await writeAtomic(W.control, JSON.stringify(next, null, 2) + '\n').catch(e => cannot(`not resumed — the control file ${W.control} could not be written`, e));
+      await updateRuns(W.runs, (doc) => { doc.audit.push(auditEntry('resume', { pausedSince: ctl.since || null, reason: ctl.reason || null })); }).catch(e => cannot(`resumed, but the resume could not be recorded in the run log ${W.runs}`, e));
+      console.log(ctl.paused ? `resumed (paused since ${ctl.since || '—'}). The next run evaluates as usual.` : `the control file is written afresh, not paused. The next run evaluates as usual.`);
     }
     process.exit(0);
   }
@@ -751,17 +842,18 @@ async function main() {
       console.error('Wait for it to finish, or pass --force if you know that process is not a scan.');
       process.exit(1);
     }
-    await rm(W.lock, { force: true });
+    await rm(W.lock, { force: true }).catch(e => cannot(`the lock ${W.lock} could not be removed`, e));
     await updateRuns(W.runs, (doc) => {
-      const closed = closeOrphan(doc, holder, why || 'dead');
+      const closed = closeOrphan(doc, holder, why || 'forced', { unlocked: true });
       doc.audit.push(auditEntry('unlock', { previous: holder, why: why || 'forced', forced: !why, closedRun: closed }));
-    });
+    }).catch(e => cannot(`the lock is removed, but the removal could not be recorded in the run log ${W.runs}`, e));
     console.log(`lock removed${holder ? ` (pid ${holder.pid} since ${holder.startedAt}; ${why || 'forced'})` : ' (it was unreadable)'}; recorded in ${W.runs}`);
     process.exit(0);
   }
   if (has('runs')) {
     const n = Math.max(1, Number(flag('runs', 10)) || 10);
     const doc = await readRunsDoc(W.runs);
+    if (doc.damaged) { console.error(runsDamagedText(doc, W.runs)); process.exit(1); }
     const last = doc.runs.slice(-n);
     if (has('json')) { console.log(JSON.stringify({ runs: last, audit: doc.audit.slice(-n) }, null, 2)); process.exit(0); }
     if (!doc.runs.length) { console.log(`no runs logged in ${W.runs}`); process.exit(0); }
@@ -786,24 +878,42 @@ async function main() {
     if (engineError) { console.error(`Could not load the scan engine out of index.html: ${engineError.message}`); process.exit(1); }
     const runsDoc = await readRunsDoc(W.runs);
     const control = await readControl(W.control);
-    let alertsDoc = null, setupsDoc = null, history = null, instruments = [];
-    try { alertsDoc = existsSync(alertsPath) ? await readJson(alertsPath) : null; } catch { /* reported below */ }
-    try { setupsDoc = existsSync(setupsPath) ? await readJson(setupsPath) : null; } catch { /* reported below */ }
-    try { history = existsSync(historyPath) ? await readJson(historyPath) : null; } catch { /* reported below */ }
+    /* A file that is there but cannot be read is said, never shown as
+       absent or empty: an unreadable setups file printed "no setups file",
+       an unreadable alert record "0 matches", and neither said that the
+       next run fails on it. */
+    const unreadable = [];
+    const readOr = async (p, what) => {
+      if (!existsSync(p)) return null;
+      try { return await readJson(p); }
+      catch (e) { unreadable.push({ what, file: p, why: `${p} ${e instanceof SyntaxError ? 'is not valid JSON' : 'could not be read'} (${e.message})`, blocksRun: true, bak: existsSync(`${p}.bak`) ? `${p}.bak` : null }); return null; }
+    };
+    const alertsDoc = await readOr(alertsPath, 'alerts');
+    const setupsDoc = await readOr(setupsPath, 'setups');
+    const history = await readOr(historyPath, 'history');
+    let instruments = [];
     try { const reg = await readJson(instrumentsPath); instruments = Array.isArray(reg) ? reg : (reg?.instruments || []); } catch { /* none */ }
+    if (runsDoc.damaged) unreadable.push({ what: 'runs', file: W.runs, why: runsDoc.damaged, blocksRun: false, bak: existsSync(`${W.runs}.bak`) ? `${W.runs}.bak` : null });
+    if (control.damaged) unreadable.push({ what: 'control', file: W.control, why: control.damaged, blocksRun: false, bak: null });
+    const bad = (what) => unreadable.find(u => u.what === what);
     const historyMeta = history ? { symbols: Object.keys(history.series || {}), newestBar: newestBar(history) } : null;
     const st = E.scanStatus({ runs: runsDoc, alertsDoc, setupsDoc, historyMeta, control, now, instruments });
     let lock = null; try { lock = existsSync(W.lock) ? await readJson(W.lock) : null; } catch { lock = { unreadable: true }; }
-    if (has('json')) { console.log(JSON.stringify({ status: st, control, lock, channels: CHANNELS, files: { ...W, alerts: alertsPath, setups: setupsPath, history: historyPath } }, null, 2)); process.exit(0); }
-    const d = (r) => (r ? `${r.status} ${r.finishedAt || r.startedAt || ''}${r.id ? ` (${r.id})` : ' (from the alerts file — before the run log)'}${r.asOf ? `, bars of ${r.asOf}` : ''}` : 'none');
-    console.log(`scanner    ${st.state.toUpperCase()}`);
+    if (has('json')) { console.log(JSON.stringify({ status: st, control, lock, unreadable, channels: CHANNELS, files: { ...W, alerts: alertsPath, setups: setupsPath, history: historyPath } }, null, 2)); process.exit(0); }
+    const d = (r) => (r ? `${r.status} ${r.finishedAt || r.startedAt || ''}${r.id ? ` (${r.id})` : runsDoc.damaged ? ' (from the alerts file — the run log is not readable)' : ' (from the alerts file — before the run log)'}${r.asOf ? `, bars of ${r.asOf}` : ''}` : 'none');
+    const blocking = unreadable.filter(u => u.blocksRun);
+    console.log(`scanner    ${st.state.toUpperCase()}${blocking.length ? ' — but a run fails until a file it reads is repaired' : ''}`);
+    blocking.forEach(u => console.log(`           A run fails on it: ${u.why}${u.bak ? `; ${u.bak} holds the copy before its last write` : ''}.`));
     st.reasons.forEach(x => console.log(`           ${x}`));
-    console.log(`setups     ${st.active.enabled} enabled of ${st.active.valid} valid${st.active.expired ? `, ${st.active.expired} expired` : ''}${st.active.refused ? `, ${st.active.refused} refused` : ''}${setupsDoc ? '' : ` — no setups file at ${setupsPath}`}`);
+    console.log(bad('setups') ? `setups     not known — ${bad('setups').why}`
+      : `setups     ${st.active.enabled} enabled of ${st.active.valid} valid${st.active.expired ? `, ${st.active.expired} expired` : ''}${st.active.refused ? `, ${st.active.refused} refused` : ''}${setupsDoc ? '' : ` — no setups file at ${setupsPath}`}`);
+    if (bad('history')) console.log(`history    not known — ${bad('history').why}`);
     if (st.monitored) console.log(`watching   ${st.monitored.instruments} instrument(s) with a series${st.monitored.missing.length ? `; ${st.monitored.missing.length} named but not in your history` : ''}`);
+    if (runsDoc.damaged) console.log(`runs log   ${runsDamagedText(runsDoc, W.runs)}`);
     console.log(`last ok    ${d(st.lastSuccess)}`);
     console.log(`last try   ${d(st.lastAttempt)}`);
-    console.log(`matches    ${st.latestMatches.length} on the last successful run's bar`);
-    console.log(`control    ${control.paused ? `PAUSED since ${control.since}${control.reason ? ` — ${control.reason}` : ''} (node scanner/scan.mjs --resume)` : 'not paused'}`);
+    console.log(bad('alerts') ? `matches    not known — ${bad('alerts').why}` : `matches    ${st.latestMatches.length} on the last successful run's bar`);
+    console.log(`control    ${control.paused ? `PAUSED since ${control.since}${control.reason ? ` — ${control.reason}` : ''} (node scanner/scan.mjs --resume)` : control.damaged ? `not known — ${control.damaged}` : 'not paused'}`);
     console.log(`lock       ${lock ? (lock.unreadable ? 'present but unreadable' : `held by pid ${lock.pid} on ${lock.host} since ${lock.startedAt}${lock.runId ? ` (${lock.runId})` : ''}`) : 'free'}`);
     console.log(`channels   in-app ACTIVE (the alert record); ${Object.entries(CHANNELS).filter(([, c]) => c.status !== 'ACTIVE').map(([k]) => k.toLowerCase()).join(', ')} NOT CONFIGURED — no server, no contact address held`);
     console.log('unread     not known here: read and archived marks live in the browser');
@@ -836,17 +946,27 @@ async function main() {
     }
     try { const reg = await readJson(instrumentsPath); instruments = Array.isArray(reg) ? reg : (reg?.instruments || []); } catch { /* none */ }
     const v = E.scanValidate(doc);
-    const setup = v.setups.find(s => s.id === id);
+    let setup = v.setups.find(s => s.id === id);
     if (!setup) {
       const why = v.problemsBySetup?.[id];
       console.error(why ? `setup "${id}" is refused:\n${why.map(p => `  · ${p.path ? `${p.path}: ` : ''}${p.text}`).join('\n')}` : `no setup "${id}" in ${setupsPath} (have: ${v.setups.map(s => s.id).join(', ') || 'none'})`);
       process.exit(1);
     }
+    /* The version the worker runs it under, from the ledger (read, never
+       written here). Validation numbers a setup with no "version" 1, so a
+       hand-edited setup the worker records as v2 was simulated and printed
+       as v1. */
+    let ledgerNote = null;
+    try {
+      const rv = resolveVersions([setup], Array.isArray(doc) ? doc : doc?.setups, await readLedger(W.ledger));
+      if (rv.setups[0]) setup = rv.setups[0]; else ledgerNote = `the worker leaves this setup out of every run: ${rv.refused[0]?.why}`;
+    } catch (e) { ledgerNote = `${e.message} — the version below is the file's own`; }
     const symbols = flag('symbols', null) ? flag('symbols').split(',').map(s => s.trim()).filter(Boolean) : null;
     const h = E.scanHistorical(setup, history, { symbols, from: flag('from', null), to: flag('to', null), instruments });
-    if (has('json')) { console.log(JSON.stringify(h, null, 2)); process.exit(0); }
+    if (has('json')) { console.log(JSON.stringify(ledgerNote ? { ...h, ledgerNote } : h, null, 2)); process.exit(0); }
     console.log(`HISTORICAL MATCHES — a simulation, not a backtest of returns`);
     console.log(`setup      ${setup.id} v${setup.version} (${setup.cooldownMode}${setup.cooldownBars ? `, cooldown ${setup.cooldownBars} bars` : ''}) on ${h.timeframe}`);
+    if (ledgerNote) console.log(`ledger     ${ledgerNote}`);
     console.log(`window     ${h.from || 'first bar'} … ${h.to || 'last bar'} (at most ${h.maxBars} bars per instrument)`);
     console.log(`universe   ${h.counts.symbols} instrument(s) · ${h.counts.evaluatedBars} bars evaluated · ${h.counts.unavailableBars} could not be evaluated`);
     console.log(`held on    ${h.counts.matchedBars} bar(s) · ${h.counts.events} new match(es) · ${h.counts.recorded} the worker would have recorded`);
@@ -882,6 +1002,14 @@ async function main() {
   if ((has('setup') && !setupFlag) || (has('market') && !marketFlag)) { console.error('usage: node scanner/scan.mjs --as-of YYYY-MM-DD [--setup ID] [--market CODE]'); process.exit(1); }
   if ((setupFlag || marketFlag) && (!asOfFlag || retryId)) {
     console.error(`--setup and --market narrow a replay (--as-of DATE); ${retryId ? 'a retry re-runs the logged run as it was asked for' : 'a scheduled or manual run evaluates every setup on every market'}`);
+    process.exit(1);
+  }
+  /* For the same reason a retry takes no date and no gate of its own: its
+     run's replay date, ready gate and narrowing come with it. --as-of beside
+     --retry replayed that date while the output said the retry read the
+     logged run's history cut and clock. */
+  if (retryId && (asOfFlag || ready)) {
+    console.error(`--retry re-runs the logged run as it was asked for — its replay date, its ready gate and its narrowing come with it; ${asOfFlag ? '--as-of' : '--ready'} is not taken beside it`);
     process.exit(1);
   }
   let narrow = setupFlag || marketFlag ? { setup: setupFlag, market: marketFlag ? marketFlag.toUpperCase() : null } : null;
@@ -929,12 +1057,23 @@ async function main() {
 
   /* SIGINT or SIGTERM before the alert record is written: nothing is
      written, the run is logged CANCELLED and the lock released. After the
-     write the run is allowed to finish, so it is never half-recorded. */
+     write has begun the run is allowed to finish, so it is never
+     half-recorded.
+
+     The write begins at one instant, beforeWrite below, which runOnce calls
+     just before it writes the record: a signal handled before it closes the
+     run and the write is refused; after it, the run finishes. `committed`
+     used to be set only once runOnce had returned — after the record and
+     the ledger were written — and nothing stopped the scan that carried on
+     beside the handler, so a Ctrl+C during a run logged CANCELLED, "nothing
+     was written", over an alert record the scan then wrote anyway, and its
+     delivery rows with it. */
   const onSignal = async (sig) => {
     if (committed) { console.error(`\n${sig} received after the record was written — finishing the run`); return; }
     addError(run, 'CANCELLED', `${sig} received before the alert record was written; nothing was written`);
     await finish('CANCELLED');
   };
+  const beforeWrite = () => { if (finished) return false; committed = true; return true; };
   if (!dry) { process.once('SIGINT', () => onSignal('SIGINT')); process.once('SIGTERM', () => onSignal('SIGTERM')); }
 
   if (engineError) { engineFailureText(engineError); addError(run, 'ENGINE', `the scan engine could not be loaded out of index.html: ${engineError.message}`); return finish('FAILED'); }
@@ -945,6 +1084,7 @@ async function main() {
   if (asOf && (!E.scanIsDay(asOf) || asOf > now.slice(0, 10))) return failWith('ARGS', `--as-of "${asOf}" is not a past date (YYYY-MM-DD)`);
   if (retryId) {
     const doc = await readRunsDoc(W.runs);
+    if (doc.damaged) return failWith('IO', `run ${retryId} cannot be looked up: ${doc.damaged}. Logging this run sets it aside as ${W.runs}.damaged-<time> and starts a new log${existsSync(`${W.runs}.bak`) ? `; ${W.runs}.bak holds the copy before its last write` : ''}.`);
     const orig = doc.runs.find(r => r.id === retryId);
     if (!orig) return failWith('ARGS', `no run ${retryId} in ${W.runs} — node scanner/scan.mjs --runs lists them`);
     if (['PENDING', 'RUNNING'].includes(orig.status)) return failWith('ARGS', `run ${retryId} is still ${orig.status}; if its process is gone, node scanner/scan.mjs --unlock closes it first`);
@@ -964,6 +1104,7 @@ async function main() {
       console.log(`paused since ${control.since}${control.reason ? ` — ${control.reason}` : ''}. Nothing evaluated. node scanner/scan.mjs --resume to continue.`);
       return finish('SKIPPED_PAUSED', `paused since ${control.since}${control.reason ? `: ${control.reason}` : ''}`);
     }
+    if (control.damaged) console.log(`control    ${control.damaged}`);
     await mkdir(dirname(W.lock), { recursive: true });
     let got;
     try { got = await acquireLock(W.lock, { info: { runId }, staleMs: LOCK_STALE_MS }); }
@@ -980,18 +1121,26 @@ async function main() {
       run.lockTakeover = { previous: got.takenOver.holder, why: got.takenOver.why };
       console.log(`lock       taken over — the previous holder (pid ${got.takenOver.holder?.pid ?? '?'}) was ${got.takenOver.why === 'dead' ? 'no longer running' : got.takenOver.why === 'stale' ? 'over an hour old' : 'unreadable'}; recorded`);
     }
-    await updateRuns(W.runs, (doc) => {
-      if (got.takenOver) {
-        const closed = closeOrphan(doc, got.takenOver.holder, got.takenOver.why);
-        doc.audit.push(auditEntry('lock-takeover', { runId, previous: got.takenOver.holder, why: got.takenOver.why, closedRun: closed }));
-      }
-      doc.runs.push(run);
-    });
+    /* A run log that cannot be written fails the run before it evaluates,
+       and the lock is released on the way out. Unhandled, it crashed the
+       worker with a stack trace and left the lock for the next run to take
+       over. */
+    try {
+      await updateRuns(W.runs, (doc) => {
+        if (got.takenOver) {
+          const closed = closeOrphan(doc, got.takenOver.holder, got.takenOver.why);
+          doc.audit.push(auditEntry('lock-takeover', { runId, previous: got.takenOver.holder, why: got.takenOver.why, closedRun: closed }));
+        }
+        doc.runs.push(run);
+      });
+    } catch (e) { return failWith('IO', `the run log ${W.runs} could not be written (${e.message}); nothing was evaluated`); }
     const hold = Number(flag('hold', 0));
     if (hold > 0) await sleep(hold);
+    if (finished) return;
     if (!selfTest(E)) { addError(run, 'ENGINE', 'self-test failed — the engine extracted from index.html does not reproduce its fixture'); return finish('FAILED'); }
     setStatus(run, 'RUNNING');
-    await saveRun(W.runs, run);
+    try { await saveRun(W.runs, run); }
+    catch (e) { return failWith('IO', `the run log ${W.runs} could not be written (${e.message}); nothing was evaluated`); }
   }
 
   /* The last run that evaluated live: a live run with the same logical key
@@ -1009,9 +1158,11 @@ async function main() {
     /* Catch-up is for a run that moves forward — scheduled, manual, or the
        retry of one. A replay evaluates the date it was asked for, no more. */
     out = await runOnce({ E, setupsPath, historyPath, alertsPath, instrumentsPath, dry, now: runNow, runId, origin, trigger, asOf, truncateAt, unchangedKey,
-                          ledgerPath: W.ledger, catchUp: !asOf, ready, narrow, watchlistsPath,
+                          ledgerPath: W.ledger, catchUp: !asOf, ready, narrow, watchlistsPath, beforeWrite: dry ? null : beforeWrite,
                           onRead: (x) => { run.historyHash = x.historyHash; run.historyNewest = x.historyNewest; run.setupsHash = x.setupsHash; } });
   } catch (err) {
+    /* The signal's handler has closed the run and is exiting. */
+    if (err.code === 'CANCELLED') return;
     const map = { NO_SETUPS: 'SKIPPED_NO_SETUPS', NO_HISTORY: 'SKIPPED_NO_DATA', NO_DATA: 'SKIPPED_NO_DATA' };
     if (map[err.code]) {
       console.error(`\n${err.message}`);
