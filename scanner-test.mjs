@@ -2372,5 +2372,87 @@ try {
 }
 /* ---- end bugfix: worker ---- */
 
+/* ---- bugfix: engine ---- */
+/* WHAT THE ENGINE HUNT PROVED WRONG. Each check below failed on the engine
+   before its fix. */
+{
+  /* A flat window has no band: twenty closes of 0.3 have a binary mean of
+     0.29999999999999993 and a deviation of 1e-16, and %b came out 0.75. */
+  const flatBb = E.scanBb(new Array(25).fill(0.3), 20, 2);
+  const flatBars = E.scanSeriesBars(new Array(25).fill(0.345));
+  const flatI = E.scanIndicator({ indicator: 'bb', field: 'pctb' }, flatBars);
+  const flatRule = E.scanRule({ left: { indicator: 'bb', field: 'pctb' }, op: 'above', right: { value: 0.7 } }, flatBars);
+  const movingBb = E.scanBb([...new Array(19).fill(0.3), 0.31], 20, 2);
+  check(flatBb.pctb[24] === null && flatBb.zd.includes(24) && flatBb.width[24] === 0 && flatI.status === 'INVALID_INPUT' && flatI.reason?.code === 'ZERO_DENOMINATOR'
+    && flatRule.state === 'UNAVAILABLE' && flatRule.met === null && E.SCAN_INDICATORS.bb.calcVersion === 2 && movingBb.pctb[19] != null && movingBb.pctb[19] > 0.9,
+    'bugfix engine: Bollinger %b on a window of equal closes that binary cannot hold exactly (0.3, 0.345) is undefined (ZERO_DENOMINATOR), never the 0.75 of rounding noise that a "%b above 0.7" rule matched; a window that moves still has a band; calcVersion 2',
+    { pctb: flatBb.pctb[24], status: flatI.status, rule: flatRule.state, moving: movingBb.pctb[19] });
+
+  /* A bar with no capture time, read before its session closed, was taken
+     as UNKNOWN and evaluated: a match recorded on a session still trading. */
+  const ipDays = weekdays('2026-08-17', 30);
+  const ipLast = ipDays[ipDays.length - 1];
+  const ipH = { series: { IP: seriesOf(ipDays, ipDays.map((_, i) => (i === ipDays.length - 1 ? 101 : 99))) } };
+  const ipInst = [{ symbol: 'IP', market: 'US' }];
+  const ipSetup = { id: 'ip-above', version: 1, timeframe: '1D', cooldownMode: 'NEW_MATCH', universe: { kind: 'all' },
+    ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 100 } }] } };
+  const midSession = `${ipLast}T15:00:00Z`, afterClose = `${ipLast}T21:00:00Z`;
+  const ipMid = E.scanBars(ipH, 'IP', { market: 'US', now: midSession });
+  const ipRunMid = E.scanRun([ipSetup], ipH, { instruments: ipInst, now: midSession });
+  const ipRunAfter = E.scanRun([ipSetup], ipH, { instruments: ipInst, now: afterClose });
+  const ipNoClock = E.scanBars(ipH, 'IP', { market: 'US' });
+  check(ipMid.status[ipMid.status.length - 1] === 'PROVISIONAL' && ipMid.status[ipMid.status.length - 2] === 'UNKNOWN' && ipRunMid.alerts.length === 0
+    && ipRunMid.provisional.some(p => p.bar === ipLast) && ipRunAfter.alerts.length === 1 && ipRunAfter.alerts[0].candleDate === ipLast && ipRunAfter.alerts[0].barStatus === 'UNKNOWN'
+    && ipNoClock.status[ipNoClock.status.length - 1] === 'UNKNOWN' && E.scanBarStatus('US', ipLast, null, midSession) === 'PROVISIONAL' && E.scanBarStatus('US', ipLast, null) === 'UNKNOWN',
+    'bugfix engine: a bar with no capture time read at 11:00 in New York, before its own session closed, is PROVISIONAL and is not evaluated; read after the close and settle it is UNKNOWN and evaluated, as the round 1 ruling says',
+    { mid: ipMid.status.slice(-2), alertsMid: ipRunMid.alerts.length, after: ipRunAfter.alerts.map(a => [a.candleDate, a.barStatus]) });
+
+  /* A cooldown runs forward: a replay of a past session was refused as
+     "within the cooldown of" an alert recorded on a later bar. */
+  const cdDays = weekdays('2026-03-02', 30);
+  const cdH = { series: { CD: seriesOf(cdDays, cdDays.map((_, i) => (i === 10 || i === 20 || i === 22 ? 101 : 99))) } };
+  const cdSetup = { id: 'cd-above', version: 1, timeframe: '1D', cooldownMode: 'EVERY_MATCH', cooldownBars: 5, universe: { kind: 'all' },
+    ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 100 } }] } };
+  const cdLive = E.scanRun([cdSetup], cdH, { asOf: cdDays[20], now: '2026-04-20T00:00:00Z' });
+  const cdReplay = E.scanRun([cdSetup], cdH, { asOf: cdDays[10], existing: cdLive.alerts, now: '2026-04-20T00:00:00Z' });
+  const cdNext = E.scanRun([cdSetup], cdH, { asOf: cdDays[22], existing: [...cdLive.alerts, ...cdReplay.alerts], now: '2026-04-20T00:00:00Z' });
+  check(cdLive.alerts.length === 1 && cdReplay.alerts.length === 1 && cdReplay.alerts[0].candleDate === cdDays[10] && cdReplay.cooldown === 0
+    && cdNext.alerts.length === 0 && cdNext.cooldown === 1 && cdNext.skipped.some(x => x.why === `within the 5-bar cooldown of ${cdDays[20]}`),
+    'bugfix engine: a replay of a past session records its match although a later bar\'s alert is already recorded — a cooldown counts forward from the alert before a bar, never back from one after it — and a match two bars after an alert is still within its cooldown',
+    { replay: cdReplay.alerts.map(a => a.candleDate), skipped: cdReplay.skipped.map(x => x.why), next: cdNext.skipped.map(x => x.why) });
+
+  /* scanStatus: no success and an attempt that did not fail read "failed"
+     with no reason; a replay was read as the last scan; the last scan's
+     own alert on an earlier bar was not among its matches. */
+  const eng = `scan ${E.SCAN_VERSION}`;
+  const hm = { newestBar: '2026-09-25' };
+  const at = '2026-09-28T12:00:00Z';
+  const lone = (status, extra = {}) => E.scanStatus({ runs: { runs: [{ id: 'r-lone', kind: 'scan', status, startedAt: '2026-09-28T10:00:00Z', asOf: null, counts: null, ...extra }] }, historyMeta: hm, now: at });
+  const sRun = lone('RUNNING'), sSkip = lone('SKIPPED_NO_SETUPS', { skipReason: 'no setups file at data/scan-setups.json' }), sCan = lone('CANCELLED'), sFail = lone('FAILED', { error: { message: 'boom' } });
+  const noReasonFailed = [sRun, sSkip, sCan].filter(x => x.state === 'failed' || !x.reasons.length);
+  const live = { id: 'r-live', kind: 'scan', trigger: 'daily', status: 'COMPLETED', startedAt: '2026-09-27T10:00:00Z', finishedAt: '2026-09-27T10:00:05Z', asOf: '2026-09-25', asOfFrom: '2026-09-24', engine: eng, counts: { evaluated: 3, recorded: 2 } };
+  const replay = { id: 'r-replay', kind: 'scan', trigger: 'replay', replayAsOf: '2026-08-03', status: 'COMPLETED', startedAt: '2026-09-28T09:00:00Z', finishedAt: '2026-09-28T09:00:05Z', asOf: '2026-08-03', asOfFrom: '2026-08-03', engine: eng, counts: { evaluated: 3 } };
+  const alertsDoc = { alerts: [
+    { id: 'a-old', setupId: 's', symbol: 'Z', candleDate: '2026-09-24', runId: 'r-before' },
+    { id: 'a-caught', setupId: 's', symbol: 'X', candleDate: '2026-09-24', runId: 'r-live' },
+    { id: 'a-last', setupId: 's', symbol: 'Y', candleDate: '2026-09-25', runId: 'r-live' },
+    { id: 'a-replay', setupId: 's', symbol: 'W', candleDate: '2026-08-03', runId: 'r-replay' }] };
+  check(!noReasonFailed.length && sRun.state === 'behind' && /r-lone.*has not finished/.test(sRun.reasons.join(' ')) && /skipped: no setups file at data\/scan-setups\.json\./.test(sSkip.reasons.join(' '))
+    && /cancelled/.test(sCan.reasons.join(' ')) && sFail.state === 'failed' && /r-lone.*failed: boom/.test(sFail.reasons.join(' ')),
+    'bugfix engine: scanStatus — with no success, an attempt that is running, skipped or cancelled is behind with a sentence naming it, never "The latest scan failed." over no reason; a failed attempt is still failed',
+    { running: [sRun.state, sRun.reasons], skipped: [sSkip.state, sSkip.reasons], cancelled: [sCan.state, sCan.reasons], failed: [sFail.state, sFail.reasons] });
+  const sLive = E.scanStatus({ runs: { runs: [live, replay] }, alertsDoc, historyMeta: hm, now: at });
+  const sOnlyReplay = E.scanStatus({ runs: { runs: [replay] }, alertsDoc, historyMeta: hm, now: at });
+  check(sLive.state === 'current' && !sLive.reasons.length && sLive.lastSuccess?.id === 'r-live' && sLive.lastAttempt?.id === 'r-replay' && !sLive.latestMatches.some(a => a.id === 'a-replay')
+    && sOnlyReplay.lastSuccess === null && sOnlyReplay.state === 'behind' && /replay of 2026-08-03/.test(sOnlyReplay.reasons.join(' ')),
+    'bugfix engine: scanStatus — a replay of a past session (--as-of) is an attempt, not the last scan: a current dashboard stays current after one, and its matches are not headed as the last scan\'s',
+    { live: [sLive.state, sLive.reasons, sLive.lastSuccess?.id], onlyReplay: [sOnlyReplay.state, sOnlyReplay.reasons] });
+  const sCaught = E.scanStatus({ runs: { runs: [live] }, alertsDoc, historyMeta: hm, now: at });
+  check(same(sCaught.latestMatches.map(a => a.id), ['a-caught', 'a-last']),
+    'bugfix engine: scanStatus — the last scan\'s matches include the alert it recorded on an earlier bar (a caught-up day, or a market a session behind), not only those on its newest bar; an older run\'s alert on that earlier bar is not among them',
+    { latest: sCaught.latestMatches.map(a => a.id) });
+}
+/* ---- end bugfix: engine ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
