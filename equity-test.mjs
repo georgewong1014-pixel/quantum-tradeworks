@@ -4462,6 +4462,267 @@ try {
   }
   /* ---- end integration: round 3 ---- */
 
+  /* ---- bugfix: scanner-ops ---- */
+  /* BUG HUNT — THE SCANNER'S OWN PAGES (src/js/87-scanner-ops.js), each
+     check against the record the page reads or the control it drives:
+     numbers the record holds read back as the record holds them, a
+     sentence true of the record it is about, and focus that never falls to
+     the page's body. Every file is set in memory and put back. */
+  {
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      try {
+        const f = scanFixture();
+        const out = {};
+        const card = (title) => [...document.querySelectorAll('main section.card')].find(c => c.querySelector('.h-card')?.textContent === title) || null;
+        const dd = (root, label) => { const dt = root ? [...root.querySelectorAll('dt')].find(d => d.textContent === label) : null; return dt ? dt.nextElementSibling.textContent : null; };
+        /* Durations rounded at the unit shown; ages in calendar days. */
+        out.dur = [999.6, 59960, 119600].map(scanOpsDuration);
+        scanOpsClock = '2026-04-07T01:00:00Z';
+        out.age = scanOpsAge('2026-04-06T23:00:00Z');
+        /* One setup refused for two problems. */
+        const bad = { id: 'qa-bad', name: 'QA bad', enabled: true, universe: { kind: 'all' }, timeframe: '9Z',
+          ruleTree: { type: 'group', logic: 'XX', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 } }] } };
+        scanHistoryFile = f.history; scanSetupsFile = { setups: [f.setupV2, bad] }; scanAlertsFile = { alerts: [] }; scanRunsFile = null; scanControlFile = null;
+        scanOpsRead = true; scanOpsClock = f.now;
+        out.problems = scanValidate(scanSetupsFile).problems.length;
+        navigate('/admin/scanner');
+        out.usage = dd(card('Usage'), 'Active setups');
+        navigate('/app/scanner');
+        out.tile = document.querySelector('main .scan-q')?.innerText || '';
+        /* The alerts file's last run standing in, beside a run log that
+           holds one failure. */
+        const doc = { setups: [f.setup] };
+        const run = scanRun(doc.setups, f.history, { now: f.now });
+        const a0 = run.alerts[0];
+        scanSetupsFile = doc;
+        scanAlertsFile = { alerts: run.alerts, lastRun: { at: f.now, asOf: run.asOf, engine: 'scan ' + SCAN_VERSION, evaluated: run.evaluated, setupsHash: scanSetupsHash(doc) } };
+        const failed = { id: 'run-qa-failed', kind: 'scan', status: 'FAILED', startedAt: scanAddDays(f.lastBar, 1) + 'T00:30:00Z', error: { category: 'VALIDATION', message: 'QA' }, errors: [{ category: 'VALIDATION', message: 'QA' }] };
+        scanRunsFile = { schema: 1, runs: [failed], audit: [] };
+        scanOpsClock = scanAddDays(f.lastBar, 1) + 'T01:00:00Z';
+        navigate('/app/scanner');
+        out.legacyTile = [...document.querySelectorAll('main .scan-q')][1]?.innerText || '';
+        navigate('/admin/scanner');
+        out.legacyEngine = card('Alert engine')?.querySelector('.caption')?.textContent || '';
+        /* Matches on the last scan's bar and on four bars before it. */
+        const earlier = [1, 2, 3, 4].map(k => ({ ...a0, id: undefined, key: a0.key + '|qa' + k, candleDate: scanAddDays(a0.candleDate, -7 * k), bar: undefined }));
+        const ok1 = { id: 'run-qa-ok', kind: 'scan', status: 'COMPLETED', trigger: 'daily', startedAt: f.now, finishedAt: f.now, engine: 'scan ' + SCAN_VERSION,
+                      setupsHash: scanSetupsHash(doc), asOf: run.asOf, asOfFrom: run.asOf, counts: { evaluated: run.evaluated, matched: run.matched, recorded: run.alerts.length } };
+        scanAlertsFile = { alerts: [...earlier, ...run.alerts] };
+        scanRunsFile = { schema: 1, runs: [ok1], audit: [] }; scanOpsClock = f.now;
+        navigate('/app/scanner');
+        const heads = () => [...document.querySelectorAll('main h3.h-card')].map(h => h.textContent);
+        out.earlier = heads().find(h => /^Earlier matches/.test(h)) || null;
+        scanAlertsFile = { alerts: [...earlier, ...run.alerts] };
+        scanRunsFile = { schema: 1, runs: [failed], audit: [] };
+        navigate('/app/scanner');
+        out.noSuccess = heads().find(h => /^Recorded matches/.test(h)) || null;
+        /* An adjustments file holding only a ratio-1 record. */
+        const keepAdj = scanAdjustmentsFile;
+        try {
+          const days = Object.keys(f.history.series.MATCH).sort();
+          const h = JSON.parse(JSON.stringify(f.history));
+          for (let i = 30; i < days.length; i++) h.series.MATCH[days[i]] *= 2;
+          scanAdjustmentsFile = { schema: 1, actions: [{ symbol: 'MATCH', date: days[30], ratio: 1, kind: 'other' }] };
+          scanHistoryFile = scanAttachAdjustments(h, scanAdjustmentsFile);
+          navigate('/admin/scanner/data');
+          out.adjLine = document.querySelector('main section.card .metaline')?.textContent || '';
+        } finally { scanAdjustmentsFile = keepAdj; }
+        return out;
+      } finally { restore(); navigate('/learn'); }
+    })()`);
+    const p = [];
+    if (r.dur.join() !== '1.0 s,1 min 0 s,2 min 0 s') p.push(`durations of 999.6 ms, 59.96 s and 119.6 s read ${r.dur.join(', ')}`);
+    if (r.age !== 'a day ago') p.push(`a run at 23:00 read at 01:00 the next day is "${r.age}"`);
+    if (r.problems !== 2 || !/\(of 1 valid, 1 refused\)$/.test(r.usage || '')) p.push(`one setup refused for ${r.problems} problems: Usage reads "${r.usage}"`);
+    if (!/1 setup refused, for 2 problems/.test(r.tile)) p.push(`the setups tile: ${r.tile.replace(/\n+/g, ' | ')}`);
+    if (/no run log is on this machine/.test(r.legacyTile) || !/no run in the run log succeeded/.test(r.legacyTile)) p.push(`with a run log of one failure, the last-success tile: ${r.legacyTile.replace(/\n+/g, ' | ')}`);
+    if (/no run log is loaded/.test(r.legacyEngine) || !/no run in the run log evaluated anything/.test(r.legacyEngine)) p.push(`with a run log of one failure, the alert engine: ${r.legacyEngine.slice(0, 200)}`);
+    if (r.earlier !== 'Earlier matches — the last 4 bars with one') p.push(`four earlier bars headed "${r.earlier}"`);
+    if (r.noSuccess !== 'Recorded matches — no scan has succeeded, so none is current') p.push(`matches with only a failed run recorded headed "${r.noSuccess}"`);
+    if (/adjusted on read/.test(r.adjLine) || !/market’s own move \(ratio 1\)/.test(r.adjLine)) p.push(`a ratio-1 record: ${r.adjLine}`);
+    if (p.length) fail('bugfix scanner-ops: the scanner pages\' numbers and sentences match the records they read', p);
+    else ok('bugfix scanner-ops: the scanner pages\' numbers and sentences match the records they read — 119.6 s is 2 min 0 s, a run at 23:00 read at 01:00 was a day ago, one setup refused for two problems is one refused, the alerts file standing in beside a run log of failures does not say there is no run log, four earlier bars are four, and a ratio-1 record adjusts no price');
+  }
+  {
+    /* The run record as the worker writes it for a replay (catchUp null),
+       a run the ready gate did not guard (readiness naming a market
+       behind, skippedMarkets empty), a gated run that held every market
+       back (counts, but no pair evaluated), and a record with no match
+       count. */
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      try {
+        const f = scanFixture();
+        const base = { kind: 'scan', engine: 'scan ' + SCAN_VERSION, historyNewest: f.lastBar, historyHash: 'sha256:qa', setupsHash: 'qa', cacheStats: { hits: 1, misses: 1 },
+                       ledger: { known: 1, newVersions: [], refused: [] }, errors: [], error: null, stale: 0, provisional: 0 };
+        const t = (h) => '2026-04-07T0' + h + ':00:00.000Z';
+        const runs = [
+          { ...base, id: 'run-qa-plain', status: 'PARTIAL', trigger: 'manual', ready: false, startedAt: t(1), finishedAt: t(1), asOf: f.lastBar, asOfFrom: f.lastBar,
+            counts: { setups: 1, evaluated: 2, matched: 0, recorded: 0 }, readiness: [{ market: 'MY', state: 'BEHIND', expected: f.lastBar, newestFinal: '2026-03-01', inRun: true, text: 'MY: behind' }],
+            skippedMarkets: [], catchUp: { pairs: 0, bars: 0, capped: 0, cap: 10 } },
+          { ...base, id: 'run-qa-replay', status: 'COMPLETED', trigger: 'replay', replayAsOf: '2026-04-01', startedAt: t(2), finishedAt: t(2), asOf: '2026-04-01', asOfFrom: '2026-04-01',
+            counts: { setups: 1, evaluated: 2, matched: 0, recorded: 0 }, readiness: [{ market: null, state: 'READY', inRun: true }], skippedMarkets: [], catchUp: null },
+          { ...base, id: 'run-qa-nocount', status: 'COMPLETED', trigger: 'manual', startedAt: t(3), finishedAt: t(3), asOf: f.lastBar, asOfFrom: f.lastBar, counts: { evaluated: 3 } },
+          { ...base, id: 'run-qa-gated', status: 'PARTIAL', trigger: 'daily', ready: true, startedAt: t(4), finishedAt: t(4), asOf: null, asOfFrom: null,
+            counts: { setups: 1, evaluated: 0, matched: 0, recorded: 0 }, readiness: [{ market: 'MY', state: 'BEHIND', inRun: true, text: 'MY: behind' }],
+            skippedMarkets: [{ market: 'MY', reason: 'QA: not held final' }], catchUp: { pairs: 0, bars: 0, capped: 0, cap: 10 } },
+        ];
+        scanHistoryFile = f.history; scanSetupsFile = { setups: [f.setup] }; scanAlertsFile = { alerts: [] };
+        scanRunsFile = { schema: 1, runs, audit: [] }; scanOpsRead = true; scanOpsClock = t(5); scanJobsState.filter = 'all';
+        const dd = (root, label) => { const dt = root ? [...root.querySelectorAll('dt')].find(d => d.textContent === label) : null; return dt ? dt.nextElementSibling.textContent : null; };
+        navigate('/admin/scanner/jobs');
+        const table = document.querySelector('main .scan-dt');
+        const out = { jobs: {} };
+        [...table.querySelectorAll(':scope > tbody > tr:not(.scan-detail-row)')].forEach(tr => {
+          const det = tr.nextElementSibling;
+          const id = det?.querySelector('dd code')?.textContent;
+          out.jobs[id] = { counts: tr.cells[5].textContent, caught: dd(det, 'Caught up'), notReady: dd(det, 'Markets not ready') };
+        });
+        navigate('/admin/scanner');
+        const eng = [...document.querySelectorAll('main section.card')].find(c => c.querySelector('.h-card')?.textContent === 'Alert engine');
+        out.engine = { sub: eng?.querySelector('.caption')?.textContent || '', evaluated: dd(eng, 'Evaluated') };
+        return out;
+      } finally { restore(); scanJobsState.filter = 'all'; navigate('/learn'); }
+    })()`);
+    const p = [];
+    const j = r.jobs;
+    if (!/^none — a replay evaluates the session it was asked for \(2026-04-01\)/.test(j['run-qa-replay']?.caught || '')) p.push(`a replay's catch-up: "${j['run-qa-replay']?.caught}"`);
+    if (/every market in the run was ready/.test(j['run-qa-plain']?.notReady || '') || !/MY was not ready/.test(j['run-qa-plain']?.notReady || '')) p.push(`a run not gated, with MY behind: "${j['run-qa-plain']?.notReady}"`);
+    if (j['run-qa-gated']?.caught !== 'none — the run evaluated no pair') p.push(`a run that evaluated no pair: catch-up "${j['run-qa-gated']?.caught}"`);
+    if (/\b0 matched|\b0 recorded/.test(j['run-qa-nocount']?.counts || '') || !/no count of matches/.test(j['run-qa-nocount']?.counts || '')) p.push(`a record with no match count: "${j['run-qa-nocount']?.counts}"`);
+    if (!/^The last run that evaluated: run-qa-nocount/.test(r.engine.sub) || !/The latest attempt, run-qa-gated, was partial and evaluated nothing/.test(r.engine.sub)) p.push(`the alert engine's source: ${r.engine.sub.slice(0, 220)}`);
+    if (p.length) fail('bugfix scanner-ops: a run\'s catch-up, readiness and counts say what the run record holds', p);
+    else ok('bugfix scanner-ops: a run\'s catch-up, readiness and counts say what the run record holds — a replay (catchUp null) catches nothing up rather than "this worker does not write it", a run not gated names the market that was behind rather than "every market was ready", a run that evaluated no pair is not the alert engine\'s "last run that evaluated", and a missing match count is not 0');
+  }
+  {
+    /* FOCUS, PAGING AND RUNS. Every control that takes itself away hands
+       focus on; a newer run supersedes an older one; a window that ends
+       before it begins, or a replay of a day not yet come, is refused. */
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      const keepOpened = scanOpsOpened, hasNote = typeof scanOpsOpenNote !== 'undefined', keepNote = hasNote ? scanOpsOpenNote : null;
+      try {
+        const f = scanFixture();
+        const out = {};
+        const act = () => { const a = document.activeElement; return !a || a === document.body ? 'BODY' : a.tagName + ':' + (a.textContent || '').trim().slice(0, 24); };
+        const btn = (re) => [...document.querySelectorAll('main button')].find(b => re.test(b.textContent.trim()));
+        /* Show more, with a run's detail open. */
+        const mk = (i) => ({ id: 'run-qa-' + String(i).padStart(3, '0'), kind: 'scan', status: 'SKIPPED_NO_DATA', skipReason: 'qa ' + i,
+                             startedAt: '2026-04-06T' + String(23 - Math.floor(i / 60)).padStart(2, '0') + ':' + String(59 - (i % 60)).padStart(2, '0') + ':00Z' });
+        scanRunsFile = { schema: 1, runs: Array.from({ length: 60 }, (_, i) => mk(i)), audit: [] };
+        scanHistoryFile = f.history; scanSetupsFile = { setups: [f.setupV2] }; scanAlertsFile = { alerts: [] }; scanOpsRead = true; scanOpsClock = f.now; scanJobsState.filter = 'all';
+        navigate('/admin/scanner/jobs');
+        const firstDet = document.querySelector('main details.scan-row-det');
+        firstDet.open = true; await w(20);
+        const more = btn(/^Show \\d+ more$/);
+        more.focus(); more.click(); await w(40);
+        out.more = { active: act(), first: !!document.querySelector('main details.scan-row-det')?.open,
+                     rows: document.querySelector('main .scan-dt').querySelectorAll(':scope > tbody > tr:not(.scan-detail-row)').length,
+                     landed: document.activeElement?.closest('tr') === [...document.querySelector('main .scan-dt').querySelectorAll(':scope > tbody > tr:not(.scan-detail-row)')][50] };
+        /* A screen and a simulation started from the keyboard, and cancelled. */
+        const big = { series: {}, volume: {} };
+        for (let i = 0; i < 300; i++) { const k = 'QA' + String(i).padStart(3, '0'); big.series[k] = f.history.series.MATCH; big.volume[k] = f.history.volume.MATCH; }
+        scanHistoryFile = big;
+        Object.assign(scanMarketState, { market: '__all', asOf: '', result: null, setup: null, job: null });
+        Object.assign(scanBacktestState, { setup: null, symbol: '', from: '', to: '', result: null, job: null });
+        const runCancel = async (path, runRe) => {
+          navigate(path); await w(20);
+          const run = btn(runRe);
+          run.focus(); run.click();
+          await w(30);
+          const during = act();
+          const cancel = btn(/^Cancel$/);
+          cancel.focus(); cancel.click();
+          for (let i = 0; i < 50 && !/Cancelled/.test(document.querySelector('main').innerText); i++) await w(20);
+          return { during, after: act() };
+        };
+        out.screen = await runCancel('/app/scanner/market', /^Screen now/);
+        out.sim = await runCancel('/app/scanner/backtest', /^Run the simulation/);
+        /* A simulation left running while the reader looked elsewhere and
+           came back, with its From changed meanwhile: the page shows it
+           running, and its result, on the window it was asked for, lands on
+           the page on screen. */
+        const mid = { series: {}, volume: {} };
+        for (let i = 0; i < 40; i++) { const k = 'QB' + String(i).padStart(3, '0'); mid.series[k] = f.history.series.MATCH; mid.volume[k] = f.history.volume.MATCH; }
+        scanHistoryFile = mid;
+        Object.assign(scanBacktestState, { symbol: '', from: '', to: '', result: null, job: null });
+        navigate('/app/scanner/backtest'); await w(20);
+        btn(/^Run the simulation/).click();
+        navigate('/learn'); scanBacktestState.from = '2026-03-02'; navigate('/app/scanner/backtest'); await w(20);
+        const cancelNow = btn(/^Cancel$/);
+        out.back = { cancel: cancelNow ? getComputedStyle(cancelNow).display : 'absent', runDisabled: btn(/^Run the simulation/).disabled,
+                     said: [...document.querySelectorAll('main p[role=status]')].map(x => x.textContent).join(' ') };
+        for (let i = 0; i < 150 && scanBacktestState.job; i++) await w(20);
+        await w(40);
+        out.back.shown = document.querySelector('main .scan-counts .stat-value')?.textContent || null;
+        out.back.from = scanBacktestState.result ? scanBacktestState.result.from : 'no result';
+        out.back.runEnabled = !btn(/^Run the simulation/).disabled;
+        /* A screen whose market is changed while it runs keeps the market
+           it screened. */
+        Object.assign(scanMarketState, { market: '__all', asOf: '', result: null, setup: null, job: null });
+        scanHistoryFile = big;
+        navigate('/app/scanner/market'); await w(20);
+        btn(/^Screen now/).click();
+        scanMarketState.market = 'US';
+        for (let i = 0; i < 150 && scanMarketState.job; i++) await w(20);
+        out.label = { market: scanMarketState.result?.market ?? null, screened: scanMarketState.result?.rows?.length ?? null };
+        scanMarketState.market = '__all';
+        /* From after To; an as-of after today. */
+        scanHistoryFile = f.history;
+        Object.assign(scanBacktestState, { symbol: '', from: '2026-03-20', to: '2026-02-01', result: null, job: null });
+        navigate('/app/scanner/backtest'); await w(20);
+        btn(/^Run the simulation/).click(); await w(150);
+        out.window = { result: !!scanBacktestState.result, said: [...document.querySelectorAll('main p[role=status]')].map(x => x.textContent).join(' ') };
+        Object.assign(scanBacktestState, { from: '', to: '' });
+        Object.assign(scanMarketState, { asOf: scanAddDays(f.now.slice(0, 10), 30), result: null, job: null });
+        navigate('/app/scanner/market'); await w(20);
+        out.future = { max: document.querySelector('#scan-market-asof')?.getAttribute('max') };
+        btn(/^Screen now/).click(); await w(150);
+        out.future.result = !!scanMarketState.result;
+        out.future.said = [...document.querySelectorAll('main p[role=status]')].map(x => x.textContent).join(' ');
+        scanMarketState.asOf = '';
+        /* Several setups pasted at once. */
+        scanSetupsFile = null;
+        navigate('/app/scanner/market'); await w(20);
+        document.querySelector('#scan-paste').value = JSON.stringify({ setups: [{ ...f.setupV2, id: 'qa-first', name: 'QA first' }, { ...f.setupV2, id: 'qa-second' }] });
+        btn(/^Use this setup$/).click(); await w(40);
+        out.paste = [...document.querySelectorAll('main p[role=status]')].map(x => x.textContent).join(' ');
+        Object.assign(scanMarketState, { pasted: '', pastedSetup: null, pasteNote: '', setup: null });
+        /* A good file chosen beside one that does not parse. */
+        scanOpsOpened = []; if (hasNote) scanOpsOpenNote = ''; scanRunsFile = null;
+        navigate('/admin/scanner'); await w(40);
+        const input = document.querySelector('main .scan-open input[type=file]');
+        const dt = new DataTransfer();
+        dt.items.add(new File([JSON.stringify({ schema: 1, runs: [], audit: [] })], 'scan-runs.json', { type: 'application/json' }));
+        dt.items.add(new File(['{ not json'], 'scan-control.json', { type: 'application/json' }));
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change'));
+        await w(200);
+        out.open = { said: document.querySelector('main .scan-open [role=status]')?.textContent || '', opened: scanOpsOpened.map(o => o.as).join() };
+        return out;
+      } finally { restore(); scanOpsOpened = keepOpened; if (hasNote) scanOpsOpenNote = keepNote; scanJobsState.filter = 'all';
+        Object.assign(scanMarketState, { market: '__all', asOf: '', result: null, setup: null, job: null, pasted: '', pastedSetup: null, pasteNote: '' });
+        Object.assign(scanBacktestState, { setup: null, symbol: '', from: '', to: '', result: null, job: null }); navigate('/learn'); }
+    })()`);
+    const p = [];
+    if (r.more.active === 'BODY' || !r.more.landed || !r.more.first || r.more.rows !== 60) p.push(`"Show 10 more" on the runs: ${JSON.stringify(r.more)}`);
+    for (const [k, v] of Object.entries({ screen: r.screen, simulation: r.sim })) {
+      if (v.during !== 'BUTTON:Cancel' || !/^BUTTON:(Screen now|Run the simulation)/.test(v.after)) p.push(`${k} run from the keyboard: focus ${v.during} while running, ${v.after} after Cancel`);
+    }
+    const bk = r.back;
+    if (bk.cancel === 'none' || bk.cancel === 'absent' || !bk.runDisabled || !/^Simulated \d+ of 40/.test(bk.said.trim()) || bk.shown !== '40' || bk.from !== null || !bk.runEnabled)
+      p.push(`a simulation still running when the reader came back: ${JSON.stringify(bk)}`);
+    if (r.label.market !== '__all' || r.label.screened !== 300) p.push(`a screen of everything, its market changed while it ran, is labelled ${JSON.stringify(r.label)}`);
+    if (r.window.result || !/is after To/.test(r.window.said)) p.push(`From after To: ${JSON.stringify(r.window)}`);
+    if (r.future.result || !/is not a past date/.test(r.future.said) || !r.future.max) p.push(`an as-of after today: ${JSON.stringify(r.future)}`);
+    if (!/The first of 2 setups was taken\. It is “QA first”/.test(r.paste)) p.push(`two setups pasted: "${r.paste}"`);
+    if (r.open.opened !== 'scan-runs.json' || !/scan-control\.json \(not readable as JSON\)/.test(r.open.said)) p.push(`a good and a broken file chosen together: ${JSON.stringify(r.open)}`);
+    if (p.length) fail('bugfix scanner-ops: focus, paging and runs on the scanner pages', p);
+    else ok('bugfix scanner-ops: focus, paging and runs on the scanner pages — "Show more" lands on the first row it revealed and keeps an open run open, a screen and a simulation hand focus to Cancel and back, a simulation still running when the reader comes back is shown running and lands on the page on the window it was asked for, a screen keeps the market it screened, a From after To and an as-of after today are refused with the reason, the setup taken from several pasted is named, and a file that did not parse is named beside one that opened');
+  }
+  /* ---- end bugfix: scanner-ops ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
