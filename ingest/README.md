@@ -251,6 +251,12 @@ price that fails a sanity check is a data problem to look at rather than
 something to coerce into the file. The CSV may quote its cells, and a quoted
 number may carry thousands separators (`"1,612.34"`).
 
+Each run replaces the file with the rows it accepted, with two exceptions. A
+symbol whose row is refused keeps the price the file held for it, when the file
+was written from the same input. And a row that names its own source — the
+USD/MYR rate `fx.mjs` merges in — is carried over with its own date, so an
+import never takes the rate away.
+
 ### Why end-of-day is the right target
 
 Valuation, screening, scorecards, portfolio tracking and thesis monitoring all
@@ -586,6 +592,8 @@ without writing. Observed in practice: 4.0855 against 4.0865, **0.024% apart**.
 The merge preserves every other row in the file, and the rate carries per-symbol
 provenance, so an official central-bank rate sitting in a file of screen-read
 prices is labelled *Bank Negara Malaysia* rather than inheriting the file's.
+A file it cannot read as a price file is refused, not replaced, and the rate's
+date does not become the date of the file's other rows.
 
 Sources checked and rejected: **Stooq** (free EOD CSV, but now behind a
 JavaScript browser challenge), **Yahoo Finance** (no official API, terms bar

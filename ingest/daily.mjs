@@ -301,11 +301,13 @@ if (!SKIP_FX) {
     step('fx', 'ok', `USD/MYR ${rate || '?'} ${how}`);
   } catch (e) {
     /* Not fatal, and said as it is. "The previous rate is unchanged" was
-       printed whatever the file held: an import that accepted a row replaces
-       the price file, and prices.mjs carries no row that names its own
-       source — fx.mjs's rate among them — so after it the file held no
-       USD/MYR rate at all. The rate the file holds now is named, or its
-       absence and what became of the one it held. */
+       printed whatever the file held. An import that accepted a row
+       replaces the price file; prices.mjs now carries fx.mjs's rate into
+       it (a row naming its own source), so the file still holds the rate
+       of the last day fx.mjs succeeded, with that day's date — but a
+       USD/MYR the screen read on an earlier day is not carried. The rate
+       the file holds now is named, or its absence and what became of the
+       one it held. */
     const now = await fxHeld();
     const rateOf = (p, sep) => `${p.close}${p.src ? ` from ${p.src}` : ''}${p.date ? `${sep}${p.date}` : ''}`;
     const what = now ? `${PRICES} holds USD/MYR ${rateOf(now, ' (')}${now.date ? ')' : ''}`
@@ -339,10 +341,11 @@ say(rejected > 0 || flagged > 0
 
 await finish(worst);
 
-/* The USD/MYR row the price file holds — fx.mjs's key — or null. */
+/* The USD/MYR row the price file holds — fx.mjs's key — or null. Read past
+   a byte-order mark, as prices.mjs and fx.mjs now do. */
 async function fxHeld() {
   try {
-    const p = JSON.parse(await readFile(PRICES, 'utf8'))?.prices?.USDMYR;
+    const p = JSON.parse((await readFile(PRICES, 'utf8')).replace(/^\uFEFF/, ''))?.prices?.USDMYR;
     return p && typeof p.close === 'number' ? p : null;
   } catch { return null; }
 }

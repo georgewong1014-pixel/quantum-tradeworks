@@ -37,12 +37,18 @@
  *   same input (the daily review CSV) — --out is also the next run's
  *   baseline for watchlist.mjs's day-move check.
  *
+ * A ROW ANOTHER WRITER MERGED IN STAYS
+ *   fx.mjs merges its USD/MYR rate into the file, naming its own source
+ *   (src). A row that names its own source is carried into the new file,
+ *   with its own date, whatever input wrote the file — unless this input
+ *   has an accepted row for that symbol.
+ *
  *   exit 0  written;  exit 1  nothing written (no row accepted, or the
  *   input could not be read)
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { csvRows, numberCell, parseDateCell } from './history-store.mjs';
 
 const argv = process.argv.slice(2);
@@ -95,8 +101,16 @@ function jsonRows(j) {
   throw new Error('the JSON holds no prices: give a list of rows, { "prices": [ … ] }, or { "prices": { SYMBOL: { close, date } } }');
 }
 
+/* A JSON file read as JSON whether or not it opens with a byte-order mark.
+   An editor on Windows saves one, the browser reads past it, and
+   JSON.parse does not: a vendor's JSON so saved crashed the import
+   ("Unexpected token"), and an --out so saved read as no file at all, so
+   the prices a refused symbol keeps, and the rate fx.mjs merged in, were
+   dropped from it. (csvRows already skips it in a CSV.) */
+const parseJson = (text) => JSON.parse(String(text).replace(/^\uFEFF/, ''));
+
 const raw = await readFile(inPath, 'utf8');
-const rows = inPath.toLowerCase().endsWith('.json') ? jsonRows(JSON.parse(raw)) : parseCSV(raw);
+const rows = inPath.toLowerCase().endsWith('.json') ? jsonRows(parseJson(raw)) : parseCSV(raw);
 
 /* A date cell read as a session date, by the rule the history import and
    the browser's paste parser use (the store's parseDateCell): ISO as
@@ -167,7 +181,7 @@ for (const r of rows) {
 
 /* What --out holds now: what a refusal must leave standing. */
 let before = null;
-try { before = JSON.parse(await readFile(outPath, 'utf8')); } catch { /* no file yet, or unreadable — nothing to keep */ }
+try { before = parseJson(await readFile(outPath, 'utf8')); } catch { /* no file yet, or unreadable — nothing to keep */ }
 const heldBefore = before?.prices && typeof before.prices === 'object' && !Array.isArray(before.prices) ? before.prices : {};
 const accepted = Object.keys(prices).length;
 const tail = (list) => `${list.length}${list.length ? ' — ' + list.slice(0, 5).map(r => `${r.symbol || '?'} (${r.why})`).join('; ') : ''}`;
@@ -198,10 +212,19 @@ if (!accepted) {
    is "no previous close to check against", accepted. The price the file
    held for a refused symbol is kept as it was, with its own date and
    capture time — but only from a file written from this same input: a
-   price another writer put there (live.mjs, or fx.mjs's rate, which names
-   its own src) would be read by history.mjs as this file's reading. */
+   price live.mjs put there would be read by history.mjs as this file's
+   reading. (A row naming its own src is carried below, whoever refused it.)
+
+   "The same input" is the same file, however it is spelled. The recorded
+   source was compared as a string, so the re-run typed with ./ or with
+   PowerShell's .\ in front of the path the daily run gave — the same
+   review file — kept nothing: the refused symbol lost its price. */
+const samePath = (a, b) => {
+  const at = (p) => (process.platform === 'win32' ? resolve(p).toLowerCase() : resolve(p));
+  return typeof a === 'string' && typeof b === 'string' && at(a) === at(b);
+};
 const kept = [];
-if (before?.source === inPath) {
+if (samePath(before?.source, inPath)) {
   for (const r of rejected) {
     const p = r.symbol && heldBefore[r.symbol];
     if (!p || prices[r.symbol] || p.src || typeof p.close !== 'number') continue;
@@ -210,13 +233,33 @@ if (before?.source === inPath) {
   }
 }
 
+/* A ROW ANOTHER WRITER MERGED IN, NAMING ITS OWN SOURCE, STAYS. fx.mjs
+   merges Bank Negara's USD/MYR into this file with its src, and the file
+   was replaced by the accepted rows alone: every import — the daily run's,
+   or the re-run it tells the reader to make after correcting a row —
+   dropped the rate, and ?personal=1 converted every ringgit figure at the
+   4.42 sample rate until fx.mjs next succeeded — on a day it failed, for
+   the rest of the day. Such a row is not this input's reading, and says
+   so: history.mjs leaves it out, and the app labels it by its own source.
+   So it is carried whatever input wrote the file — fx.mjs merges into
+   whichever file it is pointed at, and a vendor's dump named by its day is
+   a new input each day — with its own date, and it does not move the
+   file's as-of. A symbol this input has an accepted row for keeps that
+   row. */
+const carried = [];
+for (const [symbol, p] of Object.entries(heldBefore)) {
+  if (prices[symbol] || !p || typeof p !== 'object' || !p.src || typeof p.close !== 'number') continue;
+  prices[symbol] = p;
+  carried.push(symbol);
+}
+
 const stale = Object.values(prices).filter(p => p.date && (Date.now() - new Date(p.date)) / 86400000 > 7).length;
 
 const payload = {
   generated: new Date().toISOString(),
   source: inPath,
-  /* As of the rows accepted now; a kept price carries its own date. */
-  asOf: asOfRead?.date || Object.entries(prices).filter(([s]) => !kept.includes(s)).map(([, p]) => p.date).filter(Boolean).sort().pop() || null,
+  /* As of the rows accepted now; a kept or carried price carries its own date. */
+  asOf: asOfRead?.date || Object.entries(prices).filter(([s]) => !kept.includes(s) && !carried.includes(s)).map(([, p]) => p.date).filter(Boolean).sort().pop() || null,
   basis: 'end-of-day',
   delayMinutes: null,
   /* Recorded so the app can state, on screen, what right the prices are shown
@@ -234,5 +277,6 @@ console.log(`wrote ${outPath}`);
 console.log(`  accepted : ${accepted}`);
 console.log(`  rejected : ${tail(rejected)}`);
 if (kept.length) console.log(`  kept     : ${kept.length} refused symbol(s) keep the price the file held — ${kept.slice(0, 8).map(s => `${s} ${prices[s].close}${prices[s].date ? ` (${prices[s].date})` : ''}`).join(', ')}${kept.length > 8 ? ', …' : ''}`);
+if (carried.length) console.log(`  carried  : ${carried.length} row(s) naming their own source, as the file held them — ${carried.slice(0, 8).map(s => `${s} ${prices[s].close} from ${prices[s].src}${prices[s].date ? ` (${prices[s].date})` : ''}`).join(', ')}${carried.length > 8 ? ', …' : ''}`);
 console.log(`  as of    : ${payload.asOf || 'not stated'}${stale ? `  (${stale} rows older than 7 days)` : ''}`);
 if (!licence) console.warn('! No --licence given. The app will show these prices as unverified.');
