@@ -273,6 +273,12 @@ function qttiRun(p) {
 
   const conf = QTTI_CONF_PARTS.reduce((a, c) => a + c.w * (isNum(p.confidence?.[c.k]) ? clamp(p.confidence[c.k], 0, 100) : 0), 0);
   const confKnown = QTTI_CONF_PARTS.every(c => isNum(p.confidence?.[c.k]));
+  /* Confidence is judged as it is printed, as the timeframe floors are. The
+     unrounded 69.75 printed "Screenshot confidence is 70, below the 70
+     required" beside a "70 / 100" banded "Confirmation mandatory", and 64.75
+     was rejected as "65, below the floor of 65" — one card holding a number
+     and a verdict that contradicted it. */
+  const confShown = Math.round(conf);
 
   const inst = QTTI_INSTRUMENTS.find(x => x.id === p.instrumentType) || QTTI_INSTRUMENTS[0];
   const tpl  = QTTI_TEMPLATES.find(x => x.id === p.template) || QTTI_TEMPLATES[0];
@@ -294,7 +300,7 @@ function qttiRun(p) {
   if (!p.identityConsistent) reject.push('You have not confirmed that all three panels show the same instrument and the same price basis.');
   if (p.panelsCropped) reject.push('A panel is cropped before the latest price or the indicator scale.');
   if (!p.capturedAt) reject.push('No capture time, so recency cannot be established.');
-  if (confKnown && conf < QTTI_LIMITS.confidenceReject) reject.push(`Screenshot confidence is ${Math.round(conf)}, below the floor of ${QTTI_LIMITS.confidenceReject}.`);
+  if (confKnown && confShown < QTTI_LIMITS.confidenceReject) reject.push(`Screenshot confidence is ${confShown}, below the floor of ${QTTI_LIMITS.confidenceReject}.`);
   QTTI_TIMEFRAMES.forEach(t => {
     if (tfs[t.k].present && tfs[t.k].coverage < QTTI_LIMITS.coverageFloor)
       reject.push(`${t.label} evidence coverage is ${Math.round(tfs[t.k].coverage * 100)}%, below the 70% floor.`);
@@ -335,8 +341,8 @@ function qttiRun(p) {
     if (missing.length) gates.push(`The asset thesis gate is incomplete: ${missing.join(', ')}. This instrument has no filed statements, so the thesis gate replaces the fundamental one rather than being skipped.`);
   }
   if (!p.tradingStatusClear) gates.push('Trading status and liquidity have not been confirmed — suspension, halt, delisting or a thin book each invalidate a chart read.');
-  if (confKnown && conf < QTTI_LIMITS.confidenceFloor)
-    gates.push(`Screenshot confidence is ${Math.round(conf)}, below the ${QTTI_LIMITS.confidenceFloor} required to unlock a tranche. Extraction reliability is not market predictability, but a tranche cannot rest on evidence this thin.`);
+  if (confKnown && confShown < QTTI_LIMITS.confidenceFloor)
+    gates.push(`Screenshot confidence is ${confShown}, below the ${QTTI_LIMITS.confidenceFloor} required to unlock a tranche. Extraction reliability is not market predictability, but a tranche cannot rest on evidence this thin.`);
   if (!confKnown) gates.push('Screenshot confidence has not been scored, so the evidence rule cannot be applied.');
   if (!(num0(p.plan?.plannedTotal) > 0) || !(stage1Fraction > 0))
     gates.push('Your intended total position and Stage 1 fraction have not been entered. The platform does not invent either number.');
@@ -360,7 +366,9 @@ function qttiRun(p) {
     if (!qttiClearsFloor(tfs.weekly.score, f.weekly))   gates.push(`${tpl.label} needs a weekly score of at least ${f.weekly}; it is ${Math.round(tfs.weekly.score)}.`);
     if (!qttiClearsFloor(tfs.daily.score, f.daily))     gates.push(`${tpl.label} needs a daily score of at least ${f.daily}; it is ${Math.round(tfs.daily.score)}.`);
     if (!qttiClearsFloor(regime, f.regime))             gates.push(`${tpl.label} needs a trend regime of at least ${f.regime}; it is ${regime}.`);
-    if (tpl.needsVolume && plainMean('volume') < 50) gates.push('Volume does not confirm the move under this template.');
+    /* On the printed score too: the derivation table showed volume 50 while
+       an unrounded 49.7 said it did not confirm. */
+    if (tpl.needsVolume && !qttiClearsFloor(plainMean('volume'), 50)) gates.push('Volume does not confirm the move under this template.');
   }
 
   /* --- §13.2 derivative hard blocks. The trend card may still show; the
@@ -389,8 +397,14 @@ function qttiRun(p) {
     if (inst.unmodelledTerms)
       perpGates.push(`This version does not model an ${inst.label.toLowerCase()}'s own terms — ${inst.unmodelledTerms} — so the derivative gate cannot clear for one.`);
     if (!d.specVersion) perpGates.push('No contract specification version, so the venue terms in force are unknown.');
+    /* Units are the Stage 1 amount over the entry price, and the loss is the
+       net risk on each. A netRisk exists only once the entry is above zero,
+       so there is nothing to guard against — but the divisor was floored at
+       1, which for any contract priced below 1 (a DOGE perpetual at 0.12)
+       divided by the wrong number: at an entry of 0.5 the loss read half of
+       what it is and a budget it broke let the gate clear. */
     if (num0(d.maxAccountLoss) > 0 && isNum(rr.netRisk) && num0(p.plan?.plannedTotal) > 0) {
-      const intended = rr.netRisk * num0(p.plan.plannedTotal) * stage1Fraction / Math.max(num0(p.plan.plannedEntry), 1);
+      const intended = rr.netRisk * num0(p.plan.plannedTotal) * stage1Fraction / num0(p.plan.plannedEntry);
       if (intended > num0(d.maxAccountLoss)) perpGates.push('The intended loss exceeds the risk budget you entered.');
     }
   }
@@ -407,7 +421,9 @@ function qttiRun(p) {
 
   const trancheState = !assessable ? { id:'u', label:'Not assessable', say:'The screenshot evidence does not support a run.' }
     : gates.length ? QTTI_TRANCHE_BANDS.find(b => b.id === 'blocked')
-    : qttiBand(QTTI_TRANCHE_BANDS, trancheRaw);
+    /* Banded on the printed readiness: an unrounded 64.6 printed "65 / 100 —
+       Criteria pending" where the band table says 65 is Criteria met. */
+    : qttiBand(QTTI_TRANCHE_BANDS, Math.round(trancheRaw));
   const tranche = assessable ? Math.round(trancheRaw) : null;
 
   /* §14.8 — what would change the state. Derived from the gates rather than
@@ -431,8 +447,8 @@ function qttiRun(p) {
   return {
     version:QTTI_VERSION, assessable, reject, tfs, regime, regimeRaw,
     band: assessable ? qttiRegimeBand(regime) : null,
-    confidence: confKnown ? Math.round(conf) : null,
-    confidenceBand: confKnown ? qttiBand(QTTI_CONF_BANDS, conf) : null,
+    confidence: confKnown ? confShown : null,
+    confidenceBand: confKnown ? qttiBand(QTTI_CONF_BANDS, confShown) : null,
     parts, tranche, trancheRaw, trancheState, gates, perpGates, ext, rr, tpl, inst,
     stage1: (num0(p.plan?.plannedTotal) > 0 && fractionValid)
       ? num0(p.plan.plannedTotal) * stage1Fraction : null,
@@ -532,7 +548,7 @@ function qttiCellLabel(cell) {
    with the clear itself appended to it, because it is append-only — clearing
    a plan and re-entering higher readings must leave the same trail as editing
    them in place. */
-function qttiClearedPlan(prev, { keepRules }) {
+function qttiClearedPlan(prev, { keepRules, as = null }) {
   const next = qttiDefaultPlan();
   if (keepRules) {
     next.template = prev.template || next.template;
@@ -546,7 +562,7 @@ function qttiClearedPlan(prev, { keepRules }) {
     || QTTI_GROUPS.some(g => qttiCell(prev.timeframes?.[t.k]?.[g.k]).known));
   if (recorded) {
     next.corrections.push({ field: 'All recorded evidence',
-      oldValue: prev.symbol || 'unnamed chart', newValue: keepRules ? 'cleared' : 'reset',
+      oldValue: prev.symbol || 'unnamed chart', newValue: as || (keepRules ? 'cleared' : 'reset'),
       correctedAt: new Date().toISOString() });
     while (next.corrections.length > 200) next.corrections.shift();
   }
@@ -557,7 +573,12 @@ VIEWS.tradingIndex = () => {
   const p = State.qtti;
   const r = qttiRun(p);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  const save = () => { saveQtti(); render(); };
+  /* Every control on this form redraws the page, and render() replaced the
+     control under the keyboard: focus fell to <body> on each select, tick and
+     field. So each control carries an id built from its own label, and the
+     redraw hands focus back to it (redrawKeepFocus, 50-views-studio.js). */
+  const save = () => { saveQtti(); redrawKeepFocus(); };
+  const qid = (label) => `q-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Timing and risk control'),
@@ -781,7 +802,7 @@ VIEWS.tradingIndex = () => {
   const sel = (label, cur, opts, on) => {
     const f = el('div', { class: 'assumption' });
     f.append(el('label', {}, label));
-    const s = el('select', { class: 'input input-inline', 'aria-label': label,
+    const s = el('select', { class: 'input input-inline', 'aria-label': label, id: qid(label),
       onchange: e => { on(e.target.value); save(); } });
     opts.forEach(o => s.append(el('option', { value: o.id, selected: cur === o.id ? '' : null }, o.label)));
     f.append(s);
@@ -789,7 +810,7 @@ VIEWS.tradingIndex = () => {
   };
   const cb = (label, val, on) => {
     const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;margin-top:6px' });
-    l.append(el('input', { type: 'checkbox', checked: val ? '' : null, onchange: e => { on(e.target.checked); save(); } }));
+    l.append(el('input', { type: 'checkbox', id: qid(label), checked: val ? '' : null, onchange: e => { on(e.target.checked); save(); } }));
     l.append(el('span', {}, label));
     return l;
   };
@@ -852,7 +873,7 @@ VIEWS.tradingIndex = () => {
       const cell = p.timeframes[tf.k][g.k] || { state:'unknown' };
       const f = el('div', { class: 'assumption' });
       f.append(el('label', { title: g.ask }, `${g.label} · ${fmtPct(g.w * 100, 0)}`));
-      const s = el('select', { class: 'input input-inline', 'aria-label': `${tf.label} ${g.label}`,
+      const s = el('select', { class: 'input input-inline', 'aria-label': `${tf.label} ${g.label}`, id: `q-${tf.k}-${g.k}`,
         onchange: e => {
           const before = p.timeframes[tf.k][g.k];
           const next = { state: e.target.value, value: null };
@@ -992,9 +1013,17 @@ VIEWS.tradingIndex = () => {
   tools.append(cardHead('Check this against the specification',
     'Loads §14 — the worked BTC/USDC perpetual example — with its published evidence. It should return 38, 35 and 77.'));
   tools.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { State.qtti = qttiWorkedExample(); save(); toast('Worked example loaded'); } },
-      'Load the §14 worked example'),
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+    /* The fixture replaces the evidence, not the history. Assigning it
+       outright emptied the append-only correction log — a reader who had
+       walked a reading upward could load the example and leave no trail —
+       so it keeps the log, and the replacement is appended to it like a
+       clear. */
+    el('button', { class: 'btn btn-ghost btn-sm', id: 'q-load-worked', onclick: () => {
+      const next = qttiWorkedExample();
+      next.corrections = qttiClearedPlan(State.qtti, { keepRules: false, as: 'replaced by the §14 worked example' }).corrections;
+      State.qtti = next; save(); toast('Worked example loaded');
+    } }, 'Load the §14 worked example'),
+    el('button', { class: 'btn btn-ghost btn-sm', id: 'q-clear-evidence', onclick: () => {
       State.qtti = qttiClearedPlan(State.qtti, { keepRules: true });
       save(); toast('Evidence cleared — your template and capital rules are kept');
     } }, 'Clear evidence'),
@@ -1018,6 +1047,11 @@ VIEWS.tradingIndex = () => {
 /* Which records have their edit panel open, so a redraw after an edit does
    not close it under the reader. */
 const OPP_EDIT_OPEN = new Set();
+/* A record's id no longer counts the list. Counting repeated an id after a
+   removal — record two, remove one, add the same name and two records shared
+   "opp-2-…" — and OPP_EDIT_OPEN, keyed by id, then opened and closed both
+   edit panels together. The saved-run and comparison ids made the same move. */
+let OPP_SEQ = 0;
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
@@ -1087,7 +1121,7 @@ VIEWS.opportunities = () => {
   add.append(el('button', { class: 'btn btn-primary', style: 'margin-top:10px', onclick: () => {
     if (!draft.name.trim()) { toast('Give the property a name or address first'); return; }
     State.opportunities = [{
-      id: `opp-${State.opportunities.length + 1}-${draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`,
+      id: `opp-${Date.now().toString(36)}${(OPP_SEQ++).toString(36)}-${draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`,
       name: draft.name, source: draft.source,
       state: 'captured',
       capturedAt: new Date().toISOString().slice(0, 10),
@@ -1258,14 +1292,18 @@ VIEWS.opportunities = () => {
        three, because a task with no owner is a wish. */
     const na = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:end;margin-top:var(--md)' });
     /* Named for assistive technology; a placeholder is not a label. */
-    const naIn = el('input', { class: 'input', style: 'flex:2 1 220px', placeholder: 'Next verification action',
+    /* These three, the stage and the availability button redraw the page as
+       the edit panel above does, and like it they hand focus back: a
+       synchronous render() here dropped it to <body>, so Tab from the action
+       to "Who" landed on the skip link. */
+    const naIn = el('input', { class: 'input', style: 'flex:2 1 220px', placeholder: 'Next verification action', id: `opp-${i}-next-action`,
       'aria-label': `Next verification action for ${o.name}`, value: o.nextAction || '' });
-    const naWho = el('input', { class: 'input', style: 'flex:1 1 140px', placeholder: 'Who',
+    const naWho = el('input', { class: 'input', style: 'flex:1 1 140px', placeholder: 'Who', id: `opp-${i}-next-owner`,
       'aria-label': `Who owns the next action for ${o.name}`, value: o.nextActionOwner || '' });
-    const naDue = el('input', { class: 'input', style: 'flex:0 1 150px', type: 'date',
+    const naDue = el('input', { class: 'input', style: 'flex:0 1 150px', type: 'date', id: `opp-${i}-next-due`,
       'aria-label': `Date the next action for ${o.name} is due`, value: o.nextActionDue || '' });
     [naIn, naWho, naDue].forEach((inp, j) => inp.addEventListener('change', e => {
-      o[['nextAction', 'nextActionOwner', 'nextActionDue'][j]] = e.target.value; saveOpportunities(); render();
+      o[['nextAction', 'nextActionOwner', 'nextActionDue'][j]] = e.target.value; saveOpportunities(); redrawKeepFocus();
     }));
     na.append(naIn); na.append(naWho); na.append(naDue);
     card.append(na);
@@ -1274,13 +1312,13 @@ VIEWS.opportunities = () => {
         'An action with no owner and no date is a wish. Name both.'));
 
     const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
-    const stSel = el('select', { class: 'select select-sm', style: 'width:auto', 'aria-label': `Stage of ${o.name}`,
-      onchange: e => { o.state = e.target.value; saveOpportunities(); render(); } });
+    const stSel = el('select', { class: 'select select-sm', style: 'width:auto', 'aria-label': `Stage of ${o.name}`, id: `opp-${i}-stage`,
+      onchange: e => { o.state = e.target.value; saveOpportunities(); redrawKeepFocus(); } });
     CANDIDATE_STATES.forEach(s => stSel.append(el('option', { value: s.id, selected: o.state === s.id ? '' : null }, s.label)));
     acts.append(stSel);
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `opp-${i}-checked`, onclick: () => {
       o.availabilityCheckedAt = new Date().toISOString().slice(0, 10); o.available = true;
-      saveOpportunities(); toast('Availability confirmed today'); render();
+      saveOpportunities(); toast('Availability confirmed today'); redrawKeepFocus();
     } }, 'I checked — still available'));
     /* The deal the register models, not a second assembly of it. This laid
        the raw record over the calculator's deal, so an unpriced record opened
