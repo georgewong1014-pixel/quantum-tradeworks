@@ -37,6 +37,23 @@ const nextWatchlistId = () => `wl-${Date.now().toString(36)}-${(WL_SEQ++).toStri
 function migrateWatchlists() {
   const now = new Date().toISOString();
   let touched = false;
+  /* A stored value this service never writes — not a list of lists, or an
+     entry that is not a list (a hand-edited or truncated backup restored
+     through "Your data", which writes whatever the file holds) — threw
+     below on w.id. This runs at the top level of the one script, so the
+     throw stopped the whole app: every page blank until the browser's
+     storage was cleared, which nothing on a blank page can do. What cannot
+     be read as a list is dropped. With nothing readable left the reader
+     gets one empty list of their own, as clearing the sample data does,
+     because the active-list readers (activeWL, toggleWatch) assume one. */
+  if (!Array.isArray(State.watchlists)) { State.watchlists = []; touched = true; }
+  const readable = State.watchlists.filter(w => w && typeof w === 'object' && !Array.isArray(w));
+  if (readable.length !== State.watchlists.length) { State.watchlists = readable; touched = true; }
+  if (!State.watchlists.length) {
+    State.watchlists = [{ id: nextWatchlistId(), name: 'My watchlist', ids: [], added: {}, createdAt: now, updatedAt: now, schema: WATCHLIST_SCHEMA }];
+    State.wlIdx = 0;
+    touched = true;
+  }
   /* Lists already stored under a shared id (an import made before ids had a
      suffix) are separated: the first keeps the id and each later one gets its
      own. Members already merged cannot be told apart again, but the lists stop
@@ -48,7 +65,9 @@ function migrateWatchlists() {
     if (!Array.isArray(w.ids)) { w.ids = []; touched = true; }
     if (!('createdAt' in w)) { w.createdAt = null; w.createdAtSource = 'list predates timestamps — unknown'; touched = true; }
     if (!('updatedAt' in w)) { w.updatedAt = null; touched = true; }
-    if (!w.added || typeof w.added !== 'object') { w.added = {}; touched = true; }
+    /* An array passed the object test, and the dates written onto it were
+       dropped by JSON.stringify at every save — each member's date lost. */
+    if (!w.added || typeof w.added !== 'object' || Array.isArray(w.added)) { w.added = {}; touched = true; }
     w.ids.forEach(id => { if (!(id in w.added)) { w.added[id] = null; touched = true; } });
     if (w.schema !== WATCHLIST_SCHEMA) { w.schema = WATCHLIST_SCHEMA; w.migratedAt = now; touched = true; }
   });
@@ -163,16 +182,26 @@ function watchlistsImport(doc) {
   const lists = Array.isArray(doc) ? doc : Array.isArray(doc?.watchlists) ? doc.watchlists : null;
   if (!lists) return { ok: false, why: 'not a watchlists export' };
   const report = { created: 0, added: 0, duplicate: 0, unresolved: [], refused: [] };
-  for (const src of lists) {
+  /* An entry that is not a list threw on src.name part-way through, with
+     the lists before it already made, and the reader was told only that
+     the file could not be read. It is refused by position instead. */
+  lists.forEach((src, n) => {
+    if (!src || typeof src !== 'object' || Array.isArray(src)) { report.refused.push(`entry ${n + 1}: not a watchlist`); return; }
     const name = String(src.name || 'Imported').trim();
     let w = State.watchlists.find(x => x.name === name);
-    if (!w) { const r = wlCreate(name); if (!r.ok) { report.refused.push(`${name}: ${r.why}`); continue; } w = r.watchlist; report.created++; }
-    const members = Array.isArray(src.items) ? src.items.map(i => i.companyId || i.instrumentId || i.symbol) : (src.ids || []);
+    if (!w) { const r = wlCreate(name); if (!r.ok) { report.refused.push(`${name}: ${r.why}`); return; } w = r.watchlist; report.created++; }
+    const members = Array.isArray(src.items) ? src.items.map(i => i?.companyId || i?.instrumentId || i?.symbol) : (Array.isArray(src.ids) ? src.ids : []);
     for (const term of members) {
       const r = wlAdd(w.id, term);
-      if (r.ok) report.added++; else if (r.duplicate) report.duplicate++; else report.unresolved.push(String(term));
+      /* A company refused for the plan's limit was reported with the names
+         nothing resolves — "not recognised" — though wlAdd had found it.
+         A refusal that names the company it resolved is a refusal, with
+         its reason; only a term that resolves to nothing is unresolved. */
+      if (r.ok) report.added++; else if (r.duplicate) report.duplicate++;
+      else if (r.id) report.refused.push(`${r.id}: ${r.why}`);
+      else report.unresolved.push(String(term));
     }
-  }
+  });
   return { ok: true, ...report };
 }
 

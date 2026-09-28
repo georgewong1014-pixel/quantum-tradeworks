@@ -7,15 +7,19 @@ const searchModal = $('#searchModal'), searchInput = $('#searchInput'), searchRe
 /* Where focus was when the search opened, so closing it puts focus back —
    on the search button, or wherever "/" was pressed — rather than dropping it
    on the document body, where the next Tab starts from the top of the page. */
-let searchOpen = false, searchLastFocus = null;
+let searchOpen = false, searchLastFocus = null, searchHideTimer = null;
 function openSearch() {
   /* "/" pressed while the box is already open — with focus on a result, say —
      used to reopen it and wipe the results. It now just returns to the box. */
   if (searchOpen) { searchInput.focus(); return; }
   searchOpen = true;
   searchLastFocus = document.activeElement;
+  /* Reopened within the last close's 200ms, the box was hidden by that
+     close's timer while open. And a close before the next frame was
+     overridden by this open's frame, leaving the scrim over the page. */
+  clearTimeout(searchHideTimer); searchHideTimer = null;
   searchModal.hidden = false;
-  requestAnimationFrame(() => { searchModal.dataset.open = '1'; scrim.dataset.open = '1'; searchInput.focus(); searchInput.select(); });
+  requestAnimationFrame(() => { if (!searchOpen) return; searchModal.dataset.open = '1'; scrim.dataset.open = '1'; searchInput.focus(); searchInput.select(); });
   runSearch('');
 }
 function closeSearch({ restore = true } = {}) {
@@ -29,7 +33,7 @@ function closeSearch({ restore = true } = {}) {
   /* Stale results were left in the box after it closed, and — because the
      closed box is display:none only since the [hidden] rule below — they used
      to sit in the page's tab order, invisible, after the footer. */
-  setTimeout(() => { searchModal.hidden = true; searchResults.replaceChildren(); }, 200);
+  searchHideTimer = setTimeout(() => { searchHideTimer = null; searchModal.hidden = true; searchResults.replaceChildren(); }, 200);
   if (drawer.dataset.open !== '1') scrim.dataset.open = '0';
   const back = searchLastFocus; searchLastFocus = null;
   if (!restore) return;

@@ -4818,6 +4818,47 @@ try {
   }
   /* ---- end bugfix: studio-trading ---- */
 
+  /* ---- bugfix: merge ---- */
+  /* A DRAWER OPENED AND CLOSED IN ONE FRAME. The open marks the drawer and
+     the scrim open a frame later; a close before that frame was overridden
+     by it, and the scrim stayed over the page, invisible, taking every click.
+     Found at merge: the equity-views check closes one drawer and opens and
+     closes the next in one tick, and the scanner check after it could not
+     click. The search box had the same frame, and a reopen within 200ms of a
+     close was hidden by the close's timer. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = {};
+      openDrawer('QA one', el('p', {}, 'one'));
+      closeDrawer({ restore: false });
+      openDrawer('QA two', el('p', {}, 'two'));
+      closeDrawer({ restore: false });
+      await w(450);
+      out.scrimAfterDrawers = scrim.dataset.open;
+      out.drawerHidden = drawer.hidden;
+      openSearch(); closeSearch({ restore: false });
+      await w(250);
+      out.scrimAfterSearch = scrim.dataset.open;
+      out.searchHidden = searchModal.hidden;
+      openSearch(); await w(20); closeSearch({ restore: false }); await w(20); openSearch();
+      await w(300);
+      out.reopened = { hidden: searchModal.hidden, open: searchModal.dataset.open };
+      closeSearch({ restore: false });
+      await w(250);
+      out.finalScrim = scrim.dataset.open;
+      return out;
+    })()`);
+    const p = [];
+    if (r.scrimAfterDrawers === '1' || !r.drawerHidden) p.push(`after open, close, open, close in one frame the scrim is ${r.scrimAfterDrawers} and the drawer hidden is ${r.drawerHidden}`);
+    if (r.scrimAfterSearch === '1' || !r.searchHidden) p.push(`after the search box opened and closed in one frame the scrim is ${r.scrimAfterSearch}, the box hidden ${r.searchHidden}`);
+    if (r.reopened?.hidden || r.reopened?.open !== '1') p.push(`the search box reopened within 200ms of closing is hidden ${r.reopened?.hidden}, open ${r.reopened?.open}`);
+    if (r.finalScrim === '1') p.push('the scrim stayed open after the last close');
+    if (p.length) fail('bugfix merge: a drawer or the search box closed before its first frame leaves no scrim over the page', p);
+    else ok('bugfix merge: a drawer or the search box closed before its first frame leaves no scrim over the page, and a search reopened within 200ms of a close stays open');
+  }
+  /* ---- end bugfix: merge ---- */
+
   /* ---- bugfix: equities-views ---- */
   /* WHAT THE EQUITY VIEWS SAID AGAINST WHAT THEY HELD. Each check below failed
      before its fix: the moat page named a margin measure it did not compute,
@@ -4993,6 +5034,396 @@ try {
     else ok(`the equity views say what they hold — "Revenue growth stability" on the moat page, ${r.largest.n} model gaps in the neutral tone, the report's ${r.jpm.lab} and no bank cash-flow lines, ${r.split.id}'s per-share CAGR withheld, "Save this run" opens only the run it saved, the price-history note, both interest-cover templates stated not applied, two tablists, named drawer controls, the worked contract at ${r.wheel.want.join(' / ')}, ${r.idx.id}'s index left undrawn off its non-positive base`);
   }
   /* ---- end bugfix: equities-views ---- */
+
+  /* ---- bugfix: scanner-user ---- */
+  /* What the scanner-user bug hunt proved wrong in 86-scanner.js and
+     06-watchlists.js after Phase 3 round 3. Each check fails on the code
+     before its fix. The pages run on this file's scanner seed (scanSeedP3),
+     put back afterwards; the last check reloads the page twice with a
+     damaged watchlist store and once more with the reader's own. */
+  {
+    const bfSleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const bfKey = async (key, vk) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: vk }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: vk }, sessionId);
+      await bfSleep(150);
+    };
+    const bfType = async (s) => {
+      for (const ch of s) {
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: ch, text: ch, windowsVirtualKeyCode: ch.charCodeAt(0) }, sessionId);
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, windowsVirtualKeyCode: ch.charCodeAt(0) }, sessionId);
+        await bfSleep(30);
+      }
+    };
+    /* A real press and release at the element's centre, once it has
+       scrolled into view and nothing covers it. */
+    /* What stood over the last target a real click could not reach, so a
+       covered control names its cover. */
+    let bfCover = null;
+    const bfClick = async (expr) => {
+      await evaluate(`(() => { const n = ${expr}; n.scrollIntoView({ block: 'center', behavior: 'instant' }); return true; })()`);
+      await bfSleep(300);
+      const p = await evaluate(`(() => { const n = ${expr}; const r = n.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; const hit = document.elementFromPoint(x, y); return { x, y, ok: !!hit && (hit === n || n.contains(hit)), cover: hit ? hit.tagName.toLowerCase() + (typeof hit.className === 'string' && hit.className ? '.' + hit.className.trim().split(' ').filter(Boolean).join('.') : '') + ' “' + (hit.textContent || '').trim().slice(0, 40) + '”' : 'nothing' }; })()`);
+      bfCover = p.ok ? null : p.cover;
+      if (!p.ok) return false;
+      for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x: p.x, y: p.y, button: 'left', clickCount: 1 }, sessionId);
+      await bfSleep(300);
+      return true;
+    };
+    const bfThrown = [];
+    const bfListen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') bfThrown.push(m.params.exceptionDetails?.exception?.description?.split('\n')[0]); };
+    ws.addEventListener('message', bfListen);
+    try {
+      /* A DAMAGED SETUPS STORE. Versions that are not a list, a null
+         version, no versions, a current version not held — a restored
+         backup edited by hand — threw in scanVersionOf and took down the
+         setups, a setup, its edit page, the watchlist scanner and the
+         settings. Every page renders; a record with a readable version
+         is listed. */
+      {
+        const r = await evaluate(`(async () => {
+          const w = (ms) => new Promise(r => setTimeout(r, ms));
+          ${scanSeedP3};
+          const tree = { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 5 } }] };
+          scanSaveSetup({ id: 'bf-good', name: 'Kept', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D', cooldownMode: 'NEW_MATCH', ruleTree: tree });
+          scanSaveSetup({ id: 'bf-cur', name: 'Current not held', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D', cooldownMode: 'NEW_MATCH', ruleTree: tree });
+          const st = JSON.parse(localStorage.getItem('vl.scanSetups'));
+          st.setups['bf-obj'] = { id: 'bf-obj', name: 'Versions not a list', current: 1, versions: {} };
+          st.setups['bf-null'] = { id: 'bf-null', name: 'A null version', current: 1, versions: [null] };
+          st.setups['bf-none'] = { id: 'bf-none', name: 'No versions', current: 1 };
+          st.setups['bf-cur'].current = 7;
+          localStorage.setItem('vl.scanSetups', JSON.stringify(st));
+          const out = { threw: [] };
+          const go = async (p) => { try { navigate(p); await w(60); return true; } catch (e) { out.threw.push(p + ': ' + String(e.message).split('\\n')[0]); return false; } };
+          for (const p of ['/app/scanner/setups/bf-good', '/app/scanner/setups/bf-null', '/app/scanner/setups/bf-none/edit', '/app/scanner/setups/bf-cur/edit', '/app/scanner/watchlists', '/app/scanner/settings']) await go(p);
+          out.listed = (await go('/app/scanner/setups')) ? [...document.querySelectorAll('main .scan-setup-name')].map(a => a.textContent) : [];
+          return out;
+        })()`);
+        const p = [];
+        if (r.threw.length) p.push(...r.threw);
+        if (!r.listed.includes('Kept') || !r.listed.includes('Current not held')) p.push(`listed: ${JSON.stringify(r.listed)}`);
+        if (p.length) fail('bugfix scanner-user: a damaged vl.scanSetups record takes no scanner page down', p);
+        else ok(`bugfix scanner-user: a damaged vl.scanSetups record takes no scanner page down — versions not a list, a null version, none at all and a current version not held; every page renders and the readable setups are listed (${r.listed.join(', ')})`);
+      }
+
+      /* A WATCHLIST UNIVERSE WITH NO LIST CHOSEN showed the first list as
+         chosen while the draft held none — "choose a watchlist", and the
+         only list could not be chosen. */
+      {
+        const r = await evaluate(`(async () => {
+          const w = (ms) => new Promise(r => setTimeout(r, ms));
+          ${scanSeedP3};
+          scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: null } }; scanIdAuto = true;
+          navigate('/app/scanner/setups/new'); await w(80);
+          const sel = document.querySelector('main select[aria-label="Watchlist"]');
+          const out = { shown: sel?.value ?? null, held: scanDraft.universe.watchlistId, lists: State.watchlists.length };
+          const first = State.watchlists[0]?.id;
+          sel.value = first; sel.dispatchEvent(new Event('change', { bubbles: true })); await w(60);
+          out.chosen = scanDraft.universe.watchlistId === first;
+          out.stillAsks = [...document.querySelectorAll('main .scan-problems-all li')].some(li => /choose a watchlist/.test(li.textContent));
+          return out;
+        })()`);
+        if (!r.lists || r.shown !== (r.held || '') || !r.chosen || r.stillAsks) fail('bugfix scanner-user: the builder\'s watchlist select shows what the draft holds', r);
+        else ok('bugfix scanner-user: the builder\'s watchlist select shows what the draft holds — "Choose a watchlist…" while none is chosen, and choosing a list takes');
+      }
+
+      /* THE ALERT PAGE. "Mark new" left the alert read (the redraw marked
+         it read again under a toast saying "Marked new"), and the main
+         navigation's count stayed one too high after an alert was opened. */
+      {
+        const r = await evaluate(`(async () => {
+          const w = (ms) => new Promise(r => setTimeout(r, ms));
+          ${scanSeedP3};
+          const navCount = () => { const n = [...document.querySelectorAll('#mainnav a')].find(x => /^Scanner/.test(x.textContent.trim())); return n?.querySelector('.nav-count')?.textContent || null; };
+          const a = scanAlertsInOrder().find(x => x.id && scanAlertStatus(x) === 'NEW');
+          const id = scanAlertIdOf(a);
+          navigate('/app/scanner/alerts/' + id); await w(80);
+          const out = { opened: scanAlertStatus(a), badge: navCount(), unread: String(scanUnreadCount()) };
+          [...document.querySelectorAll('main button')].find(b => b.textContent.trim() === 'Mark new').click(); await w(60);
+          Object.assign(out, { afterNew: scanAlertStatus(a), chip: document.querySelector('main .page-hd .chip')?.textContent, badgeNew: navCount(), unreadNew: String(scanUnreadCount()) });
+          navigate('/app/scanner/alerts'); await w(40);
+          navigate('/app/scanner/alerts/' + id); await w(60);
+          out.reopened = scanAlertStatus(a);
+          return out;
+        })()`);
+        const p = [];
+        if (r.opened !== 'READ' || r.badge !== r.unread) p.push(`opened: status ${r.opened}, nav badge ${r.badge} with ${r.unread} unread`);
+        if (r.afterNew !== 'NEW' || r.chip !== 'new' || r.badgeNew !== r.unreadNew) p.push(`Mark new: status ${r.afterNew}, chip ${r.chip}, badge ${r.badgeNew} with ${r.unreadNew} unread`);
+        if (r.reopened !== 'READ') p.push(`opened again: ${r.reopened}`);
+        if (p.length) fail('bugfix scanner-user: an alert\'s own "Mark new" keeps it new, and the navigation counts it', p);
+        else ok(`bugfix scanner-user: an alert's own "Mark new" keeps it new until it is opened again, and the navigation's count follows each (${r.unread}, then ${r.unreadNew})`);
+      }
+
+      /* KEYBOARD FOCUS through a redraw: a filter select changed, a bulk
+         button, a display setting and a setup's Disable each kept focus
+         on the control (Disable as the Enable it became). It fell to
+         <body>, so an arrow key changed a filter once and then nothing. */
+      {
+        const r = await evaluate(`(async () => {
+          const w = (ms) => new Promise(r => setTimeout(r, ms));
+          ${scanSeedP3};
+          const who = () => document.activeElement === document.body ? 'BODY' : (document.activeElement?.getAttribute('aria-label') || document.activeElement?.textContent.trim());
+          const out = {};
+          navigate('/app/scanner/alerts?status=OPEN'); await w(60);
+          let s = document.querySelector('main select[aria-label="Status"]'); s.focus();
+          s.value = 'NEW'; s.dispatchEvent(new Event('change', { bubbles: true })); await w(60);
+          out.filter = who();
+          navigate('/app/scanner/alerts?status=OPEN'); await w(60);
+          let b = [...document.querySelectorAll('main button')].find(x => x.textContent.trim() === 'Mark read'); b.focus(); b.click(); await w(60);
+          out.bulk = who();
+          navigate('/app/scanner/settings'); await w(60);
+          s = document.querySelector('main select[aria-label="Alerts per page"]'); s.focus(); s.value = '100'; s.dispatchEvent(new Event('change', { bubbles: true })); await w(60);
+          out.setting = who();
+          scanAdoptFromFile('qa-above');
+          navigate('/app/scanner/setups'); await w(60);
+          b = document.querySelector('main button[aria-label="Disable QA close above SMA5"]'); b.focus(); b.click(); await w(60);
+          out.toggle = who();
+          return out;
+        })()`);
+        const want = { filter: 'Status', bulk: 'Mark read', setting: 'Alerts per page', toggle: 'Enable QA close above SMA5' };
+        const p = Object.entries(want).filter(([k, v]) => r[k] !== v).map(([k, v]) => `${k}: focus on ${r[k]}, not ${v}`);
+        if (p.length) fail('bugfix scanner-user: a scanner page redrawn by a control keeps focus on it', p);
+        else ok('bugfix scanner-user: a scanner page redrawn by a control keeps focus on it — an alerts filter, "Mark read", a display setting, and Disable as the Enable it became');
+      }
+
+      /* A DATE, THEN A CLICK. Typed into "Bar from" and left by a click on
+         "Clear the dates", the date was applied under the pointer and the
+         click lost; left by Tab, focus fell to <body>. Real keys and a
+         real press and release. */
+      {
+        await evaluate(`(async () => { ${scanSeedP3}; navigate('/app/scanner/alerts?status=ALL&to=2026-03-31'); await new Promise(r => setTimeout(r, 80)); document.querySelector('main input[aria-label="Bar from"]').focus(); return true; })()`);
+        await bfType('02012026');
+        const typed = await evaluate(`document.querySelector('main input[aria-label="Bar from"]').value`);
+        const clicked = await bfClick(`[...document.querySelectorAll('main button')].find(x => /Clear the dates/.test(x.textContent))`);
+        const cleared = await evaluate(`location.search`);
+        await evaluate(`(async () => { navigate('/app/scanner/alerts?status=ALL'); await new Promise(r => setTimeout(r, 80)); document.querySelector('main input[aria-label="Bar from"]').focus(); return true; })()`);
+        await bfType('02012026');
+        let left = null;
+        for (let i = 0; i < 4; i++) { await bfKey('Tab', 9); left = await evaluate(`document.activeElement === document.body ? 'BODY' : document.activeElement?.getAttribute('aria-label') || document.activeElement?.tagName`); if (left !== 'Bar from') break; }
+        const tabbed = await evaluate(`location.search`);
+        const p = [];
+        if (!typed) p.push('no date could be typed into "Bar from"');
+        if (!clicked) p.push(`"Clear the dates" was covered by ${bfCover}`);
+        if (/from=|to=/.test(cleared)) p.push(`one click on "Clear the dates" after typing left ${cleared}`);
+        if (!/from=/.test(tabbed) || left !== 'Bar to') p.push(`Tab out of "Bar from": ${tabbed}, focus on ${left}`);
+        if (p.length) fail('bugfix scanner-user: a typed alert date keeps the click that follows it, and Tab keeps focus', p);
+        else ok(`bugfix scanner-user: a typed alert date (${typed}) keeps the click that follows it — "Clear the dates" clears both — and Tab out of it applies it and lands on "Bar to"`);
+      }
+
+      /* THE TICK BOXES ON A PHONE: 22px with nothing round them to take
+         the press. Each sits in a 44px label now. */
+      {
+        await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+        let r;
+        try {
+          r = await evaluate(`(async () => { ${scanSeedP3}; navigate('/app/scanner/alerts'); await new Promise(r => setTimeout(r, 150));
+            return [...document.querySelectorAll('main .scan-alerts-t input[type=checkbox]')].slice(0, 4).map(n => { const b = (n.closest('label') || n).getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]; }); })()`);
+        } finally { await send('Emulation.clearDeviceMetricsOverride', {}, sessionId); }
+        if (!r.length || r.some(([w, h]) => w < 44 || h < 44)) fail('bugfix scanner-user: each alert tick box is a 44px target at 390px', r);
+        else ok(`bugfix scanner-user: each alert tick box is a 44px target at 390px (${r.map(x => x.join('×')).join(', ')})`);
+      }
+
+      /* THE HEADER BOX AND THE BULK LINE. Ticked from the header with one
+         row unticked, the header box still read "every row"; and across
+         pages "act on all 60 shown" sat beside "Showing 1–25 of 60". */
+      {
+        const r = await evaluate(`(async () => {
+          const w = (ms) => new Promise(r => setTimeout(r, ms));
+          ${scanSeedP3};
+          const base = scanAlertsFile.alerts.filter(a => a.id);
+          const many = [];
+          for (let i = 0; i < 60; i++) { const a = base[i % base.length]; many.push({ ...a, key: a.key + '#' + i, id: 'a' + (0x10000000 + i).toString(16) }); }
+          scanAlertsFile = { alerts: many };
+          scanPrefsWrite({ pageSize: 25 });
+          navigate('/app/scanner/alerts?status=ALL'); await w(80);
+          const info = document.querySelector('main .scan-bulk [role=status]').textContent;
+          const head = document.querySelector('main thead input[type=checkbox]');
+          head.click(); await w(20);
+          document.querySelector('main tbody input[type=checkbox]').click(); await w(20);
+          return { info, checked: head.checked, mixed: head.indeterminate, ticked: scanAlertSel.size };
+        })()`);
+        const p = [];
+        if (!/on every page/.test(r.info)) p.push(`bulk line with three pages: "${r.info}"`);
+        if (r.checked || !r.mixed || r.ticked !== 24) p.push(`header box after one row unticked: checked ${r.checked}, mixed ${r.mixed}, ${r.ticked} ticked`);
+        if (p.length) fail('bugfix scanner-user: the alerts header box and bulk line say what the buttons act on', p);
+        else ok('bugfix scanner-user: the alerts header box follows the rows (mixed with 24 of 25 ticked), and with three pages the bulk line says the buttons act on every page');
+      }
+
+      /* A STATUS VALUE THE PAGE NEVER WRITES read as new in the list and as
+         read in the count, and the tile blamed muted setups. */
+      {
+        const r = await evaluate(`(async () => {
+          ${scanSeedP3};
+          const a = scanAlertsInOrder().find(x => x.id);
+          localStorage.setItem('vl.scanAlertState', JSON.stringify({ [scanAlertIdOf(a)]: 'read' }));
+          navigate('/app/scanner/alerts'); await new Promise(r => setTimeout(r, 60));
+          const tiles = [...document.querySelectorAll('main .scan-counts > *')].map(n => n.innerText);
+          return { unread: scanUnreadCount(), news: scanAlertList().filter(x => scanAlertStatus(x) === 'NEW').length, tile: tiles[1] || '' };
+        })()`);
+        if (r.unread !== r.news || /muted/.test(r.tile)) fail('bugfix scanner-user: a status value the page never writes is not counted as read', r);
+        else ok(`bugfix scanner-user: a status value the page never writes reads as new everywhere — ${r.unread} unread, and no tile blames a muted setup`);
+      }
+
+      /* DELETED HERE, STILL IN THE FILE: it read "only in the file — adopt
+         it to keep its versions here", adopting undid the deletion, and
+         nothing asked for the export that stops the worker running it. */
+      {
+        const r = await evaluate(`(async () => {
+          ${scanSeedP3};
+          scanAdoptFromFile('qa-above'); scanAdoptFromFile('fixture-breakout-v2');
+          scanSetMeta('qa-above', { deleted: '2026-09-01T00:00:00Z' });
+          const row = scanDriftRows().find(x => x.id === 'qa-above');
+          navigate('/app/scanner/setups'); await new Promise(r => setTimeout(r, 60));
+          const adopt = !!document.querySelector('main button[aria-label="Adopt qa-above from the file"]');
+          const primary = !!document.querySelector('main button.btn-primary') && [...document.querySelectorAll('main button.btn-primary')].some(b => b.textContent === 'Export scan-setups.json');
+          scanSetMeta('qa-above', { deleted: null });
+          scanMarkExported(scanExportDoc());
+          scanSetMeta('qa-above', { deleted: '2026-09-02T00:00:00Z' });
+          const hidden = scanDriftRows({ fileDoc: null }).find(x => x.id === 'qa-above');
+          return { state: row?.state, deleted: !!row?.deleted, text: row?.text, adopt, primary, hidden: hidden?.state || null };
+        })()`);
+        if (r.state !== 'NOT_EXPORTED' || !r.deleted || r.adopt || !r.primary || r.hidden !== 'NOT_EXPORTED') fail('bugfix scanner-user: a setup deleted here and still in the worker\'s file reads as not exported', r);
+        else ok('bugfix scanner-user: a setup deleted here and still in the worker\'s file reads as not exported, with no "Adopt" and the export offered first — and, with the file not visible, deleted since the export that carried it');
+      }
+
+      /* THE FILE AHEAD WITH THE SAME CONDITIONS (a number edited by hand,
+         or another browser's revert): Adopt kept this browser's number, so
+         the setup stayed "file newer" and the button did nothing. */
+      {
+        const r = await evaluate(`(() => {
+          ${scanSeedP3};
+          scanAdoptFromFile('qa-above');
+          const f = scanSetupsFile.setups.find(s => s.id === 'qa-above');
+          scanSetupsFile = { setups: [{ ...f, version: 3 }, scanSetupsFile.setups[1]] };
+          const before = scanDriftRows().find(x => x.id === 'qa-above')?.state;
+          const out = scanAdoptFromFile('qa-above');
+          const rec = scanStoreRead().setups['qa-above'];
+          return { before, version: out.version, current: rec.current, held: rec.versions.map(v => v.version), after: scanDriftRows().find(x => x.id === 'qa-above')?.state };
+        })()`);
+        if (r.before !== 'FILE_NEWER' || r.version !== 3 || r.current !== 3 || r.after !== 'IN_STEP') fail('bugfix scanner-user: adopting the file\'s higher number for the same conditions keeps it', r);
+        else ok(`bugfix scanner-user: adopting the file's v3 of the conditions held here as v1 keeps v3 (held ${r.held.join(', ')}), and the setup is then in step`);
+      }
+
+      /* A SETUP RESOLVED FROM THE EXPORT, its list changed since: the pages
+         said "the worker evaluates the snapshot until you save the setup
+         again and export", which it does not while the export holds the
+         list — and the remedy is exporting the lists. */
+      {
+        const r = await evaluate(`(async () => {
+          ${scanSeedP3};
+          const keepWl = localStorage.getItem('vl.watchlists'), keepState = JSON.parse(JSON.stringify(State.watchlists)), keepIdx = State.wlIdx, keepDl = scanDownload;
+          try {
+            const made = wlCreate('BF export list'); wlAdd(made.watchlist.id, 'AAPL'); wlAdd(made.watchlist.id, 'NVDA');
+            const tree = { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 5 } }] };
+            const saved = scanSaveSetup(scanDraftSetup({ ...scanBlankDraft(), id: 'bf-by-export', name: 'By export', universe: { kind: 'watchlist', watchlistId: made.watchlist.id, resolve: 'export' }, ruleTree: tree }));
+            scanDownload = () => {};
+            scanExportWatchlists();
+            wlAdd(made.watchlist.id, 'MSFT');
+            const wd = scanWatchlistDrift(saved.setup);
+            navigate('/app/scanner/setups'); await new Promise(r => setTimeout(r, 60));
+            const note = [...document.querySelectorAll('main .scan-setup-row .scan-note')].map(n => n.textContent).join(' ');
+            return { ok: saved.ok, byExport: !!wd?.byExport, same: wd?.same, text: wd?.text, note };
+          } finally { scanDownload = keepDl; State.watchlists = keepState; State.wlIdx = keepIdx; if (keepWl == null) localStorage.removeItem('vl.watchlists'); else localStorage.setItem('vl.watchlists', keepWl); }
+        })()`);
+        if (!r.ok || !r.byExport || r.same !== false || /evaluates the snapshot/.test(r.text) || !/Changed since the export/.test(r.text) || !/Changed since the export/.test(r.note))
+          fail('bugfix scanner-user: a setup resolved from the export is judged against the export, not its snapshot', r);
+        else ok('bugfix scanner-user: a setup resolved from the export is judged against the export — its list changed since, the pages say the worker resolves the export until the lists are exported again, not that it evaluates the snapshot');
+      }
+
+      /* THE ID FIELD kept what was typed — "My Setup" on screen, my-setup
+         saved. Left, it shows the id. */
+      {
+        const r = await evaluate(`(async () => {
+          ${scanSeedP3};
+          navigate('/app/scanner/setups/new'); await new Promise(r => setTimeout(r, 60));
+          const id = document.querySelector('main input[aria-label="Id"]');
+          id.focus(); id.value = 'My Setup';
+          id.dispatchEvent(new Event('input', { bubbles: true })); id.dispatchEvent(new Event('change', { bubbles: true }));
+          return { shown: id.value, held: scanDraft.id };
+        })()`);
+        if (r.shown !== r.held || r.held !== 'my-setup') fail('bugfix scanner-user: the builder\'s id field shows the id that will be saved', r);
+        else ok('bugfix scanner-user: the builder\'s id field shows the id that will be saved — "My Setup" becomes my-setup once the field is left');
+      }
+
+      /* "NEW SETUP ON THIS LIST" replaced a draft with changes in it
+         without asking, where every other start asks. */
+      {
+        const r = await evaluate(`(async () => {
+          const w = (ms) => new Promise(r => setTimeout(r, ms));
+          ${scanSeedP3};
+          navigate('/app/scanner/setups/new'); await w(60);
+          const nm = document.querySelector('main input[aria-label="Name"]');
+          nm.value = 'Half written'; nm.dispatchEvent(new Event('input', { bubbles: true }));
+          const keep = window.confirm; let asked = 0;
+          try {
+            window.confirm = () => { asked++; return false; };
+            navigate('/app/scanner/watchlists'); await w(60);
+            document.querySelector('main button[aria-label^="New setup on "]').click(); await w(60);
+            return { asked, kept: scanDraft?.name, view: State.view };
+          } finally { window.confirm = keep; }
+        })()`);
+        if (r.asked !== 1 || r.kept !== 'Half written' || r.view !== 'scannerWatchlists') fail('bugfix scanner-user: "New setup on this list" asks before replacing a changed draft', r);
+        else ok('bugfix scanner-user: "New setup on this list" asks before replacing a draft with changes, and declined, keeps it');
+      }
+
+      /* THE WATCHLIST IMPORT. A company refused for the plan's limit was
+         reported as "not recognised"; an entry that is not a list threw
+         part-way through the import. */
+      {
+        const r = await evaluate(`(() => {
+          const keepWl = localStorage.getItem('vl.watchlists'), keepState = JSON.parse(JSON.stringify(State.watchlists)), keepIdx = State.wlIdx, keepPlan = State.plan;
+          const out = {};
+          try {
+            State.plan = 'free';
+            const ids = U.filter(r => r.c.real).slice(0, 30).map(r => r.c.id);
+            State.watchlists = [{ id: 'wl-bf', name: 'Mine', ids: [], added: {}, createdAt: null, updatedAt: null, schema: 2 }]; State.wlIdx = 0;
+            const big = watchlistsImport({ watchlists: [{ name: 'Mine', items: ids.map(companyId => ({ companyId })) }] });
+            Object.assign(out, { limit: LIMITS.watchlistStocks, added: big.added, unresolved: big.unresolved.length, refused: big.refused.length });
+            try { const odd = watchlistsImport([null, { name: 'Mine', ids: [] }]); out.odd = odd.refused; } catch (e) { out.odd = 'threw ' + e.message; }
+          } finally { State.plan = keepPlan; State.watchlists = keepState; State.wlIdx = keepIdx; if (keepWl == null) localStorage.removeItem('vl.watchlists'); else localStorage.setItem('vl.watchlists', keepWl); }
+          return out;
+        })()`);
+        const p = [];
+        if (r.added !== r.limit || r.unresolved !== 0 || r.refused !== 30 - r.limit) p.push(`30 companies into a list of ${r.limit}: ${r.added} added, ${r.unresolved} "not recognised", ${r.refused} refused`);
+        if (!Array.isArray(r.odd) || r.odd[0] !== 'entry 1: not a watchlist') p.push(`an entry that is not a list: ${JSON.stringify(r.odd)}`);
+        if (p.length) fail('bugfix scanner-user: the watchlist import tells a refusal from a name it cannot resolve', p);
+        else ok(`bugfix scanner-user: the watchlist import tells a refusal from a name it cannot resolve — ${r.refused} companies over the free plan's ${r.limit} refused with the reason, none "not recognised"; an entry that is not a list refused by position`);
+      }
+      if (bfThrown.length) fail('bugfix scanner-user: the pages threw', bfThrown.slice(0, 5));
+    } finally {
+      ws.removeEventListener('message', bfListen);
+      await evaluate(scanRestoreP3);
+    }
+
+    /* A DAMAGED WATCHLIST STORE STOPPED THE APP. migrateWatchlists runs at
+       the top of the one script, and a null or text entry, or an object in
+       place of the list, threw there: every page blank until storage was
+       cleared. The page boots, the readable lists are kept, and with none
+       readable the reader has one empty list. */
+    {
+      const keep = await evaluate(`localStorage.getItem('vl.watchlists')`);
+      const boot = async (value) => {
+        if (value === undefined) await evaluate(`localStorage.removeItem('vl.watchlists'); true`);
+        else await evaluate(`localStorage.setItem('vl.watchlists', ${JSON.stringify(typeof value === 'string' ? value : JSON.stringify(value))}); true`);
+        await send('Page.reload', {}, sessionId);
+        let up = null;
+        for (let i = 0; i < 40 && !up; i++) { await bfSleep(500); try { up = await evaluate(`typeof realPending !== 'undefined' && !realPending ? true : null`); } catch { /* booting */ } }
+        await bfSleep(300);
+        return evaluate(`({ up: (document.querySelector('main')?.innerText || '').length > 50,
+          lists: typeof State !== 'undefined' && Array.isArray(State.watchlists) ? State.watchlists.map(w => ({ name: w?.name, ids: w?.ids, added: Array.isArray(w?.added) ? 'array' : typeof w?.added })) : null })`).catch(e => ({ up: false, err: e.message }));
+      };
+      const mixed = await boot([null, 'x', { id: 'wl-bf-kept', name: 'Kept', ids: ['AAPL-SEC'], added: [] }]);
+      const object = await boot({ a: 1 });
+      const back = await boot(keep == null ? undefined : keep);
+      const p = [];
+      if (!mixed.up || JSON.stringify(mixed.lists) !== JSON.stringify([{ name: 'Kept', ids: ['AAPL-SEC'], added: 'object' }])) p.push(`null, text and a list: ${JSON.stringify(mixed)}`);
+      if (!object.up || object.lists?.length !== 1 || object.lists[0].ids.length !== 0) p.push(`an object in place of the lists: ${JSON.stringify(object)}`);
+      if (!back.up) p.push('the page did not come back with the reader\'s own lists');
+      if (p.length) fail('bugfix scanner-user: a damaged vl.watchlists does not stop the app', p);
+      else ok('bugfix scanner-user: a damaged vl.watchlists does not stop the app — null and text entries are dropped and the readable list kept with its dates as an object; an object in place of the lists boots with one empty list of the reader\'s own');
+    }
+  }
+  /* ---- end bugfix: scanner-user ---- */
 
 } catch (e) {
   fail('harness error', e.message);

@@ -172,6 +172,13 @@ function emptyState(text) {
 /* ------------------------------------------------------------ drawer/toast */
 const scrim = $('#scrim'), drawer = $('#drawer'), drawerBody = $('#drawerBody'), drawerTitle = $('#drawerTitle');
 let lastFocus = null, closeTimer = null, closingBack = null;
+/* Each open and each close takes the next number. The open marks the drawer
+   and the scrim open a frame later, and a close that came first — in the
+   same frame, or in a background tab where the frame waits past the close's
+   own timer — used to be overridden by it: the drawer closed, then the scrim
+   was marked open again over the page, invisible, taking every click. A
+   frame that is no longer the latest open does nothing. */
+let drawerSeq = 0;
 
 /* A drawer opened while the previous one is still closing (the case-recorded
    confirmation, the dashboard customiser reopening after a reorder) used to be
@@ -188,7 +195,8 @@ function openDrawer(title, node) {
   drawerTitle.textContent = title;
   drawerBody.replaceChildren(node);
   drawer.hidden = false;
-  requestAnimationFrame(() => { drawer.dataset.open = '1'; scrim.dataset.open = '1'; });
+  const seq = ++drawerSeq;
+  requestAnimationFrame(() => { if (seq !== drawerSeq) return; drawer.dataset.open = '1'; scrim.dataset.open = '1'; });
   $$('[data-close-drawer]', drawer)[0]?.focus();
 }
 /* Closes whichever is open. The scrim sits under both dialogs, so a click on
@@ -200,6 +208,7 @@ function openDrawer(title, node) {
 function closeDrawer({ restore = true } = {}) {
   /* Already closing: the pending close owns the focus hand-back. */
   if (drawer.hidden || closeTimer) { closeSearch(); return; }
+  drawerSeq++;
   drawer.dataset.open = '0'; scrim.dataset.open = '0';
   const back = lastFocus; lastFocus = null;
   closingBack = restore ? back : null;
