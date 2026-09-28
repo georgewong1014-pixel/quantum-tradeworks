@@ -3174,18 +3174,24 @@ try {
     'Sell when overbought', 'All sales', 'Buy when oversold', 'All purchases', 'Histogramme', 'Divergencias Bajistas', 'Divergencias Alcistas', 'Bearish Regular Divergence',
     'Bearish Hidden Divergence', 'Bullish Regular Divergence', 'Bullish Regular Divergence', 'MA PLOT_ST'];
   const titlesOf = Object.fromEntries(TV.CHART.filter(c => c.id).map(c => [c.id, RUN[c.id].plots.map(x => x[0])]));
-  const om = TV.mapColumns(OWNER_HEADER, titlesOf);
+  /* H3-B changed three pins here: the Entry TF marks are the bot's plots
+     (kind 'bot', BOT PLOT), read by their SCAN_BOT_SIGNALS titles; and a
+     title no script here draws, or a sixth "Plot" that fits two scripts,
+     no longer refuses the header — it is 'unknown' (NOT KNOWN) or
+     'ambiguous' for the numbers to decide. The first five columns still
+     refuse it. */
+  const om = TV.mapColumns(OWNER_HEADER, titlesOf, { bot: PN.SCAN_BOT_SIGNALS });
   const at = (i) => om[i - 1];
   check(om.length === 67 && at(7).id === 'sma_cross' && at(7).plot === 0 && at(8).plot === 1 && at(10).plot === 3 && at(28).id === 'banker_entry' && at(28).plot === 0 && at(30).plot === 2
-    && at(15).kind === 'none' && at(11).kind === 'input' && at(66).kind === 'none' && at(67).id === 'wavetrend' && at(67).title === 'MA PLOT_ST',
-    'tv-verify reads the reader\'s chart header (67 columns): the first two "Plot" columns are SMA Cross, the last three the blackcat script, the second "Chars" SMA Cross\'s cross under; Entry TF and the divergence labels are known and not computed');
+    && at(15).kind === 'bot' && at(15).signal === 'entry-buy' && at(11).kind === 'input' && at(66).kind === 'none' && at(67).id === 'wavetrend' && at(67).title === 'MA PLOT_ST',
+    'tv-verify reads the reader\'s chart header (67 columns): the first two "Plot" columns are SMA Cross, the last three the blackcat script, the second "Chars" SMA Cross\'s cross under; Entry TF is the bot\'s plot, and the divergence labels are known and not computed');
   const threw = (f) => { try { f(); return null; } catch (e) { return e.message; } };
-  const unknown = threw(() => TV.mapColumns([...OWNER_HEADER.slice(0, 20), 'Stoch RSI', ...OWNER_HEADER.slice(20)], titlesOf));
-  const sixth = threw(() => TV.mapColumns([...OWNER_HEADER, 'Plot'], titlesOf));
+  const unknown = TV.mapColumns([...OWNER_HEADER.slice(0, 20), 'Stoch RSI', ...OWNER_HEADER.slice(20)], titlesOf)[20];
+  const sixth = TV.mapColumns([...OWNER_HEADER, 'Plot'], titlesOf)[67];
   const noClose = threw(() => TV.mapColumns(['time', 'open', 'high', 'low', 'Close price'], titlesOf));
-  check(/^column 21 “Stoch RSI” is not a column of the chart this tool knows/.test(unknown || '') && /^column 68 “Plot” is the 6th column of that title, and the chart this tool knows has 5$/.test(sixth || '')
+  check(unknown.kind === 'unknown' && unknown.column === 21 && unknown.title === 'Stoch RSI' && sixth.kind === 'ambiguous' && sixth.column === 68 && same(sixth.candidates.map(c => c.id), ['sma_cross', 'banker_entry'])
     && /^column 5 “Close price” should be “close”/.test(noClose || ''),
-    'tv-verify refuses a header it does not recognise and names the column: an unknown title, a sixth "Plot", a fifth column that is not the close', { unknown, sixth, noClose });
+    'tv-verify names a column it does not recognise without refusing the header — an unknown title is NOT KNOWN at its column, a sixth "Plot" fits SMA Cross and the blackcat script alike; a fifth column that is not the close still refuses it', { unknown, sixth, noClose });
   /* A file built here: the chart's columns from the engine's own plots of
      400 synthetic bars — every computed column MATCHes or is NOT SETTLED;
      one changed value DIFFERS, at its bar; a short file does not settle. */
@@ -3205,9 +3211,9 @@ try {
   const shortRep = await TV.verify(mkCsv(60), { E: PN, file: 'short' });
   const setRep = await TV.verify(mkCsv(400), { E: PN, sets: TV.parseSets(['sma_cross.fast=20'], PN), file: 'set' });
   check(rep.summary.differs === 0 && rep.summary.match > 30 && row(17).result === 'MATCH' && row(7).result === 'MATCH' && row(67).result === 'NOT SETTLED' && /needs 636 bars/.test(row(67).note)
-    && row(15).result === 'NOT COMPARED' && bent.summary.differs === 1 && bent.rows.find(r => r.column === 17).worstAt.bar === 350
+    && row(15).result === 'BOT PLOT' && bent.summary.differs === 1 && bent.rows.find(r => r.column === 17).worstAt.bar === 350
     && shortRep.rows.find(r => r.column === 8).result === 'NOT SETTLED' && setRep.rows.find(r => r.column === 7).result === 'DIFFERS' && setRep.rows.find(r => r.column === 8).result === 'MATCH',
-    'tv-verify on a file of its own plots: nothing DIFFERS (the TEMA of 200 needs 636 bars, NOT SETTLED; Entry TF NOT COMPARED); one value off by 1% DIFFERS at its bar; 60 bars leave the SMA of 200 NOT SETTLED; --set sma_cross.fast=20 makes the first "Plot" DIFFER',
+    'tv-verify on a file of its own plots: nothing DIFFERS (the TEMA of 200 needs 636 bars, NOT SETTLED; Entry TF a BOT PLOT, H3-B); one value off by 1% DIFFERS at its bar; 60 bars leave the SMA of 200 NOT SETTLED; --set sma_cross.fast=20 makes the first "Plot" DIFFER',
     { summary: rep.summary, bent: bent.summary, c67: row(67) });
   const tvDir = join(tmpdir(), `qt-pine-tv-${process.pid}`);
   await mkdir(tvDir, { recursive: true });
@@ -3218,8 +3224,9 @@ try {
     const cli = async (f) => { try { const r = await run(process.execPath, [join(ROOT, 'scanner/tv-verify.mjs'), '--csv', join(tvDir, f)]); return { code: 0, out: r.stdout, err: r.stderr }; } catch (e) { return { code: e.code, out: e.stdout || '', err: e.stderr || '' }; } };
     const [g, b, x] = [await cli('good.csv'), await cli('bent.csv'), await cli('bad.csv')];
     check(g.code === 0 && /\n 17  Color MA +color_ma · Color MA +bar 199 +201  0 +MATCH\n/.test(g.out) && b.code === 1 && /DIFFERS — worst at bar 350/.test(b.out)
-      && x.code === 2 && /column 17 “Colour MA” is not a column of the chart this tool knows/.test(x.err),
-      'node scanner/tv-verify.mjs --csv: exit 0 with the table when nothing differs, 1 naming the bar when a column DIFFERS, 2 naming the column it does not recognise', { g: g.out.split('\n').find(l => / 17 /.test(l)), b: b.code, x: x.err });
+      && x.code === 0 && /\n 17  Colour MA +— +— +NOT KNOWN — no script this tool computes draws a column of that title here\n/.test(x.out),
+      'node scanner/tv-verify.mjs --csv: exit 0 with the table when nothing differs, 1 naming the bar when a column DIFFERS; a column it does not recognise is NOT KNOWN at its place and decides nothing (H3-B: it refused the file, exit 2)',
+      { g: g.out.split('\n').find(l => / 17 /.test(l)), b: b.code, x: x.code, xl: x.out.split('\n').find(l => / 17 /.test(l)) || x.err });
   } finally { await rm(tvDir, { recursive: true, force: true }); }
 }
 /* ---- end pine: indicators ---- */
@@ -4335,6 +4342,248 @@ try {
   } finally { await rm(botDir, { recursive: true, force: true }); }
 }
 /* ---- end bot: tools ---- */
+
+/* ---- frames: tools ---- */
+/* TV-VERIFY ON THE READER'S WEEKLY AND MONTHLY CHARTS. Their exports carry
+   columns this tool does not compute (Ichimoku's lines, Volume MA, VWAP and
+   its bands), the bot's own alert marks, a MACD with its signal line, two
+   RSIs, untitled "Plot" runs of scripts it does not have, and a titled pair
+   of averages; and their settings are not the daily chart's. Every file
+   here is synthetic, written by this block into a temporary folder: stamps
+   as OANDA writes them (17:00 New York on the evening before a period's
+   first session) over a seeded random walk, and every indicator column
+   computed by the engine with the settings each case names. The reader's
+   own weekly and monthly headers are written out below as titles — titles
+   are not prices; nothing here reads watchlist-shots. */
+{
+  const TVF = await import('./scanner/tv-verify.mjs');
+  const { loadStoreEngine, periodKey } = await import('./ingest/history-store.mjs');
+  const { parseCsv } = await import('./ingest/history-import.mjs');
+  const { utimes } = await import('node:fs/promises');
+  const NY = 'America/New_York';
+  const lvl = (w) => Array.from({ length: 8 }, (_, k) => `Level ${k + 1} ${w}`);
+  const pp = (id, set = {}) => ({ ...E.scanParams({ indicator: id }).params, ...set });
+  const plotsOf = (bars, id, set) => E.SCAN_INDICATORS[id].pine(bars, pp(id, set)).plots;
+  const pick = (plots, title) => plots.find(([t]) => t === title)[1];
+  /* A seeded random walk: each period opens where the last closed. */
+  const walk = (n, seed) => {
+    let s = seed, px = 1500;
+    const rnd = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
+    const r3 = (x) => Math.round(x * 1000) / 1000;
+    const w = { open: [], high: [], low: [], close: [], volume: [] };
+    for (let i = 0; i < n; i++) {
+      const o = px, c = r3(o * (1 + (rnd() - 0.48) * 0.06));
+      w.open.push(o); w.close.push(c); w.high.push(r3(Math.max(o, c) * (1 + rnd() * 0.02))); w.low.push(r3(Math.min(o, c) * (1 - rnd() * 0.02))); w.volume.push(100000 + Math.floor(rnd() * 900000));
+      px = c;
+    }
+    w.bars = E.scanSeriesBars(w.close, { open: w.open, high: w.high, low: w.low, volumes: w.volume });
+    return w;
+  };
+  /* TradingView's stamp for a period: its first session's opening, 17:00
+     New York the evening before. */
+  const stampOf = (firstSession) => E.scanZonedInstant(E.scanAddDays(firstSession, -1), 17 * 60, NY) / 1000;
+  const csvOf = (stamps, w, cols) => [['time', 'open', 'high', 'low', 'close', ...cols.map(([t]) => t)].join(','),
+    ...stamps.map((st, i) => [st, w.open[i], w.high[i], w.low[i], w.close[i], ...cols.map(([, s]) => (s && s[i] != null ? s[i] : ''))].join(','))].join('\n');
+  const col = (rep, c) => rep.rows.find(r => r.column === c);
+  const inst = (rep, c) => rep.instances.find(x => x.columns[0] <= c && c <= x.columns[1]);
+
+  /* The reader's own weekly and monthly headers, read by their titles and
+     their order. */
+  const WEEK_HEADER = ['time', 'open', 'high', 'low', 'close', 'Conversion Line', 'Base Line', 'Lagging Span', 'Leading Span A', 'Leading Span B', 'Trade TF Tier 1 Buy',
+    'Strong Buy - Continuous', 'Strong Buy - Reversal', 'Strong Sell - Continuous', 'Strong Sell - Reversal', 'Plot', 'Plot', 'Shapes', 'Shapes', 'Volume', 'Volume MA', 'Color MA',
+    'Plot', 'Plot', 'Plot', 'RSI', 'RSI-based MA', 'Regular Bullish', 'Regular Bullish Label', 'Regular Bearish', 'Regular Bearish Label', 'MACD', 'Signal Line', 'Histogram', 'Cross',
+    'RSI', 'RSI-based MA', 'Regular Bullish', 'Regular Bullish Label', 'Regular Bearish', 'Regular Bearish Label', 'WT Average-WT1', 'Signal average-WT2', 'Level 0', ...lvl('overbought'),
+    ...lvl('oversold'), 'Sell when overbought', 'All sales', 'Buy when oversold', 'All purchases', 'Histogramme', 'Divergencias Bajistas', 'Divergencias Alcistas',
+    'Bearish Regular Divergence', 'Bearish Hidden Divergence', 'Bullish Regular Divergence', 'Bullish Regular Divergence', 'MA PLOT_ST', 'MA PLOT_LT', 'Retailer', 'Hot Money', 'Banker',
+    '5', '10', '15', 'Banker_MA'];
+  const MONTH_HEADER = ['time', 'open', 'high', 'low', 'close', 'Conversion Line', 'Base Line', 'Lagging Span', 'Leading Span A', 'Leading Span B', 'Strong Buy - Continuous',
+    'Strong Buy - Reversal', 'Strong Sell - Continuous', 'Strong Sell - Reversal', 'Volume', 'Volume MA', 'Plot', 'Plot', 'Shapes', 'Shapes', 'VWAP', 'Upper Band #1', 'Lower Band #1',
+    'Short Period Moving Average', 'Long Period Moving Average', 'Plot', 'Shapes', 'Shapes', 'Color MA', 'Plot', 'Plot', 'MACD', 'Signal Line', 'Histogram', 'Cross', 'WT Average-WT1',
+    'Signal average-WT2', 'Level 0', ...lvl('overbought'), ...lvl('oversold'), 'Sell when overbought', 'All sales', 'Buy when oversold', 'All purchases', 'Histogramme',
+    'Divergencias Bajistas', 'Divergencias Alcistas', 'Bearish Regular Divergence', 'Bearish Hidden Divergence', 'Bullish Regular Divergence', 'Bullish Regular Divergence', 'MA PLOT_ST',
+    'Retailer', 'Hot Money', 'Banker', '5', '10', '15', 'Banker_MA'];
+  const titles = Object.fromEntries(TVF.CHART.filter(c => c.id).map(c => [c.id, plotsOf(walk(40, 3).bars, c.id).map(([t]) => t)]));
+  const wm = TVF.mapColumns(WEEK_HEADER, titles, { bot: E.SCAN_BOT_SIGNALS }), mm = TVF.mapColumns(MONTH_HEADER, titles, { bot: E.SCAN_BOT_SIGNALS });
+  const kinds = (m, a, b) => m.slice(a - 1, b).map(x => x.kind);
+  const ids = (m, a, b) => [...new Set(m.slice(a - 1, b).map(x => x.id))];
+  const w = (c) => wm[c - 1], m = (c) => mm[c - 1];
+  check(wm.length === 80 && same(kinds(wm, 6, 10), Array(5).fill('unknown')) && same(wm.slice(10, 15).map(x => x.signal), ['tier1-buy', 'strong-buy-continuous', 'strong-buy-reversal', 'strong-sell-continuous', 'strong-sell-reversal'])
+    && w(16).kind === 'ambiguous' && same(w(16).candidates.map(c => `${c.id}#${c.plot}`), ['sma_cross#0', 'banker_entry#0']) && same(w(17).candidates.map(c => `${c.id}#${c.plot}`), ['sma_cross#1', 'banker_entry#1'])
+    && same(kinds(wm, 18, 19), ['unknown', 'unknown']) && w(20).kind === 'input' && w(21).kind === 'unknown' && w(22).id === 'color_ma' && same(wm.slice(22, 25).map(x => `${x.id}#${x.plot}`), ['banker_entry#0', 'banker_entry#1', 'banker_entry#2'])
+    && same(ids(wm, 26, 31), ['tv_rsi']) && same(kinds(wm, 28, 31), Array(4).fill('none')) && same(ids(wm, 32, 35), ['cm_macd']) && w(33).plot === 1
+    && same(ids(wm, 36, 41), ['tv_rsi']) && w(36).block !== w(26).block && w(26).block === w(31).block && w(36).block === w(41).block
+    && same(ids(wm, 42, 73), ['wavetrend']) && w(73).kind === 'plot' && w(73).same === 'MA PLOT_ST' && w(73).plot === w(72).plot && w(73).block === w(42).block && same(ids(wm, 74, 80), ['mcdx']),
+    'frames tools: the reader\'s weekly header by titles and order — Ichimoku\'s five lines unknown; the bot\'s five marks by their alert titles; "Plot", "Plot" before "Shapes" fits SMA Cross and the blackcat script alike (ambiguous, for the numbers); Volume MA unknown; the blackcat run; two RSIs, each with its divergence columns, as two runs; the MACD with its Signal Line; MA PLOT_LT in the WaveTrend run, read as MA PLOT_ST where the two are equal',
+    wm.map(x => `${x.column}:${x.kind}:${x.id ?? x.signal ?? ''}`).join(' '));
+  check(mm.length === 73 && same(mm.slice(10, 14).map(x => x.kind), Array(4).fill('bot')) && m(15).kind === 'input' && m(16).kind === 'unknown' && same(kinds(mm, 17, 18), ['ambiguous', 'ambiguous'])
+    && same(kinds(mm, 19, 23), Array(5).fill('unknown')) && same(mm.slice(23, 25).map(x => `${x.id}#${x.plot}`), ['ma_pair#0', 'ma_pair#1']) && m(26).kind === 'ambiguous' && same(kinds(mm, 27, 28), ['unknown', 'unknown'])
+    && m(29).id === 'color_ma' && same(kinds(mm, 30, 31), ['ambiguous', 'ambiguous']) && same(ids(mm, 32, 35), ['cm_macd']) && same(ids(mm, 36, 66), ['wavetrend']) && same(ids(mm, 67, 73), ['mcdx']),
+    'frames tools: the reader\'s monthly header — the four bot marks, VWAP and its bands unknown, the titled pair of averages known by title, three untitled "Plot" runs for the numbers to decide, the MACD with its Signal Line',
+    mm.map(x => `${x.column}:${x.kind}:${x.id ?? x.signal ?? ''}`).join(' '));
+
+  /* The engine's scanWeekOf (through the store, out of index.html) and the
+     tool's written-out copy of it agree on every day of seven years. */
+  const SE = await loadStoreEngine();
+  const noWeek = { ...E };
+  delete noWeek.scanWeekOf;
+  const days = [];
+  for (let d = '2019-12-23'; d <= '2027-01-10'; d = E.scanAddDays(d, 1)) days.push(d);
+  check(days.every(d => TVF.withWeekOf(noWeek).scanWeekOf(d) === SE.scanWeekOf(d) && TVF.periodOf(E, '1W')(d) === SE.scanWeekOf(d) && TVF.periodOf(E, '1M')(d) === SE.scanMonthOf(d)),
+    `frames tools: the weeks and months tv-verify dates by are the engine's scanWeekOf and scanMonthOf on each of ${days.length} days`);
+
+  /* A weekly export as the reader's: 420 weeks from Monday 1 January 2018,
+     saved on the Wednesday of its last week. Color MA the script's default
+     EMA 200; RSI 5 with an SMA of 14; the CM MACD with its SMA signal line;
+     a second RSI of 14; MA PLOT_LT equal to MA PLOT_ST. */
+  const WN = 420;
+  const mondays = [];
+  for (let d = '2018-01-01'; mondays.length < WN; d = E.scanAddDays(d, 7)) mondays.push(d);
+  const wStamps = mondays.map(stampOf);
+  const ww = walk(WN, 7);
+  const wAt = E.scanZonedInstant(E.scanAddDays(mondays[WN - 1], 2), 11 * 60, NY);
+  const wAtIso = new Date(wAt).toISOString();
+  const flags = (n, every) => Array.from({ length: n }, (_, i) => (i % every === 0 ? 1 : 0));
+  const be = plotsOf(ww.bars, 'banker_entry'), r1 = plotsOf(ww.bars, 'tv_rsi'), r2 = plotsOf(ww.bars, 'tv_rsi', { n: 14 }), cm = plotsOf(ww.bars, 'cm_macd'), wt = plotsOf(ww.bars, 'wavetrend'), mc = plotsOf(ww.bars, 'mcdx');
+  const weekCols = (over = {}) => [
+    ['Conversion Line', ww.high.map((h, i) => (h + ww.low[i]) / 2)], ['Base Line', ww.close.map(c => c * 0.99)],
+    ['Trade TF Tier 1 Buy', flags(WN, 100000)], ['Strong Buy - Continuous', flags(WN, 17)], ['Strong Sell - Reversal', flags(WN, 41)],
+    ['Plot', null], ['Plot', null], ['Shapes', flags(WN, 100000).map(() => 0)], ['Shapes', flags(WN, 100000).map(() => 0)],
+    ['Volume', ww.volume], ['Volume MA', E.scanSma(ww.volume, 20)], ['Color MA', pick(plotsOf(ww.bars, 'color_ma', { type: 2 }), 'Color MA')],
+    ['Plot', be[0][1]], ['Plot', be[1][1]], ['Plot', be[2][1]],
+    ['RSI', over.rsi1 || pick(r1, 'RSI')], ['RSI-based MA', pick(r1, 'RSI-based MA')], ['Regular Bullish', null], ['Regular Bullish Label', null], ['Regular Bearish', null], ['Regular Bearish Label', null],
+    ...(over.macd || cm).map(([t, s]) => [t, s]),
+    ['RSI', pick(r2, 'RSI')], ['RSI-based MA', pick(r2, 'RSI-based MA')],
+    ...wt.map(([t, s]) => [t, s]), ['MA PLOT_LT', over.lt || pick(wt, 'MA PLOT_ST')],
+    ...mc.filter(([t]) => t !== 'HotMoney_MA').map(([t, s]) => [t, s]),
+  ];
+  const weekCsv = csvOf(wStamps, ww, weekCols());
+  const wRep = await TVF.verify(weekCsv, { E, file: 'OANDA_XAUUSD, 1W.csv', market: 'FX', at: wAtIso });
+  const wHead = weekCsv.split('\n')[0].split(',');
+  const cOf = (title, nth = 1) => wHead.reduce((acc, t, i) => (t === title ? [...acc, i + 1] : acc), [])[nth - 1];
+  const imported = parseCsv(weekCsv, 'w', { tz: NY, session: E.scanMarket('FX') }).rows.map(r => periodKey(SE, '1W', r.date));
+  check(wRep.interval === '1W' && wRep.summary.differs === 0 && same(wRep.dated.keys, mondays) && same(imported, mondays) && wRep.dated.first === '2018-01-01' && wRep.dated.last === mondays[WN - 1]
+    && wRep.dated.lastStatus === 'PROVISIONAL' && wRep.dated.market === 'FX',
+    'frames tools: a weekly export\'s rows are dated as the import files them — each Sunday 17:00 New York stamp to the week of the Monday it opens, the keys the store\'s periodKey gives the import\'s own parse of the file; the last week, saved on its Wednesday, PROVISIONAL; nothing DIFFERS',
+    { summary: wRep.summary, dated: { ...wRep.dated, keys: wRep.dated.keys.slice(0, 3) } });
+  const ck = (c) => col(wRep, c);
+  check(ck(6).result === 'NOT KNOWN' && ck(7).result === 'NOT KNOWN' && ck(8).result === 'BOT PLOT' && ck(8).signal === 'tier1-buy' && ck(8).marks === 1 && ck(9).signal === 'strong-buy-continuous'
+    && ck(9).marks === Math.ceil(WN / 17) && ck(10).alert === 'STRONG SELL REVERSAL' && ck(10).marks === Math.ceil(WN / 41)
+    && ck(11).result === 'NOT KNOWN' && ck(12).result === 'NOT KNOWN' && /fit SMA Cross and Banker Entry alike, and the numbers fit neither/.test(ck(11).why) && ck(11).filled === 0
+    && ck(13).result === 'NOT KNOWN' && ck(16).result === 'NOT KNOWN' && wRep.summary.notKnown === 7 && wRep.summary.botPlots === 3,
+    'frames tools: columns no script here draws are NOT KNOWN at their place (Ichimoku, "Shapes", Volume MA) and never refuse the file; the bot\'s marks are BOT PLOTs with the bars they mark; an empty "Plot", "Plot" run neither SMA Cross\'s nor the blackcat script\'s numbers fit is NOT KNOWN, naming both',
+    wRep.rows.filter(r => r.column <= 16).map(r => [r.column, r.result, r.signal ?? r.why?.slice(0, 40)]));
+  const colorMa = ck(cOf('Color MA')), ci = inst(wRep, cOf('Color MA'));
+  const rsiA = inst(wRep, cOf('RSI')), rsiB = inst(wRep, cOf('RSI', 2)), macd = inst(wRep, cOf('MACD')), wave = inst(wRep, cOf('WT Average-WT1'));
+  check(colorMa.result === 'NOT SETTLED' && ci.how === 'open' && same(ci.candidates.map(c => [c.settings, c.status]), [['SMA 200', 'refuted'], ['EMA 200', 'open']])
+    && rsiA.how === 'chart' && rsiA.settings === 'RSI 5 with SMA 14' && rsiA.candidates[1].status === 'refuted' && ck(cOf('RSI')).result === 'MATCH'
+    && macd.how === 'chart' && macd.settings === '12, 26 and 9 with an SMA signal' && macd.candidates[1].status === 'refuted' && ck(cOf('Signal Line')).result === 'MATCH'
+    && rsiB.how === 'found' && rsiB.nth === 2 && rsiB.settings === 'RSI 14 with SMA 14' && rsiB.from === 'TradingView’s RSI default' && ck(cOf('RSI', 2)).result === 'MATCH' && ck(cOf('RSI', 2)).instance === 2
+    && wave.how === 'chart' && same(wave.alias, ['MA PLOT_LT']) && ck(cOf('MA PLOT_LT')).plot === 'MA PLOT_ST' && wave.candidates[1].status === 'refuted',
+    'frames tools: settings are tried, not assumed — Color MA\'s daily SMA 200 DIFFERS and the script\'s EMA 200 cannot settle in 420 weeks (NOT SETTLED, both named); the first RSI is the daily chart\'s 5 and the second is found from the numbers to be TradingView\'s default 14; the MACD\'s signal is the SMA (the bot\'s EMA signal DIFFERS); MA PLOT_LT equal to MA PLOT_ST is read as it',
+    { ci, rsiA: rsiA?.how, rsiB: [rsiB?.how, rsiB?.settings], macd: [macd?.how, macd?.candidates], wave: [wave?.how, wave?.alias] });
+  const tbl = TVF.table(wRep);
+  check(/\nPeriods {13}week of 2018-01-01 … week of \d{4}-\d{2}-\d{2}, dated by the Currency pairs session \(FX\): a stamp at or after 17:00 America\/New_York opens the next day's session/.test(tbl)
+    && /the last week was still trading when the file was saved/.test(tbl) && /\nRead as {13}/.test(tbl)
+    && /\n {2}cols \d+–\d+ +RSI \(TradingView\) \(2\) +RSI 14 with SMA 14 — found from the numbers: TradingView’s RSI default; RSI 5 with SMA 14 \(your daily chart’s\) DIFFERS — RSI: worst [\d.]+ at week of \d{4}-\d{2}-\d{2}\n/.test(tbl)
+    && /\n {2}col \d+ +Color MA +NOT SETTLED — EMA 200 \(the Color MA script’s own default\): nothing in the file refutes it, and it does not settle in it; SMA 200 \(your daily chart’s\) DIFFERS/.test(tbl)
+    && /\d+ MATCH, 0 DIFFERS, \d+ NOT SETTLED, \d+ NOT COMPARED, 7 NOT KNOWN, 3 BOT PLOT \(and 6 columns of bars\)/.test(tbl),
+    'frames tools: the table names the weeks, says the last was still trading, and says under "Read as" which indicator each run was taken to be and which settings its numbers take',
+    tbl.split('\n').filter(l => /^Periods|^ {2}col|NOT KNOWN, /.test(l)));
+
+  /* The numbers decide the other way too: the bot's EMA signal found on a
+     MACD that draws it; an RSI off by 1% on one week refutes both
+     candidates and DIFFERS at its week; MA PLOT_LT unlike MA PLOT_ST is
+     not read as it. */
+  const emaRep = await TVF.verify(csvOf(wStamps, ww, weekCols({ macd: TVF.emaSignalPlots(E, ww.bars, pp('cm_macd')) })), { E, file: 'OANDA_XAUUSD, 1W.csv', market: 'FX', at: wAtIso });
+  const bentRsi = pick(r1, 'RSI').map((v, i) => (i === 400 ? v * 1.01 : v));
+  const bentRep = await TVF.verify(csvOf(wStamps, ww, weekCols({ rsi1: bentRsi })), { E, file: 'OANDA_XAUUSD, 1W.csv', market: 'FX', at: wAtIso });
+  const ltRep = await TVF.verify(csvOf(wStamps, ww, weekCols({ lt: ww.close })), { E, file: 'OANDA_XAUUSD, 1W.csv', market: 'FX', at: wAtIso });
+  const em = inst(emaRep, cOf('MACD')), br = col(bentRep, cOf('RSI')), bi = inst(bentRep, cOf('RSI'));
+  check(emaRep.summary.differs === 0 && em.how === 'found' && em.settings === '12, 26 and 9 with an EMA signal' && em.candidates[0].status === 'refuted' && col(emaRep, cOf('Signal Line')).result === 'MATCH'
+    && bentRep.summary.differs === 1 && br.result === 'DIFFERS' && br.worstAt.bar === 400 && br.worstAt.stamp === mondays[400] && bi.how === 'differs' && bi.candidates.every(c => c.status === 'refuted')
+    && col(ltRep, cOf('MA PLOT_LT')).result === 'NOT COMPARED' && /it differs from MA PLOT_ST in this export, so it is not that average/.test(col(ltRep, cOf('MA PLOT_LT')).why) && ltRep.summary.differs === 0,
+    'frames tools: a MACD drawn with the bot\'s EMA signal is found to be it (the SMA signal DIFFERS); an RSI bent by 1% on one week DIFFERS at that week, every candidate refuted; an MA PLOT_LT unlike MA PLOT_ST is NOT COMPARED',
+    { em: em && [em.how, em.settings], br: br && [br.result, br.worstAt], bi: bi?.how, lt: col(ltRep, cOf('MA PLOT_LT')) });
+
+  /* A monthly export as the reader's: 300 months from October 2001, each
+     stamped on the evening before its first weekday (a month that begins
+     on a Saturday is its Monday's), saved mid-month. The titled pair drawn
+     as SMA 50 and SMA 100; the daily chart's Color MA; SMA Cross's two
+     averages untitled before the MACD. */
+  const MN = 300;
+  const months = [];
+  for (let y = 2001, mo = 10; months.length < MN; mo = mo === 12 ? 1 : mo + 1, y = mo === 1 ? y + 1 : y) months.push(`${y}-${String(mo).padStart(2, '0')}-01`);
+  const firstWeekday = (k) => { let d = k; while ([0, 6].includes(E.scanWeekday(d))) d = E.scanAddDays(d, 1); return d; };
+  const mStamps = months.map(k => stampOf(firstWeekday(k)));
+  const mw = walk(MN, 23);
+  const mAtIso = new Date(E.scanZonedInstant(E.scanAddDays(months[MN - 1], 14), 11 * 60, NY)).toISOString();
+  const mcm = plotsOf(mw.bars, 'cm_macd'), mwt = plotsOf(mw.bars, 'wavetrend'), msc = plotsOf(mw.bars, 'sma_cross');
+  const monthCols = (pair) => [
+    ['Conversion Line', mw.close.map(c => c * 1.01)], ['Strong Buy - Continuous', flags(MN, 13)], ['Strong Sell - Reversal', flags(MN, 29)],
+    ['Volume', mw.volume], ['Volume MA', E.scanSma(mw.volume, 20)], ['VWAP', mw.close.map(c => c * 0.98)], ['Upper Band #1', mw.high], ['Lower Band #1', mw.low],
+    ['Short Period Moving Average', pair[0]], ['Long Period Moving Average', pair[1]],
+    ['Color MA', pick(plotsOf(mw.bars, 'color_ma'), 'Color MA')], ['Plot', msc[0][1]], ['Plot', msc[1][1]],
+    ...mcm.map(([t, s]) => [t, s]), ...mwt.map(([t, s]) => [t, s]),
+  ];
+  const monthCsv = csvOf(mStamps, mw, monthCols([E.scanSma(mw.close, 50), E.scanSma(mw.close, 100)]));
+  const mRep = await TVF.verify(monthCsv, { E, file: 'OANDA_XAUUSD, 1M.csv', market: 'FX', at: mAtIso });
+  const mHead = monthCsv.split('\n')[0].split(',');
+  const mOf = (title) => mHead.indexOf(title) + 1;
+  const pair = inst(mRep, mOf('Short Period Moving Average')), tie = inst(mRep, mOf('Plot')), mColor = inst(mRep, mOf('Color MA'));
+  const jan22 = months.indexOf('2022-01-01'), jun26 = months.indexOf('2026-06-01');
+  check(mRep.interval === '1M' && mRep.summary.differs === 0 && same(mRep.dated.keys, months) && mRep.dated.first === '2001-10-01' && mRep.dated.lastStatus === 'PROVISIONAL'
+    && new Date(mStamps[jan22] * 1000).toISOString() === '2022-01-02T22:00:00.000Z' && new Date(mStamps[jun26] * 1000).toISOString() === '2026-05-31T21:00:00.000Z'
+    && pair.how === 'found' && pair.settings === 'SMA 50 and SMA 100' && col(mRep, mOf('Long Period Moving Average')).result === 'MATCH'
+    && pair.candidates.find(c => c.settings === 'SMA 50 and SMA 200').status === 'refuted'
+    && tie.indicator === 'sma_cross' && same(tie.tie, ['SMA Cross', 'Banker Entry']) && col(mRep, mOf('Plot')).result === 'MATCH' && col(mRep, mOf('Plot') + 1).plot === 'Plot #2'
+    && mColor.how === 'chart' && mColor.candidates[1].status === 'open' && col(mRep, mOf('VWAP')).result === 'NOT KNOWN' && mRep.summary.botPlots === 2,
+    'frames tools: a monthly export — each month keyed by its 1st (January 2022, which begins on a Saturday, stamped the Sunday before its Monday; June 2026 stamped on Sunday 31 May), the last PROVISIONAL; the titled pair found from the numbers to be SMA 50 and SMA 100; an untitled "Plot", "Plot" run the numbers give to SMA Cross over the blackcat script; the daily chart\'s Color MA fits; VWAP NOT KNOWN',
+    { summary: mRep.summary, pair: pair && [pair.how, pair.settings, pair.candidates], tie: tie && [tie.indicator, tie.tie] });
+
+  /* A titled pair no candidate fits is NOT KNOWN, never DIFFERS: without
+     its source, a mismatch says only that it is none of them (1,800 weeks,
+     long enough for an EMA of 200 to settle and be refuted). */
+  const LN = 1800;
+  const lMondays = [];
+  for (let d = '1992-01-06'; lMondays.length < LN; d = E.scanAddDays(d, 7)) lMondays.push(d);
+  const lw = walk(LN, 99);
+  const noneRep = await TVF.verify(csvOf(lMondays.map(stampOf), lw, [['Volume', lw.volume], ['Short Period Moving Average', lw.close.map(c => c * 1.05)], ['Long Period Moving Average', lw.close.map(c => c * 0.95)]]),
+    { E, file: 'OANDA_XAUUSD, 1W.csv', market: 'FX' });
+  const ni = noneRep.instances.find(x => x.indicator === 'ma_pair');
+  check(noneRep.summary.differs === 0 && noneRep.summary.notKnown === 2 && ni.how === 'none' && ni.candidates.every(c => c.status === 'refuted') && /fit none of the candidates/.test(col(noneRep, 7).why),
+    'frames tools: a titled pair of averages that none of SMA or EMA 50 with 200 or 100 fits is NOT KNOWN, not DIFFERS', { summary: noneRep.summary, ni: ni && [ni.how, ni.candidates.map(c => c.status)] });
+
+  /* Two rows in one week: the file is not what its name says. */
+  const dupCsv = [weekCsv.split('\n')[0], ...weekCsv.split('\n').slice(1, 8), weekCsv.split('\n')[6].replace(/^\d+/, String(wStamps[5] + 86400)), ...weekCsv.split('\n').slice(8)].join('\n');
+  let dup = null;
+  try { await TVF.verify(dupCsv, { E, file: 'OANDA_XAUUSD, 1W.csv', market: 'FX' }); } catch (e) { dup = e.message; }
+  check(dup === `OANDA_XAUUSD, 1W.csv: the bars dated ${mondays[5]} and ${E.scanAddDays(mondays[5], 1)} are both in the week of ${mondays[5]} — is it a 1W export?`,
+    'frames tools: a weekly file with two rows in one week is refused, naming both and the week', dup);
+
+  /* The command line, on files written here with the modification times
+     the reader's would have: XAUUSD's market (FX) from the registry. */
+  const fDir = join(tmpdir(), `qt-frames-tools-${process.pid}`);
+  await mkdir(fDir, { recursive: true });
+  try {
+    const put = async (name, text, at) => { const p = join(fDir, name); await writeFile(p, text); if (at) await utimes(p, new Date(at), new Date(at)); return p; };
+    const fW = await put('OANDA_XAUUSD, 1W.csv', weekCsv, wAtIso), fM = await put('OANDA_XAUUSD, 1M.csv', monthCsv, mAtIso);
+    const fB = await put('OANDA_XAUUSD, 1W (1).csv', csvOf(wStamps, ww, weekCols({ rsi1: bentRsi })), wAtIso), fD = await put('OANDA_XAUUSD, 1W (2).csv', dupCsv, wAtIso);
+    const fX = await put('weekly.csv', weekCsv, wAtIso), fH = await put('OANDA_XAUUSD, 1W (3).csv', weekCsv.replace(/^time,open,high,low,close/, 'time,open,high,low,Close price'), wAtIso);
+    check([fW, fM, fB, fD, fX, fH].every(p => p.startsWith(tmpdir())), 'frames tools: every export this block hands the tool is one it wrote into the temporary folder');
+    const cli = async (...a) => { try { const r = await run(process.execPath, [join(ROOT, 'scanner/tv-verify.mjs'), ...a]); return { code: 0, out: r.stdout, err: r.stderr }; } catch (e) { return { code: e.code, out: e.stdout || '', err: e.stderr || '' }; } };
+    const [cw, cm2, cb, cd, cx, cx2, ch] = [await cli('--csv', fW), await cli('--csv', fM), await cli('--csv', fB), await cli('--csv', fD), await cli('--csv', fX, '--interval', '1W', '--market', 'FX'),
+      await cli('--csv', fX, '--interval', '2W'), await cli('--csv', fH)];
+    check(cw.code === 0 && /\nPeriods {13}week of 2018-01-01 … week of \d{4}-\d{2}-\d{2}, dated by the Currency pairs session \(FX\)/.test(cw.out) && /the last week was still trading when the file was saved \(\d{4}-/.test(cw.out)
+      && /\n {2}6 {2}Conversion Line +— +— +NOT KNOWN/.test(cw.out) && /RSI 14 with SMA 14 — found from the numbers/.test(cw.out)
+      && cm2.code === 0 && /SMA 50 and SMA 100 — found from the numbers/.test(cm2.out) && /\nPeriods {13}2001-10 … \d{4}-\d{2}, dated by/.test(cm2.out)
+      && cb.code === 1 && /DIFFERS — worst at bar 400 \(week of \d{4}-\d{2}-\d{2}\)/.test(cb.out)
+      && cd.code === 2 && /are both in the week of/.test(cd.err) && cx.code === 0 && /\nPeriods {13}week of 2018-01-01/.test(cx.out)
+      && cx2.code === 2 && /--interval "2W" is not 1D, 1W or 1M/.test(cx2.err) && ch.code === 2 && /column 5 “Close price” should be “close”/.test(ch.err),
+      'frames tools: node scanner/tv-verify.mjs --csv on a weekly or monthly export — exit 0 with the unknown columns NOT KNOWN and the settings found, 1 when a compared column DIFFERS, 2 for two rows in one week, an --interval that is not 1D, 1W or 1M, or a fifth column that is not the close; --interval 1W with --market dates a file not named as TradingView names one',
+      { cw: [cw.code, cw.err], cm: [cm2.code, cm2.err], cb: cb.code, cd: [cd.code, cd.err], cx: [cx.code, cx.err], cx2: [cx2.code, cx2.err], ch: [ch.code, ch.err] });
+  } finally { await rm(fDir, { recursive: true, force: true }); }
+}
+/* ---- end frames: tools ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

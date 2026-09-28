@@ -392,6 +392,37 @@ data, so no signal is claimed to work.
    begins are counted, not compared. **DIFFERS** (exit 1) names the column or
    the period, the fields and both values — stop there: a setup read on a
    week the scanner built wrongly is wrong.
+
+   <!-- tv-verify frames -->
+   The weekly and monthly exports are also checked on their own bars, as the
+   daily one is: each chart's indicators computed from the file's own weeks
+   or months, every row dated as the import files it (a Sunday-evening stamp
+   is the week of the Monday it opens; a month is its 1st), and the last one
+   said to be in progress when it was:
+
+   ```bash
+   node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1W.csv"
+   node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1M.csv"
+   ```
+
+   Those charts carry more than the daily one, and their settings are their
+   own. **NOT KNOWN** is a column no script here computes — Ichimoku's lines,
+   Volume MA, VWAP and its bands, a "Plot" or "Shapes" of a script this tool
+   does not have — listed with its title and column number; it never stops
+   the check, and the exit status is decided by the columns compared. **BOT
+   PLOT** is one of your Multi-Timeframe Trading Bot's own marks, such as
+   "Strong Buy - Continuous", listed with the bars it marks: the bot joins
+   the chart's timeframe with its Entry timeframe, so one file cannot check
+   it. **Read as**, under the table, says which indicator each run of columns
+   was taken to be — two RSIs are two runs, and an untitled "Plot" run that
+   two scripts fit alike goes to the one whose numbers agree — and which
+   settings its numbers take: your daily chart's are tried first, then each
+   script's own defaults and, for the MACD, the bot's EMA signal. A setting
+   the file refutes is named with the column and bar that refute it; one it
+   cannot tell apart (an EMA of 200 on 300 bars) leaves the column NOT
+   SETTLED, with the candidates named. `--interval 1W` (or `1M`) with
+   `--market` reads a file not named as TradingView names one.
+   <!-- end tv-verify frames -->
 4. **Add the bot's setups** on `/app/scanner/setups` (once, and again only
    when you change them). They arrive as ordinary daily setups whose
    conditions read the week or the month, named for your script's alerts —
