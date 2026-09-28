@@ -1056,7 +1056,7 @@ VIEWS.scannerAdminJobs = () => {
 /* The channels the brief names, and what each is here. The file's own
    statement wins where the worker wrote one; these are what the plan fixes
    when it has not. */
-const SCAN_CHANNELS = [
+const SCAN_OPS_CHANNELS = [
   ['IN_APP', 'In-app', 'ACTIVE', 'The worker writes each alert to data/scan-alerts.json; these pages read it. Read and archived are kept in this browser.'],
   ['EMAIL', 'Email', 'NOT_CONFIGURED', 'Needs a server to send from, an operating entity to send as, and an address held under a PDPA privacy notice. None exists, and credentials never go in a page.'],
   ['TELEGRAM', 'Telegram', 'NOT_CONFIGURED', 'A bot token must live on a server, and binding a chat id is holding a contact identifier under a privacy notice; neither exists.'],
@@ -1070,7 +1070,7 @@ VIEWS.scannerAdminDelivery = () => {
   const unread = scanOpsUnread();
   const card = el('section', { class: 'card' });
   card.append(cardHead('Channels', 'Each with its status and the reason. A channel that is not configured is shown as not configured — never as available, and never with a count of zero sends.'));
-  card.append(scanOpsTable(['Channel', 'Status', 'Why'], SCAN_CHANNELS.map(([id, label, status, why]) => {
+  card.append(scanOpsTable(['Channel', 'Status', 'Why'], SCAN_OPS_CHANNELS.map(([id, label, status, why]) => {
     const f = fileCh?.[id] || {};
     const s = f.status || status;
     const ok = s === 'ACTIVE' || s === 'ENABLED';

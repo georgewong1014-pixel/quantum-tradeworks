@@ -27,28 +27,30 @@ with the reason. Nothing is offered to anyone but the reader.
 
 ## 1. Status at a glance
 
-| Item | Priority | Status | Buildable now | Blocked |
-|---|---|---|---|---|
-| NAV Phase 3 routes | P0 | partial | 3 | 2 |
-| SC-301 Market-data ingestion | P0 | partial | 4 | 3 |
-| SC-302 OHLCV storage and validation | P0 | partial | 5 | 3 |
-| SC-303 Technical indicator engine | P0 | partial | 5 | 2 |
-| SC-304 Rule evaluation engine | P0 | partial | 5 | 2 |
-| SC-305 Setup builder | P0 | partial | 5 | 3 |
-| SC-306 Setup persistence and permissions | P0 | partial | 4 | 2 |
-| SC-307 Daily scanner scheduler | P0 | partial | 6 | 2 |
-| SC-308 Alert event engine | P0 | partial | 3 | 2 |
-| SC-309 Email notifications | P0 | blocked | 2 | 2 |
-| SC-310 Alert history and detail pages | P0 | partial | 3 | 2 |
-| SC-311 Watchlist integration | P0 | partial | 3 | 2 |
-| SC-312 Scanner dashboard | P0 | partial | 3 | 2 |
-| SC-313 Administrative monitoring | P0 | missing | 3 | 3 |
-| SC-314 Historical testing | P1 | missing | 3 | 3 |
-| SC-315 Telegram notifications | P1 | blocked | 1 | 1 |
-| SC-316 Market-wide screening | P1 | partial | 2 | 2 |
-| SC-317 Intraday scanner infrastructure | P2 | blocked | 1 | 2 |
-| SC-318 Live push notifications | P2 | blocked | 1 | 1 |
-| SC-319 Automated QA and regression | P0 | partial | 6 | 4 |
+“Before” is the state this plan found; “Now” is the state after round 2. The per-item sections below say what was built and what was not, under “As built”.
+
+| Item | Priority | Before | Now | Landed in | Still blocked |
+|---|---|---|---|---|---|
+| NAV Phase 3 routes | P0 | partial | built | round 2 ops (be046a8), round 2 setups (f0c09a2) | An admin role (there are no accounts); intraday entries. |
+| SC-301 Market-data ingestion | P0 | partial | partial | round 2 data (e21115a) | A licensed feed and a provider that confirms final bars; the history-check tool. |
+| SC-302 OHLCV storage and validation | P0 | partial | built | round 1 (4ea840a), round 2 data (e21115a) | A database; OHLC is held only where the capture had it. |
+| SC-303 Technical indicator engine | P0 | partial | built | round 1 (4ea840a) | A committed reference file from TA-Lib or pandas-ta, which cannot be generated here. |
+| SC-304 Rule evaluation engine | P0 | partial | built | round 1 (4ea840a) | A server validation endpoint; intraday timeframes (SC-317). |
+| SC-305 Setup builder | P0 | partial | built | round 2 setups (f0c09a2) | Intraday timeframes, exchange-wide universes, server validation. |
+| SC-306 Setup persistence and permissions | P0 | partial | partial | round 2 setups (f0c09a2) | Tables, ownership and sync across devices, because there are no accounts; the worker-side version ledger. |
+| SC-307 Daily scanner scheduler | P0 | partial | built | round 2 data (e21115a) | A scheduler service and job queue; automatic catch-up of a missed day (done with --as-of). |
+| SC-308 Alert event engine | P0 | partial | built | round 1 (4ea840a) | A user id and an authorised data source id. |
+| SC-309 Email notifications | P0 | blocked | in-app only | round 2 setups (f0c09a2), round 2 data (e21115a) | Email needs a server, an operating entity and contact data under a PDPA privacy notice. |
+| SC-310 Alert history and detail pages | P0 | partial | built | round 2 setups (f0c09a2) | Status shared across devices; intraday timestamps. |
+| SC-311 Watchlist integration | P0 | partial | partial | round 2 setups (f0c09a2) | Live resolution by the worker; the watchlist export the worker would read. |
+| SC-312 Scanner dashboard | P0 | partial | built | round 1 (4ea840a), round 2 ops (be046a8) | Cross-user metrics; notification health measured by delivery. |
+| SC-313 Administrative monitoring | P0 | missing | read-only | round 1 (4ea840a), round 2 ops (be046a8) | An admin role and operator identity, provider control, a job queue. |
+| SC-314 Historical testing | P1 | missing | built, flagged | round 1 (4ea840a), round 2 ops (be046a8) | Performance figures, which need entries, exits, costs and adjusted prices. |
+| SC-315 Telegram notifications | P1 | blocked | blocked | round 2 data (e21115a) | A server-held bot token and a chat id under a privacy notice. |
+| SC-316 Market-wide screening | P1 | partial | built, flagged | round 2 ops (be046a8) | A whole exchange, and screening for anyone else: a licensed feed and legal classification. |
+| SC-317 Intraday scanner infrastructure | P2 | blocked | blocked | round 2 data (e21115a) | A licensed intraday feed. |
+| SC-318 Live push notifications | P2 | blocked | blocked | round 2 data (e21115a) | A push service, a server holding subscriptions, and SC-317. |
+| SC-319 Automated QA and regression | P0 | partial | partial | round 2 ops (be046a8) | QA items 17 to 19 and the release going green, which wait on the blocked P0 items. |
 
 ## 2. The contract
 

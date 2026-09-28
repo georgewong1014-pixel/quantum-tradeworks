@@ -1795,13 +1795,13 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .scan-test-out:not(:empty) { margin-top: var(--sm); }
 .scan-page table.dt th, .scan-page table.dt td { text-align: left; vertical-align: middle; }
 .scan-page table.dt th.num, .scan-page table.dt td.num { text-align: right; }
-.scan-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.scan-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .scan-tick { width: 36px; text-align: center; }
 .scan-tick input { width: 18px; height: 18px; }
 .scan-alerts-t tr.scan-new td { background: color-mix(in srgb, var(--brand-wash) 55%, transparent); }
 .scan-lineage { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
 @media (max-width: 620px) {
-  .scan-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scan-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sm); }
   /* A phone reads each match as a short card rather than scrolling an
      eight-column table sideways: the tick, then the bar and status, the
      setup, the instrument and event, the close and the link. */

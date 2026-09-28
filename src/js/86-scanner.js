@@ -1388,7 +1388,7 @@ VIEWS.scannerAlerts = () => {
   const st = scanAlertStateRead();
   const counts = { NEW: 0, READ: 0, ARCHIVED: 0 };
   all.forEach(a => counts[scanAlertStatus(a, st)]++);
-  const tiles = el('div', { class: 'grid scan-tiles' });
+  const tiles = el('div', { class: 'grid scan-counts' });
   tiles.append(statTile('Recorded', String(all.length), { sub: 'in data/scan-alerts.json' }));
   tiles.append(statTile('New', String(counts.NEW), { sub: prefs.inApp === false ? 'in-app count switched off' : unread != null && unread !== counts.NEW ? `${unread} counted — ${counts.NEW - unread} from muted setups` : 'not yet read here' }));
   tiles.append(statTile('Read', String(counts.READ)));
