@@ -115,6 +115,16 @@ data/scan-deliveries.json.*
 # The daily run's own log (ingest/daily.mjs).
 data/ingest-runs.json
 data/ingest-runs.json.*
+# The worker's version ledger: every version of every setup it has evaluated
+# (append-only) and the bar each setup x instrument pair was last evaluated on,
+# for catch-up. It names your setups and your instruments.
+data/scan-ledger.json
+data/scan-ledger.json.*
+# The watchlist export a watchlist universe set to resolve from the export
+# reads at run time (the watchlists page, "Export for the scanner"). It
+# holds your lists and what is in them.
+data/watchlists.json
+data/watchlists.json.*
 
 # Worktrees made by parallel agents (Claude Code). Never part of the product.
 .claude/worktrees/

@@ -1261,8 +1261,8 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
   const dB = await daily({ STUB_SCAN_EXIT: '3', STUB_SCAN_STATUS: 'SKIPPED_PAUSED' });
   const iB = await lastIngest();
   const argvB = await json(join(D, 'scan-called.json'));
-  check(dB.code === 0 && JSON.stringify(argvB) === JSON.stringify(['--trigger', 'daily']) && /scanner\s+skipped — paused/.test(dB.stdout) && iB.scanner?.status === 'SKIPPED_PAUSED' && iB.scanner.runId === 'run-stub-1' && iB.scanner.exit === 3 && iB.status === 'COMPLETED',
-    'the scanner is started with --trigger daily; a paused scanner (exit 3) is reported and is not a failure of the daily run', { code: dB.code, argv: argvB, scanner: iB.scanner });
+  check(dB.code === 0 && JSON.stringify(argvB) === JSON.stringify(['--trigger', 'daily', '--ready']) && /scanner\s+skipped — paused/.test(dB.stdout) && iB.scanner?.status === 'SKIPPED_PAUSED' && iB.scanner.runId === 'run-stub-1' && iB.scanner.exit === 3 && iB.status === 'COMPLETED',
+    'the scanner is started with --trigger daily --ready; a paused scanner (exit 3) is reported and is not a failure of the daily run', { code: dB.code, argv: argvB, scanner: iB.scanner });
   const dC = await daily({ STUB_SCAN_EXIT: '3', STUB_SCAN_STATUS: 'SKIPPED_LOCKED' });
   const dD = await daily({ STUB_SCAN_EXIT: '2', STUB_SCAN_STATUS: 'PARTIAL' });
   const dE = await daily({ STUB_HISTORY_EXIT: '2' });
@@ -1286,6 +1286,394 @@ try {
   const newFiles = ['data/scan-runs.json', 'data/scan.lock', 'data/scan-control.json', 'data/scan-deliveries.json', 'data/ingest-runs.json', 'data/price-history.rejects.json'];
   check(newFiles.every(f => ignore.split(/\r?\n/).includes(f) && ci.includes(`'${f}'`)), 'every new data file is git-ignored AND in CI\'s "no licensed data" list', newFiles.filter(f => !ignore.includes(f) || !ci.includes(`'${f}'`)));
 } catch { ok('git is not available here — the tracked-files check runs in CI'); }
+
+/* ---- round 3: worker ---- */
+/* Round 3 (worker): the version ledger (SC-306), catch-up (SC-307 item 3),
+   narrowed replay (SC-307 item 4), the ready gate (SC-301 item 4), watchlists
+   resolved from the export (SC-311), the alert record's volume, history
+   stamp and gap (SC-310, SC-305), the run's new fields (C4), the order of
+   evaluation under permuted values (SC-316, SC-319) and the 2,000 × 500
+   budget. Engine checks first, then the worker on temporary folders. */
+{
+  const FX3 = E.scanFixture();
+  const SCAN = join(ROOT, 'scanner/scan.mjs');
+  const scan = async (...args) => {
+    try { const { stdout, stderr } = await run(process.execPath, [SCAN, ...args]); return { code: 0, stdout, stderr }; }
+    catch (e) { return { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; }
+  };
+  const json = async (p) => (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null);
+  const folders = [];
+  const folder = async (name, { setups, history, instruments = null, watchlists = null } = {}) => {
+    const d = join(tmpdir(), `qt-r3w-${name}-${process.pid}`);
+    await rm(d, { recursive: true, force: true });
+    await mkdir(d, { recursive: true });
+    await writeFile(join(d, 'scan-setups.json'), JSON.stringify({ setups }));
+    await writeFile(join(d, 'price-history.json'), JSON.stringify(history));
+    if (instruments) await writeFile(join(d, 'instruments.json'), JSON.stringify(instruments));
+    if (watchlists) await writeFile(join(d, 'watchlists.json'), JSON.stringify(watchlists));
+    folders.push(d);
+    return d;
+  };
+  const runsOf = async (d) => (await json(join(d, 'scan-runs.json'))) || { runs: [], audit: [] };
+  const lastRunOf = async (d) => (await runsOf(d)).runs.slice(-1)[0] || {};
+  const alertsOf = async (d) => (await json(join(d, 'scan-alerts.json')))?.alerts || [];
+  const ledgerOf = async (d) => (await json(join(d, 'scan-ledger.json'))) || { versions: [], pairs: {} };
+
+  /* ------------------------------------------- SC-310: the alert's bar -- */
+  const stamped = { ...FX3.history, generated: '2026-04-06T11:00:00.000Z' };
+  const aV = E.scanRun([FX3.setup], stamped, { now: FX3.now }).alerts[0] || {};
+  const pxAll = { id: 'px', rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: 0.01 } }], universe: { kind: 'symbols', symbols: ['MATCH'] } };
+  const noVol = JSON.parse(JSON.stringify(FX3.history));
+  delete noVol.volume.MATCH[FX3.lastBar];
+  const aN = E.scanRun([pxAll], noVol, { now: FX3.now }).alerts[0] || {};
+  check(aV.barVolume === 2200 && aV.historyGenerated === '2026-04-06T11:00:00.000Z' && 'barVolume' in aN && aN.barVolume === null && aN.historyGenerated === null,
+    'SC-310 alert record: barVolume is the volume held for the bar (2,200 on the fixture) and null — not 0 — where none is held; historyGenerated is the history file\'s generated stamp, null when it has none',
+    { v: aV.barVolume, g: aV.historyGenerated, nv: aN.barVolume, ng: aN.historyGenerated });
+
+  /* ---------------------- SC-301 / SC-312: a run that evaluated nothing -- */
+  const okRun = { id: 'r-ok', status: 'COMPLETED', startedAt: '2026-08-06T10:00:00Z', finishedAt: '2026-08-06T10:00:02Z', asOf: '2026-08-06', engine: `scan ${E.SCAN_VERSION}`, counts: { evaluated: 3 } };
+  const heldRun = { id: 'r-held', status: 'PARTIAL', startedAt: '2026-08-07T10:00:00Z', finishedAt: '2026-08-07T10:00:01Z', asOf: null, engine: `scan ${E.SCAN_VERSION}`, counts: { evaluated: 0 },
+                    skippedMarkets: [{ market: 'MY', reason: 'MY (Bursa Malaysia): the session of 2026-08-07 is held only as a provisional bar, captured before the close and settle', status: 'SKIPPED_NO_DATA' }] };
+  const stHeld = E.scanStatus({ runs: { runs: [okRun, heldRun] }, historyMeta: { newestBar: '2026-08-07' }, now: '2026-08-07T12:00:00Z' });
+  const stOnly = E.scanStatus({ runs: { runs: [heldRun] }, historyMeta: { newestBar: '2026-08-07' }, now: '2026-08-07T12:00:00Z' });
+  check(stHeld.lastSuccess?.id === 'r-ok' && stHeld.lastAttempt?.id === 'r-held' && stHeld.state === 'behind' && stHeld.reasons.some(r => /r-held.*evaluated no bar: every market it would have scanned was held back as not ready — MY/.test(r))
+    && stOnly.lastSuccess === null && stOnly.state === 'behind' && stOnly.state !== 'current',
+    'SC-301 a run the ready gate held back entirely (PARTIAL, no bar evaluated) is the latest attempt but not the last success — the dashboard is behind and says which markets were not ready, never "succeeded today on bars of no bar"',
+    { held: [stHeld.state, stHeld.reasons], only: [stOnly.state, stOnly.reasons] });
+
+  /* --------------------------------------- SC-305: a NEW_MATCH across a gap -- */
+  const gDays = weekdays('2026-03-02', 10);
+  const gapDay = gDays[8];
+  const gapH = { series: { GAPPY: seriesOf(gDays.filter(d => d !== gapDay), [99, 99, 99, 99, 99, 99, 99, 99, 101]) }, volume: {} };
+  const fullH = { series: { GAPPY: seriesOf(gDays, [99, 99, 99, 99, 99, 99, 99, 99, 99, 101]) }, volume: {} };
+  const above100 = { id: 'above-100', version: 1, timeframe: '1D', cooldownMode: 'NEW_MATCH', universe: { kind: 'all' },
+                     ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 100 } }] } };
+  const gA = E.scanRun([above100], gapH, { now: E.scanReplayNow(gDays[9]) }).alerts[0] || {};
+  const gB = E.scanRun([above100], fullH, { now: E.scanReplayNow(gDays[9]) }).alerts[0] || {};
+  check(gA.eventType === 'NEW_MATCH' && gA.gapBefore === true && gA.gapText.includes(gapDay) && /across a gap/.test(gA.gapText) && /not shown on consecutive sessions/.test(gA.gapText)
+    && /no exchange calendar is held/.test(gA.gapText) && gB.eventType === 'NEW_MATCH' && !('gapBefore' in gB) && !('gapText' in gB),
+    'SC-305 a NEW_MATCH whose bar before is separated by a missing session carries gapBefore: true and a gapText naming the session and the calendar; with no session missing neither field is present (absent, never false)',
+    { a: [gA.eventType, gA.gapBefore, gA.gapText], b: [gB.eventType, 'gapBefore' in gB] });
+  const gH = E.scanHistorical(E.scanValidate({ setups: [above100] }).setups[0], gapH, {});
+  check(gH.events.some(e => e.bar === gDays[9] && e.gapBefore === true && e.gapText.includes(gapDay)),
+    'SC-305 historical testing marks the same event across a gap', gH.events);
+
+  /* --------------------------------- SC-311: watchlists from the export -- */
+  const wlUni = (extra = {}) => ({ kind: 'watchlist', watchlistId: 'wl-a', name: 'A', symbols: ['MATCH', 'FLAT'], asOf: '2026-03-01', ...extra });
+  const wlExport = (lists) => ({ kind: 'quantum-tradeworks-watchlists', schema: 2, exportedAt: '2026-04-06T09:00:00.000Z', owner: 'this browser — there are no accounts, so no ownerId', watchlists: lists });
+  const exportA = wlExport([{ id: 'wl-a', name: 'A', items: [{ id: 'wl-a:c1', watchlistId: 'wl-a', companyId: 'c1', instrumentId: 'US:MATCH', symbol: 'MATCH', market: 'US' },
+                                                              { id: 'wl-a:c2', watchlistId: 'wl-a', companyId: 'c2', instrumentId: null, symbol: null, market: null }] }]);
+  const exSetup = { ...FX3.setup, id: 'wl-export', universe: wlUni({ resolve: 'export' }) };
+  const wx = E.scanRun([exSetup], FX3.history, { now: FX3.now, watchlists: exportA });
+  const wxA = wx.alerts[0] || {};
+  check(wx.evaluated === 1 && wx.alerts.length === 1 && wxA.symbol === 'MATCH' && same(wxA.universeResolvedFrom, { source: 'export', exportedAt: '2026-04-06T09:00:00.000Z' })
+    && same(wx.universeResolvedFrom, [{ setupId: 'wl-export', watchlistId: 'wl-a', source: 'export', exportedAt: '2026-04-06T09:00:00.000Z' }]) && !wx.watchlistFallbacks.length
+    && wx.skipped.some(s => s.symbol === 'c2' && /watchlist export with no symbol/.test(s.why)),
+    'SC-311 resolve "export" scans the export\'s members, not the snapshot: FLAT, removed from the list since the snapshot, is not scanned; the member with no symbol is named; the alert and the run record universeResolvedFrom with the export\'s time',
+    { evaluated: wx.evaluated, from: wxA.universeResolvedFrom, skipped: wx.skipped });
+  const wnone = E.scanRun([exSetup], FX3.history, { now: FX3.now });
+  const wmiss = E.scanRun([exSetup], FX3.history, { now: FX3.now, watchlists: wlExport([{ id: 'wl-b', name: 'B', items: [] }]) });
+  check(wnone.evaluated === 2 && wnone.watchlistFallbacks.length === 1 && /there is no data\/watchlists\.json/.test(wnone.watchlistFallbacks[0].why) && /snapshot of 2026-03-01/.test(wnone.watchlistFallbacks[0].why)
+    && same(wnone.alerts[0]?.universeResolvedFrom, { source: 'snapshot', asOf: '2026-03-01' })
+    && wmiss.evaluated === 2 && /watchlist wl-a is not in data\/watchlists\.json \(exported 2026-04-06T09:00:00\.000Z\) — evaluated its snapshot of 2026-03-01/.test(wmiss.watchlistFallbacks[0]?.why || ''),
+    'SC-311 with no export, or an export without the list, the run falls back to the snapshot, says which and why, and the alert says it read the snapshot',
+    { none: wnone.watchlistFallbacks, miss: wmiss.watchlistFallbacks });
+  const snapRun = E.scanRun([{ ...FX3.setup, id: 'wl-snap', universe: wlUni() }], FX3.history, { now: FX3.now, watchlists: exportA });
+  check(snapRun.evaluated === 2 && !snapRun.watchlistFallbacks.length && same(snapRun.alerts[0]?.universeResolvedFrom, { source: 'snapshot', asOf: '2026-03-01' })
+    && !('universeResolvedFrom' in (E.scanRun([FX3.setup], FX3.history, { now: FX3.now }).alerts[0] || {})),
+    'SC-311 a watchlist setup without resolve (or resolve "snapshot") reads its snapshot even when an export exists, and says so; a setup on any other universe carries no universeResolvedFrom');
+  const vwl = E.scanValidate({ setups: [
+    { ...FX3.setup, id: 'r-live', universe: wlUni({ resolve: 'live' }) },
+    { ...FX3.setup, id: 'r-noid', universe: { ...wlUni({ resolve: 'export' }), watchlistId: undefined } },
+    { ...FX3.setup, id: 'r-nosnap', universe: { ...wlUni({ resolve: 'export' }), symbols: [] } },
+    { ...FX3.setup, id: 'r-ok', universe: wlUni({ resolve: 'export' }) }] });
+  const hSnap = E.scanNormaliseSetup({ ...FX3.setup, universe: wlUni() }).hash;
+  check(vwl.setups.map(s => s.id).join() === 'r-ok' && /resolve "live" is not snapshot or export/.test(vwl.problems.join('\n')) && /names no watchlistId/.test(vwl.problems.join('\n'))
+    && /no symbol snapshot to fall back on/.test(vwl.problems.join('\n'))
+    && hSnap === E.scanNormaliseSetup({ ...FX3.setup, universe: wlUni({ resolve: 'snapshot' }) }).hash && hSnap !== E.scanNormaliseSetup({ ...FX3.setup, universe: wlUni({ resolve: 'export' }) }).hash
+    && E.scanNormaliseSetup({ ...FX3.setup, universe: wlUni({ resolve: 'export' }) }).hash !== E.scanNormaliseSetup({ ...FX3.setup, universe: wlUni({ resolve: 'export', watchlistId: 'wl-z' }) }).hash,
+    'SC-311 validation refuses an unknown resolve, an export resolution with no list id, and one with no snapshot to fall back on; resolving from the export (and which list) is in the setup\'s hash, while an explicit "snapshot" is not', vwl.problems);
+
+  /* ------------------------- SC-316 / SC-319: order is not a value order -- */
+  const ordNames = ['ZETA', 'ALPHA', 'MU', 'BETA', 'OMEGA', 'KAPPA', 'DELTA', 'SIGMA', 'EPSILON', 'IOTA', 'CHI', 'GAMMA'];
+  const ordDays = weekdays('2025-06-02', 80);
+  const ordBase = ordNames.map((_, i) => lcgSeries(80, 900 + i));
+  const ordH = (perm) => ({ series: Object.fromEntries(ordNames.map((s, i) => [s, seriesOf(ordDays, ordBase[perm[i]].c)])),
+                            volume: Object.fromEntries(ordNames.map((s, i) => [s, seriesOf(ordDays, ordBase[perm[i]].v)])) });
+  const ident = ordNames.map((_, i) => i);
+  let seed = 77;
+  const shuffled = ident.slice();
+  for (let i = shuffled.length - 1; i > 0; i--) { seed = (Math.imul(1664525, seed) + 1013904223) >>> 0; const j = seed % (i + 1); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
+  const perms = [ident, ident.slice().reverse(), ident.map((_, i) => (i + 5) % ident.length), shuffled];
+  const everyBar = { id: 'every', rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: 0.01 } }] };
+  const someBars = { id: 'some', rules: [{ left: { indicator: 'price' }, op: 'above', right: { indicator: 'sma', n: 20 } }, { left: { indicator: 'rvol', n: 10 }, op: 'above', right: { value: 0.9 } }] };
+  const nowOrd = E.scanReplayNow(ordDays[ordDays.length - 1]);
+  const pos = new Map(ordNames.map((s, i) => [s, i]));
+  const inOrder = (syms) => syms.every((s, i) => i === 0 || pos.get(syms[i - 1]) < pos.get(s));
+  const orders = perms.map(p => {
+    const r = E.scanRun([everyBar, someBars], ordH(p), { now: nowOrd });
+    return { every: r.alerts.filter(a => a.setupId === 'every').map(a => a.symbol), some: r.alerts.filter(a => a.setupId === 'some').map(a => a.symbol), setupsOrder: r.alerts.map(a => a.setupId) };
+  });
+  const byClose = (p) => ordNames.slice().sort((a, b) => ordBase[p[pos.get(b)]].c[79] - ordBase[p[pos.get(a)]].c[79]);
+  check(orders.every(o => same(o.every, ordNames)) && orders.every(o => inOrder(o.some)) && new Set(orders.map(o => o.some.join())).size > 1
+    && orders.every(o => o.setupsOrder.join() === [...o.every.map(() => 'every'), ...o.some.map(() => 'some')].join()) && perms.some(p => !same(byClose(p), ordNames)),
+    'SC-316 / SC-319 the order of evaluation is independent of values: with closes and volumes permuted across the instruments (four permutations), every instrument is evaluated and recorded in the universe\'s own order — never by close or by volume — and the matching subset, which changes, keeps that order',
+    orders.map(o => o.some));
+
+  /* ------------------------------------------ SC-319: the planned budget -- */
+  {
+    const bigDays = weekdays('2024-06-03', 500);
+    const big = { series: {}, volume: {} };
+    for (let s = 0; s < 2000; s++) { const L = lcgSeries(500, 7000 + s); big.series[`B${s}`] = seriesOf(bigDays, L.c); big.volume[`B${s}`] = seriesOf(bigDays, L.v); }
+    const three = { id: 'big3', rules: [{ left: { indicator: 'price' }, op: 'crosses_above', right: { indicator: 'ema', n: 50 } }, { left: { indicator: 'rsi' }, op: 'between', range: [40, 70] }, { left: { indicator: 'rvol' }, op: 'above', right: { value: 1 } }] };
+    const t0 = Date.now();
+    const bigRun = E.scanRun([three], big, { now: E.scanReplayNow(bigDays[bigDays.length - 1]) });
+    const ms = Date.now() - t0;
+    check(bigRun.evaluated === 2000 && ms < 5000, `SC-319 the planned budget: 2,000 instruments × 500 bars, one three-condition setup, scanRun in ${ms} ms (budget 5 s)`, { evaluated: bigRun.evaluated, ms });
+  }
+
+  /* ------------------------------------------ SC-307: catch-up in the engine -- */
+  const cDays = weekdays('2026-01-05', 60);
+  const cCloses = cDays.map((_, i) => (i < 57 ? 99 : i === 57 ? 99.5 : i === 58 ? 101 : 102));
+  const crossH = { series: { CROSS: seriesOf(cDays, cCloses) }, volume: {} };
+  const cross100 = { id: 'cross-100', version: 1, timeframe: '1D', cooldownMode: 'NEW_MATCH', universe: { kind: 'all' },
+                     ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'CROSSES_ABOVE', right: { value: 100 } }] } };
+  const pk = E.scanPairKey('cross-100', 1, 'CROSS', '1D');
+  const cNow = E.scanReplayNow(cDays[59]);
+  const caught = E.scanRun([cross100], crossH, { now: cNow, pairs: { [pk]: { lastEvaluatedBar: cDays[56] } } });
+  const plain = E.scanRun([cross100], crossH, { now: cNow });
+  let sep = [];
+  for (const k of [56, 57, 58, 59]) sep = sep.concat(E.scanRun([cross100], E.scanTruncateHistory(crossH, cDays[k]), { now: E.scanReplayNow(cDays[k]), existing: sep }).alerts);
+  const keyOf = (a) => `${a.key}|${a.dataVersion}|${a.close}`;
+  check(pk === 'cross-100|v1|CROSS|1D' && caught.alerts.length === 1 && caught.alerts[0].candleDate === cDays[58] && caught.alerts[0].eventType === 'NEW_MATCH'
+    && same(caught.catchUp, { pairs: 1, bars: 2, capped: 0, cap: 10 }) && caught.evaluated === 1 && caught.asOf === cDays[59] && caught.asOfFrom === cDays[57]
+    && same(caught.pairs, { [pk]: { lastEvaluatedBar: cDays[59] } }) && same(caught.alerts.map(keyOf), sep.map(keyOf))
+    && plain.alerts.length === 0 && plain.catchUp === null,
+    'SC-307 catch-up (engine): three bars since the pair was last evaluated, with a cross on the middle one — the cross is recorded once, on its own bar, with the same key, data version and close as three separate daily runs; without the ledger\'s pairs only the last bar is read and the cross is lost',
+    { caught: caught.alerts.map(a => a.candleDate), catchUp: caught.catchUp, sep: sep.map(a => a.candleDate) });
+  const capped = E.scanRun([cross100], crossH, { now: cNow, pairs: { [pk]: { lastEvaluatedBar: cDays[45] } } });
+  const fresh = E.scanRun([cross100], crossH, { now: cNow, pairs: {} });
+  const ahead = E.scanRun([cross100], crossH, { now: cNow, pairs: { [pk]: { lastEvaluatedBar: cDays[59] } } });
+  check(same(capped.catchUp, { pairs: 1, bars: 9, capped: 1, cap: 10 }) && capped.catchUpList[0]?.missed === 4 && capped.catchUpList[0].missedFrom === cDays[46] && capped.catchUpList[0].missedTo === cDays[49]
+    && capped.alerts.length === 1 && fresh.catchUp.pairs === 0 && fresh.alerts.length === 0 && fresh.pairs[pk]?.lastEvaluatedBar === cDays[59] && ahead.catchUp.bars === 0,
+    'SC-307 catch-up is capped at ten bars (the four before them are named, for --as-of); a pair with no entry — a new setup or version — reads its last bar only; a pair already on the last bar reads it again and nothing more',
+    { capped: capped.catchUp, list: capped.catchUpList, fresh: fresh.catchUp });
+
+  /* ------------------------------------------------ the worker's files -- */
+  try {
+    const { stdout: tracked } = await run('git', ['ls-files'], { cwd: ROOT });
+    const ignore = (await readFile(join(ROOT, '.gitignore'), 'utf8')).split(/\r?\n/);
+    const ci = await readFile(join(ROOT, '.github/workflows/checks.yml'), 'utf8');
+    const mine = ['data/scan-ledger.json', 'data/watchlists.json'];
+    check(mine.every(f => ignore.includes(f) && ignore.includes(`${f}.*`) && ci.includes(`'${f}'`)) && /\(scan-ledger\|watchlists\)/.test(ci) && !mine.some(f => new RegExp(`^${f.replace('.', '\\.')}`, 'm').test(tracked)),
+      'the version ledger (data/scan-ledger.json) and the watchlist export (data/watchlists.json) are git-ignored with their .tmp/.bak, in CI\'s "no licensed data" list, and not tracked', mine);
+  } catch { ok('git is not available here — the tracked-files check runs in CI'); }
+
+  /* --------------------------------------------------- SC-306: the ledger -- */
+  const unversioned = { ...FX3.setup };
+  const widened = { ...FX3.setup, rules: FX3.setup.rules.map(r => (r.op === 'between' ? { ...r, range: [45, 75] } : r)) };
+  const L1 = await folder('ledger', { setups: [unversioned], history: FX3.history });
+  const l1 = await scan('--data', L1, '--now', FX3.now);
+  const led1 = await ledgerOf(L1);
+  const run1 = await lastRunOf(L1);
+  const h1 = E.scanNormaliseSetup(unversioned).hash, h2 = E.scanNormaliseSetup(widened).hash;
+  check(l1.code === 0 && led1.kind === 'quantum-tradeworks-scan-ledger' && led1.versions.length === 1 && led1.versions[0].setupId === 'fixture-breakout' && led1.versions[0].version === 1
+    && led1.versions[0].source === 'file-edit' && led1.versions[0].hash === h1 && led1.versions[0].setup?.ruleTree && (await alertsOf(L1))[0]?.setupVersion === 1
+    && same(run1.ledger?.newVersions, [{ setupId: 'fixture-breakout', version: 1, hash: h1, source: 'file-edit' }]) && run1.ledger.known === 0 && same(run1.ledger.refused, []),
+    'SC-306 an unversioned setup gets v1 in the ledger (source file-edit, with its hash and evaluation fields), its alert says v1, and the run records the ledger\'s outcome', { led: led1.versions, run: run1.ledger });
+  await writeFile(join(L1, 'scan-setups.json'), JSON.stringify({ setups: [widened] }));
+  const l2 = await scan('--data', L1, '--now', FX3.now);
+  const led2 = await ledgerOf(L1);
+  const al2 = await alertsOf(L1);
+  check(l2.code === 0 && led2.versions.length === 2 && led2.versions[1].version === 2 && led2.versions[1].source === 'file-edit' && led2.versions[1].hash === h2
+    && al2.length === 2 && al2[1].setupVersion === 2 && al2[1].setupHash === h2 && /fixture-breakout v2 \(edited in the file\)/.test(l2.stdout),
+    'SC-306 editing a rule in the file (still no version) gives v2 — the edit is a new version wherever it was made — and the alert records v2', { versions: led2.versions.map(v => [v.version, v.source]), stdout: l2.stdout.slice(0, 400) });
+  await writeFile(join(L1, 'scan-setups.json'), JSON.stringify({ setups: [unversioned] }));
+  const l3 = await scan('--data', L1, '--now', FX3.now);
+  const run3 = await lastRunOf(L1);
+  check(l3.code === 0 && (await ledgerOf(L1)).versions.length === 2 && run3.ledger?.known === 1 && !run3.ledger.newVersions.length && (await alertsOf(L1)).length === 2 && run3.counts?.deduped === 1,
+    'SC-306 content the ledger already holds takes its recorded version back (the reverted rule runs as v1 again, and v1\'s bar is already recorded)', run3.ledger);
+  await writeFile(join(L1, 'scan-setups.json'), JSON.stringify({ setups: [{ ...widened, version: 1 }, { ...unversioned, id: 'second' }] }));
+  const l4 = await scan('--data', L1, '--now', FX3.now);
+  const run4 = await lastRunOf(L1);
+  const led4 = await ledgerOf(L1);
+  check(l4.code === 2 && run4.status === 'PARTIAL' && run4.ledger?.refused?.length === 1 && run4.ledger.refused[0].setupId === 'fixture-breakout' && run4.ledger.refused[0].version === 1
+    && /version 1 of fixture-breakout is already recorded with different content/.test(run4.ledger.refused[0].why) && /save it again in the builder/.test(run4.ledger.refused[0].why)
+    && run4.errors.some(e => e.category === 'VALIDATION' && /already recorded with different content/.test(e.message)) && /LEFT OUT/.test(l4.stdout)
+    && (await alertsOf(L1)).some(a => a.setupId === 'second') && led4.versions.length === 3 && led4.versions[2].setupId === 'second',
+    'SC-306 a version number reused for different content is refused with the reason, the run is PARTIAL (exit 2), and the other setups still run', { code: l4.code, refused: run4.ledger?.refused });
+  await writeFile(join(L1, 'scan-setups.json'), JSON.stringify({ setups: [{ ...widened, version: 5 }] }));
+  const l5 = await scan('--data', L1, '--now', FX3.now);
+  const led5 = await ledgerOf(L1);
+  check(l5.code === 0 && led5.versions.length === 4 && led5.versions[3].version === 5 && led5.versions[3].source === 'export' && same(led5.versions.slice(0, 3), led4.versions)
+    && same(led4.versions.slice(0, 2), led2.versions) && same(led2.versions.slice(0, 1), led1.versions),
+    'SC-306 a version the ledger has not seen (the builder\'s export) is added as source export; entries are only ever appended — each earlier ledger is a prefix of the next', led5.versions.map(v => [v.setupId, v.version, v.source]));
+  await writeFile(join(L1, 'scan-ledger.json'), '{broken');
+  const before6 = JSON.stringify(await alertsOf(L1));
+  const l6 = await scan('--data', L1, '--now', FX3.now, '--trigger', 'daily');
+  const run6 = await lastRunOf(L1);
+  check(l6.code === 1 && run6.status === 'FAILED' && run6.error?.category === 'IO' && /not started again quietly/.test(run6.error.message) && /scan-ledger\.json\.bak/.test(run6.error.message)
+    && JSON.stringify(await alertsOf(L1)) === before6,
+    'SC-306 a damaged ledger fails the run (exit 1, IO) naming the .bak, instead of starting a new ledger that would number hand edits from v1 again; the alerts are untouched', run6.error);
+
+  /* ---------------------------------------------- SC-307: catch-up, worker -- */
+  const cut = (k) => E.scanTruncateHistory(crossH, cDays[k]);
+  const CA = await folder('catchup', { setups: [cross100], history: cut(56) });
+  const ca1 = await scan('--data', CA, '--now', E.scanReplayNow(cDays[56]));
+  await writeFile(join(CA, 'price-history.json'), JSON.stringify(crossH));
+  const ca2 = await scan('--data', CA, '--now', cNow, '--trigger', 'daily');
+  const runCa2 = await lastRunOf(CA);
+  const aCa = await alertsOf(CA);
+  const pairsCa = (await ledgerOf(CA)).pairs;
+  check(ca1.code === 0 && ca2.code === 0 && aCa.length === 1 && aCa[0].candleDate === cDays[58] && aCa[0].eventType === 'NEW_MATCH'
+    && same(runCa2.catchUp, { pairs: 1, bars: 2, capped: 0, cap: 10 }) && pairsCa[pk]?.lastEvaluatedBar === cDays[59] && pairsCa[pk].runId === runCa2.id
+    && /catch-up\s+1 pair\(s\) had missed bars: 2 earlier bar\(s\) evaluated/.test(ca2.stdout),
+    'SC-307 the worker catches up: the history advanced three bars since the last run with a cross on the middle one — recorded once, on the right bar; the run records catchUp, the output announces it, and the ledger moves the pair to the last bar',
+    { alerts: aCa.map(a => [a.candleDate, a.eventType]), catchUp: runCa2.catchUp, pair: pairsCa[pk] });
+  const caRetry = await scan('--data', CA, '--retry', runCa2.id);
+  check(caRetry.code === 0 && (await alertsOf(CA)).length === 1 && (await lastRunOf(CA)).counts?.recorded === 0,
+    'SC-307 a retry of the completed catch-up run adds 0 alerts');
+  const CB = await folder('daily-3', { setups: [cross100], history: cut(56) });
+  await scan('--data', CB, '--now', E.scanReplayNow(cDays[56]));
+  for (const k of [57, 58, 59]) {
+    await writeFile(join(CB, 'price-history.json'), JSON.stringify(cut(k)));
+    await scan('--data', CB, '--now', E.scanReplayNow(cDays[k]), '--trigger', 'daily');
+  }
+  const aCb = await alertsOf(CB);
+  const cmp = (list) => list.map(a => `${a.key}|${a.candleDate}|${a.eventType}|${a.close}|${a.dataVersion}|${a.setupVersion}`);
+  check(aCb.length === 1 && same(cmp(aCa), cmp(aCb)),
+    'SC-307 the catch-up run records exactly what three separate daily runs record (key, bar, event, close, data version, version)', { catchUp: cmp(aCa), daily: cmp(aCb) });
+  const CC = await folder('fresh', { setups: [cross100], history: crossH });
+  const cc = await scan('--data', CC, '--now', cNow);
+  check(cc.code === 0 && (await alertsOf(CC)).length === 0 && same((await lastRunOf(CC)).catchUp, { pairs: 0, bars: 0, capped: 0, cap: 10 }),
+    'SC-307 a pair the ledger has never evaluated (a new setup or version) reads its last bar only — replay is the way further back');
+  const CD = await folder('capped', { setups: [cross100], history: cut(45) });
+  await scan('--data', CD, '--now', E.scanReplayNow(cDays[45]));
+  await writeFile(join(CD, 'price-history.json'), JSON.stringify(crossH));
+  const cd = await scan('--data', CD, '--now', cNow);
+  check(cd.code === 0 && same((await lastRunOf(CD)).catchUp, { pairs: 1, bars: 9, capped: 1, cap: 10 }) && (await alertsOf(CD)).length === 1
+    && /more than 10 bars behind — the newest 10 were evaluated, and --as-of DATE replays the days before/.test(cd.stdout) && cd.stdout.includes(`4 bar(s) not caught up, ${cDays[46]} … ${cDays[49]}`),
+    'SC-307 catch-up stops at ten bars and prints the bars it did not read, for --as-of', cd.stdout.split('\n').filter(l => /catch-up|not caught/.test(l)));
+  const caRep = await scan('--data', CA, '--as-of', cDays[57]);
+  const pairsAfter = (await ledgerOf(CA)).pairs;
+  check(caRep.code === 0 && pairsAfter[pk]?.lastEvaluatedBar === cDays[59] && (await lastRunOf(CA)).catchUp === null,
+    'SC-307 a replay evaluates its date only: no catch-up, and the ledger\'s pairs do not move back');
+
+  /* ---------------------------------------- SC-301: the ready gate, worker -- */
+  const rDays = [];
+  for (let d = '2026-02-02'; d <= '2026-04-06'; d = E.scanAddDays(d, 1)) { const w = E.scanWeekday(d); if (w >= 1 && w <= 5) rDays.push(d); }
+  const rLast = rDays[rDays.length - 1];
+  const readyH = { schema: 2, series: { USA: seriesOf(rDays, rDays.map((_, i) => 50 + i)), MYA: seriesOf(rDays, rDays.map((_, i) => 5 + i / 10)) }, volume: {},
+                   meta: { MYA: { [rLast]: { src: 'screen', at: '2026-04-06T07:00:00Z' } }, USA: { [rLast]: { src: 'screen', at: '2026-04-06T21:00:00Z' } } } };
+  const twoMarkets = [{ symbol: 'USA', market: 'US' }, { symbol: 'MYA', market: 'MY' }];
+  const pxEvery = { id: 'px-every', rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: 0.01 } }] };
+  const RN = '2026-04-07T02:00:00Z';
+  const RA = await folder('ready', { setups: [pxEvery], history: readyH, instruments: twoMarkets });
+  const ra = await scan('--data', RA, '--instruments', join(RA, 'instruments.json'), '--now', RN, '--trigger', 'daily', '--ready');
+  const runRa = await lastRunOf(RA);
+  const aRa = await alertsOf(RA);
+  const pairsRa = (await ledgerOf(RA)).pairs;
+  check(ra.code === 2 && runRa.status === 'PARTIAL' && runRa.ready === true && runRa.skippedMarkets.length === 1 && runRa.skippedMarkets[0].market === 'MY'
+    && runRa.skippedMarkets[0].status === 'SKIPPED_NO_DATA' && runRa.skippedMarkets[0].state === 'PROVISIONAL' && /held only as a provisional bar/.test(runRa.skippedMarkets[0].reason)
+    && aRa.length === 1 && aRa[0].symbol === 'USA' && aRa[0].candleDate === rLast && runRa.counts.evaluated === 1
+    && !Object.keys(pairsRa).some(k => /\|MYA\|/.test(k)) && Object.keys(pairsRa).some(k => /\|USA\|/.test(k))
+    && /^not ready\s+(\S+) — (.+)$/m.test(ra.stdout) && ra.stdout.match(/^not ready\s+(\S+) — (.+)$/m)[1] === 'MY' && /not a provider's word/.test(ra.stdout)
+    && runRa.errors.some(e => e.category === 'DATA' && /^MY not ready/.test(e.message)),
+    'SC-301 --ready: a history whose MY last bar is PROVISIONAL (captured 15:00 in Kuala Lumpur) gives SKIPPED_NO_DATA for MY — named in the run and the output, in the line daily.mjs reads, its pairs not moved — while US still runs; the run exits 2',
+    { code: ra.code, skipped: runRa.skippedMarkets, alerts: aRa.map(a => a.symbol) });
+  const RB = await folder('not-ready-plain', { setups: [pxEvery], history: readyH, instruments: twoMarkets });
+  const rb = await scan('--data', RB, '--instruments', join(RB, 'instruments.json'), '--now', RN);
+  const runRb = await lastRunOf(RB);
+  check(rb.code === 0 && runRb.ready === false && same(runRb.skippedMarkets, []) && runRb.counts.evaluated === 2,
+    'SC-301 without --ready the same history is evaluated in both markets (MY on its last final bar, judged stale) and nothing is held back — the gate is what --ready adds', runRb.counts);
+
+  /* --------------------------------------------- SC-307: narrowed replay -- */
+  const nDays = weekdays('2026-03-02', 30);
+  const nH = { series: { USA: seriesOf(nDays, nDays.map((_, i) => 50 + i)), MYA: seriesOf(nDays, nDays.map((_, i) => 5 + i)) }, volume: {} };
+  const alpha = { id: 'alpha', rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: 0.01 } }] };
+  const beta = { id: 'beta', rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: 1 } }] };
+  const NA = await folder('narrow', { setups: [alpha, beta], history: nH, instruments: twoMarkets });
+  const nDate = nDays[29];
+  const inst = ['--instruments', join(NA, 'instruments.json')];
+  const n1 = await scan('--data', NA, ...inst, '--as-of', nDate, '--setup', 'alpha');
+  const aN1 = await alertsOf(NA);
+  const n2 = await scan('--data', NA, ...inst, '--as-of', nDate, '--market', 'my');
+  const aN2 = await alertsOf(NA);
+  const runN2 = await lastRunOf(NA);
+  const audN = (await runsOf(NA)).audit.filter(a => a.action === 'replay');
+  check(n1.code === 0 && aN1.length === 2 && aN1.every(a => a.setupId === 'alpha') && aN1.every(a => a.origin === 'replay')
+    && n2.code === 0 && aN2.length === 3 && aN2[2].setupId === 'beta' && aN2[2].symbol === 'MYA' && same(runN2.narrow, { setup: null, market: 'MY' })
+    && runN2.narrowed?.instrumentsLeftOut === 2 && runN2.counts.evaluated === 2 && runN2.counts.deduped === 1 && !runN2.errors.length
+    && audN.length === 2 && audN[0].setup === 'alpha' && audN[0].market === null && audN[1].market === 'MY' && audN[1].added === 1 && /narrowed\s+to market MY/.test(n2.stdout),
+    'SC-307 --as-of DATE --setup ID replays one setup; --market MY replays only MY\'s instruments (US left out and counted, not reported missing); each narrowing is in the run and the audit entry',
+    { a1: aN1.map(a => `${a.setupId}/${a.symbol}`), a2: aN2.map(a => `${a.setupId}/${a.symbol}`), narrowed: runN2.narrowed, audit: audN });
+  const n3 = await scan('--data', NA, ...inst, '--as-of', nDate, '--setup', 'nope');
+  const n4 = await scan('--data', NA, ...inst, '--as-of', nDate, '--market', 'ZZ');
+  const n5 = await scan('--data', NA, ...inst, '--setup', 'alpha');
+  const runN4 = await lastRunOf(NA);
+  check(n3.code === 1 && /--setup nope: no such setup/.test(n3.stderr) && n4.code === 1 && /--market ZZ: no instrument/.test(n4.stderr) && runN4.error?.category === 'ARGS'
+    && n5.code === 1 && /narrow a replay/.test(n5.stderr),
+    'SC-307 a narrowing that names nothing fails as an argument error (logged), and --setup without --as-of is refused: a scheduled or manual run evaluates every setup');
+  const narrowedRun = (await runsOf(NA)).runs.find(r => r.narrow?.market === 'MY' && r.status === 'COMPLETED');
+  const n6 = await scan('--data', NA, ...inst, '--retry', narrowedRun?.id || 'none');
+  const runN6 = await lastRunOf(NA);
+  check(n6.code === 0 && same(runN6.narrow, { setup: null, market: 'MY' }) && runN6.retryOf === narrowedRun.id && runN6.counts.recorded === 0 && runN6.narrowed?.instrumentsLeftOut === 2,
+    'SC-307 a retry of a narrowed replay keeps its narrowing and adds nothing', runN6.narrow);
+
+  /* --------------------------------------- SC-311: the export, worker -- */
+  const WL = await folder('wl-export', { setups: [exSetup], history: FX3.history, watchlists: exportA });
+  const w1 = await scan('--data', WL, '--now', FX3.now);
+  const runW1 = await lastRunOf(WL);
+  const aW1 = await alertsOf(WL);
+  check(w1.code === 0 && aW1.length === 1 && aW1[0].symbol === 'MATCH' && same(aW1[0].universeResolvedFrom, { source: 'export', exportedAt: exportA.exportedAt })
+    && same(runW1.universeResolvedFrom, [{ setupId: 'wl-export', watchlistId: 'wl-a', source: 'export', exportedAt: exportA.exportedAt }]) && runW1.counts.evaluated === 1
+    && /watchlist\s+wl-export: members from your export of 2026-04-06T09:00:00\.000Z/.test(w1.stdout),
+    'SC-311 the worker reads data/watchlists.json at run time for an export-resolved setup: its members are scanned, and the run and the alert record universeResolvedFrom', { run: runW1.universeResolvedFrom, stdout: w1.stdout.slice(0, 300) });
+  await rm(join(WL, 'watchlists.json'));
+  const w2 = await scan('--data', WL, '--now', FX3.now);
+  const runW2 = await lastRunOf(WL);
+  await writeFile(join(WL, 'watchlists.json'), JSON.stringify(wlExport([{ id: 'wl-other', name: 'Other', items: [] }])));
+  const w3 = await scan('--data', WL, '--now', FX3.now);
+  const runW3 = await lastRunOf(WL);
+  check(w2.code === 2 && runW2.status === 'PARTIAL' && runW2.errors.some(e => e.category === 'DATA' && /there is no data\/watchlists\.json/.test(e.message) && /snapshot of 2026-03-01/.test(e.message))
+    && runW2.counts.evaluated === 2 && /WATCHLIST SNAPSHOT USED/.test(w2.stdout)
+    && w3.code === 2 && runW3.errors.some(e => /watchlist wl-a is not in data\/watchlists\.json/.test(e.message)),
+    'SC-311 with the export missing, or without the list, the worker falls back to the snapshot and the run is PARTIAL (exit 2) with the warning', { w2: runW2.errors, w3: runW3.errors });
+
+  /* ------------------------------------------------ C4: the run's fields -- */
+  const c4 = await lastRunOf(CA);
+  const c4b = (await runsOf(CA)).runs.find(r => r.id === runCa2.id);
+  check(Number.isInteger(c4b.cacheStats?.hits) && Number.isInteger(c4b.cacheStats?.misses) && c4b.catchUp && Array.isArray(c4b.skippedMarkets) && c4b.ledger && typeof c4b.ledger.known === 'number'
+    && Array.isArray(c4b.ledger.newVersions) && Array.isArray(c4b.ledger.refused) && c4b.counts && Array.isArray(c4b.readiness) && typeof c4b.historyNewest === 'string'
+    && ['cacheStats', 'skippedMarkets', 'catchUp', 'ledger', 'universeResolvedFrom', 'ready', 'narrow'].every(k => k in c4) && c4.catchUp === null,
+    'C4 every run carries cacheStats (on the run, not only the alerts file\'s lastRun), skippedMarkets, catchUp (null for a replay), ledger { known, newVersions, refused } and universeResolvedFrom',
+    { cacheStats: c4b.cacheStats, ledger: c4b.ledger });
+
+  /* ------------------------------------ SC-301: daily.mjs names them -- */
+  const DR = join(tmpdir(), `qt-r3w-daily-${process.pid}`);
+  await rm(DR, { recursive: true, force: true });
+  await mkdir(join(DR, 'ingest'), { recursive: true }); await mkdir(join(DR, 'scanner'), { recursive: true }); await mkdir(join(DR, 'data'), { recursive: true });
+  folders.push(DR);
+  await writeFile(join(DR, 'ingest/autoshot.mjs'), "console.log('page 1');");
+  await writeFile(join(DR, 'ingest/watchlist.mjs'), "console.log('candidates 3\\nflagged   0\\nskipped   0');");
+  await writeFile(join(DR, 'ingest/prices.mjs'), "console.log('  accepted : 3\\n  rejected : 0');");
+  await writeFile(join(DR, 'ingest/history.mjs'), "console.log('  symbols   : 3\\n  new bars  : 3\\n  depth     : 1-3 day(s) per symbol');");
+  /* The stub prints the line the real worker printed above, word for word. */
+  const nrLine = ra.stdout.match(/^not ready\s+.+$/m)?.[0] || 'not ready  MY — (missing)';
+  await writeFile(join(DR, 'scanner/scan.mjs'), `import { writeFileSync } from 'node:fs'; writeFileSync('scan-called.json', JSON.stringify(process.argv.slice(2))); console.log('1 new alert recorded'); console.log(${JSON.stringify(nrLine)}); console.log('status     PARTIAL (run-stub-9)'); process.exit(2);`);
+  await writeFile(join(DR, 'data/scan-setups.json'), '{"setups":[]}');
+  let dr;
+  try { const { stdout } = await run(process.execPath, [join(ROOT, 'ingest/daily.mjs'), '--url', 'http://example.invalid', '--no-fx'], { cwd: DR }); dr = { code: 0, stdout }; }
+  catch (e) { dr = { code: e.code, stdout: e.stdout || '' }; }
+  const drRun = ((await json(join(DR, 'data/ingest-runs.json')))?.runs || []).slice(-1)[0] || {};
+  check(dr.code === 2 && same(await json(join(DR, 'scan-called.json')), ['--trigger', 'daily', '--ready']) && /not ready, so not scanned today \(SKIPPED_NO_DATA/.test(dr.stdout)
+    && /^\s+MY — .*provisional/m.test(dr.stdout) && /not confirmed by a provider/.test(dr.stdout) && drRun.scanner?.skippedMarkets?.[0]?.market === 'MY'
+    && /not ready: MY/.test(drRun.steps?.find(s => s.step === 'scanner')?.detail || ''),
+    'SC-301 daily.mjs passes --ready, names each market held back in its report and its run log, says readiness is not a provider\'s confirmation, and exits 2', { code: dr.code, out: dr.stdout.split('\n').filter(l => /scanner|MY/.test(l)) });
+
+  for (const d of folders) await rm(d, { recursive: true, force: true });
+}
+/* ---- end round 3: worker ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

@@ -18,11 +18,19 @@
  * THE SCANNER RUNS ONLY ON A HISTORY THIS RUN UPDATED. If the history step
  * failed, the scanner would evaluate yesterday's file and report it as
  * today's scan; it is skipped and the report says why. It is started with
- * --trigger daily, and its own exit codes are read: 0 completed, 2 partial,
- * 3 skipped (paused, locked by another run, no setups, or nothing new), 1
- * failed. Only a failure, a partial run or a lock held by another run make
- * this run exit 2; a pause the reader asked for, or a day with nothing new,
- * is not something to look at.
+ * --trigger daily --ready, and its own exit codes are read: 0 completed, 2
+ * partial, 3 skipped (paused, locked by another run, no setups, or nothing
+ * new), 1 failed. Only a failure, a partial run or a lock held by another
+ * run make this run exit 2; a pause the reader asked for, or a day with
+ * nothing new, is not something to look at.
+ *
+ * AND ONLY ON THE MARKETS THAT ARE READY. An updated file is not a final
+ * one: a Bursa close read at 16:30 is an afternoon price. With --ready the
+ * scanner evaluates only the markets whose expected session is held final,
+ * holds back the rest (SKIPPED_NO_DATA for that run, so its next run catches
+ * them up) and exits 2; the report names each market held back and why. It
+ * is judged from capture times against each market's close — the nearest
+ * honest stand-in for a provider confirming the session, and not that.
  */
 
 import { execFile } from 'node:child_process';
@@ -62,7 +70,7 @@ const bump = (n) => { if (n > worst) worst = n; };
 /* What each step did, for data/ingest-runs.json. */
 const steps = [];
 const step = (name, status, detail = null, extra = {}) => steps.push({ step: name, status, detail, ...extra });
-const scanner = { ran: false, exit: null, status: null, runId: null, recorded: null };
+const scanner = { ran: false, exit: null, status: null, runId: null, recorded: null, skippedMarkets: [] };
 const counts = {};
 
 /* 1 ------------------------------------------------------------- capture */
@@ -170,13 +178,23 @@ if (!historyUpdated) {
   step('scanner', 'skipped', 'history not updated');
 } else if (existsSync('data/scan-setups.json')) {
   let code = 0, out = '', err = '';
-  try { ({ stdout: out, stderr: err } = await node(['scanner/scan.mjs', '--trigger', 'daily'])); }
+  try { ({ stdout: out, stderr: err } = await node(['scanner/scan.mjs', '--trigger', 'daily', '--ready'])); }
   catch (e) { code = typeof e.code === 'number' ? e.code : 1; out = String(e.stdout || ''); err = String(e.stderr || e.message || ''); }
   const n = (out.match(/(\d+) new alert/) || [])[1];
   const st = out.match(/^status\s+(\S+)\s+\((run-[^)]+)\)/m);
-  Object.assign(scanner, { ran: true, exit: code, status: st?.[1] || null, runId: st?.[2] || null, recorded: n != null ? Number(n) : null });
+  /* The markets the ready gate held back, one line each in the scanner's
+     fixed form "not ready  CODE — why". */
+  const notReady = [...out.matchAll(/^not ready\s+(\S+) — (.+)$/gm)].map(m => ({ market: m[1], reason: m[2].trim() }));
+  Object.assign(scanner, { ran: true, exit: code, status: st?.[1] || null, runId: st?.[2] || null, recorded: n != null ? Number(n) : null, skippedMarkets: notReady });
   const lastErr = (err || out).trim().split('\n').filter(Boolean).pop() || 'see above';
   if (code === 0) { say(`scanner   ${n ?? '?'} new alert(s) recorded in data/scan-alerts.json`); step('scanner', 'ok', scanner.status); }
+  else if (code === 2 && notReady.length) {
+    say(`scanner   ${n ?? '?'} new alert(s) recorded; not ready, so not scanned today (SKIPPED_NO_DATA — the next run catches them up):`);
+    notReady.forEach(m => say(`          ${m.market} — ${m.reason}`));
+    say('          readiness is judged from capture times against each market\'s close, not confirmed by a provider');
+    step('scanner', 'warn', `${scanner.status}; not ready: ${notReady.map(m => m.market).join(', ')}`);
+    bump(2);
+  }
   else if (code === 2) { say(`scanner   ${n ?? '?'} new alert(s) recorded; a setup was skipped, could not be tested, or its delivery record failed — node scanner/scan.mjs --runs 1 says which`); step('scanner', 'warn', scanner.status); bump(2); }
   else if (code === 3) {
     const why = { SKIPPED_PAUSED: 'paused — node scanner/scan.mjs --resume to continue', SKIPPED_LOCKED: 'another scan held the lock, and records what this one would have',

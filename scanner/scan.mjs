@@ -7,10 +7,16 @@
  *                                          to data/scan-alerts.json; log the run
  *   node scanner/scan.mjs --trigger daily  the same, recorded as the scheduled run
  *                                          (ingest/daily.mjs passes it)
+ *   node scanner/scan.mjs --ready          evaluate only the markets whose expected
+ *                                          session is held final; a market that is not
+ *                                          is SKIPPED_NO_DATA for the run, named, and the
+ *                                          run exits 2 (ingest/daily.mjs passes it)
  *   node scanner/scan.mjs --as-of DATE     REPLAY: evaluate as though the history ended
  *                                          on DATE and the clock read the morning after;
  *                                          anything already recorded is not recorded
  *                                          again; audited
+ *        [--setup ID] [--market CODE]      narrow a replay to one setup, or to one
+ *                                          registry market's instruments
  *   node scanner/scan.mjs --retry RUNID    re-run a logged run's scan on the same session
  *                                          dates (its history cut and its clock); audited
  *   node scanner/scan.mjs --pause "why"    stop scheduled and manual runs until --resume;
@@ -28,7 +34,9 @@
  *                                          a path given here is taken from the current
  *                                          directory; the defaults are in the repository
  *   node scanner/scan.mjs --data DIR       every data file in DIR (setups, history,
- *                                          alerts and the worker's own files)
+ *                                          alerts, watchlists and the worker's own files)
+ *   node scanner/scan.mjs --watchlists f   the watchlist export (default: watchlists.json
+ *                                          beside the setups file, i.e. data/)
  *   node scanner/scan.mjs --now ISO        judge staleness and bar status as though the
  *                                          clock read ISO (tests on fixed fixtures)
  *   node scanner/scan.mjs --hold MS        keep the lock MS ms before evaluating (the
@@ -37,9 +45,11 @@
  *   exit 0  COMPLETED — whatever matched is recorded (or a command succeeded)
  *   exit 1  FAILED (or CANCELLED) — engine missing, self-test failed, a file
  *           unreadable; nothing was written over the record
- *   exit 2  PARTIAL — ran and recorded, but a setup was left out or skipped, could
- *           not be tested anywhere in its universe, or the delivery record could
- *           not be written
+ *   exit 2  PARTIAL — ran and recorded, but a setup was left out or skipped (its
+ *           version refused by the ledger among them), could not be tested
+ *           anywhere in its universe, read a watchlist snapshot because the
+ *           export did not hold its list, a market was not ready (--ready), or
+ *           the delivery record or the ledger could not be written
  *   exit 3  SKIPPED — paused, another run holds the lock, no setups, or no data
  *           (no history, nothing on or before the replay date, or nothing changed
  *           since the last run)
@@ -75,6 +85,27 @@
  * its duration. A run that could not even load the engine is logged too.
  * The `audit` list records every replay, retry, pause, resume, unlock and
  * lock takeover, with who ran it on this machine.
+ *
+ * VERSIONS, AND WHAT A MISSED DAY LOSES
+ *
+ * data/scan-ledger.json is the worker's own append-only record of every
+ * version of every setup it has evaluated, so the setups file needs nothing
+ * else: a hand edit with no version number is numbered by its content (the
+ * version it had, or the next one), and a version number reused for
+ * different content is refused. Beside it, `pairs` holds the bar each setup
+ * × instrument pair was last evaluated on, and a live run evaluates every
+ * completed bar since — up to ten, each on the history as it stood that
+ * day — so a day Task Scheduler missed still records its crossings. The
+ * output says when it did. A replay evaluates its date only.
+ *
+ * WATCHLISTS
+ *
+ * A setup on a watchlist carries a snapshot of its symbols. One saved to
+ * resolve from the export reads the list instead from data/watchlists.json
+ * (the watchlists page's "Export for the scanner"), at run time — as live as
+ * the reader's last export and no more, because this worker cannot read a
+ * browser. A list the export does not hold falls back to the snapshot and
+ * the run is PARTIAL; every alert says which membership it read.
  *
  * ONE RUN AT A TIME
  *
@@ -176,6 +207,8 @@ export const ENGINE_EXPORTS = [
   'scanConditionProse', 'scanTreeLines', 'scanConditionCount',
   /* the run and what reads it */
   'scanUniverse', 'scanUniverseGaps', 'scanBarRange', 'scanRun', 'scanHistorical', 'scanStatus', 'scanSetupDrift', 'scanSnapshotDrift',
+  /* round 3 (worker): watchlist resolution, catch-up and gaps */
+  'scanResolveUniverse', 'scanPairKey', 'SCAN_CATCH_UP_CAP', 'scanGapText', 'scanGapNote',
   'scanFixture', 'scanSelfTest',
 ];
 
@@ -231,10 +264,18 @@ function newestBar(history) {
    asOf replays (the engine cuts the history and sets the clock); truncateAt
    cuts the history but keeps `now` (a retry of a live run). unchangedKey is
    the logical key of the last run that evaluated: when this run's key is
-   the same, nothing it could record is new, and it returns skipped. */
+   the same, nothing it could record is new, and it returns skipped.
+
+   ledgerPath is the version ledger (BAD_LEDGER when it cannot be read);
+   catchUp evaluates the bars each pair missed since the ledger's record of
+   it (a scheduled or manual run, and a retry — never a replay). ready holds
+   back the markets that are not ready. narrow { setup, market } is a
+   replay's narrowing (ARGS when it names nothing). watchlistsPath is the
+   watchlist export an export-resolved universe reads. */
 export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrumentsPath, dry = false, now = new Date().toISOString(),
                                 runId = `run-${now.replace(/[-:.]/g, '').slice(0, 15)}-${process.pid}`, origin = 'cli', trigger = 'manual',
-                                asOf = null, truncateAt = null, unchangedKey = null, onRead = null }) {
+                                asOf = null, truncateAt = null, unchangedKey = null, onRead = null,
+                                ledgerPath = null, catchUp = false, ready = false, narrow = null, watchlistsPath = null }) {
   if (!existsSync(setupsPath)) throw fail('NO_SETUPS', `no setups file at ${setupsPath}`);
   let doc;
   try { doc = await readJson(setupsPath); }
@@ -269,19 +310,58 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   }
   const existing = Array.isArray(existingDoc) ? existingDoc : Array.isArray(existingDoc?.alerts) ? existingDoc.alerts : [];
   const setupsHash = E.scanSetupsHash(doc);
+
+  /* The versions the setups run under: the ledger resolves a hand edit's
+     number and refuses a number reused for other content (left out, with
+     the reason, so the run is PARTIAL). setupsHash above stays the file's
+     own — the page compares it with the file it reads — and the resolved
+     versions join the logical key below. */
+  const ledger = ledgerPath ? await readLedger(ledgerPath) : null;
+  const versions = ledger ? resolveVersions(setups, list, ledger, { now: new Date().toISOString() }) : null;
+  let runSetups = versions ? versions.setups : setups;
+  if (versions) problems.push(...versions.problems);
+
+  /* A replay narrowed to one setup, or one market, says so when the setup
+     or market is not there to narrow to, rather than evaluating nothing and
+     calling it a quiet day. */
+  if (narrow?.setup) {
+    const keep = runSetups.filter(s => s.id === narrow.setup);
+    if (!keep.length) {
+      const refused = (versions?.refused || []).find(x => x.setupId === narrow.setup)?.why
+        || (E.scanValidate(doc).problemsBySetup?.[narrow.setup] || []).map(p => `${p.path ? `${p.path}: ` : ''}${p.text}`).join('; ');
+      throw fail('ARGS', refused ? `--setup ${narrow.setup} is refused: ${refused}` : `--setup ${narrow.setup}: no such setup in ${setupsPath} (have: ${runSetups.map(s => s.id).join(', ') || 'none'})`, 'ARGS');
+    }
+    if (keep[0].enabled === false) throw fail('ARGS', `--setup ${narrow.setup} is disabled in ${setupsPath} — enable it to replay it`, 'ARGS');
+    runSetups = keep;
+  }
+  if (narrow?.market && !instruments.some(i => String(i?.market || '').toUpperCase() === narrow.market)) {
+    throw fail('ARGS', `--market ${narrow.market}: no instrument in ${instrumentsPath || 'the registry'} is in that market (have: ${[...new Set(instruments.map(i => String(i?.market || '').toUpperCase()).filter(Boolean))].sort().join(', ') || 'none'})`, 'ARGS');
+  }
+
+  /* The watchlist export, when there is one. Absent or unreadable, an
+     export-resolved setup falls back to its snapshot and the run says so. */
+  const wl = await readWatchlists(watchlistsPath);
+
   /* The logical scan: the same engine, setups, history bytes and record
      cannot produce a new alert, so a second run on them is skipped rather
      than repeated — and says so. A replay or retry is asked for by name and
-     is never skipped this way. */
-  const logicalKey = `${E.SCAN_VERSION}|${setupsHash}|${historyHash}|${E.scanHash(existing.map(a => a?.key || a?.id || '').sort().join('\n'))}|${asOf || truncateAt || 'live'}`;
-  const base = { historyHash, historyNewest, setupsHash, logicalKey, problems };
+     is never skipped this way. The versions the ledger resolved, the price
+     adjustments applied to the history (C6: history.adjustmentVersion, or
+     none), the watchlist export, the ready gate and any narrowing are inputs
+     too: any of them changed, the run is not the same run. */
+  const resolvedHash = E.scanHash(runSetups.map(s => `${s.id}@${s.version}:${s.hash}:${s.enabled === false ? 0 : 1}`).join('\n'));
+  const logicalKey = `${E.SCAN_VERSION}|${setupsHash}|${historyHash}|${E.scanHash(existing.map(a => a?.key || a?.id || '').sort().join('\n'))}|${asOf || truncateAt || 'live'}`
+    + `|v:${resolvedHash}|adj:${history?.adjustmentVersion || 'none'}|wl:${wl.hash}|${ready ? 'ready' : 'all'}|${narrow ? `${narrow.setup || '*'}@${narrow.market || '*'}` : '-'}`;
+  const base = { historyHash, historyNewest, setupsHash, logicalKey, problems, watchlists: wl };
   if (unchangedKey && unchangedKey === logicalKey) return { ...base, skipped: 'SKIPPED_NO_DATA' };
 
   /* The alerts are written in the engine's V2 shape (id, version, event,
      values, data version, run id), carrying the 0.2 fields — bar, rules,
      recordedAt — for one release, so this file's printout and
      ingest/daily.mjs keep reading them. */
-  const r = E.scanRun(setups, history, { instruments, existing, now, runId, origin, asOf });
+  const r = E.scanRun(runSetups, history, { instruments, existing, now, runId, origin, asOf,
+                                            pairs: catchUp && ledger ? ledger.pairs : null, ready,
+                                            markets: narrow?.market ? [narrow.market] : null, watchlists: wl.doc });
 
   /* A setup none of whose instruments could be tested is a configuration
      problem, not a quiet day: the exit code says so. The engine decides it
@@ -294,7 +374,7 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
                     untested: r.untested, skipped: r.skipped.length, setupsHash,
                     problems, untestedEverywhere, stale: r.stale || [], provisional: r.provisional || [],
                     readiness: (r.readiness?.markets || []).map(m => ({ market: m.market, state: m.state, expected: m.expected, newestFinal: m.newestFinal, inRun: m.inRun, text: m.text })),
-                    cacheStats: r.cacheStats };
+                    cacheStats: r.cacheStats, catchUp: r.catchUp, skippedMarkets: r.skippedMarkets, universeResolvedFrom: r.universeResolvedFrom };
   const out = { engine: r.engine, updatedAt: now, lastRun, alerts: [...existing, ...r.alerts] };
   let written = false;
   if (!dry) {
@@ -302,15 +382,141 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
     await writeAtomic(alertsPath, JSON.stringify(out, null, 2) + '\n');
     written = true;
   }
-  const warn = problems.length > 0 || setupLevel.length > 0 || untestedEverywhere.length > 0;
-  return { ...base, result: r, setupLevel, untestedEverywhere, out, written, warn, existingCount: existing.length };
+
+  /* The ledger after the record: the versions this run evaluated are
+     appended, and — for a run that catches up — each pair moves forward to
+     the bar it now stands on. Written after the alerts, so a failure here
+     loses nothing: the next run numbers the same versions the same way and
+     re-evaluates bars the record already holds, which add nothing. */
+  let ledgerWritten = false, ledgerError = null, pairsMoved = 0;
+  if (!dry && ledger) {
+    try {
+      ledger.versions.push(...versions.newVersions);
+      if (catchUp) pairsMoved = advancePairs(ledger, r.pairs, { runId, at: new Date().toISOString() });
+      if (versions.newVersions.length || pairsMoved || !existsSync(ledgerPath)) await writeLedger(ledgerPath, ledger);
+      ledgerWritten = true;
+    } catch (e) { ledgerError = `the version ledger ${ledgerPath} could not be written (${e.message}); the alerts are recorded, and the next run numbers the same versions the same way`; }
+  }
+  const warn = problems.length > 0 || setupLevel.length > 0 || untestedEverywhere.length > 0
+    || (r.watchlistFallbacks || []).length > 0 || (r.skippedMarkets || []).length > 0 || !!ledgerError;
+  return { ...base, result: r, setupLevel, untestedEverywhere, out, written, warn, existingCount: existing.length,
+           versions, ledgerWritten, ledgerError, pairsMoved };
+}
+
+/* ---------------------------------------------------------------- ledger -- */
+/* THE VERSION LEDGER (SC-306). The setups file is the reader's, exported by
+   the builder or edited by hand, and a hand edit carries no version — so
+   before this, an edited rule ran as "v1" again, and its alerts claimed a
+   version whose rule no longer stood. data/scan-ledger.json is the worker's
+   own record of every version it has evaluated, which makes the file enough
+   on its own:
+
+   - a version and content the ledger holds is known;
+   - a version it has not seen (the builder's export) is added, source
+     'export';
+   - a version it holds with DIFFERENT content is refused — the setup is left
+     out and the run is PARTIAL — because one number for two rules is the
+     one thing a version must never be;
+   - a setup with no version (written by hand) is numbered by its content:
+     content the ledger holds takes that version back (the newest, if an
+     export reused it), and new content the next number, source 'file-edit'.
+
+   Entries are appended, never removed or rewritten, and the worker never
+   rewrites the reader's setups file. `pairs` beside them is the catch-up
+   state (the engine's scanPairKey → the bar that pair was last evaluated
+   on), which only moves forward. A damaged ledger fails the run instead of
+   being started again: a new one would number hand edits from v1 again. */
+export const LEDGER_NOTE = 'Append-only: every version of every setup this worker has evaluated, and the bar each setup × instrument pair was last evaluated on (catch-up). Written by scanner/scan.mjs; not for editing by hand.';
+const emptyLedger = () => ({ schema: 1, versions: [], pairs: {} });
+
+export async function readLedger(path) {
+  if (!path || !existsSync(path)) return emptyLedger();
+  let d;
+  try { d = await readJson(path); }
+  catch (e) {
+    throw fail('BAD_LEDGER', `the version ledger ${path} is not valid JSON (${e.message}). It is not started again quietly — a new ledger would number hand-edited setups from v1 again${existsSync(`${path}.bak`) ? `. The copy before the last write is ${path}.bak` : ''}`, 'IO');
+  }
+  return { ...d, schema: 1, versions: Array.isArray(d?.versions) ? d.versions : [],
+           pairs: d?.pairs && typeof d.pairs === 'object' && !Array.isArray(d.pairs) ? d.pairs : {} };
+}
+
+/* The evaluation fields a ledger entry keeps, so a version can be shown
+   after the browser that made it is cleared. The name is kept beside them
+   for reading; it does not change the hash. */
+const evaluationFields = (s) => ({ name: s.name, timeframe: s.timeframe, universe: s.universe, confirmationMode: s.confirmationMode,
+                                   cooldownMode: s.cooldownMode, cooldownBars: s.cooldownBars, expires: s.expires, ruleTree: s.ruleTree });
+
+/* The validated setups, each with the version it runs under. `rawList` is
+   the file's own list, which says whether a version was written at all
+   (validation fills in 1 when it was not). */
+export function resolveVersions(setups, rawList, ledger, { now = new Date().toISOString() } = {}) {
+  const raw = new Map();
+  (Array.isArray(rawList) ? rawList : []).forEach(x => { if (x && typeof x === 'object' && typeof x.id === 'string') raw.set(x.id, x); });
+  const out = { setups: [], known: 0, newVersions: [], refused: [], problems: [] };
+  for (const s of setups || []) {
+    const mine = (ledger?.versions || []).filter(v => v && v.setupId === s.id);
+    const max = mine.reduce((m, v) => Math.max(m, Number.isInteger(v.version) ? v.version : 0), 0);
+    const entry = (version, source) => ({ setupId: s.id, version, hash: s.hash, firstSeenAt: now, source, setup: evaluationFields(s) });
+    if (raw.get(s.id)?.version != null) {
+      const at = mine.find(v => v.version === s.version);
+      if (at && at.hash !== s.hash) {
+        const why = `version ${s.version} of ${s.id} is already recorded with different content (hash ${at.hash}, first seen ${at.firstSeenAt || 'at a time not recorded'}; this file's is ${s.hash}) — save it again in the builder, or remove its "version" field and the worker numbers it v${max + 1}`;
+        out.refused.push({ setupId: s.id, version: s.version, recordedHash: at.hash, hash: s.hash, why });
+        out.problems.push(`${s.id}: ${why}`);
+        continue;
+      }
+      if (at) out.known++; else out.newVersions.push(entry(s.version, 'export'));
+      out.setups.push(s);
+    } else {
+      const same = mine.filter(v => v.hash === s.hash).sort((a, b) => b.version - a.version)[0];
+      if (same) { out.known++; out.setups.push({ ...s, version: same.version }); }
+      else { out.newVersions.push(entry(max + 1, 'file-edit')); out.setups.push({ ...s, version: max + 1 }); }
+    }
+  }
+  return out;
+}
+
+/* Each pair moves forward to the bar this run evaluated it on, never back:
+   a run whose last final bar is older (a provisional bar held back) leaves
+   the newer mark. Returns how many moved. */
+export function advancePairs(ledger, pairs, { runId = null, at = null } = {}) {
+  let moved = 0;
+  for (const [k, v] of Object.entries(pairs || {})) {
+    const cur = ledger.pairs[k]?.lastEvaluatedBar;
+    if (v?.lastEvaluatedBar && (!cur || v.lastEvaluatedBar > cur)) { ledger.pairs[k] = { lastEvaluatedBar: v.lastEvaluatedBar, runId, at }; moved++; }
+  }
+  return moved;
+}
+
+export async function writeLedger(path, ledger) {
+  const doc = { schema: 1, kind: 'quantum-tradeworks-scan-ledger', note: LEDGER_NOTE, updatedAt: new Date().toISOString(),
+                versions: ledger.versions, pairs: ledger.pairs };
+  await writeAtomic(path, JSON.stringify(doc, null, 1) + '\n');
+}
+
+/* The watchlist export the builder's "resolve from the export" reads — the
+   watchlists page's "Export for the scanner", in watchlistsExport()'s shape.
+   Returned as the document (null when there is no file; {} when it is not
+   JSON, which the engine names as "not a watchlists export"), a hash for the
+   logical key, and a sentence when it could not be used. */
+export async function readWatchlists(path) {
+  if (!path || !existsSync(path)) return { doc: null, hash: 'none', path, why: null };
+  let text;
+  try { text = await readFile(path, 'utf8'); }
+  catch (e) { return { doc: {}, hash: 'unreadable', path, why: `${path} could not be read (${e.message})` }; }
+  const hash = `sha256:${createHash('sha256').update(text).digest('hex').slice(0, 16)}`;
+  try {
+    const d = JSON.parse(text);
+    if (!Array.isArray(d?.watchlists)) return { doc: {}, hash, path, why: `${path} is not a watchlists export (no "watchlists" list)` };
+    return { doc: d, hash, path, why: null };
+  } catch (e) { return { doc: {}, hash, path, why: `${path} is not valid JSON (${e.message})` }; }
 }
 
 /* --------------------------------------------------------- worker files -- */
 
 /* Beside the alert record the lock protects — so a test that points
    --alerts at a temporary folder never touches the repository's files. */
-export const WORKER_FILES = { runs: 'scan-runs.json', lock: 'scan.lock', control: 'scan-control.json', deliveries: 'scan-deliveries.json' };
+export const WORKER_FILES = { runs: 'scan-runs.json', lock: 'scan.lock', control: 'scan-control.json', deliveries: 'scan-deliveries.json', ledger: 'scan-ledger.json' };
 export const workerPaths = (dir) => Object.fromEntries(Object.entries(WORKER_FILES).map(([k, f]) => [k, join(dir, f)]));
 
 export const RUNS_CAP = 500, AUDIT_CAP = 1000, DELIVERIES_CAP = 10000;
@@ -399,13 +605,23 @@ export async function writeDeliveries(path, alerts, { runId, now = new Date().to
 
 function newRunId(now) { return `run-${now.replace(/[-:.]/g, '').slice(0, 15)}-${process.pid}-${randomBytes(2).toString('hex')}`; }
 
-function makeRun({ id, trigger, origin, now, args, retryOf = null, replayAsOf = null, paths }) {
+/* Round 3 adds, on every run whatever its status (null until the run
+   evaluates): cacheStats, the indicator cache's hits and misses (until now
+   only in the alerts file's lastRun); skippedMarkets, the markets the ready
+   gate held back, each [{ market, reason, state, status, instruments,
+   setups }]; catchUp { pairs, bars, capped, cap }, the bars evaluated since
+   each pair's last evaluated bar (null when the run does not catch up — a
+   replay); ledger { known, newVersions, refused }, the version ledger's
+   outcome; universeResolvedFrom, per watchlist setup, which membership it
+   read; ready and narrow, what was asked for. */
+function makeRun({ id, trigger, origin, now, args, retryOf = null, replayAsOf = null, paths, ready = false, narrow = null }) {
   const at = new Date().toISOString();
   return { id, kind: 'scan', trigger, origin, status: 'PENDING', startedAt: at, finishedAt: null, durationMs: null, exitCode: null,
            now, replayAsOf, retryOf, engine: null, pid: process.pid, host: hostname(), operator: operator(), args,
-           files: { setups: paths.setups, history: paths.history, alerts: paths.alerts },
+           files: { setups: paths.setups, history: paths.history, alerts: paths.alerts, ...(paths.watchlists ? { watchlists: paths.watchlists } : {}), ...(paths.ledger ? { ledger: paths.ledger } : {}) },
            historyHash: null, historyNewest: null, setupsHash: null, logicalKey: null,
            asOf: null, asOfFrom: null, counts: null, readiness: [], stale: 0, provisional: 0, errors: [], error: null, skipReason: null,
+           ready, narrow, cacheStats: null, skippedMarkets: [], catchUp: null, ledger: null, universeResolvedFrom: [],
            lockTakeover: null, transitions: [{ status: 'PENDING', at }] };
 }
 
@@ -475,6 +691,10 @@ async function main() {
   const alertsPath = path('alerts', 'scan-alerts.json');
   const instrumentsPath = flag('instruments', null) ? resolve(flag('instruments')) : resolve(ROOT, 'data/instruments.json');
   const W = workerPaths(dataDir || dirname(alertsPath));
+  /* The watchlist export lives beside the setups it serves — data/ by
+     default — so a test that points --setups at a temporary folder never
+     reads the reader's own export. */
+  const watchlistsPath = flag('watchlists', null) ? resolve(flag('watchlists')) : dataDir ? join(dataDir, 'watchlists.json') : join(dirname(setupsPath), 'watchlists.json');
 
   /* --now ISO: judge staleness and bar status as though the clock read this
      instant. For tests on fixed fixtures; a real run takes the clock. */
@@ -529,6 +749,7 @@ async function main() {
       const c = r.counts || {};
       console.log(`  ${r.startedAt}  ${r.status.padEnd(17)} ${String(r.trigger || '').padEnd(7)} ${String(r.durationMs ?? '—').padStart(6)} ms  ${r.id}`);
       if (r.counts) console.log(`      ${c.evaluated} evaluated · ${c.matched} matched · ${c.recorded} recorded · ${c.deduped} already recorded${r.asOf ? ` · bars ${r.asOfFrom && r.asOfFrom !== r.asOf ? `${r.asOfFrom} … ` : ''}${r.asOf}` : ''}${r.replayAsOf ? ` · replay of ${r.replayAsOf}` : ''}${r.retryOf ? ` · retry of ${r.retryOf}` : ''}`);
+      if (r.catchUp?.pairs || r.catchUp?.capped) console.log(`      caught up ${r.catchUp.bars} missed bar(s) on ${r.catchUp.pairs} pair(s)${r.catchUp.capped ? `; ${r.catchUp.capped} pair(s) past the ${r.catchUp.cap}-bar cap` : ''}`);
       if (r.skipReason) console.log(`      ${r.skipReason}`);
       (r.errors || []).forEach(e => console.log(`      ${e.category} ${e.correlationId}: ${e.message}`));
     }
@@ -617,6 +838,19 @@ async function main() {
   if (triggerFlag && !['manual', 'daily'].includes(triggerFlag)) { console.error(`--trigger "${triggerFlag}" is not one of manual, daily (a replay and a retry name themselves)`); process.exit(1); }
   const trigger = retryId ? 'retry' : asOfFlag ? 'replay' : triggerFlag || 'manual';
   const origin = trigger === 'manual' ? 'cli' : trigger;
+  /* --ready holds back the markets that are not ready (ingest/daily.mjs
+     passes it). --setup and --market narrow a replay only: a scheduled or
+     manual run narrowed to one setup would leave every other pair behind
+     with nothing in the record saying so, and a retry re-runs the logged
+     run exactly as it was asked for. */
+  let ready = has('ready');
+  const setupFlag = flag('setup', null), marketFlag = flag('market', null);
+  if ((has('setup') && !setupFlag) || (has('market') && !marketFlag)) { console.error('usage: node scanner/scan.mjs --as-of YYYY-MM-DD [--setup ID] [--market CODE]'); process.exit(1); }
+  if ((setupFlag || marketFlag) && (!asOfFlag || retryId)) {
+    console.error(`--setup and --market narrow a replay (--as-of DATE); ${retryId ? 'a retry re-runs the logged run as it was asked for' : 'a scheduled or manual run evaluates every setup on every market'}`);
+    process.exit(1);
+  }
+  let narrow = setupFlag || marketFlag ? { setup: setupFlag, market: marketFlag ? marketFlag.toUpperCase() : null } : null;
 
   if (check || dry) {
     if (engineError) engineFailureText(engineError);
@@ -626,8 +860,8 @@ async function main() {
   }
 
   const runId = newRunId(now);
-  const run = makeRun({ id: runId, trigger, origin, now, args: argv, replayAsOf: asOfFlag, retryOf: retryId,
-                        paths: { setups: setupsPath, history: historyPath, alerts: alertsPath } });
+  const run = makeRun({ id: runId, trigger, origin, now, args: argv, replayAsOf: asOfFlag, retryOf: retryId, ready, narrow,
+                        paths: { setups: setupsPath, history: historyPath, alerts: alertsPath, watchlists: watchlistsPath, ledger: W.ledger } });
   let lock = null, committed = false, finished = false;
 
   /* The single exit path for a scan: the run logged with its terminal
@@ -643,6 +877,7 @@ async function main() {
           if (i > -1) doc.runs[i] = run; else doc.runs.push(run);
           if (trigger === 'replay' || trigger === 'retry') {
             doc.audit.push(auditEntry(trigger, { runId, status, asOf: asOfFlag || null, retryOf: retryId || null, args: argv,
+                                                 setup: run.narrow?.setup || null, market: run.narrow?.market || null,
                                                  added: run.counts?.recorded ?? 0, deduped: run.counts?.deduped ?? 0 }));
           }
         });
@@ -681,6 +916,9 @@ async function main() {
     if (['PENDING', 'RUNNING'].includes(orig.status)) return failWith('ARGS', `run ${retryId} is still ${orig.status}; if its process is gone, node scanner/scan.mjs --unlock closes it first`);
     if (orig.replayAsOf) { asOf = orig.replayAsOf; run.replayAsOf = asOf; }
     else if (orig.historyNewest) { truncateAt = orig.historyNewest; runNow = orig.now || now; run.now = runNow; }
+    /* The logged run's narrowing and ready gate come with it. */
+    if (orig.narrow) { narrow = orig.narrow; run.narrow = narrow; }
+    if (orig.ready) { ready = true; run.ready = true; }
     run.retryBasis = orig.replayAsOf ? `the replay of ${orig.replayAsOf}` : orig.historyNewest ? `the history cut at ${orig.historyNewest} and the clock at ${runNow}, as ${retryId} read them`
       : `the history as it stands — ${retryId} ended before it read one`;
   }
@@ -734,7 +972,10 @@ async function main() {
 
   let out;
   try {
+    /* Catch-up is for a run that moves forward — scheduled, manual, or the
+       retry of one. A replay evaluates the date it was asked for, no more. */
     out = await runOnce({ E, setupsPath, historyPath, alertsPath, instrumentsPath, dry, now: runNow, runId, origin, trigger, asOf, truncateAt, unchangedKey,
+                          ledgerPath: W.ledger, catchUp: !asOf, ready, narrow, watchlistsPath,
                           onRead: (x) => { run.historyHash = x.historyHash; run.historyNewest = x.historyNewest; run.setupsHash = x.setupsHash; } });
   } catch (err) {
     const map = { NO_SETUPS: 'SKIPPED_NO_SETUPS', NO_HISTORY: 'SKIPPED_NO_DATA', NO_DATA: 'SKIPPED_NO_DATA' };
@@ -764,9 +1005,20 @@ async function main() {
                  continuing: r.continuing, untested: r.untested, skipped: r.skipped.length, problems: problems.length, untestedEverywhere: untestedEverywhere.length, deliveries: 0 };
   run.readiness = (r.readiness?.markets || []).map(m => ({ market: m.market, state: m.state, expected: m.expected, newestFinal: m.newestFinal, inRun: m.inRun, text: m.text }));
   run.stale = (r.stale || []).length; run.provisional = (r.provisional || []).length;
+  /* C4: what the ops pages read off the run itself. */
+  run.cacheStats = r.cacheStats || null;
+  run.catchUp = r.catchUp || null;
+  run.skippedMarkets = r.skippedMarkets || [];
+  run.universeResolvedFrom = r.universeResolvedFrom || [];
+  run.ledger = out.versions ? { known: out.versions.known, newVersions: out.versions.newVersions.map(v => ({ setupId: v.setupId, version: v.version, hash: v.hash, source: v.source })),
+                                refused: out.versions.refused.map(x => ({ setupId: x.setupId, version: x.version, why: x.why })), written: out.ledgerWritten } : null;
+  if (r.narrowed) run.narrowed = r.narrowed;
   problems.forEach(p => addError(run, 'VALIDATION', p));
   setupLevel.forEach(s => addError(run, 'VALIDATION', `${s.setup}: ${s.why}`, { setup: s.setup }));
   untestedEverywhere.forEach(u => addError(run, 'DATA', `${u.setup}: untested everywhere — ${u.why}`, { setup: u.setup }));
+  (r.watchlistFallbacks || []).forEach(f => addError(run, 'DATA', `${f.setup}: ${f.why}`, { setup: f.setup }));
+  (r.skippedMarkets || []).forEach(m => addError(run, 'DATA', `${m.market || 'instruments with no market row'} not ready — ${m.reason}; ${m.instruments} instrument(s) not evaluated, SKIPPED_NO_DATA for this run`, { market: m.market }));
+  if (out.ledgerError) addError(run, 'IO', out.ledgerError);
 
   /* Delivery after the record: a failure here never loses an alert. */
   let deliveryFailed = false;
@@ -803,12 +1055,32 @@ function selfTest(E) {
   return true;
 }
 
-function printRun({ E, r, dry, written, alertsPath, run, problems, setupLevel, untestedEverywhere }) {
+function printRun({ E, r, out, dry, written, alertsPath, run, problems, setupLevel, untestedEverywhere }) {
   console.log('');
   if (run.trigger === 'replay') console.log(`replay     as though the history ended on ${run.replayAsOf}, judged the morning after — anything already recorded is not recorded again`);
   if (run.trigger === 'retry') console.log(`retry      of ${run.retryOf}, on ${run.retryBasis}`);
+  if (run.narrow) {
+    const n = r.narrowed;
+    console.log(`narrowed   to ${[run.narrow.setup ? `setup ${run.narrow.setup}` : null, run.narrow.market ? `market ${run.narrow.market}` : null].filter(Boolean).join(' and ')}`
+      + `${n?.instrumentsLeftOut ? ` — ${n.instrumentsLeftOut} instrument(s) of other markets left out` : ''}${n?.setupsOutside?.length ? `; nothing in it for ${n.setupsOutside.join(', ')}` : ''}`);
+  }
   console.log(`setups     ${r.setups} evaluated${problems.length ? `, ${problems.length} left out` : ''}`);
-  console.log(`bars       ${r.asOf ? E.scanBarRange(r.asOfFrom, r.asOf) : '—'} (each pair on its own instrument's last final bar; a bar captured before its session closed is provisional and is not evaluated)`);
+  const v = out?.versions;
+  if (v) {
+    const src = { export: 'exported', 'file-edit': 'edited in the file' };
+    console.log(`versions   ${v.known} known to the ledger${v.newVersions.length ? ` · new${dry ? ' (not recorded: dry run)' : ''}: ${v.newVersions.map(x => `${x.setupId} v${x.version} (${src[x.source] || x.source})`).join(', ')}` : ''}${v.refused.length ? ` · refused: ${v.refused.map(x => `${x.setupId} v${x.version}`).join(', ')}` : ''}`);
+  }
+  (r.universeResolvedFrom || []).forEach(u => console.log(`watchlist  ${u.setupId}: ${u.source === 'export' ? `members from your export of ${u.exportedAt || 'an unrecorded time'} (${out?.watchlists?.path || 'watchlists.json'})` : `its snapshot of ${u.asOf || 'an unrecorded date'}`}`));
+  const cu = r.catchUp;
+  const caughtUp = cu && (cu.pairs > 0 || cu.capped > 0);
+  console.log(`bars       ${r.asOf ? E.scanBarRange(r.asOfFrom, r.asOf) : '—'} (each pair on its own instrument's last final bar${caughtUp ? ', and the bars it missed since it was last evaluated' : ''}; a bar captured before its session closed is provisional and is not evaluated)`);
+  /* Catch-up changes what a run records after a missed day, so it is said
+     every time it happens. */
+  if (caughtUp) {
+    console.log(`catch-up   ${cu.pairs} pair(s) had missed bars: ${cu.bars} earlier bar(s) evaluated, each on the history as it stood that day, so a crossing on a missed day is recorded on its own bar`
+      + `${cu.capped ? `; ${cu.capped} pair(s) were more than ${cu.cap} bars behind — the newest ${cu.cap} were evaluated, and --as-of DATE replays the days before` : ''}`);
+    (r.catchUpList || []).filter(x => x.missed > 0).slice(0, 10).forEach(x => console.log(`           ${x.setup} ${x.symbol}: ${x.missed} bar(s) not caught up, ${x.missedFrom} … ${x.missedTo}`));
+  }
   console.log(`evaluated  ${r.evaluated} setup × instrument pair${r.evaluated === 1 ? '' : 's'} · ${r.matched} matched · ${r.untested} untested`);
   console.log(`${r.alerts.length} new alert${r.alerts.length === 1 ? '' : 's'} recorded${dry ? ' (dry run — nothing written)' : written ? ` → ${alertsPath}` : ''}${r.deduped ? ` · ${r.deduped} already recorded` : ''}`);
   if (!dry) console.log(`delivered  ${run.counts.deliveries} in the app (the record above); email, Telegram and push are not configured — nothing is sent`);
@@ -832,8 +1104,20 @@ function printRun({ E, r, dry, written, alertsPath, run, problems, setupLevel, u
     console.log('\nUNTESTED EVERYWHERE — no instrument in the universe could test these rules:');
     untestedEverywhere.forEach(u => console.log(`  · ${u.setup}: ${u.why}${tag(`${u.setup}: untested everywhere — ${u.why}`)}`));
   }
+  if ((r.watchlistFallbacks || []).length) {
+    console.log('\nWATCHLIST SNAPSHOT USED — resolved from the export, but the export did not hold the list:');
+    r.watchlistFallbacks.forEach(f => console.log(`  · ${f.setup}: ${f.why}${tag(`${f.setup}: ${f.why}`)}`));
+  }
+  /* One line per market held back, in a fixed form ingest/daily.mjs reads
+     ("not ready  CODE — sentence"). */
+  if ((r.skippedMarkets || []).length) {
+    console.log('\nNOT READY — held back by --ready, SKIPPED_NO_DATA for this run. Judged from capture times against each market\'s close and settle,');
+    console.log('on the calendar your own history implies — not a provider\'s word that the session is final. The next ready run catches them up:');
+    r.skippedMarkets.forEach(m => console.log(`not ready  ${m.market || 'UNPLACED'} — ${m.reason} (${m.instruments} instrument(s) not evaluated)`));
+  }
   const delivery = run.errors.find(e => e.category === 'DELIVERY');
   if (delivery) console.log(`\nDELIVERY RECORD NOT WRITTEN — ${delivery.message}  [${delivery.correlationId}]`);
+  if (out?.ledgerError) console.log(`\nLEDGER NOT WRITTEN — ${out.ledgerError}${tag(out.ledgerError)}`);
   const untestedList = r.untestedList || [];
   if (untestedList.length) {
     /* Grouped by reason, with each instrument's bar count taken out, so a
