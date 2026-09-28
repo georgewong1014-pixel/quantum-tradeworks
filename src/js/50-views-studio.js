@@ -4,6 +4,17 @@
    driver ranking and the bridge all re-derive from the model on every change.
    ========================================================================== */
 
+/* A REDRAW THAT KEEPS THE READER'S PLACE.
+   render() replaces the whole view, so a control whose change redraws the
+   page destroyed itself under the keyboard: an arrow key on a Trading Index
+   select, Space on a checkbox, Enter on a Compare chip or a decision-record
+   tab, or Tab out of a field each left focus on <body>, and the next Tab
+   started again from the skip link. The redraw waits one task, so focus has
+   settled wherever the key sent it — the same control, or the next one after
+   a Tab — and renderKeepFocus returns it to the redrawn control with that id.
+   Every control that redraws through this carries a stable id. */
+const redrawKeepFocus = () => setTimeout(renderKeepFocus, 0);
+
 /* Net debt, the share count and the reader's own adjustment — shared by the
    two packs whose value is an enterprise value bridged to equity. */
 const BRIDGE_ASSUMPTIONS = [
@@ -224,7 +235,7 @@ function tabValuation(r) {
   rail.append(cardHead('Assumptions',
     editable ? 'Every input is yours to change. Nothing is silently substituted if you clear a value.'
              : 'Every assumption behind the range is shown. Editing them is part of Equities Research — the numbers are not hidden, only the controls.',
-    editable ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.valuation[c.id] = { ...r.inputs }; persistValuation(r, true); render(); toast('Reset to derived defaults'); } }, 'Reset')
+    editable ? el('button', { class: 'btn btn-quiet btn-sm', id: 'studio-reset', onclick: () => { State.valuation[c.id] = { ...r.inputs }; persistValuation(r, true); renderKeepFocus(); toast('Reset to derived defaults'); } }, 'Reset')
              : el('span', { class: 'chip chip-bronze' }, 'Read-only')));
 
   /* Whose assumptions these are, said above them: how many differ from the
@@ -318,8 +329,10 @@ function tabValuation(r) {
   fixed.append(kv);
   rail.append(fixed);
 
-  rail.append(el('button', { class: 'btn btn-primary btn-sm', style: 'width:100%;margin-top:var(--md)',
-    onclick: () => saveValuationRun(r, inputs) }, 'Save this valuation run'));
+  /* Both buttons redraw the page; each hands focus back to its redrawn self
+     rather than leaving the keyboard on <body>. */
+  rail.append(el('button', { class: 'btn btn-primary btn-sm', style: 'width:100%;margin-top:var(--md)', id: 'studio-save-run',
+    onclick: () => { saveValuationRun(r, inputs); document.getElementById('studio-save-run')?.focus({ preventScroll: true }); } }, 'Save this valuation run'));
   rail.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'A saved run stores the inputs and which of them you changed, the figures they produced, the statements they were computed on, and the model and data versions — so it can be replayed, and printed as a report, after the dataset moves.'));
   const reportPath = `${companyPath(c)}/report`;
@@ -796,7 +809,12 @@ function explainCalculation(r, inputs, run) {
     lines.push(`Terminal value = year-${inputs.years} cash flow × (1 + ${pct(inputs.gt)}) ÷ (${pct(inputs.wacc)} − ${pct(inputs.gt)}), discounted to ${bn(b.pvTerminal)} today — ${fmtPct(b.terminalShare, 0)} of the enterprise value.`);
     lines.push(`Enterprise value = ${bn(b.pvExplicit)} + ${bn(b.pvTerminal)} = ${bn(b.ev)}.`);
     lines.push(bridge());
-    lines.push(`Per share = equity ÷ ${fmtNum(inputs.shares, 3)}bn shares${sameInput(inputs.shares, r.inputs.shares) ? '' : ' (your figure)'} = ${per(run.vals.base)}${b.equityWipedOut ? ' — floored at nil, because the enterprise value does not cover net debt' : ''}.`);
+    /* With a holding-company discount the equity divided is the one after it.
+       The line said "equity ÷ shares" under a sentence whose only equity
+       figure was the one before the discount — RM32.6B ÷ 6.81bn is RM4.79,
+       not the RM3.83 printed — so the arithmetic could not be checked. */
+    const divided = b.hold ? `equity after the discount, ${bn(b.equity - b.holdDiscount)},` : 'equity';
+    lines.push(`Per share = ${divided} ÷ ${fmtNum(inputs.shares, 3)}bn shares${sameInput(inputs.shares, r.inputs.shares) ? '' : ' (your figure)'} = ${per(run.vals.base)}${b.equityWipedOut ? ' — floored at nil, because the enterprise value does not cover net debt' : ''}.`);
   } else if (inputs.model === 'scenario') {
     lines.push(`Revenue of ${bn(inputs.rev0)} grows ${pct(inputs.revCagr)} in year 1, fading in a straight line to ${pct(inputs.gt)} by year ${inputs.years}; the operating margin moves in a straight line from ${pct(inputs.margin0)} to ${pct(inputs.termMargin)}.`);
     lines.push(`Free cash flow each year = revenue × margin × ${fmtPct(inputs.fcfConv, 0)} cash conversion, discounted at ${pct(inputs.wacc)}; the ${inputs.years} present values sum to ${bn(b.pvExplicit)}.`);
@@ -1306,6 +1324,21 @@ function tabThesisFor(r) {
 
 function thesisCard(t, expanded) {
   const r = BY_ID.get(t.ticker);
+  /* A CASE ABOUT A COMPANY THAT IS NOT LOADED. With the SEC-filed companies
+     switched off, a failed filings load, or a company gone from a
+     regenerated dataset, `r` is undefined and `r.c.tk` threw inside the
+     view: /my/theses rendered nothing at all, every other case included.
+     The case is the reader's and is kept, with the reason its conditions are
+     not evaluated — and, as everywhere, not evaluated is not passing. */
+  if (!r) {
+    const card = el('div', { class: 'card' });
+    card.append(cardHead(`${t.ticker} — not in the companies loaded now`,
+      'This case is kept, but the company it is about is not in the set this page has loaded — the SEC-filed companies may be switched off or may have failed to load, or the company may have left the dataset. Its conditions cannot be evaluated, and none is treated as passing.',
+      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openThesisEditor(t) }, 'Edit')));
+    card.append(el('p', { class: 'body-lg', style: 'font-size:14px;color:var(--ink);margin-top:var(--sm)' }, t.oneLine || 'No investment case written yet.'));
+    card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Created ${t.created} · next review ${t.review} · ${(t.conds || []).length} condition${(t.conds || []).length === 1 ? '' : 's'}, not evaluated`));
+    return card;
+  }
   const evalr = evaluateThesis(t);
   const card = el('div', { class: 'card' });
   const hd = el('div', { class: 'card-hd' });
@@ -1426,12 +1459,17 @@ function thesisCard(t, expanded) {
 
 function openThesisEditor(t) {
   const body = el('div');
+  /* Every label is joined to its control. They were siblings with no `for`
+     and no id, so all nine controls in this drawer — the case, the lists,
+     the horizon, the review date and the confidence — had no accessible
+     name: a screen reader heard "edit text" nine times. One editor is open
+     at a time, so the ids are fixed. */
   const field = (label, key, multiline, note) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-    f.append(el('label', {}, label));
+    f.append(el('label', { for: `th-${key}` }, label));
     const inp = multiline
-      ? el('textarea', { class: 'input', oninput: e => { t[key] = e.target.value; saveTheses(); } }, t[key] || '')
-      : el('input', { class: 'input', value: t[key] || '', oninput: e => { t[key] = e.target.value; saveTheses(); } });
+      ? el('textarea', { class: 'input', id: `th-${key}`, oninput: e => { t[key] = e.target.value; saveTheses(); } }, t[key] || '')
+      : el('input', { class: 'input', id: `th-${key}`, value: t[key] || '', oninput: e => { t[key] = e.target.value; saveTheses(); } });
     f.append(inp);
     if (note) f.append(el('p', { class: 'metaline' }, note));
     return f;
@@ -1441,8 +1479,8 @@ function openThesisEditor(t) {
   body.append(field('Valuation case', 'valCase', true, 'Reference the saved valuation run rather than a number you remember.'));
   const listField = (label, key, note) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-    f.append(el('label', {}, label));
-    f.append(el('textarea', { class: 'input', oninput: e => { t[key] = e.target.value.split('\n').filter(Boolean); saveTheses(); } }, (t[key] || []).join('\n')));
+    f.append(el('label', { for: `th-${key}` }, label));
+    f.append(el('textarea', { class: 'input', id: `th-${key}`, oninput: e => { t[key] = e.target.value.split('\n').filter(Boolean); saveTheses(); } }, (t[key] || []).join('\n')));
     f.append(el('p', { class: 'metaline' }, note || 'One per line.'));
     return f;
   };
@@ -1452,21 +1490,23 @@ function openThesisEditor(t) {
   const row = el('div', { class: 'grid g-2', style: 'margin-bottom:var(--md)' });
   ['horizon', 'review'].forEach(k => {
     const f = el('div', { class: 'field' });
-    f.append(el('label', {}, k === 'horizon' ? 'Intended holding horizon' : 'Next review date'));
-    f.append(el('input', { class: 'input', type: k === 'review' ? 'date' : 'text', value: t[k], oninput: e => { t[k] = e.target.value; saveTheses(); } }));
+    f.append(el('label', { for: `th-${k}` }, k === 'horizon' ? 'Intended holding horizon' : 'Next review date'));
+    f.append(el('input', { class: 'input', id: `th-${k}`, type: k === 'review' ? 'date' : 'text', value: t[k], oninput: e => { t[k] = e.target.value; saveTheses(); } }));
     row.append(f);
   });
   body.append(row);
   const cf = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-  cf.append(el('label', {}, 'Confidence'));
-  const cs = el('select', { class: 'select', onchange: e => { t.conf = e.target.value; saveTheses(); } });
+  cf.append(el('label', { for: 'th-conf' }, 'Confidence'));
+  const cs = el('select', { class: 'select', id: 'th-conf', onchange: e => { t.conf = e.target.value; saveTheses(); } });
   ['Low', 'Medium', 'High'].forEach(v => cs.append(el('option', { value: v, selected: t.conf === v ? '' : null }, v)));
   cf.append(cs); body.append(cf);
 
   body.append(el('div', { class: 'row', style: 'gap:8px' }, [
     /* An explicit save re-stamps the case: the reader has read it against
        today's figures, so that is what it now stands on. */
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => { t.stamp = buildStamp(BY_ID.get(t.ticker)?.c); saveTheses(); closeDrawer(); render(); toast('Thesis saved'); } }, 'Save'),
+    /* A case whose company is not loaded keeps the stamp it has: there are no
+       figures of today's to re-stamp it against. */
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => { const co = BY_ID.get(t.ticker)?.c; if (co) t.stamp = buildStamp(co); saveTheses(); closeDrawer(); render(); toast('Thesis saved'); } }, 'Save'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!confirm('Delete this thesis? Its review history will be removed too.')) return;
       /* The dialog promises the review history goes with it; only the thesis
@@ -1526,11 +1566,14 @@ function openReview(t) {
   }
 
   const fields = [];
-  qs.forEach(([q, hint]) => {
+  /* The question is each note's label. Unjoined, all five textareas were
+     named by their shared placeholder, "Your note…", so a screen reader could
+     not say which question a note answered. */
+  qs.forEach(([q, hint], i) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-    f.append(el('label', {}, q));
+    f.append(el('label', { for: `rv-${i}` }, q));
     f.append(el('p', { class: 'metaline', style: 'margin-bottom:4px' }, hint));
-    const ta = el('textarea', { class: 'input', placeholder: 'Your note…' });
+    const ta = el('textarea', { class: 'input', id: `rv-${i}`, placeholder: 'Your note…' });
     f.append(ta);
     fields.push({ question: q, el: ta });
     body.append(f);
@@ -1569,7 +1612,14 @@ VIEWS.thesis = () => {
   const stats = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
   const evals = State.theses.map(t => ({ t, e: evaluateThesis(t) }));
   const breached = evals.filter(x => x.e.breaches.length).length;
-  const dueSoon = State.theses.filter(t => new Date(t.review) <= new Date('2026-09-30')).length;
+  /* Due within thirty days of today, overdue included. The window was a
+     fixed '2026-09-30' under a fixed "30 Sep" label — from October on the
+     tile counted only reviews already missed and still called them due, the
+     same fault a fixed review date had in addToThesis. */
+  const dueByMs = Date.now() + 30 * 86400000;
+  const dueBy = new Date(dueByMs).toISOString().slice(0, 10);
+  const dueByLabel = new Date(dueByMs).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const dueSoon = State.theses.filter(t => t.review && t.review <= dueBy).length;
   /* Coverage is the watchlist entries that have a thesis, not the count of
      theses: a thesis on a company not on the watchlist raised it, and it
      could pass 100%. The linked-run line counts the links instead of claiming
@@ -1578,7 +1628,7 @@ VIEWS.thesis = () => {
   const linked = State.theses.filter(t => t.runRef).length;
   [['Open theses', String(State.theses.length), `${linked} linked to a saved valuation run`],
    ['Conditions breached', String(breached), breached ? 'Read the evidence before acting' : 'Nothing has changed state'],
-   ['Reviews due by 30 Sep', String(dueSoon), 'Review discipline is scored, not returns'],
+   [`Reviews due by ${dueByLabel}`, String(dueSoon), 'Within 30 days, overdue included. Review discipline is scored, not returns'],
    ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
    .forEach(([l, v, s]) => stats.append(el('div', { class: 'card' }, statTile(l, v, { sub: s }))));
   wrap.append(stats);
@@ -1743,22 +1793,23 @@ VIEWS.compare = () => {
       is not something a capped selection can do. Any preset larger than the
       cap says it was cut, rather than cutting silently. */
    ['My watchlist', State.watchlist]]
-   .forEach(([label, ids]) => presets.append(el('button', { class: 'btn btn-ghost btn-sm',
+   .forEach(([label, ids], i) => presets.append(el('button', { class: 'btn btn-ghost btn-sm', id: `cmp-preset-${i}`,
      onclick: () => {
        /* saveCompare keeps the address in step with the selection (shell); the
-          toast says when a preset held more than a comparison can (studio). */
-       State.compare = ids.slice(0, LIMITS.compare); saveCompare(); render();
+          toast says when a preset held more than a comparison can (studio).
+          Every control on this card redraws with focus kept on it. */
+       State.compare = ids.slice(0, LIMITS.compare); saveCompare(); redrawKeepFocus();
        if (ids.length > LIMITS.compare) toast(`Showing the first ${LIMITS.compare} of ${ids.length} — ${LIMITS.compare} is the most a comparison holds`);
      } }, label)));
   pick.append(presets);
   const chips = el('div', { class: 'row row-wrap', style: 'gap:5px' });
   U.forEach(r => {
     const on = State.compare.includes(r.c.id);
-    chips.append(el('button', { class: 'chip' + (on ? ' chip-brand' : ''), style: 'cursor:pointer',
+    chips.append(el('button', { class: 'chip' + (on ? ' chip-brand' : ''), style: 'cursor:pointer', id: `cmp-chip-${r.c.id}`,
       onclick: () => {
         State.compare = on ? State.compare.filter(x => x !== r.c.id)
           : (State.compare.length >= LIMITS.compare ? (toast(`${LIMITS.compare} is the maximum`), State.compare) : [...State.compare, r.c.id]);
-        saveCompare(); render();
+        saveCompare(); redrawKeepFocus();
       } }, r.c.tk + illusText(r.c)));
   });
   pick.append(chips);
@@ -1777,7 +1828,7 @@ VIEWS.compare = () => {
       f.append(el('label', { for: `wht-${mkt}` }, mkt === 'US' ? 'US listings' : 'Bursa listings'));
       f.append(el('input', { class: 'input input-inline', id: `wht-${mkt}`, type: 'number', min: 0, max: 40, step: 1,
         value: State.wht[mkt], style: 'text-align:right',
-        onchange: e => { State.wht[mkt] = clamp(+e.target.value || 0, 0, 40); store.write('wht', State.wht); render(); } }));
+        onchange: e => { State.wht[mkt] = clamp(+e.target.value || 0, 0, 40); store.write('wht', State.wht); redrawKeepFocus(); } }));
       return f;
     }),
   ]));
@@ -1836,11 +1887,11 @@ VIEWS.compare = () => {
   ccyBar.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'metaline' }, 'Show totals in'),
     el('div', { class: 'segmented' }, [
-      el('button', { 'aria-selected': !showLocal ? 'true' : 'false',
-        onclick: () => { State.compareCcy = 'common'; store.write('compareCcy', 'common'); render(); } },
+      el('button', { 'aria-selected': !showLocal ? 'true' : 'false', id: 'cmp-ccy-common',
+        onclick: () => { State.compareCcy = 'common'; store.write('compareCcy', 'common'); redrawKeepFocus(); } },
         `Common currency (${State.baseCcy})`),
-      el('button', { 'aria-selected': showLocal ? 'true' : 'false',
-        onclick: () => { State.compareCcy = 'local'; store.write('compareCcy', 'local'); render(); } },
+      el('button', { 'aria-selected': showLocal ? 'true' : 'false', id: 'cmp-ccy-local',
+        onclick: () => { State.compareCcy = 'local'; store.write('compareCcy', 'local'); redrawKeepFocus(); } },
         'Local currency'),
     ]),
     mixedCcy && !showLocal
@@ -2274,8 +2325,9 @@ VIEWS.portfolio = () => {
       'This view separates business performance from currency movement from transaction costs, and shows how much of the portfolio is backed by a written thesis. It does not optimise, rebalance, or recommend an allocation.'),
   ]));
   const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
-  const sel = el('select', { class: 'select', style: 'width:auto;min-width:190px', 'aria-label': 'Active portfolio',
-    onchange: e => { State.pfIdx = +e.target.value; render(); } });
+  /* Focus stays on the select across the redraw (redrawKeepFocus). */
+  const sel = el('select', { class: 'select', style: 'width:auto;min-width:190px', 'aria-label': 'Active portfolio', id: 'pf-active',
+    onchange: e => { State.pfIdx = +e.target.value; redrawKeepFocus(); } });
   State.portfolios.forEach((p, i) => sel.append(el('option', { value: i, selected: i === State.pfIdx ? '' : null },
     `${p.name} · ${p.holdings.length} holdings`)));
   hr.append(sel);
@@ -2444,7 +2496,7 @@ VIEWS.portfolio = () => {
   addRow.append(el('div', { class: 'field', style: 'margin:0' }, [el('label', { for: 'divHold' }, 'Record a payment'), selH]));
   addRow.append(el('div', { class: 'field', style: 'margin:0' }, [el('label', { for: 'divDate' }, 'Date paid'), dDate]));
   addRow.append(el('div', { class: 'field', style: 'margin:0' }, [amtLabel, dAmt]));
-  addRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+  addRow.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'divAdd', onclick: () => {
     const amount = num0(dAmt.value);
     if (!(amount > 0)) { toast('Enter the amount that was actually paid'); return; }
     /* Recorded against this portfolio. A payment carried no portfolio, so one
@@ -2453,7 +2505,7 @@ VIEWS.portfolio = () => {
     State.dividendsReceived = [...(State.dividendsReceived || []),
       { id: selH.value, pfId: pf.id, date: dDate.value, amount, ccy: ccyOf(selH.value) }];
     store.write('dividendsReceived', State.dividendsReceived);
-    render();
+    redrawKeepFocus();
   } }, 'Add'));
   if (pos.length) inc.append(addRow);
 
@@ -2539,7 +2591,12 @@ VIEWS.portfolio = () => {
     const propLoan = toBase(dm.loan, 'MYR');
     const propEquity = Math.max(0, propValue - propLoan);
     const netWorth = totalVal + propEquity;
-    const propCashflow = toBase(dm.cashflowMonthly * 12, 'MYR');
+    /* The deal's monthly position is withheld when its instalment cannot be
+       computed (a loan with no tenure, say), and `null * 12` is 0: the tile
+       read "RM0 net rent" and a combined cash flow that was the dividends
+       alone, where the calculator says the position is not computed. An
+       absent figure stays absent, and so does any total that needs it. */
+    const propCashflow = isNum(dm.cashflowMonthly) ? toBase(dm.cashflowMonthly * 12, 'MYR') : null;
     const equityIncome = grossIncome;
 
     xa.append(cardHead('Cross-asset net worth',
@@ -2548,9 +2605,12 @@ VIEWS.portfolio = () => {
     xg.append(el('div', { class: 'panel' }, statTile('Net worth', fmtAmount(netWorth, State.baseCcy), { sub: 'Securities, cash and property equity' })));
     xg.append(el('div', { class: 'panel' }, statTile('Property equity', fmtAmount(propEquity, State.baseCcy),
       { sub: `${fmtAmount(propValue, State.baseCcy)} less ${fmtAmount(propLoan, State.baseCcy)} loan` })));
-    xg.append(el('div', { class: 'panel' }, statTile('Combined annual cash flow', fmtAmount(equityIncome + propCashflow, State.baseCcy),
-      { sub: `${fmtAmount(equityIncome, State.baseCcy)} dividends, ${fmtAmount(propCashflow, State.baseCcy)} net rent`,
-        tone: (equityIncome + propCashflow) >= 0 ? '--ok-text' : '--dn-text' })));
+    xg.append(el('div', { class: 'panel' }, isNum(propCashflow)
+      ? statTile('Combined annual cash flow', fmtAmount(equityIncome + propCashflow, State.baseCcy),
+        { sub: `${fmtAmount(equityIncome, State.baseCcy)} dividends, ${fmtAmount(propCashflow, State.baseCcy)} net rent`,
+          tone: (equityIncome + propCashflow) >= 0 ? '--ok-text' : '--dn-text' })
+      : statTile('Combined annual cash flow', 'not computed',
+        { sub: `${fmtAmount(equityIncome, State.baseCcy)} dividends; the property’s cash flow is not computed, because its loan instalment cannot be — see the calculator` })));
     xg.append(el('div', { class: 'panel' }, statTile('Leverage', netWorth > 0 ? fmtPct(propLoan / (netWorth + propLoan) * 100, 1) : '—',
       { sub: 'Debt ÷ gross assets. All of it sits on the property.' })));
     xa.append(xg);
@@ -2735,9 +2795,13 @@ function openPortfolioManager() {
     cashRow.append(el('input', { class: 'input input-inline', type: 'number', step: '0.01', value: p.cash || 0,
       style: 'width:120px;text-align:right', 'aria-label': 'Cash balance',
       onchange: e => { p.cash = +e.target.value || 0; savePortfolios(); render(); } }));
-    const cc = el('select', { class: 'select input-inline', style: 'width:80px',
+    /* Named, as the name and balance beside it are — it read as an unnamed
+       combobox. And a portfolio saved before it carried a currency showed USD
+       here while the page valued its cash in the base currency, so the
+       select now shows the currency the page actually uses. */
+    const cc = el('select', { class: 'select input-inline', style: 'width:80px', 'aria-label': `Cash currency for ${p.name}`,
       onchange: e => { p.cashCcy = e.target.value; savePortfolios(); render(); } });
-    ['USD', 'MYR'].forEach(x => cc.append(el('option', { value: x, selected: (p.cashCcy || 'USD') === x ? '' : null }, x)));
+    ['USD', 'MYR'].forEach(x => cc.append(el('option', { value: x, selected: (p.cashCcy || State.baseCcy) === x ? '' : null }, x)));
     cashRow.append(cc);
     card.append(cashRow);
     body.append(card);

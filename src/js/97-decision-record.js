@@ -254,10 +254,12 @@ VIEWS.decisionRecord = () => {
     + 'Print it or save it as PDF — this is the version that leaves the browser.'));
   if (ready.length > 1) {
     const seg = el('div', { class: 'segmented', style: 'margin-top:var(--md)', role: 'tablist' });
+    /* Focus stays on the tab that was pressed; render() alone replaced it and
+       left the keyboard on <body>. */
     ready.forEach(s => seg.append(el('button', {
-      role: 'tab', 'aria-selected': s.id === want ? 'true' : 'false',
+      role: 'tab', 'aria-selected': s.id === want ? 'true' : 'false', id: `dr-subject-${s.id}`,
       class: s.id === want ? 'is-on' : '',
-      onclick: () => { State.decisionSubject = s.id; render(); },
+      onclick: () => { State.decisionSubject = s.id; redrawKeepFocus(); },
     }, s.label)));
     bar.append(seg);
   }
@@ -299,9 +301,12 @@ VIEWS.decisionRecord = () => {
         `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · research only, not advice`),
     ]));
     const figs = el('div', { class: 'dr-figs' });
+    /* Confidence is its own measure: a run is assessable before its five
+       components are scored, and String(null) printed "null" in the record
+       a reader carries out of the browser. Unscored is "Not computed". */
     [['Trend regime', r.assessable ? String(r.regime) : null],
      ['First-tranche readiness', r.assessable ? String(r.tranche) : null],
-     ['Screenshot confidence', r.assessable ? String(r.confidence) : null]]
+     ['Screenshot confidence', r.assessable && isNum(r.confidence) ? String(r.confidence) : null]]
       .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
         el('div', { class: 'caption' }, k), el('div', { class: 'dr-fig-v' }, v ?? 'Not computed')])));
     out.append(figs);

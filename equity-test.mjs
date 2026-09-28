@@ -4462,6 +4462,101 @@ try {
   }
   /* ---- end integration: round 3 ---- */
 
+  /* ---- bugfix: studio-trading ---- */
+  /* S1 — the reader's pages survive a company that is not loaded, date their
+          own review window, name every control in their drawers, keep an
+          absent property cash flow absent, and explain a holding-company
+          value with the equity actually divided. */
+  {
+    const r = await evaluate(`(async () => {
+      const wait = (ms = 150) => new Promise(res => setTimeout(res, ms));
+      const out = {};
+      const keep = { theses: JSON.stringify(State.theses), pf: JSON.stringify(State.portfolios), deal: JSON.stringify(State.deal), plan: State.plan, pfIdx: State.pfIdx };
+      try {
+        /* The checks above may have deleted every case; one is added, and the
+           stored list is restored below. */
+        let t0 = State.theses.find(t => BY_ID.get(t.ticker));
+        if (!t0) { t0 = { id: 't-s1', ticker: 'AAPL-SEC', oneLine: 'test case', quality: '', valCase: '', catalysts: [], risks: [], conds: [],
+          horizon: '1y', review: '2026-12-01', conf: 'Low', questions: [], created: '2026-09-28' }; State.theses.push(t0); }
+        const unnamed = () => [...document.querySelectorAll('#drawerBody input, #drawerBody select, #drawerBody textarea')]
+          .filter(n => n.type !== 'hidden' && !(n.labels && n.labels.length) && !n.getAttribute('aria-label') && !n.getAttribute('aria-labelledby')).length;
+        openThesisEditor(t0); await wait(); out.editorUnnamed = unnamed(); closeDrawer(); await wait();
+        openReview(t0); await wait(); out.reviewUnnamed = unnamed(); closeDrawer(); await wait();
+        State.portfolios = [...State.portfolios, { id: 'pf-nocc', name: 'No currency', cash: 100, holdings: [] }];
+        openPortfolioManager(); await wait();
+        out.managerUnnamed = unnamed();
+        const cs = [...document.querySelectorAll('#drawerBody select')];
+        out.legacyCcy = { shown: cs[cs.length - 1]?.value, base: State.baseCcy };
+        closeDrawer(); await wait();
+        /* A portfolio holding cash, so the page draws past its empty state. */
+        State.portfolios = [...JSON.parse(keep.pf), { id: 'pf-s1', name: 'Cash only', cash: 1000, cashCcy: 'MYR', holdings: [] }];
+        State.pfIdx = State.portfolios.length - 1;
+        State.plan = 'all';
+        State.deal = { ...State.deal, tenureYears: 0 };
+        const dm = dealModel(State.deal);
+        out.precondition = { loan: dm.loan, cf: dm.cashflowMonthly };
+        navigate('/my/portfolio'); await wait();
+        out.cross = [...document.querySelectorAll('main .panel')].map(x => x.innerText).find(t => /Combined annual cash flow/.test(t)) || null;
+        State.deal = JSON.parse(keep.deal); State.plan = keep.plan; State.portfolios = JSON.parse(keep.pf); State.pfIdx = keep.pfIdx;
+        /* Last, because before the fix this view threw and left nothing drawn. */
+        State.theses = [...State.theses, { id: 't-gone', ticker: 'GONE-SEC', oneLine: 'A case on a company this page has not loaded', quality: '', valCase: '',
+          catalysts: [], risks: [], conds: [{ type: 'val', op: '>', v: 15, label: 'x' }], horizon: '1y', review: '2026-12-01', conf: 'Low', questions: [], created: '2026-09-01' }];
+        let threw = null;
+        try { VIEWS.thesis(); } catch (e) { threw = e.message; }
+        try { navigate('/my/theses'); } catch (e) { threw = threw || e.message; }
+        await wait();
+        const main = document.querySelector('main');
+        const due = [...main.querySelectorAll('.grid.g-4 .card')].map(c => c.innerText).find(t => /Reviews due/.test(t)) || '';
+        const want = new Date(Date.now() + 30 * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+        out.thesis = { threw, view: State.view, gone: /GONE-SEC — not in the companies loaded now/.test(main.innerText), due: due.split('\\n')[0], want };
+      } finally {
+        State.theses = JSON.parse(keep.theses); State.portfolios = JSON.parse(keep.pf); State.deal = JSON.parse(keep.deal); State.plan = keep.plan; State.pfIdx = keep.pfIdx;
+        saveTheses(); savePortfolios(); saveDeal();
+      }
+      navigate('/company/SIME?tab=valuation'); await wait(250);
+      const sime = BY_ID.get('SIME'); const run = valuationRun(sime.c, sime.d, studioInputs(sime));
+      const line = [...document.querySelectorAll('.explain-list li')].map(li => li.textContent).find(t => /^Per share/.test(t)) || '';
+      out.holdco = { hold: run.base.hold, line, named: fmtCap(run.base.equity - run.base.holdDiscount, sime.c.ccy) };
+      return out;
+    })()`);
+    const p = [];
+    if (r.thesis.threw || r.thesis.view !== 'thesis' || !r.thesis.gone) p.push(`/my/theses with a case on an unloaded company: ${JSON.stringify(r.thesis)}`);
+    if (r.thesis.due !== 'Reviews due by ' + r.thesis.want) p.push(`the review tile reads "${r.thesis.due}", not a window from today ("Reviews due by ${r.thesis.want}")`);
+    if (r.editorUnnamed || r.reviewUnnamed || r.managerUnnamed) p.push(`unnamed drawer controls — thesis editor ${r.editorUnnamed}, decision review ${r.reviewUnnamed}, portfolio manager ${r.managerUnnamed}`);
+    if (r.legacyCcy.shown !== r.legacyCcy.base) p.push(`a portfolio with no stored cash currency shows ${r.legacyCcy.shown} in the manager while the page values it in ${r.legacyCcy.base}`);
+    if (!(r.precondition.loan > 0) || r.precondition.cf !== null) p.push(`precondition: a loan with no tenure should leave the monthly position absent — ${JSON.stringify(r.precondition)}`);
+    else if (!r.cross || /RM0 net rent|\$0 net rent/.test(r.cross) || !/not computed/.test(r.cross)) p.push(`the cross-asset card states an uncomputed property cash flow as a figure: ${JSON.stringify(r.cross)}`);
+    if (!(r.holdco.hold > 0) || !r.holdco.line.includes(r.holdco.named)) p.push(`the holding-company per-share line does not name the equity it divides: ${JSON.stringify(r.holdco)}`);
+    if (p.length) fail('theses survive an unloaded company; drawers are named; an absent property cash flow stays absent; the holdco line names what it divides', p);
+    else ok('/my/theses keeps a case on an unloaded company and dates its review window from today; the thesis, review and portfolio drawers name every control; the cross-asset card withholds an uncomputed cash flow; the holdco per-share line names the equity after the discount', r);
+
+    /* S2 — Compare and Portfolio keep keyboard focus through their redraws. */
+    const press = async (key, code, text) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key, windowsVirtualKeyCode: code, ...(text ? { text } : {}) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key, windowsVirtualKeyCode: code }, sessionId);
+      await sleep(250);
+    };
+    const keepCmp = await evaluate(`JSON.stringify({ c: State.compare, i: State.pfIdx, pf: State.portfolios })`);
+    await evaluate(`(async () => { State.compare = ['AAPL-SEC', 'MSFT-SEC']; navigate('/compare?companies=AAPL-SEC,MSFT-SEC'); await new Promise(r => setTimeout(r, 250));
+      window.__chip = [...document.querySelectorAll('main button.chip')].find(b => !b.classList.contains('chip-brand'))?.textContent;
+      [...document.querySelectorAll('main button.chip')].find(b => b.textContent === window.__chip).focus(); return 1; })()`);
+    await press('Enter', 13, '\r');
+    const chip = await evaluate(`({ tag: document.activeElement.tagName, text: document.activeElement.textContent.trim().slice(0, 40), want: window.__chip, n: State.compare.length })`);
+    /* Two portfolios, so the arrow key changes the selection and redraws. */
+    await evaluate(`(async () => { State.portfolios = [...State.portfolios, { id: 'pf-s2a', name: 'Second', cash: 10, cashCcy: 'MYR', holdings: [] }, { id: 'pf-s2b', name: 'Third', cash: 10, cashCcy: 'MYR', holdings: [] }];
+      State.pfIdx = State.portfolios.length - 2; navigate('/my/portfolio'); await new Promise(r => setTimeout(r, 250)); document.querySelector('select[aria-label="Active portfolio"]').focus(); return 1; })()`);
+    await press('ArrowDown', 40);
+    const pfSel = await evaluate(`[document.activeElement.getAttribute('aria-label'), State.portfolios[State.pfIdx]?.id]`);
+    await evaluate(`(() => { const k = ${JSON.stringify(keepCmp)}; const o = JSON.parse(k); State.compare = o.c; saveCompare(); State.pfIdx = o.i; State.portfolios = o.pf; savePortfolios(); return 1; })()`);
+    const q = [];
+    if (chip.tag !== 'BUTTON' || chip.text !== String(chip.want || '').trim().slice(0, 40) || chip.n !== 3) q.push(`Enter on a Compare chip left focus on ${chip.tag} “${chip.text}” (${chip.n} selected)`);
+    if (pfSel[1] !== 'pf-s2b') q.push(`precondition: the arrow key did not move the active portfolio (${pfSel[1]})`);
+    else if (pfSel[0] !== 'Active portfolio') q.push(`an arrow key on the portfolio select left focus on ${pfSel[0]}`);
+    if (q.length) fail('Compare and Portfolio keep keyboard focus through a redraw', q);
+    else ok('Compare chips and the portfolio select keep keyboard focus through the redraw they cause', { chip, pfSel });
+  }
+  /* ---- end bugfix: studio-trading ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

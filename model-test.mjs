@@ -1043,6 +1043,118 @@ try {
     else ok('the Sarawak status row states the price history actually held', r);
   }
 
+  /* ---- bugfix: studio-trading ---- */
+  /* S1 — the Trading Index states a verdict on the number it prints, the risk
+          budget divides by the entry actually typed, the §14 fixture keeps
+          the correction history, and the decision record never prints
+          "null" for an unscored confidence. */
+  {
+    const saved = await evaluate(`JSON.stringify({ q: State.qtti, w: State.wheel, o: State.opportunities, ds: State.decisionSubject || null })`);
+    const r = await evaluate(`(async () => {
+      const wait = () => new Promise(res => setTimeout(res, 150));
+      window.confirm = () => true;
+      const out = {};
+      const a = qttiWorkedExample(); a.confidence = { metadata:95, panels:100, indicators:95, legibility:5, recency:10 };
+      const ra = qttiRun(a);
+      out.conf70 = { shown: ra.confidence, band: ra.confidenceBand.label, gate: ra.gates.find(g => /^Screenshot confidence is/.test(g)) || null };
+      const b = qttiWorkedExample(); b.confidence = { metadata:95, panels:100, indicators:75, legibility:5, recency:10 };
+      const rb = qttiRun(b);
+      out.conf65 = { shown: rb.confidence, reject: rb.reject.find(g => /confidence/.test(g)) || null };
+      /* A plan with no gate at all, its readiness walked through 64.5–65. */
+      const plan = (x) => { const p = qttiDefaultPlan();
+        Object.assign(p, { symbol:'TEST', instrumentType:'etf', capturedAt:'2026-09-01T10:00', identityConsistent:true, tradingStatusClear:true,
+          template:'short_trend', triggerComplete:true, entryLocation:'bullish',
+          assetThesis:{ mandate:true, issuer:true, liquidity:true, custody:true },
+          confidence:{ metadata:80, panels:80, indicators:80, legibility:80, recency:80 } });
+        Object.assign(p.plan, { plannedTotal:1000, stage1Fraction:0.25, plannedEntry:100, invalidation:110, target:50, minRewardToRisk:3, costsEntered:true });
+        QTTI_TIMEFRAMES.forEach(t => { p.timeframes[t.k].present = true; QTTI_GROUPS.forEach(g => { p.timeframes[t.k][g.k] = { state:'analyst', value:x }; }); });
+        return p; };
+      out.tranche = null;
+      for (let x = 52; x <= 54 && !out.tranche; x += 0.002) {
+        const rr = qttiRun(plan(x));
+        if (!rr.gates.length && rr.trancheRaw >= 64.5 && rr.trancheRaw < 65) out.tranche = { raw: rr.trancheRaw, tranche: rr.tranche, state: rr.trancheState.id };
+      }
+      const c = qttiWorkedExample();
+      Object.assign(c.plan, { plannedEntry:0.5, invalidation:0.4, target:0.9, plannedTotal:10000, stage1Fraction:0.5 });
+      Object.assign(c.perp, { maxAccountLoss:800, leverage:2, notional:10000, collateral:5000, marginMode:'isolated', liquidationPrice:0.2, fundingPerUnit:0, specVersion:'v1' });
+      out.budget = qttiRun(c).perpGates.some(g => /risk budget/.test(g));
+      State.qtti = qttiDefaultPlan(); saveQtti(); navigate('/research/trading-index'); await wait();
+      const set = (sel, v) => { const n = document.querySelector(sel); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); };
+      set('select[aria-label="Daily Momentum"]', 'bullish'); await wait();
+      set('select[aria-label="Daily Momentum"]', 'strong_bullish'); await wait();
+      const before = State.qtti.corrections.length;
+      [...document.querySelectorAll('main button')].find(x => /Load the §14 worked example/.test(x.textContent)).click(); await wait();
+      out.history = { before, after: State.qtti.corrections.length, last: State.qtti.corrections[State.qtti.corrections.length - 1]?.newValue || null, symbol: State.qtti.symbol };
+      const d = qttiWorkedExample(); d.confidence = { metadata:null, panels:null, indicators:null, legibility:null, recency:null };
+      State.qtti = d; saveQtti(); State.decisionSubject = 'tradingIndex';
+      navigate('/decision-record'); await wait();
+      out.record = { assessable: qttiRun(d).assessable, figs: [...document.querySelectorAll('.dr-fig')].map(f => f.innerText.replace(/\\n/g, ': ')) };
+      return out;
+    })()`);
+    const p = [];
+    if (r.conf70.shown !== 70 || r.conf70.gate || r.conf70.band !== 'Usable with named limitations') p.push(`confidence printed 70 but judged below 70: ${JSON.stringify(r.conf70)}`);
+    if (r.conf65.shown !== 65 || r.conf65.reject) p.push(`confidence printed 65 but rejected below 65: ${JSON.stringify(r.conf65)}`);
+    if (!r.tranche) p.push('no gate-free plan with readiness in 64.5–65 was found, so the band rule was not exercised');
+    else if (r.tranche.tranche !== 65 || r.tranche.state !== 'met') p.push(`readiness printed ${r.tranche.tranche} reads ${r.tranche.state}, not Criteria met: ${JSON.stringify(r.tranche)}`);
+    if (!r.budget) p.push('a loss of 1,000 against a budget of 800 at an entry of 0.5 raised no risk-budget gate');
+    if (!(r.history.after === r.history.before + 1 && /worked example/.test(r.history.last || '') && /BTC/.test(r.history.symbol))) p.push(`loading the §14 example did not keep and extend the correction history: ${JSON.stringify(r.history)}`);
+    if (!r.record.assessable || r.record.figs.some(f => /null/.test(f)) || !r.record.figs.some(f => /Screenshot confidence: Not computed/.test(f))) p.push(`the decision record prints an unscored confidence as ${JSON.stringify(r.record.figs)}`);
+    if (p.length) fail('Trading Index verdicts on the printed score, the risk budget at a sub-1 entry, the fixture keeping history, the record\'s confidence', p);
+    else ok('Trading Index: confidence and readiness judged as printed, a sub-1 entry costs its real loss, the §14 fixture appends to the history, and an unscored confidence reads "Not computed" in the record', r);
+
+    /* S2 — a keyboard edit keeps focus where the key left it. Every control
+            on these pages redrew the whole view and left focus on <body>. */
+    const press = async (key, code, text) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key, windowsVirtualKeyCode: code, ...(text ? { text } : {}) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key, windowsVirtualKeyCode: code }, sessionId);
+      await sleep(250);
+    };
+    const active = () => evaluate(`(() => { const a = document.activeElement; return a === document.body || !a ? '(body)'
+      : a.type === 'checkbox' ? 'checkbox' : a.getAttribute('role') === 'tab' ? 'tab:' + a.textContent
+      : a.getAttribute('aria-label') || a.id || a.tagName; })()`);
+    const f = {};
+    await evaluate(`(async () => { State.qtti = qttiDefaultPlan(); saveQtti(); navigate('/research/trading-index'); await new Promise(r => setTimeout(r, 200));
+      document.querySelector('select[aria-label="Daily Momentum"]').focus(); return 1; })()`);
+    await press('ArrowUp', 38);
+    f.select = await active();
+    await evaluate(`(() => { const n = document.querySelector('main input[type=checkbox]'); n.focus(); return 1; })()`);
+    await press(' ', 32, ' ');
+    f.checkbox = await active();
+    await evaluate(`(() => { const n = document.querySelector('#qp-plannedTotal'); n.focus(); n.select(); return 1; })()`);
+    await press('5', 53, '5'); await press('Tab', 9);
+    f.tab = await active();
+    await evaluate(`(async () => { State.qtti = qttiWorkedExample(); saveQtti(); State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true }; saveWheel();
+      State.decisionSubject = null; navigate('/decision-record'); await new Promise(r => setTimeout(r, 200));
+      document.querySelectorAll('[role=tab]')[1].focus(); return 1; })()`);
+    await press('Enter', 13, '\r');
+    f.recordTab = await active();
+    f.recordSelected = await evaluate(`document.activeElement.getAttribute('aria-selected')`);
+    await evaluate(`(async () => {
+      const w = () => new Promise(r => setTimeout(r, 150));
+      State.opportunities = []; saveOpportunities(); navigate('/property/opportunities'); await w();
+      const add = async (name) => { const n = document.querySelector('#opp-new-name'); n.value = name; n.dispatchEvent(new Event('change', { bubbles: true }));
+        [...document.querySelectorAll('main button')].find(b => b.textContent === 'Add to register').click(); await w(); };
+      await add('Unit 5'); await add('Unit 5');
+      State.opportunities = State.opportunities.slice(0, 1); saveOpportunities(); render(); await w();
+      await add('Unit 5');
+      document.querySelector('input[aria-label^="Next verification action"]').focus(); return 1; })()`);
+    f.ids = await evaluate(`State.opportunities.map(o => o.id)`);
+    await press('x', 88, 'x'); await press('Tab', 9);
+    f.nextAction = await active();
+    await evaluate(`(() => { const s = ${JSON.stringify(saved)}; const o = JSON.parse(s); State.qtti = o.q; saveQtti(); State.wheel = o.w; saveWheel();
+      State.opportunities = o.o; saveOpportunities(); State.decisionSubject = o.ds; return 1; })()`);
+    const q = [];
+    if (f.select !== 'Daily Momentum') q.push(`a Trading Index select changed by the keyboard left focus on ${f.select}`);
+    if (f.checkbox !== 'checkbox') q.push(`a Trading Index tick toggled by Space left focus on ${f.checkbox}`);
+    if (f.tab !== 'qp-stage1Fraction') q.push(`Tab out of the intended-total field landed on ${f.tab}, not the Stage 1 fraction`);
+    if (!/^tab:/.test(f.recordTab) || f.recordSelected !== 'true') q.push(`a decision-record subject chosen with Enter left focus on ${f.recordTab} (selected ${f.recordSelected})`);
+    if (!/^Who owns the next action/.test(f.nextAction || '')) q.push(`Tab from an opportunity's next action landed on ${f.nextAction}, not its owner`);
+    if (new Set(f.ids).size !== f.ids.length) q.push(`opportunity ids repeat after a removal: ${f.ids.join(', ')}`);
+    if (q.length) fail('keyboard focus survives an edit on the Trading Index, the decision record and the opportunity register; record ids stay unique', q);
+    else ok('keyboard focus stays on the edited control (or the next one after Tab) across the Trading Index, the decision-record tabs and the opportunity register; opportunity ids stay unique after a removal', f);
+  }
+  /* ---- end bugfix: studio-trading ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
