@@ -148,7 +148,11 @@ function officialBenchmarkPanel(city, area) {
       .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
     t2.append(el('tbody', {}, bm.map(b => el('tr', {}, [
       el('th', { class: 'pin ident', scope: 'row', style: 'text-align:left' }, b.scheme),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+      /* Wrapped between words, never inside one. .caption breaks anywhere,
+         which takes the column's narrowest width down to one letter; the
+         table is sized to its narrowest on a phone, so at 390px this column
+         was the width of its heading and read "singl / e / store / y". */
+      el('td', { class: 'caption', style: 'text-align:left;white-space:normal;overflow-wrap:normal' },
         [b.propertyType, b.floorLevel, b.roadPosition].filter(Boolean).join(' · ').toLowerCase()),
       el('td', { class: 'num', title: b.sampleSize == null ? 'Sample size not published for this table' : null },
         b.sampleSize == null ? '—' : String(b.sampleSize)),

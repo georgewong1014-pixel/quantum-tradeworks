@@ -1155,6 +1155,241 @@ try {
   }
   /* ---- end bugfix: studio-trading ---- */
 
+  /* ---- bugfix: property ---- */
+  /* P1 — a nil period does not hide the sign change. [−100, 0, 110] has one
+         rate, 4.88%; the count skipped every pair with a nil in it and said
+         no period was positive. A parcel bought outright with its outgoings
+         entered as nought is that shape, nine nil years and a sale. */
+  {
+    const r = await evaluate(`(() => {
+      const simple = irrOf([-100, 0, 110]);
+      const d = { ...window.__T.base, propertyType: 'Land', downPct: 100, assessment: 0, quitRent: 0, insurance: 0 };
+      const m = dealModel(d);
+      const nils = m.flows.slice(1, -1).every(f => f === 0);
+      return { simple: simple.rate, why: simple.why, sc: simple.signChanges, nils, irr: m.irrPct, irrWhy: m.irrWhy,
+               mult: m.annualisedMultiplePct, npv: isNum(m.irrPct) ? npvAt(m.irrPct / 100, m.flows) : null,
+               scale: Math.max(...m.flows.map(Math.abs)) };
+    })()`);
+    if (!(Math.abs(r.simple - 4.880884817) < 1e-4) || r.sc !== 1) fail('a nil period between the outlay and the return hides the rate', r);
+    else if (!r.nils || !isFinite(r.irr)) fail('a parcel bought outright with nil outgoings has no rate of return beside a sale that returns its cost', r);
+    else if (Math.abs(r.irr - r.mult) > 1e-6 || Math.abs(r.npv) / r.scale > 1e-8) fail('the parcel\'s rate is not the rate that zeroes its flows', r);
+    else ok(`a nil period hides no sign change — ${r.simple.toFixed(4)}%, and the outright parcel returns ${r.irr.toFixed(4)}% a year`, r);
+  }
+
+  /* P2 — unknown flows have no value and no tax. A tenure of 0 leaves the
+         instalment, the interest and so the tax unknown: the panel valued the
+         flows at −RM121,754 against the hurdle, and charged RM87,192 of tax
+         with no interest deducted. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...window.__T.base, tenureYears: 0, rent: 3600, marginalTaxPct: 24 };
+      const m = dealModel(d);
+      const card = returnsAndTaxPanel(d, m);
+      const text = card.textContent;
+      return { npvNull: npvAt(0.07, [-100, null, 120]), npv: m.npvAtHurdle, interest: interestInYear(500000, 4.3, 0, 1),
+               noLoan: interestInYear(0, 4.3, 0, 1), taxes: m.path.map(p => p.tax), hurdle: m.hurdlePct,
+               fallsShort: /Falls short of the alternative/.test(text), taxTile: /Tax on rent over the hold/.test(text),
+               says: /neither can the interest inside it/.test(text) };
+    })()`);
+    if (r.npvNull !== null || r.npv !== null) fail('flows with a missing year are given a value', r);
+    else if (r.interest !== null || r.noLoan !== 0) fail('a loan with no tenure is charged no interest, or no loan is charged some', r);
+    else if (r.taxes.some(t => t !== null)) fail('tax on the rent is computed while the interest is unknown', r.taxes);
+    else if (r.fallsShort || r.taxTile || !r.says) fail('the return panel still prices unknown flows or a tax on them', r);
+    else ok('with no tenure the flows have no value, the interest and the tax are unknown, and the panel says so', r);
+  }
+
+  /* P3 — "deducting the whole instalment" understates taxable income by the
+         principal, and only by it. The naive figure also deducted the first
+         tenant's placement fee, so a managed deal credited that to the
+         instalment too. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...window.__T.taxed, selfManaged: false, mgmtPct: 8, leasingFeeMonths: 1 };
+      const m = dealModel(d);
+      const text = returnsAndTaxPanel(d, m).textContent;
+      const hit = text.match(/understating it by (RM[\\d,]+)/);
+      return { said: hit && hit[1], principal: fmtMoney(m.path[0].principal, 'MYR', 0), placement: m.placementAnnual };
+    })()`);
+    if (!(r.placement > 0)) fail('the managed deal carries no placement fee, so this check is vacuous', r);
+    else if (r.said !== r.principal) fail('the instalment understatement is not the year-one principal', r);
+    else ok(`deducting the instalment understates taxable income by the principal alone — ${r.said}`, r);
+  }
+
+  /* P4 — "the figure shown is the first one found" only beside a figure. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...window.__T.base, rent: 6000, apprecPct: -5, holdYears: 8 };
+      const m = dealModel(d);
+      const text = returnsAndTaxPanel(d, m).textContent;
+      return { irr: m.irrPct, rates: m.irrSignChanges, claim: /The figure shown is the first one found/.test(text) };
+    })()`);
+    if (r.irr !== null || !(r.rates > 1)) fail('the two-rate deal no longer has two rates, so this check is vacuous', r);
+    else if (r.claim) fail('the panel describes a figure it does not show', r);
+    else ok('with two rates and none chosen, the panel does not describe a figure', r);
+  }
+
+  /* P5 — the IPS capital and net gates do not read an unknown as nought. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...window.__T.base, tenureYears: 0 };
+      const m = dealModel(d);
+      const a = propertyIpsAnswers(d, m, { gates: [] });
+      const pick = (id) => { const x = a.find(y => y.id === id); return { v: x.verdict.id, why: x.why }; };
+      return { capital: pick('capital'), net: pick('net') };
+    })()`);
+    const bad = ['capital', 'net'].filter(k => r[k].v !== 'unknown' || /RM0\b/.test(r[k].why));
+    if (bad.length) fail(`with no computable instalment the ${bad.join(' and ')} ${bad.length > 1 ? 'gates read' : 'gate reads'} it as RM0`, r);
+    else ok('with no computable instalment the capital and net gates are not established rather than RM0', r);
+  }
+
+  /* P6 — the thirty-year comparison only says "lower" when it is. */
+  {
+    const r = await evaluate(`(() => {
+      const say = (years) => financingChoicesPanel({ ...window.__T.base, flatQuotePct: 4, flatQuoteAmount: 50000, flatQuoteYears: years }, null).textContent;
+      const t5 = say(5), t40 = say(40);
+      return { five: /stretched over thirty years/.test(t5), forty: /stretched over thirty years/.test(t40),
+               r40: reducingEquivalent(50000, 4, 40).rate, r30: reducingEquivalent(50000, 4, 30).rate };
+    })()`);
+    if (!r.five) fail('the thirty-year comparison is gone for a five-year quote', r);
+    else if (r.forty && r.r30 >= r.r40) fail('a forty-year flat quote is told the thirty-year rate is lower', r);
+    else ok('the thirty-year comparison appears only for a shorter quote', r);
+  }
+
+  /* P7 — the affordability band is a quarter to a third, as it says. */
+  {
+    const r = await evaluate(`(() => {
+      const kept = sarawakIncome;
+      sarawakIncome = { source: 'test', retrieved: 'test', districts: { Testville: [{ year: 2024, median: 6000, mean: 7000 }] } };
+      try { return affordabilityPanel('Testville').textContent; } finally { sarawakIncome = kept; }
+    })()`);
+    if (!/RM1,500–2,000 a month/.test(r)) fail('the affordability band is not a quarter to a third of the median', r.slice(0, 200));
+    else ok('the affordability band is a quarter to a third of the median — RM1,500–2,000 on RM6,000');
+  }
+
+  /* P8 — the age of the last transaction is the newest of the built and the
+         land sales, not a built sale whenever there is one. */
+  {
+    const r = await evaluate(`(() => {
+      const kept = State.observations;
+      const iso = (m) => { const t = new Date(); t.setMonth(t.getMonth() - m); return t.toISOString().slice(0, 10); };
+      State.observations = [
+        { city: 'kuching', area: 'Probe-area', kind: 'sold-price', value: 400000, date: iso(80) },
+        { city: 'kuching', area: 'Probe-area', kind: 'land-sold', value: 90000, date: iso(2) },
+      ];
+      try { return { age: LAYER_BY_ID.lastSoldAge.value('kuching', 'Probe-area'), last: areaMetrics('kuching', 'Probe-area').lastTransaction?.kind }; }
+      finally { State.observations = kept; }
+    })()`);
+    if (!(r.age < 6) || r.last !== 'land-sold') fail('the last-transaction age prefers an old built sale to a recent land sale', r);
+    else ok(`the last-transaction age reads the newest sale of either kind — ${r.age.toFixed(1)} months`, r);
+  }
+
+  /* P9 — a sentence begins with a capital, and a category is named as one. */
+  {
+    const r = await evaluate(`(() => {
+      const land = landRiskProfile('kuching', 'Probe-area').sentence;
+      const cit = rpgtCharge({ disposalPrice: 900000, acquisitionPrice: 500000, holdYears: 10, categoryId: 'citizen' }).why;
+      const co = rpgtCharge({ disposalPrice: 900000, acquisitionPrice: 500000, holdYears: 3, categoryId: 'company' }).why;
+      return { land, cit, co };
+    })()`);
+    if (!/\. [A-Z]/.test(r.land)) fail('the land-risk sentence opens its second sentence in lower case', r.land);
+    else if (/citizen or pr\b|malaysian company/.test(r.cit + r.co)) fail('the gains-tax reason lower-cases PR and Malaysian', r);
+    else ok('the land-risk sentence and the gains-tax reasons read as sentences', r);
+  }
+
+  /* P10 — the NAPIC type column wraps between words on a phone. */
+  {
+    const r = await evaluate(`(async () => {
+      if (!napicStatus.ok) await loadNapic();
+      if (!napicStatus.ok) return { skip: true };
+      const host = document.createElement('div');
+      host.style.width = '358px';
+      document.body.appendChild(host);
+      host.appendChild(officialBenchmarkPanel('kuching', 'Tabuan'));
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      const cells = [...host.querySelectorAll('table')][1].querySelectorAll('tbody tr > td:nth-child(2)');
+      const widest = Math.max(...[...cells].map(c => {
+        const words = c.textContent.split(/\\s+/);
+        const probe = document.createElement('span');
+        probe.style.cssText = 'position:absolute;white-space:nowrap;visibility:hidden';
+        probe.className = 'caption';
+        c.appendChild(probe);
+        const w = Math.max(...words.map(x => { probe.textContent = x; return probe.getBoundingClientRect().width; }));
+        probe.remove();
+        return w;
+      }));
+      const col = cells[0].getBoundingClientRect().width;
+      host.remove();
+      return { col, widest };
+    })()`);
+    if (r.skip) fail('the NAPIC dataset did not load, so the type column could not be checked');
+    else if (!(r.col >= r.widest)) fail(`the NAPIC type column is ${Math.round(r.col)}px at 358px, narrower than its longest word (${Math.round(r.widest)}px) — words break inside`, r);
+    else ok(`the NAPIC type column holds its longest word at 358px — ${Math.round(r.col)}px`, r);
+  }
+
+  /* P11 — the map's scale bar and its label sit inside the box drawn. The
+         bar was sized to the host, and a tall city's box is far narrower. */
+  {
+    const r = await evaluate(`(async () => {
+      if (!sarawakGeo) { geoLoadState = 'idle'; await loadSarawakLayers(); }
+      if (!sarawakGeo) return { skip: true };
+      const out = [];
+      for (const w of [1168, 657, 310]) for (const city of Object.keys(sarawakGeo.cities)) {
+        const host = document.createElement('div');
+        host.style.width = w + 'px';
+        document.body.appendChild(host);
+        host.appendChild(cityMap(city, null, null));
+        await new Promise(res => setTimeout(res, 60));
+        const svg = host.querySelector('svg');
+        const label = svg && [...svg.querySelectorAll('text')].find(t => / km$/.test(t.textContent));
+        if (label) { const b = label.getBBox(); out.push({ w, city, box: svg.viewBox.baseVal.width, end: Math.round(b.x + b.width), km: label.textContent }); }
+        else out.push({ w, city, missing: true });
+        host.remove();
+      }
+      return { out };
+    })()`);
+    if (r.skip) fail('the Sarawak locality layer did not load, so the scale bar could not be checked');
+    else {
+      const bad = r.out.filter(x => x.missing || x.end > x.box);
+      if (bad.length) fail(`the map scale bar runs out of its box: ${bad.map(x => `${x.city} at ${x.w}px (${x.km || 'no bar'} ends ${x.end} of ${x.box})`).join('; ')}`, bad);
+      else ok(`the map scale bar and its label fit the box for ${r.out.length} city and width pairs`, r.out.map(x => `${x.city}@${x.w} ${x.km}`).join(', '));
+    }
+  }
+  /* P12 — a keyboard change keeps its place. The panels re-render on every
+         change and focus fell to <body>: a second arrow press on the seller
+         did nothing, and Tab out of the tax rate went to the top of the page. */
+  {
+    const press = async (key, code, shift = false) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key, windowsVirtualKeyCode: code, modifiers: shift ? 8 : 0 }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key, windowsVirtualKeyCode: code, modifiers: shift ? 8 : 0 }, sessionId);
+      await sleep(300);
+    };
+    await evaluate(`(async () => {
+      State.deal = { ...window.__T.base, disposerCategory: 'citizen', marginalTaxPct: null, flatQuotePct: null };
+      saveDeal(); navigate('/property/calculator');
+      await new Promise(res => setTimeout(res, 400));
+      document.getElementById('disposerCategory').focus();
+      return true;
+    })()`);
+    await press('ArrowDown', 40);
+    await press('ArrowDown', 40);
+    const sel = await evaluate(`({ active: document.activeElement.id || document.activeElement.tagName, v: State.deal.disposerCategory })`);
+    await evaluate(`(() => { const n = document.getElementById('flatQuotePct'); n.focus(); return true; })()`);
+    await send('Input.insertText', { text: '4' }, sessionId);
+    await press('Tab', 9);
+    const fwd = await evaluate(`({ active: document.activeElement.id || document.activeElement.tagName, v: State.deal.flatQuotePct })`);
+    await evaluate(`(() => { const n = document.getElementById('flatQuoteYears'); n.focus(); return true; })()`);
+    await send('Input.insertText', { text: '7' }, sessionId);
+    await press('Tab', 9, true);
+    const bwd = await evaluate(`({ active: document.activeElement.id || document.activeElement.tagName, v: State.deal.flatQuoteYears })`);
+    await evaluate(`(() => { State.deal = { ...window.__T.base }; saveDeal(); render(); return true; })()`);
+    const r = { sel, fwd, bwd };
+    if (sel.active !== 'disposerCategory' || sel.v !== 'foreign') fail('arrow keys on the seller lose focus after the first press', r);
+    else if (fwd.v !== 4 || fwd.active !== 'flatQuoteAmount') fail('Tab out of a changed quote does not reach the next field', r);
+    else if (bwd.v !== 7 || bwd.active !== 'flatQuoteAmount') fail('Shift+Tab out of a changed quote does not reach the previous field', r);
+    else ok('a keyboard change on the property panels keeps its place — arrows stay, Tab and Shift+Tab move one stop', r);
+  }
+  /* ---- end bugfix: property ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

@@ -307,7 +307,15 @@ function propertyIpsAnswers(d, m, g) {
   const IPS_RESERVE_MONTHS = 6;
   const safe = num0(m.safeCashRequired), reserve = num0(m.reserveCash), months = num0(m.reserveMonths);
   const meets = reserve > 0 && months >= IPS_RESERVE_MONTHS;
-  A.push(safe > 0
+  /* A reserve the model could not price is unknown, not absent. num0 read it
+     as nought, and a tenure of 0 — no instalment, so no reserve — was told
+     "of which RM0 is the reserve. No liquidity reserve is carried", beside a
+     total that was short by exactly the missing reserve. */
+  A.push(m.reserveComputable === false
+    ? ipsAnswer('capital', 'unknown',
+        'The loan’s instalment could not be computed from the entered tenure, so neither can the reserve that has to cover it, '
+        + 'nor what it takes to complete and stay safe.')
+    : safe > 0
     ? ipsAnswer('capital', meets ? 'pass' : 'partial',
         `${fmtMoney(safe, 'MYR', 0)} to complete and be safe, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve`
         + (reserve > 0 ? ` — ${months} month${months === 1 ? '' : 's'} of instalment and owner-paid running costs. ` : '. ')
@@ -354,7 +362,13 @@ function propertyIpsAnswers(d, m, g) {
   const env = environmentalAllowance(d);
   const monthly = num0(m.cashflowMonthly);
   const afterEnv = monthly - env.monthly;
-  A.push(monthly < 0
+  /* Unknown is not break-even. The model withholds the monthly position when
+     the instalment cannot be computed, and num0 turned that into RM0 — so a
+     tenure of 0 answered this gate "Monthly position RM0" and passed it. */
+  A.push(!isNum(m.cashflowMonthly)
+    ? ipsAnswer('net', 'unknown',
+        'The loan’s instalment could not be computed from the entered tenure, so the monthly position is not known and this gate cannot be answered.')
+    : monthly < 0
     ? ipsAnswer('net', 'fail',
         `Monthly position is ${fmtMoney(monthly, 'MYR', 0)} before any environmental allowance. `
         + 'Severe or persistent negative cash flow is an auto-reject condition under IPS §6.9.')

@@ -156,7 +156,7 @@ function financingChoicesPanel(d, m) {
     onchange: e => {
       const v = e.target.value === '' ? null : Number(e.target.value);
       State.deal.flatQuotePct = isNum(v) && v > 0 ? v : null;
-      markTouched(State.deal, 'flatQuotePct'); saveDeal(); render();
+      markTouched(State.deal, 'flatQuotePct'); saveDeal(); renderFromControl(e.target);
     } }));
   card.append(f);
 
@@ -169,7 +169,7 @@ function financingChoicesPanel(d, m) {
       onchange: e => {
         const v = e.target.value === '' ? null : Number(e.target.value);
         State.deal[id] = isNum(v) && v > 0 ? v : null;
-        markTouched(State.deal, id); saveDeal(); render();
+        markTouched(State.deal, id); saveDeal(); renderFromControl(e.target);
       } }));
     return w;
   };
@@ -208,7 +208,11 @@ function financingChoicesPanel(d, m) {
         `A flat ${fmtPct(d.flatQuotePct, 2)} over ${flatYrs} years is the same as paying `
         + `${fmtPct(realRate, 2)} the ordinary way — ${fmtPct(realRate - d.flatQuotePct, 2)} more than the number you were shown, `
         + 'because the interest keeps being charged on money you paid back years ago.'));
-      if (isNum(longRate)) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      /* Only for a quote shorter than the thirty years it is set against. At
+         thirty the two rates are one figure, and past it the thirty-year rate
+         is the higher: a forty-year flat 4% printed "about 6.18% — lower"
+         beside the 5.88% it was said to be lower than. */
+      if (isNum(longRate) && flatYrs < 30) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
         `The penalty is worst on short borrowing, which is where flat quotes are used. The same `
         + `${fmtPct(d.flatQuotePct, 2)} flat stretched over thirty years would work out at about ${fmtPct(longRate, 2)} — `
         + 'lower, because a long loan charged the ordinary way piles up plenty of interest by itself.'));
@@ -268,7 +272,7 @@ function financingChoicesPanel(d, m) {
       onchange: e => {
         const v = e.target.value === '' ? null : Number(e.target.value);
         State.deal[id] = isNum(v) && v > 0 ? v : null;
-        markTouched(State.deal, id); saveDeal(); render();
+        markTouched(State.deal, id); saveDeal(); renderFromControl(e.target);
       } }));
     return w;
   };

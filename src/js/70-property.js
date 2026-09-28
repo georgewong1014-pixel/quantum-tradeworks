@@ -1182,17 +1182,23 @@ const RPGT_SCHEDULE = {
       + 'the disposer category that applies, and any exemption order in force before relying on this.',
 
   /* Rate by completed years between acquisition and disposal. The final entry
-     applies to every later year. */
+     applies to every later year.
+
+     `who` is the category as the middle of a sentence names it. The sentences
+     lower-cased `short` instead, and printed "the nil rate for citizen or pr"
+     and "no individual exemption applies to malaysian company". */
   categories: {
     citizen: {
       label: 'An individual who is a Malaysian citizen or permanent resident',
       short: 'Citizen or PR',
+      who: 'a citizen or permanent resident',
       individual: true,
       rates: [[1, 30], [2, 30], [3, 30], [4, 20], [5, 15], [Infinity, 0]],
     },
     company: {
       label: 'A company incorporated in Malaysia',
       short: 'Malaysian company',
+      who: 'a Malaysian company',
       individual: false,
       rates: [[1, 30], [2, 30], [3, 30], [4, 20], [5, 15], [Infinity, 10]],
       note: 'A company does not reach a nil rate however long it holds. This is one of the '
@@ -1201,6 +1207,7 @@ const RPGT_SCHEDULE = {
     foreign: {
       label: 'An individual who is not a citizen or permanent resident, or a foreign company',
       short: 'Non-citizen',
+      who: 'a non-citizen',
       individual: false,
       rates: [[1, 30], [2, 30], [3, 30], [4, 30], [5, 30], [Infinity, 10]],
     },
@@ -1266,10 +1273,10 @@ function rpgtCharge({ disposalPrice, acquisitionPrice, acquisitionCosts = 0,
   return {
     rate, chargeableGain, relief, taxable, tax, rawGain, allowable, category: c, categoryId,
     why: rate === 0
-      ? `Held ${Math.ceil(num0(holdYears))} years, which reaches the nil rate for ${c.short.toLowerCase()}.`
+      ? `Held ${Math.ceil(num0(holdYears))} years, which reaches the nil rate for ${c.who}.`
       : c.individual
         ? `${fmtPct(rate, 0)} on the gain after allowable costs, less the exemption of ${fmtAmount(relief, 'MYR')}.`
-        : `${fmtPct(rate, 0)} on the gain after allowable costs. No individual exemption applies to ${c.short.toLowerCase()}.`,
+        : `${fmtPct(rate, 0)} on the gain after allowable costs. No individual exemption applies to ${c.who}.`,
   };
 }
 
@@ -1572,6 +1579,11 @@ function areaMetrics(city, area) {
     .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null;
   const lastSold = lastOf('sold-price');
   const lastLand = lastOf('land-sold');
+  /* The most recent of the two, by the date it happened. `lastSold ||
+     lastLand` preferred any built sale to every land sale, so a 2019 house
+     beside last month's parcel aged the area at seven years. */
+  const lastTransaction = [lastSold, lastLand].filter(Boolean)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null;
 
   /* Which ownership classes the records themselves carry, as opposed to the one
      class recorded for the locality as a whole. A district recorded as mixed
@@ -1589,7 +1601,7 @@ function areaMetrics(city, area) {
     soldN: sold.length, psf: med(psf), psfN: psf.length,
     landPsf: med(landPsf), landPsfN: landPsf.length,
     mgmtPsf: med(mgmtPsf), mgmtPsfN: mgmtPsf.length,
-    lastSold, lastLand,
+    lastSold, lastLand, lastTransaction,
     titleMix,
     lettingWeeks: med(weeks), lettingN: weeks.length,
     verifiedN: rows.filter(o => observationStanding(o).id === 'verified').length,
@@ -1674,9 +1686,9 @@ const AREA_LAYERS = [
      transacted last month, and a price column alone hides that entirely. */
   { id:'lastSoldAge', label:'Age of the last transacted price', kind:'quantity', invert:true,
     unit:'months', why:'Months since the most recent transaction you have recorded, by the date it happened rather than the date it was keyed in. Nothing recorded means unexamined, not current.',
-    value:(c, a) => { const m = areaMetrics(c, a); const l = m.lastSold || m.lastLand;
+    value:(c, a) => { const m = areaMetrics(c, a); const l = m.lastTransaction;
       return l ? monthsSince(l.date) : null; },
-    text:(c, a) => { const m = areaMetrics(c, a); const l = m.lastSold || m.lastLand;
+    text:(c, a) => { const m = areaMetrics(c, a); const l = m.lastTransaction;
       if (!l) return null; const n = monthsSince(l.date);
       return isNum(n) ? `${fmtNum(n, 0)} mo` : null; } },
 
@@ -1795,8 +1807,17 @@ function cityMap(cityId, selectedArea, onPick, paint) {
        this: the spans were split into x and y and the bar kept referencing the
        old single name, throwing inside a ResizeObserver callback where the
        error surfaced as an empty box rather than as a stack trace. */
-    const targetKm = (w - pad * 2) / scale * kmPerDeg / 3;
-    const niceKm = [1, 2, 5, 10, 20, 50, 100].find(v => v >= targetKm) || 100;
+    /* Sized to the box that is drawn, not to the host. The box hugs the
+       points, and a tall city leaves it far narrower than the host: on the
+       area screen at 1440px Miri's map is 208px wide and its bar was chosen
+       for 1,168 — a 20 km bar running off the edge, its label cut away
+       entirely, and Kuching, Sibu and Bintulu lost their labels the same way.
+       A bar that does not fit with its label steps down to one that does. */
+    const NICE_KM = [1, 2, 5, 10, 20, 50, 100];
+    const targetKm = (contentW - pad * 2) / scale * kmPerDeg / 3;
+    const fitsBox = (km) => pad + (km / kmPerDeg) * scale + 6 + `${km} km`.length * 7.5 <= contentW - 4;
+    let niceKm = NICE_KM.find(v => v >= targetKm) || 100;
+    while (!fitsBox(niceKm) && niceKm > NICE_KM[0]) niceKm = NICE_KM[NICE_KM.indexOf(niceKm) - 1];
     const barPx = (niceKm / kmPerDeg) * scale;
     const by = H - 14;
     svg.append(mk('line', { x1:pad, y1:by, x2:pad + barPx, y2:by, stroke:'var(--ink-3)', 'stroke-width':2 }));
@@ -2446,8 +2467,11 @@ function affordabilityPanel(cityName) {
   /* A quarter to a third of household income is the conventional sustainable
      range for rent. It is a rule of thumb, not a measurement, and it is the
      only rent-shaped number any source here supports. */
-  const lo = Math.round(latest.median * 0.25 / 10) * 10;
-  const hi = Math.round(latest.median * 0.30 / 10) * 10;
+  /* A third, as the sentence and the note below both say. The top was 0.30,
+     so Kuching's RM6,741 median read "RM1,690–2,020" where a third is
+     RM2,250: a rule stated one way and computed another. */
+  const lo = Math.round(latest.median / 4 / 10) * 10;
+  const hi = Math.round(latest.median / 3 / 10) * 10;
   card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:10px' },
     `A household on the median here sustains roughly RM${lo.toLocaleString()}–${hi.toLocaleString()} a month in rent.`));
   card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
