@@ -3456,14 +3456,14 @@ try {
         const text = () => document.querySelector('main').innerText;
         const buttons = () => [...document.querySelectorAll('main button')].map(b => b.textContent.trim());
         navigate('/admin/scanner');
-        out.overview = { notice: /There is no administrator role/.test(text()), failed: /run-20260402T220000Z-3870/.test(text()), partial: /run-20260403T220000Z-3977/.test(text()),
-                         retry: /--retry run-20260402T220000Z-3870/.test(text()), controls: ['--as-of', '--pause', '--resume', '--unlock', '--runs'].every(c => text().includes(c)),
+        out.overview = { notice: /There is no administrator role/.test(text()), failed: /run-20260402T220000-3870-9f3a/.test(text()), partial: /run-20260403T220000-3977-6e41/.test(text()),
+                         retry: /--retry run-20260402T220000-3870-9f3a/.test(text()), controls: ['--as-of', '--pause', '--resume', '--unlock', '--runs'].every(c => text().includes(c)),
                          ingest: /capture/.test(text()) && /2026-04-06 21:30 UTC/.test(text()), buttons: buttons() };
         navigate('/admin/scanner/jobs');
         const rows = () => document.querySelectorAll('main .card:first-of-type tbody tr').length;
-        out.jobs = { runs: [...document.querySelectorAll('main .scan-dt')][0]?.querySelectorAll('tbody tr').length, notice: /no administrator role/.test(text()) };
+        out.jobs = { runs: [...document.querySelectorAll('main .scan-dt')][0]?.querySelectorAll('tbody tr:not(.scan-detail-row)').length, notice: /no administrator role/.test(text()) };
         [...document.querySelectorAll('main button')].find(b => /^Failed/.test(b.textContent))?.click();
-        out.jobs.failedOnly = [...document.querySelectorAll('main .scan-dt')][0]?.querySelectorAll('tbody tr').length;
+        out.jobs.failedOnly = [...document.querySelectorAll('main .scan-dt')][0]?.querySelectorAll('tbody tr:not(.scan-detail-row)').length;
         out.jobs.controls = [...document.querySelectorAll('main .scan-dt')].pop()?.querySelectorAll('tbody tr').length;
         out.jobs.buttons = buttons();
         scanJobsState.filter = 'all';
@@ -3480,13 +3480,13 @@ try {
     const p = [];
     const o = r.overview;
     if (!o.notice || !o.failed || !o.partial || !o.retry || !o.controls || !o.ingest) p.push(`overview: ${JSON.stringify({ ...o, buttons: undefined })}`);
-    if (r.jobs.runs !== 5 || r.jobs.failedOnly !== 1 || r.jobs.controls !== 3 || !r.jobs.notice) p.push(`runs page: ${JSON.stringify(r.jobs)}`);
+    if (r.jobs.runs !== 12 || r.jobs.failedOnly !== 1 || r.jobs.controls !== 6 || !r.jobs.notice) p.push(`runs page: ${JSON.stringify(r.jobs)}`);
     if (!r.data.weekdays || !r.data.series || !r.data.notice) p.push(`data health: ${JSON.stringify(r.data)}`);
     if (r.delivery.channels.join() !== 'In-app:active,Email:not configured,Telegram:not configured,Web push:not configured' || r.delivery.records !== 1) p.push(`delivery: ${JSON.stringify(r.delivery)}`);
-    const acting = [...o.buttons, ...r.jobs.buttons, ...r.delivery.buttons].filter(b => !/^(Copy|Open your files…|Show \d+ more|(All|Completed|Partial|Failed|Skipped) \(\d+\))$/.test(b));
+    const acting = [...o.buttons, ...r.jobs.buttons, ...r.delivery.buttons].filter(b => !/^(Copy|Open your files…|Show \d+ more|(All|Completed|Partial|Failed|Cancelled|Skipped|Pending or running|Other) \(\d+\))$/.test(b));
     if (acting.length) p.push(`controls that act: ${acting.join(', ')}`);
     if (p.length) fail('the operations pages render the worker files read-only', p);
-    else ok('the operations pages render the worker files read-only — from the committed fixtures: the no-administrator notice on each, the failed and partial runs by id with the exact retry command, five runs filtering to one failure, three control-log entries, the last ingestion, data health on weekday calendars, four channels with only in-app active, and no button that does anything but copy, filter or open');
+    else ok('the operations pages render the worker files read-only — from the committed fixtures: the no-administrator notice on each, the failed and partial runs by id with the exact retry command, twelve runs (one of every status the worker writes) filtering to one failure, six control-log entries, the last ingestion, data health on weekday calendars, four channels with only in-app active, and no button that does anything but copy, filter or open');
   }
 
   /* EMPTY STATES. With no scanner file at all — the deployed site — every
@@ -3514,6 +3514,244 @@ try {
     if (p.length) fail('the scanner pages state which file is absent', p);
     else ok(`the scanner pages state which file is absent — ${Object.keys(r.pages).length} pages with no scanner file at all each say what is missing and what writes it, and print no raw value`);
   }
+
+  /* ---- round 3: ops ---- */
+  /* THE OPERATIONS PAGES READ THE RUN RECORD THE WORKER WRITES (SC-313 item
+     3; contract C4). The committed fixture is now the worker's own shape —
+     scanner-test holds its keys to a real run — so this fails if a page goes
+     back to reading the plan's shape: the counts must come out of
+     run.counts, the history out of historyNewest and historyHash, the
+     problems out of errors[], and each round 3 addition must be read where
+     the run carries it and called "not recorded" where it does not. */
+  {
+    const { readFileSync } = await import('node:fs');
+    const fx = (f) => readFileSync(new URL(`./scanner/fixtures/${f}`, import.meta.url), 'utf8');
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      try {
+        const f = scanFixture();
+        const runsDoc = ${fx('scan-runs.fixture.json')};
+        scanHistoryFile = f.history; scanSetupsFile = { setups: [f.setup, f.setupV2] }; scanAlertsFile = { alerts: scanRun([f.setup], f.history, { now: f.now }).alerts };
+        scanRunsFile = runsDoc; scanControlFile = null; scanDeliveriesFile = null; ingestRunsFile = null;
+        scanOpsClock = '2026-04-07T09:00:00.000Z'; scanOpsRead = true; scanJobsState.filter = 'all';
+        const out = {};
+        const dd = (root, label) => { const dt = root ? [...root.querySelectorAll('dt')].find(d => d.textContent === label) : null; return dt ? dt.nextElementSibling.textContent : null; };
+        const card = (title) => [...document.querySelectorAll('main section.card')].find(c => c.querySelector('.h-card')?.textContent === title) || null;
+        navigate('/admin/scanner');
+        const eng = card('Alert engine'), cache = card('Indicator cache'), errs = card('Errors');
+        out.engine = { sub: eng?.textContent || '', evaluated: dd(eng, 'Evaluated'), matched: dd(eng, 'Matched'), recorded: dd(eng, 'Recorded'), continuing: dd(eng, 'Still matching (not new)'),
+          delivered: dd(eng, 'Delivered in the app'), notReady: dd(eng, 'Markets not ready'), caught: dd(eng, 'Caught up'), ledger: dd(eng, 'Version ledger') };
+        out.cache = { value: dd(cache, 'Last run’s cache'), from: dd(cache, 'Read from') };
+        out.errors = [...(errs?.querySelectorAll('tbody tr') || [])].map(tr => [...tr.cells].map(td => td.textContent));
+        navigate('/admin/scanner/jobs');
+        const shownRows = () => [...document.querySelectorAll('main tr.scan-detail-row')].filter(x => getComputedStyle(x).display !== 'none').length;
+        out.closedShown = shownRows();
+        document.querySelectorAll('main details').forEach(d => { d.open = true; });
+        await w(30);
+        out.openShown = shownRows();
+        const table = document.querySelector('main .scan-dt');
+        /* Each run's detail is the full-width row under it, shown while its
+           disclosure is open. */
+        out.jobs = [...(table?.querySelectorAll(':scope > tbody > tr:not(.scan-detail-row)') || [])].map(tr => {
+          const det = tr.nextElementSibling?.classList.contains('scan-detail-row') ? tr.nextElementSibling : null;
+          return { id: det?.querySelector('dd code')?.textContent, status: tr.cells[1].textContent, counts: tr.cells[5].textContent, shown: !!det && getComputedStyle(det).display !== 'none',
+                   detail: tr.cells[6].textContent + ' ' + (det?.textContent || ''), history: dd(det, 'History'), cache: dd(det, 'Indicator cache'), notReady: dd(det, 'Markets not ready') };
+        });
+        out.filters = [...document.querySelectorAll('main [aria-label="Filter runs by status"] button')].map(b => b.textContent);
+        const log = [...document.querySelectorAll('main .scan-dt')].pop();
+        out.log = [...(log?.querySelectorAll('tbody tr') || [])].map(tr => [...tr.cells].map(td => td.textContent).join(' | '));
+        /* A worker from before round 3: no C4 field on any run, and the
+           cache figures only in the alerts file's lastRun. */
+        const bare = JSON.parse(JSON.stringify(runsDoc));
+        bare.runs.forEach(x => { delete x.cacheStats; delete x.skippedMarkets; delete x.catchUp; delete x.ledger; });
+        scanRunsFile = bare;
+        scanAlertsFile = { ...scanAlertsFile, lastRun: { at: '2026-04-06T22:00:01.380Z', runId: 'run-20260406T220000-4102-9a55', cacheStats: { hits: 7, misses: 5 } } };
+        navigate('/admin/scanner');
+        const eng2 = card('Alert engine'), cache2 = card('Indicator cache');
+        out.fallback = { cache: dd(cache2, 'Last run’s cache'), from: dd(cache2, 'Read from'), caught: dd(eng2, 'Caught up'), ledger: dd(eng2, 'Version ledger'), notReady: dd(eng2, 'Markets not ready'),
+                         evaluated: dd(eng2, 'Evaluated') };
+        return out;
+      } finally { restore(); scanJobsState.filter = 'all'; navigate('/learn'); }
+    })()`);
+    const p = [];
+    const e = r.engine;
+    if (e.evaluated !== '4 setup × instrument pairs, 2 setups' || e.matched !== '2' || e.recorded !== '1' || e.continuing !== '1' || !/^1 — /.test(e.delivered || '')) p.push(`alert engine counts: ${JSON.stringify({ ...e, sub: undefined })}`);
+    if (!e.sub.includes('run-20260406T220000-4102-9a55') || !e.sub.includes('The latest attempt, run-20260407T085958-4311-4f08, was pending and evaluated nothing')) p.push(`alert engine source: ${e.sub.slice(0, 260)}`);
+    if (!/^2 setup × instrument pairs caught up over 3 bars since each one’s last evaluated bar; no pair reached the cap$/.test(e.caught || '')
+      || e.ledger !== '2 versions already in the ledger · 0 recorded for the first time · 0 refused' || !/^none — /.test(e.notReady || '')) p.push(`round 3 additions: ${JSON.stringify({ caught: e.caught, ledger: e.ledger, notReady: e.notReady })}`);
+    if (r.cache.value !== '26 reused, 12 computed' || !(r.cache.from || '').includes('run-20260406T220000-4102-9a55')) p.push(`indicator cache: ${JSON.stringify(r.cache)}`);
+    const errRows = Object.fromEntries(r.errors.map(c => [c[1], c]));
+    const failedRow = errRows['run-20260402T220000-3870-9f3a'], partialRow = errRows['run-20260403T220000-3977-6e41'], cancelledRow = errRows['run-20260402T210000-3811-c40f'];
+    if (r.errors.length !== 3 || !failedRow || !partialRow || !cancelledRow) p.push(`errors panel rows: ${r.errors.map(c => `${c[1]} ${c[2]}`).join('; ')}`);
+    else {
+      if (failedRow[3] !== 'IO' || !failedRow[4].includes('[run-20260402T220000-3870-9f3a/e1]') || failedRow[5] !== 'node scanner/scan.mjs --retry run-20260402T220000-3870-9f3a') p.push(`failed row: ${failedRow.join(' | ')}`);
+      if (partialRow[3] !== 'DATA' || !partialRow[4].includes('untested everywhere') || !/^not needed/.test(partialRow[5])) p.push(`partial row: ${partialRow.join(' | ')}`);
+      if (cancelledRow[3] !== 'CANCELLED') p.push(`cancelled row: ${cancelledRow.join(' | ')}`);
+    }
+    const job = Object.fromEntries(r.jobs.map(j => [j.id, j]));
+    const done = job['run-20260406T220000-4102-9a55'], part = job['run-20260403T220000-3977-6e41'], paused = job['run-20260401T220000-3760-1b9e'], running = job['run-20260405T220000-4020-e9d0'];
+    if (r.jobs.length !== 12 || !done || !part || !paused || !running) p.push(`runs table: ${r.jobs.length} rows, ids ${r.jobs.map(j => j.id).join(', ')}`);
+    else {
+      if (!r.jobs.every(j => j.shown)) p.push(`an opened run's detail row is not shown: ${r.jobs.filter(j => !j.shown).map(j => j.id).join(', ')}`);
+      if (r.closedShown !== 0 || r.openShown !== 12) p.push(`detail rows shown: ${r.closedShown} while closed, ${r.openShown} of 12 once opened`);
+      if (done.counts !== '4 evaluated · 2 matched · 1 recorded' || done.history !== 'newest bar 2026-04-06 · sha256:bf9784399709a381' || done.cache !== '26 reused, 12 computed') p.push(`completed run: ${JSON.stringify({ counts: done.counts, history: done.history, cache: done.cache })}`);
+      if (!part.detail.includes('DATA: fixture-breakout-v2: untested everywhere') || !part.detail.includes('held only as a provisional bar') || !/^MY — the session of 2026-04-03/.test(part.notReady || '')) p.push(`partial run: ${part.detail.slice(0, 400)}`);
+      if (paused.counts !== 'none — skipped before evaluating' || !paused.detail.includes('paused since 2026-03-31') || paused.history !== 'not read — the run ended before it read the history') p.push(`paused run: ${JSON.stringify({ counts: paused.counts, history: paused.history })}`);
+      if (!running.detail.includes('It is either running now, or its process ended')) p.push(`running run: ${running.detail.slice(0, 200)}`);
+      if (r.jobs.some(j => /not recorded/.test(j.counts))) p.push(`a run's counts read "not recorded": ${r.jobs.filter(j => /not recorded/.test(j.counts)).map(j => j.id).join(', ')}`);
+    }
+    ['All (12)', 'Completed (3)', 'Partial (1)', 'Failed (1)', 'Cancelled (1)', 'Skipped (4)', 'Pending or running (2)'].forEach(b => { if (!r.filters.includes(b)) p.push(`no filter "${b}" (${r.filters.join(', ')})`); });
+    if (r.log.length !== 6 || !r.log.some(l => l.includes('a run took the lock over, its holder over an hour old')) || !r.log.some(l => l.includes('removed the lock (dead)'))
+      || !r.log.some(l => l.includes('replayed 2026-04-03: completed, 0 added, 0 already recorded')) || !r.log.every(l => l.includes('reader on this-pc'))) p.push(`control log: ${r.log.join(' // ').slice(0, 500)}`);
+    if (p.length) fail('ops pages read the worker\'s run record (C4)', p);
+    else ok('ops pages read the worker\'s run record (C4) — the alert engine from run.counts of the last run that evaluated (4 pairs, 2 matched, 1 recorded, 1 delivered), naming the pending attempt after it; the cache from the run; catch-up, ledger and markets not ready from the round 3 fields; the errors panel from errors[] with correlation ids; each run\'s history from historyNewest and historyHash; a filter per status; the control log in words, with the machine\'s account');
+    const fb = r.fallback;
+    if (fb.cache !== '7 reused, 5 computed' || !/alerts file’s last run/.test(fb.from || '') || [fb.caught, fb.ledger, fb.notReady].some(v => v !== 'not recorded — this worker does not write it') || !/^4 setup × instrument pairs/.test(fb.evaluated || ''))
+      fail('ops pages fall back to the alerts file\'s lastRun.cacheStats and name what an older worker does not record', fb);
+    else ok('ops pages fall back to the alerts file\'s lastRun.cacheStats and name what an older worker does not record — a run log with no round 3 field reads the cache from the alerts file (said so), and catch-up, the ledger and markets not ready as "not recorded — this worker does not write it", never as zero');
+
+    /* On a phone every scanner table row is display:block, which beats the
+       hidden attribute: a closed run's detail row must still be off screen,
+       and open under its run when asked. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    let ph;
+    try {
+      ph = await evaluate(`(async () => {
+        ${opsKeep} ${opsWait}
+        try {
+          scanRunsFile = ${fx('scan-runs.fixture.json')}; scanOpsClock = '2026-04-07T09:00:00.000Z'; scanOpsRead = true; scanJobsState.filter = 'all';
+          navigate('/admin/scanner/jobs');
+          await w(50);
+          const shown = () => [...document.querySelectorAll('main tr.scan-detail-row')].filter(x => getComputedStyle(x).display !== 'none');
+          const closed = shown().length;
+          const d = document.querySelector('main details.scan-row-det');
+          d.open = true; await w(30);
+          const open = shown();
+          return { closed, open: open.length, under: open[0]?.previousElementSibling?.contains(d) || false,
+                   over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+        } finally { restore(); scanJobsState.filter = 'all'; navigate('/learn'); }
+      })()`);
+    } finally { await send('Emulation.clearDeviceMetricsOverride', {}, sessionId); }
+    if (ph.closed !== 0 || ph.open !== 1 || !ph.under || ph.over > 2) fail('a run\'s detail stays closed on a phone until it is opened, under its run', ph);
+    else ok('a run\'s detail stays closed on a phone until it is opened, under its run — at 390px no closed detail row is displayed, one opened shows directly beneath its run, and the page does not scroll sideways');
+  }
+
+  /* SC-316: SAVE AS A SETUP CARRIES THE SCREEN (contract C5), AND AN
+     UNTESTED ROW SAYS WHY. A market screen of a setup from the file links to
+     /app/scanner/setups/new?market=&from=; "everything" carries the setup
+     alone; a pasted setup, not in the file, carries the market alone. A
+     five-bar series is untested, and its row names the reason. */
+  {
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      const keepReg = instruments;
+      try {
+        const fx = scanFixture();
+        const h = JSON.parse(JSON.stringify(fx.history));
+        const days = Object.keys(h.series.MATCH).sort().slice(-5);
+        h.series.SHORT = Object.fromEntries(days.map(d => [d, 10])); h.volume.SHORT = Object.fromEntries(days.map(d => [d, 1000]));
+        instruments = { ...(instruments || {}), instruments: [...((instruments && instruments.instruments) || []).filter(i => !['MATCH', 'FLAT', 'SHORT'].includes(String(i.symbol).toUpperCase())),
+          { symbol: 'MATCH', market: 'US' }, { symbol: 'FLAT', market: 'US' }, { symbol: 'SHORT', market: 'US' }] };
+        scanHistoryFile = h; scanSetupsFile = { setups: [fx.setup] }; scanAlertsFile = { alerts: [] }; scanOpsClock = fx.now; scanOpsRead = true;
+        const screen = async (market, setupKey, pasted = null) => {
+          Object.assign(scanMarketState, { market, asOf: '', result: null, setup: setupKey, pastedSetup: pasted });
+          navigate('/app/scanner/market');
+          const main = document.querySelector('main');
+          [...main.querySelectorAll('button')].find(b => /Screen now/.test(b.textContent))?.click();
+          for (let i = 0; i < 60 && !main.querySelector('.scan-coverage'); i++) await w(50);
+          const link = main.querySelector('.scan-save a');
+          const untested = [...main.querySelectorAll('.scan-group')].find(g => /^Untested/.test(g.querySelector('h4')?.textContent || ''));
+          const cancel = [...main.querySelectorAll('button')].find(b => b.textContent.trim() === 'Cancel');
+          return { search: link ? new URL(link.href).search : null, path: link ? new URL(link.href).pathname : null, text: main.querySelector('.scan-save')?.textContent || '',
+                   cancelIdle: cancel ? getComputedStyle(cancel).display : 'absent',
+                   untested: [...(untested?.querySelectorAll('tbody tr') || [])].map(tr => ({ sym: tr.cells[0].textContent, why: tr.cells[tr.cells.length - 1].textContent })) };
+        };
+        const pastedSetup = scanValidate({ setups: [{ ...fx.setup, id: 'qa-pasted' }] }).setups[0];
+        return { us: await screen('US', 'file:' + fx.setup.id), all: await screen('__all', 'file:' + fx.setup.id), pasted: await screen('US', 'pasted', pastedSetup), id: fx.setup.id };
+      } finally { instruments = keepReg; restore(); scanMarketState.market = '__all'; scanMarketState.setup = null; scanMarketState.pastedSetup = null; navigate('/learn'); }
+    })()`);
+    const p = [];
+    const q = (s) => Object.fromEntries(new URLSearchParams(s || ''));
+    if (r.us.path !== '/app/scanner/setups/new' || JSON.stringify(q(r.us.search)) !== JSON.stringify({ market: 'US', from: r.id })) p.push(`US screen of a file setup links to ${r.us.path}${r.us.search}`);
+    if (JSON.stringify(q(r.all.search)) !== JSON.stringify({ from: r.id }) || !/cannot carry it/.test(r.all.text)) p.push(`"everything" links to ${r.all.search}: ${r.all.text}`);
+    if (JSON.stringify(q(r.pasted.search)) !== JSON.stringify({ market: 'US' }) || !/paste them there/.test(r.pasted.text)) p.push(`a pasted setup links to ${r.pasted.search}: ${r.pasted.text}`);
+    if (r.us.cancelIdle !== 'none') p.push(`Cancel is on screen with no screen running (display ${r.us.cancelIdle})`);
+    const short = r.us.untested.find(u => u.sym === 'SHORT');
+    if (!short) p.push(`the five-bar series is not untested: ${JSON.stringify(r.us.untested)}`);
+    r.us.untested.forEach(u => { if (!u.why || u.why === '—' || !/\d+ held|needs|bars|stale|could not/.test(u.why)) p.push(`untested ${u.sym} names no reason: "${u.why}"`); });
+    if (p.length) fail('market screening hands the builder its market and setup, and every untested row names its reason', p);
+    else ok(`market screening hands the builder its market and setup, and every untested row names its reason — Save as a setup opens /app/scanner/setups/new${r.us.search} for a file setup on US, ${r.all.search} for "everything" (saying the universe is chosen there), ${r.pasted.search} for a pasted one; the untested five-bar series says "${short.why}"`);
+  }
+
+  /* NAV 1: ONLY THE COMPANY VIEWS READ :id AS A COMPANY. A route of any
+     other view with a parameter called id renders its view; the company
+     views still resolve an alias and still refuse an unknown company. */
+  {
+    const r = await evaluate(`(async () => {
+      const row = { path: '/qa-guard/:id', view: 'scannerDashboard', title: 'QA guard' };
+      ROUTES.push(row);
+      try {
+        navigate('/qa-guard/trend-breakout');
+        const other = { view: State.view, what: State.notFoundWhat || null };
+        navigate('/app/equities/aapl');
+        const company = { view: State.view, ticker: State.ticker };
+        navigate('/company/no-such-company-qa');
+        const unknown = State.view;
+        return { other, company, unknown };
+      } finally { ROUTES.splice(ROUTES.indexOf(row), 1); navigate('/learn'); }
+    })()`);
+    const p = [];
+    if (r.other.view !== 'scannerDashboard') p.push(`/qa-guard/trend-breakout (view scannerDashboard, param :id) rendered ${r.other.view}${r.other.what ? ` — ${r.other.what}` : ''}`);
+    if (r.company.view !== 'research' || !/AAPL/.test(r.company.ticker || '')) p.push(`/app/equities/aapl: ${JSON.stringify(r.company)}`);
+    if (r.unknown !== 'notfound') p.push(`/company/no-such-company-qa rendered ${r.unknown}`);
+    if (p.length) fail('applyRoute resolves :id as a company only on the company views', p);
+    else ok('applyRoute resolves :id as a company only on the company views — a non-company route with a parameter called id renders its own view, /app/equities/aapl still opens Apple and an unknown company is still not found');
+  }
+
+  /* SC-317: NO PAGE OF THE SCANNER CLAIMS LIVE OR REAL-TIME DATA. With the
+     fixture's files loaded and every disclosure open, each scanner page's
+     text is split into sentences; any sentence that says "live" or "real
+     time" must be one that denies it (not built, needs, no, later …).
+     wording-check does the same over the modules' strings, offline. */
+  {
+    const { readFileSync } = await import('node:fs');
+    const fx = (f) => readFileSync(new URL(`./scanner/fixtures/${f}`, import.meta.url), 'utf8');
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      try {
+        const f = scanFixture();
+        const alerts = scanRun([f.setup, f.setupV2], f.history, { now: f.now }).alerts;
+        scanHistoryFile = f.history; scanSetupsFile = { setups: [f.setup, f.setupV2] }; scanAlertsFile = { alerts };
+        scanRunsFile = ${fx('scan-runs.fixture.json')}; scanControlFile = ${fx('scan-control.fixture.json')};
+        scanDeliveriesFile = ${fx('scan-deliveries.fixture.json')}; ingestRunsFile = ${fx('ingest-runs.fixture.json')};
+        scanOpsClock = '2026-04-07T09:00:00.000Z'; scanOpsRead = true;
+        const a0 = alerts[0];
+        const pages = ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/setups/' + f.setup.id,
+          '/app/scanner/watchlists', '/app/scanner/alerts', a0 ? '/app/scanner/alerts/' + (a0.id || scanAlertId(a0.key)) : null, '/app/scanner/settings',
+          '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery'].filter(Boolean);
+        const out = {};
+        for (const pg of pages) {
+          navigate(pg);
+          await w(30);
+          document.querySelectorAll('main details').forEach(d => { d.open = true; });
+          await w(30);
+          out[pg] = { view: State.view, text: document.querySelector('main').innerText };
+        }
+        return out;
+      } finally { restore(); navigate('/learn'); }
+    })()`);
+    const CLAIM = /\blive\b|\breal[\s-]?time\b|\brealtime\b/i;
+    const DENY = /\b(not|no|never|cannot|neither|nor|none|needs?|without|later|blocked|waits?|unavailable|refused)\b|n’t|n't/i;
+    const p = [];
+    let said = 0;
+    for (const [pg, v] of Object.entries(r)) {
+      if (v.view === 'notfound') { p.push(`${pg} did not render`); continue; }
+      v.text.split(/(?<=[.!?])\s+|\n+/).filter(s => CLAIM.test(s)).forEach(s => { said++; if (!DENY.test(s)) p.push(`${pg}: "${s.trim().slice(0, 160)}"`); });
+    }
+    if (p.length) fail('no scanner page claims live or real-time data', p);
+    else ok(`no scanner page claims live or real-time data — ${Object.keys(r).length} scanner pages with the fixture's files loaded and every disclosure open; ${said} sentence${said === 1 ? '' : 's'} naming live or real-time data, each one denying it`);
+  }
+  /* ---- end round 3: ops ---- */
 
 } catch (e) {
   fail('harness error', e.message);

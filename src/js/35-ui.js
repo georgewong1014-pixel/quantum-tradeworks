@@ -379,8 +379,10 @@ const ROUTES = [
      pages. /my/scanner was the scanner's only address and stays one, as an
      alias of the dashboard: alias:true keeps go('scannerDashboard') on
      /app/scanner, and a link carrying ?symbol= (the company page's old one)
-     is sent on to the builder by the dashboard itself. No parameter here is
-     called :id — applyRoute reads any :id as a company. */
+     is sent on to the builder by the dashboard itself. None of these takes a
+     parameter; applyRoute resolves :id as a company only on the company
+     views (COMPANY_ROUTE_VIEWS), so a scanner :id would no longer be read
+     as one — but the names :setup and :alert still say what they are. */
   { path: '/app/scanner',            view: 'scannerDashboard',     title: 'Scanner' },
   { path: '/app/scanner/market',     view: 'scannerMarket',        title: 'Market screening — your series' },
   { path: '/app/scanner/backtest',   view: 'scannerBacktest',      title: 'Historical matches — simulation' },
@@ -694,6 +696,9 @@ function focusMain() {
   main.focus({ preventScroll: true });
 }
 
+/* The views whose :id is a company. register-check's route rule reads the
+   same two, so the checker and the router agree on what a path names. */
+const COMPANY_ROUTE_VIEWS = new Set(['research', 'researchReport']);
 function applyRoute() {
   const route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
@@ -717,7 +722,13 @@ function applyRoute() {
     render();
     return;
   }
-  if (route.params?.id) {
+  /* Only a company page's :id names a company. The branch below is what
+     makes /app/equities/1155 and /company/1155.KL the same page, so it stays;
+     but it once ran for any route with a parameter called id, and the
+     scanner's routes escaped it only because their parameters happen to be
+     :setup and :alert — a rename would have sent /app/scanner/setups/:id to
+     "No company “trend-breakout”". The guard is by view, not by name. */
+  if (route.params?.id && COMPANY_ROUTE_VIEWS.has(route.view)) {
     const id = companyFromSlug(route.params.id);
     if (id) {
       State.ticker = id;

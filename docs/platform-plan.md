@@ -383,7 +383,8 @@ Status: **done** · **partial** · **now** (this plan, being built) · **blocked
 | Alert history with timestamps and triggering values | **done** (8c3345f): `data/scan-alerts.json`, shown on `/my/scanner` |
 | Notification delivery (email, Telegram, push) | blocked (entity — contact data under PDPA; and a backend) |
 | Intraday scanner | blocked (licence, infrastructure, classification) |
-| Backtesting | blocked (point-in-time licensed history); the product states no indicator here is validated |
+| Historical match simulation over your own history | **built, flagged** (SC-314): `/app/scanner/backtest` and `node scanner/scan.mjs --backtest` list the bars on which a setup's conditions held in the reader's own captured closes, with no look-ahead; no entry, exit, cost or return exists in it, and the page says so before any figure |
+| Strategy backtest with performance | blocked (point-in-time licensed history with corporate actions; an entry, exit, cost and slippage model); the product states no indicator here is validated |
 | Scanner as a product for others | blocked (licence, regulatory) |
 
 ### Property

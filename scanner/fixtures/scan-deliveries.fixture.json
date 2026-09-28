@@ -1,32 +1,39 @@
 {
   "schema": 1,
-  "_note": "fixture",
+  "_note": "fixture — the shape scanner/scan.mjs writeDeliveries() writes: its CHANNELS block word for word, and one IN_APP row for the engine fixture's one alert. scanner-test.mjs fails if a key here is not one the worker writes.",
+  "updatedAt": "2026-04-06T22:00:01.380Z",
   "channels": {
     "IN_APP": {
-      "status": "ACTIVE"
+      "status": "ACTIVE",
+      "meaning": "An alert is delivered in the app by being written to data/scan-alerts.json, which the scanner pages read. Whether it has been read or archived is kept in each browser (scanAlertState), so two browsers can disagree."
     },
     "EMAIL": {
       "status": "NOT_CONFIGURED",
-      "why": "no server, no operating entity, no privacy notice"
+      "why": "No server sends mail for this product, and no contact address is held under a privacy notice (PDPA). Blocked on an operating entity and a backend (SC-309)."
     },
     "TELEGRAM": {
       "status": "NOT_CONFIGURED",
-      "why": "a bot token must live on a server"
+      "why": "A bot token must live on a server, and binding a chat id is holding a contact identifier under a privacy notice; neither exists (SC-315)."
     },
     "PUSH": {
       "status": "NOT_CONFIGURED",
-      "why": "a later live-scanning release"
+      "why": "Web push needs a push service and a server holding subscriptions, and the live intraday scanner it would push from is not built (SC-317, SC-318)."
     }
   },
+  "note": "IN_APP SENT means written to the alert record the app reads — nothing left this machine. No row is written for a channel that is not configured.",
   "deliveries": [
     {
-      "id": "d-1",
-      "alertId": null,
+      "id": "a457e8330:IN_APP",
+      "alertId": "a457e8330",
+      "alertKey": "fixture-breakout|v1|MATCH|1D|2026-04-06|MATCH",
       "channel": "IN_APP",
       "status": "SENT",
       "attemptCount": 1,
       "sentAt": "2026-04-06T22:00:01.380Z",
-      "errorCode": null
+      "runId": "run-20260406T220000-4102-9a55",
+      "setupId": "fixture-breakout",
+      "symbol": "MATCH",
+      "candleDate": "2026-04-06"
     }
   ]
 }

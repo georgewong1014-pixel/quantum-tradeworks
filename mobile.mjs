@@ -219,8 +219,13 @@ for (const w of WIDTHS) {
 /* The explorer and compare joined with the equities routes above: the
    explorer's filters and the compare picker's chips are the two long runs of
    controls in the lane that the walk had not covered. */
+/* The scanner's setup builder is the longest run of controls in Phase 3 —
+   a name, a universe, a timeframe, then up to eight fields a condition, the
+   cooldown and the expiry — and its keyboard use was checked only by
+   equity-test's own walk at one width, never against the phone topbar
+   (docs/phase3-plan.md SC-319 item 6). */
 const FOCUS_ROUTES = ['/property/calculator', '/discover/screener', '/company/AAPL-SEC', '/app/watchlists',
-                      '/app/equities/explore', '/compare'];
+                      '/app/equities/explore', '/compare', '/app/scanner/setups/new'];
 /* Reduced motion, so a control that slides in on focus — the skip link — is
    measured where it comes to rest and not 20ms into the slide. */
 await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);

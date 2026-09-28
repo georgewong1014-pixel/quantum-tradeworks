@@ -1,167 +1,173 @@
 {
   "schema": 1,
-  "_note": "A run log for the operations pages' checks (equity-test.mjs): one of each status the worker writes, on the engine fixture's dates. Not real runs.",
+  "_note": "A run log for the operations pages' checks (equity-test.mjs), in the shape scanner/scan.mjs writes: makeRun()'s fields, the counts nested, readiness an array, problems in errors[], and the round 3 additions (cacheStats, skippedMarkets, catchUp, ledger) on the runs that evaluated. One run of every status in RUN_STATUSES, on the engine fixture's dates. scanner-test.mjs runs the real worker and fails if a key here is not one it writes. Not real runs.",
   "runs": [
     {
-      "id": "run-20260406T220000Z-4101",
-      "kind": "scan",
-      "trigger": "daily",
-      "status": "COMPLETED",
-      "exitCode": 0,
-      "startedAt": "2026-04-06T22:00:00.000Z",
-      "finishedAt": "2026-04-06T22:00:01.380Z",
-      "durationMs": 1380,
-      "engine": "scan 0.3.0",
-      "selfTest": {
-        "ok": true,
-        "alerts": 1,
-        "again": 0
-      },
-      "history": {
-        "path": "data/price-history.json",
-        "generated": "2026-04-06T21:40:00.000Z",
-        "source": "fixture",
-        "symbols": 2,
-        "newestBar": "2026-04-06"
-      },
-      "setupsHash": null,
-      "asOf": "2026-04-06",
-      "asOfFrom": "2026-04-06",
-      "setups": 2,
-      "evaluated": 4,
-      "matched": 2,
-      "recorded": 1,
-      "untested": 0,
-      "deduped": 0,
-      "cooldown": 0,
-      "continuing": 1,
-      "problems": [],
-      "untestedEverywhere": [],
-      "stale": [],
-      "error": null,
-      "cacheStats": {
-        "hits": 14,
-        "misses": 9
-      }
+      "id": "run-20260330T220000-3301-5a0c", "kind": "scan", "trigger": "daily", "origin": "daily", "status": "SKIPPED_NO_SETUPS",
+      "startedAt": "2026-03-30T22:00:00.000Z", "finishedAt": "2026-03-30T22:00:00.041Z", "durationMs": 41, "exitCode": 3,
+      "now": "2026-03-30T22:00:00.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 3301, "host": "this-pc", "operator": "reader",
+      "args": ["--trigger", "daily"], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": null, "historyNewest": null, "setupsHash": null, "logicalKey": null, "asOf": null, "asOfFrom": null, "counts": null,
+      "readiness": [], "stale": 0, "provisional": 0, "errors": [], "error": null, "skipReason": "no setups file at data/scan-setups.json", "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-03-30T22:00:00.000Z" }, { "status": "RUNNING", "at": "2026-03-30T22:00:00.030Z" }, { "status": "SKIPPED_NO_SETUPS", "at": "2026-03-30T22:00:00.041Z" }],
+      "comparedWith": null
     },
     {
-      "id": "run-20260403T220000Z-3977",
-      "kind": "scan",
-      "trigger": "daily",
-      "status": "PARTIAL",
-      "exitCode": 2,
-      "startedAt": "2026-04-03T22:00:00.000Z",
-      "finishedAt": "2026-04-03T22:00:02.010Z",
-      "durationMs": 2010,
-      "engine": "scan 0.3.0",
-      "history": {
-        "path": "data/price-history.json",
-        "generated": "2026-04-03T21:40:00.000Z",
-        "source": "fixture",
-        "symbols": 2,
-        "newestBar": "2026-04-03"
-      },
-      "asOf": "2026-04-03",
-      "asOfFrom": "2026-04-03",
-      "setups": 2,
-      "evaluated": 4,
-      "matched": 0,
-      "recorded": 0,
-      "untested": 2,
-      "problems": [],
-      "untestedEverywhere": [
-        {
-          "setup": "fixture-breakout-v2",
-          "why": "RSI(14) needs 15 bars; 12 held"
-        }
-      ],
-      "stale": [],
-      "error": {
-        "code": "UNTESTED_EVERYWHERE",
-        "category": "setup",
-        "message": "a setup could not be tested on any instrument in its universe"
-      }
+      "id": "run-20260401T220000-3760-1b9e", "kind": "scan", "trigger": "daily", "origin": "daily", "status": "SKIPPED_PAUSED",
+      "startedAt": "2026-04-01T22:00:00.000Z", "finishedAt": "2026-04-01T22:00:00.012Z", "durationMs": 12, "exitCode": 3,
+      "now": "2026-04-01T22:00:00.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 3760, "host": "this-pc", "operator": "reader",
+      "args": ["--trigger", "daily"], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": null, "historyNewest": null, "setupsHash": null, "logicalKey": null, "asOf": null, "asOfFrom": null, "counts": null,
+      "readiness": [], "stale": 0, "provisional": 0, "errors": [], "error": null, "skipReason": "paused since 2026-03-31T09:00:00.000Z: holiday week", "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-01T22:00:00.000Z" }, { "status": "SKIPPED_PAUSED", "at": "2026-04-01T22:00:00.012Z" }]
     },
     {
-      "id": "run-20260402T220000Z-3870",
-      "kind": "scan",
-      "trigger": "daily",
-      "status": "FAILED",
-      "exitCode": 1,
-      "startedAt": "2026-04-02T22:00:00.000Z",
-      "finishedAt": "2026-04-02T22:00:00.140Z",
-      "durationMs": 140,
-      "engine": "scan 0.3.0",
-      "history": null,
-      "asOf": null,
-      "setups": null,
-      "evaluated": null,
-      "error": {
-        "code": "BAD_ALERTS",
-        "category": "input",
-        "message": "data/scan-alerts.json is not valid JSON; it was left alone",
-        "correlationId": "run-20260402T220000Z-3870"
-      }
+      "id": "run-20260402T210000-3811-c40f", "kind": "scan", "trigger": "manual", "origin": "cli", "status": "CANCELLED",
+      "startedAt": "2026-04-02T21:00:00.000Z", "finishedAt": "2026-04-02T21:00:00.830Z", "durationMs": 830, "exitCode": 1,
+      "now": "2026-04-02T21:00:00.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 3811, "host": "this-pc", "operator": "reader",
+      "args": [], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": "sha256:5d1c0e7f9a2b4c61", "historyNewest": "2026-04-02", "setupsHash": "9b530498", "logicalKey": null, "asOf": null, "asOfFrom": null, "counts": null,
+      "readiness": [], "stale": 0, "provisional": 0,
+      "errors": [{ "category": "CANCELLED", "message": "SIGINT received before the alert record was written; nothing was written", "correlationId": "run-20260402T210000-3811-c40f/e1" }],
+      "error": { "category": "CANCELLED", "message": "SIGINT received before the alert record was written; nothing was written", "correlationId": "run-20260402T210000-3811-c40f/e1" },
+      "skipReason": null, "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-02T21:00:00.000Z" }, { "status": "RUNNING", "at": "2026-04-02T21:00:00.034Z" }, { "status": "CANCELLED", "at": "2026-04-02T21:00:00.830Z" }],
+      "comparedWith": null
     },
     {
-      "id": "run-20260402T220005Z-3871",
-      "kind": "scan",
-      "trigger": "cli",
-      "status": "SKIPPED_LOCKED",
-      "exitCode": 2,
-      "startedAt": "2026-04-02T22:00:05.000Z",
-      "finishedAt": "2026-04-02T22:00:05.020Z",
-      "durationMs": 20,
-      "engine": "scan 0.3.0",
-      "error": {
-        "code": "LOCKED",
-        "category": "concurrency",
-        "message": "another run (pid 3870) holds data/scan.lock"
-      }
+      "id": "run-20260402T220000-3870-9f3a", "kind": "scan", "trigger": "daily", "origin": "daily", "status": "FAILED",
+      "startedAt": "2026-04-02T22:00:00.000Z", "finishedAt": "2026-04-02T22:00:00.140Z", "durationMs": 140, "exitCode": 1,
+      "now": "2026-04-02T22:00:00.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 3870, "host": "this-pc", "operator": "reader",
+      "args": ["--trigger", "daily"], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": "sha256:5d1c0e7f9a2b4c61", "historyNewest": "2026-04-02", "setupsHash": "9b530498", "logicalKey": null, "asOf": null, "asOfFrom": null, "counts": null,
+      "readiness": [], "stale": 0, "provisional": 0,
+      "errors": [{ "category": "IO", "message": "data/scan-alerts.json is not valid JSON — nothing was written over it", "correlationId": "run-20260402T220000-3870-9f3a/e1" }],
+      "error": { "category": "IO", "message": "data/scan-alerts.json is not valid JSON — nothing was written over it", "correlationId": "run-20260402T220000-3870-9f3a/e1" },
+      "skipReason": null, "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-02T22:00:00.000Z" }, { "status": "RUNNING", "at": "2026-04-02T22:00:00.031Z" }, { "status": "FAILED", "at": "2026-04-02T22:00:00.140Z" }],
+      "comparedWith": null
     },
     {
-      "id": "run-20260401T220000Z-3760",
-      "kind": "scan",
-      "trigger": "daily",
-      "status": "SKIPPED_PAUSED",
-      "exitCode": 0,
-      "startedAt": "2026-04-01T22:00:00.000Z",
-      "finishedAt": "2026-04-01T22:00:00.010Z",
-      "durationMs": 10,
-      "engine": "scan 0.3.0",
-      "error": null
+      "id": "run-20260402T220005-3871-0d27", "kind": "scan", "trigger": "manual", "origin": "cli", "status": "SKIPPED_LOCKED",
+      "startedAt": "2026-04-02T22:00:05.000Z", "finishedAt": "2026-04-02T22:00:05.020Z", "durationMs": 20, "exitCode": 3,
+      "now": "2026-04-02T22:00:05.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 3871, "host": "this-pc", "operator": "reader",
+      "args": [], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": null, "historyNewest": null, "setupsHash": null, "logicalKey": null, "asOf": null, "asOfFrom": null, "counts": null,
+      "readiness": [], "stale": 0, "provisional": 0,
+      "errors": [{ "category": "LOCK", "message": "another run holds the lock — pid 3870 on this-pc since 2026-04-02T22:00:00.000Z (run-20260402T220000-3870-9f3a)", "correlationId": "run-20260402T220005-3871-0d27/e1" }],
+      "error": { "category": "LOCK", "message": "another run holds the lock — pid 3870 on this-pc since 2026-04-02T22:00:00.000Z (run-20260402T220000-3870-9f3a)", "correlationId": "run-20260402T220005-3871-0d27/e1" },
+      "skipReason": "another run holds the lock — pid 3870 on this-pc since 2026-04-02T22:00:00.000Z (run-20260402T220000-3870-9f3a)", "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-02T22:00:05.000Z" }, { "status": "SKIPPED_LOCKED", "at": "2026-04-02T22:00:05.020Z" }]
     },
     {
-      "kind": "control",
-      "action": "resume",
-      "at": "2026-04-02T08:00:00.000Z",
-      "argv": [
-        "--resume"
-      ],
-      "reason": null
+      "id": "run-20260403T220000-3977-6e41", "kind": "scan", "trigger": "daily", "origin": "daily", "status": "PARTIAL",
+      "startedAt": "2026-04-03T22:00:00.000Z", "finishedAt": "2026-04-03T22:00:02.010Z", "durationMs": 2010, "exitCode": 2,
+      "now": "2026-04-03T22:00:00.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 3977, "host": "this-pc", "operator": "reader",
+      "args": ["--trigger", "daily"], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": "sha256:a41f0c93d2e75b18", "historyNewest": "2026-04-03", "setupsHash": "9b530498", "logicalKey": "0.3.0|9b530498|sha256:a41f0c93d2e75b18|811c9dc5|live",
+      "asOf": "2026-04-03", "asOfFrom": "2026-04-03",
+      "counts": { "setups": 2, "evaluated": 4, "matched": 0, "recorded": 0, "deduped": 0, "cooldown": 0, "continuing": 0, "untested": 2, "skipped": 0, "problems": 0, "untestedEverywhere": 1, "deliveries": 0 },
+      "readiness": [{ "market": null, "state": "PROVISIONAL", "expected": "2026-04-03", "newestFinal": "2026-04-02", "inRun": true, "text": "no market row: the session of 2026-04-03 is held only as a provisional bar, captured before the close and settle" }],
+      "stale": 0, "provisional": 1,
+      "errors": [{ "category": "DATA", "message": "fixture-breakout-v2: untested everywhere — RSI(14) needs 15 bars; 12 held", "setup": "fixture-breakout-v2", "correlationId": "run-20260403T220000-3977-6e41/e1" }],
+      "error": { "category": "DATA", "message": "fixture-breakout-v2: untested everywhere — RSI(14) needs 15 bars; 12 held", "correlationId": "run-20260403T220000-3977-6e41/e1" },
+      "skipReason": null, "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-03T22:00:00.000Z" }, { "status": "RUNNING", "at": "2026-04-03T22:00:00.036Z" }, { "status": "PARTIAL", "at": "2026-04-03T22:00:02.010Z" }],
+      "comparedWith": null,
+      "cacheStats": { "hits": 9, "misses": 7 },
+      "skippedMarkets": [{ "market": "MY", "reason": "the session of 2026-04-03 is held only as a provisional bar, captured before the close and settle" }],
+      "catchUp": { "pairs": 0, "bars": 0, "capped": 0 },
+      "ledger": { "known": 1, "newVersions": 1, "refused": 0 }
+    },
+    {
+      "id": "run-20260405T220000-4020-e9d0", "kind": "scan", "trigger": "daily", "origin": "daily", "status": "RUNNING",
+      "startedAt": "2026-04-05T22:00:00.000Z", "finishedAt": null, "durationMs": null, "exitCode": null,
+      "now": "2026-04-05T22:00:00.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 4020, "host": "this-pc", "operator": "reader",
+      "args": ["--trigger", "daily"], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": null, "historyNewest": null, "setupsHash": null, "logicalKey": null, "asOf": null, "asOfFrom": null, "counts": null,
+      "readiness": [], "stale": 0, "provisional": 0, "errors": [], "error": null, "skipReason": null, "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-05T22:00:00.000Z" }, { "status": "RUNNING", "at": "2026-04-05T22:00:00.035Z" }]
+    },
+    {
+      "id": "run-20260406T215000-4101-2c7b", "kind": "scan", "trigger": "retry", "origin": "retry", "status": "COMPLETED",
+      "startedAt": "2026-04-06T21:50:00.000Z", "finishedAt": "2026-04-06T21:50:01.120Z", "durationMs": 1120, "exitCode": 0,
+      "now": "2026-04-02T22:00:00.000Z", "replayAsOf": null, "retryOf": "run-20260402T220000-3870-9f3a", "engine": "scan 0.3.0", "pid": 4101, "host": "this-pc", "operator": "reader",
+      "args": ["--retry", "run-20260402T220000-3870-9f3a"], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": "sha256:bf9784399709a381", "historyNewest": "2026-04-06", "setupsHash": "9b530498", "logicalKey": "0.3.0|9b530498|sha256:bf9784399709a381|811c9dc5|live",
+      "asOf": "2026-04-02", "asOfFrom": "2026-04-02",
+      "counts": { "setups": 2, "evaluated": 4, "matched": 0, "recorded": 0, "deduped": 0, "cooldown": 0, "continuing": 0, "untested": 0, "skipped": 0, "problems": 0, "untestedEverywhere": 0, "deliveries": 0 },
+      "readiness": [{ "market": null, "state": "READY", "expected": "2026-04-02", "newestFinal": "2026-04-02", "inRun": true, "text": "no market row: the session of 2026-04-02 is held" }],
+      "stale": 0, "provisional": 0, "errors": [], "error": null, "skipReason": null,
+      "lockTakeover": { "previous": { "pid": 3995, "host": "this-pc", "startedAt": "2026-04-04T09:00:00.000Z", "runId": null }, "why": "stale" },
+      "transitions": [{ "status": "PENDING", "at": "2026-04-06T21:50:00.000Z" }, { "status": "RUNNING", "at": "2026-04-06T21:50:00.033Z" }, { "status": "COMPLETED", "at": "2026-04-06T21:50:01.120Z" }],
+      "retryBasis": "the history cut at 2026-04-02 and the clock at 2026-04-02T22:00:00.000Z, as run-20260402T220000-3870-9f3a read them",
+      "cacheStats": { "hits": 18, "misses": 10 },
+      "skippedMarkets": [],
+      "catchUp": { "pairs": 0, "bars": 0, "capped": 0 },
+      "ledger": { "known": 2, "newVersions": 0, "refused": 0 }
+    },
+    {
+      "id": "run-20260406T220000-4102-9a55", "kind": "scan", "trigger": "daily", "origin": "daily", "status": "COMPLETED",
+      "startedAt": "2026-04-06T22:00:00.000Z", "finishedAt": "2026-04-06T22:00:01.380Z", "durationMs": 1380, "exitCode": 0,
+      "now": "2026-04-06T22:00:00.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 4102, "host": "this-pc", "operator": "reader",
+      "args": ["--trigger", "daily"], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": "sha256:bf9784399709a381", "historyNewest": "2026-04-06", "setupsHash": "9b530498", "logicalKey": "0.3.0|9b530498|sha256:bf9784399709a381|4e1a2c90|live",
+      "asOf": "2026-04-06", "asOfFrom": "2026-04-06",
+      "counts": { "setups": 2, "evaluated": 4, "matched": 2, "recorded": 1, "deduped": 0, "cooldown": 0, "continuing": 1, "untested": 0, "skipped": 0, "problems": 0, "untestedEverywhere": 0, "deliveries": 1 },
+      "readiness": [{ "market": null, "state": "READY", "expected": "2026-04-06", "newestFinal": "2026-04-06", "inRun": true, "text": "no market row: the session of 2026-04-06 is held" }],
+      "stale": 0, "provisional": 0, "errors": [], "error": null, "skipReason": null, "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-06T22:00:00.000Z" }, { "status": "RUNNING", "at": "2026-04-06T22:00:00.035Z" }, { "status": "COMPLETED", "at": "2026-04-06T22:00:01.380Z" }],
+      "comparedWith": "run-20260406T215000-4101-2c7b",
+      "cacheStats": { "hits": 26, "misses": 12 },
+      "skippedMarkets": [],
+      "catchUp": { "pairs": 2, "bars": 3, "capped": 0 },
+      "ledger": { "known": 2, "newVersions": 0, "refused": 0 }
+    },
+    {
+      "id": "run-20260406T214000-4188-71e3", "kind": "scan", "trigger": "replay", "origin": "replay", "status": "COMPLETED",
+      "startedAt": "2026-04-06T21:40:00.000Z", "finishedAt": "2026-04-06T21:40:00.970Z", "durationMs": 970, "exitCode": 0,
+      "now": "2026-04-06T21:40:00.000Z", "replayAsOf": "2026-04-03", "retryOf": null, "engine": "scan 0.3.0", "pid": 4188, "host": "this-pc", "operator": "reader",
+      "args": ["--as-of", "2026-04-03"], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": "sha256:bf9784399709a381", "historyNewest": "2026-04-06", "setupsHash": "9b530498", "logicalKey": "0.3.0|9b530498|sha256:bf9784399709a381|4e1a2c90|as-of 2026-04-03",
+      "asOf": "2026-04-03", "asOfFrom": "2026-04-03",
+      "counts": { "setups": 2, "evaluated": 4, "matched": 0, "recorded": 0, "deduped": 0, "cooldown": 0, "continuing": 0, "untested": 2, "skipped": 0, "problems": 0, "untestedEverywhere": 0, "deliveries": 0 },
+      "readiness": [{ "market": null, "state": "READY", "expected": "2026-04-03", "newestFinal": "2026-04-03", "inRun": true, "text": "no market row: the session of 2026-04-03 is held" }],
+      "stale": 0, "provisional": 0, "errors": [], "error": null, "skipReason": null, "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-06T21:40:00.000Z" }, { "status": "RUNNING", "at": "2026-04-06T21:40:00.031Z" }, { "status": "COMPLETED", "at": "2026-04-06T21:40:00.970Z" }],
+      "cacheStats": { "hits": 11, "misses": 9 },
+      "skippedMarkets": [],
+      "catchUp": { "pairs": 0, "bars": 0, "capped": 0 },
+      "ledger": { "known": 2, "newVersions": 0, "refused": 0 }
+    },
+    {
+      "id": "run-20260407T080000-4230-b3f2", "kind": "scan", "trigger": "manual", "origin": "cli", "status": "SKIPPED_NO_DATA",
+      "startedAt": "2026-04-07T08:00:00.000Z", "finishedAt": "2026-04-07T08:00:00.260Z", "durationMs": 260, "exitCode": 3,
+      "now": "2026-04-07T08:00:00.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 4230, "host": "this-pc", "operator": "reader",
+      "args": [], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": "sha256:bf9784399709a381", "historyNewest": "2026-04-06", "setupsHash": "9b530498", "logicalKey": "0.3.0|9b530498|sha256:bf9784399709a381|4e1a2c90|live",
+      "asOf": null, "asOfFrom": null, "counts": null,
+      "readiness": [], "stale": 0, "provisional": 0, "errors": [], "error": null,
+      "skipReason": "nothing changed since run-20260406T220000-4102-9a55: the same engine, setups, history and alert record — a run on them records nothing new", "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-07T08:00:00.000Z" }, { "status": "RUNNING", "at": "2026-04-07T08:00:00.034Z" }, { "status": "SKIPPED_NO_DATA", "at": "2026-04-07T08:00:00.260Z" }],
+      "comparedWith": "run-20260406T220000-4102-9a55"
+    },
+    {
+      "id": "run-20260407T085958-4311-4f08", "kind": "scan", "trigger": "manual", "origin": "cli", "status": "PENDING",
+      "startedAt": "2026-04-07T08:59:58.000Z", "finishedAt": null, "durationMs": null, "exitCode": null,
+      "now": "2026-04-07T08:59:58.000Z", "replayAsOf": null, "retryOf": null, "engine": "scan 0.3.0", "pid": 4311, "host": "this-pc", "operator": "reader",
+      "args": [], "files": { "setups": "data/scan-setups.json", "history": "data/price-history.json", "alerts": "data/scan-alerts.json" },
+      "historyHash": null, "historyNewest": null, "setupsHash": null, "logicalKey": null, "asOf": null, "asOfFrom": null, "counts": null,
+      "readiness": [], "stale": 0, "provisional": 0, "errors": [], "error": null, "skipReason": null, "lockTakeover": null,
+      "transitions": [{ "status": "PENDING", "at": "2026-04-07T08:59:58.000Z" }]
     }
   ],
   "audit": [
-    {
-      "kind": "control",
-      "action": "pause",
-      "at": "2026-03-31T09:00:00.000Z",
-      "argv": [
-        "--pause",
-        "holiday week"
-      ],
-      "reason": "holiday week"
-    },
-    {
-      "kind": "control",
-      "action": "replay",
-      "at": "2026-04-06T23:10:00.000Z",
-      "argv": [
-        "--as-of",
-        "2026-04-03"
-      ],
-      "reason": null,
-      "replayAsOf": "2026-04-03"
-    }
-  ]
+    { "at": "2026-03-31T09:00:00.000Z", "action": "pause", "operator": "reader", "host": "this-pc", "reason": "holiday week" },
+    { "at": "2026-04-02T08:00:00.000Z", "action": "resume", "operator": "reader", "host": "this-pc", "pausedSince": "2026-03-31T09:00:00.000Z", "reason": "holiday week" },
+    { "at": "2026-04-04T09:30:00.000Z", "action": "unlock", "operator": "reader", "host": "this-pc", "previous": { "pid": 3990, "host": "this-pc", "startedAt": "2026-04-04T08:00:00.000Z", "runId": null }, "why": "dead", "forced": false, "closedRun": null },
+    { "at": "2026-04-06T21:50:00.020Z", "action": "lock-takeover", "operator": "reader", "host": "this-pc", "runId": "run-20260406T215000-4101-2c7b", "previous": { "pid": 3995, "host": "this-pc", "startedAt": "2026-04-04T09:00:00.000Z", "runId": null }, "why": "stale", "closedRun": null },
+    { "at": "2026-04-06T21:50:01.121Z", "action": "retry", "operator": "reader", "host": "this-pc", "runId": "run-20260406T215000-4101-2c7b", "status": "COMPLETED", "asOf": null, "retryOf": "run-20260402T220000-3870-9f3a", "args": ["--retry", "run-20260402T220000-3870-9f3a"], "added": 0, "deduped": 0 },
+    { "at": "2026-04-06T21:40:00.971Z", "action": "replay", "operator": "reader", "host": "this-pc", "runId": "run-20260406T214000-4188-71e3", "status": "COMPLETED", "asOf": "2026-04-03", "retryOf": null, "args": ["--as-of", "2026-04-03"], "added": 0, "deduped": 0 }
+  ],
+  "updatedAt": "2026-04-07T08:59:58.000Z"
 }
