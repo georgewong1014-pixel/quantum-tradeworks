@@ -350,12 +350,20 @@ data, so no signal is claimed to work.
    data…" > CSV, saved into `watchlist-shots/` (git-ignored: it is
    TradingView's licensed data, for your own research). The file is
    `OANDA_XAUUSD, 1D.csv`. Do the same on the weekly (1W) and monthly (1M)
-   charts: those two files are for checking and are never imported.
-2. **Import the daily file:**
+   charts, scrolled back as far: `OANDA_XAUUSD, 1W.csv` and `, 1M.csv`.
+2. **Import the three files:**
 
    ```bash
    node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+   node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1W.csv"
+   node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1M.csv"
    ```
+
+   The daily bars go to the daily series and the weekly and monthly bars
+   beside it, as TradingView drew them. **The bot's weekly and monthly
+   criteria read the imported weeks and months where they are held**, and
+   weeks and months built from your daily bars for every period after the
+   last imported one; each reading says which it read.
 
    The symbol (XAUUSD) is read from the name and its market (FX: a day that
    opens at 17:00 New York the evening before) from `data/instruments.json`,
@@ -384,6 +392,80 @@ data, so no signal is claimed to work.
    begins are counted, not compared. **DIFFERS** (exit 1) names the column or
    the period, the fields and both values — stop there: a setup read on a
    week the scanner built wrongly is wrong.
+
+   <!-- tv-verify frames -->
+   The weekly and monthly exports are also checked on their own bars, as the
+   daily one is: each chart's indicators computed from the file's own weeks
+   or months, every row dated as the import files it (a Sunday-evening stamp
+   is the week of the Monday it opens; a month is its 1st), and the last one
+   said to be in progress when it was:
+
+   ```bash
+   node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1W.csv"
+   node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1M.csv"
+   ```
+
+   Those charts carry more than the daily one, and their settings are their
+   own. **NOT KNOWN** is a column no script here computes — Ichimoku's lines,
+   Volume MA, VWAP and its bands, a "Plot" or "Shapes" of a script this tool
+   does not have — listed with its title and column number; it never stops
+   the check, and the exit status is decided by the columns compared. **BOT
+   PLOT** is one of your Multi-Timeframe Trading Bot's own marks, such as
+   "Strong Buy - Continuous", listed with the bars it marks: the bot joins
+   the chart's timeframe with its Entry timeframe, so one file cannot check
+   it. **Read as**, under the table, says which indicator each run of columns
+   was taken to be — two RSIs are two runs, and an untitled "Plot" run that
+   two scripts fit alike goes to the one whose numbers agree — and which
+   settings its numbers take: your daily chart's are tried first, then each
+   script's own defaults and, for the MACD, the bot's EMA signal. A setting
+   the file refutes is named with the column and bar that refute it; one it
+   cannot tell apart (an EMA of 200 on 300 bars) leaves the column NOT
+   SETTLED, with the candidates named. `--interval 1W` (or `1M`) with
+   `--market` reads a file not named as TradingView names one.
+   <!-- end tv-verify frames -->
+
+   <!-- bot-verify -->
+   Then hold the scanner's bot against your script's own marks on the three
+   charts:
+
+   ```bash
+   node scanner/bot-verify.mjs --daily "watchlist-shots/OANDA_XAUUSD, 1D.csv" \
+     --weekly "watchlist-shots/OANDA_XAUUSD, 1W.csv" --monthly "watchlist-shots/OANDA_XAUUSD, 1M.csv"
+   ```
+
+   It imports the three files exactly as step 2 does, but into a temporary
+   folder it removes afterwards (your `data/price-history.json` is never
+   touched), makes the bot's setups with your defaults, and evaluates them on
+   the last daily session of each week and month. Each "Strong Buy -
+   Continuous" (and every other bot mark) is compared with the matching
+   setup, and each chart's own WaveTrend, MACD and MCDX columns are compared
+   with the scanner's criteria for the same bar. It assumes each chart's bot
+   has Entry TF = D and Trade TF = the chart's own timeframe, and tests that
+   assumption against the chart's own columns. Every disagreement gets a
+   reason:
+
+   - **provisional**: the bar was still trading when you saved the file.
+   - **not held**: a daily session the week needs is missing.
+   - **warm-up**: a criterion needs more bars than the file holds, or has
+     not yet forgotten where the file begins.
+   - **entry timeframe**: your chart's Entry TF reading is not the daily
+     one.
+   - **trade timeframe**: your chart's bot does not read the chart's own
+     bars.
+   - **gaps_on**: a daily chart's weekly marks.
+   - **UNEXPLAINED** (exit 1): a fault to find and fix before trusting the
+     setups.
+
+   Your charts, as exported on 2026-09-28, run the script with its shipped
+   defaults: **Entry TF 240** (4-hour bars) and **Trade TF W** even on the
+   monthly chart. Many daily Entry TF marks sit on sessions where the chart's
+   own daily columns rule them out, and the monthly marks follow the weekly
+   bot, not the monthly bars. The scanner follows your decisions instead:
+   entries on the daily bar, and a monthly set on monthly bars. Its
+   alerts will not repeat those two charts' marks. To see TradingView draw
+   what the scanner computes, set the bot's Entry TF to D on all three
+   charts and its Trade TF to M on the monthly chart, then export again.
+   <!-- end bot-verify -->
 4. **Add the bot's setups** on `/app/scanner/setups` (once, and again only
    when you change them). They arrive as ordinary daily setups whose
    conditions read the week or the month, named for your script's alerts —
@@ -492,19 +574,26 @@ trades every weekday: five a week, about 21¾ a month):
 | 5 — hot money against 10 | 41 | 41 | — | — |
 
 - **Your export of 28 September** holds about 300 daily bars (from 31 July
-  2025): about 60 weeks and 14 closed months. Every daily criterion is known; weekly
-  criteria 1, 2 and 4 and the weekly histogram are known; **weekly criterion 3
-  is unknown** (200 weeks), so Trade TF Tier 1 Buy, Trade TF Tier 2 Sell, WEAK
-  BUY and both STRONG SELL alerts cannot hold on the week yet; **every monthly
-  criterion is unknown**, so no monthly signal can hold.
+  2025): about 60 weeks and 14 closed months. On the daily file alone, every
+  daily criterion is known; weekly criteria 1, 2 and 4 and the weekly
+  histogram are known; **weekly criterion 3 is unknown** (200 weeks), so
+  Trade TF Tier 1 Buy, Trade TF Tier 2 Sell, WEAK BUY and both STRONG SELL
+  alerts cannot hold on the week; **every monthly criterion is unknown**, so
+  no monthly signal can hold. **With the weekly and monthly exports
+  imported** — 300 weeks from January 2021, 300 months from October 2001 —
+  every weekly and monthly criterion is known, read on the imported weeks
+  and months; the setup page and the bot's card count them, imported and
+  built.
 - **At the history's limit.** The history keeps the newest 2,000 bars of each
   series, and every write trims to that, the daily run's included
   (`ingest/history-store.mjs`): about 7⅔ years of sessions, 400 weeks, 92
   months. That is enough for every daily and weekly criterion. **Monthly
-  criterion 3 needs 200 months and cannot be computed within it**, so on the
-  month Trade TF Tier 1 Buy, Trade TF Tier 2 Sell, WEAK BUY and both STRONG
-  SELL alerts can never hold, and Trade TF Tier 2 Buy and Tier 1 Sell hold
-  only where criterion 4 settles them (the banker above 5).
+  criterion 3 needs 200 months and cannot be computed from the daily bars
+  within it**: without an imported monthly export, on the month Trade TF
+  Tier 1 Buy, Trade TF Tier 2 Sell, WEAK BUY and both STRONG SELL alerts can
+  never hold, and Trade TF Tier 2 Buy and Tier 1 Sell hold only where
+  criterion 4 settles them (the banker above 5). The imported months are kept
+  apart from the daily series, each frame to its own newest 2,000 periods.
 - **Computed is not yet TradingView's number.** An EMA, Wilder's RSI and
   WaveTrend remember where a history begins, and TradingView computes on all of
   its own. Close to a crossing, the scanner's value can differ from the

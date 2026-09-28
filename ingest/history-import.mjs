@@ -54,11 +54,12 @@
  *   saved is PROVISIONAL until an import made after its last session.
  *
  * DATES
- *   ISO dates are read as written. A 10- or 13-digit epoch, or a date-time
- *   with a zone, is an instant, and TradingView stamps each daily bar at the
- *   instant its session OPENS. So an instant is dated by the session it
- *   opens, in the instrument's market (its registry row, or --market; --tz
- *   changes only the zone): for a market whose day opens the evening before
+ *   ISO dates are read as written. An epoch (9 or 10 digits in seconds, 12
+ *   or 13 in milliseconds), or a date-time with a zone, is an instant, and
+ *   TradingView stamps each daily bar at the instant its session OPENS. So
+ *   an instant is dated by the session it opens, in the instrument's market
+ *   (its registry row, or --market; --tz changes only the zone): for a
+ *   market whose day opens the evening before
  *   — the currency pairs and OANDA's gold, 17:00 New York — a stamp at or
  *   after that hour is the next day's session, and an export's Sunday-to-
  *   Thursday stamps are Monday to Friday; an exchange's stamp at its own
@@ -108,6 +109,16 @@ const VOL_KEYS   = ['volume', 'vol', 'total volume'];
 /* What the reader says about the export's prices (see ADJUSTED OR NOT). */
 export const ADJUSTED = ['provider', 'none', 'unknown'];
 
+/* The rows a merge did not write, in the import's line: held by a
+   higher-ranked source, or read while the session (week, month) still
+   traded where a final or later reading is held — the older of two
+   exports of one chart, imported after the newer. */
+const notWritten = (r, unit) => {
+  const pv = r.outranked.filter(o => o.provisional).length, rk = r.outranked.length - pv;
+  return `${rk ? `  (${rk} held by a higher-ranked source — not written)` : ''}`
+    + `${pv ? `  (${pv} read while the ${unit} still traded, where a final or later reading is held — not written)` : ''}`;
+};
+
 /* Marks the bars an import now holds as its own with what the reader said
    about their adjustment. Only bars whose source is this import: a bar a
    higher-ranked source kept, or one this import left unchanged under
@@ -155,11 +166,16 @@ export function exportTimeframe(interval) {
   return null;
 }
 const UNIT = { '1W': 'week', '1M': 'month' };
-/* What reads imported weeks and months today. The engine's weekly and
-   monthly bars are still built from the daily series (scanResample); the
-   frames are held for the day they are read in their place. When that
-   lands, this sentence is the one to change. */
-export const FRAMES_READ = 'held beside the daily series; the scanner\'s weekly and monthly bars are still built from the daily bars until the engine reads imported ones';
+/* What reads imported weeks and months. The engine's weekly and monthly
+   bars (scanFrameBars) are the imported ones wherever a frame holds the
+   period, and are built from the daily series (scanResample) for every
+   period it does not — after the last imported one, before the first, and
+   any gap: the week or month in progress when the export was saved gives
+   way to the one the daily bars build once they hold it. A corporate
+   action recorded inside or after the imported periods, with the export
+   not imported --adjusted provider, stops them being read (the daily bars
+   are adjusted on read and these would not be). */
+export const FRAMES_READ = 'held beside the daily series and read by the scanner: its weekly and monthly bars are the imported ones where held, and built from the daily bars for every period after the last imported one (and any the export lacks)';
 
 /* markAdjusted for an imported week or month: its meta is the frame's,
    keyed by period. */
@@ -363,7 +379,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
             `  ${keys[0] || '—'} to ${keys[keys.length - 1] || '—'}` +
             `  ${kept.length === 3 ? 'open/high/low kept' : 'close only'}${parsed.columns.volume ? `, volume kept${ticks ? ' (a tick count)' : ''}` : ', no volume column'}` +
             `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — recorded)` : ''}` +
-            `${r.outranked.length ? `  (${r.outranked.length} held by a higher-ranked source — not written)` : ''}` +
+            `${notWritten(r, unit)}` +
             `${r.rejected.length ? `  (${r.rejected.length} row(s) refused: ${[...new Set(r.rejected.flatMap(x => x.codes))].join(', ')})` : ''}`);
           tail();
           if (noCount.length) {
@@ -374,7 +390,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
              last expected session had closed when the file was saved,
              PROVISIONAL while the week or month still traded. */
           const meta = hist.frames?.[tf]?.[f.symbol]?.meta || {};
-          const last = parsed.rows.map(x => periodKey(E, tf, x.date)).filter(pk => pk && meta[pk]?.src === source).sort().pop();
+          const last = parsed.rows.map(x => periodKey(E, tf, x.date)).filter(pk => pk && meta[pk]?.src === source && meta[pk]?.at === capturedAt).sort().pop();
           if (last) {
             const status = periodStatus(E, tf, last, market, capturedAt);
             report.push(`${pad}last ${unit} ${last} ${status}${status === 'PROVISIONAL' ? ` — the file was saved at ${capturedAt}, before the ${unit}'s last session (${periodLastSession(E, tf, last, market)}) closed; the next import made after it replaces this bar` : ''}`);
@@ -394,12 +410,12 @@ Export from TradingView: open the chart, then the menu beside the symbol >
           `  ${dates[0] || '—'} to ${dates[dates.length - 1] || '—'}` +
           `  ${kept.length === 3 ? 'open/high/low kept' : 'close only'}${parsed.columns.volume ? `, volume kept${ticks ? ' (a tick count)' : ''}` : ', no volume column'}` +
           `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — recorded)` : ''}` +
-          `${r.outranked.length ? `  (${r.outranked.length} held by a higher-ranked source — not written)` : ''}` +
+          `${notWritten(r, 'session')}` +
           `${r.rejected.length ? `  (${r.rejected.length} row(s) refused: ${[...new Set(r.rejected.flatMap(x => x.codes))].join(', ')})` : ''}`);
         tail();
         /* The newest row this import holds: FINAL once its session had closed
            when the file was saved, PROVISIONAL while it still traded. */
-        const last = parsed.rows.map(x => x.date).filter(d => hist.meta[f.symbol]?.[d]?.src === source).sort().pop();
+        const last = parsed.rows.map(x => x.date).filter(d => hist.meta[f.symbol]?.[d]?.src === source && hist.meta[f.symbol][d].at === capturedAt).sort().pop();
         if (last) {
           const status = E.scanBarStatus(market, last, capturedAt);
           report.push(`${pad}last bar ${last} ${status}${status === 'PROVISIONAL' ? ` — the file was saved at ${capturedAt}, before that session closed; the next import made after the close replaces it` : ''}`);

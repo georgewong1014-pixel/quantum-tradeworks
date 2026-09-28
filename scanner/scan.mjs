@@ -225,6 +225,10 @@ export const ENGINE_EXPORTS = [
   /* the bot contract: conditions read on a higher timeframe (their last closed bar), and the reader's Multi-Timeframe Trading Bot as setups */
   'SCAN_TF_RANK', 'scanTimeframeRank', 'scanTimeframeWord', 'scanFrame', 'scanFrameAt', 'scanTreeNeeds',
   'SCAN_BOT_SIGNALS', 'scanBotCriteria', 'scanBotTree', 'scanBotPack', 'scanBotWarmup',
+  /* imported weeks and months (history.frames): the engine's week key, which the store files an imported week under
+     (ingest/history-store.mjs loadStoreEngine used to evaluate the region a second time to reach it), what the
+     history holds for a symbol, the one builder of weekly and monthly bars, and a yes-or-no condition's literal */
+  'scanWeekOf', 'scanFramesOf', 'scanFrameBars', 'scanFlagLiteral',
 ];
 
 /* ------------------------------------------------------------ validation -- */
@@ -981,7 +985,15 @@ async function main() {
     console.log(`lock       ${lock ? (lock.unreadable ? 'present but unreadable' : `held by pid ${lock.pid} on ${lock.host} since ${lock.startedAt}${lock.runId ? ` (${lock.runId})` : ''}`) : 'free'}`);
     console.log(`channels   in-app ACTIVE (the alert record); ${Object.entries(CHANNELS).filter(([, c]) => c.status !== 'ACTIVE').map(([k]) => k.toLowerCase()).join(', ')} NOT CONFIGURED — no server, no contact address held`);
     console.log('unread     not known here: read and archived marks live in the browser');
-    console.log('timeframe  daily, weekly and monthly (weekly and monthly built from daily) — intraday bars need a licensed feed (SC-317)');
+    /* Weeks and months are the imported ones where the history holds a
+       TradingView weekly or monthly export for the instrument (frames), and
+       built from the daily bars elsewhere: the line said "built from daily"
+       of both after imported ones were read. */
+    const framed = ['1W', '1M'].map(tf => [tf, Object.keys(history?.frames?.[tf] || {}).filter(s => Object.keys(history.frames[tf][s]?.series || {}).length).sort()]).filter(([, s]) => s.length);
+    const few = (s) => (s.length > 5 ? `${s.slice(0, 5).join(', ')} and ${s.length - 5} more` : s.join(', '));
+    console.log(`timeframe  daily, weekly and monthly (weekly and monthly ${framed.length
+      ? `imported where your history holds a TradingView export — ${framed.map(([tf, s]) => `${tf === '1W' ? 'weekly' : 'monthly'} for ${few(s)}`).join('; ')} — and otherwise built from daily`
+      : 'built from daily; your history holds no imported weekly or monthly bars'}) — intraday bars need a licensed feed (SC-317)`);
     process.exit(0);
   }
 
