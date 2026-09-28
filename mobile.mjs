@@ -584,6 +584,72 @@ for (const [route, heads] of [
   if (!v || missing.length || v.cut.length) { bad++; console.log(`FAIL 390px ${route} — words cut inside prose cells: ${v ? [...missing.map(h => 'no table "' + h + '"'), ...v.cut.slice(0, 4)].join('; ') : 'not measured'}`); }
 }
 /* ---- end bugfix2: equities ---- */
+/* ---- bugfix4: shell ---- */
+/* A CHART MARK THAT IS A BUTTON IS A TAP TARGET. The value map's and
+   Compare's marks measured 26-29px at 390px, and the heatmap's smaller
+   tiles 30×42, 33×56 and 59×36 — each one a keyboard- and tap-operable
+   button. On a phone every mark must either be 44px on both axes (the
+   scatter's hit circle grows) or have a 44px button on the page for the
+   same company that opens the same thing (a treemap tile's area is market
+   capitalisation and cannot grow). One such button is pressed to prove it
+   opens the drawer. And a grown hit circle must not take a tap from a
+   neighbour: on the value map a tap on each mark's dot opens that mark —
+   grown in one layer, three companies' dots opened the company beside them. */
+for (const w of [360, 390]) {
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  for (const route of ['/discover?tab=heatmap', '/discover/value-map', '/compare?companies=AAPL-SEC,MSFT-SEC,MAYBANK']) {
+    await send('Page.navigate', { url: BASE + route }, sessionId);
+    let ready = false;
+    for (let i = 0; i < 40 && !ready; i++) {
+      await sleep(500);
+      const p = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+      ready = p.result?.result?.value === true;
+    }
+    await sleep(900);
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+      const wait = (ms) => new Promise(r => setTimeout(r, ms));
+      const big = (n) => { const b = n.getBoundingClientRect(); return b.width >= 44 && b.height >= 44; };
+      const who = (n) => (n.getAttribute('aria-label') || '').split(/[ ,]/)[0];
+      const marks = [...document.querySelectorAll('#views svg g[role="button"]')];
+      const buttons = [...document.querySelectorAll('#views button')].filter(b => b.getClientRects().length && big(b));
+      const bad = marks.filter(g => !big(g) && !buttons.some(b => who(b) === who(g)))
+        .map(g => { const b = g.getBoundingClientRect(); return who(g) + ' ' + Math.round(b.width) + '×' + Math.round(b.height); });
+      const offered = buttons.filter(b => marks.some(g => !big(g) && who(g) === who(b)));
+      let opened = null;
+      if (offered.length) {
+        offered[0].click();
+        await wait(400);
+        opened = document.getElementById('drawer').hidden ? '' : document.getElementById('drawerTitle').textContent;
+        closeDrawer(); await wait(400);
+      }
+      /* What a tap on each value-map mark's dot opens. The page's opener is
+         swapped for a recorder while the dots are hit-tested, then put back. */
+      const stolen = [];
+      if (location.pathname === '/discover/value-map') {
+        document.documentElement.style.scrollBehavior = 'auto';
+        const real = window.openRadarDetail, got = [];
+        window.openRadarDetail = (id) => got.push(id);
+        try {
+          for (const g of marks) {
+            const t = g.getBoundingClientRect(); window.scrollTo(0, scrollY + t.top - innerHeight / 2); await wait(20);
+            const d = g.querySelectorAll('circle')[2].getBoundingClientRect();
+            const x = d.left + d.width / 2, y = d.top + d.height / 2;
+            got.length = 0;
+            document.elementFromPoint(x, y)?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
+            const want = U.find(u => u.c.tk === who(g))?.c.id;
+            if (got.length !== 1 || got[0] !== want) stolen.push(who(g) + '→' + (got[0] || 'nothing'));
+          }
+        } finally { window.openRadarDetail = real; }
+      }
+      return { n: marks.length, bad, offered: offered.length, opened, stolen };
+    })()` }, sessionId);
+    const v = r.result?.result?.value;
+    if (!v || !v.n || v.bad.length || (v.offered && !v.opened) || v.stolen.length) {
+      bad++; console.log(`FAIL ${w}px ${route} — chart marks under 44px with no 44px equivalent, or a tap that opens another mark: ${v ? `${v.bad.length} of ${v.n} (${v.bad.slice(0, 3).join(', ')})${v.offered && !v.opened ? '; an offered button opened nothing' : ''}${v.stolen.length ? `; a tap on the dot opened another: ${v.stolen.slice(0, 4).join(', ')}` : ''}` : 'not measured'}`);
+    }
+  }
+}
+/* ---- end bugfix4: shell ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

@@ -83,13 +83,18 @@ function fmtX(v, dp = 1) {
 function fmtCap(v, ccy) {
   if (!isNum(v)) return '—';
   const sym = ccy === 'MYR' ? 'RM' : '$';
-  /* Sign leads the symbol — "−$51.5B", never "$-51.5B". */
-  const sign = v < 0 ? '−' : '', a = Math.abs(v);
+  const a = Math.abs(v);
   /* The unit is chosen on the figure as it will print: 999.97 billion rounds
      to "1000.0B" and 0.9997 billion to "1000M", which belong a unit up. */
-  if (a >= 999.95) return `${sign}${sym}${(a / 1000).toFixed(2)}T`;
-  if (a >= 0.9995) return `${sign}${sym}${a.toFixed(1)}B`;
-  return `${sign}${sym}${(a * 1000).toFixed(0)}M`;
+  const body = a >= 999.95 ? `${(a / 1000).toFixed(2)}T`
+    : a >= 0.9995 ? `${a.toFixed(1)}B`
+    : `${(a * 1000).toFixed(0)}M`;
+  /* Sign leads the symbol — "−$51.5B", never "$-51.5B" — and, as fmtMoney's
+     does, belongs to the figure as it prints. It was taken from the raw value,
+     so anything under half a million below zero printed "−$0M": a zero with a
+     minus in front of it. */
+  const sign = v < 0 && /[1-9]/.test(body) ? '−' : '';
+  return `${sign}${sym}${body}`;
 }
 function fmtMoney(v, ccy, dp = 2) {
   if (!isNum(v)) return '—';
