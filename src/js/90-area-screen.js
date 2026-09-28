@@ -24,6 +24,8 @@ State.areaScreen = { city:'kuching', layer:'flood', classes:{}, minRecords:0, ma
    hand focus back to it — see renderAfterTyping in 75-property-grade.js. A
    locality's Record button is found again by its name. */
 const areaRowButtonId = (n) => `area-rec-${String(n).replace(/[^A-Za-z0-9]+/g, '-')}`;
+/* A comparable's Open button, found again by the record it opens. */
+const obsOpenId = (o) => `obs-open-${String(o.id).replace(/[^A-Za-z0-9]+/g, '-')}`;
 
 VIEWS.areas = () => {
   const S = State.areaScreen;
@@ -287,11 +289,15 @@ VIEWS.areas = () => {
        An amount without a date is the
        most misleading figure a property register can print: RM620,000 reads as
        current until you learn it was 2017. Both, or neither. */
-    const last = m.lastSold || m.lastLand;
+    /* The newer of the two by the date it happened — areaMetrics' own
+       lastTransaction, which the age layer reads too. `lastSold || lastLand`
+       showed a 2019 house sale beside last month's parcel, and marked a sale
+       as land only when no built sale existed at all. */
+    const last = m.lastTransaction;
     const lastCell = () => {
       if (!last) return el('span', { class: 'caption' }, 'none recorded');
       const age = monthsSince(last.date);
-      const isLand = last === m.lastLand && !m.lastSold;
+      const isLand = last.kind === 'land-sold';
       return el('span', { title: `${OBS_BY_ID[last.kind] ? OBS_BY_ID[last.kind].label : last.kind}`
         + `${last.address ? ` · ${last.address}` : ''} · ${observationStanding(last).label}` }, [
         el('span', {}, fmtMoney(last.value, 'MYR', 0)),
@@ -592,7 +598,7 @@ VIEWS.comparables = () => {
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.address || '—'),
         el('td', { class: 'caption', style: 'text-align:left' }, o.date || '—'),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.sourceRef || '—'),
-        el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm',
+        el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm', id: obsOpenId(o),
           onclick: () => openObservationDrawer(o) }, 'Open')),
       ]));
     });
@@ -642,7 +648,7 @@ VIEWS.comparables = () => {
               : c === 'standing' ? observationStanding(o).id : o[c])).join(',')));
       dl('quantum-comparables.csv', lines.join('\n'), 'text/csv');
     } }, 'Export CSV'),
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => openComparableImport() }, 'Import'),
+    el('button', { class: 'btn btn-primary btn-sm', id: 'register-import', onclick: () => openComparableImport() }, 'Import'),
   ]));
   io.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'CSV is for reading; JSON brings back every field of each record, worked-example marks and land areas included. The file also carries the change history for reading — an import starts each record\'s history afresh, at the import. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));
@@ -784,7 +790,11 @@ function openComparableImport() {
         `${unsourced} of these carry no source reference and will be held as notes rather than evidence.`));
       report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)', onclick: () => {
         ok.forEach(x => addObservation(x));
-        closeDrawer(); render();
+        /* The drawer hands focus back to the Import button that opened it —
+           which render() has just replaced, so it fell to <body>. Back to the
+           new one, by id. */
+        closeDrawer({ restore: false }); render();
+        document.getElementById('register-import')?.focus();
         toast(`${ok.length} record${ok.length === 1 ? '' : 's'} imported${dup.length ? `, ${dup.length} skipped` : ''}`);
       } }, `Import ${ok.length} record${ok.length === 1 ? '' : 's'}`));
     } }, 'Check this paste'),
@@ -866,10 +876,18 @@ function openObservationDrawer(o) {
   body.append(histHost);
   paint();
 
+  /* The row that opened the drawer is gone, so focus cannot go back to it —
+     the drawer tried, found it detached, and left the keyboard on <body>.
+     It goes to the row that took its place, or the one before it, or to
+     Undo when the register is empty — the toast points there. */
   body.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--md)', onclick: () => {
     recordObservationDeleted(State.observations.find(x => x.id === o.id) || o);
+    const at = State.observations.findIndex(x => x.id === o.id);
     State.observations = State.observations.filter(x => x.id !== o.id);
-    saveObservations(); closeDrawer(); render(); toast('Record deleted — undo from the register');
+    const next = at < 0 ? null : State.observations[at] || State.observations[at - 1] || null;
+    saveObservations(); closeDrawer({ restore: false }); render();
+    document.getElementById(next ? obsOpenId(next) : 'register-undo')?.focus();
+    toast('Record deleted — undo from the register');
   } }, 'Delete this record'));
   openDrawer(`${OBS_BY_ID[o.kind] ? OBS_BY_ID[o.kind].label : 'Observation'} · ${fmtNum(o.value, 0)}`, body);
 }

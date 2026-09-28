@@ -1751,6 +1751,7 @@ const AREA_CONFIDENCE = {
    it, each point takes the layer's colour and an area with nothing recorded
    keeps a hollow, dashed mark. That distinction is the whole point: an
    unexamined area must never be able to look like a safe one. */
+let cityMapFocus = null;
 function cityMap(cityId, selectedArea, onPick, paint) {
   const city = sarawakGeo?.cities?.[cityId];
   const areas = Object.entries(city?.areas || {});
@@ -1758,6 +1759,14 @@ function cityMap(cityId, selectedArea, onPick, paint) {
   if (!areas.length) return host;
 
   chartHost(host, (w) => {
+    /* The point to hand focus back to once this drawing replaces the last:
+       the one that holds it now, when the map is only being redrawn — the
+       host is observed, and a drawing that changes its height draws it
+       again — or the one picked on the map this page replaced (see pick). */
+    const held = document.activeElement;
+    const focusBack = held && host.contains(held) && held.dataset?.area ? held.dataset.area
+      : cityMapFocus && cityMapFocus.city === cityId ? cityMapFocus.name : null;
+    cityMapFocus = null;
     const pad = 40;
     const lats = areas.map(([, a]) => a.lat), lons = areas.map(([, a]) => a.lon);
     const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
@@ -1845,7 +1854,7 @@ function cityMap(cityId, selectedArea, onPick, paint) {
       const cf = AREA_CONFIDENCE[a.confidence] || AREA_CONFIDENCE['landmark-proxy'];
       const cx = sx(a.lon * kx), cy = sy(-a.lat);
       const on = name === selectedArea;
-      const g = mk('g', { tabindex:'0', role:'button', style:'cursor:pointer',
+      const g = mk('g', { tabindex:'0', role:'button', style:'cursor:pointer', 'data-area': name,
         'aria-label': name + '. ' + cf.label + '. '
           + (paint ? (paint.describe ? paint.describe(name) + '. ' : '') : '')
           + (State.observations || []).filter(o => o.city === cityId && o.area === name).length
@@ -1935,7 +1944,17 @@ function cityMap(cityId, selectedArea, onPick, paint) {
         g.append(t);
       } else unlabelled.push(name);
 
-      const pick = () => onPick && onPick(name);
+      /* Both callers redraw the page on a pick, and the map with it, so the
+         point that had focus was destroyed and focus fell to <body> — a
+         keyboard reader choosing an area had to Tab back from the top of the
+         page. The point is remembered and takes focus again when the new map
+         is drawn, which happens a frame later: the host has no width until it
+         is in the page, so chartHost draws it from its resize observer. */
+      if (focusBack === name) queueMicrotask(() => { if (g.isConnected) g.focus({ preventScroll: true }); });
+      const pick = () => {
+        if (document.activeElement === g) cityMapFocus = { city: cityId, name };
+        if (onPick) onPick(name);
+      };
       g.addEventListener('click', pick);
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
       svg.append(g);
@@ -2293,6 +2312,42 @@ const OBS_BY_ID = Object.fromEntries(OBSERVATION_KINDS.map(k => [k.id, k]));
 const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map(e => [e.id, e]));
 
 const saveObservations = () => store.write('observations', State.observations);
+
+/* A SECOND TAB'S RECORDS ARE KEPT, NOT OVERWRITTEN.
+   The register's projections are read once, at boot, and every writer saves
+   the whole of one: State.observations, State.areaProfiles, State.demand. So
+   with the calculator open in one tab and the comparables in another, a
+   record added in the first was dropped by the next save in the second —
+   written over by a copy read before it existed. The log kept both events,
+   so the register then reported its history did not account for its
+   records, and the lost record was gone from every page.
+
+   Each tab takes the other's writes as they land: the browser fires
+   `storage` in every OTHER tab of this origin when a key changes, and the
+   projection is read again. Every writer already starts from State, so
+   every save made here afterwards carries the other tab's records. The page
+   is not redrawn under the reader — whatever they have half typed in this
+   tab stays — and the next thing done here draws from the fresh copy. A
+   `null` key is localStorage.clear() in the other tab.
+
+   The same held for the other lists these pages save whole: a Sarawak
+   exposure recorded in one tab was dropped by the next Add in another, and a
+   report unlocked in one tab was locked again by an unlock in the other —
+   the second tab wrote back a list without it. */
+const PROPERTY_SHARED_KEYS = {
+  observations:          () => { State.observations = store.read('observations', []); },
+  areaProfiles:          () => { State.areaProfiles = store.read('areaProfiles', {}); },
+  demand:                () => { State.demand = store.read('demand', {}); },
+  sarawakExposure:       () => { State.sarawakExposure = store.read('sarawakExposure', []); },
+  propertyReportsBought: () => { State.propertyReportsBought = store.read('propertyReportsBought', []); },
+  propertyReportLog:     () => { State.propertyReportLog = store.read('propertyReportLog', { month: meterMonth(), ids: [] }); },
+};
+window.addEventListener('storage', (e) => {
+  if (e.storageArea && e.storageArea !== localStorage) return;
+  if (e.key === null) { Object.values(PROPERTY_SHARED_KEYS).forEach(f => f()); return; }
+  const k = String(e.key).startsWith('vl.') ? String(e.key).slice(3) : null;
+  if (k && Object.hasOwn(PROPERTY_SHARED_KEYS, k)) PROPERTY_SHARED_KEYS[k]();
+});
 
 /* THE COMPARABLES REGISTER IS THIS, EXTENDED — NOT A SECOND STORE.
    ---------------------------------------------------------------------------

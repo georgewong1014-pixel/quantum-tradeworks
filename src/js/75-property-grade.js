@@ -79,8 +79,11 @@ function borrowerAffordability(b, m) {
   const essentials = num0(b.essentialMonthlyCommitments);
   const instalment = isNum(m?.instalment) ? m.instalment : null;
   /* Three points above the entered rate, the top of the range 31.7 asks for. */
-  const stressedInstalment = (isNum(m?.loan) && m?.tenureValid)
-    ? monthlyInstalment(m.loan, num0(m.inputRatePct) + 3, num0(m.tenureYears)) : null;
+  /* No loan, no instalment to stress — nought at any rate, as the model's own
+     instalment is, rather than unknown because the tenure box reads 0. */
+  const stressedInstalment = !isNum(m?.loan) ? null
+    : !(m.loan > 0) ? 0
+    : m.tenureValid ? monthlyInstalment(m.loan, num0(m.inputRatePct) + 3, num0(m.tenureYears)) : null;
 
   const ok = income > 0 && isNum(instalment);
   return {
@@ -397,6 +400,21 @@ function propertyGrade(d, m) {
     notes.price = 'No bank or valuer estimate has been entered, so there is nothing to test the price against.';
   }
 
+  /* A PILLAR THAT CANNOT APPLY IS NOT ONE WAITING FOR EVIDENCE.
+     Debt-service cover and rental cash flow are both measured on rent, and a
+     non-letting class has none — so on a financed parcel the two are null
+     whatever is entered, 40% of the weight, and at most 60% can ever be
+     scored against the 80% a grade needs. The grade was still reported as
+     "Not enough evidence", and the page said the grade was withheld for want
+     of coverage, as though more evidence could lift it. No evidence can.
+     The model is unchanged — the pillars stay out of the score and the grade
+     stays withheld — and the words now say why: the class, not the file.
+     How such a class should be graded, if at all, is a decision for the
+     framework, not for this sentence. */
+  const noTenancy = m.letsToTenant === false;
+  const classWord = String(PROPERTY_CLASSES[m.propertyClass]?.label || 'non-letting').toLowerCase();
+  const inapplicable = [];
+
   if (isNum(m.dscr)) {
     /* 1.00x is the floor at which rent just covers the loan before tax and any
        major repair. 1.50x is comfortable. */
@@ -404,6 +422,9 @@ function propertyGrade(d, m) {
     notes.financing = `Debt-service cover ${fmtX(m.dscr, 2)}.`;
   } else if (m.loan === 0) {
     scores.financing = 100; notes.financing = 'Cash purchase — no financing risk.';
+  } else if (noTenancy) {
+    scores.financing = null; inapplicable.push('financing');
+    notes.financing = `Does not apply: debt-service cover is rent over the instalment, and a ${classWord} class has no tenancy to pay rent.`;
   } else { scores.financing = null; notes.financing = 'Debt-service cover could not be computed.'; }
 
   if (isNum(m.netYield) && isNum(m.cashflowMonthly)) {
@@ -413,6 +434,9 @@ function propertyGrade(d, m) {
     notes.cashflow = m.annualOwnerSubsidy > 0
       ? `Net yield ${fmtPct(m.netYield, 2)}, and the property costs ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold.`
       : `Net yield ${fmtPct(m.netYield, 2)}, cash-flow positive.`;
+  } else if (noTenancy) {
+    scores.cashflow = null; inapplicable.push('cashflow');
+    notes.cashflow = `Does not apply: a ${classWord} class earns no rent, so there is no yield to score. What it costs to hold is stated above, and the downside pillar tests it.`;
   } else { scores.cashflow = null; notes.cashflow = 'Operating cash flow could not be computed.'; }
 
   /* Downside rests on the stress the model already runs. Its own resilience is
@@ -460,6 +484,11 @@ function propertyGrade(d, m) {
   const score = testedWeight > 0
     ? Math.round(tested.reduce((s, p) => s + scores[p.k] * p.weight, 0) / testedWeight)
     : null;
+  /* The most that could ever be scored for this class, with every input
+     evidenced. Below 80% no grade is reachable; below 90%, no A. */
+  const inapplicableWeight = GRADE_PILLARS.filter(p => inapplicable.includes(p.k)).reduce((s, p) => s + p.weight, 0);
+  const reachable = (totalWeight - inapplicableWeight) / totalWeight;
+  const classUngradeable = reachable < 0.80;
 
   /* ---- grade ---------------------------------------------------------- */
   const capU = gates.some(g => g.caps === 'U');
@@ -467,7 +496,7 @@ function propertyGrade(d, m) {
   let grade, verdict;
   if (capU || coverage < 0.80 || score == null) {
     grade = 'U';
-    verdict = 'Not enough evidence';
+    verdict = classUngradeable ? 'Not gradeable for this class' : 'Not enough evidence';
   } else {
     if (score >= 80 && coverage >= 0.90) grade = 'A';
     else if (score >= 65 && coverage >= 0.80) grade = 'B';
@@ -481,7 +510,8 @@ function propertyGrade(d, m) {
   }
 
   return { grade, verdict, score, coverage, scores, notes, gates,
-           pillars: GRADE_PILLARS.map(p => ({ ...p, score: scores[p.k], note: notes[p.k] })) };
+           reachable, classUngradeable, inapplicable,
+           pillars: GRADE_PILLARS.map(p => ({ ...p, score: scores[p.k], note: notes[p.k], applies: !inapplicable.includes(p.k) })) };
 }
 
 function dealModel(d) {
@@ -630,11 +660,19 @@ function dealModel(d) {
      negative instalment, a zero reserve and a closing balance several times the
      principal, none of it flagged. Reported as not computable instead. */
   const tenureValid = num0(d.tenureYears) > 0;
-  const instalment = tenureValid ? monthlyInstalment(loan, d.ratePct, d.tenureYears) : null;
+  /* With no loan there is no schedule to need: the instalment is nought
+     whatever the tenure box says. A cash purchase with a tenure of 0 was given
+     a null instalment, so its reserve could not be computed and "Emergency
+     reserve" was listed as a missing cost line on a purchase with nothing to
+     service — and the page warned that the instalment, the reserve and the
+     closing balance were unavailable. Only a loan makes the tenure matter. */
+  const instalment = !(loan > 0) ? 0
+    : tenureValid ? monthlyInstalment(loan, d.ratePct, d.tenureYears) : null;
   /* A cleared rate box reads as 0 through num0, and 0% is a legitimate entry —
      so the two cannot be told apart from the value alone, and a zero rate cuts
-     the instalment by roughly half. Flagged rather than guessed at. */
-  const zeroRateModelled = num0(d.ratePct) === 0;
+     the instalment by roughly half. Flagged rather than guessed at — where
+     there is a loan for the rate to be charged on. */
+  const zeroRateModelled = num0(d.ratePct) === 0 && loan > 0;
   /* WHICH QUANTITIES THIS ASSET ACTUALLY HAS.
      ------------------------------------------------------------------------
      The class was asked for, displayed and then discarded: this model never
@@ -892,8 +930,12 @@ function dealModel(d) {
     cumPreTax += f.cfPreTax; cumCash += f.cf; cumTax += f.tax;
     path.push({ ...f, cum: debtUnknown ? null : cumCash });
   }
-  /* A sum of unknown years is unknown, not the nought `0 + null` makes it. */
+  /* A sum of unknown years is unknown, not the nought `0 + null` makes it.
+     The tax too: with the interest unknown every year's tax is null, and
+     the running sum left RM0 behind — which the decision record printed as
+     "after tax on the rent at 24%, totalling RM0 across the hold". */
   if (debtUnknown) { cumCash = null; cumPreTax = null; }
+  if (!path.every(p => isNum(p.tax))) cumTax = null;
   const taxComputed = isNum(d.marginalTaxPct) && d.marginalTaxPct > 0;
   const totalProfit = debtUnknown ? null : cumCash + netExitProceeds - acquisitionCost;
   const multiple = (acquisitionCost > 0 && !debtUnknown) ? (cumCash + netExitProceeds) / acquisitionCost : null;
@@ -1250,7 +1292,9 @@ function propertyRiskFlags(d, m) {
   if (m.proj.custom) out.push({ sev:'warning', t:'No comparable attached',
     n:`This tool holds no transacted price, rental band or vacancy observation for ${m.proj.area}. The price, rent and vacancy below are entirely yours, and none of them has been checked against a market.` });
   if (d.holdYears <= 5) out.push({ sev:'warning', t:'Real property gains tax applies at this holding period',
-    n:`Selling in year ${d.holdYears} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.short.toLowerCase()}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
+    /* The category as a sentence names it. Lower-casing the short label
+       printed "charged at 30% for citizen or pr" — `who` exists for this. */
+    n:`Selling in year ${d.holdYears} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.who}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
   if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
     n:'Financing and resale liquidity both tighten as the remaining lease shortens. Check the balance term before committing.' });
   /* Title class outranks everything financial. A restricted class is not a
@@ -1288,6 +1332,10 @@ function propertyRiskFlags(d, m) {
   if (!out.length) out.push({ sev:'good', t:'No threshold breached', n:'On the assumptions entered, none of the modelled risk thresholds is crossed. That is a statement about the assumptions, not about the property.' });
   return out;
 }
+
+/* A recorded exposure's summary, by company and theme — the pair Add refuses
+   to record twice — so focus can be handed to a record after a redraw. */
+const swkRecordId = (rec) => `swk-rec-${slugParam(`${rec.id}-${rec.theme}`)}`;
 
 VIEWS.sarawak = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
@@ -1411,17 +1459,25 @@ VIEWS.sarawak = () => {
   coSel.addEventListener('change', syncTheme);
   const addRow = el('div', { style: 'display:grid;grid-template-columns:2fr 2fr auto;gap:8px;align-items:end' });
   addRow.append(coSel); addRow.append(thSel);
-  addRow.append(el('button', { class: 'btn', onclick: () => {
+  /* Add and Remove redraw the page. Add keeps focus on itself, by id; Remove
+     takes it with the record it removes, so focus moves to the record that
+     took its place, or the one before it, or back to Add when none is left.
+     Both called render() and dropped the keyboard on <body>. */
+  addRow.append(el('button', { class: 'btn', id: 'swk-add', onclick: () => {
     const co = candidates.find(x => x.id === coSel.value);
     if (!co) return;
-    if (recs.some(r => r.id === co.id && r.theme === thSel.value)) { toast('Already recorded under that theme'); return; }
-    State.sarawakExposure = [...recs, { id: co.id, tk: co.tk, name: co.name,
+    /* The list as it is now, not as it was drawn: another tab's record lands
+       in State between the two (70-property.js), and appending to the drawn
+       copy wrote it away. */
+    const cur = State.sarawakExposure || [];
+    if (cur.some(r => r.id === co.id && r.theme === thSel.value)) { toast('Already recorded under that theme'); return; }
+    State.sarawakExposure = [...cur, { id: co.id, tk: co.tk, name: co.name,
       theme: thSel.value, fields: {}, evidence: 'user', source: co.source,
       hasFundamentals: co.hasFundamentals,
       /* The reader's calendar day, not UTC's: before 08:00 in Kuching the UTC
          date is yesterday's. caseRaisedAt formats on the local clock. */
       added: caseRaisedAt(new Date()).slice(0, 10) }];
-    saveExposures(); toast(`${co.tk} added — the ${EXPOSURE_FIELDS.length} exposure fields are still empty`); render();
+    saveExposures(); toast(`${co.tk} added — the ${EXPOSURE_FIELDS.length} exposure fields are still empty`); renderKeepFocus();
   } }, 'Add'));
   add.append(addRow);
   queueMicrotask(syncTheme);
@@ -1454,6 +1510,18 @@ VIEWS.sarawak = () => {
       const metaChip = el('span', { style: 'margin-left:auto' });
       const basisNote = el('p', { class: 'metaline', style: 'margin-top:4px' });
       const staleNote = el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' });
+      /* An edit is written to the record as it is held NOW. The list is read
+         again when another tab saves it, so the object this page was drawn
+         from can be a copy the save no longer contains — an edit made only
+         to it would be lost without a word. Same company, same theme: the
+         pair Add will not record twice. */
+      const same = (r) => r.id === rec.id && r.theme === rec.theme;
+      const write = (change) => {
+        change(rec);
+        const live = (State.sarawakExposure || []).find(same);
+        if (live && live !== rec) change(live);
+        saveExposures(); paint();
+      };
       const paint = () => {
         const s = exposureSourcing(rec);
         pctNode.textContent = `  ${theme?.label} · ${exposureCompleteness(rec)}% of fields recorded`;
@@ -1469,7 +1537,7 @@ VIEWS.sarawak = () => {
           ? `Last verified ${Math.floor(age / 30)} months ago. An order book or a project status moves faster than that.` : '';
         staleNote.style.display = staleNote.textContent ? '' : 'none';
       };
-      det.append(el('summary', { style: 'cursor:pointer' }, [
+      det.append(el('summary', { id: swkRecordId(rec), style: 'cursor:pointer' }, [
         el('span', { style: 'font-weight:600' }, `${rec.tk} — ${rec.name}`),
         pctNode, sumChip,
       ]));
@@ -1490,7 +1558,7 @@ VIEWS.sarawak = () => {
           ? el('input', { class: 'input', type: 'date', value: rec.verified || '', 'aria-label': f.label })
           : el('textarea', { class: 'input', rows: '2', placeholder: 'Not recorded', 'aria-label': f.label });
         if (f.kind !== 'date') inp.value = rec[f.k] || '';
-        inp.addEventListener('change', () => { rec[f.k] = inp.value; saveExposures(); paint(); });
+        inp.addEventListener('change', () => write(r => { r[f.k] = inp.value; }));
         row.append(inp);
         row.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, f.hint));
         meta.append(row);
@@ -1501,7 +1569,7 @@ VIEWS.sarawak = () => {
       const basisSel = el('select', { class: 'select', 'aria-label': 'Exposure classification' });
       EXPOSURE_BASIS.forEach(b => basisSel.append(el('option', { value: b.id,
         selected: (rec.basis || 'unstated') === b.id ? '' : null }, b.label)));
-      basisSel.addEventListener('change', () => { rec.basis = basisSel.value; saveExposures(); paint(); });
+      basisSel.addEventListener('change', () => write(r => { r.basis = basisSel.value; }));
       basisRow.append(basisSel);
       basisRow.append(basisNote);
       meta.append(basisRow);
@@ -1514,16 +1582,20 @@ VIEWS.sarawak = () => {
         const ta = el('textarea', { class: 'input', rows: '2', placeholder: 'Not recorded',
           'aria-label': f.label });
         ta.value = rec.fields?.[f.k] || '';
-        ta.addEventListener('change', () => {
-          rec.fields = { ...(rec.fields || {}), [f.k]: ta.value };
-          saveExposures(); paint();
-        });
+        ta.addEventListener('change', () => write(r => { r.fields = { ...(r.fields || {}), [f.k]: ta.value }; }));
         row.append(ta);
         det.append(row);
       });
       det.append(el('div', { class: 'row', style: 'margin-top:10px;gap:8px' }, [
         el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-          State.sarawakExposure = recs.filter((_, j) => j !== i); saveExposures(); render();
+          /* By company and theme in the list as it is now, not by position
+             in the list as it was drawn — see Add. */
+          const cur = State.sarawakExposure || [];
+          const at = cur.findIndex(same);
+          const left = cur.filter(r => !same(r));
+          const next = at < 0 ? null : left[at] || left[at - 1] || null;
+          State.sarawakExposure = left; saveExposures(); render();
+          document.getElementById(next ? swkRecordId(next) : 'swk-add')?.focus();
         } }, 'Remove'),
         el('span', { class: 'metaline' }, `Added ${rec.added}. If a field is blank it is unresearched, not zero.`),
       ]));
@@ -1544,9 +1616,13 @@ VIEWS.sarawak = () => {
    per calendar month, by project, and reopening one already used this month
    never costs another. Spent only when the reader chooses to use one, not
    on browsing, so looking at a deal does not use up the month. */
-State.propertyReportLog = store.read('propertyReportLog', { month: new Date().toISOString().slice(0, 7), ids: [] });
-function propertyReportLogNow() {
-  const month = new Date().toISOString().slice(0, 7);
+/* The reader's calendar month (meterMonth, 05-plans.js), as the company
+   report meter counts it. This keyed on toISOString — the UTC month — so in
+   Kuching the month's used reports went on counting until 08:00 on the 1st,
+   and a reader who had used them was told none were left. */
+State.propertyReportLog = store.read('propertyReportLog', { month: meterMonth(), ids: [] });
+function propertyReportLogNow(now = new Date()) {
+  const month = meterMonth(now);
   if (State.propertyReportLog?.month !== month) State.propertyReportLog = { month, ids: [] };
   return State.propertyReportLog;
 }
@@ -1574,6 +1650,8 @@ function usePropertyReport(id) {
    moved focus on, so focus lands where the reader went rather than back on
    the field they left. */
 const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
+/* Whether the borrower's financing disclosure is open — see its <details>. */
+let borrowerPanelOpen = false;
 
 VIEWS.property = () => {
   /* The address is read when it is new — a link, a bookmark, Back — and not on
@@ -1677,9 +1755,17 @@ VIEWS.property = () => {
         `Scored on ${fmtPct(g.coverage * 100, 0)} of framework weight`),
     ]),
   ]));
+  /* Why a class that can never be graded is not graded: the pillars that do
+     not apply, and the ceiling they leave — not a shortfall in evidence the
+     reader could make up. */
+  const notApplying = g.pillars.filter(p => p.applies === false).map(p => p.label.toLowerCase());
+  const withheldBecause = g.classUngradeable
+    ? `${notApplying.join(' and ')} ${notApplying.length === 1 ? 'does' : 'do'} not apply to a ${String(PROPERTY_CLASSES[m.propertyClass]?.label || '').toLowerCase()} class, so at most ${fmtPct(g.reachable * 100, 0)} of the framework weight can ever be scored, against the 80% a grade requires — no further evidence changes that`
+    : g.coverage < 0.80 ? `only ${fmtPct(g.coverage * 100, 0)} of the framework weight could be scored, against the 80% a grade requires`
+    : 'a hard gate below is unmet';
   onePage.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     (g.grade === 'U' && isNum(g.score)
-      ? `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${g.coverage < 0.80 ? `only ${fmtPct(g.coverage * 100, 0)} of the framework weight could be scored, against the 80% a grade requires` : 'a hard gate below is unmet'}. `
+      ? `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${withheldBecause}. `
       : '')
     + 'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
 
@@ -1716,7 +1802,10 @@ VIEWS.property = () => {
          is conditional", so a D — "Does not meet the selected underwriting
          criteria" — and an A that "Meets" them both called their findings
          conditions. Conditional is the B verdict's word and only B's. */
-      ({ U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade]
+      /* A class that cannot be graded is not ungraded because of these, and
+         clearing them would not grade it — the sentence above says why. */
+      (g.classUngradeable ? 'Still to check'
+        : { U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade]
         || 'Why this falls short')));
     const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:13px' }, [
       el('span', { class: x.severity === 'critical' ? 'chip chip-bronze' : null,
@@ -1805,7 +1894,8 @@ VIEWS.property = () => {
   g.pillars.forEach(p => pb.append(el('tr', {}, [
     el('td', { style: 'text-align:left' }, p.label),
     el('td', { class: 'num' }, `${p.weight}%`),
-    el('td', { class: 'num' }, isNum(p.score) ? String(p.score) : el('span', { class: 'caption' }, 'not tested')),
+    el('td', { class: 'num' }, isNum(p.score) ? String(p.score)
+      : el('span', { class: 'caption' }, p.applies === false ? 'does not apply' : 'not tested')),
     el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, p.note || ''),
   ])));
   pt.append(pb);
@@ -1814,7 +1904,12 @@ VIEWS.property = () => {
     /* Counted from the registry rather than written out. The sentence said
        "all seven" against six pillars — a number in prose beside the list it
        describes will eventually disagree with it. */
-    `The score is weighted across the pillars that could be tested, not across all ${GRADE_PILLARS.length} — a pillar with no evidence reduces coverage rather than scoring zero, so nothing loses points for data nobody has. Coverage is ${fmtPct(g.coverage * 100, 0)} of the framework weight; an A needs 90% and a B needs 80%.`));
+    `The score is weighted across the pillars that could be tested, not across all ${GRADE_PILLARS.length} — a pillar with no evidence reduces coverage rather than scoring zero, so nothing loses points for data nobody has. Coverage is ${fmtPct(g.coverage * 100, 0)} of the framework weight; an A needs 90% and a B needs 80%.`
+    /* And where the class rules pillars out, the ceiling that leaves — a
+       cash parcel can reach a B and never an A, a financed one no grade. */
+    + (notApplying.length
+      ? ` For this class ${notApplying.join(' and ')} ${notApplying.length === 1 ? 'does' : 'do'} not apply, so ${fmtPct(g.reachable * 100, 0)} is the most that can be scored${g.reachable < 0.80 ? ' — short of the 80% any grade needs' : g.reachable < 0.90 ? ' — short of the 90% an A needs' : ''}.`
+      : '')));
   onePage.append(pw);
   wrap.append(onePage);
 
@@ -1857,7 +1952,14 @@ VIEWS.property = () => {
 
   /* Borrower inputs, behind a disclosure because they are the most sensitive
      data here and most readers modelling a property will not want them. */
-  const bd = el('details', { style: 'margin-top:var(--md)' });
+  /* Open across a redraw once the reader has opened it. Every field inside
+     saves and redraws, and the disclosure came back closed — so focus, which
+     renderKeepFocus hands to the rebuilt field by id, had nowhere to go: a
+     field inside a closed <details> cannot take it, and it fell to <body>
+     after each figure, with the section shut on the reader. Held in memory
+     only, like the rest of what is open on the page. */
+  const bd = el('details', { style: 'margin-top:var(--md)', open: borrowerPanelOpen ? '' : null });
+  bd.addEventListener('toggle', () => { borrowerPanelOpen = bd.open; });
   bd.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
     b.assessed ? 'Your financing position — entered' : 'Assess your loan readiness'));
   bd.append(el('p', { class: 'metaline', style: 'margin:8px 0' },
@@ -1947,12 +2049,15 @@ VIEWS.property = () => {
 
   /* Modelling states that change every figure below and cannot be inferred from
      the numbers themselves. */
-  if (m.zeroRateModelled || !m.tenureValid || !m.reserveComputable) {
+  /* A tenure matters only to a loan. A cash purchase with the box at 0 has an
+     instalment of nought and a reserve, and was told both were unavailable. */
+  const noSchedule = !m.tenureValid && m.loan > 0;
+  if (m.zeroRateModelled || noSchedule || !m.reserveComputable) {
     const flags = el('div', { class: 'card', style: 'border-left:3px solid var(--dn-text)' });
     const ul = el('ul', { class: 'ticklist' });
     if (m.zeroRateModelled) ul.append(el('li', {},
       'The loan interest rate is 0%. If that was intended, the instalment below is right; if the box was cleared, it is roughly half what it should be. This tool cannot tell the two apart from the value.'));
-    if (!m.tenureValid) ul.append(el('li', {},
+    if (noSchedule) ul.append(el('li', {},
       'The loan tenure is zero or negative, so there is no repayment schedule. The instalment, reserve and closing balance are not computable and are shown as unavailable rather than calculated.'));
     if (!m.reserveComputable) ul.append(el('li', {},
       'The reserve could not be computed because the instalment or the running costs could not be. It is reported as missing rather than counted as nothing.'));
@@ -2172,7 +2277,10 @@ VIEWS.property = () => {
       placeholder:'Source — listing, tenancy, filing', 'aria-label':'Source reference' });
     const addrInp = el('input', { class:'input input-sm', type:'text',
       placeholder:'Address or project', 'aria-label':'Address or project' });
-    const addBtn = el('button', { class:'btn btn-sm', onclick: () => {
+    /* By id, so Record keeps focus through the redraw that shows the new
+       record. It called render() and left the keyboard on <body>, a page's
+       length from the form the reader was working through. */
+    const addBtn = el('button', { class:'btn btn-sm', id:'obs-record', onclick: () => {
       const v = Number(valInp.value);
       if (!Number.isFinite(v) || v <= 0) { toast('Enter an amount above zero'); return; }
       const k = OBS_BY_ID[kindSel.value] || {};
@@ -2191,7 +2299,7 @@ VIEWS.property = () => {
       toast(srcInp.value.trim()
         ? `Recorded for ${d.district}${hasArea ? '' : ' — no area, so no price per unit from this one'}`
         : `Recorded for ${d.district} — no source, so it counts as a note`);
-      render();
+      renderKeepFocus();
     } }, 'Record');
     [kindSel, valInp, areaWrap, titleSel, evSel, dateInp, addrInp, srcInp, addBtn].forEach(x => form.append(x));
     syncKind();

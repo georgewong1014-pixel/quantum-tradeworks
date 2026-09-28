@@ -550,6 +550,80 @@ try {
   }
   /* ---- end bugfix: grade-area-registers ---- */
 
+  /* ---- bugfix3: property ---- */
+  /* R1 — two tabs keep each other's records. Every projection was read once
+          at boot and saved whole, so with the calculator in one tab and the
+          comparables in another, a record added in the first was written
+          away by the next save in the second: the log held both events, the
+          register held one, and it reported that its history did not account
+          for its records. The same for area attributes, demand sources,
+          Sarawak exposures and unlocked reports. Two real tabs of one
+          browser, so the browser's own storage event is what is tested. */
+  {
+    const { result: { targetId: tidB } } = await send('Target.createTarget', { url: 'about:blank' });
+    const { result: { sessionId: sidB } } = await send('Target.attachToTarget', { targetId: tidB, flatten: true });
+    await send('Runtime.enable', {}, sidB);
+    await send('Page.enable', {}, sidB);
+    const evalB = async (expr) => {
+      const r = await send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise: true }, sidB);
+      if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || 'evaluation threw in the second tab');
+      return r.result.result.value;
+    };
+    const KEYS = `['registerLog','observations','areaProfiles','demand','sarawakExposure','propertyReportsBought']`;
+    await evaluate(`(() => { ${KEYS}.forEach(k => localStorage.removeItem('vl.' + k));
+      State.observations = []; State.areaProfiles = {}; State.demand = {}; State.sarawakExposure = []; State.propertyReportsBought = [];
+      loadRegisterLog(); navigate('/property/calculator'); return true; })()`);
+    /* The second tab opens now — after the first, before either records. */
+    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sidB);
+    await sleep(3500);
+    await evaluate(`(() => { addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 111, date:'2026-05-01', evidence:'user', sourceRef:'tab A' });
+      setAreaAttr('kuching', 'Tabuan', 'flood', { class: 'occasional', source: 'site', asOf: '2026-05-01' });
+      setDemand('kuching', 'Tabuan', 'employment', { state: 'operating', asOf: '2026-05-01' });
+      State.propertyReportsBought = [...State.propertyReportsBought, 'proj-A']; store.write('propertyReportsBought', State.propertyReportsBought);
+      return true; })()`);
+    await sleep(300);
+    await evalB(`(() => { addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 222, date:'2026-05-02', evidence:'user', sourceRef:'tab B' });
+      setAreaAttr('kuching', 'Stutong', 'flood', { class: 'occasional', source: 'site', asOf: '2026-05-02' });
+      setDemand('kuching', 'Stutong', 'employment', { state: 'operating', asOf: '2026-05-02' });
+      State.propertyReportsBought = [...State.propertyReportsBought, 'proj-B']; store.write('propertyReportsBought', State.propertyReportsBought);
+      return true; })()`);
+    await sleep(300);
+    /* Sarawak exposures through the page's own controls: Add in each tab,
+       then an edit in the first tab to the record it drew before the second
+       tab's Add — the object it holds is no longer the one in the list. */
+    await evaluate(`(() => { navigate('/discover/sarawak'); return true; })()`);
+    await evalB(`(() => { navigate('/discover/sarawak'); return true; })()`);
+    await sleep(500);
+    const addWith = (idx) => `(() => { const s = document.querySelector('main select[aria-label="Company"]'); s.selectedIndex = ${idx}; s.dispatchEvent(new Event('change', { bubbles: true }));
+      [...document.querySelectorAll('main button')].find(x => x.textContent.trim() === 'Add').click(); return true; })()`;
+    await evaluate(addWith(0));
+    await sleep(300);
+    await evalB(addWith(1));
+    await sleep(300);
+    await evaluate(`(() => { const d = document.querySelector('main details'); d.open = true;
+      const ta = d.querySelector('textarea[aria-label]'); ta.value = 'edited in tab A'; ta.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+    await sleep(300);
+    await send('Page.reload', {}, sidB);
+    await sleep(3500);
+    const r = JSON.parse(await evalB(`JSON.stringify({ obs: State.observations.map(o => o.sourceRef).sort(), areas: Object.keys(State.areaProfiles).sort(),
+      demand: Object.keys(State.demand).sort(), integrity: registerIntegrity().state, bought: [...State.propertyReportsBought].sort(),
+      exposures: State.sarawakExposure.length, edited: State.sarawakExposure.some(x => Object.values(x).concat(Object.values(x.fields || {})).includes('edited in tab A')) })`));
+    await evaluate(`(() => { ${KEYS}.forEach(k => localStorage.removeItem('vl.' + k));
+      State.observations = []; State.areaProfiles = {}; State.demand = {}; State.sarawakExposure = []; State.propertyReportsBought = [];
+      loadRegisterLog(); return true; })()`);
+    await send('Target.closeTarget', { targetId: tidB });
+    const lost = [];
+    if (r.obs.join() !== 'tab A,tab B') lost.push(`comparables ${r.obs.join(', ')}`);
+    if (r.areas.join() !== 'kuching|Stutong,kuching|Tabuan') lost.push(`area attributes ${r.areas.join(', ')}`);
+    if (r.demand.join() !== 'kuching|Stutong,kuching|Tabuan') lost.push(`demand ${r.demand.join(', ')}`);
+    if (r.integrity !== 'ok') lost.push(`register integrity ${r.integrity}`);
+    if (r.bought.join() !== 'proj-A,proj-B') lost.push(`unlocked reports ${r.bought.join(', ')}`);
+    if (r.exposures !== 2 || !r.edited) lost.push(`Sarawak exposures ${r.exposures}, the first tab's edit ${r.edited ? 'kept' : 'lost'}`);
+    if (lost.length) fail('a second tab writes away what the first recorded', lost.join('; '));
+    else console.log('ok    two tabs keep each other\'s records — comparables, area attributes, demand, unlocked reports and Sarawak exposures, an edit to a record drawn before the other tab\'s Add included; the register\'s history accounts for both');
+  }
+  /* ---- end bugfix3: property ---- */
+
   console.log(failures
     ? `\n${failures} invariant${failures === 1 ? '' : 's'} broken.`
     : '\nregister holds: record, edit, undo and replay agree across every entity.');

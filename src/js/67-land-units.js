@@ -31,8 +31,10 @@
    so 1 point = 40.468564224 m², and 1 hectare = 107,639.10416... sq ft
 
    The rounded 40.47 m² that circulates in listings is fine for conversation
-   and wrong for a register: applied to a 60-point parcel it moves the area by
-   nearly a square metre, and every price-per-unit derived from it inherits the
+   and wrong for a register: it is 0.0014 m² a point too large, so applied to
+   a 60-point parcel it moves the area by 0.086 m², and to a 700-point estate
+   by a whole square metre — small, but a register that holds a figure has to
+   hold the figure, and every price-per-unit derived from it inherits the
    error. Nothing here rounds until it is displayed.
    ========================================================================== */
 
