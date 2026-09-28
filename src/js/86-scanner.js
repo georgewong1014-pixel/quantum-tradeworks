@@ -197,6 +197,35 @@ function scanNotInRecord(what, detail, back) {
   if (back) card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, scanLink(back[0], back[1], { class: 'btn btn-ghost btn-sm' })));
   return card;
 }
+/* Whether a pointer is pressed at this moment: from its pointerdown until
+   the click that ends it (a touch blurs a field only after it lifts, so
+   pointerup is too early), or two seconds if no click comes. */
+let scanPressedAt = -Infinity, scanPressOver = true;
+document.addEventListener('pointerdown', () => { scanPressedAt = Date.now(); scanPressOver = false; }, true);
+['click', 'pointercancel'].forEach(t => document.addEventListener(t, () => { scanPressOver = true; }, true));
+const scanPressing = () => !scanPressOver && Date.now() - scanPressedAt < 2000;
+/* REDRAW, AND KEEP THE READER'S PLACE. render() replaces the page, so the
+   select, checkbox or button that asked for it was destroyed under the
+   reader and focus fell to <body>: an alerts filter changed by arrow key
+   took the first press and ignored the next, and every Mark read, Disable,
+   Archive or display setting sent a keyboard reader back to the top of the
+   page. The screener's renderKeepFocus finds the control again by its id;
+   scanner fields are numbered afresh at every render, so this finds it by
+   name — a data-scan-focus key where a control's label changes with its
+   state (Disable and Enable, Archive and Unarchive), else its accessible
+   name, else its text — passing over one now disabled, and falls back to
+   the control named when the one pressed is gone. `focus` names the
+   control focus is moving to, where that is not yet the active one. */
+const scanFocusKey = (n) => n?.dataset?.scanFocus || n?.getAttribute?.('aria-label') || (n?.tagName ? `${n.tagName}:${n.textContent.trim()}` : null);
+function scanRender({ fallback = null, focus = null } = {}) {
+  const a = focus || document.activeElement;
+  const key = a && a !== document.body && document.querySelector('main')?.contains(a) ? scanFocusKey(a) : null;
+  render();
+  if (!key) return;
+  const pool = [...document.querySelectorAll('main button, main a[href], main input, main select, main textarea')].filter(n => !n.disabled);
+  (pool.find(n => scanFocusKey(n) === key) || (fallback ? pool.find(n => scanFocusKey(n) === fallback) : null))?.focus({ preventScroll: true });
+}
+
 /* A labelled fact, for the detail pages' key–value grids. An absent value
    says why it is absent rather than printing a dash that could be a zero. */
 function scanFact(label, value, sub) {
@@ -235,8 +264,30 @@ function scanStoreRead() {
   const raw = store.read('scanSetups', null);
   const ok = raw && typeof raw === 'object' && raw.setups && typeof raw.setups === 'object' && !Array.isArray(raw.setups);
   const st = ok ? raw : { schema: 1, setups: {}, exported: null };
-  if (!('exported' in st)) st.exported = null;
+  if (!st.exported || typeof st.exported !== 'object' || Array.isArray(st.exported)) st.exported = null;
   st.schema = 1;
+  /* Each record read in the shape this file writes. A record restored from
+     a hand-edited or truncated backup ("Your data" writes whatever the file
+     holds) — versions that are not a list, a null version, no versions —
+     threw in scanVersionOf or the edit page's version count, and the throw
+     took down every page that reads the store: the setups, a setup, its
+     edit, the watchlist scanner and the settings. A version is kept when it
+     has a number; a record with none names no conditions, so it cannot be
+     shown, evaluated, exported or restored, and is dropped; a current
+     version the record does not hold becomes its highest. The key is the
+     id every lookup uses. */
+  Object.keys(st.setups).forEach(id => {
+    const r = st.setups[id];
+    const versions = r && typeof r === 'object' && Array.isArray(r.versions)
+      ? r.versions.filter(v => v && typeof v === 'object' && Number.isInteger(v.version) && v.version > 0) : [];
+    if (!versions.length) { delete st.setups[id]; return; }
+    r.versions = versions;
+    r.id = id;
+    if (!versions.some(v => v.version === r.current)) r.current = Math.max(...versions.map(v => v.version));
+  });
+  const wx = st.watchlistsExported;
+  if (wx !== undefined && !(wx && typeof wx === 'object' && typeof wx.at === 'string' && wx.lists && typeof wx.lists === 'object')) delete st.watchlistsExported;
+  else if (wx) Object.keys(wx.lists).forEach(k => { const l = wx.lists[k]; if (!l || typeof l !== 'object') delete wx.lists[k]; else if (!Array.isArray(l.symbols)) l.symbols = []; });
   return st;
 }
 const scanStoreWrite = (st) => store.write('scanSetups', st);
@@ -290,7 +341,14 @@ function scanSaveSetup(draft, { source = 'builder', now = new Date().toISOString
   const metaChanged = rec.name !== meta.name || (rec.description || '') !== meta.description || (rec.enabled !== false) !== meta.enabled || !!rec.deleted;
   Object.assign(rec, meta);
   rec.deleted = null;
-  if (scanSameVersion(cur, s)) {
+  /* The file numbering these same conditions ahead of every version held
+     here (another browser saved and reverted, or the number was edited by
+     hand) was taken for "no change": the file's number was not kept, so
+     the setup still read "file newer" and its Adopt button did nothing,
+     and the alerts the worker records under that number named a version
+     this browser does not hold. It is kept, as for new conditions. */
+  const fileAhead = source === 'file' && s.version > Math.max(0, ...rec.versions.map(x => x.version));
+  if (scanSameVersion(cur, s) && !fileAhead) {
     if (metaChanged) rec.updated = now;
     scanStoreWrite(st);
     return { ok: true, id: s.id, version: rec.current, created: false, bumped: false, metaChanged, setup: scanRecordSetup(rec) };
@@ -397,6 +455,14 @@ function scanDriftRows({ st = scanStoreRead(), fileDoc = scanSetupsFile } = {}) 
   const browser = scanBrowserSetups({ st });
   const byId = new Map(browser.map(s => [s.id, s]));
   const rows = new Map();
+  /* A setup deleted here is left out of the export, but the worker runs
+     whatever the file holds. The engine's drift reads only the setups
+     standing here, so one deleted here and still in the file came out
+     "only in the file — adopt it to keep its versions here": its versions
+     are kept here already, adopting it silently undid the deletion, and
+     nothing asked for the export that would stop the worker running it.
+     It is named as deleted and not yet exported. */
+  const deletedHere = Object.values(st.setups).filter(r => r && r.deleted);
   if (fileDoc == null) {
     browser.forEach(b => {
       const ex = st.exported?.setups?.[b.id];
@@ -407,6 +473,13 @@ function scanDriftRows({ st = scanStoreRead(), fileDoc = scanSetupsFile } = {}) 
             ? `Changed since the export of ${scanDay(st.exported.at)} (which carried v${ex.version}${ex.enabled ? '' : ', disabled'}). The worker’s file cannot be seen from here; until you export, the worker runs whatever that file holds.`
             : 'Never exported. The worker’s file cannot be seen from here, and this browser’s copy is the only copy until you export it.' });
     });
+    /* Deleted here after the last export, which carried it: the worker's
+       file still holds it, as far as this browser knows. */
+    deletedHere.forEach(r => {
+      const ex = st.exported?.setups?.[r.id];
+      if (ex) rows.set(r.id, { id: r.id, state: 'NOT_EXPORTED', deleted: true, browser: null, file: null, name: r.name,
+        text: `Deleted here ${scanDay(r.deleted)}, after the export of ${scanDay(st.exported.at)}, which carried v${ex.version}. The worker’s file cannot be seen from here; until you export, the worker runs whatever that file holds — the export leaves deleted setups out.` });
+    });
     return [...rows.values()];
   }
   const fileList = Array.isArray(fileDoc) ? fileDoc : Array.isArray(fileDoc?.setups) ? fileDoc.setups : [];
@@ -414,7 +487,11 @@ function scanDriftRows({ st = scanStoreRead(), fileDoc = scanSetupsFile } = {}) 
   const d = scanSetupDrift(browser, fileDoc);
   d.same.forEach(id => rows.set(id, { id, state: 'IN_STEP', browser: byId.get(id), file: fileById.get(id), text: `The file carries v${byId.get(id).version}, the version saved here.` }));
   d.onlyInBrowser.forEach(id => rows.set(id, { id, state: 'BROWSER_ONLY', browser: byId.get(id), file: null, text: 'Only in this browser. The worker does not run it until you export.' }));
-  d.onlyInFile.forEach(id => rows.set(id, { id, state: 'FILE_ONLY', browser: null, file: fileById.get(id), text: `Only in the file (v${fileById.get(id).version}). Adopt it to keep its versions here and edit it in the builder.` }));
+  const gone = new Map(deletedHere.map(r => [r.id, r]));
+  d.onlyInFile.forEach(id => rows.set(id, gone.has(id)
+    ? { id, state: 'NOT_EXPORTED', deleted: true, browser: null, file: fileById.get(id), name: gone.get(id).name,
+        text: `Deleted here ${scanDay(gone.get(id).deleted)}; the file still holds v${fileById.get(id).version}, which the worker runs until you export — the export leaves deleted setups out. Restore it to keep it.` }
+    : { id, state: 'FILE_ONLY', browser: null, file: fileById.get(id), text: `Only in the file (v${fileById.get(id).version}). Adopt it to keep its versions here and edit it in the builder.` }));
   d.differ.forEach(x => {
     const rec = st.setups[x.id], b = byId.get(x.id), f = fileById.get(x.id);
     const known = (rec?.versions || []).some(v => v.hash === x.fileHash);
@@ -441,19 +518,32 @@ function scanAdoptFromFile(id, { now = new Date().toISOString() } = {}) {
   return scanSaveSetup(raw, { source: 'file', now });
 }
 
-/* A watchlist universe's snapshot against the list as it stands now. The
-   worker evaluates the snapshot; the list may have moved since. */
+/* A watchlist universe against the list as it stands now. On a snapshot,
+   the worker evaluates the snapshot; the list may have moved since. A
+   setup resolved by export is evaluated on the list as last exported for
+   the scanner, and on its snapshot only when that export does not hold the
+   list. The snapshot's drift alone told its reader "the worker evaluates
+   the snapshot until you save the setup again and export" — which the
+   worker does not do while the export holds the list, and the wrong remedy:
+   it is the lists that need exporting. Such a setup is judged against the
+   export (byExport), and where the export does not hold the list, the
+   export's words come before the snapshot's, and it is not in step. */
 function scanWatchlistDrift(setup) {
   const u = setup?.universe;
   if (!u || u.kind !== 'watchlist') return null;
+  const ex = scanResolvesByExport(u) ? scanWatchlistExportState(u.watchlistId) : null;
+  if (ex && ['IN_STEP', 'CHANGED', 'DELETED'].includes(ex.state))
+    return { same: ex.state === 'IN_STEP', deleted: ex.state === 'DELETED', byExport: true, name: wlById(u.watchlistId)?.name || u.name || null, asOf: u.asOf || null,
+      text: `Resolved from your latest export for the scanner. ${ex.text}` };
+  const pre = ex ? `${ex.text} ` : '';
   const w = wlById(u.watchlistId);
-  if (!w) return { deleted: true, asOf: u.asOf || null, text: `The watchlist this setup snapshotted (${u.name || u.watchlistId || '?'}) is not in this browser — deleted, or saved in another browser. The worker still evaluates the ${scanPlural((u.symbols || []).length, 'symbol')} of the snapshot of ${u.asOf || '?'}.` };
+  if (!w) return { deleted: true, byExport: !!ex, asOf: u.asOf || null, text: `${pre}The watchlist this setup snapshotted (${u.name || u.watchlistId || '?'}) is not in this browser — deleted, or saved in another browser. The worker still evaluates the ${scanPlural((u.symbols || []).length, 'symbol')} of the snapshot of ${u.asOf || '?'}.` };
   const now = watchlistSymbols(u.watchlistId);
   const d = scanSnapshotDrift(u.symbols, now.symbols);
   const parts = [d.added.length ? `${d.added.length} added (${d.added.join(', ')})` : null, d.removed.length ? `${d.removed.length} removed (${d.removed.join(', ')})` : null].filter(Boolean);
-  return { ...d, deleted: false, name: now.name, asOf: u.asOf || null,
-    text: d.same ? `The snapshot of ${u.asOf || '?'} matches “${now.name}” as it stands.`
-      : `“${now.name}” has changed since the snapshot of ${u.asOf || '?'}: ${parts.join(', ')}. The worker evaluates the snapshot until you save the setup again and export.` };
+  return { ...d, same: ex ? false : d.same, byExport: !!ex, deleted: false, name: now.name, asOf: u.asOf || null,
+    text: pre + (d.same ? `The snapshot of ${u.asOf || '?'} matches “${now.name}” as it stands.`
+      : `“${now.name}” has changed since the snapshot of ${u.asOf || '?'}: ${parts.join(', ')}. The worker evaluates the snapshot until you save the setup again and export.`) };
 }
 
 /* =====================================================================
@@ -482,9 +572,14 @@ function scanIdCollisions(list = scanAlertList()) {
   return scanCollisionMemo.ids;
 }
 const scanAlertBar = (a) => a?.candleDate || a?.bar || '';
+/* Only the two statuses this page writes are read. Any other value (a
+   restored backup edited by hand) read as NEW in the list and the tiles
+   but as read in the unread count, and the tile put the difference down
+   to "muted setups" when none was muted. */
 function scanAlertStateRead() {
   const s = store.read('scanAlertState', {});
-  return s && typeof s === 'object' && !Array.isArray(s) ? s : {};
+  return s && typeof s === 'object' && !Array.isArray(s)
+    ? Object.fromEntries(Object.entries(s).filter(([, v]) => v === 'READ' || v === 'ARCHIVED')) : {};
 }
 const scanAlertStatus = (a, st = scanAlertStateRead()) => { const v = st[scanAlertIdOf(a)]; return v === 'READ' || v === 'ARCHIVED' ? v : 'NEW'; };
 function scanSetAlertStatus(ids, status) {
@@ -605,7 +700,7 @@ function scanExportControls({ primary = false } = {}) {
     scanDownload(scanExportName(), doc);
     scanMarkExported(doc);
     toast(`Exported ${scanPlural(doc.setups.length, 'setup')} — save it over data/scan-setups.json`);
-    render();
+    scanRender();
   } }, 'Export scan-setups.json');
   const cp = el('button', { class: 'btn btn-ghost btn-sm', disabled: n ? null : '', onclick: async () => {
     const doc = scanExportDoc();
@@ -667,12 +762,12 @@ VIEWS.scannerSetups = () => {
       const s = r.browser || r.file;
       const li = el('li', {}, [
         el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-          scanLink(scanSetupPath(r.id), s?.name || r.id, { style: 'font-weight:600' }), scanDriftChip(r),
+          scanLink(scanSetupPath(r.id), s?.name || r.name || r.id, { style: 'font-weight:600' }), scanDriftChip(r),
           el('span', { class: 'spacer' }),
           (r.state === 'FILE_NEWER' || r.state === 'FILE_ONLY') ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Adopt ${r.id} from the file`, onclick: () => {
             const out = scanAdoptFromFile(r.id);
             toast(out.ok ? `Adopted ${r.id} as v${out.version}` : `Not adopted — ${out.problems[0]}`);
-            render();
+            scanRender();
           } }, 'Adopt from file') : null,
         ]),
         el('p', { class: 'caption', style: 'margin-top:2px' }, r.text),
@@ -691,7 +786,7 @@ VIEWS.scannerSetups = () => {
   if (fileOnly.length > 1) dc.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', onclick: () => {
     const res = fileOnly.map(r => scanAdoptFromFile(r.id));
     toast(`Adopted ${res.filter(x => x.ok).length} of ${fileOnly.length} from the file`);
-    render();
+    scanRender();
   } }, `Adopt all ${fileOnly.length} from the file`));
   const exp = scanExportControls({ primary: off.some(r => r.state === 'NOT_EXPORTED' || r.state === 'BROWSER_ONLY') });
   exp.style.marginTop = 'var(--md)';
@@ -718,8 +813,8 @@ VIEWS.scannerSetups = () => {
         el('span', { class: 'chip' }, s.id),
         scanDriftChip(driftById.get(s.id)),
         el('span', { class: 'spacer' }),
-        el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `${s.enabled ? 'Disable' : 'Enable'} ${s.name || s.id}`, onclick: () => {
-          scanSetMeta(s.id, { enabled: !s.enabled }); toast(`${s.name || s.id} ${s.enabled ? 'disabled' : 'enabled'} — not a new version; export to tell the worker`); render();
+        el('button', { class: 'btn btn-quiet btn-sm', data: { scanFocus: `toggle:${s.id}` }, 'aria-label': `${s.enabled ? 'Disable' : 'Enable'} ${s.name || s.id}`, onclick: () => {
+          scanSetMeta(s.id, { enabled: !s.enabled }); toast(`${s.name || s.id} ${s.enabled ? 'disabled' : 'enabled'} — not a new version; export to tell the worker`); scanRender();
         } }, s.enabled ? 'Disable' : 'Enable'),
         scanLink(`/app/scanner/setups/${encodeURIComponent(s.id)}/edit`, 'Edit', { class: 'btn btn-ghost btn-sm', 'aria-label': `Edit ${s.name || s.id}` }),
       ]));
@@ -743,7 +838,7 @@ VIEWS.scannerSetups = () => {
     deleted.forEach(r => det.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
       scanLink(scanSetupPath(r.id), r.name || r.id), el('span', { class: 'chip' }, `v${r.current}`), el('span', { class: 'caption' }, `deleted ${scanDay(r.deleted)}`),
       el('span', { class: 'spacer' }),
-      el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Restore ${r.name || r.id}`, onclick: () => { scanSetMeta(r.id, { deleted: null }); toast(`Restored ${r.name || r.id}`); render(); } }, 'Restore'),
+      el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Restore ${r.name || r.id}`, onclick: () => { scanSetMeta(r.id, { deleted: null }); toast(`Restored ${r.name || r.id}`); scanRender({ fallback: `toggle:${r.id}` }); } }, 'Restore'),
     ])));
     wrap.append(det);
   }
@@ -802,15 +897,15 @@ VIEWS.scannerSetup = () => {
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px' });
   if (rec && !rec.deleted) {
     acts.append(scanLink(`/app/scanner/setups/${encodeURIComponent(id)}/edit`, 'Edit', { class: 'btn btn-primary btn-sm' }));
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { scanSetMeta(id, { enabled: rec.enabled === false }); toast(`${rec.enabled === false ? 'Enabled' : 'Disabled'} — not a new version; export to tell the worker`); render(); } }, rec.enabled === false ? 'Enable' : 'Disable'));
-    acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'toggle' }, onclick: () => { scanSetMeta(id, { enabled: rec.enabled === false }); toast(`${rec.enabled === false ? 'Enabled' : 'Disabled'} — not a new version; export to tell the worker`); scanRender(); } }, rec.enabled === false ? 'Enable' : 'Disable'));
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', data: { scanFocus: 'delete-restore' }, onclick: () => {
       if (!confirm(`Delete “${name}”? Its versions are kept, because the matches it recorded name them; it leaves the export.`)) return;
-      scanSetMeta(id, { deleted: new Date().toISOString() }); toast('Deleted — restore it from the setups page'); render();
+      scanSetMeta(id, { deleted: new Date().toISOString() }); toast('Deleted — restore it from the setups page'); scanRender();
     } }, 'Delete'));
   }
-  if (rec?.deleted) acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { scanSetMeta(id, { deleted: null }); toast('Restored'); render(); } }, 'Restore'));
+  if (rec?.deleted) acts.append(el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'delete-restore' }, onclick: () => { scanSetMeta(id, { deleted: null }); toast('Restored'); scanRender(); } }, 'Restore'));
   if (drift && (drift.state === 'FILE_NEWER' || drift.state === 'FILE_ONLY')) acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-    const out = scanAdoptFromFile(id); toast(out.ok ? `Adopted as v${out.version}` : `Not adopted — ${out.problems[0]}`); render();
+    const out = scanAdoptFromFile(id); toast(out.ok ? `Adopted as v${out.version}` : `Not adopted — ${out.problems[0]}`); scanRender();
   } }, 'Adopt from file'));
   head.append(acts);
   wrap.append(head);
@@ -1150,8 +1245,8 @@ function scanBuilderView(mode) {
     const p = el('div', { class: 'card scan-seed-ask', role: 'region', 'aria-label': 'A draft is already open' });
     p.append(cardHead('A draft is already open', 'This address starts a new draft, and the one open here has changes. Nothing is replaced until you choose.'));
     p.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
-      el('button', { class: 'btn btn-primary btn-sm', onclick: () => { const s = scanSeedDraft(new URLSearchParams(location.search)); scanSetDraft(s.d, ask, s.notes); render(); } }, 'Start from this link'),
-      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { scanDraftSeed = { draft: scanDraft, sig: ask, json: scanSeedOwns() ? scanDraftSeed.json : null, notes: [] }; render(); } }, 'Keep my draft'),
+      el('button', { class: 'btn btn-primary btn-sm', onclick: () => { const s = scanSeedDraft(new URLSearchParams(location.search)); scanSetDraft(s.d, ask, s.notes); scanRender({ fallback: 'Name' }); } }, 'Start from this link'),
+      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { scanDraftSeed = { draft: scanDraft, sig: ask, json: scanSeedOwns() ? scanDraftSeed.json : null, notes: [] }; scanRender({ fallback: 'Name' }); } }, 'Keep my draft'),
     ]));
     wrap.append(p);
   } else if (mode === 'new' && scanSeedOwns() && scanDraftSeed.notes?.length && scanDraftSeed.sig === scanSeedSig()) {
@@ -1253,7 +1348,12 @@ function scanBuilder(d, ctx) {
   c1.append(cardHead('The setup', mode === 'edit' ? 'The id is locked: it is part of every alert key and of this setup’s address.' : 'The id is part of every alert key and of the setup’s address, so it is fixed once saved.'));
   const g1 = el('div', { class: 'grid g-2 scan-grid' });
   const slug = (v) => v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
-  const idInput = text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); scanIdAuto = !d.id; }, mode === 'edit' ? { readonly: '', 'aria-readonly': 'true' } : {});
+  /* What is typed is made an id as it is typed, and the field is set to
+     that id once it is left. It kept what was typed — "My Setup" in the
+     field, saved as my-setup, with no problem shown — so the id on screen
+     was not the id saved. Not rewritten under the cursor. */
+  const idInput = text(d.id, v => { d.id = v.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 40); scanIdAuto = !d.id; }, mode === 'edit' ? { readonly: '', 'aria-readonly': 'true' }
+    : { onchange: (e) => { if (e.target.value !== d.id) e.target.value = d.id; } });
   g1.append(field('Name', text(d.name, v => { d.name = v; if (mode === 'new' && scanIdAuto) { d.id = slug(v); idInput.value = d.id; } }, { autocomplete: 'off' })));
   g1.append(field('Id', idInput, { hint: mode === 'edit' ? null : `Letters, digits and hyphens.${scanIdAuto ? ' Filled from the name until you type one.' : ''}`, path: 'id' }));
   g1.append(field('Description (optional)', text(d.description, v => { d.description = v; }, { autocomplete: 'off' }), { wide: true }));
@@ -1278,7 +1378,12 @@ function scanBuilder(d, ctx) {
   if (u.kind === 'symbols') g2.append(field('Instruments (comma-separated symbols as they appear in your history)', text((u.symbols || []).join(', '), v => { u.symbols = v.split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(Boolean); }, { autocomplete: 'off', spellcheck: 'false' }), { path: 'universe' }));
   if (u.kind === 'watchlist') {
     const lists = State.watchlists || [];
-    if (lists.length) g2.append(field('Watchlist', select(u.watchlistId, [...(wlById(u.watchlistId) || !u.watchlistId ? [] : [[u.watchlistId, `${u.name || u.watchlistId} — not in this browser`]]), ...lists.map(w => [w.id, `${w.name} (${(w.ids || []).length})`])], v => { u.watchlistId = v; }), { path: 'universe' }));
+    /* With no list chosen — the universe picked while no list existed, and
+       a list made since — the select showed the first list as chosen while
+       the draft held none: "choose a watchlist", and choosing the only list
+       fired no change, so nothing could be chosen. The select says nothing
+       is chosen until something is. */
+    if (lists.length) g2.append(field('Watchlist', select(u.watchlistId || '', [...(u.watchlistId ? [] : [['', 'Choose a watchlist…']]), ...(wlById(u.watchlistId) || !u.watchlistId ? [] : [[u.watchlistId, `${u.name || u.watchlistId} — not in this browser`]]), ...lists.map(w => [w.id, `${w.name} (${(w.ids || []).length})`])], v => { u.watchlistId = v || null; }), { path: 'universe' }));
     else g2.append(el('div', { class: 'scan-wide' }, [el('p', { class: 'caption' }, ['You have no watchlist yet. ', scanLink('/my/watchlists', 'Make one'), ', or name the instruments instead.']), problemHost('universe')]));
     /* How the worker resolves the list (C3). Either way the setup carries a
        snapshot; by export, the worker reads data/watchlists.json at run
@@ -1554,7 +1659,7 @@ VIEWS.scannerWatchlists = () => {
       ? `Last exported for the scanner from this browser ${scanStamp(ex.at)}, with ${scanPlural(Object.keys(ex.lists || {}).length, 'list')}.`
       : 'Not exported for the scanner from this browser yet.',
       el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
-        scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); render();
+        scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); scanRender();
       } }, 'Export for the scanner')));
     xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'Save the download as data/watchlists.json (git-ignored) where the worker runs. A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
     wrap.append(xc);
@@ -1582,7 +1687,12 @@ VIEWS.scannerWatchlists = () => {
     const users = onList(w.id);
     card.append(cardHead(w.name, `${scanPlural(items.length, 'member')} · ${scanPlural(users.length, 'setup')} scanning it${w.updatedAt ? ` · list updated ${scanDay(w.updatedAt)}` : ''}`,
       el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
-        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `New setup on ${w.name}`, onclick: () => { scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } }; scanIdAuto = true; navigate('/app/scanner/setups/new'); } }, 'New setup on this list'),
+        /* A draft with changes in it was replaced without a word, where
+           every other start the builder offers asks first. */
+        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `New setup on ${w.name}`, onclick: () => {
+          if (scanDraft && !scanDraftUntouched() && !confirm('Replace the draft open in the builder with a new setup on this list? What is in the draft now is not kept.')) return;
+          scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } }; scanIdAuto = true; navigate('/app/scanner/setups/new');
+        } }, 'New setup on this list'),
       ])));
     if (users.some(x => scanResolvesByExport(x.s.universe))) {
       const xs = scanWatchlistExportState(w.id);
@@ -1610,7 +1720,7 @@ VIEWS.scannerWatchlists = () => {
         scanLink(scanSetupPath(s.id), s.name || s.id, { style: 'font-weight:600' }), el('span', { class: 'chip' }, `v${s.version}`),
         where === 'file' ? el('span', { class: 'chip chip-bronze' }, 'in the file only') : null,
         scanResolvesByExport(s.universe) ? el('span', { class: 'chip' }, 'resolved from your latest export') : null,
-        el('span', { class: `chip ${wd?.same ? 'chip-ok' : 'chip-warn'}` }, wd?.same ? 'snapshot matches the list' : 'snapshot differs'),
+        el('span', { class: `chip ${wd?.same ? 'chip-ok' : 'chip-warn'}` }, wd?.byExport ? (wd.same ? 'export matches the list' : 'export differs') : wd?.same ? 'snapshot matches the list' : 'snapshot differs'),
       ]));
       p.append(el('p', { class: 'caption', style: 'margin-top:4px' }, wd?.text || ''));
       const recent = scanAlertsInOrder(scanAlertsOf(s.id)).slice(0, 5);
@@ -1693,14 +1803,14 @@ VIEWS.scannerAlerts = () => {
   const slice = shown.slice((page - 1) * size, page * size);
   /* Filters live in the address, so a link from a setup opens its matches
      and Back restores the view. */
-  const setQ = (patch) => {
+  const setQ = (patch, { fallback = null, redraw = true, focus = null } = {}) => {
     const q = new URLSearchParams(location.search);
     Object.entries(patch).forEach(([k, v]) => { if (v == null || v === '' || (k === 'page' && v === 1)) q.delete(k); else q.set(k, v); });
     if (!('page' in patch)) q.delete('page');
     scanAlertSel = new Set();
     const s = q.toString();
     history.replaceState(history.state, '', location.pathname + (s ? `?${s}` : ''));
-    render();
+    if (redraw) scanRender({ fallback, focus });
   };
   const card = el('div', { class: 'card' });
   /* Five filters: one row on a desktop, one column on a phone. */
@@ -1719,11 +1829,31 @@ VIEWS.scannerAlerts = () => {
      each keystroke: a typed year passes through 0002 and 0020 on its way to
      2026, and re-drawing the page at each would take the field away from
      the cursor. */
+  /* Left by a press on another control, the date was applied at the blur,
+     which falls between the press and the release: the page was redrawn
+     under the pointer and the click landed on nothing — "Clear the dates"
+     applied the date it was meant to clear, and "Mark read" or "Next" did
+     nothing. The address takes the date at the blur, so the pressed
+     control's own action reads it, and the page is redrawn once its click
+     has run (or, pressed and let go with no click, a moment later). Left
+     by Tab, the redraw destroyed the control focus was moving to, and
+     focus fell to <body>; it goes to that control as redrawn. */
   const fdate = (label, val, key) => {
     const id = `scanf-${++scanFieldSeq}`;
-    const commit = (e) => { const v = e.target.value || ''; if (v !== (val || '') && (!v || scanIsDay(v))) setQ({ [key]: v }); };
+    const changed = (e) => { const v = e.target.value || ''; return v !== (val || '') && (!v || scanIsDay(v)) ? { v } : null; };
+    const commit = (e) => { const c = changed(e); if (c) setQ({ [key]: c.v }); };
+    const onblur = (e) => {
+      const c = changed(e);
+      if (!c) return;
+      if (!scanPressing()) { setQ({ [key]: c.v }, { focus: e.relatedTarget }); return; }
+      setQ({ [key]: c.v }, { redraw: false });
+      let t = null;
+      const later = () => { document.removeEventListener('click', later); clearTimeout(t); if (State.view === 'scannerAlerts') scanRender(); };
+      document.addEventListener('click', later);
+      t = setTimeout(later, 1500);
+    };
     return el('div', { class: 'field' }, [el('label', { for: id }, label),
-      el('input', { class: 'input', type: 'date', id, value: val || '', 'aria-label': label, onblur: commit, onkeydown: (e) => { if (e.key === 'Enter') commit(e); } })]);
+      el('input', { class: 'input', type: 'date', id, value: val || '', 'aria-label': label, onblur, onkeydown: (e) => { if (e.key === 'Enter') commit(e); } })]);
   };
   fl.append(fdate('Bar from', f.from, 'from'));
   fl.append(fdate('Bar to', f.to, 'to'));
@@ -1732,7 +1862,7 @@ VIEWS.scannerAlerts = () => {
   if (rangeText || setAside.length) card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-top:var(--sm)' }, [
     rangeText ? el('span', { class: 'metaline' }, `Bars ${rangeText}, inclusive.`) : null,
     setAside.length ? el('span', { class: 'caption' }, `${setAside.join(' and ')} ${setAside.length === 1 ? 'is' : 'are'} not a date (YYYY-MM-DD), so ${setAside.length === 1 ? 'it bounds' : 'they bound'} nothing.`) : null,
-    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => setQ({ from: '', to: '' }) }, 'Clear the dates'),
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => setQ({ from: '', to: '' }, { fallback: 'Bar from' }) }, 'Clear the dates'),
   ]));
 
   if (!all.length) {
@@ -1746,7 +1876,7 @@ VIEWS.scannerAlerts = () => {
     card.append(el('div', { class: 'scan-empty', style: 'padding:var(--lg) 0 var(--sm)' }, [
       el('h2', { class: 'h-card' }, 'No match fits these filters'),
       el('p', { class: 'body', style: 'margin:6px auto 0' }, `${scanPlural(all.length, 'match', 'matches')} ${all.length === 1 ? 'is' : 'are'} recorded; none is ${f.status === 'OPEN' ? 'new or read' : f.status === 'ALL' ? 'left' : f.status.toLowerCase()}${f.setup ? ` for ${nameOf(f.setup)}` : ''}${f.symbol ? ` on ${f.symbol}` : ''}${rangeText ? ` with a bar ${rangeText}` : ''}.${f.from && f.to && f.from > f.to ? ' The range ends before it begins.' : ''}`),
-      el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--sm)' }, el('button', { class: 'btn btn-ghost btn-sm', onclick: () => setQ({ setup: '', symbol: '', status: 'ALL', from: '', to: '' }) }, 'Show every match'))]));
+      el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--sm)' }, el('button', { class: 'btn btn-ghost btn-sm', onclick: () => setQ({ setup: '', symbol: '', status: 'ALL', from: '', to: '' }, { fallback: 'Status' }) }, 'Show every match'))]));
     wrap.append(card);
     return wrap;
   }
@@ -1761,11 +1891,20 @@ VIEWS.scannerAlerts = () => {
     scanSetAlertStatus(ids, status);
     toast(`${scanPlural(ids.length, 'alert')} marked ${status.toLowerCase()}`);
     scanAlertSel = new Set();
-    render();
+    scanRender();
   } }, label);
+  /* The count, and the header's box, follow every tick. The box kept the
+     state it was drawn with: ticked from the header and one row unticked,
+     it still read "every row ticked", and a press on it then unticked all.
+     And with more than one page, "all 250 shown" beside "Showing 1–50"
+     told a reader who meant this page that the buttons would act on it;
+     they act on every row the filters leave, on every page. */
   const refreshSel = () => {
     const n = scanAlertSel.size;
-    selInfo.textContent = n ? `${n} ticked` : `None ticked — the buttons act on all ${shown.length} shown`;
+    selInfo.textContent = n ? `${n} ticked` : pages > 1 ? `None ticked — the buttons act on all ${shown.length} that fit the filters, on every page` : `None ticked — the buttons act on all ${shown.length} shown`;
+    const on = slice.filter(a => scanAlertSel.has(scanAlertIdOf(a))).length;
+    allBox.checked = !!slice.length && on === slice.length;
+    allBox.indeterminate = on > 0 && on < slice.length;
   };
   /* The filtered rows as CSV, in the same date order, with their status
      here — the record as a spreadsheet reads it. */
@@ -1787,13 +1926,17 @@ VIEWS.scannerAlerts = () => {
     t.querySelectorAll('tbody input[type=checkbox]').forEach(b => { b.checked = e.target.checked; });
     refreshSel();
   } });
-  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', class: 'scan-tick' }, allBox), ...['Status', 'Bar', 'Setup', 'Instrument', 'Event', 'Close', ''].map(h => el('th', { scope: 'col', class: h === 'Close' ? 'num' : null }, h || el('span', { class: 'sr-only' }, 'Detail')))])));
+  /* Each box sits in a label that takes the press: on a phone the box
+     alone was 22px, half the 44px a finger needs, and nothing around it
+     was a target. */
+  const hit = (box) => el('label', { class: 'scan-tick-hit' }, box);
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', class: 'scan-tick' }, hit(allBox)), ...['Status', 'Bar', 'Setup', 'Instrument', 'Event', 'Close', ''].map(h => el('th', { scope: 'col', class: h === 'Close' ? 'num' : null }, h || el('span', { class: 'sr-only' }, 'Detail')))])));
   t.append(el('tbody', {}, slice.map(a => {
     const id = scanAlertIdOf(a);
     const s = scanAlertStatus(a, st);
     return el('tr', { class: s === 'NEW' ? 'scan-new' : null }, [
-      el('td', { class: 'scan-tick' }, el('input', { type: 'checkbox', 'aria-label': `Tick ${a.setupName || a.setupId} on ${a.symbol}, ${scanAlertBar(a)}`, checked: scanAlertSel.has(id) ? '' : null,
-        onchange: e => { if (e.target.checked) scanAlertSel.add(id); else scanAlertSel.delete(id); refreshSel(); } })),
+      el('td', { class: 'scan-tick' }, hit(el('input', { type: 'checkbox', 'aria-label': `Tick ${a.setupName || a.setupId} on ${a.symbol}, ${scanAlertBar(a)}`, checked: scanAlertSel.has(id) ? '' : null,
+        onchange: e => { if (e.target.checked) scanAlertSel.add(id); else scanAlertSel.delete(id); refreshSel(); } }))),
       el('td', {}, el('span', { class: `chip ${SCAN_STATUS_CHIP[s]}` }, s.toLowerCase())),
       el('td', { class: 'ident' }, scanAlertBar(a) || '—'),
       el('td', { style: 'text-align:left' }, [a.setupName || a.setupId, a.setupVersion != null ? el('span', { class: 'caption' }, ` v${a.setupVersion}`) : null]),
@@ -1808,9 +1951,9 @@ VIEWS.scannerAlerts = () => {
   const pager = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm);align-items:center' }, [
     el('span', { class: 'metaline' }, `Showing ${(page - 1) * size + 1}–${Math.min(page * size, shown.length)} of ${shown.length}${shown.length !== all.length ? ` (of ${all.length} recorded)` : ''}`),
     el('span', { class: 'spacer' }),
-    el('button', { class: 'btn btn-ghost btn-sm', disabled: page > 1 ? null : '', 'aria-label': 'Previous page', onclick: () => setQ({ page: page - 1 }) }, 'Previous'),
+    el('button', { class: 'btn btn-ghost btn-sm', disabled: page > 1 ? null : '', 'aria-label': 'Previous page', onclick: () => setQ({ page: page - 1 }, { fallback: 'Next page' }) }, 'Previous'),
     el('span', { class: 'caption' }, `Page ${page} of ${pages}`),
-    el('button', { class: 'btn btn-ghost btn-sm', disabled: page < pages ? null : '', 'aria-label': 'Next page', onclick: () => setQ({ page: page + 1 }) }, 'Next'),
+    el('button', { class: 'btn btn-ghost btn-sm', disabled: page < pages ? null : '', 'aria-label': 'Next page', onclick: () => setQ({ page: page + 1 }, { fallback: 'Previous page' }) }, 'Next'),
   ]);
   card.append(pager);
   wrap.append(card);
@@ -1911,6 +2054,8 @@ function scanReproduce(a, { history = scanHistoryFile, list = scanAlertList() } 
   return out;
 }
 
+/* Set by the alert page's own status buttons for the redraw they ask for. */
+let scanAlertByHand = false;
 VIEWS.scannerAlert = () => {
   const wrap = scanPage();
   const want = scanParam('alert');
@@ -1924,8 +2069,18 @@ VIEWS.scannerAlert = () => {
   const clash = new Set(byId.map(x => x.key ?? '')).size > 1 ? byId : null;
   const a = clash ? (wantKey ? clash.find(x => x.key === wantKey) || null : null) : byId[0] || list.find(x => x.key === want) || null;
   /* Opening an alert is reading it — before the strip is drawn, so its
-     unread count already leaves this one out. */
-  if (a && scanAlertStatus(a) === 'NEW') scanSetAlertStatus([scanAlertIdOf(a)], 'READ');
+     unread count already leaves this one out. The main navigation was
+     drawn before this view ran, and kept the count from before: one alert
+     opened, "Scanner, 24 unread" over 23. It is drawn again.
+     The redraw that follows this page's own status buttons is not an
+     opening: "Mark new" set the alert new and the redraw at once marked it
+     read again, under a toast saying "Marked new". */
+  const byHand = scanAlertByHand;
+  scanAlertByHand = false;
+  if (a && !byHand && scanAlertStatus(a) === 'NEW') {
+    scanSetAlertStatus([scanAlertIdOf(a)], 'READ');
+    if (typeof buildNav === 'function') buildNav();
+  }
   wrap.append(scanSubnav('alerts'));
   if (clash && !a) {
     const card = el('div', { class: 'card scan-collision' });
@@ -1957,9 +2112,9 @@ VIEWS.scannerAlert = () => {
   const head = scanPageHead(`${a.setupName || a.setupId} · ${a.symbol} · ${bar}`, null, 'Recorded match');
   head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
     el('span', { class: `chip ${SCAN_STATUS_CHIP[status]}` }, status.toLowerCase()),
-    status !== 'ARCHIVED' ? el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { scanSetAlertStatus([id], 'ARCHIVED'); toast('Archived'); render(); } }, 'Archive')
-      : el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { scanSetAlertStatus([id], 'READ'); toast('Moved back to read'); render(); } }, 'Unarchive'),
-    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { scanSetAlertStatus([id], 'NEW'); toast('Marked new'); render(); } }, 'Mark new'),
+    status !== 'ARCHIVED' ? el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'archive' }, onclick: () => { scanSetAlertStatus([id], 'ARCHIVED'); scanAlertByHand = true; toast('Archived'); scanRender(); } }, 'Archive')
+      : el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'archive' }, onclick: () => { scanSetAlertStatus([id], 'READ'); scanAlertByHand = true; toast('Moved back to read'); scanRender(); } }, 'Unarchive'),
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { scanSetAlertStatus([id], 'NEW'); scanAlertByHand = true; toast('Marked new'); scanRender(); } }, 'Mark new'),
   ]));
   wrap.append(head);
   if (clash) {
@@ -2157,7 +2312,7 @@ VIEWS.scannerSettings = () => {
   inApp.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [el('span', { style: 'font-weight:600' }, 'In the app'), el('span', { class: 'chip chip-ok' }, 'on')]));
   inApp.append(el('p', { class: 'caption', style: 'margin-top:4px' }, ['Every recorded match appears on the ', scanLink('/app/scanner/alerts', 'alerts page'), ` the next time this page loads the worker’s file. ${scanAlertsFile ? '' : 'That file cannot be seen from here, so there is nothing to count. '}The count of unread matches is per browser.`]));
   const lab = el('label', { class: 'checkline', style: 'gap:8px;margin-top:6px' });
-  lab.append(el('input', { type: 'checkbox', checked: prefs.inApp !== false ? '' : null, 'aria-label': 'Show the unread count in the navigation', onchange: e => { scanPrefsWrite({ inApp: e.target.checked }); render(); } }));
+  lab.append(el('input', { type: 'checkbox', checked: prefs.inApp !== false ? '' : null, 'aria-label': 'Show the unread count in the navigation', onchange: e => { scanPrefsWrite({ inApp: e.target.checked }); scanRender(); } }));
   lab.append(el('span', {}, 'Show the unread count in the navigation'));
   inApp.append(lab);
   const ids = [...new Set([...scanBrowserSetups().map(s => s.id), ...scanAlertList().map(a => a.setupId).filter(Boolean)])];
@@ -2167,7 +2322,7 @@ VIEWS.scannerSettings = () => {
     ids.forEach(id => {
       const l = el('label', { class: 'checkline', style: 'gap:8px' });
       l.append(el('input', { type: 'checkbox', checked: prefs.muted[id] ? null : '', disabled: prefs.inApp === false ? '' : null, 'aria-label': `Count unread matches from ${id}`, onchange: e => {
-        const m = { ...scanPrefsRead().muted }; if (e.target.checked) delete m[id]; else m[id] = true; scanPrefsWrite({ muted: m }); render();
+        const m = { ...scanPrefsRead().muted }; if (e.target.checked) delete m[id]; else m[id] = true; scanPrefsWrite({ muted: m }); scanRender();
       } }));
       l.append(el('span', {}, scanStoreRead().setups[id]?.name || scanAlertList().find(a => a.setupId === id)?.setupName || id));
       fs.append(l);
@@ -2193,7 +2348,7 @@ VIEWS.scannerSettings = () => {
   const g = el('div', { class: 'grid g-3 scan-grid' });
   const pick = (label, val, opts, key, conv = (x) => x) => {
     const id = `scanf-${++scanFieldSeq}`;
-    const s = el('select', { class: 'select', id, 'aria-label': label, onchange: e => { scanPrefsWrite({ [key]: conv(e.target.value) }); toast('Saved in this browser'); render(); } });
+    const s = el('select', { class: 'select', id, 'aria-label': label, onchange: e => { scanPrefsWrite({ [key]: conv(e.target.value) }); toast('Saved in this browser'); scanRender(); } });
     opts.forEach(([v, l]) => s.append(el('option', { value: v, selected: String(val) === String(v) ? '' : null }, l)));
     return el('div', { class: 'field' }, [el('label', { for: id }, label), s]);
   };

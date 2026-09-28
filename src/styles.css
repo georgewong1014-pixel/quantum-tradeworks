@@ -1817,6 +1817,12 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .scan-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .scan-tick { width: 36px; text-align: center; }
 .scan-tick input { width: 18px; height: 18px; }
+/* The label round each tick box is its target: 44px square on a touch
+   screen, where the 22px box alone was half what a finger needs. */
+.scan-tick-hit { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+@media (pointer: coarse), (max-width: 768px) {
+  .scan-tick-hit { min-width: 44px; min-height: 44px; }
+}
 .scan-alerts-t tr.scan-new td { background: color-mix(in srgb, var(--brand-wash) 55%, transparent); }
 .scan-lineage { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
 @media (max-width: 620px) {
@@ -1827,7 +1833,7 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   .scan-alerts-t, .scan-alerts-t tbody { display: block; }
   .scan-alerts-t thead tr { display: flex; align-items: center; }
   .scan-alerts-t thead th:not(.scan-tick) { display: none; }
-  .scan-alerts-t tbody tr { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 4px; border-top: 1px solid var(--grid); }
+  .scan-alerts-t tbody tr { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 4px; border-top: 1px solid var(--grid); }
   .scan-alerts-t tbody tr.scan-new { background: color-mix(in srgb, var(--brand-wash) 55%, transparent); }
   .scan-page table.scan-alerts-t td { padding: 0; white-space: normal; text-align: left; border: 0; background: transparent; }
   .scan-alerts-t td:nth-child(1) { grid-column: 1; grid-row: 1 / span 4; }
