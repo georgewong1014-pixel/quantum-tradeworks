@@ -584,6 +584,62 @@ for (const [route, heads] of [
   if (!v || missing.length || v.cut.length) { bad++; console.log(`FAIL 390px ${route} — words cut inside prose cells: ${v ? [...missing.map(h => 'no table "' + h + '"'), ...v.cut.slice(0, 4)].join('; ') : 'not measured'}`); }
 }
 /* ---- end bugfix2: equities ---- */
+/* ---- bugfix4: misc ---- */
+/* THE SAME, FOR THE PROSE COLUMNS THE CHECK ABOVE DID NOT REACH. The
+   property grade's "Basis" beside three columns that do not wrap was 58px
+   on a phone — "transacted", "property", "checklist" cut in two and one
+   cell 720px tall — and so was the loan-readiness table's, which appears
+   once a borrower is entered. On a valuation tab the confidence table's
+   "Rule" was 53px ("describes", "unmeasurable") and the nine methods'
+   "Basis" 58px, one cell 880px tall. A borrower is entered for the one
+   table that needs it and removed afterwards. */
+await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+await send('Runtime.evaluate', { expression: `localStorage.setItem('vl.borrowerProfile', JSON.stringify({ assessed: true, employmentType: 'salaried',
+  verifiedNetMonthlyIncome: 9000, existingMonthlyDebtPayments: 800, essentialMonthlyCommitments: 2500, liquidCashAvailable: 150000,
+  incomeStabilityMonths: 36, creditReview: 'not_checked', applicantCount: 1, docs: {} })); true` }, sessionId);
+for (const [route, heads] of [
+  ['/property/calculator?city=kuching', ['Pillar|Weight|Score|Basis', 'Component|Weight|Score|Basis']],
+  ['/company/JPM-SEC?tab=valuation', ['Part|Reading|Points|Rule', '#|Method|Value per share|vs price|Basis']],
+]) {
+  await send('Page.navigate', { url: BASE + route }, sessionId);
+  let ready = false;
+  for (let i = 0; i < 40 && !ready; i++) {
+    await sleep(500);
+    const p = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+    ready = p.result?.result?.value === true;
+  }
+  await sleep(800);
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    document.querySelectorAll('#views details').forEach(d => { d.open = true; });
+    const heads = ${JSON.stringify(heads)};
+    const seen = [], cut = [];
+    document.querySelectorAll('#views table.dt').forEach(t => {
+      const h = [...t.querySelectorAll('thead th')].map(x => x.textContent).join('|');
+      const which = heads.find(x => h === x);
+      if (!which) return;
+      seen.push(which);
+      t.querySelectorAll('tbody td').forEach(td => {
+        const walker = document.createTreeWalker(td, NodeFilter.SHOW_TEXT);
+        let n;
+        while ((n = walker.nextNode())) {
+          const re = /[^\\s\\u2010-\\u2014-]+/g; let m;
+          while ((m = re.exec(n.data))) {
+            if (m[0].length < 3 || m[0].length > 24) continue;
+            const rg = document.createRange(); rg.setStart(n, m.index); rg.setEnd(n, m.index + m[0].length);
+            const tops = new Set([...rg.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top)));
+            if (tops.size > 1) cut.push(which.split('|')[0] + ' ' + which.split('|').pop() + ': "' + m[0] + '" in a ' + Math.round(td.getBoundingClientRect().width) + 'px cell');
+          }
+        }
+      });
+    });
+    return { seen, cut, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  const missing = v ? heads.filter(h => !v.seen.includes(h)) : heads;
+  if (!v || missing.length || v.cut.length || v.overflow > 0) { bad++; console.log(`FAIL 390px ${route} — words cut inside prose cells: ${v ? [...missing.map(h => 'no table "' + h + '"'), ...v.cut.slice(0, 4), ...(v.overflow > 0 ? [`page overflows by ${v.overflow}px`] : [])].join('; ') : 'not measured'}`); }
+}
+await send('Runtime.evaluate', { expression: `localStorage.removeItem('vl.borrowerProfile'); true` }, sessionId);
+/* ---- end bugfix4: misc ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

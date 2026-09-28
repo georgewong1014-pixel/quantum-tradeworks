@@ -32,7 +32,11 @@ const PLANS = {
   all: {
     /* Not launched. Kept in the registry so the entitlement map stays complete
        and a later launch is a flag change rather than a rebuild, but never
-       offered — a tier a user cannot obtain must not appear purchasable. */
+       offered — a tier a user cannot obtain must not appear purchasable. The
+       plans page shows it marked not on sale, at a proposed price, and its
+       button previews the entitlements in this browser as every card's switch
+       does (VIEWS.plans, 90-area-screen.js). Whether that preview should be
+       reachable at all is an open product decision. */
     id:'all', name:'All-Access', launched:false,
     tagline:'Cross-asset — not launched. Introduce only after both products show demand', priceMo:79, priceYr:699,
     blurb:'Everything in Equities Research, plus the property portfolio, two standard property reports a month, and the consolidated net-worth view.',
@@ -185,7 +189,11 @@ function setPlan(id) {
      a switch from Equities Research to Free left five companies in a
      comparison that the page, a click later, said holds up to two. */
   clampToPlan();
-  toast(`Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
+  /* A tier that is not on sale is previewed, not switched to: "Switched to
+     All-Access" read as a plan the reader now had. */
+  toast(PLANS[id].launched === false
+    ? `Previewing ${PLANS[id].name} in this browser — it has not launched and cannot be bought`
+    : `Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
   /* The button pressed on /pricing comes back from the redraw as the
      disabled "Current plan", which cannot hold focus, so a keyboard reader
      who switched plan was left on <body>. Focus goes to the heading of the

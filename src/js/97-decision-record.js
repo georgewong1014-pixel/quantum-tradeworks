@@ -58,20 +58,37 @@ function decisionRecordProperty() {
   ]));
 
   /* ---- what it comes to ------------------------------------------------ */
+  /* A TOTAL WITH A LINE MISSING SAYS SO. With a loan tenure of 0 the reserve
+     cannot be priced, and the safe cash is what is priced so far — the
+     calculator's ledger reads "Total initial cash so far … This is not the
+     full amount". The record printed "Safe cash RM121,754" as the answer, on
+     the page that is carried to a lender. Each total now names the lines it
+     is short by: completion is the acquisition and financing lines, safe cash
+     is every line. */
+  const unpriced = m.missingCostLines || [];
+  const shortOf = (groups) => unpriced.filter(x => !groups || groups.includes(x.groupId));
   const figs = el('div', { class: 'dr-figs' });
-  [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null],
-   ['Safe cash', isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null],
+  [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null,
+     shortOf(['acquisition', 'financing'])],
+   ['Safe cash', isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null, shortOf(null)],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtMoney(m.cashflowMonthly, 'MYR', 0) : null],
    ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : null],
    ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null],
    ['Grade', g.grade || null]]
-    .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
+    .forEach(([k, v, short]) => figs.append(el('div', { class: 'dr-fig' }, [
       el('div', { class: 'caption' }, k),
       /* A withheld figure is printed as a withheld figure. An em dash in a
          document somebody carries into a bank is better than a zero. */
       el('div', { class: 'dr-fig-v' }, v ?? 'Not computed'),
+      v != null && short?.length ? el('div', { class: 'caption', style: 'color:var(--bronze)' }, 'So far — short, see below') : null,
     ])));
   out.append(figs);
+  if (unpriced.length) out.append(el('p', { class: 'dr-warn' },
+    `Not the full amount. ${unpriced.length === 1 ? 'One cost line has' : `${unpriced.length} cost lines have`} no value — `
+    + `${unpriced.map(x => x.label.toLowerCase()).join(', ')} — so `
+    + `${shortOf(['acquisition', 'financing']).length ? 'the cash to complete and the safe cash are' : 'the safe cash is'} `
+    + `short by whatever ${unpriced.length === 1 ? 'it comes' : 'they come'} to. `
+    + `${unpriced.length === 1 ? 'It is' : 'They are'} unpriced rather than zero, and this tool will not guess.`));
 
   /* ---- what it rests on ------------------------------------------------ */
   out.append(el('h2', {}, 'What these figures rest on'));
@@ -98,15 +115,30 @@ function decisionRecordProperty() {
   out.append(tw);
   gridKeyboard(t, 'What these figures rest on. Use the arrow keys to move between cells.');
 
-  /* PRE-TAX OR AFTER-TAX IS NOT A FOOTNOTE.
-     Every figure above changes when a marginal rate is entered, and a reader
-     carrying this to a lender needs to know which they are holding. */
-  out.append(el('p', { class: m.taxComputed ? 'metaline' : 'dr-warn', style: 'margin-top:var(--sm)' },
-    m.taxComputed
-      ? `Figures are after tax on the rent at ${fmtPct(d.marginalTaxPct, 0)}, totalling ${fmtMoney(m.cumTax, 'MYR', 0)} `
-        + `across the hold. Loan interest is deducted and principal is not. Nothing here is tax advice.`
-      : 'Every figure in this record is BEFORE tax on the rent. No marginal rate has been entered, so no tax has been '
-        + 'computed — the cash figures show what the property produces, not what an owner keeps.'));
+  /* PRE-TAX OR AFTER-TAX IS NOT A FOOTNOTE, AND NOT ONE ANSWER FOR THE PAGE.
+     A reader carrying this to a lender needs to know which they are holding.
+     "Figures are after tax" was printed whenever a rate was entered, and was
+     wrong twice. Only the rate of return is built from the after-tax year
+     flows: the monthly position and the break-even rent are the model's pre-
+     tax figures (model-test holds cashflowMonthly to year one BEFORE tax), so
+     at 30% on RM6,000 of rent the record printed the same RM2,391 a month as
+     with no rate, under a sentence saying it was after tax. And with a loan
+     whose instalment cannot be computed — a tenure of 0 — no year's interest
+     is known, so no tax is, and it read "after tax on the rent at 24%,
+     totalling — across the hold" above a row of "Not computed". It now says
+     which figure carries the tax, and when none can. */
+  const taxKnown = m.taxComputed && isNum(m.cumTax);
+  out.append(el('p', { class: taxKnown ? 'metaline' : 'dr-warn', style: 'margin-top:var(--sm)' },
+    !m.taxComputed
+      ? 'Every figure in this record is BEFORE tax on the rent. No marginal rate has been entered, so no tax has been '
+        + 'computed — the cash figures show what the property produces, not what an owner keeps.'
+      : !taxKnown
+        ? `No tax on the rent has been computed, although a marginal rate of ${fmtPct(d.marginalTaxPct, 0)} is entered. `
+          + 'The loan’s instalment could not be computed from the entered tenure, so neither can the interest inside it — '
+          + 'the deduction that decides the tax. No figure in this record is after tax.'
+        : `The rate of return is after tax on the rent at ${fmtPct(d.marginalTaxPct, 0)}, which comes to `
+          + `${fmtMoney(m.cumTax, 'MYR', 0)} across the hold; loan interest is deducted and principal is not. `
+          + 'The monthly position and the break-even rent are before tax. Nothing here is tax advice.'));
 
   const unreviewed = propertyReviewQueue(d);
   if (unreviewed.length) out.append(el('p', { class: 'dr-warn' },
