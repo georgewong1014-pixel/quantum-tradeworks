@@ -2562,7 +2562,7 @@ try {
   await cli('--data', dir2, '--now', XF.now, '--as-of', prev, '--setup', 'no-such-setup');
   const afterReplay = await cli('--data', dir2, '--now', XF.now, '--status');
   const line = (out, k) => (out.split('\n').find(l => l.startsWith(k)) || '').replace(/\s+/g, ' ').trim();
-  check(line(afterRetry, 'scanner') === 'scanner CURRENT' && line(afterRetry, 'last ok').endsWith(`bars of ${XF.lastBar}`) && line(afterRetry, 'matches') === 'matches 1 on the last successful run\'s bar'
+  check(line(afterRetry, 'scanner') === 'scanner CURRENT' && line(afterRetry, 'last ok').endsWith(`bars of ${XF.lastBar}`) && line(afterRetry, 'matches') === `matches 1 on the last successful run's bars (${XF.lastBar})`
     && line(afterReplay, 'scanner') === 'scanner CURRENT' && line(afterReplay, 'last try').startsWith('last try FAILED') && line(afterRetry, 'setups') === 'setups 1 enabled of 1 valid, 1 refused',
     'bugfix2 engine: node scanner/scan.mjs --status stays CURRENT after a --retry of an older run and after a replay that failed on a typo (they read BEHIND with 0 matches, and FAILED), and counts a setup with two problems as 1 refused',
     { retry: afterRetry.split('\n').slice(0, 8), replay: afterReplay.split('\n').slice(0, 8) });
@@ -2807,6 +2807,82 @@ try {
   for (const d of folders) await rm(d, { recursive: true, force: true });
 }
 /* ---- end bugfix3: worker ---- */
+
+/* ---- bugfix4: scanner ---- */
+/* FOURTH BUG HUNT — WHAT THE WORKER SAYS OF THE SETUPS AND THE LAST SCAN
+   (scanner/scan.mjs), each line against the files it read:
+   1. a setups file that is not a list is refused whole, and says so with
+      the reason — --status printed "0 enabled of 0 valid" and nothing more,
+      a run "1 left out", and --backtest and a narrowed replay "no setup …
+      (have: none)", as though the file had been read;
+   2. the last run's bars are the range it evaluated, and its matches are
+      counted over that range — "bars of 2026-04-06" stood beside a match
+      the same run recorded on 2026-04-03 — and with no successful scan
+      there is no count of its matches, where "0" stood;
+   3. the setups a run left out are counted as setups, as --status counts
+      them — one setup with two problems was "2 left out", and two entries
+      sharing an id are two. */
+{
+  const F4 = E.scanFixture();
+  const SCAN4 = join(ROOT, 'scanner/scan.mjs');
+  const cli4 = async (...args) => { try { const r = await run(process.execPath, [SCAN4, ...args]); return { code: 0, out: r.stdout, err: r.stderr }; } catch (e) { return { code: e.code, out: e.stdout || '', err: e.stderr || '' }; } };
+  const base4 = join(tmpdir(), `qt-bugfix4-scanner-${process.pid}`);
+  await rm(base4, { recursive: true, force: true });
+  const dir4 = async (name, files) => {
+    const d = join(base4, name);
+    await mkdir(d, { recursive: true });
+    for (const [f, v] of Object.entries(files)) await writeFile(join(d, f), typeof v === 'string' ? v : JSON.stringify(v));
+    return d;
+  };
+  const say = (out, k) => (String(out).split('\n').find(l => l.startsWith(k)) || '').replace(/\s+/g, ' ').trim();
+  try {
+    /* 1 — refused whole. */
+    const reason = 'the setups file is neither a list nor an object with a "setups" list';
+    const W4 = await dir4('whole', { 'scan-setups.json': '{"setups":"x"}', 'price-history.json': F4.history });
+    const wSt = await cli4('--data', W4, '--status');
+    const wBt = await cli4('--data', W4, '--backtest', F4.setup.id);
+    const wRp = await cli4('--data', W4, '--as-of', F4.lastBar, '--setup', F4.setup.id);
+    const wRun = await cli4('--data', W4, '--now', F4.now);
+    check(say(wSt.out, 'setups') === `setups 0 enabled of 0 valid — the whole file is refused: ${reason}`
+      && wBt.code === 1 && wBt.err.includes(`is refused whole — ${reason}`) && !/have: none/.test(wBt.err)
+      && wRp.code === 1 && wRp.err.includes(`is refused whole — ${reason}`) && !/have: none/.test(wRp.err)
+      && say(wRun.out, 'setups') === `setups 0 evaluated — the whole setups file is refused: ${reason}`,
+      'bugfix4 scanner: a setups file that is not a list is refused whole, with the reason, in --status, a run, --backtest and a narrowed replay — they said "0 enabled of 0 valid" and nothing more, "1 left out", and "no setup … (have: none)"',
+      { status: say(wSt.out, 'setups'), backtest: wBt.err.trim().slice(0, 200), replay: wRp.err.trim().split('\n')[0].slice(0, 200), run: say(wRun.out, 'setups') });
+
+    /* 2 — the last run's bars and matches: one run that evaluated 3 to 6
+       April (a missed Friday caught up) and recorded a match on each end. */
+    const R4 = await dir4('range', {
+      'scan-runs.json': { schema: 1, audit: [], runs: [{ id: 'run-bf4', kind: 'scan', trigger: 'manual', status: 'COMPLETED', startedAt: '2026-04-07T03:00:00Z', finishedAt: '2026-04-07T03:00:05Z',
+        asOf: '2026-04-06', asOfFrom: '2026-04-03', engine: `scan ${E.SCAN_VERSION}`, counts: { evaluated: 2, recorded: 2 } }] },
+      'scan-alerts.json': { alerts: [{ id: 'a-bf4-fri', key: 'k-fri', setupId: 's', symbol: 'AAA', candleDate: '2026-04-03', runId: 'run-bf4' },
+                                     { id: 'a-bf4-mon', key: 'k-mon', setupId: 's', symbol: 'BBB', candleDate: '2026-04-06', runId: 'run-bf4' }] } });
+    const rSt = await cli4('--data', R4, '--status', '--now', '2026-04-07T04:00:00Z');
+    const N4 = await dir4('none', {});
+    const nSt = await cli4('--data', N4, '--status');
+    check(say(rSt.out, 'last ok') === 'last ok COMPLETED 2026-04-07T03:00:05Z (run-bf4), bars of 2026-04-03 … 2026-04-06'
+      && say(rSt.out, 'last try') === 'last try COMPLETED 2026-04-07T03:00:05Z (run-bf4), bars of 2026-04-03 … 2026-04-06'
+      && say(rSt.out, 'matches') === 'matches 2 on the last successful run\'s bars (2026-04-03 … 2026-04-06)'
+      && say(nSt.out, 'last ok') === 'last ok none' && !/\bmatches 0\b/.test(say(nSt.out, 'matches')) && /no scan has succeeded/.test(say(nSt.out, 'matches')),
+      'bugfix4 scanner: --status names the last run\'s range of bars, and counts its matches over it (it said "bars of 2026-04-06" beside a match that run recorded on 2026-04-03); with no successful scan it gives no count of its matches, where it said 0',
+      { range: ['last ok', 'last try', 'matches'].map(k => say(rSt.out, k)), none: say(nSt.out, 'matches') });
+
+    /* 3 — left out, as setups: one sound, one with two problems, and two
+       entries sharing an id — three left out, for four problems. */
+    const twoProblems4 = { ...F4.setupV2, id: 'bf4-two-problems', timeframe: '1H', ruleTree: { ...F4.setupV2.ruleTree, logic: 'XOR' } };
+    const setups4 = [F4.setupV2, twoProblems4, F4.setup, { ...F4.setup, name: 'A copy' }];
+    const v4 = E.scanValidate({ setups: setups4 });
+    const L4 = await dir4('left-out', { 'scan-setups.json': { setups: setups4 }, 'price-history.json': F4.history });
+    const lRun = await cli4('--data', L4, '--now', F4.now);
+    const lSt = await cli4('--data', L4, '--status', '--now', F4.now);
+    check(v4.problems.length === 4 && v4.setups.length === 1
+      && say(lRun.out, 'setups') === 'setups 1 evaluated, 3 left out' && say(lSt.out, 'setups') === 'setups 1 enabled of 1 valid, 3 refused',
+      'bugfix4 scanner: a run counts the setups it left out as setups, as --status counts them — one with two problems and two sharing an id are 3 left out, not the 4 problems they were refused for',
+      { problems: v4.problems.length, run: say(lRun.out, 'setups'), status: say(lSt.out, 'setups') });
+  } catch (e) { fail('bugfix4 scanner: the worker\'s words about the setups and the last scan', e.message); }
+  finally { await rm(base4, { recursive: true, force: true }); }
+}
+/* ---- end bugfix4: scanner ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

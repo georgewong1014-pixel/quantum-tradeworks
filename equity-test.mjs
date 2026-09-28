@@ -6630,6 +6630,118 @@ try {
   }
   /* ---- end bugfix3: sweep ---- */
 
+  /* ---- bugfix4: scanner ---- */
+  /* FOURTH BUG HUNT — WHAT THE SCANNER PAGES SAY THE WORKER REFUSED AND
+     RECORDED (87-scanner-ops.js):
+     1. the setups refused are scanStatus's count, on the dashboard's "Are my
+        setups active?" and on Overview's Usage, as --status prints it — two
+        entries sharing an id are two (the page counted the ids the problems
+        were keyed under, and read "1 setup refused, for 2 problems"); a file
+        refused whole says so on both;
+     2. a run whose version ledger could not be written — the real worker's
+        record, made here with the ledger's temporary file a folder — does
+        not say its new version was "recorded for the first time", on Runs
+        or on Overview; one whose ledger was written still does.
+     Every file is set in memory and put back. */
+  {
+    const { execFile } = await import('node:child_process');
+    const { promisify } = await import('node:util');
+    const { mkdir, writeFile, readFile } = await import('node:fs/promises');
+    const { fileURLToPath } = await import('node:url');
+    const { loadEngine } = await import('./scanner/scan.mjs');
+    const F4 = (await loadEngine()).scanFixture();
+    const dir4 = join(tmpdir(), `qt-bugfix4-scanner-eq-${process.pid}`);
+    let ledgerRun = null, workerError = null;
+    try {
+      await rm(dir4, { recursive: true, force: true });
+      await mkdir(join(dir4, 'scan-ledger.json.tmp'), { recursive: true });
+      const { version, ...unnumbered } = F4.setupV2;
+      await writeFile(join(dir4, 'scan-setups.json'), JSON.stringify({ setups: [unnumbered] }));
+      await writeFile(join(dir4, 'price-history.json'), JSON.stringify(F4.history));
+      try { await promisify(execFile)(process.execPath, [fileURLToPath(new URL('./scanner/scan.mjs', import.meta.url)), '--data', dir4, '--now', F4.now]); }
+      catch { /* exit 2 — PARTIAL, the ledger not written — is the case wanted */ }
+      const runs = JSON.parse(await readFile(join(dir4, 'scan-runs.json'), 'utf8')).runs || [];
+      ledgerRun = runs[runs.length - 1] || null;
+    } catch (e) { workerError = e.message; }
+    finally { await rm(dir4, { recursive: true, force: true }).catch(() => {}); }
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      const keepAdj = scanAdjustmentsFile;
+      try {
+        const f = scanFixture();
+        const out = {};
+        const main = () => document.querySelector('main');
+        const dd = (root, label) => { const dt = root ? [...root.querySelectorAll('dt')].find(d => d.textContent === label) : null; return dt ? dt.nextElementSibling.textContent : null; };
+        const usage =() => dd([...main().querySelectorAll('section.card')].find(c => /^Usage/.test(c.querySelector('h2, h3')?.textContent || '')), 'Active setups');
+        const tile = () => (main().querySelector('.scan-q')?.innerText || '').replace(/\\n+/g, ' | ');
+        scanHistoryFile = f.history; scanAlertsFile = { alerts: [] }; scanControlFile = null; scanOpsRead = true;
+        scanRunsFile = { schema: 1, runs: [], audit: [] }; scanOpsClock = f.now;
+        /* 1. Two entries sharing an id beside a sound one, then a file that is not a list. */
+        scanSetupsFile = { setups: [f.setup, { ...f.setup, name: 'A copy' }, { ...f.setup, id: 'bf4-other' }] };
+        out.refused = scanOpsStatus().active.refused;
+        navigate('/app/scanner'); await w(150);
+        out.tile = tile();
+        navigate('/admin/scanner'); await w(150);
+        out.usage = usage();
+        scanSetupsFile = { setups: 'x' };
+        navigate('/app/scanner'); await w(150);
+        out.wholeTile = tile();
+        navigate('/admin/scanner'); await w(150);
+        out.wholeUsage = usage();
+        /* 2. The worker's run whose ledger could not be written. */
+        const run = ${JSON.stringify(ledgerRun)};
+        if (run) {
+          scanSetupsFile = { setups: [f.setupV2] }; scanRunsFile = { schema: 1, runs: [run], audit: [] }; scanOpsClock = run.now || f.now; scanJobsState.filter = 'all';
+          navigate('/admin/scanner/jobs'); await w(150);
+          main().querySelectorAll('details').forEach(d => { d.open = true; });
+          await w(30);
+          out.jobs = dd(main().querySelector('tr.scan-detail-row'), 'Version ledger');
+          navigate('/admin/scanner'); await w(150);
+          out.overview = dd(main(), 'Version ledger');
+          out.written = scanRunLedgerText({ ...run, ledger: { ...run.ledger, written: true } });
+        }
+        /* 3. Data health's line for an adjustments file with no list of actions, and for refused entries. */
+        const adjLine = () => [...main().querySelectorAll('section[aria-label="Price breaks and adjustments"] p.metaline')].map(p => p.textContent).find(t => t.startsWith('data/price-adjustments.json')) || null;
+        scanAdjustmentsFile = { actions: 'x' }; scanHistoryFile = { ...f.history };
+        navigate('/admin/scanner/data'); await w(150);
+        out.adjWhole = adjLine();
+        scanAdjustmentsFile = { schema: 1, actions: [{ symbol: 'MATCH', date: '2026-02-02', ratio: 2, kind: 'split' }, { symbol: 'MATCH', date: '2026-02-02', ratio: 2, kind: 'split' },
+          { symbol: 'FLAT', date: 'x', ratio: 2, kind: 'split' }, { symbol: 'FLAT', date: '2026-02-03', ratio: 1, kind: 'other' }] };
+        scanHistoryFile = { ...f.history };
+        navigate('/admin/scanner/data'); await w(150);
+        out.adjEntries = adjLine();
+        return out;
+      } finally {
+        restore(); scanAdjustmentsFile = keepAdj; scanJobsState.filter = 'all';
+        navigate('/learn');
+      }
+    })()`);
+    const p1 = [];
+    if (r.refused !== 2) p1.push(`scanStatus's active.refused is ${r.refused}, not 2`);
+    if (!r.tile.includes('2 setups refused, for 2 problems — the worker leaves them out.')) p1.push(`the setups tile: ${r.tile}`);
+    if (r.usage !== '1 (of 1 valid, 2 refused)') p1.push(`Usage, Active setups: ${r.usage}`);
+    if (!r.wholeTile.includes('The whole file is refused — the setups file is neither a list nor an object with a "setups" list.')) p1.push(`the setups tile, a file that is not a list: ${r.wholeTile}`);
+    if (r.wholeUsage !== '0 (of 0 valid, the whole file refused)') p1.push(`Usage, a file that is not a list: ${r.wholeUsage}`);
+    if (p1.length) fail('bugfix4 scanner: the scanner pages count the refused setups as the worker does', p1);
+    else ok('bugfix4 scanner: the scanner pages count the refused setups as the worker does — two entries sharing an id beside a sound one read "2 setups refused, for 2 problems" on the dashboard and "(of 1 valid, 2 refused)" on Usage, as --status reads "2 refused" (they read 1), and a file that is not a list is refused whole on both');
+
+    const p2 = [];
+    const l = ledgerRun?.ledger;
+    if (workerError || ledgerRun?.status !== 'PARTIAL' || l?.written !== false || l?.newVersions?.length !== 1) p2.push(`the worker's run: ${workerError || JSON.stringify({ status: ledgerRun?.status, ledger: l })}`);
+    const unwritten = '0 versions already in the ledger · 1 new, not recorded · 0 refused · the ledger could not be written; the run’s problems say why';
+    ['jobs', 'overview'].forEach(k => { if (r[k] !== unwritten) p2.push(`${k === 'jobs' ? 'Runs' : 'Overview'}, Version ledger: ${r[k]}`); });
+    if (!/^0 versions already in the ledger · 1 recorded for the first time · 0 refused$/.test(r.written || '')) p2.push(`the same run with its ledger written: ${r.written}`);
+    if (p2.length) fail('bugfix4 scanner: a run whose version ledger could not be written does not say its new version was recorded', p2);
+    else ok(`bugfix4 scanner: a run whose version ledger could not be written (the worker's own PARTIAL record) does not say its new version was "recorded for the first time" — Runs and Overview read "${unwritten}"; with the ledger written it still reads "1 recorded for the first time"`);
+
+    const p3 = [];
+    if (r.adjWhole !== 'data/price-adjustments.json — refused whole, so no action is read from it.') p3.push(`a file with no list of actions: ${r.adjWhole}`);
+    if (!/^data\/price-adjustments\.json — 1 action read \(adj:[0-9a-f]+\), 3 entries refused\.$/.test(r.adjEntries || '')) p3.push(`two actions for one day, a bad date and one sound: ${r.adjEntries}`);
+    if (p3.length) fail('bugfix4 scanner: data health counts the refused adjustment entries as entries, and a file refused whole as that', p3);
+    else ok('bugfix4 scanner: data health says an adjustments file with no list of actions is refused whole (it read "0 actions read, 1 entry refused" of a file with no entry), and still counts refused entries as entries — two for one day and a bad date are 3 refused beside 1 read');
+  }
+  /* ---- end bugfix4: scanner ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

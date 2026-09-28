@@ -389,6 +389,10 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
      calling it a quiet day. */
   if (narrow?.setup) {
     const keep = runSetups.filter(s => s.id === narrow.setup);
+    /* A file that is not a list is refused whole, and no setup in it can be
+       looked up: that read "no such setup … (have: none)", as though the
+       file were read and the setup not in it. */
+    if (!keep.length && !list) throw fail('ARGS', `--setup ${narrow.setup}: the setups file ${setupsPath} is refused whole — ${problems[0]} — so no setup in it can be replayed`, 'ARGS');
     if (!keep.length) {
       const refused = (versions?.refused || []).find(x => x.setupId === narrow.setup)?.why
         || (E.scanValidate(doc).problemsBySetup?.[narrow.setup] || []).map(p => `${p.path ? `${p.path}: ` : ''}${p.text}`).join('; ');
@@ -465,8 +469,16 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   }
   const warn = problems.length > 0 || setupLevel.length > 0 || untestedEverywhere.length > 0
     || (r.watchlistFallbacks || []).length > 0 || (r.skippedMarkets || []).length > 0 || !!ledgerError;
+  /* The setups left out, counted as setups: the entries validation refused
+     (two sharing an id are two) and the versions the ledger refused. The
+     output counted the problems, and one setup can have several — a setup
+     with a bad timeframe and a bad group logic was "2 left out" of a file
+     whose other setup ran, beside --status's "1 refused". A file that is not
+     a list is refused whole: how many setups it meant to hold is not known,
+     so it is no count (null) and the reason. */
+  const leftOut = { setups: list ? list.length - setups.length + (versions?.refused.length || 0) : null, file: list ? null : problems[0] || null };
   return { ...base, result: r, setupLevel, untestedEverywhere, out, written, warn, existingCount: existing.length,
-           versions, ledgerWritten, ledgerError, pairsMoved };
+           versions, ledgerWritten, ledgerError, pairsMoved, leftOut };
 }
 
 /* ---------------------------------------------------------------- ledger -- */
@@ -925,19 +937,36 @@ async function main() {
     const st = E.scanStatus({ runs: runsDoc, alertsDoc, setupsDoc, historyMeta, control, now, instruments });
     let lock = null; try { lock = existsSync(W.lock) ? await readJson(W.lock) : null; } catch { lock = { unreadable: true }; }
     if (has('json')) { console.log(JSON.stringify({ status: st, control, lock, unreadable, channels: CHANNELS, files: { ...W, alerts: alertsPath, setups: setupsPath, history: historyPath } }, null, 2)); process.exit(0); }
-    const d = (r) => (r ? `${r.status} ${r.finishedAt || r.startedAt || ''}${r.id ? ` (${r.id})` : runsDoc.damaged ? ' (from the alerts file — the run log is not readable)' : ' (from the alerts file — before the run log)'}${r.asOf ? `, bars of ${r.asOf}` : ''}` : 'none');
+    /* A run's bars are the range it evaluated (asOfFrom … asOf), as the
+       dashboard and --runs print them. Only the newest was named, so a run
+       that caught up a missed day read "bars of 2026-04-06" beside a match
+       it recorded on 2026-04-03. */
+    const d = (r) => (r ? `${r.status} ${r.finishedAt || r.startedAt || ''}${r.id ? ` (${r.id})` : runsDoc.damaged ? ' (from the alerts file — the run log is not readable)' : ' (from the alerts file — before the run log)'}${r.asOf ? `, bars of ${E.scanBarRange(r.asOfFrom, r.asOf)}` : ''}` : 'none');
     const blocking = unreadable.filter(u => u.blocksRun);
     console.log(`scanner    ${st.state.toUpperCase()}${blocking.length ? ' — but a run fails until a file it reads is repaired' : ''}`);
     blocking.forEach(u => console.log(`           A run fails on it: ${u.why}${u.bak ? `; ${u.bak} holds the copy before its last write` : ''}.`));
     st.reasons.forEach(x => console.log(`           ${x}`));
+    /* A file that is not a list is refused whole: scanStatus gives no count
+       of refused setups for it (refused null — how many it meant to hold is
+       not known) and the reason in fileRefused. Only the count was printed,
+       so such a file read "0 enabled of 0 valid" and nothing more, as though
+       it held no setup rather than being one the worker cannot read. */
     console.log(bad('setups') ? `setups     not known — ${bad('setups').why}`
-      : `setups     ${st.active.enabled} enabled of ${st.active.valid} valid${st.active.expired ? `, ${st.active.expired} expired` : ''}${st.active.refused ? `, ${st.active.refused} refused` : ''}${setupsDoc ? '' : ` — no setups file at ${setupsPath}`}`);
+      : `setups     ${st.active.enabled} enabled of ${st.active.valid} valid${st.active.expired ? `, ${st.active.expired} expired` : ''}${st.active.fileRefused ? ` — the whole file is refused: ${st.active.fileRefused}` : st.active.refused ? `, ${st.active.refused} refused` : ''}${setupsDoc ? '' : ` — no setups file at ${setupsPath}`}`);
     if (bad('history')) console.log(`history    not known — ${bad('history').why}`);
     if (st.monitored) console.log(`watching   ${st.monitored.instruments} instrument(s) with a series${st.monitored.missing.length ? `; ${st.monitored.missing.length} named but not in your history` : ''}`);
     if (runsDoc.damaged) console.log(`runs log   ${runsDamagedText(runsDoc, W.runs)}`);
     console.log(`last ok    ${d(st.lastSuccess)}`);
     console.log(`last try   ${d(st.lastAttempt)}`);
-    console.log(bad('alerts') ? `matches    not known — ${bad('alerts').why}` : `matches    ${st.latestMatches.length} on the last successful run's bar`);
+    /* The last scan's matches are those on any bar it evaluated — a caught-
+       up day's among them — so they are counted over its range of bars, as
+       the dashboard heads them. With no successful scan there is no last
+       run to have matched on: that read "0 on the last successful run's
+       bar" beside "last ok none", an absence shown as a zero. */
+    const ls = st.lastSuccess;
+    console.log(bad('alerts') ? `matches    not known — ${bad('alerts').why}`
+      : ls ? `matches    ${st.latestMatches.length} on the last successful run's bars (${E.scanBarRange(ls.asOfFrom, ls.asOf)})`
+      : 'matches    none to show — no scan has succeeded, so there is no last run to have matched');
     console.log(`control    ${control.paused ? `PAUSED since ${control.since}${control.reason ? ` — ${control.reason}` : ''} (node scanner/scan.mjs --resume)` : control.damaged ? `not known — ${control.damaged}` : 'not paused'}`);
     console.log(`lock       ${lock ? (lock.unreadable ? 'present but unreadable' : `held by pid ${lock.pid} on ${lock.host} since ${lock.startedAt}${lock.runId ? ` (${lock.runId})` : ''}`) : 'free'}`);
     console.log(`channels   in-app ACTIVE (the alert record); ${Object.entries(CHANNELS).filter(([, c]) => c.status !== 'ACTIVE').map(([k]) => k.toLowerCase()).join(', ')} NOT CONFIGURED — no server, no contact address held`);
@@ -972,6 +1001,12 @@ async function main() {
     try { const reg = await readJson(instrumentsPath); instruments = Array.isArray(reg) ? reg : (reg?.instruments || []); } catch { /* none */ }
     const v = E.scanValidate(doc);
     let setup = v.setups.find(s => s.id === id);
+    /* A file that is not a list is refused whole; it read "no setup … (have:
+       none)", as though the file were read and the setup not in it. */
+    if (!setup && !Array.isArray(doc) && !Array.isArray(doc?.setups)) {
+      console.error(`the setups file ${setupsPath} is refused whole — ${v.problems[0]} — so no setup in it can be simulated`);
+      process.exit(1);
+    }
     if (!setup) {
       const why = v.problemsBySetup?.[id];
       console.error(why ? `setup "${id}" is refused:\n${why.map(p => `  · ${p.path ? `${p.path}: ` : ''}${p.text}`).join('\n')}` : `no setup "${id}" in ${setupsPath} (have: ${v.setups.map(s => s.id).join(', ') || 'none'})`);
@@ -1299,7 +1334,8 @@ function printRun({ E, r, out, dry, written, alertsPath, run, problems, setupLev
     console.log(`narrowed   to ${[run.narrow.setup ? `setup ${run.narrow.setup}` : null, run.narrow.market ? `market ${run.narrow.market}` : null].filter(Boolean).join(' and ')}`
       + `${n?.instrumentsLeftOut ? ` — ${n.instrumentsLeftOut} instrument(s) of other markets left out` : ''}${n?.setupsOutside?.length ? `; nothing in it for ${n.setupsOutside.join(', ')}` : ''}`);
   }
-  console.log(`setups     ${r.setups} evaluated${problems.length ? `, ${problems.length} left out` : ''}`);
+  const lo = out?.leftOut;
+  console.log(`setups     ${r.setups} evaluated${lo?.file ? ` — the whole setups file is refused: ${lo.file}` : lo?.setups ? `, ${lo.setups} left out` : ''}`);
   const v = out?.versions;
   if (v) {
     const src = { export: 'exported', 'file-edit': 'edited in the file' };
