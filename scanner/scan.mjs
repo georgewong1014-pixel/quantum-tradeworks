@@ -124,7 +124,8 @@
  * Telegram and push are recorded NOT_CONFIGURED with the reason — there is no
  * server to send from and no contact address held under a privacy notice —
  * never as failures of something attempted. The delivery record is written
- * after the alerts, so its failure never loses an alert (the run is PARTIAL).
+ * after the alerts, so its failure never loses an alert (the run is PARTIAL),
+ * and the next run that writes it adds the rows that run could not.
  *
  * WHAT THIS IS NOT
  *
@@ -651,9 +652,24 @@ export async function readControl(path) {
   catch (e) { return { schema: 1, paused: false, damaged: `the control file ${path} is not valid JSON (${e.message}), so it is read as not paused; --pause or --resume writes it afresh` }; }
 }
 
-/* The in-app delivery record: one row per new alert, the channels block
-   rewritten every time. */
-export async function writeDeliveries(path, alerts, { runId, now = new Date().toISOString() } = {}) {
+/* The in-app delivery record: one row per alert, the channels block
+   rewritten every time. `alerts` are this run's new alerts, each given a row
+   under this run.
+
+   `record` is the whole alert record as this run wrote it. An alert in it
+   with no row is one whose run wrote it to the record and then could not
+   write its row — the delivery record held open or read-only for longer
+   than the rename waits, or the run killed between the two writes. Every
+   run wrote rows for its own new alerts only, so that row was never written
+   by any later run, and the record held no row for an alert the app showed
+   while the pages said it held one per alert. It is written now: under the
+   run that recorded the alert, dated when that run recorded it (the alert's
+   recordedAt — the moment it reached the record the app reads, which is
+   what IN_APP SENT means), with backfilledBy and backfilledAt naming the
+   run that wrote the row and when. Past the cap the oldest rows are
+   dropped, so an alert older than the oldest row kept is not owed one: it
+   had its row, and the cap took it. Returns { added, backfilled }. */
+export async function writeDeliveries(path, alerts, { runId, now = new Date().toISOString(), record = null } = {}) {
   let doc = { schema: 1, deliveries: [] };
   if (existsSync(path)) {
     try { const d = await readJson(path); if (Array.isArray(d?.deliveries)) doc = d; }
@@ -668,7 +684,16 @@ export async function writeDeliveries(path, alerts, { runId, now = new Date().to
     }
   }
   const have = new Set(doc.deliveries.map(x => x?.id));
-  let added = 0;
+  const mine = new Set(alerts.map(a => a?.id));
+  const floor = doc.deliveries.length >= DELIVERIES_CAP ? String(doc.deliveries[0]?.sentAt || '') : '';
+  let added = 0, backfilled = 0;
+  for (const a of Array.isArray(record) ? record : []) {
+    if (!a || typeof a.id !== 'string' || mine.has(a.id) || have.has(`${a.id}:IN_APP`) || String(a.recordedAt || '') < floor) continue;
+    doc.deliveries.push({ id: `${a.id}:IN_APP`, alertId: a.id, alertKey: a.key, channel: 'IN_APP', status: 'SENT', attemptCount: 1, sentAt: a.recordedAt || now, runId: a.runId ?? null,
+                          setupId: a.setupId, symbol: a.symbol, candleDate: a.candleDate || a.bar, backfilledBy: runId, backfilledAt: now });
+    have.add(`${a.id}:IN_APP`);
+    backfilled++;
+  }
   for (const a of alerts) {
     const id = `${a.id}:IN_APP`;
     if (have.has(id)) continue;
@@ -681,7 +706,7 @@ export async function writeDeliveries(path, alerts, { runId, now = new Date().to
                 note: 'IN_APP SENT means written to the alert record the app reads — nothing left this machine. No row is written for a channel that is not configured.',
                 deliveries: doc.deliveries };
   await writeAtomic(path, JSON.stringify(out, null, 1) + '\n');
-  return added;
+  return { added, backfilled };
 }
 
 /* --------------------------------------------------------- run records -- */
@@ -1145,12 +1170,12 @@ async function main() {
 
   /* The last run that evaluated live: a live run with the same logical key
      is skipped as nothing new. */
-  let unchangedKey = null;
+  let unchangedKey = null, compared = null;
   if (!dry && trigger !== 'replay' && trigger !== 'retry') {
     const doc = await readRunsDoc(W.runs);
-    const prev = [...doc.runs].reverse().find(r => r.id !== runId && (r.status === 'COMPLETED' || r.status === 'PARTIAL') && r.logicalKey);
-    unchangedKey = prev?.logicalKey || null;
-    run.comparedWith = prev?.id || null;
+    compared = [...doc.runs].reverse().find(r => r.id !== runId && (r.status === 'COMPLETED' || r.status === 'PARTIAL') && r.logicalKey) || null;
+    unchangedKey = compared?.logicalKey || null;
+    run.comparedWith = compared?.id || null;
   }
 
   let out;
@@ -1178,7 +1203,20 @@ async function main() {
   }
   run.historyHash = out.historyHash; run.historyNewest = out.historyNewest; run.setupsHash = out.setupsHash; run.logicalKey = out.logicalKey;
   if (out.skipped) {
-    const text = `nothing changed since ${run.comparedWith}: the same engine, setups, history and alert record — a run on them records nothing new`;
+    /* A run on the same inputs records no new alert. But the run compared
+       with may have written its alerts and then failed to write the version
+       ledger (the versions it numbered, the bar each pair reached) or the
+       delivery record, and a skipped run writes neither — so "a run on them
+       records nothing new" was false then: a retry of that run wrote them.
+       Whether such a run should evaluate rather than skip is not decided
+       here. What is unwritten is said, with the run that writes it: the next
+       run on new input, or a retry of that run now. */
+    const unwritten = [compared?.ledger?.written === false ? 'the version ledger' : null,
+                       (compared?.errors || []).some(e => e?.category === 'DELIVERY') ? 'the delivery record' : null].filter(Boolean);
+    const it = unwritten.length > 1 ? 'them' : 'it';
+    const text = unwritten.length
+      ? `nothing changed since ${run.comparedWith}: the same engine, setups, history and alert record, so a run on them records no new alert — but ${run.comparedWith} could not write ${unwritten.join(' or ')}, and a skipped run writes nothing. The next scheduled or manual run on new input writes ${it}; node scanner/scan.mjs --retry ${run.comparedWith} writes ${it} now`
+      : `nothing changed since ${run.comparedWith}: the same engine, setups, history and alert record — a run on them records nothing new`;
     console.log(`\n${text}. node scanner/scan.mjs --status says where things stand; --as-of DATE re-evaluates a session on purpose.`);
     return finish(out.skipped, text);
   }
@@ -1205,11 +1243,23 @@ async function main() {
   (r.skippedMarkets || []).forEach(m => addError(run, 'DATA', `${m.market || 'instruments with no market row'} not ready — ${m.reason}; ${m.instruments} instrument(s) not evaluated, SKIPPED_NO_DATA for this run`, { market: m.market }));
   if (out.ledgerError) addError(run, 'IO', out.ledgerError);
 
-  /* Delivery after the record: a failure here never loses an alert. */
+  /* Delivery after the record: a failure here never loses an alert. The
+     record the run wrote goes with its new alerts, so the rows an earlier
+     run could not write are written too (writeDeliveries). A delivery
+     record that could not be written leaves the count null, "not recorded":
+     it was left at 0, and the run page read "delivered 0 in the app —
+     written to the record" over alerts this run had written to the record. */
   let deliveryFailed = false;
   if (!dry) {
-    try { run.counts.deliveries = await writeDeliveries(W.deliveries, r.alerts, { runId, now: new Date().toISOString() }); }
-    catch (e) { deliveryFailed = true; addError(run, 'DELIVERY', `the delivery record ${W.deliveries} could not be written (${e.message}); the alerts are recorded`); }
+    try {
+      const d = await writeDeliveries(W.deliveries, r.alerts, { runId, now: new Date().toISOString(), record: out.out.alerts });
+      run.counts.deliveries = d.added;
+      run.counts.deliveriesBackfilled = d.backfilled;
+    } catch (e) {
+      deliveryFailed = true;
+      run.counts.deliveries = null;
+      addError(run, 'DELIVERY', `the delivery record ${W.deliveries} could not be written (${e.message}); the alerts are recorded, and the next run that writes the delivery record adds their rows`);
+    }
   }
 
   printRun({ E, r, out, dry, written, alertsPath, run, problems, setupLevel, untestedEverywhere });
@@ -1268,7 +1318,12 @@ function printRun({ E, r, out, dry, written, alertsPath, run, problems, setupLev
   }
   console.log(`evaluated  ${r.evaluated} setup × instrument pair${r.evaluated === 1 ? '' : 's'} · ${r.matched} matched · ${r.untested} untested`);
   console.log(`${r.alerts.length} new alert${r.alerts.length === 1 ? '' : 's'} recorded${dry ? ' (dry run — nothing written)' : written ? ` → ${alertsPath}` : ''}${r.deduped ? ` · ${r.deduped} already recorded` : ''}`);
-  if (!dry) console.log(`delivered  ${run.counts.deliveries} in the app (the record above); email, Telegram and push are not configured — nothing is sent`);
+  if (!dry) {
+    const bf = run.counts.deliveriesBackfilled || 0, k = r.alerts.length;
+    console.log(run.counts.deliveries == null
+      ? `delivered  not recorded — the delivery record could not be written (below); ${k ? `the ${k} new alert${k === 1 ? ' is' : 's are'} in the record the app reads, and the next run that writes it adds ${k === 1 ? 'its row' : 'their rows'}` : 'no alert was new'}`
+      : `delivered  ${run.counts.deliveries} in the app (the record above)${bf ? `, and ${bf === 1 ? '1 row an earlier run' : `${bf} rows earlier runs`} could not write` : ''}; email, Telegram and push are not configured — nothing is sent`);
+  }
   if (r.alerts.length) {
     console.log('');
     r.alerts.forEach(a => {

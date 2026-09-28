@@ -2479,5 +2479,114 @@ try {
 }
 /* ---- end bugfix: equities-data ---- */
 
+/* ---- bugfix3: worker ---- */
+/* WHAT A RUN COULD NOT WRITE AFTER ITS ALERTS. The delivery record and the
+   version ledger are written after the alert record, so a failure there
+   never loses an alert — but the delivery rows it failed to write were
+   never written by any later run (each wrote rows for its own new alerts
+   only), while it said "delivered 0 in the app" over an alert it had
+   written to the record; a run skipped as unchanged after one whose ledger
+   could not be written said "a run on them records nothing new", when a
+   run on them writes the ledger's versions and pairs; and the daily run
+   named a closed list of reasons for a PARTIAL scan that left out the
+   ledger. Each case on its own temporary folder. */
+{
+  const BF = E.scanFixture();
+  const SCAN = join(ROOT, 'scanner/scan.mjs');
+  const scan = async (...args) => {
+    try { const { stdout, stderr } = await run(process.execPath, [SCAN, ...args]); return { code: 0, stdout, stderr }; }
+    catch (e) { return { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; }
+  };
+  const json = async (p) => (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null);
+  const folders = [];
+  const folder = async (name, setups = [BF.setup]) => {
+    const d = join(tmpdir(), `qt-bf3w-${name}-${process.pid}`);
+    await rm(d, { recursive: true, force: true });
+    await mkdir(d, { recursive: true });
+    await writeFile(join(d, 'scan-setups.json'), JSON.stringify({ setups }));
+    await writeFile(join(d, 'price-history.json'), JSON.stringify(BF.history));
+    folders.push(d);
+    return d;
+  };
+  const runsOf = async (d) => ((await json(join(d, 'scan-runs.json'))) || { runs: [] }).runs;
+  /* A folder where a file's temporary copy goes: that file cannot be written until it is removed. */
+  const block = (d, f) => mkdir(join(d, `${f}.tmp`));
+  const unblock = (d, f) => rm(join(d, `${f}.tmp`), { recursive: true, force: true });
+
+  /* 1 — the delivery rows a run could not write are written by the next run that writes the record. */
+  const B1 = await folder('owed-deliveries');
+  await block(B1, 'scan-deliveries.json');
+  const a1 = await scan('--data', B1, '--now', BF.now);
+  await unblock(B1, 'scan-deliveries.json');
+  const b1 = await scan('--data', B1, '--now', BF.now);
+  const runs1 = await runsOf(B1);
+  const alerts1 = (await json(join(B1, 'scan-alerts.json')))?.alerts || [];
+  const del1 = (await json(join(B1, 'scan-deliveries.json')))?.deliveries || [];
+  check(a1.code === 2 && runs1[0]?.status === 'PARTIAL' && runs1[0].counts?.deliveries === null && /^delivered\s+not recorded — the delivery record could not be written/m.test(a1.stdout)
+    && b1.code === 0 && runs1[1]?.status === 'COMPLETED' && alerts1.length === 1 && del1.length === 1 && del1[0].id === `${alerts1[0].id}:IN_APP` && del1[0].status === 'SENT'
+    && del1[0].runId === runs1[0].id && del1[0].sentAt === alerts1[0].recordedAt && del1[0].backfilledBy === runs1[1].id
+    && runs1[1].counts?.deliveries === 0 && runs1[1].counts?.deliveriesBackfilled === 1 && /1 row an earlier run could not write/.test(b1.stdout),
+    'bugfix3(worker): the delivery row a run could not write is written by the next run that writes the record, under the run that recorded the alert — no later run wrote it, so the record held no row for an alert the app showed; and the run that could not write it says "not recorded", not "delivered 0 in the app" over an alert it wrote',
+    { a: { code: a1.code, deliveries: runs1[0]?.counts?.deliveries, line: (a1.stdout.match(/^delivered.*$/m) || [])[0] }, b: { code: b1.code, counts: runs1[1]?.counts }, rows: del1 });
+
+  /* 2 — a run skipped as unchanged after one that could not write the ledger says so, and how to write it now. */
+  const quiet = { ...BF.setup, rules: BF.setup.rules.map(r => (r.op === 'between' ? { ...r, range: [98, 99] } : r)) };   /* matches nothing: no alert changes the record */
+  const B2 = await folder('owed-ledger', [quiet]);
+  await block(B2, 'scan-ledger.json');
+  const a2 = await scan('--data', B2, '--now', BF.now);
+  await unblock(B2, 'scan-ledger.json');
+  const b2 = await scan('--data', B2, '--now', BF.now);
+  const runs2 = await runsOf(B2);
+  const ledgerAfterSkip = existsSync(join(B2, 'scan-ledger.json'));
+  const c2 = await scan('--data', B2, '--retry', runs2[0]?.id);
+  const led2 = await json(join(B2, 'scan-ledger.json'));
+  const skip2 = runs2[1]?.skipReason || '';
+  check(a2.code === 2 && runs2[0]?.ledger?.written === false && /^LEDGER NOT WRITTEN — /m.test(a2.stdout)
+    && b2.code === 3 && runs2[1]?.status === 'SKIPPED_NO_DATA' && runs2[1].comparedWith === runs2[0].id && !ledgerAfterSkip
+    && !/records nothing new/.test(skip2) && /records no new alert/.test(skip2) && skip2.includes(`${runs2[0].id} could not write the version ledger`)
+    && skip2.includes(`node scanner/scan.mjs --retry ${runs2[0].id}`) && b2.stdout.includes(skip2)
+    && c2.code === 0 && led2?.versions?.length === 1 && Object.keys(led2?.pairs || {}).length === Object.keys(BF.history.series).length,
+    'bugfix3(worker): a run skipped as unchanged after one whose version ledger could not be written says so and names the retry that writes it — it said "a run on them records nothing new", and the retry it names then wrote the version and every pair',
+    { skip: skip2, ledgerAfterSkip, retry: { code: c2.code, versions: led2?.versions?.length, pairs: Object.keys(led2?.pairs || {}).length } });
+
+  /* 3 — the daily run names what made the scan PARTIAL, from the scanner's own output. */
+  const DD = join(tmpdir(), `qt-bf3w-daily-${process.pid}`);
+  await rm(DD, { recursive: true, force: true });
+  for (const s of ['ingest', 'scanner', 'data']) await mkdir(join(DD, s), { recursive: true });
+  folders.push(DD);
+  await writeFile(join(DD, 'ingest/autoshot.mjs'), "console.log('page 1');");
+  await writeFile(join(DD, 'ingest/watchlist.mjs'), "console.log('candidates 3\\nflagged   0\\nskipped   0');");
+  await writeFile(join(DD, 'ingest/prices.mjs'), "console.log('  accepted : 3\\n  rejected : 0');");
+  await writeFile(join(DD, 'ingest/history.mjs'), "console.log('  symbols   : 3\\n  new bars  : 3\\n  depth     : 1-3 day(s) per symbol');");
+  /* The stub prints what the real worker printed in case 2, word for word. */
+  await writeFile(join(DD, 'scanner/scan.mjs'), `process.stdout.write(${JSON.stringify(a2.stdout)}); process.exit(2);`);
+  await writeFile(join(DD, 'data/scan-setups.json'), '{"setups":[]}');
+  let d3;
+  try { const { stdout } = await run(process.execPath, [join(ROOT, 'ingest/daily.mjs'), '--url', 'http://example.invalid', '--no-fx'], { cwd: DD }); d3 = { code: 0, stdout }; }
+  catch (e) { d3 = { code: e.code, stdout: e.stdout || '' }; }
+  const line3 = (d3.stdout.match(/^scanner\s+.*$/m) || [''])[0];
+  check(d3.code === 2 && /the version ledger could not be written/.test(line3) && !/a setup was skipped|delivery record/.test(line3),
+    'bugfix3(worker): daily.mjs names what made the scan partial, read off the scanner\'s own headings — a ledger that could not be written was reported as "a setup was skipped, could not be tested, or its delivery record failed"',
+    { code: d3.code, line: line3 });
+
+  /* 4 — a scan skipped because the history holds no bar is not "nothing new since the last scan". A first
+     daily run whose every row the history refused writes a history with no bar, and the scanner's
+     SKIPPED_NO_DATA then says so; the stub prints what the real worker printed, word for word. */
+  const B4 = await folder('no-bars');
+  await writeFile(join(B4, 'price-history.json'), JSON.stringify({ series: {} }));
+  const a4 = await scan('--data', B4, '--now', BF.now);
+  await writeFile(join(DD, 'scanner/scan.mjs'), `process.stdout.write(${JSON.stringify(a4.stdout)}); process.stderr.write(${JSON.stringify(a4.stderr)}); process.exit(${Number(a4.code)});`);
+  let d4;
+  try { const { stdout } = await run(process.execPath, [join(ROOT, 'ingest/daily.mjs'), '--url', 'http://example.invalid', '--no-fx'], { cwd: DD }); d4 = { code: 0, stdout }; }
+  catch (e) { d4 = { code: e.code, stdout: e.stdout || '' }; }
+  const line4 = (d4.stdout.match(/^scanner\s+.*$/m) || [''])[0];
+  check(a4.code === 3 && /^status\s+SKIPPED_NO_DATA/m.test(a4.stdout) && !/nothing new since the last scan/.test(line4) && /skipped — no bar to evaluate: .*holds no bars/.test(line4),
+    'bugfix3(worker): daily.mjs reports a scan skipped for a history with no bar as that, in the scanner\'s words — it said "nothing new since the last scan", the sentence for inputs unchanged since a run that evaluated',
+    { scan: a4.code, line: line4 });
+
+  for (const d of folders) await rm(d, { recursive: true, force: true });
+}
+/* ---- end bugfix3: worker ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
