@@ -91,16 +91,16 @@ function scanOpsStatus() {
     historyMeta: scanOpsHistoryMeta(scanOpsHistory()), control: scanControlFile, now: scanOpsNow(),
     instruments: scanOpsRegistry(), alertState: null });
 }
-/* The setups the worker refuses, and the problems it refuses them for.
-   scanStatus's active.refused counts problems, and one setup can have
-   several: a setup refused for a bad timeframe and a bad group read "2
-   refused" of the one setup. A file that is not a list is refused whole. */
-function scanOpsRefused(doc) {
-  if (!doc) return { setups: 0, problems: 0, file: null };
-  const v = scanValidate(doc);
-  const keys = Object.keys(v.problemsBySetup || {});
-  return { setups: keys.filter(k => k !== '').length, problems: v.problems.length, file: keys.includes('') ? v.problems[0] || 'refused' : null };
-}
+/* The setups the worker refuses, and the problems it refuses them for,
+   read off scanStatus's `active` — the counts --status prints — never
+   counted again here. This page counted the ids the problems were keyed
+   under, and two entries sharing an id are keyed once though the worker
+   refuses both: a file of [a, a, b] read "1 setup refused, for 2 problems"
+   beside --status's "2 refused". A setup refused for two problems is still
+   one setup (the engine counts entries, not problems). A file that is not
+   a list is refused whole, and how many setups it meant to hold is not
+   known: refused is null there, and the reason is `file`. */
+const scanOpsRefused = (active) => ({ setups: active?.refused ?? null, problems: active?.problems ?? 0, file: active?.fileRefused || null });
 /* The alerts pages' unread count, guarded: null when that function is not
    in this build, or when it has no alerts file to count. */
 function scanOpsUnread() {
@@ -342,11 +342,18 @@ function scanRunCatchUpText(r) {
     : `; ${typeof cut === 'string' ? cut : `${many(cut, 'pair', 'pairs')} reached the cap`}, so bars older than the cap were not evaluated — node scanner/scan.mjs --as-of DATE evaluates one on purpose`;
   return `${many(pairs, 'setup × instrument pair', 'setup × instrument pairs')} caught up over ${many(bars, 'bar', 'bars')} since each one’s last evaluated bar${tail}`;
 }
+/* A run whose ledger write failed (written: false — the run is PARTIAL,
+   with an IO problem) recorded none of its new versions: they were read
+   "recorded for the first time" over a ledger that holds none of them. They
+   are new and not recorded, and why is among the run's problems; the next
+   run that writes the ledger numbers them the same way. A record from a
+   worker that does not write `written` reads as before. */
 function scanRunLedgerText(r) {
   const l = r?.ledger;
   if (!l || typeof l !== 'object') return SCAN_NOT_WRITTEN;
   const f = (v) => (scanOpsN(v) == null ? 'not recorded' : fmtNum(scanOpsN(v), 0));
-  return `${f(l.known)} version${scanOpsN(l.known) === 1 ? '' : 's'} already in the ledger · ${f(l.newVersions)} recorded for the first time · ${f(l.refused)} refused${scanOpsN(l.refused) ? ' — a version number reused with other content; the run’s problems name it' : ''}`;
+  const unwritten = l.written === false;
+  return `${f(l.known)} version${scanOpsN(l.known) === 1 ? '' : 's'} already in the ledger · ${f(l.newVersions)} ${unwritten ? 'new, not recorded' : 'recorded for the first time'} · ${f(l.refused)} refused${scanOpsN(l.refused) ? ' — a version number reused with other content; the run’s problems name it' : ''}${unwritten ? ' · the ledger could not be written; the run’s problems say why' : ''}`;
 }
 const scanRunCacheText = (cs) => (cs && typeof cs === 'object' && (Number.isFinite(cs.hits) || Number.isFinite(cs.misses))
   ? `${Number.isFinite(cs.hits) ? fmtNum(cs.hits, 0) : 'not recorded'} reused, ${Number.isFinite(cs.misses) ? fmtNum(cs.misses, 0) : 'not recorded'} computed` : null);
@@ -513,7 +520,7 @@ VIEWS.scannerDashboard = () => {
   ]);
   const a = st.active;
   const setupsDoc = scanOpsSetupsDoc();
-  const refused = scanOpsRefused(setupsDoc);
+  const refused = scanOpsRefused(a);
   tiles.append(tile('Are my setups active?',
     setupsDoc ? `${a.enabled - a.expired} active` : 'No setups file',
     setupsDoc ? [`${a.valid} valid in data/scan-setups.json: ${a.enabled} enabled, ${a.disabled} disabled, ${a.expired} expired.`,
@@ -1221,7 +1228,7 @@ VIEWS.scannerAdmin = () => {
     el('p', { class: 'metaline' }, [`${st.notifications.text} `, scanOpsLink('/admin/scanner/delivery', 'Delivery')])));
 
   /* 7 — usage. */
-  const a = st.active, refused = scanOpsRefused(scanOpsSetupsDoc());
+  const a = st.active, refused = scanOpsRefused(a);
   wrap.append(panel('Usage', 'On this machine. There are no users to count.',
     el('dl', { class: 'kv scan-kv' }, [el('dt', {}, 'Active setups'), el('dd', {}, scanOpsSetupsDoc()
       ? `${a.enabled - a.expired} (of ${a.valid} valid, ${refused.file ? 'the whole file refused' : `${refused.setups} refused`})` : 'no setups file'),
@@ -1379,8 +1386,13 @@ VIEWS.scannerAdminData = () => {
   const brk = el('section', { class: 'card', 'aria-label': 'Price breaks and adjustments' });
   brk.append(cardHead('Price breaks and adjustments', 'A close-to-close move above ×1.5 or below ×0.67 is a break. No corporate-action feed is held: a break is explained only by an action you record, and until then no indicator is computed across it (INVALID_INPUT, UNADJUSTED_BREAK).'));
   const adj = H.adjustments;
+  /* A file with no list of actions is refused whole: its one problem has no
+     entry (index null), and it read "0 actions read, 1 entry refused" over
+     a list saying "the file: no list of actions". Entries are counted as
+     entries; the file refused whole says so. */
+  const refusedEntries = adj.problems.filter(p => p.index != null).length, refusedWhole = adj.problems.some(p => p.index == null);
   const fileLine = scanAdjustmentsFile || adj.actions.length
-    ? el('p', { class: 'metaline' }, `data/price-adjustments.json — ${scanOpsPlural(adj.actions.length, 'action')} read${adj.version !== 'none' ? ` (${adj.version})` : ''}${adj.problems.length ? `, ${scanOpsPlural(adj.problems.length, 'entry', 'entries')} refused` : ''}.`)
+    ? el('p', { class: 'metaline' }, `data/price-adjustments.json — ${refusedWhole ? 'refused whole, so no action is read from it' : `${scanOpsPlural(adj.actions.length, 'action')} read`}${adj.version !== 'none' ? ` (${adj.version})` : ''}${refusedEntries ? `, ${scanOpsPlural(refusedEntries, 'entry', 'entries')} refused` : ''}.`)
     : scanOpsFileState('price-adjustments.json', null, 'You write it yourself: tick a break below, download the file and save it beside data/price-history.json.');
   fileLine.style.marginBottom = 'var(--sm)';
   brk.append(fileLine);
