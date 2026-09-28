@@ -2571,4 +2571,133 @@ try {
 /* ---- end bugfix2: engine ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
+
+/* ---- bugfix2: scanner ---- */
+/* THE OPS FIXTURE, HELD TO THE WORKER BY VALUE AS WELL AS BY KEY. The round
+   3 check asks that each key the fixture uses is one the worker writes, and
+   that it holds the same kind for the same status. So the replay's catchUp,
+   written { pairs: 0, bars: 0, capped: 0 }, passed beside the worker's null
+   (a completed manual run's object answered for it) and the page's replay
+   text went unexercised; a ledger counted in numbers passed beside the
+   worker's lists; and no fixture run carried `ready`, which the worker
+   writes on every run. Here the real worker runs once of each trigger, and:
+   every key it writes on every run is on every fixture run, and every key
+   it writes inside a round 3 field is inside the fixture's; for each
+   trigger and status it reached, a key the fixture shares holds the same
+   kind, one level into the round 3 fields too; and what a run's kind
+   decides holds the worker's value — a replay's catchUp is null, `ready`
+   is whether --ready was asked (a retry's is the retried run's), and
+   `narrow` is null with no --setup or --market. */
+{
+  const FX2 = E.scanFixture();
+  const SCAN2 = join(ROOT, 'scanner/scan.mjs');
+  const cli2 = async (...args) => { try { await run(process.execPath, [SCAN2, ...args]); } catch { /* exit 1–3 are outcomes here */ } };
+  const base2 = join(tmpdir(), `qt-bugfix2-scanner-${process.pid}`);
+  await rm(base2, { recursive: true, force: true });
+  const dir2 = async (name, { alerts = null, noSetups = false } = {}) => {
+    const d = join(base2, name);
+    await mkdir(d, { recursive: true });
+    if (!noSetups) await writeFile(join(d, 'scan-setups.json'), JSON.stringify({ setups: [FX2.setup, FX2.setupV2] }));
+    await writeFile(join(d, 'price-history.json'), JSON.stringify(FX2.history));
+    if (alerts != null) await writeFile(join(d, 'scan-alerts.json'), alerts);
+    return d;
+  };
+  const daily = ['--trigger', 'daily', '--ready'];
+  try {
+    /* manual: completed twice (the first changed the record, so the second
+       is not the same run), then the same inputs skipped; a replay; the
+       daily task paused, then completed, failed and retried, and with no
+       setups; and the ready gate holding MY back (a PARTIAL daily run). */
+    const A = await dir2('a');
+    await cli2('--data', A, '--now', FX2.now);
+    await cli2('--data', A, '--now', FX2.now);
+    await cli2('--data', A, '--now', FX2.now);
+    await cli2('--data', A, '--as-of', FX2.lastBar);
+    await cli2('--data', A, '--pause', 'qa');
+    await cli2('--data', A, '--now', FX2.now, ...daily);
+    await cli2('--data', A, '--resume');
+    const Dy = await dir2('daily');
+    await cli2('--data', Dy, '--now', FX2.now, ...daily);
+    const B = await dir2('b', { alerts: '{not json' });
+    await cli2('--data', B, '--now', FX2.now, ...daily);
+    const failedId = (JSON.parse(await readFile(join(B, 'scan-runs.json'), 'utf8')).runs.find(r => r.status === 'FAILED') || {}).id;
+    await rm(join(B, 'scan-alerts.json'));
+    if (failedId) await cli2('--data', B, '--retry', failedId);
+    const Dn = await dir2('none', { noSetups: true });
+    await cli2('--data', Dn, '--now', FX2.now, ...daily);
+    const Ed = join(base2, 'ready');
+    await mkdir(Ed, { recursive: true });
+    const eDays = [];
+    for (let d = '2026-02-02'; d <= '2026-04-06'; d = E.scanAddDays(d, 1)) { const wd = E.scanWeekday(d); if (wd >= 1 && wd <= 5) eDays.push(d); }
+    const eLast = eDays[eDays.length - 1];
+    const eSeries = (f) => Object.fromEntries(eDays.map((d, i) => [d, f(i)]));
+    await writeFile(join(Ed, 'price-history.json'), JSON.stringify({ schema: 2, series: { USA: eSeries(i => 50 + i), MYA: eSeries(i => 5 + i / 10) }, volume: {},
+      meta: { MYA: { [eLast]: { src: 'screen', at: '2026-04-06T07:00:00Z' } }, USA: { [eLast]: { src: 'screen', at: '2026-04-06T21:00:00Z' } } } }));
+    await writeFile(join(Ed, 'instruments.json'), JSON.stringify([{ symbol: 'USA', market: 'US' }, { symbol: 'MYA', market: 'MY' }]));
+    await writeFile(join(Ed, 'scan-setups.json'), JSON.stringify({ setups: [{ id: 'qa-ready', rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: 0.01 } }] }] }));
+    await cli2('--data', Ed, '--instruments', join(Ed, 'instruments.json'), '--now', '2026-04-07T02:00:00Z', ...daily);
+
+    const real = [];
+    for (const d of [A, Dy, B, Dn, Ed]) if (existsSync(join(d, 'scan-runs.json'))) real.push(...(JSON.parse(await readFile(join(d, 'scan-runs.json'), 'utf8')).runs || []));
+    const F = JSON.parse(await readFile(join(ROOT, 'scanner/fixtures/scan-runs.fixture.json'), 'utf8')).runs || [];
+    const C4 = ['cacheStats', 'skippedMarkets', 'catchUp', 'ledger'];
+    const kind = (v) => (v === null || v === undefined ? 'null' : Array.isArray(v) ? 'list' : typeof v);
+    const group = (r) => `${r.trigger}|${r.status}`;
+    const reached = new Set(real.map(group));
+    const need = ['manual|COMPLETED', 'manual|SKIPPED_NO_DATA', 'replay|COMPLETED', 'daily|SKIPPED_PAUSED', 'daily|COMPLETED', 'daily|FAILED', 'retry|COMPLETED', 'daily|SKIPPED_NO_SETUPS', 'daily|PARTIAL'];
+    check(need.every(g => reached.has(g)), 'bugfix2 scanner: the real worker, run in a temporary folder, reached each trigger and status the value checks compare', { reached: [...reached], need });
+
+    /* Keys: those on every real run are on every fixture run; those inside
+       a round 3 field the worker writes are inside the fixture's. */
+    const always = Object.keys(real[0] || {}).filter(k => real.every(r => k in r));
+    const inner = (list, k) => new Set(list.flatMap(r => (Array.isArray(r[k]) ? r[k] : [r[k]])).filter(x => x && typeof x === 'object' && !Array.isArray(x)).flatMap(x => Object.keys(x)));
+    const missing = [
+      ...F.flatMap(r => always.filter(k => !(k in r)).map(k => `${r.id}: ${k}`)),
+      ...C4.flatMap(k => { const want = inner(real, k); return F.flatMap(r => (Array.isArray(r[k]) ? r[k] : [r[k]]).filter(x => x && typeof x === 'object' && !Array.isArray(x))
+        .flatMap(x => [...want].filter(ik => !(ik in x)).map(ik => `${r.id}: ${k}.${ik}`))); }),
+    ];
+    check(always.includes('ready') && always.includes('catchUp') && !missing.length,
+      `bugfix2 scanner: every key the worker writes on every run (${always.length}, ready and the round 3 fields among them) is on every fixture run, and every key it writes inside catchUp, ledger and a skipped market is inside the fixture's`, missing.slice(0, 20));
+
+    /* The round 3 fields' kinds, per trigger and status, and one level into
+       them. Per status alone (the round 3 check) a manual run's catchUp
+       answers for a replay's; the other keys are data — a lock taken over,
+       a run compared with — and are held per status there. */
+    const kindsOf = (r) => {
+      const out = [];
+      C4.filter(k => k in r).forEach(k => {
+        const v = r[k];
+        out.push([k, kind(v)]);
+        if (v && typeof v === 'object') (Array.isArray(v) ? v : [v]).forEach(x => { if (x && typeof x === 'object' && !Array.isArray(x)) Object.entries(x).forEach(([ik, iv]) => out.push([`${k}.${ik}`, kind(iv)])); });
+      });
+      return out;
+    };
+    const realKinds = new Map();
+    real.forEach(r => kindsOf(r).forEach(([p, kd]) => { const key = `${group(r)} ${p}`; if (!realKinds.has(key)) realKinds.set(key, new Set()); realKinds.get(key).add(kd); }));
+    const wrongKind = F.filter(r => reached.has(group(r))).flatMap(r => kindsOf(r)
+      .filter(([p, kd]) => realKinds.has(`${group(r)} ${p}`) && !realKinds.get(`${group(r)} ${p}`).has(kd))
+      .map(([p, kd]) => `${r.id} (${group(r)}) ${p} is ${kd}, the worker writes ${[...realKinds.get(`${group(r)} ${p}`)].join('/')}`));
+    check(!wrongKind.length, 'bugfix2 scanner: for each trigger and status the worker reached, every key the fixture shares with it holds the same kind of value, inside the round 3 fields too (a replay\'s catchUp is null, a ledger\'s new versions a list)', wrongKind);
+
+    /* Values a run's kind decides, as the worker writes them. */
+    const byId = new Map(F.map(r => [r.id, r]));
+    const decided = (r, all) => {
+      const args = Array.isArray(r.args) ? r.args : [];
+      const p = [];
+      if (r.trigger === 'replay' && r.catchUp !== null) p.push(`${r.id}: a replay's catchUp is ${JSON.stringify(r.catchUp)}, not null`);
+      const ready = r.trigger === 'retry' ? all.get(r.retryOf)?.ready : args.includes('--ready');
+      if (ready !== undefined && r.ready !== ready) p.push(`${r.id}: ready is ${r.ready}, and ${r.trigger === 'retry' ? `the retried run's is ${ready}` : `--ready was ${ready ? '' : 'not '}asked`}`);
+      if (!args.includes('--setup') && !args.includes('--market') && r.narrow !== null) p.push(`${r.id}: narrow is ${JSON.stringify(r.narrow)} with no --setup or --market`);
+      return p;
+    };
+    const realBad = real.flatMap(r => decided(r, new Map(real.map(x => [x.id, x]))));
+    const fxBad = F.flatMap(r => decided(r, byId));
+    check(!realBad.length && real.some(r => r.trigger === 'replay' && r.catchUp === null) && !fxBad.length && F.some(r => r.trigger === 'replay'),
+      'bugfix2 scanner: what a run\'s kind decides holds the worker\'s value on every fixture run — a replay catches nothing up (catchUp null), ready is whether --ready was asked (a retry\'s, the retried run\'s), narrow is null with no narrowing — and the real worker writes each so', { worker: realBad, fixture: fxBad });
+  } catch (e) { fail('bugfix2 scanner: the ops fixture is held to the worker by value', e.message); }
+  finally { await rm(base2, { recursive: true, force: true }); }
+}
+/* ---- end bugfix2: scanner ---- */
+
+console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

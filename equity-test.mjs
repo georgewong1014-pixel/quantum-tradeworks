@@ -5906,6 +5906,165 @@ try {
   }
   /* ---- end bugfix: shell ---- */
 
+  /* ---- bugfix2: scanner ---- */
+  /* SECOND BUG HUNT — THE SCANNER (86-scanner.js, 87-scanner-ops.js and the
+     operations fixture), each check against what the page prints: a close
+     printed as the engine prints a price, wherever a scanner page prints
+     one; the last scan's matches dated by the run's range of bars; the
+     section strip's unread count; and the fixture's replay read as the
+     worker writes it. Every file is set in memory and put back, and so are
+     the two stores the checks write. */
+  {
+    const { readFileSync } = await import('node:fs');
+    const fx = (f) => readFileSync(new URL(`./scanner/fixtures/${f}`, import.meta.url), 'utf8');
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      const keepPrefs = store.read('scanPrefs', null), keepState = store.read('scanAlertState', null);
+      try {
+        const f = scanFixture();
+        const out = {};
+        const main = () => document.querySelector('main');
+        const dd = (root, label) => { const dt = root ? [...root.querySelectorAll('dt')].find(d => d.textContent === label) : null; return dt ? dt.nextElementSibling.textContent : null; };
+        /* The engine's rule for a price, worked here on its own: the
+           close's decimals at seven significant figures, two to four, never
+           shortened. */
+        const px = (v) => { const s = String(Number(v.toPrecision(7))); const k = s.indexOf('.'); return v.toFixed(Math.max(2, Math.min(4, k < 0 ? 0 : s.length - k - 1))); };
+        /* A history whose MATCH closes are above 10,000 and whose FLAT
+           closes are 0.345 — the two a volume's format gets wrong. */
+        const h = JSON.parse(JSON.stringify(f.history));
+        Object.keys(h.series.MATCH).forEach(d => { h.series.MATCH[d] *= 500; });
+        Object.keys(h.series.FLAT).forEach(d => { h.series.FLAT[d] = 0.345; });
+        const base = scanRun([f.setup], h, { now: f.now }).alerts[0];
+        const mk = (id, extra) => ({ ...base, id, key: base.key + '|' + id, ...extra });
+
+        /* 1. The alerts table, a run's summary, the screen and the simulation. */
+        scanHistoryFile = h; scanSetupsFile = { setups: [f.setup, f.setupV2] };
+        scanAlertsFile = { alerts: [mk('a0b2f001', { close: 0.345 }), mk('a0b2f002', { close: 45120.5 }), mk('a0b2f003', { close: 45149.9 })] };
+        store.write('scanAlertState', {}); store.write('scanPrefs', { ...scanPrefsRead(), inApp: true, muted: {}, statusFilter: 'ALL', precision: 'full' });
+        navigate('/app/scanner/alerts'); await w(150);
+        const at = main().querySelector('table.scan-alerts-t');
+        const ci = at ? [...at.querySelectorAll('thead th')].findIndex(th => th.textContent === 'Close') : -1;
+        out.table = at ? [...at.querySelectorAll('tbody tr')].map(tr => tr.children[ci]?.textContent).sort() : [];
+        const sum = scanRunSummary(scanRun([f.setup], h, { now: f.now }), '');
+        out.summary = [...sum.querySelectorAll('li')].map(li => li.textContent).find(t => t.includes(' · close ')) || '';
+        out.summaryWant = px(h.series.MATCH[f.lastBar]);
+        scanSetupsFile = { setups: [f.setup] }; scanAlertsFile = { alerts: [] }; scanOpsClock = f.now; scanOpsRead = true;
+        Object.assign(scanMarketState, { market: '__all', asOf: '', result: null, setup: null });
+        navigate('/app/scanner/market'); await w(100);
+        [...main().querySelectorAll('button')].find(b => /Screen now/.test(b.textContent))?.click();
+        for (let i = 0; i < 60 && !main().querySelector('.scan-coverage'); i++) await w(50);
+        out.screen = [...main().querySelectorAll('.scan-group tbody tr')].filter(tr => tr.cells.length > 3).map(tr => [tr.cells[0].textContent, tr.cells[3].textContent]);
+        out.screenWant = { MATCH: px(h.series.MATCH[f.lastBar]), FLAT: px(0.345) };
+        scanSetupsFile = { setups: [f.setupV2] };
+        Object.assign(scanBacktestState, { setup: null, symbol: '', from: '', to: '', view: 'events', result: null });
+        navigate('/app/scanner/backtest'); await w(100);
+        [...main().querySelectorAll('button')].find(b => /Run the simulation/.test(b.textContent))?.click();
+        for (let i = 0; i < 80 && !main().querySelector('.scan-counts'); i++) await w(50);
+        const simRows = [...main().querySelectorAll('.card')].find(c => /Matching dates/.test(c.textContent))?.querySelectorAll('tbody tr:not(.scan-detail-row)') || [];
+        out.sim = [...simRows].map(tr => [tr.cells[0].textContent, tr.cells[1].textContent, tr.cells[2].textContent]).map(([s, b, c]) => [s, b, c, h.series[s]?.[b] != null ? px(h.series[s][b]) : null]);
+
+        /* 2. An alert's page, rounded: its close, the closes that moved,
+           the line's lowest and highest, and a condition's two sides. */
+        const bars = Object.keys(h.series.MATCH).sort(), prevBar = bars[bars.length - 3];
+        const moved = mk('a0b2f011', { candleDate: prevBar, bar: prevBar, close: h.series.MATCH[prevBar] + 0.004 });
+        const big = mk('a0b2f012', { close: 45120.5, matchedConditions: base.matchedConditions.map(c => c.path === '2' ? { ...c, left: 45120, right: 45149 } : c) });
+        scanSetupsFile = { setups: [f.setup] }; scanAlertsFile = { alerts: [moved, big] };
+        store.write('scanPrefs', { ...scanPrefsRead(), precision: 'rounded' });
+        navigate(scanAlertPath(big)); await w(200);
+        const facts = Object.fromEntries([...main().querySelectorAll('.scan-fact')].map(d => [d.querySelector('.stat-label')?.textContent, d.querySelector('.scan-fact-v')?.textContent]));
+        const condRows = [...main().querySelectorAll('.card')].find(c => /Every condition, with its values/.test(c.textContent))?.querySelectorAll('tbody tr') || [];
+        out.detail = { close: facts['Close on the bar'], diffs: [...main().querySelectorAll('.scan-close-diffs li')].map(li => li.textContent),
+          fig: main().querySelector('figcaption')?.textContent || '', conds: [...condRows].map(tr => [tr.cells[0].textContent, tr.cells[3].lastChild?.textContent, tr.cells[4].lastChild?.textContent]),
+          prevBar, priceLeft: px(Array.isArray(base.matchedConditions[0].left) ? base.matchedConditions[0].left.at(-1) : base.matchedConditions[0].left) };
+        store.write('scanPrefs', { ...scanPrefsRead(), precision: 'full' });
+
+        /* 3. The last scan's matches: a run over 2026-04-03 … 2026-04-06
+           that recorded one on each end. */
+        const one = scanRun([f.setup], f.history, { now: f.now }).alerts[0];
+        const early = { ...one, id: 'a0b2f021', key: one.key + '|early', candleDate: '2026-04-03', bar: '2026-04-03', runId: 'run-bugfix2' };
+        const late = { ...one, runId: 'run-bugfix2' };
+        const runRec = { id: 'run-bugfix2', kind: 'scan', trigger: 'daily', origin: 'daily', status: 'COMPLETED', startedAt: '2026-04-06T22:00:00.000Z', finishedAt: '2026-04-06T22:00:01.000Z',
+          engine: 'scan ' + SCAN_VERSION, asOf: f.lastBar, asOfFrom: '2026-04-03', counts: { setups: 1, evaluated: 2, matched: 2, recorded: 2 }, readiness: [], errors: [], error: null, transitions: [] };
+        scanHistoryFile = f.history; scanSetupsFile = { setups: [f.setup] }; scanAlertsFile = { alerts: [early, late] }; scanRunsFile = { runs: [runRec] };
+        navigate('/app/scanner'); await w(150);
+        const heads = () => [...main().querySelectorAll('section.card .h-card')].map(x => x.textContent);
+        out.current = { state: main().querySelector('.scan-band')?.dataset.state, head: heads().find(x => /^Matched on the last scan/.test(x)) || heads().join(' | ') };
+        scanRunsFile = { runs: [{ ...runRec, setupsHash: 'not-these-setups' }] };
+        navigate('/app/scanner'); await w(150);
+        const mc = [...main().querySelectorAll('section.card')].find(c => /Matches as of/.test(c.querySelector('.h-card')?.textContent || ''));
+        out.behind = { state: main().querySelector('.scan-band')?.dataset.state, text: mc?.innerText.slice(0, 300) || '' };
+        scanRunsFile = null; scanAlertsFile = { alerts: [early, late], lastRun: { at: '2026-04-06T22:00:01.000Z', asOf: f.lastBar, asOfFrom: '2026-04-03', engine: 'scan ' + SCAN_VERSION } };
+        navigate('/admin/scanner/jobs'); await w(150);
+        out.lastRun = (main().innerText.match(/The alerts file records one successful run[^.]*\\./) || [''])[0];
+
+        /* 4. The section strip's Alerts link, on three scanner pages. */
+        const strip = () => { const a = [...main().querySelectorAll('nav.scan-subnav a')].find(x => (x.getAttribute('href') || '').endsWith('/app/scanner/alerts')); return a ? [a.textContent, a.getAttribute('aria-label')] : null; };
+        scanHistoryFile = f.history; scanSetupsFile = { setups: [f.setup] };
+        scanAlertsFile = { alerts: [mk('a0b2f031', {}), mk('a0b2f032', {}), mk('a0b2f033', {})] }; store.write('scanAlertState', {});
+        out.strip = {};
+        navigate('/app/scanner/alerts'); await w(150); out.strip.alerts = strip();
+        navigate('/app/scanner'); await w(150); out.strip.dashboard = strip();
+        navigate('/app/scanner/setups'); await w(150); out.strip.setups = strip();
+        store.write('scanPrefs', { ...scanPrefsRead(), inApp: false });
+        navigate('/app/scanner/setups'); await w(150); out.strip.off = strip();
+        store.write('scanPrefs', { ...scanPrefsRead(), inApp: true, statusFilter: 'ALL' });
+        navigate('/app/scanner/alerts'); await w(150);
+        [...main().querySelectorAll('button')].find(b => b.textContent.trim() === 'Mark read')?.click(); await w(200);
+        out.strip.read = strip();
+
+        /* 5. The fixture's replay, on the runs page. */
+        scanRunsFile = ${fx('scan-runs.fixture.json')}; scanAlertsFile = { alerts: [] }; scanOpsClock = '2026-04-07T09:00:00.000Z'; scanJobsState.filter = 'all';
+        navigate('/admin/scanner/jobs'); await w(150);
+        main().querySelectorAll('details').forEach(d => { d.open = true; });
+        await w(30);
+        const rd = [...main().querySelectorAll('tr.scan-detail-row')].find(tr => tr.querySelector('dd code')?.textContent === 'run-20260406T214000-4188-71e3');
+        out.replay = dd(rd, 'Caught up');
+        return out;
+      } finally {
+        restore(); scanJobsState.filter = 'all';
+        try { if (keepPrefs == null) localStorage.removeItem('vl.scanPrefs'); else store.write('scanPrefs', keepPrefs); } catch { /* storage off */ }
+        try { if (keepState == null) localStorage.removeItem('vl.scanAlertState'); else store.write('scanAlertState', keepState); } catch { /* storage off */ }
+        navigate('/learn');
+      }
+    })()`);
+    const p1 = [];
+    if (r.table.join() !== '0.345,45120.50,45149.90') p1.push(`alerts table Close: ${r.table.join(', ')}`);
+    if (!r.summary.includes(` · close ${r.summaryWant} — `)) p1.push(`run summary (want close ${r.summaryWant}): ${r.summary.slice(0, 160)}`);
+    const scr = Object.fromEntries(r.screen);
+    if (scr.MATCH !== r.screenWant.MATCH || scr.FLAT !== r.screenWant.FLAT) p1.push(`screen Close: ${JSON.stringify(r.screen)} (want ${JSON.stringify(r.screenWant)})`);
+    if (!r.sim.length || r.sim.some(([, , c, want]) => c !== want)) p1.push(`simulation Close: ${JSON.stringify(r.sim.slice(0, 4))}`);
+    const d = r.detail;
+    if (d.close !== '45120.50') p1.push(`alert page, rounded, "Close on the bar": ${d.close}`);
+    const movedLine = d.diffs.find(t => t.startsWith(d.prevBar)) || '';
+    const [was, now] = (movedLine.match(/recorded (\S+), now (\S+)$/) || []).slice(1);
+    if (!was || was === now) p1.push(`alert page, rounded, a close that moved reads: "${movedLine}"`);
+    if (/\d[km]\b/.test(d.fig)) p1.push(`alert page, rounded, the closes line shortens a price: ${d.fig.slice(-120)}`);
+    const c1 = d.conds.find(c => c[0] === '1'), c2 = d.conds.find(c => c[0] === '2');
+    if (!c1 || c1[1] !== d.priceLeft) p1.push(`alert page, rounded, the price condition's left side: ${JSON.stringify(c1)} (want ${d.priceLeft})`);
+    if (!c2 || c2[1] === c2[2]) p1.push(`alert page, rounded, the volume condition's two sides read alike: ${JSON.stringify(c2)}`);
+    if (p1.length) fail('bugfix2 scanner: every scanner page prints a close as a price', p1);
+    else ok(`bugfix2 scanner: every scanner page prints a close as a price, never shortened, at its own decimals — the alerts table (${r.table.join(', ')}), a run's summary, the screen (${scr.MATCH}, ${scr.FLAT}) and the simulation; and rounded, an alert's page reads its close ${d.close}, a moved close as ${was} then ${now}, and a condition's two sides apart (${c2[1]} against ${c2[2]})`);
+
+    const p2 = [];
+    if (r.current.state !== 'current' || r.current.head !== 'Matched on the last scan — bars of 2026-04-03 … 2026-04-06') p2.push(`current: ${JSON.stringify(r.current)}`);
+    if (r.behind.state !== 'behind' || !r.behind.text.includes('The last successful scan evaluated bars of 2026-04-03 … 2026-04-06.')) p2.push(`behind: ${JSON.stringify(r.behind)}`);
+    if (!r.lastRun.includes('on bars of 2026-04-03 … 2026-04-06')) p2.push(`runs page, the alerts file's run: ${r.lastRun}`);
+    if (p2.length) fail('bugfix2 scanner: the last scan\'s matches are dated by the bars the run evaluated', p2);
+    else ok('bugfix2 scanner: the last scan\'s matches are dated by the bars the run evaluated — "bars of 2026-04-03 … 2026-04-06" over a match on each, current or behind, and on the runs page for the alerts file\'s run');
+
+    const s = r.strip, want = ['Alerts · 3', 'Alerts, 3 unread'];
+    const p3 = [];
+    ['alerts', 'dashboard', 'setups'].forEach(k => { if (JSON.stringify(s[k]) !== JSON.stringify(want)) p3.push(`${k}: ${JSON.stringify(s[k])}`); });
+    if (JSON.stringify(s.off) !== JSON.stringify(['Alerts', null])) p3.push(`in-app off: ${JSON.stringify(s.off)}`);
+    if (JSON.stringify(s.read) !== JSON.stringify(['Alerts', null])) p3.push(`after "Mark read" on every row: ${JSON.stringify(s.read)}`);
+    if (p3.length) fail('bugfix2 scanner: the scanner\'s section strip shows "Alerts · n" with its accessible name', p3);
+    else ok('bugfix2 scanner: the scanner\'s section strip shows "Alerts · 3", named "Alerts, 3 unread", on the alerts, dashboard and setups pages — and plain "Alerts" with in-app off or once every alert is read');
+
+    if (!/^none — a replay evaluates the session it was asked for \(2026-04-03\) and catches nothing up$/.test(r.replay || '')) fail('bugfix2 scanner: the fixture\'s replay reads as the worker writes it', r.replay);
+    else ok('bugfix2 scanner: the fixture\'s replay carries catchUp null as the worker writes it, so the runs page\'s replay sentence is exercised — "none — a replay evaluates the session it was asked for (2026-04-03) and catches nothing up"');
+  }
+  /* ---- end bugfix2: scanner ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

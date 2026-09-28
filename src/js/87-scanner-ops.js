@@ -109,6 +109,12 @@ function scanOpsUnread() {
 }
 
 /* ----------------------------------------------------------------- pieces -- */
+/* A close, as the engine prints a price: never shortened, at the decimals
+   it is quoted in, two to four (the alerts pages' scanPriceText, from the
+   engine's own functions so this file stands without them). scanFmt's
+   defaults are a volume's: a screened close of 0.345 read 0.34 beside the
+   condition "price 0.345 below 0.500", and 45,120.5 read 45.1k. */
+const scanOpsPrice = (v) => (isNum(v) ? scanFmt(v, Math.max(2, Math.min(4, scanDecimals(v))), false) : '—');
 const scanOpsDay = (t) => (t ? String(t).slice(0, 10) : '—');
 const scanOpsWhen = (t) => (t ? `${String(t).replace('T', ' ').slice(0, 16)} UTC` : '—');
 /* How long ago, in calendar days of the same UTC date scanOpsDay prints
@@ -164,10 +170,20 @@ const SCANNER_SUBNAV = [
   { id: 'backtest',   label: 'Historical',           path: '/app/scanner/backtest' },
   { id: 'settings',   label: 'Settings',             path: '/app/scanner/settings' },
 ];
+/* The Alerts link carries the unread count — "Alerts · n", named "Alerts,
+   n unread" — as the alerts pages' own strip did (SC-309 as built). This
+   strip replaces that one on every scanner page and had dropped it, so the
+   main navigation read "Scanner 24" over a strip that read only "Alerts".
+   No count when nothing is counted (no alerts file, in-app off) or none is
+   unread, as the main navigation's badge. */
 function scannerSubnav(active) {
   const row = el('nav', { class: 'segmented scan-subnav', 'aria-label': 'Scanner sections' });
-  SCANNER_SUBNAV.forEach(s => row.append(scanOpsLink(s.path, s.label, {
-    'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null })));
+  const unread = scanOpsUnread();
+  SCANNER_SUBNAV.forEach(s => {
+    const n = s.id === 'alerts' && unread > 0 ? unread : 0;
+    row.append(scanOpsLink(s.path, n ? `${s.label} · ${n}` : s.label, {
+      'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null, 'aria-label': n ? `${s.label}, ${n} unread` : null }));
+  });
   return row;
 }
 const SCANNER_OPS_NAV = [
@@ -542,11 +558,18 @@ VIEWS.scannerDashboard = () => {
     x.setupName || x.setupId || '—', x.symbol || x.instrumentId || '—', scanOpsAlertLink(x, x.candleDate || x.bar || '—'),
     x.eventType ? x.eventType.replace(/_/g, ' ').toLowerCase() : 'match',
     (x.matchedConditions || x.rules || []).map(c => c.text).join('; ') || '—']), { wrapCols: [4] });
+  /* The last scan's matches are those on its newest bar and those it
+     recorded itself, which can sit on an earlier bar it evaluated — a
+     caught-up day, or a market a session behind another. The heading named
+     only the newest ("bars of 2026-09-25" over a row of 2026-09-24, beside
+     a tile reading "2026-09-24 … 2026-09-25"); it names the run's range of
+     bars, as the tile does. "As of" stays the newest: it dates the scan. */
   if (ls) {
+    const bars = ls.asOf ? scanBarRange(ls.asOfFrom, ls.asOf) : '—';
     const mc = el('section', { class: 'card' });
-    mc.append(cardHead(current ? `Matched on the last scan — bars of ${ls.asOf || '—'}` : `Matches as of ${ls.asOf || '—'} — not current`,
+    mc.append(cardHead(current ? `Matched on the last scan — bars of ${bars}` : `Matches as of ${ls.asOf || '—'} — not current`,
       current ? 'In the order your setups are written, then the instruments. Nothing is ranked.'
-              : `The last successful scan evaluated bars of ${ls.asOf || '—'}. It is ${S.label.toLowerCase()}, so these are a record of that scan, not a statement about today.`));
+              : `The last successful scan evaluated bars of ${bars}. It is ${S.label.toLowerCase()}, so these are a record of that scan, not a statement about today.`));
     mc.append(lm.length ? matchRows(lm) : el('p', { class: 'body', style: 'font-size:13px' }, 'No match was recorded on that scan’s bars.'));
     wrap.append(mc);
   }
@@ -853,7 +876,7 @@ function scanScreenResult(R) {
     sec.append(el('p', { class: 'metaline', style: 'margin-bottom:6px' }, note));
     if (!rows.length) { sec.append(el('p', { class: 'metaline' }, 'None.')); box.append(sec); return; }
     sec.append(scanOpsPaged(rows, (list) => scanOpsTable(['Instrument', 'Market', 'Bar', 'Close', state === 'UNAVAILABLE' ? 'Why untested' : 'Conditions'],
-      list.map(r => [r.symbol, r.market || 'no market row', r.bar || '—', isNum(r.close) ? scanFmt(r.close) : '—',
+      list.map(r => [r.symbol, r.market || 'no market row', r.bar || '—', scanOpsPrice(r.close),
         state === 'UNAVAILABLE' ? el('span', {}, r.why) : scanOpsConds(r.conditions)]), { wrapCols: [4], caption: `${title}, in symbol order` }), { step: 50, noun: 'instruments' }));
     box.append(sec);
   });
@@ -1047,7 +1070,7 @@ function scanBacktestResult(R) {
       const det = el('details', { class: 'scan-row-det' });
       det.append(el('summary', { class: 'caption' }, `${(m.conditions || []).filter(x => x.state === 'MET').length} of ${(m.conditions || []).length} conditions held${m.barStatus === 'UNKNOWN' ? ' · no capture time recorded for the bar' : m.barStatus ? ` · bar ${m.barStatus.toLowerCase()}` : ''}`));
       det.append(scanOpsConds(m.conditions));
-      return [r.symbol, r.bar, isNum(r.close) ? scanFmt(r.close) : '—', r.eventType ? r.eventType.replace(/_/g, ' ').toLowerCase() : 'held', det];
+      return [r.symbol, r.bar, scanOpsPrice(r.close), r.eventType ? r.eventType.replace(/_/g, ' ').toLowerCase() : 'held', det];
     }), { wrapCols: [4], caption: `${cur[1]}, symbol then date order` }), { step: 100, noun: 'dates' }));
   box.append(dates);
   return box;
@@ -1446,8 +1469,10 @@ VIEWS.scannerAdminJobs = () => {
   if (!runs.length) {
     card.append(cardHead('No run recorded', scanRunsFile ? 'The run log is present and holds no scan run.' : 'There is no run log on this machine.'));
     card.append(scanOpsFileState('scan-runs.json', scanRunsFile, 'The worker (node scanner/scan.mjs) writes it on every attempt, success or failure.'));
+    /* The run's range of bars, as its lastRun records it (asOfFrom), not
+       only the newest of them. */
     const lr = scanOpsAlertsDoc()?.lastRun;
-    if (lr) card.append(el('p', { class: 'metaline' }, `The alerts file records one successful run, ${scanOpsWhen(lr.at)} on bars of ${lr.asOf || '—'} (${lr.engine || 'engine unknown'}). It is overwritten by the next success, and a failure writes nothing, so it is not a history.`));
+    if (lr) card.append(el('p', { class: 'metaline' }, `The alerts file records one successful run, ${scanOpsWhen(lr.at)} on bars of ${lr.asOf ? scanBarRange(lr.asOfFrom, lr.asOf) : '—'} (${lr.engine || 'engine unknown'}). It is overwritten by the next success, and a failure writes nothing, so it is not a history.`));
     if (!scanRunsFile) card.append(scanOpsOpenFiles());
     wrap.append(card);
   } else {
