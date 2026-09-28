@@ -32,14 +32,13 @@ VIEWS.learn = () => {
   const panels = { dictionary: learnDictionary, scoring: learnScoring, models: learnModels, data: learnData, trust: learnTrust };
   if (!panels[State.learnTab]) State.learnTab = LEARN_TAB_ALIAS[State.learnTab] || 'dictionary';
 
-  const sub = el('div', { class: 'subnav', style: 'margin-bottom:var(--lg)' });
   /* Through the address. Four of the five tabs are pages in their own right
      (/learn/glossary, /methodology, /data-sources, /corrections) and the
-     routes name them by their public alias; the fifth rides on ?tab=. */
+     routes name them by their public alias; the fifth rides on ?tab=. A
+     tablist, with arrow keys between the tabs (tabStrip). */
   const LEARN_ROUTE_TAB = { dictionary: 'glossary' };
-  LEARN_TABS.forEach(t => sub.append(el('button', { role: 'tab', 'aria-selected': State.learnTab === t.id ? 'true' : 'false',
-    onclick: () => go('learn', { tab: LEARN_ROUTE_TAB[t.id] || t.id }) }, t.label)));
-  wrap.append(sub);
+  wrap.append(tabStrip('Methodology sections', LEARN_TABS, State.learnTab,
+    id => go('learn', { tab: LEARN_ROUTE_TAB[id] || id }), { style: 'margin-bottom:var(--lg)' }));
   wrap.append(panels[State.learnTab]());
   return wrap;
 };
@@ -443,7 +442,9 @@ function learnTrust() {
       el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm',
         onclick: () => openDrawer(`Case ${c.id}`, (() => {
           const w = el('div');
-          const pre = el('textarea', { class: 'input', style: 'min-height:220px;font-family:var(--mono,monospace);font-size:12px' });
+          /* Named, as every field on this page is: a bare textarea is announced
+             as an unlabelled edit box, with nothing to say it holds the case. */
+          const pre = el('textarea', { class: 'input', 'aria-label': `Case ${c.id}, as text to copy`, style: 'min-height:220px;font-family:var(--mono,monospace);font-size:12px' });
           pre.value = correctionPayload(c);
           w.append(pre);
           w.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
@@ -611,7 +612,7 @@ function openRestoreDrawer() {
 
   const ta = el('textarea', { class: 'input', style: 'min-height:160px;font-family:var(--mono,monospace);font-size:12px',
     placeholder: 'Paste the JSON here' });
-  const file = el('input', { class: 'input', type: 'file', accept: '.json,application/json', style: 'margin-bottom:var(--md)' });
+  const file = el('input', { class: 'input', type: 'file', accept: '.json,application/json', 'aria-label': 'Choose a Quantum Tradeworks export file', style: 'margin-bottom:var(--md)' });
   file.addEventListener('change', async (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -776,7 +777,7 @@ function openReportError() {
       const w = el('div');
       w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
         `Recorded in this browser as ${c.id}. Nothing has been sent and nobody has received it — there is no server behind this build, and no contact address is published yet. Copy the case below and keep it, or send it once there is somewhere to send it to.`));
-      const pre = el('textarea', { class: 'input', style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
+      const pre = el('textarea', { class: 'input', 'aria-label': `Case ${c.id}, as text to copy`, style: 'min-height:200px;font-family:var(--mono,monospace);font-size:12px' });
       pre.value = correctionPayload(c);
       w.append(pre);
       w.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [

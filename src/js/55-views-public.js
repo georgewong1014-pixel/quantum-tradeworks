@@ -75,10 +75,11 @@ VIEWS.marketing = () => {
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.'));
 
-  /* 2 — the Wheel engine on a worked contract. */
-  const wm = wheelMath({ ...State.wheel, contractMultiplier: 100, contracts: 1,
-    putStrike: 50, putCredit: 1.10, openCommission: 1, assignmentFees: 0,
-    eligibleCashUsd: 5000, myrPerUsd: 4.42, fxBufferPct: 5, calendarDaysOpen: 30 });
+  /* 2 — the Wheel engine on a worked contract. The worked contract alone:
+     it was laid over the reader's own saved plan, so their open fees and
+     conversion cost moved this card's "$50 strike" figures, and a plan
+     marked as an unverified adjusted contract blanked all three to a dash. */
+  const wm = wheelMath({ ...WHEEL_WORKED_EXAMPLE });
   /* fmtAmount, not fmtMoney, so the three cards share one scale. Beside
      "RM95.3k" a "$5000.00" reads as a different kind of number. */
   proof.append(proofCard('US options Cash Wheel', 'figures you enter', [

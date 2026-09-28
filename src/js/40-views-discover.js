@@ -250,7 +250,10 @@ VIEWS.home = () => {
     nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt)]));
     nm.append(el('div', { class: 'metaline' }, `${r.val.pack.name} · ${r.val.confBand} confidence`));
     row.append(nm);
-    row.append(el('div', { class: 'num pos', style: 'font-size:13px;font-weight:700' }, withSign(r.val.mos.base, 0)));
+    /* diffClass, not `pos`. A gap to a model estimate is not a gain, and the
+       green of one — on the card that opens with "It is not a
+       recommendation" — made the five largest read as five picks. */
+    row.append(el('div', { class: 'num ' + diffClass(r.val.mos.base), style: 'font-size:13px;font-weight:700' }, withSign(r.val.mos.base, 0)));
     dl.append(row);
   });
   disc.append(dl);
@@ -419,6 +422,15 @@ State.requiredDiscount = store.read('requiredDiscount', null);
    is a filter and calling its output a pick is the exact move this product
    exists not to make.
    ========================================================================== */
+/* Interest cover is blocked (13-metrics.js): interest expense has no column
+   in the stored statements, so as a threshold it failed every company, and
+   the two templates that set one returned nothing, ever — "Conservative
+   balance sheet" 0 of 138, every company excluded for a figure no company
+   carries. The rule is carried the way section 18.1 carries its governance
+   rule: stated beside the results and not applied, rather than applied to
+   empty the screen or dropped without a word. */
+const ICOV_UNTESTABLE = (min) => ({ rule: `interest cover ≥ ${min}×`,
+  because: `${METRIC_BY_K.icov.blocked} As a threshold it would exclude every company, so it is stated here and not applied — check interest cover in the filings before treating a match as complete.` });
 const SCREEN_TEMPLATES = [
   /* Section 18.1 of the migration specification, published under its own
      identifier and version so a saved screen can be traced back to the rule set
@@ -448,7 +460,8 @@ const SCREEN_TEMPLATES = [
     apply: (s) => { s.crit = { om:{min:8}, epsVol:{max:25}, revDD:{max:20} }; s.cols = ['om','epsVol','revDD','roic','rev5','fcfm']; } },
   { id:'conservative', name:'Conservative balance sheet',
     why:'Low borrowings against operating profit, with interest comfortably covered.',
-    apply: (s) => { s.crit = { ndEbit:{max:1.5}, de:{max:0.6}, icov:{min:6} }; s.cols = ['ndEbit','de','icov','roic','om','fcfy']; } },
+    untestable:[ICOV_UNTESTABLE(6)],
+    apply: (s) => { s.crit = { ndEbit:{max:1.5}, de:{max:0.6} }; s.cols = ['ndEbit','de','icov','roic','om','fcfy']; } },
   { id:'my-banks', name:'Malaysian banks',
     why:'Bursa-listed deposit takers, shown on the measures that fit a bank balance sheet rather than on free cash flow.',
     apply: (s) => { s.universe='MY'; s.types=['bank']; s.crit = { roe:{min:8} }; s.cols = ['roe','pb','dy','payout','eps5','pe']; } },
@@ -460,7 +473,8 @@ const SCREEN_TEMPLATES = [
     apply: (s) => { s.universe='MY'; s.sectors=['Consumer Staples','Materials']; s.crit = { revDD:{min:10}, ndEbit:{max:3} }; s.cols = ['om','revDD','ndEbit','roic','pe','dy']; } },
   { id:'infra', name:'Construction and infrastructure',
     why:'Contract-driven businesses, where order-book visibility and gearing matter more than a single year of earnings.',
-    apply: (s) => { s.universe='MY'; s.sectors=['Industrials','Utilities']; s.crit = { ndEbit:{max:4}, icov:{min:3} }; s.cols = ['ndEbit','icov','om','rev5','roic','pe']; } },
+    untestable:[ICOV_UNTESTABLE(3)],
+    apply: (s) => { s.universe='MY'; s.sectors=['Industrials','Utilities']; s.crit = { ndEbit:{max:4} }; s.cols = ['ndEbit','icov','om','rev5','roic','pe']; } },
   { id:'shariah', name:'Shariah-compliant universe',
     why:'Only companies flagged Shariah-compliant in this dataset. The flag is carried from the source, not assessed here.',
     apply: (s) => { s.universe='MY'; s.local = { ...s.local, shariahOnly:true }; s.cols = ['roic','om','ndEbit','dy','pe','fcfy']; } },
@@ -810,7 +824,7 @@ function renderScreener() {
   if (publishedScreen?.untestable?.length) {
     resCard.append(el('div', { class: 'note', style: 'margin:0;border-radius:0;border-left:3px solid var(--warn)' }, [
       el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
-        `${publishedScreen.name} (${publishedScreen.spec}, v${publishedScreen.version}) — ${publishedScreen.untestable.length} rule${publishedScreen.untestable.length > 1 ? 's' : ''} not evaluated`),
+        `${publishedScreen.name}${publishedScreen.spec ? ` (${publishedScreen.spec}, v${publishedScreen.version})` : ''} — ${publishedScreen.untestable.length} rule${publishedScreen.untestable.length > 1 ? 's' : ''} not evaluated`),
       ...publishedScreen.untestable.map(u => el('p', { class: 'metaline', style: 'margin-top:4px' },
         [el('code', {}, u.rule), ' — ', u.because].filter(Boolean))),
       el('p', { class: 'metaline', style: 'margin-top:6px' },
@@ -824,7 +838,12 @@ function renderScreener() {
      measured" — the same distinction the trend engine makes everywhere else. */
   const PRICE_FIELDS = { rs12: '12-month price change', from52: 'distance from the 52-week high',
                          sma200d: 'distance from the 200-day average', range52: 'position in the 52-week range' };
-  const usedPriceFields = (sc.rules || []).map(r => r.k).filter(k => PRICE_FIELDS[k]);
+  /* Read from the thresholds the screen actually holds. This read sc.rules,
+     which no screen has ever carried, so the note never appeared: a
+     threshold on the 12-month price change emptied the screen and it read
+     "No company clears every criterion" with nothing to say why. */
+  const usedPriceFields = Object.entries(sc.crit || {})
+    .filter(([k, c]) => PRICE_FIELDS[k] && c && (c.min != null || c.max != null)).map(([k]) => k);
   if (usedPriceFields.length) {
     const backed = U.filter(r => r.m.pxPoints >= 20).length;
     if (backed < U.length) {
@@ -2590,18 +2609,38 @@ function openWhyMoved(id, mode) {
   openDrawer(title, body);
 }
 
+/* A STRIP OF TABS, ONE DEFINITION. role="tab" needs a tablist around it and
+   arrow keys between the tabs, or a screen reader announces a tab with no set
+   to belong to. The company page learned that; Discover and Learn did not,
+   and announced four and five orphan tabs every one of which was its own Tab
+   stop. The selected tab is the one Tab stop; the arrows, Home and End move
+   focus along the strip, and Enter or Space opens the focused one. */
+function tabStrip(label, tabs, current, open, attrs = {}) {
+  const sub = el('div', { class: 'subnav', role: 'tablist', 'aria-label': label, ...attrs });
+  sub.addEventListener('keydown', e => {
+    const all = [...sub.querySelectorAll('[role=tab]')];
+    const i = all.indexOf(document.activeElement);
+    if (i < 0) return;
+    const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: all.length - 1 }[e.key];
+    if (to == null) return;
+    e.preventDefault();
+    all[(to + all.length) % all.length].focus();
+  });
+  const stop = tabs.some(t => t.id === current) ? current : tabs[0].id;
+  tabs.forEach(t => sub.append(el('button', {
+    role: 'tab', 'aria-selected': current === t.id ? 'true' : 'false', tabindex: t.id === stop ? '0' : '-1',
+    onclick: () => open(t.id) }, t.label)));
+  return sub;
+}
+
 VIEWS.discover = () => {
   const wrap = el('div');
   const hd = el('div', { style: 'margin-bottom:var(--lg)' });
   hd.append(el('p', { class: 'eyebrow' }, 'Discover'));
   hd.append(el('h1', { style: 'font-size:24px;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
-  const sub = el('div', { class: 'subnav' });
-  DISCOVER_TABS.forEach(t => sub.append(el('button', {
-    role: 'tab', 'aria-selected': State.discoverTab === t.id ? 'true' : 'false',
-    /* Through the address: /discover/screener and /discover/value-map have
-       routes of their own, the other two ride on ?tab=. */
-    onclick: () => go('discover', { tab: t.id }) }, t.label)));
-  hd.append(sub);
+  /* Through the address: /discover/screener and /discover/value-map have
+     routes of their own, the other two ride on ?tab=. */
+  hd.append(tabStrip('Discover tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id })));
   wrap.append(hd);
 
   /* With a fallback: a tab id this view does not know renders the screener
