@@ -24,6 +24,10 @@ const BASE = process.argv[2] || 'http://localhost:8123';
 const WIDTHS = [360, 375, 390, 430, 768, 1024, 1440];
 const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=sibu',
                 '/property/calculator?city=kuching', '/pricing', '/learn/glossary', '/app',
+                /* Release A: /app is the visitor's dashboard, and the research queue
+                   it used to be — the four-card market strip and the change feed —
+                   moved here, so the page measured under /app is still measured. */
+                '/research/queue',
                 '/my/data', '/discover/sarawak', '/research/trading-index', '/us-options/wheel',
                 /* Added after the decision record shipped 186px of overflow at 390:
                    four columns of nowrap text in a bare div rather than a
