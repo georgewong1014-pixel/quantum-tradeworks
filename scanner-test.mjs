@@ -2698,7 +2698,6 @@ try {
 }
 /* ---- end bugfix2: scanner ---- */
 
-console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 
 /* ---- bugfix3: worker ---- */
 /* WHAT A RUN COULD NOT WRITE AFTER ITS ALERTS. The delivery record and the
