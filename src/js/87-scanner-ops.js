@@ -1030,7 +1030,7 @@ function scanBacktestResult(R) {
   const head = el('section', { class: 'card' });
   head.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h3', { class: 'h-card' }, `Simulated: ${R.setup.name || R.setup.id}, version ${o.setupVersion}`),
-    el('p', { class: 'caption', style: 'margin-top:2px' }, `Setup hash ${o.setupHash} · ${o.timeframe === '1W' ? 'weekly bars derived from your daily ones' : 'daily bars'} · ${o.cooldownMode === 'NEW_MATCH' ? 'records new matches only' : 'records every match'}${o.cooldownBars ? `, ${o.cooldownBars}-bar cooldown` : ''} · ${R.from || 'first bar'} to ${R.to || 'last bar'} · simulation, not a guarantee.`),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, `Setup hash ${o.setupHash} · ${o.timeframe === '1W' ? 'weekly bars derived from your daily ones' : o.timeframe === '1M' ? 'monthly bars derived from your daily ones' : 'daily bars'} · ${o.cooldownMode === 'NEW_MATCH' ? 'records new matches only' : 'records every match'}${o.cooldownBars ? `, ${o.cooldownBars}-bar cooldown` : ''} · ${R.from || 'first bar'} to ${R.to || 'last bar'} · simulation, not a guarantee.`),
   ])));
   const c = o.counts;
   const grid = el('div', { class: 'grid scan-counts' });

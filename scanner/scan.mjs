@@ -978,7 +978,7 @@ async function main() {
     console.log(`lock       ${lock ? (lock.unreadable ? 'present but unreadable' : `held by pid ${lock.pid} on ${lock.host} since ${lock.startedAt}${lock.runId ? ` (${lock.runId})` : ''}`) : 'free'}`);
     console.log(`channels   in-app ACTIVE (the alert record); ${Object.entries(CHANNELS).filter(([, c]) => c.status !== 'ACTIVE').map(([k]) => k.toLowerCase()).join(', ')} NOT CONFIGURED — no server, no contact address held`);
     console.log('unread     not known here: read and archived marks live in the browser');
-    console.log('timeframe  daily and weekly only — intraday bars need a licensed feed (SC-317)');
+    console.log('timeframe  daily, weekly and monthly (weekly and monthly built from daily) — intraday bars need a licensed feed (SC-317)');
     process.exit(0);
   }
 

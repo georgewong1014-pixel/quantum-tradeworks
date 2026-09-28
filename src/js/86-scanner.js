@@ -680,7 +680,9 @@ function scanSetupChips(s, extra = []) {
 const scanTreeList = (tree) => el('ul', { class: 'rulelist' }, scanTreeLines(tree).map(l =>
   el('li', { style: l.depth > 1 ? `margin-left:${(l.depth - 1) * 16}px` : null, class: l.group ? 'scan-group-line' : null }, l.text)));
 const scanDriftChip = (row) => (row ? el('span', { class: `chip ${SCAN_DRIFT[row.state].chip}`, title: row.text }, SCAN_DRIFT[row.state].label) : null);
-const scanTimeframeProse = (s) => (s.timeframe === '1W' ? 'weekly bars derived from your daily ones' : 'daily bars') + ', each evaluated once its session has closed';
+/* Monthly joined weekly as a timeframe built from the daily bars; the page
+   said "daily bars" of a monthly setup until it was named here. */
+const scanTimeframeProse = (s) => (s.timeframe === '1W' ? 'weekly bars derived from your daily ones' : s.timeframe === '1M' ? 'monthly bars derived from your daily ones' : 'daily bars') + ', each evaluated once its session has closed';
 const scanAlertsOf = (id) => scanAlertList().filter(a => a.setupId === id);
 
 /* A run's outcome as a card body: what matched, what was untested, what was
@@ -1100,12 +1102,49 @@ const SCAN_FIELD_LABEL = { line: 'line', signal: 'signal line', hist: 'histogram
 const SCAN_PICK_LABEL = { price: 'Price (close)', volume: 'Volume', sma: 'SMA — simple average', ema: 'EMA — exponential average', rsi: 'RSI (Wilder)',
   macd: 'MACD', volume_avg: 'Average volume', bb: 'Bollinger', atr: 'ATR (Wilder)', high_n: 'Highest high over n bars', low_n: 'Lowest low over n bars',
   close_high_n: 'Highest close over n bars', close_low_n: 'Lowest close over n bars', change: 'Change % over n bars', rvol: 'Relative volume' };
-const SCAN_PARAM_LABEL = { n: 'period (bars)', fast: 'fast period', slow: 'slow period', signal: 'signal period', k: 'band width (σ)' };
+const SCAN_PARAM_LABEL = { n: 'period (bars)', fast: 'fast period', slow: 'slow period', signal: 'signal period', k: 'band width (σ)',
+  /* The owner's TradingView indicators (the Pine section of the engine). Named
+     here as their scripts' inputs name them; the builder showed the raw keys
+     ("Left obSwitch") before. */
+  channel: 'channel length', average: 'average length', reaction: 'direction reaction (bars)',
+  overbought: 'overbought level', oversold: 'oversold level',
+  obSwitch: 'sell signals only when overbought', osSwitch: 'buy signals only when oversold',
+  maLen: 'average length', maType: 'average type', maLen2: 'second average length', maType2: 'second average type',
+  bankerBase: 'banker RSI base', bankerPeriod: 'banker RSI period', bankerSens: 'banker sensitivity',
+  hotBase: 'hot money RSI base', hotPeriod: 'hot money RSI period', hotSens: 'hot money sensitivity',
+  type: 'average type', start: 'start', inc: 'increment', max: 'maximum',
+  length: 'length', trigger: 'trigger smoothing', atrLen: 'ATR length', mult: 'range multiplier',
+  double: 'double filter', range: 'range style', threshold: 'entry threshold', bbMult: 'band width (σ)' };
+/* Where one key means different things in two indicators, the indicator's
+   own name wins: WaveTrend's maLen is its extra TEMA, MCDX's the length of
+   its Banker_MA; Color MA's one series is its line. */
+const SCAN_PARAM_LABEL_BY = {
+  wavetrend: { channel: 'WT channel length', average: 'WT average length', maLen: 'TEMA length' },
+  mcdx: { maLen: 'Banker_MA length', maType: 'Banker_MA type', maLen2: 'HotMoney_MA length', maType2: 'HotMoney_MA type' },
+  tv_rsi: { maLen: 'RSI-based MA length', maType: 'RSI-based MA type' },
+  sr_ma: { length: 'smoothing length' },
+};
+const SCAN_FIELD_LABEL_BY = { color_ma: { ma: 'line' } };
+const scanParamLabelOf = (id, k) => SCAN_PARAM_LABEL_BY[id]?.[k] || SCAN_PARAM_LABEL[k] || k;
+/* A field's label: the builder's own names first, then the indicator's
+   (a Pine indicator names every plotted series, some from its parameters —
+   "TEMA200 of WT1" — read here at their defaults). */
+const scanFieldLabelOf = (def, f) => {
+  if (SCAN_FIELD_LABEL[f] && !def.fieldLabels) return SCAN_FIELD_LABEL[f];
+  const own = Object.entries(SCAN_INDICATORS).find(([, d]) => d === def)?.[0];
+  if (own && SCAN_FIELD_LABEL_BY[own]?.[f]) return SCAN_FIELD_LABEL_BY[own][f];
+  const l = def.fieldLabels?.[f];
+  if (typeof l === 'function') {
+    const p = Object.fromEntries(Object.entries(def.params || {}).map(([k, q]) => [k, q.def]));
+    try { return l(p); } catch { return f; }
+  }
+  return l || SCAN_FIELD_LABEL[f] || f;
+};
 function scanOperandOptions() {
   const out = [];
   Object.entries(SCAN_INDICATORS).forEach(([id, def]) => {
     const base = SCAN_PICK_LABEL[id] || def.label;
-    if (def.fields) Object.entries(def.fields).forEach(([f, u]) => out.push({ key: `${id}.${f}`, id, field: f, unit: u, label: `${base} ${SCAN_FIELD_LABEL[f] || f}` }));
+    if (def.fields) Object.entries(def.fields).forEach(([f, u]) => out.push({ key: `${id}.${f}`, id, field: f, unit: u, label: `${base} ${scanFieldLabelOf(def, f)}` }));
     else out.push({ key: id, id, field: null, unit: def.unit, label: base });
   });
   return out;
@@ -1491,8 +1530,17 @@ function scanBuilder(d, ctx) {
       /* Parameters with their bounds: a blank is the default, shown as the
          placeholder; outside the bounds is refused at this condition. */
       const params = (o, side) => Object.entries(SCAN_INDICATORS[o.indicator]?.params || {}).forEach(([k, p]) => {
-        grid.append(field(`${side} ${SCAN_PARAM_LABEL[k] || k}`, text(o[k], v => { const n = numOrAbsent(v); if (n === undefined) delete o[k]; else o[k] = n; },
-          { type: 'number', inputmode: p.integer ? 'numeric' : 'decimal', min: String(p.min), max: String(p.max), step: p.integer ? '1' : 'any', placeholder: String(p.def), 'aria-label': `${L}: ${side.toLowerCase()} ${SCAN_PARAM_LABEL[k] || k}` }),
+        /* A parameter with named options (on/off, an average type, a range
+           style) is a choice: a select of its names, the default first as
+           "default", rather than a number box that showed 0 and 1. */
+        if (p.options) {
+          const opts = [['', `default (${p.options[p.def] ?? p.def})`], ...Object.entries(p.options).map(([v, name]) => [v, name])];
+          grid.append(field(`${side} ${scanParamLabelOf(o.indicator, k)}`, select(o[k] ?? '', opts, v => { if (v === '') delete o[k]; else o[k] = Number(v); },
+            { 'aria-label': `${L}: ${side.toLowerCase()} ${scanParamLabelOf(o.indicator, k)}` })));
+          return;
+        }
+        grid.append(field(`${side} ${scanParamLabelOf(o.indicator, k)}`, text(o[k], v => { const n = numOrAbsent(v); if (n === undefined) delete o[k]; else o[k] = n; },
+          { type: 'number', inputmode: p.integer ? 'numeric' : 'decimal', min: String(p.min), max: String(p.max), step: p.integer ? '1' : 'any', placeholder: String(p.def), 'aria-label': `${L}: ${side.toLowerCase()} ${scanParamLabelOf(o.indicator, k)}` }),
           { hint: `${p.min}–${p.max}${p.integer ? ', whole' : ''}; blank is ${p.def}` }));
       });
       grid.append(field('Left side', select(scanOperandKey(c.left), byUnit, v => { c.left = scanOperandFromKey(v); scanFitCondition(c); }, { 'aria-label': `${L}: left side` })));
@@ -2256,7 +2304,7 @@ VIEWS.scannerAlert = () => {
     const fc = scanValuesFmt([lo, hi, cl[cl.length - 1]], prefs, 'price');
     c5.append(el('figure', { class: 'row row-wrap', style: 'gap:var(--sm) var(--lg);align-items:center;margin:0' }, [
       el('div', { style: 'flex:1 1 260px;max-width:360px;min-width:0' }, sp),
-      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${fc(lo)}, highest ${fc(hi)}; the marked point is ${bar}, at ${fc(cl[cl.length - 1])}.`),
+      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : scanTimeframe(a.timeframe) === '1M' ? 'monthly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${fc(lo)}, highest ${fc(hi)}; the marked point is ${bar}, at ${fc(cl[cl.length - 1])}.`),
     ]));
   } else c5.append(el('p', { class: 'caption' }, rep.state === 'NO_HISTORY' || rep.state === 'NO_SERIES' || rep.state === 'NO_BAR' ? 'No closes are drawn: ' + rep.text.charAt(0).toLowerCase() + rep.text.slice(1) : 'Fewer than two bars are held up to this one, so no line is drawn.'));
   const verdict = el('p', { class: `scan-reproduce scan-note${rep.state === 'REPRODUCES' ? '' : ' scan-warn'}`, role: 'status', style: 'margin-top:var(--sm)' }, rep.text);

@@ -192,6 +192,19 @@ function scanZonedInstant(date, minutes, tz) {
 const scanSessionEnd = (market, date) => { const M = scanMarket(market); return scanZonedInstant(date, scanHm(M.close) + (M.settleMin || 0), M.tz); };
 /* The market's own calendar date at an instant. */
 const scanLocalDate = (market, instant) => scanTzParts(scanMs(instant), scanMarket(market).tz).date;
+/* The session day it is in a market at an instant. For most markets that is
+   the local date. A market whose day opens the evening before (the 24-hour
+   FX session, spot gold: 17:00 New York) is already in the next session from
+   that hour, so scanBars judged Monday's bar FUTURE from 17:00 to midnight on
+   Sunday while it traded. ingest/history-store.mjs sessionToday is the same
+   rule, for the store. */
+function scanSessionToday(market, instant) {
+  const M = scanMarket(market);
+  const p = scanTzParts(scanMs(instant), M.tz);
+  const close = scanHm(M.close || '24:00');
+  const opens = M.open ? (scanHm(M.open) > close ? scanHm(M.open) : null) : (close < 1440 ? close : null);
+  return opens != null && p.minutes >= opens ? scanAddDays(p.date, 1) : p.date;
+}
 
 /* The last session whose close plus settle had passed at `instant`, on the
    market's weekdays (and, when a calendar is given, on its sessions). */
@@ -1709,7 +1722,7 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
   const o = history?.ohlc?.[symbol] || {}, meta = history?.meta?.[symbol] || {};
   const corrected = new Set((Array.isArray(history?.corrections?.[symbol]) ? history.corrections[symbol] : []).map(c => c?.date).filter(Boolean));
   const clock = now != null && Number.isFinite(scanMs(now));
-  const today = clock ? scanLocalDate(mk, now) : null;
+  const today = clock ? scanSessionToday(mk, now) : null;
   /* A session closes at most half an hour past midnight (a 24:00 close, or
      a close with its settle), so only a bar dated from the day before the
      market's own date at `now` can still be open by then: the rest skip the

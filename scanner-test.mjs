@@ -3219,5 +3219,23 @@ try {
 }
 /* ---- end pine: indicators ---- */
 
+/* ---- integration: pine ---- */
+/* THE SESSION DAY OF A MARKET THAT OPENS THE EVENING BEFORE. The import now
+   dates OANDA gold's Sunday 17:00 stamp to Monday, and the store accepts
+   Monday's bar from that hour; the engine still judged "today" by the New
+   York calendar date, so from 17:00 to midnight on Sunday the page and the
+   worker refused Monday's bar as FUTURE while it traded. */
+{
+  const hist = { series: { XAUUSD: { '2026-09-25': 4200, '2026-09-28': 4210, '2026-09-29': 4220 } } };
+  const sun18 = E.scanBars(hist, 'XAUUSD', { market: 'FX', now: '2026-09-27T22:00:00Z' });
+  const sun16 = E.scanBars(hist, 'XAUUSD', { market: 'FX', now: '2026-09-27T20:00:00Z' });
+  const mon = sun18.dates.indexOf('2026-09-28');
+  check(mon >= 0 && sun18.status[mon] === 'PROVISIONAL' && sun18.invalid.some(x => x.date === '2026-09-29' && x.codes.includes('FUTURE'))
+    && sun16.invalid.some(x => x.date === '2026-09-28' && x.codes.includes('FUTURE')),
+    'integration pine: on the FX session (spot gold), Monday\'s bar is trading, not FUTURE, from 17:00 New York on Sunday — and still FUTURE at 16:00; Tuesday\'s is FUTURE',
+    { sun18: { dates: sun18.dates, status: sun18.status, invalid: sun18.invalid }, sun16: sun16.invalid });
+}
+/* ---- end integration: pine ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
