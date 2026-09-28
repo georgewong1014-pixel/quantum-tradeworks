@@ -805,7 +805,11 @@ VIEWS.researchHome = () => {
         onclick: () => { if (r) { State.ticker = r.c.id; navigate(companyPath(r.c)); } else navigate('/my/tracked'); } }, label));
     });
     if (total > hits.length) results.append(el('p', { class: 'metaline' }, `Showing ${hits.length} of ${total} — narrow the search.`));
-    if (!results.children.length) results.append(el('p', { class: 'metaline' }, `Nothing in the beta universe matches “${q}”.`));
+    /* A search run from the filters alone has no words to quote: Bursa with
+       "Filed statements" read Nothing … matches “”. */
+    if (!results.children.length) results.append(el('p', { class: 'metaline' }, q
+      ? `Nothing in the beta universe matches “${q}”.`
+      : 'Nothing in the beta universe matches these filters.'));
   };
   let searchTimer = null;
   inp.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
@@ -1210,27 +1214,11 @@ VIEWS.research = () => {
   const jump = el('div', { class: 'ts-jump' });
   ident.append(jump);
   stick.append(ident);
-  /* role="tab" needs a tablist around it and arrow keys between the tabs, or a
-     screen reader announces a tab with no set to belong to. The selected tab is
-     the one Tab stop; the arrows, Home and End move focus along the strip, and
-     Enter or Space opens the focused one, as the buttons already do. */
-  const sub = el('div', { class: 'subnav', role: 'tablist', 'aria-label': `Sections of the ${c.name} report` });
-  sub.addEventListener('keydown', e => {
-    const tabs = [...sub.querySelectorAll('[role=tab]')];
-    const i = tabs.indexOf(document.activeElement);
-    if (i < 0) return;
-    const to = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
-    if (to == null) return;
-    e.preventDefault();
-    tabs[(to + tabs.length) % tabs.length].focus();
-  });
-  RESEARCH_TABS.forEach(t => sub.append(el('button', {
-    role: 'tab', 'aria-selected': State.researchTab === t.id ? 'true' : 'false',
-    tabindex: t.id === (RESEARCH_TABS.some(x => x.id === State.researchTab) ? State.researchTab : 'snapshot') ? '0' : '-1',
-    /* Through the address, so Back returns to the previous tab and a link
-       carries the one it was copied from. */
-    onclick: () => openResearch(State.ticker, t.id) }, t.label)));
-  stick.append(sub);
+  /* A tablist with arrow keys between the tabs (tabStrip, 40-views-discover).
+     Through the address, so Back returns to the previous tab and a link
+     carries the one it was copied from. */
+  stick.append(tabStrip(`Sections of the ${c.name} report`, RESEARCH_TABS, State.researchTab,
+    id => openResearch(State.ticker, id)));
   wrap.append(stick);
 
   /* The plain-language summary sits above the tabs, on every tab, because it
@@ -1489,9 +1477,14 @@ function tabSnapshot(r) {
       { sub: isNum(m.cashPayout) ? `${fmtPct(m.cashPayout, 0)} of free cash flow` : (isNum(m.payout) ? `${fmtPct(m.payout, 0)} of earnings` : '—') })));
     /* No price means no gap to measure, and the dash for it was drawn in the
        negative colour, where it read as a shortfall. */
-    tg.append(tileFor('mosBase', statTile('vs base-case value', val.mos ? withSign(val.mos.base, 1) : '—',
-      { sub: `${val.pack.name.split('/')[0].trim()} · ${val.confBand} confidence${assumptionsEdited ? ' · default assumptions' : ''}`,
-        tone: isNum(val.mos?.base) ? (val.mos.base >= 0 ? '--ok-text' : '--dn-text') : null })));
+    /* And a gap there is is a difference to a model, not a gain or a loss:
+       it takes diffClass, as the bear, base and bull panels below it do. It
+       was toned --ok-text and --dn-text, so a price under the estimate was
+       printed in the green this product keeps for things that improved. */
+    const mosTile = statTile('vs base-case value', val.mos ? withSign(val.mos.base, 1) : '—',
+      { sub: `${val.pack.name.split('/')[0].trim()} · ${val.confBand} confidence${assumptionsEdited ? ' · default assumptions' : ''}` });
+    if (isNum(val.mos?.base)) mosTile.querySelector('.stat-value').classList.add(diffClass(val.mos.base));
+    tg.append(tileFor('mosBase', mosTile));
     tiles.append(tg);
     main.append(tiles);
   }
@@ -1742,9 +1735,13 @@ function tabBusiness(r) {
    ['Primary listing', `${listingOf(c)} · ${c.tk}`], ['Sector / industry', `${c.sector} — ${c.industry}`],
    ['Cyclicality', isNum(m.revDD) ? `Revenue drawdown ${fmtPct(m.revDD, 0)} in the window` : '—'],
    ['Capital intensity', isNum(m.reinv) ? `Capex is ${fmtPct(m.reinv, 0)} of operating cash flow` : 'Not meaningful'],
-   ['Shares in issue', m.shareSeriesBreak
+   /* A filer whose latest share count did not resolve (AbbVie, Berkshire)
+      read "—bn (— a year)": two units printed around nothing. */
+   ['Shares in issue', !isNum(last(d.sh))
+     ? `not reported for FY${latestFy(c)}`
+     : m.shareSeriesBreak
      ? `${fmtNum(last(d.sh), 3)}bn — annual change withheld, see capital allocation`
-     : `${fmtNum(last(d.sh), 3)}bn (${withSign(m.dilution, 2)} a year)`],
+     : `${fmtNum(last(d.sh), 3)}bn${isNum(m.dilution) ? ` (${withSign(m.dilution, 2)} a year)` : ''}`],
   ].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, String(v))); });
   prof.append(kv);
   prof.append(el('p', { class: 'body', style: 'margin-top:var(--md);font-size:13px' }, c.desc));
@@ -2061,19 +2058,29 @@ function tabFinancials(r) {
   const host = el('div', { style: 'width:100%' });
   chartCard.append(host);
 
-  const idx = (arr) => { const b = arr.find(isNum); return arr.map(v => isNum(v) && b ? v / b * 100 : null); };
+  /* Indexed to the first reported year, and only where that year is above
+     zero. Divided by a negative base the index turned sign: Chevron's
+     operating profit opens its window at −2.16bn, so its 49.67bn year was
+     drawn at −2,300 — the best year as the worst — and every profit after a
+     loss read as a fall. As with a growth rate off a non-positive base, the
+     series is left undrawn and the legend says why. */
+  const indexed = State.finMode === 'idx';
+  const idxOk = (arr) => arr.find(isNum) > 0;
+  const idx = (arr) => { const b = arr.find(isNum); return arr.map(v => isNum(v) && b > 0 ? v / b * 100 : null); };
+  const finSeries = (key, label, raw, varName) => ({ key, label, raw, values: indexed ? idx(raw) : raw, varName,
+    unindexed: indexed && raw.some(isNum) && !idxOk(raw) });
   const series = [
-    { key:'rev', label:isBank ? 'Total income' : 'Revenue', values:State.finMode === 'idx' ? idx(d.rev) : d.rev, varName:'--s1' },
-    { key:'ebit', label:ebitLabel(c), values:State.finMode === 'idx' ? idx(d.ebit) : d.ebit, varName:'--s2' },
+    finSeries('rev', isBank ? 'Total income' : 'Revenue', d.rev, '--s1'),
+    finSeries('ebit', ebitLabel(c), d.ebit, '--s2'),
   ];
-  if (!isBank) series.push({ key:'fcf', label:'Free cash flow', values:State.finMode === 'idx' ? idx(d.fcf) : d.fcf, varName:'--s3' });
+  if (!isBank) series.push(finSeries('fcf', 'Free cash flow', d.fcf, '--s3'));
 
   const leg = el('div', { class: 'legend', style: 'margin-top:var(--sm)' });
-  series.forEach(s => leg.append(el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(${s.varName})"></span>${esc(s.label)}` })));
+  series.forEach(s => leg.append(el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(${s.varName})"></span>${esc(s.label)}${s.unindexed ? ' — not indexed: its first reported year is at or below zero' : ''}` })));
   chartCard.append(leg);
   chartCard.append(tableTwin('Show the table view',
     ['Line', ...yrs.map(y => `FY${y}`)],
-    series.map(s => [s.label, ...s.values.map(v => isNum(v) ? fmtNum(v, 2) : 'not reported')])));
+    series.map(s => [s.label, ...s.values.map((v, i) => isNum(v) ? fmtNum(v, 2) : isNum(s.raw[i]) ? 'n/m' : 'not reported')])));
   wrap.append(chartCard);
   columnChart(host, { cats: yrs.map(y => `FY${y}`), series, fmt: v => State.finMode === 'idx' ? fmtNum(v, 0) : fmtNum(v, Math.abs(v) < 10 ? 1 : 0), title: 'Reported financials' });
 
@@ -2288,6 +2295,11 @@ function tabMoat(r) {
      used to read the percentile by ROW POSITION from a fixed list of the
      general metrics, so a bank's cost-to-income row showed the percentile of
      operating margin and a REIT's occupancy row the percentile of ROIC. */
+  /* Named for what it holds. The fourth general row read "Margin stability"
+     over m.revVol, which is the standard deviation of year-on-year REVENUE
+     growth — the quality pillar scores the same figure as "Revenue growth
+     stability" — so the moat page described a margin measure nobody
+     computed. And an absent lease expiry printed "— yrs": a unit on nothing. */
   const rows = c.type === 'bank'
     ? [['Net interest margin', fmtPct(m.nim, 2), 'Pricing power on the funding base', 'nim', false],
        ['Cost-to-income ratio', fmtPct(m.cir), 'Operating efficiency versus peers', 'cir', true],
@@ -2295,12 +2307,12 @@ function tabMoat(r) {
        ['CET1 ratio', fmtPct(m.cet1), 'Capacity to lend through a downturn', 'cet1', false]]
     : c.type === 'reit'
     ? [['Occupancy', fmtPct(m.occ), 'Genuine tenant demand', 'occ', false],
-       ['Weighted lease expiry', `${fmtNum(m.wale)} yrs`, 'Contracted income duration', 'wale', false],
+       ['Weighted lease expiry', isNum(m.wale) ? `${fmtNum(m.wale)} yrs` : '—', 'Contracted income duration', 'wale', false],
        ['Net property margin', fmtPct(m.npm), 'Operating leverage on the assets', 'npm', false],
        ['Gearing', fmtPct(m.gearing), 'Refinancing exposure', 'gearing', true]]
     : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : 'n/a', 'Excess return over the cost of capital', 'roic', false],
        ['Operating margin', fmtPct(m.om), 'Pricing power net of cost', 'om', false],
-       ['Margin stability', isNum(m.revVol) ? `${fmtNum(m.revVol)} s.d.` : '—', 'Whether the advantage holds through the cycle', 'revVol', true],
+       ['Revenue growth stability', isNum(m.revVol) ? `${fmtNum(m.revVol)} s.d.` : '—', 'Whether the advantage holds through the cycle', 'revVol', true],
        ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : 'n/a', 'Conversion of the advantage into cash', 'fcfm', false]];
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });

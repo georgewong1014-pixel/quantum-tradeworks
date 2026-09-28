@@ -4818,6 +4818,182 @@ try {
   }
   /* ---- end bugfix: studio-trading ---- */
 
+  /* ---- bugfix: equities-views ---- */
+  /* WHAT THE EQUITY VIEWS SAID AGAINST WHAT THEY HELD. Each check below failed
+     before its fix: the moat page named a margin measure it did not compute,
+     two model differences were coloured as gains, a missing share count
+     printed units around a dash, the printable report kept its own line list
+     (a bank's pre-tax income as operating profit, a bank's cash flows, a
+     dividend CAGR across a split) and its "save this run" opened a stale run,
+     the screener's price-history note read a property no screen carries, two
+     templates filtered on a measure no company has, Discover and Learn had
+     orphan tabs, three drawer controls had no name, the homepage's worked
+     Wheel contract read the reader's own plan, the financials chart indexed a
+     series to a negative first year, and the explorer quoted an empty search. */
+  {
+    const r = await evaluate(`(async () => {
+      const out = {};
+      const wait = (ms) => new Promise(res => setTimeout(res, ms));
+      const nameOf = (n) => n.getAttribute('aria-label') || n.getAttribute('aria-labelledby') || n.getAttribute('title')
+        || n.getAttribute('placeholder') || [...(n.labels || [])].map(l => l.textContent.trim()).join(' ');
+
+      /* 1. The moat page: the row over revVol is named for revenue growth,
+         and an absent lease expiry is a dash, not "— yrs". */
+      openResearch('MSFT-SEC', 'moat');
+      const moatRows = [...document.querySelectorAll('main table tbody tr')].map(tr => tr.cells[0].textContent);
+      out.moat = { margin: moatRows.includes('Margin stability'), revenue: moatRows.includes('Revenue growth stability') };
+      const reit = U.find(x => x.c.real && x.c.type === 'reit' && !isNum(x.m.wale));
+      openResearch(reit.c.id, 'moat');
+      out.wale = [...document.querySelectorAll('main table tbody tr')].find(tr => tr.cells[0].textContent === 'Weighted lease expiry')?.cells[1].textContent ?? null;
+
+      /* 2. A model difference is never the green of a gain. */
+      navigate('/app');
+      const cardEl = [...document.querySelectorAll('main h3.h-card')].find(h => /Largest differences/.test(h.textContent))?.closest('.card');
+      const cells = cardEl ? [...cardEl.querySelectorAll('.num')].filter(x => /%$/.test(x.textContent)) : [];
+      out.largest = { n: cells.length, pos: cells.filter(x => x.classList.contains('pos')).length,
+        mdiff: cells.filter(x => /\\bmdiff/.test(x.className)).length };
+      const priced = U.find(x => isNum(x.val?.mos?.base) && x.val.mos.base > 0 && !x.val.err);
+      openResearch(priced.c.id, 'snapshot');
+      const tv = [...document.querySelectorAll('main .stat-label')].find(x => /vs base-case/.test(x.textContent))?.parentElement.querySelector('.stat-value');
+      out.tile = tv ? { style: tv.getAttribute('style') || '', cls: tv.className } : null;
+
+      /* 3. A filer with no latest share count reads as such on Business. */
+      const noSh = U.find(x => x.c.real && !isNum(last(x.d.sh)));
+      if (noSh) { openResearch(noSh.c.id, 'business');
+        const dt = [...document.querySelectorAll('main dt')].find(x => x.textContent === 'Shares in issue');
+        out.shares = { id: noSh.c.id, text: dt?.nextElementSibling?.textContent || null }; }
+
+      /* 4. The report's lines are the page's lines. */
+      navigate('/company/JPM-SEC/report');
+      const jpmLab = statementLines(BY_ID.get('JPM-SEC')).find(l => l.key === 'ebit').label;
+      out.jpm = { lab: jpmLab,
+        rows: [...document.querySelectorAll('.rr-hist tbody tr')].map(tr => tr.cells[0].textContent),
+        figs: [...document.querySelectorAll('.dr-fig')].slice(0, 6).map(x => [x.children[0].textContent, x.children[1].textContent]) };
+      const split = U.find(x => x.m.shareSeriesBreak && isNum(cagr(x.d.dps.slice(-5))));
+      navigate(companyPath(split.c) + '/report');
+      out.split = { id: split.c.id, dps: [...document.querySelectorAll('.rr-hist tbody tr')].find(tr => tr.cells[0].textContent === (split.c.type === 'reit' ? 'Distribution per unit' : 'Dividend per share'))
+        ?.cells[8 - 1 - (6 - Math.min(6, yearsOf(split.c).length))]?.textContent ?? null };
+
+      /* 5. "Save this run" opens the run it saved, or none. With an assumption
+         emptied in the Studio the report prints the defaults, and a run of
+         them is saved; an older run is never opened in its place. */
+      const live = BY_ID.get('MSFT-SEC');
+      const keepRuns = store.read('runs', []), keepVal = State.valuation['MSFT-SEC'];
+      saveValuationRun(live, { ...studioInputs(live) });
+      const older = store.read('runs', [])[0].runId;
+      const first = (ASSUMPTIONS[studioInputs(live).model] || []).find(a => !a.onlyIf || a.onlyIf === live.val.pack.id).k;
+      State.valuation['MSFT-SEC'] = { ...studioInputs(live), [first]: null };
+      navigate('/company/MSFT-SEC/report');
+      [...document.querySelectorAll('main button')].find(x => /Save this run/.test(x.textContent))?.click();
+      await wait(300);
+      const runQs = new URLSearchParams(location.search).get('run');
+      out.save = { older, run: runQs, newest: store.read('runs', [])[0].runId };
+      store.write('runs', keepRuns);
+      if (keepVal) State.valuation['MSFT-SEC'] = keepVal; else delete State.valuation['MSFT-SEC'];
+
+      /* 6. A threshold on an observed-price field says who was never measured. */
+      const keepScreen = State.screen, keepTpl = State.appliedTemplate;
+      navigate('/discover/screener');
+      State.screen = { ...blankScreen(), crit: { rs12: { min: 0 } } }; render();
+      out.priceNote = /companies have no observed price history/.test(document.querySelector('main').innerText);
+
+      /* 7. A template does not filter on a measure no company carries. */
+      out.tpl = ['conservative', 'infra'].map(id => {
+        const t = SCREEN_TEMPLATES.find(x => x.id === id);
+        applyTemplate(t);
+        const icovFails = U.filter(x => evaluateScreen(x, State.screen).fails.some(f => /^Interest cover/.test(f))).length;
+        const banner = /interest cover ≥/.test(document.querySelector('main').innerText);
+        return { id, icovFails, banner };
+      });
+      State.screen = keepScreen; State.appliedTemplate = keepTpl;
+
+      /* 8. Discover and Learn: a tablist, one tab stop, arrows move focus. */
+      out.tabs = [];
+      for (const p of ['/discover/screener', '/learn/glossary']) {
+        navigate(p);
+        const tabs = [...document.querySelectorAll('main [role=tab]')];
+        const list = tabs[0]?.parentElement;
+        const sel = tabs.find(t => t.getAttribute('aria-selected') === 'true');
+        sel?.focus();
+        sel?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        out.tabs.push({ p, n: tabs.length, tablist: list?.getAttribute('role') === 'tablist' && !!list.getAttribute('aria-label'),
+          orphans: tabs.filter(t => t.parentElement !== list).length, stops: tabs.filter(t => t.tabIndex === 0).length,
+          arrow: document.activeElement === tabs[(tabs.indexOf(sel) + 1) % tabs.length] });
+      }
+
+      /* 9. Every control in the case and restore drawers has a name. */
+      const keepCases = State.corrections;
+      State.corrections = [{ id: 'QT-20260928-001', createdAt: '2026-09-28 09:00 UTC+08:00', route: '/', status: 'recorded — not sent',
+        modelVersion: MODEL_VERSION, asOf: AS_OF, coverage: 'x', item: 'Operating margin', subject: 'MSFT', description: 'x' }];
+      navigate('/corrections');
+      [...document.querySelectorAll('main button')].find(x => x.textContent === 'Open')?.click();
+      const caseCtl = [...document.querySelectorAll('.drawer textarea, .drawer input, .drawer select')];
+      out.caseNames = caseCtl.map(nameOf);
+      closeDrawer({ restore: false });
+      openRestoreDrawer();
+      out.restoreNames = [...document.querySelectorAll('.drawer textarea, .drawer input, .drawer select')].map(nameOf);
+      closeDrawer({ restore: false });
+      State.corrections = keepCases;
+
+      /* 10. The homepage's worked contract is the worked contract, whatever
+         the reader's own plan holds. */
+      const keepWheel = State.wheel;
+      State.wheel = { ...State.wheel, adjustedContract: true, adjustmentVerified: false, openFees: 20, fxConversionCostMyr: 500 };
+      navigate('/');
+      const wheelCard = [...document.querySelectorAll('.proof-card')].find(x => /Cash Wheel/.test(x.textContent));
+      const want = wheelMath({ ...WHEEL_WORKED_EXAMPLE });
+      out.wheel = { shown: wheelCard ? [...wheelCard.querySelectorAll('.pv')].map(x => x.textContent) : null,
+        want: [fmtAmount(want.requiredAssignmentCash, 'USD'), fmtAmount(want.safeAssignmentCashMyr, 'MYR'), fmtAmount(want.putMaxLossIfZero, 'USD')] };
+      State.wheel = keepWheel;
+
+      /* 11. "Indexed to 100" is not drawn off a base at or below zero: the
+         index turns sign there, and a profit after a loss plots as a fall. */
+      const negBase = U.find(x => x.c.type !== 'bank' && ['rev', 'ebit', 'fcf'].some(k => x.d[k].find(isNum) <= 0));
+      const keepMode = State.finMode;
+      State.finMode = 'idx';
+      openResearch(negBase.c.id, 'financials');
+      const card = [...document.querySelectorAll('main h3.h-card')].find(h => /Revenue|Total income/.test(h.textContent))?.closest('.card');
+      const twin = [...(card?.querySelectorAll('details table tbody tr') || [])].map(tr => [...tr.cells].map(td => td.textContent));
+      const flagged = twin.filter(row => { const k = /Free cash flow/.test(row[0]) ? 'fcf' : /Revenue|Total income/.test(row[0]) ? 'rev' : 'ebit';
+        return negBase.d[k].find(isNum) <= 0; });
+      out.idx = { id: negBase.c.id, flagged: flagged.length,
+        drawn: flagged.flatMap(row => row.slice(1)).filter(v => /[0-9]/.test(v)).length,
+        legend: /not indexed/.test(card?.querySelector('.legend')?.textContent || '') };
+      State.finMode = keepMode;
+
+      /* 12. A search from the filters alone does not quote an empty query. */
+      navigate('/research');
+      const mk = document.querySelector('main select[aria-label="Market"]'), cv = document.querySelector('main select[aria-label="Coverage"]');
+      mk.value = 'MY'; cv.value = 'FILED';
+      cv.dispatchEvent(new Event('change', { bubbles: true }));
+      out.search = [...document.querySelectorAll('main .metaline')].map(x => x.textContent).find(t => /^Nothing in the beta universe/.test(t)) || null;
+      return out;
+    })()`);
+    const p = [];
+    if (r.moat.margin || !r.moat.revenue) p.push(`the moat row over revenue-growth volatility is named ${JSON.stringify(r.moat)}`);
+    if (r.wale !== '—') p.push(`an absent lease expiry reads "${r.wale}"`);
+    if (!r.largest.n || r.largest.pos || r.largest.mdiff !== r.largest.n) p.push(`"Largest differences" colours a model gap as a gain: ${JSON.stringify(r.largest)}`);
+    if (!r.tile || /--ok-text|--dn-text/.test(r.tile.style) || !/mdiff/.test(r.tile.cls)) p.push(`the snapshot's "vs base-case value" is toned as a gain or loss: ${JSON.stringify(r.tile)}`);
+    if (r.shares && (/—bn|— a year/.test(r.shares.text || '') || !r.shares.text)) p.push(`an absent share count reads ${JSON.stringify(r.shares)}`);
+    if (r.jpm.rows[1] !== r.jpm.lab || r.jpm.figs[1]?.[0] !== r.jpm.lab) p.push(`the report calls JPM's ${r.jpm.lab} ${JSON.stringify([r.jpm.rows[1], r.jpm.figs[1]?.[0]])}`);
+    if (r.jpm.rows.some(x => /Operating cash flow|Capital expenditure|Free cash flow|Cash and equivalents/.test(x))) p.push(`the report prints lines the page omits for a bank: ${r.jpm.rows.join(', ')}`);
+    if (['Operating cash flow', 'Free cash flow'].some(k => r.jpm.figs.find(f => f[0] === k)?.[1] !== 'Not applicable')) p.push(`the report's bank headline figures: ${JSON.stringify(r.jpm.figs)}`);
+    if (r.split.dps !== 'withheld') p.push(`${r.split.id}'s report prints a per-share CAGR across its share-count break: ${r.split.dps}`);
+    if (r.save.run === r.save.older) p.push(`"Save this run" opened the older run ${r.save.older} as though it were the one saved: ${JSON.stringify(r.save)}`);
+    if (r.save.run && r.save.run !== r.save.newest) p.push(`"Save this run" opened ${r.save.run}, not the run it saved (${r.save.newest})`);
+    if (!r.priceNote) p.push('a threshold on the 12-month price change does not say which companies were never measured');
+    r.tpl.forEach(t => { if (t.icovFails || !t.banner) p.push(`template ${t.id}: ${t.icovFails} companies excluded for the blocked interest cover, banner ${t.banner}`); });
+    r.tabs.forEach(t => { if (!t.tablist || t.orphans || t.stops !== 1 || !t.arrow) p.push(`${t.p} tab strip: ${JSON.stringify(t)}`); });
+    if (!r.caseNames.length || r.caseNames.some(n => !n)) p.push(`the case drawer has an unnamed control: ${JSON.stringify(r.caseNames)}`);
+    if (r.restoreNames.length < 2 || r.restoreNames.some(n => !n)) p.push(`the restore drawer has an unnamed control: ${JSON.stringify(r.restoreNames)}`);
+    if (!r.search || /“”/.test(r.search)) p.push(`a filters-only search with no match reads ${JSON.stringify(r.search)}`);
+    if (!r.idx.flagged || r.idx.drawn || !r.idx.legend) p.push(`${r.idx.id} is indexed off a base at or below zero: ${JSON.stringify(r.idx)}`);
+    if (JSON.stringify(r.wheel.shown) !== JSON.stringify(r.wheel.want)) p.push(`the homepage's worked Wheel contract read the reader's plan: ${JSON.stringify(r.wheel)}`);
+    if (p.length) fail('the equity views say what they hold — moat, model differences, report lines, saved runs, price note, templates, tab strips, drawer names, worked contract, indexed chart, explorer search', p);
+    else ok(`the equity views say what they hold — "Revenue growth stability" on the moat page, ${r.largest.n} model gaps in the neutral tone, the report's ${r.jpm.lab} and no bank cash-flow lines, ${r.split.id}'s per-share CAGR withheld, "Save this run" opens only the run it saved, the price-history note, both interest-cover templates stated not applied, two tablists, named drawer controls, the worked contract at ${r.wheel.want.join(' / ')}, ${r.idx.id}'s index left undrawn off its non-positive base`);
+  }
+  /* ---- end bugfix: equities-views ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

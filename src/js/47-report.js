@@ -27,11 +27,9 @@
 /* The measures the report prints, in the order a reader asks: returns,
    growth, balance sheet, then what needs a price. */
 const REPORT_METRICS = ['roic', 'om', 'fcfm', 'roe', 'cashconv', 'rev5', 'eps5', 'fcf5', 'ndEbit', 'de', 'netGearing', 'pe', 'pb', 'evebit', 'fcfy', 'dy', 'payout'];
-const REPORT_LINES = [
-  ['rev', 'Revenue'], ['ebit', 'Operating profit (EBIT)'], ['ni', 'Net income'], ['ocf', 'Operating cash flow'],
-  ['capex', 'Capital expenditure'], ['fcf', 'Free cash flow'], ['eq', 'Shareholders’ equity'], ['debt', 'Total debt'],
-  ['cash', 'Cash and equivalents'], ['sh', 'Shares in issue (bn)'], ['dps', 'Dividend per share'],
-];
+/* The statement lines, in the report's order. Their names are the company
+   page's (statementLines), so a line reads the same on paper as on screen. */
+const REPORT_LINES = ['rev', 'ebit', 'ni', 'ocf', 'capex', 'fcf', 'eq', 'debt', 'cash', 'sh', 'dps'];
 
 /* Where the figures come from: the live dataset, or the statements a saved
    run stored. Returns everything the sections read, so no section reaches
@@ -114,9 +112,15 @@ VIEWS.researchReport = () => {
     onclick: () => {
       /* Saving from here stamps the same data version this page prints, and
          the address moves to the run so the page can be reprinted as saved. */
-      saveValuationRun(live, studioInputs(live));
+      /* The inputs this page printed, and only a run this press wrote. It
+         saved studioInputs, which with an assumption emptied in the Studio
+         is refused (the page prints the defaults in its place) — and then
+         read runs[0] regardless, so an older run of the same company was
+         opened as though it were the one just saved. */
+      const before = (store.read('runs', []) || [])[0]?.runId ?? null;
+      saveValuationRun(live, inputs);
       const saved = (store.read('runs', []) || [])[0];
-      if (saved && saved.id === live.c.id) navigate(`${reportHref}?run=${encodeURIComponent(saved.runId)}`);
+      if (saved && saved.runId !== before && saved.id === live.c.id) navigate(`${reportHref}?run=${encodeURIComponent(saved.runId)}`);
     } }, 'Save this run so the report can be reprinted as it is'));
   bar.append(acts);
   bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
@@ -195,12 +199,26 @@ VIEWS.researchReport = () => {
     if (short) return p?.mixedTags ? 'Reported · XBRL, more than one tag' : 'Reported · XBRL';
     return p?.concept ? `Reported · ${String(p.concept).split(' + ')[0]}${p.mixedTags ? ' (more than one tag)' : ''}` : 'Reported';
   };
+  /* THE PAGE'S LINES, UNDER THE PAGE'S NAMES. The report kept its own list:
+     it called a filed bank's pre-tax income "Operating profit (EBIT)" where
+     the company page, from the concept the ingest recorded, says "Profit
+     before tax, after provisions"; it printed a bank's operating cash flow,
+     capital expenditure, free cash flow and cash, which the page omits as
+     meaningless on a deposit-taking balance sheet (JPMorgan's headline read
+     "Operating cash flow −$147.8B"); and it printed a dividend CAGR across a
+     share-count break the page withholds (Apple, 4.7%). statementLines is
+     what the page's table reads, so the report now reads it too. */
+  const pageLines = statementLines(row);
+  const pageLine = (k) => pageLines.find(l => l.key === k) || null;
   const figs = el('div', { class: 'dr-figs' });
-  [['Revenue', last(d.rev), 'rev'], ['Operating profit', last(d.ebit), 'ebit'], ['Net income', last(d.ni), 'ni'],
+  [['Revenue', last(d.rev), 'rev'], [pageLine('ebit')?.label || 'Operating profit', last(d.ebit), 'ebit'], ['Net income', last(d.ni), 'ni'],
    ['Operating cash flow', last(d.ocf), 'ocf'], ['Free cash flow', m.fcf, 'fcf'],
-   ['Net debt', m.netDebt, 'debt']].forEach(([label, v, k]) => figs.append(reportFig(label,
-     isNum(v) ? fmtCap(v, c.ccy) : (k === 'debt' && c.type === 'bank' ? 'Not applicable' : 'Not reported'),
-     isNum(v) ? (k === 'debt' ? (c.real ? 'Calculated — debt less cash' : 'Illustrative') : kindOfLine(k, true)) : null)));
+   ['Net debt', m.netDebt, 'debt']].forEach(([label, v, k]) => {
+    const na = k === 'debt' ? c.type === 'bank' : !pageLine(k);
+    figs.append(reportFig(label,
+      na ? 'Not applicable' : isNum(v) ? fmtCap(v, c.ccy) : 'Not reported',
+      !na && isNum(v) ? (k === 'debt' ? (c.real ? 'Calculated — debt less cash' : 'Illustrative') : kindOfLine(k, true)) : null));
+  });
   out.append(figs);
 
   /* ---------- 4. selected metrics ---------- */
@@ -237,21 +255,28 @@ VIEWS.researchReport = () => {
   ht.append(el('thead', {}, el('tr', {}, ['Line', ...hy.map(y => `FY${y}`), '4-year CAGR', 'Kind'].map((h, i) =>
     el('th', { style: i === 0 || i === hy.length + 2 ? 'text-align:left' : null }, h)))));
   const hb = el('tbody');
-  REPORT_LINES.forEach(([k, label]) => {
+  REPORT_LINES.filter(k => pageLine(k)).forEach(k => {
+    const line = pageLine(k), label = line.label;
     const series = colOf[k] || [];
     const tail = series.slice(-span);
-    const g = ['rev', 'ebit', 'ni', 'ocf', 'fcf', 'eq', 'dps'].includes(k) ? cagr(series.slice(-5)) : null;
+    const g0 = ['rev', 'ebit', 'ni', 'ocf', 'fcf', 'eq', 'dps'].includes(k) ? cagr(series.slice(-5)) : null;
+    /* The statement table's rule: a per-share line across a share-count
+       break has no growth rate, only the break. */
+    const withheld = line.perShare && m.shareSeriesBreak && isNum(g0);
+    const g = withheld ? null : g0;
     hb.append(el('tr', {}, [
       el('td', { style: 'text-align:left' }, label),
       ...tail.map(v => el('td', {}, isNum(v) ? fmtNum(v, k === 'dps' ? 3 : 2) : el('span', { class: 'caption' }, 'not reported'))),
-      el('td', {}, isNum(g) ? fmtPct(g) : '—'),
+      el('td', {}, isNum(g) ? fmtPct(g) : withheld ? el('span', { class: 'caption', title: 'The share count jumps inside the stored window — a split, merger or offering — so a growth rate over a per-share line would measure that event. Withheld, as on the company page.' }, 'withheld') : '—'),
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, kindOfLine(k)),
     ]));
   });
   ht.append(hb);
   out.append(el('div', { class: 'tablewrap' }, ht));
   out.append(el('p', { class: 'metaline' },
-    `Billions of ${c.ccy}, except shares (billions) and dividend per share (${c.ccy}). Fiscal-year labels are the company’s own. A CAGR needs a positive figure at both ends of the window and is otherwise left blank.`));
+    `Billions of ${c.ccy}, except shares (billions) and dividend per share (${c.ccy}). Fiscal-year labels are the company’s own. A CAGR needs a positive figure at both ends of the window and is otherwise left blank.`
+    + (m.shareSeriesBreak ? ` A per-share CAGR is withheld: the share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn between two years held — a split, merger or offering, which the filings are not restated for.` : '')
+    + (c.type === 'bank' ? ' Operating cash flow, capital expenditure, free cash flow and cash are not shown for a bank, as on the company page: they are not meaningful measures for a deposit-taking balance sheet.' : '')));
 
   /* ---------- 6. valuation and the reader's assumptions ---------- */
   out.append(el('h2', {}, 'Valuation — the assumptions and what they produce'));
