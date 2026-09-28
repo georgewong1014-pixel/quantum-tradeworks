@@ -1296,7 +1296,12 @@ try {
     else ok('the land-risk sentence and the gains-tax reasons read as sentences', r);
   }
 
-  /* P10 — the NAPIC type column wraps between words on a phone. */
+  /* P10 — the NAPIC type column wraps between words on a phone. A break after
+         a hyphen is a break between words ("semi-" / "detached"), so the
+         parts measured are the words split after their hyphens, against the
+         cell's content box. The first version measured "semi-detached" whole
+         against the cell's padded width: it passed here by 0px and failed
+         on Linux (89px against 87px), where the page was right both times. */
   {
     const r = await evaluate(`(async () => {
       if (!napicStatus.ok) await loadNapic();
@@ -1308,7 +1313,7 @@ try {
       await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
       const cells = [...host.querySelectorAll('table')][1].querySelectorAll('tbody tr > td:nth-child(2)');
       const widest = Math.max(...[...cells].map(c => {
-        const words = c.textContent.split(/\\s+/);
+        const words = c.textContent.split(/\\s+/).flatMap(x => x.split(/(?<=-)/)).filter(Boolean);
         const probe = document.createElement('span');
         probe.style.cssText = 'position:absolute;white-space:nowrap;visibility:hidden';
         probe.className = 'caption';
@@ -1317,13 +1322,14 @@ try {
         probe.remove();
         return w;
       }));
-      const col = cells[0].getBoundingClientRect().width;
+      const cs0 = getComputedStyle(cells[0]);
+      const col = cells[0].getBoundingClientRect().width - parseFloat(cs0.paddingLeft) - parseFloat(cs0.paddingRight);
       host.remove();
       return { col, widest };
     })()`);
     if (r.skip) fail('the NAPIC dataset did not load, so the type column could not be checked');
-    else if (!(r.col >= r.widest)) fail(`the NAPIC type column is ${Math.round(r.col)}px at 358px, narrower than its longest word (${Math.round(r.widest)}px) — words break inside`, r);
-    else ok(`the NAPIC type column holds its longest word at 358px — ${Math.round(r.col)}px`, r);
+    else if (!(r.col + 1 >= r.widest)) fail(`the NAPIC type column holds ${Math.round(r.col)}px of text at 358px, narrower than its longest word (${Math.round(r.widest)}px) — words break inside`, r);
+    else ok(`the NAPIC type column holds its longest word at 358px — ${Math.round(r.widest)}px in ${Math.round(r.col)}px of text`, r);
   }
 
   /* P11 — the map's scale bar and its label sit inside the box drawn. The
