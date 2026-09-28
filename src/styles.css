@@ -787,6 +787,14 @@ table.dt thead th.chg { color: var(--ink-3); }
    sideways instead of the strip. */
 .seg-group { min-width: 0; }
 .seg-group > .segmented { min-width: 0; flex: 0 1 auto; }
+/* The strip's label keeps its width. Letting the strip shrink left the label
+   as the other shrinkable item, and the fifteen-layer "Shade by" strip on the
+   area screen crushed it to "Sha / de / by" at 1440px and one letter a line
+   on a phone. */
+.seg-group > .caption { flex: none; white-space: nowrap; }
+/* Where the strip wraps into a column (below 768px, as .segmented does), the
+   label goes above it rather than centred halfway down a 600px list. */
+@media (max-width: 768px) { .seg-group { flex-wrap: wrap; } }
 /* Anchors as well as buttons. mySubnav builds real links — so they survive a
    new tab, a copy, and a screen reader asking what they are — but every rule
    here was scoped to `button`, so the strip rendered as six underlined words
@@ -1364,6 +1372,13 @@ table.dt .num, .num { overflow-wrap: normal; }
 .log-list { list-style: none; padding: 0 0 0 12px; margin: 0;
   border-left: 2px solid var(--grid); display: flex; flex-direction: column; gap: 6px; }
 .log-list li { margin: 0; }
+/* The comparables register and a locality's recorded transactions keep their
+   words whole. .caption breaks anywhere so a 62-character XBRL tag cannot push
+   a page sideways, which also let these columns shrink to a letter's width: at
+   1440px the register read "Transa / cted / land / price" and both read
+   "docume / nt exists". Here a table scrolls inside its wrapper instead, and a
+   word breaks only where it cannot fit whole. */
+table.dt.register-dt td.caption { overflow-wrap: break-word; }
 
 /* --------------------------------------------------------------- footer */
 .footer { border-top: 1px solid var(--line); background: var(--surface); padding: var(--xxl) 0 var(--xl); margin-top: var(--xxl); }
@@ -1653,8 +1668,9 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   table.dt.status-dt td { min-width: 0 !important; max-width: none !important; border-bottom: 0; padding: 4px 16px; }
   table.dt.status-dt tr { padding: 12px 0; border-bottom: 1px solid var(--grid); }
   table.dt.status-dt tr:last-child { border-bottom: 0; }
-  /* The path is the row's one link; on its own line it can take a finger. */
-  table.dt.status-dt td a { display: inline-block; padding: 12px 0; }
+  /* The path is the row's one link; on its own line it can take a finger.
+     44px wide as well as tall: "/status" measured 42px and "/learn" 36px. */
+  table.dt.status-dt td a { display: inline-block; padding: 12px 0; min-width: 44px; }
 }
 
 .pillbar { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-sunk); }

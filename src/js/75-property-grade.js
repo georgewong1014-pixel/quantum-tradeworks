@@ -1418,7 +1418,9 @@ VIEWS.sarawak = () => {
     State.sarawakExposure = [...recs, { id: co.id, tk: co.tk, name: co.name,
       theme: thSel.value, fields: {}, evidence: 'user', source: co.source,
       hasFundamentals: co.hasFundamentals,
-      added: new Date().toISOString().slice(0, 10) }];
+      /* The reader's calendar day, not UTC's: before 08:00 in Kuching the UTC
+         date is yesterday's. caseRaisedAt formats on the local clock. */
+      added: caseRaisedAt(new Date()).slice(0, 10) }];
     saveExposures(); toast(`${co.tk} added — the ${EXPOSURE_FIELDS.length} exposure fields are still empty`); render();
   } }, 'Add'));
   add.append(addRow);
@@ -1560,6 +1562,19 @@ function usePropertyReport(id) {
   return true;
 }
 
+/* THE CONTROL BEING USED SURVIVES THE REDRAW.
+   Every control on these pages saves and calls render(), which replaces the
+   page — and the control that had focus went with it. Focus fell to <body>:
+   a price typed and Tabbed past left the keyboard at "Skip to content" at the
+   top of the page, an evidence grade changed with an arrow key could not be
+   changed again, and a checklist answer, an area-screen layer, Undo and every
+   Cash Wheel field did the same. renderKeepFocus (40-views-discover.js)
+   returns focus to the new control with the same id, and each control that
+   redraws carries one. A typed field is redrawn a tick later, once Tab has
+   moved focus on, so focus lands where the reader went rather than back on
+   the field they left. */
+const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
+
 VIEWS.property = () => {
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
@@ -1637,7 +1652,10 @@ VIEWS.property = () => {
 
   onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline;margin-top:var(--md)' }, [
     el('div', {}, [
-      el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
+      /* The card's heading. It was a paragraph, so the page went from its h1
+         straight to the h4 below ("Why this cannot be graded") — the first
+         heading a screen reader met after the title skipped two levels. */
+      el('h3', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
         el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${gradeTone})` }, g.grade),
         el('span', { style: 'font-size:15px;font-weight:600' }, g.verdict),
@@ -1694,7 +1712,12 @@ VIEWS.property = () => {
     const rest = ordered.slice(3);
 
     onePage.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' },
-      g.grade === 'U' ? 'Why this cannot be graded' : 'Why this is conditional'));
+      /* Named for the grade it sits under. Every graded result read "Why this
+         is conditional", so a D — "Does not meet the selected underwriting
+         criteria" — and an A that "Meets" them both called their findings
+         conditions. Conditional is the B verdict's word and only B's. */
+      ({ U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade]
+        || 'Why this falls short')));
     const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:13px' }, [
       el('span', { class: x.severity === 'critical' ? 'chip chip-bronze' : null,
         style: x.severity === 'critical' ? 'margin-right:6px' : 'display:none' }, 'Blocking'),
@@ -1853,7 +1876,7 @@ VIEWS.property = () => {
           toast(`An empty box is not zero — it stays at ${num0(b[k])}. Type 0 if you mean nought.`);
           return;
         }
-        b[k] = num0(e.target.value); b.assessed = true; saveBorrower(); render();
+        b[k] = num0(e.target.value); b.assessed = true; saveBorrower(); renderAfterTyping();
       } }));
     return f;
   };
@@ -1871,7 +1894,7 @@ VIEWS.property = () => {
   const crField = el('div', { class: 'field', style: 'margin-top:10px' });
   crField.append(el('label', { for: 'b-credit' }, 'Credit record (CCRIS)'));
   const crSel = el('select', { class: 'select', id: 'b-credit',
-    onchange: e => { b.creditReview = e.target.value; b.assessed = true; saveBorrower(); render(); } });
+    onchange: e => { b.creditReview = e.target.value; b.assessed = true; saveBorrower(); renderKeepFocus(); } });
   CREDIT_STATES.forEach(c => crSel.append(el('option', { value: c.id, selected: b.creditReview === c.id ? '' : null }, c.label)));
   crField.append(crSel);
   crField.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
@@ -1881,8 +1904,8 @@ VIEWS.property = () => {
   bd.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Documents gathered'));
   BORROWER_DOCS.forEach(doc => {
     const lab = el('label', { class: 'checkline', style: 'gap:8px;display:flex;margin-top:4px' });
-    lab.append(el('input', { type: 'checkbox', checked: b.docs?.[doc.k] === 'provided' ? '' : null,
-      onchange: e => { b.docs = { ...(b.docs || {}), [doc.k]: e.target.checked ? 'provided' : 'missing' }; b.assessed = true; saveBorrower(); render(); } }));
+    lab.append(el('input', { type: 'checkbox', id: `b-doc-${doc.k}`, checked: b.docs?.[doc.k] === 'provided' ? '' : null,
+      onchange: e => { b.docs = { ...(b.docs || {}), [doc.k]: e.target.checked ? 'provided' : 'missing' }; b.assessed = true; saveBorrower(); renderKeepFocus(); } }));
     lab.append(el('span', {}, doc.label));
     bd.append(lab);
   });
@@ -1991,7 +2014,7 @@ VIEWS.property = () => {
     /* The project list is city-scoped, so a selection from the previous city is
        no longer on offer and must not stay selected behind the scenes. */
     if (!projectsForCity(d.city).some(x => x.id === d.projectId)) d.projectId = customProjectId(d.city);
-    saveDeal(); syncPropertyUrl(d); render();
+    saveDeal(); syncPropertyUrl(d); renderKeepFocus();
   } });
   SARAWAK_CITIES.forEach(c => citySel.append(el('option', { value: c.id, selected: d.city === c.id ? '' : null }, c.name)));
   cityField.append(citySel);
@@ -2001,7 +2024,7 @@ VIEWS.property = () => {
   const distField = el('div', { class: 'field', style: 'margin-top:10px' });
   distField.append(el('label', { for: 'dealDistrict' }, 'District or neighbourhood'));
   const distSel = el('select', { class: 'select', id: 'dealDistrict',
-    onchange: e => { d.district = e.target.value; saveDeal(); syncPropertyUrl(d); render(); } });
+    onchange: e => { d.district = e.target.value; saveDeal(); syncPropertyUrl(d); renderKeepFocus(); } });
   cityDef.districts.forEach(x => distSel.append(el('option', { value: x, selected: d.district === x ? '' : null }, x)));
   distField.append(distSel);
   loc.append(distField);
@@ -2137,8 +2160,11 @@ VIEWS.property = () => {
        remembered was "developer supplied" — so the dropdown made them overstate
        it. "Estimated" and "assumed" are honest answers and belong here. */
     EVIDENCE.filter(e => e.rank >= 0).forEach(e => evSel.append(el('option', { value:e.id, selected: e.id === 'user' ? '' : null }, e.label)));
+    /* Today on the reader's calendar. The UTC date is yesterday's in Kuching
+       until 08:00, and a record accepted with the default was dated a day
+       before it was observed. caseRaisedAt formats on the local clock. */
     const dateInp = el('input', { class:'input input-sm', type:'date',
-      value: new Date().toISOString().slice(0, 10), 'aria-label':'Date observed' });
+      value: caseRaisedAt(new Date()).slice(0, 10), 'aria-label':'Date observed' });
     /* The field that decides whether this is evidence or a note. Optional at
        capture, because a number nobody records is worth less than one recorded
        without its source — but the register says which it is, permanently. */
@@ -2194,7 +2220,7 @@ VIEWS.property = () => {
   const typeField = el('div', { class: 'field', style: 'margin-top:10px' });
   typeField.append(el('label', { for: 'dealType' }, 'Property type'));
   const typeSel = el('select', { class: 'select', id: 'dealType',
-    onchange: e => { d.propertyType = e.target.value; saveDeal(); syncPropertyUrl(d); render(); } });
+    onchange: e => { d.propertyType = e.target.value; saveDeal(); syncPropertyUrl(d); renderKeepFocus(); } });
   PROPERTY_TYPES.forEach(x => typeSel.append(el('option', { value: x, selected: d.propertyType === x ? '' : null }, x)));
   typeField.append(typeSel);
   loc.append(typeField);
@@ -2213,7 +2239,7 @@ VIEWS.property = () => {
   const classSel = el('select', { class: 'select', id: 'dealClass',
     onchange: e => {
       d.propertyClassOverride = e.target.value || null;
-      markTouched(d, 'propertyClassOverride'); saveDeal(); render();
+      markTouched(d, 'propertyClassOverride'); saveDeal(); renderKeepFocus();
     } });
   classSel.append(el('option', { value: '', selected: d.propertyClassOverride ? null : '' },
     `Follow the property type — ${PROPERTY_CLASSES[inferredClass].label}`));
@@ -2232,7 +2258,7 @@ VIEWS.property = () => {
   const titleField = el('div', { class: 'field', style: 'margin-top:10px' });
   titleField.append(el('label', { for: 'dealTitle' }, 'Title class'));
   const titleSel = el('select', { class: 'select', id: 'dealTitle',
-    onchange: e => { d.titleType = e.target.value; saveDeal(); render(); } });
+    onchange: e => { d.titleType = e.target.value; saveDeal(); renderKeepFocus(); } });
   TITLE_TYPES.forEach(t => titleSel.append(el('option', { value: t.id, selected: d.titleType === t.id ? '' : null }, t.label)));
   titleField.append(titleSel);
   const tDef = TITLE_TYPES.find(t => t.id === d.titleType);
@@ -2251,9 +2277,22 @@ VIEWS.property = () => {
   if (d.titleType !== 'strata') {
     const leaseField = el('div', { class: 'field', style: 'margin-top:10px' });
     leaseField.append(el('label', { for: 'dealLease' }, 'Years remaining on the lease (0 if freehold)'));
+    /* On change, as every other figure on the rail is, and never from an
+       empty box. It re-rendered the page on each keystroke, so focus left the
+       field after the first digit — typing 45 recorded 4 and dropped the
+       cursor on the page — and clearing the box to retype recorded 0, which
+       the label defines as freehold and the financeability score rates as the
+       best tenure there is. */
     leaseField.append(el('input', { class: 'input', id: 'dealLease', type: 'number', min: '0', max: '999',
       value: String(d.remainingLease ?? 0),
-      oninput: e => { d.remainingLease = num0(e.target.value); saveDeal(); render(); } }));
+      onchange: e => {
+        if (String(e.target.value).trim() === '') {
+          e.target.value = String(d.remainingLease ?? 0);
+          toast(`An empty box is not zero — the lease stays at ${num0(d.remainingLease)} years. Type 0 if it is freehold.`);
+          return;
+        }
+        d.remainingLease = num0(e.target.value); saveDeal(); renderAfterTyping();
+      } }));
     loc.append(leaseField);
   }
   rail.append(loc);
@@ -2276,7 +2315,7 @@ VIEWS.property = () => {
     } else {
       d.evidence = { ...(d.evidence || {}), price:'user', rent:'user' };
     }
-    saveDeal(); syncPropertyUrl(d); render();
+    saveDeal(); syncPropertyUrl(d); renderKeepFocus();
   } });
   cityProjects.forEach(pr2 => ps.append(el('option', { value: pr2.id, selected: pr2.id === d.projectId ? '' : null },
     `${pr2.name} — ${pr2.area}`)));
@@ -2361,8 +2400,8 @@ VIEWS.property = () => {
          commitments and cadences as well as amounts. */
       if (step === 'bool') {
         const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;align-items:flex-start' });
-        l.append(el('input', { type: 'checkbox', checked: d[k] ? '' : null,
-          onchange: e => { d[k] = e.target.checked; markTouched(d, k); saveDeal(); render(); } }));
+        l.append(el('input', { type: 'checkbox', id: `d-${k}`, checked: d[k] ? '' : null,
+          onchange: e => { d[k] = e.target.checked; markTouched(d, k); saveDeal(); renderKeepFocus(); } }));
         l.append(el('span', {}, ptr(`in.${k}`, label)));
         rail.append(l);
         return;
@@ -2370,7 +2409,7 @@ VIEWS.property = () => {
       if (Array.isArray(step)) {
         f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
         const s = el('select', { class: 'select select-sm', id: `d-${k}`,
-          onchange: e => { d[k] = e.target.value; markTouched(d, k); saveDeal(); render(); } });
+          onchange: e => { d[k] = e.target.value; markTouched(d, k); saveDeal(); renderKeepFocus(); } });
         step.forEach(o => s.append(el('option', { value: o, selected: d[k] === o ? '' : null }, o)));
         f.append(s);
         rail.append(f);
@@ -2392,7 +2431,7 @@ VIEWS.property = () => {
             return;
           }
           d[k] = k === 'holdYears' ? normHoldYears(e.target.value) : num0(e.target.value);
-          markTouched(d, k); saveDeal(); render();
+          markTouched(d, k); saveDeal(); renderAfterTyping();
         } }));
       /* Said beside the number rather than only in the evidence section below,
          because this is where a reader decides whether to trust it. */
@@ -2418,7 +2457,7 @@ VIEWS.property = () => {
              untouched default at that point — but only upward. Selecting
              "illustrative default" leaves it exactly what it is. */
           if (e.target.value !== 'illustrative_default') markTouched(d, k);
-          saveDeal(); render();
+          saveDeal(); renderKeepFocus();
         } });
       const shown = shownEvidence(d, k);
       EVIDENCE.forEach(ev => sel.append(el('option', { value: ev.id,
@@ -2439,9 +2478,9 @@ VIEWS.property = () => {
      the reader to discover it. */
   const langRow = el('div', { class: 'row', style: 'gap:6px;margin-bottom:10px;flex-wrap:wrap' });
   LANGUAGES.forEach(L => langRow.append(el('button', {
-    class: 'btn btn-ghost btn-sm', 'aria-pressed': lang() === L.id ? 'true' : 'false',
+    id: `lang-${L.id}`, class: 'btn btn-ghost btn-sm', 'aria-pressed': lang() === L.id ? 'true' : 'false',
     style: lang() === L.id ? 'border-color:var(--brand);color:var(--brand)' : '',
-    onclick: () => { State.lang = L.id; store.write('lang', L.id); render(); },
+    onclick: () => { State.lang = L.id; store.write('lang', L.id); renderKeepFocus(); },
   }, L.native)));
   free.append(langRow);
 
@@ -2758,7 +2797,7 @@ VIEWS.property = () => {
   resField.append(el('label', { for: 'd-reserveMonths' }, 'Months of reserve to hold'));
   resField.append(el('input', { class: 'input input-inline', id: 'd-reserveMonths', type: 'number',
     min: '1', max: '24', step: '1', value: String(m.reserveMonths), style: 'text-align:right',
-    onchange: e => { d.reserveMonths = num0(e.target.value); markTouched(d, 'reserveMonths'); saveDeal(); render(); } }));
+    onchange: e => { d.reserveMonths = num0(e.target.value); markTouched(d, 'reserveMonths'); saveDeal(); renderAfterTyping(); } }));
   resRow.append(resField);
   resRow.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
     `At the entered rent and costs, holding this property burns ${fmtAmount(m.burnWithRent, 'MYR')} a month with rent still coming in and ${fmtAmount(m.burnWithoutRent, 'MYR')} a month with none. `
@@ -2807,9 +2846,15 @@ VIEWS.property = () => {
     const row = el('div', { style: 'padding:10px 0;border-top:1px solid var(--line)' });
     row.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:flex-start' }, [
       el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:500;margin:0' }, ptr(`chk.${c.id}`, c.q)),
-      el('div', { class: 'segmented', style: 'flex:none' }, ['yes', 'no', 'unknown'].map(v =>
-        el('button', { 'aria-selected': d.checks?.[c.id] === v ? 'true' : 'false',
-          onclick: () => { d.checks = { ...(d.checks || {}), [c.id]: v }; saveDeal(); render(); } },
+      /* A group named by its question, and the answer given carried by
+         aria-pressed. Ten rows of "Yes", "No", "Not sure" reached a screen
+         reader with no question attached and no word of which was chosen —
+         aria-selected, which the stylesheet keys on, means nothing on a
+         plain button. */
+      el('div', { class: 'segmented', style: 'flex:none', role: 'group', 'aria-label': ptr(`chk.${c.id}`, c.q) }, ['yes', 'no', 'unknown'].map(v =>
+        el('button', { 'aria-selected': d.checks?.[c.id] === v ? 'true' : 'false', 'aria-pressed': d.checks?.[c.id] === v ? 'true' : 'false',
+          id: `chk-${c.id}-${v}`,
+          onclick: () => { d.checks = { ...(d.checks || {}), [c.id]: v }; saveDeal(); renderKeepFocus(); } },
           v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Not sure'))),
     ]));
     row.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `${c.why} · Confirm with: ${c.who}`));
@@ -2825,11 +2870,11 @@ VIEWS.property = () => {
     if (ans) {
       const evRow = el('div', { class: 'row', style: 'gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap' });
       evRow.append(el('span', { class: 'metaline' }, 'How you established this:'));
-      const evSel = el('select', { class: 'select select-sm', 'aria-label': `Evidence for: ${c.q}` });
+      const evSel = el('select', { class: 'select select-sm', id: `chk-ev-${c.id}`, 'aria-label': `Evidence for: ${c.q}` });
       EVIDENCE.forEach(ev => evSel.append(el('option', { value: ev.id,
         selected: (d.checkEvidence?.[c.id] || 'assumed') === ev.id ? '' : null }, ptr(`ev.${ev.id}`, ev.label))));
       evSel.addEventListener('change', e => {
-        d.checkEvidence = { ...(d.checkEvidence || {}), [c.id]: e.target.value }; saveDeal(); render();
+        d.checkEvidence = { ...(d.checkEvidence || {}), [c.id]: e.target.value }; saveDeal(); renderKeepFocus();
       });
       evRow.append(evSel);
       if ((d.checkEvidence?.[c.id] || 'assumed') === 'assumed')

@@ -339,6 +339,217 @@ try {
     console.log('ok    every projection is carried by a backup');
   }
 
+  /* ---- bugfix: grade-area-registers ---- */
+  /* 7 — a register log that is not a list of events, or a name that is not a
+         string, is read as none: the app boots and recording still works.
+         A restored file writes these keys as it finds them. vl.registerLog
+         holding {} made loadRegisterLog() throw at the top level of the one
+         script, and every page came up blank; a numeric vl.registerActor made
+         every write throw inside logRegister. */
+  {
+    const CORRUPT = [
+      ['registerLog', {}], ['registerLog', null], ['registerLog', [null]], ['registerLog', 'abc'],
+      ['registerLog', [{ seq: 1, at: '2026-09-01T00:00:00Z', entity: 'constructor', op: 'add', id: 'x' }]],
+      ['registerActor', 5],
+    ];
+    const bad = [];
+    for (const [k, v] of CORRUPT) {
+      await evaluate(`(() => { ['registerLog','registerActor','observations','areaProfiles','demand'].forEach(x => localStorage.removeItem('vl.' + x));
+        localStorage.setItem('vl.' + ${JSON.stringify(k)}, ${JSON.stringify(JSON.stringify(v))}); return true; })()`);
+      await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
+      await sleep(2500);
+      const r = await evaluate(`(() => {
+        const h1 = document.querySelector('main h1')?.textContent || '';
+        let recorded = false, undo = null;
+        try {
+          const before = registerLog().length;
+          addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 1, date:'2026-05-01', evidence:'user' });
+          recorded = registerLog().length === before + 1;
+          undo = canUndoRegister();
+        } catch (e) { recorded = 'threw: ' + e.message; }
+        return JSON.stringify({ h1, recorded, undo });
+      })()`).catch(e => JSON.stringify({ h1: '', recorded: 'eval threw: ' + e.message.split('\n')[0] }));
+      const o = JSON.parse(r);
+      if (!/Sarawak comparables register/.test(o.h1) || o.recorded !== true || o.undo !== true)
+        bad.push(`vl.${k} = ${JSON.stringify(v)}: ${r}`);
+    }
+    await evaluate(`(() => { ['registerLog','registerActor','observations','areaProfiles','demand'].forEach(x => localStorage.removeItem('vl.' + x)); return true; })()`);
+    if (bad.length) fail('a malformed register log or recorder name blanks the page or stops recording', bad.join('\n      '));
+    else console.log(`ok    a malformed register log or recorder name is read as none — ${CORRUPT.length} cases boot and record`);
+  }
+
+  /* 8 — the record drawer's fields have names, and its times are the
+         reader's. The five labels stood beside inputs with no id; the history
+         and "Recorded" printed the stored UTC minute with no zone. */
+  {
+    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
+    await sleep(2500);
+    await send('Emulation.setTimezoneOverride', { timezoneId: 'Asia/Kuching' }, sessionId);
+    const r = JSON.parse(await evaluate(`(async () => {
+      const rec = addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 420000, date:'2026-05-01', evidence:'user', sourceRef:'SPA 1' });
+      /* A record keyed at 04:30 on the 28th, Kuching time — 20:30 on the 27th in UTC. */
+      const k = State.observations.findIndex(x => x.id === rec.id);
+      State.observations[k] = { ...State.observations[k], recordedAt: '2026-09-27 20:30' };
+      render(); openObservationDrawer(State.observations[k]);
+      await new Promise(res => setTimeout(res, 300));
+      const box = document.getElementById('drawer') || document.querySelector('[role=dialog]');
+      const fields = [...box.querySelectorAll('input, select, textarea')];
+      const unnamed = fields.filter(n => !(n.labels && [...n.labels].some(l => l.textContent.trim())) && !n.getAttribute('aria-label')).length;
+      const dts = [...box.querySelectorAll('dt')];
+      const recorded = dts.find(d => d.textContent === 'Recorded')?.nextElementSibling?.textContent || '';
+      const hist = registerEventText({ op: 'add', at: '2026-09-27T20:30:00.000Z' });
+      closeDrawer();
+      return JSON.stringify({ n: fields.length, unnamed, recorded, hist });
+    })()`));
+    await send('Emulation.setTimezoneOverride', { timezoneId: '' }, sessionId);
+    await evaluate(`(() => { ['registerLog','observations'].forEach(x => localStorage.removeItem('vl.' + x)); return true; })()`);
+    if (!r.n || r.unnamed) fail(`${r.unnamed} of ${r.n} fields in the record drawer have no accessible name`, r);
+    else if (!/^2026-09-28 04:30 UTC\+08:00/.test(r.recorded) || !/^2026-09-28 04:30 UTC\+08:00/.test(r.hist))
+      fail('the record drawer prints a UTC time with no zone, not the reader\'s clock', r);
+    else console.log(`ok    the record drawer names all ${r.n} fields and states its times on the reader's clock`);
+  }
+  /* 9 — the area screen's legend is the colour each value is drawn in. With
+         one area recorded, the point took the middle step and the legend
+         showed both ends of the ramp, each labelled with that one value. */
+  {
+    await send('Page.navigate', { url: `${BASE}/property/areas` }, sessionId);
+    await sleep(2500);
+    const r = JSON.parse(await evaluate(`(async () => {
+      setAreaAttr('kuching', 'Tabuan', 'lease', { value: 70, class: '', source: 'unstated', asOf: '', ref: '' });
+      State.areaScreen = { ...State.areaScreen, city: 'kuching', layer: 'lease' }; render();
+      await new Promise(res => setTimeout(res, 300));
+      const layer = LAYER_BY_ID.lease;
+      const drawn = layerColour(layer, layerBands(layer, 'kuching', Object.keys(sarawakGeo?.cities?.kuching?.areas || {})), 70);
+      const legend = [...document.querySelectorAll('main .card .caption')].filter(c => /here\\)/.test(c.textContent))
+        .map(c => ({ text: c.textContent, fill: c.firstElementChild?.style.background || '' }));
+      ['registerLog', 'areaProfiles'].forEach(x => localStorage.removeItem('vl.' + x));
+      return JSON.stringify({ drawn, legend });
+    })()`));
+    if (!r.drawn || !r.legend.length || r.legend.some(x => x.fill !== r.drawn))
+      fail('the area screen legend shows a colour no recorded area is drawn in', r);
+    else console.log(`ok    the area screen legend is the colour the one recorded value is drawn in — ${r.drawn}`);
+  }
+  /* 10 — the comparables register's standing tiles add up to its count. A
+          worked-example row has a standing of its own and had no tile, so
+          with the example loaded "17 records" sat over tiles totalling 1. */
+  {
+    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
+    await sleep(2500);
+    const r = JSON.parse(await evaluate(`(async () => {
+      seedWorkedExample();
+      addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 1, date:'2026-05-01', evidence:'user', sourceRef:'x' });
+      render(); await new Promise(res => setTimeout(res, 300));
+      const card = [...document.querySelectorAll('main .card')].find(c => /^\\d+ records?$/.test(c.querySelector('h3')?.textContent || ''));
+      const n = parseInt(card?.querySelector('h3')?.textContent, 10);
+      const sum = [...(card?.querySelectorAll('.panel') || [])].reduce((a, p) => a + (parseInt(p.textContent.replace(/^\\D+/, ''), 10) || 0), 0);
+      clearWorkedExample(); State.observations = []; saveObservations();
+      ['registerLog', 'observations', 'areaProfiles'].forEach(x => localStorage.removeItem('vl.' + x));
+      return JSON.stringify({ n, sum });
+    })()`));
+    if (!r.n || r.sum !== r.n) fail(`the comparables register counts ${r.n} records over standing tiles totalling ${r.sum}`, r);
+    else console.log(`ok    the comparables register's standing tiles add up to its ${r.n} records`);
+  }
+  /* 11 — a second tab's events do not share this tab's sequence numbers. The
+          counter was read once at boot; another tab writing the same key in
+          the meantime was handed the same numbers, and undo — which marks a
+          number reversed — then passed over one of the pair for good. */
+  {
+    const r = JSON.parse(await evaluate(`(() => {
+      ['registerLog', 'observations'].forEach(x => localStorage.removeItem('vl.' + x));
+      State.observations = []; loadRegisterLog();
+      const a = addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 1, date:'2026-05-01', evidence:'user' });
+      /* What another tab, open since before a was recorded, writes next. */
+      const other = { seq: registerLog().length + 1, at: new Date().toISOString(), actor: null, entity: 'observation', op: 'add',
+        id: 'obs-other-tab', after: { id: 'obs-other-tab', city: 'kuching', area: 'Tabuan', kind: 'sold-price', value: 2, date: '2026-05-02' } };
+      localStorage.setItem('vl.registerLog', JSON.stringify([...registerLog(), other]));
+      addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 3, date:'2026-05-03', evidence:'user' });
+      const seqs = registerLog().map(e => e.seq);
+      undoLastRegisterChange();
+      const reachable = lastUndoableEvent()?.id || null;
+      ['registerLog', 'observations'].forEach(x => localStorage.removeItem('vl.' + x));
+      State.observations = []; loadRegisterLog();
+      return JSON.stringify({ seqs, reachable, a: a.id });
+    })()`));
+    if (new Set(r.seqs).size !== r.seqs.length) fail('two events in the register log share a sequence number', r);
+    else if (r.reachable !== 'obs-other-tab') fail('undo passes over an event another tab wrote', r);
+    else console.log(`ok    events from a second tab keep their own sequence — ${r.seqs.join(', ')} — and undo still reaches them`);
+  }
+  /* 12 — the keyboard keeps its place on the area screen and the register.
+          Record, a layer, and Undo each redrew the page and dropped focus on
+          <body>, so a keyboard reader who opened a locality's recorder had
+          to Tab from the top of the page to reach it. */
+  {
+    const press = async () => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', windowsVirtualKeyCode: 13, text: '\r' }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+      await sleep(300);
+    };
+    const at = () => evaluate(`document.activeElement?.id || document.activeElement?.tagName || null`);
+    const out = {};
+    await send('Page.navigate', { url: `${BASE}/property/areas` }, sessionId);
+    await sleep(2500);
+    await evaluate(`(() => { [...document.querySelectorAll('main table button')].find(b => b.textContent === 'Record').focus(); return true; })()`);
+    await press(); out.record = await at();
+    await evaluate(`(() => { document.querySelectorAll('main .segmented button')[1].focus(); return true; })()`);
+    await press(); out.layer = await at();
+    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
+    await sleep(2500);
+    await evaluate(`(() => { addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 1, date:'2026-05-01', evidence:'user' });
+      addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 2, date:'2026-05-02', evidence:'user' }); render();
+      [...document.querySelectorAll('main button')].find(b => b.textContent === 'Undo last change').focus(); return true; })()`);
+    await press(); out.undo = await at();
+    await evaluate(`(() => { ['registerLog', 'observations'].forEach(x => localStorage.removeItem('vl.' + x)); State.observations = []; return true; })()`);
+    const lost = [];
+    if (!/^area-rec-/.test(out.record)) lost.push(`Record → ${out.record}`);
+    if (!/^af-layer-/.test(out.layer)) lost.push(`a layer → ${out.layer}`);
+    if (out.undo !== 'register-undo' && out.undo !== 'registerActorInput') lost.push(`Undo → ${out.undo}`);
+    if (lost.length) fail('focus falls out of the page on the area screen or the register', lost.join('; '));
+    else console.log(`ok    focus stays on the control pressed — Record, a layer, Undo (${out.record}, ${out.layer}, ${out.undo})`);
+  }
+  /* 13 — the comparables table keeps its words whole and fits its card at
+          1440px. .caption breaks anywhere, which let the prose columns shrink
+          to a letter's width: the table read "Transa / cted / land / price"
+          and "docume / nt exists", and still ran 12px past its wrapper, over
+          the Open button. */
+  {
+    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
+    await sleep(2500);
+    const r = JSON.parse(await evaluate(`(async () => {
+      seedWorkedExample(); render(); await new Promise(res => setTimeout(res, 300));
+      const t = [...document.querySelectorAll('main table.dt')].find(x => /Standing/.test(x.querySelector('thead')?.textContent || ''));
+      const ctx = document.createElement('canvas').getContext('2d');
+      const broken = [];
+      for (const td of t.querySelectorAll('td.caption')) {
+        const cs = getComputedStyle(td);
+        ctx.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+        const room = td.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        const w = td.textContent.split(/\\s+/).filter(Boolean).find(x => ctx.measureText(x).width > room + 1);
+        if (w) broken.push(w);
+      }
+      const fit = { table: Math.round(t.getBoundingClientRect().width), wrap: t.parentElement.clientWidth };
+      /* A locality's recorded transactions, the same words in the same kind
+         of cell, on the area screen. */
+      navigate('/property/areas'); State.areaScreen = { ...State.areaScreen, city: 'kuching', editing: 'Tabuan' }; render();
+      await new Promise(res => setTimeout(res, 300));
+      const lt = [...document.querySelectorAll('main table.dt')].find(x => /Licence/.test(x.querySelector('thead')?.textContent || ''));
+      for (const td of lt ? lt.querySelectorAll('td.caption') : []) {
+        const cs = getComputedStyle(td);
+        ctx.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+        const room = td.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        const w = td.textContent.split(/\\s+/).filter(Boolean).find(x => ctx.measureText(x).width > room + 1);
+        if (w) broken.push('transactions: ' + w);
+      }
+      State.areaScreen.editing = null;
+      clearWorkedExample(); ['registerLog', 'observations', 'areaProfiles'].forEach(x => localStorage.removeItem('vl.' + x));
+      return JSON.stringify({ broken: [...new Set(broken)].slice(0, 6), transactions: !!lt, ...fit });
+    })()`));
+    if (!r.transactions) fail('the recorded-transactions table did not render for the worked example', r);
+    else if (r.broken.length) fail('a register table breaks words mid-word at 1440px', r);
+    else if (r.table > r.wrap) fail(`the comparables table runs ${r.table - r.wrap}px past its card at 1440px`, r);
+    else console.log(`ok    the register tables keep their words whole, and the comparables table fits its card at 1440px (${r.table}/${r.wrap}px)`);
+  }
+  /* ---- end bugfix: grade-area-registers ---- */
+
   console.log(failures
     ? `\n${failures} invariant${failures === 1 ? '' : 's'} broken.`
     : '\nregister holds: record, edit, undo and replay agree across every entity.');

@@ -731,13 +731,13 @@ VIEWS.wheel = () => {
     f.append(el('label', { for: `w-${k}` }, label));
     f.append(el('input', { class: 'input input-inline', id: `w-${k}`, type: 'number', step: step || 1,
       value: String(p[k] ?? 0), style: 'text-align:right',
-      onchange: e => { p[k] = num0(e.target.value); saveWheel(); render(); } }));
+      onchange: e => { p[k] = num0(e.target.value); saveWheel(); renderAfterTyping(); } }));
     return f;
   };
   const cb = (k, label) => {
     const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;margin-top:6px' });
-    l.append(el('input', { type: 'checkbox', checked: p[k] ? '' : null,
-      onchange: e => { p[k] = e.target.checked; saveWheel(); render(); } }));
+    l.append(el('input', { type: 'checkbox', id: `w-${k}`, checked: p[k] ? '' : null,
+      onchange: e => { p[k] = e.target.checked; saveWheel(); renderKeepFocus(); } }));
     l.append(el('span', {}, label));
     return l;
   };
@@ -770,12 +770,12 @@ VIEWS.wheel = () => {
   const qt = el('div', { class: 'field', style: 'margin-top:8px' });
   qt.append(el('label', { for: 'w-qt' }, 'Quote timestamp'));
   qt.append(el('input', { class: 'input', id: 'w-qt', type: 'datetime-local', value: p.quoteTimestamp || '',
-    onchange: e => { p.quoteTimestamp = e.target.value; saveWheel(); render(); } }));
+    onchange: e => { p.quoteTimestamp = e.target.value; saveWheel(); renderKeepFocus(); } }));
   inputs.append(qt);
   const th = el('div', { class: 'field', style: 'margin-top:8px' });
   th.append(el('label', { for: 'w-th' }, 'Underlying thesis status'));
   const ths = el('select', { class: 'select', id: 'w-th',
-    onchange: e => { p.underlyingThesisStatus = e.target.value; saveWheel(); render(); } });
+    onchange: e => { p.underlyingThesisStatus = e.target.value; saveWheel(); renderKeepFocus(); } });
   ['unknown', 'failed', 'review', 'pass'].forEach(v => ths.append(el('option', { value: v, selected: p.underlyingThesisStatus === v ? '' : null }, v)));
   th.append(ths);
   inputs.append(th);
@@ -885,7 +885,7 @@ VIEWS.wheel = () => {
   cyc.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
     el('div', {}, [
       el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'Cycle state'),
-      el('h3', { class: 'h-card', style: 'margin:0' }, stDef.label),
+      el('h3', { class: 'h-card', id: 'wheel-cycle-state', tabindex: '-1', style: 'margin:0' }, stDef.label),
     ]),
     el('span', { class: 'chip', style: 'margin-left:auto' },
       `${legs.length} leg${legs.length === 1 ? '' : 's'} recorded`),
@@ -901,7 +901,9 @@ VIEWS.wheel = () => {
     return f;
   };
   const numFrom = (id) => num0(document.getElementById(id)?.value);
-  const go = (next) => { p.state = next; saveWheel(); render(); };
+  /* The button pressed is usually gone once the state moves, so focus goes to
+     the state it moved to rather than falling to the top of the page. */
+  const go = (next) => { p.state = next; saveWheel(); render(); document.getElementById('wheel-cycle-state')?.focus(); };
 
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
 

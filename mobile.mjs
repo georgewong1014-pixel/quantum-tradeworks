@@ -334,6 +334,64 @@ await sleep(2500);
   const v = r.result?.result?.value;
   if (v) { bad++; console.log(`FAIL 375px /company/AAPL-SEC — stuck strip: ${v}`); }
 }
+/* ---- bugfix: grade-area-registers ---- */
+/* A STRIP'S LABEL ON ONE LINE, AND THE STATUS PATHS 44PX EACH WAY. The area
+   screen's "Shade by" label was the one shrinkable item beside a fifteen-
+   layer strip: it read "Sha / de / by" at 1440px and one letter a line on a
+   phone. The /status path links were 44px tall and as narrow as their text —
+   "/status" 42px, "/learn" 36px. */
+for (const w of [360, 390, 1440]) {
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+  await send('Page.navigate', { url: BASE + '/property/areas' }, sessionId);
+  await sleep(2500);
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    const labels = [...document.querySelectorAll('main .seg-group > .caption')];
+    const wrapped = labels.filter(n => { const lh = parseFloat(getComputedStyle(n).lineHeight) || 18;
+      return n.getBoundingClientRect().height > lh * 1.5; }).map(n => n.textContent + ' ' + Math.round(n.getBoundingClientRect().width) + '×' + Math.round(n.getBoundingClientRect().height) + 'px');
+    return { n: labels.length, wrapped };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || !v.n || v.wrapped.length) { bad++; console.log(`FAIL ${w}px /property/areas — strip labels wrapped: ${v ? v.wrapped.join('; ') || 'no labels found' : 'not measured'}`); }
+}
+await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+await send('Page.navigate', { url: BASE + '/status' }, sessionId);
+await sleep(2500);
+{
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    const links = [...document.querySelectorAll('main table.status-dt td a')];
+    const small = links.filter(a => { const b = a.getBoundingClientRect(); return b.width < 44 || b.height < 44; })
+      .map(a => a.textContent + ' ' + Math.round(a.getBoundingClientRect().width) + '×' + Math.round(a.getBoundingClientRect().height) + 'px');
+    return { n: links.length, small };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || !v.n || v.small.length) { bad++; console.log(`FAIL 390px /status — path links under 44px: ${v ? [...new Set(v.small)].join('; ') || 'no links found' : 'not measured'}`); }
+}
+/* THE AREA RECORDER FITS WHAT SHOWS OF ITS TABLE. It sits in a row spanning
+   all sixteen columns and took the table's 1,674px width, with the cell's
+   nowrap: at 390px every sentence and field ran past the scrolling wrapper,
+   and once the table was scrolled to the Record button the recorder opened
+   1,300px out of sight to the left. */
+await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+await send('Page.navigate', { url: BASE + '/property/areas' }, sessionId);
+await sleep(2500);
+{
+  const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    State.areaScreen.editing = 'Tabuan'; render(); await new Promise(res => setTimeout(res, 300));
+    const h = [...document.querySelectorAll('main h4')].find(x => /^Record for/.test(x.textContent));
+    if (!h) return { err: 'no recorder' };
+    const box = h.closest('.sunk'), wrap = box.closest('.tablewrap');
+    wrap.scrollLeft = wrap.scrollWidth; await new Promise(res => setTimeout(res, 100));
+    const w = wrap.getBoundingClientRect(), q = box.getBoundingClientRect();
+    const spill = [...box.querySelectorAll('p, label, select, input, h4, h5')].filter(n => {
+      const b = n.getBoundingClientRect(); return b.width > 0 && (b.left < w.left - 1 || b.right > w.right + 1 || n.scrollWidth > n.clientWidth + 1 && n.tagName === 'P');
+    }).map(n => n.tagName + ' ' + (n.textContent || n.id).trim().slice(0, 30));
+    State.areaScreen.editing = null; render();
+    return { box: [Math.round(q.left), Math.round(q.right)], wrap: [Math.round(w.left), Math.round(w.right)], spill: spill.slice(0, 4) };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || v.err || v.box[0] < v.wrap[0] || v.box[1] > v.wrap[1] || v.spill.length) { bad++; console.log(`FAIL 390px /property/areas — the recorder does not fit its table: ${JSON.stringify(v)}`); }
+}
+/* ---- end bugfix: grade-area-registers ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);
