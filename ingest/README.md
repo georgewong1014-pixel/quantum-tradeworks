@@ -677,3 +677,119 @@ Supply an end-of-day close and the weighting uses market equity, the discount
 rate corrects, and the base case moves to $111.
 
 A missing price is not a cosmetic gap. It changes the valuation.
+
+<!-- frames -->
+## Weekly and monthly exports, imported as they are
+
+A daily export reaches back only as far as the chart was scrolled. Weeks and
+months built from a 300-session file are too few for a monthly MACD or
+WaveTrend, which need about 40 months to warm up. TradingView exports the
+weekly and monthly charts too, and those files go back years. So a weekly or
+monthly export is imported as it is, beside the daily series, where it
+used to be refused by its file name.
+
+```bash
+node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1W.csv"    # into frames["1W"]
+node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1M.csv"    # into frames["1M"]
+node ingest/history-import.mjs --dir watchlist-shots/                          # 1D, 1W and 1M, each by its name
+node ingest/history-import.mjs --in gold-months.csv --symbol XAUUSD --interval 1M   # a name that does not say
+```
+
+The timeframe is read from TradingView's file name (`1D`, `1W`, `1M`) or given
+with `--interval`. When the name and the flag disagree, the file is refused
+rather than guessed. Any other interval (`240`, `2W`) is still refused.
+
+```text
+frames: { "1W" | "1M": { SYM: {
+  series:      { periodKey: close },
+  ohlc:        { periodKey: [open, high, low] },
+  volume:      { periodKey: volume },
+  meta:        { periodKey: { src, at, adjusted } },
+  corrections: [{ date: periodKey, field, from, to, src, at, prevSrc }]   only when there is one
+} } }
+```
+
+- **The key is the engine's.** A week is filed under `scanWeekOf` (its Monday)
+  and a month under `scanMonthOf` (its 1st). These are the keys the engine's
+  `scanResample` groups daily bars under. The store reads both functions out
+  of `index.html` and does not keep its own copy of them.
+- **Dated by the day rule.** TradingView stamps a period at its opening.
+  OANDA's gold week is stamped Sunday 17:00 New York, and its month is stamped
+  the evening before the month's first session, so the stamp is dated to the
+  period's first session by the same rule as a daily bar. A stamp that opens a
+  day the market does not trade (Friday 17:00) is refused as NON_SESSION_DAY.
+  It is never filed in the week around it. Two stamps in one period are both
+  refused as DUPLICATE_PERIOD, which is what a daily file named as a weekly
+  one looks like.
+- **The store's policy.** Each bar is validated by `scanValidateBar` on that
+  first session. The source rank applies, and a changed field is recorded in
+  the frame's own `corrections`, because the history's own list is read as
+  daily bars. The write is locked and atomic, keeps a `.bak`, and sends refused
+  rows to the rejects file with their `timeframe` and `period`. Each frame is
+  trimmed to the keep; a daily writer's `--keep` never trims frames it did
+  not write.
+- **Final or provisional.** A period is FINAL once its last expected session
+  (the market's last weekday in it) had closed when the file was saved. The
+  week or month still trading is PROVISIONAL, and the next export replaces it
+  without calling that a correction. The capture time is the file's
+  modification time, as for a daily export.
+- **No count is not zero.** A volume of 0 on a period whose price moved is
+  stored as absent. OANDA's monthly gold export writes 0 for every month
+  before March 2006, while its prices range by tens of dollars, and the
+  output names the span.
+
+**What reads them.** Nothing yet. The scanner's weekly and monthly bars are
+still built from the daily series. The imported frames are held so they can
+replace those bars, and the import's output says so.
+
+**Export the whole chart.** An EMA 200 of weeks computed from 300 weeks will
+not match TradingView's, which runs over every week it has loaded. Before
+exporting, scroll the chart back until TradingView has loaded all of its
+history (about 1,300 weeks for OANDA's gold). Do the same for the daily chart.
+
+### Checking the frames, and the overlap
+
+```bash
+node ingest/history-check.mjs                    # the report now lists the frames
+node ingest/history-check.mjs --overlap          # imported weeks and months against those built from daily
+node ingest/history-check.mjs --self-check       # the same, on watchlist-shots/ read into a temporary history
+node ingest/history-check.mjs --self-check --dir exports/ --json
+```
+
+The report lists each frame by symbol and timeframe: the periods it holds,
+the first and last, whether the last is provisional, any bar the engine's
+validation refuses, and any bar filed under a key that is not the engine's.
+A week filed under a Tuesday is one no weekly reading would find, so that
+case exits 2. A frame timeframe the store does not write is named.
+
+`--overlap` compares each imported week and month with the one the engine
+builds from the daily series in the same file, where the daily series
+reaches. It compares open, high, low, close and volume, and gives every
+difference a likely reason:
+
+| Reason | What it means |
+|---|---|
+| partial at the start | the daily series begins inside the period |
+| partial at the end | the period was still trading, or the two files were saved at different instants and the bar moved between them |
+| a holiday | a weekday has no daily bar and the imported volume is exactly the sum of the days held |
+| a daily bar the daily export lacks | the same gap, but the period's own bar includes a session the daily file does not |
+| volume alone | every price agrees and the volumes differ by a sliver; this is listed but does not fail |
+| unexplained | exits 2 |
+
+`--self-check` imports the TradingView exports in a folder one by one into a
+temporary history, using `history-import.mjs` itself. It compares them and
+then removes the temporary history. It never reads or writes
+`data/price-history.json`. It reads personal exports, so it is a local tool.
+CI checks the same code on synthetic files (`history-store-test.mjs`, the
+frames block).
+
+These are the results on the owner's gold exports of 28 September 2026:
+
+- **Weeks:** 56 of the 62 overlapping weeks agree exactly. The rest are the
+  partial first week, three holidays (Christmas, New Year's Day and Good
+  Friday) and the week in progress. One closed week, 21 September, differs
+  in tick volume alone, by 4 in 3,592,881.
+- **Months:** 10 of the 15 overlapping months agree exactly. The rest are
+  the partial first month, the three holiday months and September, which
+  was still trading.
+<!-- /frames -->

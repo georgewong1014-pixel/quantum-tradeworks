@@ -51,14 +51,36 @@
  * export's stamp by the session it opens (epochDate: OANDA's gold bar stamped
  * 17:00 New York on Sunday is Monday's); readingSession dates a reading taken
  * at an instant (a screen capture, a quote).
+ *
+ * WEEKS AND MONTHS, IMPORTED. A daily export reaches back as far as the
+ * chart was scrolled — the owner's gold file holds 300 sessions, fourteen
+ * months — so weekly and monthly bars built from it have too few periods
+ * for a monthly WaveTrend or MACD (about 40 months of warm-up), let alone an
+ * EMA 200 of weeks. TradingView exports the weekly and the monthly chart
+ * too, 300 bars each: nearly six years of weeks, twenty-five of months.
+ * Those bars are held apart from the daily series, under
+ *
+ *   frames: { '1W' | '1M': { SYM: { series, ohlc, volume, meta, corrections? } } }
+ *
+ * each map keyed by the engine's own period key — scanWeekOf (the Monday of
+ * the week) or scanMonthOf (the 1st of the month) of the period's first
+ * session, read out of the engine and never re-derived here. They go
+ * through the same merge as a daily bar (mergeFrameBars): the engine's
+ * validation on the session the stamp opens, the source rank, corrections
+ * recorded (in the frame's own list: the history's corrections are read by
+ * the engine as daily ones), provenance, the rejects file, the trim, the
+ * lock and the atomic write. A period is FINAL only when its last expected
+ * session had closed when the bar was captured (periodStatus): the week or
+ * month still trading when the file was saved is PROVISIONAL, and the next
+ * capture replaces it without calling it a correction.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { readFile, writeFile, copyFile, rm, mkdir, stat, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { withLock } from './lockfile.mjs';
-import { loadEngine, ROOT, renameRetrying } from '../scanner/scan.mjs';
+import { loadEngine, extractEngine, ROOT, renameRetrying } from '../scanner/scan.mjs';
 
 export const HISTORY_PATH = resolve(ROOT, 'data/price-history.json');
 /* Points kept per symbol. The engine's scanDataHealth reads the same number
@@ -74,13 +96,37 @@ export const SOURCE_RANK = Object.freeze({ unknown: 1, screen: 1, paste: 1, impo
 export const sourceKind = (src) => String(src || 'unknown').split(':')[0].toLowerCase();
 export const sourceRank = (src) => SOURCE_RANK[sourceKind(src)] ?? 1;
 
+/* Names the store reads that the worker's list (ENGINE_EXPORTS in
+   scanner/scan.mjs) does not hand out. scanWeekOf is the key the engine
+   groups a week's daily bars under; an imported week is filed under exactly
+   that key, so it comes out of the same region of index.html rather than
+   being written a second time here, where the two could drift apart. When
+   the worker's list carries it, its copy is used and nothing more is
+   evaluated. */
+export const STORE_ENGINE_NAMES = Object.freeze(['scanWeekOf', 'scanMonthOf']);
+export async function loadStoreEngine(htmlPath = join(ROOT, 'index.html')) {
+  const E = await loadEngine(htmlPath);
+  const missing = STORE_ENGINE_NAMES.filter(n => typeof E[n] !== 'function');
+  if (!missing.length) return E;
+  const src = extractEngine(await readFile(htmlPath, 'utf8'));
+  /* isNum is the one name the region borrows (scan.mjs's prelude). A name
+     the region does not define fails here with a ReferenceError naming it. */
+  const more = new Function(`const isNum = (v) => typeof v === 'number' && Number.isFinite(v);\n${src}\nreturn { ${missing.join(', ')} };`)();
+  return { ...E, ...more };
+}
+
 let enginePromise = null;
 /* The engine, loaded once per process from the built index.html. */
-export const engine = () => (enginePromise ||= loadEngine());
+export const engine = () => (enginePromise ||= loadStoreEngine());
 
 /* ------------------------------------------------------------- the file -- */
 
 const MAPS = ['series', 'volume', 'ohlc', 'meta', 'corrections'];
+/* The timeframes held as imported bars, and the maps of one frame (keyed by
+   period), in the order the file writes them. */
+export const FRAMES = Object.freeze(['1W', '1M']);
+export const FRAME_MAPS = Object.freeze(['series', 'ohlc', 'volume', 'meta']);
+const isObj = (o) => !!o && typeof o === 'object' && !Array.isArray(o);
 
 export function emptyHistory() {
   return { schema: 2, generated: null, series: {}, volume: {}, ohlc: {}, meta: {}, corrections: {} };
@@ -99,6 +145,22 @@ export async function loadHistory(path = HISTORY_PATH) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw Object.assign(new Error(`${path} is not a history object`), { code: 'BAD_HISTORY' });
   const h = { ...emptyHistory(), ...doc };
   for (const k of MAPS) if (!h[k] || typeof h[k] !== 'object' || Array.isArray(h[k])) h[k] = {};
+  /* Imported weeks and months, read the same way: a file without them has
+     none, and a map in the wrong shape is empty, as a daily map is. A
+     timeframe the store does not write is kept as it is, for history-check
+     to name. */
+  if ('frames' in h) {
+    if (!isObj(h.frames)) h.frames = {};
+    for (const tf of FRAMES) {
+      if (!(tf in h.frames)) continue;
+      if (!isObj(h.frames[tf])) { h.frames[tf] = {}; continue; }
+      for (const [sym, f] of Object.entries(h.frames[tf])) {
+        if (!isObj(f)) { delete h.frames[tf][sym]; continue; }
+        for (const m of FRAME_MAPS) if (m in f && !isObj(f[m])) f[m] = {};
+        if ('corrections' in f && !Array.isArray(f.corrections)) f.corrections = [];
+      }
+    }
+  }
   h.schema = 2;
   return h;
 }
@@ -108,12 +170,23 @@ export async function loadHistory(path = HISTORY_PATH) {
    versions shows which symbols moved. */
 export function formatHistory(hist) {
   const sortObj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? Object.fromEntries(Object.keys(o).sort().map(k => [k, o[k]])) : o);
+  const block = (pad, entries) => `{${entries.length ? '\n' + entries.map(([key, text]) => `${pad}  ${JSON.stringify(key)}: ${text}`).join(',\n') + `\n${pad}` : ''}}`;
+  /* A frame's maps one per line, under its timeframe and symbol: the same
+     one-line-per-series layout as the daily maps. */
+  const frame = (f) => (isObj(f)
+    ? block('      ', [...FRAME_MAPS.filter(m => m in f), ...Object.keys(f).filter(m => !FRAME_MAPS.includes(m))]
+        .map(m => [m, JSON.stringify(m === 'corrections' ? f[m] : sortObj(f[m]))]))
+    : JSON.stringify(f));
+  const frames = (v) => block('  ', Object.keys(v).sort().map(tf => [tf, isObj(v[tf])
+    ? block('    ', Object.keys(v[tf]).sort().map(s => [s, frame(v[tf][s])]))
+    : JSON.stringify(v[tf])]));
   const out = [];
   for (const [k, v] of Object.entries(hist)) {
     if (MAPS.includes(k) && v && typeof v === 'object') {
       const syms = Object.keys(v);
       out.push(`  ${JSON.stringify(k)}: {${syms.length ? '\n' + syms.map(s => `    ${JSON.stringify(s)}: ${JSON.stringify(k === 'corrections' ? v[s] : sortObj(v[s]))}`).join(',\n') + '\n  ' : ''}}`);
-    } else out.push(`  ${JSON.stringify(k)}: ${JSON.stringify(v)}`);
+    } else if (k === 'frames' && isObj(v)) out.push(`  "frames": ${frames(v)}`);
+    else out.push(`  ${JSON.stringify(k)}: ${JSON.stringify(v)}`);
   }
   return `{\n${out.join(',\n')}\n}\n`;
 }
@@ -160,6 +233,25 @@ export async function saveHistory(path, hist, { now = new Date().toISOString(), 
       const v = hist[k][sym];
       if (!v || (Array.isArray(v) ? !v.length : !Object.keys(v).length)) delete hist[k][sym];
     }
+  }
+  /* An empty frame map, symbol or timeframe is not written, and a history
+     with no imported weeks or months has no frames key at all: a daily-only
+     file is byte for byte what it was. */
+  if ('frames' in hist) {
+    const empty = (v) => !v || (Array.isArray(v) ? !v.length : typeof v === 'object' && !Object.keys(v).length);
+    if (isObj(hist.frames)) {
+      for (const tf of Object.keys(hist.frames)) {
+        const bySym = hist.frames[tf];
+        if (!isObj(bySym)) continue;
+        for (const sym of Object.keys(bySym)) {
+          const f = bySym[sym];
+          if (isObj(f)) for (const m of Object.keys(f)) if (empty(f[m])) delete f[m];
+          if (empty(f)) delete bySym[sym];
+        }
+        if (empty(bySym)) delete hist.frames[tf];
+      }
+    }
+    if (empty(hist.frames)) delete hist.frames;
   }
   hist.symbols = Object.keys(hist.series).length;
   await writeAtomic(path, formatHistory(hist), { beforeRename });
@@ -219,9 +311,26 @@ const metaOf = (source, capturedAt) => (capturedAt ? { src: source, at: captured
      outranked    rows a higher-ranked source already holds differently
      rejected     rows scanValidateBar refused, with its codes
    Running the same merge twice changes nothing the second time. */
-export function mergeBars(hist, symbol, rows, { source, capturedAt = null, market = null, E, now = new Date().toISOString(), tolerance = 1e-6 } = {}) {
-  if (!E?.scanValidateBar) throw new Error('mergeBars needs the engine (E) — validation is the engine\'s, not a second copy');
-  if (!source) throw new Error('mergeBars needs a source name');
+export function mergeBars(hist, symbol, rows, opts = {}) {
+  return mergeRows(hist, symbol, rows, opts, DAILY);
+}
+
+/* What a merge files a row under, and how it judges a held bar. A daily
+   bar is filed under its session and is final once that session closed; an
+   imported week or month (mergeFrameBars) is filed under its period's key
+   and is final once the period's last expected session closed. Everything
+   else — validation, the rank, corrections, the provisional rule — is the
+   one merge below, so the two cannot come to follow different policies. */
+const DAILY = Object.freeze({
+  name: 'mergeBars',
+  keyOf: (r) => r.date,
+  statusOf: (E, market, d, at) => E.scanBarStatus(market, d, at),
+  duplicate: 'DUPLICATE_DATE',
+});
+
+function mergeRows(hist, symbol, rows, { source, capturedAt = null, market = null, E, now = new Date().toISOString(), tolerance = 1e-6 } = {}, how = DAILY) {
+  if (!E?.scanValidateBar) throw new Error(`${how.name} needs the engine (E) — validation is the engine's, not a second copy`);
+  if (!source) throw new Error(`${how.name} needs a source name`);
   const sym = String(symbol);
   const out = { symbol: sym, source, market, added: 0, filled: 0, confirmed: 0, unchanged: 0, superseded: [], corrected: [], outranked: [], rejected: [] };
   const rank = sourceRank(source);
@@ -241,21 +350,24 @@ export function mergeBars(hist, symbol, rows, { source, capturedAt = null, marke
     seenRow.add(sig);
     return true;
   });
+  /* Rows are counted, ordered and held by their key: a daily row's session,
+     or an imported week's or month's period. Two rows for one period are
+     the same ambiguity as two for one date. */
   const count = new Map();
-  list.forEach(r => count.set(r.date, (count.get(r.date) || 0) + 1));
-  list.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  list.forEach(r => { r.key = how.keyOf(r); count.set(r.key, (count.get(r.key) || 0) + 1); });
+  list.sort((a, b) => String(a.key).localeCompare(String(b.key)) || String(a.date).localeCompare(String(b.date)));
   /* FUTURE is judged against the session day that has begun at `now`, not
      the market's calendar date (sessionToday). */
   const today = sessionToday(E, market, now);
   for (const r of list) {
     const bar = { date: r.date, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume };
-    const codes = count.get(r.date) > 1 ? ['DUPLICATE_DATE'] : E.scanValidateBar(bar, { market, now, today });
+    const codes = count.get(r.key) > 1 ? [how.duplicate] : E.scanValidateBar(bar, { market, now, today });
     if (codes.length) { out.rejected.push({ symbol: sym, date: r.date ?? null, codes, source, capturedAt: r.at || null, row: { open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume } }); continue; }
-    const d = r.date, at = r.at || null;
+    const d = r.key, at = r.at || null;
     const held = barAt(hist, sym, d);
     if (!held) { writeBar(hist, sym, d, bar, metaOf(source, at)); out.added++; continue; }
     const heldSrc = held.meta?.src || 'unknown', heldRank = sourceRank(heldSrc);
-    const heldStatus = E.scanBarStatus(market, d, held.meta?.at);
+    const heldStatus = how.statusOf(E, market, d, held.meta?.at);
     /* A reading taken while the session traded was never the session's
        value: any later capture replaces it, whatever its rank. */
     if (heldStatus === 'PROVISIONAL' && at && Date.parse(at) > Date.parse(held.meta.at)) {
@@ -297,10 +409,11 @@ export function mergeBars(hist, symbol, rows, { source, capturedAt = null, marke
       else if (!sameNum(held.volume, bar.volume, tolerance)) { record('volume', held.volume, bar.volume); next.volume = bar.volume; changed = true; }
     }
     /* A merged bar is validated again: kept open/high/low from the held bar
-       must still bracket the close. */
+       must still bracket the close. On the row's own session, as the row
+       was: a period's key (a Monday, the 1st) need not be one. */
     if (filled || changed) {
-      const again = E.scanValidateBar({ date: d, open: next.open, high: next.high, low: next.low, close: next.close, volume: next.volume }, { market, now, today });
-      if (again.length) { out.rejected.push({ symbol: sym, date: d, codes: again, source, capturedAt: at, row: { open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume }, why: 'merged with the held bar it fails validation' }); continue; }
+      const again = E.scanValidateBar({ date: r.date, open: next.open, high: next.high, low: next.low, close: next.close, volume: next.volume }, { market, now, today });
+      if (again.length) { out.rejected.push({ symbol: sym, date: r.date, codes: again, source, capturedAt: at, row: { open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume }, why: 'merged with the held bar it fails validation' }); continue; }
       writeBar(hist, sym, d, next, metaOf(source, at));
       if (filled) out.filled++;
       continue;
@@ -309,6 +422,129 @@ export function mergeBars(hist, symbol, rows, { source, capturedAt = null, marke
     out.unchanged++;
   }
   return out;
+}
+
+/* ----------------------------------------------------- weeks and months -- */
+
+/* A timeframe the store holds imported bars for, in the engine's spelling
+   ('weekly' is 1W), or null. */
+export function frameTimeframe(E, tf) {
+  const t = E?.scanTimeframe ? E.scanTimeframe(tf) : String(tf ?? '');
+  return FRAMES.includes(t) ? t : null;
+}
+
+/* The engine's key for the period a session day falls in — scanWeekOf, the
+   Monday of its week, or scanMonthOf, the 1st of its month: the keys
+   scanResample groups daily bars under, so an imported week and the week
+   built from daily bars are named alike. Null for anything that is not a
+   day. */
+export function periodKey(E, tf, d) {
+  const t = frameTimeframe(E, tf);
+  if (!t || !E.scanIsDay(d)) return null;
+  return t === '1M' ? E.scanMonthOf(d) : E.scanWeekOf(d);
+}
+export const isPeriodKey = (E, tf, pk) => pk != null && periodKey(E, tf, pk) === pk;
+
+/* The calendar days of the period keyed `pk`, walked as scanResample walks
+   them, and the market's expected sessions among them: its weekdays, since
+   no exchange calendar is held — a holiday is expected, so a period is
+   called final late, never early. */
+export function periodDays(E, tf, pk) {
+  const out = [];
+  if (!isPeriodKey(E, tf, pk)) return out;
+  for (let d = pk, k = 0; k < 32 && periodKey(E, tf, d) === pk; d = E.scanAddDays(d, 1), k++) out.push(d);
+  return out;
+}
+export function periodSessions(E, tf, pk, market) {
+  const cal = E.scanWeekdayCalendar(market);
+  return periodDays(E, tf, pk).filter(d => E.scanIsSession(cal, d));
+}
+export const periodLastSession = (E, tf, pk, market) => periodSessions(E, tf, pk, market).pop() || null;
+
+/* An imported period's status: the engine's scanBarStatus on the period's
+   last expected session. FINAL when the bar was captured after that
+   session closed (and settled), PROVISIONAL before — the week or month
+   still trading when the export was saved — and UNKNOWN with no capture
+   time. A period's own first session closing says nothing: a week
+   captured on its Tuesday is Tuesday's week so far. */
+export function periodStatus(E, tf, pk, market, capturedAt, heldAt = null) {
+  const last = periodLastSession(E, tf, pk, market);
+  return last ? E.scanBarStatus(market, last, capturedAt, heldAt) : 'UNKNOWN';
+}
+
+/* Merge one symbol's imported weekly or monthly bars into
+   hist.frames[tf][symbol], in place. `rows` as mergeBars takes them, each
+   dated by the session its stamp opens — TradingView stamps a period at its
+   opening, so that is the period's first session. The row is validated on
+   that session (a stamp that opens a Saturday is NON_SESSION_DAY, never
+   moved into a week) and filed under its period's key; two rows in one
+   period are both refused, DUPLICATE_PERIOD. The policy is mergeBars':
+   the rank, the provisional rule on the period's status, every change by an
+   equal or higher rank recorded — in the frame's own corrections, keyed by
+   period, because the history's corrections are read as daily bars.
+   Returns mergeBars' account with `timeframe`, and each refused row's
+   `timeframe` and `period`. */
+export function mergeFrameBars(hist, timeframe, symbol, rows, opts = {}) {
+  const E = opts.E;
+  const tf = frameTimeframe(E, timeframe);
+  if (!tf) throw new Error(`mergeFrameBars holds ${FRAMES.join(' and ')} bars, not "${timeframe}"`);
+  const missing = STORE_ENGINE_NAMES.filter(n => typeof E?.[n] !== 'function');
+  if (missing.length) throw new Error(`mergeFrameBars needs the engine's ${missing.join(' and ')} — load it with the store's engine(), which reads them out of index.html`);
+  const sym = String(symbol);
+  if (!isObj(hist.frames)) hist.frames = {};
+  if (!isObj(hist.frames[tf])) hist.frames[tf] = {};
+  const f = isObj(hist.frames[tf][sym]) ? hist.frames[tf][sym] : {};
+  /* The frame seen as a one-symbol history, so the merge writes into the
+     frame's own maps. */
+  const view = { corrections: { [sym]: Array.isArray(f.corrections) ? f.corrections : [] } };
+  for (const m of FRAME_MAPS) view[m] = { [sym]: isObj(f[m]) ? f[m] : {} };
+  /* A row dated on a day its market does not trade keeps its own date as
+     its key: the engine's week of a Saturday is the Monday before, and
+     filed there a stamp that opened a Saturday (Friday 17:00 New York)
+     collided with that week's real bar and both were refused as
+     DUPLICATE_PERIOD. It is refused alone, NON_SESSION_DAY. */
+  const days = E.scanMarket(opts.market).days;
+  const out = mergeRows(view, sym, rows, opts, {
+    name: 'mergeFrameBars',
+    keyOf: (r) => (E.scanIsDay(r.date) && days.includes(E.scanWeekday(r.date)) ? periodKey(E, tf, r.date) : r.date),
+    statusOf: (eng, market, pk, at) => periodStatus(eng, tf, pk, market, at),
+    duplicate: 'DUPLICATE_PERIOD',
+  });
+  const next = { ...f };
+  for (const m of FRAME_MAPS) next[m] = view[m][sym];
+  if (view.corrections[sym].length) next.corrections = view.corrections[sym]; else delete next.corrections;
+  hist.frames[tf][sym] = next;
+  out.timeframe = tf;
+  /* A refused row's period is the one it would have been filed under; a
+     stamp that opens a day the market does not trade names none, since it
+     was never going into that week. */
+  for (const x of out.rejected) { x.timeframe = tf; x.period = x.codes.includes('NON_SESSION_DAY') ? null : periodKey(E, tf, x.date); }
+  for (const x of out.outranked) x.timeframe = tf;
+  for (const x of out.superseded) x.timeframe = tf;
+  return out;
+}
+
+/* Keep the newest `keep` periods of every imported frame; older ones go
+   from series, ohlc, volume, meta and corrections together, as trimHistory
+   does for the daily series. */
+export function trimFrames(hist, keep = KEEP) {
+  const byFrame = {};
+  let total = 0;
+  const frames = isObj(hist.frames) ? hist.frames : {};
+  for (const tf of Object.keys(frames)) {
+    if (!isObj(frames[tf])) continue;
+    for (const [sym, f] of Object.entries(frames[tf])) {
+      if (!isObj(f)) continue;
+      const keys = Object.keys(isObj(f.series) ? f.series : {}).sort();
+      const cutoff = keys.length > keep ? keys[keys.length - keep] : keys[0] || null;
+      if (!cutoff) continue;
+      let n = 0;
+      for (const m of FRAME_MAPS) if (isObj(f[m])) for (const k of Object.keys(f[m])) if (k < cutoff) { delete f[m][k]; if (m === 'series') n++; }
+      if (Array.isArray(f.corrections)) f.corrections = f.corrections.filter(c => !c?.date || c.date >= cutoff);
+      if (n) { (byFrame[tf] ||= {})[sym] = n; total += n; }
+    }
+  }
+  return { trimmed: total, byFrame, keep };
 }
 
 /* Keep the newest `keep` bars of every symbol; everything older goes from
@@ -336,13 +572,17 @@ export function trimHistory(hist, keep = KEEP) {
 
 /* The whole write, under a lock: load, let `fn` merge into the history,
    trim, save atomically, and write what was refused to the rejects file.
-   fn returns one mergeBars result or a list of them. */
-export async function updateHistory(path, fn, { keep = KEEP, now = new Date().toISOString(), rejectsPath = null, dry = false } = {}) {
+   fn returns one mergeBars (or mergeFrameBars) result or a list of them.
+   `frameKeep` is the imported weeks' and months' keep, apart from the
+   daily one: a daily writer asked to keep 500 sessions has said nothing
+   about 1,300 weeks it did not write. */
+export async function updateHistory(path, fn, { keep = KEEP, frameKeep = KEEP, now = new Date().toISOString(), rejectsPath = null, dry = false } = {}) {
   await mkdir(dirname(path), { recursive: true });
   return withLock(`${path}.lock`, async () => {
     const hist = await loadHistory(path);
     const results = [].concat((await fn(hist)) || []);
     const trim = trimHistory(hist, keep);
+    trim.frames = trimFrames(hist, frameKeep);
     const refused = results.flatMap(r => [...(r.rejected || []), ...(r.outranked || []).map(o => ({ ...o, codes: ['OUTRANKED'] }))]);
     if (!dry) {
       await saveHistory(path, hist, { now });
@@ -364,14 +604,17 @@ export function describeMerge(results, trim = null, rejectsPath = 'data/price-hi
   if (t.corrected) lines.push(`  corrected : ${t.corrected} field(s) changed by an equal or higher-ranked source — recorded in corrections`);
   if (t.outranked) {
     lines.push(`  outranked : ${t.outranked} row(s) not written — a higher-ranked source holds a different value:`);
-    results.flatMap(r => r.outranked).slice(0, 5).forEach(o => lines.push(`              ${o.symbol} ${o.date}: held ${o.held.close} (${o.heldSource}), offered ${o.offered.close} (${o.source})`));
+    results.flatMap(r => r.outranked).slice(0, 5).forEach(o => lines.push(`              ${o.symbol}${o.timeframe ? ` ${o.timeframe}` : ''} ${o.date}: held ${o.held.close} (${o.heldSource}), offered ${o.offered.close} (${o.source})`));
   }
   if (t.rejected) {
     lines.push(`  rejected  : ${t.rejected} row(s) failed validation:`);
-    results.flatMap(r => r.rejected).slice(0, 5).forEach(x => lines.push(`              ${x.symbol} ${x.date}: ${x.codes.join(', ')}`));
+    /* An imported week's or month's row names its timeframe, and the
+       session its stamp opened. */
+    results.flatMap(r => r.rejected).slice(0, 5).forEach(x => lines.push(`              ${x.symbol}${x.timeframe ? ` ${x.timeframe}` : ''} ${x.date}: ${x.codes.join(', ')}`));
   }
   if (t.outranked || t.rejected) lines.push(`              every refused row is in ${rejectsPath}`);
   if (trim?.trimmed) lines.push(`  trimmed   : ${trim.trimmed} bar(s) older than the newest ${trim.keep} per symbol (closes, volume, open/high/low and provenance together)`);
+  if (trim?.frames?.trimmed) lines.push(`  trimmed   : ${trim.frames.trimmed} imported week(s) or month(s) older than the newest ${trim.frames.keep} per symbol and timeframe (${Object.entries(trim.frames.byFrame).map(([tf, s]) => `${tf} ${Object.values(s).reduce((a, b) => a + b, 0)}`).join(', ')})`);
   return { totals: t, lines };
 }
 

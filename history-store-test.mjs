@@ -1148,8 +1148,11 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
       && /dated by session: 7 stamp\(s\) at 17:00 America\/New_York or later/.test(r.stdout)
       && /last bar 2026-09-28 PROVISIONAL/.test(r.stdout) && /last bar 2026-09-28 FINAL/.test(r.stdout)
       && /not stored: 2 other column\(s\) — the chart's indicators \(Plot, RSI\)/.test(r.stdout)
-      && /GLD +FAILED — the file name says a 1W export/.test(r.stdout),
-      'pine tvimport: the output says gold\'s volume is a tick count (a spot metals broker\'s count of price changes) and the stock\'s is not, how many stamps were dated to the next session, each file\'s last bar and its status, the indicator columns left out, and refuses a weekly export by its name',
+      /* The weekly file was refused by its name until the owner chose to
+         import weeks and months as they are (2026-09-29): it now goes to
+         frames['1W'], never to the daily series (the frames block below). */
+      && /GLD 1W +1 new/.test(r.stdout) && !/FAILED/.test(r.stdout),
+      'pine tvimport: the output says gold\'s volume is a tick count (a spot metals broker\'s count of price changes) and the stock\'s is not, how many stamps were dated to the next session, each file\'s last bar and its status, the indicator columns left out, and reads a weekly export by its name into the weekly frame',
       r.stdout.slice(0, 1500));
     check(same(tradingViewName('OANDA_XAUUSD, 1D.csv'), { exchange: 'OANDA', symbol: 'XAUUSD', interval: '1D' }) && tradingViewName('FX_IDC_USDMYR, 1D (1).csv')?.symbol === 'USDMYR'
       && tradingViewName('KLSE.csv') === null && isDailyInterval('1D') && isDailyInterval('D') && !isDailyInterval('1W') && !isDailyInterval('240'),
@@ -1207,6 +1210,278 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
   } finally { await rm(RD, { recursive: true, force: true }); }
 }
 /* ---- end integration: pine ingest ---- */
+
+/* ---- frames ---- */
+/* IMPORTED WEEKS AND MONTHS. The owner's decision (2026-09-29): a weekly or
+   monthly TradingView export is imported as it is, into hist.frames['1W' |
+   '1M'][SYM], keyed by the engine's own period key, instead of weeks and
+   months being built only from a daily file that reaches back fourteen
+   months. Every export here is synthetic, its sessions worked out by hand
+   in the comments beside it; every file is temporary; no personal file is
+   read. */
+{
+  const FR = join(tmpdir(), `qt-frames-${process.pid}`);
+  await rm(FR, { recursive: true, force: true });
+  await mkdir(join(FR, 'exports'), { recursive: true });
+  const { readdir } = await import('node:fs/promises');
+  const S = await import('./ingest/history-store.mjs');
+  const { mergeFrameBars, trimFrames, periodKey, periodStatus, periodLastSession, isPeriodKey, formatHistory, STORE_ENGINE_NAMES } = S;
+  const { exportTimeframe, FRAMES_READ } = await import('./ingest/history-import.mjs');
+  const { checkFrames, compareFrames, describeOverlap, describeFrames } = await import('./ingest/history-check.mjs');
+  const nodeF = (args) => run(process.execPath, args, { cwd: ROOT }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  const sec = (iso) => String(Date.parse(iso) / 1000);
+  const readJson = async (p) => (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null);
+  try {
+    /* ------------------------------------------------ the engine's keys -- */
+    const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+    check(STORE_ENGINE_NAMES.every(n => typeof E[n] === 'function' && html.includes(String(E[n])))
+      && periodKey(E, '1W', '2026-09-24') === '2026-09-21' && periodKey(E, 'weekly', '2026-09-27') === '2026-09-21' && periodKey(E, '1M', '2026-09-24') === '2026-09-01'
+      && periodKey(E, '1W', '2026-9-24') === null && periodKey(E, '1D', '2026-09-24') === null
+      && isPeriodKey(E, '1W', '2026-09-21') && !isPeriodKey(E, '1W', '2026-09-22') && isPeriodKey(E, '1M', '2026-08-01') && !isPeriodKey(E, '1M', '2026-08-03'),
+      'frames: a week is keyed by the engine\'s scanWeekOf (its Monday) and a month by scanMonthOf (its 1st) — the functions in index.html\'s engine region, not a copy; a Sunday belongs to the week before, and a day that is no day has no key');
+    /* A period is final once its last expected session has closed: FX closes
+       at 17:00 New York (21:00 UTC in summer) with no settle; New York
+       stocks at 16:00 plus 30 minutes. */
+    check(periodStatus(E, '1W', '2026-09-21', 'FX', '2026-09-25T20:59:00Z') === 'PROVISIONAL' && periodStatus(E, '1W', '2026-09-21', 'FX', '2026-09-25T21:00:00Z') === 'FINAL'
+      && periodLastSession(E, '1M', '2026-08-01', 'FX') === '2026-08-31' && periodLastSession(E, '1M', '2026-09-01', 'FX') === '2026-09-30'
+      && periodStatus(E, '1M', '2026-09-01', 'FX', '2026-09-28T17:27:00Z') === 'PROVISIONAL' && periodStatus(E, '1M', '2026-08-01', 'FX', '2026-09-28T17:27:00Z') === 'FINAL'
+      && periodStatus(E, '1W', '2026-09-14', 'US', '2026-09-18T20:29:00Z') === 'PROVISIONAL' && periodStatus(E, '1W', '2026-09-14', 'US', '2026-09-18T20:30:00Z') === 'FINAL'
+      && periodStatus(E, '1W', '2026-09-21', 'FX', null) === 'UNKNOWN',
+      'frames: an imported week or month is FINAL only when captured after its last expected session closed (Friday 17:00 New York for gold, the month\'s last weekday), PROVISIONAL before, UNKNOWN with no capture time');
+    check(exportTimeframe('1D') === '1D' && exportTimeframe('D') === '1D' && exportTimeframe('1W') === '1W' && exportTimeframe('W') === '1W' && exportTimeframe('1M') === '1M'
+      && exportTimeframe('1m') === null && exportTimeframe('240') === null && exportTimeframe('2W') === null && exportTimeframe('3M') === null,
+      'frames: an export\'s timeframe is the day, the week or the month (1D, 1W, 1M as TradingView names them); a lower-case 1m (a minute elsewhere), 240 and multi-period intervals are none of them');
+
+    /* ------------------------------------------- the import, by the name -- */
+    const reg = join(FR, 'instruments.json');
+    await writeFile(reg, JSON.stringify({ instruments: [{ symbol: 'GLD', market: 'FX' }, { symbol: 'DUP', market: 'FX' }, { symbol: 'GLDM', market: 'FX' }, { symbol: 'STK', market: 'US' }] }));
+    const csv = (rows) => ['time,open,high,low,close,Volume,Plot', ...rows.map(([t, o, h, l, c, v]) => `${sec(t)},${o},${h},${l},${c},${v},7`)].join('\n');
+    const put = async (name, rows, saved) => { const p = join(FR, 'exports', name); await writeFile(p, csv(rows)); await utimes(p, new Date(saved), new Date(saved)); return p; };
+    /* Gold's weeks on FX. TradingView stamps a week at its opening, Sunday
+       17:00 New York; the day rule dates that to Monday, the week's key:
+         2026-01-04T22:00Z  Sun 17:00 EST                         → week 2026-01-05
+         2026-03-08T21:00Z  Sun 17:00 EDT (the clocks' change day) → week 2026-03-09
+         2026-08-30T21:00Z  high 107 below the open and close      → refused HIGH_BELOW
+         2026-09-13T21:00Z                                         → week 2026-09-14
+         2026-09-20T21:00Z                                         → week 2026-09-21
+         2026-09-27T21:00Z  saved Monday 13:27 New York            → week 2026-09-28, PROVISIONAL
+         2026-09-25T21:00Z  Fri 17:00 opens a Saturday             → refused NON_SESSION_DAY, never filed in a week */
+    const gW = [['2026-01-04T22:00:00Z', 100, 110, 95, 105, 1000], ['2026-03-08T21:00:00Z', 105, 112, 101, 108, 1100], ['2026-08-30T21:00:00Z', 108, 107, 100, 109, 900],
+                ['2026-09-13T21:00:00Z', 110, 115, 108, 112, 1200], ['2026-09-20T21:00:00Z', 112, 118, 111, 117, 1300], ['2026-09-27T21:00:00Z', 117, 119, 114, 115, 400],
+                ['2026-09-25T21:00:00Z', 1, 1, 1, 1, 1]];
+    const gWp = await put('OANDA_GLD, 1W.csv', gW, '2026-09-28T17:27:00Z');
+    /* Gold's months: stamped the evening before each month's first session.
+         2026-06-30T21:00Z  Tue 17:00 → Wed 1 July      → 2026-07-01, volume 0 with a range of 30: no count
+         2026-08-02T21:00Z  Sun 17:00 → Mon 3 August    → 2026-08-01 (1 August was a Saturday)
+         2026-08-31T21:00Z  Mon 17:00 → Tue 1 September → 2026-09-01, PROVISIONAL (its last session is the 30th) */
+    await put('OANDA_GLD, 1M.csv', [['2026-06-30T21:00:00Z', 100, 120, 90, 110, 0], ['2026-08-02T21:00:00Z', 110, 125, 105, 120, 5000], ['2026-08-31T21:00:00Z', 120, 122, 110, 115, 3000]], '2026-09-28T17:27:00Z');
+    /* A New York stock's weeks, stamped at its first session's 09:30 open:
+       Labor Day (7 September) moves the stamp to the Tuesday, still week
+       2026-09-07. Its daily file goes to the daily series as before. */
+    await put('NASDAQ_STK, 1W.csv', [['2026-09-08T13:30:00Z', 50, 55, 49, 54, 10], ['2026-09-14T13:30:00Z', 54, 58, 53, 57, 12]], '2026-09-28T21:00:00Z');
+    await put('NASDAQ_STK, 1D.csv', [['2026-09-14T13:30:00Z', 54, 55, 53, 54.5, 3], ['2026-09-15T13:30:00Z', 54.5, 56, 54, 55, 4]], '2026-09-28T21:00:00Z');
+    /* Two stamps in one week (Monday's and Tuesday's sessions): a daily file
+       named as a weekly one. Neither is guessed to be the week. */
+    await put('OANDA_DUP, 1W.csv', [['2026-09-20T21:00:00Z', 10, 11, 9, 10, 1], ['2026-09-21T21:00:00Z', 10, 12, 9, 11, 1]], '2026-09-28T17:27:00Z');
+    await put('OANDA_GLD, 240.csv', [['2026-09-20T21:00:00Z', 10, 11, 9, 10, 1]], '2026-09-28T17:27:00Z');
+    const out = join(FR, 'history.json');
+    const r1 = await nodeF([join(ROOT, 'ingest/history-import.mjs'), '--dir', join(FR, 'exports'), '--instruments', reg, '--out', out]);
+    const h = (await readJson(out)) || {};
+    const W = h.frames?.['1W']?.GLD || {}, M = h.frames?.['1M']?.GLD || {};
+    check(same(Object.keys(W.series || {}).sort(), ['2026-01-05', '2026-03-09', '2026-09-14', '2026-09-21', '2026-09-28'])
+      && same(W.ohlc?.['2026-09-28'], [117, 119, 114]) && W.series['2026-09-28'] === 115 && W.volume?.['2026-09-28'] === 400
+      && W.meta?.['2026-09-28']?.src === 'import:OANDA_GLD, 1W.csv' && W.meta['2026-09-28'].at === '2026-09-28T17:27:00.000Z' && W.meta['2026-09-28'].adjusted === 'unknown'
+      && !h.series?.GLD && !JSON.stringify(h.frames).includes('"Plot"'),
+      'frames: gold\'s weekly export is filed under each week\'s Monday in frames["1W"] — stamped Sunday 17:00 New York in both halves of the year — with open, high, low, volume and the file\'s time as its capture; nothing reaches the daily series',
+      { keys: Object.keys(W.series || {}), series: Object.keys(h.series || {}), err: r1.stderr.slice(-300) });
+    check(same(Object.keys(M.series || {}).sort(), ['2026-07-01', '2026-08-01', '2026-09-01']) && M.volume?.['2026-07-01'] === undefined && M.volume?.['2026-08-01'] === 5000
+      && periodStatus(E, '1M', '2026-08-01', 'FX', M.meta?.['2026-08-01']?.at) === 'FINAL' && periodStatus(E, '1M', '2026-09-01', 'FX', M.meta?.['2026-09-01']?.at) === 'PROVISIONAL'
+      && periodStatus(E, '1W', '2026-09-21', 'FX', W.meta?.['2026-09-21']?.at) === 'FINAL' && periodStatus(E, '1W', '2026-09-28', 'FX', W.meta?.['2026-09-28']?.at) === 'PROVISIONAL',
+      'frames: the monthly export is filed under each month\'s 1st (August\'s first session was the 3rd); the month and the week still trading when saved are PROVISIONAL, the rest FINAL; a volume of 0 on a month whose price moved is stored as absent, not as a month with no trading',
+      { keys: Object.keys(M.series || {}), vol: M.volume });
+    check(same(Object.keys(h.frames?.['1W']?.STK?.series || {}).sort(), ['2026-09-07', '2026-09-14']) && same(Object.keys(h.series?.STK || {}).sort(), ['2026-09-14', '2026-09-15'])
+      && !h.frames?.['1W']?.DUP,
+      'frames: a New York stock\'s week stamped on the Tuesday after a Monday holiday is still its Monday\'s week; its daily file goes to the daily series as before; two stamps in one week file neither',
+      { stk: h.frames?.['1W']?.STK, dup: h.frames?.['1W']?.DUP });
+    const rej = (await readJson(S.rejectsPathFor(out)))?.rejects || [];
+    const rw = (sym, code) => rej.filter(x => x.symbol === sym && x.codes.includes(code));
+    check(rw('GLD', 'HIGH_BELOW').length === 1 && rw('GLD', 'HIGH_BELOW')[0].timeframe === '1W' && rw('GLD', 'HIGH_BELOW')[0].period === '2026-08-31' && rw('GLD', 'HIGH_BELOW')[0].date === '2026-08-31'
+      && rw('GLD', 'NON_SESSION_DAY').length === 1 && rw('GLD', 'NON_SESSION_DAY')[0].date === '2026-09-26' && rw('GLD', 'NON_SESSION_DAY')[0].period === null
+      && rw('DUP', 'DUPLICATE_PERIOD').length === 2 && rej.length === 4,
+      'frames: every refused weekly row is in the rejects file with its timeframe and code — HIGH_BELOW (the engine\'s scanValidateBar, on the session the stamp opens), NON_SESSION_DAY with no period, and DUPLICATE_PERIOD for both rows of a week given twice',
+      rej.map(x => [x.symbol, x.timeframe, x.date, x.period, x.codes]));
+    check(r1.code === 2 && /GLD 1W +5 new +0 -> +5 weeks +2026-01-05 to 2026-09-28 +open\/high\/low kept, volume kept \(a tick count\)/.test(r1.stdout)
+      && /last week 2026-09-28 PROVISIONAL — the file was saved at 2026-09-28T17:27:00.000Z, before the week's last session \(2026-10-02\) closed/.test(r1.stdout)
+      && /GLD 1M +3 new .* 3 months/.test(r1.stdout) && /last month 2026-09-01 PROVISIONAL/.test(r1.stdout)
+      && /volume 0 on 1 month\(s\) whose price moved \(2026-07-01 … 2026-07-01\): the broker recorded no count/.test(r1.stdout)
+      && /STK 1W .*\n.*last week 2026-09-14 FINAL/.test(r1.stdout) && /GLD +FAILED — the file name says a 240 export/.test(r1.stdout)
+      && r1.stdout.includes(`imported frames: `) && r1.stdout.includes(FRAMES_READ) && /GLD 1W 2026-08-31: HIGH_BELOW/.test(r1.stdout),
+      'frames: the import names each weekly and monthly file\'s periods, its last period and why it is provisional, the months with no count, what reads the frames today, and still refuses a 240-minute export by its name',
+      r1.stdout.slice(0, 2500));
+
+    /* ------------------------- the next export: finalised, then corrected -- */
+    /* Saved after the week of 28 September closed (Friday 2 October 17:00 New
+       York): the in-progress week is superseded, not corrected; the week of
+       21 September, final at the first import, now reads 117.5 — an equal
+       rank disagreeing, recorded in the frame's own corrections, never in
+       the daily ones. */
+    await put('OANDA_GLD, 1W.csv', gW.map(x => (x[0] === '2026-09-20T21:00:00Z' ? [x[0], 112, 118, 111, 117.5, 1300] : x[0] === '2026-09-27T21:00:00Z' ? [x[0], 117, 121, 113, 120, 1500] : x)), '2026-10-03T00:00:00Z');
+    const r2 = await nodeF([join(ROOT, 'ingest/history-import.mjs'), '--in', gWp, '--instruments', reg, '--out', out]);
+    const h2 = (await readJson(out)) || {};
+    const W2 = h2.frames?.['1W']?.GLD || {};
+    check(W2.series?.['2026-09-28'] === 120 && periodStatus(E, '1W', '2026-09-28', 'FX', W2.meta?.['2026-09-28']?.at) === 'FINAL'
+      && same(W2.corrections?.map(c => [c.date, c.field, c.from, c.to]), [['2026-09-21', 'close', 117, 117.5]]) && !h2.corrections?.GLD
+      && /finalised : 1 provisional bar\(s\) replaced by a later capture/.test(r2.stdout) && /corrected : 1 field\(s\)/.test(r2.stdout)
+      && existsSync(`${out}.bak`) && JSON.parse(await readFile(`${out}.bak`, 'utf8')).frames['1W'].GLD.series['2026-09-28'] === 115,
+      'frames: a later export replaces the week that was still trading (superseded, not a correction) and records a changed close on a final week in the frame\'s corrections; the write keeps the previous file as .bak',
+      { series: W2.series, corrections: W2.corrections, out: r2.stdout.split('\n').filter(l => /finalised|corrected/.test(l)) });
+
+    /* ---------------------------------------------------- --interval -- */
+    const plain = join(FR, 'gold-months.csv');
+    await writeFile(plain, csv([['2026-08-02T21:00:00Z', 110, 125, 105, 120, 5000]]));
+    const r3 = await nodeF([join(ROOT, 'ingest/history-import.mjs'), '--in', plain, '--symbol', 'GLDM', '--interval', '1M', '--instruments', reg, '--out', out]);
+    const r4 = await nodeF([join(ROOT, 'ingest/history-import.mjs'), '--in', gWp, '--interval', '1M', '--instruments', reg, '--out', out]);
+    const r5 = await nodeF([join(ROOT, 'ingest/history-import.mjs'), '--in', plain, '--interval', '3M', '--out', out]);
+    const h3 = (await readJson(out)) || {};
+    check(same(Object.keys(h3.frames?.['1M']?.GLDM?.series || {}), ['2026-08-01']) && r4.code === 1 && /FAILED — the file name says 1W and --interval says 1M/.test(r4.stdout)
+      && r5.code === 1 && /--interval "3M" is not 1D, 1W or 1M/.test(r5.stderr),
+      'frames: --interval 1M reads a file whose name says nothing into the monthly frame; a TradingView name and a flag that disagree are refused, not guessed between; an interval that is not 1D, 1W or 1M is refused',
+      { r4: r4.stdout.slice(0, 300), r5: r5.stderr });
+
+    /* ------------------------------------------------- rank, trim, format -- */
+    {
+      const hh = { ...emptyHistory(), frames: JSON.parse(JSON.stringify(h3.frames)) };
+      const heldClose = hh.frames['1W'].GLD.series['2026-09-14'];
+      const o = mergeFrameBars(hh, 'weekly', 'GLD', [{ date: '2026-09-14', open: 1, high: 999, low: 1, close: 999 }], { source: 'screen', capturedAt: '2026-10-03T00:00:00Z', market: 'FX', E, now: '2026-10-03T00:00:00Z' });
+      check(o.timeframe === '1W' && o.outranked.length === 1 && o.outranked[0].timeframe === '1W' && hh.frames['1W'].GLD.series['2026-09-14'] === heldClose,
+        'frames: the source rank holds for weeks — a screen reading never replaces an imported week; it is reported as outranked, with its timeframe');
+      let threw = ''; try { mergeFrameBars(hh, '1D', 'GLD', [], { source: 'import:x.csv', E }); } catch (e) { threw = e.message; }
+      check(/holds 1W and 1M bars, not "1D"/.test(threw), 'frames: the frame merge refuses a timeframe it does not hold (1D goes to mergeBars)', threw);
+      const t = trimFrames(hh, 2);
+      check(t.trimmed === 3 + 1 && same(Object.keys(hh.frames['1W'].GLD.series).sort(), ['2026-09-21', '2026-09-28'])
+        && ['ohlc', 'volume', 'meta'].every(m => Object.keys(hh.frames['1W'].GLD[m]).every(k => k >= '2026-09-21'))
+        && hh.frames['1W'].GLD.corrections.length === 1 && same(Object.keys(hh.frames['1M'].GLD.series).sort(), ['2026-08-01', '2026-09-01']),
+        'frames: trimming keeps the newest periods of every frame, dropping close, open/high/low, volume and provenance together', t);
+    }
+    {
+      const p = join(FR, 'daily-write.json');
+      await writeFile(p, await readFile(out, 'utf8'));
+      const before = JSON.stringify((await readJson(p)).frames);
+      await S.updateHistory(p, (hist) => [mergeBars(hist, 'STK', [{ date: '2026-09-16', open: 55, high: 56, low: 54, close: 55.5 }], { source: 'import:d.csv', capturedAt: '2026-09-28T21:00:00Z', market: 'US', E, now: '2026-09-28T21:00:00Z' })], { keep: 1 });
+      const after = await readJson(p);
+      const text = await readFile(p, 'utf8');
+      check(JSON.stringify(after.frames) === before && Object.keys(after.series.STK).length === 1
+        && /\n  "frames": \{\n    "1M": \{\n      "GLD": \{\n        "series": \{[^\n]*\},\n        "ohlc": /.test(text),
+        'frames: a daily writer (here keeping one session) leaves the imported weeks and months exactly as they were — its keep is the daily one — and the file writes each frame\'s maps one per line');
+      const d = join(FR, 'daily-only.json');
+      const dh = emptyHistory();
+      mergeBars(dh, 'A', [{ date: '2026-09-21', close: 1 }], { source: 'screen', market: 'US', E, now: NOW });
+      await S.saveHistory(d, dh, { now: NOW });
+      check(!(await readFile(d, 'utf8')).includes('frames') && !('frames' in (await S.loadHistory(d))),
+        'frames: a history with no imported weeks or months is written without a frames key, as it was before');
+    }
+
+    /* ------------------------------------------------------- the check -- */
+    {
+      const inst = [{ symbol: 'GLD', market: 'FX' }, { symbol: 'GLDM', market: 'FX' }, { symbol: 'STK', market: 'US' }];
+      const clean = checkFrames(h3, { E, instruments: inst, now: '2026-10-03T00:00:00Z' });
+      const g = clean.frames.find(x => x.timeframe === '1W' && x.symbol === 'GLD');
+      const gm = clean.frames.find(x => x.timeframe === '1M' && x.symbol === 'GLD');
+      check(clean.badKeys === 0 && clean.invalid === 0 && g?.periods === 5 && g.first === '2026-01-05' && g.last === '2026-09-28' && g.lastStatus === 'FINAL'
+        && gm?.last === '2026-09-01' && gm.lastStatus === 'PROVISIONAL' && gm.provisional === '2026-09-01' && gm.lastSession === '2026-09-30',
+        'frames check: per symbol and timeframe, the periods held, the first and the last, and the last one\'s status — the month still trading named as provisional', clean.frames.map(x => [x.timeframe, x.symbol, x.periods, x.last, x.lastStatus]));
+      const bad = JSON.parse(JSON.stringify(h3));
+      bad.frames['1W'].GLD.series['2026-09-22'] = 5;                /* a Tuesday: not the engine's key for its week */
+      bad.frames['1M'].GLD.series['2026-08-03'] = 5;                /* the 3rd: not a month's key */
+      bad.frames['1W'].GLD.ohlc['2026-01-05'] = [100, 90, 95];      /* a high below the close */
+      bad.frames['1W'].GLD.volume['2026-02-02'] = 7;                /* a volume with no close beside it */
+      bad.frames['4H'] = { GLD: { series: { '2026-09-21': 1 } } };   /* a timeframe the store does not write */
+      const hp = join(FR, 'bad-history.json');
+      await writeFile(hp, JSON.stringify(bad));
+      const regAll = join(FR, 'inst-all.json');
+      await writeFile(regAll, JSON.stringify({ instruments: inst }));
+      const r6 = await nodeF([join(ROOT, 'ingest/history-check.mjs'), '--history', hp, '--instruments', regAll, '--now', '2026-10-03T00:00:00Z']);
+      const F = checkFrames(bad, { E, instruments: inst, now: '2026-10-03T00:00:00Z' });
+      check(r6.code === 2 && F.badKeys === 2 && F.invalid === 1 && F.unknownTimeframes.length === 1
+        && /key +GLD 1W 2026-09-22: not the engine's key for its week \(2026-09-21\)/.test(r6.stdout) && /key +GLD 1M 2026-08-03: not the engine's key for its month \(2026-08-01\)/.test(r6.stdout)
+        && /invalid +GLD 1W 2026-01-05: HIGH_BELOW/.test(r6.stdout) && /orphan +GLD 1W: 1 entry in volume/.test(r6.stdout) && /unknown +frames\["4H"\]/.test(r6.stdout)
+        && /1W +GLD +6 weeks +2026-01-05 … 2026-09-28 · last 2026-09-28 FINAL/.test(r6.stdout)
+        && /to repair: .*2 imported week\(s\) or month\(s\) under a key the engine does not read, 1 frame timeframe\(s\) the store does not write/.test(r6.stdout),
+        'frames check: history-check lists the imported frames, a week or month filed under a key that is not the engine\'s (exit 2), a bar the engine\'s validation refuses, an entry with no close, and a timeframe the store does not write',
+        r6.stdout.split('\n').filter(l => /FRAMES|^1W|^1M|^key|^invalid|^orphan|^unknown|repair/.test(l)));
+      check(describeFrames(checkFrames(emptyHistory(), { E })).length === 0, 'frames check: a history with no frames adds nothing to the report');
+    }
+
+    /* ------------------------------------------------------ the overlap -- */
+    /* A daily gold series against imported weeks, one week per reason. Days
+       are weekdays from Wednesday 7 January 2026; day k has open 100+k,
+       high 103+k, low 99+k, close 101+k and volume 1,000,000+k. The weeks
+       are what TradingView would have from the whole market:
+         2026-01-05  the daily series starts on the Wednesday      → partial-start (open, low, volume)
+         2026-01-12  every session held                            → match
+         2026-01-19  no bar on Friday the 23rd; the market shut    → holiday (the imported volume is the four days' sum)
+         2026-01-26  no bar on Friday the 30th; it traded higher   → missing-daily
+         2026-02-02  every price agrees; the volume is 1 more      → volume-only
+         2026-02-09  the close differs                             → unexplained
+         2026-02-16  the daily series ends Tuesday; saved Wednesday → partial-end */
+    {
+      const all = weekdays('2026-01-05', 34);                       /* 5 Jan … 19 Feb */
+      const bar = (d) => { const k = all.indexOf(d) - 2; return { date: d, open: 100 + k, high: 103 + k, low: 99 + k, close: 101 + k, volume: 1000000 + k }; };
+      const truth = (d) => (d === '2026-01-30' ? { ...bar(d), high: 200 } : bar(d));
+      const daily = all.filter(d => d >= '2026-01-07' && d <= '2026-02-17' && d !== '2026-01-23' && d !== '2026-01-30');
+      const week = (mon, { skip = [], tweak = {} } = {}) => {
+        const ds = all.filter(d => periodKey(E, '1W', d) === mon && !skip.includes(d) && d <= (mon === '2026-02-16' ? '2026-02-18' : '9999')).map(truth);
+        return { date: ds[0].date, open: ds[0].open, high: Math.max(...ds.map(x => x.high)), low: Math.min(...ds.map(x => x.low)), close: ds[ds.length - 1].close, volume: ds.reduce((t, x) => t + x.volume, 0), ...tweak };
+      };
+      const hh = emptyHistory();
+      mergeBars(hh, 'GLD', daily.map(bar), { source: 'import:d.csv', capturedAt: '2026-02-17T22:00:00Z', market: 'FX', E, now: '2026-02-18T15:00:00Z' });
+      const wk = [week('2026-01-05'), week('2026-01-12'), week('2026-01-19', { skip: ['2026-01-23'] }), week('2026-01-26')];
+      const w5 = week('2026-02-02'); wk.push({ ...w5, volume: w5.volume + 1 });
+      const w6 = week('2026-02-09'); wk.push({ ...w6, close: w6.close + 0.5 });
+      wk.push(week('2026-02-16'));
+      mergeFrameBars(hh, '1W', 'GLD', wk, { source: 'import:w.csv', capturedAt: '2026-02-18T15:00:00Z', market: 'FX', E, now: '2026-02-18T15:00:00Z' });
+      const rows = compareFrames(hh, { E, instruments: [{ symbol: 'GLD', market: 'FX' }], now: '2026-02-18T15:00:00Z' });
+      const w = rows.find(x => x.timeframe === '1W');
+      const reason = Object.fromEntries((w?.periods || []).map(p => [p.period, p.match ? 'match' : p.reason]));
+      check(same(reason, { '2026-01-05': 'partial-start', '2026-01-12': 'match', '2026-01-19': 'holiday', '2026-01-26': 'missing-daily', '2026-02-02': 'volume-only', '2026-02-09': 'unexplained', '2026-02-16': 'partial-end' })
+        && same(w.periods.find(p => p.period === '2026-01-05').diffs.map(x => x.field), ['open', 'low', 'volume']),
+        'frames overlap: each imported week is compared with the week the engine builds from the daily series — a match, a partial week at either end, a holiday (the imported volume is the days held), a daily bar the daily export lacks, a volume a few ticks apart, and a difference no reason explains', reason);
+      const d = describeOverlap(rows);
+      check(d.unexplained === 1 && d.volumeOnly === 1 && !d.ok && /GLD +7 week\(s\) overlap .*: 1 match on open, high, low, close and volume; 6 differ/.test(d.lines.join('\n'))
+        && /a holiday: no daily bar on 2026-01-23, and the imported volume is the sum of the 4 session\(s\) held/.test(d.lines.join('\n'))
+        && /partial at the end: the week was still trading \(the daily series ends on 2026-02-17, before its last session 2026-02-20\) — the weekly file was saved at 2026-02-18T15:00:00Z and the daily at 2026-02-17T22:00:00Z/.test(d.lines.join('\n')),
+        'frames overlap: the report counts the matches, gives every difference its reason in words, and fails only on the one it cannot explain', d.lines);
+    }
+
+    /* ---------------------------------------------------- --self-check -- */
+    /* Gold's daily and weekly exports for two whole weeks that agree, in a
+       folder of TradingView names: imported into a temporary history by the
+       import itself, compared, and removed. */
+    {
+      const SC = join(FR, 'shots');
+      await mkdir(SC, { recursive: true });
+      const days = weekdays('2026-09-07', 10);
+      const dRows = days.map((d, k) => [new Date(Date.parse(`${d}T21:00:00Z`) - 86400000).toISOString(), 100 + k, 103 + k, 99 + k, 101 + k, 1000 + k]);
+      const wRows = [0, 5].map(s => { const x = dRows.slice(s, s + 5); return [x[0][0], x[0][1], Math.max(...x.map(r => r[2])), Math.min(...x.map(r => r[3])), x[4][4], x.reduce((t, r) => t + r[5], 0)]; });
+      for (const [n, rows] of [['OANDA_GLD, 1D.csv', dRows], ['OANDA_GLD, 1W.csv', wRows]]) { const p = join(SC, n); await writeFile(p, csv(rows)); await utimes(p, new Date('2026-09-28T13:00:00Z'), new Date('2026-09-28T13:00:00Z')); }
+      await writeFile(join(SC, 'notes.csv'), 'not,an,export\n');
+      const tmpBefore = new Set((await readdir(tmpdir())).filter(n => n.startsWith('qt-frames-self-check-')));
+      const hadHistory = existsSync(join(ROOT, 'data/price-history.json'));
+      const r7 = await nodeF([join(ROOT, 'ingest/history-check.mjs'), '--self-check', '--dir', SC, '--instruments', reg, '--now', '2026-09-28T13:00:00Z']);
+      const left = (await readdir(tmpdir())).filter(n => n.startsWith('qt-frames-self-check-') && !tmpBefore.has(n));
+      check(r7.code === 0 && /self-check +2 export\(s\) from .*OANDA_GLD, 1D\.csv, OANDA_GLD, 1W\.csv/.test(r7.stdout)
+        && /1W +GLD +2 week\(s\) overlap \(2026-09-07 … 2026-09-14, daily 2026-09-07 … 2026-09-18\): 2 match/.test(r7.stdout) && /every price difference has a reason/.test(r7.stdout)
+        && !left.length && existsSync(join(ROOT, 'data/price-history.json')) === hadHistory,
+        'frames self-check: the TradingView exports in a folder are imported into a temporary history, compared week by week, and the temporary history removed — data/price-history.json is neither read nor written',
+        { code: r7.code, out: r7.stdout.slice(0, 800), err: r7.stderr.slice(-300), left });
+    }
+  } catch (e) {
+    fail('frames: the test threw', e.stack || e.message);
+  } finally {
+    await rm(FR, { recursive: true, force: true }).catch(() => {});
+  }
+}
+/* ---- end frames ---- */
 
 console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);
