@@ -1345,7 +1345,7 @@ VIEWS.sarawak = () => {
     const rb = el('tbody');
     [...flagged].sort((a, b) => String(a.symbol).localeCompare(String(b.symbol))).forEach(i => {
       const series = trackedHistory?.series?.[i.symbol] || null;
-      const t = series ? trendContext(series) : null;
+      const t = series ? trendContext(series, { ohlc: trackedHistory?.ohlc?.[i.symbol] || null }) : null;
       const theme = SARAWAK_THEMES.find(x => x.id === i.sarawakTheme);
       const recorded = recs.filter(r => r.tk === i.symbol).length;
       rb.append(el('tr', {}, [

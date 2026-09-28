@@ -6,6 +6,13 @@
  *   node ingest/live.mjs --quotes                     (prices for the watchlist)
  *   node ingest/live.mjs --history --days 400         (backfill the trend engine)
  *   node ingest/live.mjs --quotes --provider twelvedata
+ *   node ingest/live.mjs --history --symbols NZ50,USDMYR --days 600
+ *                                                     (only these; the re-fetch
+ *                                                     ingest/history-check.mjs
+ *                                                     --refetch runs)
+ *   ... --plan                                        say what would be fetched,
+ *                                                     from when, into which file,
+ *                                                     and fetch nothing
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * THE LANE IS DECIDED BY THE LICENCE, NOT BY A FLAG
@@ -37,6 +44,15 @@
  *   Nothing intraday is fetched, in either lane. Intraday bars need a data
  *   licence this product does not hold (SC-317), and Yahoo's interval=1h
  *   endpoint sits outside its terms like the rest of it.
+ *
+ * THE RE-FETCH
+ *   A series written before bars were dated by their session (NZ50 a day
+ *   early, the currency pairs two weeks in three) is repaired by fetching it
+ *   again, not by moving its dates: ingest/history-check.mjs --refetch names
+ *   the series and runs this with --symbols and a window reaching back to
+ *   the first mis-dated bar. The store records every value that changes as
+ *   a correction, and history-check then moves the weekend copies this run
+ *   superseded to the rejects file.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -52,6 +68,10 @@ const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv
 const WANT_QUOTES  = has('quotes');
 const WANT_HISTORY = has('history');
 const DAYS         = Number(flag('days', 400));
+/* Only these symbols (comma-separated, as the registry names them), in
+   place of the registry and the watchlist file. */
+const ONLY         = flag('symbols', null);
+const PLAN         = has('plan');
 const PROVIDER     = flag('provider', 'yahoo');
 const SERVED       = 'data/prices.json';
 const PERSONAL     = flag('out', 'data/personal-prices.json');
@@ -62,6 +82,7 @@ if (!WANT_QUOTES && !WANT_HISTORY) {
   node ingest/live.mjs --quotes
   node ingest/live.mjs --history [--days 400]
   node ingest/live.mjs --quotes --provider twelvedata
+  node ingest/live.mjs --history --symbols NZ50,USDMYR [--days 600] [--plan]
 
 Providers:
   yahoo        default. Personal research only — cannot write the served file.
@@ -130,6 +151,7 @@ async function readJson(p, fallback) {
 /* The symbols to fetch: the tracked instrument registry plus any watchlist
    file, deduplicated. */
 async function symbolList() {
+  if (ONLY != null) return [...new Set(ONLY.split(',').map(s => s.trim()).filter(Boolean))];
   const out = new Set();
   const inst = await readJson('data/instruments.json', null);
   for (const i of (inst?.instruments || [])) if (i.symbol) out.add(i.symbol);
@@ -145,13 +167,26 @@ const provider = makeProvider();
 const symbols = await symbolList();
 
 if (!symbols.length) {
-  console.error('no symbols found in data/instruments.json or watchlist-symbols.txt');
+  console.error(ONLY != null ? '--symbols names no symbol' : 'no symbols found in data/instruments.json or watchlist-symbols.txt');
   process.exit(1);
 }
+if (!Number.isFinite(DAYS) || DAYS < 1) { console.error(`--days "${flag('days', '')}" is not a number of days`); process.exit(1); }
 
 console.log(`provider : ${provider.name}`);
 console.log(`licence  : ${provider.licensed ? 'licensed for redistribution' : 'NOT licensed — personal research lane only'}`);
-console.log(`symbols  : ${symbols.length}`);
+console.log(`symbols  : ${symbols.length}${ONLY != null ? ` (only ${symbols.join(', ')})` : ''}`);
+
+/* --plan: what this run would fetch and where it would go, and nothing
+   fetched — so a caller (history-check --refetch --dry) can show the exact
+   run before it touches the network or the file. */
+if (PLAN) {
+  const until = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const since = new Date(Date.now() - DAYS * 86400000).toISOString().slice(0, 10);
+  if (WANT_HISTORY) console.log(`plan     : history for ${symbols.map(s => `${s} (${toVendor(s, provider.name)})`).join(', ')} from ${since} to ${until} through ${provider.name}, merged into ${HISTORY} by the history store`);
+  if (WANT_QUOTES) console.log(`plan     : quotes for ${symbols.length} symbol(s) into ${provider.licensed ? flag('out', SERVED) : PERSONAL}`);
+  console.log('nothing fetched (--plan)');
+  process.exit(0);
+}
 
 /* ------------------------------------------------------------------ quotes */
 if (WANT_QUOTES) {

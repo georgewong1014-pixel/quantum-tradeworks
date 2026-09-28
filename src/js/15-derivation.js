@@ -779,7 +779,9 @@ function derive(c) {
      sample charts, where it is labelled as an illustration; it is not evidence
      and no longer reaches a screen. */
   const obs = (typeof realSeriesFor === 'function') ? realSeriesFor(c) : null;
-  const tr = obs ? trendContext(obs.series) : null;
+  /* With the highs and lows where the history holds them, so from52 and
+     range52 read the 52-week range, not the closing extremes. */
+  const tr = obs ? trendContext(obs.series, { ohlc: obs.ohlc }) : null;
   m.rs12    = tr && isNum(tr.values.ret12m)  ? tr.values.ret12m  : null;
   m.from52  = tr && isNum(tr.values.ddown)   ? tr.values.ddown   : null;
   m.sma200d = tr && isNum(tr.values.dist200) ? tr.values.dist200 : null;

@@ -71,7 +71,9 @@ jobs:
       # provenance with the closes, the atomic write, the rejects file, and
       # every bar dated by its exchange's session in its own zone — checked
       # under two machine time zones, because the old import shifted dates
-      # by the machine's zone and nothing noticed.
+      # by the machine's zone and nothing noticed. Also the history check
+      # (ingest/history-check.mjs: shifted series, sessions held twice, price
+      # breaks and the adjustments that explain them) and --adjusted imports.
       - name: the price-history store validates, ranks, trims and dates bars
         run: node history-store-test.mjs
 
@@ -143,6 +145,7 @@ jobs:
           node -e "
             const { execSync } = require('child_process');
             const BANNED = ['data/prices.json','data/personal-prices.json','data/price-history.json',
+                            'data/price-adjustments.json',
                             'data/personal-fundamentals.json','data/sarawak-income.json',
                             'data/scan-setups.json','data/scan-alerts.json','data/scan-alerts.json.bak','data/scan-alerts.json.tmp',
                             'data/price-history.json.bak','data/price-history.json.tmp','data/price-history.rejects.json',
@@ -156,6 +159,7 @@ jobs:
             const PATTERNS = [/^watchlist-shots\//, /^qtti\/screenshots\//, /^qtti\/out\//,
                               /^property-data\/(raw|staging|normalized|rejects)\//,
                               /^\.chrome-watchlist\//, /\.state\.json$/, /^data\/watchlist-review[^/]*\.(csv|txt)$/,
+                              /^data\/price-adjustments\.json(\.|$)/,
                               /^data\/(price-history(\.rejects)?\.json|scan-(runs|control|deliveries)\.json|scan\.lock|ingest-runs\.json)(\.|$)/,
                               /^data\/(scan-ledger|watchlists)\.json(\.|$)/];
             const tracked = execSync('git ls-files', { encoding: 'utf8' }).split('\n');

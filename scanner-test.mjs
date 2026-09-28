@@ -804,8 +804,10 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
     'the same day absent from one of six series is a missing session for that series: its windows and its crossings are unavailable, MISSING_SESSION');
   check(E.scanBars(myH, 'M1', { market: 'MY', calendar: cal, now: '2026-09-01T10:00:00Z' }).stale === null && E.scanExpectedLastSession(cal, 'MY', '2026-09-01T08:00:00Z') === '2026-08-28',
     'a Monday holiday inferred from the calendar is not stale, and is skipped when finding the session expected by now');
-  const hole = E.scanBars({ series: { H: { '2026-01-05': 1, '2026-01-20': 3 } } }, 'H');
-  const hol = E.scanBars({ series: { H: { '2026-01-16': 1, '2026-01-20': 3 } } }, 'H');
+  /* 1.9 → 2.1, not 1 → 3: a close that triples is a price break, and a
+     crossing is not read across an unexplained one (round 3). */
+  const hole = E.scanBars({ series: { H: { '2026-01-05': 1.9, '2026-01-20': 2.1 } } }, 'H');
+  const hol = E.scanBars({ series: { H: { '2026-01-16': 1.9, '2026-01-20': 2.1 } } }, 'H');
   const crossH = (b) => E.scanRule({ left: { indicator: 'price' }, op: 'crosses_above', right: { value: 2 } }, b);
   check(crossH(hole).reason?.code === 'MISSING_SESSION' && crossH(hol).met === true && hole.calendar.basis === 'weekday',
     'on the weekday calendar a fifteen-day hole is missing sessions (a crossing across it is unavailable), while a one-day gap reads as a possible holiday', { hole: crossH(hole).text });
@@ -1126,7 +1128,9 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
   await rm(join(W3, 'scan-alerts.json'));
   /* The history moves on after the failure; the retry must use the failed run's cut, not today's file. */
   const later = JSON.parse(JSON.stringify(FXT.history));
-  for (const sym of Object.keys(later.series)) { later.series[sym]['2026-04-07'] = 1; if (later.volume?.[sym]) later.volume[sym]['2026-04-07'] = 1; }
+  /* The new bar repeats the last close: a close of 1 after a hundred is a
+     ×0.01 price break, which no indicator window may span (round 3). */
+  for (const sym of Object.keys(later.series)) { later.series[sym]['2026-04-07'] = later.series[sym][FXT.lastBar]; if (later.volume?.[sym]) later.volume[sym]['2026-04-07'] = 1; }
   await writeFile(join(W3, 'price-history.json'), JSON.stringify(later));
   const t1 = await scan('--data', W3, '--retry', failed.id); note(t1);
   const logt = await runsOf(W3);
@@ -1704,6 +1708,218 @@ try {
     { problems: vt.problems, treeNow, twinNow, idem });
 }
 /* ---- end round 3: user ---- */
+
+/* ---- round 3: data ---- */
+/* Recorded corporate actions applied on read, the break no indicator may
+   span, the history report (shifted series, sessions held twice), a price at
+   its series' own precision, and the reserved timestamps. Every answer is
+   worked out beforehand on synthetic series; nothing here reads data/. */
+{
+  const R3 = E;
+  const wd = (from, n) => { const out = []; for (let d = from; out.length < n; d = R3.scanAddDays(d, 1)) { const w = R3.scanWeekday(d); if (w > 0 && w < 6) out.push(d); } return out; };
+  const toMap = (dates, vals) => Object.fromEntries(dates.map((d, i) => [d, vals[i]]));
+  /* 60 sessions of a gently oscillating price, then a 4-for-1 split at bar
+     40: the close quarters overnight. Division by four is exact in binary,
+     so the hand-adjusted series is bit-identical to the engine's. */
+  const D60 = wd('2026-01-05', 60);
+  const raw = D60.map((_, i) => 40 + Math.sin(i / 2) * 2 + i * 0.05);
+  const SPLIT = 40;
+  const traded = raw.map((c, i) => (i >= SPLIT ? c / 4 : c));
+  const vols = D60.map((_, i) => (i >= SPLIT ? 4000 : 1000));
+  const hSplit = { series: { SPL: toMap(D60, traded) }, volume: { SPL: toMap(D60, vols) } };
+  const act = { symbol: 'SPL', date: D60[SPLIT], ratio: 4, kind: 'split' };
+  const rsiAt = (h, i) => R3.scanIndicator({ indicator: 'rsi', n: 14 }, R3.scanBars(h, 'SPL'), { at: i });
+  const before = rsiAt(hSplit, 59);
+  const bSplit = R3.scanBars(hSplit, 'SPL');
+  check(before.status === 'INVALID_INPUT' && before.reason.code === 'UNADJUSTED_BREAK' && before.value === null && /×0\.25 from 2026-02-27 to 2026-03-02 \(it looks like a split 4-for-1\)/.test(before.reason.text.replace(/×0\.25\d*/, '×0.25'))
+    && bSplit.breakBefore[SPLIT] === 1 && bSplit.breaks.length === 1 && bSplit.breaks[0].state === 'unexplained' && bSplit.breaks[0].suggestedRatio === 4,
+    'round 3 data: an RSI window across an unrecorded 4-for-1 split is INVALID_INPUT UNADJUSTED_BREAK, names the move and what it looks like, and computes nothing', before.reason);
+  const adjH = R3.scanAttachAdjustments(hSplit, { schema: 1, actions: [act] });
+  const after = rsiAt(adjH, 59);
+  const hand = R3.scanRsi(raw, 14)[59];
+  const bAdj = R3.scanBars(adjH, 'SPL');
+  check(after.status === 'VALID' && after.value === hand && bAdj.closes.every((c, i) => c === raw[i] / 4) && bAdj.volumes.every(v => v === 4000)
+    && bAdj.breaks[0].state === 'adjusted' && bAdj.breakBefore.every(x => x === 0) && bAdj.adjustments[0].state === 'applied' && bAdj.adjustments[0].bars === SPLIT,
+    'round 3 data: once the split is recorded the same RSI is VALID and bit-identical to the RSI of the hand-adjusted closes; prices before it are divided by 4 and volumes multiplied by 4', { after: after.value, hand });
+  /* Nothing is rewritten: the history object the adjustments were attached to still holds the traded closes. */
+  check(hSplit.series.SPL[D60[0]] === traded[0] && adjH.series === hSplit.series && adjH.adjustmentVersion.startsWith('adj:') && R3.scanAttachAdjustments(hSplit, null).adjustmentVersion === 'none',
+    'round 3 data: adjustments apply on read — the history as held is untouched, and without a file the history carries adjustmentVersion "none"');
+  const cross = R3.scanRule({ left: { indicator: 'price' }, op: 'CROSSES_BELOW', right: { value: 20 } }, bSplit.dates.length ? R3.scanSliceBars(bSplit, SPLIT + 1) : bSplit);
+  check(cross.met === null && cross.reason?.code === 'UNADJUSTED_BREAK' && /a crossing is not read across/.test(cross.text),
+    'round 3 data: price crossing a fixed level across an unexplained split is UNAVAILABLE, not a cross downward', cross);
+
+  /* The window a break is counted in. SMA20 forgets it once the window has moved past it; the recursive averages keep it until its weight is under 1%. */
+  const sma = (h, i) => R3.scanIndicator({ indicator: 'sma', n: 20 }, R3.scanBars(h, 'SPL'), { at: i }).status;
+  check(sma(hSplit, SPLIT + 18) === 'INVALID_INPUT' && sma(hSplit, SPLIT + 19) === 'VALID' && sma(hSplit, SPLIT - 1) === 'VALID'
+    && R3.scanBreakSpan('ema', { n: 50 }, null, 50) === 116 && R3.scanBreakSpan('rsi', { n: 14 }, null, 15) === 64 && R3.scanBreakSpan('macd', { fast: 12, slow: 26, signal: 9 }, 'signal', 34) === 81
+    && R3.scanBreakSpan('sma', { n: 20 }, null, 20) === 20 && R3.scanBreakSpan('price', {}, null, 1) === 1,
+    'round 3 data: SMA20 is valid again 19 bars after the break (its window no longer spans it); EMA50, RSI14 and MACD signal count a break for 116, 64 and 81 bars — until its weight falls under 1%');
+
+  /* Never twice. */
+  const dup = R3.scanReadAdjustments({ schema: 1, actions: [act, { ...act, note: 'again' }] });
+  const flat = { series: { SPL: toMap(D60, raw) } };
+  const onFlat = R3.scanBars(R3.scanAttachAdjustments(flat, { schema: 1, actions: [act] }), 'SPL');
+  check(dup.actions.length === 0 && dup.problems.length === 2 && dup.problems.every(p => /2 actions for SPL on 2026-03-02/.test(p.why)) && dup.version === 'none'
+    && onFlat.adjustments[0].state === 'already-adjusted' && onFlat.closes.every((c, i) => c === raw[i]) && onFlat.breaks.length === 0,
+    'round 3 data: adjusting twice is refused — the same action recorded twice applies neither, and a split recorded on a series that shows no break there (already adjusted) is not applied', { dup: dup.problems, state: onFlat.adjustments[0] });
+  /* An export the provider had already adjusted: a 10% bonus issue (too small for the break guard) is not applied to bars captured after it. */
+  const bonus = { symbol: 'SPL', date: D60[30], ratio: 1.1, kind: 'bonus' };
+  const metaOf = (adjusted) => ({ SPL: Object.fromEntries(D60.map(d => [d, { src: 'import:spl.csv', at: '2026-04-01T09:00:00.000Z', adjusted }])) });
+  const prov = R3.scanBars(R3.scanAttachAdjustments({ series: { SPL: toMap(D60, raw) }, meta: metaOf('provider') }, { schema: 1, actions: [bonus] }), 'SPL');
+  const none = R3.scanBars(R3.scanAttachAdjustments({ series: { SPL: toMap(D60, raw) }, meta: metaOf('none') }, { schema: 1, actions: [bonus] }), 'SPL');
+  check(prov.closes.every((c, i) => c === raw[i]) && prov.adjustments[0].state === 'already-adjusted' && none.adjustments[0].state === 'applied' && none.closes[0] === raw[0] / 1.1 && none.closes[30] === raw[30],
+    'round 3 data: bars imported --adjusted provider after an action are not adjusted for it again; the same bars imported --adjusted none are', { prov: prov.adjustments[0].state, none: none.adjustments[0].state });
+
+  /* Replay sees the evening as it was: an action dated after the cut has nothing on its new basis yet. */
+  const cut = R3.scanBars(R3.scanTruncateHistory(adjH, D60[SPLIT - 1]), 'SPL');
+  check(cut.adjustments[0].state === 'pending' && cut.closes.every((c, i) => c === raw[i]) && cut.adjustmentVersion === null,
+    'round 3 data: a replay cut before the split date leaves the action pending and the closes as they traded that evening');
+
+  /* A move that is the market's own: ratio 1 explains the break, adjusts nothing, and still renames the data version. */
+  const ack = R3.scanBars(R3.scanAttachAdjustments(hSplit, { schema: 1, actions: [{ ...act, ratio: 1, kind: 'other', note: 'a real move' }] }), 'SPL');
+  check(ack.breaks[0].state === 'acknowledged' && ack.breakBefore[SPLIT] === 0 && ack.closes.every((c, i) => c === traded[i]) && ack.dataVersion !== bSplit.dataVersion && /\+adj:[0-9a-f]{8}$/.test(ack.dataVersion)
+    && /^fnv1a:[0-9a-f]{8}$/.test(bSplit.dataVersion),
+    'round 3 data: ratio 1 records a break as the market\'s own move — nothing adjusted, the break explained, the data version suffixed; an unadjusted series keeps the plain fnv1a version', { ack: ack.dataVersion, plain: bSplit.dataVersion });
+
+  /* A wrong ratio is shown, not hidden: a 2-for-1 recorded for a 4-for-1 leaves a break. */
+  const wrong = R3.scanBars(R3.scanAttachAdjustments(hSplit, { schema: 1, actions: [{ ...act, ratio: 2 }] }), 'SPL');
+  check(wrong.breaks[0].state === 'remains' && wrong.breakBefore[SPLIT] === 1 && /does not remove/.test(R3.scanIndicator({ indicator: 'rsi', n: 14 }, wrong).reason?.text || ''),
+    'round 3 data: a recorded ratio that does not remove the break leaves it open (state "remains"), and the reason says to check the ratio');
+
+  const rd = R3.scanReadAdjustments({ schema: 1, actions: [null, { symbol: '', date: '2026-01-05', ratio: 2, kind: 'split' }, { symbol: 'A', date: '2026-02-30', ratio: 2, kind: 'split' },
+    { symbol: 'A', date: '2026-01-05', ratio: 0, kind: 'split' }, { symbol: 'A', date: '2026-01-05', ratio: 2, kind: 'dividend' }, { symbol: 'b', date: '2026-01-06', ratio: '0.5', kind: 'Consolidation' }] });
+  const v1 = R3.scanReadAdjustments({ actions: [act] }).version, v2 = R3.scanReadAdjustments({ actions: [{ ...act, note: 'edited note' }] }).version, v3 = R3.scanReadAdjustments({ actions: [{ ...act, ratio: 5 }] }).version;
+  check(rd.problems.length === 5 && rd.actions.length === 1 && rd.actions[0].symbol === 'B' && rd.actions[0].ratio === 0.5 && rd.actions[0].kind === 'consolidation'
+    && /no symbol/.test(rd.problems[1].why) && /not a day/.test(rd.problems[2].why) && /not a number above 0/.test(rd.problems[3].why) && /not one of split, consolidation, bonus, other/.test(rd.problems[4].why)
+    && v1 === v2 && v1 !== v3 && R3.scanReadAdjustments({ nope: 1 }).problems.length === 1,
+    'round 3 data: the adjustments file is read strictly — each unreadable entry is refused with its reason; the version changes with a ratio, not with a note', rd.problems);
+
+  /* Breaks as the live file had them (5099 ×0.277, STI ×3.94): named, and only a plain ratio gets a suggestion. */
+  const DB = wd('2025-11-17', 12);
+  const lb = R3.scanBars({ series: { X: toMap(DB, [1.3, 1.31, 1.3, 1.29, 1.3, 0.36, 0.37, 0.36, 0.37, 0.36, 1.418, 1.42]) } }, 'X');
+  check(lb.breaks.length === 2 && lb.breaks.every(b => b.state === 'unexplained') && lb.breaks[0].tag === 'unexplained' && lb.breaks[0].suggestedRatio === null
+    && lb.breaks[1].tag === 'consolidation 1-for-4' && lb.breaks[1].suggestedRatio === 0.25,
+    'round 3 data: breaks like 5099\'s ×0.277 and STI\'s ×3.94 are listed unexplained; only the one near a plain ratio suggests a ratio to record (0.25)', lb.breaks.map(b => [b.tag, b.suggestedRatio]));
+
+  /* Weekly bars carry the daily break into its week. */
+  const wk = R3.scanBars(hSplit, 'SPL', { timeframe: '1W' });
+  const wkAt = wk.breakBefore.indexOf(1);
+  check(wkAt > 0 && wk.breaks[0].at === wkAt && wk.breaks[0].bar === D60[SPLIT] && wk.dates[wkAt] >= D60[SPLIT] && wk.dates[wkAt - 1] < D60[SPLIT]
+    && R3.scanIndicator({ indicator: 'sma', n: 2 }, wk, { at: wkAt }).reason?.code === 'UNADJUSTED_BREAK' && R3.scanBars(adjH, 'SPL', { timeframe: '1W' }).breakBefore.every(x => x === 0),
+    'round 3 data: a weekly bar whose week holds an unexplained daily break is marked, and adjusting the daily bars clears it', wk.breakBefore);
+
+  /* SC-317: the intraday shape is reserved — a timestamp per bar, null for every daily and weekly bar. */
+  const sl = R3.scanSliceBars(bSplit, 10), sb = R3.scanSeriesBars([1, 2, 3]);
+  check(bSplit.timestamps.length === bSplit.dates.length && bSplit.timestamps.every(t => t === null) && wk.timestamps.length === wk.dates.length && wk.timestamps.every(t => t === null)
+    && sl.timestamps.length === 10 && sb.timestamps.length === 3 && sb.breakBefore.length === 3,
+    'round 3 data: bars carry a reserved timestamps array — one entry per bar, null for daily and weekly, cut with the bars — so an intraday bar has a place for its instant');
+
+  /* A price prints at its series' own precision. */
+  const bursa = R3.scanBars({ series: { B: toMap(wd('2026-01-05', 3), [0.34, 0.35, 0.345]) } }, 'B');
+  const t1 = R3.scanRule({ left: { indicator: 'price' }, op: 'LESS_THAN', right: { value: 0.5 } }, bursa).text;
+  const big = R3.scanBars({ series: { N: toMap(wd('2026-01-05', 3), [45100, 45110, 45120.5]) } }, 'N');
+  const t2 = R3.scanRule({ left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 45100 } }, big).text;
+  const f32 = R3.scanBars({ series: { F: toMap(wd('2026-01-05', 2), [5.300000190734863, 5.400000095367432]) } }, 'F');
+  const t3 = R3.scanRule({ left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 5 } }, f32).text;
+  const vt = R3.scanRule({ left: { indicator: 'volume' }, op: 'GREATER_THAN', right: { value: 20000 } }, R3.scanBars({ series: { V: toMap(wd('2026-01-05', 1), [10]) }, volume: { V: toMap(wd('2026-01-05', 1), [25000]) } }, 'V')).text;
+  /* Precision is read up to the bar printed: a later close quoted finer does not change an earlier match's text. */
+  const later = R3.scanBars({ series: { B: toMap(wd('2026-01-05', 3), [0.34, 0.35, 0.3455]) } }, 'B');
+  const early = R3.scanEvaluate({ type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'LESS_THAN', right: { value: 0.5 } }] }, later, { at: 1 }).conditions[0].text;
+  check(t1 === 'price 0.345 below 0.500' && t2 === 'price 45120.50 above 45100.00' && t3 === 'price 5.40 above 5.00' && vt === 'volume 25.0k above 20.0k' && early === 'price 0.35 below 0.50'
+    && R3.scanFmtFor(0.345, 'price', bursa) === '0.345' && R3.scanFmtFor(1.5, 'ratio', bursa) === '1.50',
+    'round 3 data: a price prints at its series\' own precision (0.345 below 0.500, not 0.34 below 0.50), is never shortened to 45.1k, reads a 32-bit float as the 5.40 it was, and a volume still shortens', [t1, t2, t3, vt, early]);
+
+  /* THE HISTORY REPORT: shifted series, weekend bars per market, sessions held twice. */
+  const days = (from, to) => { const out = []; for (let d = from; d <= to; d = R3.scanAddDays(d, 1)) out.push(d); return out; };
+  const span = days('2026-01-04', '2026-04-04');
+  const sessions = span.filter(d => { const w = R3.scanWeekday(d); return w > 0 && w < 6; });
+  /* NZ-style: every session dated a day early (Sunday … Thursday). */
+  const early1 = Object.fromEntries(sessions.map((d, i) => [R3.scanAddDays(d, -1), 100 + (i % 5)]));
+  /* FX-style: a third of the weeks shifted. */
+  const partial = Object.fromEntries(sessions.map((d, i) => [Math.floor(i / 5) % 3 === 0 ? R3.scanAddDays(d, -1) : d, 4 + (i % 7) / 100]));
+  /* A clean series with one weekend reading, and the same session under two dates. */
+  const clean = Object.fromEntries(sessions.map((d, i) => [d, 50 + (i % 4)]));
+  clean['2026-02-08'] = clean['2026-02-09'];
+  /* Two sources, consecutive weekdays, one close: one session dated two ways. And an unchanged Bursa close from one source, not listed. */
+  const two = Object.fromEntries(sessions.map((d, i) => [d, 10 + i / 10]));
+  two['2026-03-04'] = two['2026-03-03'];
+  const quiet = Object.fromEntries(sessions.map((d, i) => [d, i < 10 ? 1.2 : 1.21]));
+  const reportH = { series: { NZX: early1, FXP: partial, CLN: clean, TWO: two, BUR: quiet, BTC: Object.fromEntries(span.map((d, i) => [d, 90000 + i])) },
+    meta: { TWO: { '2026-03-03': { src: 'screen' }, '2026-03-04': { src: 'yahoo' } }, BUR: Object.fromEntries(sessions.map(d => [d, { src: 'screen' }])) } };
+  const inst = [{ symbol: 'NZX', market: 'NZ' }, { symbol: 'FXP', market: 'FX' }, { symbol: 'CLN', market: 'US' }, { symbol: 'TWO', market: 'US' }, { symbol: 'BUR', market: 'MY' }, { symbol: 'BTC', market: 'CRYPTO' }];
+  const VR = R3.scanValidateHistory(reportH, { instruments: inst, now: '2026-04-06T12:00:00Z' });
+  const sh = Object.fromEntries(VR.shifted.map(s => [s.symbol, s]));
+  const wkM = Object.fromEntries(VR.weekendByMarket.map(m => [m.market, m.bars]));
+  check(Object.keys(sh).sort().join() === 'FXP,NZX' && sh.NZX.direction === 'early' && !sh.NZX.partial && sh.NZX.weekdays[5] === 0 && sh.NZX.sundayShare > 0.19
+    && sh.FXP.partial && sh.FXP.direction === 'early' && wkM.NZ === sh.NZX.weekdays[0] && wkM.US === 1 && !('CRYPTO' in wkM)
+    && VR.rejected.some(r => r.symbol === 'NZX' && r.codes.includes('NON_SESSION_DAY')),
+    'round 3 data: the history report calls a series dated a day early shifted (whole, or in part), counts weekend-dated bars per market, never judges a market that trades every day, and one stray weekend bar is not a shift', { shifted: Object.keys(sh), weekend: wkM });
+  const dups = VR.duplicatesBySession.map(d => `${d.symbol}:${d.dates.join('/')}`);
+  check(dups.length === 2 && dups.includes('CLN:2026-02-08/2026-02-09') && dups.includes('TWO:2026-03-03/2026-03-04') && !dups.some(d => d.startsWith('BUR'))
+    && VR.duplicatesBySession.find(d => d.symbol === 'TWO').sources.join() === 'screen,yahoo',
+    'round 3 data: duplicatesBySession lists one session under two dates (a weekend day beside a weekday, or two sources on consecutive days) and not a quiet counter\'s unchanged close', dups);
+  check(VR.totals.shifted === 2 && VR.totals.duplicates === 2 && VR.breaks.every(b => b.state) && Array.isArray(VR.missing) && Array.isArray(VR.stale) && VR.adjustments.version === 'none',
+    'round 3 data: scanValidateHistory returns the plan\'s report — rejected, weekendByMarket, shifted, duplicatesBySession, breaks, stale, missing — from scanDataHealth, so the page and the tool agree');
+  const HD = R3.scanDataHealth(R3.scanAttachAdjustments(hSplit, { schema: 1, actions: [act, { symbol: 'GONE', date: '2026-01-05', ratio: 2, kind: 'split' }] }), [], '2026-04-06T12:00:00Z');
+  check(HD.adjustments.actions.find(a => a.symbol === 'SPL').state === 'applied' && HD.adjustments.actions.find(a => a.symbol === 'GONE').state === 'no-series' && HD.totals.unexplained === 0 && HD.totals.jumps === 1,
+    'round 3 data: the data page\'s health report says what became of each recorded action, including one for a symbol the history does not hold');
+
+  /* The worker applies the same file, from beside the history. */
+  /* Each case in its own folder: a second run on the same history and setups
+     is the worker's unchanged-key skip, which is the worker's to key on the
+     adjustments (C6), not this check's. */
+  const D80 = wd('2026-01-05', 80);
+  const up80 = D80.map((_, i) => 40 + Math.sin(i / 2) * 2 + i * 0.05);
+  const wnow = R3.scanReplayNow(D80[79]);
+  const dirs = [];
+  const workerIn = async (name, adjustments) => {
+    const WD = join(tmpdir(), `qt-worker-adjust-${name}-${process.pid}`);
+    dirs.push(WD);
+    await rm(WD, { recursive: true, force: true });
+    await mkdir(WD, { recursive: true });
+    await writeFile(join(WD, 'price-history.json'), JSON.stringify({ series: { SPL: toMap(D80, up80.map((c, i) => (i >= 60 ? c / 2 : c))) } }));
+    await writeFile(join(WD, 'scan-setups.json'), JSON.stringify({ setups: [{ id: 'rsi-held', version: 1, name: 'RSI held', enabled: true, universe: { kind: 'all' }, timeframe: '1D',
+      confirmationMode: 'BAR_CLOSE', cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null,
+      ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'rsi', n: 14 }, op: 'BETWEEN', range: [{ value: 0 }, { value: 100 }] }] } }] }));
+    await writeFile(join(WD, 'instruments.json'), '[]');
+    if (adjustments != null) await writeFile(join(WD, 'price-adjustments.json'), adjustments);
+    let r;
+    try { const { stdout, stderr } = await run(process.execPath, [join(ROOT, 'scanner/scan.mjs'), '--data', WD, '--instruments', join(WD, 'instruments.json'), '--now', wnow]); r = { code: 0, stdout, stderr }; }
+    catch (e) { r = { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; }
+    r.alerts = existsSync(join(WD, 'scan-alerts.json')) ? JSON.parse(await readFile(join(WD, 'scan-alerts.json'), 'utf8')).alerts : [];
+    return r;
+  };
+  const w0 = await workerIn('none', null);
+  const wBad = await workerIn('bad', '{ not json');
+  const w1 = await workerIn('split', JSON.stringify({ schema: 1, actions: [{ symbol: 'SPL', date: D80[60], ratio: 2, kind: 'split' }] }));
+  const a0 = w0.alerts, a1 = w1.alerts;
+  check(w0.code === 2 && a0.length === 0 && /UNADJUSTED_BREAK|no recorded adjustment explains/.test(w0.stdout + w0.stderr)
+    && wBad.code === 1 && /price-adjustments\.json is not valid JSON/.test(wBad.stderr + wBad.stdout)
+    && w1.code === 0 && a1.length === 1 && a1[0].candleDate === D80[79] && /\+adj:[0-9a-f]{8}$/.test(a1[0].dataVersion),
+    'round 3 data: the worker reads data/price-adjustments.json beside the history — without it the split leaves RSI untested (exit 2); an unreadable file fails the run (exit 1); with it the match is recorded on adjusted bars and its data version says so',
+    { w0: w0.code, bad: wBad.code, w1: w1.code, alerts: a1.map(a => a.dataVersion) });
+  for (const d of dirs) await rm(d, { recursive: true, force: true });
+
+  /* Every caller of the trend context hands over the highs and lows (the page
+     harness checks the values; this catches a new caller that forgets). */
+  {
+    const calls = [];
+    for (const f of (await readdir(join(ROOT, 'src/js'))).filter(n => n.endsWith('.js'))) {
+      const src = await readFile(join(ROOT, 'src/js', f), 'utf8');
+      for (const m of src.matchAll(/(?<!function )trendContext\(([^)]*)\)/g)) calls.push({ f, args: m[1] });
+    }
+    check(calls.length >= 5 && calls.every(c => /ohlc/.test(c.args)), `round 3 data: all ${calls.length} trendContext calls in src/js pass { ohlc }, so the 52-week range is the high of the range wherever it is held`, calls.filter(c => !/ohlc/.test(c.args)));
+  }
+
+  /* The file is personal: git-ignored, and in CI's list. */
+  try {
+    const ignore = await readFile(join(ROOT, '.gitignore'), 'utf8');
+    const ci = await readFile(join(ROOT, '.github/workflows/checks.yml'), 'utf8');
+    check(ignore.split(/\r?\n/).includes('data/price-adjustments.json') && ci.includes("'data/price-adjustments.json'"),
+      'round 3 data: data/price-adjustments.json is git-ignored and in CI\'s "no licensed data" list');
+  } catch (e) { fail('round 3 data: .gitignore and checks.yml are readable', e.message); }
+}
+/* ---- end round 3: data ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

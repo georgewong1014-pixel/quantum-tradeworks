@@ -15,18 +15,21 @@
    is one SMA, one EMA, one RSI in this product, and they are these.
 
    PURE. No DOM, no State, no storage, no clock: every function that needs
-   "now" is handed it. The only module-level state is three memo tables (a
-   date formatter per time zone, a session lookup per calendar, and what a
-   date string's weekday and day arithmetic come to), which change no
-   answer.
+   "now" is handed it. The only module-level state is four memo tables (a
+   date formatter per time zone, a session lookup per calendar, what a
+   date string’s weekday and day arithmetic come to, and the quoted
+   precision of a series), which change no answer.
 
    WHAT IT DOES NOT KNOW. No exchange calendar is held — a maintained one
    comes with a licensed feed — so sessions are inferred from the reader's
-   own history and labelled as inferred. No corporate actions are held, so
-   closes are not adjusted. No finality flag comes with a screen capture, so
-   a bar is FINAL only when its capture time is recorded and falls after the
-   session's close plus a settle margin; a bar with no capture time is
-   UNKNOWN, and the record says so.
+   own history and labelled as inferred. No corporate-action feed is held:
+   a split shows as a price break, and closes are adjusted only for the
+   actions the reader records (data/price-adjustments.json), on read — an
+   indicator is not computed across a break nobody has explained. No
+   finality flag comes with a screen capture, so a bar is FINAL only when
+   its capture time is recorded and falls after the session's close plus a
+   settle margin; a bar with no capture time is UNKNOWN, and the record
+   says so.
 
    THE PRODUCT BOUNDARY, which the scanner page states in full: conditions
    the reader defines, evaluated on price history the reader supplied,
@@ -771,7 +774,12 @@ function scanExpectedLastSession(cal, market, now) {
    close, volume and status, hashed. The cache keys on it, an alert records
    it, and a corrected close anywhere up to the bar changes it. Computed at
    run time because the history file is git-ignored and the build does not
-   hash it. */
+   hash it. The values hashed are the adjusted ones; a series read with a
+   recorded adjustment also carries that adjustment's name after a '+', so
+   a record says it was computed on adjusted prices — and a ratio-1 entry,
+   which moves no price but makes a break explained, still changes it. A
+   series nobody adjusted reads exactly as it did before adjustments
+   existed. */
 function scanDataVersion(bars, upto = null) {
   const n = bars?.dates?.length || 0;
   const last = upto == null ? n - 1 : Math.min(upto, n - 1);
@@ -780,8 +788,143 @@ function scanDataVersion(bars, upto = null) {
   for (let i = 0; i <= last; i++) {
     lines.push(`${bars.dates[i]}|${f(bars.open?.[i])}|${f(bars.high?.[i])}|${f(bars.low?.[i])}|${f(bars.closes[i])}|${f(bars.volumes?.[i])}|${bars.status?.[i] || 'UNKNOWN'}`);
   }
-  return `fnv1a:${scanHash(lines.join('\n'))}`;
+  return `fnv1a:${scanHash(lines.join('\n'))}${bars?.adjustmentVersion ? `+${bars.adjustmentVersion}` : ''}`;
 }
+
+/* ------------------------------------------------------------- adjustments -- */
+/* CORPORATE ACTIONS, RECORDED BY THE READER. No corporate-action feed is
+   held, so a split reaches the history as a price break and nothing more —
+   until the reader records it in data/price-adjustments.json (git-ignored,
+   beside the history):
+     { schema: 1, actions: [{ symbol, date, ratio, kind, note?, recordedAt? }] }
+   `date` is the first bar on the new basis; `ratio` is new units per old
+   unit — 2 for a 2-for-1 split, 0.5 for a 1-for-2 consolidation. Bars
+   before the date have their prices divided by the ratio and their volume
+   multiplied by it, ON READ: the history on disk is never rewritten, so a
+   wrong ratio is undone by correcting the record, not the prices. A ratio
+   of 1 records that a break is the market's own move, not a change of
+   basis: it adjusts nothing, and the break stops counting as unexplained.
+   An action that cannot be read is refused whole, with its reason; two
+   actions for one symbol and date are both refused — the store refuses two
+   rows for one date the same way, and neither is guessed between. */
+const SCAN_ADJUSTMENT_KINDS = ['split', 'consolidation', 'bonus', 'other'];
+function scanReadAdjustments(doc) {
+  const list = Array.isArray(doc) ? doc : Array.isArray(doc?.actions) ? doc.actions : null;
+  const out = { schema: doc && typeof doc === 'object' && !Array.isArray(doc) ? (doc.schema ?? null) : null, actions: [], problems: [], version: 'none' };
+  if (!list) {
+    if (doc != null) out.problems.push({ index: null, symbol: null, date: null, why: 'no list of actions — the file is { "schema": 1, "actions": [ … ] }' });
+    return out;
+  }
+  const byKey = new Map();
+  list.forEach((a, index) => {
+    if (!a || typeof a !== 'object' || Array.isArray(a)) { out.problems.push({ index, symbol: null, date: null, why: 'not an action: each entry is { symbol, date, ratio, kind }' }); return; }
+    const symbol = a.symbol == null ? '' : String(a.symbol).trim().toUpperCase();
+    const ratio = scanNumeric(a.ratio) ? Number(a.ratio) : NaN;
+    const kind = typeof a.kind === 'string' ? a.kind.trim().toLowerCase() : '';
+    const why = [];
+    if (!symbol) why.push('no symbol');
+    if (!scanIsDay(a.date)) why.push(`date “${a.date ?? ''}” is not a day (YYYY-MM-DD, the first bar on the new basis)`);
+    if (!(ratio > 0)) why.push(`ratio “${a.ratio ?? ''}” is not a number above 0 (new units per old unit: 2 for a 2-for-1 split, 0.5 for a 1-for-2 consolidation)`);
+    if (!SCAN_ADJUSTMENT_KINDS.includes(kind)) why.push(`kind “${a.kind ?? ''}” is not one of ${SCAN_ADJUSTMENT_KINDS.join(', ')}`);
+    if (why.length) { out.problems.push({ index, symbol: symbol || null, date: a.date ?? null, why: why.join('; ') }); return; }
+    const act = { symbol, date: a.date, ratio, kind };
+    if (a.note != null && a.note !== '') act.note = String(a.note);
+    if (a.recordedAt != null && a.recordedAt !== '') act.recordedAt = String(a.recordedAt);
+    const k = `${symbol}|${a.date}`;
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push({ index, act });
+  });
+  byKey.forEach((xs) => {
+    if (xs.length === 1) { out.actions.push(xs[0].act); return; }
+    xs.forEach(x => out.problems.push({ index: x.index, symbol: x.act.symbol, date: x.act.date,
+      why: `${xs.length} actions for ${x.act.symbol} on ${x.act.date} — none of them is applied; keep the one that is right` }));
+  });
+  out.actions.sort((p, q) => (p.symbol < q.symbol ? -1 : p.symbol > q.symbol ? 1 : p.date < q.date ? -1 : p.date > q.date ? 1 : 0));
+  out.problems.sort((p, q) => (p.index ?? -1) - (q.index ?? -1));
+  /* Named by what changes arithmetic — symbol, date, ratio — so editing a
+     note does not make every run look new. */
+  if (out.actions.length) out.version = `adj:${scanHash(out.actions.map(x => `${x.symbol}|${x.date}|${x.ratio}`).join('\n'))}`;
+  return out;
+}
+/* What a loader does with the file: the history with the readable actions
+   attached, for scanBars to apply. A copy — the history as read is left as
+   it was. Without a file, adjustmentVersion is 'none' and nothing changes. */
+function scanAttachAdjustments(history, doc) {
+  if (!history || typeof history !== 'object') return history;
+  const r = scanReadAdjustments(doc);
+  return { ...history, adjustments: r.actions, adjustmentVersion: r.version, adjustmentProblems: r.problems };
+}
+/* The moves a ratio can be read as a break at: the thresholds of
+   scanPriceBreaks. */
+const scanIsBreakRatio = (r) => r > 1.5 || r < 1 / 1.5;
+/* One series' bars with its recorded actions applied. `providerAdjusted[i]`
+   is the capture date of a bar imported as already adjusted by its provider
+   (history-import --adjusted provider), else null: such a bar already
+   reflects every action dated on or before its export, and is not adjusted
+   for it again. A second guard needs no record: an action large enough to
+   be a break (above 1.5 or below 0.67) is applied only where the series
+   shows a break at its date. Where the close moved less than that across
+   the date, the prices are already on the new basis — an adjusted export,
+   or the same split recorded twice — and adjusting them again would make
+   the break it was meant to remove. Each action says what became of it. */
+function scanAdjust(bars, actions, { providerAdjusted = null } = {}) {
+  const sym = String(bars?.symbol ?? '').toUpperCase();
+  const mine = (Array.isArray(actions) ? actions : [])
+    .filter(a => a && String(a.symbol ?? '').toUpperCase() === sym && scanIsDay(a.date) && Number.isFinite(a.ratio) && a.ratio > 0)
+    .sort((p, q) => (p.date < q.date ? -1 : p.date > q.date ? 1 : 0));
+  if (!mine.length) return { ...bars, adjustments: [], adjustmentVersion: null };
+  const n = bars.dates.length;
+  const factor = new Array(n).fill(1);
+  const record = [];
+  for (const a of mine) {
+    let j = 0;
+    while (j < n && bars.dates[j] < a.date) j++;
+    const base = { date: a.date, ratio: a.ratio, kind: a.kind || null, note: a.note ?? null, boundary: j < n ? bars.dates[j] : null, bars: 0 };
+    if (j >= n) { record.push({ ...base, state: 'pending', why: `no bar on or after ${a.date} is held yet, so nothing is on the new basis to adjust towards` }); continue; }
+    if (j === 0) { record.push({ ...base, state: 'nothing-before', why: `no bar before ${a.date} is held — every bar is already on the new basis` }); continue; }
+    if (a.ratio === 1) { record.push({ ...base, state: 'acknowledged', why: `ratio 1: the move from ${bars.dates[j - 1]} to ${bars.dates[j]} is recorded as the market's own, not a change of basis — nothing is adjusted and the break is explained` }); continue; }
+    const move = bars.closes[j] / bars.closes[j - 1];
+    if (scanIsBreakRatio(a.ratio) && !scanIsBreakRatio(move)) {
+      record.push({ ...base, state: 'already-adjusted', why: `the close moved only ×${Number(move.toPrecision(3))} from ${bars.dates[j - 1]} to ${bars.dates[j]}, so the prices are already on the new basis — adjusting them for a ratio of ${a.ratio} would make a break, not remove one` });
+      continue;
+    }
+    let k = 0;
+    for (let i = 0; i < j; i++) {
+      const pa = providerAdjusted?.[i];
+      if (pa && pa >= a.date) continue;
+      factor[i] *= a.ratio; k++;
+    }
+    record.push(k
+      ? { ...base, state: 'applied', bars: k, why: `${k} bar${k === 1 ? '' : 's'} before ${bars.dates[j]}: prices divided by ${a.ratio}, volume multiplied by it` }
+      : { ...base, state: 'already-adjusted', why: `every bar before ${bars.dates[j]} was imported already adjusted by its provider after ${a.date}` });
+  }
+  const div = (arr) => (Array.isArray(arr) ? arr.map((v, i) => (v == null || factor[i] === 1 ? v : v / factor[i])) : arr);
+  const took = record.filter(r => r.state === 'applied' || r.state === 'acknowledged');
+  return { ...bars, closes: div(bars.closes), open: div(bars.open), high: div(bars.high), low: div(bars.low),
+           volumes: Array.isArray(bars.volumes) ? bars.volumes.map((v, i) => (v == null || factor[i] === 1 ? v : v * factor[i])) : bars.volumes,
+           adjustments: record, adjustmentVersion: took.length ? `adj:${scanHash(took.map(r => `${r.date}|${r.ratio}`).join('\n'))}` : null };
+}
+/* Every close-to-close break in a series, raw and after adjustment, with
+   what explains it: 'adjusted' (a recorded action at its date brings the
+   move inside the band), 'acknowledged' (recorded with ratio 1 as the
+   market's own move), 'remains' (an action was applied and the move is
+   still a break — the ratio recorded is not the one that happened),
+   'created' (a break only the adjusted series has) or 'unexplained'.
+   The last three are the ones no indicator window may span. */
+function scanExplainBreaks(raw, adj) {
+  const byBoundary = new Map((adj.adjustments || []).filter(a => a.boundary).map(a => [a.boundary, a]));
+  const actionOf = (bar) => { const a = byBoundary.get(bar); return a ? { date: a.date, ratio: a.ratio, kind: a.kind, state: a.state } : null; };
+  const after = new Map(scanPriceBreaks(adj).map(b => [b.bar, b]));
+  const out = scanPriceBreaks(raw).map(b => {
+    const action = actionOf(b.bar), left = after.get(b.bar);
+    after.delete(b.bar);
+    const state = action?.state === 'acknowledged' ? 'acknowledged' : action?.state === 'applied' ? (left ? 'remains' : 'adjusted') : 'unexplained';
+    return { ...b, state, action, adjustedRatio: action?.state === 'applied' ? adj.closes[b.at] / adj.closes[b.at - 1] : null };
+  });
+  after.forEach(b => out.push({ ...b, state: 'created', action: actionOf(b.bar), adjustedRatio: b.ratio }));
+  return out.sort((p, q) => p.at - q.at);
+}
+const SCAN_BREAK_OPEN = ['unexplained', 'remains', 'created'];
 
 /* An instrument's bars from the history file. Schema 1 holds
    { series: {SYM: {date: close}}, volume: {SYM: {date: v}} }; schema 2 adds,
@@ -791,7 +934,21 @@ function scanDataVersion(bars, upto = null) {
    one is listed in `invalid` with its codes and left out, never silently
    dropped and never made the last bar. With a clock, each bar gets a status
    and the series is marked stale when its last final bar is older than the
-   session that should be held by now. */
+   session that should be held by now.
+
+   ADJUSTED ON READ. When a loader has attached the reader's recorded
+   corporate actions (history.adjustments, scanAttachAdjustments), they are
+   applied here — after validation, which judges each bar as it was
+   captured — so every caller reads adjusted bars without knowing it.
+   `breaks` lists each close-to-close break with what explains it, and
+   breakBefore[i] is 1 where an unexplained one falls between bar i−1 and
+   bar i: no indicator window is computed across it.
+
+   TIMESTAMPS ARE RESERVED. A daily bar is named by its session date, and
+   its instant would be the session's close, which scanSessionEnd gives on
+   demand; `timestamps` holds null for every daily and weekly bar. The
+   array exists so an intraday bar, which a date cannot name, has a place
+   to carry its instant when a licensed intraday feed exists (SC-317). */
 function scanBars(history, symbol, { timeframe = '1D', market = undefined, instruments = null, now = null, calendar = null, staleTolerance = 0 } = {}) {
   const mk = market !== undefined ? market : (instruments ? scanMarketOf(symbol, instruments) : null);
   const s = history?.series?.[symbol] || {}, v = history?.volume?.[symbol] || {};
@@ -800,10 +957,11 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
   const clock = now != null && Number.isFinite(scanMs(now));
   const today = clock ? scanLocalDate(mk, now) : null;
   const cal = calendar || scanWeekdayCalendar(mk);
-  const b = { symbol, market: mk, instrumentId: mk ? `${String(mk).toUpperCase()}:${String(symbol).toUpperCase()}` : null, timeframe: '1D',
-              dates: [], closes: [], volumes: [], open: [], high: [], low: [], status: [], source: [], capturedAt: [],
-              invalid: [], gapBefore: [], hasOHLC: false, gapTolerance: cal.tolerance ?? 0,
+  let b = { symbol, market: mk, instrumentId: mk ? `${String(mk).toUpperCase()}:${String(symbol).toUpperCase()}` : null, timeframe: '1D',
+              dates: [], timestamps: [], closes: [], volumes: [], open: [], high: [], low: [], status: [], source: [], capturedAt: [],
+              invalid: [], gapBefore: [], breakBefore: [], breaks: [], adjustments: [], adjustmentVersion: null, hasOHLC: false, gapTolerance: cal.tolerance ?? 0,
               calendar: { basis: cal.basis, text: cal.text }, stale: null, dataVersion: null };
+  const providerAdjusted = [];
   for (const d of Object.keys(s).sort()) {
     const row = Array.isArray(o[d]) ? o[d] : null;
     const px = (x) => (x == null ? null : typeof x === 'number' ? x : NaN);
@@ -811,13 +969,23 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
                   close: typeof s[d] === 'number' ? s[d] : NaN, volume: v[d] == null ? null : typeof v[d] === 'number' ? v[d] : NaN };
     const codes = scanValidateBar(bar, { market: mk, today });
     if (codes.length) { b.invalid.push({ date: d, codes }); continue; }
-    b.dates.push(d); b.closes.push(bar.close); b.volumes.push(bar.volume);
+    b.dates.push(d); b.timestamps.push(null); b.closes.push(bar.close); b.volumes.push(bar.volume);
     b.open.push(bar.open); b.high.push(bar.high); b.low.push(bar.low);
     if (scanOk(bar.high) && scanOk(bar.low)) b.hasOHLC = true;
     const m = meta[d] && typeof meta[d] === 'object' ? meta[d] : {};
     b.status.push(corrected.has(d) || m.status === 'CORRECTED' ? 'CORRECTED' : scanBarStatus(mk, d, m.at));
     b.source.push(m.src ?? null); b.capturedAt.push(m.at ?? null);
+    /* An export the provider had already adjusted (history-import
+       --adjusted provider) reflects every action up to the day it was
+       made; with no capture time, every action. */
+    providerAdjusted.push(m.adjusted === 'provider' ? (m.at != null && Number.isFinite(scanMs(m.at)) ? scanLocalDate(mk, m.at) : '9999-12-31') : null);
   }
+  const acts = Array.isArray(history?.adjustments) ? history.adjustments : null;
+  const adj = acts && acts.length ? scanAdjust(b, acts, { providerAdjusted }) : b;
+  b.breaks = scanExplainBreaks(b, adj);
+  if (adj !== b) b = { ...adj, breaks: b.breaks };
+  const open = new Set(b.breaks.filter(x => SCAN_BREAK_OPEN.includes(x.state)).map(x => x.at));
+  b.breakBefore = b.dates.map((_, i) => (open.has(i) ? 1 : 0));
   for (let i = 0; i < b.dates.length; i++) b.gapBefore.push(i === 0 ? 0 : scanSessionsBetween(cal, b.dates[i - 1], b.dates[i]));
   if (clock && b.dates.length) {
     let at = b.dates.length - 1;
@@ -837,9 +1005,10 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
 function scanSeriesBars(closes, { dates = null, volumes = null, open = null, high = null, low = null } = {}) {
   const n = closes.length, nil = () => new Array(n).fill(null);
   const hi = high || nil(), lo = low || nil();
-  return { symbol: null, market: null, instrumentId: null, timeframe: '1D', dates: dates || closes.map((_, i) => String(i)), closes,
+  return { symbol: null, market: null, instrumentId: null, timeframe: '1D', dates: dates || closes.map((_, i) => String(i)), timestamps: nil(), closes,
            volumes: volumes || nil(), open: open || nil(), high: hi, low: lo, status: new Array(n).fill('UNKNOWN'),
-           source: nil(), capturedAt: nil(), invalid: [], gapBefore: new Array(n).fill(0),
+           source: nil(), capturedAt: nil(), invalid: [], gapBefore: new Array(n).fill(0), breakBefore: new Array(n).fill(0), breaks: [],
+           adjustments: [], adjustmentVersion: null,
            hasOHLC: hi.some(scanOk) && lo.some(scanOk), gapTolerance: 0, calendar: null, stale: null, dataVersion: null };
 }
 /* The first n bars, as though the history ended there — what historical
@@ -847,7 +1016,8 @@ function scanSeriesBars(closes, { dates = null, volumes = null, open = null, hig
 function scanSliceBars(bars, n) {
   const cut = (a) => (Array.isArray(a) ? a.slice(0, n) : a);
   const out = { ...bars };
-  ['dates', 'closes', 'volumes', 'open', 'high', 'low', 'status', 'source', 'capturedAt', 'gapBefore', 'complete', 'missingDays'].forEach(k => { if (k in bars) out[k] = cut(bars[k]); });
+  ['dates', 'timestamps', 'closes', 'volumes', 'open', 'high', 'low', 'status', 'source', 'capturedAt', 'gapBefore', 'breakBefore', 'complete', 'missingDays'].forEach(k => { if (k in bars) out[k] = cut(bars[k]); });
+  if (Array.isArray(bars.breaks)) out.breaks = bars.breaks.filter(x => x.at < n);
   out.stale = null;
   out.dataVersion = scanDataVersion(out);
   return out;
@@ -863,17 +1033,22 @@ function scanSliceBars(bars, n) {
    session (by the calendar) is held. An incomplete week is PROVISIONAL, so
    a week in progress never confirms a match; when a Friday is a holiday
    the week closes on the Thursday. gapBefore counts whole weeks with
-   sessions that no bar covers. */
+   sessions that no bar covers. The daily bars arrive already adjusted,
+   and an unexplained daily break marks the week it falls in: breaks keep
+   their daily dates, with `at` the week's index. */
 const scanWeekOf = (d) => scanAddDays(d, -((scanWeekday(d) + 6) % 7));
 function scanResample(bars, tf = '1W', { calendar = null, now = null } = {}) {
   if (scanTimeframe(tf) !== '1W') return bars;
   const cal = calendar || scanWeekdayCalendar(bars.market);
   const groups = [];
   bars.dates.forEach((d, i) => { const wk = scanWeekOf(d); const g = groups[groups.length - 1]; if (g && g.wk === wk) g.idx.push(i); else groups.push({ wk, idx: [i] }); });
+  const weekOf = new Map();
+  groups.forEach((g, gi) => g.idx.forEach(i => weekOf.set(i, gi)));
   const w = { symbol: bars.symbol, market: bars.market, instrumentId: bars.instrumentId, timeframe: '1W',
-              dates: [], closes: [], volumes: [], open: [], high: [], low: [], status: [], source: [], capturedAt: [],
-              complete: [], missingDays: [], invalid: bars.invalid || [], gapBefore: [], hasOHLC: bars.hasOHLC,
-              gapTolerance: 0, calendar: bars.calendar, stale: null, dataVersion: null, fromDaily: bars.dataVersion };
+              dates: [], timestamps: [], closes: [], volumes: [], open: [], high: [], low: [], status: [], source: [], capturedAt: [],
+              complete: [], missingDays: [], invalid: bars.invalid || [], gapBefore: [], breakBefore: [],
+              breaks: (bars.breaks || []).map(x => ({ ...x, at: weekOf.get(x.at) ?? x.at })), adjustments: bars.adjustments || [], adjustmentVersion: bars.adjustmentVersion ?? null,
+              hasOHLC: bars.hasOHLC, gapTolerance: 0, calendar: bars.calendar, stale: null, dataVersion: null, fromDaily: bars.dataVersion };
   const all = (a) => a.every(scanOk);
   groups.forEach((g, gi) => {
     const idx = g.idx, first = idx[0], last = idx[idx.length - 1];
@@ -887,7 +1062,8 @@ function scanResample(bars, tf = '1W', { calendar = null, now = null } = {}) {
     const missing = expected.filter(d => !held.has(d) && (complete || d < lastHeld));
     const hs = idx.map(i => bars.high[i]), ls = idx.map(i => bars.low[i]), vs = idx.map(i => bars.volumes[i]);
     const sts = idx.map(i => bars.status[i]);
-    w.dates.push(lastHeld);
+    w.dates.push(lastHeld); w.timestamps.push(null);
+    w.breakBefore.push(idx.some(i => bars.breakBefore?.[i]) ? 1 : 0);
     w.open.push(bars.open[first] ?? null);
     w.high.push(all(hs) ? Math.max(...hs) : null);
     w.low.push(all(ls) ? Math.min(...ls) : null);
@@ -920,21 +1096,24 @@ function scanResample(bars, tf = '1W', { calendar = null, now = null } = {}) {
 /* Close-to-close moves too large to be a day's trading: above 1.5× or
    below 0.67×, the thresholds the statement rule uses for a share-count
    break. Tagged with the nearest plain split ratio when within 2%, else
-   'unexplained'. Closes are not adjusted — this names the break, nothing
-   more. */
+   'unexplained'. This names the break; it adjusts nothing. A tag is a
+   resemblance, not a record: `suggestedRatio` is the ratio a reader would
+   record for it (new units per old — 2 for a close that halved), null when
+   it resembles no plain ratio. `at` is the index of the bar after the
+   break. */
 function scanPriceBreaks(bars) {
   const out = [];
   for (let i = 1; i < (bars?.closes?.length || 0); i++) {
     const a = bars.closes[i - 1], c = bars.closes[i];
     if (!(a > 0 && c > 0)) continue;
     const r = c / a;
-    if (r <= 1.5 && r >= 1 / 1.5) continue;
-    let tag = 'unexplained';
+    if (!scanIsBreakRatio(r)) continue;
+    let tag = 'unexplained', suggestedRatio = null;
     for (const k of [2, 3, 4, 5, 10]) {
-      if (Math.abs(r * k - 1) <= 0.02) { tag = `split ${k}-for-1`; break; }
-      if (Math.abs(r / k - 1) <= 0.02) { tag = `consolidation 1-for-${k}`; break; }
+      if (Math.abs(r * k - 1) <= 0.02) { tag = `split ${k}-for-1`; suggestedRatio = k; break; }
+      if (Math.abs(r / k - 1) <= 0.02) { tag = `consolidation 1-for-${k}`; suggestedRatio = 1 / k; break; }
     }
-    out.push({ bar: bars.dates[i], prev: bars.dates[i - 1], ratio: r, pct: (r - 1) * 100, tag });
+    out.push({ at: i, bar: bars.dates[i], prev: bars.dates[i - 1], ratio: r, pct: (r - 1) * 100, tag, suggestedRatio });
   }
   return out;
 }
@@ -1015,6 +1194,7 @@ const SCAN_REASONS = {
   MISSING_SESSION: 'a session is missing inside the window, or between the bar and the one before it',
   NO_VOLUME: 'volume is not recorded (for the instrument, or for a bar in the window)',
   NO_HIGH_LOW: 'highs and lows are not held; this indicator is never estimated from closes',
+  UNADJUSTED_BREAK: 'the window spans a price break no recorded adjustment explains (a split, a consolidation or a bad bar), so nothing is computed across it',
   ZERO_DENOMINATOR: 'the formula divides by zero here, so it has no value',
   BAD_PARAMS: 'a parameter is not a number within its bounds',
   UNKNOWN_INDICATOR: 'no indicator of that name exists',
@@ -1027,6 +1207,33 @@ function scanReasonText(label, code, note, needs, have) {
   if (code === 'NEEDS_BARS') return `${label} needs ${needs} bars; ${have} held`;
   if (code === 'UNKNOWN_INDICATOR') return note;
   return `${label}: ${note}`;
+}
+/* How far back a price break still moves an indicator's value. A windowed
+   indicator — an average, a band, a range, a change, a volume ratio —
+   forgets a bar once it leaves the window, so the span is what it needs.
+   A recursive one never forgets a bar entirely: an EMA carries a fraction
+   (1 − k) of every earlier value forward, Wilder's RSI and ATR a fraction
+   (1 − 1/n), and MACD is built from EMAs. For those the break counts as
+   inside the window until its weight in the value has fallen below 1% —
+   116 bars for EMA50, 64 for RSI14, 81 for MACD's signal line. */
+function scanBreakSpan(id, params, field, needs) {
+  const decay = (k) => (k > 0 && k < 1 ? Math.ceil(Math.log(0.01) / Math.log(1 - k)) : 0);
+  switch (id) {
+    case 'ema': return Math.max(needs, decay(2 / (params.n + 1)));
+    case 'rsi': case 'atr': return Math.max(needs, decay(1 / params.n) + 1);
+    case 'macd': return Math.max(needs, decay(2 / (params.slow + 1)) + (field === 'signal' || field === 'hist' ? decay(2 / (params.signal + 1)) : 0));
+    default: return needs;
+  }
+}
+/* The break a window spans, in words: the move, its dates and what it looks
+   like, so the reader can tell a split they can record from a bad bar. */
+function scanBreakNote(bars, j, lead) {
+  const br = (bars?.breaks || []).find(x => x.at === j && SCAN_BREAK_OPEN.includes(x.state));
+  const move = br ? `×${Number(br.ratio.toPrecision(3))}` : 'a break';
+  const why = br?.state === 'remains' ? `, which the adjustment recorded for it does not remove — check its ratio in data/price-adjustments.json`
+    : br?.state === 'created' ? `, which the adjustment recorded there makes — check its ratio in data/price-adjustments.json`
+    : `, which no recorded adjustment explains — record it in data/price-adjustments.json and it is adjusted`;
+  return `${lead} the move of ${move} from ${br?.prev || bars.dates[j - 1]} to ${br?.bar || bars.dates[j]}${br?.tag && br.tag !== 'unexplained' ? ` (it looks like a ${br.tag})` : ''}${why}`;
 }
 function scanComputeSeries(id, params, field, bars, needs) {
   const def = SCAN_INDICATORS[id];
@@ -1073,6 +1280,20 @@ function scanComputeSeries(id, params, field, bars, needs) {
     volMiss[j + 1] = volMiss[j] + (scanOk(vols[j]) ? 0 : 1);
     hlMiss[j + 1] = hlMiss[j] + (scanOk(bars?.high?.[j]) && scanOk(bars?.low?.[j]) ? 0 : 1);
   }
+  /* Unexplained price breaks (scanBars marks breakBefore[j] for a break
+     between bar j−1 and bar j that no recorded adjustment explains). A
+     window that spans one would average two price bases as one series —
+     a 2-for-1 split reads as a halving, and every average, RSI and range
+     across it is a number about nothing — so the value is INVALID_INPUT
+     UNADJUSTED_BREAK, never computed. The span is scanBreakSpan's; bars
+     built from a bare list of closes (the trend context) carry no marks. */
+  const span = scanBreakSpan(id, params, field, needs);
+  const brPre = new Array(len + 1).fill(0), brLast = new Array(len).fill(-1);
+  for (let j = 0; j < len; j++) {
+    const hit = bars?.breakBefore?.[j] ? 1 : 0;
+    brPre[j + 1] = brPre[j] + hit;
+    brLast[j] = hit ? j : j > 0 ? brLast[j - 1] : -1;
+  }
   const zdNote = id === 'rsi' ? 'a window with neither a gain nor a loss has no RSI'
     : id === 'bb' ? 'the band has no width (every close in the window is equal), so %b is undefined'
     : id === 'rvol' ? 'the reference volume is 0, so relative volume is undefined' : 'the formula divides by zero here';
@@ -1081,6 +1302,8 @@ function scanComputeSeries(id, params, field, bars, needs) {
     if (from < 0) { status[i] = 'INSUFFICIENT_DATA'; reason[i] = { code: 'NEEDS_BARS', note: null }; continue; }
     const gaps = gapPre[i + 1] - gapPre[from + 1];
     if (gaps > 0) { status[i] = 'INSUFFICIENT_DATA'; reason[i] = { code: 'MISSING_SESSION', note: `${gaps} gap${gaps === 1 ? '' : 's'} of missing sessions inside its ${needs}-bar window` }; continue; }
+    const bFrom = Math.max(0, i - span + 1);
+    if (brPre[i + 1] - brPre[bFrom + 1] > 0) { status[i] = 'INVALID_INPUT'; reason[i] = { code: 'UNADJUSTED_BREAK', note: scanBreakNote(bars, brLast[i], `its ${span}-bar window spans`) }; continue; }
     if (usesVol) {
       const k = volMiss[i + 1] - volMiss[from];
       if (k > 0) { status[i] = 'INSUFFICIENT_DATA'; reason[i] = { code: 'NO_VOLUME', note: needs === 1 ? 'volume is not recorded for the last bar' : `volume is not recorded for ${k} of the last ${needs} bars` }; continue; }
@@ -1157,15 +1380,52 @@ function scanIndicator(spec, bars, { at = null, cache = null } = {}) {
 
 /* Numbers in rule text. Two decimals, as before — but never so few that two
    different values print the same: 0.345 against 0.34 prints '0.345 above
-   0.340', where it once printed '0.34 above 0.34'. */
-const scanFmt = (v, dp = 2) => (v == null ? '—' : Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}m` : Math.abs(v) >= 1e4 ? `${(v / 1e3).toFixed(1)}k` : v.toFixed(dp));
-function scanFmtAll(vals) {
+   0.340', where it once printed '0.34 above 0.34'. `compact` shortens
+   large numbers (12.3k, 1.20m), which suits a volume; a price is never
+   shortened, because 45,120.5 and 45,149.9 both read 45.1k. When two
+   values would still print alike, the short form goes first, then a
+   decimal at a time is added. */
+const scanFmt = (v, dp = 2, compact = true) => (v == null ? '—' : compact && Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(2)}m` : compact && Math.abs(v) >= 1e4 ? `${(v / 1e3).toFixed(1)}k` : v.toFixed(dp));
+function scanFmtAll(vals, { dp = 2, compact = true } = {}) {
   const xs = vals.filter(scanOk);
   const distinct = new Set(xs.map(scanDec)).size;
-  let dp = 2;
-  while (dp < 8 && new Set(xs.map(v => scanFmt(v, dp))).size < distinct) dp++;
-  return (v) => scanFmt(v, dp);
+  let d = dp, c = compact;
+  while (new Set(xs.map(v => scanFmt(v, d, c))).size < distinct && (c || d < 8)) { if (c) c = false; else d++; }
+  return (v) => scanFmt(v, d, c);
 }
+/* THE SERIES' OWN PRECISION. A price prints with as many decimals as its
+   series is quoted in — a Bursa counter quoted to the half-sen reads
+   '0.345 below 0.500', not '0.34 below 0.50', which hid the one digit the
+   rule turned on. The decimals of a close are read at seven significant
+   figures, so a close stored through a 32-bit float (5.300000190734863)
+   counts as the 5.3 it was quoted as; at least two, at most four. Read
+   over the bars up to the one being printed, so a later bar never changes
+   how an earlier match reads. */
+const SCAN_DP_MEMO = new WeakMap();
+function scanDecimals(v) {
+  if (!scanOk(v) || v === 0) return 0;
+  const s = String(Number(v.toPrecision(7)));
+  if (/e/i.test(s)) return 4;
+  const k = s.indexOf('.');
+  return k < 0 ? 0 : s.length - k - 1;
+}
+function scanSeriesDp(bars, at = null) {
+  const closes = bars?.closes;
+  if (!Array.isArray(closes) || !closes.length) return 2;
+  let pre = SCAN_DP_MEMO.get(closes);
+  if (!pre) {
+    pre = new Array(closes.length);
+    let m = 0;
+    for (let i = 0; i < closes.length; i++) { m = Math.max(m, Math.min(4, scanDecimals(closes[i]))); pre[i] = m; }
+    SCAN_DP_MEMO.set(closes, pre);
+  }
+  const i = at == null ? closes.length - 1 : Math.max(0, Math.min(at, closes.length - 1));
+  return Math.max(2, pre[i]);
+}
+/* How one side of a condition prints: a price at its series' precision and
+   never shortened; anything else at two decimals, shortened when large. */
+const scanFmtOpts = (unit, bars, at = null) => (unit === 'price' ? { dp: scanSeriesDp(bars, at), compact: false } : { dp: 2, compact: true });
+const scanFmtFor = (v, unit, bars, at = null) => { const o = scanFmtOpts(unit, bars, at); return scanFmt(v, o.dp, o.compact); };
 
 /* ------------------------------------------------------------------ setups -- */
 /* SetupV2 = { id, version, hash, name, description?, enabled, universe,
@@ -1469,7 +1729,7 @@ function scanEvalCondition(cond, bars, i, cache) {
       else return na('INVALID_LITERAL', `${L.label}: the range needs two numbers`);
     }
     const met = scanCompare('BETWEEN', lv, null, { lo: bounds[0].v, hi: bounds[1].v });
-    const fmt = scanFmtAll([lv, bounds[0].v, bounds[1].v]);
+    const fmt = scanFmtAll([lv, bounds[0].v, bounds[1].v], scanFmtOpts(L.unit, bars, i));
     const bt = (b) => (b.label ? `${b.label} ${fmt(b.v)}` : fmt(b.v));
     Object.assign(res, { state: met ? 'MET' : 'NOT_MET', met, right: bounds.map(b => b.result), leftValue: lv, rightValue: [bounds[0].v, bounds[1].v],
       rightLabel: `${bounds[0].label || fmt(bounds[0].v)} and ${bounds[1].label || fmt(bounds[1].v)}`,
@@ -1497,9 +1757,14 @@ function scanEvalCondition(cond, bars, i, cache) {
     if (g > (bars?.gapTolerance ?? 0)) {
       return na('MISSING_SESSION', `${L.label}: the bar before ${bars.dates[i]} is ${bars.dates[i - 1]}, with ${g} session${g === 1 ? '' : 's'} missing between them — a crossing is read only between consecutive sessions`);
     }
+    /* A crossing compares two bars; across an unexplained price break it
+       compares two price bases, and a split reads as a cross downward. The
+       operands' own windows catch this for an average, but not for the
+       price against a fixed level, so it is asked here. */
+    if (bars?.breakBefore?.[i]) return na('UNADJUSTED_BREAK', `${L.label}: ${scanBreakNote(bars, i, 'a crossing is not read across')}`);
   }
   const met = scanCompare(opName, lv, rv, { lp: Lp?.value, rp });
-  const fmt = scanFmtAll([lv, rv]);
+  const fmt = scanFmtAll([lv, rv], scanFmtOpts(L.unit, bars, i));
   const verb = SCAN_VERBS[opName][met ? 0 : 1];
   Object.assign(res, { state: met ? 'MET' : 'NOT_MET', met, leftValue: lv, rightValue: rv, rightLabel: R ? R.label : fmt(rv),
     text: `${L.label} ${fmt(lv)} ${verb} ${R ? `${R.label} ${fmt(rv)}` : fmt(rv)}` });
@@ -2013,7 +2278,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
    row for bar i is the row a run on the history ending at i would have
    produced — scanner-test pins that. No clock is applied: staleness is a
    property of a live run, not of the past. */
-const SCAN_SIMULATION_NOTE = 'A simulation on the closes you captured. It lists the bars on which your conditions held; it has no entries, exits, costs or slippage, so it shows no return. Closes are not adjusted for splits or dividends. Your universe is the instruments you track today, so anything you stopped tracking is absent. None of this is a guarantee, and no indicator here is claimed to work.';
+const SCAN_SIMULATION_NOTE = 'A simulation on the closes you captured. It lists the bars on which your conditions held; it has no entries, exits, costs or slippage, so it shows no return. Closes are adjusted only for the splits and consolidations you recorded yourself, never for dividends, and nothing is computed across a price break you have not explained. Your universe is the instruments you track today, so anything you stopped tracking is absent. None of this is a guarantee, and no indicator here is claimed to work.';
 function scanHistorical(setup, history, { symbols = null, from = null, to = null, maxBars = 600, instruments = [], cache = null } = {}) {
   const s = scanNormaliseSetup(setup || {});
   const C = cache || scanCache();
@@ -2081,12 +2346,74 @@ function scanHistorical(setup, history, { symbols = null, from = null, to = null
 }
 
 /* -------------------------------------------------------------- data health -- */
+/* A SERIES DATED BY THE WRONG DAY. A bar dated by the UTC day of its
+   timestamp, in a zone ahead of UTC, lands a day early — a Monday session
+   on the Sunday, and no bar on Friday: NZ50 held 66 Sunday bars and one
+   Friday. A zone behind UTC lands a day late, on Saturday. A handful of
+   weekend bars is a mistyped date; a series is called shifted when the day
+   before its market's first session weekday (or the day after its last)
+   holds at least a quarter of what one session weekday holds — 5% of the
+   bars in a five-day market — and at least five bars. Below three quarters
+   of a weekday's share only part of the series is shifted: one source of
+   two, or the daylight-saving half of the year (ASX200's 27 Sundays). A
+   market that trades every day cannot show this, and is not judged. */
+function scanWeekdayProfile(dates, market) {
+  const M = scanMarket(market);
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  (dates || []).forEach(d => { if (scanIsDay(d)) counts[scanWeekday(d)]++; });
+  const n = counts.reduce((t, x) => t + x, 0);
+  const off = counts.reduce((t, x, wd) => t + (M.days.includes(wd) ? 0 : x), 0);
+  const out = { counts, bars: n, offSession: off, sundayShare: n ? counts[0] / n : 0, saturdayShare: n ? counts[6] / n : 0, shifted: null };
+  if (!n || M.days.length >= 7) return out;
+  const before = (Math.min(...M.days) + 6) % 7, after = (Math.max(...M.days) + 1) % 7;
+  const perDay = n / M.days.length, early = counts[before], late = counts[after];
+  const x = Math.max(early, late);
+  if (x >= 5 && x >= perDay * 0.25) {
+    const direction = early >= late ? 'early' : 'late';
+    const partial = x < perDay * 0.75;
+    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    out.shifted = { direction, partial, share: x / n,
+      text: `${x} of ${n} bars fall on a ${dayName[direction === 'early' ? before : after]}, not a session day in ${M.code === '_default' ? 'a weekday market' : `${M.code} (${M.label})`} — ${partial ? 'part of the series is' : 'the series is'} dated a day ${direction}, the way a timestamp's UTC day dates a session in a zone ${direction === 'early' ? 'ahead of' : 'behind'} UTC` };
+  }
+  return out;
+}
+/* TWO DATES FOR ONE SESSION. A series mixed from two sources that date
+   bars differently holds one session twice: once under the session's own
+   date and once under the day before or after it. Two bars on consecutive
+   calendar days with the same close (and the same volume, where both are
+   held) are listed when one of the two days is not a session day of the
+   market, or when the two came from different sources. The same close on
+   two weekdays from one source is an unchanged price — common on Bursa,
+   where a quiet counter closes on the same tick for days — and is not. */
+function scanDuplicateSessions(history, symbol, market) {
+  const M = scanMarket(market);
+  const s = history?.series?.[symbol] || {}, v = history?.volume?.[symbol] || {}, meta = history?.meta?.[symbol] || {};
+  const days = Object.keys(s).filter(d => scanIsDay(d) && Number.isFinite(s[d]) && s[d] > 0).sort();
+  const src = (d) => (meta[d] && typeof meta[d] === 'object' ? meta[d].src ?? null : null);
+  const out = [];
+  for (let i = 1; i < days.length; i++) {
+    const a = days[i - 1], b = days[i];
+    if (scanDayDiff(a, b) !== 1) continue;
+    if (Math.abs(s[a] - s[b]) > scanTol(s[a], s[b])) continue;
+    if (v[a] != null && v[b] != null && v[a] !== v[b]) continue;
+    const offDay = [a, b].filter(d => !M.days.includes(scanWeekday(d)));
+    const two = src(a) && src(b) && src(a) !== src(b);
+    if (!offDay.length && !two) continue;
+    out.push({ symbol, market: market || null, dates: [a, b], close: s[b], sources: [src(a), src(b)],
+               why: offDay.length ? `${offDay.join(' and ')} ${offDay.length === 1 ? 'is not a session day' : 'are not session days'} here, and the close is the same as the day ${offDay[0] === a ? 'after' : 'before'} — one session written under two dates`
+                 : `the same close from two sources (${src(a)}, ${src(b)}) on consecutive days — one session dated two ways` });
+  }
+  return out;
+}
 /* Everything the data-health page shows, from the history file alone:
-   per market, the session expected by now and which series hold it; per
-   series, the bars, the invalid ones with their codes, the gaps against the
-   calendar (inferred or weekday), the close-to-close breaks, the volume
-   coverage and whether it sits at the ingest's keep (SCAN_HISTORY_KEEP). In market
-   order, then symbol order — neutral, not ranked. */
+   per market, the session expected by now and which series hold it, and
+   the bars dated on a day it does not trade; per series, the bars, the
+   invalid ones with their codes, the gaps against the calendar (inferred
+   or weekday), the close-to-close breaks and what explains each, a
+   shifted weekday profile, sessions held under two dates, the volume
+   coverage and whether it sits at the ingest's keep (SCAN_HISTORY_KEEP);
+   and the recorded adjustments with what became of each. In market order,
+   then symbol order — neutral, not ranked. */
 /* The points per series ingest/history-store.mjs keeps (its KEEP); the
    store's test holds the two equal. It was 500 in one writer and 2000 in
    another until the store became the only writer. */
@@ -2098,7 +2425,7 @@ function scanDataHealth(history, instruments, now) {
   syms.forEach(sym => { const m = reg.get(String(sym).toUpperCase())?.market || null; const k = m ? String(m).toUpperCase() : ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(sym); });
   const order = [...groups.keys()].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a < b ? -1 : a > b ? 1 : 0));
   const markets = [], series = [];
-  const totals = { series: syms.length, bars: 0, invalid: 0, gaps: 0, jumps: 0, stale: 0, provisional: 0 };
+  const totals = { series: syms.length, bars: 0, invalid: 0, gaps: 0, jumps: 0, unexplained: 0, stale: 0, provisional: 0, weekend: 0, shifted: 0, duplicates: 0 };
   const clock = now != null && Number.isFinite(scanMs(now));
   order.forEach(k => {
     const market = k || null;
@@ -2106,7 +2433,7 @@ function scanDataHealth(history, instruments, now) {
     const M = scanMarket(market);
     const expected = clock ? scanExpectedLastSession(cal, market, now) : null;
     let newestBar = null;
-    const staleSymbols = [];
+    const staleSymbols = [], weekend = [];
     [...groups.get(k)].sort().forEach(sym => {
       const raw = history.series[sym] || {};
       const keys = Object.keys(raw);
@@ -2122,26 +2449,74 @@ function scanDataHealth(history, instruments, now) {
         gaps.push({ after: b.dates[i - 1], before: b.dates[i], sessions: b.gapBefore[i], counted: b.gapBefore[i] > b.gapTolerance,
                     kind: cal.basis === 'inferred' ? 'others-in-market-have-bars' : 'no-calendar' });
       }
-      const jumps = scanPriceBreaks(b);
+      const jumps = b.breaks;
+      const unexplained = jumps.filter(j => SCAN_BREAK_OPEN.includes(j.state)).length;
       const statusCounts = { FINAL: 0, PROVISIONAL: 0, UNKNOWN: 0, CORRECTED: 0 };
       b.status.forEach(x => { statusCounts[x] = (statusCounts[x] || 0) + 1; });
       if (b.stale) staleSymbols.push(sym);
       const withVol = b.volumes.filter(scanOk).length;
+      /* Dating is judged on the dates as held, before validation: a bar on
+         a day its market does not trade is exactly what it looks for. */
+      const heldDays = keys.filter(d => scanIsDay(d) && typeof raw[d] === 'number' && Number.isFinite(raw[d]) && raw[d] > 0).sort();
+      const profile = scanWeekdayProfile(heldDays, market);
+      const offDays = heldDays.filter(d => !M.days.includes(scanWeekday(d)));
+      if (offDays.length) weekend.push({ symbol: sym, bars: offDays.length, first: offDays[0], last: offDays[offDays.length - 1] });
+      const duplicates = scanDuplicateSessions(history, sym, market);
       series.push({ symbol: sym, market, bars: n, first: b.dates[0] || null, last, hasOHLC: b.hasOHLC,
-                    volumeCoverage: n ? withVol / n : 0, invalid: b.invalid, dropped, gaps, jumps, statusCounts,
+                    volumeCoverage: n ? withVol / n : 0, invalid: b.invalid, dropped, gaps, jumps, unexplained, statusCounts,
+                    weekdays: profile.counts, offSession: offDays.length, shifted: profile.shifted ? { ...profile.shifted, sundayShare: profile.sundayShare, saturdayShare: profile.saturdayShare } : null,
+                    duplicates, adjustments: b.adjustments || [], adjustmentVersion: b.adjustmentVersion || null,
                     stale: b.stale, behindSessions: b.stale ? b.stale.sessionsBehind : 0, atKeepLimit: keys.length >= SCAN_HISTORY_KEEP, dataVersion: b.dataVersion });
       totals.bars += n; totals.invalid += b.invalid.length; totals.gaps += gaps.filter(g => g.counted).length; totals.jumps += jumps.length;
+      totals.unexplained += unexplained; totals.weekend += offDays.length; totals.shifted += profile.shifted ? 1 : 0; totals.duplicates += duplicates.length;
       totals.stale += b.stale ? 1 : 0; totals.provisional += statusCounts.PROVISIONAL;
     });
     markets.push({ market, label: market ? (SCAN_MARKETS[market]?.label || market) : 'no market row', tz: M.tz,
                    session: M.open ? `${M.open}–${M.close} local${M.breaks?.length ? `, break ${M.breaks.map(x => x.join('–')).join(', ')}` : ''}` : `close ${M.close} ${M.tz}`,
                    settleMin: M.settleMin, calendar: { basis: cal.basis, text: cal.text, series: cal.series, inferredHolidays: cal.inferredHolidays, ambiguous: cal.ambiguous },
-                   symbols: groups.get(k).length, newestBar, expected, staleSymbols, ready: expected ? staleSymbols.length === 0 : null });
+                   symbols: groups.get(k).length, newestBar, expected, staleSymbols, ready: expected ? staleSymbols.length === 0 : null,
+                   weekend: { bars: weekend.reduce((t, x) => t + x.bars, 0), symbols: weekend } });
   });
+  /* The recorded actions as the loader read them, and what became of each
+     on its series. An action for a symbol the history does not hold says
+     so rather than vanishing. */
+  const acts = Array.isArray(history?.adjustments) ? history.adjustments : [];
+  const bySym = new Map(series.map(s => [String(s.symbol).toUpperCase(), s]));
+  const adjustments = {
+    loaded: Array.isArray(history?.adjustments), version: history?.adjustmentVersion || 'none', problems: Array.isArray(history?.adjustmentProblems) ? history.adjustmentProblems : [],
+    actions: acts.map(a => {
+      const s = bySym.get(String(a.symbol).toUpperCase());
+      const took = s?.adjustments.find(x => x.date === a.date && x.ratio === a.ratio);
+      return { ...a, heldAs: s ? s.symbol : null, state: took ? took.state : s ? 'pending' : 'no-series', bars: took?.bars || 0,
+               why: took ? took.why : s ? 'not read on this series' : 'your history holds no series under this symbol' };
+    }),
+  };
   return { at: clock ? new Date(scanMs(now)).toISOString() : null, engine: `scan ${SCAN_VERSION}`,
            file: { schema: history?.schema ?? 1, generated: history?.generated ?? null, source: history?.source ?? null, symbols: syms.length,
                    ohlc: !!history?.ohlc, meta: !!history?.meta, corrections: !!history?.corrections },
-           markets, series, totals };
+           markets, series, totals, adjustments };
+}
+/* THE HISTORY REPORT, in the shape ingest/history-check.mjs prints and the
+   data page reads: every refused bar with its codes, the bars dated on a
+   day their market does not trade (per market), the series whose weekdays
+   are shifted, sessions held under two dates, every price break with what
+   explains it, the stale series and the missing sessions no calendar
+   explains. Built from scanDataHealth, so the page and the tool cannot
+   report the same file differently. */
+function scanValidateHistory(history, { instruments = [], now = null } = {}) {
+  const H = scanDataHealth(history, instruments, now);
+  const pick = (s) => ({ symbol: s.symbol, market: s.market });
+  return {
+    at: H.at, engine: H.engine, file: H.file, totals: H.totals, adjustments: H.adjustments,
+    rejected: H.series.flatMap(s => s.invalid.map(x => ({ ...pick(s), date: x.date, codes: x.codes }))),
+    weekendByMarket: H.markets.filter(m => m.weekend.bars).map(m => ({ market: m.market, label: m.label, bars: m.weekend.bars, symbols: m.weekend.symbols })),
+    shifted: H.series.filter(s => s.shifted).map(s => ({ ...pick(s), bars: s.weekdays.reduce((t, x) => t + x, 0), weekdays: s.weekdays, ...s.shifted })),
+    duplicatesBySession: H.series.flatMap(s => s.duplicates),
+    breaks: H.series.flatMap(s => s.jumps.map(j => ({ ...pick(s), bar: j.bar, prev: j.prev, ratio: j.ratio, pct: j.pct, tag: j.tag, suggestedRatio: j.suggestedRatio,
+      state: j.state, action: j.action, adjustedRatio: j.adjustedRatio }))),
+    stale: H.series.filter(s => s.stale).map(s => ({ ...pick(s), last: s.stale.last, expected: s.stale.expected, sessionsBehind: s.stale.sessionsBehind })),
+    missing: H.series.flatMap(s => s.gaps.filter(g => g.counted).map(g => ({ ...pick(s), after: g.after, before: g.before, sessions: g.sessions }))),
+  };
 }
 
 /* ------------------------------------------------------------------- status -- */

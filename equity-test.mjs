@@ -3981,6 +3981,193 @@ try {
   }
   /* ---- end round 3: user ---- */
 
+  /* ---- round 3: data ---- */
+  /* THE DATA PAGE ON A HISTORY WITH EVERYTHING WRONG IN IT: a gap, a zero
+     close, an unrecorded 2-for-1 split, a series dated a day early, a
+     session held under two dates, and a series at the store's keep. The page
+     names each; the split is ticked, the drafted file is "saved", and the
+     page and the Node engine then agree the split is adjusted — the same
+     scanRun, byte for byte, before and after. Then the loader itself, with
+     the two files served by the browser's own interception. */
+  {
+    const { loadEngine } = await import('./scanner/scan.mjs');
+    const NE = await loadEngine();
+    const wdays = (from, n) => { const out = []; for (let d = from; out.length < n; d = NE.scanAddDays(d, 1)) { const w = NE.scanWeekday(d); if (w > 0 && w < 6) out.push(d); } return out; };
+    const D = wdays('2026-01-05', 40);
+    const at = (dates, f) => Object.fromEntries(dates.map((d, i) => [d, f(i)]));
+    const K = wdays('2018-06-04', 2000);
+    const hist = { schema: 2, generated: '2026-03-01T00:00:00.000Z', series: {
+      GAPS: at(D.filter((_, i) => i < 20 || i > 22), (i) => 50 + (i % 3)),
+      ZERO: at(D, (i) => (i === 15 ? 0 : 20 + (i % 4) / 10)),
+      SPLT: at(D, (i) => (i >= 25 ? (100 + i / 10) / 2 : 100 + i / 10)),
+      SHFT: Object.fromEntries(D.map((d, i) => [NE.scanAddDays(d, -1), 70 + (i % 5)])),
+      DUPL: { ...at(D, (i) => 30 + i / 10), '2026-01-10': 30.4 },
+      KEEP: at(K, (i) => 10 + (i % 50) / 10),
+    } };
+    const setup = { id: 'r3-rsi', version: 1, name: 'RSI held', enabled: true, universe: { kind: 'symbols', symbols: ['SPLT'] }, timeframe: '1D',
+      confirmationMode: 'BAR_CLOSE', cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null,
+      ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'rsi', n: 14 }, op: 'BETWEEN', range: [{ value: 0 }, { value: 100 }] }] } };
+    const now = NE.scanReplayNow(D[39]);
+    const adjDoc = { schema: 1, actions: [{ symbol: 'SPLT', date: D[25], ratio: 2, kind: 'split' }] };
+    const nodeBefore = JSON.stringify(NE.scanRun([setup], NE.scanAttachAdjustments(hist, null), { now, runId: 'r3', origin: 'r3' }));
+    const nodeAfter = JSON.stringify(NE.scanRun([setup], NE.scanAttachAdjustments(hist, adjDoc), { now, runId: 'r3', origin: 'r3' }));
+    const r = await evaluate(`(async () => {
+      const keep = { h: scanHistoryFile, a: scanAdjustmentsFile, k: scanOpsClock, read: scanOpsRead };
+      const hist = ${JSON.stringify(hist)}, setup = ${JSON.stringify(setup)}, now = ${JSON.stringify(now)};
+      const out = {};
+      const main = () => document.querySelector('main');
+      const table = (cap) => [...main().querySelectorAll('table')].find(t => t.caption?.textContent === cap);
+      const rows = (cap) => Object.fromEntries([...(table(cap)?.tBodies[0]?.rows || [])].map(tr => [tr.cells[0].textContent.trim(), [...tr.cells].map(c => c.textContent.trim())]));
+      const tileSub = (label) => [...main().querySelectorAll('.stat')].find(s => s.querySelector('.stat-label')?.textContent === label)?.querySelector('.stat-sub')?.textContent || null;
+      try {
+        scanAdjDraft.clear();
+        scanAdjustmentsFile = null; scanHistoryFile = scanAttachAdjustments(hist, null); scanOpsClock = now; scanOpsRead = true;
+        out.runBefore = JSON.stringify(scanRun([setup], scanHistoryFile, { now, runId: 'r3', origin: 'r3' }));
+        navigate('/admin/scanner/data');
+        [...main().querySelectorAll('button')].find(b => /^Only series/.test(b.textContent))?.click();
+        const ser = rows('Health per series');
+        out.series = { zero: ser.ZERO?.[4] || '', gaps: ser.GAPS?.[5] || '', splt: ser.SPLT?.[6] || '', keep: ser.KEEP?.[9] || '' };
+        out.shifted = rows('Series whose weekdays are shifted').SHFT?.[3] || '';
+        out.dupl = Object.keys(rows('Sessions held under two dates'));
+        out.weekend = Object.keys(rows('Weekend-dated bars per market'));
+        out.breakSub = tileSub('Price breaks');
+        out.breakState = rows('Price breaks and what explains each').SPLT?.[4] || '';
+        out.fileLine = /data\\/price-adjustments\\.json — absent/.test(main().innerText);
+        const tick = [...main().querySelectorAll('button')].find(b => b.textContent === 'split 2-for-1 (ratio 2)');
+        tick?.click();
+        const draft = scanAdjDraftDoc(now);
+        out.draft = { pressed: document.getElementById(tick?.id)?.getAttribute('aria-pressed'), focus: document.activeElement?.id === tick?.id, added: draft.added,
+                      actions: draft.doc.actions.map(a => [a.symbol, a.date, a.ratio, a.kind].join('|')),
+                      download: [...main().querySelectorAll('button')].find(b => b.textContent === 'Download price-adjustments.json')?.disabled === false };
+        /* The file saved beside the history and the page reloaded, as the loader would attach it. */
+        scanAdjustmentsFile = JSON.parse(JSON.stringify(draft.doc));
+        scanHistoryFile = scanAttachAdjustments(hist, scanAdjustmentsFile);
+        out.runAfter = JSON.stringify(scanRun([setup], scanHistoryFile, { now, runId: 'r3', origin: 'r3' }));
+        navigate('/admin/scanner/data');
+        out.after = { state: rows('Price breaks and what explains each').SPLT?.[4] || '', sub: tileSub('Price breaks'),
+                      recorded: rows('Recorded corporate actions').SPLT?.[4] || '', line: /price-adjustments\\.json — 1 action read \\(adj:[0-9a-f]{8}\\)/.test(main().innerText) };
+        return out;
+      } finally {
+        scanHistoryFile = keep.h; scanAdjustmentsFile = keep.a; scanOpsClock = keep.k; scanOpsRead = keep.read; scanAdjDraft.clear(); navigate('/learn');
+      }
+    })()`);
+    const p = [];
+    const before = JSON.parse(r.runBefore), after = JSON.parse(r.runAfter);
+    if (r.runBefore !== nodeBefore || r.runAfter !== nodeAfter) p.push('the page\'s scanRun on the injected history differs from the Node engine\'s, before or after the adjustment');
+    if (before.alerts.length || !before.untestedList.some(u => /no recorded adjustment explains/.test(u.why)) || after.alerts.length !== 1 || !/\+adj:[0-9a-f]{8}$/.test(after.alerts[0].dataVersion))
+      p.push(`the split: before ${before.alerts.length} alert(s), after ${after.alerts.length} (${after.alerts[0]?.dataVersion})`);
+    if (!/NEG_PRICE/.test(r.series.zero) || !/^1 counted/.test(r.series.gaps) || !/split 2-for-1; unexplained/.test(r.series.splt) || r.series.keep !== 'at the 2,000-bar keep')
+      p.push(`series table: ${JSON.stringify(r.series)}`);
+    if (!/a day early — the whole series/.test(r.shifted) || r.dupl.join() !== 'DUPL' || !r.weekend.length) p.push(`dating: shifted "${r.shifted}", held twice ${r.dupl}, weekend ${r.weekend}`);
+    if (r.breakSub !== '1 unexplained' || !/unexplained/.test(r.breakState) || !r.fileLine) p.push(`breaks: tile "${r.breakSub}", state "${r.breakState}", file line ${r.fileLine}`);
+    if (r.draft.pressed !== 'true' || !r.draft.focus || r.draft.added !== 1 || r.draft.actions.join() !== `SPLT|${D[25]}|2|split` || !r.draft.download) p.push(`draft: ${JSON.stringify(r.draft)}`);
+    if (!/adjusted/.test(r.after.state) || r.after.sub !== '0 unexplained' || !/^applied/.test(r.after.recorded) || !r.after.line) p.push(`after saving: ${JSON.stringify(r.after)}`);
+    if (p.length) fail('round 3 data: the data page names a gap, a zero close, a split, a shifted series and a session held twice, and the recorded split is applied the same way in the page and in Node', p);
+    else ok(`round 3 data: the data page names a gap, a zero close, a split, a shifted series and a session held twice, and the recorded split is applied the same way in the page and in Node — the keep reads ${r.series.keep}; ticking the split drafts ${r.draft.actions[0]}; saved, the break reads adjusted, the RSI setup untested before records one match after, with a +adj data version, byte-identical to scanRun in Node`);
+  }
+  /* ONE 52-WEEK RANGE. Where the history holds highs and lows, every caller
+     of the trend context hands them over, so the range is the high of the
+     range and not the highest close: the derived metric (15-derivation), the
+     momentum refresh (25-universe), the company page's trend drawer
+     (45-views-research) and the Tracked view's (60-trend). */
+  {
+    const r = await evaluate(`(async () => {
+      const keepT = trackedHistory;
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = {};
+      try {
+        const dates = [];
+        for (let d = new Date(Date.UTC(2025, 0, 6)); dates.length < 300; d = new Date(d.getTime() + 864e5)) { const k = d.getUTCDay(); if (k > 0 && k < 6) dates.push(d.toISOString().slice(0, 10)); }
+        const close = (i) => 100 + Math.sin(i / 7) * 10 + i * 0.02;
+        const s = Object.fromEntries(dates.map((d, i) => [d, close(i)]));
+        const o = Object.fromEntries(dates.map((d, i) => [d, [close(i), close(i) + 3, close(i) - 3]]));
+        const inst = (instruments?.instruments || []).find(x => x.symbol && !BY_ID.has(String(x.symbol).toUpperCase() + '-SEC'))?.symbol;
+        trackedHistory = { series: { AAPL: s, [inst]: s }, ohlc: { AAPL: o, [inst]: o } };
+        const hi = Math.max(...dates.slice(-252).map(d => o[d][1])), closeHi = Math.max(...dates.slice(-252).map(d => s[d]));
+        out.want = (close(299) / hi - 1) * 100; out.closeWant = (close(299) / closeHi - 1) * 100;
+        const row = U.find(x => x.c.id === 'AAPL-SEC');
+        out.obs = realSeriesFor(row.c)?.ohlc === trackedHistory.ohlc.AAPL;
+        out.derive = derive(row.c).m.from52;
+        refreshMomentum(); out.refresh = row.m.from52;
+        const drawerText = async (open) => { closeDrawer({ restore: false }); await w(250); open(); await w(400); const t = drawer.innerText; closeDrawer({ restore: false }); await w(250); return t; };
+        navigate('/company/AAPL-SEC'); await w(500);
+        out.company = await drawerText(() => [...document.querySelectorAll('main button')].find(b => /Full trend detail/.test(b.textContent))?.click());
+        navigate('/my/tracked'); await w(500);
+        out.tracked = await drawerText(() => document.querySelector('main td[aria-label="Trend detail for ' + inst + '"]')?.click());
+        out.inst = inst;
+        return out;
+      } finally { trackedHistory = keepT; refreshMomentum(); navigate('/learn'); }
+    })()`);
+    const p = [];
+    const near = (a, b) => Number.isFinite(a) && Math.abs(a - b) < 1e-9;
+    if (!r.obs) p.push('realSeriesFor does not hand over the symbol\'s highs and lows');
+    if (!near(r.derive, r.want) || !near(r.refresh, r.want)) p.push(`from52: derive ${r.derive}, refresh ${r.refresh}; want ${r.want} (the closing high gives ${r.closeWant})`);
+    if (!/from the high of/.test(r.company) || /highest close/.test(r.company)) p.push(`the company page's trend drawer: ${(r.company.match(/[^\n]*(high of|highest close)[^\n]*/) || [''])[0].slice(0, 120)}`);
+    if (!/from the high of/.test(r.tracked) || /highest close/.test(r.tracked)) p.push(`the Tracked view's drawer for ${r.inst}: ${(r.tracked.match(/[^\n]*(high of|highest close)[^\n]*/) || [''])[0].slice(0, 120)}`);
+    if (p.length) fail('round 3 data: every trend-context caller reads the 52-week range from highs and lows where the history holds them', p);
+    else ok(`round 3 data: every trend-context caller reads the 52-week range from highs and lows where the history holds them — the derived and refreshed distance from the high are ${r.want.toFixed(4)}% (not the closing high's ${r.closeWant.toFixed(4)}%), and the company and Tracked drawers say "from the high of"`);
+  }
+
+  /* THE LOADER. data/price-history.json and data/price-adjustments.json
+     served by the browser's own interception on a fresh load: the scanner's
+     copy of the history carries the recorded actions, the trend context's
+     keeps the closes as captured, and the data page says what was read. */
+  {
+    const events = [];
+    const listen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Fetch.requestPaused') events.push(m); };
+    ws.addEventListener('message', listen);
+    const d0 = ['2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08', '2026-01-09', '2026-01-12'];
+    const files = {
+      'price-history.json': { schema: 2, generated: '2026-01-13T00:00:00.000Z', series: { SPLT: Object.fromEntries(d0.map((d, i) => [d, i >= 3 ? 50 + i : 100 + i])) } },
+      'price-adjustments.json': { schema: 1, actions: [{ symbol: 'SPLT', date: '2026-01-08', ratio: 2, kind: 'split', note: 'served by the harness' }] },
+    };
+    let served = 0;
+    const answer = async () => {
+      for (let i = 0; i < 120 && served < 2; i++) {
+        const m = events.find(x => !x.seen);
+        if (!m) { await sleep(100); continue; }
+        m.seen = true;
+        const name = Object.keys(files).find(f => m.params.request.url.includes(`/data/${f}`));
+        if (!name) { await send('Fetch.continueRequest', { requestId: m.params.requestId }, sessionId); continue; }
+        await send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }],
+          body: Buffer.from(JSON.stringify(files[name])).toString('base64') }, sessionId);
+        served++;
+      }
+    };
+    await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+    await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/price-history.json*', requestStage: 'Request' }, { urlPattern: '*/data/price-adjustments.json*', requestStage: 'Request' }] }, sessionId);
+    let r = null;
+    try {
+      await send('Page.navigate', { url: `${BASE}/admin/scanner/data` }, sessionId);
+      await answer();
+      for (let i = 0; i < 80 && !r; i++) {
+        await sleep(250);
+        try { r = await evaluate(`typeof scanOpsRead !== 'undefined' && scanOpsRead && typeof scanHistoryFile !== 'undefined' && scanHistoryFile ? {
+          version: scanHistoryFile.adjustmentVersion, actions: (scanHistoryFile.adjustments || []).length, fileActions: scanAdjustmentsFile?.actions?.length ?? null,
+          tracked: trackedHistory?.series?.SPLT?.['2026-01-05'] ?? null, scanned: scanBars(scanHistoryFile, 'SPLT').closes[0],
+          sameEngine: scanAttachAdjustments(${JSON.stringify(files['price-history.json'])}, ${JSON.stringify(files['price-adjustments.json'])}).adjustmentVersion } : null`); } catch { /* booting */ }
+      }
+      if (r) { await sleep(600); r.line = await evaluate(`/price-adjustments\\.json — 1 action read/.test(document.querySelector('main')?.innerText || '')`); }
+    } finally {
+      await send('Fetch.disable', {}, sessionId);
+      await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+      ws.removeEventListener('message', listen);
+      await send('Page.navigate', { url: `${BASE}/learn` }, sessionId);
+      await waitFiled();
+    }
+    const p = [];
+    if (served < 2) p.push(`only ${served} of the two files were requested`);
+    if (!r) p.push('the page never finished loading the scanner files');
+    else {
+      if (!/^adj:[0-9a-f]{8}$/.test(r.version || '') || r.version !== r.sameEngine || r.actions !== 1 || r.fileActions !== 1) p.push(`scanner history: ${JSON.stringify(r)}`);
+      if (r.tracked !== 100 || r.scanned !== 50) p.push(`closes: the trend context holds ${r.tracked} (want 100, as captured), the scanner reads ${r.scanned} (want 50, adjusted)`);
+      if (!r.line) p.push('the data page does not say the adjustments file was read');
+    }
+    if (p.length) fail('round 3 data: the loader attaches data/price-adjustments.json to the scanner\'s history', p);
+    else ok(`round 3 data: the loader attaches data/price-adjustments.json to the scanner's history — served by interception on a fresh load, the scanner reads the split adjusted (${r.version}) while the trend context keeps the closes as captured, and the data page says one action was read`);
+  }
+  /* ---- end round 3: data ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

@@ -307,7 +307,8 @@ The file is additive — history v2:
   series:      { SYM: { date: close } },
   volume:      { SYM: { date: volume } },
   ohlc:        { SYM: { date: [open, high, low] } },       only where a source has them
-  meta:        { SYM: { date: { src, at } } },             source, and when it was captured
+  meta:        { SYM: { date: { src, at, adjusted? } } },  source, when captured, and (imports)
+                                                           whether the provider had adjusted it
   corrections: { SYM: [{ date, field, from, to, src, at, prevSrc }] } }
 ```
 
@@ -348,11 +349,89 @@ maintained calendar, and each errs late: a late close only delays when a bar is
 called final.
 
 **What is not solved.** No provider here confirms a session is final; the
-capture-time rule is the stand-in. Existing weekend-dated bars are not rewritten
-— the store never moves a date; re-fetching adds the correctly dated bar, and
-the old one stays listed as invalid (NON_SESSION_DAY) until it is trimmed.
-Nothing intraday is fetched, in either lane: intraday bars need a data licence
-this product does not hold.
+capture-time rule is the stand-in. No date is ever moved: bars written before
+session dating are repaired by fetching them again (below). Nothing intraday is
+fetched, in either lane: intraday bars need a data licence this product does
+not hold.
+
+### Checking the history, and the one repair
+
+```bash
+node ingest/history-check.mjs                  # the report; exit 2 when something needs repair
+node ingest/history-check.mjs --json           # the same, as the engine's scanValidateHistory
+node ingest/history-check.mjs --refetch --dry  # the re-fetch it would run, fetching nothing
+node ingest/history-check.mjs --refetch        # run it (Yahoo, personal lane, unless --provider)
+```
+
+The report is the engine's own (`scanValidateHistory`, the same one the
+scanner's `/admin/scanner/data` page shows), so the page and the tool cannot
+describe one file two ways. It lists:
+
+- **Bars on a day their market does not trade**, per market.
+- **Shifted series** — a weekday profile with a Sunday that holds what a trading
+  day should and a Friday that holds almost nothing is a series dated by the
+  UTC day of a timestamp in a zone ahead of UTC. Called shifted when the day
+  before the market's first session weekday (or after its last) holds at least
+  a quarter of one session weekday's bars and at least five; "part of the
+  series" below three quarters (one source of two, or the daylight-saving half
+  of the year). On the file this was written against: NZ50 wholly, ASX200 and
+  the eight currency pairs in part.
+- **Sessions held under two dates** — the same close (and volume, where both
+  are held) on consecutive days where one day is not a session day, or from two
+  different sources. The same close on two weekdays from one source is an
+  unchanged price, common on Bursa, and is not listed.
+- **Price breaks** — every close-to-close move above ×1.5 or below ×0.67, what
+  it resembles, and what explains it (below).
+- Refused bars with the engine's codes, stale series, missing sessions.
+
+`--refetch` runs `live.mjs --history --symbols …` for exactly the series listed,
+over a window back to the first mis-dated bar plus a week. Each bar comes back
+dated in its exchange's zone and the store records every changed value as a
+correction. Then the bars the re-fetch superseded — a held bar on a day the
+market does not trade, within a day of the span the provider has just dated,
+which the provider did not supply — are taken out through the store, and each is written
+to `data/price-history.rejects.json` (codes NON_SESSION_DAY, SUPERSEDED). A
+series the provider returned nothing for keeps every bar. `live.mjs` takes
+`--symbols A,B` and `--plan` (say what would be fetched, fetch nothing) for
+this.
+
+### Splits and consolidations: recorded by you, applied on read
+
+No corporate-action feed is licensed here, so a split reaches the history as a
+price break and nothing more. You record it in `data/price-adjustments.json`
+(git-ignored), beside the history:
+
+```json
+{ "schema": 1, "actions": [
+  { "symbol": "1155", "date": "2026-03-02", "ratio": 2, "kind": "split", "note": "2-for-1" },
+  { "symbol": "STI", "date": "2025-10-13", "ratio": 0.25, "kind": "consolidation" },
+  { "symbol": "VIX", "date": "2025-04-04", "ratio": 1, "kind": "other", "note": "the market's own move" }
+] }
+```
+
+`date` is the first bar on the new basis; `ratio` is new units per old unit — 2
+for a 2-for-1 split, 0.5 for a 1-for-2 consolidation; `kind` is split,
+consolidation, bonus or other. Bars before the date have prices divided by the
+ratio and volume multiplied by it **when read** — by the page and by
+`scanner/scan.mjs` alike — and the history file is never rewritten, so a wrong
+ratio is undone by fixing the record. A ratio of 1 records that a break is the
+market's own move: nothing is adjusted and the break counts as explained. An
+entry that cannot be read is refused with its reason; two entries for one
+symbol and date are both refused. The data page lists every break with a
+"record as" choice and downloads the file for you to save.
+
+**Until a break is explained, no indicator is computed across it:** a window
+that spans it is `INVALID_INPUT`, reason `UNADJUSTED_BREAK` (for EMA, RSI, ATR
+and MACD the window runs until the break's weight falls below 1%), and a
+crossing is not read across it.
+
+**Never twice.** An export may already be adjusted by its provider, so imports
+take `--adjusted provider | none | unknown` (default unknown), recorded on each
+bar in `meta.adjusted`. A recorded action is not applied to a `provider` bar
+captured after the action's date. And whatever the flag, an action whose ratio
+is itself a break (above 1.5 or below 0.67) is applied only where the series
+shows a break at its date — where the close barely moved, the prices are
+already on the new basis. The import prints every break left in what it wrote.
 
 `node history-store-test.mjs` (in CI) checks all of it on temporary files.
 

@@ -331,7 +331,7 @@ function refreshMomentum() {
   let backed = 0;
   for (const r of U) {
     const obs = realSeriesFor(r.c);
-    const t = obs ? trendContext(obs.series) : null;
+    const t = obs ? trendContext(obs.series, { ohlc: obs.ohlc }) : null;
     const m = r.m;
     m.rs12    = t && isNum(t.values.ret12m)  ? t.values.ret12m  : null;
     m.from52  = t && isNum(t.values.ddown)   ? t.values.ddown   : null;
@@ -819,6 +819,10 @@ function applyFx() {
   return false;
 }
 
+/* data/price-adjustments.json as served, or null — the scanner's data page
+   shows what it holds and what became of each action. */
+let scanAdjustmentsFile = null;
+
 async function loadRealData() {
   const j = await fetchJson(dataUrl('us.json'));
   if (!j) throw new Error(`could not load ${dataUrl('us.json')} — it is missing, or the host returned a page instead of the file`);
@@ -864,6 +868,11 @@ async function loadRealData() {
      page says what each would show. */
   try { scanSetupsFile = await fetchJson(dataUrl('scan-setups.json')); } catch { /* none */ }
   try { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')); } catch { /* none */ }
+  /* The corporate actions the reader recorded for their own history
+     (data/price-adjustments.json, git-ignored, so absent on the deployed
+     site). Absent is no adjustment — adjustmentVersion 'none' — not an
+     error; the data page says which. Attached below. */
+  try { scanAdjustmentsFile = await fetchJson(dataUrl('price-adjustments.json')); } catch { scanAdjustmentsFile = null; }
   /* Phase 3 — ops. The worker's operations files: its run log, its pause
      switch, its delivery record and the daily task's step log. Each is
      optional and git-ignored; absent is the deployed site's normal state, and
@@ -877,7 +886,11 @@ async function loadRealData() {
   /* The scanner's copy of the file, before the merge below: the worker never
      sees this browser's pasted closes. A shallow copy of the series map is
      enough — the merge replaces each symbol's object rather than editing it. */
-  scanHistoryFile = trackedHistory ? { ...trackedHistory, series: { ...(trackedHistory.series || {}) } } : null;
+  /* With the recorded corporate actions attached, exactly as scanner/scan.mjs
+     attaches them to the worker's copy, so "Evaluate now" and the worker
+     read the same adjusted bars. The trend context keeps trackedHistory's
+     closes as held: it draws what was captured. */
+  scanHistoryFile = trackedHistory ? scanAttachAdjustments({ ...trackedHistory, series: { ...(trackedHistory.series || {}) } }, scanAdjustmentsFile) : null;
   /* Outside the try, because the deployed site has no history file at all and
      the reader's own closes are the only ones it will ever see. Merging only on
      a successful fetch would have made the feature work everywhere except the

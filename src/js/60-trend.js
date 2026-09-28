@@ -67,8 +67,12 @@ function trendContext(series, { ohlc = null } = {}) {
   let high = null, low = null;
   if (ohlc && typeof ohlc === 'object') {
     const kept = dates.filter(d => isNum(series[d]) && series[d] > 0);
-    high = kept.map(d => (Array.isArray(ohlc[d]) && isNum(ohlc[d][1]) ? ohlc[d][1] : null));
-    low = kept.map(d => (Array.isArray(ohlc[d]) && isNum(ohlc[d][2]) ? ohlc[d][2] : null));
+    /* A high and low are used only where they bracket the close beside
+       them: a close pasted in this browser over a held date is not the bar
+       the file's range describes, and that day then has no range. */
+    const row = (d) => (Array.isArray(ohlc[d]) && isNum(ohlc[d][1]) && isNum(ohlc[d][2]) && ohlc[d][1] >= series[d] && ohlc[d][2] <= series[d] ? ohlc[d] : null);
+    high = kept.map(d => row(d)?.[1] ?? null);
+    low = kept.map(d => row(d)?.[2] ?? null);
   }
   const bars = scanSeriesBars(closes, { high, low });
   const at = n - 1;
@@ -189,13 +193,19 @@ function volumeContext(volSeries, priceSeries) {
    running trend indicators over invented prices would produce a confident
    200-day average of a series that never existed, which is the single most
    misleading thing this module could emit. A company gets trend analysis only
-   once genuine closes have been imported or captured for it. */
+   once genuine closes have been imported or captured for it.
+   `ohlc` is the same symbol's opens, highs and lows where the history holds
+   them (schema 2, {date: [open, high, low]}), or null: every caller hands it
+   to trendContext, so the 52-week high is the high of the range wherever an
+   export or a provider supplied one, and a closing high — labelled as one —
+   only where it did not. */
 function realSeriesFor(c) {
   const s = trackedHistory?.series;
   if (!s) return null;
   for (const key of [c.tk, c.code, c.id].filter(Boolean)) {
-    const hit = s[String(key).toUpperCase()];
-    if (hit && Object.keys(hit).length >= 2) return { symbol: String(key).toUpperCase(), series: hit };
+    const sym = String(key).toUpperCase();
+    const hit = s[sym];
+    if (hit && Object.keys(hit).length >= 2) return { symbol: sym, series: hit, ohlc: trackedHistory?.ohlc?.[sym] || null };
   }
   return null;
 }
@@ -427,13 +437,16 @@ VIEWS.tracked = () => {
     /* Read through priceEntry, so an older-shape entry ({price, asOf}) shows its close. */
     const p = keys.map(k => priceEntry(book[k])).find(Boolean) || null;
     const hist = Object.assign({}, ...keys.map(k => series[k] || {}));
+    /* The highs and lows filed under the same names, merged the same way,
+       so the trend context reads the 52-week range where it is held. */
+    const ohlc = Object.assign({}, ...keys.map(k => trackedHistory?.ohlc?.[k] || {}));
     const dates = Object.keys(hist).sort();
     const values = dates.map(d => hist[d]);
     /* Change measured across the stored series, not from the vendor's own
        day-change field, so what is drawn and what is stated agree. */
     const first = values[0], last = values[values.length - 1];
     const chg = (values.length >= 2 && first > 0) ? ((last - first) / first) * 100 : null;
-    return { sym, meta, p, hist, dates, values, chg, name: meta.name || sym,
+    return { sym, meta, p, hist, ohlc, dates, values, chg, name: meta.name || sym,
              kind: meta.kind || 'unknown', market: meta.market || '' };
   });
 
@@ -492,7 +505,7 @@ VIEWS.tracked = () => {
        Closes filed under an alias were drawn in the sparkline and counted in
        the change, then ignored here, so the trend and the drawer reported the
        shorter history. */
-    const t = trendContext(r.hist);
+    const t = trendContext(r.hist, { ohlc: r.ohlc });
     const tCell = el('td');
     const ctx = TREND_STRATEGIES[0].evaluate(t);
     if (ctx) {

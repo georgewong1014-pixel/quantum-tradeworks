@@ -929,10 +929,38 @@ VIEWS.scannerAdmin = () => {
   return wrap;
 };
 
+/* ----------------------------------------------------- round 3 — data page -- */
+/* THE ADJUSTMENTS DRAFT. data/price-adjustments.json is the reader's own
+   record, and this page never writes it: it composes the file — the actions
+   the loaded one holds, plus the breaks ticked below — for the reader to
+   download and save beside data/price-history.json. Nothing is applied
+   until the file is there and the page is reloaded, and the worker reads
+   the same file. Held for this tab only. */
+const scanAdjDraft = new Map();
+const scanAdjKey = (sym, date) => `${String(sym).toUpperCase()}|${date}`;
+function scanAdjDraftDoc(now) {
+  const loaded = Array.isArray(scanAdjustmentsFile) ? scanAdjustmentsFile : Array.isArray(scanAdjustmentsFile?.actions) ? scanAdjustmentsFile.actions : [];
+  const held = new Set(loaded.filter(a => a && typeof a === 'object').map(a => scanAdjKey(a.symbol, a.date)));
+  const added = [...scanAdjDraft.values()].filter(a => !held.has(scanAdjKey(a.symbol, a.date))).map(a => ({ ...a, recordedAt: now }));
+  return { doc: { schema: 1, note: 'Corporate actions you recorded for your own price history. date is the first bar on the new basis; ratio is new units per old unit (2 for a 2-for-1 split, 0.5 for a 1-for-2 consolidation, 1 for a move that is the market\'s own). Save as data/price-adjustments.json (git-ignored); the page and node scanner/scan.mjs apply it on read.',
+                     actions: [...loaded, ...added] }, loaded: loaded.length, added: added.length };
+}
+/* A break's state in words, as a chip with a label — never colour alone. */
+const SCAN_BREAK_STATE = {
+  unexplained: ['warning', 'unexplained'], remains: ['warning', 'still a break after the recorded ratio'], created: ['warning', 'made by the recorded ratio'],
+  adjusted: ['good', 'adjusted'], acknowledged: ['good', 'recorded as the market’s move'],
+};
+const scanBreakChip = (st) => sevChip((SCAN_BREAK_STATE[st] || ['info'])[0], (SCAN_BREAK_STATE[st] || [null, st])[1]);
+const scanRatioText = (r) => `×${Number(r.toPrecision(3))}`;
+
 VIEWS.scannerAdminData = () => {
   const wrap = scanOpsPage('data', 'Data health',
-    'Your price history as the engine reads it: every bar validated, gaps counted against the sessions of its market, price breaks tagged, staleness judged against the clock. Nothing is corrected here — only named.');
-  const history = scanOpsHistory();
+    'Your price history as the engine reads it: every bar validated, gaps counted against the sessions of its market, dates checked against the days each market trades, price breaks named with what explains them, staleness judged against the clock. Nothing in the file is corrected here — only named.');
+  let history = scanOpsHistory();
+  /* A history opened from disk on this page arrives without the recorded
+     actions the loader attaches; they are attached for this page's reading
+     the same way, so it reports what the worker would apply. */
+  if (history?.series && !Array.isArray(history.adjustments)) history = scanAttachAdjustments(history, scanAdjustmentsFile);
   if (!history?.series) {
     const c = el('section', { class: 'card' });
     c.append(cardHead('No price history loaded', 'There is nothing to check.'));
@@ -947,24 +975,123 @@ VIEWS.scannerAdminData = () => {
   const sum = el('section', { class: 'card' });
   sum.append(cardHead('The file', `data/price-history.json · schema ${H.file.schema} · written ${scanOpsWhen(H.file.generated)} · judged at ${scanOpsWhen(H.at)} · engine ${H.engine}`));
   const g = el('div', { class: 'grid scan-counts' });
-  [['Series', t.series], ['Bars', t.bars], ['Invalid bars', t.invalid], ['Gaps counted', t.gaps], ['Price breaks', t.jumps], ['Stale series', t.stale], ['Provisional bars', t.provisional]]
-    .forEach(([l, v]) => g.append(statTile(l, fmtNum(v, 0))));
+  [['Series', t.series], ['Bars', t.bars], ['Invalid bars', t.invalid], ['Gaps counted', t.gaps], ['Price breaks', t.jumps, t.jumps ? `${fmtNum(t.unexplained, 0)} unexplained` : null], ['Stale series', t.stale], ['Provisional bars', t.provisional]]
+    .forEach(([l, v, sub]) => g.append(statTile(l, fmtNum(v, 0), sub ? { sub } : {})));
   sum.append(g);
+  const applied = H.adjustments.actions.filter(a => a.state === 'applied' || a.state === 'acknowledged').length;
   sum.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `Held beyond closes and volumes: ${[H.file.ohlc ? 'open, high and low' : null, H.file.meta ? 'capture times' : null, H.file.corrections ? 'corrections' : null].filter(Boolean).join(', ') || 'nothing — no open, high, low, capture time or correction is in this file yet'}. Prices are not adjusted for splits or dividends; a break is tagged, never corrected.`));
+    `Held beyond closes and volumes: ${[H.file.ohlc ? 'open, high and low' : null, H.file.meta ? 'capture times' : null, H.file.corrections ? 'corrections' : null].filter(Boolean).join(', ') || 'nothing — no open, high, low, capture time or correction is in this file yet'}. ${applied
+      ? `Prices are adjusted on read for the ${scanOpsPlural(applied, 'corporate action')} you recorded in data/price-adjustments.json — never for dividends; the file on disk is unchanged.`
+      : 'No corporate action you recorded applies, so no price is adjusted.'} An indicator is not computed across a break nothing explains.`));
   wrap.append(sum);
 
   const mk = el('section', { class: 'card' });
   mk.append(cardHead('Markets', 'In market order. The calendar is inferred from your own series — marked so — or, where fewer than five of your series share a market, weekdays with holidays unknown.'));
   mk.append(scanOpsTable(['Market', 'Series', 'Session', 'Calendar', 'Inferred holidays', 'Ambiguous days', 'Expected by now', 'Newest bar', 'Stale'],
     H.markets.map(m => [m.market ? `${m.market}${m.label && m.label !== m.market ? ` — ${m.label}` : ''}` : 'no market row', fmtNum(m.symbols, 0), `${m.session} (${m.tz})`,
-      el('span', {}, [el('span', { class: 'chip' + (m.calendar.basis === 'inferred' ? ' chip-bronze' : '') }, m.calendar.basis === 'inferred' ? 'inferred' : 'weekdays'), ' ', el('span', { class: 'caption' }, m.calendar.basis === 'inferred' ? `from ${m.calendar.series} series — not an exchange calendar` : 'holidays not held')]),
+      el('span', {}, [el('span', { class: 'chip' + (m.calendar.basis === 'inferred' ? ' chip-bronze' : '') }, m.calendar.basis === 'inferred' ? 'inferred' : scanMarket(m.market).days.length === 7 ? 'every day' : 'weekdays'), ' ', el('span', { class: 'caption' }, m.calendar.basis === 'inferred' ? `from ${m.calendar.series} series — not an exchange calendar` : 'holidays not held')]),
       m.calendar.inferredHolidays?.length ? `${m.calendar.inferredHolidays.length}${m.calendar.inferredHolidays.length <= 4 ? `: ${m.calendar.inferredHolidays.join(', ')}` : `, latest ${m.calendar.inferredHolidays[m.calendar.inferredHolidays.length - 1]}`}` : 'none',
       m.calendar.ambiguous?.length ? String(m.calendar.ambiguous.length) : 'none', m.expected || '—', m.newestBar || '—',
       m.staleSymbols.length ? `${m.staleSymbols.length} of ${m.symbols}` : 'none']), { wrapCols: [2, 3], caption: 'Health per market' }));
   wrap.append(mk);
 
-  const flagged = (s) => s.invalid.length || s.gaps.some(x => x.counted) || s.jumps.length || s.stale || s.dropped.badDate || s.dropped.nonFinite || s.dropped.nonPositive;
+  /* DATING. A bar dated by the UTC day of its timestamp lands a day early
+     for an exchange ahead of UTC; the engine refuses it as NON_SESSION_DAY
+     and the rest of the series is off by a day without looking wrong. The
+     repair is a fetch dated in the exchange's own zone, never an edit of
+     dates in place — so this card names the series and the command. */
+  const dating = el('section', { class: 'card', 'aria-label': 'Dating' });
+  dating.append(cardHead('Dating', 'Bars dated on a day their market does not trade, series whose weekdays are shifted, and sessions written under two dates. No date is rewritten — here or in the file.'));
+  const shiftedS = H.series.filter(s => s.shifted), dupS = H.series.flatMap(s => s.duplicates), wkM = H.markets.filter(m => m.weekend.bars);
+  const dg = el('div', { class: 'grid scan-counts', style: 'margin-bottom:var(--sm)' });
+  [['Weekend-dated bars', t.weekend], ['Shifted series', t.shifted], ['Sessions held twice', t.duplicates]].forEach(([l, v]) => dg.append(statTile(l, fmtNum(v, 0))));
+  dating.append(dg);
+  if (!wkM.length && !shiftedS.length && !dupS.length) {
+    dating.append(el('p', { class: 'metaline' }, 'Every bar falls on a weekday its market trades, no series is shifted, and no session is held under two dates.'));
+  } else {
+    const DAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    if (wkM.length) {
+      dating.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Bars on a day the market does not trade'));
+      dating.append(scanOpsTable(['Market', 'Bars', 'Series'], wkM.map(m => [m.market ? `${m.market}${m.label && m.label !== m.market ? ` — ${m.label}` : ''}` : 'no market row', fmtNum(m.weekend.bars, 0),
+        m.weekend.symbols.slice(0, 6).map(x => `${x.symbol} (${x.bars})`).join(', ') + (m.weekend.symbols.length > 6 ? `, and ${m.weekend.symbols.length - 6} more` : '')]),
+        { wrapCols: [2], caption: 'Weekend-dated bars per market' }));
+    }
+    if (shiftedS.length) {
+      dating.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Series dated a day off'));
+      dating.append(scanOpsTable(['Series', 'Market', 'Bars by weekday', 'Reading'], shiftedS.map(s => [s.symbol, s.market || 'no market row',
+        s.weekdays.map((n, wd) => `${DAY[wd]} ${n}`).join(' · '),
+        `a day ${s.shifted.direction} — ${s.shifted.partial ? 'part of the series' : 'the whole series'} (${fmtPct(s.shifted.share * 100, 1)} of its bars on a non-trading day)`]),
+        { wrapCols: [2, 3], caption: 'Series whose weekdays are shifted' }));
+    }
+    if (dupS.length) {
+      dating.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'One session under two dates'));
+      dating.append(scanOpsPaged(dupS, (list) => scanOpsTable(['Series', 'Dates', 'Close', 'Why'], list.map(d => [d.symbol, `${d.dates[0]} and ${d.dates[1]}`, scanFmt(d.close, 4, false), d.why]),
+        { wrapCols: [3], caption: 'Sessions held under two dates' }), { step: 20, noun: 'pairs' }));
+    }
+  }
+  dating.append(scanOpsCmd('node ingest/history-check.mjs --report', 'Prints this report — weekend-dated bars per market, shifted series, sessions held twice, invalid bars and price breaks — from the history on this machine. Exits 2 when there is something to repair.'));
+  dating.append(scanOpsCmd('node ingest/history-check.mjs --refetch', 'Fetches the shifted, weekend-dated and doubly-held series again through your provider reader, each bar dated in its exchange’s own zone. A value that changes is recorded as a correction, and the old weekend copies the provider superseded move to the rejects file — nothing is lost, and no date is moved. Add --dry to see the run first. Personal lane: Yahoo, under its terms, for your own research.'));
+  wrap.append(dating);
+
+  /* PRICE BREAKS AND ADJUSTMENTS. Each break with what explains it, the
+     recorded actions with what became of each, and the draft of the file. */
+  const brk = el('section', { class: 'card', 'aria-label': 'Price breaks and adjustments' });
+  brk.append(cardHead('Price breaks and adjustments', 'A close-to-close move above ×1.5 or below ×0.67 is a break. No corporate-action feed is held: a break is explained only by an action you record, and until then no indicator is computed across it (INVALID_INPUT, UNADJUSTED_BREAK).'));
+  const adj = H.adjustments;
+  const fileLine = scanAdjustmentsFile || adj.actions.length
+    ? el('p', { class: 'metaline' }, `data/price-adjustments.json — ${scanOpsPlural(adj.actions.length, 'action')} read${adj.version !== 'none' ? ` (${adj.version})` : ''}${adj.problems.length ? `, ${scanOpsPlural(adj.problems.length, 'entry', 'entries')} refused` : ''}.`)
+    : scanOpsFileState('price-adjustments.json', null, 'You write it yourself: tick a break below, download the file and save it beside data/price-history.json.');
+  fileLine.style.marginBottom = 'var(--sm)';
+  brk.append(fileLine);
+  if (adj.problems.length) {
+    brk.append(el('ul', { class: 'metaline', style: 'margin:calc(-1 * var(--sm) + 4px) 0 var(--sm) 18px' }, adj.problems.map(p => el('li', {}, `${p.index != null ? `entry ${p.index + 1}` : 'the file'}${p.symbol ? ` (${p.symbol}${p.date ? ` ${p.date}` : ''})` : ''}: ${p.why}`))));
+  }
+  const allBreaks = H.series.flatMap(s => s.jumps.map(j => ({ ...j, symbol: s.symbol })));
+  const draftHost = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-top:var(--sm)' });
+  const drawDraft = () => {
+    const d = scanAdjDraftDoc(scanOpsNow());
+    const text = JSON.stringify(d.doc, null, 2);
+    draftHost.replaceChildren(
+      el('span', { class: 'metaline' }, d.added ? `The draft holds ${scanOpsPlural(d.loaded + d.added, 'action')}: ${d.loaded} from the file, ${d.added} ticked here. Nothing applies until it is saved as data/price-adjustments.json and the page reloaded.` : 'Tick a break to add it to a draft of the file; nothing is applied from here.'),
+      el('button', { class: 'btn btn-ghost btn-sm', disabled: d.added ? null : '', onclick: async () => {
+        try { await navigator.clipboard.writeText(text); toast('Adjustments JSON copied — save it as data/price-adjustments.json'); }
+        catch { toast('Could not reach the clipboard — download the file instead'); }
+      } }, 'Copy JSON'),
+      el('button', { class: 'btn btn-primary btn-sm', disabled: d.added ? null : '', onclick: () => { scanDownload('price-adjustments.json', d.doc); toast('Saved price-adjustments.json — move it into data/ beside price-history.json, then reload'); } }, 'Download price-adjustments.json'));
+  };
+  const tick = (b, ratio, kind, label) => {
+    const k = scanAdjKey(b.symbol, b.bar);
+    const on = scanAdjDraft.get(k)?.ratio === ratio;
+    const id = `scan-adj-${k}-${ratio}`.replace(/[^A-Za-z0-9_-]/g, '-');
+    const btn = el('button', { id, class: 'btn btn-ghost btn-sm', 'aria-pressed': on ? 'true' : 'false', 'aria-label': `Record ${b.symbol} ${b.bar} as ${label}` }, on ? `✓ ${label}` : label);
+    btn.addEventListener('click', () => {
+      if (scanAdjDraft.get(k)?.ratio === ratio) scanAdjDraft.delete(k);
+      else scanAdjDraft.set(k, { symbol: b.symbol, date: b.bar, ratio, kind, note: `recorded from the data page: the close moved ${scanRatioText(b.ratio)} from ${b.prev} to ${b.bar}` });
+      scanOpsRerender(id);
+    });
+    return btn;
+  };
+  if (!allBreaks.length) brk.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, 'No series has a price break.'));
+  else {
+    brk.append(scanOpsPaged(allBreaks, (list) => scanOpsTable(['Series', 'Break', 'Move', 'Looks like', 'State', 'Record as'], list.map(b => [b.symbol, `${b.prev} → ${b.bar}`,
+      `${scanRatioText(b.ratio)}${b.adjustedRatio != null && b.state !== 'created' ? `, ${scanRatioText(b.adjustedRatio)} adjusted` : ''}`, b.tag === 'unexplained' ? 'no plain split ratio' : b.tag, scanBreakChip(b.state),
+      b.state === 'unexplained' ? el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
+        b.suggestedRatio ? tick(b, b.suggestedRatio, b.suggestedRatio > 1 ? 'split' : 'consolidation', `${b.tag} (ratio ${Number(b.suggestedRatio.toPrecision(4))})`) : null,
+        tick(b, 1, 'other', 'market’s own move (ratio 1)')].filter(Boolean))
+        : b.action ? `ratio ${b.action.ratio} (${b.action.kind || 'no kind'}) recorded` : '—']),
+      { wrapCols: [3, 5], caption: 'Price breaks and what explains each' }), { step: 25, noun: 'breaks' }));
+    brk.append(draftHost);
+    drawDraft();
+  }
+  if (adj.actions.length) {
+    brk.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Recorded actions'));
+    brk.append(scanOpsTable(['Series', 'First bar on the new basis', 'Ratio', 'Kind', 'What became of it'],
+      adj.actions.map(a => [a.symbol, a.date, String(a.ratio), a.kind, `${a.state.replace(/-/g, ' ')} — ${a.why}${a.note ? ` · “${a.note}”` : ''}`]),
+      { wrapCols: [4], caption: 'Recorded corporate actions' }));
+  }
+  wrap.append(brk);
+
+  const flagged = (s) => s.invalid.length || s.gaps.some(x => x.counted) || s.jumps.length || s.stale || s.shifted || s.duplicates.length || s.dropped.badDate || s.dropped.nonFinite || s.dropped.nonPositive;
   const ser = el('section', { class: 'card' });
   const only = el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': 'true' }, 'Only series with something to look at');
   ser.append(cardHead('Series', 'In market order, then symbol order — the order of the file’s keys, not of anything about the series.'));
@@ -975,10 +1102,12 @@ VIEWS.scannerAdminData = () => {
       list.map(s => [s.symbol, s.market || 'no market row', fmtNum(s.bars, 0), `${s.first || '—'} … ${s.last || '—'}`,
         s.invalid.length ? `${s.invalid.length}: ${s.invalid.slice(0, 3).map(x => `${x.date} ${x.codes.join('/')}`).join('; ')}${s.invalid.length > 3 ? '; …' : ''}` : 'none',
         (() => { const c = s.gaps.filter(x => x.counted); return s.gaps.length ? `${c.length} counted${s.gaps.length - c.length ? `, ${s.gaps.length - c.length} read as a possible holiday` : ''}${c.length ? ` (latest ${c[c.length - 1].after} → ${c[c.length - 1].before})` : ''}` : 'none'; })(),
-        s.jumps.length ? s.jumps.slice(0, 2).map(j => `${j.bar} ${fmtPct(j.pct, 0)} (${j.tag})`).join('; ') + (s.jumps.length > 2 ? '; …' : '') : 'none',
+        s.jumps.length ? s.jumps.slice(0, 2).map(j => `${j.bar} ${fmtPct(j.pct, 0)} (${j.tag === 'unexplained' ? '' : `${j.tag}; `}${(SCAN_BREAK_STATE[j.state] || [null, j.state])[1]})`).join('; ') + (s.jumps.length > 2 ? '; …' : '') : 'none',
         `${Math.round(s.volumeCoverage * 100)}% of bars`, s.stale ? `${s.behindSessions} session${s.behindSessions === 1 ? '' : 's'} behind ${s.stale.expected}` : 'no',
-        s.atKeepLimit ? 'at the 500-bar keep' : 'no']), { wrapCols: [4, 5, 6], caption: 'Health per series' }), { step: 50, noun: 'series' })
-      : el('p', { class: 'metaline' }, 'Nothing to look at: no series has an invalid bar, a counted gap, a price break or a stale last bar.'));
+        /* The store's keep, read from the engine rather than typed: this
+           said 500 after the store moved to 2000. */
+        s.atKeepLimit ? `at the ${fmtNum(SCAN_HISTORY_KEEP, 0)}-bar keep` : 'no']), { wrapCols: [4, 5, 6], caption: 'Health per series' }), { step: 50, noun: 'series' })
+      : el('p', { class: 'metaline' }, 'Nothing to look at: no series has an invalid bar, a counted gap, a price break, a shifted date or a stale last bar.'));
   };
   let all = false;
   only.addEventListener('click', () => { all = !all; only.setAttribute('aria-pressed', all ? 'false' : 'true'); only.textContent = all ? 'Show only series with something to look at' : 'Only series with something to look at'; draw(all); });
