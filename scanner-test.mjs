@@ -2958,7 +2958,8 @@ try {
   const PIDS = ['wavetrend', 'cm_macd', 'bot_macd', 'mcdx', 'color_ma', 'sma_cross', 'psar', 'sr_ma', 'banker_entry', 'tv_rsi'];
   const lv = (w) => Array.from({ length: 8 }, (_, k) => `Level ${k + 1} ${w}`);
   const TITLES = {
-    wavetrend: ['WT Average-WT1', 'Signal average-WT2', 'Level 0', ...lv('overbought'), ...lv('oversold'), 'Sell when overbought', 'All sales', 'Buy when oversold', 'All purchases', 'Histogramme', 'MA PLOT_ST'],
+    wavetrend: ['WT Average-WT1', 'Signal average-WT2', 'Level 0', ...lv('overbought'), ...lv('oversold'), 'Sell when overbought', 'All sales', 'Buy when oversold', 'All purchases', 'Histogramme',
+                'Divergencias Bajistas', 'Divergencias Alcistas', 'MA PLOT_ST'],
     cm_macd: ['MACD', 'Signal Line', 'Histogram', 'Cross'], bot_macd: [], mcdx: ['Retailer', 'Hot Money', 'Banker', '5', '10', '15', 'Banker_MA', 'HotMoney_MA'],
     color_ma: ['Color MA'], sma_cross: ['Plot', 'Plot', 'Chars', 'Chars'], psar: ['ParabolicSAR'], sr_ma: ['SR MA', 'Top Range', 'Bottom Range'],
     banker_entry: ['Plot', 'Plot', 'Plot'], tv_rsi: ['RSI', 'RSI-based MA', 'Upper Bollinger Band', 'Lower Bollinger Band'],
@@ -3173,7 +3174,7 @@ try {
   const at = (i) => om[i - 1];
   check(om.length === 67 && at(7).id === 'sma_cross' && at(7).plot === 0 && at(8).plot === 1 && at(10).plot === 3 && at(28).id === 'banker_entry' && at(28).plot === 0 && at(30).plot === 2
     && at(15).kind === 'none' && at(11).kind === 'input' && at(66).kind === 'none' && at(67).id === 'wavetrend' && at(67).title === 'MA PLOT_ST',
-    'tv-verify reads the reader\'s chart header (67 columns): the first two "Plot" columns are SMA Cross, the last three the blackcat script, the second "Chars" SMA Cross\'s cross under; Entry TF and the divergences are known and not computed');
+    'tv-verify reads the reader\'s chart header (67 columns): the first two "Plot" columns are SMA Cross, the last three the blackcat script, the second "Chars" SMA Cross\'s cross under; Entry TF and the divergence labels are known and not computed');
   const threw = (f) => { try { f(); return null; } catch (e) { return e.message; } };
   const unknown = threw(() => TV.mapColumns([...OWNER_HEADER.slice(0, 20), 'Stoch RSI', ...OWNER_HEADER.slice(20)], titlesOf));
   const sixth = threw(() => TV.mapColumns([...OWNER_HEADER, 'Plot'], titlesOf));
@@ -3236,6 +3237,324 @@ try {
     { sun18: { dates: sun18.dates, status: sun18.status, invalid: sun18.invalid }, sun16: sun16.invalid });
 }
 /* ---- end integration: pine ---- */
+
+/* ---- bot: engine ---- */
+/* THE READER'S MULTI-TIMEFRAME TRADING BOT, AND A CONDITION READ ON A
+   HIGHER TIMEFRAME (the bot contract, B1–B5, the engine's part). Nothing
+   a setup already evaluates changes: the fixture's run, its historical
+   testing and the self-test hash as they did on main before this work, and
+   scanIndicator's one-bar read is pinned to the series it reads. Then a
+   condition's own timeframe through validation, normalisation and the
+   hash (B1); its reading on the last closed bar, on both calendars, for a
+   week and a month ending on a holiday or a weekend, a crossing, a stale
+   read and a warm-up (B2); the record (B3); the pack (B4); and the proof
+   (B5): a direct transcription of the script's logic, written here with
+   its own weeks and months, gives the pack's true, false or unknown on
+   every daily bar of an eighteen-year series and of a six-series market.
+   The WaveTrend divergence plots against the script's verbatim code. No
+   export of the reader's is read. */
+{
+  const BE = E;
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const H = (x) => BE.scanHash(JSON.stringify(x));
+
+  /* ---------------------------------------------------- nothing changes -- */
+  const fx = BE.scanFixture();
+  const dig = { run: H(BE.scanRun([fx.setup, fx.setupV2], fx.history, { now: fx.now, runId: 'd', origin: 'd' })), hist: H(BE.scanHistorical(fx.setupV2, fx.history)),
+                hist1: H(BE.scanHistorical(fx.setup, fx.history)), self: H(BE.scanSelfTest()), v2: BE.scanNormaliseSetup(fx.setupV2).hash, v1: BE.scanNormaliseSetup(fx.setup).hash };
+  check(same(dig, { run: '3989264f', hist: '078cee25', hist1: '5a472da0', self: 'b612d1db', v2: 'aca992dc', v1: '5f78a874' }),
+    'bot engine: the fixture\'s run, its historical testing, the self-test and both setups\' hashes digest exactly as on main before conditions had timeframes', dig);
+  /* scanIndicator reads one bar now, not the whole series: every value,
+     status and reason is the series' own, as the old read gave it. */
+  const oldRead = (spec, bars, at) => {
+    const S = BE.scanIndicatorSeries(spec, bars, {});
+    const n = bars.closes.length, i = at == null ? n - 1 : at, def = BE.SCAN_INDICATORS[spec?.indicator];
+    const base = { instrumentId: bars.instrumentId ?? null, symbol: bars.symbol ?? null, indicator: S.specKey, label: S.label, unit: S.unit, field: S.field,
+                   timeframe: bars.timeframe || '1D', needs: S.needs, calculationVersion: def ? `${spec.indicator}@${def.calcVersion}` : null, dataVersion: bars.dataVersion ?? null };
+    if (i < 0 || i >= n) {
+      const reason = S.reason[0]?.code && S.reason[0].code !== 'NEEDS_BARS' ? S.reason[0] : { code: 'NEEDS_BARS', text: `${S.label} needs ${S.needs} bars; ${Math.max(0, i + 1)} held` };
+      return { ...base, timestamp: null, value: null, valueText: null, status: S.status[0] && S.status[0] !== 'VALID' ? S.status[0] : 'INSUFFICIENT_DATA', reason, have: Math.max(0, Math.min(i + 1, n)), barStatus: null };
+    }
+    let status = S.status[i], reason = S.reason[i], value = S.values[i];
+    if (status === 'VALID' && bars.stale && bars.stale.at === i) { status = 'STALE_DATA'; value = null; reason = { code: 'STALE', text: `its last final bar is ${bars.stale.last}, and the session of ${bars.stale.expected} should be held by now — a stale series is not evaluated` }; }
+    return { ...base, timestamp: bars.dates[i], value, valueText: BE.scanDec(value), status, reason: status === 'VALID' ? null : reason, have: i + 1, barStatus: bars.status?.[i] || 'UNKNOWN' };
+  };
+  {
+    const fb = BE.scanBars(fx.history, 'MATCH', { now: fx.now });
+    const stale = BE.scanBars(fx.history, 'MATCH', { now: `${BE.scanAddDays(fx.lastBar, 120)}T12:00:00Z` });
+    const specs = [{ indicator: 'ema', n: 50 }, { indicator: 'volume_avg', n: 20, multiplier: 1.5 }, { indicator: 'rsi', n: 14 }, { indicator: 'macd', field: 'hist' }, { indicator: 'atr' },
+                   { indicator: 'nope' }, { indicator: 'sma', n: 'x' }, { indicator: 'wavetrend', field: 'bull' }, { indicator: 'bb', field: 'nope' }, { indicator: 'price' }];
+    const off = [];
+    for (const bars of [fb, stale]) for (const s of specs) for (const at of [-1, 0, 13, 49, 50, fb.closes.length - 1, fb.closes.length, null]) {
+      if (!same(BE.scanIndicator(s, bars, { at }), oldRead(s, bars, at))) off.push([s.indicator, at]);
+    }
+    check(!off.length, 'bot engine: scanIndicator reads one bar exactly as the series holds it — value, status and reason — for ten operands (a multiplier, an unknown indicator, a bad period, a bad field, a Pine flag) at the edges and inside, fresh and stale', off.slice(0, 5));
+  }
+
+  /* -------------------------------------------------------------- B1 ---- */
+  const cond = (tf, extra = {}) => ({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 }, ...(tf ? { timeframe: tf } : {}), ...extra });
+  const setupOf = (id, tf, children, more = {}) => ({ id, version: 1, name: id, enabled: true, universe: { kind: 'all' }, timeframe: tf, confirmationMode: 'BAR_CLOSE',
+    cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null, ruleTree: { type: 'group', logic: 'ALL', children }, ...more });
+  const v1 = BE.scanValidate({ setups: [setupOf('ok', '1D', [cond(null), cond('1W'), cond('weekly'), cond('1M')]), setupOf('low', '1W', [cond('1D')]),
+    setupOf('hour', '1D', [cond('1H')]), setupOf('odd', '1D', [cond('fortnight')]), setupOf('wm', '1W', [cond('1M'), cond('1W')])] });
+  const okS = v1.setups.find(s => s.id === 'ok');
+  const codes = (id) => (v1.problemsBySetup[id] || []).map(p => `${p.path}:${p.code}`);
+  check(okS && same(okS.ruleTree.children.map(c => c.timeframe ?? null), [null, '1W', '1W', '1M']) && v1.setups.some(s => s.id === 'wm')
+    && same(codes('low'), ['condition 1:LOWER_TIMEFRAME']) && same(codes('hour'), ['condition 1:TIMEFRAME_NOT_BUILT']) && same(codes('odd'), ['condition 1:UNKNOWN_TIMEFRAME'])
+    && /timeframe 1D \(daily\) is lower than the setup's 1W \(weekly\)/.test(v1.problems.join(' ')),
+    'bot engine B1: a condition may name 1D, 1W or 1M ("weekly" reads as 1W) — the setup\'s timeframe or higher; a lower one, an intraday one and an unknown one are refused, each with its reason', v1.problems);
+  const hashOf = (children) => BE.scanNormaliseSetup(setupOf('h', '1D', children)).hash;
+  check(hashOf([cond(null)]) === BE.scanNormaliseSetup(setupOf('h', '1D', [cond(null)])).hash && hashOf([cond('1W')]) !== hashOf([cond(null)]) && hashOf([cond('1W')]) !== hashOf([cond('1M')])
+    && hashOf([cond('weekly')]) === hashOf([cond('1W')]) && !('timeframe' in JSON.parse(BE.scanCanonical(setupOf('h', '1D', [cond(null)]))).ruleTree.children[0])
+    && JSON.parse(BE.scanCanonical(setupOf('h', '1D', [cond('1M')]))).ruleTree.children[0].timeframe === '1M'
+    && BE.scanConditionProse(cond('1W')) === 'weekly: price above 1' && BE.scanConditionProse(cond(null)) === 'price above 1',
+    'bot engine B1: a condition\'s timeframe is in the canonical hash only when present — absent leaves a setup\'s hash as it was — and its prose says which timeframe first');
+
+  /* -------------------------------------------------------------- B2 ---- */
+  /* Weekdays from Monday 2 February to Tuesday 31 March 2026, Friday 13
+     March a holiday (no bar); February ends on a Saturday. */
+  const days = [];
+  for (let d = '2026-02-02'; d <= '2026-03-31'; d = BE.scanAddDays(d, 1)) if (BE.scanWeekday(d) >= 1 && BE.scanWeekday(d) <= 5 && d !== '2026-03-13') days.push(d);
+  const hOf = (syms, drop = []) => ({ series: Object.fromEntries(syms.map(s => [s, Object.fromEntries(days.filter(d => !drop.includes(d)).map((d, i) => [d, 100 + i]))])) });
+  const wk = BE.scanBars(hOf(['X']), 'X', {});
+  const inf5 = hOf(['A', 'B', 'C', 'D', 'E']);
+  const infCal = BE.scanCalendar(inf5, [], null);
+  const ib = BE.scanBars(inf5, 'A', { calendar: infCal });
+  const tree = { type: 'group', logic: 'ALL', children: [cond('1W'), cond('1M')] };
+  const read = (bars, d, t = tree) => { const r = BE.scanEvaluate(t, bars, { at: bars.dates.indexOf(d) }); return r.conditions.map(c => (c.state === 'MET' ? c.barDate : `${c.state}:${c.reason?.code}`)); };
+  const b2 = { thu12: read(wk, '2026-03-12'), mon16: read(wk, '2026-03-16'), fri06: read(wk, '2026-03-06'), thu05: read(wk, '2026-03-05'), fri27: read(wk, '2026-02-27'),
+               thu26: read(wk, '2026-02-26'), thu12inferred: read(ib, '2026-03-12'), mon16inferred: read(ib, '2026-03-16') };
+  check(infCal.basis === 'inferred' && same(b2, { thu12: ['2026-03-06', '2026-02-27'], mon16: ['2026-03-12', '2026-02-27'], fri06: ['2026-03-06', '2026-02-27'], thu05: ['2026-02-27', '2026-02-27'],
+    fri27: ['2026-02-27', '2026-02-27'], thu26: ['2026-02-20', 'UNAVAILABLE:NEEDS_BARS'], thu12inferred: ['2026-03-12', '2026-02-27'], mon16inferred: ['2026-03-12', '2026-02-27'] }),
+    'bot engine B2: on each daily close a weekly or monthly condition reads the last bar closed by then — the week containing the day only when the day closes it; a week whose Friday is a holiday closes on the Thursday on an inferred calendar and is read from the Monday after on the weekday one; February, ending on a Saturday, closes on Friday the 27th', b2);
+  const first = BE.scanEvaluate(tree, wk, { at: 2 }).conditions.map(c => c.reason?.text);
+  check(same(first, ['weekly bars: no week had closed by 2026-02-04 — price needs 1 bars; 0 held', 'monthly bars: no month had closed by 2026-02-04 — price needs 1 bars; 0 held']),
+    'bot engine B2: before any week or month has closed, the condition is untested, and the reason names the timeframe, the date and the bars needed and held', first);
+  /* A crossing is the weekly bar against the weekly bar before: the week
+     of 2 March closes 124 (from 119 the week before), crossing 121.5 on
+     Friday the 6th — not on the Wednesday its daily close first passed it. */
+  const cross = { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'CROSSES_ABOVE', right: { value: 121.5 }, timeframe: '1W' }] };
+  const xs = ['2026-03-04', '2026-03-05', '2026-03-06', '2026-03-09'].map(d => BE.scanEvaluate(cross, wk, { at: wk.dates.indexOf(d) }).state);
+  check(same(xs, ['NOT_MET', 'NOT_MET', 'MET', 'MET']) && wk.closes[wk.dates.indexOf('2026-03-04')] === 122
+    && /^weekly bar of 2026-03-06: price 124\.00 crossed above 121\.50$/.test(BE.scanEvaluate(cross, wk, { at: wk.dates.indexOf('2026-03-06') }).conditions[0].text),
+    'bot engine B2: a weekly crossing compares the closed week with the week before it, and stays the reading until the next week closes', xs);
+  /* A week with sessions and no bar: the week after it reads the week
+     before the gap as stale until it closes itself. */
+  const gapWk = days.filter(d => d >= '2026-03-16' && d <= '2026-03-20');
+  const gb = BE.scanBars(hOf(['X'], gapWk), 'X', {});
+  const g23 = BE.scanEvaluate(tree, gb, { at: gb.dates.indexOf('2026-03-23') }).conditions[0], g27 = BE.scanEvaluate(tree, gb, { at: gb.dates.indexOf('2026-03-27') }).conditions[0];
+  check(g23.state === 'UNAVAILABLE' && g23.reason.code === 'STALE' && g23.left?.status === 'STALE_DATA' && /the week of 2026-03-16 has sessions and no bar/.test(g23.text) && g27.state === 'MET' && g27.barDate === '2026-03-27',
+    'bot engine B2: a weekly reading after a week with sessions and no bar is stale — untested, naming the missing week — until the next week closes', { g23: g23.text, g27: g27.barDate });
+  const st = BE.scanBars(hOf(['X']), 'X', { now: '2026-06-30T12:00:00Z' });
+  const stc = BE.scanEvaluate(tree, st, { at: st.dates.length - 1 }).conditions[0];
+  check(stc.state === 'UNAVAILABLE' && stc.reason.code === 'STALE' && /^its last final bar is 2026-03-31, .* on its weekly bars either$/.test(stc.text),
+    'bot engine B2: when the setup\'s own series is stale, a weekly condition on it is not read either', stc.text);
+  const wb = BE.scanBars(hOf(['X']), 'X', { timeframe: '1W' });
+  const wm = BE.scanEvaluate({ type: 'group', logic: 'ALL', children: [cond('1M'), cond('1D')] }, wb, { at: wb.dates.indexOf('2026-03-06') }).conditions;
+  const numbered = BE.scanEvaluate(tree, BE.scanSeriesBars([1, 2, 3, 4, 5, 6, 7, 8]), { at: 7 }).conditions[0];
+  check(wm[0].state === 'MET' && wm[0].barDate === '2026-02-27' && wm[1].reason?.code === 'LOWER_TIMEFRAME' && numbered.reason?.code === 'NO_DAILY_BARS',
+    'bot engine B2: a weekly setup reads a monthly condition from the daily bars its weeks were built from; a daily condition inside it, if one gets past validation, is untested, and bars that are numbered rather than dated build no week', { wm: wm.map(c => c.text), numbered: numbered.text });
+
+  /* -------------------------------------------------------------- B3 ---- */
+  const recSetup = setupOf('rec', '1D', [cond(null), cond('1W')]);
+  const rec = BE.scanRun([recSetup], hOf(['X']), {}).alerts[0];
+  check(rec && !('timeframe' in rec.matchedConditions[0]) && !('barDate' in rec.matchedConditions[0]) && rec.matchedConditions[1].timeframe === '1W' && rec.matchedConditions[1].barDate === '2026-03-27'
+    && rec.candleDate === '2026-03-31' && rec.setupSnapshot.ruleTree.children[1].timeframe === '1W' && BE.scanSelfTest().ok,
+    'bot engine B3: the alert record\'s condition read on the weekly bars carries timeframe 1W and the date of the bar it read; the one on the setup\'s own timeframe carries neither', rec?.matchedConditions);
+
+  /* -------------------------------------------------------------- B4 ---- */
+  const TITLES_BOT = ['Trade TF Tier 1 Buy', 'Trade TF Tier 2 Buy', 'Trade TF Tier 1 Sell', 'Trade TF Tier 2 Sell', 'Entry TF Buy', 'Entry TF Sell', 'Entry TF Trade', 'STRONG BUY CONTINUOUS',
+    'STRONG BUY REVERSAL', 'STRONG SELL CONTINUOUS', 'STRONG SELL REVERSAL', 'WEAK BUY', 'WEAK SELL', 'ANY STRONG SIGNAL', 'ANY WEAK SIGNAL'];
+  const SIG = BE.SCAN_BOT_SIGNALS;
+  check(same(SIG.map(s => s.title), TITLES_BOT) && SIG.every(s => /^[a-z0-9-]+$/.test(s.id) && typeof s.needsTradeTimeframe === 'boolean' && /^[^.]+\.$/.test(s.description.replace(/\d\.\d/g, '')))
+    && same(SIG.filter(s => !s.needsTradeTimeframe).map(s => s.id), ['entry-buy', 'entry-sell', 'entry-trade']),
+    'bot engine B4: SCAN_BOT_SIGNALS holds the script\'s fifteen alert titles in its order, each with an id, one sentence and whether it needs a trade timeframe (all but the three Entry TF alerts)');
+  const pack = BE.scanBotPack({ symbols: ['XAUUSD'] });
+  const pv = BE.scanValidate({ setups: pack });
+  const tfsOf = (s) => { const out = new Set(); const w = (n) => (n.type === 'group' ? n.children.forEach(w) : out.add(n.timeframe || '-')); w(s.ruleTree); return [...out].sort(); };
+  check(pack.length === 27 && pv.setups.length === 27 && !pv.problems.length && pv.setups.every((s, i) => s.hash === pack[i].hash)
+    && pack.every(s => s.enabled && s.timeframe === '1D' && s.version === 1 && s.cooldownMode === 'NEW_MATCH' && s.confirmationMode === 'BAR_CLOSE' && same(s.universe, { kind: 'symbols', symbols: ['XAUUSD'] })
+      && /Multi-Timeframe Trading Bot script’s “.+” alert/.test(s.description) && /not a recommendation/.test(s.description))
+    && pack.some(s => s.id === 'mtfbot-w-strong-buy-continuous' && s.name === 'MTF bot · Weekly · STRONG BUY CONTINUOUS' && same(tfsOf(s), ['-', '1W']))
+    && pack.some(s => s.id === 'mtfbot-d-entry-buy' && s.name === 'MTF bot · Daily · Entry TF Buy' && same(tfsOf(s), ['-']))
+    && pack.some(s => s.id === 'mtfbot-m-any-strong' && same(tfsOf(s), ['-', '1M'])) && !pack.some(s => /^mtfbot-[wm]-entry/.test(s.id)),
+    'bot engine B4: scanBotPack gives 27 ordinary setups — the twelve trade alerts on the weekly and on the monthly trade timeframe, the three Entry TF alerts once — daily, enabled, NEW_MATCH, valid as they stand, named and described as the script\'s own alerts', pv.problems);
+  const opnd = (s, pred) => { const out = []; const w = (n) => (n.type === 'group' ? n.children.forEach(w) : pred(n) && out.push(n)); w(s.ruleTree); return out; };
+  const smaPack = BE.scanBotPack({ signals: ['strong-buy-continuous', 'entry-buy'], tradeTimeframes: ['1W'], criterion3: 'sma', macdSignal: 'sma', cooldownMode: 'EVERY_MATCH', universe: { kind: 'market', market: 'FX' } });
+  const sbc = smaPack.find(s => s.id === 'mtfbot-w-strong-buy-continuous');
+  const thrown = (o) => { try { BE.scanBotPack(o); return null; } catch (e) { return e.message; } };
+  check(same(smaPack.map(s => s.id), ['mtfbot-d-entry-buy', 'mtfbot-w-strong-buy-continuous']) && smaPack.every(s => s.cooldownMode === 'EVERY_MATCH' && s.universe.kind === 'market')
+    && opnd(sbc, n => n.left.indicator === 'price').every(n => n.right.indicator === 'sma' && n.right.n === 200) && opnd(sbc, n => /macd/.test(n.left.indicator)).every(n => n.left.indicator === 'cm_macd')
+    && opnd(BE.scanBotPack({ signals: ['entry-buy'] })[0], n => n.left.indicator === 'price').every(n => n.right.indicator === 'ema')
+    && /"tier3-buy" is not one of/.test(thrown({ signals: ['tier3-buy'] }) || '') && /the trade timeframe 1D is not 1W or 1M/.test(thrown({ tradeTimeframes: ['1D'] }) || '')
+    && /criterion3 "wma"/.test(thrown({ criterion3: 'wma' }) || ''),
+    'bot engine B4: the switches take criterion 3 to the chart\'s SMA200 and criterion 2 to the CM MACD\'s SMA signal; signals, trade timeframes, cooldown and universe are the caller\'s; an unknown signal, a daily trade timeframe or an unknown average is refused with the reason');
+  /* The reader's history today: 300 daily bars are about 60 weekly and 14
+     monthly ones, and the pages say what that leaves untested. */
+  const d300 = [];
+  for (let d = '2025-07-30'; d300.length < 300; d = BE.scanAddDays(d, 1)) if (BE.scanWeekday(d) >= 1 && BE.scanWeekday(d) <= 5) d300.push(d);
+  const warm = BE.scanBotWarmup(BE.scanBars({ series: { G: Object.fromEntries(d300.map((d, i) => [d, 3300 + i])) } }, 'G', {}));
+  check(same(warm.map(w => [w.timeframe, w.held, w.needs, w.ready]), [['1D', 300, 200, true], ['1W', 60, 200, false], ['1M', 14, 200, false]])
+    && /^weekly: 60 closed weekly bars held; criterion 3 \(the close above its EMA200\) needs 200 — untested until 140 more weeks are held/.test(warm[1].text)
+    && /criterion 1 .* needs 42.*criterion 4 .* needs 51/.test(warm[2].text),
+    'bot engine B4: scanBotWarmup says, per timeframe, the closed bars held and each criterion\'s need — on 300 daily bars, 60 weekly (criterion 3 needs 200) and 14 monthly', warm.map(w => w.text));
+
+  /* -------------------------------------------------------------- B5 ---- */
+  /* A market of weekdays with holidays that end weeks (the first Friday of
+     April, the third of September) and months (the last weekday of May and
+     of October), New Year and Christmas; months ending on a weekend fall
+     where the calendar puts them. Prices: years of rise, multi-month
+     cycles, then a crash through the long averages and a rebound below
+     them — so that on the eighteen-year series every one of the 27
+     signals is true on some bar, and the monthly criterion 3 (200 months)
+     both holds and fails. */
+  const addD = (s, n) => BE.scanAddDays(s, n), dw = (s) => BE.scanWeekday(s), p2 = (n) => String(n).padStart(2, '0');
+  const lastWeekday = (y, m) => { let d = addD(`${m === 12 ? y + 1 : y}-${p2(m === 12 ? 1 : m + 1)}-01`, -1); while (dw(d) === 0 || dw(d) === 6) d = addD(d, -1); return d; };
+  const nthFri = (y, m, k) => { let d = `${y}-${p2(m)}-01`; while (dw(d) !== 5) d = addD(d, 1); return addD(d, 7 * (k - 1)); };
+  const marketOf = (from, to) => {
+    const hol = new Set();
+    for (let y = +from.slice(0, 4); y <= +to.slice(0, 4); y++) [`${y}-01-01`, `${y}-12-25`, nthFri(y, 4, 1), nthFri(y, 9, 3), lastWeekday(y, 5), lastWeekday(y, 10)].forEach(d => { if (dw(d) >= 1 && dw(d) <= 5) hol.add(d); });
+    const dates = [];
+    for (let d = from; d <= to; d = addD(d, 1)) if (dw(d) >= 1 && dw(d) <= 5 && !hol.has(d)) dates.push(d);
+    return { dates, hol };
+  };
+  const pricesOf = (dates, seed) => {
+    const o = [], h = [], l = [], c = [];
+    let x = 400 * (1 + seed / 10);
+    dates.forEach((d, i) => {
+      const prev = x;
+      const at = i / dates.length;
+      x *= 1 + (at < 0.9 ? 0.00045 : at < 0.945 ? -0.006 : 0.0035) + 0.0035 * Math.sin((2 * Math.PI * i) / 700 + seed) + 0.011 * Math.sin(i * 0.23 + seed) + 0.006 * Math.sin(i * 0.071 + 2 * seed) + 0.004 * Math.cos(i * 1.37 + seed);
+      o.push(+prev.toFixed(3)); h.push(+(Math.max(prev, x) * (1.002 + 0.004 * Math.abs(Math.sin(i * 0.9 + seed)))).toFixed(3));
+      l.push(+(Math.min(prev, x) * (0.998 - 0.004 * Math.abs(Math.cos(i * 0.7 + seed)))).toFixed(3)); c.push(+x.toFixed(3));
+    });
+    return { o, h, l, c };
+  };
+  /* The transcription: README-bot's logic, Kleene where a value is missing,
+     on weeks and months grouped here and read on the last one closed. */
+  const K3 = { and: (...a) => (a.some(v => v === false) ? false : a.some(v => v == null) ? null : true),
+               or: (...a) => (a.some(v => v === true) ? true : a.some(v => v == null) ? null : false), not: (v) => (v == null ? null : !v) };
+  const transcribe = ({ dates, o, h, l, c, isSession, criterion3 = 'ema', macdSignal = 'ema' }) => {
+    let nearMargin = 0;
+    const gt = (a, b) => { if (a == null || b == null) return null; if (Math.abs(a - b) <= Math.max(1e-12, 1e-9 * Math.max(Math.abs(a), Math.abs(b)))) nearMargin++; return a > b; };
+    const crit = (bars) => {
+      const wt = BE.scanPineWaveTrend(bars, BE.scanParams({ indicator: 'wavetrend' }).params).fields;
+      const md = (macdSignal === 'sma' ? BE.scanPineCmMacd : BE.scanPineBotMacd)(bars, { fast: 12, slow: 26, signal: 9 }).fields;
+      const ma = (criterion3 === 'sma' ? BE.scanSma : BE.scanEma)(bars.closes, 200);
+      const mx = BE.scanPineMcdx(bars, BE.scanParams({ indicator: 'mcdx' }).params).fields;
+      return (k) => (k < 0 ? {} : {
+        c1: wt.wt1[k] == null || wt.wt2[k] == null ? null : wt.wt1[k] > wt.wt2[k], c2: md.macd[k] == null || md.signal[k] == null ? null : md.macd[k] > md.signal[k],
+        c3: gt(bars.closes[k], ma[k]), c4: gt(mx.banker[k], 5), c5: gt(10, mx.hotMoney[k]),
+        hu: k < 1 || md.hist[k] == null || md.hist[k - 1] == null ? null : md.hist[k] > md.hist[k - 1], hd: k < 1 || md.hist[k] == null || md.hist[k - 1] == null ? null : md.hist[k] < md.hist[k - 1] });
+    };
+    const D = crit(BE.scanSeriesBars(c, { dates, open: o, high: h, low: l }));
+    const frame = (unit) => {
+      const key = (d) => (unit === 'M' ? d.slice(0, 7) : addD(d, -((dw(d) + 6) % 7)));
+      const span = (k) => { const out = []; if (unit === 'M') { for (let d = `${k}-01`; d.slice(0, 7) === k; d = addD(d, 1)) out.push(d); } else for (let j = 0; j < 7; j++) out.push(addD(k, j)); return out; };
+      const G = [];
+      dates.forEach((d, i) => { const k = key(d); if (G.length && G[G.length - 1].k === k) G[G.length - 1].last = i; else G.push({ k, first: i, last: i }); });
+      const at = crit(BE.scanSeriesBars(G.map(g => c[g.last]), { dates: G.map(g => dates[g.last]), open: G.map(g => o[g.first]),
+        high: G.map(g => Math.max(...h.slice(g.first, g.last + 1))), low: G.map(g => Math.min(...l.slice(g.first, g.last + 1))) }));
+      const closedOn = G.map(g => { const s = span(g.k).filter(isSession); const le = s[s.length - 1]; return le && le > dates[g.last] ? le : dates[g.last]; });
+      return { at, closedOn, k: -1 };
+    };
+    const F = { w: frame('W'), m: frame('M') };
+    return { nearMargin: () => nearMargin, rows: dates.map((d, i) => {
+      const x = D(i);
+      const EB = K3.and(x.c1, x.c2, x.c3, x.c4), ES = K3.and(K3.not(x.c1), K3.not(x.c2), K3.not(x.c3), K3.not(x.c4), x.c5);
+      const row = { 'mtfbot-d-entry-buy': EB, 'mtfbot-d-entry-sell': ES, 'mtfbot-d-entry-trade': K3.or(EB, ES) };
+      for (const L of ['w', 'm']) {
+        const f = F[L];
+        while (f.k + 1 < f.closedOn.length && f.closedOn[f.k + 1] <= d) f.k++;
+        const t = f.at(f.k);
+        const tier1 = K3.and(t.c1, t.c2), tier2 = K3.and(t.c1, t.c2, K3.or(t.c3, t.c4));
+        const tier1s = K3.and(K3.not(t.c1), K3.not(t.c2)), tier2s = K3.and(K3.not(t.c1), K3.not(t.c2), K3.not(t.c3), K3.not(t.c4));
+        const T1B = K3.and(t.c1, t.c2, K3.not(t.c3), K3.not(t.c4)), T1S = K3.and(K3.not(t.c1), K3.not(t.c2), K3.or(t.c3, t.c4));
+        const sbb = K3.and(tier2, EB), ssb = K3.and(tier2s, ES);
+        const s = { 'tier1-buy': T1B, 'tier2-buy': tier2, 'tier1-sell': T1S, 'tier2-sell': tier2s,
+          'strong-buy-continuous': K3.and(sbb, t.hu), 'strong-buy-reversal': K3.and(sbb, t.hd), 'strong-sell-continuous': K3.and(ssb, t.hd), 'strong-sell-reversal': K3.and(ssb, t.hu),
+          'weak-buy': K3.and(T1B, EB), 'weak-sell': K3.and(T1S, ES) };
+        s['any-strong'] = K3.or(s['strong-buy-continuous'], s['strong-buy-reversal'], s['strong-sell-continuous'], s['strong-sell-reversal']);
+        s['any-weak'] = K3.or(s['weak-buy'], s['weak-sell']);
+        for (const [k, v] of Object.entries(s)) row[`mtfbot-${L}-${k}`] = v;
+        /* The script's own forms — tier1 and not tier2, weak as tier1 and
+           entry and not the strong base — decide less often under Kleene;
+           wherever they decide, the pack must agree. */
+        Object.entries({ 'tier1-buy': K3.and(tier1, K3.not(tier2)), 'tier1-sell': K3.and(tier1s, K3.not(tier2s)), 'weak-buy': K3.and(tier1, EB, K3.not(sbb)), 'weak-sell': K3.and(tier1s, ES, K3.not(ssb)) })
+          .forEach(([k, v]) => { row[`script:mtfbot-${L}-${k}`] = v; });
+        row[`c3:${L}`] = t.c3;
+      }
+      return row;
+    }) };
+  };
+  const b5 = [];
+  const t5 = Date.now();
+  for (const [name, from, to, nsym, opts] of [['weekday', '2008-01-01', '2026-06-30', 1, {}], ['inferred', '2020-07-01', '2026-06-30', 6, {}],
+    ['inferred, SMA switches', '2020-07-01', '2026-06-30', 6, { criterion3: 'sma', macdSignal: 'sma', tradeTimeframes: ['1W'],
+      signals: ['tier1-buy', 'tier2-sell', 'entry-buy', 'entry-sell', 'strong-buy-continuous', 'strong-sell-reversal', 'any-strong'] }]]) {
+    const { dates, hol } = marketOf(from, to);
+    const hist = { series: {}, ohlc: {} };
+    for (let k = 0; k < nsym; k++) {
+      const p = pricesOf(dates, k + 1);
+      hist.series[`S${k}`] = Object.fromEntries(dates.map((d, i) => [d, p.c[i]]));
+      hist.ohlc[`S${k}`] = Object.fromEntries(dates.map((d, i) => [d, [p.o[i], p.h[i], p.l[i], p.c[i]]]));
+    }
+    const cal = BE.scanCalendar(hist, [], null);
+    const bars = BE.scanBars(hist, 'S0', { calendar: cal });
+    const T = transcribe({ dates: bars.dates, o: bars.open, h: bars.high, l: bars.low, c: bars.closes, isSession: (d) => BE.scanIsSession(cal, d), ...opts });
+    const pk = BE.scanBotPack({ symbols: ['S0'], ...opts });
+    const C5 = BE.scanCache();
+    const r = { name, calendar: cal.basis, bars: bars.dates.length, setups: pk.length, differ: [], scriptDiffer: 0, scriptUndecided: 0, tally: { T: 0, F: 0, U: 0 }, near: 0,
+                fridayHolidays: [...hol].filter(d => dw(d) === 5).length, monthEndHolidays: [...hol].filter(d => d === lastWeekday(+d.slice(0, 4), +d.slice(5, 7))).length,
+                weekendMonthEnds: 0, c3m: { T: 0, F: 0 }, everTrue: 0, never: [] };
+    r.weekendMonthEnds = [...new Set(bars.dates.map(d => d.slice(0, 7)))].filter(m => { const e = addD(`${m}-01`, 31).slice(0, 7); const last = addD(`${e}-01`, -1); return dw(last) === 0 || dw(last) === 6; }).length;
+    for (const s of pk) {
+      let t = 0;
+      for (let i = 0; i < bars.dates.length; i++) {
+        const stt = BE.scanEvaluate(s.ruleTree, bars, { at: i, cache: C5 }).state;
+        const v = stt === 'MET' ? true : stt === 'NOT_MET' ? false : null;
+        r.tally[v === true ? 'T' : v === false ? 'F' : 'U']++;
+        if (v === true) t++;
+        if (v !== T.rows[i][s.id]) r.differ.push([s.id, bars.dates[i], stt, T.rows[i][s.id]]);
+        const lit = T.rows[i][`script:${s.id}`];
+        if (lit != null && lit !== v) r.scriptDiffer++;
+        if (lit === null && v != null) r.scriptUndecided++;
+      }
+      if (t) r.everTrue++; else r.never.push(s.id);
+    }
+    T.rows.forEach(row => { if (row['c3:m'] === true) r.c3m.T++; if (row['c3:m'] === false) r.c3m.F++; });
+    r.near = T.nearMargin();
+    b5.push(r);
+  }
+  const b5ok = b5.every(r => !r.differ.length && !r.scriptDiffer && !r.near && r.tally.T > 0 && r.tally.F > 0 && r.tally.U > 0 && r.fridayHolidays > 0 && r.monthEndHolidays > 0 && r.weekendMonthEnds > 0)
+    && b5[0].calendar === 'weekday' && b5[1].calendar === 'inferred' && b5[0].c3m.T > 0 && b5[0].c3m.F > 0 && b5[0].everTrue === 27 && b5[1].setups === 27 && b5[2].setups === 7;
+  check(b5ok, `bot engine B5: the pack equals a direct transcription of the script's logic — last closed week and month, Kleene where a value is missing — on every daily bar: ${b5.map(r => `${r.name} (${r.bars} bars, ${r.setups} setups, ${r.tally.T} true / ${r.tally.F} false / ${r.tally.U} unknown)`).join('; ')}; no comparison within the float rule's margin; and wherever the script's own tier1-and-not-tier2 forms decide, the same`,
+    b5.map(r => ({ name: r.name, differ: r.differ.slice(0, 3), n: r.differ.length, scriptDiffer: r.scriptDiffer, near: r.near, tally: r.tally, c3m: r.c3m, everTrue: r.everTrue, never: r.never, hol: [r.fridayHolidays, r.monthEndHolidays, r.weekendMonthEnds], ms: Date.now() - t5 })));
+
+  /* ------------------------------------------------------ divergences ---- */
+  /* The WaveTrend script's fractal plots, from its verbatim code: bar i
+     finds a top when wt1[i−2] is above wt1[i−4], wt1[i−3], wt1[i−1] and
+     wt1[i], strictly, and plots wt1[i−2] — unless it is 0.0, which Pine v4
+     reads as false — two bars back (offset=-2). */
+  const NP = 500, dc = [], dh = [], dl = [];
+  for (let i = 0; i < NP; i++) { const c = 150 + 20 * Math.sin(i / 9) + 8 * Math.sin(i / 3.1) + i * 0.02; dc.push(c); dh.push(c + 1 + Math.abs(Math.sin(i))); dl.push(c - 1 - Math.abs(Math.cos(i * 1.1))); }
+  const wtR = BE.scanPineWaveTrend(BE.scanSeriesBars(dc, { high: dh, low: dl }), BE.scanParams({ indicator: 'wavetrend' }).params);
+  const w1 = wtR.fields.wt1, plotOf = (t) => wtR.plots.find(p => p[0] === t);
+  const expect = (top) => { const out = new Array(NP).fill(null);
+    for (let i = 4; i < NP; i++) { const s = (k) => w1[i - k]; if ([0, 1, 2, 3, 4].some(k => s(k) == null)) continue;
+      const hit = top ? s(4) < s(2) && s(3) < s(2) && s(2) > s(1) && s(2) > s(0) : s(4) > s(2) && s(3) > s(2) && s(2) < s(1) && s(2) < s(0);
+      if (hit && s(2) !== 0) out[i - 2] = s(2); }
+    return out; };
+  const [baj, alc] = [plotOf('Divergencias Bajistas'), plotOf('Divergencias Alcistas')];
+  const TVm = await import('./scanner/tv-verify.mjs');
+  const mapped = TVm.mapColumns(['time', 'open', 'high', 'low', 'close', 'Divergencias Bajistas', 'Divergencias Alcistas', 'Bullish Regular Divergence'], { wavetrend: wtR.plots.map(p => p[0]) });
+  check(same(baj[1], expect(true)) && same(alc[1], expect(false)) && baj[1].filter(v => v != null).length > 10 && alc[1].filter(v => v != null).length > 10
+    && baj[2] === 40 && baj[1][NP - 1] === null && baj[1][NP - 2] === null && same(wtR.fields.bull.map((v, i) => (w1[i] == null || wtR.fields.wt2[i] == null ? null : w1[i] > wtR.fields.wt2[i] ? 1 : 0)), wtR.fields.bull)
+    && mapped[5].kind === 'plot' && mapped[5].id === 'wavetrend' && mapped[6].kind === 'plot' && mapped[7].kind === 'none',
+    'bot engine: the WaveTrend divergence plots are the script\'s fractals, drawn two bars back from the bar that finds them (the last two bars hold none yet), from bar 40; tv-verify now compares those two columns and still not the divergence labels; wavetrend.bull is WT1 above WT2, exactly',
+    { baj: baj[1].filter(v => v != null).length, alc: alc[1].filter(v => v != null).length, first: baj[2] });
+}
+/* ---- end bot: engine ---- */
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

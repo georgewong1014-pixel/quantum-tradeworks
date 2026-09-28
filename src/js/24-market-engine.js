@@ -15,10 +15,12 @@
    is one SMA, one EMA, one RSI in this product, and they are these.
 
    PURE. No DOM, no State, no storage, no clock: every function that needs
-   "now" is handed it. The only module-level state is four memo tables (a
-   date formatter per time zone, a session lookup per calendar, what a
-   date string’s weekday and day arithmetic come to, and the quoted
-   precision of a series), which change no answer.
+   "now" is handed it. The only module-level state is memo tables (a date
+   formatter per time zone, a session lookup per calendar, what a date
+   string’s weekday and day arithmetic come to, the quoted precision of a
+   series, the daily bars and calendar a series was read from, and the
+   weekly or monthly bars built from them for a condition read there),
+   which change no answer.
 
    WHAT IT DOES NOT KNOW. No exchange calendar is held — a maintained one
    comes with a licensed feed — so sessions are inferred from the reader's
@@ -264,6 +266,11 @@ function scanTimeframe(tf) {
   const k = { daily: '1D', '1d': '1D', weekly: '1W', '1w': '1W', '1h': '1H', hourly: '1H', '15m': '15M', '5m': '5M' }[t.toLowerCase()];
   return k || t;
 }
+/* The built timeframes in order, for a condition read on a timeframe of its
+   own: the setup's, or a higher one (a day is inside a week, a week is not
+   inside a day). null for anything else. */
+const SCAN_TF_RANK = { '1D': 0, '1W': 1, '1M': 2 };
+const scanTimeframeRank = (tf) => SCAN_TF_RANK[scanTimeframe(tf)] ?? null;
 
 /* ------------------------------------------------------------------ limits -- */
 /* How big a setup may be. A rule tree deeper than three groups or wider
@@ -730,6 +737,28 @@ function scanPineWaveTrend(bars, p) {
   const crossUpOs = scanPineFlags(len, i => (xo[i] == null ? null : xo[i] && wt1[i] <= p.oversold && osOn));
   const crossUp = scanPineFlags(len, i => (xo[i] == null ? null : xo[i] && !osOn));
   const tema = scanPineTema(wt1, p.maLen);
+  /* The bot's criterion 1, its wavetrend()'s `bullish`: wt1 > wt2, exactly. */
+  const bull = scanPineFlags(len, i => (wt1[i] == null || wt2[i] == null ? null : wt1[i] > wt2[i]));
+  /* The fractal divergences, from the script's verbatim code: a top is wt1
+     two bars back above the two before it and the two after it, strictly
+     (f_top_fractal), a bottom the reverse, and na anywhere in the five is
+     no fractal. `fractal_top1 ? wt1[2] : na` tests a float for truth, which
+     Pine v4 reads as false at na AND at 0.0, so a fractal whose wt1 is
+     exactly 0 is not drawn. The plots carry offset=-2: the value found on
+     bar i is drawn on bar i − 2, the fractal's own bar — so bar j of the
+     plot holds wt1[j] when bar j + 2 finds the fractal, and the last two
+     bars hold nothing yet, as on the chart. The divergence labels are drawn
+     only with the script's divergence switches on (off by default, and on
+     the reader's chart), so they are not computed. */
+  const fractal = (top) => {
+    const out = new Array(len).fill(null);
+    for (let j = 2; j + 2 < len; j++) {
+      const m = wt1[j], a = wt1[j - 2], b = wt1[j - 1], c = wt1[j + 1], e = wt1[j + 2];
+      if (m == null || a == null || b == null || c == null || e == null || m === 0) continue;
+      if (top ? a < m && b < m && m > c && m > e : a > m && b > m && m < c && m < e) out[j] = m;
+    }
+    return out;
+  };
   /* The markers sit an eighth of the way from the middle to the level:
      plot(venta ? wt2[1] + ploff : na). */
   const mid = (p.overbought + p.oversold) / 2, ploff = (p.overbought - mid) / 8;
@@ -740,11 +769,12 @@ function scanPineWaveTrend(bars, p) {
   for (let k = 1; k <= 8; k++) levels.push([`Level ${k} oversold`, scanPineConst(len, p.oversold - 5 * k), 0]);
   const first = (f) => scanPineFirst('wavetrend', p, f);
   return {
-    fields: { wt1, wt2, hist, direction, dirChange, crossUp, crossDown, crossUpOs, crossDownOb, tema },
+    fields: { wt1, wt2, hist, direction, dirChange, crossUp, crossDown, crossUpOs, crossDownOb, tema, bull },
     plots: [['WT Average-WT1', wt1, first('wt1')], ['Signal average-WT2', p.showSignal ? wt2 : none, p.showSignal ? first('wt2') : 0], ['Level 0', scanPineConst(len, 0), 0], ...levels,
             ['Sell when overbought', marker(crossDownOb, 1), first('crossDownOb')], ['All sales', marker(crossDown, 1), first('crossDown')],
             ['Buy when oversold', marker(crossUpOs, -1), first('crossUpOs')], ['All purchases', marker(crossUp, -1), first('crossUp')],
-            ['Histogramme', p.showHist ? hist : none, p.showHist ? first('hist') : 0], ['MA PLOT_ST', tema, first('tema')]],
+            ['Histogramme', p.showHist ? hist : none, p.showHist ? first('hist') : 0],
+            ['Divergencias Bajistas', fractal(true), first('wt1') + 2], ['Divergencias Alcistas', fractal(false), first('wt1') + 2], ['MA PLOT_ST', tema, first('tema')]],
   };
 }
 
@@ -771,10 +801,16 @@ function scanPineCmMacd(bars, p) {
   const above = scanPineFlags(len, i => (macd[i] == null || signal[i] == null ? null : macd[i] >= signal[i]));
   const hs = (test) => scanPineFlags(len, i => (i === 0 || hist[i] == null || hist[i - 1] == null ? null : test(hist[i], hist[i - 1])));
   const shown = (a) => a.map(v => (v == null || v === 0 ? null : v));
+  /* The bot's readings, taken on this SMA signal when the reader switches
+     the bot's criterion 2 to the signal the chart draws: bull is the line
+     above the signal strictly (`above` includes equality), and the
+     histogram against the bar before — rising, falling, or either. */
   return {
     fields: { macd, signal, hist, cross, above,
               histUpAbove: hs((h, q) => h > q && h > 0), histDownAbove: hs((h, q) => h < q && h > 0),
-              histDownBelow: hs((h, q) => h < q && h <= 0), histUpBelow: hs((h, q) => h > q && h <= 0) },
+              histDownBelow: hs((h, q) => h < q && h <= 0), histUpBelow: hs((h, q) => h > q && h <= 0),
+              bull: scanPineFlags(len, i => (macd[i] == null || signal[i] == null ? null : macd[i] > signal[i])),
+              histUp: hs((h, q) => h > q), histDown: hs((h, q) => h < q), histMoved: hs((h, q) => h !== q) },
     plots: [['MACD', shown(macd), scanPineFirst('cm_macd', p, 'macd')], ['Signal Line', shown(signal), scanPineFirst('cm_macd', p, 'signal')],
             ['Histogram', shown(hist), scanPineFirst('cm_macd', p, 'hist')], ['Cross', cross.map((x, i) => (x === 1 ? signal[i] : null)), scanPineFirst('cm_macd', p, 'cross')]],
   };
@@ -790,7 +826,10 @@ function scanPineBotMacd(bars, p) {
   const cmp = (test) => scanPineFlags(len, i => (macd[i] == null || signal[i] == null ? null : test(macd[i], signal[i])));
   const hs = (test) => scanPineFlags(len, i => (i === 0 || hist[i] == null || hist[i - 1] == null ? null : test(hist[i], hist[i - 1])));
   return {
-    fields: { macd, signal, hist, bull: cmp((m, s) => m > s), bear: cmp((m, s) => m < s), histUp: hs((h, q) => h > q), histDown: hs((h, q) => h < q) },
+    fields: { macd, signal, hist, bull: cmp((m, s) => m > s), bear: cmp((m, s) => m < s), histUp: hs((h, q) => h > q), histDown: hs((h, q) => h < q),
+              /* Either of the two: "the histogram moved" — what the bot's
+                 ANY STRONG SIGNAL asks of it, in one condition. */
+              histMoved: hs((h, q) => h !== q) },
     plots: [],
   };
 }
@@ -958,14 +997,14 @@ const SCAN_PINE_INDICATORS = {
     params: { channel: scanPineInt(10), average: scanPineInt(21), reaction: scanPineInt(1), overbought: scanPineNum(53, 0, 1000), oversold: scanPineNum(-53, -1000, 0),
               obSwitch: scanPineSwitch(0), osSwitch: scanPineSwitch(0), maLen: scanPineInt(200) },
     fields: { wt1: 'wavetrend', wt2: 'wavetrend', hist: 'wavetrend', tema: 'wavetrend', direction: 'direction', dirChange: 'flag',
-              crossUp: 'flag', crossDown: 'flag', crossUpOs: 'flag', crossDownOb: 'flag' },
+              crossUp: 'flag', crossDown: 'flag', crossUpOs: 'flag', crossDownOb: 'flag', bull: 'flag' },
     defaultField: 'wt1',
     fieldLabels: { wt1: 'WT1', wt2: 'WT2', hist: 'WT1 − WT2', tema: (p) => `TEMA${p.maLen} of WT1`, direction: 'direction', dirChange: 'direction change',
                    crossUp: 'WT1 crosses over WT2', crossDown: 'WT1 crosses under WT2', crossUpOs: (p) => `WT1 crosses over WT2 at or below ${p.oversold}`,
-                   crossDownOb: (p) => `WT1 crosses under WT2 at or above ${p.overbought}` },
+                   crossDownOb: (p) => `WT1 crosses under WT2 at or above ${p.overbought}`, bull: 'WT1 above WT2' },
     needs: (p, f) => {
       const w = 2 * p.channel + p.average - 2;
-      return { wt1: w, wt2: w + 3, hist: w + 3, tema: w + 3 * p.maLen - 3, direction: w + p.reaction, dirChange: w + p.reaction + 1 }[f] ?? w + 4;
+      return { wt1: w, wt2: w + 3, hist: w + 3, bull: w + 3, tema: w + 3 * p.maLen - 3, direction: w + p.reaction, dirChange: w + p.reaction + 1 }[f] ?? w + 4;
     },
     span: (p, f, decay) => 2 * decay(2 / (p.channel + 1)) + decay(2 / (p.average + 1)) + 4 + (f === 'tema' ? 3 * decay(2 / (p.maLen + 1)) : 0),
     sideLabel: (p, f) => scanPineSideLabel('wavetrend', p, f, { keys: ['channel', 'average'], text: `WaveTrend(${p.channel},${p.average})` }),
@@ -976,38 +1015,45 @@ const SCAN_PINE_INDICATORS = {
       + '(from equal counts), and are the script’s “All purchases” and “All sales”, which it draws only while its “Buy when oversold” (osSwitch) '
       + 'and “Sell when overbought” (obSwitch) switches are off; with a switch on, only the crossing at or beyond its level counts — crossUpOs '
       + 'at or below `oversold`, crossDownOb at or above `overbought`. Your chart runs both switches off. tema is the script’s extra MA: '
-      + '3 × (e1 − e2) + e3, the EMAs of wt1 over maLen bars taken three times (MA PLOT_ST).',
+      + '3 × (e1 − e2) + e3, the EMAs of wt1 over maLen bars taken three times (MA PLOT_ST). bull is 1 while wt1 is above wt2, compared '
+      + 'exactly — the Multi-Timeframe Trading Bot’s criterion 1.',
   },
   cm_macd: {
     label: 'CM MACD', calcVersion: 1, inputs: ['close'], pine: scanPineCmMacd,
     params: { fast: scanPineInt(12), slow: scanPineInt(26), signal: scanPineInt(9) },
     fields: { macd: 'price_delta', signal: 'price_delta', hist: 'price_delta', cross: 'flag', above: 'flag',
-              histUpAbove: 'flag', histDownAbove: 'flag', histDownBelow: 'flag', histUpBelow: 'flag' },
+              histUpAbove: 'flag', histDownAbove: 'flag', histDownBelow: 'flag', histUpBelow: 'flag',
+              bull: 'flag', histUp: 'flag', histDown: 'flag', histMoved: 'flag' },
     defaultField: 'hist',
     fieldLabels: { macd: 'line', signal: 'signal (SMA)', hist: 'histogram', cross: 'line crosses signal', above: 'line at or above signal',
-                   histUpAbove: 'histogram rising above 0', histDownAbove: 'histogram falling above 0', histDownBelow: 'histogram falling at or below 0', histUpBelow: 'histogram rising at or below 0' },
-    needs: (p, f) => { const m = Math.max(p.fast, p.slow); return f === 'macd' ? m : ['signal', 'hist', 'above'].includes(f) ? m + p.signal - 1 : m + p.signal; },
+                   histUpAbove: 'histogram rising above 0', histDownAbove: 'histogram falling above 0', histDownBelow: 'histogram falling at or below 0', histUpBelow: 'histogram rising at or below 0',
+                   bull: 'line above signal', histUp: 'histogram rising', histDown: 'histogram falling', histMoved: 'histogram rising or falling' },
+    needs: (p, f) => { const m = Math.max(p.fast, p.slow); return f === 'macd' ? m : ['signal', 'hist', 'above', 'bull'].includes(f) ? m + p.signal - 1 : m + p.signal; },
     span: (p, f, decay) => decay(2 / (Math.max(p.fast, p.slow) + 1)) + (f === 'macd' ? 0 : p.signal),
     sideLabel: (p, f) => scanPineSideLabel('cm_macd', p, f, { keys: ['fast', 'slow', 'signal'], text: `CM MACD(${p.fast},${p.slow},${p.signal})` }),
     formula: 'CM_Ult_MacD_MTF (ChrisMoody) on the setup’s own timeframe: line = EMA(close, fast) − EMA(close, slow); signal = the SMA of the line over '
       + '`signal` bars — an SMA, where the usual MACD (and the bot’s) uses an EMA; hist = line − signal. cross is 1 on the bar the line crosses '
       + 'the signal either way; above is 1 while the line is at or above the signal. The histogram’s four colours are four flags: histUpAbove '
       + 'rising and above 0 (aqua), histDownAbove falling and above 0 (blue), histDownBelow falling and at or below 0 (red), histUpBelow rising '
-      + 'and at or below 0 (maroon); an unchanged histogram is none of them.',
+      + 'and at or below 0 (maroon); an unchanged histogram is none of them. bull, histUp, histDown and histMoved are the Multi-Timeframe '
+      + 'Trading Bot’s readings taken on this SMA signal (its criterion 2 switched to the signal the chart draws): bull is 1 while the line '
+      + 'is above the signal, strictly; histUp and histDown are 1 when the histogram is above or below the bar before’s, and histMoved when '
+      + 'it is either.',
   },
   bot_macd: {
     label: 'MACD, EMA signal', calcVersion: 1, inputs: ['close'], pine: scanPineBotMacd,
     params: { fast: scanPineInt(12), slow: scanPineInt(26), signal: scanPineInt(9) },
-    fields: { macd: 'price_delta', signal: 'price_delta', hist: 'price_delta', bull: 'flag', bear: 'flag', histUp: 'flag', histDown: 'flag' },
+    fields: { macd: 'price_delta', signal: 'price_delta', hist: 'price_delta', bull: 'flag', bear: 'flag', histUp: 'flag', histDown: 'flag', histMoved: 'flag' },
     defaultField: 'hist',
-    fieldLabels: { macd: 'line', signal: 'signal (EMA)', hist: 'histogram', bull: 'line above signal', bear: 'line below signal', histUp: 'histogram rising', histDown: 'histogram falling' },
-    needs: (p, f) => { const m = Math.max(p.fast, p.slow); return f === 'macd' ? m : ['histUp', 'histDown'].includes(f) ? m + p.signal : m + p.signal - 1; },
+    fieldLabels: { macd: 'line', signal: 'signal (EMA)', hist: 'histogram', bull: 'line above signal', bear: 'line below signal', histUp: 'histogram rising', histDown: 'histogram falling',
+                   histMoved: 'histogram rising or falling' },
+    needs: (p, f) => { const m = Math.max(p.fast, p.slow); return f === 'macd' ? m : ['histUp', 'histDown', 'histMoved'].includes(f) ? m + p.signal : m + p.signal - 1; },
     span: (p, f, decay) => decay(2 / (Math.max(p.fast, p.slow) + 1)) + (f === 'macd' ? 0 : decay(2 / (p.signal + 1))),
     sideLabel: (p, f) => scanPineSideLabel('bot_macd', p, f, { keys: ['fast', 'slow', 'signal'], text: `MACD(${p.fast},${p.slow},${p.signal}) EMA-signal` }),
     formula: 'The Multi-Timeframe Trading Bot’s MACD: line = EMA(close, fast) − EMA(close, slow); signal = the EMA of the line over `signal` bars, '
       + 'seeded with the mean of its first `signal` values; hist = line − signal — the same numbers as the MACD indicator. bull is 1 while the '
       + 'line is above the signal and bear while below (the bot’s criterion 2); histUp and histDown are 1 when the histogram is above or below '
-      + 'the bar before. The chart’s CM MACD takes an SMA signal instead, and the two disagree on some bars.',
+      + 'the bar before, and histMoved when it is either. The chart’s CM MACD takes an SMA signal instead, and the two disagree on some bars.',
   },
   mcdx: {
     label: 'MCDX', calcVersion: 1, inputs: ['close'], pine: scanPineMcdx,
@@ -1715,7 +1761,15 @@ const SCAN_BREAK_OPEN = ['unexplained', 'remains', 'created'];
    its instant would be the session's close, which scanSessionEnd gives on
    demand; `timestamps` holds null for every daily and weekly bar. The
    array exists so an intraday bar, which a date cannot name, has a place
-   to carry its instant when a licensed intraday feed exists (SC-317). */
+   to carry its instant when a licensed intraday feed exists (SC-317).
+
+   WHERE A SERIES CAME FROM. A condition read on a higher timeframe than
+   its setup's builds that timeframe's bars from the same daily bars, on the
+   same calendar (scanFrame). Every series scanBars returns — the daily one,
+   a week or a month resampled from it, a slice of any — carries the same
+   `calendar` object, so that object names the daily bars and the calendar
+   they were read with, without a field any record or digest would see. */
+const SCAN_BARS_SOURCE = new WeakMap();
 function scanBars(history, symbol, { timeframe = '1D', market = undefined, instruments = null, now = null, calendar = null, staleTolerance = 0 } = {}) {
   const mk = market !== undefined ? market : (instruments ? scanMarketOf(symbol, instruments) : null);
   const s = history?.series?.[symbol] || {}, v = history?.volume?.[symbol] || {};
@@ -1769,6 +1823,7 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
     }
   }
   b.dataVersion = scanDataVersion(b);
+  SCAN_BARS_SOURCE.set(b.calendar, { cal, daily: b });
   const T = scanTimeframe(timeframe);
   return T === '1W' || T === '1M' ? scanResample(b, T, { calendar: cal, now }) : b;
 }
@@ -2115,16 +2170,23 @@ function scanComputeSeries(id, params, field, bars, needs) {
   return { values, status, reason };
 }
 
-/* One side of a rule, as a series over the bars, with a status and a
-   reason at every bar. The value is null wherever the status is not VALID:
-   the engine never fabricates one. */
-function scanIndicatorSeries(spec, bars, { cache = null } = {}) {
+/* The computed series behind an operand — the cache's, or the refusal of
+   the whole series (an unknown indicator, a bad parameter) — with what
+   labels it. scanCoreAt reads one bar of it exactly as scanIndicatorSeries
+   writes every bar out.
+   ONE BAR IS READ ONE BAR AT A TIME. scanIndicator is asked for one bar,
+   and it wrote out the reason of every bar of the series to read one:
+   a condition evaluated on every bar of a history was quadratic in its
+   length. The reader's bot pack (27 setups, whose monthly average needs two
+   hundred months) evaluated on every one of 4,826 daily bars took 26
+   seconds; read a bar at a time it takes 8, and every value, status and
+   reason is the one the series holds. */
+function scanIndicatorCore(spec, bars, cache) {
   const id = spec?.indicator, def = SCAN_INDICATORS[id];
   const len = bars?.closes?.length || 0;
   const label = scanSideLabel(spec || {});
-  const fill = (st, code, text) => ({ id, specKey: scanSpecKey(spec || {}), label, unit: null, needs: Infinity, field: null, calcVersion: null,
-    values: new Array(len).fill(null), status: new Array(len).fill(st), reason: new Array(len).fill({ code, text }),
-    series: null, noVolume: false, note: null });
+  const fill = (st, code, text) => ({ id, len, label, specKey: scanSpecKey(spec || {}), unit: null, needs: Infinity, field: null, calcVersion: null,
+    whole: { status: st, reason: { code, text } }, base: null, mult: 1 });
   if (!def) return fill('INVALID_INPUT', 'UNKNOWN_INDICATOR', id ? `unknown indicator “${id}”` : 'no indicator is named');
   const { params, problems } = scanParams(spec);
   const field = scanFieldOf(spec);
@@ -2135,11 +2197,31 @@ function scanIndicatorSeries(spec, bars, { cache = null } = {}) {
     ? `${bars.symbol}|${bars.timeframe || '1D'}|${bars.dataVersion}|${scanSpecKey(spec, { multiplier: false })}|${def.calcVersion}` : null;
   let base = key ? cache.get(key) : undefined;
   if (!base) { base = scanComputeSeries(id, params, field, bars, needs); if (key) cache.set(key, base); }
-  const mult = scanMultiplier(spec.multiplier);
+  return { id, len, label, specKey: scanSpecKey(spec), unit: scanUnitOf(spec), needs, field, calcVersion: def.calcVersion, whole: null, base, mult: scanMultiplier(spec.multiplier) };
+}
+const scanCoreAt = (K, i) => {
+  if (K.whole) return { value: null, status: K.whole.status, reason: K.whole.reason };
+  const v = K.base.values[i], r = K.base.reason[i];
+  return { value: v == null ? null : K.mult === 1 ? v : v * K.mult, status: K.base.status[i],
+           reason: r ? { code: r.code, text: scanReasonText(K.label, r.code, r.note, K.needs, i + 1) } : null };
+};
+
+/* One side of a rule, as a series over the bars, with a status and a
+   reason at every bar. The value is null wherever the status is not VALID:
+   the engine never fabricates one. */
+function scanIndicatorSeries(spec, bars, { cache = null } = {}) {
+  const K = scanIndicatorCore(spec, bars, cache);
+  const { id, len, label } = K;
+  if (K.whole) {
+    return { id, specKey: K.specKey, label, unit: null, needs: Infinity, field: null, calcVersion: null,
+      values: new Array(len).fill(null), status: new Array(len).fill(K.whole.status), reason: new Array(len).fill(K.whole.reason),
+      series: null, noVolume: false, note: null };
+  }
+  const { base, mult, needs } = K;
   const values = mult === 1 ? base.values : base.values.map(v => (v == null ? null : v * mult));
   const reason = base.reason.map((r, i) => (r ? { code: r.code, text: scanReasonText(label, r.code, r.note, needs, i + 1) } : null));
   const lastR = reason[len - 1];
-  return { id, specKey: scanSpecKey(spec), label, unit: scanUnitOf(spec), needs, field, calcVersion: def.calcVersion,
+  return { id, specKey: K.specKey, label, unit: K.unit, needs, field: K.field, calcVersion: K.calcVersion,
            values, status: base.status, reason,
            /* 0.2 names: the series, whether the instrument carries no volume,
               and the volume note on the last bar. */
@@ -2153,19 +2235,20 @@ const scanDec = (v) => (scanOk(v) ? Number(v.toPrecision(12)).toString() : null)
 /* The spec's IndicatorResult: one operand at one bar. STALE_DATA is decided
    here, for the bar the series is marked stale at. */
 function scanIndicator(spec, bars, { at = null, cache = null } = {}) {
-  const S = scanIndicatorSeries(spec, bars, { cache });
+  const K = scanIndicatorCore(spec, bars, cache);
   const n = bars?.closes?.length || 0;
   const i = at == null ? n - 1 : at;
   const def = SCAN_INDICATORS[spec?.indicator];
-  const base = { instrumentId: bars?.instrumentId ?? null, symbol: bars?.symbol ?? null, indicator: S.specKey, label: S.label, unit: S.unit, field: S.field,
-                 timeframe: bars?.timeframe || '1D', needs: S.needs, calculationVersion: def ? `${spec.indicator}@${def.calcVersion}` : null,
+  const base = { instrumentId: bars?.instrumentId ?? null, symbol: bars?.symbol ?? null, indicator: K.specKey, label: K.label, unit: K.unit, field: K.field,
+                 timeframe: bars?.timeframe || '1D', needs: K.needs, calculationVersion: def ? `${spec.indicator}@${def.calcVersion}` : null,
                  dataVersion: bars?.dataVersion ?? null };
   if (i < 0 || i >= n) {
-    const reason = S.reason[0]?.code && S.reason[0].code !== 'NEEDS_BARS' ? S.reason[0]
-      : { code: 'NEEDS_BARS', text: scanReasonText(S.label, 'NEEDS_BARS', null, S.needs, Math.max(0, i + 1)) };
-    return { ...base, timestamp: null, value: null, valueText: null, status: S.status[0] && S.status[0] !== 'VALID' ? S.status[0] : 'INSUFFICIENT_DATA', reason, have: Math.max(0, Math.min(i + 1, n)), barStatus: null };
+    const first = n > 0 ? scanCoreAt(K, 0) : null;
+    const reason = first?.reason?.code && first.reason.code !== 'NEEDS_BARS' ? first.reason
+      : { code: 'NEEDS_BARS', text: scanReasonText(K.label, 'NEEDS_BARS', null, K.needs, Math.max(0, i + 1)) };
+    return { ...base, timestamp: null, value: null, valueText: null, status: first?.status && first.status !== 'VALID' ? first.status : 'INSUFFICIENT_DATA', reason, have: Math.max(0, Math.min(i + 1, n)), barStatus: null };
   }
-  let status = S.status[i], reason = S.reason[i], value = S.values[i];
+  let { status, reason, value } = scanCoreAt(K, i);
   if (status === 'VALID' && bars.stale && bars.stale.at === i) {
     status = 'STALE_DATA'; value = null;
     reason = { code: 'STALE', text: `its last final bar is ${bars.stale.last}, and the session of ${bars.stale.expected} should be held by now — a stale series is not evaluated` };
@@ -2261,6 +2344,9 @@ function scanNormaliseNode(node) {
       ? node.range.map(x => (x != null && typeof x === 'object' ? scanNormaliseOperand(x) : { value: scanNumeric(x) ? Number(x) : x }))
       : node.range;
   }
+  /* The timeframe the condition is read on, when it names one: absent is the
+     setup's own. 'weekly' is '1W', as for a setup. */
+  if (node.timeframe != null && node.timeframe !== '') c.timeframe = scanTimeframe(node.timeframe);
   return c;
 }
 function scanNormaliseSetup(raw) {
@@ -2303,9 +2389,13 @@ function scanCanonicalOf(s) {
      setup written before resolution existed keeps its hash. */
   if (u.kind === 'watchlist' && u.resolve === 'export') { uni.resolve = 'export'; uni.watchlistId = u.watchlistId ?? null; }
   const opnd = (o) => (o == null ? undefined : typeof o !== 'object' ? o : o.indicator != null ? scanSpecKey(o) : { value: scanNumeric(o.value) ? Number(o.value) : o.value });
+  /* A condition's own timeframe is what it means, so it is in the hash —
+     only when present (undefined members are dropped), so no setup written
+     before conditions had one changes its hash. */
   const node = (n) => (!n || typeof n !== 'object' ? n
     : n.type === 'group' ? { logic: n.logic, children: Array.isArray(n.children) ? n.children.map(node) : n.children }
-    : { op: scanOpName(n.op) || n.op, left: opnd(n.left), right: opnd(n.right), range: Array.isArray(n.range) ? n.range.map(opnd) : n.range });
+    : { op: scanOpName(n.op) || n.op, left: opnd(n.left), right: opnd(n.right), range: Array.isArray(n.range) ? n.range.map(opnd) : n.range,
+        timeframe: n.timeframe == null ? undefined : n.timeframe });
   return scanStable({ timeframe: s.timeframe, universe: uni, confirmationMode: s.confirmationMode, cooldownMode: s.cooldownMode,
                       cooldownBars: s.cooldownBars, expires: s.expires ?? null, ruleTree: node(s.ruleTree) });
 }
@@ -2321,9 +2411,13 @@ function scanOperandProse(o) {
 function scanConditionProse(c) {
   if (!c || typeof c !== 'object') return '(not a condition)';
   const op = scanOpName(c.op);
-  if (op === 'BETWEEN') return `${scanOperandProse(c.left)} between ${scanOperandProse(c.range?.[0])} and ${scanOperandProse(c.range?.[1])}`;
-  return `${scanOperandProse(c.left)} ${op ? SCAN_OPERATORS[op].label : `“${c.op}”`} ${scanOperandProse(c.right)}`;
+  /* A condition read on a timeframe of its own says which, first. */
+  const on = c.timeframe != null && c.timeframe !== '' ? `${scanTimeframeWord(scanTimeframe(c.timeframe))}: ` : '';
+  if (op === 'BETWEEN') return `${on}${scanOperandProse(c.left)} between ${scanOperandProse(c.range?.[0])} and ${scanOperandProse(c.range?.[1])}`;
+  return `${on}${scanOperandProse(c.left)} ${op ? SCAN_OPERATORS[op].label : `“${c.op}”`} ${scanOperandProse(c.right)}`;
 }
+/* A timeframe as a word of a sentence: 'weekly', 'monthly', 'daily'. */
+const scanTimeframeWord = (tf) => (SCAN_TIMEFRAMES[tf]?.label || String(tf)).toLowerCase();
 /* The tree as indented lines: { depth, text }. A group line reads "all of"
    or "any of"; its conditions follow one level in. */
 function scanTreeLines(tree) {
@@ -2429,6 +2523,18 @@ function scanValidate(doc, { limits = null } = {}) {
         return true;
       };
       const condition = (c, path) => {
+        /* A condition may be read on a timeframe of its own: a built one, and
+           the setup's or higher — a weekly bar holds five daily ones, and no
+           one of them is "the" daily reading of that week. */
+        if (c.timeframe != null) {
+          const ct = SCAN_TIMEFRAMES[c.timeframe], own = SCAN_TF_RANK[s.timeframe];
+          const built = Object.keys(SCAN_TIMEFRAMES).filter(k => SCAN_TIMEFRAMES[k].built).join(', ');
+          if (!ct) bad(path, 'UNKNOWN_TIMEFRAME', `the condition's timeframe "${c.timeframe}" is not one of ${built}`);
+          else if (!ct.built) bad(path, 'TIMEFRAME_NOT_BUILT', `the condition's timeframe "${c.timeframe}" is not built — ${ct.reason}`);
+          else if (own != null && SCAN_TF_RANK[c.timeframe] < own) {
+            bad(path, 'LOWER_TIMEFRAME', `the condition's timeframe ${c.timeframe} (${scanTimeframeWord(c.timeframe)}) is lower than the setup's ${s.timeframe} (${scanTimeframeWord(s.timeframe)}) — a condition is read on its setup's timeframe or a higher one (${built}, in that order): a ${scanTimeframeWord(s.timeframe)} bar holds several ${scanTimeframeWord(c.timeframe)} ones, and no one of them is its ${scanTimeframeWord(c.timeframe)} reading`);
+          }
+        }
         const op = scanOpName(c.op);
         if (!op) { bad(path, 'UNKNOWN_OPERATOR', `operator "${c.op}" is not one of ${Object.keys(SCAN_OPERATORS).join(', ')} (or the 0.2 names ${Object.keys(SCAN_OP_ALIASES).join(', ')})`); return; }
         if (c.left && typeof c.left === 'object' && c.left.indicator == null && 'value' in c.left) { bad(path, 'BAD_OPERAND', 'the left side must be an indicator, not a fixed value'); return; }
@@ -2487,12 +2593,133 @@ const SCAN_VERBS = {
   EQUALS: ['equal to', 'not equal to'],
   CROSSES_ABOVE: ['crossed above', 'did not cross above'], CROSSES_BELOW: ['crossed below', 'did not cross below'],
 };
+
+/* ------------------------------------------------------- higher timeframes -- */
+/* A CONDITION READ ON A HIGHER TIMEFRAME (the bot contract, B2). A setup
+   evaluated on bar i of its own timeframe — session date d — reads a
+   condition that names a higher timeframe T on T's bars, built from the
+   same daily bars on the same calendar (scanResample, as a weekly setup's
+   own bars are), at the LAST T BAR COMPLETE AS OF d: the one whose
+   period's last expected session has closed on or before d. The T bar
+   containing d is read only when d closes it; before that, the one before.
+   So on each daily close the weekly criteria come from the last completed
+   week, never the week in progress — the reader's decision, which is the
+   script's intent (TradingView's request.security with gaps on reads a
+   weekly boolean as false between week closes; the reader chose the intent).
+   A week whose Friday is a holiday on an inferred calendar closes on the
+   Thursday; on the weekday calendar, which cannot tell a holiday from a day
+   nothing was captured, the Friday is still expected, so the week is read
+   as closed from the Monday after. A month whose last day is a weekend
+   closes on its last weekday.
+   Crossings and the flags that compare a bar with the one before (histUp,
+   histDown) are T's own: T's bar against T's bar before it. Every
+   indicator is causal, so T's value at a bar complete as of d is the value
+   a history ending at d would give.
+   A T bar holds every daily bar of its period, so it is complete only once
+   its last held daily bar is on or before d as well: a bar held on a day
+   the calendar calls ambiguous, after the period's last expected session,
+   is in the T bar, and reading it earlier would read a day not yet closed.
+   Kleene as everywhere: unknown, with a reason that names the timeframe,
+   while T's value cannot be computed — its warm-up, no T bar closed yet, a
+   stale read (the T period that should have closed last is not held, or
+   the setup's own series is stale), a T bar holding a provisional day. */
+const SCAN_FRAME_MEMO = new WeakMap();
+function scanFrame(bars, tf) {
+  if (!bars || typeof bars !== 'object') return null;
+  let memo = SCAN_FRAME_MEMO.get(bars);
+  if (!memo) { memo = {}; SCAN_FRAME_MEMO.set(bars, memo); }
+  if (tf in memo) return memo[tf];
+  const src = bars.calendar && typeof bars.calendar === 'object' ? SCAN_BARS_SOURCE.get(bars.calendar) : null;
+  /* A daily series is its own source; a weekly one reads months from the
+     daily bars it was resampled from. */
+  const daily = (bars.timeframe || '1D') === '1D' ? bars : src?.daily || null;
+  /* Bars made from a bare list of closes are numbered, not dated: no week
+     can be built from them. */
+  if (!daily || !daily.dates.every(scanIsDay)) return (memo[tf] = null);
+  const cal = src?.cal || scanWeekdayCalendar(daily.market);
+  const T = scanResample(daily, tf, { calendar: cal });
+  const periodOf = tf === '1M' ? scanMonthOf : scanWeekOf;
+  const nextOf = (p) => (tf === '1M' ? scanMonthOf(scanAddDays(p, 31)) : scanAddDays(p, 7));
+  const lastSessionMemo = new Map();
+  const lastSession = (p) => {
+    if (!lastSessionMemo.has(p)) {
+      let last = null;
+      for (let d = p; periodOf(d) === p; d = scanAddDays(d, 1)) if (scanIsSession(cal, d)) last = d;
+      lastSessionMemo.set(p, last);
+    }
+    return lastSessionMemo.get(p);
+  };
+  const periods = T.dates.map(periodOf);
+  const closesOn = T.dates.map((d, k) => { const le = lastSession(periods[k]); return le && le > d ? le : d; });
+  /* The read is its own: the setup's series being stale is asked of it
+     directly (scanEvalHigher), not of T's last bar. */
+  return (memo[tf] = { tf, bars: { ...T, stale: null }, periods, closesOn, nextOf, lastSession });
+}
+/* The last T bar complete as of date d, or −1 when none is. */
+function scanFrameAt(F, d) {
+  let lo = 0, hi = F.closesOn.length - 1, k = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (F.closesOn[m] <= d) { k = m; lo = m + 1; } else hi = m - 1; }
+  return k;
+}
+/* The period after T bar k's that has a session and had closed by d but is
+   not held — the read at k is then stale — or null. A period with no
+   session at all (a week of holidays) is not missing. */
+function scanFrameGap(F, k, d) {
+  let q = F.nextOf(F.periods[k]);
+  for (let n = 0; n < 60 && !F.lastSession(q); n++) q = F.nextOf(q);
+  const le = F.lastSession(q);
+  if (!le || le > d) return null;
+  return k + 1 < F.periods.length && F.periods[k + 1] === q ? null : q;
+}
+function scanEvalHigher(cond, tf, bars, i, cache) {
+  const own = bars?.timeframe || '1D', word = scanTimeframeWord(tf), unit = tf === '1M' ? 'month' : 'week';
+  const label = cond?.left && typeof cond.left === 'object' && cond.left.indicator != null ? scanSideLabel(cond.left) : 'the condition';
+  const res = { type: 'condition', path: null, op: scanOpName(cond?.op) || cond?.op || null, state: 'UNAVAILABLE', met: null, text: '', reason: null,
+                left: null, right: null, prevLeft: null, prevRight: null, leftLabel: null, rightLabel: null, leftValue: null, rightValue: null,
+                timeframe: tf, barDate: null };
+  const na = (code, text, left = null) => { res.reason = { code, text }; res.text = text; if (left) { res.left = left; res.leftLabel = left.label; } return res; };
+  if (!(tf in SCAN_TF_RANK)) return na('UNKNOWN_TIMEFRAME', `the condition's timeframe "${tf}" is not one of ${Object.keys(SCAN_TF_RANK).join(', ')}`);
+  if (SCAN_TF_RANK[tf] < (SCAN_TF_RANK[own] ?? 0)) return na('LOWER_TIMEFRAME', `${label}: its timeframe ${tf} is lower than the setup's ${own}, so it has no one bar to read`);
+  const n = bars?.dates?.length || 0;
+  if (i < 0 || i >= n) return na('NEEDS_BARS', 'no bar is held at that position');
+  const F = scanFrame(bars, tf);
+  if (!F) return na('NO_DAILY_BARS', `${word} bars: ${label} — no ${word} bar can be built: these bars are not the dated daily bars of a history, nor bars resampled from them`);
+  const d = bars.dates[i];
+  const T = F.bars;
+  const stale = (text) => na('STALE', text, { ...scanIndicator(cond.left, T, { at: -1, cache }), status: 'STALE_DATA', reason: { code: 'STALE', text } });
+  /* The setup's own series is behind: nothing is read on it, on any timeframe. */
+  if (bars.stale && bars.stale.at === i) {
+    return stale(`its last final bar is ${bars.stale.last}, and the session of ${bars.stale.expected} should be held by now — a stale series is not evaluated, on its ${word} bars either`);
+  }
+  const k = scanFrameAt(F, d);
+  if (k < 0) {
+    const r = scanEvalCondition(cond, T, -1, cache);
+    return na(r.reason?.code || 'NEEDS_BARS', `${word} bars: no ${unit} had closed by ${d} — ${r.reason?.text || `${label} cannot be read`}`, r.left);
+  }
+  const gap = scanFrameGap(F, k, d);
+  if (gap) {
+    return stale(`${word} bars: the ${unit} of ${gap} has sessions and no bar in your history, so on ${d} the last ${word} bar held (${T.dates[k]}) is not the last ${unit} closed — a stale reading is not evaluated`);
+  }
+  if (T.status[k] === 'PROVISIONAL') {
+    return na('PROVISIONAL_BAR', `${word} bars: the ${word} bar of ${T.dates[k]} holds a day captured before its session closed and settled — a provisional bar is not read`);
+  }
+  const r = scanEvalCondition(cond, T, k, cache);
+  r.timeframe = tf; r.barDate = T.dates[k];
+  if (r.state === 'UNAVAILABLE') { const t = `${word} bars: ${r.reason?.text || 'could not be read'}`; r.reason = { ...(r.reason || { code: 'NEEDS_BARS' }), text: t }; r.text = t; }
+  else r.text = `${word} bar of ${r.barDate}: ${r.text}`;
+  return r;
+}
+
 /* One condition at bar i. Its state is MET or NOT_MET only when every
    value it reads is VALID; otherwise UNAVAILABLE, with the first reason —
    untested is not failed: a condition that could not be read has not been
    satisfied and has not been broken either. A crossing reads the bar
-   before as well, and only when that bar is the previous session. */
+   before as well, and only when that bar is the previous session. A
+   condition that names a timeframe other than its bars' is read there
+   (scanEvalHigher). */
 function scanEvalCondition(cond, bars, i, cache) {
+  const ctf = cond?.timeframe == null || cond.timeframe === '' ? null : scanTimeframe(cond.timeframe);
+  if (ctf && ctf !== (bars?.timeframe || '1D')) return scanEvalHigher(cond, ctf, bars, i, cache);
   const opName = scanOpName(cond?.op);
   const res = { type: 'condition', path: null, op: opName || cond?.op || null, state: 'UNAVAILABLE', met: null, text: '', reason: null,
                 left: null, right: null, prevLeft: null, prevRight: null, leftLabel: null, rightLabel: null, leftValue: null, rightValue: null };
@@ -3036,8 +3263,12 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
              without it. Never 0 in its place. */
           barVolume: scanOk(vol) ? vol : null,
           barStatus: bars.status[j] || 'UNKNOWN',
+          /* A condition read on a higher timeframe than the setup's says
+             which, and the date of the bar it read (null when none could
+             be read); one on the setup's own carries neither. */
           matchedConditions: r.conditions.map(c => ({ path: c.path, text: c.text, state: c.state, left: c.leftValue, right: c.rightValue,
-            leftLabel: c.leftLabel, rightLabel: c.rightLabel, status: c.state === 'UNAVAILABLE' ? (c.left?.status || 'INVALID_INPUT') : 'VALID', reason: c.reason?.code || null })),
+            leftLabel: c.leftLabel, rightLabel: c.rightLabel, status: c.state === 'UNAVAILABLE' ? (c.left?.status || 'INVALID_INPUT') : 'VALID', reason: c.reason?.code || null,
+            ...(c.timeframe ? { timeframe: c.timeframe, barDate: c.barDate ?? null } : {}) })),
           dataSourceId: hist?.meta?.[sym]?.[jb]?.src || hist?.source || 'personal-history',
           dataVersion: scanDataVersion(bars, j),
           /* The history file's own `generated` stamp as this run read it —
@@ -3139,7 +3370,8 @@ function scanHistorical(setup, history, { symbols = null, from = null, to = null
       if (r.state === 'MET') {
         cov.matched++;
         out.matches.push({ symbol: sym, bar: bars.dates[i], close: bars.closes[i], barStatus: r.barStatus,
-          conditions: r.conditions.map(c => ({ path: c.path, text: c.text, state: c.state, left: c.leftValue, right: c.rightValue })) });
+          conditions: r.conditions.map(c => ({ path: c.path, text: c.text, state: c.state, left: c.leftValue, right: c.rightValue,
+            ...(c.timeframe ? { timeframe: c.timeframe, barDate: c.barDate ?? null } : {}) })) });
         const ev = prevState === 'NOT_MET' ? 'NEW_MATCH' : prevState === 'UNAVAILABLE' ? 'FIRST_OBSERVED' : null;
         /* A match right after a missing session says so, as the worker's
            record does (gapBefore, gapText). */
@@ -3160,6 +3392,211 @@ function scanHistorical(setup, history, { symbols = null, from = null, to = null
                  events: out.events.length, recorded: out.recorded.length, unavailableBars: out.coverage.reduce((t, c) => t + c.unavailable, 0) };
   out.cacheStats = { hits: C.stats.hits, misses: C.stats.misses };
   return out;
+}
+
+/* ------------------------------------------------------------ the bot's alerts -- */
+/* THE READER'S "MULTI-TIMEFRAME TRADING BOT", AS SETUPS (the bot contract,
+   B4). The reader runs this Pine script on TradingView and asked for its
+   alerts as scanner alerts. Each of its alertconditions is written here as
+   an ordinary setup — schema 2, timeframe 1D, conditions that name the
+   trade timeframe where the script reads it — so the validation, the run,
+   the record and historical testing read it like any other, and the reader
+   can open, change or delete it like any other. Every title is the
+   script's own alert title: a record of a condition the reader's own script
+   defines, never this product's recommendation.
+
+   The criteria, per timeframe, on that timeframe's last closed bar:
+     1  WaveTrend(10, 21): wt1 above wt2           (wavetrend.bull, exact)
+     2  MACD(12, 26, 9): line above its signal     (bot_macd.bull — an EMA
+        signal, as the script computes it; cm_macd.bull with the SMA the
+        chart draws, when macdSignal is 'sma')
+     3  the close above its 200-bar EMA            (price against ema(200);
+        sma(200), the chart's, when criterion3 is 'sma')
+     4  MCDX banker (50, 1.5, base 50) above 5
+     5  MCDX hot money (40, 0.5, base 30) below 10 — a sell only
+   and the trade timeframe's MACD histogram against its bar before
+   (histUp, histDown; histMoved for "either", which ANY STRONG SIGNAL asks
+   of it — its twenty-one conditions otherwise pass the limit of twenty).
+   "Not criterion n" is the complement: at or below where n says above.
+   Criteria 3 to 5 compare two numbers and so follow the float rule
+   (SCAN_TOLERANCE), where Pine compares exactly: the two can differ only on
+   a bar where the close is within a billionth of its average, or MCDX of
+   its level. Criteria 1 and 2 are the script's own booleans, compared
+   exactly. scanner-test proves the pack equal, bar for bar, to a direct
+   transcription of the script's logic (the contract's B5). */
+const SCAN_BOT_SCRIPT = 'Multi-Timeframe Trading Bot';
+const SCAN_BOT_SIGNALS = [
+  { id: 'tier1-buy', title: 'Trade TF Tier 1 Buy', needsTradeTimeframe: true,
+    description: 'On the trade timeframe, WT1 is above WT2 and the MACD line above its signal (criteria 1 and 2) while neither the close is above its 200-bar average (3) nor the MCDX banker above 5 (4) — the script’s Tier 1 without its Tier 2.' },
+  { id: 'tier2-buy', title: 'Trade TF Tier 2 Buy', needsTradeTimeframe: true,
+    description: 'On the trade timeframe, criteria 1 and 2 hold, and the close is above its 200-bar average (3) or the MCDX banker above 5 (4).' },
+  { id: 'tier1-sell', title: 'Trade TF Tier 1 Sell', needsTradeTimeframe: true,
+    description: 'On the trade timeframe, neither criterion 1 nor 2 holds while criterion 3 or 4 does — the script’s Tier 1 Sell without its Tier 2.' },
+  { id: 'tier2-sell', title: 'Trade TF Tier 2 Sell', needsTradeTimeframe: true,
+    description: 'On the trade timeframe, none of criteria 1 to 4 holds.' },
+  { id: 'entry-buy', title: 'Entry TF Buy', needsTradeTimeframe: false,
+    description: 'On the daily entry timeframe, all four of criteria 1 to 4 hold.' },
+  { id: 'entry-sell', title: 'Entry TF Sell', needsTradeTimeframe: false,
+    description: 'On the daily entry timeframe, none of criteria 1 to 4 holds and the MCDX hot money is below 10 (criterion 5).' },
+  { id: 'entry-trade', title: 'Entry TF Trade', needsTradeTimeframe: false,
+    description: 'Entry TF Buy or Entry TF Sell, on the daily entry timeframe.' },
+  { id: 'strong-buy-continuous', title: 'STRONG BUY CONTINUOUS', needsTradeTimeframe: true,
+    description: 'Trade TF Tier 2 Buy and Entry TF Buy on the same daily close, with the trade timeframe’s MACD histogram above its bar before.' },
+  { id: 'strong-buy-reversal', title: 'STRONG BUY REVERSAL', needsTradeTimeframe: true,
+    description: 'Trade TF Tier 2 Buy and Entry TF Buy on the same daily close, with the trade timeframe’s MACD histogram below its bar before.' },
+  { id: 'strong-sell-continuous', title: 'STRONG SELL CONTINUOUS', needsTradeTimeframe: true,
+    description: 'Trade TF Tier 2 Sell and Entry TF Sell on the same daily close, with the trade timeframe’s MACD histogram below its bar before.' },
+  { id: 'strong-sell-reversal', title: 'STRONG SELL REVERSAL', needsTradeTimeframe: true,
+    description: 'Trade TF Tier 2 Sell and Entry TF Sell on the same daily close, with the trade timeframe’s MACD histogram above its bar before.' },
+  { id: 'weak-buy', title: 'WEAK BUY', needsTradeTimeframe: true,
+    description: 'Trade TF Tier 1 Buy and Entry TF Buy on the same daily close — so not the strong buy base.' },
+  { id: 'weak-sell', title: 'WEAK SELL', needsTradeTimeframe: true,
+    description: 'Trade TF Tier 1 Sell and Entry TF Sell on the same daily close — so not the strong sell base.' },
+  { id: 'any-strong', title: 'ANY STRONG SIGNAL', needsTradeTimeframe: true,
+    description: 'Any of the four STRONG alerts: the strong buy or strong sell base with the trade timeframe’s MACD histogram moved either way from its bar before.' },
+  { id: 'any-weak', title: 'ANY WEAK SIGNAL', needsTradeTimeframe: true,
+    description: 'WEAK BUY or WEAK SELL.' },
+];
+/* The operands of the five criteria and the histogram, with the owner's
+   decisions as defaults: the EMA signal (criterion 2) and the EMA of 200
+   (criterion 3), each with a switch to the SMA the chart draws. */
+function scanBotCriteria({ criterion3 = 'ema', macdSignal = 'ema' } = {}) {
+  const macd = macdSignal === 'sma' ? 'cm_macd' : 'bot_macd';
+  const avg = { indicator: criterion3 === 'sma' ? 'sma' : 'ema', n: 200 };
+  const flag = (left) => ({ left, yes: ['EQUALS', { value: 1 }], no: ['EQUALS', { value: 0 }] });
+  const above = (left, right) => ({ left, yes: ['GREATER_THAN', right], no: ['LESS_THAN_OR_EQUAL', right] });
+  return {
+    c1: { ...flag({ indicator: 'wavetrend', field: 'bull' }), words: 'WaveTrend(10,21) WT1 above WT2' },
+    c2: { ...flag({ indicator: macd, field: 'bull' }), words: `the MACD(12,26,9) line above its ${macdSignal === 'sma' ? 'SMA' : 'EMA'} signal` },
+    c3: { ...above({ indicator: 'price' }, avg), words: `the close above its ${criterion3 === 'sma' ? 'SMA' : 'EMA'}200` },
+    c4: { ...above({ indicator: 'mcdx', field: 'banker' }, { value: 5 }), words: 'the MCDX banker (50, 1.5, base 50) above 5' },
+    c5: { left: { indicator: 'mcdx', field: 'hotMoney' }, yes: ['LESS_THAN', { value: 10 }], words: 'the MCDX hot money (40, 0.5, base 30) below 10' },
+    histUp: { ...flag({ indicator: macd, field: 'histUp' }), words: 'the MACD(12,26,9) histogram against its bar before' },
+    histDown: flag({ indicator: macd, field: 'histDown' }), histMoved: flag({ indicator: macd, field: 'histMoved' }),
+  };
+}
+/* The rule tree of one signal: `t` is the trade timeframe (null for an
+   entry signal), which each trade-timeframe condition names; the daily
+   ones name none, since the setup is daily. */
+function scanBotTree(id, t, K) {
+  const c = (key, yes, tf = null) => {
+    const [op, right] = yes ? K[key].yes : K[key].no;
+    return { type: 'condition', left: { ...K[key].left }, op, right: { ...right }, ...(tf ? { timeframe: tf } : {}) };
+  };
+  const all = (...children) => ({ type: 'group', logic: 'ALL', children });
+  const any = (...children) => ({ type: 'group', logic: 'ANY', children });
+  const t1b = () => [c('c1', 1, t), c('c2', 1, t), c('c3', 0, t), c('c4', 0, t)];
+  const t2b = () => [c('c1', 1, t), c('c2', 1, t), any(c('c3', 1, t), c('c4', 1, t))];
+  const t1s = () => [c('c1', 0, t), c('c2', 0, t), any(c('c3', 1, t), c('c4', 1, t))];
+  const t2s = () => [c('c1', 0, t), c('c2', 0, t), c('c3', 0, t), c('c4', 0, t)];
+  const eb = () => [c('c1', 1), c('c2', 1), c('c3', 1), c('c4', 1)];
+  const es = () => [c('c1', 0), c('c2', 0), c('c3', 0), c('c4', 0), c('c5', 1)];
+  switch (id) {
+    case 'tier1-buy': return all(...t1b());
+    case 'tier2-buy': return all(...t2b());
+    case 'tier1-sell': return all(...t1s());
+    case 'tier2-sell': return all(...t2s());
+    case 'entry-buy': return all(...eb());
+    case 'entry-sell': return all(...es());
+    case 'entry-trade': return any(all(...eb()), all(...es()));
+    case 'strong-buy-continuous': return all(...t2b(), ...eb(), c('histUp', 1, t));
+    case 'strong-buy-reversal': return all(...t2b(), ...eb(), c('histDown', 1, t));
+    case 'strong-sell-continuous': return all(...t2s(), ...es(), c('histDown', 1, t));
+    case 'strong-sell-reversal': return all(...t2s(), ...es(), c('histUp', 1, t));
+    case 'weak-buy': return all(...t1b(), ...eb());
+    case 'weak-sell': return all(...t1s(), ...es());
+    case 'any-strong': return any(all(...t2b(), ...eb(), c('histMoved', 1, t)), all(...t2s(), ...es(), c('histMoved', 1, t)));
+    case 'any-weak': return any(all(...t1b(), ...eb()), all(...t1s(), ...es()));
+    default: return null;
+  }
+}
+/* The bars each timeframe of a tree must hold before every condition on it
+   can be read: the longest `needs` among its operands (a crossing one
+   more), by timeframe — { '1D': 200, '1W': 200 }. */
+function scanTreeNeeds(tree, setupTf = '1D') {
+  const out = {};
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (n.type === 'group') { (n.children || []).forEach(walk); return; }
+    const tf = n.timeframe ? scanTimeframe(n.timeframe) : scanTimeframe(setupTf);
+    const extra = SCAN_OPERATORS[scanOpName(n.op)]?.needsPrev ? 1 : 0;
+    [n.left, n.right, ...(Array.isArray(n.range) ? n.range : [])].forEach(o => {
+      const def = o && typeof o === 'object' ? SCAN_INDICATORS[o.indicator] : null;
+      if (!def) return;
+      const need = def.needs(scanParams(o).params, scanFieldOf(o)) + extra;
+      out[tf] = Math.max(out[tf] || 0, need);
+    });
+  };
+  walk(tree);
+  return out;
+}
+/* A number of bars of a timeframe as the daily history it takes, in words. */
+const scanBarsAsHistory = (tf, n) => (tf === '1M' ? `about ${Number((n / 12).toFixed(1))} years` : tf === '1W' ? `about ${Number((n / 52.18).toFixed(1))} years`
+  : `about ${Number((n / 21).toFixed(0))} months`);
+const SCAN_BOT_LETTER = { '1D': 'd', '1W': 'w', '1M': 'm' };
+function scanBotPack({ symbols = null, universe = null, tradeTimeframes = ['1W', '1M'], signals = null, cooldownMode = 'NEW_MATCH', criterion3 = 'ema', macdSignal = 'ema' } = {}) {
+  const ids = SCAN_BOT_SIGNALS.map(x => x.id);
+  const want = signals == null ? ids : signals;
+  const unknown = (Array.isArray(want) ? want : [want]).filter(x => !ids.includes(x));
+  if (!Array.isArray(want) || unknown.length) throw new Error(`scanBotPack: ${unknown.map(x => `"${x}"`).join(', ') || 'signals'} is not one of ${ids.join(', ')}`);
+  const tfs = (Array.isArray(tradeTimeframes) ? tradeTimeframes : [tradeTimeframes]).map(scanTimeframe);
+  const badTf = tfs.filter(t => t !== '1W' && t !== '1M');
+  if (badTf.length) throw new Error(`scanBotPack: the trade timeframe ${badTf.join(', ')} is not 1W or 1M — it must be above the daily entry timeframe, and intraday bars are not held`);
+  if (!['ema', 'sma'].includes(criterion3)) throw new Error(`scanBotPack: criterion3 "${criterion3}" is not ema or sma`);
+  if (!['ema', 'sma'].includes(macdSignal)) throw new Error(`scanBotPack: macdSignal "${macdSignal}" is not ema or sma`);
+  if (cooldownMode !== 'NEW_MATCH' && cooldownMode !== 'EVERY_MATCH') throw new Error(`scanBotPack: cooldownMode "${cooldownMode}" is not NEW_MATCH or EVERY_MATCH`);
+  const uni = universe && typeof universe === 'object' ? { ...universe } : Array.isArray(symbols) && symbols.length ? { kind: 'symbols', symbols: symbols.map(String) } : { kind: 'all' };
+  const K = scanBotCriteria({ criterion3, macdSignal });
+  const criteria = `1 ${K.c1.words}; 2 ${K.c2.words}; 3 ${K.c3.words}; 4 ${K.c4.words}; 5, for a sell only, ${K.c5.words}`;
+  const out = [];
+  const make = (sig, tf) => {
+    const tree = scanBotTree(sig.id, tf, K);
+    const needs = scanTreeNeeds(tree, '1D');
+    const tfWords = tf ? `the ${scanTimeframeWord(tf)} trade timeframe and the daily entry timeframe` : 'the daily entry timeframe';
+    const warm = Object.entries(needs).sort(([a], [b]) => SCAN_TF_RANK[a] - SCAN_TF_RANK[b]).map(([t, n]) => `${n} closed ${scanTimeframeWord(t)} bars (${scanBarsAsHistory(t, n)} of daily history)`).join(' and ');
+    const raw = {
+      id: `mtfbot-${SCAN_BOT_LETTER[tf || '1D']}-${sig.id}`, version: 1,
+      name: `MTF bot · ${SCAN_TIMEFRAMES[tf || '1D'].label} · ${sig.title}`,
+      description: `Your ${SCAN_BOT_SCRIPT} script’s “${sig.title}” alert, written as conditions — the script’s own alert, not a recommendation of this product. `
+        + `${sig.description} The criteria, read on ${tfWords}: ${criteria}. Each timeframe is read on its last closed bar: `
+        + `${tf ? `on each daily close, the last completed ${tf === '1M' ? 'month' : 'week'}, never the one in progress. ` : 'the daily close. '}`
+        + `Every condition can be read once your history holds ${warm}; until then a condition that cannot be read is untested, and each run says so.`,
+      enabled: true, universe: uni, timeframe: '1D', confirmationMode: 'BAR_CLOSE', cooldownMode, cooldownBars: 0, expires: null, ruleTree: tree,
+    };
+    out.push(scanNormaliseSetup(raw));
+  };
+  for (const sig of SCAN_BOT_SIGNALS) {
+    if (!want.includes(sig.id)) continue;
+    if (sig.needsTradeTimeframe) tfs.forEach(tf => make(sig, tf));
+    else make(sig, null);
+  }
+  return out;
+}
+/* WHAT THE READER'S HISTORY HOLDS AGAINST WHAT THE BOT NEEDS, per
+   timeframe, for one instrument's daily bars: the closed bars held as of
+   its last bar, the bars each criterion needs, and a sentence. 300 daily
+   bars are about 60 weekly and 14 monthly ones, and the 200-bar average of
+   criterion 3 needs 200 of each — so on such a history the weekly
+   criterion 3 and every monthly criterion are untested for years, and the
+   pages say so rather than show a quiet day. */
+function scanBotWarmup(bars, { tradeTimeframes = ['1W', '1M'], criterion3 = 'ema', macdSignal = 'ema' } = {}) {
+  const K = scanBotCriteria({ criterion3, macdSignal });
+  const n = bars?.dates?.length || 0, last = n ? bars.dates[n - 1] : null;
+  const needOf = (key) => Math.max(...[K[key].left, K[key].yes[1]].map(o => (o?.indicator ? SCAN_INDICATORS[o.indicator].needs(scanParams(o).params, scanFieldOf(o)) : 0)));
+  const names = { c1: 'criterion 1', c2: 'criterion 2', c3: 'criterion 3', c4: 'criterion 4', c5: 'criterion 5', histUp: 'the histogram test' };
+  return ['1D', ...(Array.isArray(tradeTimeframes) ? tradeTimeframes : [tradeTimeframes]).map(scanTimeframe).filter(t => t === '1W' || t === '1M')].map(tf => {
+    const F = tf === '1D' ? null : scanFrame(bars, tf);
+    const held = tf === '1D' ? n : F && last ? scanFrameAt(F, last) + 1 : 0;
+    const keys = tf === '1D' ? ['c1', 'c2', 'c3', 'c4', 'c5'] : ['c1', 'c2', 'c3', 'c4', 'histUp'];
+    const criteria = keys.map(k => ({ criterion: k, label: names[k], words: K[k].words, needs: needOf(k), readable: held >= needOf(k) }));
+    const needs = Math.max(...criteria.map(c => c.needs));
+    const short = criteria.filter(c => !c.readable);
+    const word = scanTimeframeWord(tf);
+    const text = short.length
+      ? `${word}: ${held} closed ${word} bar${held === 1 ? '' : 's'} held; ${short.map(c => `${c.label} (${c.words}) needs ${c.needs}`).join(', ')} — untested until ${needs - held} more ${tf === '1M' ? 'months' : tf === '1W' ? 'weeks' : 'sessions'} are held (${scanBarsAsHistory(tf, needs - held)} of daily history)`
+      : `${word}: ${held} closed ${word} bars held — every criterion can be read`;
+    return { timeframe: tf, held, needs, ready: !short.length, criteria, text };
+  });
 }
 
 /* -------------------------------------------------------------- data health -- */
