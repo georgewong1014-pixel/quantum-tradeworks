@@ -1,50 +1,88 @@
 {
   "schema": 1,
-  "_note": "fixture",
+  "_note": "fixture — the shape ingest/daily.mjs logRun() writes, oldest first: a run whose capture was stale (daily.mjs stops there, so it holds one step), and a run that completed and started the scanner. scanner-test.mjs fails if a key or a step status here is not one daily.mjs writes.",
   "runs": [
     {
-      "startedAt": "2026-04-06T21:30:00.000Z",
-      "finishedAt": "2026-04-06T21:41:00.000Z",
-      "status": "COMPLETED",
-      "exitCode": 0,
-      "steps": [
-        {
-          "name": "capture",
-          "status": "OK",
-          "detail": "2 of 2 read"
-        },
-        {
-          "name": "history",
-          "status": "OK",
-          "detail": "2 series, newest bar 2026-04-06"
-        },
-        {
-          "name": "scanner",
-          "status": "OK",
-          "detail": "exit 0"
-        }
-      ]
-    },
-    {
-      "startedAt": "2026-04-03T21:30:00.000Z",
+      "id": "ingest-20260331T213000-5120",
+      "kind": "ingest",
+      "trigger": "daily",
       "status": "PARTIAL",
       "exitCode": 2,
+      "startedAt": "2026-03-31T21:30:00.000Z",
+      "finishedAt": "2026-03-31T21:31:12.000Z",
+      "durationMs": 72000,
       "steps": [
         {
-          "name": "capture",
-          "status": "STALE",
-          "detail": "signed out; nothing captured"
-        },
-        {
-          "name": "history",
-          "status": "SKIPPED"
-        },
-        {
-          "name": "scanner",
-          "status": "SKIPPED",
-          "detail": "the history step did not succeed"
+          "step": "capture",
+          "status": "stale",
+          "detail": "every page identical to the previous run — nothing imported"
         }
-      ]
+      ],
+      "counts": {},
+      "scanner": {
+        "ran": false,
+        "exit": null,
+        "status": null,
+        "runId": null,
+        "recorded": null,
+        "skippedMarkets": []
+      },
+      "report": "data/daily-report.txt"
+    },
+    {
+      "id": "ingest-20260406T213000-6204",
+      "kind": "ingest",
+      "trigger": "daily",
+      "status": "COMPLETED",
+      "exitCode": 0,
+      "startedAt": "2026-04-06T21:30:00.000Z",
+      "finishedAt": "2026-04-06T22:00:03.000Z",
+      "durationMs": 1803000,
+      "steps": [
+        {
+          "step": "capture",
+          "status": "ok",
+          "detail": "2 page(s)"
+        },
+        {
+          "step": "read",
+          "status": "ok",
+          "detail": "2 instrument(s), 0 flagged"
+        },
+        {
+          "step": "import",
+          "status": "ok",
+          "detail": "2 accepted, 0 held back"
+        },
+        {
+          "step": "history",
+          "status": "ok",
+          "detail": "2 symbol(s), 2 new bar(s), 60 day(s) deep"
+        },
+        {
+          "step": "scanner",
+          "status": "ok",
+          "detail": "COMPLETED"
+        }
+      ],
+      "counts": {
+        "pages": 2,
+        "candidates": 2,
+        "flagged": 0,
+        "unreadable": 0,
+        "accepted": 2,
+        "rejected": 0,
+        "newBars": 2
+      },
+      "scanner": {
+        "ran": true,
+        "exit": 0,
+        "status": "COMPLETED",
+        "runId": "run-20260406T220000-4102-9a55",
+        "recorded": 1,
+        "skippedMarkets": []
+      },
+      "report": "data/daily-report.txt"
     }
   ]
 }

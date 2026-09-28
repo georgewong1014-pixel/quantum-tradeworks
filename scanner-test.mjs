@@ -2110,5 +2110,267 @@ try {
 }
 /* ---- end integration: round 3 ---- */
 
+/* ---- bugfix: worker ---- */
+/* WHAT THE WORKER GOT WRONG IN ITS OWN ERROR PATHS, found by driving it the
+   way a reader's machine does: another process reading its files while it
+   writes them (the local server answering the operations pages), a file made
+   read-only, a Ctrl+C mid-run, a damaged run log or control file, a retry of
+   a retry, a flag given without its value, and the daily run's closing
+   lines. Each case on its own temporary folder. */
+{
+  const { open, chmod, stat } = await import('node:fs/promises');
+  const { pathToFileURL } = await import('node:url');
+  const { hostname } = await import('node:os');
+  const Wk = await import('./scanner/scan.mjs');
+  const BF = E.scanFixture();
+  const SCAN = join(ROOT, 'scanner/scan.mjs');
+  const res = (e) => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' });
+  const scan = async (...args) => {
+    try { const { stdout, stderr } = await run(process.execPath, [SCAN, ...args]); return { code: 0, stdout, stderr }; } catch (e) { return res(e); }
+  };
+  const json = async (p) => (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null);
+  const folders = [];
+  const folder = async (name, setups = [BF.setup]) => {
+    const d = join(tmpdir(), `qt-bfw-${name}-${process.pid}`);
+    await rm(d, { recursive: true, force: true });
+    await mkdir(d, { recursive: true });
+    await writeFile(join(d, 'scan-setups.json'), JSON.stringify({ setups }));
+    await writeFile(join(d, 'price-history.json'), JSON.stringify(BF.history));
+    folders.push(d);
+    return d;
+  };
+  const runsOf = async (d) => (await json(join(d, 'scan-runs.json'))) || { runs: [], audit: [] };
+  const lastRunOf = async (d) => (await runsOf(d)).runs.slice(-1)[0] || {};
+  const alertsOf = async (d) => (await json(join(d, 'scan-alerts.json')))?.alerts || [];
+  /* The same bars in other bytes: new input, so a run evaluates rather than skipping as unchanged. */
+  const rewrite = (d, n) => writeFile(join(d, 'price-history.json'), JSON.stringify(BF.history, null, n));
+
+  /* 1 — a rename over a file another process holds open. On Windows it fails
+     for as long as the handle is open; one attempt failed most runs made
+     while the operations pages were being read. */
+  const B1 = await folder('held');
+  const heldFile = join(B1, 'held.json');
+  await writeFile(heldFile, '{"v":0}');
+  const h1 = await open(heldFile, 'r');
+  const closed1 = new Promise(r => setTimeout(() => h1.close().then(r, r), 300));
+  let heldErr = null;
+  try { await Wk.writeAtomic(heldFile, '{"v":1}'); } catch (e) { heldErr = e.code || e.message; }
+  await closed1;
+  check(!heldErr && (await readFile(heldFile, 'utf8')) === '{"v":1}',
+    'bugfix(worker): writeAtomic waits out a handle another reader holds on the file for a moment, rather than failing the write (a rename over an open file fails on Windows)', heldErr);
+  await scan('--data', B1, '--now', BF.now);
+  await rewrite(B1, 1);
+  const h1b = await open(join(B1, 'scan-alerts.json'), 'r');
+  let h1bOpen = true;
+  const t1b = setTimeout(() => { h1bOpen = false; h1b.close().catch(() => {}); }, 1500);
+  const r1b = await scan('--data', B1, '--now', BF.now);
+  clearTimeout(t1b); if (h1bOpen) await h1b.close().catch(() => {});
+  const run1b = await lastRunOf(B1);
+  check(r1b.code === 0 && run1b.status === 'COMPLETED' && (await alertsOf(B1)).length === 1,
+    'bugfix(worker): a scan whose alert record another process is reading (the local server answering /admin/scanner) completes once the reader lets go, instead of FAILED with EPERM', { code: r1b.code, status: run1b.status, error: run1b.error?.message });
+
+  /* 2 — copyFile carries a read-only attribute onto the .bak. */
+  const roFile = join(B1, 'ro.json');
+  await writeFile(roFile, '{"v":0}');
+  await Wk.writeAtomic(roFile, '{"v":1}');
+  await chmod(`${roFile}.bak`, 0o444);                                  /* the .bak of a file the reader once made read-only */
+  let roErr = null;
+  try { await Wk.writeAtomic(roFile, '{"v":2}'); } catch (e) { roErr = e.code || e.message; }
+  check(!roErr && (await readFile(roFile, 'utf8')) === '{"v":2}' && (await readFile(`${roFile}.bak`, 'utf8')) === '{"v":1}' && ((await stat(`${roFile}.bak`)).mode & 0o200) !== 0,
+    'bugfix(worker): a read-only .bak (copied from a file the reader had made read-only) is made writable and replaced, instead of failing every later write after the reader cleared the file', roErr);
+
+  /* 3 — the run log cannot be written: a failed run, the lock released, no stack trace. */
+  const B3 = await folder('runs-unwritable');
+  await mkdir(join(B3, 'scan-runs.json.tmp'));                          /* a folder where the log's temporary copy goes */
+  const r3 = await scan('--data', B3, '--now', BF.now);
+  check(r3.code === 1 && /the run log .+ could not be written/.test(r3.stderr) && !/\n\s+at .+:\d+:\d+/.test(r3.stderr) && !existsSync(join(B3, 'scan.lock')) && !existsSync(join(B3, 'scan-alerts.json')),
+    'bugfix(worker): a run log that cannot be written fails the run (exit 1) in a sentence, evaluates nothing and releases the lock — it was an unhandled rejection with a stack trace, the lock left behind',
+    { code: r3.code, lockLeft: existsSync(join(B3, 'scan.lock')), stderr: r3.stderr.split('\n').slice(0, 4) });
+
+  /* 4 — a signal: before the write nothing is written; after it the run finishes. */
+  const preload = join(tmpdir(), `qt-bfw-signal-${process.pid}.mjs`);
+  await writeFile(preload, [
+    "import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';",
+    "const at = process.env.QT_SIGNAL_AT; const { readFile, rename } = fs.promises; let sent = false;",
+    "const send = () => { if (!sent) { sent = true; process.emit('SIGINT', 'SIGINT'); } };",
+    "fs.promises.readFile = async function (p, ...a) { const r = await readFile.call(this, p, ...a); if (at === 'read' && String(p).endsWith('price-history.json')) send(); return r; };",
+    "fs.promises.rename = async function (a, b) { const r = await rename.call(this, a, b); if (at === 'written' && String(b).endsWith('scan-alerts.json')) send(); return r; };",
+    'syncBuiltinESMExports();'].join('\n'));
+  const signalled = async (d, at) => {
+    try { const { stdout, stderr } = await run(process.execPath, ['--import', pathToFileURL(preload).href, SCAN, '--data', d, '--now', BF.now], { env: { ...process.env, QT_SIGNAL_AT: at } }); return { code: 0, stdout, stderr }; }
+    catch (e) { return res(e); }
+  };
+  const B4a = await folder('signal-read');
+  const s4a = await signalled(B4a, 'read');
+  const run4a = await lastRunOf(B4a);
+  const B4b = await folder('signal-written');
+  const s4b = await signalled(B4b, 'written');
+  const run4b = await lastRunOf(B4b);
+  check(s4a.code === 1 && run4a.status === 'CANCELLED' && !existsSync(join(B4a, 'scan-alerts.json')) && !existsSync(join(B4a, 'scan-deliveries.json')) && !existsSync(join(B4a, 'scan.lock'))
+    && s4b.code === 0 && run4b.status === 'COMPLETED' && !run4b.errors.length && (await alertsOf(B4b)).length === 1 && (await json(join(B4b, 'scan-deliveries.json')))?.deliveries.length === 1
+    && /after the record was written — finishing the run/.test(s4b.stderr),
+    'bugfix(worker): Ctrl+C after the history is read logs CANCELLED and nothing is written — the scan beside the handler used to write the alert anyway; Ctrl+C just after the alert record is written lets the run finish COMPLETED with its delivery row, instead of CANCELLED "nothing was written"',
+    { read: { code: s4a.code, status: run4a.status, alerts: existsSync(join(B4a, 'scan-alerts.json')) }, written: { code: s4b.code, status: run4b.status, errors: run4b.errors } });
+
+  /* 5 — a damaged run log is read, not moved, by the commands that only read it. */
+  const B5 = await folder('runs-damaged');
+  await scan('--data', B5, '--now', BF.now);
+  const goodId = (await lastRunOf(B5)).id;
+  await writeFile(join(B5, 'scan-runs.json'), '{damaged');
+  const rn5 = await scan('--data', B5, '--runs');
+  const st5 = await scan('--data', B5, '--now', BF.now, '--status');
+  const untouched5 = existsSync(join(B5, 'scan-runs.json')) && (await readFile(join(B5, 'scan-runs.json'), 'utf8')) === '{damaged';
+  const rt5 = await scan('--data', B5, '--retry', goodId);
+  const log5 = await runsOf(B5);
+  check(rn5.code === 1 && /is not valid JSON/.test(rn5.stderr) && !/no runs logged/.test(rn5.stdout) && /^runs log\s+.+is not valid JSON/m.test(st5.stdout) && !/before the run log/.test(st5.stdout) && untouched5
+    && rt5.code === 1 && log5.audit[0]?.action === 'runs-log-reset' && existsSync(log5.audit[0].detail?.setAside || '') && log5.runs.length === 1 && log5.runs[0].error?.category === 'IO' && /cannot be looked up/.test(log5.runs[0].error.message),
+    'bugfix(worker): --runs and --status say a damaged run log is damaged and leave it where it is (they moved it aside and printed "no runs logged"); a retry says it cannot look its run up; the run that sets it aside writes the reset as the new log\'s first audit entry',
+    { runs: rn5.code, untouched5, audit: log5.audit[0], run: log5.runs[0]?.error });
+
+  /* 6 — --status on files that are there but cannot be read. */
+  const B6 = await folder('status-unreadable');
+  await scan('--data', B6, '--now', BF.now);
+  for (const f of ['scan-setups.json', 'scan-alerts.json', 'price-history.json', 'scan-control.json']) await writeFile(join(B6, f), '{bad');
+  const st6 = await scan('--data', B6, '--now', BF.now, '--status');
+  const sj6 = JSON.parse((await scan('--data', B6, '--now', BF.now, '--status', '--json')).stdout || '{}');
+  const rs6 = await scan('--data', B6, '--resume');
+  check(st6.code === 0 && !/no setups file/.test(st6.stdout) && /^setups\s+not known — .+scan-setups\.json is not valid JSON/m.test(st6.stdout)
+    && !/^matches\s+0/m.test(st6.stdout) && /^matches\s+not known — .+scan-alerts\.json is not valid JSON/m.test(st6.stdout) && /^history\s+not known/m.test(st6.stdout)
+    && /^scanner\s+\S+ — but a run fails until a file it reads is repaired/m.test(st6.stdout) && /A run fails on it: .+scan-alerts\.json is not valid JSON/.test(st6.stdout)
+    && /^control\s+not known — .+read as not paused/m.test(st6.stdout) && same((sj6.unreadable || []).map(u => u.what).sort(), ['alerts', 'control', 'history', 'setups'])
+    && rs6.code === 0 && (await json(join(B6, 'scan-control.json')))?.paused === false,
+    'bugfix(worker): --status names a setups file, alert record, history or control file it cannot read — it printed "no setups file", "0 matches" and "not paused" for them, and never that a run fails on them; --resume writes a damaged control file afresh',
+    st6.stdout.split('\n').slice(0, 8));
+
+  /* 7 — a retry's newest bar is the cut it read, so a retry of the retry reads the same session. */
+  const B7 = await folder('retry-of-retry');
+  await writeFile(join(B7, 'scan-alerts.json'), '{not json');
+  await scan('--data', B7, '--now', BF.now);
+  const failed7 = await lastRunOf(B7);
+  await rm(join(B7, 'scan-alerts.json'));
+  const later7 = JSON.parse(JSON.stringify(BF.history));
+  for (const sym of Object.keys(later7.series)) { later7.series[sym]['2026-04-07'] = later7.series[sym][BF.lastBar]; later7.series[sym]['2026-04-08'] = later7.series[sym][BF.lastBar]; }
+  await writeFile(join(B7, 'price-history.json'), JSON.stringify(later7));
+  await scan('--data', B7, '--retry', failed7.id);
+  const retry7 = await lastRunOf(B7);
+  const rr7 = await scan('--data', B7, '--retry', retry7.id);
+  const retry7b = await lastRunOf(B7);
+  check(retry7.historyNewest === BF.lastBar && retry7.asOf === BF.lastBar && rr7.code === 0 && retry7b.asOf === BF.lastBar && retry7b.historyNewest === BF.lastBar
+    && rr7.stdout.includes(`the history cut at ${BF.lastBar}`),
+    'bugfix(worker): a retry logs the newest bar of the history it cut, not of the file — a retry of that retry cut the history at the file\'s newest bar and evaluated a session neither run had, while saying it read it "as the retried run read it"',
+    { retry: [retry7.historyNewest, retry7.asOf], retryOfRetry: [retry7b.historyNewest, retry7b.asOf] });
+
+  /* 8 — a flag without its value, and a retry given a date or a gate of its own. */
+  const B8 = await folder('flags');
+  const f8a = await scan('--data', B8, '--now', BF.now, '--as-of');
+  const f8b = await scan('--data', B8, '--now');
+  const f8c = await scan('--data', B7, '--retry', failed7.id, '--as-of', '2026-03-02');
+  const f8d = await scan('--data', B7, '--retry', failed7.id, '--ready');
+  check(f8a.code === 1 && /--as-of needs a value/.test(f8a.stderr) && f8b.code === 1 && /--now needs a value/.test(f8b.stderr) && !existsSync(join(B8, 'scan-runs.json')) && !existsSync(join(B8, 'scan-alerts.json'))
+    && f8c.code === 1 && /--as-of is not taken beside it/.test(f8c.stderr) && f8d.code === 1 && /--ready is not taken beside it/.test(f8d.stderr) && (await runsOf(B7)).runs.length === 3,
+    'bugfix(worker): --as-of with no date is refused (it ran a live scan that recorded and caught up), as is any flag missing its value; --retry refuses --as-of (it replayed that date while saying it re-ran the logged cut) and --ready',
+    { asOf: [f8a.code, f8a.stderr.trim()], now: f8b.code, retryAsOf: f8c.code, retryReady: f8d.code });
+
+  /* 9 — --unlock --force does not say the process ended. */
+  const B9 = await folder('unlock-force');
+  await writeFile(join(B9, 'scan.lock'), JSON.stringify({ pid: process.pid, host: hostname(), startedAt: new Date().toISOString(), runId: 'run-live', token: 'z' }));
+  await writeFile(join(B9, 'scan-runs.json'), JSON.stringify({ schema: 1, runs: [{ id: 'run-live', kind: 'scan', status: 'RUNNING', startedAt: new Date().toISOString(), errors: [], transitions: [] }], audit: [] }));
+  const u9 = await scan('--data', B9, '--unlock', '--force');
+  const closed9 = (await runsOf(B9)).runs[0] || {};
+  check(u9.code === 0 && closed9.status === 'FAILED' && closed9.error?.category === 'ABANDONED' && !/ended before the run finished/.test(closed9.error.message) && /--unlock --force while .+ still answered as running/.test(closed9.error.message),
+    'bugfix(worker): a run closed by --unlock --force says the lock was forced off a process that still answered as running — it said the process had ended', closed9.error);
+
+  /* 10 — a damaged delivery record is set aside; the .bak keeps the good one. */
+  const B10 = await folder('deliveries-damaged');
+  await scan('--data', B10, '--now', BF.now);
+  await rewrite(B10, 1);
+  await scan('--data', B10, '--now', BF.now);
+  await writeFile(join(B10, 'scan-deliveries.json'), '{"deliveries": [ {"id": "x"');
+  await rewrite(B10, 2);
+  const r10 = await scan('--data', B10, '--now', BF.now);
+  const bak10 = await readFile(join(B10, 'scan-deliveries.json.bak'), 'utf8');
+  const aside10 = (await readdir(B10)).filter(f => /^scan-deliveries\.json\.damaged-\d+$/.test(f));
+  check(r10.code === 0 && /^\{/.test(bak10) && (() => { try { return JSON.parse(bak10).deliveries.length === 1; } catch { return false; } })() && aside10.length === 1,
+    'bugfix(worker): a damaged delivery record is set aside before a new one is begun, so the .bak still holds the last good record — it became the .bak itself and the good copy was lost', { bak: bak10.slice(0, 60), aside: aside10 });
+
+  /* 11 — --backtest prints the version the worker runs the setup under. */
+  const unv = { ...BF.setup }; delete unv.version;
+  const wid = { ...unv, rules: BF.setup.rules.map(r => (r.op === 'between' ? { ...r, range: [45, 75] } : r)) };
+  const B11 = await folder('backtest-version', [unv]);
+  await scan('--data', B11, '--now', BF.now);
+  await writeFile(join(B11, 'scan-setups.json'), JSON.stringify({ setups: [wid] }));
+  await scan('--data', B11, '--now', BF.now);
+  const bt11 = await scan('--data', B11, '--backtest', BF.setup.id);
+  const bj11 = JSON.parse((await scan('--data', B11, '--backtest', BF.setup.id, '--json')).stdout || '{}');
+  check((await alertsOf(B11)).map(a => a.setupVersion).join() === '1,2' && new RegExp(`^setup\\s+${BF.setup.id} v2 `, 'm').test(bt11.stdout) && bj11.setupVersion === 2,
+    'bugfix(worker): --backtest of a hand-edited setup prints and simulates the version the ledger gives it (v2), as the worker records it — it said v1', { printed: (bt11.stdout.match(/^setup .*$/m) || [])[0], json: bj11.setupVersion });
+
+  /* 12 — ingest/daily.mjs: the closing lines agree with the exit code. */
+  const DD = join(tmpdir(), `qt-bfw-daily-${process.pid}`);
+  await rm(DD, { recursive: true, force: true });
+  for (const s of ['ingest', 'scanner', 'data']) await mkdir(join(DD, s), { recursive: true });
+  folders.push(DD);
+  const out = (name, def) => `console.log(process.env.${name} || ${JSON.stringify(def)});`;
+  await writeFile(join(DD, 'ingest/autoshot.mjs'), "console.log('page 1'); process.exit(Number(process.env.STUB_CAP_EXIT || 0));");
+  await writeFile(join(DD, 'ingest/watchlist.mjs'), out('STUB_READ', 'candidates 3\nflagged   0\nskipped   0'));
+  await writeFile(join(DD, 'ingest/prices.mjs'), out('STUB_PRICES', '  accepted : 3\n  rejected : 0'));
+  await writeFile(join(DD, 'ingest/history.mjs'), "console.log('  symbols   : 3\\n  new bars  : 3\\n  depth     : 1-3 day(s) per symbol');");
+  await writeFile(join(DD, 'scanner/scan.mjs'), "console.log(process.env.STUB_SCAN_OUT || '0 new alerts recorded\\nstatus     COMPLETED (run-stub-1)'); process.exit(Number(process.env.STUB_SCAN_EXIT || 0));");
+  await writeFile(join(DD, 'data/scan-setups.json'), '{"setups":[]}');
+  const daily = async (env) => {
+    try { const { stdout, stderr } = await run(process.execPath, [join(ROOT, 'ingest/daily.mjs'), '--url', 'http://example.invalid', '--no-fx'], { cwd: DD, env: { ...process.env, ...env } }); return { code: 0, stdout, stderr }; }
+    catch (e) { return res(e); }
+  };
+  const ingestRuns = async () => (await json(join(DD, 'data/ingest-runs.json')))?.runs || [];
+  const d12a = await daily({ STUB_READ: 'candidates 0\nflagged   0\nskipped   0', STUB_PRICES: '  accepted : 0\n  rejected : 0' });
+  const d12b = await daily({ STUB_SCAN_EXIT: '1', STUB_SCAN_OUT: 'status     FAILED (run-stub-2)' });
+  const d12c = await daily({});
+  check(d12a.code === 1 && /NOTHING IMPORTED — no row was read from the capture/.test(d12a.stdout) && !/every row was held back/.test(d12a.stdout) && !/Nothing needs your attention/.test(d12a.stdout)
+    && d12b.code === 2 && /scanner\s+could not run/.test(d12b.stdout) && !/Nothing needs your attention/.test(d12b.stdout) && /this run exits 2/.test(d12b.stdout)
+    && d12c.code === 0 && /Nothing needs your attention/.test(d12c.stdout),
+    'bugfix(worker): daily.mjs closes with what its exit code says — "Nothing needs your attention" only on exit 0; a capture that read no row says so rather than "every row was held back"',
+    { a: d12a.stdout.split('\n').slice(-6), b: d12b.stdout.split('\n').slice(-5) });
+  /* Its own last steps: the report, and the run log. */
+  await daily({ STUB_CAP_EXIT: '2' });                                 /* a stale capture, for the fixture check below */
+  const n12 = (await ingestRuns()).length;
+  await rm(join(DD, 'data/daily-report.txt'), { force: true });
+  await mkdir(join(DD, 'data/daily-report.txt'));                     /* the report's path taken */
+  const d12d = await daily({});
+  await rm(join(DD, 'data/daily-report.txt'), { recursive: true, force: true });
+  const afterReport = await ingestRuns();
+  await writeFile(join(DD, 'data/ingest-runs.json'), '{"runs": [ {"id"');
+  const d12e = await daily({});
+  const asideI = (await readdir(join(DD, 'data'))).filter(f => /^ingest-runs\.json\.damaged-\d+$/.test(f));
+  const bakI = await readFile(join(DD, 'data/ingest-runs.json.bak'), 'utf8');
+  const afterDamage = await ingestRuns();
+  await Promise.all([1, 2, 3, 4].map(() => daily({})));
+  const afterFour = await ingestRuns();
+  check(d12d.code === 0 && /the report .+ could not be written/.test(d12d.stderr) && afterReport.length === n12 + 1 && afterReport.slice(-1)[0]?.exitCode === 0
+    && d12e.code === 0 && asideI.length === 1 && (() => { try { return JSON.parse(bakI).runs.length > 0; } catch { return false; } })() && afterDamage.length === 1
+    && afterFour.length === 5,
+    'bugfix(worker): daily.mjs logs every run — one whose report cannot be written (it crashed into exit 1, unlogged), one that finds its log damaged (set aside, the .bak keeps the good log; the damaged copy used to become the .bak), and four at once (under the log\'s lock; entries were lost)',
+    { report: [d12d.code, afterReport.length - n12], damaged: { aside: asideI, bak: bakI.slice(0, 40), runs: afterDamage.length }, four: afterFour.length - afterDamage.length });
+  /* The operations pages' ingest fixture, held to the record daily.mjs writes
+     as the scan fixtures are held to the worker's. It had been written from
+     the plan: steps under "name" with upper-case statuses, a stale run
+     followed by history and scanner steps daily.mjs never writes after one. */
+  const realI = [...afterReport, ...afterFour];
+  const fxI = JSON.parse(await readFile(join(ROOT, 'scanner/fixtures/ingest-runs.fixture.json'), 'utf8'));
+  const keysI = (list) => new Set(list.filter(x => x && typeof x === 'object' && !Array.isArray(x)).flatMap(x => Object.keys(x)));
+  const partsI = (runs) => ({ run: keysI(runs), step: keysI(runs.flatMap(r => r.steps || [])), counts: keysI(runs.map(r => r.counts)), scanner: keysI(runs.map(r => r.scanner)) });
+  const wI = partsI(realI), fI = partsI(fxI.runs || []);
+  const strayI = Object.entries(fI).flatMap(([part, ks]) => [...ks].filter(k => !wI[part].has(k)).map(k => `${part}.${k}`));
+  const realStepStatus = new Set(realI.flatMap(r => (r.steps || []).map(s => `${s.step}:${s.status}`)));
+  const badStep = (fxI.runs || []).flatMap(r => (r.steps || []).map(s => `${s.step}:${s.status}`)).filter(k => !realStepStatus.has(k));
+  const staleFx = (fxI.runs || []).filter(r => (r.steps || []).some(s => s.status === 'stale'));
+  check(!strayI.length && !badStep.length && staleFx.every(r => r.steps.length === 1 && r.exitCode === 2 && r.status === 'PARTIAL') && Object.keys(fxI).filter(k => k !== '_note').every(k => ['schema', 'runs'].includes(k)),
+    'bugfix(worker): scanner/fixtures/ingest-runs.fixture.json has only keys, steps and step statuses daily.mjs writes (a stale capture is its only step), so the ingest panel is tested on the record the daily run produces',
+    { strayI, badStep });
+
+  await rm(preload, { force: true });
+  for (const d of folders) { await chmod(join(d, 'ro.json.bak'), 0o666).catch(() => {}); await rm(d, { recursive: true, force: true }); }
+}
+/* ---- end bugfix: worker ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
