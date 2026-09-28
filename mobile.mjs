@@ -334,6 +334,106 @@ await sleep(2500);
   const v = r.result?.result?.value;
   if (v) { bad++; console.log(`FAIL 375px /company/AAPL-SEC — stuck strip: ${v}`); }
 }
+/* ---- bugfix: shell ---- */
+/* THE PRIMARY BUTTON IN THE DEFAULT LIGHT THEME. A dark-mode rule also matched
+   every visitor who had not chosen a theme, so on a light OS every primary
+   button printed #0A1A33 on the brand blue — 2.5:1. Measured against both
+   ends of the button's gradient, with no theme stored. */
+await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+await send('Page.navigate', { url: BASE + '/' }, sessionId);
+await sleep(1500);
+await send('Runtime.evaluate', { expression: `localStorage.removeItem('vl.theme'); true` }, sessionId);
+await send('Page.navigate', { url: BASE + '/' }, sessionId);
+await sleep(2000);
+{
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    const lum = (c) => { const m = c.match(/[\\d.]+/g).slice(0, 3).map(Number).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]; };
+    const n = document.querySelector('main .btn-primary');
+    if (!n) return { none: true };
+    const cs = getComputedStyle(n);
+    const stops = cs.backgroundImage.match(/rgba?\\([^)]*\\)/g) || [cs.backgroundColor];
+    const t = lum(cs.color);
+    const worst = Math.min(...stops.map(s => { const b = lum(s); return (Math.max(t, b) + 0.05) / (Math.min(t, b) + 0.05); }));
+    return { theme: document.documentElement.dataset.theme || null, color: cs.color, stops, worst: +worst.toFixed(2) };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || v.none || v.theme || !(v.worst >= 4.5)) { bad++; console.log(`FAIL light theme, none chosen — primary button text ${v ? `${v.color} on ${(v.stops || []).join(' → ')} measures ${v.worst}:1` : 'not measured'}`); }
+}
+
+/* THE STUCK STRIP AT 1024. From 781 to 1220px the topbar wraps to two rows,
+   101px, and the strip stuck at the 60px design height: its identity row —
+   ticker, price and the section jump — sat underneath the topbar. */
+await send('Emulation.setDeviceMetricsOverride', { width: 1024, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
+await send('Page.navigate', { url: BASE + '/company/AAPL-SEC' }, sessionId);
+await sleep(2500);
+{
+  const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, Math.min(2500, document.documentElement.scrollHeight - innerHeight));
+    await new Promise(r => setTimeout(r, 600));
+    const strip = document.querySelector('.ticker-sticky');
+    if (!strip || !strip.classList.contains('is-stuck')) return 'the strip never stuck';
+    const row = strip.querySelector('.ts-ident').getBoundingClientRect();
+    const bar = document.querySelector('.topbar').getBoundingClientRect();
+    const t = document.elementFromPoint(row.left + 12, row.top + row.height / 2);
+    return t && strip.contains(t) ? '' : 'identity row at ' + Math.round(row.top) + 'px is under the ' + Math.round(bar.height) + 'px topbar';
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (v !== '') { bad++; console.log(`FAIL 1024px /company/AAPL-SEC — stuck strip: ${v ?? 'not measured'}`); }
+}
+
+/* And the screener's filter rail, which sticks under the same topbar: on a
+   window tall enough for it to stay sticky at 1100px it came to rest at 72px,
+   under the 101px two-row bar. */
+await send('Emulation.setDeviceMetricsOverride', { width: 1100, height: 1300, deviceScaleFactor: 1, mobile: false }, sessionId);
+await send('Page.navigate', { url: BASE + '/discover/screener' }, sessionId);
+await sleep(2500);
+{
+  const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    const rail = document.querySelector('.rail-sticky');
+    if (!rail) return 'no rail on the screener';
+    window.scrollTo(0, 600);
+    await new Promise(r => setTimeout(r, 500));
+    if (getComputedStyle(rail).position !== 'sticky') return '';
+    const bar = document.querySelector('.topbar').getBoundingClientRect();
+    const top = rail.getBoundingClientRect().top;
+    return top >= bar.bottom ? '' : 'rail stuck at ' + Math.round(top) + 'px, under the ' + Math.round(bar.bottom) + 'px topbar';
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (v !== '') { bad++; console.log(`FAIL 1100px /discover/screener — sticky rail: ${v ?? 'not measured'}`); }
+}
+
+/* CHART TEXT CUT BY ITS OWN FRAME AT 360. SVG text does not wrap: the
+   valuation tornado's labels began left of the chart ("erminal operating
+   margin") and the sensitivity grid's fifth column was drawn past the card.
+   No label, value or cell may extend outside the svg it belongs to. */
+await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId);
+for (const route of ['/company/MSFT-SEC?tab=valuation', '/company/MAYBANK?tab=valuation', '/property/calculator']) {
+  await send('Page.navigate', { url: BASE + route }, sessionId);
+  let ready = false;
+  for (let i = 0; i < 40 && !ready; i++) {
+    await sleep(500);
+    const p = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+    ready = p.result?.result?.value === true;
+  }
+  await sleep(800);
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    const out = [];
+    document.querySelectorAll('#views svg.chart').forEach(s => {
+      if (!/step in each|Sensitivity|Assumptions ranked/.test(s.getAttribute('aria-label') || '')) return;
+      const sb = s.getBoundingClientRect(); if (!sb.width) return;
+      s.querySelectorAll('text, rect').forEach(t => { const tb = t.getBoundingClientRect(); if (!tb.width) return;
+        if (tb.left < sb.left - 1 || tb.right > sb.right + 1) out.push('"' + (t.textContent || t.tagName).trim().slice(0, 24) + '" ' + Math.round(tb.left - sb.left) + '..' + Math.round(tb.right - sb.left) + 'px of ' + Math.round(sb.width)); });
+    });
+    return out;
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || v.length) { bad++; console.log(`FAIL 360px ${route} — chart content outside its frame: ${v ? v.slice(0, 3).join('; ') : 'not measured'}`); }
+}
+await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+/* ---- end bugfix: shell ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

@@ -71,15 +71,24 @@ function fmtPct(v, dp = 1) {
   if (Math.abs(v) < Math.pow(10, -dp) / 2) v = 0;
   return `${v >= 0 ? '' : '−'}${Math.abs(v).toFixed(dp)}%`;
 }
-function fmtX(v, dp = 1)   { return isNum(v) ? `${v.toFixed(dp)}×` : '—'; }
+/* Rounded before it is signed, as fmtPct is, and with the same minus. A bare
+   toFixed printed Nvidia's net cash — net debt of −0.016× EBIT — as "-0.0×"
+   on its Quality tab and in Compare: a zero with a hyphen in front of it. */
+function fmtX(v, dp = 1) {
+  if (!isNum(v)) return '—';
+  if (Math.abs(v) < Math.pow(10, -dp) / 2) v = 0;
+  return `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(dp)}×`;
+}
 
 function fmtCap(v, ccy) {
   if (!isNum(v)) return '—';
   const sym = ccy === 'MYR' ? 'RM' : '$';
   /* Sign leads the symbol — "−$51.5B", never "$-51.5B". */
   const sign = v < 0 ? '−' : '', a = Math.abs(v);
-  if (a >= 1000) return `${sign}${sym}${(a / 1000).toFixed(2)}T`;
-  if (a >= 1)    return `${sign}${sym}${a.toFixed(1)}B`;
+  /* The unit is chosen on the figure as it will print: 999.97 billion rounds
+     to "1000.0B" and 0.9997 billion to "1000M", which belong a unit up. */
+  if (a >= 999.95) return `${sign}${sym}${(a / 1000).toFixed(2)}T`;
+  if (a >= 0.9995) return `${sign}${sym}${a.toFixed(1)}B`;
   return `${sign}${sym}${(a * 1000).toFixed(0)}M`;
 }
 function fmtMoney(v, ccy, dp = 2) {
@@ -225,14 +234,21 @@ function divergingVar(v, full) {
 }
 function sequentialVar(t) { return SEQUENTIAL[clamp(Math.round(t * (SEQUENTIAL.length - 1)), 0, SEQUENTIAL.length - 1)]; }
 
-/* Pick ink or white for a label sitting inside a coloured fill. */
+/* Pick ink or white for a label sitting inside a coloured fill — whichever of
+   the two contrasts more with it. The switch was at luminance 0.42, which put
+   white on every mid-tone step: 2.48:1 on light --up-3, 2.87:1 on --dn-3,
+   2.29:1 on dark --dn-5, on the heatmap tiles and the sensitivity grid. The
+   two contrasts cross at about 0.18, and black rather than the near-black
+   #141a18 is what keeps the worse side of that crossing at 4.58:1 — with
+   #141a18 light --up-4 could reach only 4.35:1. Every diverging step now
+   clears 4.5:1 in both themes (4.67:1 at worst). */
 function inkOn(hex) {
   const m = hex.replace('#', '');
   if (m.length < 6) return '#fff';
   const [r, g, b] = [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16) / 255)
     .map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
   const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return L > 0.42 ? '#141a18' : '#ffffff';
+  return 1.05 / (L + 0.05) >= (L + 0.05) / 0.05 ? '#ffffff' : '#000000';
 }
 
 /* ------------------------------------------------------------------ state */
@@ -241,10 +257,20 @@ const store = {
     try { const v = localStorage.getItem('vl.' + key); return v ? JSON.parse(v) : fallback; }
     catch { return fallback; }
   },
+  /* A refused write — the quota full, storage switched off, private mode — is
+     still swallowed, so the page keeps working in memory; but it returns
+     false and is counted, because a caller that says "Saved" has to be able
+     to know. With the quota full the tools confirmed 'Saved "Deal A"' over a
+     record that was never written, and a reader who trusted it lost the work
+     at the next reload. `failed` lets an action that makes several writes ask
+     whether any of them was refused. */
+  failed: 0,
   write(key, value) {
-    try { localStorage.setItem('vl.' + key, JSON.stringify(value)); } catch { /* private mode */ }
+    try { localStorage.setItem('vl.' + key, JSON.stringify(value)); return true; }
+    catch { store.failed++; return false; }
   }
 };
+const STORE_REFUSED = 'Not saved — this browser refused the write (its storage is full or switched off), so nothing was kept.';
 
 /* EVERYTHING A READER HAS MADE, IN ONE PLACE.
    ---------------------------------------------------------------------------

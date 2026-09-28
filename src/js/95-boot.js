@@ -12,13 +12,17 @@ function openSearch() {
   /* "/" pressed while the box is already open — with focus on a result, say —
      used to reopen it and wipe the results. It now just returns to the box. */
   if (searchOpen) { searchInput.focus(); return; }
+  /* A close still finishing its fade owns a timer that hides the box and
+     empties it. Reopened inside those 200ms — Escape then "/", or the close
+     button and straight back — the timer fired on the NEW box: hidden, its
+     results gone, while searchOpen said it was open, so "/" only focused an
+     invisible input and the search was dead until Escape. */
+  clearTimeout(searchHideTimer); searchHideTimer = null;
   searchOpen = true;
   searchLastFocus = document.activeElement;
-  /* Reopened within the last close's 200ms, the box was hidden by that
-     close's timer while open. And a close before the next frame was
-     overridden by this open's frame, leaving the scrim over the page. */
-  clearTimeout(searchHideTimer); searchHideTimer = null;
   searchModal.hidden = false;
+  /* A close before this frame was overridden by it, leaving the scrim over
+     the page: the frame does nothing once the box has closed. */
   requestAnimationFrame(() => { if (!searchOpen) return; searchModal.dataset.open = '1'; scrim.dataset.open = '1'; searchInput.focus(); searchInput.select(); });
   runSearch('');
 }
@@ -138,7 +142,11 @@ searchInput.addEventListener('input', e => { clearTimeout(searchTimer); searchTi
 $('#openSearch').addEventListener('click', openSearch);
 $('#closeSearch')?.addEventListener('click', closeSearch);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeSearch(); if (drawer.dataset.open === '1') closeDrawer(); return; }
+  /* Escape closes the dialog on top, not every dialog. The search box opened
+     over a drawer ("/" works there) closed both on one press, and the drawer
+     the reader had gone back to went with it — its focus hand-back landing on
+     the page underneath. A second Escape closes the drawer. */
+  if (e.key === 'Escape') { if (searchOpen) closeSearch(); else if (drawer.dataset.open === '1') closeDrawer(); return; }
   if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); return; }
 
   /* BOTH DIALOGS SAY aria-modal AND NEITHER WAS. Tab walked straight out of
@@ -188,11 +196,16 @@ function currentTheme() {
   return document.documentElement.dataset.theme
     || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 }
+/* The toggle says what pressing it does, from the theme actually showing. */
+function paintThemeToggle() {
+  const t = currentTheme();
+  $('#themeIcon').innerHTML = t === 'dark' ? SUN : MOON;
+  themeToggle.setAttribute('aria-label', t === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme');
+}
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
   store.write('theme', t);
-  $('#themeIcon').innerHTML = t === 'dark' ? SUN : MOON;
-  themeToggle.setAttribute('aria-label', t === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme');
+  paintThemeToggle();
   /* charts read their colours from CSS custom properties, so redraw them */
   requestAnimationFrame(() => render());
 }
@@ -200,7 +213,20 @@ themeToggle.addEventListener('click', () => applyTheme(currentTheme() === 'dark'
 
 const savedTheme = store.read('theme', null);
 if (savedTheme) document.documentElement.dataset.theme = savedTheme;
-$('#themeIcon').innerHTML = currentTheme() === 'dark' ? SUN : MOON;
+paintThemeToggle();
+/* WITH NO THEME CHOSEN THE PAGE FOLLOWS THE OS, AND SO MUST WHAT IS DRAWN.
+   The palette flips by media query, but the heatmap's tiles, the sensitivity
+   grid and the tornado's labels are painted with colours read out of the
+   custom properties when they were drawn — applyTheme re-renders for exactly
+   that reason, and an OS switch (a scheduled dark mode at dusk) did not: the
+   page went dark around tiles and cells still in the light palette, and the
+   toggle kept offering the theme already showing. A chosen theme does not
+   follow the OS, so it is left alone. */
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (document.documentElement.dataset.theme) return;
+  paintThemeToggle();
+  render();
+});
 
 /* ------------------------------------------------------------------- boot */
 const refreshSearchLabel = () => {
@@ -347,6 +373,15 @@ function fromHash() {
       navigate(companyPath(BY_ID.get(id).c) + (b && b !== 'snapshot' ? `?tab=${b}` : ''), { replace: true });
       return true;
     }
+    /* This runs at boot, before the filings land, when only the sample set
+       can be searched — so #research/abbv/financials, a filed company, fell
+       through to /research and the link lost its company and its tab. The
+       slug goes to the company address instead, whose route waits for the
+       filings and only then calls an unknown name a 404. */
+    if (realPending) {
+      navigate(`/company/${encodeURIComponent(a)}` + (b && b !== 'snapshot' ? `?tab=${encodeURIComponent(b)}` : ''), { replace: true });
+      return true;
+    }
   }
   const path = LEGACY_VIEW_PATH[view] || (view === 'research' ? '/research' : null);
   if (!path) return false;
@@ -451,4 +486,8 @@ window.addEventListener('hashchange', () => { if (fromHash()) history.replaceSta
 
 if (!fromHash()) applyRoute();
 
-console.info('Quantum Tradeworks prototype — synthetic data only. %d companies, %s', U.length, MODEL_VERSION);
+/* "Synthetic data only" was the banner's old sentence, true when the universe
+   was the sample set and false since the filings joined it; at this line only
+   the sample is loaded and the filings are still on their way. */
+console.info('Quantum Tradeworks prototype — research only. %d illustrative companies at boot%s, %s', U.length,
+  realPending ? '; the SEC-filed set is loading' : '', MODEL_VERSION);

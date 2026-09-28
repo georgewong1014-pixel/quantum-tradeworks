@@ -114,7 +114,12 @@ const State = {
 
 /* --------------------------------------------------------- entitlements */
 State.plan = store.read('plan', 'free');
-State.reportLog = store.read('reportLog', { month: new Date().toISOString().slice(0, 7), ids: [] });
+/* The reader's calendar month, on their own clock. The meter keyed on
+   toISOString — the UTC month — so in Malaysia September's allowance ran on
+   until 08:00 on 1 October, and a reader who had used it was told at 01:00
+   that they had used all their reports "this month". */
+const meterMonth = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+State.reportLog = store.read('reportLog', { month: meterMonth(), ids: [] });
 State.propertyReportsBought = store.read('propertyReportsBought', []);
 
 const planOf = () => PLANS[State.plan] || PLANS.free;
@@ -122,7 +127,8 @@ const lim = (k) => planOf().limits[k];
 /* Enforced once, at the point the value is used, so the stated cap and the
    contents can never disagree — including for a workspace saved under a
    higher plan and opened under a lower one. */
-State.compare = (State.compare || []).slice(0, lim('compare'));
+const clampToPlan = () => { State.compare = (State.compare || []).slice(0, lim('compare')); };
+clampToPlan();
 
 const LIMITS = new Proxy({}, {                     /* workspace caps now follow the plan */
   get: (_, k) => ({ watchlists:lim('watchlists'), watchlistStocks:lim('watchlistStocks'),
@@ -132,8 +138,8 @@ const LIMITS = new Proxy({}, {                     /* workspace caps now follow 
 
 /* Company reports are metered per calendar month on the free plan. Opening a
    company already read this month never costs another report. */
-function reportAllowed(id) {
-  const month = new Date().toISOString().slice(0, 7);
+function reportAllowed(id, now = new Date()) {
+  const month = meterMonth(now);
   if (State.reportLog.month !== month) State.reportLog = { month, ids: [] };
   if (State.reportLog.ids.includes(id)) return { ok: true, counted: false };
   if (State.reportLog.ids.length < lim('reportsPerMonth')) return { ok: true, counted: true };
@@ -151,6 +157,10 @@ const reportsLeft = () => Math.max(0, lim('reportsPerMonth') - State.reportLog.i
 
 function setPlan(id) {
   State.plan = id; store.write('plan', id);
+  /* And again when the plan changes in the session. Enforced at load only,
+     a switch from Equities Research to Free left five companies in a
+     comparison that the page, a click later, said holds up to two. */
+  clampToPlan();
   toast(`Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
   render();
 }
