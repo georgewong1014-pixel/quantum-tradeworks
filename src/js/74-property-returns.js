@@ -31,7 +31,15 @@
    there implies a precision the arithmetic does not have. */
 function npvAt(rate, flows) {
   let v = 0;
-  for (let t = 0; t < flows.length; t++) v += flows[t] / Math.pow(1 + rate, t);
+  for (let t = 0; t < flows.length; t++) {
+    /* A flow that is not a number makes the value unknown, not smaller. It
+       was added as it came, and null divides to nought, so a loan whose
+       instalment could not be computed valued every year's cash and the sale
+       at nothing: "−RM121,754, falls short of the alternative you named",
+       beside a rate of return rightly withheld for the same flows. */
+    if (!isNum(flows[t])) return null;
+    v += flows[t] / Math.pow(1 + rate, t);
+  }
   return v;
 }
 
@@ -45,14 +53,27 @@ function irrOf(flows) {
      with a mid-hold refinancing or a big year-five refurbishment can do this.
      The figure is still shown, with the caveat, because suppressing it would
      hide a deal shape the reader should know about. */
-  let signChanges = 0;
-  for (let i = 1; i < flows.length; i++) {
-    if (flows[i] === 0 || flows[i - 1] === 0) continue;
-    if (Math.sign(flows[i]) !== Math.sign(flows[i - 1])) signChanges++;
+  /* A nil period has no sign, so it is stepped over and each flow is compared
+     with the last flow that had one. The count compared neighbours and skipped
+     any pair containing a nil, so a nil between the outlay and the return hid
+     the change: [−100, 0, 110] counted none and was told "no period is
+     positive". A parcel bought outright with its outgoings entered as nought
+     is exactly that shape — nine nil years between the price and the sale —
+     and the calculator said the capital never comes back beside a sale that
+     returns more than it cost. */
+  let signChanges = 0, lastSign = 0;
+  for (const f of flows) {
+    const s = Math.sign(f);
+    if (s === 0) continue;
+    if (lastSign !== 0 && s !== lastSign) signChanges++;
+    lastSign = s;
   }
   if (signChanges === 0) {
+    const first = flows.find(f => f !== 0);
     return { rate: null, signChanges,
-      why: flows[0] >= 0
+      why: first === undefined
+        ? 'Every period is nil, so there is no capital outflow to earn a return on.'
+        : first > 0
         ? 'Every period is positive, so there is no capital outflow to earn a return on.'
         : 'No period is positive. The capital is never returned, so no rate of return exists.' };
   }
@@ -133,7 +154,14 @@ function rentalTaxYear({ effectiveRent, deductibleOpex, interest, marginalTaxPct
   if (!isNum(marginalTaxPct) || marginalTaxPct <= 0) {
     return { computed: false, taxable: null, tax: 0, why: 'No marginal rate entered, so no tax is computed.' };
   }
-  const taxable = num0(effectiveRent) - num0(deductibleOpex) - num0(interest);
+  /* The interest is the deduction that decides the answer. When it is unknown
+     — a loan with no schedule — so is the tax; charging the rent as though no
+     interest were paid overstated it by the whole deduction. */
+  if (!isNum(interest)) {
+    return { computed: false, taxable: null, tax: null,
+      why: 'The loan’s interest could not be computed, so neither can the tax on the rent.' };
+  }
+  const taxable = num0(effectiveRent) - num0(deductibleOpex) - interest;
   /* A rental loss on a non-business source is not carried forward and cannot be
      set against other income. Relieving it here would understate the tax in
      every year that follows, so a loss simply produces no tax and no credit. */
@@ -154,8 +182,14 @@ function rentalTaxYear({ effectiveRent, deductibleOpex, interest, marginalTaxPct
    instalments in every year of the hold, so once the balance reached nought
    the whole instalment — which was no longer being paid — was booked as
    deductible interest. */
+/* A loan with no tenure has no schedule, so its interest is unknown — not
+   nought. It returned 0 for that case as for no loan at all, and a tax rate
+   entered beside a tenure of 0 was charged on the rent with no interest
+   deducted: RM87,192 of tax over ten years, in a table whose every cash
+   figure was rightly a dash. */
 function interestInYear(loan, ratePct, tenureYears, year) {
-  if (!(num0(loan) > 0) || !(num0(tenureYears) > 0)) return 0;
+  if (!(num0(loan) > 0)) return 0;
+  if (!(num0(tenureYears) > 0)) return null;
   const months = clamp(num0(tenureYears) * 12 - (year - 1) * 12, 0, 12);
   if (!(months > 0)) return 0;
   const pmt = monthlyInstalment(loan, ratePct, tenureYears);
@@ -163,6 +197,37 @@ function interestInYear(loan, ratePct, tenureYears, year) {
   const close = balanceAfter(loan, ratePct, tenureYears, (year - 1) * 12 + months);
   const principalPaid = Math.max(0, open - close);
   return Math.max(0, pmt * months - principalPaid);
+}
+
+/* ------------------------------------------- focus across a re-render ---
+   Every control on these panels saves and re-renders, and render() replaces
+   the page, so the control the reader was using was destroyed under them and
+   focus fell to <body>. One arrow press on "Who would be selling" chose the
+   next seller and the second press did nothing; typing a tax rate and pressing
+   Tab sent the next Tab to the top of the page.
+
+   renderKeepFocus hands focus back to the element that holds it, which covers
+   the arrow keys. It cannot cover Tab: the change fires as focus leaves, when
+   nothing holds it yet. So the key that left is remembered, and focus moves
+   one stop on from the rebuilt control in the direction it was going. A
+   pointer that left the control is left alone, as before. */
+let propertyLeaveKey = { key: null, shift: false, at: 0 };
+document.addEventListener('keydown', e => { propertyLeaveKey = { key: e.key, shift: e.shiftKey, at: Date.now() }; }, true);
+const PROPERTY_TAB_STOPS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), '
+  + 'select:not([disabled]), textarea:not([disabled]), summary, [tabindex="0"]';
+function renderFromControl(control) {
+  const id = control && control.id;
+  const stayed = !!control && document.activeElement === control;
+  const tabbed = !stayed && propertyLeaveKey.key === 'Tab' && Date.now() - propertyLeaveKey.at < 1000;
+  const back = propertyLeaveKey.shift;
+  render();
+  const again = id ? document.getElementById(id) : null;
+  if (!again) return;
+  if (stayed) { again.focus({ preventScroll: true }); return; }
+  if (!tabbed) return;
+  const stops = [...document.querySelectorAll(PROPERTY_TAB_STOPS)].filter(n => n.getClientRects().length);
+  const i = stops.indexOf(again);
+  ((i >= 0 && stops[i + (back ? -1 : 1)]) || again).focus();
 }
 
 
@@ -189,6 +254,10 @@ function returnsAndTaxPanel(d, m) {
     isNum(m.npvAtHurdle) ? fmtMoney(m.npvAtHurdle, 'MYR', 0) : '—',
     { sub: isNum(m.npvAtHurdle)
         ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named')
+        /* A return entered and a value still missing means the flows are
+           unknown; asking for the return again would send the reader to a
+           box that is already filled. */
+        : m.hurdlePct > 0 ? 'The cash flows could not be computed, so neither can their value'
         : 'Enter the return your capital could earn elsewhere' })));
   card.append(g);
 
@@ -202,7 +271,10 @@ function returnsAndTaxPanel(d, m) {
             ? 'It is higher because most of the money arrives at the exit, and money that arrives in year ten is worth less than money that arrives in year one. The rate of return is the figure that accounts for that.'
             : 'It is lower because the cash arrives early, which the multiple gives no credit for.')));
   }
-  if (m.irrSignChanges > 1) card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
+  /* Only beside a figure. Where the flows have two rates irrOf names both and
+     chooses neither, and the tile shows a dash — this said "the figure shown
+     is the first one found" under it. */
+  if (m.irrSignChanges > 1 && isNum(m.irrPct)) card.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--bronze)' },
     `The cash flow changes direction ${m.irrSignChanges} times over the hold, so more than one rate can satisfy it. `
     + 'The figure shown is the first one found and should be read alongside the year-by-year table rather than on its own.'));
 
@@ -215,7 +287,7 @@ function returnsAndTaxPanel(d, m) {
     'aria-label': 'Who would be selling the property',
     onchange: e => {
       State.deal.disposerCategory = e.target.value;
-      markTouched(State.deal, 'disposerCategory'); saveDeal(); render();
+      markTouched(State.deal, 'disposerCategory'); saveDeal(); renderFromControl(e.target);
     } });
   RPGT_CATEGORY_IDS.forEach(id => {
     const c = RPGT_SCHEDULE.categories[id];
@@ -249,7 +321,7 @@ function returnsAndTaxPanel(d, m) {
     onchange: e => {
       const v = e.target.value === '' ? null : Number(e.target.value);
       State.deal.marginalTaxPct = isNum(v) && v > 0 ? v : null;
-      markTouched(State.deal, 'marginalTaxPct'); saveDeal(); render();
+      markTouched(State.deal, 'marginalTaxPct'); saveDeal(); renderFromControl(e.target);
     } }));
   card.append(f);
 
@@ -260,6 +332,16 @@ function returnsAndTaxPanel(d, m) {
       'This product holds no schedule of Malaysian personal tax bands. They are set each Budget and a stale table stated '
       + 'confidently is worse than none, so the rate is yours to supply — it is the top band your total income reaches. '
       + 'Nothing here is tax advice.'));
+    return card;
+  }
+  /* A rate entered on a loan with no schedule: the interest is unknown, so is
+     every year's tax, and a total of unknown years is not the nought the
+     model's running sum leaves behind. Said once, instead of tiles and a year
+     table of dashes around a figure that looks computed. */
+  if (m.path.some(p => !isNum(p.tax))) {
+    card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
+      'The loan’s instalment could not be computed from the entered tenure, so neither can the interest inside it — the '
+      + 'deduction that decides the tax — nor the tax on the rent. Enter a loan tenure and the tax appears here.'));
     return card;
   }
 
@@ -277,7 +359,13 @@ function returnsAndTaxPanel(d, m) {
      Year one is where the trap is widest, so year one is what gets shown. */
   const p1 = m.path[0];
   if (p1) {
-    const naive = p1.rent - p1.opex - p1.debt;
+    /* The same deductions with the principal added to them, which is what
+       "deducting the whole instalment" means. This was rent less all of the
+       outgoings less the instalment, and the outgoings include the first
+       tenant's placement fee, which is not deductible either — so on a managed
+       deal the understatement credited to the instalment was the principal
+       plus that fee: RM8,266 against RM6,466 of principal. */
+    const naive = p1.taxable - p1.principal;
     const over = p1.taxable - naive;
     card.append(el('div', { style: 'margin-top:var(--lg);padding:var(--md);border:1px solid var(--bronze);border-radius:var(--r-md)' }, [
       el('p', { class: 'body', style: 'font-weight:600;margin:0' }, 'The instalment is not deductible. The interest inside it is.'),

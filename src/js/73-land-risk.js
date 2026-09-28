@@ -108,7 +108,10 @@ function landRiskProfile(city, area) {
     sentence: missing.length === 0
       ? `All ${items.length} hazards recorded for ${area}.`
       : `${recorded.length} of ${items.length} hazards recorded for ${area}. `
-        + `${missing.map(m => m.short.toLowerCase()).join(', ')} ${missing.length === 1 ? 'has' : 'have'} not been established by anyone.`,
+        /* A new sentence, so a capital: the list is lower-cased for the
+           middle of a sentence and opened this one as "title, ground, …". */
+        + `${missing.map(m => m.short.toLowerCase()).join(', ').replace(/^./, c => c.toUpperCase())} `
+        + `${missing.length === 1 ? 'has' : 'have'} not been established by anyone.`,
   };
 }
 
