@@ -1064,6 +1064,16 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   /* A list of one-line buttons that are not .btn — the dashboard's research
      loop, six 34px rows two pixels apart. */
   .tap-row { min-height: 44px; }
+  /* A figure that opens its source is a button — role, tab stop, Enter — in
+     the statements table, the comparison and the screener, and it was 39px
+     tall at 360 and 390px, row after row of them a finger apart. A table
+     cell takes its height as a floor, so a label that wraps still grows it. */
+  .cell-sourced { height: 44px; }
+  /* So is a link that is everything its cell holds — a watchlist's ticker, a
+     source named as its row's header, a build-status row's path. It is the
+     row's way on, not a word in a sentence, and at 390px it measured 34×19
+     ("AAPL"), 38×19 ("Brickz") and 42×44 ("/status"). */
+  td > a:only-child, th > a:only-child { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
 }
 
 /* THE DECISION DOCK.
@@ -1837,6 +1847,9 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .scan-tick-hit { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 @media (pointer: coarse), (max-width: 768px) {
   .scan-tick-hit { min-width: 44px; min-height: 44px; }
+  /* The setup's name opens it, and in the list of setups against the
+     worker's file it was a 22px line of text above its explanation. */
+  .scan-drift li > .row > a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 .scan-alerts-t tr.scan-new td { background: color-mix(in srgb, var(--brand-wash) 55%, transparent); }
 .scan-lineage { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }

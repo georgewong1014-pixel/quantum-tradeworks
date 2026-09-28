@@ -434,6 +434,44 @@ for (const route of ['/company/MSFT-SEC?tab=valuation', '/company/MAYBANK?tab=va
 }
 await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
 /* ---- end bugfix: shell ---- */
+
+/* ---- bugfix2: shell ---- */
+/* A FIGURE THAT OPENS ITS SOURCE IS A TAP TARGET. The statements table's and
+   the comparison's sourced cells are buttons (role, tab stop, Enter), and
+   they measured 64-276 × 39px at 360 and 390px — under the 44px floor, row
+   after row, a finger apart. So did a link that is all its table cell holds
+   (a watchlist's ticker 34×19, "Brickz" as its row's header 38×19, a build-
+   status path 42px wide) and a setup's name in the list against the worker's
+   file (22px tall). Every one must be 44px on both axes. `need` marks the
+   pages that always hold such a target; the setups list exists only where a
+   setup does. */
+{
+  const TARGETS = `main .cell-sourced, main td[role="button"], main td > a:only-child, main th > a:only-child, main .scan-drift li > .row > a`;
+  const pages = [['/compare?companies=AAPL-SEC,MSFT-SEC,MAYBANK', true], ['/company/MSFT-SEC?tab=financials', true],
+    ['/company/MAYBANK?tab=financials', true], ['/my/watchlists', true], ['/data-sources', true], ['/status', true], ['/app/scanner/setups', false]];
+  for (const w of [360, 390]) {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId);
+    for (const [route, need] of pages) {
+      await send('Page.navigate', { url: BASE + route }, sessionId);
+      let ready = false;
+      for (let i = 0; i < 40 && !ready; i++) {
+        await sleep(500);
+        const p = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+        ready = p.result?.result?.value === true;
+      }
+      await sleep(600);
+      const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+        const cells = [...document.querySelectorAll(${JSON.stringify(TARGETS)})].filter(n => n.getClientRects().length);
+        const small = cells.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.width < 44 || b.height < 44)
+          .map(([n, b]) => '"' + n.textContent.trim().slice(0, 16) + '" ' + Math.round(b.width) + '×' + Math.round(b.height));
+        return { n: cells.length, small };
+      })()` }, sessionId);
+      const v = r.result?.result?.value;
+      if (!v || (need && !v.n) || v.small.length) { bad++; console.log(`FAIL ${w}px ${route} — cell and list targets under 44px: ${v ? `${v.small.length} of ${v.n} (${v.small.slice(0, 3).join(', ')})` : 'not measured'}`); }
+    }
+  }
+}
+/* ---- end bugfix2: shell ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

@@ -460,7 +460,12 @@ const DOCKS = {
       figs: [
         { label: 'Trend regime', value: r.assessable ? String(r.regime) : null },
         { label: 'First-tranche readiness', value: r.assessable ? String(r.tranche) : null },
-        { label: 'Screenshot confidence', value: r.assessable ? String(r.confidence) : null },
+        /* Confidence is scored apart from the run: a run is assessable before
+           its five components are, and qttiRun leaves it null until all five
+           are. String(null) put "Screenshot confidence: null" in the dock
+           under a page that says it has not been scored. The decision record
+           guards the same figure the same way. */
+        { label: 'Screenshot confidence', value: r.assessable && isNum(r.confidence) ? String(r.confidence) : null },
       ],
       /* reject[] is what makes a run unassessable at all, so it outranks the
          gates that merely block a tranche. Both are arrays of STRINGS — the
