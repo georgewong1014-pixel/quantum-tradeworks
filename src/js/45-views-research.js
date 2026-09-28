@@ -555,12 +555,22 @@ function fitGrade(r, key, tier) {
 
   else if (key === 'compounder') {
     const hasGrowth = isNum(m.rev5) && isNum(m.roe);
-    if (!need(hasGrowth, 'Multi-year per-share growth and returns on equity.')) return out;
+    /* Seven-tenths of this score is the business-quality score, and an
+       absent one was read as 50. The filed REITs have none — their quality
+       inputs are not among the lines the statements carry — so Realty
+       Income and Prologis were graded compounder B on a quality nobody
+       measured, and "Why it might be owned: Long-term compounding" was
+       named from it. The Wheel and averaging fits already ask for the
+       assessment; this one asks too, and says it is missing. */
+    const q = r.scores?.quality?.score;
+    const okGrowth = need(hasGrowth, 'Multi-year per-share growth and returns on equity.');
+    const okQuality = need(isNum(q), 'A business-quality assessment.');
+    if (!okGrowth || !okQuality) return out;
     if (m.roe > 12) out.supports.push(`Return on equity ${fmtPct(m.roe, 1)}.`); else out.weakens.push(`Return on equity ${fmtPct(m.roe, 1)}.`);
     if (m.rev5 > 4) out.supports.push(`Revenue compounding ${fmtPct(m.rev5, 1)} a year over the window held.`);
     else out.weakens.push(`Revenue growth ${fmtPct(m.rev5, 1)} a year.`);
     if (isNum(m.dilution) && m.dilution > 2) out.weakens.push(`Share count rising ${fmtPct(m.dilution, 1)} a year, which dilutes per-share growth.`);
-    out.score = Math.round(clamp((r.scores?.quality?.score ?? 50) * 0.7 + clamp(m.rev5 * 2, 0, 30), 0, 100));
+    out.score = Math.round(clamp(q * 0.7 + clamp(m.rev5 * 2, 0, 30), 0, 100));
     if (isNum(m.growthYears) && m.growthYears < 4) out.cap = `Growth measured over ${m.growthYears} years, not four.`;
   }
 
@@ -1341,6 +1351,21 @@ function companySummary(r) {
   return card;
 }
 
+/* AN ABSENT MEASURE SAYS WHY, AS THE SCREENER SAYS IT. The company tabs
+   marked an absence "n/a" — the mark this product keeps for a measure that
+   does not apply — or "n/m", whatever the cause. The peer table gave every
+   unpriced filer's P/E "n/m", "not meaningful on its inputs", where the
+   screener says it needs a price (67 companies); Coca-Cola's, its share
+   count withheld, the same; and Adobe's return on invested capital read
+   "n/a" with its debt line withheld. A measure the screener lists takes
+   metricStatus's short reason, with its sentence as the title; one it does
+   not list keeps the generic mark. */
+function absentMark(r, k) {
+  if (!FIELD_BY_K[k]) return NA;
+  const st = metricStatus(r, k);
+  return `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>`;
+}
+
 /* --------------------------------------------------------------- snapshot */
 /* A stat tile that opens something, as a real button so the keyboard reaches
    it. The tile inside keeps its own markup; the button only adds the
@@ -1648,8 +1673,8 @@ function tabSnapshot(r) {
       const td0 = el('td', { class: 'pin ident' }); td0.append(tickerCell(p)); tr.append(td0);
       const cells = isB ? [fmtPct(p.m.roe), fmtPct(p.m.cet1), fmtPct(p.m.npl, 2), fmtX(p.m.pb, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality)]
                   : isR ? [fmtPct(p.m.occ), fmtPct(p.m.gearing), fmtX(p.m.pnav, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`]
-                        : [isNum(p.m.roic) ? fmtPct(p.m.roic) : NA, fmtPct(p.m.om), isNum(p.m.pe) ? fmtX(p.m.pe) : '<span class="caption">n/m</span>',
-                           isNum(p.m.fcfy) ? fmtPct(p.m.fcfy, 2) : NA, scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`];
+                        : [isNum(p.m.roic) ? fmtPct(p.m.roic) : absentMark(p, 'roic'), isNum(p.m.om) ? fmtPct(p.m.om) : absentMark(p, 'om'),
+                           isNum(p.m.pe) ? fmtX(p.m.pe) : absentMark(p, 'pe'), isNum(p.m.fcfy) ? fmtPct(p.m.fcfy, 2) : absentMark(p, 'fcfy'), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`];
       cells.forEach(v => tr.append(el('td', { html: v })));
       tb2.append(tr);
     });
@@ -1744,10 +1769,14 @@ function tabBusiness(r) {
    ['Primary listing', `${listingOf(c)} · ${c.tk}`], ['Sector / industry', `${c.sector} — ${c.industry}`],
    ['Cyclicality', isNum(m.revDD) ? `Revenue drawdown ${fmtPct(m.revDD, 0)} in the window` : '—'],
    ['Capital intensity', isNum(m.reinv) ? `Capex is ${fmtPct(m.reinv, 0)} of operating cash flow` : 'Not meaningful'],
-   /* A filer whose latest share count did not resolve (AbbVie, Berkshire)
-      read "—bn (— a year)": two units printed around nothing. */
+   /* A filer with no latest share count (AbbVie, Berkshire) read "—bn (— a
+      year)": two units printed around nothing. The absence then read "not
+      reported" whatever its cause, and for 31 filers — Coca-Cola, AbbVie,
+      Pfizer — the count is held and withheld, assembled by an ingest rule
+      since corrected, which the statement table beside it says. It takes the
+      statement table's reason for that cell. */
    ['Shares in issue', !isNum(last(d.sh))
-     ? `not reported for FY${latestFy(c)}`
+     ? `${lineCellStatus(r, statementLines(r).find(l => l.key === 'sh'), yearsOf(c).length - 1).label} for FY${latestFy(c)}`
      : m.shareSeriesBreak
      ? `${fmtNum(last(d.sh), 3)}bn — annual change withheld, see capital allocation`
      : `${fmtNum(last(d.sh), 3)}bn${isNum(m.dilution) ? ` (${withSign(m.dilution, 2)} a year)` : ''}`],
@@ -1772,13 +1801,13 @@ function tabBusiness(r) {
       : c.type === 'reit'
       ? [['Occupancy', x => x.m.occ, false], ['Net property margin', x => x.m.npm, false],
          ['Gearing', x => x.m.gearing, true], ['Distribution yield', x => x.m.dy, false]]
-      : [['Operating margin', x => x.m.om, false], ['Return on invested capital', x => x.m.roic, false],
-         ['Revenue CAGR (4y)', x => x.m.rev5, false], ['Free cash flow margin', x => x.m.fcfm, false]];
+      : [['Operating margin', x => x.m.om, false, 'om'], ['Return on invested capital', x => x.m.roic, false, 'roic'],
+         ['Revenue CAGR (4y)', x => x.m.rev5, false, 'rev5'], ['Free cash flow margin', x => x.m.fcfm, false, 'fcfm']];
 
     const tw2 = el('div', { class: 'tablewrap' });
     const t2 = el('table', { class: 'dt' });
     t2.append(el('thead', {}, el('tr', {}, ['Measure', c.tk, 'Peer median', 'Rank', 'Standing'].map(h => el('th', {}, h)))));
-    t2.append(el('tbody', {}, measures.map(([label, get, lowerBetter]) => {
+    t2.append(el('tbody', {}, measures.map(([label, get, lowerBetter, key]) => {
       const own = get(r), vals = set.map(get).filter(isNum);
       const med = median(vals);
       let rank = null;
@@ -1790,7 +1819,7 @@ function tabBusiness(r) {
       const f = SECTOR_FMT[label] || (v => fmtPct(v, 1));
       return el('tr', {}, [
         el('td', { class: 'ident' }, label),
-        el('td', { html: isNum(own) ? f(own) : NA }),
+        el('td', { html: isNum(own) ? f(own) : key ? absentMark(r, key) : NA }),
         el('td', { html: isNum(med) ? f(med) : NA }),
         el('td', {}, rank ? `${rank} of ${vals.length}` : '—'),
         /* In an odd-sized set the median is one of the values, so the company
@@ -2188,8 +2217,17 @@ function tabQuality(r) {
          reading as "not meaningful" — on the break inside its own five rows
          (perShareBreak), which is what withheld it. On the whole-series
          break, GE's earnings growth, absent for a negative FY2021 base, read
-         "withheld" over a split years outside the window. */
-      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.perShareBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }));
+         "withheld" over a split years outside the window.
+         Every other absent input read "n/a", the mark for a measure that
+         does not apply: Apple's net buyback yield, withheld for its
+         share-count break; Adobe's payout ratio, its dividend line not
+         reported; Coca-Cola's, withheld with its share count. A measure the
+         screener lists is marked as the screener marks it (absentMark);
+         book-value growth and the sector inputs, which it does not list,
+         keep the rule above. */
+      const absentRaw = FIELD_BY_K[part.k] ? absentMark(r, part.k)
+        : (r.m.perShareBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA);
+      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : absentRaw }));
       tr.append(el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}${part.inv ? ' (inverted)' : ''}</span>` }));
       tr.append(el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }));
       tr.append(el('td', {}, `${Math.round(part.w * 100)}%`));
@@ -2307,10 +2345,10 @@ function tabMoat(r) {
        ['Weighted lease expiry', isNum(m.wale) ? `${fmtNum(m.wale)} yrs` : '—', 'Contracted income duration', 'wale', false],
        ['Net property margin', fmtPct(m.npm), 'Operating leverage on the assets', 'npm', false],
        ['Gearing', fmtPct(m.gearing), 'Refinancing exposure', 'gearing', true]]
-    : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : 'n/a', 'Excess return over the cost of capital', 'roic', false],
+    : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : el('span', { html: absentMark(r, 'roic') }), 'Excess return over the cost of capital', 'roic', false],
        ['Operating margin', fmtPct(m.om), 'Pricing power net of cost', 'om', false],
        ['Revenue growth stability', isNum(m.revVol) ? `${fmtNum(m.revVol)} s.d.` : '—', 'Whether the advantage holds through the cycle', 'revVol', true],
-       ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : 'n/a', 'Conversion of the advantage into cash', 'fcfm', false]];
+       ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : el('span', { html: absentMark(r, 'fcfm') }), 'Conversion of the advantage into cash', 'fcfm', false]];
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, 'Latest'), el('th', {}, 'Peer pct'), el('th', {}, 'Why it matters')])));
@@ -2393,14 +2431,24 @@ function tabOwnership(r) {
   act.append(tableTwin('Show the table view', ['Year', 'Shares (bn)', 'Change'],
     yearsOf(c).map((y, i) => [`FY${y}`, fmtNum(d.sh[i], 3), i && isNum(d.sh[i]) && isNum(d.sh[i - 1]) && d.sh[i - 1] ? withSign((d.sh[i] - d.sh[i - 1]) / d.sh[i - 1] * 100, 2) : '—'])));
   const kv2 = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
-  [['Share count CAGR', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.dilution, 2)],
-   ['Net buyback yield', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.buyback, 2)],
+  /* An absent figure here says why by the rule the screener uses. Each read
+     "n/m" or "n/a" whatever the cause, or a bare dash: Alphabet's and
+     Amazon's dividend growth "n/m" — "every input is present" — with the
+     dividend line not reported for years the rate reads; Coca-Cola's payout
+     ratio "n/m" and its share-count rate a dash, both withheld for a share
+     count the shipped file misassembled; Adobe's dividend cover "n/a", the
+     mark for a measure that does not apply, beside a dividend line that is
+     not reported. The share-count break keeps "see below", where the note
+     names the step. */
+  const figOr = (k, v, breakNote) => isNum(m[k]) ? v : breakNote ? 'Withheld — see below' : el('span', { html: absentMark(r, k) });
+  [['Share count CAGR', figOr('dilution', withSign(m.dilution, 2), m.shareSeriesBreak)],
+   ['Net buyback yield', figOr('buyback', withSign(m.buyback, 2), m.shareSeriesBreak)],
    /* Withheld on a break inside the five years it reads, not anywhere in
       the series: Alphabet's, absent because no dividend was paid in FY2021,
       read "Withheld" over a split years before its window. */
-   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : m.perShareBreak ? 'Withheld — see below' : 'n/m'],
-   ['Payout ratio', isNum(m.payout) ? fmtPct(m.payout, 0) : 'n/m'],
-   ['Dividends as % of free cash flow', isNum(m.cashPayout) ? fmtPct(m.cashPayout, 0) : 'n/a']]
+   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', figOr('dps5', withSign(m.dps5, 1), m.perShareBreak)],
+   ['Payout ratio', figOr('payout', fmtPct(m.payout, 0))],
+   ['Dividends as % of free cash flow', figOr('cashPayout', fmtPct(m.cashPayout, 0))]]
    .forEach(([k, v]) => { kv2.append(el('dt', {}, k)); kv2.append(el('dd', {}, v)); });
   act.append(kv2);
   /* Share counts arrive from the filings as reported, unadjusted for splits, and
