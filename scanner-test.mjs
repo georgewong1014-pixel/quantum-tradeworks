@@ -1921,5 +1921,155 @@ try {
 }
 /* ---- end round 3: data ---- */
 
+/* ---- round 3: ops ---- */
+/* THE OPERATIONS PAGES' FIXTURE IS HELD TO THE WORKER (SC-313 item 3; the
+   round 3 contract C4). In round 2 the pages and their fixture both followed
+   the plan's run record — counts at the top, the history as an object,
+   readiness.markets — and passed each other's checks while scanner/scan.mjs
+   wrote something else, so against a real run log every count read "not
+   recorded". Here the real worker is run in a temporary folder into every
+   state that can be reached from outside it, and every key the committed
+   fixture uses — on a run, in its counts, readiness, errors, lock takeover,
+   transitions and files, and in the control log — must be a key one of those
+   real records carries. For each status reached for real, each shared key
+   also has the same kind (null, number, string, list, object) as the
+   worker gives it. The four C4 additions (cacheStats, skippedMarkets,
+   catchUp, ledger) are allowed by name until the worker writes them, and the
+   check says which it does not write yet. PENDING, RUNNING and CANCELLED
+   cannot be reached from outside a run; their keys are makeRun()'s, which
+   every other status carries too. */
+{
+  const { RUN_STATUSES, EXIT_CODES } = await import('./scanner/scan.mjs');
+  const { hostname } = await import('node:os');
+  const FXO = E.scanFixture();
+  const SCANO = join(ROOT, 'scanner/scan.mjs');
+  const cli = async (...args) => {
+    try { const { stdout, stderr } = await run(process.execPath, [SCANO, ...args]); return { code: 0, stdout, stderr }; }
+    catch (e) { return { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; }
+  };
+  const base = join(tmpdir(), `qt-ops-keys-${process.pid}`);
+  await rm(base, { recursive: true, force: true });
+  const dir = async (name, { setups = [FXO.setup, FXO.setupV2], alerts = null, noSetups = false } = {}) => {
+    const d = join(base, name);
+    await mkdir(d, { recursive: true });
+    if (!noSetups) await writeFile(join(d, 'scan-setups.json'), JSON.stringify({ setups }));
+    await writeFile(join(d, 'price-history.json'), JSON.stringify(FXO.history));
+    if (alerts != null) await writeFile(join(d, 'scan-alerts.json'), alerts);
+    return d;
+  };
+  try {
+    /* A: completed; paused; turned away by a live lock, then unlocked; a
+       stale lock taken over (which evaluates, the record having changed);
+       the same inputs again, skipped as nothing new; a replay before the
+       first bar; a replay that completes. */
+    const A = await dir('a');
+    await cli('--data', A, '--now', FXO.now);
+    await cli('--data', A, '--pause', 'qa pause');
+    await cli('--data', A, '--now', FXO.now);
+    await cli('--data', A, '--resume');
+    await writeFile(join(A, 'scan.lock'), JSON.stringify({ pid: process.pid, host: hostname(), startedAt: new Date().toISOString(), runId: 'run-qa-live', token: 'q1' }));
+    await cli('--data', A, '--now', FXO.now);
+    await cli('--data', A, '--unlock', '--force');
+    await writeFile(join(A, 'scan.lock'), JSON.stringify({ pid: process.pid, host: hostname(), startedAt: new Date(Date.now() - 2 * 3600000).toISOString(), runId: 'run-qa-old', token: 'q2' }));
+    await cli('--data', A, '--now', FXO.now);
+    await cli('--data', A, '--now', FXO.now);
+    await cli('--data', A, '--as-of', '2025-01-02');
+    await cli('--data', A, '--as-of', FXO.lastBar);
+    /* B: a failed run and its retry. C: a setup untested everywhere, so the
+       run is PARTIAL with an error that names its setup. D: no setups. */
+    const B = await dir('b', { alerts: '{not json' });
+    await cli('--data', B, '--now', FXO.now);
+    const failedId = (JSON.parse(await readFile(join(B, 'scan-runs.json'), 'utf8')).runs.find(r => r.status === 'FAILED') || {}).id;
+    await rm(join(B, 'scan-alerts.json'));
+    if (failedId) await cli('--data', B, '--retry', failedId);
+    const C = await dir('c', { setups: [FXO.setup, { ...FXO.setup, id: 'qa-deep', rules: [{ left: { indicator: 'sma', n: 500 }, op: 'above', right: { value: 1 } }] }] });
+    await cli('--data', C, '--now', FXO.now);
+    const Dn = await dir('d', { noSetups: true });
+    await cli('--data', Dn, '--now', FXO.now);
+    /* E: the ready gate holding a market back. The fixture's skippedMarkets
+       entry is held to the keys the worker writes, and those can only be
+       learned from a run that held one back: this block was written before
+       --ready existed, and at merge it compared the fixture against an empty
+       set. A MY last bar captured at 15:00 in Kuala Lumpur is provisional,
+       so MY is held back while US runs — the worker's own ready test. */
+    const Ed = join(base, 'e');
+    await mkdir(Ed, { recursive: true });
+    const eDays = [];
+    for (let d = '2026-02-02'; d <= '2026-04-06'; d = E.scanAddDays(d, 1)) { const w = E.scanWeekday(d); if (w >= 1 && w <= 5) eDays.push(d); }
+    const eLast = eDays[eDays.length - 1];
+    const eSeries = (f) => Object.fromEntries(eDays.map((d, i) => [d, f(i)]));
+    await writeFile(join(Ed, 'price-history.json'), JSON.stringify({ schema: 2, series: { USA: eSeries(i => 50 + i), MYA: eSeries(i => 5 + i / 10) }, volume: {},
+      meta: { MYA: { [eLast]: { src: 'screen', at: '2026-04-06T07:00:00Z' } }, USA: { [eLast]: { src: 'screen', at: '2026-04-06T21:00:00Z' } } } }));
+    await writeFile(join(Ed, 'instruments.json'), JSON.stringify([{ symbol: 'USA', market: 'US' }, { symbol: 'MYA', market: 'MY' }]));
+    await writeFile(join(Ed, 'scan-setups.json'), JSON.stringify({ setups: [{ id: 'qa-ready', rules: [{ left: { indicator: 'price' }, op: 'above', right: { value: 0.01 } }] }] }));
+    await cli('--data', Ed, '--instruments', join(Ed, 'instruments.json'), '--now', '2026-04-07T02:00:00Z', '--trigger', 'daily', '--ready');
+
+    const real = { runs: [], audit: [] };
+    for (const d of [A, B, C, Dn, Ed]) {
+      const doc = existsSync(join(d, 'scan-runs.json')) ? JSON.parse(await readFile(join(d, 'scan-runs.json'), 'utf8')) : { runs: [], audit: [] };
+      real.runs.push(...(doc.runs || [])); real.audit.push(...(doc.audit || []));
+    }
+    const fixture = JSON.parse(await readFile(join(ROOT, 'scanner/fixtures/scan-runs.fixture.json'), 'utf8'));
+    const keysOf = (list) => new Set(list.filter(x => x && typeof x === 'object' && !Array.isArray(x)).flatMap(x => Object.keys(x)));
+    const C4 = ['cacheStats', 'skippedMarkets', 'catchUp', 'ledger'];
+    const W = {
+      run: keysOf(real.runs), counts: keysOf(real.runs.map(r => r.counts)), readiness: keysOf(real.runs.flatMap(r => r.readiness || [])),
+      errors: keysOf(real.runs.flatMap(r => [...(r.errors || []), r.error])), lock: keysOf(real.runs.map(r => r.lockTakeover)),
+      holder: keysOf([...real.runs.map(r => r.lockTakeover?.previous), ...real.audit.map(a => a.previous)]),
+      transitions: keysOf(real.runs.flatMap(r => r.transitions || [])), files: keysOf(real.runs.map(r => r.files)), audit: keysOf(real.audit),
+    };
+    const F = fixture.runs || [];
+    const Fk = {
+      run: keysOf(F), counts: keysOf(F.map(r => r.counts)), readiness: keysOf(F.flatMap(r => r.readiness || [])),
+      errors: keysOf(F.flatMap(r => [...(r.errors || []), r.error])), lock: keysOf(F.map(r => r.lockTakeover)),
+      holder: keysOf([...F.map(r => r.lockTakeover?.previous), ...(fixture.audit || []).map(a => a.previous)]),
+      transitions: keysOf(F.flatMap(r => r.transitions || [])), files: keysOf(F.map(r => r.files)), audit: keysOf(fixture.audit || []),
+    };
+    const reached = new Set(real.runs.map(r => r.status));
+    check(['COMPLETED', 'PARTIAL', 'FAILED', 'SKIPPED_NO_DATA', 'SKIPPED_NO_SETUPS', 'SKIPPED_LOCKED', 'SKIPPED_PAUSED'].every(s => reached.has(s))
+      && ['pause', 'resume', 'unlock', 'lock-takeover', 'replay', 'retry'].every(a => real.audit.some(x => x.action === a)),
+      'ops fixture vs the worker: the real worker, run in a temporary folder, reached every status reachable from outside a run and wrote every kind of control',
+      { statuses: [...reached], controls: [...new Set(real.audit.map(a => a.action))] });
+    /* Inside each C4 field the worker does write, the fixture's keys are
+       held to its keys too; skippedMarkets is a list of entries. */
+    C4.filter(k => W.run.has(k)).forEach(k => {
+      const inner = (list) => keysOf(list.flatMap(r => (Array.isArray(r[k]) ? r[k] : [r[k]])));
+      W[k] = inner(real.runs); Fk[k] = inner(F);
+    });
+    const stray = Object.entries(Fk).flatMap(([part, ks]) => [...ks].filter(k => !W[part].has(k) && !(part === 'run' && C4.includes(k))).map(k => `${part}.${k}`));
+    const notYet = C4.filter(k => !W.run.has(k));
+    check(!stray.length, `ops fixture vs the worker: every key of scanner/fixtures/scan-runs.fixture.json is one the worker writes — on a run, its counts, readiness, errors, lock takeover, transitions and files, and the control log${notYet.length ? ` (C4 fields the worker does not write yet, allowed by name: ${notYet.join(', ')})` : ' (the four C4 fields included)'}`, stray);
+    /* The kind of each shared key, per status the worker actually reached. */
+    const kind = (v) => (v === null || v === undefined ? 'null' : Array.isArray(v) ? 'list' : typeof v);
+    const kinds = new Map();
+    real.runs.forEach(r => Object.entries(r).forEach(([k, v]) => { const key = `${r.status}.${k}`; if (!kinds.has(key)) kinds.set(key, new Set()); kinds.get(key).add(kind(v)); }));
+    const wrongKind = F.filter(r => reached.has(r.status)).flatMap(r => Object.entries(r)
+      .filter(([k, v]) => kinds.has(`${r.status}.${k}`) && !kinds.get(`${r.status}.${k}`).has(kind(v))).map(([k, v]) => `${r.id} ${r.status}.${k} is ${kind(v)}, the worker writes ${[...kinds.get(`${r.status}.${k}`)].join('/')}`));
+    check(!wrongKind.length, 'ops fixture vs the worker: for each status the worker reached, every key the fixture shares with it holds the same kind of value (a skipped run\'s counts are null, a completed run\'s an object)', wrongKind);
+    const fStatuses = new Set(F.map(r => r.status));
+    const missingStatus = RUN_STATUSES.filter(s => !fStatuses.has(s));
+    const unknownStatus = [...fStatuses].filter(s => !RUN_STATUSES.includes(s));
+    const badExit = F.filter(r => (EXIT_CODES[r.status] ?? null) !== (r.exitCode ?? null)).map(r => `${r.id}: ${r.status} with exit ${r.exitCode}`);
+    check(!missingStatus.length && !unknownStatus.length && !badExit.length && F.every(r => r.kind === 'scan'),
+      `ops fixture vs the worker: the fixture holds a run of every status the worker can write (${RUN_STATUSES.length}: ${RUN_STATUSES.join(', ')}), none it cannot, each with the worker's exit code`,
+      { missingStatus, unknownStatus, badExit });
+    /* The delivery record the delivery page reads, held the same way: the
+       document, each channel and each row. Only the fixture's _note is its
+       own. */
+    const realDel = JSON.parse(await readFile(join(A, 'scan-deliveries.json'), 'utf8'));
+    const fxDel = JSON.parse(await readFile(join(ROOT, 'scanner/fixtures/scan-deliveries.fixture.json'), 'utf8'));
+    const strayDel = [
+      ...Object.keys(fxDel).filter(k => k !== '_note' && !(k in realDel)).map(k => `document.${k}`),
+      ...[...keysOf(Object.values(fxDel.channels || {}))].filter(k => !keysOf(Object.values(realDel.channels || {})).has(k)).map(k => `channel.${k}`),
+      ...[...keysOf(fxDel.deliveries || [])].filter(k => !keysOf(realDel.deliveries || []).has(k)).map(k => `delivery.${k}`),
+    ];
+    check(!strayDel.length && Object.keys(fxDel.channels || {}).sort().join() === Object.keys(realDel.channels || {}).sort().join(),
+      'ops fixture vs the worker: scanner/fixtures/scan-deliveries.fixture.json has the worker\'s channels and no key the worker does not write', strayDel);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+}
+/* ---- end round 3: ops ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

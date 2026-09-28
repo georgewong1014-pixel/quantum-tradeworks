@@ -110,6 +110,12 @@ const scanOpsAge = (t) => {
 const scanOpsDuration = (ms) => (!Number.isFinite(ms) ? '—' : ms < 1000 ? `${Math.round(ms)} ms`
   : ms < 60000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.floor(ms / 60000)} min ${Math.round((ms % 60000) / 1000)} s`);
 const scanOpsPlural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+/* Shows or hides a node. The hidden attribute alone loses to any author
+   display — .btn sets one, and so does a scanner table row on a phone — so
+   the screen's and the simulation's Cancel, meant only for a run in
+   progress, was on screen all the time. The inline display wins; the
+   attribute keeps the meaning for assistive technology. */
+const scanOpsShow = (node, on) => { node.hidden = !on; node.style.display = on ? '' : 'none'; return node; };
 
 function scanOpsLink(path, label, attrs = {}) {
   return el('a', { href: href(path), ...attrs, onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label);
@@ -201,20 +207,93 @@ const SCAN_STATE = {
 };
 const SCAN_RUN_STATUS = {
   COMPLETED: ['good', 'completed'], PARTIAL: ['warning', 'partial'], FAILED: ['critical', 'failed'], CANCELLED: ['info', 'cancelled'],
-  SKIPPED_NO_DATA: ['info', 'skipped — no history'], SKIPPED_NO_SETUPS: ['info', 'skipped — no setups'],
+  /* The worker writes SKIPPED_NO_DATA for no history, no bar on or before a
+     replay's date, and inputs unchanged since the last run — "no history"
+     misread the last, the commonest. The run's own reason says which. */
+  SKIPPED_NO_DATA: ['info', 'skipped — no new data'], SKIPPED_NO_SETUPS: ['info', 'skipped — no setups'],
   SKIPPED_LOCKED: ['warning', 'skipped — another run held the lock'], SKIPPED_PAUSED: ['info', 'skipped — paused'],
   RUNNING: ['info', 'running'], PENDING: ['info', 'pending'],
 };
 const scanRunChip = (s) => sevChip((SCAN_RUN_STATUS[s] || ['info'])[0], (SCAN_RUN_STATUS[s] || [null, s ? String(s).toLowerCase().replace(/_/g, ' ') : 'no status'])[1]);
-/* A run's counts, whichever form the worker wrote them in. */
+
+/* THE RUN RECORD AS THE WORKER WRITES IT (scanner/scan.mjs makeRun, and the
+   round 3 contract C4). The counts are nested in run.counts; readiness is a
+   plain array of { market, state, expected, newestFinal, inRun, text };
+   every problem is an entry of errors[] ({ category, message, setup?,
+   correlationId }); the history is historyHash and historyNewest at the
+   top; stale and provisional are counts. The alerts file's lastRun keeps
+   the older flat form — counts at the top, problems and stale as lists.
+   These pages first read the plan's shape, which no worker ever wrote, so
+   with a real run log every count, the history and the problems read "not
+   recorded". Each reader below takes either form, and an absent figure is
+   still said to be absent, never shown as zero. */
+const scanOpsN = (v) => (Number.isFinite(v) ? v : Array.isArray(v) ? v.length : null);
 function scanRunCounts(r) {
+  const c = r?.counts && typeof r.counts === 'object' ? r.counts : r || {};
   const k = r?.skippedByReason || {};
-  const n = (v) => (Number.isFinite(v) ? v : null);
-  return { setups: n(r?.setups), evaluated: n(r?.evaluated), matched: n(r?.matched), recorded: n(r?.recorded), untested: n(r?.untested),
-           deduped: n(r?.deduped ?? k.alreadyRecorded), cooldown: n(r?.cooldown ?? k.cooldown), continuing: n(r?.continuing) };
+  const n = scanOpsN;
+  return { setups: n(c.setups), evaluated: n(c.evaluated), matched: n(c.matched), recorded: n(c.recorded), untested: n(c.untested),
+           deduped: n(c.deduped ?? k.alreadyRecorded), cooldown: n(c.cooldown ?? k.cooldown), continuing: n(c.continuing),
+           skipped: n(c.skipped), problems: n(c.problems), untestedEverywhere: n(c.untestedEverywhere), deliveries: n(c.deliveries),
+           stale: n(r?.stale), provisional: n(r?.provisional) };
 }
 const scanRunError = (r) => (r?.error ? { category: r.error.category || r.error.code || 'error', code: r.error.code || null,
   message: r.error.message || String(r.error), correlation: r.error.correlationId || r.id || null } : null);
+/* Every problem the run recorded, in the order it recorded them. The
+   worker's errors[] when there is one; otherwise the single error, and the
+   flat form's refused setups and untested-everywhere list. */
+function scanRunProblems(r) {
+  if (Array.isArray(r?.errors) && r.errors.length) return r.errors.filter(e => e && typeof e === 'object')
+    .map(e => ({ category: e.category || 'error', message: e.message || '(no message)', setup: e.setup || null, correlation: e.correlationId || null }));
+  const out = [];
+  const e = scanRunError(r);
+  if (e) out.push({ category: e.category, message: e.message, setup: null, correlation: e.correlation });
+  (Array.isArray(r?.problems) ? r.problems : []).forEach(p => out.push({ category: 'VALIDATION', message: String(p), setup: null, correlation: null }));
+  (Array.isArray(r?.untestedEverywhere) ? r.untestedEverywhere : []).forEach(u => out.push({ category: 'DATA',
+    message: typeof u === 'string' ? `${u}: untested everywhere` : `${u?.setup}: untested everywhere — ${u?.why}`, setup: u?.setup || null, correlation: null }));
+  return out;
+}
+/* The markets of the run that were not ready, as the readiness gate wrote
+   them — the worker's array, or the plan's { markets } object. */
+const scanRunReadiness = (r) => (Array.isArray(r?.readiness) ? r.readiness : Array.isArray(r?.readiness?.markets) ? r.readiness.markets : [])
+  .filter(m => m && typeof m === 'object');
+/* The history the run read: its newest bar and its hash (the worker), or
+   the plan's { history } object. A run that stopped before reading it says
+   so rather than showing a dash. */
+function scanRunHistoryText(r) {
+  if (r?.historyNewest || r?.historyHash) return `newest bar ${r.historyNewest || 'not recorded'}${r.historyHash ? ` · ${r.historyHash}` : ''}`;
+  if (r?.history && typeof r.history === 'object') return `${r.history.symbols ?? '—'} series, newest bar ${r.history.newestBar || '—'}, written ${scanOpsWhen(r.history.generated)}`;
+  return r?.status === 'PENDING' || r?.status === 'RUNNING' ? 'not read yet' : 'not read — the run ended before it read the history';
+}
+/* The four round 3 additions (C4), each optional. A worker that does not
+   write one is not a worker that found nothing: absent reads "not recorded
+   by this worker", an empty list reads "none". */
+const SCAN_NOT_WRITTEN = 'not recorded — this worker does not write it';
+function scanRunSkippedMarketsText(r) {
+  if (!Array.isArray(r?.skippedMarkets)) return SCAN_NOT_WRITTEN;
+  const list = r.skippedMarkets.filter(m => m && typeof m === 'object');
+  return list.length ? list.map(m => `${m.market || 'no market row'} — ${m.reason || 'no reason recorded'}`).join('; ') : 'none — every market in the run was ready';
+}
+function scanRunCatchUpText(r) {
+  const c = r?.catchUp;
+  if (!c || typeof c !== 'object') return SCAN_NOT_WRITTEN;
+  const pairs = scanOpsN(c.pairs), bars = scanOpsN(c.bars);
+  if (pairs === 0 || bars === 0) return 'none — no pair was behind its newest bar, so each was evaluated on that bar alone';
+  const many = (v, one, more) => (v == null ? `an unrecorded number of ${more}` : `${fmtNum(v, 0)} ${v === 1 ? one : more}`);
+  /* capped may be a count of pairs, their list, or a yes or no. */
+  const cut = c.capped === true ? 'the cap was reached' : c.capped === false ? 0 : scanOpsN(c.capped);
+  const tail = cut == null ? '' : cut === 0 ? '; no pair reached the cap'
+    : `; ${typeof cut === 'string' ? cut : `${many(cut, 'pair', 'pairs')} reached the cap`}, so bars older than the cap were not evaluated — node scanner/scan.mjs --as-of DATE evaluates one on purpose`;
+  return `${many(pairs, 'setup × instrument pair', 'setup × instrument pairs')} caught up over ${many(bars, 'bar', 'bars')} since each one’s last evaluated bar${tail}`;
+}
+function scanRunLedgerText(r) {
+  const l = r?.ledger;
+  if (!l || typeof l !== 'object') return SCAN_NOT_WRITTEN;
+  const f = (v) => (scanOpsN(v) == null ? 'not recorded' : fmtNum(scanOpsN(v), 0));
+  return `${f(l.known)} version${scanOpsN(l.known) === 1 ? '' : 's'} already in the ledger · ${f(l.newVersions)} recorded for the first time · ${f(l.refused)} refused${scanOpsN(l.refused) ? ' — a version number reused with other content; the run’s problems name it' : ''}`;
+}
+const scanRunCacheText = (cs) => (cs && typeof cs === 'object' && (Number.isFinite(cs.hits) || Number.isFinite(cs.misses))
+  ? `${Number.isFinite(cs.hits) ? fmtNum(cs.hits, 0) : 'not recorded'} reused, ${Number.isFinite(cs.misses) ? fmtNum(cs.misses, 0) : 'not recorded'} computed` : null);
 
 /* A condition list: each line says whether it held, then the engine's own
    sentence with the values it compared. Untested is not failed. */
@@ -565,7 +644,7 @@ VIEWS.scannerMarket = () => {
 
   const progress = el('p', { class: 'metaline', role: 'status' });
   const runBtn = el('button', { class: 'btn btn-primary btn-sm' }, 'Screen now (not recorded)');
-  const cancelBtn = el('button', { class: 'btn btn-quiet btn-sm', hidden: '' }, 'Cancel');
+  const cancelBtn = scanOpsShow(el('button', { class: 'btn btn-quiet btn-sm' }, 'Cancel'), false);
   runBtn.disabled = !pick.setup || !haveHistory;
   form.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [runBtn, cancelBtn, progress]));
   if (!haveHistory) form.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
@@ -577,7 +656,7 @@ VIEWS.scannerMarket = () => {
     if (!setup) return;
     const job = { cancelled: false };
     S.job = job;
-    runBtn.disabled = true; cancelBtn.hidden = false;
+    runBtn.disabled = true; scanOpsShow(cancelBtn, true);
     const s = { ...setup, enabled: true, expires: null, universe: S.market === '__all' ? { kind: 'all' } : { kind: 'market', market: S.market } };
     const hist = S.asOf ? scanTruncateHistory(history, S.asOf) : history;
     const now = S.asOf ? scanReplayNow(S.asOf) : scanOpsNow();
@@ -591,11 +670,14 @@ VIEWS.scannerMarket = () => {
     const rows = [];
     const done = await scanOpsChunked(symbols, (sym) => rows.push(scanScreenOne(s, hist, sym, ctx)), {
       onProgress: (i, n) => { progress.textContent = `Screened ${i} of ${n}…`; }, cancelled: () => job.cancelled });
-    cancelBtn.hidden = true; runBtn.disabled = false;
+    scanOpsShow(cancelBtn, false); runBtn.disabled = false;
     if (!done) { progress.textContent = `Cancelled after ${rows.length} of ${symbols.length}. Nothing was kept.`; return; }
     progress.textContent = '';
     const regCount = S.market === '__all' ? scanOpsRegistry().length : scanOpsRegistry().filter(i => String(i.market || '').toUpperCase() === S.market).length;
-    S.result = { at: new Date().toISOString(), setup: s, market: S.market, asOf: S.asOf || null, now, rows, capped: all.length > symbols.length ? all.length : 0, registry: regCount };
+    /* Where the setup came from decides what the builder can be handed:
+       only a setup in the file has an id the builder can find (?from=). */
+    const source = String(S.setup || '').startsWith('file:') ? 'file' : S.setup === 'draft' ? 'draft' : 'pasted';
+    S.result = { at: new Date().toISOString(), setup: s, source, market: S.market, asOf: S.asOf || null, now, rows, capped: all.length > symbols.length ? all.length : 0, registry: regCount };
     results.replaceChildren(scanScreenResult(S.result));
     results.querySelector('h2, h3')?.setAttribute('tabindex', '-1');
     results.querySelector('h2, h3')?.focus({ preventScroll: false });
@@ -636,9 +718,36 @@ function scanScreenResult(R) {
   const stepped = R.rows.filter(r => r.stepped);
   if (stepped.length) box.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     `${scanOpsPlural(stepped.length, 'instrument')} had a provisional last bar (captured before its session closed and settled); the bar before it was evaluated instead: ${stepped.map(r => r.symbol).join(', ')}.`));
-  box.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, [
-    'To have the worker record matches on this market, give a setup this market as its universe in the ', scanOpsLink('/app/scanner/setups/new', 'setup builder'), '.']));
+  box.append(scanScreenSave(R));
   return box;
+}
+/* SAVE AS A SETUP. A screen records nothing; to have the worker record
+   matches on this market, the reader saves a setup whose universe is it.
+   The builder takes the screen along through its address (the round 3
+   contract C5): ?market= sets the universe to this market, and ?from=
+   starts the draft from the setup screened — a copy under a new id, so the
+   setup in the file is never changed from here. Only a setup in the file
+   has an id the builder can find; the builder's own draft is already in
+   the builder, and a pasted one has to be pasted there. "Everything with a
+   series" has no parameter in C5, so that link carries the setup alone and
+   says which universe to choose. */
+function scanScreenSave(R) {
+  const q = new URLSearchParams();
+  if (R.market !== '__all') q.set('market', R.market);
+  if (R.source === 'file' && R.setup?.id) q.set('from', R.setup.id);
+  const path = `/app/scanner/setups/new${q.toString() ? `?${q}` : ''}`;
+  const name = R.setup?.name || R.setup?.id || 'this setup';
+  const where = R.market === '__all' ? null : R.market;
+  const pick = where ? '' : ' Choose that universe there: the link cannot carry it.';
+  const what = R.source === 'file'
+    ? `opens the builder on a copy of ${name}${where ? ` with ${where} as its universe` : ''}. The setup in your file is not changed.${pick}`
+    : R.source === 'draft'
+      ? `opens the builder, where your draft is${where ? `, asking it for ${where} as the universe` : ''}.${pick}`
+      : `opens the builder${where ? ` with ${where} as the universe` : ''}. A pasted setup is not in your setups file, so its conditions do not travel in the link: paste them there.${pick}`;
+  return el('p', { class: 'metaline scan-save', style: 'margin-top:var(--sm)' }, [
+    where ? 'To have the worker record matches on this market, save a setup with it as the universe. '
+          : 'To have the worker record matches on these instruments, save a setup whose universe is every instrument with a series. ',
+    scanOpsLink(path, 'Save as a setup', { 'data-from': R.source }), ` ${what}`]);
 }
 
 /* ===================================================== historical testing === */
@@ -695,7 +804,7 @@ VIEWS.scannerBacktest = () => {
   form.append(g);
   const progress = el('p', { class: 'metaline', role: 'status' });
   const runBtn = el('button', { class: 'btn btn-primary btn-sm' }, 'Run the simulation');
-  const cancelBtn = el('button', { class: 'btn btn-quiet btn-sm', hidden: '' }, 'Cancel');
+  const cancelBtn = scanOpsShow(el('button', { class: 'btn btn-quiet btn-sm' }, 'Cancel'), false);
   runBtn.disabled = !pick.setup || !universe.length;
   form.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [runBtn, cancelBtn, progress]));
   if (!haveHistory) form.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
@@ -708,14 +817,14 @@ VIEWS.scannerBacktest = () => {
     const s = pick.setup;
     if (!s) return;
     const job = { cancelled: false };
-    S.job = job; runBtn.disabled = true; cancelBtn.hidden = false;
+    S.job = job; runBtn.disabled = true; scanOpsShow(cancelBtn, true);
     const syms = S.symbol ? [S.symbol] : universe;
     const cache = scanCache();
     const parts = [];
     const done = await scanOpsChunked(syms, (sym) => parts.push(scanHistorical(s, history, { symbols: [sym], from: S.from || null, to: S.to || null,
       maxBars: SCAN_BACKTEST_MAX_BARS, instruments: scanOpsRegistry(), cache })), {
       size: 2, onProgress: (i, n) => { progress.textContent = `Simulated ${i} of ${n} instrument${n === 1 ? '' : 's'}…`; }, cancelled: () => job.cancelled });
-    cancelBtn.hidden = true; runBtn.disabled = false;
+    scanOpsShow(cancelBtn, false); runBtn.disabled = false;
     if (!done) { progress.textContent = `Cancelled after ${parts.length} of ${syms.length}. Nothing was kept.`; return; }
     progress.textContent = '';
     S.result = { setup: s, from: S.from || null, to: S.to || null, out: scanBacktestMerge(parts, s) };
@@ -831,7 +940,7 @@ VIEWS.scannerAdmin = () => {
   const ing = Array.isArray(ingestRunsFile) ? ingestRunsFile : Array.isArray(ingestRunsFile?.runs) ? ingestRunsFile.runs : [];
   const lastIng = [...ing].filter(r => r && typeof r === 'object').sort((a, b) => String(b.startedAt || b.at || '').localeCompare(String(a.startedAt || a.at || '')))[0] || null;
   const steps = lastIng ? (Array.isArray(lastIng.steps) ? lastIng.steps : Object.entries(lastIng.steps || {}).map(([name, v]) => ({ name, ...(v && typeof v === 'object' ? v : { status: v }) }))) : [];
-  wrap.append(panel('Data sources', 'No provider is licensed to this product. The sources are yours: your screen capture, your export, your live reader — combined into one history file.',
+  wrap.append(panel('Data sources', 'No provider is licensed to this product. The sources are yours: your screen capture, your export, and the end-of-day quotes you fetch yourself — combined into one history file.',
     el('dl', { class: 'kv scan-kv' }, [
       el('dt', {}, 'Price history'), el('dd', {}, hm ? `data/price-history.json · ${scanOpsPlural(hm.symbols.length, 'series', 'series')} · newest bar ${hm.newestBar || '—'} · ${hm.generated ? `written ${scanOpsWhen(hm.generated)}` : 'no write date in the file'}${history?.source ? ` · source ${history.source}` : ''}` : 'not loaded'),
       el('dt', {}, 'Last ingestion'), el('dd', {}, lastIng ? `${scanOpsWhen(lastIng.startedAt || lastIng.at)} · ${lastIng.status || (lastIng.exitCode === 0 ? 'completed' : lastIng.exitCode != null ? `exit ${lastIng.exitCode}` : 'no status recorded')}` : 'no ingest log'),
@@ -870,28 +979,54 @@ VIEWS.scannerAdmin = () => {
   const last30 = runs.slice(0, 30);
   const byStatus = {};
   last30.forEach(r => { byStatus[r.status || 'NO STATUS'] = (byStatus[r.status || 'NO STATUS'] || 0) + 1; });
-  wrap.append(panel('Scan jobs', 'Runs are started by your task scheduler or by hand. There is no job queue, so nothing is ever queued; a run in progress exists only as the lock file, which this page cannot read.',
+  wrap.append(panel('Scan jobs', 'Runs are started by your task scheduler or by hand. There is no job queue, so nothing is ever queued. A run in progress is in the log as pending or running; what holds a second run off is the lock file, which this page cannot read.',
     runs.length ? el('div', { class: 'row row-wrap', style: 'gap:8px' }, Object.entries(byStatus).map(([s, n]) => el('span', { class: 'row', style: 'gap:6px;align-items:center' }, [scanRunChip(s), el('span', { class: 'metaline' }, `× ${n}`)]))) : null,
     runs.length ? el('p', { class: 'metaline', style: 'margin-top:6px' }, `The last ${last30.length} of ${runs.length} runs recorded. Latest: ${scanOpsWhen(runs[0].startedAt)}. `, scanOpsLink('/admin/scanner/jobs', 'Every run')) : null,
     dropped ? el('p', { class: 'metaline' }, `${scanOpsPlural(dropped, 'entry', 'entries')} in the run log could not be read and ${dropped === 1 ? 'is' : 'are'} left out.`) : null,
     scanOpsFileState('scan-runs.json', scanRunsFile, 'The worker writes it on every attempt, success or failure.'),
     !scanRunsFile && scanOpsAlertsDoc()?.lastRun ? el('p', { class: 'metaline' }, `Without it, the only record is the alerts file’s last successful run (${scanOpsWhen(scanOpsAlertsDoc().lastRun.at)}); a failure writes nothing there.`) : null));
 
-  /* 4 — indicator cache. */
-  const lr = runs[0] || null;
+  /* 4 — indicator cache. From the newest run that recorded one: a run that
+     stopped before evaluating has no cache to report. A worker from before
+     round 3 wrote the figures only to the alerts file's lastRun, so where no
+     run in the log carries them, that is where they are read — and the
+     page says which file they came from. */
+  const lastRunDoc = scanOpsAlertsDoc()?.lastRun || null;
+  const cacheRun = runs.find(r => scanRunCacheText(r.cacheStats)) || null;
+  const cacheDoc = !cacheRun && scanRunCacheText(lastRunDoc?.cacheStats) ? lastRunDoc : null;
+  const engineRun = runs.find(r => r.engine) || null;
   wrap.append(panel('Indicator cache', 'None is kept between runs. Each run computes an indicator once per series, data version and formula version, and reuses it across every setup in that run; the next run starts empty.',
-    el('dl', { class: 'kv scan-kv' }, [el('dt', {}, 'Engine'), el('dd', {}, `this page runs scan ${SCAN_VERSION}${lr?.engine ? `; the last run, ${lr.engine}` : ''}`),
-      el('dt', {}, 'Last run’s cache'), el('dd', {}, lr?.cacheStats ? `${fmtNum(lr.cacheStats.hits, 0)} reused, ${fmtNum(lr.cacheStats.misses, 0)} computed` : 'not recorded')])));
+    el('dl', { class: 'kv scan-kv' }, [el('dt', {}, 'Engine'), el('dd', {}, `this page runs scan ${SCAN_VERSION}${engineRun ? `; the last run to load one, ${engineRun.engine}` : ''}`),
+      el('dt', {}, 'Last run’s cache'), el('dd', {}, cacheRun ? scanRunCacheText(cacheRun.cacheStats) : cacheDoc ? scanRunCacheText(cacheDoc.cacheStats) : 'not recorded'),
+      el('dt', {}, 'Read from'), el('dd', {}, cacheRun ? `run ${cacheRun.id || '(no id)'}, ${scanOpsWhen(cacheRun.startedAt)}`
+        : cacheDoc ? `the alerts file’s last run${cacheDoc.runId ? `, ${cacheDoc.runId}` : ''} (${scanOpsWhen(cacheDoc.at)}) — no run in the log carries the figures`
+        : runs.length || lastRunDoc ? 'no run records its cache' : 'no run is recorded')])));
 
-  /* 5 — alert engine. */
-  const lc = scanRunCounts(lr || scanOpsAlertsDoc()?.lastRun || null);
+  /* 5 — alert engine. From the newest run that evaluated — one with counts.
+     A run that was skipped, turned away by the lock or failed before
+     evaluating has none, and that absence is not a zero: when the latest
+     attempt is such a run it is named beside the one that did evaluate. */
+  const evalRun = runs.find(r => scanRunCounts(r).evaluated != null) || null;
+  const engSrc = evalRun || (lastRunDoc && scanRunCounts(lastRunDoc).evaluated != null ? lastRunDoc : null);
+  const lc = scanRunCounts(engSrc);
+  const latest = runs[0] || null;
   const cnt = (v) => (v == null ? 'not recorded' : fmtNum(v, 0));
-  wrap.append(panel('Alert engine', lr || scanOpsAlertsDoc()?.lastRun ? `The last run${lr ? ` (${lr.id || scanOpsWhen(lr.startedAt)})` : ', from the alerts file'}. An alert is written before anything else happens to it, and nothing is ever sent, so no alert can be lost to a delivery failure.` : 'No run is recorded.',
-    lr || scanOpsAlertsDoc()?.lastRun ? el('dl', { class: 'kv scan-kv' }, [
-      el('dt', {}, 'Evaluated'), el('dd', {}, cnt(lc.evaluated)), el('dt', {}, 'Matched'), el('dd', {}, cnt(lc.matched)),
+  const fromDoc = (fn) => (evalRun ? fn(evalRun) : 'not in the alerts file’s last run — the run log carries it');
+  wrap.append(panel('Alert engine', engSrc ? `The last run that evaluated: ${evalRun ? `${evalRun.id || 'a run with no id'}, ${scanOpsWhen(evalRun.startedAt)}` : `the alerts file’s last run, ${scanOpsWhen(lastRunDoc.at)} — no run log is loaded`}.${latest && evalRun && latest !== evalRun ? ` The latest attempt, ${latest.id || scanOpsWhen(latest.startedAt)}, was ${(SCAN_RUN_STATUS[latest.status] || [null, String(latest.status || 'unrecorded').toLowerCase()])[1]} and evaluated nothing.` : ''} An alert is written before anything else happens to it, and nothing is ever sent, so no alert can be lost to a delivery failure.`
+      : runs.length ? 'No run in the log evaluated anything: each was skipped, turned away or failed first.' : 'No run is recorded.',
+    engSrc ? el('dl', { class: 'kv scan-kv scan-engine' }, [
+      el('dt', {}, 'Evaluated'), el('dd', {}, lc.evaluated == null ? 'not recorded' : `${cnt(lc.evaluated)} setup × instrument pairs${lc.setups != null ? `, ${scanOpsPlural(lc.setups, 'setup')}` : ''}`),
+      el('dt', {}, 'Matched'), el('dd', {}, cnt(lc.matched)),
       el('dt', {}, 'Recorded'), el('dd', {}, cnt(lc.recorded)), el('dt', {}, 'Already recorded (deduplicated)'), el('dd', {}, cnt(lc.deduped)),
       el('dt', {}, 'Held back by a cooldown'), el('dd', {}, cnt(lc.cooldown)), el('dt', {}, 'Still matching (not new)'), el('dd', {}, cnt(lc.continuing)),
-      el('dt', {}, 'Untested'), el('dd', {}, cnt(lc.untested)), el('dt', {}, 'Failed to record'), el('dd', {}, 'not a state: the record is one file, written whole or not at all'),
+      el('dt', {}, 'Untested'), el('dd', {}, cnt(lc.untested)),
+      el('dt', {}, 'Series behind the rest'), el('dd', {}, lc.stale == null ? 'not recorded' : `${cnt(lc.stale)} — evaluated, on an older bar`),
+      el('dt', {}, 'Provisional last bars'), el('dd', {}, lc.provisional == null ? 'not recorded' : `${cnt(lc.provisional)} — the bar before was evaluated`),
+      el('dt', {}, 'Markets not ready'), el('dd', {}, fromDoc(scanRunSkippedMarketsText)),
+      el('dt', {}, 'Caught up'), el('dd', {}, fromDoc(scanRunCatchUpText)),
+      el('dt', {}, 'Version ledger'), el('dd', {}, fromDoc(scanRunLedgerText)),
+      el('dt', {}, 'Delivered in the app'), el('dd', {}, lc.deliveries == null ? 'not recorded' : `${cnt(lc.deliveries)} — written to the record; nothing is sent`),
+      el('dt', {}, 'Failed to record'), el('dd', {}, 'not a state: the record is one file, written whole or not at all'),
     ]) : null));
 
   /* 6 — notifications. */
@@ -905,19 +1040,29 @@ VIEWS.scannerAdmin = () => {
       el('dt', {}, 'Monitored instruments'), el('dd', {}, st.monitored ? fmtNum(st.monitored.instruments, 0) : 'no price history loaded'),
       el('dt', {}, 'Alerts recorded'), el('dd', {}, (() => { const d = scanOpsAlertsDoc(); const l = Array.isArray(d) ? d : d?.alerts; return Array.isArray(l) ? fmtNum(l.length, 0) : 'no alerts file'; })())])));
 
-  /* 8 — errors. */
-  const errs = runs.filter(r => r.status === 'FAILED' || r.status === 'PARTIAL' || r.error).slice(0, 50);
-  wrap.append(panel('Errors', 'Failed and partial runs, newest first. The run id is the correlation id: the worker prints it, and --runs finds it.',
+  /* 8 — errors. The runs that did not finish their work: failed, cancelled
+     and partial. A run turned away by the lock or skipped while paused
+     carries a LOCK or no error, but another run (or the pause) accounts
+     for it, so it is on Runs, not here. Each problem shows the correlation
+     id the worker printed beside it on screen. */
+  const errs = runs.filter(r => ['FAILED', 'PARTIAL', 'CANCELLED'].includes(r.status)).slice(0, 50);
+  wrap.append(panel('Errors', 'Failed, cancelled and partial runs, newest first. Each problem carries the correlation id the worker printed beside it — the run id and the problem’s number — and node scanner/scan.mjs --runs finds the run.',
     errs.length ? scanOpsTable(['When', 'Run', 'Status', 'Category', 'What happened', 'Retry'], errs.map(r => {
-      const e = scanRunError(r);
-      return [scanOpsWhen(r.startedAt), el('code', {}, r.id || '—'), scanRunChip(r.status), e?.category || (r.status === 'PARTIAL' ? 'partial' : '—'),
-        e?.message || (r.problems?.length ? r.problems.join('; ') : r.untestedEverywhere?.length ? `untested everywhere: ${r.untestedEverywhere.map(u => u.setup || u).join(', ')}` : '—'),
-        r.status === 'FAILED' && r.id ? el('code', { class: 'scan-cmd-code scan-nowrap' }, `node scanner/scan.mjs --retry ${r.id}`) : r.status === 'FAILED' ? 'node scanner/scan.mjs' : 'not needed'];
-    }), { wrapCols: [4], caption: 'Failed and partial runs' })
-      : el('p', { class: 'metaline' }, scanRunsFile ? 'No failed or partial run is recorded.' : 'No run log, so no failure can be listed — and the alerts file records successes only.')));
+      const ps = scanRunProblems(r), e = ps[0];
+      return [scanOpsWhen(r.startedAt), el('code', {}, r.id || '—'), scanRunChip(r.status), e?.category || '—',
+        e ? `${e.message}${e.correlation ? ` [${e.correlation}]` : ''}${ps.length > 1 ? ` — and ${scanOpsPlural(ps.length - 1, 'more problem')}, listed on Runs` : ''}`
+          : r.status === 'PARTIAL' ? 'partial, with no problem recorded' : 'no error recorded',
+        /* Kept whole on one line it was 433px, and once a phone turns the
+           table into blocks it pushed a 390px page sideways. It may now
+           break in one place only — between the command and the run id —
+           so neither half is ever cut mid-word. */
+        r.status !== 'PARTIAL' && r.id ? el('code', { class: 'scan-cmd-code' }, [el('span', { style: 'white-space:nowrap' }, 'node scanner/scan.mjs --retry'), ' ', el('span', { style: 'white-space:nowrap' }, r.id)])
+          : r.status !== 'PARTIAL' ? 'node scanner/scan.mjs' : 'not needed — its alerts are recorded'];
+    }), { wrapCols: [4], caption: 'Failed, cancelled and partial runs' })
+      : el('p', { class: 'metaline' }, scanRunsFile ? 'No failed, cancelled or partial run is recorded.' : 'No run log, so no failure can be listed — and the alerts file records successes only.')));
 
   /* 9 — controls. */
-  wrap.append(panel('Controls', 'Commands, run where the worker runs. Each is written to the worker’s control log (the audit list on Runs) with its time and arguments — a local, append-only file with no identity behind it.',
+  wrap.append(panel('Controls', 'Commands, run where the worker runs. Each is written to the worker’s control log (on Runs) with its time, its arguments and the machine’s own account name — a local, append-only file, not a verified identity.',
     scanOpsCmd('node scanner/scan.mjs --retry <run id>', 'Runs a failed run again. Alerts are keyed by setup, version, instrument, timeframe, bar and event, so nothing already recorded is recorded twice; a plain node scanner/scan.mjs is just as safe.'),
     scanOpsCmd('node scanner/scan.mjs --as-of YYYY-MM-DD', 'Replays a session: the history cut at that date, judged as that evening. Deduplicated against the record, so a replay adds only what was never recorded — and nothing is resent, because nothing is ever sent.'),
     scanOpsCmd('node scanner/scan.mjs --pause "why"', 'Stops scheduled runs: each records itself skipped, and writes nothing else, until you resume.'),
@@ -1133,39 +1278,33 @@ VIEWS.scannerAdminJobs = () => {
     if (!scanRunsFile) card.append(scanOpsOpenFiles());
     wrap.append(card);
   } else {
-    const groups = { all: () => true, COMPLETED: r => r.status === 'COMPLETED', PARTIAL: r => r.status === 'PARTIAL', FAILED: r => r.status === 'FAILED', SKIPPED: r => /^SKIPPED|CANCELLED/.test(r.status || '') };
+    /* One filter per state the worker writes (scanner/scan.mjs
+       RUN_STATUSES), and "other" for a status this page does not know, so
+       a run a newer worker records is never filtered out of sight. A group
+       with no run is left out, except the one chosen. */
+    const known = new Set(Object.keys(SCAN_RUN_STATUS));
+    const GROUPS = [
+      ['all', 'All', () => true],
+      ['COMPLETED', 'Completed', r => r.status === 'COMPLETED'],
+      ['PARTIAL', 'Partial', r => r.status === 'PARTIAL'],
+      ['FAILED', 'Failed', r => r.status === 'FAILED'],
+      ['CANCELLED', 'Cancelled', r => r.status === 'CANCELLED'],
+      ['SKIPPED', 'Skipped', r => /^SKIPPED/.test(r.status || '')],
+      ['UNFINISHED', 'Pending or running', r => r.status === 'PENDING' || r.status === 'RUNNING'],
+      ['OTHER', 'Other', r => !known.has(r.status)],
+    ];
     const F = scanJobsState;
-    if (!groups[F.filter]) F.filter = 'all';
-    card.append(cardHead(`${scanOpsPlural(runs.length, 'run')} recorded`, 'Newest first. Open a row for its readiness, problems and error.'));
+    if (!GROUPS.some(([k]) => k === F.filter)) F.filter = 'all';
+    card.append(cardHead(`${scanOpsPlural(runs.length, 'run')} recorded`, 'Newest first. Open a row for its history, readiness, problems and how it ran.'));
     const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Filter runs by status', style: 'margin-bottom:var(--sm)' });
     const host = el('div');
-    const labels = { all: 'All', COMPLETED: 'Completed', PARTIAL: 'Partial', FAILED: 'Failed', SKIPPED: 'Skipped' };
     const draw = () => {
-      seg.replaceChildren(...Object.keys(groups).map(k => el('button', { 'aria-pressed': F.filter === k ? 'true' : 'false', 'aria-selected': F.filter === k ? 'true' : 'false',
-        onclick: () => { F.filter = k; draw(); seg.querySelector('[aria-pressed="true"]')?.focus(); } }, `${labels[k]} (${runs.filter(groups[k]).length})`)));
-      const list = runs.filter(groups[F.filter]);
-      host.replaceChildren(list.length ? scanOpsPaged(list, (rows) => scanOpsTable(['Started', 'Status', 'Trigger', 'Duration', 'Bars', 'Counts', 'Detail'], rows.map(r => {
-        const c = scanRunCounts(r), e = scanRunError(r);
-        const det = el('details', { class: 'scan-row-det' });
-        det.append(el('summary', { class: 'caption' }, e ? `${e.category}: ${e.message}`.slice(0, 90) : 'Details'));
-        det.append(el('dl', { class: 'kv scan-kv' }, [
-          el('dt', {}, 'Run id'), el('dd', {}, el('code', {}, r.id || '—')),
-          el('dt', {}, 'Engine'), el('dd', {}, r.engine || '—'),
-          el('dt', {}, 'Exit code'), el('dd', {}, r.exitCode != null ? String(r.exitCode) : '—'),
-          el('dt', {}, 'Finished'), el('dd', {}, scanOpsWhen(r.finishedAt)),
-          el('dt', {}, 'History'), el('dd', {}, r.history ? `${r.history.symbols ?? '—'} series, newest bar ${r.history.newestBar || '—'}, written ${scanOpsWhen(r.history.generated)}` : '—'),
-          el('dt', {}, 'Setups hash'), el('dd', {}, r.setupsHash || '—'),
-          r.replayAsOf ? el('dt', {}, 'Replay of') : null, r.replayAsOf ? el('dd', {}, r.replayAsOf) : null,
-          e ? el('dt', {}, 'Error') : null, e ? el('dd', {}, `${e.category}${e.code && e.code !== e.category ? ` (${e.code})` : ''}: ${e.message}${e.correlation ? ` · correlation ${e.correlation}` : ''}`) : null,
-        ]));
-        const lines = [...(r.problems || []).map(p => `refused — ${p}`), ...(r.untestedEverywhere || []).map(u => typeof u === 'string' ? `${u}: untested everywhere` : `${u.setup}: untested everywhere — ${u.why}`),
-          ...((r.readiness?.markets || []).filter(m => m.inRun !== false && m.state && m.state !== 'READY').map(m => m.text))];
-        if (lines.length) det.append(el('ul', { class: 'rulelist' }, lines.slice(0, 40).map(t => el('li', {}, t))));
-        if (r.status === 'FAILED' && r.id) det.append(scanOpsCmd(`node scanner/scan.mjs --retry ${r.id}`, 'Runs it again; nothing already recorded is recorded twice.'));
-        return [scanOpsWhen(r.startedAt), scanRunChip(r.status), r.trigger || r.origin || '—', scanOpsDuration(r.durationMs ?? (Date.parse(r.finishedAt) - Date.parse(r.startedAt))),
-          r.asOf ? scanBarRange(r.asOfFrom, r.asOf) : '—',
-          c.evaluated == null ? '—' : `${fmtNum(c.evaluated, 0)} evaluated · ${fmtNum(c.matched ?? 0, 0)} matched · ${fmtNum(c.recorded ?? 0, 0)} recorded${c.untested ? ` · ${fmtNum(c.untested, 0)} untested` : ''}`, det];
-      }), { wrapCols: [5, 6], caption: 'Runs, newest first' }), { step: 50, noun: 'runs' }) : el('p', { class: 'metaline' }, 'No run has this status.'));
+      seg.replaceChildren(...GROUPS.filter(([k, , fn]) => k === 'all' || k === F.filter || runs.some(fn)).map(([k, label, fn]) => el('button', {
+        'aria-pressed': F.filter === k ? 'true' : 'false', 'aria-selected': F.filter === k ? 'true' : 'false',
+        onclick: () => { F.filter = k; draw(); seg.querySelector('[aria-pressed="true"]')?.focus(); } }, `${label} (${runs.filter(fn).length})`)));
+      const list = runs.filter(GROUPS.find(([k]) => k === F.filter)[2]);
+      host.replaceChildren(list.length ? scanOpsPaged(list, (rows) => scanOpsDetailRows(scanOpsTable(['Started', 'Status', 'Trigger', 'Duration', 'Bars', 'Counts', 'Detail'],
+        rows.map(scanJobRow), { wrapCols: [5, 6], caption: 'Runs, newest first' })), { step: 50, noun: 'runs' }) : el('p', { class: 'metaline' }, 'No run has this status.'));
     };
     draw();
     card.append(seg, host);
@@ -1174,13 +1313,116 @@ VIEWS.scannerAdminJobs = () => {
     wrap.append(card);
   }
   const au = el('section', { class: 'card' });
-  au.append(cardHead('Control log', 'Pause, resume, replay, retry and unlock, as the worker recorded them: when, what, and the arguments. A local append-only file — not tamper-evident, and with no identity, because there are no accounts.'));
-  au.append(audit.length ? scanOpsTable(['When', 'Control', 'Reason or arguments'], audit.map(x => [scanOpsWhen(x.at || x.startedAt), el('span', { class: 'chip chip-bronze' }, x.action || x.control || 'control'),
-    [x.reason, Array.isArray(x.argv) ? x.argv.join(' ') : x.argv].filter(Boolean).join(' · ') || '—']), { wrapCols: [2], caption: 'Controls, newest first' })
+  au.append(cardHead('Control log', 'Pause, resume, replay, retry, unlock and lock takeovers, as the worker recorded them: when, what it did, and the account on the machine that ran it. A local append-only file — not tamper-evident, and the account name is the machine’s own, not a verified identity, because there are no accounts here.'));
+  au.append(audit.length ? scanOpsTable(['When', 'Control', 'What it did', 'Account on machine'], audit.map(x => {
+    const args = Array.isArray(x.args) ? x.args : Array.isArray(x.argv) ? x.argv : null;
+    return [scanOpsWhen(x.at || x.startedAt), el('span', { class: 'chip chip-bronze' }, x.action || x.control || 'control'),
+      el('span', {}, [scanAuditText(x), args?.length ? el('span', { class: 'caption', style: 'display:block;margin-top:2px;overflow-wrap:anywhere' }, args.join(' ')) : null]),
+      x.operator || x.host ? `${x.operator || 'account not recorded'}${x.host ? ` on ${x.host}` : ''}` : 'not recorded'];
+  }), { wrapCols: [2], caption: 'Controls, newest first' })
     : el('p', { class: 'metaline' }, runs.length || scanRunsFile ? 'No control has been run.' : 'No run log, so no control is recorded.'));
   wrap.append(au);
   return wrap;
 };
+
+/* A run's detail opens in a row of its own under the run, the table's full
+   width. Kept in the last column it was a 260px strip, dozens of lines tall
+   at 1440, once the run record carried its history, lock, transitions and
+   the round 3 fields. The disclosure stays a native <details> in the run's
+   row — its keyboard and its open state are the browser's — and what it
+   discloses sits in the row below, shown while it is open. */
+function scanOpsDetailRows(wrap) {
+  const table = wrap.querySelector('table');
+  const cols = table ? table.querySelectorAll('thead th').length : 0;
+  (table ? [...table.querySelectorAll(':scope > tbody > tr')] : []).forEach(tr => {
+    const det = tr.querySelector(':scope > td details.scan-row-det');
+    if (!det) return;
+    const body = el('div', { class: 'scan-row-body' });
+    [...det.childNodes].filter(n => n.nodeName !== 'SUMMARY').forEach(n => body.append(n));
+    const row = el('tr', { class: 'scan-detail-row' }, el('td', { colspan: String(cols), style: 'white-space:normal;padding-top:0' }, body));
+    tr.after(row);
+    /* No rule between a run and its open detail, and none under the last
+       run while its detail is closed, where the hidden row would otherwise
+       leave the table a doubled bottom edge. */
+    const sync = () => {
+      scanOpsShow(row, det.open);
+      const clear = det.open || !row.nextElementSibling;
+      [tr, ...tr.cells].forEach(n => { n.style.borderBottomColor = clear ? 'transparent' : ''; });
+    };
+    sync();
+    det.addEventListener('toggle', sync);
+  });
+  return wrap;
+}
+/* One run, as a row of the runs table: the columns a reader scans, and a
+   disclosure with everything else the worker recorded about it. */
+function scanJobRow(r) {
+  const c = scanRunCounts(r), probs = scanRunProblems(r);
+  const unfinished = r.status === 'PENDING' || r.status === 'RUNNING';
+  const evaluated = c.evaluated != null;
+  const notReady = scanRunReadiness(r).filter(m => m.inRun !== false && m.state && m.state !== 'READY');
+  const det = el('details', { class: 'scan-row-det' });
+  det.append(el('summary', { class: 'caption' }, probs[0] ? `${probs[0].category}: ${probs[0].message}`.slice(0, 90)
+    : r.skipReason ? String(r.skipReason).slice(0, 90) : unfinished ? `Recorded as ${String(r.status).toLowerCase()}` : 'Details'));
+  const kv = (label, value) => (value == null || value === '' ? [] : [el('dt', {}, label), el('dd', {}, value)]);
+  const hms = (t) => (t ? String(t).slice(11, 19) : '—');
+  const take = r.lockTakeover && typeof r.lockTakeover === 'object' ? r.lockTakeover : null;
+  det.append(el('dl', { class: 'kv scan-kv' }, [
+    ...kv('Run id', el('code', {}, r.id || '—')),
+    ...kv('Engine', r.engine || (r.error?.category === 'ENGINE' ? 'could not be loaded' : 'not loaded')),
+    ...kv('Exit code', r.exitCode != null ? String(r.exitCode) : unfinished ? 'none yet' : 'not recorded'),
+    ...kv('Finished', r.finishedAt ? scanOpsWhen(r.finishedAt) : unfinished ? 'not yet' : 'not recorded'),
+    /* The clock the run judged staleness by: the real one, or the --now a
+       check or a retry gave it. */
+    ...kv('Judged at', r.now && r.now !== r.startedAt ? scanOpsWhen(r.now) : null),
+    ...kv('History', scanRunHistoryText(r)),
+    ...kv('Setups hash', r.setupsHash || (r.historyNewest || r.historyHash ? 'not recorded' : 'not read')),
+    ...kv('Skipped because', r.skipReason || null),
+    ...kv('Compared with', r.comparedWith || null),
+    ...kv('Replay of', r.replayAsOf || null),
+    ...kv('Retry of', r.retryOf ? `${r.retryOf}${r.retryBasis ? ` — on ${r.retryBasis}` : ''}` : null),
+    ...kv('Lock', take ? `taken over from pid ${take.previous?.pid ?? '?'}${take.previous?.runId ? ` (${take.previous.runId})` : ''} — its holder was ${take.why === 'dead' ? 'no longer running' : take.why === 'stale' ? 'over an hour old' : take.why || 'unreadable'}` : null),
+    ...kv('Run by', r.operator || r.host ? `${r.operator || 'account not recorded'}${r.host ? ` on ${r.host}` : ''}${r.pid ? ` (pid ${r.pid})` : ''}` : null),
+    ...kv('Went through', Array.isArray(r.transitions) && r.transitions.length ? r.transitions.map(t => `${String(t?.status || '?').toLowerCase()} ${hms(t?.at)}`).join(' → ') : null),
+    ...(evaluated ? [
+      ...kv('Series behind the rest', c.stale == null ? 'not recorded' : fmtNum(c.stale, 0)),
+      ...kv('Provisional last bars', c.provisional == null ? 'not recorded' : fmtNum(c.provisional, 0)),
+      ...kv('Delivered in the app', c.deliveries == null ? 'not recorded' : fmtNum(c.deliveries, 0)),
+      ...kv('Indicator cache', scanRunCacheText(r.cacheStats) || 'not recorded on the run'),
+      ...kv('Markets not ready', scanRunSkippedMarketsText(r)),
+      ...kv('Caught up', scanRunCatchUpText(r)),
+      ...kv('Version ledger', scanRunLedgerText(r)),
+    ] : []),
+  ]));
+  if (unfinished) det.append(el('p', { class: 'metaline' }, `Recorded as ${String(r.status).toLowerCase()}. It is either running now, or its process ended before it could close the record: the next run that takes the lock closes it as abandoned (failed), and node scanner/scan.mjs --unlock does so by hand.`));
+  /* The worker's messages usually begin with the setup; it is added only
+     where one does not. */
+  const lines = [...probs.map(p => `${p.category}${p.setup && !p.message.startsWith(p.setup) ? ` · ${p.setup}` : ''}: ${p.message}${p.correlation ? ` [${p.correlation}]` : ''}`),
+    ...notReady.map(m => m.text || `${m.market || 'no market row'}: ${String(m.state).toLowerCase()}`)];
+  if (lines.length) det.append(el('ul', { class: 'rulelist' }, lines.slice(0, 40).map(t => el('li', {}, t))));
+  if ((r.status === 'FAILED' || r.status === 'CANCELLED') && r.id) det.append(scanOpsCmd(`node scanner/scan.mjs --retry ${r.id}`, 'Runs it again on its own session dates; nothing already recorded is recorded twice.'));
+  const counts = evaluated ? `${fmtNum(c.evaluated, 0)} evaluated · ${fmtNum(c.matched ?? 0, 0)} matched · ${fmtNum(c.recorded ?? 0, 0)} recorded${c.deduped ? ` · ${fmtNum(c.deduped, 0)} already recorded` : ''}${c.untested ? ` · ${fmtNum(c.untested, 0)} untested` : ''}`
+    : /^SKIPPED/.test(r.status || '') ? 'none — skipped before evaluating' : r.status === 'FAILED' || r.status === 'CANCELLED' ? 'none — it stopped before evaluating' : unfinished ? 'not yet' : 'not recorded';
+  return [scanOpsWhen(r.startedAt), scanRunChip(r.status), r.trigger || r.origin || '—', scanOpsDuration(r.durationMs ?? (Date.parse(r.finishedAt) - Date.parse(r.startedAt))),
+    r.asOf ? scanBarRange(r.asOfFrom, r.asOf) : '—', counts, det];
+}
+/* One control, in words: what the worker recorded it doing. */
+function scanAuditText(x) {
+  const n = (v) => (Number.isFinite(v) ? fmtNum(v, 0) : 'not recorded');
+  const st = (s) => (SCAN_RUN_STATUS[s] || [null, s ? String(s).toLowerCase() : 'status not recorded'])[1];
+  const prev = x.previous && typeof x.previous === 'object' ? ` — the holder was pid ${x.previous.pid ?? '?'}${x.previous.runId ? `, ${x.previous.runId}` : ''}` : '';
+  const closed = x.closedRun ? `; ${x.closedRun} was closed as abandoned` : '';
+  switch (x.action) {
+    case 'pause': return x.reason ? `paused: ${x.reason}` : 'paused, with no reason given';
+    case 'resume': return `resumed${x.pausedSince ? `, paused since ${scanOpsWhen(x.pausedSince)}` : ''}${x.reason ? ` (${x.reason})` : ''}`;
+    case 'replay': return `replayed ${x.asOf || x.replayAsOf || 'a date not recorded'}: ${st(x.status)}, ${n(x.added)} added, ${n(x.deduped)} already recorded${x.runId ? ` · ${x.runId}` : ''}`;
+    case 'retry': return `retried ${x.retryOf || 'a run not recorded'}: ${st(x.status)}, ${n(x.added)} added, ${n(x.deduped)} already recorded${x.runId ? ` · ${x.runId}` : ''}`;
+    case 'unlock': return `removed the lock${x.forced ? ' by force' : x.why ? ` (${x.why})` : ''}${prev}${closed}`;
+    case 'lock-takeover': return `a run took the lock over, its holder ${x.why === 'dead' ? 'no longer running' : x.why === 'stale' ? 'over an hour old' : x.why || 'unreadable'}${prev}${closed}${x.runId ? ` · ${x.runId}` : ''}`;
+    case 'runs-log-reset': return `the run log could not be read, so it was set aside${x.detail?.setAside ? ` as ${x.detail.setAside}` : ''} and a new one started`;
+    default: return x.reason || x.detail?.text || 'recorded, with nothing more';
+  }
+}
 
 /* The channels the brief names, and what each is here. The file's own
    statement wins where the worker wrote one; these are what the plan fixes
@@ -1189,7 +1431,7 @@ const SCAN_OPS_CHANNELS = [
   ['IN_APP', 'In-app', 'ACTIVE', 'The worker writes each alert to data/scan-alerts.json; these pages read it. Read and archived are kept in this browser.'],
   ['EMAIL', 'Email', 'NOT_CONFIGURED', 'Needs a server to send from, an operating entity to send as, and an address held under a PDPA privacy notice. None exists, and credentials never go in a page.'],
   ['TELEGRAM', 'Telegram', 'NOT_CONFIGURED', 'A bot token must live on a server, and binding a chat id is holding a contact identifier under a privacy notice; neither exists.'],
-  ['PUSH', 'Web push', 'NOT_CONFIGURED', 'A later live-scanning release (P2): it needs a push service and a server to hold subscriptions.'],
+  ['PUSH', 'Web push', 'NOT_CONFIGURED', 'Not built: web push belongs to a later live-scanning release (P2), which is not available here, and needs a push service and a server to hold subscriptions.'],
 ];
 VIEWS.scannerAdminDelivery = () => {
   const wrap = scanOpsPage('delivery', 'Delivery',
@@ -1204,7 +1446,9 @@ VIEWS.scannerAdminDelivery = () => {
     const s = f.status || status;
     const ok = s === 'ACTIVE' || s === 'ENABLED';
     const extra = id === 'IN_APP' ? (unread == null ? ' Unread in this browser: not counted here.' : ` ${scanOpsPlural(unread, 'alert')} unread in this browser.`) : '';
-    return [label, sevChip(ok ? 'good' : 'info', ok ? 'active' : s === 'NOT_CONFIGURED' ? 'not configured' : String(s).toLowerCase().replace(/_/g, ' ')), `${f.why || f.reason || f.text || why}${extra}`];
+    /* The worker writes `why` for a channel that is not configured and
+       `meaning` for the one that is (scan.mjs CHANNELS). */
+    return [label, sevChip(ok ? 'good' : 'info', ok ? 'active' : s === 'NOT_CONFIGURED' ? 'not configured' : String(s).toLowerCase().replace(/_/g, ' ')), `${f.why || f.meaning || f.reason || f.text || why}${extra}`];
   }), { wrapCols: [2], caption: 'Delivery channels' }));
   card.append(scanOpsFileState('scan-deliveries.json', D, 'The worker writes it: the channel list, and one in-app delivery record per alert.'));
   wrap.append(card);

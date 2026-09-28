@@ -87,6 +87,43 @@ for (const [f, text] of scannerSrc) {
 bad += scanBad;
 if (!scanBad) console.log(`ok    none of the ${SCANNER_BANNED.length} scanner performance and ranking phrases is used as a claim in ${scannerSrc.length} scanner modules`);
 
+/* NO LIVE OR REAL-TIME CLAIM ON THE SCANNER PAGES (docs/phase3-plan.md
+   SC-317). The scanner reads end-of-day bars the reader captured; intraday
+   bars need a licensed feed this product does not hold, and the brief
+   forbids presenting unfinished intraday work as available. So in the
+   scanner modules' text — comments left out, because a comment is where a
+   decision about "live" gets recorded — "live", "real-time" and "realtime"
+   may appear only in a sentence that denies them. The sentence is the one
+   the word sits in, cut at a string's quotes or a full stop, not a window
+   of text around it: a claim beside a disclaimer is still a claim. The
+   attribute aria-live and the file ingest/live.mjs are not words of a page
+   and are not matched; a verb ("a token has to live on a server") sits in
+   a sentence that says what is missing, which the denial list reads.
+   equity-test checks the rendered pages the same way. */
+const LIVE = /(?<![\w-])(live|real[\s-]?time|realtime)(?!\w|\.mjs)/gi;
+const LIVE_DENIAL = new RegExp(`${SCANNER_DENIAL.source}|not built|\\bneeds?\\b|neither|\\blater\\b|\\bP2\\b|blocked|waits? on|\\bno\\b`, 'i');
+const uncommented = (text) => text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+const sentenceAt = (text, i, len) => {
+  const left = text.slice(Math.max(0, i - 400), i), right = text.slice(i + len, i + len + 400);
+  const cut = Math.max(0, ...[...left.matchAll(/['"`]|[.!?](?=\s)/g)].map(m => m.index + 1));
+  const end = right.search(/['"`]|[.!?](?=\s|$)/);
+  return (left.slice(cut) + text.slice(i, i + len) + (end < 0 ? right : right.slice(0, end + 1))).replace(/\s+/g, ' ').trim();
+};
+let liveBad = 0, liveSeen = 0;
+for (const [f, text] of scannerSrc) {
+  const code = uncommented(text);
+  for (const m of code.matchAll(LIVE)) {
+    liveSeen++;
+    const s = sentenceAt(code, m.index, m[0].length);
+    if (LIVE_DENIAL.test(s)) continue;
+    liveBad++;
+    console.error(`FAIL  "${m[0]}" used as a claim in ${f}`);
+    console.error(`      “${s.slice(0, 220)}”`);
+  }
+}
+bad += liveBad;
+if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of ${scannerSrc.length} scanner modules — ${liveSeen} use${liveSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
+
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`
   : `ok    none of the ${BANNED.length} banned phrases is used as a claim`);

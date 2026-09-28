@@ -64,6 +64,12 @@ const ROUTES = [
      operations pages, and the old address with the company page's ?symbol=. */
   '/app/scanner', '/app/scanner/market', '/app/scanner/backtest',
   '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery',
+  /* Phase 3 round 3 — the builder's deep links (contract C5), as the market
+     screen and an alert page send them: a market with a setup to copy,
+     an unknown setup, and an alert that is not in the record. Each must
+     open the builder, never throw or fall to the not-found page. */
+  '/app/scanner/setups/new?market=US&from=trend-breakout', '/app/scanner/setups/new?from=no-such-setup',
+  '/app/scanner/setups/new?fromAlert=a00000000',
 ];
 
 const CANDIDATES = [
