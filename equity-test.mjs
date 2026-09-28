@@ -5913,7 +5913,13 @@ try {
   clearTimeout(watchdog);
   try { ws?.close(); } catch { /* closed */ }
   proc.kill();
-  await rm(profile, { recursive: true, force: true }).catch(() => {});
+  /* Chrome holds its profile for a moment after the kill, and its child
+     processes a moment longer. Removed at once, the rm failed quietly on
+     Windows, and every run left its profile in TEMP: 1,781 of them, 14 GB,
+     had filled C: by 28 September 2026 and parallel runs were failing with
+     ENOSPC. Wait for the exit, then retry the removal. */
+  await new Promise(res => { if (proc.exitCode !== null || proc.signalCode) return res(); proc.once('exit', res); setTimeout(res, 5000); });
+  await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch(() => {});
 }
 
 console.log(`\n${passes} passed, ${failures} failed`);

@@ -79,7 +79,9 @@ const child = spawn(browserPath, [
 
 const cleanup = async () => {
   try { child.kill(); } catch {}
-  try { await rm(profile, { recursive: true, force: true }); } catch {}
+  /* As in the harnesses: wait for Chrome to let go of its profile, then retry. */
+  await new Promise(res => { if (child.exitCode !== null || child.signalCode) return res(); child.once('exit', res); setTimeout(res, 5000); });
+  try { await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch {}
 };
 
 async function waitForEndpoint() {

@@ -357,7 +357,8 @@ async function main() {
   } finally {
     try { ws?.close(); } catch { /* already gone */ }
     proc.kill();
-    await rm(profile, { recursive: true, force: true }).catch(() => {});
+    await new Promise(res => { if (proc.exitCode !== null || proc.signalCode) return res(); proc.once('exit', res); setTimeout(res, 5000); });
+    await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch(() => {});
   }
 }
 
