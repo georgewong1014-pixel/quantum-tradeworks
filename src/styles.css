@@ -1010,6 +1010,9 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   /* In the dictionary the label is not inside a sentence — it is the row's
      control for its definition — so it takes the full target. */
   table.dict .metric-label { min-height: 44px; }
+  /* Nor is a label that is the only thing on its line, as under the company
+     summary’s data-confidence block: 19px tall there, and nothing to break. */
+  .metaline > .metric-label:only-child { min-height: 44px; }
   .searchbtn, .iconbtn { min-width: 44px; }
   /* A select sized to a two-letter option is 38px wide on a phone — the
      evidence-source pickers on the property calculator were — and a finger
@@ -1428,6 +1431,17 @@ table.dt .num, .num { overflow-wrap: normal; }
    still below the drawer (60+), the toast and the skip link. The background is
    opaque here because the topbar's links would otherwise show through it. */
 @media (max-width: 780px) { .ticker-sticky { top: 0; z-index: 41; background: var(--plane); } }
+/* That held while the topbar was shorter than the strip. With six destinations
+   the phone topbar wraps to three rows, 167px against the strip’s 130px, so
+   its last row of links showed beneath the stuck strip, and a jumped-to
+   heading landed under it. While the strip is stuck it stands in for the
+   topbar, which slides out of the way; focus inside the topbar brings it back
+   above the strip, so no link is ever focused out of sight. */
+@media (max-width: 780px) {
+  .topbar { transition: transform 200ms ease; }
+  html.strip-stuck .topbar { transform: translateY(-100%); }
+  html.strip-stuck .topbar:focus-within { transform: none; z-index: 42; }
+}
 .ts-jump { margin-left: auto; }
 .ts-jump .select { max-width: 210px; }
 @media (max-width: 560px) {
@@ -1466,6 +1480,11 @@ h3.h-card[id], h2.h-section[id] {
    transparent: a focused control nobody could see, underneath the tab strip. */
 .ticker-sticky.is-stuck .ts-ident,
 .ts-ident:focus-within { max-height: 34px; opacity: 1; padding: 7px 0 3px; }
+/* Focus reveals the row at once: a control that has focus is never mid-fade.
+   CI once measured the jump select at opacity 0 on Shift+Tab, because a
+   headless browser had not yet advanced even reduced motion’s 0.01ms
+   transition. Leaving still fades, since nothing is focused in it then. */
+.ts-ident:focus-within { transition: none; }
 /* Once a jump select is in the row it is the tallest thing there: 34px of
    control inside 24px of content box, so its lower third and its focus ring
    were clipped. Room for the control, and no clipping once revealed — the

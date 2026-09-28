@@ -905,6 +905,7 @@ function navUnread() {
 
 let stickyObserver = null;
 let stickySizer = null;
+let stickyScroll = null;
 let dockSizer = null;
 let railSizer = null;
 let fitRails = () => {};
@@ -1039,13 +1040,30 @@ function render() {
   /* Reveal the compact ticker identity only once the full header is gone. */
   stickyObserver?.disconnect();
   stickySizer?.disconnect();
+  if (stickyScroll) removeEventListener('scroll', stickyScroll);
+  stickyScroll = null;
+  document.documentElement.classList.remove('strip-stuck');
   const strip = $('.ticker-sticky', section);
   if (strip) {
     const sentinel = strip.previousElementSibling;
     if (sentinel) {
-      stickyObserver = new IntersectionObserver(([e]) => {
-        strip.classList.toggle('is-stuck', !e.isIntersecting);
-      }, { rootMargin: `-${parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) + 8}px 0px 0px 0px`, threshold: 0 });
+      /* Stuck means the sentinel has gone up past the top edge. Out of the
+         region BELOW the viewport is not stuck: on a phone the strip starts a
+         screen or two down, and read as stuck there it hid the topbar at the
+         top of the page. The observer alone misses a jump straight from
+         "past" to "not yet reached" (Home, a back-to-top link, restored
+         scroll), since neither state intersects; the scroll check catches it. */
+      const edge = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) + 8;
+      const check = () => {
+        const stuck = sentinel.isConnected && sentinel.getBoundingClientRect().bottom < edge;
+        strip.classList.toggle('is-stuck', stuck);
+        /* The phone topbar steps aside while the strip is stuck (styles.css). */
+        document.documentElement.classList.toggle('strip-stuck', stuck);
+      };
+      stickyObserver = new IntersectionObserver(check, { rootMargin: `-${edge}px 0px 0px 0px`, threshold: 0 });
+      let queued = false;
+      stickyScroll = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; check(); }); } };
+      addEventListener('scroll', stickyScroll, { passive: true });
       stickyObserver.observe(sentinel);
     }
     /* How much vertical space is stuck to the top of the viewport, published

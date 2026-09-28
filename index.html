@@ -1042,6 +1042,9 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   /* In the dictionary the label is not inside a sentence — it is the row's
      control for its definition — so it takes the full target. */
   table.dict .metric-label { min-height: 44px; }
+  /* Nor is a label that is the only thing on its line, as under the company
+     summary’s data-confidence block: 19px tall there, and nothing to break. */
+  .metaline > .metric-label:only-child { min-height: 44px; }
   .searchbtn, .iconbtn { min-width: 44px; }
   /* A select sized to a two-letter option is 38px wide on a phone — the
      evidence-source pickers on the property calculator were — and a finger
@@ -1460,6 +1463,17 @@ table.dt .num, .num { overflow-wrap: normal; }
    still below the drawer (60+), the toast and the skip link. The background is
    opaque here because the topbar's links would otherwise show through it. */
 @media (max-width: 780px) { .ticker-sticky { top: 0; z-index: 41; background: var(--plane); } }
+/* That held while the topbar was shorter than the strip. With six destinations
+   the phone topbar wraps to three rows, 167px against the strip’s 130px, so
+   its last row of links showed beneath the stuck strip, and a jumped-to
+   heading landed under it. While the strip is stuck it stands in for the
+   topbar, which slides out of the way; focus inside the topbar brings it back
+   above the strip, so no link is ever focused out of sight. */
+@media (max-width: 780px) {
+  .topbar { transition: transform 200ms ease; }
+  html.strip-stuck .topbar { transform: translateY(-100%); }
+  html.strip-stuck .topbar:focus-within { transform: none; z-index: 42; }
+}
 .ts-jump { margin-left: auto; }
 .ts-jump .select { max-width: 210px; }
 @media (max-width: 560px) {
@@ -1498,6 +1512,11 @@ h3.h-card[id], h2.h-section[id] {
    transparent: a focused control nobody could see, underneath the tab strip. */
 .ticker-sticky.is-stuck .ts-ident,
 .ts-ident:focus-within { max-height: 34px; opacity: 1; padding: 7px 0 3px; }
+/* Focus reveals the row at once: a control that has focus is never mid-fade.
+   CI once measured the jump select at opacity 0 on Shift+Tab, because a
+   headless browser had not yet advanced even reduced motion’s 0.01ms
+   transition. Leaving still fades, since nothing is focused in it then. */
+.ts-ident:focus-within { transition: none; }
 /* Once a jump select is in the row it is the tallest thing there: 34px of
    control inside 24px of content box, so its lower third and its focus ring
    were clipped. Room for the control, and no clipping once revealed — the
@@ -11601,6 +11620,7 @@ function navUnread() {
 
 let stickyObserver = null;
 let stickySizer = null;
+let stickyScroll = null;
 let dockSizer = null;
 let railSizer = null;
 let fitRails = () => {};
@@ -11735,13 +11755,30 @@ function render() {
   /* Reveal the compact ticker identity only once the full header is gone. */
   stickyObserver?.disconnect();
   stickySizer?.disconnect();
+  if (stickyScroll) removeEventListener('scroll', stickyScroll);
+  stickyScroll = null;
+  document.documentElement.classList.remove('strip-stuck');
   const strip = $('.ticker-sticky', section);
   if (strip) {
     const sentinel = strip.previousElementSibling;
     if (sentinel) {
-      stickyObserver = new IntersectionObserver(([e]) => {
-        strip.classList.toggle('is-stuck', !e.isIntersecting);
-      }, { rootMargin: `-${parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) + 8}px 0px 0px 0px`, threshold: 0 });
+      /* Stuck means the sentinel has gone up past the top edge. Out of the
+         region BELOW the viewport is not stuck: on a phone the strip starts a
+         screen or two down, and read as stuck there it hid the topbar at the
+         top of the page. The observer alone misses a jump straight from
+         "past" to "not yet reached" (Home, a back-to-top link, restored
+         scroll), since neither state intersects; the scroll check catches it. */
+      const edge = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) + 8;
+      const check = () => {
+        const stuck = sentinel.isConnected && sentinel.getBoundingClientRect().bottom < edge;
+        strip.classList.toggle('is-stuck', stuck);
+        /* The phone topbar steps aside while the strip is stuck (styles.css). */
+        document.documentElement.classList.toggle('strip-stuck', stuck);
+      };
+      stickyObserver = new IntersectionObserver(check, { rootMargin: `-${edge}px 0px 0px 0px`, threshold: 0 });
+      let queued = false;
+      stickyScroll = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; check(); }); } };
+      addEventListener('scroll', stickyScroll, { passive: true });
       stickyObserver.observe(sentinel);
     }
     /* How much vertical space is stuck to the top of the viewport, published
