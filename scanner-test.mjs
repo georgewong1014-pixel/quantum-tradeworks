@@ -3553,19 +3553,31 @@ try {
   for (let i = 0; i < NP; i++) { const c = 150 + 20 * Math.sin(i / 9) + 8 * Math.sin(i / 3.1) + i * 0.02; dc.push(c); dh.push(c + 1 + Math.abs(Math.sin(i))); dl.push(c - 1 - Math.abs(Math.cos(i * 1.1))); }
   const wtR = BE.scanPineWaveTrend(BE.scanSeriesBars(dc, { high: dh, low: dl }), BE.scanParams({ indicator: 'wavetrend' }).params);
   const w1 = wtR.fields.wt1, plotOf = (t) => wtR.plots.find(p => p[0] === t);
-  const expect = (top) => { const out = new Array(NP).fill(null);
-    for (let i = 4; i < NP; i++) { const s = (k) => w1[i - k]; if ([0, 1, 2, 3, 4].some(k => s(k) == null)) continue;
-      const hit = top ? s(4) < s(2) && s(3) < s(2) && s(2) > s(1) && s(2) > s(0) : s(4) > s(2) && s(3) > s(2) && s(2) < s(1) && s(2) < s(0);
-      if (hit && s(2) !== 0) out[i - 2] = s(2); }
+  /* f_fractalize is `f_top_fractal(_src) ? 1 : f_bot_fractal(_src) ? -1 : 0`,
+     and Pine runs f_bot_fractal only where no top was found: its own _src
+     carries the bar before's value on a bar that found a top. */
+  const fracOf = (w, top) => { const n = w.length, out = new Array(n).fill(null), own = [];
+    const five = (a, i) => [0, 1, 2, 3, 4].map(k => (i - k >= 0 ? a[i - k] : null));
+    const T = ([s0, s1, s2, s3, s4]) => s4 < s2 && s3 < s2 && s2 > s1 && s2 > s0, B = ([s0, s1, s2, s3, s4]) => s4 > s2 && s3 > s2 && s2 < s1 && s2 < s0;
+    for (let i = 0; i < n; i++) { const t = five(w, i), tHit = t.every(v => v != null) && T(t);
+      own[i] = tHit ? (i ? own[i - 1] : null) : w[i];
+      const b = five(own, i), hit = top ? tHit : !tHit && b.every(v => v != null) && B(b);
+      if (hit && i >= 2 && w[i - 2] != null && w[i - 2] !== 0) out[i - 2] = w[i - 2]; }
     return out; };
+  const expect = (top) => fracOf(w1, top);
+  /* A top at bar 4 (wt1[2] = 5) leaves bar 4 carrying 3 in the bottom test's
+     own series, so bar 6 finds no bottom at 2.5, which wt1 itself would show. */
+  const hand = [1, 2, 5, 3, 2.5, 4, 6], handF = BE.scanPineFractals(hand);
+  const handOk = same(handF.top, [null, null, 5, null, null, null, null]) && same(handF.bottom, new Array(7).fill(null))
+    && same(handF.bottom, fracOf(hand, false)) && same(handF.top, fracOf(hand, true));
   const [baj, alc] = [plotOf('Divergencias Bajistas'), plotOf('Divergencias Alcistas')];
   const TVm = await import('./scanner/tv-verify.mjs');
   const mapped = TVm.mapColumns(['time', 'open', 'high', 'low', 'close', 'Divergencias Bajistas', 'Divergencias Alcistas', 'Bullish Regular Divergence'], { wavetrend: wtR.plots.map(p => p[0]) });
-  check(same(baj[1], expect(true)) && same(alc[1], expect(false)) && baj[1].filter(v => v != null).length > 10 && alc[1].filter(v => v != null).length > 10
+  check(handOk && same(baj[1], expect(true)) && same(alc[1], expect(false)) && baj[1].filter(v => v != null).length > 10 && alc[1].filter(v => v != null).length > 10
     && baj[2] === 40 && baj[1][NP - 1] === null && baj[1][NP - 2] === null && same(wtR.fields.bull.map((v, i) => (w1[i] == null || wtR.fields.wt2[i] == null ? null : w1[i] > wtR.fields.wt2[i] ? 1 : 0)), wtR.fields.bull)
     && mapped[5].kind === 'plot' && mapped[5].id === 'wavetrend' && mapped[6].kind === 'plot' && mapped[7].kind === 'none',
-    'bot engine: the WaveTrend divergence plots are the script\'s fractals, drawn two bars back from the bar that finds them (the last two bars hold none yet), from bar 40; tv-verify now compares those two columns and still not the divergence labels; wavetrend.bull is WT1 above WT2, exactly',
-    { baj: baj[1].filter(v => v != null).length, alc: alc[1].filter(v => v != null).length, first: baj[2] });
+    'bot engine: the WaveTrend divergence plots are the script\'s fractals — the bottom test run only where no top was found, reading its own wt1 that carries the bar before over a top (on [1, 2, 5, 3, 2.5, 4, 6], a top at 5 and no bottom) — drawn two bars back from the bar that finds them (the last two bars hold none yet), from bar 40; tv-verify now compares those two columns and still not the divergence labels; wavetrend.bull is WT1 above WT2, exactly',
+    { hand: handF, baj: baj[1].filter(v => v != null).length, alc: alc[1].filter(v => v != null).length, first: baj[2] });
 }
 /* ---- end bot: engine ---- */
 

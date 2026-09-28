@@ -7500,6 +7500,48 @@ const scanPineOn = (v) => v === 1 || v === true;
    off every cross under counts (crossDown) — and the same below for the
    cross up and "Buy when oversold". The reader's chart runs both switches
    off. The extra MA is the script's TEMA of wt1 (MA PLOT_ST). */
+/* The WaveTrend script's fractal divergences, from its verbatim code:
+     f_top_fractal(_src) => _src[4] < _src[2] and _src[3] < _src[2] and _src[2] > _src[1] and _src[2] > _src[0]
+     f_bot_fractal(_src) => the same with every comparison reversed
+     f_fractalize(_src)  => f_top_fractal(_src) ? 1 : f_bot_fractal(_src) ? -1 : 0
+     fractal_top1 = f_fractalize(wt1) > 0 ? wt1[2] : na (and fractal_bot1 with < 0)
+   Pine evaluates the ternary lazily: f_bot_fractal runs only on a bar where
+   no top was found, and its own _src — the series its [k] reads — keeps the
+   bar before's value on a bar it did not run. So the bottom test reads wt1
+   with every bar that found a top carrying the value of the bar before it;
+   the top test, which runs on every bar, reads wt1 itself. Either plots the
+   main scope's wt1[2]. On the owner's three exports this reproduces
+   TradingView's Divergencias Alcistas exactly (46 marks, 0 differences);
+   the bottom test on wt1 itself differed on 1, 6 and 6 bars, and a
+   history that skips those bars instead of carrying them on 0, 1 and 2.
+   A test is false with na anywhere in its five values. `fractal_top1 ?
+   wt1[2] : na` tests a float for truth, which Pine v4 reads as false at na
+   AND at 0.0, so a fractal whose wt1 is exactly 0 is not drawn. The plots
+   carry offset=-2: the value found on bar i is drawn on bar i − 2, the
+   fractal's own bar, so the last two bars hold nothing yet, as on the
+   chart. The divergence labels are drawn only with the script's
+   divergence switches on (off by default, and on the reader's chart), so
+   they are not computed. */
+function scanPineFractals(wt1) {
+  const len = wt1.length;
+  const at = (s, i) => [s[i - 4], s[i - 3], s[i - 2], s[i - 1], s[i]];
+  const known = (w) => w.every(v => v != null);
+  const isTop = ([a, b, m, c, e]) => a < m && b < m && m > c && m > e;
+  const isBottom = ([a, b, m, c, e]) => a > m && b > m && m < c && m < e;
+  const top = new Array(len).fill(null), bottom = new Array(len).fill(null);
+  /* f_bot_fractal's own copy of wt1: the bar before's value where a top was found. */
+  const bot = new Array(len).fill(null);
+  for (let i = 0; i < len; i++) {
+    const w = i >= 4 ? at(wt1, i) : null;
+    const topHere = w != null && known(w) && isTop(w);
+    bot[i] = topHere ? (i > 0 ? bot[i - 1] : null) : wt1[i];
+    const plotted = i >= 2 ? wt1[i - 2] : null;
+    if (plotted == null || plotted === 0) continue;
+    if (topHere) top[i - 2] = plotted;
+    else if (i >= 4) { const b = at(bot, i); if (known(b) && isBottom(b)) bottom[i - 2] = plotted; }
+  }
+  return { top, bottom };
+}
 function scanPineWaveTrend(bars, p) {
   const H = bars.high || [], L = bars.low || [], C = bars.closes || [], len = C.length;
   const ap = C.map((c, i) => (scanOk(c) && scanOk(H[i]) && scanOk(L[i]) ? (H[i] + L[i] + c) / 3 : null));
@@ -7528,26 +7570,7 @@ function scanPineWaveTrend(bars, p) {
   const tema = scanPineTema(wt1, p.maLen);
   /* The bot's criterion 1, its wavetrend()'s `bullish`: wt1 > wt2, exactly. */
   const bull = scanPineFlags(len, i => (wt1[i] == null || wt2[i] == null ? null : wt1[i] > wt2[i]));
-  /* The fractal divergences, from the script's verbatim code: a top is wt1
-     two bars back above the two before it and the two after it, strictly
-     (f_top_fractal), a bottom the reverse, and na anywhere in the five is
-     no fractal. `fractal_top1 ? wt1[2] : na` tests a float for truth, which
-     Pine v4 reads as false at na AND at 0.0, so a fractal whose wt1 is
-     exactly 0 is not drawn. The plots carry offset=-2: the value found on
-     bar i is drawn on bar i − 2, the fractal's own bar — so bar j of the
-     plot holds wt1[j] when bar j + 2 finds the fractal, and the last two
-     bars hold nothing yet, as on the chart. The divergence labels are drawn
-     only with the script's divergence switches on (off by default, and on
-     the reader's chart), so they are not computed. */
-  const fractal = (top) => {
-    const out = new Array(len).fill(null);
-    for (let j = 2; j + 2 < len; j++) {
-      const m = wt1[j], a = wt1[j - 2], b = wt1[j - 1], c = wt1[j + 1], e = wt1[j + 2];
-      if (m == null || a == null || b == null || c == null || e == null || m === 0) continue;
-      if (top ? a < m && b < m && m > c && m > e : a > m && b > m && m < c && m < e) out[j] = m;
-    }
-    return out;
-  };
+  const fractals = scanPineFractals(wt1);
   /* The markers sit an eighth of the way from the middle to the level:
      plot(venta ? wt2[1] + ploff : na). */
   const mid = (p.overbought + p.oversold) / 2, ploff = (p.overbought - mid) / 8;
@@ -7563,7 +7586,7 @@ function scanPineWaveTrend(bars, p) {
             ['Sell when overbought', marker(crossDownOb, 1), first('crossDownOb')], ['All sales', marker(crossDown, 1), first('crossDown')],
             ['Buy when oversold', marker(crossUpOs, -1), first('crossUpOs')], ['All purchases', marker(crossUp, -1), first('crossUp')],
             ['Histogramme', p.showHist ? hist : none, p.showHist ? first('hist') : 0],
-            ['Divergencias Bajistas', fractal(true), first('wt1') + 2], ['Divergencias Alcistas', fractal(false), first('wt1') + 2], ['MA PLOT_ST', tema, first('tema')]],
+            ['Divergencias Bajistas', fractals.top, first('wt1') + 2], ['Divergencias Alcistas', fractals.bottom, first('wt1') + 2], ['MA PLOT_ST', tema, first('tema')]],
   };
 }
 
@@ -42266,7 +42289,7 @@ function scanBacktestResult(R) {
   const head = el('section', { class: 'card' });
   head.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h3', { class: 'h-card' }, `Simulated: ${R.setup.name || R.setup.id}, version ${o.setupVersion}`),
-    el('p', { class: 'caption', style: 'margin-top:2px' }, `Setup hash ${o.setupHash} · ${o.timeframe === '1W' ? 'weekly bars derived from your daily ones' : o.timeframe === '1M' ? 'monthly bars derived from your daily ones' : 'daily bars'} · ${o.cooldownMode === 'NEW_MATCH' ? 'records new matches only' : 'records every match'}${o.cooldownBars ? `, ${o.cooldownBars}-bar cooldown` : ''} · ${R.from || 'first bar'} to ${R.to || 'last bar'} · simulation, not a guarantee.`),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, `Setup hash ${o.setupHash} · ${o.timeframe === '1W' ? 'weekly bars, imported where your history holds them and otherwise derived from your daily ones' : o.timeframe === '1M' ? 'monthly bars, imported where your history holds them and otherwise derived from your daily ones' : 'daily bars'} · ${o.cooldownMode === 'NEW_MATCH' ? 'records new matches only' : 'records every match'}${o.cooldownBars ? `, ${o.cooldownBars}-bar cooldown` : ''} · ${R.from || 'first bar'} to ${R.to || 'last bar'} · simulation, not a guarantee.`),
   ])));
   const c = o.counts;
   const grid = el('div', { class: 'grid scan-counts' });
