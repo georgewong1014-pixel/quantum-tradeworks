@@ -1243,6 +1243,23 @@ function sevenSteps(r, t) {
   const { c, d, m } = r;
   const wacc = isNum(r.inputs.wacc) ? r.inputs.wacc : null;
   const moatRead = (c.moat.support?.length || 0) + (c.moat.counter?.length || 0);
+  /* AN UNSCORED PILLAR IS NOT A SCORE. A bank loaded from filings has none of
+     the Financial Strength inputs — CET1, impaired loans and the loan-to-
+     deposit ratio sit in regulatory returns, not in the statements — and a
+     filed REIT none of the Business Quality ones, so the pillar is null. The
+     note printed "Financial Strength null/100" for JPMorgan and BlackRock and
+     "Business Quality null/100" for Realty Income and American Tower, and the
+     step compared null with 50. It now says the pillar
+     is not scored and which inputs it lacks, and the step stays open, because
+     nothing was checked. */
+  const pillarNote = (p, label, also) => isNum(p.score) ? `${label} ${p.score}/100${also ? `, ${also}` : ''}.`
+    : `${label} is not scored — none of its ${p.parts.length} inputs (${p.parts.map(x => x.label).join(', ')}) is available for ${c.tk}.${also ? ` ${also.charAt(0).toUpperCase()}${also.slice(1)}.` : ''}`;
+  /* "Not assessed" is not an assessment. A company loaded from filings or
+     statements alone carries a placeholder moat whose one "counter" line says
+     no review exists, and the step read "Not assessed, low confidence,
+     durability —. 1 piece(s) of counter-evidence" — a confidence nobody gave
+     and a sentence counted as evidence. */
+  const moatAssessed = c.moat.kind !== 'Not assessed';
   return [
     { n:1, title:'Understand what the business sells',
       ok: (c.seg || []).length >= 2,
@@ -1251,16 +1268,18 @@ function sevenSteps(r, t) {
         : 'Segment disclosure is thin for this company — the revenue mix cannot be broken down.',
       go: () => openResearch(c.id, 'business') },
     { n:2, title:'Check it can survive a bad year',
-      ok: r.scores.strength.score >= 50,
-      note: `Financial Strength ${r.scores.strength.score}/100${isNum(m.ndEbit) ? `, net debt ${fmtX(m.ndEbit)} EBIT` : ''}. ${r.flags.filter(f => f.sev === 'serious' || f.sev === 'critical').length} serious flag(s).`,
+      ok: isNum(r.scores.strength.score) && r.scores.strength.score >= 50,
+      note: `${pillarNote(r.scores.strength, 'Financial Strength', isNum(m.ndEbit) ? `net debt ${fmtX(m.ndEbit)} EBIT` : '')} ${r.flags.filter(f => f.sev === 'serious' || f.sev === 'critical').length} serious flag(s).`,
       go: () => openResearch(c.id, 'risks') },
     { n:3, title:'Judge the quality of the returns',
-      ok: r.scores.quality.score >= 50,
-      note: `Business Quality ${r.scores.quality.score}/100${isNum(m.roic) && isNum(wacc) ? `, return on invested capital ${fmtPct(m.roic)} against a ${fmtPct(wacc)} cost of capital` : ''}.`,
+      ok: isNum(r.scores.quality.score) && r.scores.quality.score >= 50,
+      note: pillarNote(r.scores.quality, 'Business Quality', isNum(m.roic) && isNum(wacc) ? `return on invested capital ${fmtPct(m.roic)} against a ${fmtPct(wacc)} cost of capital` : ''),
       go: () => openResearch(c.id, 'quality') },
     { n:4, title:'Test whether the advantage lasts',
-      ok: moatRead >= 2 && c.moat.conf !== 'Low',
-      note: `${c.moat.kind}, ${c.moat.conf.toLowerCase()} confidence, durability ${c.moat.dur.toLowerCase()}. ${c.moat.counter.length} piece(s) of counter-evidence.`,
+      ok: moatAssessed && moatRead >= 2 && c.moat.conf !== 'Low',
+      note: moatAssessed
+        ? `${c.moat.kind}, ${c.moat.conf.toLowerCase()} confidence, durability ${c.moat.dur.toLowerCase()}. ${c.moat.counter.length} piece(s) of counter-evidence.`
+        : `Not assessed — no moat review has been made for ${c.tk}. Moat evidence is analyst work, not a computed field.`,
       go: () => openResearch(c.id, 'moat') },
     { n:5, title:'Value it with a model that fits',
       ok: r.val.confBand !== 'Low' && !r.val.err,
@@ -1974,7 +1993,12 @@ VIEWS.compare = () => {
         ['Free cash flow margin', r => isNum(r.m.fcfm) ? fmtPct(r.m.fcfm) : NA, 'fcfm'],
         ['— Growth —', null],
         ['Revenue CAGR (4y)', r => isNum(r.m.rev5) ? fmtPct(r.m.rev5) : NA, 'rev5'],
-        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.shareSeriesBreak ? NA_SPLIT : NA, 'eps5'],
+        /* Withheld for a split only when the break falls inside the five rows
+           the four-year rate reads (perShareBreak). shareSeriesBreak is the
+           first break anywhere in the stored years: GE's is outside the
+           window, and its earnings rate is absent because FY2021 earnings
+           per share are negative — which this cell called "withheld". */
+        ['Earnings CAGR (4y)', r => isNum(r.m.eps5) ? fmtPct(r.m.eps5) : r.m.perShareBreak ? NA_SPLIT : NA, 'eps5'],
         ['— Balance sheet —', null],
         ['Net debt / EBIT', r => isNum(r.m.ndEbit) ? fmtX(r.m.ndEbit) : NA, 'ndEbit'],
         ['— Valuation —', null],
@@ -2126,17 +2150,32 @@ VIEWS.compare = () => {
     el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(--s1)"></span>United States` }),
     el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(--s2)"></span>Bursa Malaysia` }),
   ]));
+  /* ONLY WHAT HAS BOTH AXES IS DRAWN, AND WHAT IS NOT IS NAMED. A company
+     with no quality percentile — a filed REIT, whose Business Quality inputs
+     are not in the statements — was drawn at 50, and its mark read "quality
+     percentile 50": the middle of the axis given as a measured rank. An
+     unpriced company was dropped with nothing said, so three selected
+     companies drew two marks. Each is now left off and named beneath with
+     its reason. The difference prints as it does everywhere else (withSign):
+     Maybank at +0.12% read "+0%", and a discount "-12%" with a hyphen. */
+  const plotted = rows.filter(r => isNum(r.val.mos?.base) && isNum(r.pct.quality));
+  const offChart = rows.filter(r => !plotted.includes(r)).map(r =>
+    !isNum(r.c.px?.p) ? `${r.c.tk} carries no price, so there is no difference to a model estimate`
+    : !isNum(r.val.mos?.base) ? `${r.c.tk} has a price but no base-case model estimate`
+    : isNum(r.scores.quality.score) ? `${r.c.tk} has no quality percentile`
+    : `${r.c.tk} has no Business Quality score, so no quality percentile`);
+  if (offChart.length) mx.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `Not plotted: ${offChart.join('; ')}.`));
   wrap.append(mx);
   scatterChart(host, {
-    points: rows.filter(r => r.val.mos).map(r => ({
-      id:r.c.id, label:r.c.tk, name:r.c.name, x:r.val.mos.base, y:r.pct.quality ?? 50,
+    points: plotted.map(r => ({
+      id:r.c.id, label:r.c.tk, name:r.c.name, x:r.val.mos.base, y:r.pct.quality,
       size:toBase(r.m.mcap, r.c.ccy), capLabel:fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       model:r.val.pack.name, conf:r.val.confBand, varName:r.c.mkt === 'US' ? '--s1' : '--s2' })),
     xLabel:'Difference to model estimate vs base-case value — right of the line is below it',
     xLabelShort:'Difference to model estimate vs base-case model estimate',
     yLabel:'Quality percentile within market cohort',
     yLabelShort:'Quality percentile',
-    xFmt:v => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`,
+    xFmt:v => withSign(v, 0),
     onPick:id => openResearch(id),
   });
   return wrap;
@@ -2266,9 +2305,15 @@ const appendSampleBanner = (wrap) => { const b = sampleBanner(); if (b) wrap.app
 function fmtAmount(v, ccy) {
   if (!isNum(v)) return '—';
   const sym = ccy === 'MYR' ? 'RM' : '$';
-  const a = Math.abs(v), sign = v < 0 ? '−' : '';
-  if (a >= 1e6) return `${sign}${sym}${(a / 1e6).toFixed(2)}m`;
-  if (a >= 1e3) return `${sign}${sym}${(a / 1e3).toFixed(1)}k`;
+  /* The sign and the unit are chosen on the figure as it will print, as
+     fmtMoney and fmtCap do. The payoff crosses zero at the break-even by
+     construction and floating point put it a hair below (−3e-13), so the
+     table view printed "−$0"; and 999.6 rounded to "$1000" and 999,960 to
+     "$1000.0k", which belong a unit up. Below half a unit is nought, 999.5
+     and up prints in thousands, 999,950 and up in millions. */
+  const a = Math.abs(v) < 0.5 ? 0 : Math.abs(v), sign = v < 0 && a ? '−' : '';
+  if (a >= 999950) return `${sign}${sym}${(a / 1e6).toFixed(2)}m`;
+  if (a >= 999.5) return `${sign}${sym}${(a / 1e3).toFixed(1)}k`;
   return `${sign}${sym}${a.toFixed(0)}`;
 }
 
