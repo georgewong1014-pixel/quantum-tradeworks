@@ -65,7 +65,12 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 /* Phase 3 — user: the builder (a condition row of up to eight
                    fields), the setups list, the alerts centre and settings. */
                 '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/watchlists',
-                '/app/scanner/alerts', '/app/scanner/settings'];
+                '/app/scanner/alerts', '/app/scanner/settings',
+                /* Phase 3 — the scanner (ops): the dashboard, its two P1 surfaces
+                   and the operations pages a phone is likely to open — the runs
+                   table and the data-health tables are the widest. */
+                '/app/scanner', '/app/scanner/market', '/app/scanner/backtest',
+                '/admin/scanner', '/admin/scanner/jobs', '/admin/scanner/data'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -120,7 +125,7 @@ const smallTargets = [];
    overflow, a pass for the pages this check was extended to cover. */
 /* The /app/ aliases and the list pages wait on the same set: a watchlist's
    rows and the scanner's universe are drawn only once the filers are in. */
-const DATA_ROUTES = /^\/(company\/|discover|research|compare|app\/equities|app\/watchlists|my\/watchlists|my\/scanner|app\/scanner|$)/;
+const DATA_ROUTES = /^\/(company\/|discover|research|compare|app\/equities|app\/watchlists|my\/watchlists|my\/scanner|app\/scanner|admin\/scanner|$)/;
 try {
 for (const w of WIDTHS) {
   await send('Emulation.setDeviceMetricsOverride',
@@ -284,6 +289,23 @@ for (const w of [375, 1440]) {
       console.log(`FAIL ${w}px ${route}${dir} — ${hidden.length} of ${seen.size} focus stops hidden: ${hidden.slice(0, 4).join('; ')}`);
     }
   }
+}
+
+/* SIX DESTINATIONS AT 360. Phase 3 put Scanner in the header, and a sixth
+   item is how the topbar overflowed before: every link must sit wholly
+   inside the viewport, none clipped by the row, each a 44px target. */
+await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId);
+await send('Page.navigate', { url: BASE + '/app/scanner' }, sessionId);
+await sleep(2500);
+{
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    const links = [...document.querySelectorAll('#mainnav a')];
+    const bad = links.filter(a => { const b = a.getBoundingClientRect(); return b.width === 0 || b.left < 0 || b.right > innerWidth || b.height < 44; })
+      .map(a => a.textContent.trim());
+    return { n: links.length, bad, labels: links.map(a => a.firstChild?.textContent.trim()) };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || v.n !== 6 || v.bad.length || v.labels[2] !== 'Scanner') { bad++; console.log(`FAIL 360px header — ${v ? `${v.n} links (${v.labels.join(', ')}), outside or under 44px: ${v.bad.join(', ') || 'none'}` : 'not measured'}`); }
 }
 
 /* THE STUCK COMPANY STRIP HAS TO BE ON TOP. On a phone it sticks at top:0

@@ -207,6 +207,8 @@ files except the route table, where each adds its own delimited block.
 
 ### NAV — Phase 3 routes (spec §1): Scanner in the main nav, /app/scanner/* and /admin/scanner/*
 
+**As built (this batch — ops).** Scanner is the third item of the main navigation (NAV in 35-ui.js), after Research, with an unread count drawn from the alerts pages' scanUnreadCount() when that function exists; it left SUBNAV_MY. SCANNER_VIEWS lists all sixteen scanner view ids; SECTION_OF maps each to 'scanner' and UNIVERSE_VIEWS holds them, so no scanner page says "no run" while the data load is in flight. The ops routes sit in a delimited block of ROUTES: /app/scanner, /market, /backtest, the four /admin/scanner pages, and /my/scanner as an alias of the dashboard — which, carrying ?symbol=, opens /app/scanner/setups/new?symbol= synchronously when that view is in the build. canonicalPath gives any parameterised non-company page its own path, so no canonical reads ':alert'. robots.txt disallows /app/scanner and /admin/, and register-check fails a route under either that is not disallowed. register-check rule 1 checks :id against companies only for research views. The company page's link still reads /my/scanner?from=&symbol= and reaches the builder through the alias. Still blocked: an admin role (no accounts) and intraday entries.
+
 **Priority** P0 · **Status** partial
 
 **What exists.** The scanner is one combined page, VIEWS.scanner at src/js/86-scanner.js:556-683: the boundary card, the data card, the setups list with refusals and 'Evaluate now', the alert history with lastRun, and the builder. There is one route, { path:'/my/scanner', view:'scanner' } at src/js/35-ui.js:361. The top nav is NAV at 35-ui.js:234-240: Discover, Research, My Investments, Property, Learn. A comment at 35-ui.js:225-232 records the decision to keep five destinations. /app/equities is an alias of Research (35-ui.js:346-352), so 'after Equities' means after Research. The scanner is a tab in the My Investments subnav (SUBNAV_MY at 35-ui.js:243-254, drawn by mySubnav at 55-views-public.js:1067), and SECTION_OF maps it to 'my' (35-ui.js:810-816). The company page links to /my/scanner?from=&symbol= (45-views-research.js:756). equity-test.mjs:772 pins '/my/scanner' to the nav item 'My Investments' and :1703 pins the href of the company page's scanner link. vercel.json rewrites every extensionless path to index.html, so /admin/* would reach the app. robots.txt disallows only /my/ and /app/watchlists. sweep.mjs:31 and mobile.mjs:33 and :119 cover only /my/scanner. None of the 16 spec paths resolves today: each falls to 'notfound' at 35-ui.js:638.
@@ -1180,6 +1182,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 ### SC-312 — Scanner dashboard
 
+**As built (this batch — ops).** /app/scanner (src/js/87-scanner-ops.js, VIEWS.scannerDashboard) answers the four questions from scanStatus over data/scan-runs.json, data/scan-alerts.json, data/scan-setups.json, the history's newest bar and data/scan-control.json — never from a scan the page ran. A band states the state with a labelled chip (Current, Behind, Failed, Paused, No run recorded) and every dated reason; the four tiles follow in the brief's order; the last scan's matches are headed "Matched on the last scan" only when the state is current and "Matches as of <date> — not current" otherwise; earlier matches, monitored instruments and the commands that run the worker follow. With no run log it says the log never leaves the machine and offers "Open your files" (FileReader into memory; nothing uploaded). 25-universe.js loads scan-runs, scan-control, scan-deliveries and ingest-runs (optional, absent stated). equity-test pins the five states from injected records. Still blocked: cross-user metrics and delivery-measured notifications.
+
 **As built (this batch — engine part only).** scanStatus({ runs, alertsDoc, setupsDoc, historyMeta, control, now, instruments, alertState }) answers the four questions with state never / paused / failed / behind / current and a dated sentence per reason; it reads the alerts file's lastRun as a success until the run log exists. scanSetupsHash names a setups file as the worker would run it, and the worker now records it in lastRun. Tested on the exact local case (run 27 September on bars of 7 August → behind, 52 days). Still to build (round 2): the runs log in the worker and the dashboard page.
 
 **Priority** P0 · **Status** partial
@@ -1225,6 +1229,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 
 ### SC-313 — Administrative monitoring — /admin/scanner, /data, /jobs, /delivery
+
+**As built (this batch — ops).** The four pages are read-only views of the worker's files, each opening with the notice that there is no administrator role. /admin/scanner: data sources and the last ingestion with its steps (data/ingest-runs.json); sessions now for the markets whose hours are held, the rest behind a disclosure, calendars marked inferred; runs by status over the last thirty; the indicator cache (none persisted, the last run's hits); the alert engine's counts; notifications; usage; errors by run id with the exact retry command; and every control as its command. /admin/scanner/data renders scanDataHealth per market and per series (only series with something to look at by default). /admin/scanner/jobs lists runs newest first with a status filter, duration, counts and an expandable error, and the control log. /admin/scanner/delivery lists IN_APP, EMAIL, TELEGRAM and PUSH with their status and reason, and the delivery records. Fixtures in scanner/fixtures/ drive the checks. The worker's own controls, lock and runs log are the data-and-worker batch's. Still blocked: an admin role and operator identity, provider control, a job queue.
 
 **As built (this batch — engine part only).** scanDataHealth(history, instruments, now) returns the file summary, per market (zone, session, calendar basis with inferred holidays and ambiguous days, the session expected by now, stale series) and per series (bars, invalid bars with codes, dropped keys and values, gaps against the calendar, close-to-close breaks tagged with the nearest split ratio or 'unexplained', volume coverage, bar statuses, the 500-point keep). scanReadiness gives the per-market readiness line the worker now prints. Still to build (round 2): the worker's controls, lock and runs log, and the four pages. Blocked as before.
 
@@ -1273,6 +1279,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 
 ### SC-314 — Historical testing (simulation of match dates, not a performance backtest)
+
+**As built (this batch — ops, the page).** /app/scanner/backtest (VIEWS.scannerBacktest, flagged P1) takes a setup from the file, the builder's draft or pasted JSON, one instrument or the setup's universe, and a date range; it runs scanHistorical per instrument in chunks, cancellable, bounded to 600 bars an instrument. The fixed simulation label and the no-look-ahead statement come before any figure. It shows counts of bars (never a return), coverage per instrument with testable-from and missing sessions, and the matching dates in three readings — where a match began, what the worker would have recorded, every bar that held — each row opening its conditions and values. equity-test checks that the page's events are scanHistorical's and that each equals the history cut at its own bar. The worker's --backtest flag is the data-and-worker batch's. Performance stays blocked.
 
 **As built (this batch — engine part).** scanHistorical(setup, history, { symbols, from, to, maxBars, instruments, cache }) runs scanEvaluate at every completed bar and returns matches, events (NEW_MATCH / FIRST_OBSERVED), what the worker's dedupe and cooldown would have recorded, coverage per symbol (testable from, unavailable bars, invalid bars, missing sessions) and the missing sessions, marked simulation with the fixed note; no return, entry or exit exists in it. scanner-test pins no look-ahead two ways (evaluating at bar i equals evaluating the history cut at i, at all 260 bars of a nested nine-indicator tree; fifty noise bars appended change no earlier row) and that the recorded list equals a day-by-day scanRun replay. Still to build (round 2): the /app/scanner/backtest page and the worker's --backtest flag. Performance backtesting stays blocked.
 
@@ -1351,6 +1359,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 
 ### SC-316 — Market-wide screening (P1)
+
+**As built (this batch — ops).** /app/scanner/market (VIEWS.scannerMarket, flagged P1) screens a setup over a market's instruments that hold a series in the reader's history — or everything with one — each on its last final bar, now or replayed as of a date, recorded nowhere. The coverage statement comes first (n screened, m in the registry, the market itself not screened); results are matched, not matched and untested, each group in symbol order with the conditions and values or the reason; no header is a control; bounded at 2,000 instruments and paged. wording-check bans ranking and performance phrases in the scanner modules. Still blocked: a whole exchange, and screening for anyone else.
 
 **Priority** P1 · **Status** partial
 
@@ -1455,6 +1465,8 @@ Kleene ALL changes 'untested everywhere' counts in scan.mjs output (fewer untest
 
 
 ### SC-319 — Automated QA and regression — the 24-item checklist, register rows, sweep/mobile phase3
+
+**As built (this batch — ops).** docs/phase3-qa.md maps the 24 items and the six further cases to checks or blockers. The register carries one row per SC item and SC-NAV with its priority from §1; register-check reads both plans, accepts P2 only on SC rows and fails a P2 row with a path or an operational or flagged status, fails a scanner or operations route robots.txt does not disallow, and with --release phase3 lists the blocked P0 items apart from the partial ones. /status shows one release card per brief. equity-test gains the header, dashboard-state, screening-order, simulation, operations and empty-state checks; sweep a Phase 3 block; mobile the scanner and operations routes and a six-item header check at 360. Still blocked: items 17–19 and the release going green.
 
 **Priority** P0 · **Status** partial
 

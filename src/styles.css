@@ -1831,3 +1831,117 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   .grid.overview-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--xs); }
   .overview-tiles .tile-btn, .overview-tiles .tile-static { padding: var(--xs) var(--sm); }
 }
+
+/* ==========================================================================
+   Phase 3 — ops: the scanner's dashboard, screening, simulation and
+   operations pages (87-scanner-ops.js). Built from the tokens above; the
+   status colours travel with a label, never alone.
+   ========================================================================== */
+/* The unread count beside "Scanner" in the header. */
+.nav-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px;
+  font-size: var(--text-micro); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums;
+  background: var(--bronze-wash); color: var(--bronze);
+  border: 1px solid color-mix(in srgb, var(--bronze) 30%, transparent);
+}
+.scan-subnav { margin-bottom: 0; flex-wrap: wrap; }
+
+/* The state band: a coloured edge keyed to the state, the chip and the
+   headline saying it in words. */
+.scan-band { border-left: 4px solid var(--band, var(--line-2)); }
+.scan-band[data-state="current"] { --band: var(--ok); }
+.scan-band[data-state="behind"]  { --band: var(--warn); }
+.scan-band[data-state="failed"]  { --band: var(--critical); }
+.scan-band[data-state="paused"]  { --band: var(--serious); }
+.scan-band-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.scan-band-hd .h-card { margin: 0; }
+.scan-band .rulelist { max-width: 80ch; }
+
+/* The four questions. Four across on a laptop, two on a tablet, one on a
+   phone, each the same height as its row. */
+.scan-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--md); }
+@media (max-width: 1100px) { .scan-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px)  { .scan-tiles { grid-template-columns: minmax(0, 1fr); gap: var(--sm); } }
+.scan-q { display: flex; flex-direction: column; gap: 6px; box-shadow: var(--lift-1); border: 0; }
+.scan-q .stat-label { font-weight: var(--weight-semibold); color: var(--ink-2); font-size: var(--text-sm); }
+.scan-q .stat-value { margin: 2px 0 0; }
+.scan-q .stat-sub { line-height: 1.45; }
+.scan-q-link { margin-top: auto; padding-top: 6px; font-size: var(--text-sm); }
+.scan-q-link a, .scan-page .metaline a, .scan-page .scan-coverage a { color: var(--ink); text-underline-offset: 2px; }
+
+.scan-kv { max-width: 72ch; }
+.scan-kv dd { text-align: left; overflow-wrap: anywhere; }
+
+/* Tables whose last columns are sentences wrap them at a readable measure;
+   the table itself scrolls inside its .tablewrap, never the page. */
+table.scan-dt td.scan-wrap { white-space: normal; text-align: left; min-width: 12rem; max-width: 34rem; }
+table.scan-dt td { vertical-align: top; }
+.scan-conds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.scan-conds li { font-size: var(--text-sm); line-height: 1.45; color: var(--ink-2); }
+.scan-c {
+  display: inline-block; min-width: 4.6em; padding: 0 6px; border-radius: 999px;
+  font-size: var(--text-micro); font-weight: var(--weight-semibold); text-align: center; border: 1px solid var(--line);
+}
+.scan-c-met { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.scan-c-not { background: var(--surface-sunk); color: var(--ink-2); }
+.scan-c-na  { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
+.scan-h4 { font-size: var(--text-lead); font-weight: var(--weight-semibold); margin: 0 0 2px; }
+.scan-row-det summary { cursor: pointer; }
+.scan-row-det[open] summary { margin-bottom: 6px; }
+
+/* Commands: monospace, selectable, wrapping rather than widening a phone. */
+.scan-cmd { display: flex; flex-direction: column; gap: 4px; padding: var(--sm) 0; border-top: 1px solid var(--line); }
+.scan-cmd:first-of-type { border-top: 0; }
+.scan-cmd-row { display: flex; align-items: center; gap: var(--xs); flex-wrap: wrap; }
+.scan-cmd-code {
+  font-family: var(--mono); font-size: var(--text-label); color: var(--ink);
+  background: var(--surface-sunk); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 4px 8px; overflow-wrap: anywhere; white-space: normal; user-select: all;
+}
+.scan-cmd .metaline { max-width: 75ch; }
+
+/* The operations notice and the simulation label: the product's bronze
+   "read this first" treatment, as the feature-flag notice uses. */
+.scan-notice, .scan-sim {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: var(--md) var(--lg); border-radius: var(--r-lg);
+  background: var(--bronze-wash); border: 1px solid color-mix(in srgb, var(--bronze) 28%, transparent);
+  border-left: 4px solid var(--bronze); font-size: var(--text-sm); line-height: 1.55; color: var(--ink);
+}
+.scan-notice p, .scan-sim p { margin: 0; max-width: 78ch; }
+.scan-notice-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.scan-notice-hd strong { font-weight: var(--weight-semibold); }
+.scan-lookahead { color: var(--ink-2); }
+
+.scan-form { gap: var(--sm) var(--md); }
+.scan-paste { font-family: var(--mono); font-size: var(--text-label); min-height: 76px; resize: vertical; padding: 8px; }
+.scan-counts { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--sm) var(--md); }
+.scan-open { display: flex; flex-direction: column; gap: 2px; margin-top: var(--sm); }
+@media (max-width: 560px) {
+  .scan-notice, .scan-sim { padding: var(--sm) var(--md); }
+  table.scan-dt td.scan-wrap { min-width: 13rem; }
+}
+/* Most of these tables are identifiers, dates and sentences, which read
+   from the left; the numeric ones are short enough not to need a column
+   of aligned digits. */
+table.scan-dt th, table.scan-dt td { text-align: left; }
+/* On a phone a row becomes a block, each value under its column's name:
+   the conditions — the reason the row exists — were a sideways scroll away
+   behind three columns of identifiers. */
+@media (max-width: 560px) {
+  table.scan-dt, table.scan-dt tbody, table.scan-dt tr, table.scan-dt td { display: block; width: 100%; }
+  table.scan-dt thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.scan-dt tr { padding: var(--xs) 0; border-bottom: 1px solid var(--line); }
+  table.scan-dt tr:last-child { border-bottom: 0; }
+  table.scan-dt td { padding: 3px 12px; white-space: normal; border: 0; }
+  table.scan-dt td.scan-wrap { min-width: 0; max-width: none; }
+  table.scan-dt td[data-label]:not(.ident)::before {
+    content: attr(data-label); display: block; font-size: var(--text-micro); font-weight: var(--weight-semibold);
+    letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .tablewrap:has(> table.scan-dt) { overflow-x: visible; }
+}
+.scan-results h3[tabindex="-1"]:focus, .scan-page h3[tabindex="-1"]:focus { outline: none; }
+.scan-cmd-code.scan-nowrap { white-space: nowrap; overflow-wrap: normal; }
+@media (max-width: 560px) { .scan-q-link { margin-top: 4px; } }

@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "_note": "fixture",
+  "runs": [
+    {
+      "startedAt": "2026-04-06T21:30:00.000Z",
+      "finishedAt": "2026-04-06T21:41:00.000Z",
+      "status": "COMPLETED",
+      "exitCode": 0,
+      "steps": [
+        {
+          "name": "capture",
+          "status": "OK",
+          "detail": "2 of 2 read"
+        },
+        {
+          "name": "history",
+          "status": "OK",
+          "detail": "2 series, newest bar 2026-04-06"
+        },
+        {
+          "name": "scanner",
+          "status": "OK",
+          "detail": "exit 0"
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-04-03T21:30:00.000Z",
+      "status": "PARTIAL",
+      "exitCode": 2,
+      "steps": [
+        {
+          "name": "capture",
+          "status": "STALE",
+          "detail": "signed out; nothing captured"
+        },
+        {
+          "name": "history",
+          "status": "SKIPPED"
+        },
+        {
+          "name": "scanner",
+          "status": "SKIPPED",
+          "detail": "the history step did not succeed"
+        }
+      ]
+    }
+  ]
+}

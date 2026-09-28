@@ -744,7 +744,7 @@ try {
       out.nav = {};
       for (const p of ['/app/equities', '/discover/sarawak', '/property/areas', '/learn/product-boundaries', '/my/scanner']) {
         navigate(p);
-        out.nav[p] = document.querySelector('#mainnav a[aria-current=page]')?.textContent || null;
+        out.nav[p] = document.querySelector('#mainnav a[aria-current=page]')?.firstChild?.textContent || null;
       }
       const canon = () => document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '');
       navigate('/app/equities/aapl'); const c1 = canon();
@@ -769,7 +769,7 @@ try {
     if (r.carried !== 'financials') p.push(`moving to JPM from /app/equities/aapl/financials landed on ${r.carried}`);
     if (r.plans !== '/pricing?real=1') p.push(`go('plans') from the calculator went to ${r.plans}`);
     if (r.learn !== 'dictionary') p.push(`/learn after /corrections shows the ${r.learn} tab`);
-    const wantNav = { '/app/equities': 'Research', '/discover/sarawak': 'Discover', '/property/areas': 'Property', '/learn/product-boundaries': 'Learn', '/my/scanner': 'My Investments' };
+    const wantNav = { '/app/equities': 'Research', '/discover/sarawak': 'Discover', '/property/areas': 'Property', '/learn/product-boundaries': 'Learn', '/my/scanner': 'Scanner' };
     for (const [k, v] of Object.entries(wantNav)) if (r.nav[k] !== v) p.push(`${k}: the header marks ${r.nav[k]}, not ${v}`);
     if (r.canon[0] !== r.canon[1] || !/^\/company\/aapl-/.test(r.canon[0])) p.push(`AAPL's canonicals: ${r.canon.join(' vs ')}`);
     if (r.chip && (r.chip[1] !== r.chip[0] || r.chip[2] !== null)) p.push(`a ${r.chip[0]} instrument shows the chip ${r.chip[1]} and currency ${r.chip[2]}`);
@@ -3266,6 +3266,253 @@ try {
   } finally {
     ws.removeEventListener('message', p3listen);
     await evaluate(scanRestoreP3).catch(() => null);
+  }
+  /* PHASE 3 — ops: the dashboard, screening, simulation and operations    */
+  /* (src/js/87-scanner-ops.js). Every check below sets the scanner's files */
+  /* in memory, pins the page's clock (scanOpsClock), and puts both back.   */
+  /* ===================================================================== */
+  const opsKeep = `const keep = { h: scanHistoryFile, s: scanSetupsFile, a: scanAlertsFile, r: scanRunsFile, c: scanControlFile, d: scanDeliveriesFile, i: ingestRunsFile, k: scanOpsClock, read: scanOpsRead };
+    const restore = () => { scanHistoryFile = keep.h; scanSetupsFile = keep.s; scanAlertsFile = keep.a; scanRunsFile = keep.r; scanControlFile = keep.c;
+      scanDeliveriesFile = keep.d; ingestRunsFile = keep.i; scanOpsClock = keep.k; scanOpsRead = keep.read; scanMarketState.result = null; scanBacktestState.result = null; };`;
+  const opsWait = `const w = (ms) => new Promise(r => setTimeout(r, ms));`;
+
+  /* NAVIGATION. Scanner is the third destination, every scanner address
+     marks it current, /my/scanner is an alias whose canonical is
+     /app/scanner, and My Investments no longer carries a scanner tab. */
+  {
+    const r = await evaluate(`(async () => {
+      const out = { labels: NAV.map(n => n.label), my: SUBNAV_MY.map(s => s.id), cur: {}, views: {} };
+      for (const p of ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery', '/my/scanner']) {
+        navigate(p);
+        out.cur[p] = document.querySelector('#mainnav a[aria-current=page]')?.firstChild?.textContent || null;
+        out.views[p] = State.view;
+      }
+      out.canon = document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '');
+      navigate('/my/scanner?symbol=MSFT');
+      out.symbol = { view: State.view, path: location.pathname };
+      out.section = SCANNER_VIEWS.every(v => SECTION_OF[v] === 'scanner');
+      out.noId = ROUTES.filter(r => /^\\/(app\\/scanner|admin)/.test(r.path)).every(r => !r.path.includes(':id'));
+      navigate('/learn');
+      return out;
+    })()`);
+    const p = [];
+    if (r.labels.join() !== 'Discover,Research,Scanner,My Investments,Property,Learn') p.push(`header ${r.labels.join(', ')}`);
+    if (r.my.includes('scanner')) p.push('My Investments still carries a scanner tab');
+    for (const [k, v] of Object.entries(r.cur)) if (v !== 'Scanner') p.push(`${k} marks ${v}`);
+    const wantView = { '/app/scanner': 'scannerDashboard', '/app/scanner/market': 'scannerMarket', '/app/scanner/backtest': 'scannerBacktest', '/admin/scanner': 'scannerAdmin',
+      '/admin/scanner/data': 'scannerAdminData', '/admin/scanner/jobs': 'scannerAdminJobs', '/admin/scanner/delivery': 'scannerAdminDelivery', '/my/scanner': 'scannerDashboard' };
+    for (const [k, v] of Object.entries(wantView)) if (r.views[k] !== v) p.push(`${k} renders ${r.views[k]}, not ${v}`);
+    if (r.canon !== '/app/scanner') p.push(`/my/scanner's canonical is ${r.canon}`);
+    if (r.symbol.view === 'notfound' || !(r.symbol.path === '/app/scanner/setups/new' || r.symbol.view === 'scannerDashboard')) p.push(`/my/scanner?symbol=MSFT went to ${JSON.stringify(r.symbol)}`);
+    if (!r.section) p.push('a scanner view is not in the Scanner section');
+    if (!r.noId) p.push('a scanner route names a parameter :id, which the router reads as a company');
+    if (p.length) fail('the scanner is in the header after Research, on every scanner address', p);
+    else ok(`the scanner is in the header after Research, on every scanner address — ${Object.keys(r.cur).length} addresses mark it current, /my/scanner canonicalises to /app/scanner, and /my/scanner?symbol= opens ${r.symbol.path === '/app/scanner/setups/new' ? 'the builder' : 'the dashboard (no builder in this build)'}`);
+  }
+
+  /* THE DASHBOARD'S STATES, from injected records only: never, current,
+     behind (the clock moved on), failed (a failure after the success) and
+     paused. A stale result is never under a "current" heading. */
+  {
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      try {
+        const fx = scanFixture();
+        const setupsDoc = { setups: [fx.setup, fx.setupV2] };
+        const run = scanRun(setupsDoc.setups, fx.history, { now: fx.now, runId: 'run-qa-1', origin: 'cli' });
+        const ok = { id: 'run-qa-1', kind: 'scan', status: 'COMPLETED', trigger: 'cli', startedAt: fx.now, finishedAt: fx.now, engine: 'scan ' + SCAN_VERSION,
+                     setupsHash: scanSetupsHash(setupsDoc), asOf: run.asOf, asOfFrom: run.asOfFrom, evaluated: run.evaluated, matched: run.matched, recorded: run.alerts.length };
+        const failed = { id: 'run-qa-2', kind: 'scan', status: 'FAILED', startedAt: scanAddDays(fx.lastBar, 1) + 'T12:00:00Z', engine: 'scan ' + SCAN_VERSION, error: { code: 'BAD_ALERTS', message: 'QA: the alerts file did not parse' } };
+        const cases = {
+          never:   { runs: null, alerts: { alerts: [], lastRun: null }, control: null, clock: fx.now },
+          current: { runs: { schema: 1, runs: [ok] }, alerts: { alerts: run.alerts }, control: null, clock: fx.now },
+          behind:  { runs: { schema: 1, runs: [ok] }, alerts: { alerts: run.alerts }, control: null, clock: scanAddDays(fx.lastBar, 30) + 'T09:00:00Z' },
+          failed:  { runs: { schema: 1, runs: [ok, failed] }, alerts: { alerts: run.alerts }, control: null, clock: scanAddDays(fx.lastBar, 1) + 'T13:00:00Z' },
+          paused:  { runs: { schema: 1, runs: [ok] }, alerts: { alerts: run.alerts }, control: { paused: true, since: fx.now, reason: 'QA pause' }, clock: fx.now },
+        };
+        const out = {};
+        for (const [name, c] of Object.entries(cases)) {
+          scanHistoryFile = fx.history; scanSetupsFile = setupsDoc; scanAlertsFile = c.alerts; scanRunsFile = c.runs; scanControlFile = c.control; scanOpsClock = c.clock; scanOpsRead = true;
+          navigate('/app/scanner'); render();
+          await w(50);
+          const main = document.querySelector('main');
+          const heads = [...main.querySelectorAll('h3.h-card, .scan-q .stat-label')].map(h => h.textContent);
+          out[name] = { state: main.querySelector('.scan-band')?.dataset.state, chip: main.querySelector('.scan-band .chip')?.textContent,
+                        reasons: [...main.querySelectorAll('.scan-band li')].map(l => l.textContent).join(' | '),
+                        currentHead: heads.some(h => /^Matched on the last scan|on the last scan\\?$/.test(h)), notCurrent: heads.some(h => /not current/.test(h)),
+                        links: [...main.querySelectorAll('a')].filter(a => /\\/app\\/scanner\\/alerts\\/a[0-9a-f]{8}$/.test(a.getAttribute('href') || '')).length,
+                        open: !!main.querySelector('.scan-open') };
+        }
+        return out;
+      } finally { restore(); navigate('/learn'); }
+    })()`);
+    const p = [];
+    const want = { never: 'No run recorded', current: 'Current', behind: 'Behind', failed: 'Failed', paused: 'Paused' };
+    for (const [k, chip] of Object.entries(want)) {
+      const v = r[k];
+      if (!v || v.state !== k || v.chip !== chip) p.push(`${k}: state ${v?.state}, chip "${v?.chip}"`);
+      else if (k === 'current' && (!v.currentHead || v.notCurrent || v.links < 2)) p.push(`current: current heading ${v.currentHead}, "not current" ${v.notCurrent}, ${v.links} alert links`);
+      else if (k !== 'current' && k !== 'never' && (v.currentHead || !v.notCurrent)) p.push(`${k}: a stale result under a current heading (current ${v.currentHead}, not-current ${v.notCurrent})`);
+    }
+    if (!/days old/.test(r.behind?.reasons || '')) p.push(`behind gives no dated reason: ${r.behind?.reasons}`);
+    if (!/QA: the alerts file did not parse/.test(r.failed?.reasons || '')) p.push(`failed does not name the error: ${r.failed?.reasons}`);
+    if (!/QA pause/.test(r.paused?.reasons || '')) p.push(`paused does not name the reason: ${r.paused?.reasons}`);
+    if (!r.never?.open) p.push('the never state offers no way to open your own files');
+    if (p.length) fail('the dashboard answers from persisted records in every state', p);
+    else ok('the dashboard answers from persisted records in every state — never, current, behind, failed and paused each from injected records, with the dated reason, the error or the pause; only the current state heads its matches as the last scan’s, and each match links to its alert page');
+  }
+
+  /* MARKET SCREENING. Four series whose names and values disagree on
+     order: the screen lists each group in symbol order, the table has no
+     sortable header, the coverage line comes first, and the flag notice
+     from the register is on the page. */
+  {
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      try {
+        const fx = scanFixture();
+        const h = JSON.parse(JSON.stringify(fx.history));
+        h.series.ZZZ = h.series.MATCH; h.volume.ZZZ = h.volume.MATCH; h.series.AAA = h.series.FLAT; h.volume.AAA = h.volume.FLAT;
+        scanHistoryFile = h; scanSetupsFile = { setups: [fx.setup] }; scanAlertsFile = { alerts: [] }; scanOpsClock = fx.now; scanOpsRead = true;
+        scanMarketState.market = '__all'; scanMarketState.asOf = ''; scanMarketState.result = null; scanMarketState.setup = null;
+        navigate('/app/scanner/market');
+        const main = document.querySelector('main');
+        const flag = !!main.querySelector('.flag-notice');
+        [...main.querySelectorAll('button')].find(b => /Screen now/.test(b.textContent))?.click();
+        for (let i = 0; i < 40 && !main.querySelector('.scan-coverage'); i++) await w(50);
+        const groups = [...main.querySelectorAll('.scan-group')].map(g => ({ title: g.querySelector('h4')?.textContent, syms: [...g.querySelectorAll('tbody tr td.ident')].map(td => td.textContent) }));
+        const ths = [...main.querySelectorAll('.scan-results th')];
+        return { flag, groups, coverage: main.querySelector('.scan-coverage')?.textContent || '',
+                 sortable: ths.filter(t => (t.getAttribute('aria-sort') && t.getAttribute('aria-sort') !== 'none') || t.querySelector('button')).length,
+                 order: [...main.querySelectorAll('.scan-results tbody td.ident')].map(t => t.textContent) };
+      } finally { restore(); navigate('/learn'); }
+    })()`);
+    const p = [];
+    const matched = r.groups.find(g => /^Matched/.test(g.title || '')), notMatched = r.groups.find(g => /^Not matched/.test(g.title || ''));
+    if (!r.flag) p.push('no feature-flag notice on the page');
+    if (!matched || matched.syms.join() !== 'MATCH,ZZZ') p.push(`matched ${matched?.syms.join()}`);
+    if (!notMatched || notMatched.syms.join() !== 'AAA,FLAT') p.push(`not matched ${notMatched?.syms.join()}`);
+    r.groups.forEach(g => { if (g.syms.join() !== [...g.syms].sort().join()) p.push(`${g.title} is not in symbol order: ${g.syms.join()}`); });
+    if (!/^Screened 4 instruments/.test(r.coverage) || !/none of those is screened/.test(r.coverage)) p.push(`coverage line: ${r.coverage}`);
+    if (r.sortable) p.push(`${r.sortable} sortable headers`);
+    if (p.length) fail('market screening lists your own series in symbol order, never by value', p);
+    else ok(`market screening lists your own series in symbol order, never by value — matched ${matched.syms.join(', ')}, not matched ${notMatched.syms.join(', ')}, the coverage line first, no header a control, and the register's flag on the page`);
+  }
+
+  /* HISTORICAL TESTING. The fixed simulation label and the no-look-ahead
+     statement come before any figure; the page's events are scanHistorical's;
+     each event row is the row a history cut at that bar produces; and no
+     column is a return. */
+  {
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      try {
+        const fx = scanFixture();
+        scanHistoryFile = fx.history; scanSetupsFile = { setups: [fx.setupV2] }; scanAlertsFile = { alerts: [] }; scanOpsClock = fx.now; scanOpsRead = true;
+        Object.assign(scanBacktestState, { setup: null, symbol: '', from: '', to: '', view: 'events', result: null });
+        navigate('/app/scanner/backtest');
+        const main = document.querySelector('main');
+        const sim = main.querySelector('.scan-sim')?.textContent || '';
+        const simFirst = !!main.querySelector('.scan-sim') && main.querySelector('.scan-sim').compareDocumentPosition(main.querySelector('.scan-form')) & Node.DOCUMENT_POSITION_FOLLOWING;
+        const flag = !!main.querySelector('.flag-notice');
+        [...main.querySelectorAll('button')].find(b => /Run the simulation/.test(b.textContent))?.click();
+        for (let i = 0; i < 60 && !main.querySelector('.scan-counts'); i++) await w(50);
+        const rows = [...main.querySelectorAll('.card')].find(c => /Matching dates/.test(c.textContent))?.querySelectorAll('tbody tr') || [];
+        const shown = [...rows].map(tr => [...tr.cells].slice(0, 2).map(td => td.textContent).join('|'));
+        const direct = scanHistorical(fx.setupV2, fx.history);
+        const want = direct.events.map(e => e.symbol + '|' + e.bar);
+        const cut = shown.every(s => { const [sym, bar] = s.split('|'); return scanHistorical(fx.setupV2, scanTruncateHistory(fx.history, bar)).events.some(e => e.symbol === sym && e.bar === bar); });
+        const heads = [...main.querySelectorAll('th')].map(t => t.textContent);
+        return { sim, simFirst: !!simFirst, flag, shown, want, cut, heads };
+      } finally { restore(); navigate('/learn'); }
+    })()`);
+    const p = [];
+    if (!r.sim.includes('A simulation on the closes you captured') || !/No look-ahead/.test(r.sim)) p.push(`simulation label: ${r.sim.slice(0, 120)}`);
+    if (!r.simFirst) p.push('the label does not come before the form and the figures');
+    if (!r.flag) p.push('no feature-flag notice');
+    if ([...r.shown].sort().join() !== [...r.want].sort().join() || !r.shown.length) p.push(`events on the page ${r.shown.join()} vs scanHistorical ${r.want.join()}`);
+    if (!r.cut) p.push('an event row differs from the history cut at its own bar');
+    if (r.heads.some(h => /\breturn|profit|p&l|performance|win rate|hit rate/i.test(h))) p.push(`a column reads as performance: ${r.heads.join(', ')}`);
+    if (p.length) fail('historical testing is labelled a simulation and shows no look-ahead', p);
+    else ok(`historical testing is labelled a simulation and shows no look-ahead — the fixed label and the no-look-ahead statement come first, the page's events (${r.shown.join(', ')}) are scanHistorical's and each equals the history cut at its bar, and no column is a return`);
+  }
+
+  /* THE OPERATIONS PAGES, from the committed fixture files: the notice,
+     the failed and partial runs with their ids and a retry command, the
+     filters, the control log, data health and the channels. Nothing on
+     them can change anything: every button copies, opens a file, or filters. */
+  {
+    const { readFileSync } = await import('node:fs');
+    const fx = (f) => readFileSync(new URL(`./scanner/fixtures/${f}`, import.meta.url), 'utf8');
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      try {
+        const f = scanFixture();
+        scanHistoryFile = f.history; scanSetupsFile = { setups: [f.setup, f.setupV2] }; scanAlertsFile = { alerts: scanRun([f.setup], f.history, { now: f.now }).alerts };
+        scanRunsFile = ${fx('scan-runs.fixture.json')}; scanControlFile = ${fx('scan-control.fixture.json')};
+        scanDeliveriesFile = ${fx('scan-deliveries.fixture.json')}; ingestRunsFile = ${fx('ingest-runs.fixture.json')};
+        scanOpsClock = '2026-04-07T09:00:00.000Z'; scanOpsRead = true;
+        const out = {};
+        const text = () => document.querySelector('main').innerText;
+        const buttons = () => [...document.querySelectorAll('main button')].map(b => b.textContent.trim());
+        navigate('/admin/scanner');
+        out.overview = { notice: /There is no administrator role/.test(text()), failed: /run-20260402T220000Z-3870/.test(text()), partial: /run-20260403T220000Z-3977/.test(text()),
+                         retry: /--retry run-20260402T220000Z-3870/.test(text()), controls: ['--as-of', '--pause', '--resume', '--unlock', '--runs'].every(c => text().includes(c)),
+                         ingest: /capture/.test(text()) && /2026-04-06 21:30 UTC/.test(text()), buttons: buttons() };
+        navigate('/admin/scanner/jobs');
+        const rows = () => document.querySelectorAll('main .card:first-of-type tbody tr').length;
+        out.jobs = { runs: [...document.querySelectorAll('main .scan-dt')][0]?.querySelectorAll('tbody tr').length, notice: /no administrator role/.test(text()) };
+        [...document.querySelectorAll('main button')].find(b => /^Failed/.test(b.textContent))?.click();
+        out.jobs.failedOnly = [...document.querySelectorAll('main .scan-dt')][0]?.querySelectorAll('tbody tr').length;
+        out.jobs.controls = [...document.querySelectorAll('main .scan-dt')].pop()?.querySelectorAll('tbody tr').length;
+        out.jobs.buttons = buttons();
+        scanJobsState.filter = 'all';
+        navigate('/admin/scanner/data');
+        [...document.querySelectorAll('main button')].find(b => /^Only series/.test(b.textContent))?.click();
+        out.data = { weekdays: /weekdays/.test(text()), series: /MATCH/.test(text()) && /FLAT/.test(text()), notice: /no administrator role/.test(text()) };
+        navigate('/admin/scanner/delivery');
+        const ch = [...document.querySelectorAll('main .scan-dt')][0];
+        out.delivery = { channels: ch ? [...ch.querySelectorAll('tbody tr')].map(tr => tr.cells[0].textContent + ':' + tr.cells[1].textContent) : [],
+                         records: [...document.querySelectorAll('main .scan-dt')][1]?.querySelectorAll('tbody tr').length || 0, buttons: buttons() };
+        return out;
+      } finally { restore(); navigate('/learn'); }
+    })()`);
+    const p = [];
+    const o = r.overview;
+    if (!o.notice || !o.failed || !o.partial || !o.retry || !o.controls || !o.ingest) p.push(`overview: ${JSON.stringify({ ...o, buttons: undefined })}`);
+    if (r.jobs.runs !== 5 || r.jobs.failedOnly !== 1 || r.jobs.controls !== 3 || !r.jobs.notice) p.push(`runs page: ${JSON.stringify(r.jobs)}`);
+    if (!r.data.weekdays || !r.data.series || !r.data.notice) p.push(`data health: ${JSON.stringify(r.data)}`);
+    if (r.delivery.channels.join() !== 'In-app:active,Email:not configured,Telegram:not configured,Web push:not configured' || r.delivery.records !== 1) p.push(`delivery: ${JSON.stringify(r.delivery)}`);
+    const acting = [...o.buttons, ...r.jobs.buttons, ...r.delivery.buttons].filter(b => !/^(Copy|Open your files…|Show \d+ more|(All|Completed|Partial|Failed|Skipped) \(\d+\))$/.test(b));
+    if (acting.length) p.push(`controls that act: ${acting.join(', ')}`);
+    if (p.length) fail('the operations pages render the worker files read-only', p);
+    else ok('the operations pages render the worker files read-only — from the committed fixtures: the no-administrator notice on each, the failed and partial runs by id with the exact retry command, five runs filtering to one failure, three control-log entries, the last ingestion, data health on weekday calendars, four channels with only in-app active, and no button that does anything but copy, filter or open');
+  }
+
+  /* EMPTY STATES. With no scanner file at all — the deployed site — every
+     ops page says which file is absent and what writes it; none is near
+     empty or prints a raw value. The loader itself ran (scanOpsRead). */
+  {
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      const loaded = scanOpsRead === true || !!(realStatus && !realStatus.ok);
+      try {
+        scanHistoryFile = null; scanSetupsFile = null; scanAlertsFile = null; scanRunsFile = null; scanControlFile = null; scanDeliveriesFile = null; ingestRunsFile = null; scanOpsRead = true; scanOpsClock = null;
+        const out = { loaded, pages: {} };
+        for (const p of ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery']) {
+          navigate(p);
+          const t = document.querySelector('main').innerText;
+          out.pages[p] = { len: t.length, absent: /absent|No price history is loaded|No scan has been recorded|no setups file|No setup available/i.test(t),
+                           raw: /undefined|NaN|\\[object Object\\]|null–null/.test(t) };
+        }
+        return out;
+      } finally { restore(); navigate('/learn'); }
+    })()`);
+    const p = [];
+    if (!r.loaded) p.push('the loader never marked the scanner files as read');
+    for (const [k, v] of Object.entries(r.pages)) if (v.len < 600 || !v.absent || v.raw) p.push(`${k}: ${JSON.stringify(v)}`);
+    if (p.length) fail('the scanner pages state which file is absent', p);
+    else ok(`the scanner pages state which file is absent — ${Object.keys(r.pages).length} pages with no scanner file at all each say what is missing and what writes it, and print no raw value`);
   }
 
 } catch (e) {

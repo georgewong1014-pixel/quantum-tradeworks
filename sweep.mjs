@@ -60,6 +60,10 @@ const ROUTES = [
   '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/setups/new?symbol=MSFT', '/app/scanner/setups/no-such-setup',
   '/app/scanner/setups/no-such-setup/edit', '/app/scanner/watchlists', '/app/scanner/alerts', '/app/scanner/alerts/a00000000',
   '/app/scanner/settings', '/my/scanner?symbol=MSFT',
+  /* Phase 3 — the scanner (ops): the dashboard, the two P1 surfaces, the four
+     operations pages, and the old address with the company page's ?symbol=. */
+  '/app/scanner', '/app/scanner/market', '/app/scanner/backtest',
+  '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery',
 ];
 
 const CANDIDATES = [

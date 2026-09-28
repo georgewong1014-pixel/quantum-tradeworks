@@ -1,0 +1,167 @@
+{
+  "schema": 1,
+  "_note": "A run log for the operations pages' checks (equity-test.mjs): one of each status the worker writes, on the engine fixture's dates. Not real runs.",
+  "runs": [
+    {
+      "id": "run-20260406T220000Z-4101",
+      "kind": "scan",
+      "trigger": "daily",
+      "status": "COMPLETED",
+      "exitCode": 0,
+      "startedAt": "2026-04-06T22:00:00.000Z",
+      "finishedAt": "2026-04-06T22:00:01.380Z",
+      "durationMs": 1380,
+      "engine": "scan 0.3.0",
+      "selfTest": {
+        "ok": true,
+        "alerts": 1,
+        "again": 0
+      },
+      "history": {
+        "path": "data/price-history.json",
+        "generated": "2026-04-06T21:40:00.000Z",
+        "source": "fixture",
+        "symbols": 2,
+        "newestBar": "2026-04-06"
+      },
+      "setupsHash": null,
+      "asOf": "2026-04-06",
+      "asOfFrom": "2026-04-06",
+      "setups": 2,
+      "evaluated": 4,
+      "matched": 2,
+      "recorded": 1,
+      "untested": 0,
+      "deduped": 0,
+      "cooldown": 0,
+      "continuing": 1,
+      "problems": [],
+      "untestedEverywhere": [],
+      "stale": [],
+      "error": null,
+      "cacheStats": {
+        "hits": 14,
+        "misses": 9
+      }
+    },
+    {
+      "id": "run-20260403T220000Z-3977",
+      "kind": "scan",
+      "trigger": "daily",
+      "status": "PARTIAL",
+      "exitCode": 2,
+      "startedAt": "2026-04-03T22:00:00.000Z",
+      "finishedAt": "2026-04-03T22:00:02.010Z",
+      "durationMs": 2010,
+      "engine": "scan 0.3.0",
+      "history": {
+        "path": "data/price-history.json",
+        "generated": "2026-04-03T21:40:00.000Z",
+        "source": "fixture",
+        "symbols": 2,
+        "newestBar": "2026-04-03"
+      },
+      "asOf": "2026-04-03",
+      "asOfFrom": "2026-04-03",
+      "setups": 2,
+      "evaluated": 4,
+      "matched": 0,
+      "recorded": 0,
+      "untested": 2,
+      "problems": [],
+      "untestedEverywhere": [
+        {
+          "setup": "fixture-breakout-v2",
+          "why": "RSI(14) needs 15 bars; 12 held"
+        }
+      ],
+      "stale": [],
+      "error": {
+        "code": "UNTESTED_EVERYWHERE",
+        "category": "setup",
+        "message": "a setup could not be tested on any instrument in its universe"
+      }
+    },
+    {
+      "id": "run-20260402T220000Z-3870",
+      "kind": "scan",
+      "trigger": "daily",
+      "status": "FAILED",
+      "exitCode": 1,
+      "startedAt": "2026-04-02T22:00:00.000Z",
+      "finishedAt": "2026-04-02T22:00:00.140Z",
+      "durationMs": 140,
+      "engine": "scan 0.3.0",
+      "history": null,
+      "asOf": null,
+      "setups": null,
+      "evaluated": null,
+      "error": {
+        "code": "BAD_ALERTS",
+        "category": "input",
+        "message": "data/scan-alerts.json is not valid JSON; it was left alone",
+        "correlationId": "run-20260402T220000Z-3870"
+      }
+    },
+    {
+      "id": "run-20260402T220005Z-3871",
+      "kind": "scan",
+      "trigger": "cli",
+      "status": "SKIPPED_LOCKED",
+      "exitCode": 2,
+      "startedAt": "2026-04-02T22:00:05.000Z",
+      "finishedAt": "2026-04-02T22:00:05.020Z",
+      "durationMs": 20,
+      "engine": "scan 0.3.0",
+      "error": {
+        "code": "LOCKED",
+        "category": "concurrency",
+        "message": "another run (pid 3870) holds data/scan.lock"
+      }
+    },
+    {
+      "id": "run-20260401T220000Z-3760",
+      "kind": "scan",
+      "trigger": "daily",
+      "status": "SKIPPED_PAUSED",
+      "exitCode": 0,
+      "startedAt": "2026-04-01T22:00:00.000Z",
+      "finishedAt": "2026-04-01T22:00:00.010Z",
+      "durationMs": 10,
+      "engine": "scan 0.3.0",
+      "error": null
+    },
+    {
+      "kind": "control",
+      "action": "resume",
+      "at": "2026-04-02T08:00:00.000Z",
+      "argv": [
+        "--resume"
+      ],
+      "reason": null
+    }
+  ],
+  "audit": [
+    {
+      "kind": "control",
+      "action": "pause",
+      "at": "2026-03-31T09:00:00.000Z",
+      "argv": [
+        "--pause",
+        "holiday week"
+      ],
+      "reason": "holiday week"
+    },
+    {
+      "kind": "control",
+      "action": "replay",
+      "at": "2026-04-06T23:10:00.000Z",
+      "argv": [
+        "--as-of",
+        "2026-04-03"
+      ],
+      "reason": null,
+      "replayAsOf": "2026-04-03"
+    }
+  ]
+}
