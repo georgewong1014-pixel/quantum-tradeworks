@@ -210,10 +210,22 @@ function scanSessionDateAt(market, instant, calendar = null) {
 /* A bar is FINAL when it was captured at or after its session's close plus
    settle, PROVISIONAL when captured before (an in-progress bar written as
    though it were the day's), UNKNOWN when no capture time is recorded —
-   which is every bar the history held before schema 2. */
-function scanBarStatus(market, sessionDate, capturedAt) {
+   which is every bar the history held before schema 2.
+   HELD BEFORE ITS CLOSE. `heldAt` (optional) is the instant the history is
+   read at, and no bar in it can have been captured later than that. So a
+   bar with no capture time, read before its own session has closed and
+   settled, was captured before the close: PROVISIONAL, not UNKNOWN. An
+   UNKNOWN bar is evaluated as though final once its session has closed
+   (the round 1 ruling); read as UNKNOWN at 11:00 in New York, Monday's
+   bar — an import made mid-session, with no capture time — was evaluated
+   and recorded as a match on a session still trading. */
+function scanBarStatus(market, sessionDate, capturedAt, heldAt = null) {
   const at = capturedAt == null ? NaN : scanMs(capturedAt);
-  if (!Number.isFinite(at) || !scanIsDay(sessionDate)) return 'UNKNOWN';
+  if (!scanIsDay(sessionDate)) return 'UNKNOWN';
+  if (!Number.isFinite(at)) {
+    const held = heldAt == null ? NaN : scanMs(heldAt);
+    return Number.isFinite(held) && held < scanSessionEnd(market, sessionDate) ? 'PROVISIONAL' : 'UNKNOWN';
+  }
   return at >= scanSessionEnd(market, sessionDate) ? 'FINAL' : 'PROVISIONAL';
 }
 
@@ -402,10 +414,10 @@ const SCAN_INDICATORS = {
     formula: 'line = EMA(fast) − EMA(slow); signal = an EMA of the line from its first value, seeded with the mean of its first `signal` values; histogram = line − signal' },
   volume_avg: { label: 'average volume', params: { n: scanNP(20) }, inputs: ['volume'], unit: 'volume', calcVersion: 1,
     needs: (p) => p.n, formula: 'the arithmetic mean of the last n volumes, the current bar included' },
-  bb: { label: 'Bollinger', params: { n: scanNP(20), k: { def: 2, min: 0.1, max: 10, integer: false } }, inputs: ['close'], calcVersion: 1,
+  bb: { label: 'Bollinger', params: { n: scanNP(20), k: { def: 2, min: 0.1, max: 10, integer: false } }, inputs: ['close'], calcVersion: 2,
     fields: { upper: 'price', middle: 'price', lower: 'price', width: 'ratio', pctb: 'position' }, defaultField: 'middle',
     needs: (p) => p.n,
-    formula: "middle = the mean of the last n closes; σ = their POPULATION standard deviation (Bollinger's definition — a platform using the sample deviation draws wider bands); upper and lower = middle ± k × σ; width = (upper − lower) / middle; %b = (close − lower) / (upper − lower), undefined when σ is 0" },
+    formula: "middle = the mean of the last n closes; σ = their POPULATION standard deviation (Bollinger's definition — a platform using the sample deviation draws wider bands); upper and lower = middle ± k × σ; width = (upper − lower) / middle; %b = (close − lower) / (upper − lower), undefined when σ is 0 — every close in the window equal, by the float rule" },
   atr: { label: 'ATR', params: { n: scanNP(14) }, inputs: ['high', 'low', 'close'], unit: 'price_delta', calcVersion: 1,
     needs: (p) => p.n + 1,
     formula: "Wilder's: true range = the largest of high − low, |high − previous close| and |low − previous close|; the first ATR is the mean of the first n true ranges, then (previous × (n − 1) + TR) / n. Needs highs and lows; never estimated from closes" },
@@ -607,16 +619,22 @@ function scanMacd(a, fast, slow, signal) {
   const hist = line.map((v, i) => (v == null || sig[i] == null) ? null : v - sig[i]);
   return { line, signal: sig, hist };
 }
-/* Bollinger bands with the population deviation of the same window. */
+/* Bollinger bands with the population deviation of the same window.
+   A FLAT WINDOW HAS NO BAND. Twenty closes of 0.3 sum to 5.999999999999999
+   in binary, so their mean is 0.29999999999999993 and their deviation
+   came out 1e-16 rather than 0: the band had a width of noise, and %b
+   was 0.75 — a "%b above 0.7" rule matched a counter that had not moved.
+   A window whose closes are all equal by the float rule (scanTol) has a
+   deviation of exactly 0, so its %b is undefined, as its formula says. */
 function scanBb(a, n, k) {
   const len = a.length, mid = scanSma(a, n);
   const upper = new Array(len).fill(null), lower = new Array(len).fill(null), width = new Array(len).fill(null), pctb = new Array(len).fill(null), zd = [];
   for (let i = 0; i < len; i++) {
     const m = mid[i];
     if (m == null) continue;
-    let ss = 0;
-    for (let j = i - n + 1; j <= i; j++) ss += (a[j] - m) * (a[j] - m);
-    const sd = Math.sqrt(ss / n);
+    let ss = 0, lo = a[i], hi = a[i];
+    for (let j = i - n + 1; j <= i; j++) { ss += (a[j] - m) * (a[j] - m); if (a[j] < lo) lo = a[j]; if (a[j] > hi) hi = a[j]; }
+    const sd = hi - lo <= scanTol(hi, lo) ? 0 : Math.sqrt(ss / n);
     upper[i] = m + k * sd; lower[i] = m - k * sd;
     width[i] = (upper[i] - lower[i]) / m;
     if (sd === 0) zd.push(i); else pctb[i] = (a[i] - lower[i]) / (upper[i] - lower[i]);
@@ -956,6 +974,11 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
   const corrected = new Set((Array.isArray(history?.corrections?.[symbol]) ? history.corrections[symbol] : []).map(c => c?.date).filter(Boolean));
   const clock = now != null && Number.isFinite(scanMs(now));
   const today = clock ? scanLocalDate(mk, now) : null;
+  /* A session closes at most half an hour past midnight (a 24:00 close, or
+     a close with its settle), so only a bar dated from the day before the
+     market's own date at `now` can still be open by then: the rest skip the
+     zone arithmetic, which at 2,000 series of 500 bars cost seconds. */
+  const openFrom = clock ? scanAddDays(today, -1) : null;
   const cal = calendar || scanWeekdayCalendar(mk);
   let b = { symbol, market: mk, instrumentId: mk ? `${String(mk).toUpperCase()}:${String(symbol).toUpperCase()}` : null, timeframe: '1D',
               dates: [], timestamps: [], closes: [], volumes: [], open: [], high: [], low: [], status: [], source: [], capturedAt: [],
@@ -973,7 +996,7 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
     b.open.push(bar.open); b.high.push(bar.high); b.low.push(bar.low);
     if (scanOk(bar.high) && scanOk(bar.low)) b.hasOHLC = true;
     const m = meta[d] && typeof meta[d] === 'object' ? meta[d] : {};
-    b.status.push(corrected.has(d) || m.status === 'CORRECTED' ? 'CORRECTED' : scanBarStatus(mk, d, m.at));
+    b.status.push(corrected.has(d) || m.status === 'CORRECTED' ? 'CORRECTED' : scanBarStatus(mk, d, m.at, clock && d >= openFrom ? now : null));
     b.source.push(m.src ?? null); b.capturedAt.push(m.at ?? null);
     /* An export the provider had already adjusted (history-import
        --adjusted provider) reflects every action up to the day it was
@@ -2027,16 +2050,25 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
                 pairs: {}, catchUp: null, catchUpList: [], skippedMarkets: [], narrowed: null, universeResolvedFrom: [], watchlistFallbacks: [] };
   const prior = Array.isArray(existing) ? existing : [];
   const seen = new Set(prior.map(a => a?.key).filter(Boolean));
-  /* The newest recorded bar per setup version, instrument and timeframe:
-     what a cooldown is counted from. A 0.2 alert has no version (it was
-     version 1) and the timeframe 'daily'. */
-  const lastBy = new Map();
+  /* The recorded bars per setup version, instrument and timeframe: what a
+     cooldown is counted from. A 0.2 alert has no version (it was version 1)
+     and the timeframe 'daily'.
+     A COOLDOWN RUNS FORWARD. It is counted from the newest alert on or
+     before the bar being evaluated, never from a later one. Only the newest
+     bar overall was kept, so a replay of a past session (--as-of) with a
+     later alert already in the record was refused as "within the 5-bar
+     cooldown of" a bar that came after it — a run on that evening would not
+     have held that alert, and the replay records what that run would have. */
+  const recordedBars = new Map();
   const cdKey = (id, v, sym, tf) => `${id}|${v}|${String(sym).toUpperCase()}|${scanTimeframe(tf)}`;
   prior.forEach(a => {
     if (!a?.setupId || a.symbol == null) return;
     const k = cdKey(a.setupId, a.setupVersion ?? 1, a.symbol, a.timeframe), b = a.candleDate || a.bar;
-    if (b && (!lastBy.has(k) || b > lastBy.get(k))) lastBy.set(k, b);
+    if (!b) return;
+    if (!recordedBars.has(k)) recordedBars.set(k, []);
+    recordedBars.get(k).push(b);
   });
+  const recordedOnOrBefore = (k, bar) => { let p = null; for (const x of recordedBars.get(k) || []) if (x <= bar && (p == null || x > p)) p = x; return p; };
   const cals = new Map();
   const calFor = (m) => { const k = m ? String(m).toUpperCase() : ''; if (!cals.has(k)) cals.set(k, scanCalendar(hist, instruments, m || null)); return cals.get(k); };
   const barsMemo = new Map();
@@ -2201,7 +2233,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
            a bar. Counted as the bars held after the previous alert's bar, so a
            bar removed from the history does not lose the cooldown. */
         const ck = cdKey(s.id, s.version, SYM, s.timeframe);
-        const prevBar = lastBy.get(ck);
+        const prevBar = recordedOnOrBefore(ck, jb);
         if (s.cooldownBars > 0 && prevBar) {
           let since = 0;
           for (let k = 0; k <= j; k++) if (bars.dates[k] > prevBar) since++;
@@ -2238,7 +2270,8 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
         };
         out.alerts.push(rec);
         forms.forEach(k => seen.add(k));
-        lastBy.set(ck, jb);
+        if (!recordedBars.has(ck)) recordedBars.set(ck, []);
+        recordedBars.get(ck).push(jb);
       }
     }
     /* A setup none of whose instruments could be tested is a configuration
@@ -2540,7 +2573,7 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
      record of a success; it is read as one. */
   const legacy = lr ? { id: null, kind: 'scan', status: 'COMPLETED', trigger: null, startedAt: lr.at || null, finishedAt: lr.at || null, engine: lr.engine || null,
                         asOf: lr.asOf || null, asOfFrom: lr.asOfFrom || null, setupsHash: lr.setupsHash || null, recorded: lr.recorded ?? null,
-                        evaluated: lr.evaluated ?? null, skippedMarkets: Array.isArray(lr.skippedMarkets) ? lr.skippedMarkets : [], legacy: true } : null;
+                        evaluated: lr.evaluated ?? null, skippedMarkets: Array.isArray(lr.skippedMarkets) ? lr.skippedMarkets : [], replayAsOf: lr.replayAsOf || null, legacy: true } : null;
   const byTime = [...runList].sort((a, b) => String(a.startedAt || '').localeCompare(String(b.startedAt || '')));
   const lastAttempt = byTime[byTime.length - 1] || legacy;
   /* A run that evaluated no bar at all — every market it would have scanned
@@ -2551,8 +2584,16 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
      Only a run that says so (no bar evaluated, and a count of 0) is read
      this way; a record without counts is read as before. */
   const evaluatedNothing = (r) => !r?.asOf && (r?.counts?.evaluated === 0 || r?.evaluated === 0);
-  const lastSuccess = [...byTime].reverse().find(r => (r.status === 'COMPLETED' || r.status === 'PARTIAL') && !evaluatedNothing(r))
-    || (legacy && !evaluatedNothing(legacy) ? legacy : null);
+  /* A REPLAY IS NOT THE LAST SCAN. --as-of DATE evaluates a past session on
+     purpose, as though the history ended there (and a retry of a replay
+     does the same). Read as the last success, one replay of 3 August made
+     a current dashboard "behind — the last scan ran today on bars of
+     2026-08-03", and headed 3 August's matches as the last scan's. It stays
+     an attempt; the last success is the latest run on the history as it
+     stands. */
+  const replayed = (r) => !!r?.replayAsOf || r?.trigger === 'replay';
+  const lastSuccess = [...byTime].reverse().find(r => (r.status === 'COMPLETED' || r.status === 'PARTIAL') && !evaluatedNothing(r) && !replayed(r))
+    || (legacy && !evaluatedNothing(legacy) && !replayed(legacy) ? legacy : null);
   const today = now != null && Number.isFinite(scanMs(now)) ? new Date(scanMs(now)).toISOString().slice(0, 10) : null;
   const v = setupsDoc ? scanValidate(setupsDoc) : { setups: [], problems: [] };
   const active = { valid: v.setups.length, enabled: v.setups.filter(s => s.enabled).length, disabled: v.setups.filter(s => !s.enabled).length,
@@ -2598,11 +2639,36 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
   } else if (lastAttempt && evaluatedNothing(lastAttempt)) {
     /* Held back with no success before it: an old history is usually why. */
     if (ageReason) reasons.push(ageReason);
-  } else if (lastAttempt && state === 'current') state = 'failed';
+  } else if (lastAttempt && lastAttempt.status !== 'FAILED') {
+    /* NO SUCCESS, AND AN ATTEMPT THAT DID NOT FAIL. This read "failed" with
+       no reason at all, so a first run still RUNNING, one skipped for want
+       of a setups file, a cancelled one or a lone replay put "The latest
+       scan failed." over an empty list, beside a tile saying the attempt
+       was running or skipped. Nothing has succeeded, so it is not current;
+       nothing failed, so it is behind — and it says which attempt, when,
+       and what became of it. A FAILED attempt has its reason above. */
+    const s = lastAttempt.status;
+    const what = replayed(lastAttempt) && (s === 'COMPLETED' || s === 'PARTIAL')
+      ? `was a replay of ${lastAttempt.replayAsOf || 'a past session'}, which evaluates that session as though the history ended there`
+      : s === 'RUNNING' || s === 'PENDING' ? 'has not finished'
+      : s === 'CANCELLED' ? 'was cancelled before it finished'
+      : String(s || '').startsWith('SKIPPED') ? `was skipped${lastAttempt.skipReason ? `: ${String(lastAttempt.skipReason).replace(/\.\s*$/, '')}` : ''}`
+      : `ended ${s ? String(s).toLowerCase().replace(/_/g, ' ') : 'with no status recorded'}`;
+    if (state === 'current') state = 'behind';
+    reasons.push(`No scan of your history as it stands has succeeded on this machine: the latest attempt${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} ${what}.`);
+    if (ageReason) reasons.push(ageReason);
+  }
   const order = new Map(v.setups.map((s, i) => [s.id, i]));
   const rank = (a) => (order.has(a.setupId) ? order.get(a.setupId) : order.size);
   const barOf = (a) => a.candleDate || a.bar || '';
-  const latestMatches = lastSuccess?.asOf ? alerts.map((a, i) => ({ a, i })).filter(x => barOf(x.a) === lastSuccess.asOf)
+  /* THE LAST SCAN'S MATCHES are the alerts on the bar it ran on and the
+     alerts it recorded itself. Only the first were read, so a match the
+     scan recorded on an earlier bar — a caught-up day (SC-307), or a market
+     whose last session is a day behind another's — was left out, and the
+     dashboard said "No setup matched on the bars of that scan" of a run
+     whose own record counted the match as recorded. */
+  const ofLastScan = (a) => barOf(a) === lastSuccess.asOf || (lastSuccess.id != null && a.runId != null && a.runId === lastSuccess.id);
+  const latestMatches = lastSuccess?.asOf ? alerts.map((a, i) => ({ a, i })).filter(x => ofLastScan(x.a))
     .sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map(x => x.a) : [];
   const recentBars = [...new Set(alerts.map(barOf).filter(Boolean))].sort().reverse().slice(0, 5);
   const recent = alerts.map((a, i) => ({ a, i })).filter(x => recentBars.includes(barOf(x.a)))
