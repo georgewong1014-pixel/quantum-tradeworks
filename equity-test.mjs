@@ -6065,6 +6065,101 @@ try {
   }
   /* ---- end bugfix2: scanner ---- */
 
+  /* ---- bugfix2: shell ---- */
+  const levelsOf = `const lv = (h) => Number(h.getAttribute('aria-level') || h.tagName[1]);
+    const skips = (hs, start) => { const out = []; let prev = start;
+      hs.forEach(h => { const l = lv(h); if (l > prev + 1) out.push(prev + '→' + l + ' "' + h.textContent.trim().slice(0, 40) + '"'); prev = l; });
+      return out; };`;
+  {
+    /* THE HEADING ORDER. cardHead titled every card h3 under a page h1 with
+       no h2, so most pages stepped from h1 to h3 — the property calculator
+       to h4, and the printable record and report opened on an h3 above their
+       h1. Each heading's level, as assistive technology reads it (aria-level
+       where the page states one, the tag otherwise), steps at most one below
+       the heading before it; a page's first heading is its h1 or a heading
+       that belongs to the page. */
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      ${levelsOf}
+      const out = {};
+      for (const p of ['/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs',
+        '/admin/scanner/delivery', '/discover/screener', '/app/scanner/setups', '/property', '/methodology/ips', '/company/AAPL-SEC',
+        '/company/AAPL-SEC/report', '/decision-record', '/learn', '/data-sources', '/methodology', '/my/alerts', '/my/theses', '/research']) {
+        navigate(p); await w(150);
+        const hs = [...document.querySelectorAll('main h1, main h2, main h3, main h4, main h5, main h6')];
+        const bad = skips(hs, 1);
+        out[p] = { n: hs.length, bad, stated: hs.filter(h => h.hasAttribute('aria-level')).length };
+      }
+      return out;
+    })()`);
+    const p = Object.entries(r).filter(([, v]) => !v.n || v.bad.length).map(([k, v]) => `${k}: ${v.n ? v.bad.slice(0, 2).join(', ') : 'no headings'}`);
+    const stated = Object.values(r).reduce((a, v) => a + v.stated, 0);
+    if (p.length) fail('bugfix2 shell: no page\'s headings skip a level', p);
+    else ok(`bugfix2 shell: no page's headings skip a level — ${Object.keys(r).length} pages, ${stated} headings given the level the page puts them at`);
+  }
+  {
+    /* The level a page states is the level Chrome's accessibility tree
+       reports: a card's h3 directly under the page h1 is a level-2 heading
+       to a screen reader. */
+    await evaluate(`(async () => { navigate('/app/scanner/market'); await new Promise(r => setTimeout(r, 200)); return true; })()`);
+    await send('Accessibility.enable', {}, sessionId);
+    const h = await send('Runtime.evaluate', { expression: `document.querySelector('main h3.h-card')` }, sessionId);
+    const objectId = h.result?.result?.objectId;
+    const ax = objectId ? await send('Accessibility.getPartialAXTree', { objectId, fetchRelatives: false }, sessionId) : null;
+    const node = ax?.result?.nodes?.[0];
+    const level = node?.properties?.find(x => x.name === 'level')?.value?.value;
+    const stated = await evaluate(`document.querySelector('main h3.h-card')?.getAttribute('aria-level') || null`);
+    if (node?.role?.value !== 'heading' || level !== 2 || stated !== '2') fail('bugfix2 shell: a card title under the page h1 is a level-2 heading in the accessibility tree', { role: node?.role?.value, level, stated });
+    else ok('bugfix2 shell: a card title under the page h1 is a level-2 heading in the accessibility tree (an h3 stating aria-level 2)');
+  }
+  {
+    /* A part of the page drawn after render() — a scanner run's result, a
+       setup evaluated now — and a drawer's body are fitted too: the drawer's
+       column headings sat an h4 under its h2 title. */
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      ${levelsOf}
+      navigate('/learn'); await w(150);
+      const host = document.querySelector('main .shell');
+      const card = el('div', { class: 'card', id: 'bf2-shell-card' }, cardHead('Drawn after render'), el('h4', {}, 'A part of it'));
+      host.append(card); await w(0);
+      const late = [...card.querySelectorAll('h3, h4')].map(lv);
+      card.remove();
+      navigate('/discover/screener'); await w(150);
+      openColumnPicker(); await w(350);
+      const body = [...document.querySelectorAll('#drawerBody h1, #drawerBody h2, #drawerBody h3, #drawerBody h4, #drawerBody h5, #drawerBody h6')];
+      const drawerBad = skips(body, 2);
+      closeDrawer(); await w(350);
+      return { late, n: body.length, drawerBad };
+    })()`);
+    const p = [];
+    if (r.late.join() !== '2,3') p.push(`a card drawn after render reads ${r.late.join(', ')}, not 2, 3`);
+    if (!r.n || r.drawerBad.length) p.push(`the column picker's headings under its h2 title: ${r.n ? r.drawerBad.slice(0, 2).join(', ') : 'none found'}`);
+    if (p.length) fail('bugfix2 shell: headings drawn after render, and a drawer\'s, step one level at a time', p);
+    else ok(`bugfix2 shell: headings drawn after render, and a drawer's, step one level at a time — a late card reads 2 then 3, and the column picker's ${r.n} headings sit one under its title`);
+  }
+  {
+    /* The Trading Index dock printed "Screenshot confidence: null": a run is
+       assessable before its five confidence components are scored, and the
+       dock stringified the null the run carries until they are. */
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      navigate('/research/trading-index'); await w(150);
+      const keep = State.qtti;
+      const p = qttiWorkedExample();
+      p.confidence = { metadata: null, panels: null, indicators: null, legibility: null, recency: null };
+      State.qtti = p; render();
+      const run = qttiRun(p);
+      const fig = [...document.querySelectorAll('.dock .dock-fig')].find(f => /Screenshot confidence/.test(f.textContent));
+      const out = { assessable: run.assessable, confidence: run.confidence, shown: fig?.querySelector('.dock-fig-v')?.textContent ?? null };
+      State.qtti = keep; render();
+      return out;
+    })()`);
+    if (!r.assessable || r.confidence !== null || r.shown !== '—') fail('bugfix2 shell: the Trading Index dock withholds a confidence that has not been scored', r);
+    else ok('bugfix2 shell: the Trading Index dock withholds a confidence that has not been scored — an assessable run with five unscored components shows "—", not "null"');
+  }
+  /* ---- end bugfix2: shell ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

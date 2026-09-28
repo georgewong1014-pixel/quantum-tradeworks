@@ -165,6 +165,43 @@ function cardHead(title, subtitle, right) {
   return h;
 }
 
+/* THE PAGE DECIDES A HEADING'S LEVEL, NOT THE COMPONENT THAT DREW IT.
+   ---------------------------------------------------------------------------
+   cardHead titles every card h3, because h2 was kept for section headings —
+   and most pages have none. Forty-one of fifty-three routes measured stepped
+   from their h1 straight to an h3 or an h4 (the property calculator's first
+   heading under its h1 was an h4), and the printable record and report
+   opened on an h3 above their h1. A screen reader listing the headings heard
+   every card as part of a section that is not there, and "next heading at
+   level 2" found nothing on most of the product. A card cannot know where it
+   will sit — the same card is a page's section on one page and part of a
+   section on another — and some 220 cards and 150 other headings are drawn
+   by twenty-two view files. So the level is read off the page once the
+   heading is on it. The order the author wrote is kept: a heading written
+   deeper than the one before it belongs to that one, and one written at the
+   same depth or shallower closes it. Only the size of each step changes, to
+   exactly one. A heading above the page's h1 belongs to the page.
+
+   It is stated as aria-level, which is the level assistive technology reads,
+   rather than by changing the tag: a tag cannot change without replacing the
+   element, and that would drop the focus the scanner pages put on a result
+   heading as they draw it, and every style and selector written for an h3
+   or an h4. A heading already at its level carries no attribute. `parent` is
+   the level of the heading the region sits under: 1 for a page, whose h1 is
+   inside it, and 2 for the drawer's body, under the drawer's h2 title. */
+function fitHeadingLevels(root, parent = 1) {
+  if (!root) return;
+  const open = [{ tag: parent, level: parent }];
+  for (const h of root.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
+    const tag = Number(h.tagName[1]);
+    while (open.length > 1 && open[open.length - 1].tag >= tag) open.pop();
+    let level = tag;
+    if (tag > parent) { level = Math.min(6, open[open.length - 1].level + 1); open.push({ tag, level }); }
+    if (level === tag) h.removeAttribute('aria-level');
+    else if (h.getAttribute('aria-level') !== String(level)) h.setAttribute('aria-level', String(level));
+  }
+}
+
 function emptyState(text) {
   return el('div', { class: 'emptystate', html: `${icon('search', 30)}<p>${esc(text)}</p>` });
 }
@@ -199,6 +236,8 @@ function openDrawer(title, node) {
   } else if (drawer.hidden || !drawer.contains(document.activeElement)) lastFocus = document.activeElement;
   drawerTitle.textContent = title;
   drawerBody.replaceChildren(node);
+  /* The body sits under the drawer's h2 title; its headings step from there. */
+  fitHeadingLevels(drawerBody, 2);
   drawer.hidden = false;
   const seq = ++drawerSeq;
   requestAnimationFrame(() => { if (seq !== drawerSeq) return; drawer.dataset.open = '1'; scrim.dataset.open = '1'; });
@@ -285,6 +324,14 @@ const SCANNER_VIEWS = ['scanner', 'scannerDashboard', 'scannerMarket', 'scannerS
 
 const VIEWS = {};
 const viewRoot = $('#views');
+/* Some views draw part of themselves without render() — a market screen's
+   or a simulation's result, "Evaluate now" on a setup — and a drawer can
+   repaint its own body. Each brings headings at the level they were written
+   at, so the levels are fitted again after every such change. Only children
+   are watched: fitting sets attributes, which do not call it back. */
+const headingWatch = new MutationObserver(() => { fitHeadingLevels(viewRoot); fitHeadingLevels(drawerBody, 2); });
+headingWatch.observe(viewRoot, { childList: true, subtree: true });
+headingWatch.observe(drawerBody, { childList: true, subtree: true });
 
 /* --------------------------------------------------------------- routing */
 /* Real paths, not fragments. Previously go() changed State and re-rendered
@@ -1029,6 +1076,9 @@ function render() {
   if (!(realPending && UNIVERSE_VIEWS.has(State.view))) mountFlagNotice(node, State.view, State.researchTab);
   const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
+  /* Now, not only when headingWatch next runs, so anything that reads the
+     page straight after a render reads the levels it states. */
+  fitHeadingLevels(viewRoot);
 
   /* The dock is mounted at body level, not inside the view. A fixed element is
      positioned against the viewport only while no ancestor establishes a
