@@ -167,6 +167,9 @@ export const ENGINE_EXPORTS = [
   /* bars and data */
   'scanValidateBar', 'scanBars', 'scanSeriesBars', 'scanSliceBars', 'scanResample', 'scanDataVersion', 'scanPriceBreaks',
   'scanReadiness', 'scanDataHealth', 'scanTruncateHistory', 'scanReplayNow',
+  /* round 3, data: recorded corporate actions, the history report, a price at its series' own precision */
+  'SCAN_HISTORY_KEEP', 'SCAN_ADJUSTMENT_KINDS', 'scanReadAdjustments', 'scanAttachAdjustments', 'scanAdjust', 'scanExplainBreaks', 'scanBreakSpan',
+  'scanWeekdayProfile', 'scanDuplicateSessions', 'scanValidateHistory', 'scanSeriesDp', 'scanFmtFor',
   /* indicators */
   'scanNumeric', 'scanParams', 'scanPeriodOf', 'scanUnitOf', 'scanFieldOf', 'scanSpecKey', 'scanSideLabel',
   'scanSma', 'scanEma', 'scanRsi', 'scanMacd', 'scanBb', 'scanAtr', 'scanRollExtreme', 'scanChange', 'scanRvol',
@@ -248,6 +251,24 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   let historyText, history;
   try { historyText = await readFile(historyPath, 'utf8'); history = JSON.parse(historyText); }
   catch (e) { throw fail('BAD_HISTORY', `${historyPath} is not valid JSON (${e.message})${existsSync(`${historyPath}.bak`) ? ` — the previous file is ${historyPath}.bak` : ''}`, 'DATA'); }
+  /* @adjustments-start */
+  /* The corporate actions the reader recorded — data/price-adjustments.json,
+     beside the history and git-ignored — attached to the history, so the
+     engine's scanBars applies them on read and nothing else here changes.
+     No file is no adjustment (adjustmentVersion 'none'). A file that is not
+     JSON stops the run: evaluating unadjusted prices the reader believes
+     are adjusted would be a quiet wrong answer. An action the engine cannot
+     read is left out and named in history.adjustmentProblems. */
+  {
+    const adjustmentsPath = join(dirname(historyPath), 'price-adjustments.json');
+    let adjustmentsDoc = null;
+    if (existsSync(adjustmentsPath)) {
+      try { adjustmentsDoc = JSON.parse(await readFile(adjustmentsPath, 'utf8')); }
+      catch (e) { throw fail('BAD_HISTORY', `${adjustmentsPath} is not valid JSON (${e.message}) — the adjustments recorded there cannot be applied, so nothing was evaluated`, 'DATA'); }
+    }
+    history = E.scanAttachAdjustments(history, adjustmentsDoc);
+  }
+  /* @adjustments-end */
   const historyHash = `sha256:${createHash('sha256').update(historyText).digest('hex').slice(0, 16)}`;
   const historyNewest = newestBar(history);
   onRead?.({ historyHash, historyNewest, setupsHash: E.scanSetupsHash(doc) });

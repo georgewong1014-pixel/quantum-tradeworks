@@ -29,6 +29,11 @@ data/price-history.json.lock.*
 data/price-history.rejects.json
 data/price-history.rejects.json.tmp
 data/price-history.rejects.json.bak
+# The corporate actions you record for that history (splits, consolidations),
+# applied to it on read by the page and the scanner worker. It describes your
+# own series and sits with them.
+data/price-adjustments.json
+data/price-adjustments.json.*
 
 # where you drop watchlist screenshots. Someone else's licensed data rendered
 # as pixels — never committed, never deployed.

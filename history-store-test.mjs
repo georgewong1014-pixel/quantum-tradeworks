@@ -355,5 +355,110 @@ try {
   await rm(dir, { recursive: true, force: true });
 }
 
+/* ---- round 3: data ---- */
+/* The history check (ingest/history-check.mjs), the re-fetch it starts, and
+   imports that say whether their prices were already adjusted. Temporary
+   files only; the re-fetch is exercised through live.mjs --plan, which
+   touches no network, and dropSuperseded on a history as a re-fetch leaves it. */
+{
+  const R3D = join(tmpdir(), `qt-history-check-${process.pid}`);
+  await rm(R3D, { recursive: true, force: true });
+  await mkdir(R3D, { recursive: true });
+  const { checkHistory, dropSuperseded, refetchArgs } = await import('./ingest/history-check.mjs');
+  const { markAdjusted, ADJUSTED } = await import('./ingest/history-import.mjs');
+  const CHECK = join(ROOT, 'ingest/history-check.mjs');
+  const cli = async (...args) => { try { const { stdout, stderr } = await run(process.execPath, [CHECK, ...args], { cwd: ROOT }); return { code: 0, stdout, stderr }; }
+    catch (e) { return { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; } };
+  try {
+    const sess = weekdays('2026-01-05', 60);
+    /* NZ50 dated a day early, as Yahoo's UTC day dated it; a clean US series
+       that halves on a 2-for-1 split at bar 40; and a clean MY series. */
+    const nz = Object.fromEntries(sess.map((d, i) => [E.scanAddDays(d, -1), 12000 + (i % 9) * 10]));
+    const us = Object.fromEntries(sess.map((d, i) => [d, i >= 40 ? (200 + i) / 2 : 200 + i]));
+    const my = Object.fromEntries(sess.map((d, i) => [d, 9.5 + (i % 4) / 100]));
+    const hp = join(R3D, 'price-history.json'), ip = join(R3D, 'instruments.json');
+    await writeFile(hp, JSON.stringify({ schema: 2, series: { NZ50: nz, AAPL: us, 1155: my } }));
+    await writeFile(ip, JSON.stringify({ instruments: [{ symbol: 'NZ50', market: 'NZ' }, { symbol: 'AAPL', market: 'US' }, { symbol: '1155', market: 'MY' }] }));
+    const NOWC = '2026-04-06T12:00:00Z';
+    const j = await cli('--history', hp, '--instruments', ip, '--now', NOWC, '--json');
+    const R = JSON.parse(j.stdout || '{}');
+    check(j.code === 2 && R.shifted?.length === 1 && R.shifted[0].symbol === 'NZ50' && R.shifted[0].direction === 'early' && !R.shifted[0].partial
+      && R.weekendByMarket?.[0]?.market === 'NZ' && R.weekendByMarket[0].bars === 12
+      && R.breaks?.length === 1 && R.breaks[0].symbol === 'AAPL' && R.breaks[0].tag === 'split 2-for-1' && R.breaks[0].state === 'unexplained' && R.breaks[0].suggestedRatio === 2
+      && R.refetch?.symbols.join() === 'NZ50' && R.refetch.from === '2026-01-04',
+      'round 3 data: history-check --report lists the series dated a day early, its weekend-dated bars per market, and the split no action explains — and exits 2', { code: j.code, shifted: R.shifted, refetch: R.refetch });
+    const words = await cli('--history', hp, '--instruments', ip, '--now', NOWC);
+    check(/shifted\s+NZ50\s+NZ · Sun 12 Mon 12 Tue 12 Wed 12 Thu 12 Fri 0 Sat 0/.test(words.stdout) && /break\s+AAPL\s+2026-02-27 → 2026-03-02 ×0\.5\S*\s+split 2-for-1 — record ratio 2 if it was one/.test(words.stdout)
+      && /repair\s+node ingest\/history-check\.mjs --refetch/.test(words.stdout) && /to repair: 12 weekend-dated bar\(s\), 1 shifted series, 1 unexplained price break\(s\)/.test(words.stdout),
+      'round 3 data: the report in words names the shifted weekdays, prints each suspected break with the ratio to record, and says what to run', words.stdout.split('\n').filter(l => /shifted|break|to repair/.test(l)));
+
+    /* The split recorded beside the history: the break is explained. */
+    await writeFile(join(R3D, 'price-adjustments.json'), JSON.stringify({ schema: 1, actions: [{ symbol: 'AAPL', date: '2026-03-02', ratio: 2, kind: 'split' }, { symbol: 'AAPL', date: 'soon', ratio: 2, kind: 'split' }] }));
+    const R2 = await checkHistory({ historyPath: hp, instrumentsPath: ip, now: NOWC, E });
+    check(R2.breaks[0].state === 'adjusted' && R2.open.breaks === 0 && R2.adjustments.version.startsWith('adj:') && R2.adjustments.problems.length === 1 && /not a day/.test(R2.adjustments.problems[0].why),
+      'round 3 data: with the split recorded in data/price-adjustments.json the break reads adjusted, and an unreadable entry is named, not applied', R2.adjustments);
+    await writeFile(join(R3D, 'price-adjustments.json'), '{ oops');
+    const bad = await cli('--history', hp, '--instruments', ip, '--now', NOWC);
+    check(bad.code === 1 && /price-adjustments\.json is not valid JSON/.test(bad.stderr), 'round 3 data: history-check fails (exit 1) on an adjustments file it cannot read, rather than reporting unadjusted prices', bad.stderr);
+    await rm(join(R3D, 'price-adjustments.json'));
+
+    /* The re-fetch, as a plan: live.mjs is started with exactly the listed series and fetches nothing. */
+    const dry = await cli('--history', hp, '--instruments', ip, '--now', NOWC, '--refetch', '--dry');
+    const args = refetchArgs(R, {});
+    check(dry.code === 2 && /re-fetch\s+1 series: NZ50/.test(dry.stdout) && /--history --symbols NZ50 --days \d+ --history-out/.test(dry.stdout)
+      && /plan\s+: history for NZ50 \(\^NZ50\)/.test(dry.stdout) && /nothing fetched \(--plan\)/.test(dry.stdout) && /dry run: nothing fetched, nothing written/.test(dry.stdout)
+      && args.includes('--symbols') && args[args.indexOf('--days') + 1] === String(R.refetch.days) && JSON.parse(await readFile(hp, 'utf8')).series.NZ50['2026-01-04'] === nz['2026-01-04'],
+      'round 3 data: history-check --refetch --dry starts ingest/live.mjs --history --symbols NZ50 with --plan — it names the vendor symbol and window, and fetches and writes nothing', dry.stdout.split('\n').slice(0, 6));
+
+    /* What a re-fetch leaves, and what is taken out: NZ50 fetched again, correctly dated, captured after the start. */
+    const h = await loadHistory(hp);
+    const started = '2026-04-06T12:00:00.000Z';
+    sess.slice(0, 50).forEach((d, i) => mergeBars(h, 'NZ50', [{ date: d, close: 12000 + (i % 9) * 10 }], { source: 'yahoo', capturedAt: '2026-04-06T12:05:00.000Z', market: 'NZ', E, now: NOWC }));
+    const before = Object.keys(h.series.NZ50).length;
+    const gone = dropSuperseded(h, ['NZ50', '1155'], { startedAt: started, marketOf: (s) => ({ NZ50: 'NZ', 1155: 'MY' })[s], E });
+    const lastFresh = sess[49];
+    check(gone.length === 10 && gone.every(g => E.scanWeekday(g.date) === 0 && g.date <= lastFresh && g.codes.join() === 'NON_SESSION_DAY,SUPERSEDED')
+      && Object.keys(h.series.NZ50).length === before - 10 && h.series.NZ50[E.scanAddDays(sess[55], -1)] !== undefined && Object.keys(h.series['1155']).length === 60,
+      'round 3 data: after a re-fetch only the weekend copies inside the span the provider just dated are taken out (and returned for the rejects file); bars past that span and series it did not touch are kept',
+      { gone: gone.length, first: gone[0]?.date });
+
+    /* --adjusted: recorded on the bars an import writes, and refused when it is not one of the three. */
+    const csv = join(R3D, 'KLSE.csv');
+    await writeFile(csv, ['time,open,high,low,close,volume', ...sess.slice(0, 30).map((d, i) => `${d},${1500 + i},${1510 + i},${1490 + i},${1505 + i},1000`)].join('\n'));
+    const out = join(R3D, 'imported.json');
+    const imp = async (...a) => { try { const r = await run(process.execPath, [join(ROOT, 'ingest/history-import.mjs'), '--in', csv, '--symbol', 'KLSE', '--out', out, '--market', 'MY', '--captured-at', '2026-02-20T12:00:00Z', ...a], { cwd: ROOT }); return { code: 0, ...r }; }
+      catch (e) { return { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; } };
+    const i1 = await imp('--adjusted', 'provider');
+    const hi = JSON.parse(await readFile(out, 'utf8'));
+    const i2 = await imp('--adjusted', 'maybe');
+    const i3 = await imp();
+    const hu = JSON.parse(await readFile(out, 'utf8'));
+    check(i1.code === 0 && Object.values(hi.meta.KLSE).every(m => m.adjusted === 'provider') && /adjusted\s+: provider/.test(i1.stdout)
+      && i2.code === 1 && /--adjusted "maybe" is not one of provider, none, unknown/.test(i2.stderr) && ADJUSTED.join() === 'provider,none,unknown'
+      && i3.code === 0 && Object.values(hu.meta.KLSE).every(m => m.adjusted === 'unknown'),
+      'round 3 data: history-import --adjusted provider records meta.adjusted on every bar it writes; a value that is not provider, none or unknown is refused; without the flag the bars say unknown', { i1: i1.code, i2: i2.stderr?.slice(0, 80) });
+    const kept = { meta: { X: { '2026-01-05': { src: 'yahoo' }, '2026-01-06': { src: 'import:x.csv' } } } };
+    check(markAdjusted(kept, 'X', 'import:x.csv', [{ date: '2026-01-05' }, { date: '2026-01-06' }], 'none') === 1 && kept.meta.X['2026-01-05'].adjusted === undefined,
+      'round 3 data: only bars that are the import\'s own reading are marked — a bar another source holds is not');
+    /* An import that halves: the break is printed with the ratio to record. */
+    await writeFile(csv, ['time,close', ...sess.slice(0, 30).map((d, i) => `${d},${i >= 20 ? (300 + i) / 2 : 300 + i}`)].join('\n'));
+    const i4 = await imp('--adjusted', 'none');
+    check(i4.code === 0 && /breaks\s+: 1 price break\(s\) no recorded adjustment explains/.test(i4.stdout) && /KLSE 2026-01-30 → 2026-02-02: ×0\.5\S* \(looks like a split 2-for-1; record ratio 2\)/.test(i4.stdout),
+      'round 3 data: an import names each price break left in what it wrote, with the ratio a split would be recorded as', i4.stdout.split('\n').filter(l => /break|KLSE 2026/.test(l)));
+
+    /* live.mjs --plan on its own: the symbols given, nothing fetched. */
+    let lp;
+    try { lp = await run(process.execPath, [join(ROOT, 'ingest/live.mjs'), '--history', '--symbols', 'NZ50,1155', '--days', '30', '--history-out', out, '--plan'], { cwd: ROOT }); lp.code = 0; }
+    catch (e) { lp = { code: e.code, stdout: e.stdout || '' }; }
+    check(lp.code === 0 && /symbols\s+: 2 \(only NZ50, 1155\)/.test(lp.stdout) && /NZ50 \(\^NZ50\), 1155 \(1155\.KL\)/.test(lp.stdout) && /nothing fetched \(--plan\)/.test(lp.stdout),
+      'round 3 data: live.mjs --history --symbols A,B --plan names only those series, as the vendor spells them, and fetches nothing — the re-fetch entry point', lp.stdout);
+  } catch (e) {
+    fail('round 3 data: the history-check test threw', e.stack || e.message);
+  } finally {
+    await rm(R3D, { recursive: true, force: true });
+  }
+}
+/* ---- end round 3: data ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

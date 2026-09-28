@@ -1564,7 +1564,7 @@ function tabSnapshot(r) {
     tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `Add closes for ${c.tk} under My Investments → Your data to enable this. They stay in this browser.`));
   } else {
-    const t = trendContext(real.series);
+    const t = trendContext(real.series, { ohlc: real.ohlc });
     const ctx = TREND_STRATEGIES[0].evaluate(t);
     const vol = volumeContext(trackedHistory?.volume?.[real.symbol] || {}, real.series);
     const g2 = el('div', { class: 'grid g-4' });

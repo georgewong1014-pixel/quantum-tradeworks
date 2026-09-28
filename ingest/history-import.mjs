@@ -5,6 +5,7 @@
  *   node ingest/history-import.mjs --in KLSE.csv --symbol KLSE
  *   node ingest/history-import.mjs --dir exports/          (symbol from filename)
  *   ... [--out file] [--keep 2000] [--tz Area/City] [--captured-at ISO] [--market MY]
+ *   ... [--adjusted provider|none|unknown]                 (default unknown)
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHY THIS EXISTS
@@ -42,11 +43,23 @@
  *   of every bar is the file's modification time (or --captured-at), so a
  *   file exported while the last session still traded marks that bar
  *   PROVISIONAL.
+ *
+ * ADJUSTED OR NOT
+ *   An export may already be back-adjusted for splits by its provider
+ *   (TradingView's "adjust for splits" setting, on by default), or may hold
+ *   the prices as they traded. The file does not say which, so the reader
+ *   does: --adjusted provider | none | unknown, recorded on every bar this
+ *   import writes (meta.adjusted). The engine applies a split recorded in
+ *   data/price-adjustments.json to a 'provider' bar only when the split
+ *   came after the export — never twice. Without the flag the bars are
+ *   'unknown', and a recorded split is applied only where the series shows
+ *   the break it explains. The import then names every price break left in
+ *   each series it wrote, so an unadjusted split is seen the day it lands.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, parseDateCell, KEEP } from './history-store.mjs';
 
@@ -58,6 +71,22 @@ const LOW_KEYS   = ['low'];
 /* Volume was once parsed and discarded. It is the input for every volume
    indicator, and an OHLCV export already carries it. */
 const VOL_KEYS   = ['volume', 'vol', 'total volume'];
+/* What the reader says about the export's prices (see ADJUSTED OR NOT). */
+export const ADJUSTED = ['provider', 'none', 'unknown'];
+
+/* Marks the bars an import now holds as its own with what the reader said
+   about their adjustment. Only bars whose source is this import: a bar a
+   higher-ranked source kept, or one this import left unchanged under
+   another source's name, is not this export's reading. Returns how many. */
+export function markAdjusted(hist, symbol, source, rows, adjusted) {
+  let n = 0;
+  const meta = hist.meta?.[symbol] || {};
+  for (const r of rows || []) {
+    const m = meta[r?.date];
+    if (m && typeof m === 'object' && m.src === source) { m.adjusted = adjusted; n++; }
+  }
+  return n;
+}
 
 /* Rows as the store takes them. Nothing here judges a price beyond "is it a
    number": the engine's scanValidateBar does that in the store, the same
@@ -131,8 +160,14 @@ Export from TradingView: open the chart, then the menu beside the symbol >
   const instruments = await loadInstruments(flag('instruments', 'data/instruments.json'));
   const capturedFlag = flag('captured-at', null);
   if (capturedFlag && !Number.isFinite(Date.parse(capturedFlag))) { console.error(`--captured-at "${capturedFlag}" is not a date-time`); process.exit(1); }
+  const adjusted = argv.includes('--adjusted') ? flag('adjusted', '') : 'unknown';
+  if (!ADJUSTED.includes(adjusted)) {
+    console.error(`--adjusted "${adjusted}" is not one of ${ADJUSTED.join(', ')}: say whether the export's prices were already adjusted for splits by its provider (provider), are as they traded (none), or you do not know (unknown)`);
+    process.exit(1);
+  }
 
   const report = [];
+  const imported = [];
   let failed = 0, dateRefused = 0;
   let run;
   try {
@@ -150,6 +185,8 @@ Export from TradingView: open the chart, then the menu beside the symbol >
         const before = Object.keys(hist.series[f.symbol] || {}).length;
         const r = mergeBars(hist, f.symbol, parsed.rows, { source: `import:${basename(f.path)}`, capturedAt, market, E });
         r.rejected.push(...parsed.refused.map(x => ({ symbol: f.symbol, date: x.date, codes: x.codes, why: x.why, source: `import:${basename(f.path)}`, line: x.line })));
+        markAdjusted(hist, f.symbol, `import:${basename(f.path)}`, parsed.rows, adjusted);
+        imported.push({ symbol: f.symbol, market });
         dateRefused += parsed.refused.length;
         results.push(r);
         const dates = Object.keys(hist.series[f.symbol] || {}).sort();
@@ -171,6 +208,26 @@ Export from TradingView: open the chart, then the menu beside the symbol >
   console.log(`\nwrote ${outPath} — ${hist.symbols} symbols`);
   lines.forEach(l => console.log(l));
   if (dateRefused) console.log(`  dates     : ${dateRefused} row(s) with an ambiguous or unreadable date were refused, not guessed`);
+  console.log(`  adjusted  : ${adjusted === 'provider' ? 'provider — recorded on every bar written, so a split you record is not applied to these prices a second time'
+    : adjusted === 'none' ? 'none — recorded on every bar written: the prices are as they traded, and a split you record adjusts them'
+    : 'unknown — recorded on every bar written; pass --adjusted provider or none when you know'}`);
+
+  /* Every break left in what was imported, read the way the scanner reads
+     it — with the actions already recorded beside the history applied — so
+     a split the reader has not recorded is named now, not found later as a
+     setup that can no longer be evaluated. */
+  let adjDoc = null;
+  const adjPath = join(dirname(outPath), 'price-adjustments.json');
+  try { adjDoc = JSON.parse(await readFile(adjPath, 'utf8')); } catch { /* none recorded, or unreadable: history-check says which */ }
+  const withAdj = E.scanAttachAdjustments(hist, adjDoc);
+  const open = imported.flatMap(({ symbol, market }) => E.scanBars(withAdj, symbol, { market }).breaks
+    .filter(b => ['unexplained', 'remains', 'created'].includes(b.state)).map(b => ({ symbol, ...b })));
+  if (open.length) {
+    console.log(`  breaks    : ${open.length} price break(s) no recorded adjustment explains — no indicator is computed across one:`);
+    open.slice(0, 8).forEach(b => console.log(`              ${b.symbol} ${b.prev} → ${b.bar}: ×${Number(b.ratio.toPrecision(3))}${b.tag !== 'unexplained' ? ` (looks like a ${b.tag}; record ratio ${Number(b.suggestedRatio.toPrecision(4))})` : ''}`));
+    if (open.length > 8) console.log(`              … ${open.length - 8} more (node ingest/history-check.mjs lists them all)`);
+    console.log(`              record them in ${adjPath}, or tick them on /admin/scanner/data`);
+  }
 
   /* What the depth actually unlocks, stated in the engine's own terms. */
   const depths = Object.values(hist.series).map(s => Object.keys(s).length);
