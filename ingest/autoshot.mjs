@@ -122,8 +122,10 @@ function connect(wsUrl) {
 
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 
+/* Held outside the try, so the finally can close it on every way out. */
+let cdp = null;
 try {
-  const cdp = await connect(await endpoint());
+  cdp = await connect(await endpoint());
   const { targetId } = await cdp.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true });
   await cdp.send('Page.enable', {}, sessionId);
@@ -203,12 +205,19 @@ Waiting for you to close it…`);
     console.error(`\nSTALE: every page is byte-identical to the run at ${previous.at}.`);
     console.error('Nothing on the screen changed. Likely a signed-out session, a stuck');
     console.error('tab, or a layout that no longer shows the list. Not importing.');
-    process.exit(2);
+    /* An exit code, not process.exit(2). process.exit does not run a
+       finally, so the browser this run started was never stopped. Windows
+       hid it — the job object libuv puts a child in dies with node — but on
+       Linux and macOS the headless browser outlived the run, holding the
+       profile; the next day's launch on that profile handed itself to the
+       survivor and exited, and every run after the first stale one failed
+       with "the DevTools endpoint never came up". daily.mjs still reads 2. */
+    process.exitCode = 2;
   }
-  cdp.close();
 } catch (e) {
   console.error(`autoshot failed: ${e.message}`);
   process.exitCode = 1;
 } finally {
+  try { cdp?.close(); } catch { /* already closed */ }
   cleanup();
 }

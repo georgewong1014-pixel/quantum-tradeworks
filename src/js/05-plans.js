@@ -155,6 +155,30 @@ function noteReportRead(id) {
 }
 const reportsLeft = () => Math.max(0, lim('reportsPerMonth') - State.reportLog.ids.length);
 
+/* WHERE FOCUS GOES WHEN A REDRAW TAKES THE CONTROL AWAY.
+   render() replaces the whole view, so a button whose action redraws the
+   page destroys itself under the keyboard, and focus fell to <body>: a
+   screen reader lost its place and the next Tab started again from the top.
+   Where the same control comes back under the same id, renderKeepFocus
+   (40-views-discover.js) hands focus back to it. Where the action changes
+   what is there — a button that comes back as the disabled "Current plan",
+   a record that is gone, an offer that has been taken up — focus goes to the
+   first of `targets` the redrawn page holds (a selector, an element, or a
+   function that finds one), and to <main> only when there is none. A heading
+   or a card takes tabindex=-1, so it can hold focus without joining the Tab
+   order. */
+function focusAfterRedraw(...targets) {
+  for (const t of targets) {
+    const n = typeof t === 'function' ? t() : typeof t === 'string' ? document.querySelector(t) : t;
+    if (!n || !n.isConnected) continue;
+    if (!n.matches('a[href], button, input, select, textarea, summary, [tabindex]')) n.setAttribute('tabindex', '-1');
+    n.focus();
+    if (document.activeElement === n) return n;
+  }
+  focusMain();
+  return null;
+}
+
 function setPlan(id) {
   State.plan = id; store.write('plan', id);
   /* And again when the plan changes in the session. Enforced at load only,
@@ -162,7 +186,14 @@ function setPlan(id) {
      comparison that the page, a click later, said holds up to two. */
   clampToPlan();
   toast(`Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
+  /* The button pressed on /pricing comes back from the redraw as the
+     disabled "Current plan", which cannot hold focus, so a keyboard reader
+     who switched plan was left on <body>. Focus goes to the heading of the
+     plan now in force — the card the button was in, now marked Current. */
+  const pressed = document.activeElement;
   render();
+  if (pressed && pressed !== document.body && !pressed.isConnected)
+    focusAfterRedraw(() => $$('#views .card h3').find(h => h.textContent.trim() === PLANS[id].name));
 }
 
 /* An upgrade prompt that names the limit rather than hiding behind a paywall. */

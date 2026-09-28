@@ -6473,6 +6473,163 @@ try {
   }
   /* ---- end bugfix2: equities ---- */
 
+  /* ---- bugfix3: sweep ---- */
+  /* A CONTROL THAT REDRAWS THE PAGE KEEPS THE KEYBOARD'S PLACE.
+     render() replaces the whole view, and every control below destroyed
+     itself under the keyboard: focus fell to <body>, a screen reader lost
+     its place, and the next Tab started from the top. Each is pressed as
+     Enter or Space presses it — focused, then clicked — and focus must land
+     where the fix sends it. And the workspace's kind filter, left set to a
+     kind with nothing left, no longer hides every item behind a button that
+     is not there. */
+  const bf3 = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+    const btn = (t) => [...document.querySelectorAll('button')].find(x => x.offsetParent !== null && x.textContent.trim() === t);
+    const press = async (n, ms = 150) => { if (!n) return false; n.focus(); n.click(); await w(ms); return true; };
+    const at = () => { const a = document.activeElement; return !a || a === document.body ? 'BODY'
+      : a.tagName + (a.id ? '#' + a.id : '') + ' ' + (a.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 48); };
+    window.confirm = () => true;`;
+  {
+    const r = await evaluate(`(async () => {
+      ${bf3}
+      const out = {};
+      navigate('/pricing'); await w(150);
+      out.free = await press(btn('Switch to Free')) && at();
+      out.pro = await press(btn('Switch to Equities Research')) && at();
+      return out;
+    })()`);
+    await evaluate(`State.plan = 'pro'; store.write('plan', 'pro'); true`);
+    if (r.free !== 'H3 Free' || r.pro !== 'H3 Equities Research') fail('sweep: a plan switch on /pricing leaves focus on the heading of the plan now in force', r);
+    else ok('sweep: a plan switch on /pricing leaves focus on the heading of the plan now in force, not on <body>');
+  }
+  {
+    const r = await evaluate(`(async () => {
+      ${bf3}
+      const out = {};
+      if (hasWorkedExample()) clearWorkedExample();
+      navigate('/start'); await w(150);
+      out.startLoad = await press(btn('Load the worked example')) && at();
+      out.startRemove = await press(btn('Remove the worked example')) && at();
+      navigate('/property/comparables'); await w(150);
+      out.regLoad = await press(btn('Load the worked example')) && at();
+      navigate('/property/areas'); await w(150);
+      out.areaRemove = await press(btn('Remove the worked example')) && at();
+      return out;
+    })()`);
+    const p = [];
+    if (!/^BUTTON Remove the worked example/.test(r.startLoad)) p.push(`/start Load: ${r.startLoad}`);
+    if (!/^BUTTON Load the worked example/.test(r.startRemove)) p.push(`/start Remove: ${r.startRemove}`);
+    if (!/^BUTTON Remove the worked example/.test(r.regLoad)) p.push(`/property/comparables Load: ${r.regLoad}`);
+    if (!/^MAIN#main/.test(r.areaRemove)) p.push(`/property/areas Remove: ${r.areaRemove}`);
+    if (p.length) fail('sweep: loading or removing the worked example hands focus to its counterpart, or to <main> where there is none', p);
+    else ok('sweep: loading or removing the worked example hands focus to its counterpart, or to <main> where the page offers none');
+  }
+  {
+    const r = await evaluate(`(async () => {
+      ${bf3}
+      const out = {};
+      navigate('/research/trading-index?from=AAPL'); await w(200);
+      out.qtti = await press(btn('Fill in the identity')) && at();
+      navigate('/us-options/wheel?from=AAPL'); await w(200);
+      out.wheelLink = await press(btn('Fill in the identity')) && at();
+      navigate('/us-options/wheel'); await w(150);
+      out.load = await press(btn('Load a worked contract')) && at();
+      out.clear = await press(btn('Clear and enter my own')) && (at() + (document.activeElement.closest('#wheel-inputs') ? ' [contract field]' : ''));
+      await press(btn('Load a worked contract'));
+      await press(btn('Start a cycle'));
+      await press(btn('Record the put as opened'));
+      [...document.querySelectorAll('#views details')].forEach(d => { if (/Roll this contract/.test(d.textContent)) d.open = true; });
+      out.roll = await press(btn('Record the roll')) && at();
+      out.clearCycle = await press(btn('Clear the cycle')) && at();
+      return out;
+    })()`);
+    const p = [];
+    if (!/^H3 Linked to/.test(r.qtti)) p.push(`trading index, Fill in the identity: ${r.qtti}`);
+    if (!/^H3 Linked to/.test(r.wheelLink)) p.push(`Cash Wheel, Fill in the identity: ${r.wheelLink}`);
+    if (!/^BUTTON#wheel-clear-example/.test(r.load)) p.push(`Load a worked contract: ${r.load}`);
+    if (!/\[contract field\]$/.test(r.clear)) p.push(`Clear and enter my own: ${r.clear}`);
+    if (!/^H3#wheel-cycle-state/.test(r.roll)) p.push(`Record the roll: ${r.roll}`);
+    if (!/^H3#wheel-cycle-state Candidate/.test(r.clearCycle)) p.push(`Clear the cycle: ${r.clearCycle}`);
+    if (p.length) fail('sweep: the Trading Index and Cash Wheel controls that redraw the page keep focus', p);
+    else ok('sweep: the Trading Index and Cash Wheel keep focus through Fill in the identity, the worked contract, a roll and a cleared cycle');
+  }
+  {
+    const r = await evaluate(`(async () => {
+      ${bf3}
+      const out = {};
+      State.opportunities = []; saveOpportunities();
+      navigate('/property/opportunities'); await w(150);
+      const add = async (name) => {
+        const f = document.getElementById('opp-new-name');
+        f.value = name; f.dispatchEvent(new Event('change', { bubbles: true }));
+        return press(btn('Add to register'));
+      };
+      out.add = await add('bf3 first') && at();
+      await add('bf3 second');
+      out.removeOne = await press(btn('Remove')) && at();
+      out.removeLast = await press(btn('Remove')) && at();
+      navigate('/my/alerts'); await w(150);
+      const cb = document.querySelector('#views .checkline input[type=checkbox]:not([disabled])');
+      out.alertKind = await press(cb) && at() + ' ' + (document.activeElement.type || '');
+      await press(document.querySelector('#views .checkline input[type=checkbox]:not([disabled])'));
+      return out;
+    })()`);
+    const p = [];
+    if (!/^BUTTON#opp-add/.test(r.add)) p.push(`Add to register: ${r.add}`);
+    if (!/^H3#opp-0-name bf3 first/.test(r.removeOne)) p.push(`Remove, one left: ${r.removeOne}`);
+    if (!/^H3 No properties recorded yet/.test(r.removeLast)) p.push(`Remove, none left: ${r.removeLast}`);
+    if (!/checkbox$/.test(r.alertKind)) p.push(`an alert-type switch: ${r.alertKind}`);
+    if (p.length) fail('sweep: the opportunity register and the alert-type switches keep focus when they redraw', p);
+    else ok('sweep: the opportunity register (add, remove) and the alert-type switches keep focus when they redraw');
+  }
+  {
+    const r = await evaluate(`(async () => {
+      ${bf3}
+      const out = {};
+      State.corrections = []; saveCorrections();
+      navigate('/corrections'); await w(150);
+      const record = async (what) => {
+        await press(btn('Open the report form'), 400);
+        const d = document.getElementById('err-description');
+        d.value = what; d.dispatchEvent(new Event('input', { bubbles: true }));
+        await press(btn('Record this case'), 400);
+        closeDrawer(); await w(450);
+        return at();
+      };
+      out.recorded = await record('bf3 first case');
+      await record('bf3 second case');
+      await press(document.getElementById('case-open-0') || btn('Open'), 400);
+      await press(btn('Delete this case'), 450);
+      out.deleteOne = at();
+      await press(btn('Open'), 400);
+      await press(btn('Delete this case'), 450);
+      out.deleteLast = at();
+      return out;
+    })()`);
+    const p = [];
+    if (!/^BUTTON#open-report-form/.test(r.recorded)) p.push(`closing the recorded-case confirmation: ${r.recorded}`);
+    if (!/^BUTTON#case-open-0 Open/.test(r.deleteOne)) p.push(`Delete, one case left: ${r.deleteOne}`);
+    if (!/^H3 Cases you have recorded — 0/.test(r.deleteLast)) p.push(`Delete, none left: ${r.deleteLast}`);
+    if (p.length) fail('sweep: recording and deleting a correction case return focus to the page, not <body>', p);
+    else ok('sweep: recording and deleting a correction case return focus to the form button, the next case, or the list heading');
+  }
+  {
+    const r = await evaluate(`(async () => {
+      ${bf3}
+      State.savedScreens = [{ name: 'bf3 screen', snapshot: { matches: [] } }]; store.write('savedScreens', State.savedScreens);
+      State.workspace = { kind: 'screen', q: '' };
+      navigate('/my/workspace'); await w(150);
+      const del = document.querySelector('#views .ws-row:not(.ws-head) button[aria-label="Delete bf3 screen"]');
+      if (!del) return { missing: true };
+      await press(del);
+      return { kind: State.workspace.kind, pressed: document.getElementById('ws-kind-all')?.getAttribute('aria-pressed'),
+        rows: document.querySelectorAll('#views .ws-row:not(.ws-head)').length, left: workspaceItems().length, focus: at() };
+    })()`);
+    if (r.missing || r.kind !== 'all' || r.pressed !== 'true' || !r.left || r.rows !== r.left || !/^BUTTON Open/.test(r.focus))
+      fail('sweep: deleting the last item of the kind the workspace is filtered to returns the filter to All', r);
+    else ok(`sweep: deleting the last item of the kind the workspace is filtered to returns the filter to All (${r.rows} saved item${r.rows === 1 ? '' : 's'} shown, focus on the next Open)`);
+  }
+  /* ---- end bugfix3: sweep ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

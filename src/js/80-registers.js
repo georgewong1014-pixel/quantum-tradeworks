@@ -519,8 +519,10 @@ VIEWS.wheel = () => {
       'A fully collateralised cash-secured put and covered call cycle, modelled from figures you enter. Research and arithmetic — no chain data, no recommended contract, no execution.'),
   ])));
 
-  const wLink = workspaceLinkBanner('wheel', p, () => { saveWheel(); render(); });
-  if (wLink) wrap.append(wLink);
+  /* "Fill in the identity" is gone once used, so focus goes to the banner's
+     "Linked to …" heading rather than falling to <body>. */
+  const wLink = workspaceLinkBanner('wheel', p, () => { saveWheel(); render(); focusAfterRedraw('#wheel-link h3'); });
+  if (wLink) { wLink.id = 'wheel-link'; wrap.append(wLink); }
 
   /* Reset clears the figures on screen, and the cycle built from them: the
      contract, the legs, the cycle's state and basis, and the share count —
@@ -549,9 +551,13 @@ VIEWS.wheel = () => {
     start.append(cardHead('Nothing entered yet',
       'This tool computes a collateral position and an expiry payoff from one contract. Enter yours, or load a worked one to see what it returns first.'));
     start.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
+      /* This card goes once a contract is in, taking the button with it, and
+         focus fell to <body>. It goes to the banner that replaces the card,
+         on the control that undoes the load. */
       el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
         State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true };
-        saveWheel(); render(); toast('Worked contract loaded — illustrative figures');
+        saveWheel(); render(); focusAfterRedraw('#wheel-clear-example');
+        toast('Worked contract loaded — illustrative figures');
       } }, 'Load a worked contract'),
       el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
         const f = document.querySelector('#wheel-inputs input');
@@ -580,13 +586,19 @@ VIEWS.wheel = () => {
          state and basis were computed from the example's figures. Once this
          banner goes, nothing else would mark them, so they go with it — and
          so do the shares its assignments added, and only those. */
-      el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto', onclick: () => {
+      /* It says "enter my own", and it left focus on <body> with the banner
+         gone. It now does what "Enter my own contract" does: the contract
+         card to the top, and the caret in its first field. */
+      el('button', { class: 'btn btn-quiet btn-sm', id: 'wheel-clear-example', style: 'margin-left:auto', onclick: () => {
         const cycle = State.wheelLegs || [];
         const added = Math.max(0, wheelLedger(cycle).sharesHeld);
         State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, ...WHEEL_BLANK_CYCLE,
           eligibleShares: Math.max(0, num0(State.wheel.eligibleShares) - added), isWorkedExample: false };
         State.wheelLegs = [];
         saveWheel(); saveWheelLegs(); render();
+        const f = document.querySelector('#wheel-inputs input');
+        f?.closest('.card')?.scrollIntoView({ block: 'start' });
+        focusAfterRedraw(f);
         toast(cycle.length ? 'Contract and its illustrative cycle cleared' : 'Contract cleared');
       } }, 'Clear and enter my own'),
     ]));
@@ -1059,7 +1071,9 @@ VIEWS.wheel = () => {
         creditPerShare:numFrom('r-credit'),
         openCommission:numFrom('r-comm'), closeCommission:numFrom('r-comm') });
       toast(`Closed leg realised ${fmtMoney(res.realisedOnClose, 'USD')}; net roll ${fmtMoney(res.netRollCash, 'USD')}`);
-      render();
+      /* As go() does for every other change to the cycle: the redraw took
+         the button, and focus goes to the cycle's state, not to <body>. */
+      render(); focusAfterRedraw('#wheel-cycle-state');
     } }, 'Record the roll'));
     cyc.append(rollBox);
   }
@@ -1068,6 +1082,7 @@ VIEWS.wheel = () => {
     if (!confirm('Clear this cycle and all its legs?')) return;
     State.wheelLegs = []; saveWheelLegs(); p.state = 'candidate'; p.phase = 'put';
     p.economicShareBasisOverride = null; p.shareCostBasisOverride = null; saveWheel(); render();
+    focusAfterRedraw('#wheel-cycle-state');
   } }, 'Clear the cycle'));
   cyc.append(acts);
 

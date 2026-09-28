@@ -426,5 +426,60 @@ const FY_ENDS = { 2023: '2023-09-30', 2024: '2024-09-28', 2025: '2025-09-27' };
   eq('a missing record gives null', listingFromSubmissions(null, 'X'), null);
 }
 
+/* ---- bugfix3: sweep ---- */
+/* autoshot.mjs, on a capture found STALE. It said so and called
+   process.exit(2) from inside its try, and process.exit does not run a
+   finally — so the cleanup that stops the browser it started never ran.
+   Windows hid it (the job object libuv puts a child in dies with node), but
+   on Linux and macOS the headless browser outlived the run holding the
+   profile, and the next day's launch on that profile handed itself to the
+   survivor and exited: "the DevTools endpoint never came up", every day
+   after the first stale capture. Asked of the process itself, whatever the
+   platform: a preload records every child the script spawns and, at exit,
+   reports any still running that nothing asked to stop. Two runs over the
+   same still page make the second stale. Needs Chrome or Edge; skipped
+   without one. */
+{
+  const browsers = [process.env.CHROME_PATH,
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/usr/bin/google-chrome'].filter(Boolean);
+  if (!browsers.some(p => existsSync(p))) console.log('skip  autoshot on a stale capture — no Chrome or Edge on this machine');
+  else {
+    const tmp = mkdtempSync(join(tmpdir(), 'qt-autoshot-'));
+    try {
+      const probe = join(tmp, 'probe.mjs');
+      writeFileSync(probe, [
+        "import { ChildProcess } from 'node:child_process';",
+        "import { writeSync } from 'node:fs';",
+        'const kids = [];',
+        'const spawn0 = ChildProcess.prototype.spawn;',
+        'ChildProcess.prototype.spawn = function (...a) { kids.push(this); return spawn0.apply(this, a); };',
+        "process.on('exit', () => {",
+        '  const left = kids.filter(k => !k.killed && k.exitCode === null && k.signalCode === null).length;',
+        "  writeSync(2, `PROBE left-running=${left}\\n`);",
+        '});',
+      ].join('\n'));
+      const { pathToFileURL } = await import('node:url');
+      const shoot = () => spawnSync(process.execPath, ['--import', pathToFileURL(probe).href, join(ROOT, 'ingest', 'autoshot.mjs'),
+        '--url', 'data:text/html,<p style="font:20px sans-serif">a still page</p>', '--out', join(tmp, 'shots'),
+        '--profile', join(tmp, 'profile'), '--settle', '200', '--max-pages', '3'], { encoding: 'utf8', timeout: 90000 });
+      const first = shoot();
+      const second = shoot();
+      const left = (r) => Number((String(r.stderr).match(/PROBE left-running=(\d+)/) || [])[1] ?? NaN);
+      if (first.status === 0 && /captured 1 page/.test(first.stdout) && left(first) === 0)
+        ok('autoshot: a first capture of a still page captures it, exits 0 and stops its browser');
+      else fail('autoshot: the first capture', { status: first.status, left: left(first), out: String(first.stdout + first.stderr).slice(-400) });
+      if (second.status === 2 && /STALE/.test(second.stderr)) ok('autoshot: the same page again is STALE and exits 2, which daily.mjs reads');
+      else fail('autoshot: the repeat capture was not reported stale with exit 2', { status: second.status, err: String(second.stderr).slice(-400) });
+      if (left(second) === 0) ok('autoshot: a stale capture stops the browser it started before exiting');
+      else fail('autoshot: a stale capture exited with its browser still running and never asked to stop', { left: left(second) });
+    } finally { try { rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* a browser file still closing */ } }
+  }
+}
+/* ---- end bugfix3: sweep ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} ingest rules hold`);
 process.exitCode = failures ? 1 : 0;

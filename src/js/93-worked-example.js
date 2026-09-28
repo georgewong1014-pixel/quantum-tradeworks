@@ -175,18 +175,26 @@ function clearWorkedExample() {
   return gone.length;
 }
 
-/* The control, wherever an empty state would otherwise be the whole screen. */
+/* The control, wherever an empty state would otherwise be the whole screen.
+   Load and Remove are one control in two states, and the redraw either
+   brings back the other one or, where the page offers none (the area
+   screen's warning goes with the example), leaves nothing to return to.
+   Focus fell to <body> after both; it now goes to the counterpart, marked
+   data-worked-example, or to <main> where there is none (focusAfterRedraw,
+   05-plans.js). */
 function workedExampleControls({ compact = false } = {}) {
   const row = el('div', { class: 'row row-wrap', style: `gap:8px;${compact ? '' : 'margin-top:var(--md)'}` });
   if (hasWorkedExample()) {
-    row.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+    row.append(el('button', { class: 'btn btn-ghost btn-sm', data: { workedExample: 'remove' }, onclick: () => {
       const n = clearWorkedExample();
-      render(); toast(`Worked example removed — ${n} record${n === 1 ? '' : 's'}. Anything you recorded is untouched.`);
+      render(); focusAfterRedraw('#views [data-worked-example]');
+      toast(`Worked example removed — ${n} record${n === 1 ? '' : 's'}. Anything you recorded is untouched.`);
     } }, 'Remove the worked example'));
   } else {
-    row.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    row.append(el('button', { class: 'btn btn-primary btn-sm', data: { workedExample: 'load' }, onclick: () => {
       const r = seedWorkedExample();
-      render(); toast(`${r.added} illustrative records loaded across ${r.areas} districts. Every one is marked as invented.`);
+      render(); focusAfterRedraw('#views [data-worked-example]');
+      toast(`${r.added} illustrative records loaded across ${r.areas} districts. Every one is marked as invented.`);
     } }, 'Load the worked example'));
   }
   return row;

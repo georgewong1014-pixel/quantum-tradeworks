@@ -169,6 +169,11 @@ VIEWS.workspace = () => {
   /* Filters: by kind, and by the company or name a row carries. */
   const W = State.workspace;
   const counts = Object.fromEntries(WORKSPACE_KINDS.map(k => [k.id, all.filter(i => i.kind === k.id).length]));
+  /* A kind with nothing left has no button below, so a filter still set to it
+     could be neither seen nor pressed off. Deleting the last screen with
+     Screens pressed left no button pressed and "Nothing saved matches that
+     filter" over two saved cases. The filter goes back to All. */
+  if (W.kind !== 'all' && !counts[W.kind]) W.kind = 'all';
   const moved = all.filter(i => ['model', 'data', 'both'].includes(i.diff.status)).length;
   const bar = el('div', { class: 'card ws-filters' });
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Show saved items of one kind', style: 'flex-wrap:wrap' });

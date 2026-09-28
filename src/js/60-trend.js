@@ -691,11 +691,13 @@ VIEWS.alerts = () => {
   ALERT_KINDS.forEach(k => {
     const built = k.built !== false;
     const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
-    lab.append(el('input', { type: 'checkbox', checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
+    /* An id and renderKeepFocus: render() rebuilt the switch, so Space on
+       one dropped focus on <body> and the next Tab started from the top. */
+    lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
       style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
       onchange: e => {
         State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
-        saveAlertKinds(); render();
+        saveAlertKinds(); renderKeepFocus();
       } }));
     const tx = el('div');
     tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
