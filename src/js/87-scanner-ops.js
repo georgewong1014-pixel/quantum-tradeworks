@@ -341,7 +341,21 @@ const SCAN_OPS_OPENABLE = [
   [/ingest-runs/i, 'ingest-runs.json', (d) => { ingestRunsFile = d; }],
   [/scan-alerts/i, 'scan-alerts.json', (d) => { if (typeof scanAlertsFile !== 'undefined') scanAlertsFile = d; }],
   [/scan-setups/i, 'scan-setups.json', (d) => { if (typeof scanSetupsFile !== 'undefined') scanSetupsFile = d; }],
-  [/price-history/i, 'price-history.json', (d) => { if (typeof scanHistoryFile !== 'undefined') scanHistoryFile = d; }],
+  /* The splits the reader recorded, opened like the rest, and applied to the
+     history already open. Without this entry an opened history was read
+     unadjusted on the deployed site, where the served file cannot exist. */
+  [/price-adjustments/i, 'price-adjustments.json', (d) => {
+    if (typeof scanAdjustmentsFile !== 'undefined') scanAdjustmentsFile = d;
+    if (typeof scanHistoryFile !== 'undefined' && scanHistoryFile) scanHistoryFile = scanAttachAdjustments(scanHistoryFile, d);
+  }],
+  /* An opened history carries the recorded splits, as the served one does
+     (the loader attaches them); read raw, every scanner page disagreed with
+     the worker on a split series. The rejects file the store writes beside
+     it (price-history.rejects.json) is not a history: the pattern matched
+     it too, and opening it replaced the history with the refused rows. */
+  [/price-history(?!\.rejects)/i, 'price-history.json', (d) => {
+    if (typeof scanHistoryFile !== 'undefined') scanHistoryFile = scanAttachAdjustments(d, typeof scanAdjustmentsFile !== 'undefined' ? scanAdjustmentsFile : null);
+  }],
 ];
 function scanOpsOpenFiles() {
   const box = el('div', { class: 'scan-open' });
@@ -366,7 +380,7 @@ function scanOpsOpenFiles() {
   });
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => input.click() }, 'Open your files…'), input,
-    el('span', { class: 'metaline' }, 'scan-runs, scan-alerts, scan-setups, price-history, scan-control, scan-deliveries, ingest-runs'),
+    el('span', { class: 'metaline' }, 'scan-runs, scan-alerts, scan-setups, price-history, price-adjustments, scan-control, scan-deliveries, ingest-runs'),
   ]));
   box.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, 'Read in this tab only. Nothing is uploaded, nothing is stored, and closing the tab forgets them.'));
   if (scanOpsOpened.length) box.append(el('p', { class: 'metaline' }, `Opened in this tab: ${scanOpsOpened.map(o => `${o.name} as ${o.as}`).join(', ')}.`));
@@ -441,11 +455,14 @@ VIEWS.scannerDashboard = () => {
     scanOpsLink('/admin/scanner/jobs', 'Every run')));
   const current = st.state === 'current';
   const lm = st.latestMatches;
-  tiles.append(tile(current ? 'Which setups matched on the last scan?' : `Which setups matched? As of ${ls?.asOf || 'no scan'} — not current`,
+  /* With no successful scan there is no date to be "as of", and a run the
+     ready gate held back entirely is an attempt, not a success: it is
+     recorded, so "no scan has been recorded" would be false. */
+  tiles.append(tile(current ? 'Which setups matched on the last scan?' : ls ? `Which setups matched? As of ${ls.asOf || 'an unrecorded date'} — not current` : 'Which setups matched?',
     ls ? scanOpsPlural(lm.length, 'match', 'matches') : '—',
     ls ? [lm.length ? `${[...new Set(lm.map(x => x.setupName || x.setupId))].slice(0, 3).join(', ')}${new Set(lm.map(x => x.setupId)).size > 3 ? ', …' : ''}.` : 'No setup matched on the bars of that scan. An empty day is the normal state of tight conditions, not a fault.',
           !current ? 'These are the last scan’s matches, not today’s: the scan is not current.' : null]
-       : ['No scan has been recorded, so no match can be shown.'],
+       : [la ? 'No scan has evaluated a bar yet, so no match can be shown — see the latest attempt beside this.' : 'No scan has been recorded, so no match can be shown.'],
     scanOpsLink('/app/scanner/alerts', 'Alert history')));
   const unread = scanOpsUnread();
   tiles.append(tile('Are notifications working?', 'No channel',

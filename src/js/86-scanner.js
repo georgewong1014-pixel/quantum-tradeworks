@@ -267,9 +267,10 @@ function scanBrowserSetups({ st = scanStoreRead(), deleted = false } = {}) {
 /* THE RESOLVE CHOICE IS PART OF THE VERSION. A watchlist universe resolved
    from the export can evaluate different symbols from its snapshot, so
    switching between the two changes what the setup evaluates. The engine's
-   hash covers the universe's kind, market and symbols; until it also
-   covers `resolve`, the page compares it beside the hash, so a switch saves
-   as a new version instead of being taken for "no change" and dropped. */
+   hash covers it (resolve and the list's id, when resolve is 'export'); the
+   page still compares the choice beside the hash, because a version saved
+   before the hash covered it carries the old hash, and a switch must not be
+   taken for "no change" and dropped. */
 const scanResolveOf = (s) => (scanResolvesByExport(s?.universe) ? 'export' : 'snapshot');
 const scanSameVersion = (stored, s) => !!stored && !!s && stored.hash === s.hash && scanResolveOf(stored.setup || stored) === scanResolveOf(s);
 function scanSaveSetup(draft, { source = 'builder', now = new Date().toISOString(), st = scanStoreRead() } = {}) {

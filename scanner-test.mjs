@@ -2071,5 +2071,44 @@ try {
 }
 /* ---- end round 3: ops ---- */
 
+/* ---- integration: round 3 ---- */
+/* WHAT THE FOUR ROUND 3 BRANCHES GOT WRONG ABOUT EACH OTHER. The data branch
+   attached the recorded splits in the scan's own read of the history, the one
+   place it was given; --backtest reads the history separately and so
+   simulated on raw closes, disagreeing with the page's simulation of the same
+   setup. An RSI across a 2-for-1 split with the split recorded: only the
+   fourteen warm-up bars are unavailable, not every bar whose window spans the
+   break. */
+{
+  const IDays = [];
+  for (let t = Date.parse('2026-01-05T00:00:00Z'); IDays.length < 80; t += 86400000) { const d = new Date(t); if (d.getUTCDay() >= 1 && d.getUTCDay() <= 5) IDays.push(d.toISOString().slice(0, 10)); }
+  const ICloses = IDays.map((_, i) => 40 + Math.sin(i / 2) * 2 + i * 0.05).map((c, i) => (i >= 60 ? c / 2 : c));
+  const ISetup = { id: 'rsi-held', version: 1, name: 'RSI held', enabled: true, universe: { kind: 'all' }, timeframe: '1D', confirmationMode: 'BAR_CLOSE',
+    cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null,
+    ruleTree: { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'rsi', n: 14 }, op: 'BETWEEN', range: [{ value: 0 }, { value: 100 }] }] } };
+  const btIn = async (name, adjustments) => {
+    const WD = join(tmpdir(), `qt-int-bt-${name}-${process.pid}`);
+    await rm(WD, { recursive: true, force: true });
+    await mkdir(WD, { recursive: true });
+    await writeFile(join(WD, 'price-history.json'), JSON.stringify({ series: { SPL: Object.fromEntries(IDays.map((d, i) => [d, Number(ICloses[i].toFixed(4))])) } }));
+    await writeFile(join(WD, 'scan-setups.json'), JSON.stringify({ setups: [ISetup] }));
+    await writeFile(join(WD, 'instruments.json'), '[]');
+    if (adjustments != null) await writeFile(join(WD, 'price-adjustments.json'), adjustments);
+    let r;
+    try { const { stdout, stderr } = await run(process.execPath, [join(ROOT, 'scanner/scan.mjs'), '--data', WD, '--instruments', join(WD, 'instruments.json'), '--backtest', 'rsi-held', '--json'], { maxBuffer: 1 << 26 }); r = { code: 0, h: JSON.parse(stdout), stderr }; }
+    catch (e) { r = { code: e.code, h: null, stderr: e.stderr || '' }; }
+    await rm(WD, { recursive: true, force: true });
+    return r;
+  };
+  const raw = await btIn('raw', null);
+  const adj = await btIn('adj', JSON.stringify({ schema: 1, actions: [{ symbol: 'SPL', date: IDays[60], ratio: 2, kind: 'split' }] }));
+  const bad = await btIn('bad', '{ not json');
+  check(raw.code === 0 && adj.code === 0 && raw.h.counts.unavailableBars > 14 && adj.h.counts.unavailableBars === 14 && adj.h.counts.matchedBars === 66
+    && bad.code === 1 && /price-adjustments\.json is not valid JSON/.test(bad.stderr),
+    'integration: --backtest applies the splits recorded beside the history, as a scan and the page do — an RSI across a recorded 2-for-1 split is unavailable only for its warm-up; an unreadable adjustments file stops the command',
+    { raw: raw.h?.counts, adj: adj.h?.counts, bad: bad.code });
+}
+/* ---- end integration: round 3 ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

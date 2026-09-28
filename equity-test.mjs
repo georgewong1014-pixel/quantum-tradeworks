@@ -4406,6 +4406,62 @@ try {
   }
   /* ---- end round 3: ops ---- */
 
+  /* ---- integration: round 3 ---- */
+  /* OPENING YOUR OWN FILES, after the data branch. An opened history must
+     carry the recorded splits as the served one does, the adjustments file
+     must be openable beside it (on the deployed site nothing is served), and
+     the rejects file the store writes beside the history is not a history:
+     the old pattern matched it, and opening it replaced the history. */
+  {
+    const r = await evaluate(`(async () => {
+      ${opsKeep} ${opsWait}
+      const keepAdj = scanAdjustmentsFile, keepOpened = scanOpsOpened;
+      try {
+        const f = scanFixture();
+        const sym = Object.keys(f.history.series)[0];
+        const firstDay = Object.keys(f.history.series[sym]).sort()[5];
+        const adjDoc = { schema: 1, actions: [{ symbol: sym, date: firstDay, ratio: 2, kind: 'split' }] };
+        scanAdjustmentsFile = null; scanOpsOpened = []; scanOpsRead = true;
+        navigate('/admin/scanner');
+        await w(80);
+        const open = async (files) => {
+          const input = document.querySelector('main .scan-open input[type=file]');
+          if (!input) return false;
+          const dt = new DataTransfer();
+          files.forEach(([name, doc]) => dt.items.add(new File([JSON.stringify(doc)], name, { type: 'application/json' })));
+          input.files = dt.files;
+          input.dispatchEvent(new Event('change'));
+          await w(150);
+          return true;
+        };
+        const out = {};
+        scanHistoryFile = f.history;
+        const before = scanHistoryFile;
+        out.inputFound = await open([['price-history.rejects.json', { schema: 1, rejected: [] }]]);
+        out.rejectsKept = scanHistoryFile === before;
+        out.rejectsSaid = /price-history\\.rejects\\.json \\(not a scanner file\\)/.test(document.querySelector('main .scan-open [role=status]')?.textContent || '');
+        await open([['price-history.json', f.history]]);
+        out.historyVersion = scanHistoryFile?.adjustmentVersion ?? null;
+        await open([['price-adjustments.json', adjDoc]]);
+        out.afterAdj = { version: scanHistoryFile?.adjustmentVersion ?? null, actions: (scanHistoryFile?.adjustments || []).length, file: !!scanAdjustmentsFile };
+        await open([['price-history (1).json', f.history]]);
+        out.reopened = { version: scanHistoryFile?.adjustmentVersion ?? null, actions: (scanHistoryFile?.adjustments || []).length };
+        out.listed = /price-adjustments/.test(document.querySelector('main .scan-open')?.textContent || '');
+        return out;
+      } finally { restore(); scanAdjustmentsFile = keepAdj; scanOpsOpened = keepOpened; }
+    })()`);
+    const p = [];
+    if (!r.inputFound) p.push('no file input on /admin/scanner');
+    if (!r.rejectsKept || !r.rejectsSaid) p.push(`the rejects file was taken as the history or not named: ${JSON.stringify({ kept: r.rejectsKept, said: r.rejectsSaid })}`);
+    if (r.historyVersion !== 'none') p.push(`an opened history with no adjustments file should read adjustmentVersion 'none', got ${r.historyVersion}`);
+    if (!/^adj:/.test(r.afterAdj?.version || '') || r.afterAdj.actions !== 1 || !r.afterAdj.file) p.push(`opening the adjustments file did not attach it: ${JSON.stringify(r.afterAdj)}`);
+    if (r.reopened?.version !== r.afterAdj?.version || r.reopened.actions !== 1) p.push(`a history opened after the adjustments lost them: ${JSON.stringify(r.reopened)}`);
+    if (!r.listed) p.push('the open-files line does not name price-adjustments');
+    if (p.length) fail('integration: an opened history carries the recorded splits; the rejects file is not taken for the history', p);
+    else ok('integration: an opened history carries the recorded splits, the adjustments file opens beside it in either order, and price-history.rejects.json is refused as not a history');
+  }
+  /* ---- end integration: round 3 ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

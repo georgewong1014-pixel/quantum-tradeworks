@@ -395,8 +395,9 @@ const ROUTES = [
   /* Phase 3 — user */
   /* The reader's scanner pages (86-scanner.js). /setups/new sits above
      /setups/:setup, which would otherwise read "new" as a setup id; the
-     parameters are :setup and :alert, never :id, which the router reads as
-     a company. */
+     parameters are :setup and :alert. The router reads :id as a company
+     only on the company views (COMPANY_ROUTE_VIEWS), so the names are for
+     the reader of this table, not a guard. */
   { path: '/app/scanner/setups',             view: 'scannerSetups',     title: 'Scanner setups' },
   { path: '/app/scanner/setups/new',         view: 'scannerSetupNew',   title: 'New scanner setup' },
   { path: '/app/scanner/setups/:setup',      view: 'scannerSetup',      title: 'Scanner setup' },

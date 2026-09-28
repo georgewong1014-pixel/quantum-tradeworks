@@ -821,6 +821,19 @@ async function main() {
     let doc, history, instruments = [];
     try { doc = await readJson(setupsPath); } catch (e) { console.error(`${setupsPath} is not valid JSON: ${e.message}`); process.exit(1); }
     try { history = await readJson(historyPath); } catch (e) { console.error(`${historyPath} is not valid JSON: ${e.message}`); process.exit(1); }
+    /* The splits the reader recorded apply here as they do in a scan and on
+       the page's simulation. Read raw, the command disagreed with the page
+       about the same setup on any series with a recorded split. A file that
+       is not JSON stops it, as it stops a scan. */
+    {
+      const adjustmentsPath = join(dirname(historyPath), 'price-adjustments.json');
+      let adjustmentsDoc = null;
+      if (existsSync(adjustmentsPath)) {
+        try { adjustmentsDoc = await readJson(adjustmentsPath); }
+        catch (e) { console.error(`${adjustmentsPath} is not valid JSON (${e.message}) — the adjustments recorded there cannot be applied`); process.exit(1); }
+      }
+      history = E.scanAttachAdjustments(history, adjustmentsDoc);
+    }
     try { const reg = await readJson(instrumentsPath); instruments = Array.isArray(reg) ? reg : (reg?.instruments || []); } catch { /* none */ }
     const v = E.scanValidate(doc);
     const setup = v.setups.find(s => s.id === id);
