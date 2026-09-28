@@ -326,6 +326,193 @@ again when the list changes. Every watchlist member carries its canonical
 instrument id (`US:AAPL`, `MY:1155`), and the export from `/my/watchlists` is
 the shape a later scanner phase would take as its universe.
 
+## Your TradingView bot in the scanner
+
+Your "Multi-Timeframe Trading Bot" — the Pine script on your OANDA:XAUUSD
+chart — combines four criteria on a trade timeframe with the same criteria on
+an entry timeframe and raises fifteen alerts. The scanner evaluates those
+alerts on your own history as ordinary setups: entries judged on the **daily**
+bar, the trade timeframe **weekly**, and **monthly** as a second trade
+timeframe, so there are two sets of trade-timeframe and combined signals, one
+weekly and one monthly. Each timeframe is judged on its **last closed bar**.
+
+**The signals are your script's, not this product's advice.** Each setup
+carries your script's own alert title and records the bars on which its
+conditions held — nothing more. Nothing is proposed, ranked or delivered, and
+neither the script nor any indicator here has been validated on point-in-time
+data, so no signal is claimed to work.
+
+### The weekly routine
+
+1. **Export from TradingView.** Open OANDA:XAUUSD on the daily (1D) chart and
+   scroll back until no more history loads — an export holds only the bars
+   loaded on the chart — then the menu beside the symbol > "Export chart
+   data…" > CSV, saved into `watchlist-shots/` (git-ignored: it is
+   TradingView's licensed data, for your own research). The file is
+   `OANDA_XAUUSD, 1D.csv`. Do the same on the weekly (1W) and monthly (1M)
+   charts: those two files are for checking and are never imported.
+2. **Import the daily file:**
+
+   ```bash
+   node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+   ```
+
+   The symbol (XAUUSD) is read from the name and its market (FX: a day that
+   opens at 17:00 New York the evening before) from `data/instruments.json`,
+   so the export's Sunday-to-Thursday stamps are dated to the Monday-to-Friday
+   sessions they open. A last row saved while its session still traded is
+   PROVISIONAL, never evaluated, and next week's import replaces it. What the
+   import does and refuses: [ingest/README.md](ingest/README.md#your-tradingview-bot-the-imports-side).
+3. **Check parity** — each chart's indicators against the scanner's, and the
+   weeks and months the scanner builds from your daily bars against
+   TradingView's own:
+
+   ```bash
+   node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+   node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1W.csv" --daily "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+   node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1M.csv" --daily "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+   ```
+
+   Exit 0 means nothing DIFFERS. A column NOT SETTLED needs a longer export,
+   not a different formula. A week or month PARTIAL is only partly in one of
+   the files — the daily export begins after its first session, or it was in
+   progress when a file was saved. HOLIDAY is a weekday on which neither file
+   has a bar (Christmas, New Year's Day, Good Friday): its open, high, low and
+   close agree, and the scanner leaves that week's volume blank, because a
+   missing day is not a day of nought and no exchange calendar says which
+   days were holidays. The weeks of the weekly export before your daily one
+   begins are counted, not compared. **DIFFERS** (exit 1) names the column or
+   the period, the fields and both values — stop there: a setup read on a
+   week the scanner built wrongly is wrong.
+4. **Add the bot's setups** on `/app/scanner/setups` (once, and again only
+   when you change them). They arrive as ordinary daily setups whose
+   conditions read the week or the month, named for your script's alerts —
+   "MTF bot · Weekly · STRONG BUY CONTINUOUS", id
+   `mtfbot-w-strong-buy-continuous`; the monthly set `mtfbot-m-…`; the entry
+   signals `mtfbot-d-…`, such as `mtfbot-d-entry-buy`. The defaults are your
+   decisions below: weekly and monthly trade timeframes, criterion 3 on the
+   EMA(200), the MACD's EMA signal, and a match recorded on the bar it begins
+   (NEW_MATCH), not on every bar it goes on holding.
+5. **Export the setups** — "Export scan-setups.json" on the same page — and
+   save the file over `data/scan-setups.json`.
+6. **Scan:**
+
+   ```bash
+   node scanner/scan.mjs --dry                  # evaluate and print; write nothing
+   node scanner/scan.mjs --as-of 2026-09-28     # replay each earlier session of the week, oldest first …
+   node scanner/scan.mjs --as-of 2026-09-29
+   node scanner/scan.mjs --as-of 2026-09-30
+   node scanner/scan.mjs --as-of 2026-10-01
+   node scanner/scan.mjs                        # … then the last final bar, recorded in data/scan-alerts.json
+   ```
+
+   A run evaluates each instrument's last final bar, and an import adds a
+   week at a time, so the sessions before the last one are evaluated by
+   replaying them (the dates above are an example week); a replay records
+   nothing already recorded. The matches are on `/app/scanner/alerts`, and an
+   alert names the week or month each condition was read on.
+
+### What each signal means, as your script defines it
+
+The criteria, each read on its timeframe's last closed bar, with the script's
+settings:
+
+| | Holds when | Does not hold when |
+|---|---|---|
+| **1** | WaveTrend (10, 21): wt1 above wt2 | wt1 at or below wt2 |
+| **2** | MACD (12, 26, 9): the line above its **EMA** signal | the line at or below it |
+| **3** | the close above the EMA(200) | at or below it |
+| **4** | MCDX banker — 1.5 × (RSI(50) − 50), held within 0 and 20 — above 5 | at or below 5 |
+| **5** | MCDX hot money — 0.5 × (RSI(40) − 30), held the same way — below 10 (sell entries only) | at or above 10 |
+
+The histogram (the MACD line less its EMA signal) is **rising** when the last
+closed bar's is above the closed bar's before it and **falling** when below —
+strictly, as the script's `>` and `<`: an unchanged histogram is neither.
+
+The signals, T being the week (or, in the second set, the month) and D the day:
+
+| Your script's alert | Holds when |
+|---|---|
+| Trade TF Tier 1 Buy | 1 and 2 on T, and neither 3 nor 4 — tier 1 without tier 2 |
+| Trade TF Tier 2 Buy | 1 and 2 on T, and 3 or 4 |
+| Trade TF Tier 1 Sell | neither 1 nor 2 on T, and 3 or 4 — tier 1 without tier 2 |
+| Trade TF Tier 2 Sell | none of 1 to 4 on T |
+| Entry TF Buy | 1, 2, 3 and 4 on D |
+| Entry TF Sell | none of 1 to 4 on D, and 5 on D |
+| Entry TF Trade | Entry TF Buy or Entry TF Sell |
+| STRONG BUY CONTINUOUS | Trade TF Tier 2 Buy, Entry TF Buy, and T's histogram rising |
+| STRONG BUY REVERSAL | Trade TF Tier 2 Buy, Entry TF Buy, and T's histogram falling |
+| STRONG SELL CONTINUOUS | Trade TF Tier 2 Sell, Entry TF Sell, and T's histogram falling |
+| STRONG SELL REVERSAL | Trade TF Tier 2 Sell, Entry TF Sell, and T's histogram rising |
+| WEAK BUY | Trade TF Tier 1 Buy (so not tier 2) and Entry TF Buy |
+| WEAK SELL | Trade TF Tier 1 Sell (so not tier 2) and Entry TF Sell |
+| ANY STRONG SIGNAL | any of the four STRONG alerts |
+| ANY WEAK SIGNAL | WEAK BUY or WEAK SELL |
+
+**The last closed bar.** On each daily close the weekly criteria are the last
+completed week's — the week that contains the day only when that day closes
+it (its last expected session) — and the monthly criteria the last completed
+month's. On a Wednesday they are last week's; from Friday's close, this
+week's.
+
+Where the scanner departs from the chart, by your decisions of 29 September:
+
+- **Entries on the day.** The script's Entry timeframe ships as 4-hour
+  ("240"); the history holds one bar per session, so entries are judged on the
+  daily bar. The chart's "Entry TF Buy" and "Entry TF Sell" marks are the
+  4-hour ones unless you set the script's Entry timeframe to D.
+- **The last closed bar, every day.** The script as written (Pine v6,
+  `request.security` with gaps on) reads a weekly condition only on the day a
+  week closes, false on the days between, and compares the histogram across
+  that gap. The scanner reads the last completed week on every day — the
+  intent, which you chose.
+- **Criterion 3 on the EMA(200)**, as the script's code has it. That is an
+  assumption: the chart draws the SMA(200) (Color MA and SMA Cross), and the
+  setups can use the SMA instead.
+- **The MACD's EMA signal**, as the script computes it. The chart's
+  CM_Ult_MacD_MTF uses an SMA(9) signal, and the two disagree on some days.
+
+### What stays unknown until your history is long enough
+
+A criterion that cannot be computed yet is **unknown** — neither held nor
+failed — and its reason names the timeframe. A signal that needs an unknown
+criterion is unknown too, unless another criterion already settles it (one
+false in an AND, one true in an OR): it can be found not to hold before the
+history is long enough, and it cannot hold until then. The closed bars each
+criterion needs, and about how many daily sessions give them (spot gold
+trades every weekday: five a week, about 21¾ a month):
+
+| Criterion | Closed bars | Daily | Weekly | Monthly |
+|---|---|---|---|---|
+| 1 — WaveTrend wt1 against wt2 | 42 | 42 sessions | 42 weeks ≈ 210 sessions | 42 months ≈ 915 sessions (3½ years) |
+| 2 — MACD against its EMA signal | 34 | 34 | 34 weeks ≈ 170 | 34 months ≈ 740 |
+| histogram rising or falling | 35 | — | 35 weeks ≈ 175 | 35 months ≈ 760 |
+| 3 — close against EMA(200) | 200 | 200 | 200 weeks ≈ 1,000 (3.8 years) | 200 months ≈ 4,350 (16.7 years) |
+| 4 — banker against 5 | 51 | 51 | 51 weeks ≈ 255 | 51 months ≈ 1,110 (4¼ years) |
+| 5 — hot money against 10 | 41 | 41 | — | — |
+
+- **Your export of 28 September** holds about 300 daily bars (from 31 July
+  2025): about 60 weeks and 14 closed months. Every daily criterion is known; weekly
+  criteria 1, 2 and 4 and the weekly histogram are known; **weekly criterion 3
+  is unknown** (200 weeks), so Trade TF Tier 1 Buy, Trade TF Tier 2 Sell, WEAK
+  BUY and both STRONG SELL alerts cannot hold on the week yet; **every monthly
+  criterion is unknown**, so no monthly signal can hold.
+- **At the history's limit.** The history keeps the newest 2,000 bars of each
+  series, and every write trims to that, the daily run's included
+  (`ingest/history-store.mjs`): about 7⅔ years of sessions, 400 weeks, 92
+  months. That is enough for every daily and weekly criterion. **Monthly
+  criterion 3 needs 200 months and cannot be computed within it**, so on the
+  month Trade TF Tier 1 Buy, Trade TF Tier 2 Sell, WEAK BUY and both STRONG
+  SELL alerts can never hold, and Trade TF Tier 2 Buy and Tier 1 Sell hold
+  only where criterion 4 settles them (the banker above 5).
+- **Computed is not yet TradingView's number.** An EMA, Wilder's RSI and
+  WaveTrend remember where a history begins, and TradingView computes on all of
+  its own. Close to a crossing, the scanner's value can differ from the
+  chart's until the history is several times the indicator's length;
+  tv-verify shows the bar from which each column agrees. The bot's EMA(200)
+  and its EMA-signal histogram are not drawn on your chart, so no export
+  checks them directly; the MACD line, WaveTrend and the banker are.
+
 ## Bursa fundamentals: the source review
 
 Roughly forty candidate sources were probed empirically — fetched, not read about
