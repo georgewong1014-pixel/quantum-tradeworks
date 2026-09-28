@@ -262,18 +262,6 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   render();
 });
 
-/* THE TRADING INDEX IS A SECTION OF THE SCANNER (Release A). Its row is
-   written once, in the reader's pages' table (86-scanner.js SCAN_SUBNAV), and
-   scanSubnav() hands every scanner page the operations pages' strip
-   (87-scanner-ops.js SCANNER_SUBNAV) wherever that exists — which is always,
-   in this build. So a row in the first table alone would appear nowhere.
-   Every module has loaded by this line, so any row the reader's table holds
-   that the shared strip lacks is added to it here, once, in its order: the
-   Trading Index's page shows the strip with itself current, and every
-   scanner page offers it last. */
-if (typeof SCAN_SUBNAV !== 'undefined' && typeof SCANNER_SUBNAV !== 'undefined')
-  SCAN_SUBNAV.filter(s => !SCANNER_SUBNAV.some(x => x.id === s.id)).forEach(s => SCANNER_SUBNAV.push({ ...s }));
-
 /* ------------------------------------------------------------------- boot */
 const refreshSearchLabel = () => {
   /* No number while the filings are in flight. Writing "36" and correcting it to

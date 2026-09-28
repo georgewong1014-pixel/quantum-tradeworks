@@ -3079,7 +3079,10 @@ VIEWS.onboarding = () => {
   });
   wrap.append(opts);
 
-  const foot = el('div', { class: 'row', style: 'gap:10px;margin-top:var(--xl)' });
+  /* The page's way out — Back, and Skip to the app — is a 44px target at
+     every width (.ob-foot, styles.css): on a phone "Skip — take me to the
+     app" was a small button on the floor's very edge. */
+  const foot = el('div', { class: 'row ob-foot', style: 'gap:10px;margin-top:var(--xl)' });
   if (i > 0) foot.append(el('button', { class: 'btn btn-ghost btn-sm',
     onclick: () => { State.obStep = i - 1; render(); focusObQuestion(); } }, 'Back'));
   foot.append(el('span', { class: 'spacer' }));

@@ -239,9 +239,9 @@ const CAPABILITY_REGISTER = [
      check for Phase 3 stays red and names why. */
   { name:'Scanner routes and navigation', status:'beta', path:'/app/scanner',
     brief:['SC-NAV'], priority:'P0',
-    now:'Scanner in the main navigation after Research, with the unread count; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
+    now:'Quantum Scanner in the app sidebar (the Products group, after Equities Research), with the scanner’s unread count as its own link beside My Alerts, and the Trading Index as the last section of its strip; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
     gate:'/admin/* is not restricted to anyone: there are no accounts, so the operations pages are read-only views that say so. Intraday timeframes appear nowhere as available.',
-    checks:[{ file:'equity-test.mjs', name:'the scanner is in the header after Research, on every scanner address' },
+    checks:[{ file:'equity-test.mjs', name:'the scanner is in the sidebar after Equities Research, on every scanner address' },
             { file:'register-check.mjs', name:'robots.txt keeps the scanner and operations paths out of crawlers' },
             { file:'mobile.mjs', name:'no horizontal overflow at any width' }] },
   { name:'Market-data ingestion (scanner)', status:'data-gated', path:null,

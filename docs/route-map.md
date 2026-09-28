@@ -24,8 +24,13 @@ A view wears one of two chromes, decided by `chromeOf(view)` and written to
 - **app** — every other view. They wear the sidebar at 1024px and wider, and
   below that a slim bar whose menu button opens the same sidebar as a drawer.
 
-The beta/demo disclosure bar is on both chromes, compact, with its words and
-its "Which sources?" behaviour unchanged.
+The beta/demo disclosure bar is on both chromes, its words unchanged. On a
+public page (`body[data-surface="public"]`, which follows the chrome) it is
+one compact line — "Beta preview. Do not use figures here for investment
+decisions." — with "Which sources?" opening the rest of the sentence at
+every width, so every word of it is one press away on `/`, `/how-it-works`,
+pricing and the trust pages alike. On an app page it is the full strip, its
+source breakdown folded behind "Which sources?" at 760px and under.
 
 ## Routes
 
@@ -114,10 +119,10 @@ whichever address opened it.
 | `/terms` | terms | public | — (public header) | canonical |
 
 74 routes. Any other path renders the not-found card (public chrome). A
-route whose view is not defined in the build — `/how-it-works` and
-`/research/queue` until the branches that define `howItWorks` (55-views-public.js)
-and `researchQueue` (40-views-discover.js) are merged — also renders the
-not-found card, never a blank page or a throw (`applyRoute`).
+route whose view is not defined in the build would also render the
+not-found card, never a blank page or a throw (`applyRoute`); since the
+three Release A branches merged, every route above has its view
+(`howItWorks` in 55-views-public.js, `researchQueue` in 40-views-discover.js).
 
 Two tabs of the discover view have no path of their own and ride on
 `/discover` as `?tab=ideas` and `?tab=heatmap`; Learn's scoring tab is
@@ -185,10 +190,12 @@ portfolio and investment cases mark Saved Models, tracked instruments mark
 Watchlists.
 
 The scanner's unread-alert count sits on the My Alerts row as a link of its
-own to `/app/scanner/alerts`, named "N unread scanner alerts". `/my/alerts`
-is the research alert feed and does not list the scanner's matches, so the
-count is not on the My Alerts link itself, which would promise alerts the
-page it opens does not show.
+own to `/app/scanner/alerts`, named "Scanner alerts, N unread" (as the
+scanner's own strip names its Alerts link), its pill carrying the Scanner's
+mark so it does not read as My Alerts' own count. `/my/alerts` is the
+research alert feed and does not list the scanner's matches, so the count is
+not on the My Alerts link itself, which would promise alerts the page it
+opens does not show.
 
 **Reports** is not in My workspace: a research report is printed from a
 company page and nothing keeps a list of them, so the item would open
@@ -200,11 +207,15 @@ One row above an Equities or Property page (a nav landmark named
 "<Product> sections"), from `PRODUCT_TABS`:
 
 - **Equities Research** — Overview (`/research`) · Screener
-  (`/discover/screener`) · Value map (`/discover/value-map`) · Compare
-  (`/compare`) · Research queue (`/research/queue`) · Sarawak watch
-  (`/discover/sarawak`) · Cash Wheel (`/us-options/wheel`). The Screener tab
-  is current on the discover view's strategies and heatmap tabs too, which
-  share its page.
+  (`/discover/screener`) · Compare (`/compare`) · Research queue
+  (`/research/queue`) · Sarawak watch (`/discover/sarawak`) · Cash Wheel
+  (`/us-options/wheel`). The Screener tab is current on every tab of the
+  screener's page (the `discover` view), whose own strip is the Screener's
+  sub-tabs: Stock Screener (`/discover/screener`) · Quality vs Value Map
+  (`/discover/value-map`) · Screening Strategies (`/discover?tab=ideas`) ·
+  Heatmap (`/discover?tab=heatmap`). One row of navigation per level: the
+  Value map is not a product tab as well, where it repeated the strip
+  beneath it, and it stays one click away.
 - **Property Intelligence** — Calculator (`/property/calculator`, current on
   `/property` too) · Area screen (`/property/areas`) · Comparables
   (`/property/comparables`) · Opportunities (`/property/opportunities`).
@@ -214,11 +225,12 @@ One row above an Equities or Property page (a nav landmark named
   overview view is built.
 - The company page (`research`) and its report keep their own tabs and get
   no product row.
-- **Quantum Scanner** keeps its own section strip (`scanSubnav`): Dashboard,
-  Market (your series), Setups, Watchlists, Alerts, Historical, Settings,
-  **Trading Index** (`/research/trading-index`, a section of the scanner
-  since Release A). The Trading Index's page shows the strip with itself
-  current.
+- **Quantum Scanner** keeps its own section strip (87-scanner-ops.js
+  `SCANNER_SUBNAV`, which every scanner page draws through `scanSubnav`):
+  Dashboard, Market (your series), Setups, Watchlists, Alerts, Historical,
+  Settings, **Trading Index** (`/research/trading-index`, a section of the
+  scanner since Release A). The Trading Index's page shows the strip with
+  itself current.
 
 ### Footer
 

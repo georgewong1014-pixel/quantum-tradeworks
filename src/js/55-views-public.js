@@ -17,59 +17,16 @@
    The dashboard lives at /app; this is what the domain root serves.
    ========================================================================== */
 
-/* release-a: fallback until shell merges.
-   PRODUCTS, PRODUCT_STATUS and productBadge belong to the shell (35-ui.js),
-   built on another branch at the same time as this one. Until it lands these
-   stand in, under names of their own so nothing is declared twice when it
-   does, and every accessor below prefers the shell's. The /how-it-works route
-   and its description are the shell's too, and are added here only while the
-   route table lacks them. Delete this block once the shell has merged. */
-const PUB_PRODUCTS_FALLBACK = [
-  { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
-    task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
-    question: 'How is this company performing financially?', action: 'Research a company', actionPath: '/research',
-    status: 'beta', statusNote: 'US companies carry audited statements from SEC filings; the Malaysian companies are illustrative; no prices are licensed.' },
-  { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Monitor my setups', blurb: 'Your own rules, checked on each daily close, with a record of every match.',
-    question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
-    status: 'beta', statusNote: 'Runs on price history you supply, on your own computer.' },
-  { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
-    task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
-    question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    status: 'live', statusNote: 'Computed from the figures you enter.' },
-  { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
-    task: 'Plan my business', blurb: 'Cash flow, profitability and financing scenarios.',
-    question: 'What will happen to my company’s cash flow?', action: null, actionPath: null,
-    status: 'soon', statusNote: 'Not built yet — nothing to open.' },
-];
-const PUB_STATUS_FALLBACK = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
-if (!ROUTES.some(r => r.view === 'howItWorks')) ROUTES.push({ path: '/how-it-works', view: 'howItWorks', title: 'How it works' });
-if (!META.howItWorks) META.howItWorks = 'How each product works — what goes in, what comes out, what is saved and what comes next — with worked examples computed by the products’ own models.';
-/* /release-a: fallback */
-
-const pubProducts = () => (typeof PRODUCTS !== 'undefined' && Array.isArray(PRODUCTS) ? PRODUCTS : PUB_PRODUCTS_FALLBACK);
-const pubStatusLabel = (s) => ((typeof PRODUCT_STATUS !== 'undefined' && PRODUCT_STATUS) || PUB_STATUS_FALLBACK)[s] || s;
-const pubShellBadges = () => typeof productBadge === 'function';
-
-/* productBadge may hand back an element or its markup; either way a node. */
-function pubNode(x) {
-  if (x == null) return null;
-  if (x.nodeType) return x;
-  const t = document.createElement('template');
-  t.innerHTML = String(x).trim();
-  return t.content.firstElementChild;
-}
 /* A status badge by status alone — the legend on /how-it-works and the
    homepage's disclosure line, where no one product is meant. Same classes as
-   productBadge, so the two cannot look different. */
+   productBadge (35-ui.js), so the two cannot look different. */
 function pubStatusBadge(status, title) {
-  return el('span', { class: `status-badge status-${status}${pubShellBadges() ? '' : ' pub-badge-fallback'}`, title: title || null },
-    pubStatusLabel(status));
+  return el('span', { class: `status-badge status-${status}`, title: title || null }, PRODUCT_STATUS[status] || status);
 }
-function pubBadge(p) {
-  if (pubShellBadges()) { const b = pubNode(productBadge(p.id)); if (b) return b; }
-  return pubStatusBadge(p.status, p.statusNote);
-}
+/* A product's own badge: productBadge hands back a fresh element (its
+   toString is its markup, for pages that build with strings), so the card
+   can give it the id its aria-describedby names. */
+const pubBadge = (p) => productBadge(p.id) || pubStatusBadge(p.status, p.statusNote);
 
 /* An in-app link that keeps the browser's own link behaviour: a modified or
    middle click opens a tab, as every other internal link in the product does. */
@@ -165,7 +122,7 @@ VIEWS.marketing = () => {
   /* -- 2. the four products --------------------------------------------- */
   const products = el('section', { class: 'pub-section', id: 'products', 'aria-labelledby': 'pub-products-h' });
   products.append(el('div', { class: 'pub-section-hd' }, el('h2', { class: 'pub-h2', id: 'pub-products-h' }, 'What would you like to do?')));
-  products.append(el('div', { class: 'pub-cards' }, pubProducts().map(pubProductCard)));
+  products.append(el('div', { class: 'pub-cards' }, PRODUCTS.map(pubProductCard)));
   products.append(pubDisclosure());
   wrap.append(products);
 
@@ -514,7 +471,7 @@ function hiwStatus(P) {
 }
 
 VIEWS.howItWorks = () => {
-  const P = pubProducts();
+  const P = PRODUCTS;
   const wrap = el('div', { class: 'pub hiw' });
 
   const hd = el('div', { class: 'pub-hero hiw-hd' });

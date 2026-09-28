@@ -350,32 +350,10 @@ function openDashboardCustomiser() {
    start another.
    ========================================================================== */
 
-/* The four products, read from the shell's PRODUCTS table (35-ui.js), which
-   owns their names, actions and availability. */
-/* release-a: fallback until shell merges */
-const MYDASH_PRODUCTS_FALLBACK = [
-  { id: 'equities', name: 'Equities Research', action: 'Research a company', actionPath: '/research', status: 'beta',
-    statusNote: 'US companies from audited SEC filings; the Malaysian companies are illustrative; no licensed prices.' },
-  { id: 'scanner', name: 'Quantum Scanner', action: 'Create a setup', actionPath: '/app/scanner/setups/new', status: 'beta',
-    statusNote: 'Runs on price history you supply, on your own computer.' },
-  { id: 'property', name: 'Property Intelligence', action: 'Analyse a property', actionPath: '/property/calculator', status: 'live',
-    statusNote: 'Computed from the figures you enter.' },
-  { id: 'business', name: 'Business Intelligence', action: null, actionPath: null, status: 'soon',
-    statusNote: 'Not built yet — nothing to open.' },
-];
-const myDashProduct = (id) => (typeof PRODUCTS !== 'undefined' ? PRODUCTS : MYDASH_PRODUCTS_FALLBACK).find(p => p.id === id)
-  || MYDASH_PRODUCTS_FALLBACK.find(p => p.id === id);
-function myDashBadge(id) {
-  if (typeof productBadge === 'function') {
-    const b = productBadge(id);
-    return typeof b === 'string' ? el('span', { class: 'dash-badge', html: b }) : b;
-  }
-  /* release-a: fallback until shell merges */
-  const p = myDashProduct(id);
-  if (!p) return null;
-  const word = (typeof PRODUCT_STATUS !== 'undefined' ? PRODUCT_STATUS : { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' })[p.status] || p.status;
-  return el('span', { class: `chip ${p.status === 'live' ? 'chip-ok' : p.status === 'soon' ? '' : 'chip-bronze'}`, title: p.statusNote }, word);
-}
+/* The four products — names, actions and status badges — are the shell's
+   (PRODUCTS, productById and productBadge in 35-ui.js), so the dashboard
+   cannot describe a product differently from the header, the sidebar and the
+   homepage. */
 
 /* A real anchor, so every tile and row is a link the browser understands —
    middle-click, a new tab, the address in the status bar. */
@@ -454,7 +432,7 @@ function myDashOwn() {
    in the worker's file; a property model by an edit to the calculator's deal
    or a saved snapshot of one. */
 function myDashSteps(o) {
-  const eq = myDashProduct('equities'), sc = myDashProduct('scanner'), pr = myDashProduct('property');
+  const eq = productById('equities'), sc = productById('scanner'), pr = productById('property');
   const lastCo = o.researched.length ? BY_ID.get(o.researched[0]) : null;
   const inList = o.lists.length ? `${myDashPlural(o.lists.length, 'list')} of your own, ${myDashPlural(o.instruments.size, 'company', 'companies')}` : '';
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
@@ -489,7 +467,7 @@ function myDashStepRow(s, primary) {
   const body = el('div', { class: 'dash-step-body' });
   body.append(el('div', { class: 'dash-step-t' }, [
     el('h3', { class: 'h-card' }, [el('span', { class: 'sr-only' }, s.done ? 'Done: ' : 'Not done yet: '), s.title]),
-    s.product ? myDashBadge(s.product) : null,
+    s.product ? productBadge(s.product) : null,
   ]));
   body.append(el('p', { class: 'caption' }, s.note));
   li.append(body);
@@ -650,7 +628,7 @@ function myDashMatches(o, st) {
   if (!o.alerts) {
     card.append(o.setupsKnown
       ? empty('No record can be seen from here', 'The worker writes its record of matches on the machine it runs on, and it never leaves that machine — so on this site there is nothing to list. Where the worker runs, run it once and reload.', '/app/scanner', 'Open the scanner')
-      : empty('No setup yet', 'A setup is the conditions you look for. Write one, and each bar on which it holds is recorded here.', '/app/scanner/setups/new', myDashProduct('scanner')?.action || 'Create a setup'));
+      : empty('No setup yet', 'A setup is the conditions you look for. Write one, and each bar on which it holds is recorded here.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'));
     return card;
   }
   if (!o.alerts.length) {
@@ -756,8 +734,8 @@ function myDashFoot() {
     myDashLink('/my/data', { class: 'dash-inline' }, 'Your data & settings'), ' is the copy that travels.',
   ]);
   /* The research queue this page used to be, while its address resolves. */
-  if (myDashRoutes('/research/queue')) p.append(' The equities research queue — market context and what changed across companies — is under ',
-    myDashLink('/research/queue', { class: 'dash-inline' }, 'Equities Research'), '.');
+  if (myDashRoutes('/research/queue')) p.append(' The equities research queue — market context and what changed across companies — is now the ',
+    myDashLink('/research/queue', { class: 'dash-inline' }, 'Research queue'), ' tab of Equities Research.');
   return p;
 }
 
@@ -3130,11 +3108,13 @@ function tabStrip(label, tabs, current, open, attrs = {}) {
 VIEWS.discover = () => {
   const wrap = el('div');
   const hd = el('div', { style: 'margin-bottom:var(--lg)' });
-  hd.append(el('p', { class: 'eyebrow' }, 'Discover'));
+  /* Equities Research's Screener (Release A): the product tab row above
+     names the product, and this strip is the Screener's sub-tabs. */
+  hd.append(el('p', { class: 'eyebrow' }, 'Screener'));
   hd.append(el('h1', { style: 'font-size:24px;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
   /* Through the address: /discover/screener and /discover/value-map have
      routes of their own, the other two ride on ?tab=. */
-  hd.append(tabStrip('Discover tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id })));
+  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id })));
   wrap.append(hd);
 
   /* With a fallback: a tab id this view does not know renders the screener

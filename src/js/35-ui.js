@@ -316,9 +316,10 @@ function toast(msg) {
    then their data and the plans. Below 1024px it is a drawer behind a slim
    bar that keeps the search one tap away.
 
-   Nothing was removed to get here. Screener, Value map, Sarawak Economy
-   Watch and the Cash Wheel are tabs of Equities Research (PRODUCT_TABS); the
-   Trading Index is a section of the Scanner; every address that opened a
+   Nothing was removed to get here. The Screener (the Value map one of its
+   own tabs), Sarawak Economy Watch and the Cash Wheel are tabs of Equities
+   Research (PRODUCT_TABS); the Trading Index is a section of the Scanner's
+   strip (SCANNER_SUBNAV); every address that opened a
    page before still opens it. docs/route-map.md is the whole map.
    ========================================================================== */
 
@@ -424,12 +425,20 @@ const APP_NAV_FOOT = [
 const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', business: 'briefcase' };
 
 /* ONE ROW OF TABS PER PRODUCT, above the product's pages. The tools the
-   brief does not name are here rather than gone: Screener, Value map,
-   Sarawak Economy Watch and the Cash Wheel are Equities pages. A tab is
-   current for the views it lists (and, on the discover view, for its own
-   tabs), so the Screener tab stays lit on the strategies and heatmap tabs
-   that share its page. The Scanner keeps its own section strip (scanSubnav,
-   86-scanner.js), where the Trading Index is its last section.
+   brief does not name are here rather than gone: the Screener (and the
+   Value map inside it), Sarawak Economy Watch and the Cash Wheel are
+   Equities pages. A tab is current for the views it lists.
+
+   One row of navigation per level. The screener's page draws its own strip
+   — Stock Screener, Quality vs Value Map, Screening Strategies, Heatmap —
+   and a "Value map" product tab above it said the same thing twice, one row
+   over the other, with the Screener tab lit on two of that strip's four
+   tabs and dark on the others. So the product row carries one "Screener"
+   tab, current on every tab of that page, and the page's strip is the
+   screener's own sub-tabs: the Value map is still one click away, in the
+   row that holds it. The Scanner keeps its own section strip
+   (87-scanner-ops.js SCANNER_SUBNAV, drawn by every scanner page through
+   scanSubnav), where the Trading Index is its last section.
 
    Property has no Overview tab. /property and /property/calculator are one
    view — the calculator, whose canonical address is /property — so an
@@ -439,8 +448,7 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
 const PRODUCT_TABS = {
   equities: [
     { id: 'overview', label: 'Overview',       path: '/research',           views: ['researchHome'] },
-    { id: 'screener', label: 'Screener',       path: '/discover/screener',  views: ['discover'], tabs: ['screener', 'ideas', 'heatmap'] },
-    { id: 'valuemap', label: 'Value map',      path: '/discover/value-map', views: ['discover'], tabs: ['radar'] },
+    { id: 'screener', label: 'Screener',       path: '/discover/screener',  views: ['discover'] },
     { id: 'compare',  label: 'Compare',        path: '/compare',            views: ['compare'] },
     { id: 'queue',    label: 'Research queue', path: '/research/queue',     views: ['researchQueue'] },
     { id: 'sarawak',  label: 'Sarawak watch',  path: '/discover/sarawak',   views: ['sarawak'] },
@@ -678,8 +686,8 @@ const ROUTES = [
 
 const META = {
   marketing: 'Your financial decision workspace: research companies, monitor your own market setups and evaluate property investments in one place. Business planning is next. Research only — no recommendations.',
-  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — and what Live, Beta, Demo and Coming soon mean.',
-  researchQueue: 'The Equities research queue: companies drawn from the statements held for each, each labelled filed or illustrative, with no recommendations.',
+  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
+  researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
@@ -702,8 +710,8 @@ const META = {
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'My Dashboard: what changed since your last visit, which of your setups matched, and what you monitor and have saved — read from this browser, with nothing recommended.',
-  onboarding:  'Five questions that decide where you land in Quantum Tradeworks, and nothing else.',
+  home:        'Your dashboard: what changed since your last visit, your setups’ matches, what you monitor and what you have saved — all read from this browser.',
+  onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
   launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
@@ -1413,15 +1421,20 @@ function buildNav() {
      exists. The count is a link of its own, to the page that lists those
      alerts: /my/alerts is the research alert feed and does not list the
      scanner's matches, so a count on its link would promise alerts the page
-     it opens does not show. */
+     it opens does not show.
+     A bare number beside "My Alerts" read as My Alerts' own count, and its
+     name did not say where it led. So the pill carries the Scanner's mark
+     (its product icon, as in Products below) and the link is named for the
+     page it opens — "Scanner alerts, 3 unread", as the scanner's own strip
+     names its Alerts link. */
   const alertsLi = shellEl.appnav?.querySelector('[data-item="alerts"]');
   if (alertsLi) {
     alertsLi.querySelector('.sb-count')?.remove();
     const unread = typeof scanUnreadCount === 'function' ? navUnread() : null;
     if (unread) {
-      const said = `${unread} unread scanner alert${unread === 1 ? '' : 's'}`;
-      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': said, title: said },
-        el('span', { class: 'nav-count' }, unread > 99 ? '99+' : String(unread))));
+      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': `Scanner alerts, ${unread} unread`,
+        title: `${unread} unread scanner alert${unread === 1 ? '' : 's'} — opens the Scanner’s alerts` },
+        el('span', { class: 'nav-count' }, [shellIcon(PRODUCT_ICON.scanner, 11, 'sb-count-ico'), unread > 99 ? '99+' : String(unread)])));
     }
   }
   /* The public header's current link, and a mark on the menu that holds it. */
@@ -1444,8 +1457,7 @@ function renderProductTabs() {
   const tabs = PRODUCT_TABS[pid];
   if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; return; }
   const p = productById(pid);
-  const here = tabs.find(t => t.views.includes(State.view) && (!t.tabs || t.tabs.includes(State.discoverTab)))
-    || tabs.find(t => t.views.includes(State.view));
+  const here = tabs.find(t => t.views.includes(State.view));
   const nav = el('nav', { class: 'ptabs', 'aria-label': `${p.name} sections` }, [
     el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]),
     el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {},
@@ -1617,11 +1629,15 @@ function render() {
      so a company page announced itself as "Research" and every shared link
      previewed identically. */
 
-  /* On the public page the disclosure is a single compact line. A four-line
+  /* On a public page the disclosure is a single compact line. A four-line
      warning block above the headline buries the thing a first-time visitor
      came to read, and a warning nobody reaches is not a warning. Inside the
-     app it stays in full, because there the sample data IS the context. */
-  document.body.dataset.surface = State.view === 'marketing' ? 'public' : 'app';
+     app it stays in full, because there the sample data IS the context.
+     The surface follows the chrome (chromeOf): it was keyed to '/' alone, so
+     /how-it-works, pricing and the trust pages wore the app's long strip
+     under the public header. On every public page "Which sources?" opens the
+     rest of the sentence, so no word of it is out of reach. */
+  document.body.dataset.surface = chromeOf(State.view);
 
   /* Reveal the compact ticker identity only once the full header is gone. */
   stickyObserver?.disconnect();

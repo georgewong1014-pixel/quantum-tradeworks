@@ -324,15 +324,6 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   backdrop-filter: saturate(1.4) blur(14px);
   border-bottom: 1px solid var(--line);
 }
-.topbar-in {
-  height: var(--topbar-h);
-  display: flex; align-items: center; gap: var(--lg);
-  max-width: var(--shell-max); margin: 0 auto; padding: 0 var(--xl);
-}
-@media (max-width: 900px) { .topbar-in { padding: 0 var(--lg); gap: var(--md); } }
-@media (max-width: 560px) { .topbar-in { padding: 0 var(--md); } }
-
-
 .brand { display: flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
 /* The mark is the naked octagonal Q, as in the primary lockup — no container. */
 .brand-mark { width: 30px; height: 30px; flex: none; display: block; }
@@ -351,24 +342,11 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .brand-tagline i { color: var(--logo-teal); font-style: normal; }
 .brand-tagline i.amber { color: var(--logo-amber); }
 
-.mainnav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.mainnav::-webkit-scrollbar { display: none; }
-.navlink {
-  appearance: none; background: none; border: 0; cursor: pointer;
-  padding: 7px 9px; border-radius: var(--r-sm);
-  font-size:13px; font-weight:500; color: var(--ink-2); white-space: nowrap;
-  transition: color 160ms ease, background-color 160ms ease;
-  /* Nav items and buttons became real anchors so the browser contract works —
-     middle-click, open in new tab, copy link address. Anchors bring a default
-     underline that these never had. */
-  text-decoration: none;
-}
+/* Buttons became real anchors so the browser contract works — middle-click,
+   open in new tab, copy link address. Anchors bring a default underline that
+   these never had. */
 .btn, a.btn, .task-card, a.task-card { text-decoration: none; }
-.navlink:focus-visible, .btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.navlink:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.navlink[aria-current="page"] { color: var(--ink); background: var(--surface-2); box-shadow: var(--lift-1); font-weight: 600; }
-
-.topbar-actions { display: flex; align-items: center; gap: var(--xs); flex: none; }
+.btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 .searchbtn {
   display: flex; align-items: center; gap: var(--xs);
@@ -380,22 +358,6 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .searchbtn:hover { border-color: var(--line-2); color: var(--ink-2); box-shadow: var(--lift-1); }
 .searchbtn .kbd { margin-left: auto; }
 @media (max-width: 1080px) { .searchbtn { min-width: 0; } .searchbtn-label, .searchbtn .kbd { display: none; } }
-
-/* With ten primary areas the nav can no longer share a row with the brand and
-   the actions on a narrow laptop without silently clipping the last item, so it
-   takes its own full-width row well before tablet widths.
-   Declared after the base .mainnav rule so the flex override actually wins. */
-@media (max-width: 1220px) {
-  .topbar-in { height: auto; flex-wrap: wrap; padding-top: 10px; row-gap: 0; }
-  .brand { flex: 1 1 auto; }
-  .topbar-actions { order: 2; }
-  .mainnav {
-    order: 3; flex: 0 0 100%; width: 100%;
-    margin-top: 8px; padding-top: 7px; padding-bottom: 6px;
-    border-top: 1px solid var(--line);
-  }
-  .navlink { padding: 7px 11px; }
-}
 
 .kbd {
   font-family: var(--mono); font-size:12px; color: var(--ink-3);
@@ -427,13 +389,16 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .disclosure svg { width: 14px; height: 14px; flex: none; color: var(--bronze); }
 .disclosure strong { color: var(--ink); font-weight:600; }
 
-/* On the public page the disclosure collapses to one compact line: the warning
-   still appears above the fold, but it no longer occupies four lines in front
-   of the headline. The full text stays in the markup for assistive technology
-   and for anyone who reads the source; only the elaboration is hidden. */
+/* On a public page (the public chrome) the disclosure collapses to one
+   compact line: the warning still appears above the fold, but it no longer
+   occupies four lines in front of the headline. The elaboration is folded
+   behind "Which sources?" at every width — never removed, so every word of
+   the disclosure is one press away on every page. */
 body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size:12px; }
 body[data-surface="public"] .disclosure-in .chip { display: none; }
 body[data-surface="public"] .disclosure-long { display: none; }
+body[data-surface="public"] #disclosureMore { display: inline; }
+body[data-surface="public"][data-disclosure="open"] .disclosure-long { display: inline; }
 
 /* THE WARNING WAS EATING HALF THE PHONE.
    ---------------------------------------------------------------------------
@@ -453,7 +418,6 @@ body[data-surface="public"] .disclosure-long { display: none; }
   body:not([data-surface="public"]) .disclosure-long { display: none; }
   body:not([data-surface="public"]) #disclosureMore { display: inline; }
   body[data-disclosure="open"] .disclosure-long { display: inline; }
-  body[data-surface="public"] #disclosureMore { display: none; }
   .disclosure-in .chip { font-size:12px; }
 }
 .disclosure a { color: var(--ink); text-underline-offset: 3px; }
@@ -651,28 +615,16 @@ table.dt thead th.chg { color: var(--ink-3); }
 
 /* Auto-fit rather than fixed counts, so a row reflows instead of overflowing
    and no separate mobile rule is needed to stop horizontal scroll. */
-.grid-tasks { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 .grid-3     { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .grid-4     { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .grid-5     { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 
-/* TWO COLUMNS, AND THE RIGHT ONE IS THE PRODUCT.
-   ---------------------------------------------------------------------------
-   The hero was one 46rem column with an empty right half and no product proof
-   anywhere on the page — a research tool asking to be trusted while showing
-   nothing it produces.
-
-   What sits there is not a screenshot and not an illustration. It is the real
-   render path: dealModel, wheelMath and qttiRun called on deterministic
-   fixtures, drawn with the same components the workspaces use. It cannot drift
-   from what the product actually outputs, it inherits the theme, it stays
-   readable at any zoom, and a screen reader reads it as the figures it is.
-
-   min-height reserves the space so nothing moves when it paints. */
-.hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: var(--xxl); align-items: center; }
-@media (max-width: 940px) { .hero-grid { grid-template-columns: 1fr; gap: var(--xl); } }
-.hero-proof { display: flex; flex-direction: column; gap: var(--md); min-height: 380px; }
-@media (max-width: 940px) { .hero-proof { min-height: 0; } }
+/* THE PROOF CARDS (/how-it-works since Release A; the homepage's hero until
+   then). Not a screenshot and not an illustration: the real render path —
+   dealModel, wheelMath and qttiRun called on deterministic fixtures, drawn
+   with the same components the workspaces use. They cannot drift from what
+   the product actually outputs, they inherit the theme, they stay readable
+   at any zoom, and a screen reader reads them as the figures they are. */
 .proof-card {
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg);
   padding: var(--md) var(--lg); box-shadow: var(--lift-1);
@@ -691,26 +643,12 @@ table.dt thead th.chg { color: var(--ink-3); }
 .proof-row .pk { font-size: 12px; color: var(--ink-3); align-self: end; }
 @media (max-width: 420px) { .proof-row .pv { font-size: 17px; } }
 
-.hero { padding: var(--xxxl) 0 var(--xl); }
-/* On a phone the top padding was pushing the headline a third of the way down
-   the first screen, under a warning banner that already takes a quarter of it. */
-@media (max-width: 940px) { .hero { padding: var(--xl) 0 var(--lg); } }
-.hero-h1 {
-  font-size: clamp(30px, 4.2vw, 46px); font-weight:700; letter-spacing: -0.022em;
-  line-height: 1.12; margin: 0; text-wrap: balance;
-}
-.hero-lede { font-size: clamp(15px, 1.4vw, 17px); color: var(--ink-2); line-height: 1.55; margin: var(--md) 0 0; max-width: 42rem; }
-
 .task-card { display: block; text-decoration: none; color: inherit; }
 .task-card:hover { border-color: color-mix(in srgb, var(--brand) 34%, var(--line)); }
 .task-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .task-cta { display: inline-block; font-size: 12px; font-weight: 600; color: var(--brand); }
 .task-cta::after { content: ' →'; }
 
-.step-n {
-  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--brand-wash); color: var(--brand); font-size: 12px; font-weight:700;
-}
 .ticklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 /* The blocker and refusal lists. Same reasoning as .body. */
 .ticklist li { font-size: 14px; line-height: 1.5; color: var(--ink-2); padding-left: 18px; position: relative; }
@@ -973,7 +911,8 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
    Two strips scroll horizontally with the scrollbar suppressed and no fade,
    arrow or any other sign that more exists. Measured at 390px:
 
-     .mainnav    55px hidden — the whole of "Learn" at 0px visible
+     the header  55px hidden — the whole of "Learn" at 0px visible (the
+                 pre-Release A header; the sidebar replaced it)
      .segmented  94px hidden on the screener's density toggle — the whole of
                  "Compact" at 0px visible, confirmed by hit-testing eight
                  points across its box and self-hitting none of them
@@ -991,8 +930,8 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
    at all, so the shadows stay for the one case that still scrolls and this
    rule never fires. */
 @media (max-width: 768px) {
-  .mainnav, .segmented, .subnav { flex-wrap: wrap; overflow-x: visible; }
-  .segmented, .mainnav { row-gap: 2px; }
+  .segmented, .subnav { flex-wrap: wrap; overflow-x: visible; }
+  .segmented { row-gap: 2px; }
   .subnav { row-gap: 0; }
 }
 
@@ -1042,7 +981,7 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   /* The checkbox itself stays small; the whole 44px row is the target,
      because .checkline is the <label> that wraps it. */
   .checkline input { width: 20px; height: 20px; }
-  .navlink, .brand, .skip-link, .tickerbtn, .subnav button, .subnav a {
+  .brand, .skip-link, .tickerbtn, .subnav button, .subnav a {
     min-height: 44px; display: inline-flex; align-items: center;
   }
   /* height:34px would otherwise win the box calculation over min-height on
@@ -1783,7 +1722,7 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
     --logo-navy: #14284B; --logo-teal-text: #0B7159; --logo-word: var(--logo-navy);
   }
   html, body { background: #fff !important; color: #16160f !important; }
-  .topbar, .mainnav, .subnav, .disclosure, .decision-dock, .footer,
+  .topbar, .subnav, .disclosure, .decision-dock, .footer,
   .drawer, .drawer-scrim, .modal, .modal-scrim, .toast, .skip-link,
   .dr-chrome, .segmented, .searchbtn, .iconbtn { display: none !important; }
   /* The card frame is screen furniture; on paper the page IS the card. */
@@ -2279,12 +2218,16 @@ a.pp-row:active { transform: translateY(1px); }
 .sb-link .status-badge { margin-left: auto; }
 /* My Alerts' count: a link of its own, over the row's right end, to the
    page that lists the scanner's alerts. The row keeps room for it. */
-.sb-item:has(.sb-count) > .sb-link { padding-right: 52px; }
+.sb-item:has(.sb-count) > .sb-link { padding-right: 60px; }
 .sb-count {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 48px;
+  position: absolute; top: 0; right: 0; bottom: 0; width: 56px;
   display: grid; place-items: center; border-radius: var(--r-md); text-decoration: none;
 }
-.sb-count .nav-count { margin-left: 0; transition: transform 140ms ease; }
+/* The Scanner's mark inside the pill: the count is the Scanner's, not My
+   Alerts'. */
+.sb-count .nav-count { margin-left: 0; gap: 3px; padding: 0 6px 0 5px; transition: transform 140ms ease; }
+.sb-count-ico { display: inline-grid; place-items: center; width: 11px; height: 11px; }
+.sb-count-ico svg { width: 11px; height: 11px; }
 .sb-count:hover .nav-count { transform: scale(1.08); }
 .sb-count:focus-visible { outline-offset: -2px; }
 .sb-foot { padding: 4px 12px 14px; }
@@ -2601,22 +2544,6 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
   .pub-kind { padding: var(--md) 0; border-radius: 0; background: none; box-shadow: none; border-top: 1px solid var(--line); }
   .pub-kind:last-child { padding-bottom: 0; }
 }
-
-/* release-a: fallback until shell merges — the status badge's look while the
-   shell's own .status-badge rules are on another branch. Applied only to a
-   badge drawn without productBadge, so once the shell lands nothing here
-   styles anything. */
-.pub-badge-fallback {
-  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 999px; flex: none;
-  font-size: var(--text-label); font-weight: var(--weight-semibold); letter-spacing: .01em; white-space: nowrap;
-  border: 1px solid transparent;
-}
-.pub-badge-fallback::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.pub-badge-fallback.status-live { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
-.pub-badge-fallback.status-beta { background: var(--brand-wash); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
-.pub-badge-fallback.status-demo { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
-.pub-badge-fallback.status-soon { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line-2); }
-/* /release-a: fallback */
 
 /* ============================================================ how it works */
 .hiw-hd { padding-top: var(--xxl); }
@@ -2998,3 +2925,37 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
   .dash-scanline .dash-inline { display: inline-flex; align-items: center; min-height: 44px; }
 }
 /* ---- /release-a: dashboard ---- */
+/* ---- release-a: integration ---- */
+/* /welcome's way out (50-views-studio.js). Back and "Skip — take me to the
+   app" are .btn-sm (30px) buttons, lifted to 44px only by the phone rule
+   above, and on a phone the Skip button measured on that floor's very edge.
+   They are the page's exit, so they are a 44px target at every width. */
+.ob-foot .btn { min-height: 44px; min-width: 44px; padding: 0 14px; }
+/* The disclosure strip's layout, on both chromes. Wherever its sentence
+   wrapped — every phone, and every app page narrower than the sentence — the
+   warning icon sat alone on a row above it, and the two chips split: one
+   beside the words, the other alone on a row under the icon. The icon now
+   hangs in the strip's left gutter beside the first line on a phone, the
+   sentence and its controls share one column, and the chips travel as one
+   group, stacked at the right beside the words where there is room. Nothing
+   is hidden that was shown: the same words, the same "Which sources?". */
+.disclosure-chips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+@media (min-width: 761px) {
+  :root[data-chrome="app"] .disclosure-in { flex-wrap: nowrap; }
+  :root[data-chrome="app"] .disclosure-in > #disclosureText { flex: 1 1 auto; }
+  :root[data-chrome="app"] .disclosure-chips { flex: none; flex-direction: column; align-items: flex-end; }
+}
+@media (max-width: 760px) {
+  .disclosure-in { position: relative; padding-left: calc(var(--lg) + 22px); }
+  .disclosure-in > svg { position: absolute; left: var(--lg); top: 9px; }
+  body[data-surface="public"] .disclosure-in { row-gap: 0; }
+  body[data-surface="public"] .disclosure-in > svg { top: 8px; }
+  /* On a phone the chips flow one by one after "Which sources?", as they did
+     before they were grouped: grouped, they took a row each. */
+  .disclosure-chips { display: contents; }
+}
+@media (max-width: 560px) {
+  .disclosure-in { padding-left: calc(var(--md) + 22px); }
+  .disclosure-in > svg { left: var(--md); }
+}
+/* ---- /release-a: integration ---- */

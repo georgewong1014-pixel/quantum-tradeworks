@@ -101,9 +101,17 @@ const GOLDEN = [
   { id: 'NVDA-SEC', fy: 2025, rev: 130.497 },
 ];
 
-/* A hung evaluate() used to leave the job running to the runner's limit. */
+/* A hung evaluate() used to leave the job running to the runner's limit.
+   The limit was 240s when this file held 23 checks; it holds over 200 now.
+   Measured on the Release A merge (2026-09-29): 160s and 175s for a whole
+   run on a desktop machine, of which the three Release A blocks take about
+   4s — so 240s left a quarter of the run as headroom, and a runner half as
+   fast again would have been killed mid-check with nothing hung. 360s is
+   twice the measured run: still minutes short of any runner's own limit,
+   which is the hang this exists to end early. */
 let closing = false;
-const watchdog = setTimeout(() => { console.error('FAIL  timed out after 240s'); process.exit(1); }, 240000);
+const WATCHDOG_S = 360;
+const watchdog = setTimeout(() => { console.error(`FAIL  timed out after ${WATCHDOG_S}s`); process.exit(1); }, WATCHDOG_S * 1000);
 proc.on('exit', () => { if (!closing) { console.error('FAIL  the browser exited before the checks finished'); process.exit(1); } });
 
 let ws;
@@ -3318,8 +3326,8 @@ try {
     if (r.symbol.view === 'notfound' || !(r.symbol.path === '/app/scanner/setups/new' || r.symbol.view === 'scannerDashboard')) p.push(`/my/scanner?symbol=MSFT went to ${JSON.stringify(r.symbol)}`);
     if (!r.section) p.push('a scanner view is not in the Scanner section');
     if (!r.noId) p.push('a scanner route names a parameter :id, which the router reads as a company');
-    if (p.length) fail('the scanner is in the header after Research, on every scanner address', p);
-    else ok(`the scanner is in the header after Research, on every scanner address — the app sidebar lists Quantum Scanner straight after Equities Research, ${Object.keys(r.cur).length} addresses mark it current (the Trading Index among them, its strip naming itself), /my/scanner canonicalises to /app/scanner, and /my/scanner?symbol= opens ${r.symbol.path === '/app/scanner/setups/new' ? 'the builder' : 'the dashboard (no builder in this build)'}`);
+    if (p.length) fail('the scanner is in the sidebar after Equities Research, on every scanner address', p);
+    else ok(`the scanner is in the sidebar after Equities Research, on every scanner address — the app sidebar lists Quantum Scanner straight after Equities Research, ${Object.keys(r.cur).length} addresses mark it current (the Trading Index among them, its strip naming itself), /my/scanner canonicalises to /app/scanner, and /my/scanner?symbol= opens ${r.symbol.path === '/app/scanner/setups/new' ? 'the builder' : 'the dashboard (no builder in this build)'}`);
   }
 
   /* THE DASHBOARD'S STATES, from injected records only: never, current,
@@ -4900,10 +4908,8 @@ try {
       out.wale = [...document.querySelectorAll('main table tbody tr')].find(tr => tr.cells[0].textContent === 'Weighted lease expiry')?.cells[1].textContent ?? null;
 
       /* 2. A model difference is never the green of a gain. */
-      /* The research queue is what /app was before Release A (40-views-discover.js).
-         release-a: fallback until shell merges — drawn directly where the
-         route /research/queue is not yet in this build. */
-      navigate('/research/queue'); if (State.view !== 'researchQueue') { State.view = 'researchQueue'; render(); }
+      /* The research queue is what /app was before Release A (40-views-discover.js). */
+      navigate('/research/queue');
       const cardEl = [...document.querySelectorAll('main h3.h-card')].find(h => /Largest differences/.test(h.textContent))?.closest('.card');
       const cells = cardEl ? [...cardEl.querySelectorAll('.num')].filter(x => /%$/.test(x.textContent)) : [];
       out.largest = { n: cells.length, pos: cells.filter(x => x.classList.contains('pos')).length,
@@ -6474,9 +6480,8 @@ try {
         await w(250);
         out.blankAsked = !!asked; out.opened = location.pathname; out.universe = scanDraft && scanDraft.universe && scanDraft.universe.kind;
       } finally { window.confirm = keepConfirm; scanDraft = keepDraft; }
-      /* The freshness card moved with the research queue (Release A). release-a:
-         fallback until shell merges — drawn directly where the route is not yet in this build. */
-      navigate('/research/queue'); if (State.view !== 'researchQueue') { State.view = 'researchQueue'; render(); } await w(300);
+      /* The freshness card moved with the research queue (Release A). */
+      navigate('/research/queue'); await w(300);
       const fresh = () => [...document.querySelectorAll('#views .card')].find(c => /Freshness/.test(c.textContent));
       out.loaded = fresh() ? fresh().textContent : null;
       const keepStatus = realStatus; realStatus = null; render(); await w(60);
@@ -7606,8 +7611,8 @@ try {
   {
     const r = await evaluate(`(async () => {
       const w = (ms) => new Promise(res => setTimeout(res, ms));
-      const P = typeof PRODUCTS !== 'undefined' ? PRODUCTS : PUB_PRODUCTS_FALLBACK;
-      const LABEL = typeof PRODUCT_STATUS !== 'undefined' ? PRODUCT_STATUS : PUB_STATUS_FALLBACK;
+      const P = PRODUCTS;
+      const LABEL = PRODUCT_STATUS;
       const main = () => document.querySelector('#views');
       const resolves = (h) => { const u = new URL(h, location.origin); const rt = matchRoute(u.pathname); return !!rt && typeof VIEWS[rt.view] === 'function'; };
       const dead = (root) => [...root.querySelectorAll('a[href]')].map(a => a.getAttribute('href')).filter(h => !h.startsWith('#') && !resolves(h));
@@ -7796,6 +7801,96 @@ try {
     await reload('/research');
   }
   /* ---- end release-a: dashboard ---- */
+
+  /* ---- release-a: integration ---- */
+  /* WHERE THE THREE RELEASE A BRANCHES MEET. What the merge decided, held:
+     1. every public page wears the short disclosure '/' wears — no chips, the
+        long text folded — with "Which sources?" opening every word of it, and
+        every app page the full strip; the surface follows the chrome;
+     2. one row of navigation per level on the screener: the product row has
+        one "Screener" tab, current on all four tabs of the screener's page,
+        and no "Value map" tab, whose page is one click away in the page's own
+        strip; the research queue is Equities', in the sidebar and the tabs;
+     3. the Trading Index is the last row of the strip every scanner page
+        draws (SCANNER_SUBNAV), not a row copied into it at boot;
+     4. the scanner's unread count beside My Alerts is named for the page it
+        opens, and carries the Scanner's mark;
+     5. /welcome's way out is a 44px target at every width;
+     6. the dashboard's footnote names the page its link opens. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).display !== 'none';
+      const out = { surfaces: {}, tabs: {} };
+      for (const p of ['/', '/how-it-works', '/pricing', '/about', '/learn/glossary', '/data-sources', '/status', '/app', '/discover/screener', '/research/trading-index']) {
+        navigate(p); await w(40);
+        out.surfaces[p] = { chrome: document.documentElement.dataset.chrome, surface: document.body.dataset.surface,
+          chips: [...document.querySelectorAll('.disclosure-in .chip')].some(shown), long: shown(document.querySelector('.disclosure-long')),
+          more: shown(document.getElementById('disclosureMore')) };
+      }
+      navigate('/how-it-works'); await w(40);
+      const more = document.getElementById('disclosureMore');
+      more.click(); await w(20);
+      out.opened = { long: shown(document.querySelector('.disclosure-long')), exp: more.getAttribute('aria-expanded') };
+      more.click(); await w(20);
+      out.closed = { long: shown(document.querySelector('.disclosure-long')), exp: more.getAttribute('aria-expanded') };
+      for (const p of ['/discover/screener', '/discover/value-map', '/discover?tab=ideas', '/discover?tab=heatmap', '/research/queue']) {
+        navigate(p); await w(40);
+        out.tabs[p] = { labels: [...document.querySelectorAll('#productTabs .ptab')].map(a => a.textContent),
+          current: [...document.querySelectorAll('#productTabs .ptab[aria-current=page]')].map(a => a.textContent),
+          sub: [...document.querySelectorAll('#views [role=tablist][aria-label="Screener tools"] [role=tab]')].map(t => t.textContent),
+          side: document.querySelector('#appnav a[aria-current=page] .sb-text')?.textContent.trim() || null };
+      }
+      out.strip = SCANNER_SUBNAV.map(s => s.id);
+      navigate('/app/scanner/setups'); await w(40);
+      out.stripOnPage = [...document.querySelectorAll('#views nav[aria-label="Scanner sections"] a')].map(a => a.textContent);
+      const keepA = scanAlertsFile, keepSt = localStorage.getItem('vl.scanAlertState'), keepPrefs = localStorage.getItem('vl.scanPrefs');
+      try {
+        localStorage.removeItem('vl.scanAlertState'); localStorage.removeItem('vl.scanPrefs');
+        scanAlertsFile = { alerts: [1, 2, 3].map(i => ({ id: 'aint000' + i, key: 'int|' + i, setupId: 'int-setup', setupName: 'Integration', setupVersion: 1,
+          symbol: 'XAUUSD', timeframe: '1D', candleDate: '2026-09-2' + i, close: 1, eventType: 'NEW_MATCH', detectedAt: '2026-09-2' + i + 'T22:00:00Z' })) };
+        navigate('/app'); await w(60);
+        const c = document.querySelector('#appnav [data-item="alerts"] .sb-count');
+        out.count = c ? { label: c.getAttribute('aria-label'), href: new URL(c.href).pathname, text: c.textContent.trim(), mark: !!c.querySelector('.sb-count-ico svg') } : null;
+      } finally {
+        scanAlertsFile = keepA;
+        if (keepSt == null) localStorage.removeItem('vl.scanAlertState'); else localStorage.setItem('vl.scanAlertState', keepSt);
+        if (keepPrefs == null) localStorage.removeItem('vl.scanPrefs'); else localStorage.setItem('vl.scanPrefs', keepPrefs);
+      }
+      const keepOb = State.obStep;
+      State.obStep = 1; navigate('/welcome'); await w(60);
+      out.welcome = [...document.querySelectorAll('.ob-foot .btn')].map(b => ({ t: b.textContent.trim(), h: b.getBoundingClientRect().height, w: b.getBoundingClientRect().width }));
+      State.obStep = keepOb;
+      navigate('/app'); await w(60);
+      const foot = [...document.querySelectorAll('#views .dash-foot a')].find(a => new URL(a.href).pathname === '/research/queue');
+      out.foot = foot ? foot.textContent : null;
+      navigate('/research');
+      return out;
+    })()`);
+    const p = [];
+    for (const [path, s] of Object.entries(r.surfaces)) {
+      const pub = s.chrome === 'public';
+      if (s.surface !== s.chrome) p.push(`${path}: surface ${s.surface} under the ${s.chrome} chrome`);
+      if (pub && (s.chips || s.long || !s.more)) p.push(`${path} (public) shows the app's strip: ${JSON.stringify(s)}`);
+      if (!pub && s.long === false && s.more === false) p.push(`${path} (app) hides the long disclosure with no way to it: ${JSON.stringify(s)}`);
+    }
+    if (!r.opened.long || r.opened.exp !== 'true' || r.closed.long || r.closed.exp !== 'false') p.push(`"Which sources?" on /how-it-works: opened ${JSON.stringify(r.opened)}, closed ${JSON.stringify(r.closed)}`);
+    for (const [path, t] of Object.entries(r.tabs)) {
+      if (t.labels.includes('Value map')) p.push(`${path}: the product row still carries "Value map" (${t.labels.join(' · ')})`);
+      if (t.side !== 'Equities Research') p.push(`${path}: the sidebar marks ${t.side}`);
+      const want = path === '/research/queue' ? 'Research queue' : 'Screener';
+      if (t.current.length !== 1 || t.current[0] !== want) p.push(`${path}: product tab current ${JSON.stringify(t.current)}, not "${want}"`);
+      if (path !== '/research/queue' && t.sub.join('|') !== 'Stock Screener|Quality vs Value Map|Screening Strategies|Heatmap') p.push(`${path}: the screener's own strip reads ${t.sub.join(' · ')}`);
+    }
+    if (r.strip[r.strip.length - 1] !== 'trading' || r.strip.filter(x => x === 'trading').length !== 1) p.push(`SCANNER_SUBNAV: ${r.strip.join(', ')}`);
+    if (r.stripOnPage[r.stripOnPage.length - 1] !== 'Trading Index') p.push(`a scanner page's strip ends ${r.stripOnPage.slice(-1)[0]}`);
+    if (!r.count || r.count.label !== 'Scanner alerts, 3 unread' || r.count.href !== '/app/scanner/alerts' || r.count.text !== '3' || !r.count.mark) p.push(`the unread count beside My Alerts: ${JSON.stringify(r.count)}`);
+    if (r.welcome.length < 2 || r.welcome.some(b => b.h < 44 || b.w < 44)) p.push(`/welcome's Back and Skip: ${JSON.stringify(r.welcome)}`);
+    if (r.foot !== 'Research queue') p.push(`the dashboard's footnote link to /research/queue reads "${r.foot}"`);
+    if (p.length) fail('release-a integration: public pages wear the short disclosure, one navigation row per level, the Trading Index in the scanner strip, a named unread count, 44px on /welcome', p);
+    else ok(`release-a integration: ${Object.values(r.surfaces).filter(s => s.chrome === 'public').length} public pages wear the short disclosure with every word behind "Which sources?"; one "Screener" product tab, current on all four screener tabs, over the page's own strip; the Trading Index last in SCANNER_SUBNAV; the unread count named "${r.count.label}"; /welcome's ${r.welcome.map(b => b.t.split(' ')[0]).join(' and ')} at ${Math.min(...r.welcome.map(b => b.h))}px; the footnote's link says "${r.foot}"`);
+  }
+  /* ---- end release-a: integration ---- */
 
 } catch (e) {
   fail('harness error', e.message);

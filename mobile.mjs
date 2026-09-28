@@ -28,6 +28,11 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                    it used to be — the four-card market strip and the change feed —
                    moved here, so the page measured under /app is still measured. */
                 '/research/queue',
+                /* Release A: /welcome is no longer what /app redirects to, so it
+                   was measured nowhere, and its Skip button was the phone target
+                   reported last; /how-it-works carries the examples that left
+                   the homepage. */
+                '/welcome', '/how-it-works',
                 '/my/data', '/discover/sarawak', '/research/trading-index', '/us-options/wheel',
                 /* Added after the decision record shipped 186px of overflow at 390:
                    four columns of nowrap text in a bare div rather than a
@@ -926,10 +931,8 @@ for (const w of [360, 390]) {
       }
     }
 
-    /* 2. Every chrome link opens a route that renders. Views another Release
-       A branch brings (How it works, the research queue) are named as
-       awaiting it while this build has no such view; once it does, they are
-       held to the same rule. */
+    /* 2. Every chrome link opens a route that renders — How it works and the
+       research queue included, now that their views have merged. */
     await load('/discover/screener', 1440);
     const links = await ev(`(async () => {
       const w = (ms) => new Promise(r => setTimeout(r, ms));
@@ -938,11 +941,11 @@ for (const w of [360, 390]) {
       take('#pubnav a, #pubSheet a', 'header'); take('#appnav a, #sidebar .sb-top a, #appbar a', 'sidebar');
       take('#footProducts a, #footResources a, .footer a', 'footer'); take('#productTabs a', 'equities tabs');
       navigate('/property/areas'); await w(60); take('#productTabs a', 'property tabs');
-      const pending = [], bad = [];
+      const bad = [];
       for (const [p, where] of seen) {
         const rt = matchRoute(p.split('?')[0]);
         if (!rt) { bad.push(where + ' ' + p + ': no route'); continue; }
-        if (!VIEWS[rt.view]) { if (['howItWorks', 'researchQueue'].includes(rt.view)) pending.push(p); else bad.push(where + ' ' + p + ': view ' + rt.view + ' is not defined'); continue; }
+        if (!VIEWS[rt.view]) { bad.push(where + ' ' + p + ': view ' + rt.view + ' is not defined'); continue; }
         navigate(p); await w(40);
         if (State.view === 'notfound') bad.push(where + ' ' + p + ': the not-found card');
       }
@@ -953,7 +956,7 @@ for (const w of [360, 390]) {
          an id repeated between them breaks every label that points at it. */
       const ids = [...document.querySelectorAll('#pubbar [id], #appbar [id], #sidebar [id], #productTabs [id], footer [id]')].map(n => n.id);
       const dupIds = [...new Set(ids.filter((x, i) => ids.indexOf(x) !== i))];
-      return { n: seen.size, pending, bad, business: things.map(n => n.tagName + ' in ' + (n.closest('[id]')?.id || '?')), inSidebar, tabsPresent, dupIds };
+      return { n: seen.size, bad, business: things.map(n => n.tagName + ' in ' + (n.closest('[id]')?.id || '?')), inSidebar, tabsPresent, dupIds };
     })()`);
     if (!links || links.error) fails.push(`link walk: ${links?.error || 'no result'}`);
     else {

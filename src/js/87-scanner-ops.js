@@ -159,8 +159,11 @@ function scanOpsAlertLink(a, label) {
 
 /* The scanner's own sections. Shared by every scanner page, the setups
    batch's included: scannerSubnav('dashboard' | 'market' | 'setups' |
-   'watchlists' | 'alerts' | 'backtest' | 'settings'). The operations pages
-   are not in it — they are the worker's, reached from the dashboard. */
+   'watchlists' | 'alerts' | 'backtest' | 'settings' | 'trading'). The
+   operations pages are not in it — they are the worker's, reached from the
+   dashboard. The QT Trading Index is a section of the Scanner (Release A):
+   its row is last, and its page (85-trading-index.js) draws this strip with
+   itself current. */
 const SCANNER_SUBNAV = [
   { id: 'dashboard',  label: 'Dashboard',            path: '/app/scanner' },
   { id: 'market',     label: 'Market (your series)', path: '/app/scanner/market' },
@@ -169,6 +172,7 @@ const SCANNER_SUBNAV = [
   { id: 'alerts',     label: 'Alerts',               path: '/app/scanner/alerts' },
   { id: 'backtest',   label: 'Historical',           path: '/app/scanner/backtest' },
   { id: 'settings',   label: 'Settings',             path: '/app/scanner/settings' },
+  { id: 'trading',    label: 'Trading Index',        path: '/research/trading-index' },
 ];
 /* The Alerts link carries the unread count — "Alerts · n", named "Alerts,
    n unread" — as the alerts pages' own strip did (SC-309 as built). This

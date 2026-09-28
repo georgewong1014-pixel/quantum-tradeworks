@@ -359,15 +359,6 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   backdrop-filter: saturate(1.4) blur(14px);
   border-bottom: 1px solid var(--line);
 }
-.topbar-in {
-  height: var(--topbar-h);
-  display: flex; align-items: center; gap: var(--lg);
-  max-width: var(--shell-max); margin: 0 auto; padding: 0 var(--xl);
-}
-@media (max-width: 900px) { .topbar-in { padding: 0 var(--lg); gap: var(--md); } }
-@media (max-width: 560px) { .topbar-in { padding: 0 var(--md); } }
-
-
 .brand { display: flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
 /* The mark is the naked octagonal Q, as in the primary lockup — no container. */
 .brand-mark { width: 30px; height: 30px; flex: none; display: block; }
@@ -386,24 +377,11 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .brand-tagline i { color: var(--logo-teal); font-style: normal; }
 .brand-tagline i.amber { color: var(--logo-amber); }
 
-.mainnav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.mainnav::-webkit-scrollbar { display: none; }
-.navlink {
-  appearance: none; background: none; border: 0; cursor: pointer;
-  padding: 7px 9px; border-radius: var(--r-sm);
-  font-size:13px; font-weight:500; color: var(--ink-2); white-space: nowrap;
-  transition: color 160ms ease, background-color 160ms ease;
-  /* Nav items and buttons became real anchors so the browser contract works —
-     middle-click, open in new tab, copy link address. Anchors bring a default
-     underline that these never had. */
-  text-decoration: none;
-}
+/* Buttons became real anchors so the browser contract works — middle-click,
+   open in new tab, copy link address. Anchors bring a default underline that
+   these never had. */
 .btn, a.btn, .task-card, a.task-card { text-decoration: none; }
-.navlink:focus-visible, .btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.navlink:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.navlink[aria-current="page"] { color: var(--ink); background: var(--surface-2); box-shadow: var(--lift-1); font-weight: 600; }
-
-.topbar-actions { display: flex; align-items: center; gap: var(--xs); flex: none; }
+.btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 .searchbtn {
   display: flex; align-items: center; gap: var(--xs);
@@ -415,22 +393,6 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .searchbtn:hover { border-color: var(--line-2); color: var(--ink-2); box-shadow: var(--lift-1); }
 .searchbtn .kbd { margin-left: auto; }
 @media (max-width: 1080px) { .searchbtn { min-width: 0; } .searchbtn-label, .searchbtn .kbd { display: none; } }
-
-/* With ten primary areas the nav can no longer share a row with the brand and
-   the actions on a narrow laptop without silently clipping the last item, so it
-   takes its own full-width row well before tablet widths.
-   Declared after the base .mainnav rule so the flex override actually wins. */
-@media (max-width: 1220px) {
-  .topbar-in { height: auto; flex-wrap: wrap; padding-top: 10px; row-gap: 0; }
-  .brand { flex: 1 1 auto; }
-  .topbar-actions { order: 2; }
-  .mainnav {
-    order: 3; flex: 0 0 100%; width: 100%;
-    margin-top: 8px; padding-top: 7px; padding-bottom: 6px;
-    border-top: 1px solid var(--line);
-  }
-  .navlink { padding: 7px 11px; }
-}
 
 .kbd {
   font-family: var(--mono); font-size:12px; color: var(--ink-3);
@@ -462,13 +424,16 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .disclosure svg { width: 14px; height: 14px; flex: none; color: var(--bronze); }
 .disclosure strong { color: var(--ink); font-weight:600; }
 
-/* On the public page the disclosure collapses to one compact line: the warning
-   still appears above the fold, but it no longer occupies four lines in front
-   of the headline. The full text stays in the markup for assistive technology
-   and for anyone who reads the source; only the elaboration is hidden. */
+/* On a public page (the public chrome) the disclosure collapses to one
+   compact line: the warning still appears above the fold, but it no longer
+   occupies four lines in front of the headline. The elaboration is folded
+   behind "Which sources?" at every width — never removed, so every word of
+   the disclosure is one press away on every page. */
 body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size:12px; }
 body[data-surface="public"] .disclosure-in .chip { display: none; }
 body[data-surface="public"] .disclosure-long { display: none; }
+body[data-surface="public"] #disclosureMore { display: inline; }
+body[data-surface="public"][data-disclosure="open"] .disclosure-long { display: inline; }
 
 /* THE WARNING WAS EATING HALF THE PHONE.
    ---------------------------------------------------------------------------
@@ -488,7 +453,6 @@ body[data-surface="public"] .disclosure-long { display: none; }
   body:not([data-surface="public"]) .disclosure-long { display: none; }
   body:not([data-surface="public"]) #disclosureMore { display: inline; }
   body[data-disclosure="open"] .disclosure-long { display: inline; }
-  body[data-surface="public"] #disclosureMore { display: none; }
   .disclosure-in .chip { font-size:12px; }
 }
 .disclosure a { color: var(--ink); text-underline-offset: 3px; }
@@ -686,28 +650,16 @@ table.dt thead th.chg { color: var(--ink-3); }
 
 /* Auto-fit rather than fixed counts, so a row reflows instead of overflowing
    and no separate mobile rule is needed to stop horizontal scroll. */
-.grid-tasks { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 .grid-3     { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .grid-4     { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .grid-5     { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 
-/* TWO COLUMNS, AND THE RIGHT ONE IS THE PRODUCT.
-   ---------------------------------------------------------------------------
-   The hero was one 46rem column with an empty right half and no product proof
-   anywhere on the page — a research tool asking to be trusted while showing
-   nothing it produces.
-
-   What sits there is not a screenshot and not an illustration. It is the real
-   render path: dealModel, wheelMath and qttiRun called on deterministic
-   fixtures, drawn with the same components the workspaces use. It cannot drift
-   from what the product actually outputs, it inherits the theme, it stays
-   readable at any zoom, and a screen reader reads it as the figures it is.
-
-   min-height reserves the space so nothing moves when it paints. */
-.hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: var(--xxl); align-items: center; }
-@media (max-width: 940px) { .hero-grid { grid-template-columns: 1fr; gap: var(--xl); } }
-.hero-proof { display: flex; flex-direction: column; gap: var(--md); min-height: 380px; }
-@media (max-width: 940px) { .hero-proof { min-height: 0; } }
+/* THE PROOF CARDS (/how-it-works since Release A; the homepage's hero until
+   then). Not a screenshot and not an illustration: the real render path —
+   dealModel, wheelMath and qttiRun called on deterministic fixtures, drawn
+   with the same components the workspaces use. They cannot drift from what
+   the product actually outputs, they inherit the theme, they stay readable
+   at any zoom, and a screen reader reads them as the figures they are. */
 .proof-card {
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg);
   padding: var(--md) var(--lg); box-shadow: var(--lift-1);
@@ -726,26 +678,12 @@ table.dt thead th.chg { color: var(--ink-3); }
 .proof-row .pk { font-size: 12px; color: var(--ink-3); align-self: end; }
 @media (max-width: 420px) { .proof-row .pv { font-size: 17px; } }
 
-.hero { padding: var(--xxxl) 0 var(--xl); }
-/* On a phone the top padding was pushing the headline a third of the way down
-   the first screen, under a warning banner that already takes a quarter of it. */
-@media (max-width: 940px) { .hero { padding: var(--xl) 0 var(--lg); } }
-.hero-h1 {
-  font-size: clamp(30px, 4.2vw, 46px); font-weight:700; letter-spacing: -0.022em;
-  line-height: 1.12; margin: 0; text-wrap: balance;
-}
-.hero-lede { font-size: clamp(15px, 1.4vw, 17px); color: var(--ink-2); line-height: 1.55; margin: var(--md) 0 0; max-width: 42rem; }
-
 .task-card { display: block; text-decoration: none; color: inherit; }
 .task-card:hover { border-color: color-mix(in srgb, var(--brand) 34%, var(--line)); }
 .task-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .task-cta { display: inline-block; font-size: 12px; font-weight: 600; color: var(--brand); }
 .task-cta::after { content: ' →'; }
 
-.step-n {
-  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--brand-wash); color: var(--brand); font-size: 12px; font-weight:700;
-}
 .ticklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 /* The blocker and refusal lists. Same reasoning as .body. */
 .ticklist li { font-size: 14px; line-height: 1.5; color: var(--ink-2); padding-left: 18px; position: relative; }
@@ -1008,7 +946,8 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
    Two strips scroll horizontally with the scrollbar suppressed and no fade,
    arrow or any other sign that more exists. Measured at 390px:
 
-     .mainnav    55px hidden — the whole of "Learn" at 0px visible
+     the header  55px hidden — the whole of "Learn" at 0px visible (the
+                 pre-Release A header; the sidebar replaced it)
      .segmented  94px hidden on the screener's density toggle — the whole of
                  "Compact" at 0px visible, confirmed by hit-testing eight
                  points across its box and self-hitting none of them
@@ -1026,8 +965,8 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
    at all, so the shadows stay for the one case that still scrolls and this
    rule never fires. */
 @media (max-width: 768px) {
-  .mainnav, .segmented, .subnav { flex-wrap: wrap; overflow-x: visible; }
-  .segmented, .mainnav { row-gap: 2px; }
+  .segmented, .subnav { flex-wrap: wrap; overflow-x: visible; }
+  .segmented { row-gap: 2px; }
   .subnav { row-gap: 0; }
 }
 
@@ -1077,7 +1016,7 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   /* The checkbox itself stays small; the whole 44px row is the target,
      because .checkline is the <label> that wraps it. */
   .checkline input { width: 20px; height: 20px; }
-  .navlink, .brand, .skip-link, .tickerbtn, .subnav button, .subnav a {
+  .brand, .skip-link, .tickerbtn, .subnav button, .subnav a {
     min-height: 44px; display: inline-flex; align-items: center;
   }
   /* height:34px would otherwise win the box calculation over min-height on
@@ -1818,7 +1757,7 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
     --logo-navy: #14284B; --logo-teal-text: #0B7159; --logo-word: var(--logo-navy);
   }
   html, body { background: #fff !important; color: #16160f !important; }
-  .topbar, .mainnav, .subnav, .disclosure, .decision-dock, .footer,
+  .topbar, .subnav, .disclosure, .decision-dock, .footer,
   .drawer, .drawer-scrim, .modal, .modal-scrim, .toast, .skip-link,
   .dr-chrome, .segmented, .searchbtn, .iconbtn { display: none !important; }
   /* The card frame is screen furniture; on paper the page IS the card. */
@@ -2314,12 +2253,16 @@ a.pp-row:active { transform: translateY(1px); }
 .sb-link .status-badge { margin-left: auto; }
 /* My Alerts' count: a link of its own, over the row's right end, to the
    page that lists the scanner's alerts. The row keeps room for it. */
-.sb-item:has(.sb-count) > .sb-link { padding-right: 52px; }
+.sb-item:has(.sb-count) > .sb-link { padding-right: 60px; }
 .sb-count {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 48px;
+  position: absolute; top: 0; right: 0; bottom: 0; width: 56px;
   display: grid; place-items: center; border-radius: var(--r-md); text-decoration: none;
 }
-.sb-count .nav-count { margin-left: 0; transition: transform 140ms ease; }
+/* The Scanner's mark inside the pill: the count is the Scanner's, not My
+   Alerts'. */
+.sb-count .nav-count { margin-left: 0; gap: 3px; padding: 0 6px 0 5px; transition: transform 140ms ease; }
+.sb-count-ico { display: inline-grid; place-items: center; width: 11px; height: 11px; }
+.sb-count-ico svg { width: 11px; height: 11px; }
 .sb-count:hover .nav-count { transform: scale(1.08); }
 .sb-count:focus-visible { outline-offset: -2px; }
 .sb-foot { padding: 4px 12px 14px; }
@@ -2636,22 +2579,6 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
   .pub-kind { padding: var(--md) 0; border-radius: 0; background: none; box-shadow: none; border-top: 1px solid var(--line); }
   .pub-kind:last-child { padding-bottom: 0; }
 }
-
-/* release-a: fallback until shell merges — the status badge's look while the
-   shell's own .status-badge rules are on another branch. Applied only to a
-   badge drawn without productBadge, so once the shell lands nothing here
-   styles anything. */
-.pub-badge-fallback {
-  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 999px; flex: none;
-  font-size: var(--text-label); font-weight: var(--weight-semibold); letter-spacing: .01em; white-space: nowrap;
-  border: 1px solid transparent;
-}
-.pub-badge-fallback::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.pub-badge-fallback.status-live { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
-.pub-badge-fallback.status-beta { background: var(--brand-wash); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
-.pub-badge-fallback.status-demo { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
-.pub-badge-fallback.status-soon { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line-2); }
-/* /release-a: fallback */
 
 /* ============================================================ how it works */
 .hiw-hd { padding-top: var(--xxl); }
@@ -3033,6 +2960,40 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
   .dash-scanline .dash-inline { display: inline-flex; align-items: center; min-height: 44px; }
 }
 /* ---- /release-a: dashboard ---- */
+/* ---- release-a: integration ---- */
+/* /welcome's way out (50-views-studio.js). Back and "Skip — take me to the
+   app" are .btn-sm (30px) buttons, lifted to 44px only by the phone rule
+   above, and on a phone the Skip button measured on that floor's very edge.
+   They are the page's exit, so they are a 44px target at every width. */
+.ob-foot .btn { min-height: 44px; min-width: 44px; padding: 0 14px; }
+/* The disclosure strip's layout, on both chromes. Wherever its sentence
+   wrapped — every phone, and every app page narrower than the sentence — the
+   warning icon sat alone on a row above it, and the two chips split: one
+   beside the words, the other alone on a row under the icon. The icon now
+   hangs in the strip's left gutter beside the first line on a phone, the
+   sentence and its controls share one column, and the chips travel as one
+   group, stacked at the right beside the words where there is room. Nothing
+   is hidden that was shown: the same words, the same "Which sources?". */
+.disclosure-chips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+@media (min-width: 761px) {
+  :root[data-chrome="app"] .disclosure-in { flex-wrap: nowrap; }
+  :root[data-chrome="app"] .disclosure-in > #disclosureText { flex: 1 1 auto; }
+  :root[data-chrome="app"] .disclosure-chips { flex: none; flex-direction: column; align-items: flex-end; }
+}
+@media (max-width: 760px) {
+  .disclosure-in { position: relative; padding-left: calc(var(--lg) + 22px); }
+  .disclosure-in > svg { position: absolute; left: var(--lg); top: 9px; }
+  body[data-surface="public"] .disclosure-in { row-gap: 0; }
+  body[data-surface="public"] .disclosure-in > svg { top: 8px; }
+  /* On a phone the chips flow one by one after "Which sources?", as they did
+     before they were grouped: grouped, they took a row each. */
+  .disclosure-chips { display: contents; }
+}
+@media (max-width: 560px) {
+  .disclosure-in { padding-left: calc(var(--md) + 22px); }
+  .disclosure-in > svg { left: var(--md); }
+}
+/* ---- /release-a: integration ---- */
 </style>
 <!--
   Vercel Web Analytics. First-party, cookieless, and it collects no personal
@@ -3191,11 +3152,13 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
     <span id="disclosureText"><strong>Beta preview.</strong> Do not use figures here for investment decisions.<span class="disclosure-long"> Some companies carry illustrative figures that are synthetic and do not represent real financials.</span></span>
     <button type="button" id="disclosureMore" class="linklike" aria-expanded="false">Which sources?</button>
-    <span class="chip chip-brand" title="Research mode: factual and analytical outputs only">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-      Research mode
+    <span class="disclosure-chips">
+      <span class="chip chip-brand" title="Research mode: factual and analytical outputs only">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
+        Research mode
+      </span>
+      <span class="chip">No advice · No recommendations</span>
     </span>
-    <span class="chip">No advice · No recommendations</span>
   </div>
 </div>
 
@@ -14744,9 +14707,10 @@ function toast(msg) {
    then their data and the plans. Below 1024px it is a drawer behind a slim
    bar that keeps the search one tap away.
 
-   Nothing was removed to get here. Screener, Value map, Sarawak Economy
-   Watch and the Cash Wheel are tabs of Equities Research (PRODUCT_TABS); the
-   Trading Index is a section of the Scanner; every address that opened a
+   Nothing was removed to get here. The Screener (the Value map one of its
+   own tabs), Sarawak Economy Watch and the Cash Wheel are tabs of Equities
+   Research (PRODUCT_TABS); the Trading Index is a section of the Scanner's
+   strip (SCANNER_SUBNAV); every address that opened a
    page before still opens it. docs/route-map.md is the whole map.
    ========================================================================== */
 
@@ -14852,12 +14816,20 @@ const APP_NAV_FOOT = [
 const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', business: 'briefcase' };
 
 /* ONE ROW OF TABS PER PRODUCT, above the product's pages. The tools the
-   brief does not name are here rather than gone: Screener, Value map,
-   Sarawak Economy Watch and the Cash Wheel are Equities pages. A tab is
-   current for the views it lists (and, on the discover view, for its own
-   tabs), so the Screener tab stays lit on the strategies and heatmap tabs
-   that share its page. The Scanner keeps its own section strip (scanSubnav,
-   86-scanner.js), where the Trading Index is its last section.
+   brief does not name are here rather than gone: the Screener (and the
+   Value map inside it), Sarawak Economy Watch and the Cash Wheel are
+   Equities pages. A tab is current for the views it lists.
+
+   One row of navigation per level. The screener's page draws its own strip
+   — Stock Screener, Quality vs Value Map, Screening Strategies, Heatmap —
+   and a "Value map" product tab above it said the same thing twice, one row
+   over the other, with the Screener tab lit on two of that strip's four
+   tabs and dark on the others. So the product row carries one "Screener"
+   tab, current on every tab of that page, and the page's strip is the
+   screener's own sub-tabs: the Value map is still one click away, in the
+   row that holds it. The Scanner keeps its own section strip
+   (87-scanner-ops.js SCANNER_SUBNAV, drawn by every scanner page through
+   scanSubnav), where the Trading Index is its last section.
 
    Property has no Overview tab. /property and /property/calculator are one
    view — the calculator, whose canonical address is /property — so an
@@ -14867,8 +14839,7 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
 const PRODUCT_TABS = {
   equities: [
     { id: 'overview', label: 'Overview',       path: '/research',           views: ['researchHome'] },
-    { id: 'screener', label: 'Screener',       path: '/discover/screener',  views: ['discover'], tabs: ['screener', 'ideas', 'heatmap'] },
-    { id: 'valuemap', label: 'Value map',      path: '/discover/value-map', views: ['discover'], tabs: ['radar'] },
+    { id: 'screener', label: 'Screener',       path: '/discover/screener',  views: ['discover'] },
     { id: 'compare',  label: 'Compare',        path: '/compare',            views: ['compare'] },
     { id: 'queue',    label: 'Research queue', path: '/research/queue',     views: ['researchQueue'] },
     { id: 'sarawak',  label: 'Sarawak watch',  path: '/discover/sarawak',   views: ['sarawak'] },
@@ -15106,8 +15077,8 @@ const ROUTES = [
 
 const META = {
   marketing: 'Your financial decision workspace: research companies, monitor your own market setups and evaluate property investments in one place. Business planning is next. Research only — no recommendations.',
-  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — and what Live, Beta, Demo and Coming soon mean.',
-  researchQueue: 'The Equities research queue: companies drawn from the statements held for each, each labelled filed or illustrative, with no recommendations.',
+  howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
+  researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
@@ -15130,8 +15101,8 @@ const META = {
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'My Dashboard: what changed since your last visit, which of your setups matched, and what you monitor and have saved — read from this browser, with nothing recommended.',
-  onboarding:  'Five questions that decide where you land in Quantum Tradeworks, and nothing else.',
+  home:        'Your dashboard: what changed since your last visit, your setups’ matches, what you monitor and what you have saved — all read from this browser.',
+  onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
   launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
@@ -15841,15 +15812,20 @@ function buildNav() {
      exists. The count is a link of its own, to the page that lists those
      alerts: /my/alerts is the research alert feed and does not list the
      scanner's matches, so a count on its link would promise alerts the page
-     it opens does not show. */
+     it opens does not show.
+     A bare number beside "My Alerts" read as My Alerts' own count, and its
+     name did not say where it led. So the pill carries the Scanner's mark
+     (its product icon, as in Products below) and the link is named for the
+     page it opens — "Scanner alerts, 3 unread", as the scanner's own strip
+     names its Alerts link. */
   const alertsLi = shellEl.appnav?.querySelector('[data-item="alerts"]');
   if (alertsLi) {
     alertsLi.querySelector('.sb-count')?.remove();
     const unread = typeof scanUnreadCount === 'function' ? navUnread() : null;
     if (unread) {
-      const said = `${unread} unread scanner alert${unread === 1 ? '' : 's'}`;
-      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': said, title: said },
-        el('span', { class: 'nav-count' }, unread > 99 ? '99+' : String(unread))));
+      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': `Scanner alerts, ${unread} unread`,
+        title: `${unread} unread scanner alert${unread === 1 ? '' : 's'} — opens the Scanner’s alerts` },
+        el('span', { class: 'nav-count' }, [shellIcon(PRODUCT_ICON.scanner, 11, 'sb-count-ico'), unread > 99 ? '99+' : String(unread)])));
     }
   }
   /* The public header's current link, and a mark on the menu that holds it. */
@@ -15872,8 +15848,7 @@ function renderProductTabs() {
   const tabs = PRODUCT_TABS[pid];
   if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; return; }
   const p = productById(pid);
-  const here = tabs.find(t => t.views.includes(State.view) && (!t.tabs || t.tabs.includes(State.discoverTab)))
-    || tabs.find(t => t.views.includes(State.view));
+  const here = tabs.find(t => t.views.includes(State.view));
   const nav = el('nav', { class: 'ptabs', 'aria-label': `${p.name} sections` }, [
     el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]),
     el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {},
@@ -16045,11 +16020,15 @@ function render() {
      so a company page announced itself as "Research" and every shared link
      previewed identically. */
 
-  /* On the public page the disclosure is a single compact line. A four-line
+  /* On a public page the disclosure is a single compact line. A four-line
      warning block above the headline buries the thing a first-time visitor
      came to read, and a warning nobody reaches is not a warning. Inside the
-     app it stays in full, because there the sample data IS the context. */
-  document.body.dataset.surface = State.view === 'marketing' ? 'public' : 'app';
+     app it stays in full, because there the sample data IS the context.
+     The surface follows the chrome (chromeOf): it was keyed to '/' alone, so
+     /how-it-works, pricing and the trust pages wore the app's long strip
+     under the public header. On every public page "Which sources?" opens the
+     rest of the sentence, so no word of it is out of reach. */
+  document.body.dataset.surface = chromeOf(State.view);
 
   /* Reveal the compact ticker identity only once the full header is gone. */
   stickyObserver?.disconnect();
@@ -16587,32 +16566,10 @@ function openDashboardCustomiser() {
    start another.
    ========================================================================== */
 
-/* The four products, read from the shell's PRODUCTS table (35-ui.js), which
-   owns their names, actions and availability. */
-/* release-a: fallback until shell merges */
-const MYDASH_PRODUCTS_FALLBACK = [
-  { id: 'equities', name: 'Equities Research', action: 'Research a company', actionPath: '/research', status: 'beta',
-    statusNote: 'US companies from audited SEC filings; the Malaysian companies are illustrative; no licensed prices.' },
-  { id: 'scanner', name: 'Quantum Scanner', action: 'Create a setup', actionPath: '/app/scanner/setups/new', status: 'beta',
-    statusNote: 'Runs on price history you supply, on your own computer.' },
-  { id: 'property', name: 'Property Intelligence', action: 'Analyse a property', actionPath: '/property/calculator', status: 'live',
-    statusNote: 'Computed from the figures you enter.' },
-  { id: 'business', name: 'Business Intelligence', action: null, actionPath: null, status: 'soon',
-    statusNote: 'Not built yet — nothing to open.' },
-];
-const myDashProduct = (id) => (typeof PRODUCTS !== 'undefined' ? PRODUCTS : MYDASH_PRODUCTS_FALLBACK).find(p => p.id === id)
-  || MYDASH_PRODUCTS_FALLBACK.find(p => p.id === id);
-function myDashBadge(id) {
-  if (typeof productBadge === 'function') {
-    const b = productBadge(id);
-    return typeof b === 'string' ? el('span', { class: 'dash-badge', html: b }) : b;
-  }
-  /* release-a: fallback until shell merges */
-  const p = myDashProduct(id);
-  if (!p) return null;
-  const word = (typeof PRODUCT_STATUS !== 'undefined' ? PRODUCT_STATUS : { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' })[p.status] || p.status;
-  return el('span', { class: `chip ${p.status === 'live' ? 'chip-ok' : p.status === 'soon' ? '' : 'chip-bronze'}`, title: p.statusNote }, word);
-}
+/* The four products — names, actions and status badges — are the shell's
+   (PRODUCTS, productById and productBadge in 35-ui.js), so the dashboard
+   cannot describe a product differently from the header, the sidebar and the
+   homepage. */
 
 /* A real anchor, so every tile and row is a link the browser understands —
    middle-click, a new tab, the address in the status bar. */
@@ -16691,7 +16648,7 @@ function myDashOwn() {
    in the worker's file; a property model by an edit to the calculator's deal
    or a saved snapshot of one. */
 function myDashSteps(o) {
-  const eq = myDashProduct('equities'), sc = myDashProduct('scanner'), pr = myDashProduct('property');
+  const eq = productById('equities'), sc = productById('scanner'), pr = productById('property');
   const lastCo = o.researched.length ? BY_ID.get(o.researched[0]) : null;
   const inList = o.lists.length ? `${myDashPlural(o.lists.length, 'list')} of your own, ${myDashPlural(o.instruments.size, 'company', 'companies')}` : '';
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
@@ -16726,7 +16683,7 @@ function myDashStepRow(s, primary) {
   const body = el('div', { class: 'dash-step-body' });
   body.append(el('div', { class: 'dash-step-t' }, [
     el('h3', { class: 'h-card' }, [el('span', { class: 'sr-only' }, s.done ? 'Done: ' : 'Not done yet: '), s.title]),
-    s.product ? myDashBadge(s.product) : null,
+    s.product ? productBadge(s.product) : null,
   ]));
   body.append(el('p', { class: 'caption' }, s.note));
   li.append(body);
@@ -16887,7 +16844,7 @@ function myDashMatches(o, st) {
   if (!o.alerts) {
     card.append(o.setupsKnown
       ? empty('No record can be seen from here', 'The worker writes its record of matches on the machine it runs on, and it never leaves that machine — so on this site there is nothing to list. Where the worker runs, run it once and reload.', '/app/scanner', 'Open the scanner')
-      : empty('No setup yet', 'A setup is the conditions you look for. Write one, and each bar on which it holds is recorded here.', '/app/scanner/setups/new', myDashProduct('scanner')?.action || 'Create a setup'));
+      : empty('No setup yet', 'A setup is the conditions you look for. Write one, and each bar on which it holds is recorded here.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'));
     return card;
   }
   if (!o.alerts.length) {
@@ -16993,8 +16950,8 @@ function myDashFoot() {
     myDashLink('/my/data', { class: 'dash-inline' }, 'Your data & settings'), ' is the copy that travels.',
   ]);
   /* The research queue this page used to be, while its address resolves. */
-  if (myDashRoutes('/research/queue')) p.append(' The equities research queue — market context and what changed across companies — is under ',
-    myDashLink('/research/queue', { class: 'dash-inline' }, 'Equities Research'), '.');
+  if (myDashRoutes('/research/queue')) p.append(' The equities research queue — market context and what changed across companies — is now the ',
+    myDashLink('/research/queue', { class: 'dash-inline' }, 'Research queue'), ' tab of Equities Research.');
   return p;
 }
 
@@ -19367,11 +19324,13 @@ function tabStrip(label, tabs, current, open, attrs = {}) {
 VIEWS.discover = () => {
   const wrap = el('div');
   const hd = el('div', { style: 'margin-bottom:var(--lg)' });
-  hd.append(el('p', { class: 'eyebrow' }, 'Discover'));
+  /* Equities Research's Screener (Release A): the product tab row above
+     names the product, and this strip is the Screener's sub-tabs. */
+  hd.append(el('p', { class: 'eyebrow' }, 'Screener'));
   hd.append(el('h1', { style: 'font-size:24px;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
   /* Through the address: /discover/screener and /discover/value-map have
      routes of their own, the other two ride on ?tab=. */
-  hd.append(tabStrip('Discover tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id })));
+  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id })));
   wrap.append(hd);
 
   /* With a fallback: a tab id this view does not know renders the screener
@@ -25465,7 +25424,10 @@ VIEWS.onboarding = () => {
   });
   wrap.append(opts);
 
-  const foot = el('div', { class: 'row', style: 'gap:10px;margin-top:var(--xl)' });
+  /* The page's way out — Back, and Skip to the app — is a 44px target at
+     every width (.ob-foot, styles.css): on a phone "Skip — take me to the
+     app" was a small button on the floor's very edge. */
+  const foot = el('div', { class: 'row ob-foot', style: 'gap:10px;margin-top:var(--xl)' });
   if (i > 0) foot.append(el('button', { class: 'btn btn-ghost btn-sm',
     onclick: () => { State.obStep = i - 1; render(); focusObQuestion(); } }, 'Back'));
   foot.append(el('span', { class: 'spacer' }));
@@ -25494,59 +25456,16 @@ VIEWS.onboarding = () => {
    The dashboard lives at /app; this is what the domain root serves.
    ========================================================================== */
 
-/* release-a: fallback until shell merges.
-   PRODUCTS, PRODUCT_STATUS and productBadge belong to the shell (35-ui.js),
-   built on another branch at the same time as this one. Until it lands these
-   stand in, under names of their own so nothing is declared twice when it
-   does, and every accessor below prefers the shell's. The /how-it-works route
-   and its description are the shell's too, and are added here only while the
-   route table lacks them. Delete this block once the shell has merged. */
-const PUB_PRODUCTS_FALLBACK = [
-  { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
-    task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
-    question: 'How is this company performing financially?', action: 'Research a company', actionPath: '/research',
-    status: 'beta', statusNote: 'US companies carry audited statements from SEC filings; the Malaysian companies are illustrative; no prices are licensed.' },
-  { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Monitor my setups', blurb: 'Your own rules, checked on each daily close, with a record of every match.',
-    question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
-    status: 'beta', statusNote: 'Runs on price history you supply, on your own computer.' },
-  { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
-    task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
-    question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    status: 'live', statusNote: 'Computed from the figures you enter.' },
-  { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
-    task: 'Plan my business', blurb: 'Cash flow, profitability and financing scenarios.',
-    question: 'What will happen to my company’s cash flow?', action: null, actionPath: null,
-    status: 'soon', statusNote: 'Not built yet — nothing to open.' },
-];
-const PUB_STATUS_FALLBACK = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
-if (!ROUTES.some(r => r.view === 'howItWorks')) ROUTES.push({ path: '/how-it-works', view: 'howItWorks', title: 'How it works' });
-if (!META.howItWorks) META.howItWorks = 'How each product works — what goes in, what comes out, what is saved and what comes next — with worked examples computed by the products’ own models.';
-/* /release-a: fallback */
-
-const pubProducts = () => (typeof PRODUCTS !== 'undefined' && Array.isArray(PRODUCTS) ? PRODUCTS : PUB_PRODUCTS_FALLBACK);
-const pubStatusLabel = (s) => ((typeof PRODUCT_STATUS !== 'undefined' && PRODUCT_STATUS) || PUB_STATUS_FALLBACK)[s] || s;
-const pubShellBadges = () => typeof productBadge === 'function';
-
-/* productBadge may hand back an element or its markup; either way a node. */
-function pubNode(x) {
-  if (x == null) return null;
-  if (x.nodeType) return x;
-  const t = document.createElement('template');
-  t.innerHTML = String(x).trim();
-  return t.content.firstElementChild;
-}
 /* A status badge by status alone — the legend on /how-it-works and the
    homepage's disclosure line, where no one product is meant. Same classes as
-   productBadge, so the two cannot look different. */
+   productBadge (35-ui.js), so the two cannot look different. */
 function pubStatusBadge(status, title) {
-  return el('span', { class: `status-badge status-${status}${pubShellBadges() ? '' : ' pub-badge-fallback'}`, title: title || null },
-    pubStatusLabel(status));
+  return el('span', { class: `status-badge status-${status}`, title: title || null }, PRODUCT_STATUS[status] || status);
 }
-function pubBadge(p) {
-  if (pubShellBadges()) { const b = pubNode(productBadge(p.id)); if (b) return b; }
-  return pubStatusBadge(p.status, p.statusNote);
-}
+/* A product's own badge: productBadge hands back a fresh element (its
+   toString is its markup, for pages that build with strings), so the card
+   can give it the id its aria-describedby names. */
+const pubBadge = (p) => productBadge(p.id) || pubStatusBadge(p.status, p.statusNote);
 
 /* An in-app link that keeps the browser's own link behaviour: a modified or
    middle click opens a tab, as every other internal link in the product does. */
@@ -25642,7 +25561,7 @@ VIEWS.marketing = () => {
   /* -- 2. the four products --------------------------------------------- */
   const products = el('section', { class: 'pub-section', id: 'products', 'aria-labelledby': 'pub-products-h' });
   products.append(el('div', { class: 'pub-section-hd' }, el('h2', { class: 'pub-h2', id: 'pub-products-h' }, 'What would you like to do?')));
-  products.append(el('div', { class: 'pub-cards' }, pubProducts().map(pubProductCard)));
+  products.append(el('div', { class: 'pub-cards' }, PRODUCTS.map(pubProductCard)));
   products.append(pubDisclosure());
   wrap.append(products);
 
@@ -25991,7 +25910,7 @@ function hiwStatus(P) {
 }
 
 VIEWS.howItWorks = () => {
-  const P = pubProducts();
+  const P = PRODUCTS;
   const wrap = el('div', { class: 'pub hiw' });
 
   const hd = el('div', { class: 'pub-hero hiw-hd' });
@@ -37550,9 +37469,9 @@ const CAPABILITY_REGISTER = [
      check for Phase 3 stays red and names why. */
   { name:'Scanner routes and navigation', status:'beta', path:'/app/scanner',
     brief:['SC-NAV'], priority:'P0',
-    now:'Scanner in the main navigation after Research, with the unread count; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
+    now:'Quantum Scanner in the app sidebar (the Products group, after Equities Research), with the scanner’s unread count as its own link beside My Alerts, and the Trading Index as the last section of its strip; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
     gate:'/admin/* is not restricted to anyone: there are no accounts, so the operations pages are read-only views that say so. Intraday timeframes appear nowhere as available.',
-    checks:[{ file:'equity-test.mjs', name:'the scanner is in the header after Research, on every scanner address' },
+    checks:[{ file:'equity-test.mjs', name:'the scanner is in the sidebar after Equities Research, on every scanner address' },
             { file:'register-check.mjs', name:'robots.txt keeps the scanner and operations paths out of crawlers' },
             { file:'mobile.mjs', name:'no horizontal overflow at any width' }] },
   { name:'Market-data ingestion (scanner)', status:'data-gated', path:null,
@@ -40195,7 +40114,6 @@ const SCAN_SUBNAV = [
   { id: 'alerts', label: 'Alerts', path: '/app/scanner/alerts' },
   { id: 'backtest', label: 'Historical', path: '/app/scanner/backtest' },
   { id: 'settings', label: 'Settings', path: '/app/scanner/settings' },
-  { id: 'trading', label: 'Trading Index', path: '/research/trading-index' },
 ];
 function scanSubnav(active) {
   if (typeof scannerSubnav === 'function') return scannerSubnav(active);
@@ -43141,8 +43059,11 @@ function scanOpsAlertLink(a, label) {
 
 /* The scanner's own sections. Shared by every scanner page, the setups
    batch's included: scannerSubnav('dashboard' | 'market' | 'setups' |
-   'watchlists' | 'alerts' | 'backtest' | 'settings'). The operations pages
-   are not in it — they are the worker's, reached from the dashboard. */
+   'watchlists' | 'alerts' | 'backtest' | 'settings' | 'trading'). The
+   operations pages are not in it — they are the worker's, reached from the
+   dashboard. The QT Trading Index is a section of the Scanner (Release A):
+   its row is last, and its page (85-trading-index.js) draws this strip with
+   itself current. */
 const SCANNER_SUBNAV = [
   { id: 'dashboard',  label: 'Dashboard',            path: '/app/scanner' },
   { id: 'market',     label: 'Market (your series)', path: '/app/scanner/market' },
@@ -43151,6 +43072,7 @@ const SCANNER_SUBNAV = [
   { id: 'alerts',     label: 'Alerts',               path: '/app/scanner/alerts' },
   { id: 'backtest',   label: 'Historical',           path: '/app/scanner/backtest' },
   { id: 'settings',   label: 'Settings',             path: '/app/scanner/settings' },
+  { id: 'trading',    label: 'Trading Index',        path: '/research/trading-index' },
 ];
 /* The Alerts link carries the unread count — "Alerts · n", named "Alerts,
    n unread" — as the alerts pages' own strip did (SC-309 as built). This
@@ -46508,18 +46430,6 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
   paintThemeToggle();
   render();
 });
-
-/* THE TRADING INDEX IS A SECTION OF THE SCANNER (Release A). Its row is
-   written once, in the reader's pages' table (86-scanner.js SCAN_SUBNAV), and
-   scanSubnav() hands every scanner page the operations pages' strip
-   (87-scanner-ops.js SCANNER_SUBNAV) wherever that exists — which is always,
-   in this build. So a row in the first table alone would appear nowhere.
-   Every module has loaded by this line, so any row the reader's table holds
-   that the shared strip lacks is added to it here, once, in its order: the
-   Trading Index's page shows the strip with itself current, and every
-   scanner page offers it last. */
-if (typeof SCAN_SUBNAV !== 'undefined' && typeof SCANNER_SUBNAV !== 'undefined')
-  SCAN_SUBNAV.filter(s => !SCANNER_SUBNAV.some(x => x.id === s.id)).forEach(s => SCANNER_SUBNAV.push({ ...s }));
 
 /* ------------------------------------------------------------------- boot */
 const refreshSearchLabel = () => {
