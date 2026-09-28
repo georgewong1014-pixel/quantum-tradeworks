@@ -1447,7 +1447,7 @@ table.dt tbody tr:hover .pin-end { background: color-mix(in srgb, var(--brand) 5
 @media (max-width: 1080px) { .footer-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 860px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .footer-grid { grid-template-columns: 1fr; } }
-.footer h4 { font-size:12px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; font-weight:700; }
+.footer h2 { font-size:12px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px; font-weight:700; }
 .footer ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 7px; }
 .footer a { font-size:13px; color: var(--ink-2); text-decoration: none; transition: color 160ms ease; }
 .footer a:hover { color: var(--brand); }
@@ -2175,8 +2175,15 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
           <span class="chip chip-my">Bursa Malaysia</span>
         </div>
       </div>
+      <!-- The four column headings are h2: sections of the page beside
+           main's, not parts of whatever main ended on. As h4 they skipped a
+           level wherever main closed on an h2, as it does on /about, /privacy,
+           /learn and a company page, so a screen reader's heading list stepped
+           2→4 into the footer. main's levels are fitted to its outline
+           (fitHeadingLevels); the footer's are written, and an h2 follows any
+           of them. `.footer h2` keeps the 12px uppercase look. -->
       <div>
-        <h4>Methodology</h4>
+        <h2>Methodology</h2>
         <ul>
           <li><a href="/learn/glossary" data-path="/learn/glossary">Metric dictionary</a></li>
           <li><a href="/learn?tab=scoring" data-path="/learn?tab=scoring">Scoring architecture</a></li>
@@ -2185,7 +2192,7 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
         </ul>
       </div>
       <div>
-        <h4>Trust</h4>
+        <h2>Trust</h2>
         <ul>
           <li><a href="/data-sources" data-path="/data-sources">Data sources &amp; rights</a></li>
           <li><a href="/corrections" data-path="/corrections">Corrections log</a></li>
@@ -2194,7 +2201,7 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
         </ul>
       </div>
       <div>
-        <h4>Coverage</h4>
+        <h2>Coverage</h2>
         <ul>
           <li><a href="/discover/screener" data-path="/discover/screener">S&amp;P 500 (sample)</a></li>
           <li><a href="/discover/screener" data-path="/discover/screener">FBM KLCI (sample)</a></li>
@@ -2207,7 +2214,7 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
            the opportunity register. The footer is where a reader looks for
            exactly these, and it carried none of them. -->
       <div>
-        <h4>Product</h4>
+        <h2>Product</h2>
         <ul>
           <li><a href="/about" data-path="/about">About</a></li>
           <li><a href="/contact" data-path="/contact">Contact</a></li>
@@ -2351,13 +2358,18 @@ function fmtX(v, dp = 1) {
 function fmtCap(v, ccy) {
   if (!isNum(v)) return '—';
   const sym = ccy === 'MYR' ? 'RM' : '$';
-  /* Sign leads the symbol — "−$51.5B", never "$-51.5B". */
-  const sign = v < 0 ? '−' : '', a = Math.abs(v);
+  const a = Math.abs(v);
   /* The unit is chosen on the figure as it will print: 999.97 billion rounds
      to "1000.0B" and 0.9997 billion to "1000M", which belong a unit up. */
-  if (a >= 999.95) return `${sign}${sym}${(a / 1000).toFixed(2)}T`;
-  if (a >= 0.9995) return `${sign}${sym}${a.toFixed(1)}B`;
-  return `${sign}${sym}${(a * 1000).toFixed(0)}M`;
+  const body = a >= 999.95 ? `${(a / 1000).toFixed(2)}T`
+    : a >= 0.9995 ? `${a.toFixed(1)}B`
+    : `${(a * 1000).toFixed(0)}M`;
+  /* Sign leads the symbol — "−$51.5B", never "$-51.5B" — and, as fmtMoney's
+     does, belongs to the figure as it prints. It was taken from the raw value,
+     so anything under half a million below zero printed "−$0M": a zero with a
+     minus in front of it. */
+  const sign = v < 0 && /[1-9]/.test(body) ? '−' : '';
+  return `${sign}${sym}${body}`;
 }
 function fmtMoney(v, ccy, dp = 2) {
   if (!isNum(v)) return '—';
@@ -2670,7 +2682,11 @@ const PLANS = {
   all: {
     /* Not launched. Kept in the registry so the entitlement map stays complete
        and a later launch is a flag change rather than a rebuild, but never
-       offered — a tier a user cannot obtain must not appear purchasable. */
+       offered — a tier a user cannot obtain must not appear purchasable. The
+       plans page shows it marked not on sale, at a proposed price, and its
+       button previews the entitlements in this browser as every card's switch
+       does (VIEWS.plans, 90-area-screen.js). Whether that preview should be
+       reachable at all is an open product decision. */
     id:'all', name:'All-Access', launched:false,
     tagline:'Cross-asset — not launched. Introduce only after both products show demand', priceMo:79, priceYr:699,
     blurb:'Everything in Equities Research, plus the property portfolio, two standard property reports a month, and the consolidated net-worth view.',
@@ -2823,7 +2839,11 @@ function setPlan(id) {
      a switch from Equities Research to Free left five companies in a
      comparison that the page, a click later, said holds up to two. */
   clampToPlan();
-  toast(`Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
+  /* A tier that is not on sale is previewed, not switched to: "Switched to
+     All-Access" read as a plan the reader now had. */
+  toast(PLANS[id].launched === false
+    ? `Previewing ${PLANS[id].name} in this browser — it has not launched and cannot be bought`
+    : `Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
   /* The button pressed on /pricing comes back from the redraw as the
      disabled "Current plan", which cannot hold focus, so a keyboard reader
      who switched plan was left on <body>. Focus goes to the heading of the
@@ -10890,6 +10910,12 @@ function niceTicks(lo, hi, count = 4) {
   return { ticks, lo: start, hi: end };
 }
 
+/* WHERE A FINGER IS THE POINTER. The same test the stylesheet's 44px rule
+   uses (styles.css, "44px TOUCH TARGETS"): a coarse pointer, or a phone-width
+   window. A mark that is a control is a tap target there like any other. */
+const TOUCH_TARGET = 44;
+const touchLayout = () => matchMedia('(pointer: coarse), (max-width: 768px)').matches;
+
 /* Re-render on container resize so charts stay responsive without a library. */
 const RESIZERS = new WeakMap();
 function chartHost(container, draw) {
@@ -11369,18 +11395,27 @@ function decisionDock({ figs, blocker, next }) {
    directly under the page heading on all of them so a returning reader looks in
    one place. `onReset` is passed in rather than derived: what "empty" means is
    the tool's business, and a generic reset that guessed would eventually clear
-   the wrong keys. */
+   the wrong keys.
+
+   Every control here redraws the page, and render() replaces the bar with
+   the rest of it: Save, Resume, Duplicate latest and Reset each destroyed
+   itself under the keyboard, and focus fell to <body> on the trading index,
+   the Cash Wheel and the property calculator alike. Each carries an id per
+   kind and redraws through renderKeepFocus, which hands focus to the control
+   that comes back under that id — all four come back, since a save or a
+   reset leaves the saved list at least as long as it was. */
 function workBar(kind, onReset) {
   const def = WORK_KINDS[kind];
   if (!def) return null;
   const saved = loadWork().filter(r => r.kind === kind);
+  const wid = (what) => `wb-${kind}-${what}`;
 
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' });
 
   row.append(el('span', { class: 'eyebrow', style: 'margin-right:2px' }, 'This browser only'));
 
-  row.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+  row.append(el('button', { class: 'btn btn-ghost btn-sm', id: wid('save'), onclick: () => {
     const suggested = def.name();
     const name = prompt(`Name this ${def.label.toLowerCase()}`, suggested);
     if (name === null) return;
@@ -11389,15 +11424,15 @@ function workBar(kind, onReset) {
        'Saved' over a record that was never written. */
     const refused = store.failed;
     const rec = saveWork(kind, name.trim() || suggested);
-    render(); toast(store.failed !== refused ? STORE_REFUSED : rec ? `Saved "${rec.name}"` : 'Could not save');
+    renderKeepFocus(); toast(store.failed !== refused ? STORE_REFUSED : rec ? `Saved "${rec.name}"` : 'Could not save');
   } }, 'Save'));
 
   if (saved.length) {
-    const sel = el('select', { class: 'select select-sm', 'aria-label': `Resume a saved ${def.label.toLowerCase()}`,
+    const sel = el('select', { class: 'select select-sm', id: wid('resume'), 'aria-label': `Resume a saved ${def.label.toLowerCase()}`,
       onchange: e => {
         const id = e.target.value;
         if (!id) return;
-        if (resumeWork(id)) { render(); toast('Resumed'); }
+        if (resumeWork(id)) { renderKeepFocus(); toast('Resumed'); }
         else { e.target.value = ''; toast('That record holds no figures to restore — it was saved before anything had been entered.'); }
       } });
     sel.append(el('option', { value: '' }, `Resume… (${saved.length})`));
@@ -11406,16 +11441,16 @@ function workBar(kind, onReset) {
     saved.forEach(r => sel.append(el('option', { value: r.id }, `${r.name} · ${fmtSaved(r.savedAt)}`)));
     row.append(sel);
 
-    row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+    row.append(el('button', { class: 'btn btn-quiet btn-sm', id: wid('dup'), onclick: () => {
       const refused = store.failed;
       const copy = duplicateWork(saved[0].id);
-      render(); toast(store.failed !== refused ? STORE_REFUSED : copy ? `Duplicated "${saved[0].name}"` : 'Nothing to duplicate');
+      renderKeepFocus(); toast(store.failed !== refused ? STORE_REFUSED : copy ? `Duplicated "${saved[0].name}"` : 'Nothing to duplicate');
     } }, 'Duplicate latest'));
   }
 
-  row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+  row.append(el('button', { class: 'btn btn-quiet btn-sm', id: wid('reset'), onclick: () => {
     if (!confirm('Clear the figures currently on screen? Anything you saved stays saved.')) return;
-    onReset(); render(); toast('Cleared');
+    onReset(); renderKeepFocus(); toast('Cleared');
   } }, 'Reset'));
 
   row.append(el('a', { class: 'btn btn-quiet btn-sm', style: 'margin-left:auto',
@@ -11589,18 +11624,38 @@ function lineChart(container, { values, labels, fmt = v => fmtNum(v, 2), varName
 
 /* ----------------------------------------------------------- scatter plot */
 /* Colour is either 2 categorical slots (market) or a 3-step ordinal ramp
-   (risk band) — never 8 slots, which cannot clear the all-pairs CVD gate. */
+   (risk band) — never 8 slots, which cannot clear the all-pairs CVD gate.
+
+   A point whose y is not a number has no quality percentile. It is drawn at
+   the midpoint, where the value map says it draws a company its cohort
+   cannot rank, and its mark and tooltip say it has none. They printed p.y,
+   so the plotting position a caller had substituted for the missing rank
+   read "quality percentile 50" — a measured median, which it is not. */
 function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelShort, xFmt, onPick }) {
   chartHost(container, (W) => {
     const narrow = W < 560;
     const H = narrow ? 320 : Math.max(340, Math.min(480, W * 0.52));
     const padL = narrow ? 40 : 56, padR = narrow ? 12 : 20, padT = 18, padB = 46;
     const iw = W - padL - padR, ih = H - padT - padB;
-    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    const xs = points.map(p => p.x);
     const xlo = Math.min(-40, Math.floor(Math.min(...xs) / 10) * 10), xhi = Math.max(40, Math.ceil(Math.max(...xs) / 10) * 10);
     const ylo = 0, yhi = 100;
     const X = v => padL + (v - xlo) / (xhi - xlo) * iw;
     const Y = v => padT + ih - (v - ylo) / (yhi - ylo) * ih;
+    const yAt = p => isNum(p.y) ? p.y : (ylo + yhi) / 2;
+    const yWords = p => isNum(p.y) ? `quality percentile ${p.y}` : 'no quality percentile, drawn at the midpoint';
+    /* ON A PHONE EVERY MARK IS A 44px TARGET. The marks measured 26 to 29px
+       at 390px on the value map and in Compare, each a button. The ring the
+       eye sees keeps its size; the transparent hit circle in the mark grows
+       to 44px. Grown, it reached over its neighbours' marks — a tap on the
+       dot of one company opened the smaller one beside it — so on a phone
+       each mark's drawn circle is laid again in a layer above every grown
+       one, in the same order: a tap on a drawn mark opens the mark drawn
+       there, and only a tap in the margin around it goes to the padding. */
+    const touch = touchLayout();
+    /* A pixel over half: at exactly 22 the box measured 43.99999px. */
+    const hitMin = touch ? TOUCH_TARGET / 2 + 1 : 13;
+    const own = touch ? sv('g', { 'aria-hidden': 'true' }) : null;
     const maxCap = Math.max(...points.map(p => p.size));
     const R = v => (narrow ? 3.5 : 5) + Math.sqrt(v / maxCap) * (narrow ? 11 : 20);
 
@@ -11636,17 +11691,19 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
       const g = sv('g', { style: 'cursor:pointer' });
       g.setAttribute('tabindex', '0');
       g.setAttribute('role', 'button');
-      g.setAttribute('aria-label', `${p.label}, ${xFmt(p.x)} to base-case model estimate, quality percentile ${p.y}`);
+      g.setAttribute('aria-label', `${p.label}, ${xFmt(p.x)} to base-case model estimate, ${yWords(p)}`);
       const fill = `var(${p.varName})`;
-      g.append(sv('circle', { cx: X(p.x), cy: Y(p.y), r: R(p.size), fill, opacity: .30 }));
+      const cy = Y(yAt(p));
+      g.append(sv('circle', { cx: X(p.x), cy, r: R(p.size), fill, opacity: .30 }));
       /* 2px surface ring keeps overlapping marks legible */
-      g.append(sv('circle', { cx: X(p.x), cy: Y(p.y), r: R(p.size), fill: 'none', stroke: fill, 'stroke-width': 1.5 }));
-      g.append(sv('circle', { cx: X(p.x), cy: Y(p.y), r: 3.2, fill, stroke: 'var(--surface)', 'stroke-width': 2 }));
-      /* hit target never smaller than ~24px */
-      const hit = sv('circle', { cx: X(p.x), cy: Y(p.y), r: Math.max(13, R(p.size)), fill: 'transparent' });
+      g.append(sv('circle', { cx: X(p.x), cy, r: R(p.size), fill: 'none', stroke: fill, 'stroke-width': 1.5 }));
+      g.append(sv('circle', { cx: X(p.x), cy, r: 3.2, fill, stroke: 'var(--surface)', 'stroke-width': 2 }));
+      /* hit target never smaller than ~26px, or 44px on a phone */
+      const hit = sv('circle', { cx: X(p.x), cy, r: Math.max(hitMin, R(p.size)), fill: 'transparent' });
+      const core = own && sv('circle', { cx: X(p.x), cy, r: R(p.size), fill: 'transparent', style: 'cursor:pointer' });
       const tip = () => `<div class="t-title">${esc(p.label)} · ${esc(p.name)}</div>
         <div class="t-row"><span>vs base-case model estimate</span><b>${xFmt(p.x)}</b></div>
-        <div class="t-row"><span>Quality percentile</span><b>${p.y}</b></div>
+        <div class="t-row"><span>Quality percentile</span><b>${isNum(p.y) ? p.y : 'none — drawn at the midpoint'}</b></div>
         <div class="t-row"><span>Market cap</span><b>${p.capLabel}</b></div>
         <div class="t-row"><span>Model</span><b>${esc(p.model)}</b></div>
         <div class="t-note">${esc(p.conf)} confidence · click to open the valuation</div>`;
@@ -11654,19 +11711,28 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
       hit.addEventListener('pointermove', show);
       hit.addEventListener('pointerleave', hideTip);
       hit.addEventListener('click', () => onPick(p.id));
+      /* The upper layer is outside the button, so it focuses the button
+         first: the drawer hands focus back to the mark, as a direct tap does. */
+      if (core) {
+        core.addEventListener('pointermove', show);
+        core.addEventListener('pointerleave', hideTip);
+        core.addEventListener('click', () => { g.focus({ preventScroll: true }); onPick(p.id); });
+        own.append(core);
+      }
       g.addEventListener('focus', () => { const b = g.getBoundingClientRect(); showTip(tip(), b.left + b.width / 2, b.top + b.height / 2); });
       g.addEventListener('blur', hideTip);
       g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(p.id); } });
       g.append(hit);
       s.append(g);
     });
+    if (own) s.append(own);
 
     /* Selective direct labels: the three largest discounts among quality names.
        Labels are pushed below the mark when they would collide with the top
        annotation. On a narrow chart they are dropped entirely — converging
        labels read as noise, and the legend, tooltip and table view still carry
        the identity. */
-    (narrow ? [] : [...points].filter(p => p.y >= 45).sort((a, b) => b.x - a.x).slice(0, 3)).forEach(p => {
+    (narrow ? [] : [...points].filter(p => isNum(p.y) && p.y >= 45).sort((a, b) => b.x - a.x).slice(0, 3)).forEach(p => {
       const above = Y(p.y) - R(p.size) - 6;
       const flip = above < padT + 12;
       const t = sv('text', { class: 'dl', x: X(p.x), y: flip ? Y(p.y) + R(p.size) + 13 : above, 'text-anchor': 'middle' });
@@ -11719,16 +11785,32 @@ function squarify(items, x, y, w, h) {
    else, so the drawer behind them — and the table view offers no action —
    could not be reached from a keyboard at all. The svg is a group rather than
    an image, because an image's children are not exposed as controls.
-   `pickNote` is the tooltip's last line: what selecting a tile opens. */
+   `pickNote` is the tooltip's last line: what selecting a tile opens.
+
+   A TILE A FINGER CANNOT HIT IS OFFERED AS A BUTTON BENEATH THE MAP.
+   Area is market capitalisation, so the smallest company's tile is a share
+   of the plot, not a size anyone chose: at 390px Bursa's smallest tiles
+   measured 30x42 and 29x42, a US one 33x56, and every Bursa tile reaches
+   44px only on a map some 12,000px tall. Padding a tile's hit area
+   past its edges does not work either, because the small tiles are laid out
+   last, together in one corner, and each padded area would cover its
+   neighbours. So on a phone every tile under 44px either way is also a
+   44px button under the map that opens the same thing — as is, at any
+   width, a tile too small to draw at all, which was left out with nothing
+   said, unreachable by pointer or by Tab. */
 function treemap(container, { items, valueFmt, onPick, full = 8, pickNote = 'Select for the "Why moved?" attribution' }) {
   chartHost(container, (W) => {
     const H = Math.max(320, Math.min(520, W * 0.5));
+    const touch = touchLayout();
+    const drawn = new Set(), unreachable = [];
     const s = sv('svg', { class: 'chart chart-focusable', viewBox: `0 0 ${W} ${H}`, role: 'group', tabindex: '0', 'aria-label': 'Market heatmap, tile area is market capitalisation. Tab to a tile and press Enter to open it.' });
     const laid = squarify([...items].sort((a, b) => b.value - a.value), 0, 0, W, H);
     const GAP = 2;                                   /* surface gap, not a border */
     laid.forEach(t => {
       const w = Math.max(0, t.w - GAP), h = Math.max(0, t.h - GAP);
       if (w < 2 || h < 2) return;
+      drawn.add(t.id);
+      if (touch && (t.w < TOUCH_TARGET || t.h < TOUCH_TARGET)) unreachable.push(t);
       const fillVar = divergingVar(t.change, full);
       const fill = cssVar(fillVar) || '#888';
       const g = sv('g', { class: 'tile', style: 'cursor:pointer' });
@@ -11762,7 +11844,20 @@ function treemap(container, { items, valueFmt, onPick, full = 8, pickNote = 'Sel
       g.append(hit);
       s.append(g);
     });
-    return s;
+    /* In the map's own order, largest first; an undrawn tile is the smallest. */
+    const undrawn = [...items].sort((a, b) => b.value - a.value).filter(t => !drawn.has(t.id));
+    const offer = [...unreachable, ...undrawn];
+    if (!offer.length) return s;
+    const list = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:var(--sm);align-items:center' });
+    list.append(el('span', { class: 'metaline' }, touch
+      ? `Too small to tap on the map (${offer.length}):`
+      : `Too small to draw at this width (${offer.length}):`));
+    /* The name opens with the words the button shows, so a reader who says
+       what they see — "PGR +0.36%" — names the button. */
+    offer.forEach(t => list.append(el('button', { type: 'button', class: 'btn btn-ghost btn-sm',
+      'aria-label': `${t.label} ${valueFmt(t.change)}, ${t.metricLabel}, market cap ${t.capLabel}`,
+      onclick: () => onPick(t.id) }, `${t.label} ${valueFmt(t.change)}`)));
+    return el('div', {}, s, list);
   });
 }
 
@@ -12243,7 +12338,21 @@ function closeDrawer({ restore = true } = {}) {
   closeTimer = setTimeout(() => {
     closeTimer = null; closingBack = null;
     drawer.hidden = true;
-    if (restore && back && back !== document.body && document.contains(back)) back.focus?.({ preventScroll: true });
+    if (!restore || !back || back === document.body) return;
+    if (document.contains(back)) { back.focus?.({ preventScroll: true }); return; }
+    /* THE OPENER A REDRAW REPLACED. A drawer whose own action redraws the
+       page — an edit to a comparable, a recorded correction case — detaches
+       the button that opened it, and the hand-back above found nothing and
+       left the keyboard on <body>. The redraw brought the same control back
+       under the same id, as renderKeepFocus relies on, so focus goes there;
+       with no such control, to <main>, as focusAfterRedraw's last resort.
+       Only while focus is lost: an action that put it somewhere on purpose,
+       or a navigation that has focused the new page, keeps it. */
+    const at = document.activeElement;
+    if (at && at !== document.body && !drawer.contains(at)) return;
+    const again = back.id ? document.getElementById(back.id) : null;
+    if (again) again.focus({ preventScroll: true });
+    if (!again || document.activeElement !== again) focusMain();
   }, 300);
   closeSearch();
 }
@@ -15411,16 +15520,38 @@ function renderRadar() {
      and "23 eligible" under a 138-company universe said nothing about the
      other 115. The past-year text already named its drop-out; now the
      default view does too. */
-  const unplotted = scoped.length - rows.length;
   const unpriced = scoped.filter(r => !r.val.mos && !isNum(r.price)).length;
+  const noModel = scoped.length - rows.length - unpriced;
+  const modelled = rows.length;
   if (rr.minConf === 'med') rows = rows.filter(r => r.val.confBand !== 'Low');
   if (rr.minConf === 'high') rows = rows.filter(r => r.val.confBand === 'High');
+  /* The confidence filter leaves companies off too. The count was taken
+     before it ran, so at "High only" the map drew 7 of 138 and said 115 were
+     not plotted, all for want of a price — 16 were missing from both. */
+  const belowConf = modelled - rows.length;
+  const unplotted = scoped.length - rows.length;
 
   const RISK_VAR = { Low:'--seq-6', Medium:'--seq-4', High:'--seq-2' };
-  const yOf = (r) => (rr.cohort === 'sector' ? r.qpctSector : r.qpctMarket) ?? 50;
+  /* A company with no percentile in the chosen cohort has no height on this
+     chart. Two things leave a company without one, and the page named only
+     the first, for the sector cohort only, and wrongly: no other company in
+     its sector at all (IHH — the note said "fewer than two peers", but one
+     peer is enough for a rank), or no quality score — a filed REIT, whose
+     quality inputs are not among the lines the statements carry, once the
+     reader gives it a price. Such a REIT was drawn at 50 in either cohort,
+     and the market cohort said nothing about it.
+     The point carries the percentile or null, never a stand-in. yOf() handed
+     the chart 50, and the mark's name and tooltip printed it as "quality
+     percentile 50", a measured median rank; IHH read 50 in the sector cohort
+     beside a table that said it had none. scatterChart draws a point whose
+     y is null at the midpoint and says it has no percentile. */
+  const pctOf = (r) => { const p = rr.cohort === 'sector' ? r.qpctSector : r.qpctMarket; return isNum(p) ? p : null; };
+  const noPctWhy = (r) => !isNum(r.q?.score) ? 'no quality score' : rr.cohort === 'sector' ? 'no sector peer' : 'no rank';
+  /* The table prints the percentile that exists, or says there is none and why. */
+  const pctText = (r) => { const p = pctOf(r); return isNum(p) ? String(p) : `— (${noPctWhy(r)})`; };
   const points = rows.map(r => ({
     id: r.c.id, label: r.c.tk, name: r.c.name,
-    x: r.val.mos.base, y: yOf(r), size: toBase(r.d.m.mcap, r.c.ccy),
+    x: r.val.mos.base, y: pctOf(r), size: toBase(r.d.m.mcap, r.c.ccy),
     capLabel: fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy),
     model: r.val.pack.name, conf: r.val.confBand,
     varName: rr.colorBy === 'market' ? (r.c.mkt === 'US' ? '--s1' : '--s2')
@@ -15451,12 +15582,12 @@ function renderRadar() {
       `<b>Model</b> ${MODEL_VERSION}`,
     ].join('<span class="dotsep"></span>') })));
   if (unplotted) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-    `${unplotted} of ${scoped.length} companies in this universe are not plotted: ${unpriced} carry no price${rr.yi === YEARS.length - 1 ? '' : ` for FY${YEARS[rr.yi]}`}, so no difference to a model estimate can be computed${unplotted > unpriced ? `; ${unplotted - unpriced} have a price but no base-case model estimate` : ''}.`));
+    `${unplotted} of ${scoped.length} companies in this universe are not plotted: ${[
+      unpriced ? `${unpriced} ${unpriced === 1 ? 'carries' : 'carry'} no price${rr.yi === YEARS.length - 1 ? '' : ` for FY${YEARS[rr.yi]}`}, so no difference to a model estimate can be computed` : null,
+      noModel ? `${noModel} ${noModel === 1 ? 'has' : 'have'} a price but no base-case model estimate` : null,
+      belowConf ? `${belowConf} ${belowConf === 1 ? 'has' : 'have'} a model confidence below ${rr.minConf === 'high' ? 'High' : 'Medium'}, the least the confidence filter admits` : null,
+    ].filter(Boolean).join('; ')}.`));
 
-  /* The table prints the percentile that exists, or says there is none. The
-     midpoint is a plotting position for a company with no sector peers, and
-     printed as "50" it read as a measured median rank. */
-  const pctText = (r) => { const p = rr.cohort === 'sector' ? r.qpctSector : r.qpctMarket; return isNum(p) ? String(p) : `— (no ${rr.cohort === 'sector' ? 'sector peers' : 'rank'})`; };
   card.append(tableTwin('Show the table view of every plotted company',
     ['Company', 'Market', rr.yi === YEARS.length - 1 ? 'Price' : `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
     rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
@@ -15471,14 +15602,22 @@ function renderRadar() {
     xLabelShort: 'Difference to model estimate vs base-case model estimate',
     yLabel: `Quality percentile within ${cohortLabel} cohort`,
     yLabelShort: `Quality percentile (${cohortLabel})`,
-    xFmt: v => `${v > 0 ? '+' : ''}${v.toFixed(0)}%`,
+    /* withSign, as the table beside it prints: Maybank's +0.12% read "+0%"
+       (a sign on a figure that rounds to nought), -0.3% read "-0%", and every
+       price above the estimate took an ASCII hyphen for its minus. */
+    xFmt: v => withSign(v, 0),
     onPick: id => openRadarDetail(id, rr.yi),
   });
 
-  if (rr.cohort === 'sector') {
-    const thin = rows.filter(r => r.qpctSector == null).length;
-    if (thin) wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-      `${thin} of ${rows.length} companies have fewer than two peers in their sector within this sample, so no sector percentile can be computed for them. They are plotted at the midpoint rather than dropped, and should be read as "no sector ranking available".`));
+  const unranked = rows.filter(r => !isNum(pctOf(r)));
+  if (unranked.length) {
+    const noScore = unranked.filter(r => !isNum(r.q?.score)).length, alone = unranked.length - noScore;
+    const why = [
+      noScore ? `${noScore} ${noScore === 1 ? 'has' : 'have'} no quality score, because the inputs it reads are not among the figures held for ${noScore === 1 ? 'it' : 'them'}` : null,
+      alone ? `${alone} ${alone === 1 ? 'is the only company' : 'are each the only company'} in ${alone === 1 ? 'its' : 'their'} sector in this dataset, so there is no sector cohort to rank against` : null,
+    ].filter(Boolean).join('; ');
+    wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+      `${unranked.length} of ${rows.length} plotted companies have no ${cohortLabel} percentile: ${why}. They are plotted at the midpoint rather than dropped — the height of those marks is a plotting position, not a rank — and the table view says so for each.`));
   }
   wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'Language note: a mark on the right edge is the largest modelled discount among eligible companies — not "the most undervalued". Confidence and model applicability qualify every position.'));
@@ -16538,12 +16677,22 @@ function fitGrade(r, key, tier) {
 
   else if (key === 'compounder') {
     const hasGrowth = isNum(m.rev5) && isNum(m.roe);
-    if (!need(hasGrowth, 'Multi-year per-share growth and returns on equity.')) return out;
+    /* Seven-tenths of this score is the business-quality score, and an
+       absent one was read as 50. The filed REITs have none — their quality
+       inputs are not among the lines the statements carry — so Realty
+       Income and Prologis were graded compounder B on a quality nobody
+       measured, and "Why it might be owned: Long-term compounding" was
+       named from it. The Wheel and averaging fits already ask for the
+       assessment; this one asks too, and says it is missing. */
+    const q = r.scores?.quality?.score;
+    const okGrowth = need(hasGrowth, 'Multi-year per-share growth and returns on equity.');
+    const okQuality = need(isNum(q), 'A business-quality assessment.');
+    if (!okGrowth || !okQuality) return out;
     if (m.roe > 12) out.supports.push(`Return on equity ${fmtPct(m.roe, 1)}.`); else out.weakens.push(`Return on equity ${fmtPct(m.roe, 1)}.`);
     if (m.rev5 > 4) out.supports.push(`Revenue compounding ${fmtPct(m.rev5, 1)} a year over the window held.`);
     else out.weakens.push(`Revenue growth ${fmtPct(m.rev5, 1)} a year.`);
     if (isNum(m.dilution) && m.dilution > 2) out.weakens.push(`Share count rising ${fmtPct(m.dilution, 1)} a year, which dilutes per-share growth.`);
-    out.score = Math.round(clamp((r.scores?.quality?.score ?? 50) * 0.7 + clamp(m.rev5 * 2, 0, 30), 0, 100));
+    out.score = Math.round(clamp(q * 0.7 + clamp(m.rev5 * 2, 0, 30), 0, 100));
     if (isNum(m.growthYears) && m.growthYears < 4) out.cap = `Growth measured over ${m.growthYears} years, not four.`;
   }
 
@@ -17324,6 +17473,21 @@ function companySummary(r) {
   return card;
 }
 
+/* AN ABSENT MEASURE SAYS WHY, AS THE SCREENER SAYS IT. The company tabs
+   marked an absence "n/a" — the mark this product keeps for a measure that
+   does not apply — or "n/m", whatever the cause. The peer table gave every
+   unpriced filer's P/E "n/m", "not meaningful on its inputs", where the
+   screener says it needs a price (67 companies); Coca-Cola's, its share
+   count withheld, the same; and Adobe's return on invested capital read
+   "n/a" with its debt line withheld. A measure the screener lists takes
+   metricStatus's short reason, with its sentence as the title; one it does
+   not list keeps the generic mark. */
+function absentMark(r, k) {
+  if (!FIELD_BY_K[k]) return NA;
+  const st = metricStatus(r, k);
+  return `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>`;
+}
+
 /* --------------------------------------------------------------- snapshot */
 /* A stat tile that opens something, as a real button so the keyboard reaches
    it. The tile inside keeps its own markup; the button only adds the
@@ -17631,8 +17795,8 @@ function tabSnapshot(r) {
       const td0 = el('td', { class: 'pin ident' }); td0.append(tickerCell(p)); tr.append(td0);
       const cells = isB ? [fmtPct(p.m.roe), fmtPct(p.m.cet1), fmtPct(p.m.npl, 2), fmtX(p.m.pb, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality)]
                   : isR ? [fmtPct(p.m.occ), fmtPct(p.m.gearing), fmtX(p.m.pnav, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`]
-                        : [isNum(p.m.roic) ? fmtPct(p.m.roic) : NA, fmtPct(p.m.om), isNum(p.m.pe) ? fmtX(p.m.pe) : '<span class="caption">n/m</span>',
-                           isNum(p.m.fcfy) ? fmtPct(p.m.fcfy, 2) : NA, scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`];
+                        : [isNum(p.m.roic) ? fmtPct(p.m.roic) : absentMark(p, 'roic'), isNum(p.m.om) ? fmtPct(p.m.om) : absentMark(p, 'om'),
+                           isNum(p.m.pe) ? fmtX(p.m.pe) : absentMark(p, 'pe'), isNum(p.m.fcfy) ? fmtPct(p.m.fcfy, 2) : absentMark(p, 'fcfy'), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`];
       cells.forEach(v => tr.append(el('td', { html: v })));
       tb2.append(tr);
     });
@@ -17727,10 +17891,14 @@ function tabBusiness(r) {
    ['Primary listing', `${listingOf(c)} · ${c.tk}`], ['Sector / industry', `${c.sector} — ${c.industry}`],
    ['Cyclicality', isNum(m.revDD) ? `Revenue drawdown ${fmtPct(m.revDD, 0)} in the window` : '—'],
    ['Capital intensity', isNum(m.reinv) ? `Capex is ${fmtPct(m.reinv, 0)} of operating cash flow` : 'Not meaningful'],
-   /* A filer whose latest share count did not resolve (AbbVie, Berkshire)
-      read "—bn (— a year)": two units printed around nothing. */
+   /* A filer with no latest share count (AbbVie, Berkshire) read "—bn (— a
+      year)": two units printed around nothing. The absence then read "not
+      reported" whatever its cause, and for 31 filers — Coca-Cola, AbbVie,
+      Pfizer — the count is held and withheld, assembled by an ingest rule
+      since corrected, which the statement table beside it says. It takes the
+      statement table's reason for that cell. */
    ['Shares in issue', !isNum(last(d.sh))
-     ? `not reported for FY${latestFy(c)}`
+     ? `${lineCellStatus(r, statementLines(r).find(l => l.key === 'sh'), yearsOf(c).length - 1).label} for FY${latestFy(c)}`
      : m.shareSeriesBreak
      ? `${fmtNum(last(d.sh), 3)}bn — annual change withheld, see capital allocation`
      : `${fmtNum(last(d.sh), 3)}bn${isNum(m.dilution) ? ` (${withSign(m.dilution, 2)} a year)` : ''}`],
@@ -17755,13 +17923,13 @@ function tabBusiness(r) {
       : c.type === 'reit'
       ? [['Occupancy', x => x.m.occ, false], ['Net property margin', x => x.m.npm, false],
          ['Gearing', x => x.m.gearing, true], ['Distribution yield', x => x.m.dy, false]]
-      : [['Operating margin', x => x.m.om, false], ['Return on invested capital', x => x.m.roic, false],
-         ['Revenue CAGR (4y)', x => x.m.rev5, false], ['Free cash flow margin', x => x.m.fcfm, false]];
+      : [['Operating margin', x => x.m.om, false, 'om'], ['Return on invested capital', x => x.m.roic, false, 'roic'],
+         ['Revenue CAGR (4y)', x => x.m.rev5, false, 'rev5'], ['Free cash flow margin', x => x.m.fcfm, false, 'fcfm']];
 
     const tw2 = el('div', { class: 'tablewrap' });
     const t2 = el('table', { class: 'dt' });
     t2.append(el('thead', {}, el('tr', {}, ['Measure', c.tk, 'Peer median', 'Rank', 'Standing'].map(h => el('th', {}, h)))));
-    t2.append(el('tbody', {}, measures.map(([label, get, lowerBetter]) => {
+    t2.append(el('tbody', {}, measures.map(([label, get, lowerBetter, key]) => {
       const own = get(r), vals = set.map(get).filter(isNum);
       const med = median(vals);
       let rank = null;
@@ -17773,7 +17941,7 @@ function tabBusiness(r) {
       const f = SECTOR_FMT[label] || (v => fmtPct(v, 1));
       return el('tr', {}, [
         el('td', { class: 'ident' }, label),
-        el('td', { html: isNum(own) ? f(own) : NA }),
+        el('td', { html: isNum(own) ? f(own) : key ? absentMark(r, key) : NA }),
         el('td', { html: isNum(med) ? f(med) : NA }),
         el('td', {}, rank ? `${rank} of ${vals.length}` : '—'),
         /* In an odd-sized set the median is one of the values, so the company
@@ -18171,8 +18339,17 @@ function tabQuality(r) {
          reading as "not meaningful" — on the break inside its own five rows
          (perShareBreak), which is what withheld it. On the whole-series
          break, GE's earnings growth, absent for a negative FY2021 base, read
-         "withheld" over a split years outside the window. */
-      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.perShareBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }));
+         "withheld" over a split years outside the window.
+         Every other absent input read "n/a", the mark for a measure that
+         does not apply: Apple's net buyback yield, withheld for its
+         share-count break; Adobe's payout ratio, its dividend line not
+         reported; Coca-Cola's, withheld with its share count. A measure the
+         screener lists is marked as the screener marks it (absentMark);
+         book-value growth and the sector inputs, which it does not list,
+         keep the rule above. */
+      const absentRaw = FIELD_BY_K[part.k] ? absentMark(r, part.k)
+        : (r.m.perShareBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA);
+      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : absentRaw }));
       tr.append(el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}${part.inv ? ' (inverted)' : ''}</span>` }));
       tr.append(el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }));
       tr.append(el('td', {}, `${Math.round(part.w * 100)}%`));
@@ -18290,10 +18467,10 @@ function tabMoat(r) {
        ['Weighted lease expiry', isNum(m.wale) ? `${fmtNum(m.wale)} yrs` : '—', 'Contracted income duration', 'wale', false],
        ['Net property margin', fmtPct(m.npm), 'Operating leverage on the assets', 'npm', false],
        ['Gearing', fmtPct(m.gearing), 'Refinancing exposure', 'gearing', true]]
-    : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : 'n/a', 'Excess return over the cost of capital', 'roic', false],
+    : [['Return on invested capital', isNum(m.roic) ? fmtPct(m.roic) : el('span', { html: absentMark(r, 'roic') }), 'Excess return over the cost of capital', 'roic', false],
        ['Operating margin', fmtPct(m.om), 'Pricing power net of cost', 'om', false],
        ['Revenue growth stability', isNum(m.revVol) ? `${fmtNum(m.revVol)} s.d.` : '—', 'Whether the advantage holds through the cycle', 'revVol', true],
-       ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : 'n/a', 'Conversion of the advantage into cash', 'fcfm', false]];
+       ['Free cash flow margin', isNum(m.fcfm) ? fmtPct(m.fcfm) : el('span', { html: absentMark(r, 'fcfm') }), 'Conversion of the advantage into cash', 'fcfm', false]];
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, 'Latest'), el('th', {}, 'Peer pct'), el('th', {}, 'Why it matters')])));
@@ -18376,14 +18553,24 @@ function tabOwnership(r) {
   act.append(tableTwin('Show the table view', ['Year', 'Shares (bn)', 'Change'],
     yearsOf(c).map((y, i) => [`FY${y}`, fmtNum(d.sh[i], 3), i && isNum(d.sh[i]) && isNum(d.sh[i - 1]) && d.sh[i - 1] ? withSign((d.sh[i] - d.sh[i - 1]) / d.sh[i - 1] * 100, 2) : '—'])));
   const kv2 = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
-  [['Share count CAGR', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.dilution, 2)],
-   ['Net buyback yield', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.buyback, 2)],
+  /* An absent figure here says why by the rule the screener uses. Each read
+     "n/m" or "n/a" whatever the cause, or a bare dash: Alphabet's and
+     Amazon's dividend growth "n/m" — "every input is present" — with the
+     dividend line not reported for years the rate reads; Coca-Cola's payout
+     ratio "n/m" and its share-count rate a dash, both withheld for a share
+     count the shipped file misassembled; Adobe's dividend cover "n/a", the
+     mark for a measure that does not apply, beside a dividend line that is
+     not reported. The share-count break keeps "see below", where the note
+     names the step. */
+  const figOr = (k, v, breakNote) => isNum(m[k]) ? v : breakNote ? 'Withheld — see below' : el('span', { html: absentMark(r, k) });
+  [['Share count CAGR', figOr('dilution', withSign(m.dilution, 2), m.shareSeriesBreak)],
+   ['Net buyback yield', figOr('buyback', withSign(m.buyback, 2), m.shareSeriesBreak)],
    /* Withheld on a break inside the five years it reads, not anywhere in
       the series: Alphabet's, absent because no dividend was paid in FY2021,
       read "Withheld" over a split years before its window. */
-   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : m.perShareBreak ? 'Withheld — see below' : 'n/m'],
-   ['Payout ratio', isNum(m.payout) ? fmtPct(m.payout, 0) : 'n/m'],
-   ['Dividends as % of free cash flow', isNum(m.cashPayout) ? fmtPct(m.cashPayout, 0) : 'n/a']]
+   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', figOr('dps5', withSign(m.dps5, 1), m.perShareBreak)],
+   ['Payout ratio', figOr('payout', fmtPct(m.payout, 0))],
+   ['Dividends as % of free cash flow', figOr('cashPayout', fmtPct(m.cashPayout, 0))]]
    .forEach(([k, v]) => { kv2.append(el('dt', {}, k)); kv2.append(el('dd', {}, v)); });
   act.append(kv2);
   /* Share counts arrive from the filings as reported, unadjusted for splits, and
@@ -18767,17 +18954,27 @@ VIEWS.researchReport = () => {
      capital expenditure, free cash flow and cash, which the page omits as
      meaningless on a deposit-taking balance sheet (JPMorgan's headline read
      "Operating cash flow −$147.8B"); and it printed a dividend CAGR across a
-     share-count break the page withholds (Apple, 4.7%). statementLines is
+     share-count break the page withholds (Broadcom). statementLines is
      what the page's table reads, so the report now reads it too. */
   const pageLines = statementLines(row);
   const pageLine = (k) => pageLines.find(l => l.key === k) || null;
   const figs = el('div', { class: 'dr-figs' });
+  /* An absent headline figure says why, by the statement table's reason for
+     the latest-year cell it is read from — net debt from the debt line, then
+     cash. Every one read "Not reported", so Adobe's, Eaton's and Honeywell's
+     net debt, whose debt line is held and withheld for an ingest rule since
+     corrected, were called unreported. */
+  const absentFig = (k) => {
+    const st = (k === 'debt' ? ['debt', 'cash'] : [k]).map(pageLine).filter(Boolean)
+      .map(l => lineCellStatus(row, l, l.arr.length - 1)).find(s => !s.available);
+    return st ? el('span', { title: st.text }, st.label.charAt(0).toUpperCase() + st.label.slice(1)) : 'Not reported';
+  };
   [['Revenue', last(d.rev), 'rev'], [pageLine('ebit')?.label || 'Operating profit', last(d.ebit), 'ebit'], ['Net income', last(d.ni), 'ni'],
    ['Operating cash flow', last(d.ocf), 'ocf'], ['Free cash flow', m.fcf, 'fcf'],
    ['Net debt', m.netDebt, 'debt']].forEach(([label, v, k]) => {
     const na = k === 'debt' ? c.type === 'bank' : !pageLine(k);
     figs.append(reportFig(label,
-      na ? 'Not applicable' : isNum(v) ? fmtCap(v, c.ccy) : 'Not reported',
+      na ? 'Not applicable' : isNum(v) ? fmtCap(v, c.ccy) : absentFig(k),
       !na && isNum(v) ? (k === 'debt' ? (c.real ? 'Calculated — debt less cash' : 'Illustrative') : kindOfLine(k, true)) : null));
   });
   out.append(figs);
@@ -18816,19 +19013,39 @@ VIEWS.researchReport = () => {
   ht.append(el('thead', {}, el('tr', {}, ['Line', ...hy.map(y => `FY${y}`), '4-year CAGR', 'Kind'].map((h, i) =>
     el('th', { style: i === 0 || i === hy.length + 2 ? 'text-align:left' : null }, h)))));
   const hb = el('tbody');
+  let anyWithheld = false;
   REPORT_LINES.filter(k => pageLine(k)).forEach(k => {
     const line = pageLine(k), label = line.label;
     const series = colOf[k] || [];
     const tail = series.slice(-span);
     const g0 = ['rev', 'ebit', 'ni', 'ocf', 'fcf', 'eq', 'dps'].includes(k) ? cagr(series.slice(-5)) : null;
     /* The statement table's rule: a per-share line across a share-count
-       break has no growth rate, only the break. */
-    const withheld = line.perShare && m.shareSeriesBreak && isNum(g0);
+       break has no growth rate, only the break. ACROSS it — so the break
+       that counts is one among the five rows this rate reads
+       (perShareBreak), the test derive() withholds the four-year rates on,
+       not the first break anywhere in the stored years (shareSeriesBreak),
+       which is the test for a rate over the whole series. Keyed on the
+       whole series, Apple's dividend rate read "withheld" over a step
+       between FY2018 and FY2019, outside its window, while Ownership & actions
+       printed its 4.7%; GE's read "withheld" beside the 45.6% the engine
+       holds; and Nvidia's footnote named its FY2021 step rather than the
+       tenfold one inside the window. */
+    const withheld = line.perShare && m.perShareBreak && isNum(g0);
+    if (withheld) anyWithheld = true;
     const g = withheld ? null : g0;
     hb.append(el('tr', {}, [
       el('td', { style: 'text-align:left' }, label),
-      ...tail.map(v => el('td', {}, isNum(v) ? fmtNum(v, k === 'dps' ? 3 : 2) : el('span', { class: 'caption' }, 'not reported'))),
-      el('td', {}, isNum(g) ? fmtPct(g) : withheld ? el('span', { class: 'caption', title: 'The share count jumps inside the stored window — a split, merger or offering — so a growth rate over a per-share line would measure that event. Withheld, as on the company page.' }, 'withheld') : '—'),
+      /* An absent cell takes the statement table's reason for it. Every one
+         read "not reported", so Coca-Cola's and AbbVie's share counts — held,
+         and withheld for an ingest rule since corrected, as the company page
+         says in the same cells — were reported missing: 267 withheld cells
+         across the filed set. */
+      ...tail.map((v, j) => {
+        if (isNum(v)) return el('td', {}, fmtNum(v, k === 'dps' ? 3 : 2));
+        const st = lineCellStatus(row, line, series.length - tail.length + j);
+        return el('td', {}, el('span', { class: 'caption', title: st.text }, st.label));
+      }),
+      el('td', {}, isNum(g) ? fmtPct(g) : withheld ? el('span', { class: 'caption', title: 'The share count jumps between two of the five years this rate reads — a split, merger or offering — so a growth rate over a per-share line would measure that event. Withheld, as on the company page.' }, 'withheld') : '—'),
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, kindOfLine(k)),
     ]));
   });
@@ -18836,7 +19053,11 @@ VIEWS.researchReport = () => {
   out.append(el('div', { class: 'tablewrap' }, ht));
   out.append(el('p', { class: 'metaline' },
     `Billions of ${c.ccy}, except shares (billions) and dividend per share (${c.ccy}). Fiscal-year labels are the company’s own. A CAGR needs a positive figure at both ends of the window and is otherwise left blank.`
-    + (m.shareSeriesBreak ? ` A per-share CAGR is withheld: the share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn between two years held — a split, merger or offering, which the filings are not restated for.` : '')
+    /* Said where a rate above was withheld, naming the step it was
+       withheld on. It fired on any break in the stored years, so Alphabet's
+       report said a per-share CAGR was withheld beside a dividend row that
+       has no rate to withhold. */
+    + (anyWithheld ? ` A per-share CAGR is withheld: the share count moves from ${fmtNum(m.perShareBreak.from, 2)}bn to ${fmtNum(m.perShareBreak.to, 2)}bn between two of the five years that rate reads — a split, merger or offering, which the filings are not restated for.` : '')
     + (c.type === 'bank' ? ' Operating cash flow, capital expenditure, free cash flow and cash are not shown for a bank, as on the company page: they are not meaningful measures for a deposit-taking balance sheet.' : '')));
 
   /* ---------- 6. valuation and the reader's assumptions ---------- */
@@ -18917,6 +19138,17 @@ VIEWS.researchReport = () => {
    a Tab — and renderKeepFocus returns it to the redrawn control with that id.
    Every control that redraws through this carries a stable id. */
 const redrawKeepFocus = () => setTimeout(renderKeepFocus, 0);
+
+/* A SENTENCE IN A TABLE CELL WRAPS BETWEEN WORDS, NEVER INSIDE ONE.
+   .caption carries overflow-wrap:anywhere (styles.css, for 62-letter XBRL
+   tags), which takes a column's narrowest width down to one letter. Beside
+   columns that do not wrap, a phone gave the prose column that width: at
+   390px the confidence table's "Rule" was 53px and the nine methods' "Basis"
+   58px, "describes", "unmeasurable", "cyclical" and "commodity" were cut in
+   two, and one Basis cell ran to 880px tall. 'normal' keeps each word whole
+   and 12rem is a measure a sentence can be read at; each table scrolls in its
+   .tablewrap, as the IPS tables (IPS_PROSE_CELL, 79-ips-views.js) already do. */
+const STUDIO_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
 
 /* Net debt, the share count and the reader's own adjustment — shared by the
    two packs whose value is an enterprise value bridged to equity. */
@@ -19556,7 +19788,7 @@ function studioOutputs(r, inputs, redraw) {
         x.primary ? `${x.name} · primary` : x.name),
       el('td', { html: isNum(x.value) ? fmtMoney(x.value, c.ccy) : NA }),
       el('td', { class: diffClass(mos), html: isNum(mos) ? withSign(mos, 0) : '<span class="caption">—</span>' }),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:320px' }, x.why),
+      el('td', { class: 'caption', style: `${STUDIO_PROSE_CELL};max-width:320px` }, x.why),
     ]);
   })));
   ntw.append(nt); nineCard.append(ntw);
@@ -19762,10 +19994,10 @@ function explainConfidence(run) {
       el('td', { style: 'text-align:left' }, part),
       el('td', { style: 'text-align:left;white-space:normal' }, reading),
       el('td', { class: 'num' }, isNum(pts) ? `${pts} of ${of}` : `— of ${of}`),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, rule),
+      el('td', { class: 'caption', style: STUDIO_PROSE_CELL }, rule),
     ])),
     el('tr', {}, [el('td', { style: 'text-align:left;font-weight:600' }, 'Total'), el('td', {}, ''),
-      el('td', { class: 'num', style: 'font-weight:600' }, `${run.conf} of 100`), el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, '78 or more reads High; 58 or more, Medium; anything less, Low.')]),
+      el('td', { class: 'num', style: 'font-weight:600' }, `${run.conf} of 100`), el('td', { class: 'caption', style: STUDIO_PROSE_CELL }, '78 or more reads High; 58 or more, Medium; anything less, Low.')]),
   ]));
   tw.append(t); det.append(tw);
   if (p.caps.length) det.append(el('ul', { class: 'ticklist', style: 'margin-top:8px' }, p.caps.map(x => el('li', {}, x))));
@@ -21529,7 +21761,13 @@ VIEWS.portfolio = () => {
   const xa = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   if (!lim('crossAsset')) {
     xa.append(cardHead('Cross-asset net worth', 'Equities and property in one place, with allocation, combined cash flow and leverage.'));
-    xa.append(upsell('Combine shares and property', 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
+    /* All-Access is not on sale (PLANS.all.launched is false). The offer read
+       "All-Access adds the property portfolio to this view" above "See
+       plans", as if the tier could be bought there. It says what the tier
+       would add, and that it can only be previewed. */
+    xa.append(upsell('Combine shares and property', PLANS.all.launched === false
+      ? 'All-Access would add the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It has not launched and cannot be bought; the plans page can preview it in this browser.'
+      : 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
   } else {
     const dm = dealModel(State.deal);
     /* The carrying value is the price. Back-computing it from the exit value
@@ -28730,7 +28968,17 @@ function loanReadiness(b, m) {
     if (variable > 0 && lookback < 3) notes.income += ' A variable component with under three months of history is not evidence of recurring income.';
   } else { scores.income = null; notes.income = 'No verified net income entered.'; unknowns.push('income'); }
 
-  if (isNum(m?.safeCashRequired) && m.safeCashRequired > 0) {
+  /* Not against a requirement that is short. With a line unpriced — the
+     reserve, whenever the instalment cannot be computed — the total is what
+     is priced so far, and the buffer scored against it and said "required,
+     including the reserve" when the reserve was the line missing. It is
+     open until the requirement is whole, as the total below it already is. */
+  const shortBy = m?.missingCostLines || [];
+  if (shortBy.length) {
+    scores.buffer = null;
+    notes.buffer = `The cash requirement is incomplete — ${shortBy.length === 1 ? 'one line' : `${shortBy.length} lines`} could not be priced (${shortBy.map(x => x.label.toLowerCase()).join(', ')}) — so the buffer cannot be tested against it.`;
+    unknowns.push('liquid buffer');
+  } else if (isNum(m?.safeCashRequired) && m.safeCashRequired > 0) {
     const cash = num0(b.liquidCashAvailable);
     scores.buffer = Math.round(clamp(cash / m.safeCashRequired * 100, 0, 100));
     notes.buffer = cash >= m.safeCashRequired
@@ -28911,7 +29159,15 @@ function propertyGrade(d, m) {
     gates.push({ id:'breakeven', severity:'serious',
       text:`Cannot break even at the entered rent and cost structure. It would need ${fmtPct(m.breakEvenOccupancy, 0)} occupancy, and 100% is the maximum.`,
       caps:null });
-  if (!isNum(m.reserveCash) || m.reserveCash <= 0)
+  /* An unpriced reserve is not a missing one. With a loan tenure of 0 the
+     reserve could not be priced, and this said "No safe reserve is held after
+     completion" while the reader's months of reserve stood in the ledger. The
+     gate and its cap are unchanged; the sentence says which it is. */
+  if (m.reserveComputable === false)
+    gates.push({ id:'no-reserve', severity:'serious',
+      text:'The reserve cannot be priced: the loan’s instalment could not be computed from the entered tenure, so neither can the months of it the reserve has to cover. Until it is, nothing shows a vacancy or a major repair could be met without new borrowing.',
+      caps:'B' });
+  else if (!isNum(m.reserveCash) || m.reserveCash <= 0)
     gates.push({ id:'no-reserve', severity:'serious',
       text:'No safe reserve is held after completion. A single vacancy or major repair would have to be funded by new borrowing.',
       caps:'B' });
@@ -29204,8 +29460,10 @@ function dealModel(d) {
   /* Which lines exist but cannot yet be priced. Carried on the model so every
      total that depends on them can say it is incomplete rather than presenting
      a short number as though it were the answer. */
+  /* The group's id travels with each line, so a total can ask whether a
+     missing line is one of its own without matching on label text. */
   const missingCostLines = costGroups.flatMap(g =>
-    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, label: it[0], why: it[2]?.why })));
+    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, groupId: g.id, label: it[0], why: it[2]?.why })));
 
   /* How much of the completion cash rests on a figure nobody has checked. A
      placeholder total looks exactly like a finished one, so the proportion has
@@ -29683,7 +29941,7 @@ function dealModel(d) {
      reserveComputable ? null : { status:'unset', why:'The instalment or the running costs could not be computed, so the reserve cannot be either.' }]] });
   /* Recomputed after the reserve is pushed, so an unpriced reserve is reported
      as a missing line rather than quietly leaving the total short. */
-  if (!reserveComputable) missingCostLines.push({ group:'Emergency reserve',
+  if (!reserveComputable) missingCostLines.push({ group:'Emergency reserve', groupId:'reserve',
     label:'Emergency reserve', why:'The instalment or the running costs could not be computed.' });
 
   /* ---- the three cash figures (specification 29.1) --------------------- */
@@ -29699,8 +29957,15 @@ function dealModel(d) {
   const groupTotal = (id) => sumPriced((costGroups.find(g => g.id === id)?.items || []).map(it => it[1]));
   const transactionCash = groupTotal('acquisition') + groupTotal('financing');
   const improvementCash = groupTotal('improvement');
-  const reserveCash = groupTotal('reserve');
-  const safeCashRequired = transactionCash + improvementCash + reserveCash;
+  /* A reserve that cannot be priced is unknown, not nought. The group's only
+     line is null then, and summing the priced lines of a group with none
+     priced gave 0 — so with a loan tenure of 0 the ledger read "Cash to keep
+     untouched RM0 — 3 months of instalment and owner-paid running costs", and
+     the grade's gate said no reserve was held at all, beside the reader's own
+     three months. The safe-cash total still adds what is priced and names
+     the reserve among its missing lines, as it always did. */
+  const reserveCash = reserveComputable ? groupTotal('reserve') : null;
+  const safeCashRequired = transactionCash + improvementCash + num0(reserveCash);
 
   /* Directive 6.3 asks for four totals, not three. The fourth is what has
      already left the buyer's account — a booking or earnest deposit paid at
@@ -30236,6 +30501,17 @@ const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
 /* Whether the borrower's financing disclosure is open — see its <details>. */
 let borrowerPanelOpen = false;
 
+/* A SENTENCE IN A TABLE CELL WRAPS BETWEEN WORDS, NEVER INSIDE ONE.
+   The grade's "Basis" column and the financing components' carried .caption,
+   whose overflow-wrap:anywhere (styles.css, for 62-letter XBRL tags) takes a
+   column's narrowest width down to one letter. Beside three columns that do
+   not wrap, a phone gave each Basis cell that width: at 390px it was 58px,
+   "transacted", "property", "modelled" and "checklist" were cut in two
+   and one cell ran to 720px tall. 'normal' keeps each word whole and 12rem is
+   a measure a sentence can be read at; the table scrolls in its .tablewrap,
+   as the IPS tables (IPS_PROSE_CELL, 79-ips-views.js) already do. */
+const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
+
 VIEWS.property = () => {
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
@@ -30302,12 +30578,24 @@ VIEWS.property = () => {
      fold on a phone behind the grade, the verdict and the gates.
      A grade answers "is this a good deal". These answer "can I". */
   const strip = el('div', { class: 'capstrip' });
-  [['Cash to complete', fmtAmount(m.transactionCash, 'MYR')],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR')],
+  /* What is still to be paid, as the decision record and the ledger's "Cash
+     still to complete" both say. This printed the whole completion figure,
+     booking deposit included, so with RM5,000 paid at offer the page read
+     "Cash to complete RM95.3k — Paid out on completion day" and the record
+     carried out of the browser read RM90,254 under the same name. */
+  /* And a safe cash that is short says so here, first, as the tile below it
+     and the ledger do. With the reserve unpriced (a loan tenure of 0) the
+     strip read "Safe cash required RM121.8k" as the answer, above a tile
+     that said the same figure was short by the reserve. */
+  const stripShort = (m.missingCostLines || []).length;
+  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR')],
+   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+     stripShort ? `So far — ${stripShort === 1 ? 'a line is' : `${stripShort} lines are`} unpriced` : null],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—']]
-    .forEach(([k, v], i) => strip.append(el('div', {}, [
+    .forEach(([k, v, short], i) => strip.append(el('div', {}, [
       el('span', { class: 'eyebrow', style: 'display:block;margin-bottom:2px' }, k),
       el('span', { class: 'num', style: `font-size:20px;font-weight:700${i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? ';color:var(--dn-text)' : ''}` }, v),
+      short ? el('span', { class: 'caption', style: 'display:block;color:var(--bronze)' }, short) : null,
     ])));
   onePage.append(strip);
 
@@ -30458,8 +30746,16 @@ VIEWS.property = () => {
   }
 
   const answers = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
-  [['Cash to complete', fmtAmount(m.transactionCash, 'MYR'), 'Paid out on completion day'],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'), 'Including rent-ready and the reserve'],
+  /* "Including the reserve" when the reserve was the line that could not be
+     priced: a tenure of 0 left it out of the total and the tile said it was
+     in. A short total says it is short, as the ledger's does. */
+  const unpricedLines = m.missingCostLines || [];
+  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
+     m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
+   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+     unpricedLines.length
+       ? `Short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
+       : 'Including rent-ready and the reserve'],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
      m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
    ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
@@ -30479,7 +30775,7 @@ VIEWS.property = () => {
     el('td', { class: 'num' }, `${p.weight}%`),
     el('td', { class: 'num' }, isNum(p.score) ? String(p.score)
       : el('span', { class: 'caption' }, p.applies === false ? 'does not apply' : 'not tested')),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, p.note || ''),
+    el('td', { class: 'caption', style: PROPERTY_PROSE_CELL }, p.note || ''),
   ])));
   pt.append(pb);
   pw.append(el('div', { class: 'tablewrap' }, pt));
@@ -30616,7 +30912,7 @@ VIEWS.property = () => {
       el('td', { style: 'text-align:left' }, c.label),
       el('td', { class: 'num' }, `${c.weight}%`),
       el('td', { class: 'num' }, isNum(c.score) ? String(c.score) : el('span', { class: 'caption' }, 'not tested')),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, c.note || ''),
+      el('td', { class: 'caption', style: PROPERTY_PROSE_CELL }, c.note || ''),
     ])));
     ct.append(cb);
     bd.append(el('div', { class: 'tablewrap' }, ct));
@@ -31475,8 +31771,14 @@ VIEWS.property = () => {
        ? `Completion needs ${fmtAmount(m.transactionCash, 'MYR')} in total, less what you have already paid.`
        : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
    ['Cash to make rent-ready', m.improvementCash, 'Spent after completion before the property can earn: renovation, furnishing and deposits.'],
-   ['Cash to keep untouched', m.reserveCash, `${m.reserveMonths} months of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`],
-   ['Safe cash required', m.safeCashRequired, 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
+   /* Unknown when it cannot be priced, and the tile says why rather than
+      printing RM0 beside "3 months of instalment". */
+   ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
+     ? `${m.reserveMonths} months of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
+     : `${m.reserveMonths} months of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
+   ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
+     ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
+     : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
     .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel' },
       statTile(label, fmtAmount(amount, 'MYR'), { sub, tone: i === arr.length - 1 ? '--brand' : null }))));
   cash.append(threeCash);
@@ -38717,16 +39019,16 @@ function scanOpsStatus() {
     historyMeta: scanOpsHistoryMeta(scanOpsHistory()), control: scanControlFile, now: scanOpsNow(),
     instruments: scanOpsRegistry(), alertState: null });
 }
-/* The setups the worker refuses, and the problems it refuses them for.
-   scanStatus's active.refused counts problems, and one setup can have
-   several: a setup refused for a bad timeframe and a bad group read "2
-   refused" of the one setup. A file that is not a list is refused whole. */
-function scanOpsRefused(doc) {
-  if (!doc) return { setups: 0, problems: 0, file: null };
-  const v = scanValidate(doc);
-  const keys = Object.keys(v.problemsBySetup || {});
-  return { setups: keys.filter(k => k !== '').length, problems: v.problems.length, file: keys.includes('') ? v.problems[0] || 'refused' : null };
-}
+/* The setups the worker refuses, and the problems it refuses them for,
+   read off scanStatus's `active` — the counts --status prints — never
+   counted again here. This page counted the ids the problems were keyed
+   under, and two entries sharing an id are keyed once though the worker
+   refuses both: a file of [a, a, b] read "1 setup refused, for 2 problems"
+   beside --status's "2 refused". A setup refused for two problems is still
+   one setup (the engine counts entries, not problems). A file that is not
+   a list is refused whole, and how many setups it meant to hold is not
+   known: refused is null there, and the reason is `file`. */
+const scanOpsRefused = (active) => ({ setups: active?.refused ?? null, problems: active?.problems ?? 0, file: active?.fileRefused || null });
 /* The alerts pages' unread count, guarded: null when that function is not
    in this build, or when it has no alerts file to count. */
 function scanOpsUnread() {
@@ -38968,11 +39270,18 @@ function scanRunCatchUpText(r) {
     : `; ${typeof cut === 'string' ? cut : `${many(cut, 'pair', 'pairs')} reached the cap`}, so bars older than the cap were not evaluated — node scanner/scan.mjs --as-of DATE evaluates one on purpose`;
   return `${many(pairs, 'setup × instrument pair', 'setup × instrument pairs')} caught up over ${many(bars, 'bar', 'bars')} since each one’s last evaluated bar${tail}`;
 }
+/* A run whose ledger write failed (written: false — the run is PARTIAL,
+   with an IO problem) recorded none of its new versions: they were read
+   "recorded for the first time" over a ledger that holds none of them. They
+   are new and not recorded, and why is among the run's problems; the next
+   run that writes the ledger numbers them the same way. A record from a
+   worker that does not write `written` reads as before. */
 function scanRunLedgerText(r) {
   const l = r?.ledger;
   if (!l || typeof l !== 'object') return SCAN_NOT_WRITTEN;
   const f = (v) => (scanOpsN(v) == null ? 'not recorded' : fmtNum(scanOpsN(v), 0));
-  return `${f(l.known)} version${scanOpsN(l.known) === 1 ? '' : 's'} already in the ledger · ${f(l.newVersions)} recorded for the first time · ${f(l.refused)} refused${scanOpsN(l.refused) ? ' — a version number reused with other content; the run’s problems name it' : ''}`;
+  const unwritten = l.written === false;
+  return `${f(l.known)} version${scanOpsN(l.known) === 1 ? '' : 's'} already in the ledger · ${f(l.newVersions)} ${unwritten ? 'new, not recorded' : 'recorded for the first time'} · ${f(l.refused)} refused${scanOpsN(l.refused) ? ' — a version number reused with other content; the run’s problems name it' : ''}${unwritten ? ' · the ledger could not be written; the run’s problems say why' : ''}`;
 }
 const scanRunCacheText = (cs) => (cs && typeof cs === 'object' && (Number.isFinite(cs.hits) || Number.isFinite(cs.misses))
   ? `${Number.isFinite(cs.hits) ? fmtNum(cs.hits, 0) : 'not recorded'} reused, ${Number.isFinite(cs.misses) ? fmtNum(cs.misses, 0) : 'not recorded'} computed` : null);
@@ -39139,7 +39448,7 @@ VIEWS.scannerDashboard = () => {
   ]);
   const a = st.active;
   const setupsDoc = scanOpsSetupsDoc();
-  const refused = scanOpsRefused(setupsDoc);
+  const refused = scanOpsRefused(a);
   tiles.append(tile('Are my setups active?',
     setupsDoc ? `${a.enabled - a.expired} active` : 'No setups file',
     setupsDoc ? [`${a.valid} valid in data/scan-setups.json: ${a.enabled} enabled, ${a.disabled} disabled, ${a.expired} expired.`,
@@ -39847,7 +40156,7 @@ VIEWS.scannerAdmin = () => {
     el('p', { class: 'metaline' }, [`${st.notifications.text} `, scanOpsLink('/admin/scanner/delivery', 'Delivery')])));
 
   /* 7 — usage. */
-  const a = st.active, refused = scanOpsRefused(scanOpsSetupsDoc());
+  const a = st.active, refused = scanOpsRefused(a);
   wrap.append(panel('Usage', 'On this machine. There are no users to count.',
     el('dl', { class: 'kv scan-kv' }, [el('dt', {}, 'Active setups'), el('dd', {}, scanOpsSetupsDoc()
       ? `${a.enabled - a.expired} (of ${a.valid} valid, ${refused.file ? 'the whole file refused' : `${refused.setups} refused`})` : 'no setups file'),
@@ -40005,8 +40314,13 @@ VIEWS.scannerAdminData = () => {
   const brk = el('section', { class: 'card', 'aria-label': 'Price breaks and adjustments' });
   brk.append(cardHead('Price breaks and adjustments', 'A close-to-close move above ×1.5 or below ×0.67 is a break. No corporate-action feed is held: a break is explained only by an action you record, and until then no indicator is computed across it (INVALID_INPUT, UNADJUSTED_BREAK).'));
   const adj = H.adjustments;
+  /* A file with no list of actions is refused whole: its one problem has no
+     entry (index null), and it read "0 actions read, 1 entry refused" over
+     a list saying "the file: no list of actions". Entries are counted as
+     entries; the file refused whole says so. */
+  const refusedEntries = adj.problems.filter(p => p.index != null).length, refusedWhole = adj.problems.some(p => p.index == null);
   const fileLine = scanAdjustmentsFile || adj.actions.length
-    ? el('p', { class: 'metaline' }, `data/price-adjustments.json — ${scanOpsPlural(adj.actions.length, 'action')} read${adj.version !== 'none' ? ` (${adj.version})` : ''}${adj.problems.length ? `, ${scanOpsPlural(adj.problems.length, 'entry', 'entries')} refused` : ''}.`)
+    ? el('p', { class: 'metaline' }, `data/price-adjustments.json — ${refusedWhole ? 'refused whole, so no action is read from it' : `${scanOpsPlural(adj.actions.length, 'action')} read`}${adj.version !== 'none' ? ` (${adj.version})` : ''}${refusedEntries ? `, ${scanOpsPlural(refusedEntries, 'entry', 'entries')} refused` : ''}.`)
     : scanOpsFileState('price-adjustments.json', null, 'You write it yourself: tick a break below, download the file and save it beside data/price-history.json.');
   fileLine.style.marginBottom = 'var(--sm)';
   brk.append(fileLine);
@@ -41385,19 +41699,31 @@ VIEWS.plans = () => {
   const grid = el('div', { class: 'grid g-3', style: 'align-items:start' });
   Object.values(PLANS).forEach(pl => {
     const active = State.plan === pl.id;
+    /* A TIER THAT IS NOT ON SALE DOES NOT LOOK LIKE ONE THAT IS.
+       All-Access carries launched:false, and the registry's own note says a
+       tier nobody can obtain must not appear purchasable — yet its card was
+       built exactly like the others: "Phase 2", RM79 a month in the price's
+       type, and a primary "Switch to All-Access" button. The switch is what
+       every card's button is, a local change of entitlements, and it still
+       is; what changes is what the card says. The price is the proposed one
+       and says so, the chip says the tier is not on sale, and the button says
+       it previews the tier in this browser. Whether the prototype's switcher
+       should reach an unlaunched tier at all is a product decision this does
+       not make. */
+    const onSale = pl.launched !== false;
     const card = el('div', { class: 'card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
       el('h3', { class: 'h-card' }, pl.name),
-      active ? el('span', { class: 'chip chip-brand' }, 'Current') : null,
-      pl.id === 'all' ? el('span', { class: 'chip' }, 'Phase 2') : null,
+      active ? el('span', { class: 'chip chip-brand' }, onSale ? 'Current' : 'Previewing') : null,
+      onSale ? null : el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
     ]));
     card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, pl.tagline));
     card.append(el('div', { class: 'row', style: 'gap:6px;align-items:baseline;margin-bottom:2px' }, [
-      el('span', { style: 'font-size:24px;font-weight:700;letter-spacing:-.02em' }, pl.priceMo ? `RM${pl.priceMo}` : 'RM0'),
-      el('span', { class: 'metaline' }, pl.priceMo ? '/month' : 'forever'),
+      el('span', { style: `font-size:24px;font-weight:700;letter-spacing:-.02em${onSale ? '' : ';color:var(--ink-3)'}` }, pl.priceMo ? `RM${pl.priceMo}` : 'RM0'),
+      el('span', { class: 'metaline' }, !pl.priceMo ? 'forever' : onSale ? '/month' : '/month proposed — it cannot be bought'),
     ]));
     if (pl.priceYr) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' },
-      `or RM${pl.priceYr} a year${pl.founding ? ` · founding offer RM${pl.founding} for the first year, ${pl.foundingSeats} seats` : ''}`));
+      `${onSale ? 'or' : 'Proposed at'} RM${pl.priceYr} a year${pl.founding ? ` · founding offer RM${pl.founding} for the first year, ${pl.foundingSeats} seats` : ''}`));
     card.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--md)' }, pl.blurb));
     /* The size of what is being sold, taken from the universe on screen rather
        than written into the copy, so it cannot be left behind when the universe
@@ -41438,9 +41764,12 @@ VIEWS.plans = () => {
     const dl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
     rows.forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', {}, v)); });
     card.append(dl);
-    card.append(el('button', { class: active ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm', style: 'width:100%',
+    card.append(el('button', { class: active || !onSale ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm', style: 'width:100%',
       disabled: active ? '' : null, onclick: () => setPlan(pl.id) },
-      active ? 'Current plan' : `Switch to ${pl.name}`));
+      active ? (onSale ? 'Current plan' : 'Previewing in this browser')
+        : onSale ? `Switch to ${pl.name}` : `Preview ${pl.name} in this browser`));
+    if (!onSale) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      `${pl.name} has not launched and cannot be bought. The preview turns on its entitlements here, as the switch on every card does, so the view it adds can be inspected.`));
     grid.append(card);
   });
   wrap.append(grid);
@@ -42414,20 +42743,37 @@ function decisionRecordProperty() {
   ]));
 
   /* ---- what it comes to ------------------------------------------------ */
+  /* A TOTAL WITH A LINE MISSING SAYS SO. With a loan tenure of 0 the reserve
+     cannot be priced, and the safe cash is what is priced so far — the
+     calculator's ledger reads "Total initial cash so far … This is not the
+     full amount". The record printed "Safe cash RM121,754" as the answer, on
+     the page that is carried to a lender. Each total now names the lines it
+     is short by: completion is the acquisition and financing lines, safe cash
+     is every line. */
+  const unpriced = m.missingCostLines || [];
+  const shortOf = (groups) => unpriced.filter(x => !groups || groups.includes(x.groupId));
   const figs = el('div', { class: 'dr-figs' });
-  [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null],
-   ['Safe cash', isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null],
+  [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null,
+     shortOf(['acquisition', 'financing'])],
+   ['Safe cash', isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null, shortOf(null)],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtMoney(m.cashflowMonthly, 'MYR', 0) : null],
    ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : null],
    ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null],
    ['Grade', g.grade || null]]
-    .forEach(([k, v]) => figs.append(el('div', { class: 'dr-fig' }, [
+    .forEach(([k, v, short]) => figs.append(el('div', { class: 'dr-fig' }, [
       el('div', { class: 'caption' }, k),
       /* A withheld figure is printed as a withheld figure. An em dash in a
          document somebody carries into a bank is better than a zero. */
       el('div', { class: 'dr-fig-v' }, v ?? 'Not computed'),
+      v != null && short?.length ? el('div', { class: 'caption', style: 'color:var(--bronze)' }, 'So far — short, see below') : null,
     ])));
   out.append(figs);
+  if (unpriced.length) out.append(el('p', { class: 'dr-warn' },
+    `Not the full amount. ${unpriced.length === 1 ? 'One cost line has' : `${unpriced.length} cost lines have`} no value — `
+    + `${unpriced.map(x => x.label.toLowerCase()).join(', ')} — so `
+    + `${shortOf(['acquisition', 'financing']).length ? 'the cash to complete and the safe cash are' : 'the safe cash is'} `
+    + `short by whatever ${unpriced.length === 1 ? 'it comes' : 'they come'} to. `
+    + `${unpriced.length === 1 ? 'It is' : 'They are'} unpriced rather than zero, and this tool will not guess.`));
 
   /* ---- what it rests on ------------------------------------------------ */
   out.append(el('h2', {}, 'What these figures rest on'));
@@ -42454,15 +42800,30 @@ function decisionRecordProperty() {
   out.append(tw);
   gridKeyboard(t, 'What these figures rest on. Use the arrow keys to move between cells.');
 
-  /* PRE-TAX OR AFTER-TAX IS NOT A FOOTNOTE.
-     Every figure above changes when a marginal rate is entered, and a reader
-     carrying this to a lender needs to know which they are holding. */
-  out.append(el('p', { class: m.taxComputed ? 'metaline' : 'dr-warn', style: 'margin-top:var(--sm)' },
-    m.taxComputed
-      ? `Figures are after tax on the rent at ${fmtPct(d.marginalTaxPct, 0)}, totalling ${fmtMoney(m.cumTax, 'MYR', 0)} `
-        + `across the hold. Loan interest is deducted and principal is not. Nothing here is tax advice.`
-      : 'Every figure in this record is BEFORE tax on the rent. No marginal rate has been entered, so no tax has been '
-        + 'computed — the cash figures show what the property produces, not what an owner keeps.'));
+  /* PRE-TAX OR AFTER-TAX IS NOT A FOOTNOTE, AND NOT ONE ANSWER FOR THE PAGE.
+     A reader carrying this to a lender needs to know which they are holding.
+     "Figures are after tax" was printed whenever a rate was entered, and was
+     wrong twice. Only the rate of return is built from the after-tax year
+     flows: the monthly position and the break-even rent are the model's pre-
+     tax figures (model-test holds cashflowMonthly to year one BEFORE tax), so
+     at 30% on RM6,000 of rent the record printed the same RM2,391 a month as
+     with no rate, under a sentence saying it was after tax. And with a loan
+     whose instalment cannot be computed — a tenure of 0 — no year's interest
+     is known, so no tax is, and it read "after tax on the rent at 24%,
+     totalling — across the hold" above a row of "Not computed". It now says
+     which figure carries the tax, and when none can. */
+  const taxKnown = m.taxComputed && isNum(m.cumTax);
+  out.append(el('p', { class: taxKnown ? 'metaline' : 'dr-warn', style: 'margin-top:var(--sm)' },
+    !m.taxComputed
+      ? 'Every figure in this record is BEFORE tax on the rent. No marginal rate has been entered, so no tax has been '
+        + 'computed — the cash figures show what the property produces, not what an owner keeps.'
+      : !taxKnown
+        ? `No tax on the rent has been computed, although a marginal rate of ${fmtPct(d.marginalTaxPct, 0)} is entered. `
+          + 'The loan’s instalment could not be computed from the entered tenure, so neither can the interest inside it — '
+          + 'the deduction that decides the tax. No figure in this record is after tax.'
+        : `The rate of return is after tax on the rent at ${fmtPct(d.marginalTaxPct, 0)}, which comes to `
+          + `${fmtMoney(m.cumTax, 'MYR', 0)} across the hold; loan interest is deducted and principal is not. `
+          + 'The monthly position and the break-even rent are before tax. Nothing here is tax advice.'));
 
   const unreviewed = propertyReviewQueue(d);
   if (unreviewed.length) out.append(el('p', { class: 'dr-warn' },
