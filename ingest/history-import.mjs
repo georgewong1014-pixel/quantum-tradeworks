@@ -5,8 +5,10 @@
  *   node ingest/history-import.mjs --in KLSE.csv --symbol KLSE
  *   node ingest/history-import.mjs --in "OANDA_XAUUSD, 1D.csv"   (TradingView's name: XAUUSD)
  *   node ingest/history-import.mjs --dir exports/          (symbol from filename)
+ *   node ingest/history-import.mjs --in "OANDA_XAUUSD, 1W.csv"   (a weekly export: into frames['1W'])
  *   ... [--out file] [--keep 2000] [--tz Area/City] [--captured-at ISO] [--market MY]
  *   ... [--adjusted provider|none|unknown]                 (default unknown)
+ *   ... [--interval 1D|1W|1M]                              (when the file name does not say)
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHY THIS EXISTS
@@ -35,7 +37,21 @@
  *   tick count, the broker's count of price changes: kept as given, and the
  *   output says so. TradingView names a file "<EXCHANGE>_<SYMBOL>,
  *   <INTERVAL>.csv": without --symbol the symbol is read from that name, and
- *   a file whose name says an interval other than the day is refused.
+ *   so is the timeframe — 1D to the daily series, 1W and 1M to the
+ *   history's frames (below); any other interval (240, 2W) is refused.
+ *
+ * WEEKS AND MONTHS
+ *   A daily export reaches back only as far as the chart was scrolled, and
+ *   weeks or months built from it are too few for a monthly MACD or
+ *   WaveTrend. A weekly or monthly export is imported as it is: TradingView
+ *   stamps each period at its opening, so the stamp is dated by the day
+ *   rule below to the period's first session, and the bar is filed under
+ *   the engine's key for that period (the Monday of the week, the 1st of the
+ *   month) in frames['1W'] or frames['1M'] — beside the daily series, never
+ *   in it. The store validates it on that first session, ranks it, records
+ *   a correction, trims each frame to the keep and writes the rejects file,
+ *   as it does for a day. The week or month still trading when the file was
+ *   saved is PROVISIONAL until an import made after its last session.
  *
  * DATES
  *   ISO dates are read as written. A 10- or 13-digit epoch, or a date-time
@@ -78,7 +94,8 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { updateHistory, mergeBars, describeMerge, rejectsPathFor, engine, loadInstruments, marketOf, parseDateCell, eveningOpen, csvRows, numberCell, KEEP } from './history-store.mjs';
+import { updateHistory, mergeBars, mergeFrameBars, describeMerge, rejectsPathFor, engine, loadInstruments, marketOf, parseDateCell, eveningOpen, csvRows, numberCell,
+         periodKey, periodStatus, periodLastSession, KEEP } from './history-store.mjs';
 
 const DATE_KEYS  = ['date', 'time', 'timestamp', 'datetime'];
 const CLOSE_KEYS = ['close', 'last', 'price', 'adj close', 'adjclose', 'close/last'];
@@ -116,12 +133,41 @@ export function tradingViewName(file) {
   const m = basename(String(file), extname(String(file))).match(/^(.+)_([^_,\s]+),\s*([0-9]*[A-Za-z]*)(?:\s*\(\d+\))?$/);
   return m ? { exchange: m[1].toUpperCase(), symbol: m[2].toUpperCase(), interval: m[3] } : null;
 }
-/* One bar per session is what the history holds. A weekly export's bars
-   are stamped at each week's first session and would be read as that day's
-   — the week's close written over Monday's — so a TradingView file whose
-   name says any interval but the day is refused. An intraday one would be
+/* One bar per session is what the daily series holds. A weekly export's
+   bars are stamped at each week's first session and, read as daily ones,
+   would put the week's close on its Monday; such a file was refused by its
+   name. A weekly or monthly export now goes to the history's frames
+   instead (exportTimeframe), filed by period. An intraday one would be
    refused anyway, every bar of a session a DUPLICATE_DATE. */
 export const isDailyInterval = (interval) => /^1?D$/i.test(String(interval || ''));
+/* The timeframe an export holds, from its interval as TradingView writes it
+   in the file name ("1D", "1W", "1M") or as --interval gives it: the day,
+   the week or the month. The month is a capital M only — TradingView names
+   minutes by number ("60", "240"), but "1m" beside "5m" and "15m" is a
+   minute wherever else it is written, and the engine's scanTimeframe draws
+   the same line. Null for anything else: an intraday or a multi-period
+   export (240, 2W, 3M) is refused, never read as one bar per period. */
+export function exportTimeframe(interval) {
+  const s = String(interval ?? '').trim();
+  if (isDailyInterval(s)) return '1D';
+  if (/^1?W$/i.test(s)) return '1W';
+  if (/^1?M$/.test(s)) return '1M';
+  return null;
+}
+const UNIT = { '1W': 'week', '1M': 'month' };
+/* What reads imported weeks and months today. The engine's weekly and
+   monthly bars are still built from the daily series (scanResample); the
+   frames are held for the day they are read in their place. When that
+   lands, this sentence is the one to change. */
+export const FRAMES_READ = 'held beside the daily series; the scanner\'s weekly and monthly bars are still built from the daily bars until the engine reads imported ones';
+
+/* markAdjusted for an imported week or month: its meta is the frame's,
+   keyed by period. */
+export function markFrameAdjusted(hist, timeframe, symbol, source, rows, adjusted, E) {
+  const meta = hist.frames?.[timeframe]?.[symbol]?.meta;
+  if (!meta) return 0;
+  return markAdjusted({ meta: { [symbol]: meta } }, symbol, source, (rows || []).map(r => ({ date: periodKey(E, timeframe, r?.date) })), adjusted);
+}
 
 /* The columns an import reads. Everything else in the file — a TradingView
    export carries every indicator on the chart, one column per plot — is not
@@ -180,14 +226,23 @@ async function main() {
   const symbolA = flag('symbol', null);
   const outPath = resolve(flag('out', 'data/price-history.json'));
   const KEEP_N  = Number(flag('keep', KEEP));
+  /* The timeframe of a file whose name does not say it (TradingView's
+     does): 1D, the default, 1W or 1M. */
+  const intervalFlag = flag('interval', null);
+  const intervalTf = intervalFlag ? exportTimeframe(intervalFlag) : null;
 
   if (!inPath && !inDir) {
     console.error(`usage:
   node ingest/history-import.mjs --in <file.csv> --symbol <SYMBOL>
   node ingest/history-import.mjs --dir <folder>        (symbol taken from each filename)
+  ... [--interval 1D|1W|1M]   (TradingView's file name says it: "OANDA_XAUUSD, 1W.csv")
 
 Export from TradingView: open the chart, then the menu beside the symbol >
-"Export chart data…" > CSV. One file per instrument.`);
+"Export chart data…" > CSV. One file per instrument and timeframe.`);
+    process.exit(1);
+  }
+  if ((argv.includes('--interval') && !intervalFlag) || (intervalFlag && !intervalTf)) {
+    console.error(`--interval "${intervalFlag ?? ''}" is not 1D, 1W or 1M: the history holds daily bars and imported weekly and monthly ones`);
     process.exit(1);
   }
 
@@ -225,6 +280,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
 
   const report = [];
   const imported = [];
+  const framed = [];
   const tickSymbols = [];
   let failed = 0, dateRefused = 0;
   let run;
@@ -232,11 +288,20 @@ Export from TradingView: open the chart, then the menu beside the symbol >
     run = await updateHistory(outPath, async (hist) => {
       const results = [];
       for (const f of files) {
-        if (f.tv && !isDailyInterval(f.tv.interval)) {
+        /* The file's timeframe: its name's, or --interval's; a name and a
+           flag that disagree are not guessed between. */
+        const named = f.tv ? exportTimeframe(f.tv.interval) : null;
+        if (f.tv && !named) {
           failed++;
-          report.push(`${f.symbol.padEnd(10)} FAILED — the file name says a ${f.tv.interval} export; the history holds one bar per session, so export the daily chart (1D)`);
+          report.push(`${f.symbol.padEnd(10)} FAILED — the file name says a ${f.tv.interval} export; the history holds daily bars (1D) and imported weekly (1W) and monthly (1M) ones, so export one of those`);
           continue;
         }
+        if (named && intervalTf && named !== intervalTf) {
+          failed++;
+          report.push(`${f.symbol.padEnd(10)} FAILED — the file name says ${f.tv.interval} and --interval says ${intervalFlag}; one of them is wrong, and neither is guessed`);
+          continue;
+        }
+        const tf = intervalTf || named || '1D';
         const market = flag('market', null) || marketOf(f.symbol, instruments);
         /* The market's session dates each stamp (history-store.mjs
            epochDate): TradingView stamps a daily bar at its session's
@@ -253,6 +318,70 @@ Export from TradingView: open the chart, then the menu beside the symbol >
            saved: this instant is what makes the store mark it PROVISIONAL. */
         const capturedAt = capturedFlag ? new Date(Date.parse(capturedFlag)).toISOString() : (await stat(f.path)).mtime.toISOString();
         const source = `import:${basename(f.path)}`;
+        const kept = ['open', 'high', 'low'].filter(k => parsed.columns[k]);
+        /* A spot currency or metals broker has no exchange volume to report:
+           what OANDA's column holds is its own count of price changes. */
+        const ticks = parsed.columns.volume && session.code === 'FX';
+        if (ticks && !tickSymbols.includes(f.symbol)) tickSymbols.push(f.symbol);
+        const pad = ' '.repeat(11);
+        const tail = () => {
+          if (parsed.nextDay) {
+            const at = eveningOpen(session);
+            report.push(`${pad}dated by session: ${parsed.nextDay} stamp(s) at ${String(Math.floor(at / 60)).padStart(2, '0')}:${String(at % 60).padStart(2, '0')} ${tz} or later open the next day's session and are dated to it — ${tf === '1D' ? 'the session each bar closes' : `the first session of the ${UNIT[tf]} each bar covers`}`);
+          }
+        };
+        const unread = () => {
+          if (!parsed.unread.length) return;
+          const names = [...new Set(parsed.unread)];
+          report.push(`${pad}not stored: ${parsed.unread.length} other column(s) — the chart's indicators (${names.slice(0, 4).join(', ')}${names.length > 4 ? ', …' : ''}); the history holds bars`);
+        };
+        if (tf !== '1D') {
+          /* A weekly or monthly export: each stamp opens its period's first
+             session (the day rule above dates it), and the bar is filed
+             under the engine's key for that period, in hist.frames — never
+             in the daily series, where the week's close would stand on its
+             Monday. */
+          const unit = UNIT[tf];
+          const heldKeys = () => Object.keys(hist.frames?.[tf]?.[f.symbol]?.series || {}).sort();
+          const before = heldKeys().length;
+          /* A volume of 0 on a period whose price moved is no count: a
+             price that changed was quoted, so something was counted, and
+             the 0 is the broker having recorded nothing. OANDA's monthly
+             gold export writes 0 for every month before March 2006 while
+             the price ranges by tens of dollars. Stored as absent, never as
+             a period with no trading; the output names the span. */
+          const noCount = [];
+          const rows = parsed.rows.map(x => (x.volume === 0 && x.high > x.low ? (noCount.push(x.date), { ...x, volume: null }) : x));
+          const r = mergeFrameBars(hist, tf, f.symbol, rows, { source, capturedAt, market, E });
+          r.rejected.push(...parsed.refused.map(x => ({ symbol: f.symbol, timeframe: tf, date: x.date, codes: x.codes, why: x.why, source, line: x.line })));
+          markFrameAdjusted(hist, tf, f.symbol, source, parsed.rows, adjusted, E);
+          framed.push({ symbol: f.symbol, timeframe: tf });
+          dateRefused += parsed.refused.length;
+          results.push(r);
+          const keys = heldKeys();
+          report.push(`${`${f.symbol} ${tf}`.padEnd(10)} ${String(r.added).padStart(5)} new  ${String(before).padStart(5)} -> ${String(keys.length).padStart(5)} ${unit}s` +
+            `  ${keys[0] || '—'} to ${keys[keys.length - 1] || '—'}` +
+            `  ${kept.length === 3 ? 'open/high/low kept' : 'close only'}${parsed.columns.volume ? `, volume kept${ticks ? ' (a tick count)' : ''}` : ', no volume column'}` +
+            `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — recorded)` : ''}` +
+            `${r.outranked.length ? `  (${r.outranked.length} held by a higher-ranked source — not written)` : ''}` +
+            `${r.rejected.length ? `  (${r.rejected.length} row(s) refused: ${[...new Set(r.rejected.flatMap(x => x.codes))].join(', ')})` : ''}`);
+          tail();
+          if (noCount.length) {
+            const span = noCount.map(d => periodKey(E, tf, d) || d).sort();
+            report.push(`${pad}volume 0 on ${noCount.length} ${unit}(s) whose price moved (${span[0]} … ${span[span.length - 1]}): the broker recorded no count, so none is stored — not a ${unit} with no trading`);
+          }
+          /* The newest period this import holds: FINAL once the period's
+             last expected session had closed when the file was saved,
+             PROVISIONAL while the week or month still traded. */
+          const meta = hist.frames?.[tf]?.[f.symbol]?.meta || {};
+          const last = parsed.rows.map(x => periodKey(E, tf, x.date)).filter(pk => pk && meta[pk]?.src === source).sort().pop();
+          if (last) {
+            const status = periodStatus(E, tf, last, market, capturedAt);
+            report.push(`${pad}last ${unit} ${last} ${status}${status === 'PROVISIONAL' ? ` — the file was saved at ${capturedAt}, before the ${unit}'s last session (${periodLastSession(E, tf, last, market)}) closed; the next import made after it replaces this bar` : ''}`);
+          }
+          unread();
+          continue;
+        }
         const before = Object.keys(hist.series[f.symbol] || {}).length;
         const r = mergeBars(hist, f.symbol, parsed.rows, { source, capturedAt, market, E });
         r.rejected.push(...parsed.refused.map(x => ({ symbol: f.symbol, date: x.date, codes: x.codes, why: x.why, source, line: x.line })));
@@ -261,22 +390,13 @@ Export from TradingView: open the chart, then the menu beside the symbol >
         dateRefused += parsed.refused.length;
         results.push(r);
         const dates = Object.keys(hist.series[f.symbol] || {}).sort();
-        const kept = ['open', 'high', 'low'].filter(k => parsed.columns[k]);
-        /* A spot currency or metals broker has no exchange volume to report:
-           what OANDA's column holds is its own count of price changes. */
-        const ticks = parsed.columns.volume && session.code === 'FX';
-        if (ticks) tickSymbols.push(f.symbol);
         report.push(`${f.symbol.padEnd(10)} ${String(r.added).padStart(5)} new  ${String(before).padStart(5)} -> ${String(dates.length).padStart(5)} points` +
           `  ${dates[0] || '—'} to ${dates[dates.length - 1] || '—'}` +
           `  ${kept.length === 3 ? 'open/high/low kept' : 'close only'}${parsed.columns.volume ? `, volume kept${ticks ? ' (a tick count)' : ''}` : ', no volume column'}` +
           `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — recorded)` : ''}` +
           `${r.outranked.length ? `  (${r.outranked.length} held by a higher-ranked source — not written)` : ''}` +
           `${r.rejected.length ? `  (${r.rejected.length} row(s) refused: ${[...new Set(r.rejected.flatMap(x => x.codes))].join(', ')})` : ''}`);
-        const pad = ' '.repeat(11);
-        if (parsed.nextDay) {
-          const at = eveningOpen(session);
-          report.push(`${pad}dated by session: ${parsed.nextDay} stamp(s) at ${String(Math.floor(at / 60)).padStart(2, '0')}:${String(at % 60).padStart(2, '0')} ${tz} or later open the next day's session and are dated to it — the session each bar closes`);
-        }
+        tail();
         /* The newest row this import holds: FINAL once its session had closed
            when the file was saved, PROVISIONAL while it still traded. */
         const last = parsed.rows.map(x => x.date).filter(d => hist.meta[f.symbol]?.[d]?.src === source).sort().pop();
@@ -284,19 +404,19 @@ Export from TradingView: open the chart, then the menu beside the symbol >
           const status = E.scanBarStatus(market, last, capturedAt);
           report.push(`${pad}last bar ${last} ${status}${status === 'PROVISIONAL' ? ` — the file was saved at ${capturedAt}, before that session closed; the next import made after the close replaces it` : ''}`);
         }
-        if (parsed.unread.length) {
-          const names = [...new Set(parsed.unread)];
-          report.push(`${pad}not stored: ${parsed.unread.length} other column(s) — the chart's indicators (${names.slice(0, 4).join(', ')}${names.length > 4 ? ', …' : ''}); the history holds bars`);
-        }
+        unread();
       }
       return results;
-    }, { keep: KEEP_N });
+    }, { keep: KEEP_N, frameKeep: KEEP_N });
   } catch (e) { console.error(`history not written: ${e.message}`); process.exit(1); }
 
   report.forEach(l => console.log(l));
   const { hist, results, trim } = run;
   const { totals, lines } = describeMerge(results, trim, rejectsPathFor(outPath));
-  console.log(`\nwrote ${outPath} — ${hist.symbols} symbols`);
+  /* The imported weeks and months the file now holds, beside the daily
+     series' symbol count. */
+  const frameCount = Object.entries(hist.frames || {}).map(([tf, bySym]) => `${Object.keys(bySym || {}).length} with imported ${UNIT[tf] || tf}s`);
+  console.log(`\nwrote ${outPath} — ${hist.symbols} symbols${frameCount.length ? ` (${frameCount.join(', ')})` : ''}`);
   lines.forEach(l => console.log(l));
   if (dateRefused) console.log(`  dates     : ${dateRefused} row(s) with an ambiguous or unreadable date were refused, not guessed`);
   if (tickSymbols.length) console.log(`  volume    : a tick count for ${tickSymbols.join(', ')} — a spot currency or metals broker has no exchange volume, so the figure is how many times its price changed, not ounces, lots or contracts traded; recorded as given`);
@@ -328,6 +448,13 @@ Export from TradingView: open the chart, then the menu beside the symbol >
                  [252, '52-week range, drawdown and 12-month return']];
   console.log(`deepest series: ${deepest} points`);
   for (const [need, what] of GATES) console.log(`  ${deepest >= need ? 'available' : `needs ${need - deepest} more`}  ${what}`);
+  /* The imported weeks and months this run wrote, as deep as they now are,
+     and what reads them (FRAMES_READ) — an import is not to look as though
+     it changed a scan that does not read it yet. */
+  if (framed.length) {
+    console.log(`imported frames: ${framed.map(({ symbol, timeframe }) => `${symbol} ${timeframe} ${Object.keys(hist.frames?.[timeframe]?.[symbol]?.series || {}).length} ${UNIT[timeframe]}s`).join(', ')}`);
+    console.log(`  ${FRAMES_READ}`);
+  }
   console.log('\nPersonal research only. This history is derived from your own exports and');
   console.log('carries no right to redistribute.');
   process.exit(failed === files.length ? 1 : totals.rejected || totals.outranked || failed ? 2 : 0);

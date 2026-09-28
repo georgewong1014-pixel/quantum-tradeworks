@@ -5,14 +5,21 @@
  *   node ingest/history-check.mjs                 the report (the same as --report)
  *   node ingest/history-check.mjs --report [--json]
  *   node ingest/history-check.mjs --refetch [--provider yahoo|twelvedata] [--dry]
+ *   node ingest/history-check.mjs --overlap [--json]         imported weeks and months
+ *                                                          against the ones built from daily
+ *   node ingest/history-check.mjs --self-check [--dir watchlist-shots] [--json]
+ *                                                          the same, on your TradingView exports
+ *                                                          imported into a temporary history
  *   ... [--history f] [--instruments f] [--adjustments f] [--now ISO]
  *
- *   exit 0  nothing to repair
+ *   exit 0  nothing to repair (--overlap, --self-check: every difference explained)
  *   exit 2  something is listed: bars on a day their market does not trade, a
- *           shifted series, a session held under two dates, or a price break
- *           no recorded adjustment explains (and, after --refetch, what is left)
+ *           shifted series, a session held under two dates, a price break no
+ *           recorded adjustment explains, or an imported week or month filed
+ *           under a key that is not the engine's (and, after --refetch, what is
+ *           left; after --overlap, a difference no reason explains)
  *   exit 1  the history, the adjustments file or the engine could not be read,
- *           or the re-fetch failed
+ *           or the re-fetch (or the self-check's import) failed
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHAT IT REPORTS
@@ -34,6 +41,25 @@
  *              or nothing. No indicator is computed across an unexplained one.
  *   the rest   invalid bars with the engine's codes, stale series, missing
  *              sessions no calendar explains.
+ *   frames     the imported weeks and months (history-store.mjs, frames): per
+ *              symbol and timeframe the periods held, the first and the last,
+ *              whether the last is still PROVISIONAL, the bars the engine's
+ *              validation refuses, and any bar filed under a key that is not
+ *              the engine's period key (a week by any day but its Monday, a
+ *              month by any day but its 1st) — a bar no weekly or monthly
+ *              reading would find.
+ *
+ * THE OVERLAP (--overlap, --self-check). TradingView's weekly bar and the week
+ * the engine builds from its daily bars are two readings of one market; where
+ * a history holds both they should agree on open, high, low, close and
+ * volume. Every difference is listed with its likely reason: a period the
+ * daily series covers only in part (it starts or ends inside it), a period
+ * still trading when the files were saved at different instants, a weekday
+ * with no daily bar where the imported volume is the sum of the days held (a
+ * holiday) or is not (a daily bar the daily export lacks). --self-check reads
+ * the TradingView exports in a folder (default watchlist-shots/) into a
+ * temporary history — never data/price-history.json — and compares them
+ * there. It reads personal files, so it is a local tool, not a CI check.
  *
  * THE REPAIR IS A RE-FETCH, NEVER AN EDIT
  *
@@ -58,12 +84,15 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { engine, loadHistory, loadInstruments, marketOf, updateHistory, rejectsPathFor, HISTORY_PATH } from './history-store.mjs';
+import { engine, loadHistory, loadInstruments, marketOf, updateHistory, rejectsPathFor, HISTORY_PATH,
+         FRAMES, FRAME_MAPS, periodKey, isPeriodKey, periodSessions, periodLastSession, periodStatus, sessionToday } from './history-store.mjs';
+import { tradingViewName, exportTimeframe } from './history-import.mjs';
 import { ROOT } from '../scanner/scan.mjs';
 
 const OPEN_BREAK = ['unexplained', 'remains', 'created'];
@@ -95,12 +124,239 @@ export async function checkHistory({ historyPath = HISTORY_PATH, instrumentsPath
   const earliest = [...firstBad.values()].filter(Boolean).sort()[0] || null;
   const days = earliest ? Math.min(3650, Math.max(30, Math.ceil((Date.parse(now) - Date.parse(`${earliest}T00:00:00Z`)) / 86400000) + 7)) : 400;
   report.refetch = { symbols: [...firstBad.keys()].sort(), from: earliest, days };
+  report.frames = checkFrames(history, { E: eng, instruments, now });
   report.open = {
     weekend: report.totals.weekend, shifted: report.shifted.length, duplicates: report.duplicatesBySession.length,
     breaks: report.breaks.filter(b => OPEN_BREAK.includes(b.state)).length,
+    frames: report.frames.badKeys + report.frames.unknownTimeframes.length,
   };
-  report.clean = !report.open.weekend && !report.open.shifted && !report.open.duplicates && !report.open.breaks;
+  report.clean = !report.open.weekend && !report.open.shifted && !report.open.duplicates && !report.open.breaks && !report.open.frames;
   return report;
+}
+
+/* ------------------------------------------- imported weeks and months -- */
+
+const px = (x) => (x == null ? null : typeof x === 'number' ? x : NaN);
+const UNIT = { '1W': 'week', '1M': 'month' };
+
+/* One imported bar as the engine would read it. */
+function frameBar(f, pk) {
+  const o = Array.isArray(f?.ohlc?.[pk]) ? f.ohlc[pk] : null;
+  return { open: o ? px(o[0]) : null, high: o ? px(o[1]) : null, low: o ? px(o[2]) : null,
+           close: typeof f?.series?.[pk] === 'number' ? f.series[pk] : NaN, volume: px(f?.volume?.[pk]) };
+}
+
+/* Every imported frame, per timeframe and symbol: the periods held, the
+   first and the last, the last one's status (PROVISIONAL is the week or
+   month still trading when its export was saved; judged at `now` too, so a
+   bar with no capture time read before its period closed is not UNKNOWN),
+   the bars the engine's scanValidateBar refuses — judged on the period's
+   first expected session, the day its stamp opened — the keys that are not
+   the engine's period key, and entries in a frame's other maps with no
+   close beside them. A timeframe the store does not write is named. */
+export function checkFrames(history, { E, instruments = [], now = null } = {}) {
+  const out = { frames: [], unknownTimeframes: [], badKeys: 0, invalid: 0 };
+  const frames = history?.frames && typeof history.frames === 'object' && !Array.isArray(history.frames) ? history.frames : {};
+  for (const tf of Object.keys(frames).sort()) {
+    const bySym = frames[tf] && typeof frames[tf] === 'object' ? frames[tf] : {};
+    if (!FRAMES.includes(tf)) { out.unknownTimeframes.push({ timeframe: tf, symbols: Object.keys(bySym).length }); continue; }
+    for (const sym of Object.keys(bySym).sort()) {
+      const f = bySym[sym] && typeof bySym[sym] === 'object' ? bySym[sym] : {};
+      const market = marketOf(sym, instruments);
+      const keys = Object.keys(f.series || {}).sort();
+      const good = keys.filter(k => isPeriodKey(E, tf, k));
+      const badKeys = keys.filter(k => !isPeriodKey(E, tf, k)).map(k => ({ key: k, expected: periodKey(E, tf, k) }));
+      const today = now ? sessionToday(E, market, now) : null;
+      const invalid = [];
+      for (const pk of good) {
+        const first = periodSessions(E, tf, pk, market)[0] || pk;
+        const codes = E.scanValidateBar({ date: first, ...frameBar(f, pk) }, { market, now, today });
+        if (codes.length) invalid.push({ period: pk, codes });
+      }
+      const orphans = FRAME_MAPS.filter(m => m !== 'series').flatMap(m => Object.keys(f[m] || {}).filter(k => !(k in (f.series || {}))).map(k => ({ map: m, key: k })));
+      const last = good[good.length - 1] || null;
+      const capturedAt = last ? f.meta?.[last]?.at ?? null : null;
+      const lastStatus = last ? periodStatus(E, tf, last, market, capturedAt, now) : null;
+      out.frames.push({ timeframe: tf, symbol: sym, market, periods: keys.length, first: keys[0] || null, last, lastStatus,
+                        lastSession: last ? periodLastSession(E, tf, last, market) : null, capturedAt, provisional: lastStatus === 'PROVISIONAL' ? last : null,
+                        invalid, badKeys, orphans, sources: [...new Set(Object.values(f.meta || {}).map(m => m?.src).filter(Boolean))].sort() });
+      out.badKeys += badKeys.length;
+      out.invalid += invalid.length;
+    }
+  }
+  return out;
+}
+
+/* The frames section of the report, in words; nothing when none is held. */
+export function describeFrames(F) {
+  const L = [];
+  if (!F || (!F.frames.length && !F.unknownTimeframes.length)) return L;
+  L.push('');
+  L.push('FRAMES    imported weeks and months, held beside the daily series');
+  for (const x of F.frames) {
+    const unit = UNIT[x.timeframe];
+    L.push(`${x.timeframe.padEnd(10)}${String(x.symbol).padEnd(8)} ${String(x.periods).padStart(5)} ${unit}s  ${x.first || '—'} … ${x.last || '—'}${x.last ? ` · last ${x.last} ${x.lastStatus}` : ''}`
+      + `${x.provisional ? ` — its last session, ${x.lastSession}, had not closed when it was captured${x.capturedAt ? ` (${x.capturedAt})` : ''}; an import made after it replaces it` : ''}`
+      + `${x.sources.length ? ` · ${x.sources.join(', ')}` : ''}`);
+    x.badKeys.slice(0, 10).forEach(b => L.push(`key       ${x.symbol} ${x.timeframe} ${b.key}: not the engine's key for its ${unit}${b.expected ? ` (${b.expected})` : ''} — no ${unit}ly reading finds a bar filed there`));
+    if (x.badKeys.length > 10) L.push(`          … ${x.badKeys.length - 10} more (--json for all)`);
+    x.invalid.slice(0, 10).forEach(v => L.push(`invalid   ${x.symbol} ${x.timeframe} ${v.period}: ${v.codes.join(', ')}`));
+    if (x.invalid.length > 10) L.push(`          … ${x.invalid.length - 10} more (--json for all)`);
+    if (x.orphans.length) L.push(`orphan    ${x.symbol} ${x.timeframe}: ${x.orphans.length} entr${x.orphans.length === 1 ? 'y' : 'ies'} in ${[...new Set(x.orphans.map(o => o.map))].join(', ')} with no close beside ${x.orphans.length === 1 ? 'it' : 'them'} (${x.orphans.slice(0, 3).map(o => o.key).join(', ')}${x.orphans.length > 3 ? ', …' : ''})`);
+  }
+  F.unknownTimeframes.forEach(u => L.push(`unknown   frames["${u.timeframe}"]: ${u.symbols} symbol(s) under a timeframe the store does not write (${FRAMES.join(', ')}); nothing reads it`));
+  return L;
+}
+
+/* Imported weeks and months against the ones the engine builds from the
+   daily series of the same history (scanBars, timeframe 1W or 1M), where
+   the daily series reaches: open, high, low, close and volume, each within
+   `tolerance` (relative), with the likely reason for every difference. */
+export function compareFrames(history, { E, instruments = [], now = null, tolerance = 1e-9 } = {}) {
+  const out = [];
+  const same = (a, b) => (a == null && b == null) || (a != null && b != null && Math.abs(a - b) <= tolerance * Math.max(Math.abs(a), Math.abs(b), 1e-12));
+  const FIELDS = ['open', 'high', 'low', 'close', 'volume'];
+  for (const tf of FRAMES) {
+    const bySym = history?.frames?.[tf] || {};
+    for (const sym of Object.keys(bySym).sort()) {
+      const f = bySym[sym] || {};
+      const market = marketOf(sym, instruments);
+      const unit = UNIT[tf];
+      const imported = Object.keys(f.series || {}).filter(k => isPeriodKey(E, tf, k)).sort();
+      const daily = E.scanBars(history, sym, { market, now });
+      if (!daily.dates.length || !imported.length) { out.push({ timeframe: tf, symbol: sym, market, unit, noDaily: !daily.dates.length, overlap: 0, matched: 0, periods: [], unmatched: [] }); continue; }
+      const built = E.scanBars(history, sym, { market, timeframe: tf, now });
+      const at = new Map(built.dates.map((d, i) => [periodKey(E, tf, d), i]));
+      const dFirst = daily.dates[0], dLast = daily.dates[daily.dates.length - 1];
+      const lo = periodKey(E, tf, dFirst), hi = periodKey(E, tf, dLast);
+      const dailyAt = daily.capturedAt[daily.capturedAt.length - 1] || null;
+      const periods = [];
+      for (const pk of imported.filter(k => k >= lo && k <= hi)) {
+        const imp = frameBar(f, pk);
+        const impAt = f.meta?.[pk]?.at ?? null;
+        const impStatus = periodStatus(E, tf, pk, market, impAt, now);
+        const i = at.get(pk);
+        const expected = periodSessions(E, tf, pk, market);
+        if (i === undefined) {
+          periods.push({ period: pk, match: false, diffs: [], reason: 'missing-daily', why: `the daily series holds no session of this ${unit} (${expected[0]} … ${expected[expected.length - 1]}) — daily bars the daily export lacks` });
+          continue;
+        }
+        const b = { open: built.open[i], high: built.high[i], low: built.low[i], close: built.closes[i], volume: built.volumes[i] };
+        const diffs = FIELDS.filter(k => !same(imp[k], b[k])).map(k => ({ field: k, imported: imp[k], built: b[k] }));
+        const row = { period: pk, match: !diffs.length, diffs, importedStatus: impStatus, builtStatus: built.status[i] };
+        if (diffs.length) Object.assign(row, whyDiffer({ E, tf, pk, market, unit, expected, daily, built, i, diffs, imp, impAt, impStatus, dFirst, dLast, dailyAt, same }));
+        periods.push(row);
+      }
+      /* A period the daily series builds, inside the imported span, that the
+         imported frame lacks. */
+      const unmatched = built.dates.map(d => periodKey(E, tf, d)).filter(pk => pk >= imported[0] && pk <= imported[imported.length - 1] && !(pk in f.series));
+      out.push({ timeframe: tf, symbol: sym, market, unit, overlap: periods.length, matched: periods.filter(p => p.match).length, periods, unmatched,
+                 daily: { first: dFirst, last: dLast, capturedAt: dailyAt }, imported: { first: imported[0], last: imported[imported.length - 1] } });
+    }
+  }
+  return out;
+}
+
+/* The likely reason two readings of one period differ, in the order the
+   evidence settles it. `reason` is a code a test can read; `why` the words. */
+function whyDiffer({ E, tf, pk, market, unit, expected, daily, built, i, diffs, imp, impAt, impStatus, dFirst, dLast, dailyAt, same }) {
+  const fields = diffs.map(d => d.field).join(', ');
+  /* The daily series starts inside the period: the built bar is missing
+     the sessions before its first day, so its open (and perhaps its high,
+     low and volume) are not the period's. */
+  const before = expected.filter(d => d < dFirst);
+  if (pk === periodKey(E, tf, dFirst) && before.length) {
+    return { reason: 'partial-start', why: `partial at the start: the daily series begins on ${dFirst}, after the ${unit}'s first session ${expected[0]} — the built bar lacks ${before.length} session(s), so its ${fields} ${diffs.length === 1 ? 'is' : 'are'} not the ${unit}'s` };
+  }
+  /* The period was still trading when one file or the other was saved:
+     its bar moved between the two readings, or the daily series ends
+     before the period does. */
+  const after = expected.filter(d => d > dLast);
+  if (pk === periodKey(E, tf, dLast) && (after.length || impStatus === 'PROVISIONAL' || built.status[i] === 'PROVISIONAL')) {
+    const saved = impAt && dailyAt && impAt !== dailyAt ? ` — the ${unit}ly file was saved at ${impAt} and the daily at ${dailyAt}, and the bar moved between them` : '';
+    return { reason: 'partial-end', why: `partial at the end: the ${unit} was still trading (${after.length ? `the daily series ends on ${dLast}, before its last session ${expected[expected.length - 1]}` : `its last session, ${expected[expected.length - 1]}, had not closed when the files were saved`})${saved}` };
+  }
+  /* A weekday of the period with no daily bar. When the imported volume is
+     exactly the sum of the sessions held, the market did not trade that
+     day — a holiday — and the built bar only leaves its volume out, as it
+     does across any day it does not hold. Otherwise the daily export lacks
+     a session the period's own bar includes. */
+  const missing = built.missingDays?.[i] || [];
+  if (missing.length) {
+    const idx = daily.dates.map((d, k) => [d, k]).filter(([d]) => periodKey(E, tf, d) === pk).map(([, k]) => k);
+    const vols = idx.map(k => daily.volumes[k]);
+    const held = vols.every(v => v != null) ? vols.reduce((t, v) => t + v, 0) : null;
+    const onlyVolume = diffs.every(d => d.field === 'volume') && built.volumes[i] == null;
+    if (onlyVolume && held != null && same(held, imp.volume)) {
+      return { reason: 'holiday', why: `a holiday: no daily bar on ${missing.join(', ')}, and the imported volume is the sum of the ${idx.length} session(s) held — the built ${unit} leaves its volume out across a day it does not hold` };
+    }
+    return { reason: 'missing-daily', why: `a daily bar the daily export lacks: no bar on ${missing.join(', ')}${held != null && imp.volume != null ? ` (the sessions held sum to ${held} against the imported ${imp.volume})` : ''}, and the ${unit}'s ${fields} differ${diffs.length === 1 ? 's' : ''}` };
+  }
+  /* Every price agrees and only the volume differs, by a sliver: the two
+     exports count one closed period a few apart. On the owner's gold files
+     one closed week's tick count differed by 4 in 3.59 million, both files
+     saved days after it closed. That moves no price and nothing computed
+     from prices, so it is named apart from a price difference — and still
+     listed, since no partial period or missing day accounts for it. */
+  if (diffs.every(d => d.field === 'volume') && imp.volume != null && built.volumes[i] != null) {
+    const by = Math.abs(imp.volume - built.volumes[i]);
+    const rel = by / Math.max(Math.abs(imp.volume), Math.abs(built.volumes[i]), 1);
+    if (rel < 1e-4) return { reason: 'volume-only', why: `open, high, low and close agree exactly; the volumes differ by ${by} of ${imp.volume} (${Number((rel * 100).toPrecision(2))}%) — the two exports count this closed ${unit} slightly apart, which no partial period or missing day explains; no price is affected` };
+  }
+  return { reason: 'unexplained', why: `no partial period, no missing day: the two readings differ on ${diffs.map(d => `${d.field} (imported ${d.imported}, built ${d.built})`).join(', ')}` };
+}
+
+/* The overlap in words; `ok` is false when any difference is unexplained.
+   A difference in volume alone (volume-only) is counted apart: listed, but
+   not a disagreement about any price. */
+export function describeOverlap(rows) {
+  const L = [];
+  let unexplained = 0, volumeOnly = 0;
+  if (!rows.length) L.push('overlap   no imported weeks or months are held — nothing to compare');
+  for (const r of rows) {
+    const head = `${r.timeframe.padEnd(4)}${String(r.symbol).padEnd(8)}`;
+    if (r.noDaily) { L.push(`${head} no daily series to build ${r.unit}s from — nothing to compare`); continue; }
+    if (!r.overlap) { L.push(`${head} the imported ${r.unit}s (${r.imported?.first ?? '—'} … ${r.imported?.last ?? '—'}) and the daily series (${r.daily?.first ?? '—'} … ${r.daily?.last ?? '—'}) do not overlap`); continue; }
+    const diff = r.periods.filter(p => !p.match);
+    L.push(`${head} ${r.overlap} ${r.unit}(s) overlap (${r.periods[0].period} … ${r.periods[r.periods.length - 1].period}, daily ${r.daily.first} … ${r.daily.last}): ${r.matched} match on open, high, low, close and volume${diff.length ? `; ${diff.length} differ` : ''}`);
+    for (const p of diff) {
+      if (p.reason === 'unexplained') unexplained++;
+      if (p.reason === 'volume-only') volumeOnly++;
+      L.push(`          ${p.period} ${p.diffs.map(d => `${d.field} ${d.imported} vs ${d.built}`).join(', ') || '—'}`);
+      L.push(`                     ${p.why}`);
+    }
+    if (r.unmatched?.length) L.push(`          built from daily but not imported: ${r.unmatched.join(', ')}`);
+  }
+  const summary = unexplained ? `${unexplained} difference(s) no reason explains`
+    : `every price difference has a reason${volumeOnly ? `; ${volumeOnly} period(s) differ in volume alone, every price agreeing` : ''}`;
+  return { lines: L, unexplained, volumeOnly, ok: !unexplained, summary };
+}
+
+/* The TradingView exports in a folder — daily, weekly and monthly, by the
+   interval in each name — imported one at a time into a temporary history
+   by history-import.mjs itself, then compared (compareFrames). The
+   temporary folder is removed; data/price-history.json is never read or
+   written. */
+export async function selfCheck({ dir = resolve(ROOT, 'watchlist-shots'), instrumentsPath = resolve(ROOT, 'data/instruments.json'), now = new Date().toISOString(), E = null } = {}) {
+  const eng = E || await engine();
+  const names = existsSync(dir) ? (await readdir(dir)).filter(n => /\.csv$/i.test(n) && exportTimeframe(tradingViewName(n)?.interval)) : [];
+  if (!names.length) throw Object.assign(new Error(`no TradingView export (<EXCHANGE>_<SYMBOL>, 1D|1W|1M.csv) in ${dir}`), { code: 'NO_EXPORTS' });
+  const tmp = await mkdtemp(join(tmpdir(), 'qt-frames-self-check-'));
+  try {
+    const out = join(tmp, 'price-history.json');
+    const imports = [];
+    /* Daily first, so the report reads in the order the frames are built. */
+    const order = { '1D': 0, '1W': 1, '1M': 2 };
+    names.sort((a, b) => order[exportTimeframe(tradingViewName(a).interval)] - order[exportTimeframe(tradingViewName(b).interval)] || a.localeCompare(b));
+    for (const n of names) {
+      const run = spawnSync(process.execPath, [join(ROOT, 'ingest/history-import.mjs'), '--in', join(dir, n), '--out', out, '--instruments', instrumentsPath], { cwd: ROOT, encoding: 'utf8' });
+      imports.push({ file: n, status: run.status, stdout: run.stdout || '', stderr: run.stderr || '' });
+      if (run.status !== 0 && run.status !== 2) throw Object.assign(new Error(`importing ${n} failed (exit ${run.status ?? run.signal}): ${(run.stderr || run.stdout || '').trim().split('\n').slice(-3).join(' / ')}`), { code: 'IMPORT_FAILED' });
+    }
+    const history = await loadHistory(out);
+    const instruments = await loadInstruments(instrumentsPath);
+    return { dir, files: names, imports, rows: compareFrames(history, { E: eng, instruments, now }), frames: checkFrames(history, { E: eng, instruments, now }) };
+  } finally { await rm(tmp, { recursive: true, force: true }); }
 }
 
 /* The report in words, one section per finding, each ending with what to do. */
@@ -147,8 +403,11 @@ export function describeReport(R) {
     if (R.stale.length) L.push(`stale     ${R.stale.length} series end before the session that should be held by now (newest final ${R.stale.map(s => s.last).sort().pop()})`);
     if (R.missing.length) L.push(`missing   ${R.missing.length} gap(s) of missing sessions no calendar explains`);
   }
+  L.push(...describeFrames(R.frames));
   L.push('');
-  L.push(R.clean ? 'nothing to repair' : `to repair: ${[R.open.weekend ? `${R.open.weekend} weekend-dated bar(s)` : null, R.open.shifted ? `${R.open.shifted} shifted series` : null, R.open.duplicates ? `${R.open.duplicates} session(s) held twice` : null, R.open.breaks ? `${R.open.breaks} unexplained price break(s)` : null].filter(Boolean).join(', ')}`);
+  L.push(R.clean ? 'nothing to repair' : `to repair: ${[R.open.weekend ? `${R.open.weekend} weekend-dated bar(s)` : null, R.open.shifted ? `${R.open.shifted} shifted series` : null, R.open.duplicates ? `${R.open.duplicates} session(s) held twice` : null, R.open.breaks ? `${R.open.breaks} unexplained price break(s)` : null,
+    R.frames?.badKeys ? `${R.frames.badKeys} imported week(s) or month(s) under a key the engine does not read` : null,
+    R.frames?.unknownTimeframes.length ? `${R.frames.unknownTimeframes.length} frame timeframe(s) the store does not write` : null].filter(Boolean).join(', ')}`);
   return L;
 }
 
@@ -203,6 +462,32 @@ async function main() {
   let E, R;
   try { E = await engine(); }
   catch (e) { console.error(`cannot load the engine out of index.html (run node build.mjs): ${e.message}`); process.exit(1); }
+
+  /* Imported weeks and months against the ones built from daily bars: in a
+     history file (--overlap), or in the owner's exports read into a
+     temporary one (--self-check). */
+  if (has('overlap') || has('self-check')) {
+    let rows, head = [];
+    try {
+      if (has('self-check')) {
+        const dir = resolve(flag('dir', resolve(ROOT, 'watchlist-shots')));
+        const s = await selfCheck({ dir, instrumentsPath, now, E });
+        rows = s.rows;
+        head.push(`self-check  ${s.files.length} export(s) from ${dir}, imported into a temporary history (removed): ${s.files.join(', ')}`);
+        head.push(...describeFrames(s.frames).filter(Boolean));
+        head.push('');
+      } else {
+        if (!existsSync(historyPath)) throw new Error(`no price history at ${historyPath}`);
+        rows = compareFrames(await loadHistory(historyPath), { E, instruments: await loadInstruments(instrumentsPath), now });
+        head.push(`overlap   ${historyPath}`);
+      }
+    } catch (e) { console.error(e.message); process.exit(1); }
+    const d = describeOverlap(rows);
+    if (has('json')) console.log(JSON.stringify(rows, null, 2));
+    else [...head, ...d.lines, '', d.summary].forEach(l => console.log(l));
+    process.exit(d.ok ? 0 : 2);
+  }
+
   try { R = await checkHistory({ historyPath, instrumentsPath, adjustmentsPath, now, E }); }
   catch (e) { console.error(e.message); process.exit(1); }
 
