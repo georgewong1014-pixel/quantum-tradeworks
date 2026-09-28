@@ -422,7 +422,7 @@ function learnTrust() {
   /* The reader's own cases, above the sample log — a case they raised and
      cannot find again is a case they have no reason to believe was kept. */
   const mine = State.corrections || [];
-  const mineCard = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  const mineCard = el('div', { class: 'card', id: 'my-cases', style: 'margin-bottom:var(--md)' });
   mineCard.append(cardHead(`Cases you have recorded — ${mine.length}`,
     'Held in this browser only. Nothing has been sent, because there is no server behind this build and no contact address published yet.'));
   if (!mine.length) {
@@ -433,13 +433,13 @@ function learnTrust() {
     mt.append(el('thead', {}, el('tr', {}, ['Case', 'Raised', 'Item', 'Status', ''].map(h =>
       el('th', { style: 'text-align:left' }, h)))));
     const mb = el('tbody');
-    mine.forEach(c => mb.append(el('tr', {}, [
+    mine.forEach((c, row) => mb.append(el('tr', {}, [
       el('td', { class: 'ident', style: 'text-align:left' }, c.id),
       el('td', { class: 'caption', style: 'text-align:left' }, c.createdAt),
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
         `${c.item}${c.subject ? ` · ${c.subject}` : ''}`),
       el('td', { style: 'text-align:left' }, el('span', { class: 'chip chip-bronze' }, c.status)),
-      el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm',
+      el('td', { style: 'text-align:left' }, el('button', { class: 'btn btn-ghost btn-sm', id: `case-open-${row}`,
         onclick: () => openDrawer(`Case ${c.id}`, (() => {
           const w = el('div');
           /* Named, as every field on this page is: a bare textarea is announced
@@ -458,7 +458,13 @@ function learnTrust() {
                  the id fix can hold two with the same id, and Delete must
                  remove only the one that was opened. */
               State.corrections = (State.corrections || []).filter(x => x !== c);
-              saveCorrections(); closeDrawer(); render(); toast(`${c.id} deleted`);
+              /* The drawer handed focus back to the Open button it came from,
+                 which the redraw had just removed with its row, so focus
+                 fell to <body>. It goes to the Open button of the case that
+                 took the row, or the one before, or the list's heading. */
+              saveCorrections(); closeDrawer({ restore: false }); render();
+              focusAfterRedraw(`#case-open-${row}`, `#case-open-${row - 1}`, '#my-cases h3');
+              toast(`${c.id} deleted`);
             } }, 'Delete this case'),
           ]));
           return w;
@@ -522,7 +528,7 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', 'Every data item in the product is reportable, and a report is tied to the exact item rather than to a general inbox.'));
-  rep.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openReportError() }, 'Open the report form'));
+  rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the report form'));
   wrap.append(rep);
   return wrap;
 }
@@ -714,6 +720,8 @@ function waitlistCard() {
 }
 
 function openReportError() {
+  /* What opened the form, for the redraw below to find again. */
+  const opener = document.activeElement;
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
     'This records a case in this browser and gives it an identifier. It does not send anything — there is no server behind this build and no contact address published yet — so the last step hands you the case to send yourself.'));
@@ -772,7 +780,15 @@ function openReportError() {
     };
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
     saveCorrections();
-    closeDrawer();
+    /* The page is redrawn first, so the list on /corrections holds the new
+       case — and that redraw replaced "Open the report form", the button the
+       drawer was to hand focus back to, so closing the confirmation dropped
+       focus on <body>. Focus goes to the button's replacement (or stays on
+       an opener the redraw did not touch, like the footer's) before the
+       confirmation opens, and openDrawer records that as where to return. */
+    render();
+    const back = opener?.isConnected ? opener : opener?.id ? document.getElementById(opener.id) : null;
+    if (back && back !== document.body) back.focus({ preventScroll: true });
     openDrawer(`Case ${c.id} recorded`, (() => {
       const w = el('div');
       w.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
@@ -792,7 +808,6 @@ function openReportError() {
       ]));
       return w;
     })());
-    render();
   } }, 'Record this case'));
   openDrawer('Report a data error', body);
 }

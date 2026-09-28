@@ -588,8 +588,11 @@ VIEWS.tradingIndex = () => {
       + 'It carries no weight in the research composite and does not replace the Strategy Lens — fundamentals first, technicals second.'),
   ])));
 
-  const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); });
-  if (qLink) wrap.append(qLink);
+  /* "Fill in the identity" is gone once it has been used — the banner comes
+     back as "Linked to …" — so focus fell to <body>. It goes to that
+     heading, which says what the press did. */
+  const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); focusAfterRedraw('#qtti-link h3'); });
+  if (qLink) { qLink.id = 'qtti-link'; wrap.append(qLink); }
 
   /* Reset here means a blank plan, which for this tool IS the useful starting
      point — every panel is the reader's own transcription and there is no
@@ -1076,7 +1079,7 @@ VIEWS.opportunities = () => {
   wrap.append(rules);
 
   if (!list.length) {
-    const empty = el('div', { class: 'card' });
+    const empty = el('div', { class: 'card', id: 'opp-empty' });
     empty.append(cardHead('No properties recorded yet', 'This is a register, not a feed — it holds what you put in it.'));
     empty.append(el('p', { class: 'body', style: 'font-size:13px' },
       'Quantum Tradeworks holds no property listings and does not source them. There is no permitted feed of Sarawak listings this product can republish, and inventing candidates would be worse than an empty page. Add a property you are actually looking at, and the underwriting engine will model it and grade it on whatever evidence you have.'));
@@ -1118,7 +1121,11 @@ VIEWS.opportunities = () => {
   add.append(f('Where you found it — listing reference, agent, or how you heard', 'source'));
   add.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     'A reference, not a copy. Record enough to find it again; do not paste listing content you have no right to store.'));
-  add.append(el('button', { class: 'btn btn-primary', style: 'margin-top:10px', onclick: () => {
+  /* Add and Remove redraw the page, and both dropped focus on <body>. Add
+     keeps it on Add, with the form emptied for the next one; Remove hands it
+     to the record that took the removed one's place, or the one before it,
+     or the empty register's heading when none is left. */
+  add.append(el('button', { class: 'btn btn-primary', style: 'margin-top:10px', id: 'opp-add', onclick: () => {
     if (!draft.name.trim()) { toast('Give the property a name or address first'); return; }
     State.opportunities = [{
       id: `opp-${Date.now().toString(36)}${(OPP_SEQ++).toString(36)}-${draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`,
@@ -1138,7 +1145,7 @@ VIEWS.opportunities = () => {
       negotiatedPrice: null, valuerEstimate: null,
       nextAction: '', nextActionOwner: '', nextActionDue: '',
     }, ...State.opportunities];
-    saveOpportunities(); toast(`${draft.name} recorded`); render();
+    saveOpportunities(); toast(`${draft.name} recorded`); render(); focusAfterRedraw('#opp-add');
   } }, 'Add to register'));
   wrap.append(add);
 
@@ -1183,7 +1190,7 @@ VIEWS.opportunities = () => {
     const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[grade.grade];
     card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
       el('div', {}, [
-        el('h3', { class: 'h-card', style: 'margin:0' }, o.name),
+        el('h3', { class: 'h-card', id: `opp-${i}-name`, style: 'margin:0' }, o.name),
         el('p', { class: 'metaline', style: 'margin-top:2px' },
           `${(SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).name || '—'}${o.deal.district ? ' · ' + o.deal.district : ''} · ${o.deal.propertyType}`),
       ]),
@@ -1332,6 +1339,7 @@ VIEWS.opportunities = () => {
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Remove ${o.name} from the register?`)) return;
       State.opportunities = list.filter((_, j) => j !== i); saveOpportunities(); render();
+      focusAfterRedraw(`#opp-${i}-name`, `#opp-${i - 1}-name`, '#opp-empty h3');
     } }, 'Remove'));
     card.append(acts);
     if (o.source) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Source: ${o.source}`));
