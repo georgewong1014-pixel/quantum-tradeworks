@@ -24,14 +24,17 @@
  *   Any CSV with a date column and a close column, under common names:
  *     date | time | timestamp | datetime        and
  *     close | last | price | adj close | close/last
- *   and, where the export has them, open, high, low and volume — kept, not
- *   ignored: they are what ATR and a true 52-week range are computed from.
+ *   (the first of each list the file has, in that order), and, where the
+ *   export has them, open, high, low and volume — kept, not ignored: they
+ *   are what ATR and a true 52-week range are computed from. Cells may be
+ *   quoted, and a quoted number may carry thousands separators ("1,612.34").
  *
  * DATES
- *   ISO dates are read as written. A 10- or 13-digit epoch is dated in the
- *   instrument's exchange zone (its registry market, or --tz), except an
- *   epoch at exactly midnight UTC, which is read as that UTC date — the two
- *   conventions exports use (see history-store.mjs epochDate). Day-first and
+ *   ISO dates are read as written. A 10- or 13-digit epoch, or a date-time
+ *   with a zone, is dated in the instrument's exchange zone (its registry
+ *   market, or --tz), except an instant at exactly midnight UTC, which is
+ *   read as that UTC date — the two conventions exports use (see
+ *   history-store.mjs epochDate). Day-first and
  *   month-first dates follow the browser's paste rule: a day above 12 settles
  *   the order; 03/04/2026 is refused as ambiguous rather than guessed.
  *
@@ -61,7 +64,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, parseDateCell, KEEP } from './history-store.mjs';
+import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, parseDateCell, csvRows, numberCell, KEEP } from './history-store.mjs';
 
 const DATE_KEYS  = ['date', 'time', 'timestamp', 'datetime'];
 const CLOSE_KEYS = ['close', 'last', 'price', 'adj close', 'adjclose', 'close/last'];
@@ -93,26 +96,27 @@ export function markAdjusted(hist, symbol, source, rows, adjusted) {
    check the page and the worker apply. A cell that is present and unreadable
    is NaN (the store refuses the row); a blank cell is absent (null). */
 export function parseCsv(text, label, { tz = 'UTC' } = {}) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) throw new Error(`${label}: fewer than two lines`);
-  const head = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
-  const col = (keys) => head.findIndex(h => keys.includes(h));
+  /* Read as a CSV, not as lines split on commas: a quoted "1,612.34" is one
+     cell (see csvRows in the store). */
+  const table = csvRows(text);
+  if (table.length < 2) throw new Error(`${label}: fewer than two lines`);
+  const head = table[0].cells.map(h => h.toLowerCase());
+  /* A column by the first of its names the file has, in the order the
+     names are listed — not whichever the file happens to print first. An
+     export with "Adj Close" before "Close" (a sorted pandas frame) had its
+     dividend-adjusted close read beside the unadjusted open, high and low. */
+  const col = (keys) => { for (const k of keys) { const i = head.indexOf(k); if (i > -1) return i; } return -1; };
   const di = col(DATE_KEYS), ci = col(CLOSE_KEYS), oi = col(OPEN_KEYS), hi = col(HIGH_KEYS), li = col(LOW_KEYS), vi = col(VOL_KEYS);
   if (di === -1) throw new Error(`${label}: no date column (looked for ${DATE_KEYS.join(', ')})`);
   if (ci === -1) throw new Error(`${label}: no close column (looked for ${CLOSE_KEYS.join(', ')})`);
 
   const rows = [], refused = [];
-  const cell = (cells, i) => {
-    if (i < 0) return null;
-    const raw = String(cells[i] ?? '').replace(/[, ]/g, '');
-    /* Number('') is 0: a blank cell used to be written as a day with no
-       trades. Blank is no reading. */
-    return raw === '' ? null : Number(raw);
-  };
-  lines.slice(1).forEach((line, k) => {
-    const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+  /* Blank is no reading (null), never 0; an unreadable cell is NaN, which
+     the store refuses (numberCell). */
+  const cell = (cells, i) => (i < 0 ? null : numberCell(cells[i]));
+  table.slice(1).forEach(({ line, cells }) => {
     const d = parseDateCell(cells[di], { tz });
-    if (d.error) { refused.push({ line: k + 2, date: cells[di], codes: [d.error], why: d.why }); return; }
+    if (d.error) { refused.push({ line, date: cells[di] ?? '', codes: [d.error], why: d.why }); return; }
     rows.push({ date: d.date, open: cell(cells, oi), high: cell(cells, hi), low: cell(cells, li), close: cell(cells, ci), volume: cell(cells, vi) });
   });
   return { rows, refused, columns: { open: oi > -1, high: hi > -1, low: li > -1, volume: vi > -1 } };

@@ -425,6 +425,18 @@ const { candidates, skipped } = extractCandidates(rows, known);
 let prev = {};
 try { prev = JSON.parse(await readFile(baseline, 'utf8')).prices || {}; } catch { /* first run */ }
 
+/* The last close the baseline holds for a symbol, in either shape a price
+   file has had: { close } (prices.mjs, and live.mjs now), or { price, asOf }
+   (live.mjs --quotes before it wrote close — the shape the page still reads,
+   priceEntry in src/js/25-universe.js). Reading close alone found nothing in
+   a { price } file, so every row came out "no previous close to check
+   against" and the day-move check — the gate that catches 214.30 read as
+   814.30 — never ran. */
+function lastClose(p) {
+  const v = p?.close ?? p?.price;
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+}
+
 /* WHEN AND FOR WHICH SESSION. Every row used to carry this machine's UTC
    day, so a US close read at 18:30 in Kuala Lumpur — before New York had
    opened — was filed under a date whose session had not happened yet. The
@@ -445,8 +457,8 @@ const registryRows = await loadInstruments(REGISTRY);
 const sessionOf = (symbol) => readingSession(E, marketOf(symbol, registryRows), capturedAt);
 
 const reviewed = candidates.map(c => {
-  const last = prev[c.symbol]?.close;
-  const move = (last != null && last > 0) ? ((c.close - last) / last) * 100 : null;
+  const last = lastClose(prev[c.symbol]);
+  const move = last != null ? ((c.close - last) / last) * 100 : null;
   let verdict = 'accept', why = '';
   if (c.conflict) { verdict = 'CHECK'; why = c.conflict; }
   else if (c.split) { verdict = 'CHECK'; why = 'a digit group sits just past the price — a decimal point may have been dropped'; }

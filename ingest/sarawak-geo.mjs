@@ -75,13 +75,22 @@ const readJson = async (p, fallback) => { try { return JSON.parse(await readFile
 async function geocode() {
   const prev = await readJson(GEO_OUT, { cities: {} });
   const out = { cities: {} };
-  let fetched = 0, cached = 0, missed = 0;
+  let fetched = 0, cached = 0, missed = 0, kept = 0;
 
   for (const [id, city] of Object.entries(AREAS)) {
     out.cities[id] = { name: city.name, areas: {} };
     for (const area of city.areas) {
       const before = prev.cities?.[id]?.areas?.[area];
       if (before && !REFRESH) { out.cities[id].areas[area] = before; cached++; continue; }
+      /* A --refresh that cannot reach the service, or finds nothing, keeps
+         the point already held. It used to leave the area out of the file
+         it rewrites — one timed-out request deleted a tracked coordinate,
+         and the map lost the area until someone noticed and re-ran. */
+      const keep = () => {
+        if (!before) return '';
+        out.cities[id].areas[area] = before; kept++;
+        return ' — the point already held is kept';
+      };
 
       /* "Town centre" is a label, not a place name. Asking for the city itself
          is what a reader means by it and is what Nominatim can answer. */
@@ -124,12 +133,12 @@ async function geocode() {
             approximate: generic || undefined,
           };
           fetched++;
-        } else { missed++; console.warn(`  no match: ${city.name} / ${area}`); }
-      } catch (e) { missed++; console.warn(`  failed:  ${city.name} / ${area} — ${e.message}`); }
+        } else { missed++; console.warn(`  no match: ${city.name} / ${area}${keep()}`); }
+      } catch (e) { missed++; console.warn(`  failed:  ${city.name} / ${area} — ${e.message}${keep()}`); }
       await sleep(1100);                      /* the policy is one a second */
     }
   }
-  return { out, fetched, cached, missed };
+  return { out, fetched, cached, missed, kept };
 }
 
 /* ------------------------------------------------------------------ income */
@@ -159,7 +168,7 @@ async function income() {
 /* -------------------------------------------------------------------- main */
 if (ONLY !== 'income') {
   console.log('geocoding areas (one request a second, as the policy asks)…');
-  const { out, fetched, cached, missed } = await geocode();
+  const { out, fetched, cached, missed, kept } = await geocode();
   out.source = 'OpenStreetMap via Nominatim';
   out.licence = 'ODbL 1.0';
   out.attribution = '© OpenStreetMap contributors, openstreetmap.org/copyright';
@@ -170,7 +179,7 @@ if (ONLY !== 'income') {
   const total = Object.values(out.cities).reduce((s, c) => s + Object.keys(c.areas).length, 0);
   const grades = {};
   Object.values(out.cities).forEach(c => Object.values(c.areas).forEach(a => { grades[a.confidence] = (grades[a.confidence] || 0) + 1; }));
-  console.log(`wrote ${GEO_OUT} — ${total} areas (${fetched} fetched, ${cached} from cache, ${missed} unresolved)`);
+  console.log(`wrote ${GEO_OUT} — ${total} areas (${fetched} fetched, ${cached} from cache, ${missed} unresolved${kept ? `, ${kept} of them kept as already held` : ''})`);
   console.log('  ' + Object.entries(grades).map(([k, v]) => `${v} ${k}`).join(' · '));
   const weak = [];
   Object.values(out.cities).forEach(c => Object.entries(c.areas).forEach(([n, a]) => {

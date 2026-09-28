@@ -33,7 +33,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -612,6 +612,12 @@ if (!CHECK_ONLY) {
     },
   };
 
+  /* property-data/normalized is git-ignored, so a fresh checkout holding
+     only the raw sources has no such folder: the write threw ENOENT after
+     the reconciliation had passed, and the derived file was never written.
+     The folders are made, as every other writer here makes its own. */
+  mkdirSync(dirname(FULL), { recursive: true });
+  mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(FULL, JSON.stringify({ ...head, aggregates, benchmarks }, null, 0) + '\n');
   writeFileSync(OUT, JSON.stringify({ ...head, summary, benchmarks: slimBench }, null, 0) + '\n');
   console.log(`  full     ${FULL}`);

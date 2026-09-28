@@ -460,5 +460,127 @@ try {
 }
 /* ---- end round 3: data ---- */
 
-console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
+/* ---- bugfix: ingest ---- */
+/* A CSV read as a CSV — a quoted "1,612.34" is one cell, a BOM, CRLF and a
+   blank ",,," row are nothing, a quoted cell may hold a line break — the
+   close column chosen by its names' order, and a decimal comma unreadable
+   rather than ten times too large; the same row twice read once; Twelve
+   Data's null and blank fields absent rather than 0, and a quote dated by
+   the session its bare date names; prices.mjs reading dates and quoted
+   cells as the import does, and a price file keyed by symbol; fx.mjs
+   refusing a mid derived from one side of BNM's rate. No network: every
+   vendor and service is a stub, every file temporary. */
+{
+  const BD = join(tmpdir(), `qt-bugfix-ingest-${process.pid}`);
+  await rm(BD, { recursive: true, force: true });
+  await mkdir(BD, { recursive: true });
+  /* Read off the module rather than imported by name, so a store without
+     them fails these checks one by one instead of failing to load. */
+  const store = await import('./ingest/history-store.mjs');
+  const csvRows = typeof store.csvRows === 'function' ? store.csvRows : () => [];
+  const numberCell = typeof store.numberCell === 'function' ? store.numberCell : () => undefined;
+  const node = (args, opts = {}) => run(process.execPath, args, { cwd: ROOT, ...opts }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  const stub = async (name, body) => { const p = join(BD, name); await writeFile(p, body); return pathToFileURL(p).href; };
+  try {
+    /* An Investing.com-shaped export: BOM, CRLF, every cell quoted, grouped numbers. */
+    const inv = '\uFEFF"Date","Price","Open","High","Low","Vol.","Change %"\r\n"09/26/2025","1,612.34","1,600.10","1,620.00","1,598.20","120.5M","0.76%"\r\n,,,,,,\r\n"09/25/2025","998.50","990.00","1,001.00","985.00","100M","-0.5%"\r\n';
+    const p1 = parseCsv(inv, 'KLSE');
+    check(p1.rows.length === 2 && !p1.refused.length && p1.rows[0].date === '2025-09-26' && p1.rows[0].close === 1612.34 && p1.rows[0].open === 1600.1
+      && p1.rows[0].high === 1620 && p1.rows[0].low === 1598.2 && p1.rows[1].close === 998.5 && p1.rows[1].high === 1001,
+      'bugfix ingest: a quoted "1,612.34" is one cell — an export with a BOM, CRLF, quoted grouped numbers and a blank ",,," row reads close 1612.34 with its own open, high and low, not a close of 1 and a row slid one column left', p1);
+    const p2 = parseCsv('date,close\n2026-03-02,"10,5"\n2026-03-03,"1,234"\n', 'DC');
+    check(Number.isNaN(p2.rows[0].close) && p2.rows[1].close === 1234 && numberCell('') === null && numberCell(' 1 234 ') === 1234 && numberCell('1.2e+06') === 1200000,
+      'bugfix ingest: a comma is a thousands separator only in groups of three — "10,5" is unreadable (the store refuses it), never 105', p2.rows);
+    const p3 = parseCsv('Date,Adj Close,Close,High,Low,Open,Volume\n2026-03-02,95.5,100,101,99,99.5,1000\n', 'AC');
+    check(p3.rows[0].close === 100 && p3.rows[0].volume === 1000,
+      'bugfix ingest: with "Adj Close" printed before "Close" (a sorted pandas frame), the close read is Close — column names are taken in their listed order, not the file\'s', p3.rows[0]);
+    const t4 = csvRows('a,b\r\n"x, ""y""","multi\r\nline"\r\n\r\nz,1\n');
+    const p4 = parseCsv('date,close,note\n2026-03-02,5,"a\nb"\n\n03/04/2026,6,x', 'L');
+    check(t4.length === 3 && t4[1].cells[0] === 'x, "y"' && t4[1].cells[1] === 'multi\r\nline' && t4[2].line === 5 && p4.rows.length === 1 && p4.refused[0]?.line === 5,
+      'bugfix ingest: a quoted cell may hold a comma, a doubled quote and a line break; a refused row names the physical line it starts on', { t4, refused: p4.refused });
+
+    /* One instant, written as an epoch and as ISO with a zone. */
+    const mid = Date.parse('2026-04-13T00:00:00Z') / 1000;
+    const asNY = (c) => parseDateCell(c, { tz: 'America/New_York' }).date;
+    check(asNY(String(mid)) === '2026-04-13' && asNY('2026-04-13T00:00:00Z') === '2026-04-13' && asNY('2026-04-13 00:00:00+00:00') === '2026-04-13'
+      && asNY('2026-04-13T20:00:00Z') === '2026-04-13' && asNY('2026-04-14T02:00:00Z') === '2026-04-13' && parseDateCell('2026-04-13T00:00:00Z', { tz: 'Asia/Kuala_Lumpur' }).date === '2026-04-13',
+      'bugfix ingest: an ISO date-time with a zone is dated as an epoch is — midnight UTC is that UTC date, so "2026-04-13T00:00:00Z" is Monday 13 April for New York, as its epoch is, not Sunday the 12th; other instants in the exchange\'s zone',
+      ['2026-04-13T00:00:00Z', '2026-04-13 00:00:00+00:00', '2026-04-13T20:00:00Z', '2026-04-14T02:00:00Z'].map(asNY));
+
+    /* The import CLI on a quoted close-only export. */
+    const csv5 = join(BD, 'QKL.csv'), out5 = join(BD, 'quoted.json');
+    await writeFile(csv5, '"Date","Price"\r\n"2026-03-02","1,612.34"\r\n"2026-03-03","1,618.00"\r\n');
+    const r5 = await node([join(ROOT, 'ingest/history-import.mjs'), '--in', csv5, '--out', out5, '--market', 'MY', '--captured-at', '2026-03-04T12:00:00Z']);
+    const h5 = existsSync(out5) ? JSON.parse(await readFile(out5, 'utf8')) : {};
+    check(r5.code === 0 && h5.series?.QKL?.['2026-03-02'] === 1612.34 && h5.series.QKL['2026-03-03'] === 1618,
+      'bugfix ingest: history-import writes a quoted close-only export\'s closes as 1612.34 and 1618, not 1 and 1', { code: r5.code, series: h5.series?.QKL, err: r5.stderr });
+
+    /* The same row twice, and two different rows, for one date. */
+    const rep = mergeBars(emptyHistory(), 'R', [{ date: '2026-09-21', close: 5, volume: 10 }, { date: '2026-09-21', close: 5, volume: 10 },
+      { date: '2026-09-22', close: 6 }, { date: '2026-09-22', close: 7 }], { source: 'import:r.csv', capturedAt: NOW, market: 'US', E, now: NOW });
+    check(rep.added === 1 && rep.rejected.length === 2 && rep.rejected.every(x => x.date === '2026-09-22' && x.codes[0] === 'DUPLICATE_DATE'),
+      'bugfix ingest: the same row twice in one batch is read once; two different rows for one date are still both refused (DUPLICATE_DATE)', { added: rep.added, rejected: rep.rejected });
+
+    /* Twelve Data: fields sent as null or blank. */
+    const realFetch = globalThis.fetch;
+    try {
+      const td = (body) => { globalThis.fetch = async () => ({ ok: true, json: async () => body }); return twelveDataProvider({ apiKey: 'k' }); };
+      const q1 = await td({ symbol: '1155', close: null, timestamp: null, datetime: '2026-09-25', currency: 'MYR' }).quote('1155');
+      const q2 = await td({ symbol: '1155', close: '10.5', timestamp: null, datetime: '2026-09-25', currency: 'MYR' }).quote('1155');
+      const t7 = await td({ values: [{ datetime: '2026-09-25', open: '10', high: '11', low: '9.5', close: null, volume: '' }, { datetime: '2026-09-24', close: '10', volume: '' }] }).history('1155', '2026-09-01', '2026-09-26');
+      check(q1 === null && q2?.price === 10.5 && q2.asOf === '2026-09-25' && t7?.length === 1 && t7[0].date === '2026-09-24' && t7[0].close === 10 && t7[0].volume === null,
+        'bugfix ingest: Twelve Data fields sent as null or blank are absent — no quote at a price of 0, no 1970 timestamp, no bar with a close of 0, no volume of 0', { q1, q2, t7 });
+    } finally { globalThis.fetch = realFetch; }
+    const tdStub = await stub('td-stub.mjs', "globalThis.fetch = async () => ({ ok: true, json: async () => ({ symbol: '1155', close: '10.5', timestamp: null, datetime: '2026-09-25', currency: 'MYR' }) });\n");
+    const out8 = join(BD, 'td-quotes.json');
+    const env8 = { ...process.env, TWELVEDATA_KEY: 'k' }; delete env8.TWELVEDATA_REDIST;
+    const r8 = await node(['--import', tdStub, join(ROOT, 'ingest/live.mjs'), '--quotes', '--provider', 'twelvedata', '--symbols', '1155', '--out', out8], { env: env8 });
+    const q8 = existsSync(out8) ? JSON.parse(await readFile(out8, 'utf8')).prices?.['1155'] : null;
+    check(r8.code === 0 && q8?.close === 10.5 && q8.date === '2026-09-25',
+      'bugfix ingest: live.mjs files a quote whose only date is the session date Twelve Data names under that session — not the day before (midnight UTC read as an instant), and not 1970', { code: r8.code, q8, err: r8.stderr });
+
+    /* prices.mjs: quoted cells, day-first and ambiguous dates, a file keyed by symbol. */
+    const csv9 = join(BD, 'eod.csv'), out9 = join(BD, 'eod.json');
+    await writeFile(csv9, '"symbol","date","close","prev"\r\n"AAA","26/09/2025","10.5",""\r\n"BBB","03/04/2026","20",""\r\n"KLSE","2026-09-25","1,612.34","1,600.00"\r\n');
+    const r9 = await node([join(ROOT, 'ingest/prices.mjs'), '--in', csv9, '--out', out9]);
+    const b9 = existsSync(out9) ? JSON.parse(await readFile(out9, 'utf8')) : {};
+    check(r9.code === 0 && b9.prices?.AAA?.date === '2025-09-26' && !b9.prices.BBB && b9.rejected?.some(x => x.symbol === 'BBB' && /ambiguous date "03\/04\/2026"/.test(x.why))
+      && b9.prices.KLSE?.close === 1612.34 && b9.prices.KLSE.d1 === 0.771 && !b9.rejected.some(x => /future/.test(x.why)),
+      'bugfix ingest: prices.mjs reads a quoted CSV, files "26/09/2025" as 2025-09-26 (it was refused as "in the future"), refuses "03/04/2026" as ambiguous (it was written through as it stood), and reads "1,612.34" whole', { code: r9.code, err: r9.stderr, prices: b9.prices, rejected: b9.rejected });
+    const json10 = join(BD, 'keyed.json'), out10 = join(BD, 'keyed-out.json');
+    await writeFile(json10, JSON.stringify({ source: 'yahoo', prices: { AAA: { close: 12.5, date: '2026-09-25', capturedAt: '2026-09-25T21:00:00.000Z' } } }));
+    const r10 = await node([join(ROOT, 'ingest/prices.mjs'), '--in', json10, '--out', out10]);
+    const b10 = existsSync(out10) ? JSON.parse(await readFile(out10, 'utf8')) : {};
+    check(r10.code === 0 && b10.prices?.AAA?.close === 12.5 && b10.prices.AAA.capturedAt === '2026-09-25T21:00:00.000Z',
+      'bugfix ingest: prices.mjs reads a price file keyed by symbol (the shape it, live.mjs and fx.mjs write) instead of crashing on "rows is not iterable"', { code: r10.code, err: r10.stderr?.slice(0, 200) });
+
+    /* fx.mjs: BNM with one side null and the cross-check source down. */
+    const bnm = (buy, sell) => `globalThis.fetch = async (url) => { if (String(url).includes('bnm.gov.my')) return { ok: true, status: 200, json: async () => ({ data: { rate: { date: '2026-09-25', buying_rate: ${buy}, selling_rate: ${sell}, middle_rate: null } } }) }; throw new Error('frankfurter unreachable'); };\n`;
+    const out11 = join(BD, 'fx-one-side.json'), out12 = join(BD, 'fx-both.json');
+    const r11 = await node(['--import', await stub('fx-one.mjs', bnm('null', 4.5)), join(ROOT, 'ingest/fx.mjs'), '--out', out11]);
+    const r12 = await node(['--import', await stub('fx-both.mjs', bnm(4.4, 4.6)), join(ROOT, 'ingest/fx.mjs'), '--out', out12]);
+    const b12 = existsSync(out12) ? JSON.parse(await readFile(out12, 'utf8')) : {};
+    check(r11.code === 1 && !existsSync(out11) && /not both sides/.test(r11.stderr) && r12.code === 0 && b12.prices?.USDMYR?.close === 4.5,
+      'bugfix ingest: fx.mjs refuses a BNM rate with one side null (it wrote 2.25 — half the rate, inside the plausible band — when the cross-check source was down); with both sides the mid is still derived', { r11: r11.code, err: r11.stderr, r12: r12.code, usdmyr: b12.prices?.USDMYR });
+
+    /* watchlist.mjs's day-move gate against a baseline in the { price } shape.
+       The script needs Windows OCR to run whole, so its lastClose is sliced
+       out of the source, as the paste parser is above. */
+    const wl = readFileSync(join(ROOT, 'ingest/watchlist.mjs'), 'utf8');
+    const wa = wl.indexOf('function lastClose(');
+    const lastClose = wa < 0 ? null : new Function(`${wl.slice(wa, wl.indexOf('\n}\n', wa) + 2)}; return lastClose;`)();
+    const gateReads = /const last = lastClose\(prev\[c\.symbol\]\);/.test(wl);
+    const move = (ocr, base) => { const last = lastClose?.(base); return last == null ? null : ((ocr - last) / last) * 100; };
+    check(lastClose && gateReads && lastClose({ price: 214.3, asOf: '2026-08-04T02:05:02.000Z' }) === 214.3 && lastClose({ close: 10.84 }) === 10.84
+      && lastClose({ close: 0 }) === null && lastClose(undefined) === null && Math.round(move(814.3, { price: 214.3 })) === 280,
+      'bugfix ingest: watchlist.mjs checks each OCR candidate against a baseline written as { price } (live.mjs --quotes before it wrote close) — 814.30 read for 214.30 is a +280% move to hold back, not "no previous close"', { found: !!lastClose, gateReads });
+  } catch (e) {
+    fail('bugfix ingest: the test threw', e.stack || e.message);
+  } finally {
+    await rm(BD, { recursive: true, force: true });
+  }
+}
+/* ---- end bugfix: ingest ---- */
+
+console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

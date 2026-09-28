@@ -47,9 +47,17 @@ async function fromBNM() {
   const r = j?.data?.rate;
   if (!r) throw new Error('BNM returned no rate');
   /* middle_rate is frequently null in the published payload, so derive the mid
-     from the two sides rather than trusting a field that is usually empty. */
-  const mid = r.middle_rate ?? ((r.buying_rate + r.selling_rate) / 2);
-  if (!Number.isFinite(mid)) throw new Error('BNM rate is not a number');
+     from the two sides rather than trusting a field that is usually empty —
+     from BOTH sides. A side sent as null was added as nought (null + 4.5 is
+     4.5), so a missing buying rate halved the mid to 2.25: inside the
+     plausible band, and written as the ringgit rate whenever the second
+     source was down and there was nothing to disagree with it. */
+  const side = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+  const buy = side(r.buying_rate), sell = side(r.selling_rate);
+  const mid = r.middle_rate ?? (buy != null && sell != null ? (buy + sell) / 2 : NaN);
+  if (!Number.isFinite(mid)) throw new Error(r.middle_rate == null && (buy == null || sell == null)
+    ? `BNM sent no middle rate and not both sides (buying ${r.buying_rate}, selling ${r.selling_rate}) — no mid can be derived`
+    : 'BNM rate is not a number');
   return { rate: +mid.toFixed(4), date: r.date || null,
            source: 'Bank Negara Malaysia', detail: `buying ${r.buying_rate}, selling ${r.selling_rate}` };
 }
