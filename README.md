@@ -423,6 +423,49 @@ data, so no signal is claimed to work.
    SETTLED, with the candidates named. `--interval 1W` (or `1M`) with
    `--market` reads a file not named as TradingView names one.
    <!-- end tv-verify frames -->
+
+   <!-- bot-verify -->
+   Then hold the scanner's bot against your script's own marks on the three
+   charts:
+
+   ```bash
+   node scanner/bot-verify.mjs --daily "watchlist-shots/OANDA_XAUUSD, 1D.csv" \
+     --weekly "watchlist-shots/OANDA_XAUUSD, 1W.csv" --monthly "watchlist-shots/OANDA_XAUUSD, 1M.csv"
+   ```
+
+   It imports the three files exactly as step 2 does, but into a temporary
+   folder it removes afterwards (your `data/price-history.json` is never
+   touched), makes the bot's setups with your defaults, and evaluates them on
+   the last daily session of each week and month. Each "Strong Buy -
+   Continuous" (and every other bot mark) is compared with the matching
+   setup, and each chart's own WaveTrend, MACD and MCDX columns are compared
+   with the scanner's criteria for the same bar. It assumes each chart's bot
+   has Entry TF = D and Trade TF = the chart's own timeframe, and tests that
+   assumption against the chart's own columns. Every disagreement gets a
+   reason:
+
+   - **provisional**: the bar was still trading when you saved the file.
+   - **not held**: a daily session the week needs is missing.
+   - **warm-up**: a criterion needs more bars than the file holds, or has
+     not yet forgotten where the file begins.
+   - **entry timeframe**: your chart's Entry TF reading is not the daily
+     one.
+   - **trade timeframe**: your chart's bot does not read the chart's own
+     bars.
+   - **gaps_on**: a daily chart's weekly marks.
+   - **UNEXPLAINED** (exit 1): a fault to find and fix before trusting the
+     setups.
+
+   Your charts, as exported on 2026-09-28, run the script with its shipped
+   defaults: **Entry TF 240** (4-hour bars) and **Trade TF W** even on the
+   monthly chart. Many daily Entry TF marks sit on sessions where the chart's
+   own daily columns rule them out, and the monthly marks follow the weekly
+   bot, not the monthly bars. The scanner follows your decisions instead:
+   entries on the daily bar, and a monthly set on monthly bars. Its
+   alerts will not repeat those two charts' marks. To see TradingView draw
+   what the scanner computes, set the bot's Entry TF to D on all three
+   charts and its Trade TF to M on the monthly chart, then export again.
+   <!-- end bot-verify -->
 4. **Add the bot's setups** on `/app/scanner/setups` (once, and again only
    when you change them). They arrive as ordinary daily setups whose
    conditions read the week or the month, named for your script's alerts —

@@ -4585,5 +4585,268 @@ try {
 }
 /* ---- end frames: tools ---- */
 
+/* ---- frames: compare ---- */
+/* BOT-VERIFY: the scanner's pack against the bot's own marks on TradingView
+   charts (scanner/bot-verify.mjs). Every file here is synthetic, written by
+   this block into a temporary folder: a seeded random walk of twenty-five
+   years of weekday sessions stands for what TradingView holds, and the
+   exports carry its last 600 sessions, 1,000 weeks and 300 months, stamped
+   as OANDA stamps them (17:00 New York on the evening before a bar's first
+   session), with the chart's own WaveTrend, MACD and MCDX computed by the
+   engine on the whole walk — TradingView's numbers on its whole history —
+   and the bot's marks as TradingView's script draws them: the weekly chart
+   with Trade TF W, the monthly chart with the script's default Trade TF W
+   (so its marks are not read on monthly bars), the daily chart's weekly
+   marks under gaps_on. One Friday is a holiday; one session's entry reading
+   is the chart's own, not the daily bars'. Nothing here reads
+   watchlist-shots, and the files are saved on a Wednesday before its close. */
+{
+  const BV = await import('./scanner/bot-verify.mjs');
+  const { utimes } = await import('node:fs/promises');
+  const NY = 'America/New_York';
+  const SYM = 'XAUUSD';
+  const FXD = E.scanMarket('FX').days;
+
+  /* The script's logic in three values: a decided false in an ALL decides
+     it whatever is unknown; the chart's entry readings stand in for the
+     daily criteria. */
+  const T2B = { c1y: 1, c2y: 1, c3y: 1, c4y: 0, c1n: 0, c2n: 0, c3n: 0, c4n: 1, hu: 1, hd: 0, hm: 1 };
+  check(BV.botSignal('strong-buy-continuous', { t: T2B, EB: 1 }) === 1 && BV.botSignal('strong-buy-reversal', { t: T2B, EB: 1 }) === 0
+    && BV.botSignal('strong-buy-continuous', { t: { ...T2B, hu: null }, EB: 1 }) === null && BV.botSignal('strong-buy-continuous', { t: { ...T2B, hu: null }, EB: 0 }) === 0
+    && BV.botSignal('tier2-buy', { t: { ...T2B, c3y: null, c3n: null, c4y: 1, c4n: 0 } }) === 1 && BV.botSignal('tier1-buy', { t: { ...T2B, c3y: null, c3n: null, c4y: 1, c4n: 0 } }) === 0
+    && BV.botSignal('tier2-buy', { t: { ...T2B, c3y: null, c3n: null } }) === null
+    && BV.botSignal('entry-sell', { d: { c1n: 1, c2n: 1, c3n: 1, c4n: 1, c5y: null } }) === null && BV.botSignal('any-strong', { t: T2B, EB: 0, ES: 0 }) === 0,
+    'frames compare: the script\'s logic in three values — a decided criterion decides, an unknown one leaves the signal unknown, and the chart\'s entry readings stand in for the daily criteria');
+
+  /* A walk of weekday sessions from October 1999 to Wednesday 25 September
+     2024, minus the holidays given: a rise with a slow swing, so every
+     criterion turns. */
+  const LAST = '2024-09-25';
+  const walkOf = (holidays) => {
+    let s = 20240925, px = 280;
+    const rnd = () => { s = (s * 1103515245 + 12345) % 2147483648; return s / 2147483648; };
+    const r3 = (x) => Math.round(x * 1000) / 1000;
+    const w = { dates: [], open: [], high: [], low: [], close: [], volume: [] };
+    let n = 0;
+    for (let d = '1999-10-01'; d <= LAST; d = E.scanAddDays(d, 1)) {
+      if (!FXD.includes(E.scanWeekday(d))) continue;
+      const o = px, c = r3(o * (1 + 0.0005 + 0.004 * Math.sin(n / 190) + (rnd() - 0.5) * 0.024));
+      const h = r3(Math.max(o, c) * (1 + rnd() * 0.008)), l = r3(Math.min(o, c) * (1 - rnd() * 0.008)), v = 20000 + Math.floor(rnd() * 90000);
+      px = c; n++;
+      if (holidays.has(d)) continue;
+      w.dates.push(d); w.open.push(o); w.high.push(h); w.low.push(l); w.close.push(c); w.volume.push(v);
+    }
+    return w;
+  };
+  /* The walk as a history, every bar final, and the pack's readings on all
+     of it — TradingView's side. */
+  const longOf = (w) => {
+    const hist = { schema: 2, series: { [SYM]: {} }, ohlc: { [SYM]: {} }, volume: { [SYM]: {} }, meta: { [SYM]: {} }, corrections: {} };
+    w.dates.forEach((d, i) => { hist.series[SYM][d] = w.close[i]; hist.ohlc[SYM][d] = [w.open[i], w.high[i], w.low[i]]; hist.volume[SYM][d] = w.volume[i]; hist.meta[SYM][d] = { src: 'import:walk', at: '2024-12-31T00:00:00.000Z' }; });
+    const P = BV.packReader(E, hist, SYM, { market: 'FX' });
+    const W = P.frameOf('1W'), M = P.frameOf('1M');
+    const lastIn = (of) => { const m = new Map(); P.bars.dates.forEach((d, i) => m.set(of(d), i)); return m; };
+    return { w, P, W, M, lastW: lastIn(E.scanWeekOf), lastM: lastIn(E.scanMonthOf), kW: new Map(W.periods.map((p, k) => [p, k])) };
+  };
+  /* A week's own trade readings (the chart's Trade TF is the chart's), and
+     the entry readings on a session. */
+  const own = (L, tf, k) => {
+    const y = (key) => L.P.onBase(tf, key, k);
+    const t = { hu: y('hu'), hd: y('hd') };
+    for (const c of ['c1', 'c2', 'c3', 'c4']) { t[`${c}y`] = y(c); t[`${c}n`] = t[`${c}y`] == null ? null : 1 - t[`${c}y`]; }
+    t.hm = t.hu == null || t.hd == null ? null : t.hu || t.hd ? 1 : 0;
+    return t;
+  };
+  const entryOf = (L, i) => { const d = L.P.comps(i, null).v; return { buy: BV.botSignal('entry-buy', { d }), sell: BV.botSignal('entry-sell', { d }) }; };
+
+  /* The holiday: a Friday whose week, closed by its Thursday on
+     TradingView, reads otherwise than the week before — which the pack
+     still reads on that Thursday. */
+  let L = longOf(walkOf(new Set()));
+  const firstDaily = L.P.bars.dates[L.P.bars.dates.length - 600];
+  let holiday = null;
+  const cands = L.W.periods.filter((p, k) => p > E.scanAddDays(firstDaily, 120) && p < E.scanAddDays(LAST, -60) && k > 0
+    && BV.botSignal('tier2-buy', { t: own(L, '1W', k) }) !== BV.botSignal('tier2-buy', { t: own(L, '1W', k - 1) })
+    && E.scanMonthOf(E.scanAddDays(p, 4)) === E.scanMonthOf(E.scanAddDays(p, 7)));
+  for (const p of cands.reverse()) {
+    const T = longOf(walkOf(new Set([E.scanAddDays(p, 4)])));
+    const k = T.kW.get(p);
+    if (BV.botSignal('tier2-buy', { t: own(T, '1W', k) }) !== BV.botSignal('tier2-buy', { t: own(T, '1W', k - 1) })) { L = T; holiday = p; break; }
+  }
+  check(holiday != null && !L.P.bars.dates.includes(E.scanAddDays(holiday, 4)), 'frames compare: a Friday holiday is found in a week whose own reading differs from the week before\'s', { holiday });
+  const LD = L.P.bars, LW = L.W.bars, LM = L.M.bars;
+  /* The monthly export from October 2001: a stamp before 9 September 2001
+     is a nine-digit epoch, which the import's date reader does not take. */
+  const ND = 600, NW = 1000;
+  const dI = LD.dates.map((_, i) => i).slice(-ND), wK = LW.dates.map((_, k) => k).slice(-NW), mK = LM.dates.map((_, k) => k).filter(k => L.M.periods[k] >= '2001-10-01');
+  const NM = mK.length;
+
+  /* The marks. The daily chart's entry readings are the daily bars' — save
+     on two sessions, where the chart's own reading is a buy its own daily
+     columns deny (the weeks they close read a tier 2 buy with the histogram
+     rising, so the weekly chart marks a STRONG BUY CONTINUOUS there). Two,
+     because a mark is never its own evidence. */
+  const entryMark = new Map(dI.map(i => [i, entryOf(L, i)]));
+  const denies = (i) => { const d = L.P.comps(i, null).v; return d.c1y === 0 || d.c2y === 0 || d.c4y === 0; };
+  const swaps = L.W.periods.filter(p => {
+    const i = L.lastW.get(p), k = L.kW.get(p);
+    if (i == null || i < LD.dates.length - ND + 260 || p >= E.scanAddDays(LAST, -21) || p === holiday) return false;
+    const t = own(L, '1W', k);
+    return BV.botSignal('tier2-buy', { t }) === 1 && t.hu === 1 && entryMark.get(i).buy === 0 && denies(i);
+  }).slice(0, 2);
+  const [swapWeek] = swaps;
+  const swapDay = swapWeek ? LD.dates[L.lastW.get(swapWeek)] : null;
+  check(swaps.length === 2, 'frames compare: two weeks that read a tier 2 buy, rising, closed by a session whose daily entry is not a buy — the chart\'s entry reading is made one there', { swaps });
+  for (const w of swaps) entryMark.set(L.lastW.get(w), { buy: 1, sell: 0 });
+  const entryAtI = (i) => entryMark.get(i) || entryOf(L, i);
+  const weekMark = (sig, k) => { const i = L.lastW.get(L.W.periods[k]); const e = entryAtI(i); return BV.botSignal(sig, { t: own(L, '1W', k), EB: e.buy, ES: e.sell }) ?? 0; };
+  /* The monthly chart as the script ships: Trade TF W — the week closed by
+     the month's last session, its histogram against the one the month
+     before read. */
+  const monthMark = (sig, k) => {
+    const p = L.M.periods[k], i = L.lastM.get(p), ip = L.lastM.get(E.scanMonthOf(E.scanAddDays(p, -1)));
+    if (i == null || ip == null) return 0;
+    const cw = L.P.comps(i, '1W').v, pw = L.P.comps(ip, '1W').v;
+    const known = cw.hist != null && pw.hist != null;
+    const t = { ...cw, hu: known ? (cw.hist > pw.hist ? 1 : 0) : null, hd: known ? (cw.hist < pw.hist ? 1 : 0) : null };
+    t.hm = t.hu == null ? null : t.hu || t.hd ? 1 : 0;
+    const e = entryAtI(i);
+    return BV.botSignal(sig, { t, EB: e.buy, ES: e.sell }) ?? 0;
+  };
+  /* The daily chart's weekly marks under gaps_on: a week's own values on
+     the last session TradingView holds in it, none elsewhere, and a
+     histogram test that never holds. */
+  const dayTradeMark = (sig, i) => {
+    const wk = E.scanWeekOf(LD.dates[i]);
+    const closes = L.lastW.get(wk) === i;
+    const t = closes ? { ...own(L, '1W', L.kW.get(wk)), hu: 0, hd: 0, hm: 0 } : { c1y: 0, c2y: 0, c3y: 0, c4y: 0, c1n: 1, c2n: 1, c3n: 1, c4n: 1, hu: 0, hd: 0, hm: 0 };
+    const e = entryAtI(i);
+    return BV.botSignal(sig, { t, EB: e.buy, ES: e.sell }) ?? 0;
+  };
+
+  /* The chart's own columns: the engine's WaveTrend, CM MACD and MCDX on
+     the whole walk, at each timeframe. */
+  const pp = (id) => E.scanParams({ indicator: id }).params;
+  const ownCols = (b) => {
+    const pick = (id, title) => E.SCAN_INDICATORS[id].pine(b, pp(id)).plots.find(([t]) => t === title)[1];
+    return [['MACD', pick('cm_macd', 'MACD')], ['Hot Money', pick('mcdx', 'Hot Money')], ['Banker', pick('mcdx', 'Banker')], ['WT Average-WT1', pick('wavetrend', 'WT Average-WT1')]];
+  };
+  const stampOf = (session) => E.scanZonedInstant(E.scanAddDays(session, -1), 17 * 60, NY) / 1000;
+  const firstIn = (of) => { const m = new Map(); LD.dates.forEach(d => { if (!m.has(of(d))) m.set(of(d), d); }); return m; };
+  const firstW = firstIn(E.scanWeekOf), firstM = firstIn(E.scanMonthOf);
+  const csv = (b, idx, stamp, cols) => [['time', 'open', 'high', 'low', 'close', ...cols.map(([t]) => t)].join(','),
+    ...idx.map(j => [stamp(j), b.open[j], b.high[j], b.low[j], b.closes[j], ...cols.map(([, s]) => (s[j] == null ? '' : s[j]))].join(','))].join('\n');
+  /* A column's values on the rows an export carries. */
+  const col = (idx, f) => { const a = []; for (const j of idx) a[j] = f(j); return a; };
+  const WOWN = ownCols(LW);
+  const WC = [['Trade TF Tier 2 Buy', col(wK, k => weekMark('tier2-buy', k))], ['Strong Buy - Continuous', col(wK, k => weekMark('strong-buy-continuous', k))],
+    ['Strong Sell - Continuous', col(wK, k => weekMark('strong-sell-continuous', k))]];
+  const dailyCols = () => [
+    ['Trade TF Tier 2 Buy', col(dI, i => dayTradeMark('tier2-buy', i))], ['Strong Buy - Continuous', col(dI, i => dayTradeMark('strong-buy-continuous', i))],
+    ['Entry TF Buy', col(dI, i => entryAtI(i).buy ?? 0)], ['Entry TF Sell', col(dI, i => entryAtI(i).sell ?? 0)], ...ownCols(LD)];
+  const weekCols = (over = {}) => [
+    ['Trade TF Tier 2 Buy', WC[0][1]], ['Strong Buy - Continuous', over.sbc || WC[1][1]], ['Strong Sell - Continuous', WC[2][1]], ...WOWN.map(([t, s]) => [t, over[t] || s])];
+  const monthCols = () => [['Trade TF Tier 2 Buy', col(mK, k => monthMark('tier2-buy', k))], ['Strong Buy - Continuous', col(mK, k => monthMark('strong-buy-continuous', k))], ...ownCols(LM)];
+  const dailyCsv = csv(LD, dI, (i) => stampOf(LD.dates[i]), dailyCols());
+  const weekCsv = (over) => csv(LW, wK, (k) => stampOf(firstW.get(L.W.periods[k])), weekCols(over));
+  const monthCsv = csv(LM, mK, (k) => stampOf(firstM.get(L.M.periods[k])), monthCols());
+
+  const bvDir = join(tmpdir(), `qt-bot-verify-test-${process.pid}`);
+  await mkdir(bvDir, { recursive: true });
+  const before = (await readdir(tmpdir())).filter(n => n.startsWith('qt-bot-verify-') && !n.startsWith('qt-bot-verify-test-')).length;
+  try {
+    /* Saved on Wednesday 25 September 2024 at 11:00 New York: that session,
+       its week and its month still trading. */
+    const saved = new Date(E.scanZonedInstant(LAST, 11 * 60, NY));
+    const put = async (name, text) => { const p = join(bvDir, name); await writeFile(p, text); await utimes(p, saved, saved); return p; };
+    const fD = await put('OANDA_XAUUSD, 1D.csv', dailyCsv), fW = await put('OANDA_XAUUSD, 1W.csv', weekCsv()), fM = await put('OANDA_XAUUSD, 1M.csv', monthCsv);
+    const rep = await BV.botVerify({ daily: fD, weekly: fW, monthly: fM, E });
+    const X = (iv) => rep.exports.find(x => x.interval === iv);
+    const C = (iv, sig) => X(iv).columns.find(c => c.signal === sig);
+    const itemsOf = (iv, sig) => C(iv, sig).items;
+    const all = rep.exports.flatMap(x => x.columns.flatMap(c => [...c.items, ...(c.withEntry?.items || [])]));
+    const pItems = rep.exports.flatMap(x => Object.values(x.parity).flatMap(p => p.items));
+    check(rep.summary.unexplained === 0 && !all.some(it => it.reason === 'UNEXPLAINED') && !pItems.some(it => it.reason === 'UNEXPLAINED')
+      && !all.some(it => /the pack is not the script/.test(it.detail)),
+      'frames compare: on exports TradingView\'s script would draw from the walk, every disagreement has its reason — none UNEXPLAINED, and the pack\'s setups read as the script\'s logic on every compared bar',
+      { summary: rep.summary, un: all.filter(it => it.reason === 'UNEXPLAINED').slice(0, 3), pun: pItems.filter(it => it.reason === 'UNEXPLAINED').slice(0, 3) });
+    const wBefore = L.W.periods.slice(-NW).filter(p => p < E.scanWeekOf(LD.dates[LD.dates.length - ND])).length;
+    const mBefore = L.M.periods.slice(-NM).filter(p => p < E.scanMonthOf(LD.dates[LD.dates.length - ND])).length;
+    check(X('1W').notCompared.before.n === wBefore && C('1W', 'tier2-buy').compared === NW - wBefore && X('1M').notCompared.before.n === mBefore && C('1M', 'tier2-buy').compared === NM - mBefore
+      && C('1D', 'entry-buy').compared === ND && X('1W').notCompared.after.n === 0 && X('1M').notCompared.within.n === 0,
+      `frames compare: the ${wBefore} weeks and ${mBefore} months before the daily export are NOT COMPARED and counted; every other period and every session is compared`,
+      { w: X('1W').notCompared, m: X('1M').notCompared, cw: C('1W', 'tier2-buy').compared, cm: C('1M', 'tier2-buy').compared });
+    const last = (iv, sig) => itemsOf(iv, sig).find(it => it.key === X(iv).last);
+    check(['1D', '1W', '1M'].every(iv => X(iv).lastStatus === 'PROVISIONAL' && X(iv).columns.every(c => { const it = c.items.find(z => z.key === X(iv).last); return it && it.reason === 'provisional' && it.mine === null; })),
+      'frames compare: the session, week and month still trading when the files were saved disagree as provisional — the pack does not read a bar captured before its close',
+      ['1D', '1W', '1M'].map(iv => [X(iv).lastStatus, last(iv, X(iv).columns[0].signal)]));
+    const warm = itemsOf('1D', 'entry-buy').filter(it => it.reason === 'warm-up');
+    check(warm.length >= 30 && warm[0].key === LD.dates[LD.dates.length - ND] && /daily criterion 3: EMA200 needs 200 bars; 1 held/.test(warm[0].detail)
+      && itemsOf('1D', 'entry-buy').filter(it => it.mine === null && it.reason !== 'provisional').every(it => it.reason === 'warm-up'),
+      'frames compare: a session the pack cannot read yet is warm-up, naming the criterion, its timeframe and the bars it needs and holds', warm.slice(0, 2));
+    const nh = itemsOf('1W', 'tier2-buy').find(it => it.key === holiday);
+    check(!!nh && nh.reason === 'not held' && nh.at === E.scanAddDays(holiday, 3) && new RegExp(`${E.scanAddDays(holiday, 4)} is an expected session of the week and holds no daily bar`).test(nh.detail),
+      'frames compare: the week whose Friday is a holiday — closed on its Thursday on TradingView, still open for the pack on the weekday calendar, which reads the week before — is not held, naming the missing session', nh);
+    const et = itemsOf('1W', 'strong-buy-continuous').find(it => it.key === swapWeek), ed = itemsOf('1D', 'entry-buy').find(it => it.key === swapDay);
+    check(!!et && et.theirs === 1 && et.mine === 0 && et.reason === 'entry timeframe' && /your chart's Entry TF marks on .* are Buy 1, Sell 0/.test(et.detail)
+      && !!ed && ed.reason === 'entry timeframe' && /deny this mark/.test(ed.detail) && rep.entryNotD === true && rep.entryEvidence.denied.some(z => z.key === swapDay),
+      'frames compare: a STRONG BUY CONTINUOUS the weekly chart marks on its own entry reading is entry timeframe — the daily chart\'s Entry TF Buy on that session gives it — and that Entry TF Buy, which the chart\'s own daily columns deny, shows its Entry TF is not D',
+      { et, ed: ed && { reason: ed.reason, detail: ed.detail.slice(0, 120) } });
+    const gd = [...itemsOf('1D', 'tier2-buy'), ...itemsOf('1D', 'strong-buy-continuous')].filter(it => it.reason !== 'provisional' && it.reason !== 'warm-up');
+    check(gd.length > 20 && gd.every(it => it.reason === 'gaps_on' || (it.reason === 'not held' && E.scanWeekOf(it.key) === holiday)) && gd.some(it => it.theirs === 0 && it.mine === 1 && /does not close its week/.test(it.detail))
+      && itemsOf('1D', 'strong-buy-continuous').filter(it => it.reason === 'gaps_on').every(it => it.theirs === 0),
+      'frames compare: the daily chart\'s weekly marks under gaps_on — false on a session that closes no week, and a histogram test that never holds — disagree with the pack\'s last closed week as gaps_on', gd.slice(0, 2));
+    const tt = [...itemsOf('1M', 'tier2-buy'), ...itemsOf('1M', 'strong-buy-continuous')].filter(it => it.reason !== 'provisional' && it.reason !== 'warm-up');
+    check(X('1M').tradeDenied && X('1M').evidence.denied.some(z => !z.drawn) && !X('1W').tradeDenied && X('1W').evidence.denied.length === 0 && tt.length > 0
+      && tt.some(it => it.reason === 'trade timeframe') && tt.every(it => it.reason === 'trade timeframe' || it.reason === 'entry timeframe')
+      && X('1M').alt.compared > 20 && X('1M').alt.agree === X('1M').alt.compared,
+      'frames compare: the monthly chart drawn with Trade TF W — its own monthly columns require marks it does not draw, its disagreements are trade timeframe (or entry timeframe), and read as the weekly bot sampled at each month\'s close it agrees on every month; the weekly chart\'s own columns deny none of its marks',
+      { denied: X('1M').evidence.denied.length, tt: tt.slice(0, 2), alt: { c: X('1M').alt.compared, a: X('1M').alt.agree } });
+    const pw = X('1W').parity, pd = X('1D').parity;
+    check(Object.values(pw).every(p => p.compared > 500 && p.items.every(it => it.reason === 'warm-up')) && Object.values(pd).every(p => p.compared > 300)
+      && Object.values(pw).reduce((t, p) => t + p.agree, 0) > 0.98 * Object.values(pw).reduce((t, p) => t + p.compared, 0),
+      'frames compare: the pack\'s weekly criteria on the imported weeks agree with the chart\'s own columns on each week both read, but where the pack\'s value has not settled (warm-up)',
+      Object.fromEntries(Object.entries(pw).map(([k, p]) => [k, [p.agree, p.compared, p.byReason]])));
+    check((await readdir(tmpdir())).filter(n => n.startsWith('qt-bot-verify-') && !n.startsWith('qt-bot-verify-test-')).length === before,
+      'frames compare: the temporary history the exports were imported into is removed after the run');
+
+    /* One mark TradingView did not draw (a STRONG BUY CONTINUOUS the pack
+       and the chart's entry both give, on a session far from its EMA 200),
+       and one week's banker bent below 5 where the pack's reads above it:
+       each UNEXPLAINED — the first is the only mark its own columns
+       require and it lacks, and a mark is never its own evidence. */
+    const sbc = WC[1][1];
+    const agreeing = wK.filter(k => sbc[k] === 1 && L.lastW.get(L.W.periods[k]) >= LD.dates.length - ND + 260 && L.W.periods[k] !== swapWeek && L.W.periods[k] !== holiday
+      && !itemsOf('1W', 'strong-buy-continuous').some(it => it.key === L.W.periods[k]));
+    const margin = (k) => { const i = L.lastW.get(L.W.periods[k]); const n = L.P.numbers(null, 'c3'); return Math.abs(n.a[i] / n.b[i] - 1); };
+    const flipK = agreeing.sort((a, b) => margin(b) - margin(a))[0];
+    const banker = WOWN.find(([t]) => t === 'Banker')[1].slice();
+    const bendK = wK.slice(-120, -8).find(k => own(L, '1W', k).c4y === 1 && Math.abs(k - flipK) > 8);
+    banker[bendK] = 2;
+    const fW2 = await put('OANDA_XAUUSD, 1W (2).csv', weekCsv({ sbc: sbc.map((v, k) => (k === flipK ? 0 : v)), Banker: banker }));
+    const rep2 = await BV.botVerify({ daily: fD, weekly: fW2, monthly: fM, E });
+    const X2 = rep2.exports.find(x => x.interval === '1W');
+    const fx = X2.columns.find(c => c.signal === 'strong-buy-continuous').items.find(it => it.key === L.W.periods[flipK]);
+    const bx = X2.parity.c4.items.find(it => it.key === L.W.periods[bendK]);
+    check(flipK != null && !!fx && fx.theirs === 0 && fx.mine === 1 && fx.reason === 'UNEXPLAINED' && !!bx && bx.reason === 'UNEXPLAINED' && /has settled/.test(bx.detail) && rep2.summary.unexplained >= 2,
+      'frames compare: a mark TradingView did not draw where nothing explains it, and a criterion the chart\'s own column denies where the pack\'s value has settled, are each UNEXPLAINED',
+      { fx, bx, summary: rep2.summary });
+
+    /* The command line: 0 when every disagreement has its reason, 1 when one
+       is UNEXPLAINED, 2 for what cannot be compared. */
+    const cli = async (...a) => { try { const r = await run(process.execPath, [join(ROOT, 'scanner/bot-verify.mjs'), ...a], { maxBuffer: 1 << 26 }); return { code: 0, out: r.stdout, err: r.stderr }; } catch (e) { return { code: e.code, out: e.stdout || '', err: e.stderr || '' }; } };
+    const fX = await put('OANDA_XAGUSD, 1W.csv', weekCsv()), fN = await put('OANDA_XAUUSD, 1D (3).csv', csv(LD, dI, (i) => stampOf(LD.dates[i]), ownCols(LD)));
+    const [c0, c1, c2a, c2b, c2c, c2d] = [await cli('--daily', fD, '--weekly', fW, '--monthly', fM), await cli('--daily', fD, '--weekly', fW2),
+      await cli('--daily', fD, '--weekly', fX), await cli('--daily', fW), await cli('--daily', fN), await cli('--weekly', fW)];
+    check(c0.code === 0 && /\n0 UNEXPLAINED/.test(c0.out) && /NOT COMPARED: \d+ weeks before the daily export/.test(c0.out) && /read as Trade TF = W .*: (\d+) compared, \1 agree/.test(c0.out)
+      && c1.code === 1 && /UNEXPLAINED — a fault to find/.test(c1.out)
+      && c2a.code === 2 && /not one symbol \(XAUUSD, XAGUSD\)/.test(c2a.err) && c2b.code === 2 && /is named a 1W export, and was given as the daily one/.test(c2b.err)
+      && c2c.code === 2 && /no export carries a mark of the Multi-Timeframe Trading Bot/.test(c2c.err) && c2d.code === 2 && /usage:/.test(c2d.err),
+      'frames compare: node scanner/bot-verify.mjs — exit 0 when every disagreement has its reason, 1 when one is UNEXPLAINED, 2 for exports of two symbols, a weekly file given as the daily one, exports with no bot mark, or no --daily',
+      { c0: [c0.code, c0.err.slice(0, 200)], c1: c1.code, c2a: c2a.err, c2b: c2b.err, c2c: c2c.err, c2d: c2d.code });
+  } finally { await rm(bvDir, { recursive: true, force: true }); }
+}
+/* ---- end frames: compare ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
