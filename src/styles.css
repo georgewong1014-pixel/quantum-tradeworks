@@ -242,21 +242,18 @@ a { color: inherit; }
    keyboard, so the people who use it are precisely those most likely to need
    the contrast — and it was the worst ratio in the product. Dark ground,
    light text: 14:1. */
-/* Moved with transform rather than by animating `top`: only transform and
-   opacity are animated anywhere in this product, and `top` is a layout
-   property that re-flows on every frame of the slide. */
+/* Shown and hidden at once, with no slide either way. A focused control is
+   never mid-motion: a headless browser measured the link still above the
+   viewport on Shift+Tab as it slid in, and still over the home link on Tab as
+   it slid out, 0.01ms of reduced motion not yet advanced. A skip link is
+   reached by keyboard to be read, not watched. */
 .skip-link {
   position: absolute; left: var(--md); top: var(--md); z-index: 100;
   background: var(--surface-inv); color: var(--ink-inv); padding: 10px 16px;
   border-radius: var(--r-md); font-weight: 600;
   transform: translateY(calc(-100% - var(--md) - 8px));
-  transition: transform 180ms ease;
 }
-/* Focus brings it in at once, as the report strip's jump row does: a control
-   that has focus is never mid-slide. A headless browser measured it on
-   Shift+Tab still above the viewport, 0.01ms of reduced motion not yet
-   advanced. Leaving focus still slides it away. */
-.skip-link:focus { transform: none; transition: none; }
+.skip-link:focus { transform: none; }
 
 /* THE DOCK COVERED THE FIELD BEING TYPED INTO. A focused control is scrolled
    only until it meets the viewport's bottom edge, and on a page with the
