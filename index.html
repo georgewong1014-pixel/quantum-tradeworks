@@ -2294,7 +2294,7 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
 
    Files absent from this table are the licensed lane. They are git-ignored, they
    exist only on the reader's own machine, and they keep no-store. */
-const DATA_VERSIONS = {"us.json":"a6357561dc5f","instruments.json":"fdb990b086d0","sarawak-geo.json":"455742df447a","napic-h1-2025.json":"957073a57859"};
+const DATA_VERSIONS = {"us.json":"a6357561dc5f","instruments.json":"eb4d3e181987","sarawak-geo.json":"455742df447a","napic-h1-2025.json":"957073a57859"};
 
 /* ------------------------------------------------------------------ utils */
 const $  = (sel, root = document) => root.querySelector(sel);
@@ -6935,6 +6935,19 @@ function scanZonedInstant(date, minutes, tz) {
 const scanSessionEnd = (market, date) => { const M = scanMarket(market); return scanZonedInstant(date, scanHm(M.close) + (M.settleMin || 0), M.tz); };
 /* The market's own calendar date at an instant. */
 const scanLocalDate = (market, instant) => scanTzParts(scanMs(instant), scanMarket(market).tz).date;
+/* The session day it is in a market at an instant. For most markets that is
+   the local date. A market whose day opens the evening before (the 24-hour
+   FX session, spot gold: 17:00 New York) is already in the next session from
+   that hour, so scanBars judged Monday's bar FUTURE from 17:00 to midnight on
+   Sunday while it traded. ingest/history-store.mjs sessionToday is the same
+   rule, for the store. */
+function scanSessionToday(market, instant) {
+  const M = scanMarket(market);
+  const p = scanTzParts(scanMs(instant), M.tz);
+  const close = scanHm(M.close || '24:00');
+  const opens = M.open ? (scanHm(M.open) > close ? scanHm(M.open) : null) : (close < 1440 ? close : null);
+  return opens != null && p.minutes >= opens ? scanAddDays(p.date, 1) : p.date;
+}
 
 /* The last session whose close plus settle had passed at `instant`, on the
    market's weekdays (and, when a calendar is given, on its sessions). */
@@ -6978,11 +6991,16 @@ const SCAN_TIMEFRAMES = {
   '1D': { id: '1D', label: 'Daily', built: true, legacy: 'daily', note: 'one bar per session, dated by the exchange session in its own time zone' },
   '1W': { id: '1W', label: 'Weekly', built: true, legacy: 'weekly', derivedFrom: '1D',
           note: 'derived from your daily bars: the first open, the highest high, the lowest low, the last close and the summed volume of the week; a week is complete once its last expected session is held and final' },
+  '1M': { id: '1M', label: 'Monthly', built: true, derivedFrom: '1D',
+          note: 'derived from your daily bars: the first open, the highest high, the lowest low, the last close and the summed volume of the calendar month; a month is complete once its last expected session is held and final' },
   '1H': { id: '1H', label: '1 hour', built: false, reason: SCAN_INTRADAY_WHY },
   '15M': { id: '15M', label: '15 minutes', built: false, reason: SCAN_INTRADAY_WHY },
   '5M': { id: '5M', label: '5 minutes', built: false, reason: SCAN_INTRADAY_WHY },
 };
-/* 'daily' and 'weekly' are the 0.2 names; absent is daily, as it was. */
+/* 'daily' and 'weekly' are the 0.2 names; absent is daily, as it was.
+   '1M' is the month, as TradingView writes it. A lower-case '1m' is not
+   read as a month: beside '5m' and '15m', which are minutes, it would be a
+   minute, so it is left unknown rather than guessed. */
 function scanTimeframe(tf) {
   if (tf == null || tf === '') return '1D';
   const t = String(tf).trim();
@@ -7131,6 +7149,724 @@ const SCAN_UNITS = {
   position:    { label: 'position in the band', literal: () => true,              domain: 'any number (0 is the lower band, 1 the upper)' },
 };
 
+/* ---- pine: indicators ---- */
+/* ==========================================================================
+   PINE — the reader's TradingView indicators, with TradingView's arithmetic
+
+   The reader charts XAUUSD and other symbols on TradingView with ten Pine
+   scripts and asked for rules on the numbers that chart draws. This section
+   is those scripts, each written from its Pine source over the engine's own
+   bars, and scanner/tv-verify.mjs recomputes them from a TradingView export
+   of the chart and compares them column by column: a drift from the chart
+   is found by a check, not by a match that should not have been one.
+
+   WHY NOT THE ENGINE'S OWN RSI. TradingView's primitives differ from this
+   engine's at the edges, and the engine's are left exactly as they are —
+   setups and recorded alerts were computed with them. ta.rsi of a window
+   with neither a gain nor a loss is 100, where scanRsi calls it undefined;
+   Pine compares a crossing exactly, where scanCompare allows the float
+   rule's margin; and Pine carries a missing value (na) by its own rules.
+   Where Pine's function IS the engine's — ta.sma is scanSma, and ta.ema is
+   scanEma: the mean of the first n values seeds it, and after a missing
+   value it seeds afresh, as Pine's documented equivalent does — the
+   engine's own is called, so there is still one SMA and one EMA.
+
+   A SERIES is an array as long as the bars, null wherever Pine has na.
+   Pine reads a comparison with na as false; the crossing and rising
+   primitives here return null there instead, so a rule is untested during
+   a warm-up rather than NOT_MET. The indicators turn that null into Pine's
+   false only in what they plot.
+
+   Each indicator returns { fields, plots }. `fields` are what a rule reads,
+   in the units SCAN_PINE_INDICATORS gives them; a crossing or a state is 1
+   or 0 (unit 'flag') and a direction 1, 0 or −1. `plots` is every series
+   the script plots, as [TradingView title, series, first], in the order
+   the script declares them — the order an export's columns take — with
+   the bar its warm-up ends: where this computation's first value falls,
+   however long the bars (TradingView, holding more history, draws before
+   it; scanner/tv-verify.mjs compares from there). A field is
+   named for what happened ("crossUp"), not for a trade: the script's own
+   words ("All purchases") survive only as a plot's title, because this
+   product delivers no signal.
+   ========================================================================== */
+
+/* The units the Pine indicators measure in, added to SCAN_UNITS so the
+   existing validation holds them apart: a WaveTrend reading is not an RSI,
+   and a crossing flag compares with nothing but a 1 or a 0. */
+Object.assign(SCAN_UNITS, {
+  wavetrend:    { label: 'WaveTrend',                literal: () => true,                               domain: 'any number' },
+  mcdx:         { label: 'MCDX (0–20)',              literal: (v) => v >= 0 && v <= 20,                  domain: 'a number from 0 to 20' },
+  banker_model: { label: 'banker model',             literal: () => true,                               domain: 'any number' },
+  flag:         { label: 'yes or no (1 or 0)',       literal: (v) => v === 0 || v === 1,                 domain: '1 (yes) or 0 (no)' },
+  direction:    { label: 'direction (1, 0 or −1)',   literal: (v) => v === 1 || v === 0 || v === -1,     domain: '1 (up), 0 (neither) or −1 (down)' },
+});
+
+/* ------------------------------------------------------------- primitives -- */
+/* A finite number, or null: Pine's na, and what a division by zero gives. */
+const scanPineV = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const scanPineFlag = (b) => (b == null ? null : b ? 1 : 0);
+const scanPineConst = (len, v) => new Array(len).fill(v);
+/* nz(): na as 0, or as the replacement given. A series or a single value. */
+const scanPineNz = (a, r = 0) => (Array.isArray(a) ? a.map(v => (scanPineV(v) == null ? r : v)) : (scanPineV(a) == null ? r : a));
+/* ta.sma and ta.ema: the engine's own (see above). */
+const scanPineSma = (a, n) => scanSma(a, n);
+const scanPineEma = (a, n) => scanEma(a, n);
+/* ta.rma: scanEma's recurrence with alpha 1/n — seeded with the mean of the
+   first n values, then alpha × value + (1 − alpha) × previous; a missing
+   value ends the run and the next is seeded afresh. */
+function scanPineRma(a, n) {
+  const out = new Array(a.length).fill(null);
+  const k = 1 / n;
+  let e = null, run = 0, seed = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (!scanOk(a[i])) { e = null; run = 0; seed = 0; continue; }
+    if (e == null) {
+      run++; seed += a[i];
+      if (run === n) { e = seed / n; out[i] = e; }
+      continue;
+    }
+    e = a[i] * k + e * (1 - k);
+    out[i] = e;
+  }
+  return out;
+}
+/* ta.rsi, as the v6 RSI script writes it: the change's gains and losses
+   each smoothed by ta.rma; 100 when the smoothed loss is 0 (a window with
+   no change at all included — the engine's RSI calls that undefined), 0
+   when the smoothed gain is 0, else 100 − 100 / (1 + gain / loss). */
+function scanPineRsi(a, n) {
+  const len = a.length, up = new Array(len).fill(null), dn = new Array(len).fill(null);
+  for (let i = 1; i < len; i++) {
+    if (!scanOk(a[i]) || !scanOk(a[i - 1])) continue;
+    const d = a[i] - a[i - 1];
+    up[i] = Math.max(d, 0); dn[i] = -Math.min(d, 0);
+  }
+  const ru = scanPineRma(up, n), rd = scanPineRma(dn, n);
+  return ru.map((u, i) => (u == null || rd[i] == null ? null : rd[i] === 0 ? 100 : u === 0 ? 0 : 100 - 100 / (1 + u / rd[i])));
+}
+/* ta.wma, as Pine documents it: weights (n − k) × n for the value k bars
+   back, divided by their sum. */
+function scanPineWma(a, n) {
+  const out = new Array(a.length).fill(null);
+  for (let i = n - 1; i < a.length; i++) {
+    let norm = 0, sum = 0, ok = true;
+    for (let k = 0; k < n; k++) {
+      const v = a[i - k];
+      if (!scanOk(v)) { ok = false; break; }
+      const w = (n - k) * n;
+      norm += w; sum += v * w;
+    }
+    if (ok) out[i] = sum / norm;
+  }
+  return out;
+}
+/* ta.vwma: sma(value × volume) / sma(volume). No volume is no value. */
+function scanPineVwma(a, vol, n) {
+  const v = Array.isArray(vol) ? vol : [];
+  const pv = a.map((x, i) => (scanOk(x) && scanOk(v[i]) ? x * v[i] : null));
+  const num = scanSma(pv, n), den = scanSma(a.map((_, i) => (scanOk(v[i]) ? v[i] : null)), n);
+  return num.map((x, i) => (x == null || den[i] == null ? null : scanPineV(x / den[i])));
+}
+/* ta.hma: wma(2 × wma(value, n/2) − wma(value, n), √n). Pine truncates the
+   half length; ta.hma floors √n, and the Color MA script rounds it, so the
+   rounding is the caller's. Below 2 the half length is 0 and there is none. */
+function scanPineHma(a, n, sqrtRound = Math.floor) {
+  const h = Math.floor(n / 2), r = sqrtRound(Math.sqrt(n));
+  if (h < 1 || r < 1) return new Array(a.length).fill(null);
+  const w1 = scanPineWma(a, h), w2 = scanPineWma(a, n);
+  return scanPineWma(w1.map((v, i) => (v == null || w2[i] == null ? null : 2 * v - w2[i])), r);
+}
+/* DEMA = 2·e1 − e2 and TEMA = 3·(e1 − e2) + e3, e1 the EMA of the value and
+   each next the EMA of the last — the TEMA as the WaveTrend script writes
+   it: 3 * (v2 - ema(v2, len)) + ema(ema(v2, len), len). */
+function scanPineDema(a, n) {
+  const e1 = scanEma(a, n), e2 = scanEma(e1, n);
+  return e1.map((v, i) => (v == null || e2[i] == null ? null : 2 * v - e2[i]));
+}
+function scanPineTema(a, n) {
+  const e1 = scanEma(a, n), e2 = scanEma(e1, n), e3 = scanEma(e2, n);
+  return e1.map((v, i) => (v == null || e2[i] == null || e3[i] == null ? null : 3 * (v - e2[i]) + e3[i]));
+}
+/* ta.stdev, as Pine documents it: the population deviation by default
+   (biased), the sample deviation with biased false; a deviation within
+   1e-10 of the mean counts as 0, as Pine's own sum does. */
+function scanPineStdev(a, n, biased = true) {
+  const avg = scanSma(a, n), out = new Array(a.length).fill(null);
+  const div = biased ? n : n - 1;
+  if (!(div > 0)) return out;
+  for (let i = n - 1; i < a.length; i++) {
+    if (avg[i] == null) continue;
+    let ss = 0;
+    for (let k = 0; k < n; k++) { let d = a[i - k] - avg[i]; if (Math.abs(d) <= 1e-10) d = 0; ss += d * d; }
+    out[i] = Math.sqrt(ss / div);
+  }
+  return out;
+}
+/* ta.highest and ta.lowest over the last n, the current bar included. */
+const scanPineHighest = (a, n) => scanRollExtreme(a, n, Math.max);
+const scanPineLowest = (a, n) => scanRollExtreme(a, n, Math.min);
+/* ta.change: the value less the value `len` bars back. */
+function scanPineChange(a, len = 1) {
+  const out = new Array(a.length).fill(null);
+  for (let i = len; i < a.length; i++) if (scanOk(a[i]) && scanOk(a[i - len])) out[i] = a[i] - a[i - len];
+  return out;
+}
+/* ta.crossover(a, b): a > b now and a <= b on the bar before, compared
+   exactly — from equal to above is a cross. `b` may be a single level.
+   true or false where all four values exist, null where Pine reads na. */
+function scanPineCrossing(a, b, up) {
+  const B = Array.isArray(b) ? b : null;
+  const at = (i) => (B ? B[i] : b);
+  const out = new Array(a.length).fill(null);
+  for (let i = 1; i < a.length; i++) {
+    const x = a[i], y = at(i), xp = a[i - 1], yp = at(i - 1);
+    if (!scanOk(x) || !scanOk(y) || !scanOk(xp) || !scanOk(yp)) continue;
+    out[i] = up ? x > y && xp <= yp : x < y && xp >= yp;
+  }
+  return out;
+}
+const scanPineCrossover = (a, b) => scanPineCrossing(a, b, true);
+const scanPineCrossunder = (a, b) => scanPineCrossing(a, b, false);
+/* ta.cross: either crossing. */
+function scanPineCross(a, b) {
+  const o = scanPineCrossover(a, b), u = scanPineCrossunder(a, b);
+  return o.map((v, i) => (v == null ? null : v || u[i]));
+}
+/* ta.rising(a, len): the value above each of the `len` before it; ta.falling
+   below each. null while any of them is na. */
+function scanPineTrend(a, len, up) {
+  const out = new Array(a.length).fill(null);
+  for (let i = len; i < a.length; i++) {
+    if (!scanOk(a[i])) continue;
+    let ok = true, all = true;
+    for (let k = 1; k <= len; k++) {
+      if (!scanOk(a[i - k])) { ok = false; break; }
+      if (up ? !(a[i] > a[i - k]) : !(a[i] < a[i - k])) all = false;
+    }
+    if (ok) out[i] = all;
+  }
+  return out;
+}
+const scanPineRising = (a, len) => scanPineTrend(a, len, true);
+const scanPineFalling = (a, len) => scanPineTrend(a, len, false);
+
+/* ta.sar(start, inc, max), as Pine documents it. On the second bar the
+   trend is up if the close rose (the SAR starts at the first bar's low,
+   the extreme at the second's high) and down if not; every bar from there
+   moves the SAR towards the extreme by the acceleration, reverses when the
+   SAR crosses the bar (the SAR jumps to the extreme, the acceleration
+   restarts), steps the acceleration by `inc` up to `max` on each new
+   extreme, and keeps the SAR outside the two bars before. The recursion
+   restarts after a bar with no high, low or close, as a chart that began
+   there would; `trend` is 1 while the SAR is below the bars, −1 above. */
+function scanPineSarState(high, low, close, start, inc, max) {
+  const n = close.length, sar = new Array(n).fill(null), trend = new Array(n).fill(null);
+  let result = null, maxMin = null, acc = null, isBelow = null, from = 0;
+  for (let i = 0; i < n; i++) {
+    if (!scanOk(high[i]) || !scanOk(low[i]) || !scanOk(close[i])) { result = null; from = i + 1; continue; }
+    const k = i - from;
+    let first = false;
+    if (k === 1) {
+      if (close[i] > close[i - 1]) { isBelow = true; maxMin = high[i]; result = low[i - 1]; }
+      else { isBelow = false; maxMin = low[i]; result = high[i - 1]; }
+      first = true; acc = start;
+    }
+    if (k < 1 || result == null) continue;
+    result = result + acc * (maxMin - result);
+    if (isBelow) {
+      if (result > low[i]) { first = true; isBelow = false; result = Math.max(high[i], maxMin); maxMin = low[i]; acc = start; }
+    } else if (result < high[i]) { first = true; isBelow = true; result = Math.min(low[i], maxMin); maxMin = high[i]; acc = start; }
+    if (!first) {
+      if (isBelow) { if (high[i] > maxMin) { maxMin = high[i]; acc = Math.min(acc + inc, max); } }
+      else if (low[i] < maxMin) { maxMin = low[i]; acc = Math.min(acc + inc, max); }
+    }
+    if (isBelow) { result = Math.min(result, low[i - 1]); if (k > 1) result = Math.min(result, low[i - 2]); }
+    else { result = Math.max(result, high[i - 1]); if (k > 1) result = Math.max(result, high[i - 2]); }
+    sar[i] = result; trend[i] = isBelow ? 1 : -1;
+  }
+  return { sar, trend };
+}
+const scanPineSar = (high, low, close, start, inc, max) => scanPineSarState(high, low, close, start, inc, max).sar;
+
+/* The blackcat script's xsa(src, len, wei), line for line:
+     sumf := nz(sumf[1]) - nz(src[len]) + src
+     ma   := na(src[len]) ? na : sumf / len
+     out  := na(out[1]) ? ma : (src * wei + out[1] * (len - wei)) / len
+   a running sum that seeds a smoothing of weight wei/len. The sum is Pine's
+   too, na and all: a na value empties it (nz of an na sum is 0). */
+function scanPineXsa(src, len, wei) {
+  const n = src.length, out = new Array(n).fill(null);
+  let sumf = null, prev = null;
+  for (let i = 0; i < n; i++) {
+    const s = scanOk(src[i]) ? src[i] : null;
+    const back = i - len >= 0 && scanOk(src[i - len]) ? src[i - len] : null;
+    const sf = s == null ? null : (sumf == null ? 0 : sumf) - (back == null ? 0 : back) + s;
+    const ma = back == null || sf == null ? null : sf / len;
+    const o = prev == null ? ma : s == null ? null : (s * wei + prev * (len - wei)) / len;
+    sumf = sf; prev = o; out[i] = o;
+  }
+  return out;
+}
+
+/* The moving averages the scripts let the reader choose, by the Color MA
+   script's numbering (1 SMA, 2 EMA, 3 Hull, 4 WMA, 5 VWMA), with 6 for
+   Wilder's (SMMA, ta.rma), which the RSI script offers. The Hull is the
+   Color MA script's own: wma(2 × wma(n/2) − wma(n), round(√n)). */
+const SCAN_PINE_MA_TYPES = { 1: 'SMA', 2: 'EMA', 3: 'HMA', 4: 'WMA', 5: 'VWMA', 6: 'RMA' };
+function scanPineMa(type, a, n, vol) {
+  switch (type) {
+    case 1: return scanSma(a, n);
+    case 2: return scanEma(a, n);
+    case 3: return scanPineHma(a, n, Math.round);
+    case 4: return scanPineWma(a, n);
+    case 5: return scanPineVwma(a, vol, n);
+    case 6: return scanPineRma(a, n);
+    default: return new Array(a.length).fill(null);
+  }
+}
+/* How many bars after its input's first value an average's first value
+   falls: n − 1, and for the Hull n + round(√n) − 2. */
+const scanPineMaLag = (type, n) => (type === 3 ? n + Math.round(Math.sqrt(n)) - 2 : n - 1);
+
+/* ------------------------------------------------------------ indicators -- */
+/* The bar a field's first value falls on: its catalogue need, less one. */
+const scanPineFirst = (id, p, f) => SCAN_PINE_INDICATORS[id].needs(p, f) - 1;
+/* One flag series: 1 or 0 where the test could be read, null where not. */
+const scanPineFlags = (len, test) => { const out = new Array(len); for (let i = 0; i < len; i++) out[i] = scanPineFlag(test(i)); return out; };
+/* Pine reads na in a condition as false; a plotted 1/0 is 0 there. */
+const scanPinePlot01 = (a, on = 1) => a.map(v => (v === 1 ? on : 0));
+const scanPineOn = (v) => v === 1 || v === true;
+
+/* WaveTrend, "Oscilador WaveTrend" (WT-4h, v4): ap = hlc3; esa = ema(ap,
+   channel); d = ema(|ap − esa|, channel); ci = (ap − esa) / (0.015 × d);
+   wt1 = ema(ci, average); wt2 = sma(wt1, 4). Direction is 1 when wt1
+   rises over `reaction` bars, −1 when it falls, else the last direction.
+   The four crossings are the script's venta, venta_1, compra and compra_1:
+   with "Sell when overbought" on (obSwitch 1) a cross of wt1 under wt2
+   counts only at or above the overbought level (crossDownOb), and with it
+   off every cross under counts (crossDown) — and the same below for the
+   cross up and "Buy when oversold". The reader's chart runs both switches
+   off. The extra MA is the script's TEMA of wt1 (MA PLOT_ST). */
+function scanPineWaveTrend(bars, p) {
+  const H = bars.high || [], L = bars.low || [], C = bars.closes || [], len = C.length;
+  const ap = C.map((c, i) => (scanOk(c) && scanOk(H[i]) && scanOk(L[i]) ? (H[i] + L[i] + c) / 3 : null));
+  const esa = scanEma(ap, p.channel);
+  const d = scanEma(ap.map((v, i) => (v == null || esa[i] == null ? null : Math.abs(v - esa[i]))), p.channel);
+  const ci = ap.map((v, i) => (v == null || esa[i] == null || d[i] == null ? null : scanPineV((v - esa[i]) / (0.015 * d[i]))));
+  const wt1 = scanEma(ci, p.average), wt2 = scanSma(wt1, 4);
+  const hist = wt1.map((v, i) => (v == null || wt2[i] == null ? null : v - wt2[i]));
+  const up = scanPineRising(wt1, p.reaction), down = scanPineFalling(wt1, p.reaction);
+  /* direction := rising ? 1 : falling ? -1 : nz(direction[1]) — Pine's
+     starts at 0 and carries through the warm-up, which is read here but
+     not offered: a direction is null until rising and falling can be read. */
+  const direction = new Array(len).fill(null), dirChange = new Array(len).fill(null);
+  for (let i = 0, prev = 0; i < len; i++) {
+    const v = up[i] ? 1 : down[i] ? -1 : prev;
+    if (up[i] != null && down[i] != null) direction[i] = v;
+    if (i > 0 && direction[i] != null && direction[i - 1] != null) dirChange[i] = direction[i] !== direction[i - 1] ? 1 : 0;
+    prev = v;
+  }
+  const xo = scanPineCrossover(wt1, wt2), xu = scanPineCrossunder(wt1, wt2);
+  const obOn = scanPineOn(p.obSwitch), osOn = scanPineOn(p.osSwitch);
+  const crossDownOb = scanPineFlags(len, i => (xu[i] == null ? null : xu[i] && wt1[i] >= p.overbought && obOn));
+  const crossDown = scanPineFlags(len, i => (xu[i] == null ? null : xu[i] && !obOn));
+  const crossUpOs = scanPineFlags(len, i => (xo[i] == null ? null : xo[i] && wt1[i] <= p.oversold && osOn));
+  const crossUp = scanPineFlags(len, i => (xo[i] == null ? null : xo[i] && !osOn));
+  const tema = scanPineTema(wt1, p.maLen);
+  /* The markers sit an eighth of the way from the middle to the level:
+     plot(venta ? wt2[1] + ploff : na). */
+  const mid = (p.overbought + p.oversold) / 2, ploff = (p.overbought - mid) / 8;
+  const marker = (f, sign) => f.map((x, i) => (x === 1 && i > 0 && wt2[i - 1] != null ? wt2[i - 1] + sign * ploff : null));
+  const none = scanPineConst(len, null);
+  const levels = [];
+  for (let k = 1; k <= 8; k++) levels.push([`Level ${k} overbought`, scanPineConst(len, p.overbought + 5 * (k - 1)), 0]);
+  for (let k = 1; k <= 8; k++) levels.push([`Level ${k} oversold`, scanPineConst(len, p.oversold - 5 * k), 0]);
+  const first = (f) => scanPineFirst('wavetrend', p, f);
+  return {
+    fields: { wt1, wt2, hist, direction, dirChange, crossUp, crossDown, crossUpOs, crossDownOb, tema },
+    plots: [['WT Average-WT1', wt1, first('wt1')], ['Signal average-WT2', p.showSignal ? wt2 : none, p.showSignal ? first('wt2') : 0], ['Level 0', scanPineConst(len, 0), 0], ...levels,
+            ['Sell when overbought', marker(crossDownOb, 1), first('crossDownOb')], ['All sales', marker(crossDown, 1), first('crossDown')],
+            ['Buy when oversold', marker(crossUpOs, -1), first('crossUpOs')], ['All purchases', marker(crossUp, -1), first('crossUp')],
+            ['Histogramme', p.showHist ? hist : none, p.showHist ? first('hist') : 0], ['MA PLOT_ST', tema, first('tema')]],
+  };
+}
+
+/* The line, signal and histogram both MACDs share: line = ema(fast) −
+   ema(slow), signal an average of the line, histogram = line − signal. */
+function scanPineMacdParts(C, p, signalOf) {
+  const ef = scanEma(C, p.fast), es = scanEma(C, p.slow);
+  const macd = ef.map((v, i) => (v == null || es[i] == null ? null : v - es[i]));
+  const signal = signalOf(macd, p.signal);
+  const hist = macd.map((v, i) => (v == null || signal[i] == null ? null : v - signal[i]));
+  return { macd, signal, hist };
+}
+/* CM_MacD_Ult_MTF (ChrisMoody) on the chart's own timeframe: its signal is
+   an SMA of the line — not the EMA of the usual MACD, nor of the bot's. The
+   histogram's four colours are its four states against zero and the bar
+   before (aqua histA_IsUp, blue histA_IsDown, red histB_IsDown, maroon
+   histB_IsUp); the cross dot sits on the signal line. Pine v2 reads a
+   number in a condition as true unless it is 0 or na, so a line of exactly
+   0 is not plotted. */
+function scanPineCmMacd(bars, p) {
+  const C = bars.closes || [], len = C.length;
+  const { macd, signal, hist } = scanPineMacdParts(C, p, scanSma);
+  const cross = scanPineCross(macd, signal).map(scanPineFlag);
+  const above = scanPineFlags(len, i => (macd[i] == null || signal[i] == null ? null : macd[i] >= signal[i]));
+  const hs = (test) => scanPineFlags(len, i => (i === 0 || hist[i] == null || hist[i - 1] == null ? null : test(hist[i], hist[i - 1])));
+  const shown = (a) => a.map(v => (v == null || v === 0 ? null : v));
+  return {
+    fields: { macd, signal, hist, cross, above,
+              histUpAbove: hs((h, q) => h > q && h > 0), histDownAbove: hs((h, q) => h < q && h > 0),
+              histDownBelow: hs((h, q) => h < q && h <= 0), histUpBelow: hs((h, q) => h > q && h <= 0) },
+    plots: [['MACD', shown(macd), scanPineFirst('cm_macd', p, 'macd')], ['Signal Line', shown(signal), scanPineFirst('cm_macd', p, 'signal')],
+            ['Histogram', shown(hist), scanPineFirst('cm_macd', p, 'hist')], ['Cross', cross.map((x, i) => (x === 1 ? signal[i] : null)), scanPineFirst('cm_macd', p, 'cross')]],
+  };
+}
+/* The Multi-Timeframe Trading Bot's own MACD: the same line, with an EMA
+   signal (the bot's cm_ultimate_macd), which the chart's CM_Ult_MacD does
+   not draw. Its numbers are the engine's MACD's; what it adds is the bot's
+   readings of them. The bot plots shapes, not these, so there is nothing
+   to plot. */
+function scanPineBotMacd(bars, p) {
+  const C = bars.closes || [], len = C.length;
+  const { macd, signal, hist } = scanPineMacdParts(C, p, scanEma);
+  const cmp = (test) => scanPineFlags(len, i => (macd[i] == null || signal[i] == null ? null : test(macd[i], signal[i])));
+  const hs = (test) => scanPineFlags(len, i => (i === 0 || hist[i] == null || hist[i - 1] == null ? null : test(hist[i], hist[i - 1])));
+  return {
+    fields: { macd, signal, hist, bull: cmp((m, s) => m > s), bear: cmp((m, s) => m < s), histUp: hs((h, q) => h > q), histDown: hs((h, q) => h < q) },
+    plots: [],
+  };
+}
+/* [M2J] MCDX: banker = sensitivity × (rsi(close, period) − base), held
+   within 0 and 20, and hot money the same with its own settings; each has
+   an average of the reader's type (Banker_MA, HotMoney_MA), and the
+   script colours each by whether it rose. The retailer bar is 20, and 5,
+   10 and 15 are guide lines. */
+function scanPineMcdx(bars, p) {
+  const C = bars.closes || [], len = C.length;
+  const clamp = (v) => (v == null ? null : v > 20 ? 20 : v < 0 ? 0 : v);
+  const banker = scanPineRsi(C, p.bankerPeriod).map(r => clamp(r == null ? null : p.bankerSens * (r - p.bankerBase)));
+  const hotMoney = scanPineRsi(C, p.hotPeriod).map(r => clamp(r == null ? null : p.hotSens * (r - p.hotBase)));
+  const bankerMa = scanPineMa(p.maType, banker, p.maLen, bars.volumes);
+  const hotMoneyMa = scanPineMa(p.maType2, hotMoney, p.maLen2, bars.volumes);
+  const rose = (a) => scanPineFlags(len, i => (i === 0 || a[i] == null || a[i - 1] == null ? null : a[i] > a[i - 1]));
+  return {
+    fields: { banker, hotMoney, bankerMa, hotMoneyMa, bankerMaUp: rose(bankerMa), hotMoneyMaUp: rose(hotMoneyMa) },
+    plots: [['Retailer', scanPineConst(len, 20), 0], ['Hot Money', hotMoney, scanPineFirst('mcdx', p, 'hotMoney')], ['Banker', banker, scanPineFirst('mcdx', p, 'banker')],
+            ['5', scanPineConst(len, 5), 0], ['10', scanPineConst(len, 10), 0], ['15', scanPineConst(len, 15), 0],
+            ['Banker_MA', bankerMa, scanPineFirst('mcdx', p, 'bankerMa')], ['HotMoney_MA', hotMoneyMa, scanPineFirst('mcdx', p, 'hotMoneyMa')]],
+  };
+}
+/* Color MA: an average of the close of the chosen type and length, green
+   when above the bar before and red otherwise — direction 1 or −1. */
+function scanPineColorMa(bars, p) {
+  const C = bars.closes || [], len = C.length;
+  const ma = scanPineMa(p.type, C, p.n, bars.volumes);
+  const direction = new Array(len).fill(null);
+  for (let i = 1; i < len; i++) if (ma[i] != null && ma[i - 1] != null) direction[i] = ma[i] > ma[i - 1] ? 1 : -1;
+  return { fields: { ma, direction }, plots: [['Color MA', ma, scanPineFirst('color_ma', p, 'ma')]] };
+}
+/* SMA Cross: two SMAs of the close; the script's "Buy" is the fast
+   crossing over the slow and its "Sell" the fast crossing under. */
+function scanPineSmaCross(bars, p) {
+  const C = bars.closes || [];
+  const fast = scanSma(C, p.fast), slow = scanSma(C, p.slow);
+  const crossUp = scanPineCrossover(fast, slow).map(scanPineFlag), crossDown = scanPineCrossunder(fast, slow).map(scanPineFlag);
+  return { fields: { fast, slow, crossUp, crossDown },
+           plots: [['Plot', fast, p.fast - 1], ['Plot', slow, p.slow - 1],
+                   ['Chars', scanPinePlot01(crossUp), scanPineFirst('sma_cross', p, 'crossUp')], ['Chars', scanPinePlot01(crossDown), scanPineFirst('sma_cross', p, 'crossDown')]] };
+}
+/* Parabolic SAR: ta.sar(start, increment, maximum). */
+function scanPinePsar(bars, p) {
+  const { sar, trend } = scanPineSarState(bars.high || [], bars.low || [], bars.closes || [], p.start, p.inc, p.max);
+  return { fields: { sar, direction: trend }, plots: [['ParabolicSAR', sar, 1]] };
+}
+/* Sentiment Range MA [ChartPrime]. A candle's top and bottom are its body
+   (or, with range 1, its wick); a range of `mult` × the SMA of the
+   candle's height over atrLen bars is set about the close, and held until
+   the SMA of the tops over `trigger` + 1 bars closes above it or that of
+   the bottoms below it — then it is set afresh about that bar's close. The
+   MA and the range's edges are that held level filtered: a WMA of length
+   `length` + 1, of its SMA when double is on. The level is state: it is
+   set on every bar until the range can be measured, and from there it
+   depends on the path, not on a window. Direction is the sign of the MA's
+   change from the bar before; above, below and across place the bar
+   against the MA (the script's "MA Cross" colours). */
+function scanPineSrMa(bars, p) {
+  const O = bars.open || [], H = bars.high || [], L = bars.low || [], C = bars.closes || [], len = C.length;
+  const L1 = p.length + 1, T = p.trigger + 1, wick = p.range === 1;
+  const top = C.map((c, i) => (wick ? (scanOk(H[i]) ? H[i] : null) : scanOk(O[i]) && scanOk(c) ? Math.max(O[i], c) : null));
+  const bot = C.map((c, i) => (wick ? (scanOk(L[i]) ? L[i] : null) : scanOk(O[i]) && scanOk(c) ? Math.min(O[i], c) : null));
+  const sTop = scanSma(top, T), sBot = scanSma(bot, T);
+  const atr = scanSma(top.map((t, i) => (t == null || bot[i] == null ? null : t - bot[i])), p.atrLen);
+  const level = new Array(len).fill(null), topR = new Array(len).fill(null), botR = new Array(len).fill(null);
+  let ma = null, range = null, tR = null, bR = null;
+  for (let i = 0; i < len; i++) {
+    const flag = (sTop[i] != null && tR != null && sTop[i] > tR) || (sBot[i] != null && bR != null && sBot[i] < bR) || range == null;
+    if (flag) {
+      ma = scanOk(C[i]) ? C[i] : null;
+      range = atr[i] == null ? null : atr[i] * p.mult;
+      tR = ma == null || range == null ? null : ma + range;
+      bR = ma == null || range == null ? null : ma - range;
+    }
+    level[i] = ma; topR[i] = tR; botR[i] = bR;
+  }
+  const filter = (x) => scanPineWma(scanPineOn(p.double) ? scanSma(x, L1) : x, L1);
+  const out = filter(level), top2 = filter(topR), bot2 = filter(botR);
+  const direction = new Array(len).fill(null);
+  for (let i = 1; i < len; i++) if (out[i] != null && out[i - 1] != null) { const dm = out[i] - out[i - 1]; direction[i] = dm > 0 ? 1 : dm < 0 ? -1 : 0; }
+  const place = (test) => scanPineFlags(len, i => (out[i] == null || !scanOk(H[i]) || !scanOk(L[i]) ? null : test(H[i], L[i], out[i])));
+  return {
+    fields: { ma: out, top: top2, bottom: bot2, direction,
+              above: place((h, l, m) => l > m), below: place((h, l, m) => h < m), across: place((h, l, m) => h > m && l < m) },
+    plots: [['SR MA', out, scanPineFirst('sr_ma', p, 'ma')], ['Top Range', top2, scanPineFirst('sr_ma', p, 'top')], ['Bottom Range', bot2, scanPineFirst('sr_ma', p, 'bottom')]],
+  };
+}
+/* [blackcat] L1 Banker Entry: x = (close − lowest low of 27) / (highest
+   high of 27 − lowest low of 27) × 100; model = 3 × xsa(x, 5, 1) − 2 ×
+   xsa(xsa(x, 5, 1), 3, 1). The script plots 100 on the bar the model
+   crosses above the threshold, 50 while it is at or below 3 and 25 while
+   it is below 5 — the last two are fixed in the script, not the threshold. */
+function scanPineBankerEntry(bars, p) {
+  const H = bars.high || [], L = bars.low || [], C = bars.closes || [], len = C.length;
+  const hh = scanPineHighest(H, 27), ll = scanPineLowest(L, 27);
+  const x = C.map((c, i) => (hh[i] == null || ll[i] == null || !scanOk(c) ? null : scanPineV((c - ll[i]) / (hh[i] - ll[i]) * 100)));
+  const s1 = scanPineXsa(x, 5, 1), s2 = scanPineXsa(s1, 3, 1);
+  const model = s1.map((v, i) => (v == null || s2[i] == null ? null : 3 * v - 2 * s2[i]));
+  const crossUp = scanPineCrossover(model, p.threshold).map(scanPineFlag);
+  const atOrBelow3 = scanPineFlags(len, i => (model[i] == null ? null : model[i] <= 3));
+  const below5 = scanPineFlags(len, i => (model[i] == null ? null : model[i] < 5));
+  return { fields: { model, crossUp, atOrBelow3, below5 },
+           plots: [['Plot', scanPinePlot01(crossUp, 100), scanPineFirst('banker_entry', p, 'crossUp')], ['Plot', scanPinePlot01(atOrBelow3, 50), scanPineFirst('banker_entry', p, 'atOrBelow3')],
+                   ['Plot', scanPinePlot01(below5, 25), scanPineFirst('banker_entry', p, 'below5')]] };
+}
+/* Relative Strength Index (TradingView's v6 script): ta.rsi of the close,
+   and its "RSI-based MA" of the chosen type; type 7, "SMA + Bollinger
+   Bands", is the SMA with bands of bbMult × the population deviation of
+   the RSI over the same length. Divergences are not computed. */
+const SCAN_PINE_RSI_MA = { 1: 'SMA', 2: 'EMA', 4: 'WMA', 5: 'VWMA', 6: 'RMA', 7: 'SMA + Bollinger Bands' };
+function scanPineRsiStudy(bars, p) {
+  const C = bars.closes || [], len = C.length;
+  const rsi = scanPineRsi(C, p.n);
+  const ma = scanPineMa(p.maType === 7 ? 1 : p.maType, rsi, p.maLen, bars.volumes);
+  const dev = p.maType === 7 ? scanPineStdev(rsi, p.maLen) : null;
+  const band = (sign) => (dev ? ma.map((m, i) => (m == null || dev[i] == null ? null : m + sign * dev[i] * p.bbMult)) : scanPineConst(len, null));
+  const bbUpper = band(1), bbLower = band(-1);
+  return { fields: { rsi, ma, bbUpper, bbLower },
+           plots: [['RSI', rsi, scanPineFirst('tv_rsi', p, 'rsi')], ['RSI-based MA', ma, scanPineFirst('tv_rsi', p, 'ma')],
+                   ['Upper Bollinger Band', bbUpper, dev ? scanPineFirst('tv_rsi', p, 'bbUpper') : 0], ['Lower Bollinger Band', bbLower, dev ? scanPineFirst('tv_rsi', p, 'bbLower') : 0]] };
+}
+
+/* --------------------------------------------------------------- catalogue -- */
+/* The Pine indicators as SCAN_INDICATORS entries, spread into it there, so
+   a setup names them like any other and the validation, evaluation, cache
+   and alert record read them unchanged. The defaults are the reader's own
+   chart, as their export of it shows (scanner/tv-verify.mjs reproduces
+   it with them), not the scripts' defaults: SMA Cross 50/200, Color MA an
+   SMA of 200, RSI of 5 with an SMA of 14, both WaveTrend switches off.
+   Beside what every entry carries:
+     pine(bars, params)  the indicator above;
+     inputsOf(params)    the inputs, when a parameter changes them (a VWMA
+                         reads volume; the body of a candle reads its open);
+     span(p, f, decay)   how far back a price break still moves the value,
+                         for scanBreakSpan (decay(k) is the bars an
+                         EMA-like weight k takes to fall below 1%);
+     check(p, f)         a combination the bounds cannot refuse;
+     sideLabel(p, f)     the operand in words, for scanSideLabel;
+     fieldLabels         each field in words, for a page to show.
+   `needs` is the bars before the field's first value, worked from the
+   formulas: a Pine EMA's first value is at bar n, an SMA's at bar n, a
+   crossing's one bar after both of its sides. */
+const scanPineInt = (def, min = 1, max = SCAN_LIMITS.maxPeriod) => ({ def, min, max, integer: true });
+const scanPineNum = (def, min, max) => ({ def, min, max, integer: false });
+const scanPineSwitch = (def, names = { 0: 'off', 1: 'on' }) => ({ def, min: 0, max: 1, integer: true, options: names });
+const scanPineMaParam = (def, options) => ({ def, min: Math.min(...Object.keys(options).map(Number)), max: Math.max(...Object.keys(options).map(Number)), integer: true, options });
+/* The first bar an average of the chosen type moves the value forward
+   from a break, as scanBreakSpan counts it: an EMA's or RMA's decay, else
+   its window. */
+const scanPineMaSpan = (type, n, decay) => (type === 2 ? decay(2 / (n + 1)) : type === 6 ? decay(1 / n) : scanPineMaLag(type, n) + 1);
+/* An operand in words: the indicator, its parameters where they differ
+   from the reader's chart, and the field. */
+function scanPineSideLabel(id, p, f, head = null) {
+  const def = SCAN_PINE_INDICATORS[id];
+  const shown = head ? head.keys : [];
+  const changed = Object.keys(def.params).filter(k => !shown.includes(k) && p[k] !== def.params[k].def).map(k => `${k} ${p[k]}`);
+  const fl = def.fieldLabels?.[f];
+  const field = typeof fl === 'function' ? fl(p) : fl || f || '';
+  return `${head ? head.text : def.label}${changed.length ? ` (${changed.join(', ')})` : ''}${field ? ` ${field}` : ''}`;
+}
+const SCAN_PINE_INDICATORS = {
+  wavetrend: {
+    label: 'WaveTrend', calcVersion: 1, inputs: ['high', 'low', 'close'], pine: scanPineWaveTrend,
+    params: { channel: scanPineInt(10), average: scanPineInt(21), reaction: scanPineInt(1), overbought: scanPineNum(53, 0, 1000), oversold: scanPineNum(-53, -1000, 0),
+              obSwitch: scanPineSwitch(0), osSwitch: scanPineSwitch(0), maLen: scanPineInt(200) },
+    fields: { wt1: 'wavetrend', wt2: 'wavetrend', hist: 'wavetrend', tema: 'wavetrend', direction: 'direction', dirChange: 'flag',
+              crossUp: 'flag', crossDown: 'flag', crossUpOs: 'flag', crossDownOb: 'flag' },
+    defaultField: 'wt1',
+    fieldLabels: { wt1: 'WT1', wt2: 'WT2', hist: 'WT1 − WT2', tema: (p) => `TEMA${p.maLen} of WT1`, direction: 'direction', dirChange: 'direction change',
+                   crossUp: 'WT1 crosses over WT2', crossDown: 'WT1 crosses under WT2', crossUpOs: (p) => `WT1 crosses over WT2 at or below ${p.oversold}`,
+                   crossDownOb: (p) => `WT1 crosses under WT2 at or above ${p.overbought}` },
+    needs: (p, f) => {
+      const w = 2 * p.channel + p.average - 2;
+      return { wt1: w, wt2: w + 3, hist: w + 3, tema: w + 3 * p.maLen - 3, direction: w + p.reaction, dirChange: w + p.reaction + 1 }[f] ?? w + 4;
+    },
+    span: (p, f, decay) => 2 * decay(2 / (p.channel + 1)) + decay(2 / (p.average + 1)) + 4 + (f === 'tema' ? 3 * decay(2 / (p.maLen + 1)) : 0),
+    sideLabel: (p, f) => scanPineSideLabel('wavetrend', p, f, { keys: ['channel', 'average'], text: `WaveTrend(${p.channel},${p.average})` }),
+    formula: 'The WT-4h script (Oscilador WaveTrend): ap = (high + low + close) / 3; esa = EMA(ap, channel); d = EMA(|ap − esa|, channel); '
+      + 'ci = (ap − esa) / (0.015 × d); wt1 = EMA(ci, average); wt2 = the SMA of wt1 over 4 bars; hist = wt1 − wt2. Every EMA is TradingView’s: '
+      + 'seeded with the mean of its first n values. direction is 1 when wt1 is above each of its `reaction` values before, −1 when below each, '
+      + 'else the direction before; dirChange is 1 on the bar it changes. crossUp and crossDown are 1 on the bar wt1 crosses over or under wt2 '
+      + '(from equal counts), and are the script’s “All purchases” and “All sales”, which it draws only while its “Buy when oversold” (osSwitch) '
+      + 'and “Sell when overbought” (obSwitch) switches are off; with a switch on, only the crossing at or beyond its level counts — crossUpOs '
+      + 'at or below `oversold`, crossDownOb at or above `overbought`. Your chart runs both switches off. tema is the script’s extra MA: '
+      + '3 × (e1 − e2) + e3, the EMAs of wt1 over maLen bars taken three times (MA PLOT_ST).',
+  },
+  cm_macd: {
+    label: 'CM MACD', calcVersion: 1, inputs: ['close'], pine: scanPineCmMacd,
+    params: { fast: scanPineInt(12), slow: scanPineInt(26), signal: scanPineInt(9) },
+    fields: { macd: 'price_delta', signal: 'price_delta', hist: 'price_delta', cross: 'flag', above: 'flag',
+              histUpAbove: 'flag', histDownAbove: 'flag', histDownBelow: 'flag', histUpBelow: 'flag' },
+    defaultField: 'hist',
+    fieldLabels: { macd: 'line', signal: 'signal (SMA)', hist: 'histogram', cross: 'line crosses signal', above: 'line at or above signal',
+                   histUpAbove: 'histogram rising above 0', histDownAbove: 'histogram falling above 0', histDownBelow: 'histogram falling at or below 0', histUpBelow: 'histogram rising at or below 0' },
+    needs: (p, f) => { const m = Math.max(p.fast, p.slow); return f === 'macd' ? m : ['signal', 'hist', 'above'].includes(f) ? m + p.signal - 1 : m + p.signal; },
+    span: (p, f, decay) => decay(2 / (Math.max(p.fast, p.slow) + 1)) + (f === 'macd' ? 0 : p.signal),
+    sideLabel: (p, f) => scanPineSideLabel('cm_macd', p, f, { keys: ['fast', 'slow', 'signal'], text: `CM MACD(${p.fast},${p.slow},${p.signal})` }),
+    formula: 'CM_Ult_MacD_MTF (ChrisMoody) on the setup’s own timeframe: line = EMA(close, fast) − EMA(close, slow); signal = the SMA of the line over '
+      + '`signal` bars — an SMA, where the usual MACD (and the bot’s) uses an EMA; hist = line − signal. cross is 1 on the bar the line crosses '
+      + 'the signal either way; above is 1 while the line is at or above the signal. The histogram’s four colours are four flags: histUpAbove '
+      + 'rising and above 0 (aqua), histDownAbove falling and above 0 (blue), histDownBelow falling and at or below 0 (red), histUpBelow rising '
+      + 'and at or below 0 (maroon); an unchanged histogram is none of them.',
+  },
+  bot_macd: {
+    label: 'MACD, EMA signal', calcVersion: 1, inputs: ['close'], pine: scanPineBotMacd,
+    params: { fast: scanPineInt(12), slow: scanPineInt(26), signal: scanPineInt(9) },
+    fields: { macd: 'price_delta', signal: 'price_delta', hist: 'price_delta', bull: 'flag', bear: 'flag', histUp: 'flag', histDown: 'flag' },
+    defaultField: 'hist',
+    fieldLabels: { macd: 'line', signal: 'signal (EMA)', hist: 'histogram', bull: 'line above signal', bear: 'line below signal', histUp: 'histogram rising', histDown: 'histogram falling' },
+    needs: (p, f) => { const m = Math.max(p.fast, p.slow); return f === 'macd' ? m : ['histUp', 'histDown'].includes(f) ? m + p.signal : m + p.signal - 1; },
+    span: (p, f, decay) => decay(2 / (Math.max(p.fast, p.slow) + 1)) + (f === 'macd' ? 0 : decay(2 / (p.signal + 1))),
+    sideLabel: (p, f) => scanPineSideLabel('bot_macd', p, f, { keys: ['fast', 'slow', 'signal'], text: `MACD(${p.fast},${p.slow},${p.signal}) EMA-signal` }),
+    formula: 'The Multi-Timeframe Trading Bot’s MACD: line = EMA(close, fast) − EMA(close, slow); signal = the EMA of the line over `signal` bars, '
+      + 'seeded with the mean of its first `signal` values; hist = line − signal — the same numbers as the MACD indicator. bull is 1 while the '
+      + 'line is above the signal and bear while below (the bot’s criterion 2); histUp and histDown are 1 when the histogram is above or below '
+      + 'the bar before. The chart’s CM MACD takes an SMA signal instead, and the two disagree on some bars.',
+  },
+  mcdx: {
+    label: 'MCDX', calcVersion: 1, inputs: ['close'], pine: scanPineMcdx,
+    inputsOf: (p) => (p.maType === 5 || p.maType2 === 5 ? ['close', 'volume'] : ['close']),
+    params: { bankerBase: scanPineInt(50, 10, 100), bankerPeriod: scanPineInt(50, 10), bankerSens: scanPineNum(1.5, 0.1, 100),
+              hotBase: scanPineInt(30, 10, 100), hotPeriod: scanPineInt(40, 10), hotSens: scanPineNum(0.5, 0.1, 100),
+              maLen: scanPineInt(5), maType: scanPineMaParam(2, { 1: 'SMA', 2: 'EMA', 3: 'HMA', 4: 'WMA', 5: 'VWMA' }),
+              maLen2: scanPineInt(5), maType2: scanPineMaParam(2, { 1: 'SMA', 2: 'EMA', 3: 'HMA', 4: 'WMA', 5: 'VWMA' }) },
+    fields: { banker: 'mcdx', hotMoney: 'mcdx', bankerMa: 'mcdx', hotMoneyMa: 'mcdx', bankerMaUp: 'flag', hotMoneyMaUp: 'flag' },
+    defaultField: 'banker',
+    fieldLabels: { banker: 'banker', hotMoney: 'hot money', bankerMa: 'Banker_MA', hotMoneyMa: 'HotMoney_MA', bankerMaUp: 'Banker_MA rising', hotMoneyMaUp: 'HotMoney_MA rising' },
+    needs: (p, f) => ({ banker: p.bankerPeriod + 1, hotMoney: p.hotPeriod + 1, bankerMa: p.bankerPeriod + 1 + scanPineMaLag(p.maType, p.maLen),
+                        hotMoneyMa: p.hotPeriod + 1 + scanPineMaLag(p.maType2, p.maLen2), bankerMaUp: p.bankerPeriod + 2 + scanPineMaLag(p.maType, p.maLen),
+                        hotMoneyMaUp: p.hotPeriod + 2 + scanPineMaLag(p.maType2, p.maLen2) }[f]),
+    span: (p, f, decay) => (/^hot/.test(f) ? decay(1 / p.hotPeriod) + 1 + (/Ma/.test(f) ? scanPineMaSpan(p.maType2, p.maLen2, decay) : 0)
+      : decay(1 / p.bankerPeriod) + 1 + (/Ma/.test(f) ? scanPineMaSpan(p.maType, p.maLen, decay) : 0)),
+    sideLabel: (p, f) => scanPineSideLabel('mcdx', p, f),
+    formula: '[M2J] MCDX: banker = bankerSens × (RSI(close, bankerPeriod) − bankerBase), held within 0 and 20; hotMoney = hotSens × (RSI(close, '
+      + 'hotPeriod) − hotBase), held the same way. The RSI is TradingView’s (Wilder’s smoothing, seeded with the mean of the first n changes; '
+      + '100 when nothing fell). bankerMa (Banker_MA) is an average of banker over maLen bars and hotMoneyMa (HotMoney_MA) of hot money over '
+      + 'maLen2, of type 1 SMA, 2 EMA, 3 Hull, 4 WMA or 5 VWMA; bankerMaUp and hotMoneyMaUp are 1 when the average is above the bar before. '
+      + 'An RSI of 50 bars remembers far back: a history of a few hundred bars has not forgotten where it began, so it can differ from a chart '
+      + 'that holds more.',
+  },
+  color_ma: {
+    label: 'Color MA', calcVersion: 1, inputs: ['close'], pine: scanPineColorMa,
+    inputsOf: (p) => (p.type === 5 ? ['close', 'volume'] : ['close']),
+    params: { n: scanPineInt(200), type: scanPineMaParam(1, { 1: 'SMA', 2: 'EMA', 3: 'HMA', 4: 'WMA', 5: 'VWMA' }) },
+    fields: { ma: 'price', direction: 'direction' }, defaultField: 'ma',
+    fieldLabels: { ma: '', direction: 'direction' },
+    needs: (p, f) => scanPineMaLag(p.type, p.n) + (f === 'direction' ? 2 : 1),
+    span: (p, f, decay) => scanPineMaSpan(p.type, p.n, decay) + (f === 'direction' ? 1 : 0),
+    check: (p) => (p.type === 3 && p.n < 2 ? 'a Hull average (type 3) needs a length of at least 2' : null),
+    sideLabel: (p, f) => `Color MA ${SCAN_PINE_MA_TYPES[p.type]}${p.n}${f === 'direction' ? ' direction' : ''}`,
+    formula: 'Color MA: an average of the close over n bars, of type 1 SMA, 2 EMA, 3 Hull (WMA(2 × WMA(n/2) − WMA(n), round(√n))), 4 WMA or 5 VWMA; '
+      + 'direction is 1 when it is above the bar before (the script draws it green) and −1 otherwise (red). Your chart uses type 1 over 200 bars.',
+  },
+  sma_cross: {
+    label: 'SMA Cross', calcVersion: 1, inputs: ['close'], pine: scanPineSmaCross,
+    params: { fast: scanPineInt(50), slow: scanPineInt(200) },
+    fields: { fast: 'price', slow: 'price', crossUp: 'flag', crossDown: 'flag' }, defaultField: 'fast',
+    fieldLabels: { fast: (p) => `SMA${p.fast}`, slow: (p) => `SMA${p.slow}`, crossUp: (p) => `SMA${p.fast} crosses over SMA${p.slow}`, crossDown: (p) => `SMA${p.fast} crosses under SMA${p.slow}` },
+    needs: (p, f) => (f === 'fast' ? p.fast : f === 'slow' ? p.slow : Math.max(p.fast, p.slow) + 1),
+    sideLabel: (p, f) => scanPineSideLabel('sma_cross', p, f, { keys: ['fast', 'slow'], text: 'SMA Cross' }),
+    formula: 'SMA Cross: fast = the SMA of the close over `fast` bars, slow = over `slow` bars; crossUp is 1 on the bar fast crosses over slow '
+      + '(fast above now, at or below on the bar before) and crossDown on the bar it crosses under — the script’s “Buy” and “Sell” marks. Your '
+      + 'chart uses 50 and 200.',
+  },
+  psar: {
+    label: 'Parabolic SAR', calcVersion: 1, inputs: ['high', 'low', 'close'], pine: scanPinePsar,
+    params: { start: scanPineNum(0.02, 0.0001, 1), inc: scanPineNum(0.02, 0, 1), max: scanPineNum(0.2, 0.0001, 1) },
+    fields: { sar: 'price', direction: 'direction' }, defaultField: 'sar',
+    fieldLabels: { sar: '', direction: 'direction' },
+    needs: () => 2,
+    span: (p, f, decay) => decay(p.start),
+    sideLabel: (p, f) => `SAR(${p.start},${p.inc},${p.max})${f === 'direction' ? ' direction' : ''}`,
+    formula: 'TradingView’s ta.sar(start, inc, max): from the second bar, up if the close rose and down if not; each bar the SAR moves towards the '
+      + 'trend’s extreme by the acceleration, which starts at `start` and grows by `inc` on each new extreme up to `max`; when a bar’s low (in '
+      + 'an up trend) or high (in a down trend) crosses it, the trend reverses and the SAR jumps to the extreme. It is kept outside the two bars '
+      + 'before. direction is 1 while the SAR is below the bars and −1 while above. It depends on the path, so a history that begins elsewhere '
+      + 'agrees with a longer one only after a reversal or two.',
+  },
+  sr_ma: {
+    label: 'SR MA', calcVersion: 1, inputs: ['open', 'high', 'low', 'close'], pine: scanPineSrMa,
+    inputsOf: (p) => (p.range === 1 ? ['high', 'low', 'close'] : ['open', 'high', 'low', 'close']),
+    params: { length: scanPineInt(20, 0), trigger: scanPineInt(4, 0), atrLen: scanPineInt(200), mult: scanPineNum(6, 0, 100),
+              double: scanPineSwitch(1), range: scanPineSwitch(0, { 0: 'Body', 1: 'Wick' }) },
+    fields: { ma: 'price', top: 'price', bottom: 'price', direction: 'direction', above: 'flag', below: 'flag', across: 'flag' }, defaultField: 'ma',
+    fieldLabels: { ma: '', top: 'top range', bottom: 'bottom range', direction: 'direction', above: 'bar above', below: 'bar below', across: 'bar across' },
+    needs: (p, f) => {
+      const L1 = p.length + 1, k = scanPineOn(p.double) ? 2 * L1 - 1 : L1;
+      return f === 'top' || f === 'bottom' ? p.atrLen + k - 1 : f === 'direction' ? k + 1 : k;
+    },
+    sideLabel: (p, f) => scanPineSideLabel('sr_ma', p, f, { keys: ['length'], text: `SR MA(${p.length})` }),
+    formula: 'Sentiment Range MA [ChartPrime]: a candle’s top and bottom are its body (range Body: the larger and smaller of open and close) or '
+      + 'its wick (high and low). A range of mult × the SMA of top − bottom over atrLen bars is set about the close, and held until the SMA of '
+      + 'the tops over trigger + 1 bars closes above its top or that of the bottoms below its bottom; then it is set afresh about that bar’s '
+      + 'close. ma, top and bottom are the held close and the range’s edges, each filtered by a WMA over length + 1 bars — of their SMA over '
+      + 'length + 1 bars when double is on (the settings TradingView shows are length and trigger; the script adds 1 to each). direction is the '
+      + 'sign of ma’s change from the bar before; above is 1 while the bar’s low is above ma, below while its high is below, across while it '
+      + 'spans it. The held level depends on the path, so a history that begins elsewhere agrees with a longer one only after the range is '
+      + 'set afresh on the same bar in both.',
+  },
+  banker_entry: {
+    label: 'Banker Entry', calcVersion: 1, inputs: ['high', 'low', 'close'], pine: scanPineBankerEntry,
+    params: { threshold: scanPineInt(3, 1, 100) },
+    fields: { model: 'banker_model', crossUp: 'flag', atOrBelow3: 'flag', below5: 'flag' }, defaultField: 'model',
+    fieldLabels: { model: 'model', crossUp: (p) => `model crosses over ${p.threshold}`, atOrBelow3: 'model at or below 3', below5: 'model below 5' },
+    needs: (p, f) => (f === 'crossUp' ? 36 : 35),
+    span: (p, f, decay) => 27 + decay(1 / 5) + decay(1 / 3),
+    sideLabel: (p, f) => scanPineSideLabel('banker_entry', p, f),
+    formula: '[blackcat] L1 Banker Entry: x = (close − the lowest low of 27 bars) / (the highest high of 27 − that lowest low) × 100; model = '
+      + '3 × xsa(x, 5, 1) − 2 × xsa(xsa(x, 5, 1), 3, 1), where xsa(src, len, w) is the script’s own average: seeded with the mean of the last '
+      + 'len values (kept as a running sum), then (src × w + previous × (len − w)) / len. crossUp is 1 on the bar the model crosses over the '
+      + 'threshold (the script plots 100); atOrBelow3 while the model is at or below 3 (it plots 50) and below5 while below 5 (it plots 25) — '
+      + 'those two levels are fixed in the script.',
+  },
+  tv_rsi: {
+    label: 'RSI (TradingView)', calcVersion: 1, inputs: ['close'], pine: scanPineRsiStudy,
+    inputsOf: (p) => (p.maType === 5 ? ['close', 'volume'] : ['close']),
+    params: { n: scanPineInt(5), maType: scanPineMaParam(1, SCAN_PINE_RSI_MA), maLen: scanPineInt(14), bbMult: scanPineNum(2, 0.001, 50) },
+    fields: { rsi: 'osc_0_100', ma: 'osc_0_100', bbUpper: 'osc_0_100', bbLower: 'osc_0_100' }, defaultField: 'rsi',
+    fieldLabels: { rsi: '', ma: (p) => `${SCAN_PINE_RSI_MA[p.maType]}${p.maLen}`, bbUpper: 'upper band', bbLower: 'lower band' },
+    needs: (p, f) => (f === 'rsi' ? p.n + 1 : f === 'ma' ? p.n + 1 + scanPineMaLag(p.maType === 7 ? 1 : p.maType, p.maLen) : p.n + p.maLen),
+    span: (p, f, decay) => decay(1 / p.n) + 1 + (f === 'rsi' ? 0 : scanPineMaSpan(p.maType === 7 ? 1 : p.maType, p.maLen, decay)),
+    check: (p, f) => ((f === 'bbUpper' || f === 'bbLower') && p.maType !== 7 ? 'the Bollinger bands of the RSI exist only with maType 7 (SMA + Bollinger Bands)' : null),
+    sideLabel: (p, f) => `RSI${p.n} (TradingView)${f === 'rsi' || !f ? '' : f === 'ma' ? ` ${SCAN_PINE_RSI_MA[p.maType]}${p.maLen}` : ` Bollinger ${f === 'bbUpper' ? 'upper' : 'lower'} (${p.maLen}, ${p.bbMult})`}`,
+    formula: 'TradingView’s RSI script: the change of the close split into gains and losses, each smoothed by Wilder’s average (seeded with the '
+      + 'mean of the first n); RSI = 100 when the smoothed loss is 0 — a window with no change at all included, where the RSI indicator says '
+      + 'undefined — 0 when the smoothed gain is 0, else 100 − 100 / (1 + gain / loss). ma (RSI-based MA) is an average of the RSI over maLen '
+      + 'bars, of type 1 SMA, 2 EMA, 4 WMA, 5 VWMA, 6 SMMA (RMA) or 7 SMA + Bollinger Bands, whose bands are ma ± bbMult × the population '
+      + 'deviation of the RSI over maLen. Your chart uses 5 with an SMA of 14. Divergences are not computed.',
+  },
+};
+/* ---- end pine: indicators ---- */
+
 /* -------------------------------------------------------------- indicators -- */
 /* Every indicator the engine computes, with what it reads, what it
    measures, how many bars it needs before it says anything, and the formula
@@ -7177,6 +7913,8 @@ const SCAN_INDICATORS = {
   rvol: { label: 'relative volume', params: { n: scanNP(20) }, inputs: ['volume'], unit: 'ratio', calcVersion: 1,
     needs: (p) => p.n + 1,
     formula: "the bar's volume ÷ the mean volume of the n bars BEFORE it — the current bar is left out of its own reference" },
+  /* The reader's TradingView indicators, from the pine section above. */
+  ...SCAN_PINE_INDICATORS,
 };
 /* The default n of every indicator that has one — the builder's
    placeholders read this. */
@@ -7191,17 +7929,28 @@ function scanParams(spec) {
   if (!def) return { params: {}, problems: [] };
   const params = {}, problems = [];
   for (const [k, p] of Object.entries(def.params)) {
-    const v = spec[k];
+    let v = spec[k];
     if (v == null) { params[k] = p.def; continue; }
+    /* A parameter with named choices (a Pine indicator's switch or type of
+       average) may be given by its name, and a switch as true or false. */
+    if (p.options && ((typeof v === 'boolean' && p.min === 0 && p.max === 1) || (typeof v === 'string' && !scanNumeric(v)))) {
+      const code = typeof v === 'boolean' ? String(Number(v)) : Object.keys(p.options).find(c => String(p.options[c]).toLowerCase() === v.trim().toLowerCase());
+      if (code == null) { problems.push(`${k} "${v}" is not one of ${scanOptionList(p)}`); params[k] = p.def; continue; }
+      v = Number(code);
+    }
     if (!scanNumeric(v)) { problems.push(`${k === 'n' ? 'period' : k} "${v}" is not a number`); params[k] = p.def; continue; }
     let x = Number(v);
     if (p.integer) x = Math.round(x);
     if (x < p.min || x > p.max) { problems.push(`${k === 'n' ? 'period' : k} ${x} is outside ${p.min}–${p.max}`); params[k] = p.def; continue; }
+    if (p.options && !(String(x) in p.options)) { problems.push(`${k} ${x} is not one of ${scanOptionList(p)}`); params[k] = p.def; continue; }
     params[k] = x;
   }
   if (spec.indicator === 'macd' && !problems.length && params.fast >= params.slow) problems.push(`the fast period (${params.fast}) must be shorter than the slow (${params.slow})`);
+  if (def.check && !problems.length) { const why = def.check(params, scanFieldOf(spec)); if (why) problems.push(why); }
   return { params, problems };
 }
+/* A parameter's named choices in words: '0 (off), 1 (on)'. */
+const scanOptionList = (p) => Object.entries(p.options).map(([c, name]) => `${c} (${name})`).join(', ');
 const scanFieldOf = (spec) => { const def = SCAN_INDICATORS[spec?.indicator]; return def?.fields ? (spec.field == null ? def.defaultField : spec.field) : null; };
 /* The unit of an operand: the indicator's, or its field's. */
 function scanUnitOf(spec) {
@@ -7250,7 +7999,7 @@ function scanSideLabel(s) {
     case 'close_low_n': base = p.n === 252 ? '52-week closing low' : `${p.n}-bar closing low`; break;
     case 'change': base = `${p.n}-bar change %`; break;
     case 'rvol': base = `relative volume (${p.n}-bar)`; break;
-    default: base = def.label;
+    default: base = def.sideLabel ? def.sideLabel(p, scanFieldOf(s)) : def.label;
   }
   const m = scanMultiplier(s.multiplier);
   return m === 1 ? base : `${m}× ${base}`;
@@ -7716,7 +8465,7 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
   const o = history?.ohlc?.[symbol] || {}, meta = history?.meta?.[symbol] || {};
   const corrected = new Set((Array.isArray(history?.corrections?.[symbol]) ? history.corrections[symbol] : []).map(c => c?.date).filter(Boolean));
   const clock = now != null && Number.isFinite(scanMs(now));
-  const today = clock ? scanLocalDate(mk, now) : null;
+  const today = clock ? scanSessionToday(mk, now) : null;
   /* A session closes at most half an hour past midnight (a 24:00 close, or
      a close with its settle), so only a bar dated from the day before the
      market's own date at `now` can still be open by then: the rest skip the
@@ -7763,7 +8512,8 @@ function scanBars(history, symbol, { timeframe = '1D', market = undefined, instr
     }
   }
   b.dataVersion = scanDataVersion(b);
-  return scanTimeframe(timeframe) === '1W' ? scanResample(b, '1W', { calendar: cal, now }) : b;
+  const T = scanTimeframe(timeframe);
+  return T === '1W' || T === '1M' ? scanResample(b, T, { calendar: cal, now }) : b;
 }
 /* Bars from a bare list of closes (and, optionally, volumes, highs and
    lows) with no dates checked and no calendar: the trend context's input,
@@ -7789,28 +8539,40 @@ function scanSliceBars(bars, n) {
   return out;
 }
 
-/* WEEKLY BARS FROM DAILY ONES. A week is its ISO week (Monday first), and
-   the dates are already session dates in the market's own zone, so no time
-   zone arithmetic is needed. Open is the first session's, high the highest,
-   low the lowest, close the last; volume is the sum only when every
-   expected session of the week is held with a volume — a missing day is not
-   a day of nought. The weekly bar is dated by its last held session.
-   A week is COMPLETE when a later week is held, or when its last expected
-   session (by the calendar) is held. An incomplete week is PROVISIONAL, so
-   a week in progress never confirms a match; when a Friday is a holiday
-   the week closes on the Thursday. gapBefore counts whole weeks with
-   sessions that no bar covers. The daily bars arrive already adjusted,
-   and an unexplained daily break marks the week it falls in: breaks keep
-   their daily dates, with `at` the week's index. */
+/* WEEKLY AND MONTHLY BARS FROM DAILY ONES. A week is its ISO week (Monday
+   first) and a month its calendar month, and the dates are already session
+   dates in the market's own zone, so no time zone arithmetic is needed.
+   Open is the first session's, high the highest, low the lowest, close the
+   last; volume is the sum only when every expected session of the period
+   is held with a volume — a missing day is not a day of nought. The bar is
+   dated by its last held session.
+   A period is COMPLETE when a later one is held, or when its last expected
+   session (by the calendar) is held. An incomplete period is PROVISIONAL,
+   so a week or a month in progress never confirms a match; when a Friday
+   is a holiday the week closes on the Thursday, and a month whose last
+   weekday is one closes on the session before. A month's last session has
+   closed only when its bar is final: a bar captured before the close is
+   PROVISIONAL, and so is its month. gapBefore counts whole periods with
+   sessions that no bar covers. The daily bars arrive already adjusted, and
+   an unexplained daily break marks the period it falls in: breaks keep
+   their daily dates, with `at` the period's index. */
 const scanWeekOf = (d) => scanAddDays(d, -((scanWeekday(d) + 6) % 7));
+const scanMonthOf = (d) => `${d.slice(0, 7)}-01`;
 function scanResample(bars, tf = '1W', { calendar = null, now = null } = {}) {
-  if (scanTimeframe(tf) !== '1W') return bars;
+  const T = scanTimeframe(tf);
+  if (T !== '1W' && T !== '1M') return bars;
+  const periodOf = T === '1M' ? scanMonthOf : scanWeekOf;
+  /* The calendar days of the period starting on `start`, and the start of
+     the next: seven from a Monday, or every day of a month (from the 1st,
+     31 days on is always in the next month). */
+  const daysOf = (start) => { const out = []; for (let d = start; periodOf(d) === start; d = scanAddDays(d, 1)) out.push(d); return out; };
+  const nextOf = (start) => (T === '1M' ? scanMonthOf(scanAddDays(start, 31)) : scanAddDays(start, 7));
   const cal = calendar || scanWeekdayCalendar(bars.market);
   const groups = [];
-  bars.dates.forEach((d, i) => { const wk = scanWeekOf(d); const g = groups[groups.length - 1]; if (g && g.wk === wk) g.idx.push(i); else groups.push({ wk, idx: [i] }); });
+  bars.dates.forEach((d, i) => { const wk = periodOf(d); const g = groups[groups.length - 1]; if (g && g.wk === wk) g.idx.push(i); else groups.push({ wk, idx: [i] }); });
   const weekOf = new Map();
   groups.forEach((g, gi) => g.idx.forEach(i => weekOf.set(i, gi)));
-  const w = { symbol: bars.symbol, market: bars.market, instrumentId: bars.instrumentId, timeframe: '1W',
+  const w = { symbol: bars.symbol, market: bars.market, instrumentId: bars.instrumentId, timeframe: T,
               dates: [], timestamps: [], closes: [], volumes: [], open: [], high: [], low: [], status: [], source: [], capturedAt: [],
               complete: [], missingDays: [], invalid: bars.invalid || [], gapBefore: [], breakBefore: [],
               breaks: (bars.breaks || []).map(x => ({ ...x, at: weekOf.get(x.at) ?? x.at })), adjustments: bars.adjustments || [], adjustmentVersion: bars.adjustmentVersion ?? null,
@@ -7819,8 +8581,7 @@ function scanResample(bars, tf = '1W', { calendar = null, now = null } = {}) {
   groups.forEach((g, gi) => {
     const idx = g.idx, first = idx[0], last = idx[idx.length - 1];
     const lastHeld = bars.dates[last];
-    const expected = [];
-    for (let k = 0; k < 7; k++) { const d = scanAddDays(g.wk, k); if (scanIsSession(cal, d)) expected.push(d); }
+    const expected = daysOf(g.wk).filter(d => scanIsSession(cal, d));
     const lastExpected = expected[expected.length - 1] || lastHeld;
     const later = gi < groups.length - 1;
     const complete = later || lastHeld >= lastExpected;
@@ -7840,16 +8601,14 @@ function scanResample(bars, tf = '1W', { calendar = null, now = null } = {}) {
     w.complete.push(complete); w.missingDays.push(missing);
     let gap = 0;
     if (gi > 0) {
-      for (let wk = scanAddDays(groups[gi - 1].wk, 7), k = 0; wk < g.wk && k < 600; wk = scanAddDays(wk, 7), k++) {
-        let any = false;
-        for (let j = 0; j < 7 && !any; j++) any = scanIsSession(cal, scanAddDays(wk, j));
-        if (any) gap++;
+      for (let wk = nextOf(groups[gi - 1].wk), k = 0; wk < g.wk && k < 600; wk = nextOf(wk), k++) {
+        if (daysOf(wk).some(d => scanIsSession(cal, d))) gap++;
       }
     }
     w.gapBefore.push(gap);
   });
-  /* A daily series that is behind is behind in weeks too: its last complete
-     week is the one marked stale. */
+  /* A daily series that is behind is behind in weeks and months too: its
+     last complete period is the one marked stale. */
   if (bars.stale) {
     let at = w.dates.length - 1;
     while (at >= 0 && w.status[at] === 'PROVISIONAL') at--;
@@ -7988,7 +8747,8 @@ function scanBreakSpan(id, params, field, needs) {
     case 'ema': return Math.max(needs, decay(2 / (params.n + 1)));
     case 'rsi': case 'atr': return Math.max(needs, decay(1 / params.n) + 1);
     case 'macd': return Math.max(needs, decay(2 / (params.slow + 1)) + (field === 'signal' || field === 'hist' ? decay(2 / (params.signal + 1)) : 0));
-    default: return needs;
+    /* A Pine indicator states its own (SCAN_PINE_INDICATORS' span). */
+    default: { const span = SCAN_INDICATORS[id]?.span; return span ? Math.max(needs, span(params, field, decay)) : needs; }
   }
 }
 /* The break a window spans, in words: the move, its dates and what it looks
@@ -8007,7 +8767,10 @@ function scanComputeSeries(id, params, field, bars, needs) {
   const closes = bars?.closes || [], vols = bars?.volumes || new Array(len).fill(null);
   const values = new Array(len).fill(null), status = new Array(len).fill('VALID'), reason = new Array(len).fill(null);
   const whole = (st, code, note, extra = {}) => ({ values, status: status.fill(st), reason: reason.fill({ code, note }), ...extra });
-  const usesVol = def.inputs.includes('volume'), usesHL = def.inputs.includes('high') || def.inputs.includes('low');
+  /* What it reads can turn on a parameter (a VWMA reads volume; a Pine
+     indicator reading a candle's body reads its open). */
+  const inputs = def.inputsOf ? def.inputsOf(params) : def.inputs;
+  const usesVol = inputs.includes('volume'), usesHL = inputs.includes('high') || inputs.includes('low'), usesOpen = inputs.includes('open');
   /* No positive reading anywhere is no volume at all. FX pairs, indices and
      yields have no traded volume, and a history path can store that
      absence as 0 on every bar — which a "volume below 1" rule then matched.
@@ -8032,7 +8795,14 @@ function scanComputeSeries(id, params, field, bars, needs) {
     case 'close_low_n': raw = scanRollExtreme(closes, params.n, Math.min); break;
     case 'change': raw = scanChange(closes, params.n); break;
     case 'rvol': raw = scanRvol(vols, params.n, zd); break;
-    default: raw = new Array(len).fill(null);
+    default:
+      /* The reader's TradingView indicators: one run of the script gives
+         every field. A value it leaves na once the warm-up is past is not a
+         warm-up but the formula's own blank, and says so. */
+      if (def.pine) {
+        raw = def.pine(bars, params).fields[field] || new Array(len).fill(null);
+        for (let i = Math.max(0, needs - 1); i < len; i++) if (!scanOk(raw[i])) zd.push(i);
+      } else raw = new Array(len).fill(null);
   }
   const zdSet = new Set(zd);
   /* Missing sessions inside a window: a gap between bar j−1 and bar j
@@ -8044,7 +8814,7 @@ function scanComputeSeries(id, params, field, bars, needs) {
   const volMiss = new Array(len + 1).fill(0), hlMiss = new Array(len + 1).fill(0);
   for (let j = 0; j < len; j++) {
     volMiss[j + 1] = volMiss[j] + (scanOk(vols[j]) ? 0 : 1);
-    hlMiss[j + 1] = hlMiss[j] + (scanOk(bars?.high?.[j]) && scanOk(bars?.low?.[j]) ? 0 : 1);
+    hlMiss[j + 1] = hlMiss[j] + (scanOk(bars?.high?.[j]) && scanOk(bars?.low?.[j]) && (!usesOpen || scanOk(bars?.open?.[j])) ? 0 : 1);
   }
   /* Unexplained price breaks (scanBars marks breakBefore[j] for a break
      between bar j−1 and bar j that no recorded adjustment explains). A
@@ -8062,7 +8832,9 @@ function scanComputeSeries(id, params, field, bars, needs) {
   }
   const zdNote = id === 'rsi' ? 'a window with neither a gain nor a loss has no RSI'
     : id === 'bb' ? 'the band has no width (every close in the window is equal), so %b is undefined'
-    : id === 'rvol' ? 'the reference volume is 0, so relative volume is undefined' : 'the formula divides by zero here';
+    : id === 'rvol' ? 'the reference volume is 0, so relative volume is undefined'
+    : def.pine ? 'the formula has no value on this bar — TradingView would plot nothing here (a division by zero, or a high, low or open missing from the bars it still remembers)'
+    : 'the formula divides by zero here';
   for (let i = 0; i < len; i++) {
     const from = i - needs + 1;
     if (from < 0) { status[i] = 'INSUFFICIENT_DATA'; reason[i] = { code: 'NEEDS_BARS', note: null }; continue; }
@@ -8077,7 +8849,7 @@ function scanComputeSeries(id, params, field, bars, needs) {
     if (usesHL) {
       const hlFrom = id === 'atr' ? Math.max(0, from) : from;
       const k = hlMiss[i + 1] - hlMiss[hlFrom];
-      if (k > 0) { status[i] = 'INVALID_INPUT'; reason[i] = { code: 'NO_HIGH_LOW', note: `high and low are not held for ${k} of the last ${needs} bars` }; continue; }
+      if (k > 0) { status[i] = 'INVALID_INPUT'; reason[i] = { code: 'NO_HIGH_LOW', note: `${usesOpen ? 'open, high and low are' : 'high and low are'} not held for ${k} of the last ${needs} bars` }; continue; }
     }
     if (zdSet.has(i)) { status[i] = 'INVALID_INPUT'; reason[i] = { code: 'ZERO_DENOMINATOR', note: zdNote }; continue; }
     if (!scanOk(raw[i])) { status[i] = 'INSUFFICIENT_DATA'; reason[i] = { code: 'NEEDS_BARS', note: null }; continue; }
@@ -8189,13 +8961,16 @@ function scanSeriesDp(bars, at = null) {
   return Math.max(2, pre[i]);
 }
 /* How one side of a condition prints: a price at its series' precision and
-   never shortened; anything else at two decimals, shortened when large. */
-const scanFmtOpts = (unit, bars, at = null) => (unit === 'price' ? { dp: scanSeriesDp(bars, at), compact: false } : { dp: 2, compact: true });
+   never shortened; a flag (1 or 0) or a direction (1, 0 or −1) as the
+   whole number it is, not "1.00"; anything else at two decimals, shortened
+   when large. */
+const scanFmtOpts = (unit, bars, at = null) => (unit === 'price' ? { dp: scanSeriesDp(bars, at), compact: false }
+  : unit === 'flag' || unit === 'direction' ? { dp: 0, compact: false } : { dp: 2, compact: true });
 const scanFmtFor = (v, unit, bars, at = null) => { const o = scanFmtOpts(unit, bars, at); return scanFmt(v, o.dp, o.compact); };
 
 /* ------------------------------------------------------------------ setups -- */
 /* SetupV2 = { id, version, hash, name, description?, enabled, universe,
-   timeframe '1D' | '1W', confirmationMode 'BAR_CLOSE', cooldownMode
+   timeframe '1D' | '1W' | '1M', confirmationMode 'BAR_CLOSE', cooldownMode
    'NEW_MATCH' | 'EVERY_MATCH', cooldownBars, expires, ruleTree }, where the
    tree is RuleGroup { type: 'group', logic: 'ALL' | 'ANY', children } of
    Conditions { type: 'condition', left, op, right?, range? } and an operand
@@ -8715,13 +9490,17 @@ const SCAN_CATCH_UP_CAP = 10;
    expected between j and the bar before it that the history holds, and
    what that calendar is. null when none is missing. A weekday calendar
    cannot tell a holiday from a day nothing was captured, and says so; a
-   weekly bar counts whole weeks with sessions and no bar. */
+   weekly or monthly bar counts whole weeks or months with sessions and no
+   bar. */
 function scanGapText(bars, j, cal = null) {
   const g = bars?.gapBefore?.[j] || 0;
   if (!(g > 0) || !(j >= 1)) return null;
   const a = bars.dates[j - 1], b = bars.dates[j];
   if (bars.timeframe === '1W') {
     return { count: g, sessions: [], text: `${g} week${g === 1 ? '' : 's'} with sessions and no bar ${g === 1 ? 'lies' : 'lie'} between the weekly bar of ${a} and this one of ${b}` };
+  }
+  if (bars.timeframe === '1M') {
+    return { count: g, sessions: [], text: `${g} month${g === 1 ? '' : 's'} with sessions and no bar ${g === 1 ? 'lies' : 'lie'} between the monthly bar of ${a} and this one of ${b}` };
   }
   const missing = [];
   for (let d = scanAddDays(a, 1), k = 0; d < b && k < 400; d = scanAddDays(d, 1), k++) if (scanIsSession(cal, d)) missing.push(d);
@@ -8848,7 +9627,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
     const s = scanNormaliseSetup(raw);
     if (!s.id) { out.skipped.push({ setup: s.name || '(unnamed)', why: 'no id' }); continue; }
     const tf = SCAN_TIMEFRAMES[s.timeframe];
-    if (!tf || !tf.built) { out.skipped.push({ setup: s.id, why: `timeframe “${raw.timeframe}” is not built — ${tf ? tf.reason : 'the built timeframes are 1D and 1W'}` }); continue; }
+    if (!tf || !tf.built) { out.skipped.push({ setup: s.id, why: `timeframe “${raw.timeframe}” is not built — ${tf ? tf.reason : 'the built timeframes are 1D, 1W and 1M'}` }); continue; }
     out.setups++;
     /* A watchlist universe says which membership it read: its snapshot, or
        the reader's export — and when the export was asked for but could not
@@ -8893,7 +9672,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
         if (!provSeen.has(pk)) {
           provSeen.add(pk);
           out.provisional.push({ symbol: sym, timeframe: s.timeframe, bar: pbar,
-            why: `the ${pbar} ${s.timeframe === '1W' ? 'week is not complete' : 'bar was captured before its session closed and settled'}, so it is provisional${at >= 0 ? `; the bar of ${bars.dates[at]} was evaluated instead` : ''}` });
+            why: `the ${pbar} ${s.timeframe === '1W' ? 'week is not complete' : s.timeframe === '1M' ? 'month is not complete' : 'bar was captured before its session closed and settled'}, so it is provisional${at >= 0 ? `; the bar of ${bars.dates[at]} was evaluated instead` : ''}` });
         }
       }
       if (at < 1) {
@@ -8931,10 +9710,15 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
       evaluatedMarkets.add(bars.market ? String(bars.market).toUpperCase() : null);
       if (!(bars.stale && bars.stale.at === last)) out.pairs[pk] = { lastEvaluatedBar: bar };
       if (newest && !staleSeen.has(sym)) {
-        const behind = scanDayDiff(bar, newest);
+        /* A monthly bar is dated by its month's last session, so mid-month
+           the one evaluated is up to a month behind the newest daily bar on
+           a series that is perfectly current: a monthly series is behind
+           when its daily bars are. */
+        const ref = s.timeframe === '1M' ? lastBar(sym) : bar;
+        const behind = scanDayDiff(ref, newest);
         /* Ten calendar days clears a long holiday closure; a series further
            behind than that was not updated, and its "last bar" is old news. */
-        if (behind > 10) { staleSeen.add(sym); out.stale.push({ symbol: sym, bar, why: `last bar ${bar} is ${behind} days behind the newest bar in the history (${newest})` }); }
+        if (behind > 10) { staleSeen.add(sym); out.stale.push({ symbol: sym, bar: ref, why: `last bar ${ref} is ${behind} days behind the newest bar in the history (${newest})` }); }
       }
       for (const j of idx) {
         const jb = bars.dates[j];
@@ -37308,7 +38092,9 @@ function scanSetupChips(s, extra = []) {
 const scanTreeList = (tree) => el('ul', { class: 'rulelist' }, scanTreeLines(tree).map(l =>
   el('li', { style: l.depth > 1 ? `margin-left:${(l.depth - 1) * 16}px` : null, class: l.group ? 'scan-group-line' : null }, l.text)));
 const scanDriftChip = (row) => (row ? el('span', { class: `chip ${SCAN_DRIFT[row.state].chip}`, title: row.text }, SCAN_DRIFT[row.state].label) : null);
-const scanTimeframeProse = (s) => (s.timeframe === '1W' ? 'weekly bars derived from your daily ones' : 'daily bars') + ', each evaluated once its session has closed';
+/* Monthly joined weekly as a timeframe built from the daily bars; the page
+   said "daily bars" of a monthly setup until it was named here. */
+const scanTimeframeProse = (s) => (s.timeframe === '1W' ? 'weekly bars derived from your daily ones' : s.timeframe === '1M' ? 'monthly bars derived from your daily ones' : 'daily bars') + ', each evaluated once its session has closed';
 const scanAlertsOf = (id) => scanAlertList().filter(a => a.setupId === id);
 
 /* A run's outcome as a card body: what matched, what was untested, what was
@@ -37728,12 +38514,49 @@ const SCAN_FIELD_LABEL = { line: 'line', signal: 'signal line', hist: 'histogram
 const SCAN_PICK_LABEL = { price: 'Price (close)', volume: 'Volume', sma: 'SMA — simple average', ema: 'EMA — exponential average', rsi: 'RSI (Wilder)',
   macd: 'MACD', volume_avg: 'Average volume', bb: 'Bollinger', atr: 'ATR (Wilder)', high_n: 'Highest high over n bars', low_n: 'Lowest low over n bars',
   close_high_n: 'Highest close over n bars', close_low_n: 'Lowest close over n bars', change: 'Change % over n bars', rvol: 'Relative volume' };
-const SCAN_PARAM_LABEL = { n: 'period (bars)', fast: 'fast period', slow: 'slow period', signal: 'signal period', k: 'band width (σ)' };
+const SCAN_PARAM_LABEL = { n: 'period (bars)', fast: 'fast period', slow: 'slow period', signal: 'signal period', k: 'band width (σ)',
+  /* The owner's TradingView indicators (the Pine section of the engine). Named
+     here as their scripts' inputs name them; the builder showed the raw keys
+     ("Left obSwitch") before. */
+  channel: 'channel length', average: 'average length', reaction: 'direction reaction (bars)',
+  overbought: 'overbought level', oversold: 'oversold level',
+  obSwitch: 'sell signals only when overbought', osSwitch: 'buy signals only when oversold',
+  maLen: 'average length', maType: 'average type', maLen2: 'second average length', maType2: 'second average type',
+  bankerBase: 'banker RSI base', bankerPeriod: 'banker RSI period', bankerSens: 'banker sensitivity',
+  hotBase: 'hot money RSI base', hotPeriod: 'hot money RSI period', hotSens: 'hot money sensitivity',
+  type: 'average type', start: 'start', inc: 'increment', max: 'maximum',
+  length: 'length', trigger: 'trigger smoothing', atrLen: 'ATR length', mult: 'range multiplier',
+  double: 'double filter', range: 'range style', threshold: 'entry threshold', bbMult: 'band width (σ)' };
+/* Where one key means different things in two indicators, the indicator's
+   own name wins: WaveTrend's maLen is its extra TEMA, MCDX's the length of
+   its Banker_MA; Color MA's one series is its line. */
+const SCAN_PARAM_LABEL_BY = {
+  wavetrend: { channel: 'WT channel length', average: 'WT average length', maLen: 'TEMA length' },
+  mcdx: { maLen: 'Banker_MA length', maType: 'Banker_MA type', maLen2: 'HotMoney_MA length', maType2: 'HotMoney_MA type' },
+  tv_rsi: { maLen: 'RSI-based MA length', maType: 'RSI-based MA type' },
+  sr_ma: { length: 'smoothing length' },
+};
+const SCAN_FIELD_LABEL_BY = { color_ma: { ma: 'line' } };
+const scanParamLabelOf = (id, k) => SCAN_PARAM_LABEL_BY[id]?.[k] || SCAN_PARAM_LABEL[k] || k;
+/* A field's label: the builder's own names first, then the indicator's
+   (a Pine indicator names every plotted series, some from its parameters —
+   "TEMA200 of WT1" — read here at their defaults). */
+const scanFieldLabelOf = (def, f) => {
+  if (SCAN_FIELD_LABEL[f] && !def.fieldLabels) return SCAN_FIELD_LABEL[f];
+  const own = Object.entries(SCAN_INDICATORS).find(([, d]) => d === def)?.[0];
+  if (own && SCAN_FIELD_LABEL_BY[own]?.[f]) return SCAN_FIELD_LABEL_BY[own][f];
+  const l = def.fieldLabels?.[f];
+  if (typeof l === 'function') {
+    const p = Object.fromEntries(Object.entries(def.params || {}).map(([k, q]) => [k, q.def]));
+    try { return l(p); } catch { return f; }
+  }
+  return l || SCAN_FIELD_LABEL[f] || f;
+};
 function scanOperandOptions() {
   const out = [];
   Object.entries(SCAN_INDICATORS).forEach(([id, def]) => {
     const base = SCAN_PICK_LABEL[id] || def.label;
-    if (def.fields) Object.entries(def.fields).forEach(([f, u]) => out.push({ key: `${id}.${f}`, id, field: f, unit: u, label: `${base} ${SCAN_FIELD_LABEL[f] || f}` }));
+    if (def.fields) Object.entries(def.fields).forEach(([f, u]) => out.push({ key: `${id}.${f}`, id, field: f, unit: u, label: `${base} ${scanFieldLabelOf(def, f)}` }));
     else out.push({ key: id, id, field: null, unit: def.unit, label: base });
   });
   return out;
@@ -38119,8 +38942,17 @@ function scanBuilder(d, ctx) {
       /* Parameters with their bounds: a blank is the default, shown as the
          placeholder; outside the bounds is refused at this condition. */
       const params = (o, side) => Object.entries(SCAN_INDICATORS[o.indicator]?.params || {}).forEach(([k, p]) => {
-        grid.append(field(`${side} ${SCAN_PARAM_LABEL[k] || k}`, text(o[k], v => { const n = numOrAbsent(v); if (n === undefined) delete o[k]; else o[k] = n; },
-          { type: 'number', inputmode: p.integer ? 'numeric' : 'decimal', min: String(p.min), max: String(p.max), step: p.integer ? '1' : 'any', placeholder: String(p.def), 'aria-label': `${L}: ${side.toLowerCase()} ${SCAN_PARAM_LABEL[k] || k}` }),
+        /* A parameter with named options (on/off, an average type, a range
+           style) is a choice: a select of its names, the default first as
+           "default", rather than a number box that showed 0 and 1. */
+        if (p.options) {
+          const opts = [['', `default (${p.options[p.def] ?? p.def})`], ...Object.entries(p.options).map(([v, name]) => [v, name])];
+          grid.append(field(`${side} ${scanParamLabelOf(o.indicator, k)}`, select(o[k] ?? '', opts, v => { if (v === '') delete o[k]; else o[k] = Number(v); },
+            { 'aria-label': `${L}: ${side.toLowerCase()} ${scanParamLabelOf(o.indicator, k)}` })));
+          return;
+        }
+        grid.append(field(`${side} ${scanParamLabelOf(o.indicator, k)}`, text(o[k], v => { const n = numOrAbsent(v); if (n === undefined) delete o[k]; else o[k] = n; },
+          { type: 'number', inputmode: p.integer ? 'numeric' : 'decimal', min: String(p.min), max: String(p.max), step: p.integer ? '1' : 'any', placeholder: String(p.def), 'aria-label': `${L}: ${side.toLowerCase()} ${scanParamLabelOf(o.indicator, k)}` }),
           { hint: `${p.min}–${p.max}${p.integer ? ', whole' : ''}; blank is ${p.def}` }));
       });
       grid.append(field('Left side', select(scanOperandKey(c.left), byUnit, v => { c.left = scanOperandFromKey(v); scanFitCondition(c); }, { 'aria-label': `${L}: left side` })));
@@ -38884,7 +39716,7 @@ VIEWS.scannerAlert = () => {
     const fc = scanValuesFmt([lo, hi, cl[cl.length - 1]], prefs, 'price');
     c5.append(el('figure', { class: 'row row-wrap', style: 'gap:var(--sm) var(--lg);align-items:center;margin:0' }, [
       el('div', { style: 'flex:1 1 260px;max-width:360px;min-width:0' }, sp),
-      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${fc(lo)}, highest ${fc(hi)}; the marked point is ${bar}, at ${fc(cl[cl.length - 1])}.`),
+      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : scanTimeframe(a.timeframe) === '1M' ? 'monthly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${fc(lo)}, highest ${fc(hi)}; the marked point is ${bar}, at ${fc(cl[cl.length - 1])}.`),
     ]));
   } else c5.append(el('p', { class: 'caption' }, rep.state === 'NO_HISTORY' || rep.state === 'NO_SERIES' || rep.state === 'NO_BAR' ? 'No closes are drawn: ' + rep.text.charAt(0).toLowerCase() + rep.text.slice(1) : 'Fewer than two bars are held up to this one, so no line is drawn.'));
   const verdict = el('p', { class: `scan-reproduce scan-note${rep.state === 'REPRODUCES' ? '' : ' scan-warn'}`, role: 'status', style: 'margin-top:var(--sm)' }, rep.text);
@@ -40055,7 +40887,7 @@ function scanBacktestResult(R) {
   const head = el('section', { class: 'card' });
   head.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h3', { class: 'h-card' }, `Simulated: ${R.setup.name || R.setup.id}, version ${o.setupVersion}`),
-    el('p', { class: 'caption', style: 'margin-top:2px' }, `Setup hash ${o.setupHash} · ${o.timeframe === '1W' ? 'weekly bars derived from your daily ones' : 'daily bars'} · ${o.cooldownMode === 'NEW_MATCH' ? 'records new matches only' : 'records every match'}${o.cooldownBars ? `, ${o.cooldownBars}-bar cooldown` : ''} · ${R.from || 'first bar'} to ${R.to || 'last bar'} · simulation, not a guarantee.`),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, `Setup hash ${o.setupHash} · ${o.timeframe === '1W' ? 'weekly bars derived from your daily ones' : o.timeframe === '1M' ? 'monthly bars derived from your daily ones' : 'daily bars'} · ${o.cooldownMode === 'NEW_MATCH' ? 'records new matches only' : 'records every match'}${o.cooldownBars ? `, ${o.cooldownBars}-bar cooldown` : ''} · ${R.from || 'first bar'} to ${R.to || 'last bar'} · simulation, not a guarantee.`),
   ])));
   const c = o.counts;
   const grid = el('div', { class: 'grid scan-counts' });
