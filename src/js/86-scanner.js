@@ -701,6 +701,9 @@ const scanHigherTfs = (tf) => Object.values(SCAN_TIMEFRAMES)
    words stand wherever they already say either. */
 function scanCondSentence(c, setupTf = null) {
   let t = scanConditionProse(c);
+  /* The engine names a condition's own timeframe first ("weekly: …"); these
+     pages say it last, and only where it is not the setup's own. */
+  t = t.replace(/^(daily|weekly|monthly): /i, '');
   if (c && typeof c === 'object' && scanUnitOf(c.left) === 'flag' && scanOpName(c.op) === 'EQUALS'
     && c.right && typeof c.right === 'object' && c.right.indicator == null && scanNumeric(c.right.value) && [0, 1].includes(Number(c.right.value)))
     t = t.replace(/ equals [01](?=$| on | \()/, Number(c.right.value) === 1 ? ' is true' : ' is false');
