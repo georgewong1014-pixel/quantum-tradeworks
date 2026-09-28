@@ -619,9 +619,39 @@ function scanPrefsRead() {
   return out;
 }
 const scanPrefsWrite = (patch) => store.write('scanPrefs', { ...scanPrefsRead(), ...patch });
-/* A recorded value as the preference asks: every significant digit the
-   engine keeps, or rounded as the tables round. */
-const scanValueText = (v, prefs = scanPrefsRead()) => (v == null || !Number.isFinite(Number(v)) ? '—' : prefs.precision === 'rounded' ? scanFmt(Number(v)) : scanDec(Number(v)));
+/* A CLOSE PRINTS AS A PRICE. It went through scanFmt's defaults, which are
+   a volume's — two decimals, shortened from 10,000 — so the alerts table
+   and a run's summary read 0.34 for a close of 0.345, on the line where the
+   engine's own rule read "price 0.345 below 0.500", and 45.1k for 45,120.5
+   and 45,149.9 alike. The engine's rule is that a price is never shortened
+   and prints at the precision it is quoted in. A lone close has no series
+   to read that from, so it is read from the close itself: at least two
+   decimals and at most four, as scanSeriesDp reads a series. */
+const scanPriceDp = (v) => Math.max(2, Math.min(4, scanDecimals(v)));
+const scanPriceText = (v) => (isNum(v) ? scanFmt(v, scanPriceDp(v), false) : '—');
+/* Recorded values as the preference asks: every significant digit the
+   engine keeps, or rounded as the tables round. Rounded, a price was
+   shortened too (a close of 45,120.5 read 45.1k), and values printed
+   together were rounded one at a time, so a close that had moved by 0.004
+   read "recorded 96.60, now 96.60". Rounded now goes through the engine's
+   scanFmtAll, which adds a decimal until different values read
+   differently, and `unit` 'price' rounds as a price. */
+function scanValuesFmt(vals, prefs = scanPrefsRead(), unit = null) {
+  const xs = vals.flat().map(Number).filter(Number.isFinite);
+  const f = prefs.precision !== 'rounded' ? scanDec
+    : scanFmtAll(xs, unit === 'price' ? { dp: Math.max(2, ...xs.map(scanPriceDp)), compact: false } : {});
+  return (v) => (v == null || !Number.isFinite(Number(v)) ? '—' : f(Number(v)));
+}
+const scanValueText = (v, prefs = scanPrefsRead(), unit = null) => scanValuesFmt([v], prefs, unit)(v);
+/* The unit a recorded condition's values are in: its left side's, the one
+   the engine prints both sides in — read off the setup the record carries,
+   at the condition's path ('2.1' is the first child of the second). Null
+   when the record carries no tree, and the values round as before. */
+function scanCondUnit(tree, path) {
+  let n = tree;
+  if (n?.type === 'group') for (const k of String(path || '').split('.')) n = Array.isArray(n?.children) ? n.children[Number(k) - 1] : null;
+  return n?.type === 'condition' ? scanUnitOf(n.left) : null;
+}
 
 /* A route parameter of the current address, decoded. The router keeps only
    a company id in State; the scanner's :setup and :alert are read here. */
@@ -663,7 +693,7 @@ function scanRunSummary(r, note) {
   if (r.sessionCache) box.append(el('p', { class: 'caption scan-cache-line', style: 'margin-top:2px' }, `Indicators: ${r.sessionCache.misses} computed, ${r.sessionCache.hits} reused from earlier in this session. The page keeps one cache while it is open, keyed by each series’ data version, so a changed close is computed afresh.`));
   if (r.alerts.length) {
     const ul = el('ul', { class: 'ticklist', style: 'margin-top:6px' });
-    r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanFmt(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
+    r.alerts.forEach(a => ul.append(el('li', {}, [`${a.setupName} · `, scanSymbolLink(a.symbol), ` · ${a.bar} · close ${scanPriceText(a.close)} — ${a.rules.map(x => x.text).join('; ')}`])));
     box.append(ul);
   }
   /* Every pair that was not a plain met-or-failed, with its reason: untested
@@ -1942,7 +1972,7 @@ VIEWS.scannerAlerts = () => {
       el('td', { style: 'text-align:left' }, [a.setupName || a.setupId, a.setupVersion != null ? el('span', { class: 'caption' }, ` v${a.setupVersion}`) : null]),
       el('td', { style: 'text-align:left' }, scanSymbolLink(a.symbol)),
       el('td', { class: 'caption', style: 'text-align:left' }, `${(a.eventType || 'MATCH').replace('_', ' ').toLowerCase()}${a.gapBefore === true ? ' · across a gap' : ''}`),
-      el('td', { class: 'num' }, isNum(a.close) ? scanFmt(a.close) : '—'),
+      el('td', { class: 'num' }, scanPriceText(a.close)),
       el('td', {}, scanLink(scanAlertPath(a), 'Open', { 'aria-label': `Open ${a.setupName || a.setupId} on ${a.symbol}, ${scanAlertBar(a)}` })),
     ]);
   })));
@@ -2134,7 +2164,7 @@ VIEWS.scannerAlert = () => {
   f1.append(scanFact('Bar status', a.barStatus || nr, a.barStatus ? SCAN_BAR_STATUS_TEXT[a.barStatus] : null));
   f1.append(scanFact('Instrument', el('span', {}, [scanSymbolLink(a.symbol), a.instrumentId && a.instrumentId !== a.symbol ? el('span', { class: 'caption' }, ` · ${a.instrumentId}`) : null]),
     a.instrumentId ? null : legacy ? nr : 'no row in data/instruments.json, so no canonical id'));
-  f1.append(scanFact('Close on the bar', isNum(a.close) ? scanValueText(a.close, prefs) : null));
+  f1.append(scanFact('Close on the bar', isNum(a.close) ? scanValueText(a.close, prefs, 'price') : null));
   /* Volume on the bar (C2's barVolume). Recorded as null, the history held
      none — which is not a volume of nought. Absent, the record predates
      the field, and the history's reading now is offered as that, not as
@@ -2193,14 +2223,16 @@ VIEWS.scannerAlert = () => {
   t.append(el('caption', { class: 'sr-only' }, 'Conditions evaluated on this bar'));
   if (mc) {
     t.append(el('thead', {}, el('tr', {}, ['Path', 'Condition', 'State', 'Left', 'Right', 'Status'].map(h => el('th', { scope: 'col', class: h === 'Left' || h === 'Right' ? 'num' : null }, h)))));
-    t.append(el('tbody', {}, mc.map(c => el('tr', {}, [
+    /* Both sides of a condition round together and in its left side's
+       unit, as the engine's sentence beside them prints them. */
+    t.append(el('tbody', {}, mc.map(c => { const fv = scanValuesFmt([c.left, c.right], prefs, scanCondUnit(a.setupSnapshot?.ruleTree, c.path)); return el('tr', {}, [
       el('td', { class: 'ident' }, c.path || '—'),
       el('td', { style: 'text-align:left;white-space:normal;min-width:200px' }, c.text || '—'),
       el('td', {}, el('span', { class: `chip ${c.state === 'MET' ? 'chip-ok' : c.state === 'UNAVAILABLE' ? 'chip-warn' : ''}` }, String(c.state || '—').replace('_', ' ').toLowerCase())),
-      el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.leftLabel || ''), Array.isArray(c.left) ? c.left.map(v => scanValueText(v, prefs)).join(' → ') : scanValueText(c.left, prefs)]),
-      el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.rightLabel || ''), Array.isArray(c.right) ? c.right.map(v => scanValueText(v, prefs)).join(' – ') : scanValueText(c.right, prefs)]),
+      el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.leftLabel || ''), Array.isArray(c.left) ? c.left.map(fv).join(' → ') : fv(c.left)]),
+      el('td', { class: 'num', style: 'white-space:normal' }, [el('span', { class: 'caption', style: 'display:block' }, c.rightLabel || ''), Array.isArray(c.right) ? c.right.map(fv).join(' – ') : fv(c.right)]),
       el('td', { class: 'caption', style: 'text-align:left' }, `${String(c.status || '').replace('_', ' ').toLowerCase()}${c.reason ? ` · ${c.reason}` : ''}`),
-    ]))));
+    ]); })));
   } else {
     t.append(el('thead', {}, el('tr', {}, ['Condition', 'Held'].map(h => el('th', { scope: 'col' }, h)))));
     t.append(el('tbody', {}, (a.rules || []).map(r => el('tr', {}, [el('td', { style: 'text-align:left;white-space:normal' }, r.text || '—'), el('td', {}, r.met === true ? 'yes' : r.met === false ? 'no' : 'untested')]))));
@@ -2221,22 +2253,25 @@ VIEWS.scannerAlert = () => {
     sp.setAttribute('style', 'width:100%;max-width:360px;height:auto;display:block');
     sp.classList.add('scan-spark');
     const lo = Math.min(...cl.filter(isNum)), hi = Math.max(...cl.filter(isNum));
+    const fc = scanValuesFmt([lo, hi, cl[cl.length - 1]], prefs, 'price');
     c5.append(el('figure', { class: 'row row-wrap', style: 'gap:var(--sm) var(--lg);align-items:center;margin:0' }, [
       el('div', { style: 'flex:1 1 260px;max-width:360px;min-width:0' }, sp),
-      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${scanValueText(lo, prefs)}, highest ${scanValueText(hi, prefs)}; the marked point is ${bar}, at ${scanValueText(cl[cl.length - 1], prefs)}.`),
+      el('figcaption', { class: 'caption', style: 'flex:1 1 240px;max-width:60ch;margin:0' }, `Closes of the ${scanPlural(n, `${scanTimeframe(a.timeframe) === '1W' ? 'weekly' : 'daily'} bar`)} up to and including ${bar}${from > 0 ? ` (the last ${n} of ${rep.at + 1} held)` : ''}, from the history as loaded — nothing after the bar is drawn. Lowest ${fc(lo)}, highest ${fc(hi)}; the marked point is ${bar}, at ${fc(cl[cl.length - 1])}.`),
     ]));
   } else c5.append(el('p', { class: 'caption' }, rep.state === 'NO_HISTORY' || rep.state === 'NO_SERIES' || rep.state === 'NO_BAR' ? 'No closes are drawn: ' + rep.text.charAt(0).toLowerCase() + rep.text.slice(1) : 'Fewer than two bars are held up to this one, so no line is drawn.'));
   const verdict = el('p', { class: `scan-reproduce scan-note${rep.state === 'REPRODUCES' ? '' : ' scan-warn'}`, role: 'status', style: 'margin-top:var(--sm)' }, rep.text);
   c5.append(verdict);
   if (rep.values.length) c5.append(el('ul', { class: 'rulelist' }, rep.values.map(v => el('li', { class: 'caption' }, `${v.path}: recorded “${v.text}”; now “${v.now}”`))));
   if (rep.bars) {
-    const fmtC = (v) => (isNum(v) ? scanValueText(v, prefs) : 'not held');
+    /* Each line's two closes round together, so a close that moved never
+       reads as the one it moved from. */
+    const pair = (x) => { const f = scanValuesFmt([x.recorded, x.now], prefs, 'price'); return [x.recorded, x.now].map(v => (isNum(v) ? f(v) : 'not held')); };
     c5.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, rep.closes.length
       ? `${scanPlural(rep.closes.length, 'bar')} up to ${bar} ${rep.closes.length === 1 ? 'has a close' : 'have closes'} that differ from the record:`
       : `No close the record holds for ${a.symbol} up to ${bar} differs from the history, and its corrections log names none changed since this was detected.`));
-    if (rep.closes.length) c5.append(el('ul', { class: 'rulelist scan-close-diffs' }, rep.closes.slice(0, 20).map(x => el('li', { class: 'caption' }, x.via === 'record'
-      ? `${x.date} — recorded ${fmtC(x.recorded)}, now ${fmtC(x.now)}`
-      : `${x.date} — corrected${x.at ? ` ${scanStamp(x.at)}` : ' (time not recorded)'}${x.src ? ` by ${x.src}` : ''}, from ${fmtC(x.recorded)} to ${fmtC(x.now)}`))));
+    if (rep.closes.length) c5.append(el('ul', { class: 'rulelist scan-close-diffs' }, rep.closes.slice(0, 20).map(x => { const [was, is] = pair(x); return el('li', { class: 'caption' }, x.via === 'record'
+      ? `${x.date} — recorded ${was}, now ${is}`
+      : `${x.date} — corrected${x.at ? ` ${scanStamp(x.at)}` : ' (time not recorded)'}${x.src ? ` by ${x.src}` : ''}, from ${was} to ${is}`); })));
     if (rep.closes.length > 20) c5.append(el('p', { class: 'caption' }, `Showing the latest 20 of ${rep.closes.length}.`));
   }
   wrap.append(c5);
