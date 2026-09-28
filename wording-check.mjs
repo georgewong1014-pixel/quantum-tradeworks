@@ -13,7 +13,7 @@
  * NAPIC publishes is a half-year, and none of these files carries a transaction
  * date at all. A phrase that is wrong for an invisible reason comes back.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -59,6 +59,33 @@ for (const phrase of BANNED) {
     console.error(`      …${ctx.slice(150, 430)}…`);
   }
 }
+
+/* THE SCANNER'S OWN CLAIMS (docs/phase3-plan.md SC-314, SC-316). Historical
+   testing is a simulation of dates, so no performance word may be used as a
+   claim in it; screening lists instruments in symbol order, so no ranking
+   word may. Scoped to the scanner's modules — "ranked by how the term
+   matched" is the company search's honest description of itself — with the
+   same denial exemption, plus the two ways the scanner pages deny it. */
+const SCANNER_BANNED = ['win rate', 'hit rate', 'profitable', 'backtested return', 'top picks', 'best setups', 'strongest', 'ranked by'];
+const SCANNER_DENIAL = new RegExp(`${DENIAL.source}|there is no|shows no`, 'i');
+const scannerSrc = readdirSync(join(ROOT, 'src', 'js')).filter(f => /scanner|market-engine/.test(f))
+  .map(f => [f, readFileSync(join(ROOT, 'src', 'js', f), 'utf8')]);
+let scanBad = 0;
+for (const [f, text] of scannerSrc) {
+  const low = text.toLowerCase();
+  for (const phrase of SCANNER_BANNED) {
+    let i = -1;
+    while ((i = low.indexOf(phrase, i + 1)) !== -1) {
+      const ctx = text.slice(Math.max(0, i - 200), i + 200).replace(/\s+/g, ' ');
+      if (SCANNER_DENIAL.test(ctx)) continue;
+      scanBad++;
+      console.error(`FAIL  "${phrase}" used as a claim in ${f}`);
+      console.error(`      …${ctx.slice(110, 330)}…`);
+    }
+  }
+}
+bad += scanBad;
+if (!scanBad) console.log(`ok    none of the ${SCANNER_BANNED.length} scanner performance and ranking phrases is used as a claim in ${scannerSrc.length} scanner modules`);
 
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`

@@ -856,19 +856,26 @@ VIEWS.status = () => {
      P0 item is marked complete until its checks pass and no P1 surface is
      shown as operational until it is. Both halves are read off the rows
      below, not written here, so this card cannot disagree with them. */
-  const pri = CAPABILITY_REGISTER.filter(c => c.priority);
-  const p0 = pri.filter(c => c.priority === 'P0'), p1 = pri.filter(c => c.priority === 'P1');
-  const briefItems = new Set(pri.flatMap(c => c.brief || []));
-  const rel = el('div', { class: 'card' });
-  rel.append(cardHead('Release condition — the Phase 2 equities brief',
-    `${briefItems.size} brief items, answered by ${pri.length} rows below. Priority comes from the brief, not from this page.`));
-  const rl = el('dl', { class: 'kv' });
-  [['P0', `${p0.length} rows. ${PRIORITY_NOTE.P0} ${p0.filter(c => c.complete).length} of ${p0.length} complete; the rest are partial and say what they lack.`],
-   ['P1', `${p1.length} rows. ${PRIORITY_NOTE.P1} ${p1.filter(c => c.status === 'flagged').length} feature-flagged, ${p1.filter(c => !c.path).length} with no surface yet, ${p1.filter(c => c.complete).length} complete.`],
-   ['Checked', 'On every push, a static check fails the build if a row in an operational state has no working route, a prioritised row names a check that does not exist, or a partial P1 surface is not flagged.']]
-    .forEach(([k, v]) => { rl.append(el('dt', {}, k)); rl.append(el('dd', { style: 'text-align:left' }, v)); });
-  rel.append(rl);
-  wrap.append(rel);
+  /* One card per brief: Phase 2's equities items and Phase 3's scanner
+     items are released separately, so neither's count hides the other's. */
+  [[2, 'Release condition — the Phase 2 equities brief', PRIORITY_NOTE],
+   [3, 'Release condition — the Phase 3 scanner brief', PRIORITY_NOTE_P3]].forEach(([phase, title, NOTE]) => {
+    const pri = CAPABILITY_REGISTER.filter(c => c.priority && registerPhase(c) === phase);
+    if (!pri.length) return;
+    const p0 = pri.filter(c => c.priority === 'P0'), p1 = pri.filter(c => c.priority === 'P1'), p2 = pri.filter(c => c.priority === 'P2');
+    const briefItems = new Set(pri.flatMap(c => c.brief || []));
+    const blocked = p0.filter(c => ['data-gated', 'compliance'].includes(c.status));
+    const rel = el('div', { class: 'card' });
+    rel.append(cardHead(title, `${briefItems.size} brief items, answered by ${pri.length} rows below. Priority comes from the brief, not from this page.`));
+    const rl = el('dl', { class: 'kv' });
+    [['P0', `${p0.length} rows. ${NOTE.P0} ${p0.filter(c => c.complete).length} of ${p0.length} complete${blocked.length ? `; ${blocked.length} blocked by decision (${blocked.map(c => c.brief.join(', ')).join('; ')})` : ''}; the rest are partial and say what they lack.`],
+     ['P1', `${p1.length} rows. ${NOTE.P1} ${p1.filter(c => c.status === 'flagged').length} feature-flagged, ${p1.filter(c => !c.path).length} with no surface yet, ${p1.filter(c => c.complete).length} complete.`],
+     p2.length ? ['P2', `${p2.length} rows. ${NOTE.P2 || ''} None has a surface.`] : null,
+     ['Checked', `On every push, a static check fails the build if a row in an operational state has no working route, a prioritised row names a check that does not exist, or a partial P1 surface is not flagged${phase === 3 ? ', or a P2 row looks available' : ''}.`]]
+      .filter(Boolean).forEach(([k, v]) => { rl.append(el('dt', {}, k)); rl.append(el('dd', { style: 'text-align:left' }, v)); });
+    rel.append(rl);
+    wrap.append(rel);
+  });
 
   FEATURE_STATUS.forEach(s => {
     const rows = CAPABILITY_REGISTER.filter(c => c.status === s.id);
@@ -890,7 +897,7 @@ VIEWS.status = () => {
       el('td', { style: 'text-align:left;white-space:normal;min-width:8rem' }, [
         el('div', { style: 'font-weight:600' }, c.name),
         c.priority ? el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:6px;align-items:center' }, [
-          el('span', { class: 'chip' + (c.priority === 'P0' ? ' chip-brand' : ' chip-bronze'), title: PRIORITY_NOTE[c.priority] }, c.priority),
+          el('span', { class: 'chip' + (c.priority === 'P0' ? ' chip-brand' : ' chip-bronze'), title: priorityNoteOf(c) }, c.priority),
           el('span', { class: 'metaline' }, `${(c.brief || []).join(' · ')} · ${c.complete ? 'complete' : 'partial'}`),
         ]) : null,
       ]),

@@ -5,10 +5,16 @@
 # nothing there for a crawler to fetch — but a personal surface should not be in
 # an index whatever it happens to contain today. /app/watchlists is the Phase 2
 # brief's address for the same watchlists page, so it is excluded with it.
+#
+# /app/scanner is the personal-lane scanner: the reader's own setups, alerts
+# and history, read from files on their own machine. /admin/ is a read-only
+# view of one machine's scanner worker. Neither has anything for an index.
 
 User-agent: *
 Disallow: /my/
 Disallow: /app/watchlists
+Disallow: /app/scanner
+Disallow: /admin/
 Allow: /
 
 Sitemap: https://quantum-tradeworks.vercel.app/sitemap.xml

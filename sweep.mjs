@@ -53,6 +53,11 @@ const ROUTES = [
      carries a checklist answer, an over-long hold and a loan with no tenure. */
   '/property/calculator?city=bau',
   '/property/calculator?type=land&d=holdYears:40~tenureYears:0~check.flood:yes~checkev.flood:verified',
+  /* Phase 3 — the scanner (ops): the dashboard, the two P1 surfaces, the four
+     operations pages, and the old address with the company page's ?symbol=. */
+  '/app/scanner', '/app/scanner/market', '/app/scanner/backtest',
+  '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery',
+  '/my/scanner?symbol=MSFT',
 ];
 
 const CANDIDATES = [

@@ -864,6 +864,16 @@ async function loadRealData() {
      page says what each would show. */
   try { scanSetupsFile = await fetchJson(dataUrl('scan-setups.json')); } catch { /* none */ }
   try { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')); } catch { /* none */ }
+  /* Phase 3 — ops. The worker's operations files: its run log, its pause
+     switch, its delivery record and the daily task's step log. Each is
+     optional and git-ignored; absent is the deployed site's normal state, and
+     every page that reads one says which is absent (87-scanner-ops.js). Read
+     together, because they are four small files and the dashboard needs all
+     of them before it can say whether the last scan is current. */
+  [scanRunsFile, scanControlFile, scanDeliveriesFile, ingestRunsFile] = await Promise.all(
+    ['scan-runs.json', 'scan-control.json', 'scan-deliveries.json', 'ingest-runs.json']
+      .map(f => fetchJson(dataUrl(f)).catch(() => null)));
+  scanOpsRead = true;
   /* The scanner's copy of the file, before the merge below: the worker never
      sees this browser's pasted closes. A shallow copy of the series map is
      enough — the merge replaces each symbol's object rather than editing it. */

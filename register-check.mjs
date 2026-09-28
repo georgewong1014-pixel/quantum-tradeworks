@@ -3,8 +3,9 @@
  * The capability register against the routes, the checks and the Phase 2
  * brief — with no browser.
  *
- *   node register-check.mjs             the rules every push must meet
- *   node register-check.mjs --release   also: is Phase 2 complete?
+ *   node register-check.mjs                    the rules every push must meet
+ *   node register-check.mjs --release          also: is Phase 2 complete?
+ *   node register-check.mjs --release phase3   also: is Phase 3 complete?
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHY THIS EXISTS
@@ -37,6 +38,15 @@
  * With --release it also fails while any P0 row is not complete — the
  * mechanical meaning of "Phase 2 is done". CI does not pass it: every row is
  * honestly partial today, and a gate that is red by design is not a gate.
+ *
+ * PHASE 3 adds a second brief, the Quantum Scanner (docs/phase3-plan.md §1):
+ * items SC-301…SC-319 and SC-NAV — the plan's "NAV" row, renamed here so it
+ * cannot merge with Phase 2's NAV. It brings P2, the later live-scanning
+ * release, and a sixth rule: a P2 row is never operational, never flagged
+ * and has no path, because nothing of that release may look available.
+ * A seventh: robots.txt keeps every /app/scanner and /admin route out of
+ * crawlers — personal-lane records and one machine's operations.
+ * --release phase3 lists the blocked P0 items apart, with what blocks them.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -44,6 +54,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import vm from 'node:vm';
 
 const RELEASE = process.argv.includes('--release');
+const RELEASE_PHASE = RELEASE && process.argv[process.argv.indexOf('--release') + 1] === 'phase3' ? 3 : 2;
 const read = (f) => readFileSync(f, 'utf8');
 
 let failures = 0, passes = 0;
@@ -90,6 +101,7 @@ const { FEATURE_STATUS, CAPABILITY_REGISTER, ROUTES, RESEARCH_TABS, matchRoute }
 ].join('\n'), ctx);
 
 const OPERATIONAL = new Set(['active-core', 'maintenance', 'beta']);
+const registerPhaseOf = (c) => ((c.brief || []).some(b => /^SC-/.test(b)) ? 3 : 2);
 const STATUS_IDS = new Set(FEATURE_STATUS.map(s => s.id));
 const VIEWS = new Set([...SOURCES.matchAll(/\bVIEWS\.([A-Za-z]+)\s*=/g)].map(m => m[1]));
 
@@ -101,11 +113,17 @@ const COMPANY_IDS = new Set([
   ...[...read('src/js/10-dataset.js').matchAll(/\{\s*id:'([^']+)'/g)].map(m => m[1]),
 ]);
 
-/* The brief's items and their priorities, from the plan's status table. */
+/* The briefs' items and their priorities, from each plan's status table.
+   Phase 3's NAV row is keyed SC-NAV. P2 exists only in Phase 3. */
 const PLAN = read('docs/phase2-plan.md');
 const BRIEF = new Map([...PLAN.matchAll(/^\|\s*(NAV|EQ-\d{3})\b[^|]*\|\s*(P[01])\s*\|/gm)].map(m => [m[1], m[2]]));
+const BRIEF2_SIZE = BRIEF.size;
+const PLAN3 = existsSync('docs/phase3-plan.md') ? read('docs/phase3-plan.md') : '';
+const plan3Status = PLAN3.slice(PLAN3.indexOf('## 1.'), PLAN3.indexOf('## 2.'));
+const BRIEF3 = new Map([...plan3Status.matchAll(/^\|\s*(NAV|SC-\d{3})\b[^|]*\|\s*(P[012])\s*\|/gm)].map(m => [m[1] === 'NAV' ? 'SC-NAV' : m[1], m[2]]));
+BRIEF3.forEach((p, k) => BRIEF.set(k, p));
 
-console.log(`register  ${CAPABILITY_REGISTER.length} rows, ${FEATURE_STATUS.length} states, ${ROUTES.length} routes, ${VIEWS.size} views, ${BRIEF.size} brief items\n`);
+console.log(`register  ${CAPABILITY_REGISTER.length} rows, ${FEATURE_STATUS.length} states, ${ROUTES.length} routes, ${VIEWS.size} views, ${BRIEF2_SIZE} + ${BRIEF3.size} brief items (Phase 2 + Phase 3)\n`);
 
 /* 0 — the vocabulary. */
 {
@@ -128,7 +146,9 @@ console.log(`register  ${CAPABILITY_REGISTER.length} rows, ${FEATURE_STATUS.leng
     const rt = matchRoute(p);
     if (!rt) { bad.push(`${c.name}: ${c.path} matches no route`); continue; }
     if (!VIEWS.has(rt.view)) { bad.push(`${c.name}: ${c.path} routes to view "${rt.view}", which no module defines`); continue; }
-    if (rt.params?.id && !COMPANY_IDS.has(rt.params.id)) bad.push(`${c.name}: ${c.path} names ${rt.params.id}, which is neither a filer in data/us.json nor an illustrative company`);
+    /* Only a company page's :id names a company; a scanner setup or an alert
+       is :setup or :alert, and is not looked up here. */
+    if (['research', 'researchReport'].includes(rt.view) && rt.params?.id && !COMPANY_IDS.has(rt.params.id)) bad.push(`${c.name}: ${c.path} names ${rt.params.id}, which is neither a filer in data/us.json nor an illustrative company`);
     const tab = new URLSearchParams(q || '').get('tab');
     if (tab && rt.view === 'research' && !RESEARCH_TABS.some(t => t.id === tab)) bad.push(`${c.name}: ${c.path} names tab "${tab}", which the company page does not have`);
     resolved++;
@@ -140,12 +160,15 @@ console.log(`register  ${CAPABILITY_REGISTER.length} rows, ${FEATURE_STATUS.leng
 /* 2 — priorities agree with the brief, and every item of it is answered. */
 {
   const bad = [];
-  if (BRIEF.size < 10) bad.push(`only ${BRIEF.size} items read from docs/phase2-plan.md §1 — the status table's shape has changed`);
+  if (BRIEF2_SIZE < 10) bad.push(`only ${BRIEF2_SIZE} items read from docs/phase2-plan.md §1 — the status table's shape has changed`);
+  if (PLAN3 && BRIEF3.size < 20) bad.push(`only ${BRIEF3.size} items read from docs/phase3-plan.md §1 — the status table's shape has changed`);
   const answered = new Set();
   for (const c of CAPABILITY_REGISTER) {
     if (c.priority && !c.brief?.length) bad.push(`${c.name}: priority ${c.priority} with no brief item — priority comes from the brief`);
     if (!c.brief?.length) continue;
-    if (!['P0', 'P1'].includes(c.priority)) { bad.push(`${c.name}: answers ${c.brief.join(', ')} but carries no P0/P1 priority`); continue; }
+    const sc = c.brief.some(b => /^SC-/.test(b));
+    if (sc && c.brief.some(b => !/^SC-/.test(b))) bad.push(`${c.name}: cites items of both briefs (${c.brief.join(', ')}) — a row answers one brief`);
+    if (!(sc ? ['P0', 'P1', 'P2'] : ['P0', 'P1']).includes(c.priority)) { bad.push(`${c.name}: answers ${c.brief.join(', ')} but carries no ${sc ? 'P0/P1/P2' : 'P0/P1'} priority`); continue; }
     for (const b of c.brief) {
       if (!BRIEF.has(b)) { bad.push(`${c.name}: cites ${b}, which is not an item of the brief`); continue; }
       answered.add(b);
@@ -155,7 +178,7 @@ console.log(`register  ${CAPABILITY_REGISTER.length} rows, ${FEATURE_STATUS.leng
   const unanswered = [...BRIEF.keys()].filter(b => !answered.has(b));
   if (unanswered.length) bad.push(`no row answers ${unanswered.join(', ')} — an item of the brief would be missing from /status`);
   if (bad.length) fail('every row that answers the brief carries its priority, and every item is answered', bad);
-  else ok(`every brief row carries its item's priority from the plan, and all ${BRIEF.size} items are answered by a row`);
+  else ok(`every brief row carries its item's priority from the plan, and all ${BRIEF.size} items of both briefs are answered by a row`);
 }
 
 /* 3 — named checks exist. */
@@ -196,10 +219,49 @@ console.log(`register  ${CAPABILITY_REGISTER.length} rows, ${FEATURE_STATUS.leng
   }
 }
 
-if (RELEASE) {
-  const open = CAPABILITY_REGISTER.filter(c => c.priority === 'P0' && !c.complete).map(c => `${c.name} (${c.brief.join(', ')}): ${c.status}, partial`);
+/* 6 — P2 is the later live-scanning release: nothing of it may look
+   available. No path, not operational, not flagged, not complete. */
+{
+  const bad = [];
+  const p2 = CAPABILITY_REGISTER.filter(c => c.priority === 'P2');
+  for (const c of p2) {
+    if (c.path) bad.push(`${c.name}: P2 with a path (${c.path}) — the live-scanning release must not be reachable as available`);
+    if (OPERATIONAL.has(c.status) || c.status === 'flagged') bad.push(`${c.name}: P2 but "${c.status}"`);
+    if (c.complete) bad.push(`${c.name}: P2 and complete`);
+    if (!(typeof c.gate === 'string' && c.gate.trim().length > 20)) bad.push(`${c.name}: P2 without saying what it waits on (gate:)`);
+  }
+  if (bad.length) fail('every P2 row is out of reach, and says what it waits on', bad);
+  else ok(`every P2 row is out of reach — ${p2.length} P2 rows, none with a path, none operational or flagged, each naming what it waits on`);
+}
+
+/* 7 — the scanner's personal records and one machine's operations pages
+   are not for crawlers: robots.txt disallows every route under /app/scanner
+   and /admin. */
+{
+  const robots = existsSync('robots.txt') ? read('robots.txt') : '';
+  const dis = [...robots.matchAll(/^Disallow:\s*(\S+)/gmi)].map(m => m[1]);
+  const covered = (p) => dis.some(d => p === d || p.startsWith(d.endsWith('/') ? d : `${d}/`) || (d.endsWith('/') && p === d.slice(0, -1)));
+  const paths = ROUTES.map(r => r.path).filter(p => /^\/(app\/scanner|admin)(\/|$)/.test(p));
+  const bad = paths.filter(p => !covered(p)).map(p => `${p} is not disallowed`);
+  if (!paths.length) bad.push('no /app/scanner or /admin route found — the route table changed shape');
+  if (bad.length) fail('robots.txt keeps the scanner and operations paths out of crawlers', bad);
+  else ok(`robots.txt keeps the scanner and operations paths out of crawlers — ${paths.length} routes under /app/scanner and /admin, each disallowed`);
+}
+
+if (RELEASE && RELEASE_PHASE === 2) {
+  const open = CAPABILITY_REGISTER.filter(c => c.priority === 'P0' && !c.complete && registerPhaseOf(c) === 2).map(c => `${c.name} (${c.brief.join(', ')}): ${c.status}, partial`);
   if (open.length) fail(`Phase 2 is not complete: ${open.length} P0 rows are partial`, open);
   else ok('every P0 row is complete, in an operational state, with its checks named');
+}
+/* Phase 3's release names the blocked P0 items apart from the partial ones,
+   so a red result says whether the cause is work or a decision. */
+if (RELEASE && RELEASE_PHASE === 3) {
+  const p0 = CAPABILITY_REGISTER.filter(c => c.priority === 'P0' && !c.complete && registerPhaseOf(c) === 3);
+  const blocked = p0.filter(c => ['data-gated', 'compliance'].includes(c.status));
+  const open = p0.filter(c => !blocked.includes(c));
+  if (blocked.length) fail(`Phase 3 is blocked: ${blocked.length} P0 items wait on a decision, not on work`, blocked.map(c => `${c.name} (${c.brief.join(', ')}): blocked — ${String(c.gate).split('. ')[0]}`));
+  if (open.length) fail(`Phase 3 is not complete: ${open.length} P0 rows are partial`, open.map(c => `${c.name} (${c.brief.join(', ')}): ${c.status}, partial`));
+  if (!blocked.length && !open.length) ok('every Phase 3 P0 row is complete, in an operational state, with its checks named');
 }
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} register rules hold`);

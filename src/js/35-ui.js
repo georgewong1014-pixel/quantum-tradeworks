@@ -230,10 +230,19 @@ function toast(msg) {
    nothing look important. Compare belongs inside Research, the four personal
    surfaces belong together, and pricing is reached from the call to action
    and the footer rather than competing with the product.
+
+   Six since Phase 3, and the sixth is earned rather than added: the scanner
+   is a workflow of its own — setups, a daily run, a record of matches, the
+   worker's operations — with fifteen addresses, and the Phase 3 brief puts it
+   in the main navigation straight after equities. As a tab of My Investments
+   it was one page among eight, and the dashboard that says whether the last
+   scan is current could not be found from anywhere. It leaves that subnav, so
+   one page does not live in two sections.
    ========================================================================== */
 const NAV = [
   { id:'discover',  label:'Discover',       icon:'grid',      path:'/discover' },
   { id:'research',  label:'Research',       icon:'chart',     path:'/research' },
+  { id:'scanner',   label:'Scanner',        icon:'target',    path:'/app/scanner' },
   { id:'my',        label:'My Investments', icon:'briefcase', path:'/my/portfolio' },
   { id:'property',  label:'Property',       icon:'home',      path:'/property' },
   { id:'learn',     label:'Learn',          icon:'book',      path:'/learn' },
@@ -246,12 +255,19 @@ const SUBNAV_MY = [
   { id:'thesis',     label:'Investment cases', path:'/my/theses' },
   { id:'alerts',     label:'Alerts',     path:'/my/alerts' },
   { id:'tracked',    label:'Tracked',    path:'/my/tracked' },
-  { id:'scanner',    label:'Scanner',    path:'/my/scanner' },
   /* Everything saved, across kinds, in one list — beside the page that
      exports it. */
   { id:'workspace',  label:'Workspace',  path:'/my/workspace' },
   { id:'userdata',   label:'Your data',  path:'/my/data' },
 ];
+
+/* Every view of the scanner, by the ids docs/phase3-plan.md §2 fixes. One
+   list, because three things need all of them: the header's section, the
+   views that wait for the data load, and the checks. 'scanner' is the page
+   that was the whole scanner before Phase 3. */
+const SCANNER_VIEWS = ['scanner', 'scannerDashboard', 'scannerMarket', 'scannerSetups', 'scannerSetupNew', 'scannerSetup',
+  'scannerSetupEdit', 'scannerWatchlists', 'scannerAlerts', 'scannerAlert', 'scannerBacktest', 'scannerSettings',
+  'scannerAdmin', 'scannerAdminData', 'scannerAdminJobs', 'scannerAdminDelivery'];
 
 const VIEWS = {};
 const viewRoot = $('#views');
@@ -358,7 +374,22 @@ const ROUTES = [
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
-  { path: '/my/scanner',          view: 'scanner',   title: 'Trade-setup scanner' },
+  /* Phase 3 — ops */
+  /* The scanner's dashboard, its two P1 surfaces and the four operations
+     pages. /my/scanner was the scanner's only address and stays one, as an
+     alias of the dashboard: alias:true keeps go('scannerDashboard') on
+     /app/scanner, and a link carrying ?symbol= (the company page's old one)
+     is sent on to the builder by the dashboard itself. No parameter here is
+     called :id — applyRoute reads any :id as a company. */
+  { path: '/app/scanner',            view: 'scannerDashboard',     title: 'Scanner' },
+  { path: '/app/scanner/market',     view: 'scannerMarket',        title: 'Market screening — your series' },
+  { path: '/app/scanner/backtest',   view: 'scannerBacktest',      title: 'Historical matches — simulation' },
+  { path: '/admin/scanner',          view: 'scannerAdmin',         title: 'Scanner operations' },
+  { path: '/admin/scanner/data',     view: 'scannerAdminData',     title: 'Scanner operations — data health' },
+  { path: '/admin/scanner/jobs',     view: 'scannerAdminJobs',     title: 'Scanner operations — runs' },
+  { path: '/admin/scanner/delivery', view: 'scannerAdminDelivery', title: 'Scanner operations — delivery' },
+  { path: '/my/scanner',             view: 'scannerDashboard',     title: 'Scanner', alias: true },
+  /* /Phase 3 — ops */
   { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
   { path: '/my/data',             view: 'userdata',  title: 'Your data' },
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
@@ -410,6 +441,15 @@ const META = {
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
   scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on the last daily bar your history holds. Nothing ranked, nothing delivered.',
+  /* Phase 3 — ops */
+  scannerDashboard:     'Whether your scanner setups are active, when the last scan succeeded, which setups matched and whether anything is delivered — read from the worker’s own records.',
+  scannerMarket:        'Run one of your setups over every instrument with a series in your own price history, listed in symbol order. Nothing ranked, nothing recorded.',
+  scannerBacktest:      'A simulation of the dates on which your conditions held in your own history — no returns, no performance, no guarantee.',
+  scannerAdmin:         'A read-only view of this machine’s scanner worker: its data, sessions, runs, alert engine, delivery and errors. The controls are commands.',
+  scannerAdminData:     'The health of your price history: invalid bars, gaps against an inferred calendar, price breaks and staleness, per market and per series.',
+  scannerAdminJobs:     'Every run the scanner worker recorded on this machine, with status, duration and errors, and the log of controls.',
+  scannerAdminDelivery: 'Which delivery channels exist for scanner alerts — in-app only — and why email, Telegram and push are not configured.',
+  /* /Phase 3 — ops */
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
   plans:     'Plans and pricing for Quantum Tradeworks research and property reports.',
   /* Every other view fell back to the marketing sentence above, so a shared
@@ -526,7 +566,14 @@ function canonicalPath(route) {
   }
   if (route.view === 'researchReport' && State.ticker && BY_ID.get(State.ticker))
     return `${companyPath(BY_ID.get(State.ticker).c)}/report`;
-  const same = ROUTES.find(r => !r.path.includes(':') && r.view === route.view && (r.tab || null) === (route.tab || null));
+  /* A parameterised page that is not a company's — a scanner setup, an
+     alert — is its own address. The fallback below returned route.path
+     verbatim, so the canonical link read /app/scanner/alerts/:alert. */
+  if (route.path.includes(':')) {
+    const p = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
+    return p.replace(/\/+$/, '') || '/';
+  }
+  const same =ROUTES.find(r => !r.path.includes(':') && r.view === route.view && (r.tab || null) === (route.tab || null));
   return same ? same.path : route.path;
 }
 
@@ -813,6 +860,9 @@ const SECTION_OF = {
   opportunities: 'property', comparables: 'property', areas: 'property',
   boundaries: 'learn', ips: 'learn', status: 'learn',
   ...Object.fromEntries(SUBNAV_MY.map(s => [s.id, 'my'])),
+  /* Every scanner page, the operations pages included: they are the
+     scanner's, even though the navigation carries no link to them. */
+  ...Object.fromEntries(SCANNER_VIEWS.map(v => [v, 'scanner'])),
 };
 function buildNav() {
   const nav = $('#mainnav');
@@ -820,11 +870,23 @@ function buildNav() {
      a new tab, copy link address, and the status bar showing where it goes. */
   nav.replaceChildren(...NAV.map(n => {
     const active = State.view === n.id || SECTION_OF[State.view] === n.id;
+    /* The scanner's unread alerts, counted by the alerts page's own function
+       (scanUnreadCount, null when no alerts file is visible). A count is shown
+       only when there is one: a 0 or a blank would claim a record exists. The
+       label stays the link's first text, and the count is announced with
+       what it counts. */
+    const unread = n.id === 'scanner' && typeof scanUnreadCount === 'function' ? navUnread() : null;
     return el('a', {
       class: 'navlink', href: href(n.path), 'aria-current': active ? 'page' : null,
+      'aria-label': unread ? `${n.label}, ${unread} unread alert${unread === 1 ? '' : 's'}` : null,
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(n.path); },
-    }, n.label);
+    }, n.label, unread ? el('span', { class: 'nav-count', 'aria-hidden': 'true' }, unread > 99 ? '99+' : String(unread)) : null);
   }));
+}
+/* Guarded twice: the function may not exist in a build without the alerts
+   pages, and a throw inside the header would take every page down with it. */
+function navUnread() {
+  try { const n = scanUnreadCount(); return Number.isInteger(n) && n > 0 ? n : null; } catch { return null; }
 }
 
 let stickyObserver = null;
@@ -876,6 +938,11 @@ const UNIVERSE_VIEWS = new Set([
   /* Both name companies: the report is one, and the workspace lists saved
      items by company and says whether each one's data has moved. */
   'researchReport', 'workspace',
+  /* Every scanner page: the worker's files are read in the same load as the
+     filings, so before it ends a page would say "no run recorded" about a
+     run log that is on its way — and a symbol links to its company only
+     once the company is in. */
+  ...SCANNER_VIEWS,
 ]);
 
 function bootSkeleton() {
