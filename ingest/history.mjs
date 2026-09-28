@@ -29,7 +29,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, KEEP, sourceKind } from './history-store.mjs';
+import { updateHistory, mergeBars, describeMerge, rejectsPathFor, engine, loadInstruments, marketOf, KEEP, sourceKind } from './history-store.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
@@ -83,7 +83,7 @@ try {
 } catch (e) { console.error(`history not written: ${e.message}`); process.exit(1); }
 
 const { hist, results, trim } = run;
-const { totals, lines } = describeMerge(results, trim);
+const { totals, lines } = describeMerge(results, trim, rejectsPathFor(outPath));
 const depth = Object.values(hist.series).map(s => Object.keys(s).length);
 console.log(`wrote ${outPath}`);
 console.log(`  source    : ${SOURCE}`);

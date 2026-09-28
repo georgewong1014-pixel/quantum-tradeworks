@@ -78,7 +78,7 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, parseDateCell, eveningOpen, csvRows, numberCell, KEEP } from './history-store.mjs';
+import { updateHistory, mergeBars, describeMerge, rejectsPathFor, engine, loadInstruments, marketOf, parseDateCell, eveningOpen, csvRows, numberCell, KEEP } from './history-store.mjs';
 
 const DATE_KEYS  = ['date', 'time', 'timestamp', 'datetime'];
 const CLOSE_KEYS = ['close', 'last', 'price', 'adj close', 'adjclose', 'close/last'];
@@ -295,7 +295,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
 
   report.forEach(l => console.log(l));
   const { hist, results, trim } = run;
-  const { totals, lines } = describeMerge(results, trim);
+  const { totals, lines } = describeMerge(results, trim, rejectsPathFor(outPath));
   console.log(`\nwrote ${outPath} — ${hist.symbols} symbols`);
   lines.forEach(l => console.log(l));
   if (dateRefused) console.log(`  dates     : ${dateRefused} row(s) with an ambiguous or unreadable date were refused, not guessed`);

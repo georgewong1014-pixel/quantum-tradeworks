@@ -1176,5 +1176,37 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
 }
 /* ---- end pine: tvimport ---- */
 
+/* ---- integration: pine ingest ---- */
+/* Spot gold is imported from the owner's OANDA export on the FX session; the
+   Yahoo map in live.mjs sent XAUUSD to GC=F, COMEX's front-month future, so a
+   --history run wrote futures closes over the spot series. It stays unmapped,
+   as the other instruments Yahoo does not carry do. */
+{
+  const live = readFileSync(join(ROOT, 'ingest/live.mjs'), 'utf8');
+  const map = live.slice(live.indexOf('/* commodities'), live.indexOf('/* crypto'));
+  check(map.length > 0 && !map.split(' ').join('').includes('XAUUSD:'),
+    'integration pine: live.mjs maps no Yahoo symbol to XAUUSD — spot gold is not replaced by COMEX futures (GC=F)', map.trim().slice(0, 200));
+}
+/* An import written elsewhere (--out) keeps its refused rows beside that
+   file, and says so: the summary always named data/price-history.rejects.json. */
+{
+  const RD = join(tmpdir(), `qt-int-rejects-${process.pid}`);
+  await rm(RD, { recursive: true, force: true });
+  await mkdir(RD, { recursive: true });
+  try {
+    const csv = join(RD, 'TST.csv');
+    await writeFile(csv, 'time,open,high,low,close\n2026-09-24,1,1,1,1\n2026-09-25,1,1,1,-5\n');
+    const out = join(RD, 'h.json');
+    let r;
+    try { const { stdout, stderr } = await run(process.execPath, [join(ROOT, 'ingest/history-import.mjs'), '--in', csv, '--symbol', 'TST', '--out', out], { cwd: ROOT }); r = { code: 0, stdout, stderr }; }
+    catch (e) { r = { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; }
+    const beside = join(RD, 'h.rejects.json');
+    check(r.stdout.includes(`every refused row is in ${beside}`) && existsSync(beside) && !r.stdout.includes('every refused row is in data/price-history.rejects.json'),
+      'integration pine: an import written with --out names the rejects file it wrote beside that history, not the default one',
+      { code: r.code, out: r.stdout.split('\n').filter(l => /refused|rejects/.test(l)) });
+  } finally { await rm(RD, { recursive: true, force: true }); }
+}
+/* ---- end integration: pine ingest ---- */
+
 console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

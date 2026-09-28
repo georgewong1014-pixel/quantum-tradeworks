@@ -59,7 +59,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { yahooProvider, twelveDataProvider } from './providers.mjs';
-import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, readingSession, dateInZone } from './history-store.mjs';
+import { updateHistory, mergeBars, describeMerge, rejectsPathFor, engine, loadInstruments, marketOf, readingSession, dateInZone } from './history-store.mjs';
 
 const argv = process.argv.slice(2);
 const has  = (f) => argv.includes(`--${f}`);
@@ -127,13 +127,18 @@ const YAHOO_SYMBOLS = {
   USDMYR:'USDMYR=X', EURUSD:'EURUSD=X', GBPUSD:'GBPUSD=X', AUDUSD:'AUDUSD=X',
   NZDUSD:'NZDUSD=X', USDCAD:'USDCAD=X', USDJPY:'USDJPY=X', USDCNH:'USDCNH=X', USDSGD:'USDSGD=X',
   /* commodities — continuous front-month futures */
-  XAUUSD:'GC=F', SILVER:'SI=F', COPPER:'HG=F', USOIL:'CL=F', UKOIL:'BZ=F', NATGAS:'NG=F',
+  SILVER:'SI=F', COPPER:'HG=F', USOIL:'CL=F', UKOIL:'BZ=F', NATGAS:'NG=F',
   /* crypto */
   BTCUSD:'BTC-USD', ETHUSD:'ETH-USD', SUIUSDT:'SUI-USD',
   /* Deliberately absent: FCPO1! (Bursa crude palm oil futures) and XAUXAG
      (a gold/silver ratio, not an instrument). Yahoo carries neither, and
      mapping them to something adjacent would be substituting one instrument
-     for another. They stay unmapped and report as missing. */
+     for another. They stay unmapped and report as missing.
+     XAUUSD is absent for the same reason. It is spot gold, imported from the
+     owner's OANDA export on the FX session; GC=F is COMEX's front-month
+     future, tens of dollars away by the basis. Mapped, a --history run wrote
+     futures closes over the spot series, ranked equal to the import, and
+     recorded every overlapping day as a correction. */
 };
 
 const toVendor = (sym, providerName) => {
@@ -284,7 +289,7 @@ if (WANT_HISTORY) {
   const run = await updateHistory(HISTORY, (hist) => fetched.map(f =>
     mergeBars(hist, f.sym, f.rows, { source, capturedAt: f.capturedAt, market: marketOf(f.sym, instruments), E })));
   const { hist, results, trim } = run;
-  const { lines } = describeMerge(results, trim);
+  const { lines } = describeMerge(results, trim, rejectsPathFor(HISTORY));
   const withOhlc = fetched.filter(f => f.rows.some(r => r.high != null && r.low != null)).length;
 
   const depths = Object.values(hist.series).map(x => Object.keys(x).length);

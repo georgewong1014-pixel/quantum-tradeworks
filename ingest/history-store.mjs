@@ -353,7 +353,10 @@ export async function updateHistory(path, fn, { keep = KEEP, now = new Date().to
 }
 
 /* What a write did, in the words every writer prints. */
-export function describeMerge(results, trim = null) {
+/* rejectsPath: where the refused rows went. It was always printed as
+   data/price-history.rejects.json, even when --out wrote the history (and so
+   the rejects file beside it) somewhere else. */
+export function describeMerge(results, trim = null, rejectsPath = 'data/price-history.rejects.json') {
   const t = { added: 0, filled: 0, confirmed: 0, unchanged: 0, superseded: 0, corrected: 0, outranked: 0, rejected: 0 };
   for (const r of results) for (const k of Object.keys(t)) t[k] += Array.isArray(r[k]) ? r[k].length : (r[k] || 0);
   const lines = [`  new bars  : ${t.added}${t.filled ? `, ${t.filled} given open/high/low or volume they lacked` : ''}${t.confirmed ? `, ${t.confirmed} given a source` : ''}${t.unchanged ? `, ${t.unchanged} unchanged` : ''}`];
@@ -367,7 +370,7 @@ export function describeMerge(results, trim = null) {
     lines.push(`  rejected  : ${t.rejected} row(s) failed validation:`);
     results.flatMap(r => r.rejected).slice(0, 5).forEach(x => lines.push(`              ${x.symbol} ${x.date}: ${x.codes.join(', ')}`));
   }
-  if (t.outranked || t.rejected) lines.push('              every refused row is in data/price-history.rejects.json');
+  if (t.outranked || t.rejected) lines.push(`              every refused row is in ${rejectsPath}`);
   if (trim?.trimmed) lines.push(`  trimmed   : ${trim.trimmed} bar(s) older than the newest ${trim.keep} per symbol (closes, volume, open/high/low and provenance together)`);
   return { totals: t, lines };
 }
