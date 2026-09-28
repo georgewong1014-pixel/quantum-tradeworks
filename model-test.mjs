@@ -1390,6 +1390,165 @@ try {
   }
   /* ---- end bugfix: property ---- */
 
+  /* ---- bugfix: grade-area-registers ---- */
+  /* 38 — the lease field keeps focus while it is typed in, and an emptied box
+         is not freehold. It re-rendered the page on every keystroke: typing
+         45 recorded 4 and dropped focus on the page, and clearing the box
+         recorded 0, which the label defines as freehold. Driven through real
+         key events, because the defect only exists between keystrokes. */
+  {
+    await evaluate(`(() => { window.__T.leaseKept = JSON.parse(JSON.stringify(State.deal));
+      State.deal = { ...State.deal, titleType: 'mixed-zone', remainingLease: 88 }; saveDeal();
+      navigate('/property/calculator'); return true; })()`);
+    await sleep(600);
+    await evaluate(`(() => { const n = document.getElementById('dealLease'); n.focus(); n.select(); return true; })()`);
+    for (const k of ['4', '5']) {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, text: k, windowsVirtualKeyCode: k.charCodeAt(0) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: k.charCodeAt(0) }, sessionId);
+      await sleep(150);
+    }
+    const typed = JSON.parse(await evaluate(`JSON.stringify({ active: document.activeElement?.id || document.activeElement?.tagName, value: document.getElementById('dealLease')?.value })`));
+    await evaluate(`(() => { document.getElementById('dealLease').blur(); return true; })()`);
+    await sleep(300);
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = State.deal.remainingLease;
+      const n = document.getElementById('dealLease');
+      n.value = ''; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(res => setTimeout(res, 300));
+      const out = { kept, afterEmpty: State.deal.remainingLease, shown: document.getElementById('dealLease')?.value };
+      State.deal = window.__T.leaseKept; saveDeal(); render();
+      return JSON.stringify(out);
+    })()`));
+    if (typed.active !== 'dealLease' || typed.value !== '45') fail('typing into the lease field loses focus after the first digit', typed);
+    else if (r.kept !== 45) fail('the lease field did not record what was typed', { typed, r });
+    else if (r.afterEmpty !== 45 || r.shown !== '45') fail('an emptied lease box is recorded as 0 — freehold', r);
+    else ok('the lease field keeps focus while typed in, records 45, and an emptied box stays 45 rather than freehold', { typed, r });
+  }
+
+  /* 39 — "Date observed", and a Sarawak exposure's "Added", are the reader's
+         today. Both were the UTC date, a day behind in Kuching until 08:00,
+         so a record accepted with the default was dated the day before it
+         was observed. The clock is held at 04:30 on the 28th, Kuching time —
+         20:30 on the 27th in UTC. */
+  {
+    await send('Emulation.setTimezoneOverride', { timezoneId: 'Asia/Kuching' }, sessionId);
+    const r = await evaluate(`(async () => {
+      const Real = Date, fixed = Real.parse('2026-09-27T20:30:00Z');
+      window.Date = class extends Real { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } };
+      const kept = State.sarawakExposure;
+      try {
+        navigate('/property/calculator'); render();
+        await new Promise(res => setTimeout(res, 200));
+        const observed = document.querySelector('input[aria-label="Date observed"]')?.value || null;
+        /* The Sarawak exposure record's "Added" date, stamped the same way. */
+        State.sarawakExposure = [];
+        navigate('/discover/sarawak'); render();
+        await new Promise(res => setTimeout(res, 200));
+        [...document.querySelectorAll('main button')].find(b => b.textContent.trim() === 'Add')?.click();
+        const added = (State.sarawakExposure || [])[0]?.added || null;
+        return JSON.stringify({ observed, added });
+      } finally { window.Date = Real; State.sarawakExposure = kept; saveExposures(); }
+    })()`);
+    await send('Emulation.setTimezoneOverride', { timezoneId: '' }, sessionId);
+    const d39 = JSON.parse(r);
+    if (d39.observed !== '2026-09-28' || d39.added !== '2026-09-28') fail('a date stamped "today" is the UTC date, not the reader\'s', d39);
+    else ok('"Date observed" and an exposure\'s "Added" are the reader\'s own date — 2026-09-28 at 04:30 in Kuching', d39);
+  }
+
+  /* 40 — the grade card's headings: the card is a heading under the page
+         title, not a paragraph (the page went h1 → h4), and the list of
+         findings is named for the grade it sits under. Every graded result
+         said "Why this is conditional", beside a D verdict of "Does not
+         meet the selected underwriting criteria". */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = JSON.parse(JSON.stringify(State.deal));
+      navigate('/property/calculator'); await new Promise(res => setTimeout(res, 200));
+      const graded = (rent, ev) => ({ ...kept, titleType: 'mixed-zone', remainingLease: 0, bankValuation: kept.price, rent,
+        touched: { price: true, rent: true, maintenance: true, sqft: true },
+        evidence: { price: 'verified', rent: ev, maintenance: 'verified', sqft: 'verified' },
+        checks: Object.fromEntries(SARAWAK_CHECKS.map(c => [c.id, c.adverse === 'yes' ? 'no' : 'yes'])) });
+      const out = {};
+      for (const [name, d] of [['low', graded(1200, 'user')], ['cond', graded(4000, 'developer')]]) {
+        State.deal = d; render(); await new Promise(res => setTimeout(res, 150));
+        const hs = [...document.querySelectorAll('main h1, main h2, main h3, main h4, main h5, main h6')];
+        const lead = hs.find(h => /^Why this|^Still to check/.test(h.textContent));
+        out[name] = { grade: propertyGrade(d, dealModel(d)).grade, second: hs[1]?.tagName, lead: lead?.textContent || null };
+      }
+      State.deal = kept; saveDeal(); render();
+      return JSON.stringify(out);
+    })()`));
+    const skip = [r.low, r.cond].find(x => x.second !== 'H2' && x.second !== 'H3');
+    if (skip) fail('the calculator\'s first heading after its title skips a level', r);
+    else if (r.low.grade !== 'D' || r.low.lead !== 'Why this falls short') fail('a D grade calls its findings conditions', r.low);
+    else if (r.cond.grade !== 'B' || r.cond.lead !== 'Why this is conditional') fail('a B grade no longer says why it is conditional', r.cond);
+    else ok(`the grade card is a heading, and its findings are named for the grade — D: "${r.low.lead}", B: "${r.cond.lead}"`, r);
+  }
+  /* 41 — a pressed segment says so to assistive technology, and the checklist's
+         answers say which question they answer. The strips carried only
+         aria-selected, which means nothing on a plain button, and each of the
+         ten checklist rows was three bare "Yes / No / Not sure" buttons. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const wait = () => new Promise(res => setTimeout(res, 300));
+      const out = {};
+      for (const path of ['/property/calculator', '/property/areas']) {
+        navigate(path); await wait();
+        const btns = [...document.querySelectorAll('main .segmented button')];
+        out[path] = { n: btns.length, silent: btns.filter(b => b.getAttribute('aria-pressed') !== (b.getAttribute('aria-selected') === 'true' ? 'true' : 'false')).length };
+        if (path === '/property/calculator') out.unnamedGroups = [...document.querySelectorAll('main .segmented')]
+          .filter(s => [...s.querySelectorAll('button')].some(b => /^(Yes|No|Not sure)$/.test(b.textContent.trim())))
+          .filter(s => s.getAttribute('role') !== 'group' || !(s.getAttribute('aria-label') || '').trim()).length;
+      }
+      return JSON.stringify(out);
+    })()`));
+    const silent = ['/property/calculator', '/property/areas'].filter(p => !r[p].n || r[p].silent);
+    if (silent.length) fail(`segmented buttons that do not state whether they are pressed on ${silent.join(', ')}`, r);
+    else if (r.unnamedGroups) fail(`${r.unnamedGroups} checklist answer groups carry no question`, r);
+    else ok('every segmented choice states whether it is pressed, and each checklist answer group is named by its question', r);
+  }
+  /* 42 — the keyboard keeps its place through a redraw. Every control saved
+         and called render(), which replaced the page and the focused control
+         with it: a price typed and Tabbed past, an evidence grade moved with
+         an arrow key, a checklist answer and a Cash Wheel field each left
+         focus on <body>. Driven with real key events. */
+  {
+    const keys = async (seq) => {
+      for (const k of seq) {
+        const code = { Tab: 9, Enter: 13, ArrowDown: 40 }[k] || k.charCodeAt(0);
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, windowsVirtualKeyCode: code,
+          ...(k.length === 1 ? { text: k } : k === 'Enter' ? { text: '\r' } : {}) }, sessionId);
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code }, sessionId);
+        await sleep(120);
+      }
+      await sleep(200);
+    };
+    const at = () => evaluate(`document.activeElement?.id || document.activeElement?.tagName || null`);
+    const out = {};
+    await evaluate(`(() => { window.__T.focusDeal = JSON.parse(JSON.stringify(State.deal)); window.__T.focusWheel = JSON.parse(JSON.stringify(State.wheel));
+      navigate('/property/calculator'); return true; })()`);
+    await sleep(500);
+    await evaluate(`(() => { const n = document.getElementById('d-price'); n.focus(); n.select(); return true; })()`);
+    await keys(['6', '0', '0', '0', '0', '0', 'Tab']); out.field = await at();
+    await evaluate(`(() => { document.getElementById('ev-price').focus(); return true; })()`);
+    await keys(['ArrowDown']); out.select = await at();
+    await evaluate(`(() => { [...document.querySelectorAll('main .segmented button')].find(b => b.textContent.trim() === 'Yes').focus(); return true; })()`);
+    await keys(['Enter']); out.answer = await at();
+    await evaluate(`(() => { State.deal = window.__T.focusDeal; saveDeal(); navigate('/us-options/wheel'); return true; })()`);
+    await sleep(500);
+    await evaluate(`(() => { const n = document.getElementById('w-putStrike'); n.focus(); n.select(); return true; })()`);
+    await keys(['4', '5', 'Tab']); out.wheel = await at();
+    await evaluate(`(() => { State.wheel = window.__T.focusWheel; saveWheel(); navigate('/property/calculator'); return true; })()`);
+    const lost = [];
+    if (!/^d-/.test(out.field) || out.field === 'd-price') lost.push(`typed price then Tab → ${out.field}`);
+    if (out.select !== 'ev-price') lost.push(`evidence grade by arrow key → ${out.select}`);
+    if (!/^chk-/.test(out.answer)) lost.push(`checklist answer → ${out.answer}`);
+    if (!/^w-/.test(out.wheel) || out.wheel === 'w-putStrike') lost.push(`Cash Wheel strike then Tab → ${out.wheel}`);
+    if (lost.length) fail('focus falls out of the page when a control redraws it', lost.join('; '));
+    else ok('focus stays where the keyboard put it through every redraw — the next field, the same select, the same answer', out);
+  }
+  /* ---- end bugfix: grade-area-registers ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

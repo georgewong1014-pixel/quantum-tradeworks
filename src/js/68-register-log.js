@@ -41,19 +41,50 @@ let REG_SEQ = 0;
 /* Who is keying this in. Unset is honest and common — one person recording for
    themselves does not need to name themselves. It matters when an agent is paid
    to enter transacted prices and someone later asks whose figure this was. */
-const registerActor = () => (store.read('registerActor', '') || '').trim();
+/* A name that is not a string is read as no name. "Restore from a file" writes
+   whatever the file holds, and a number there made .trim() throw — inside
+   logRegister, so no record, area attribute or demand source could be saved,
+   and the comparables page, which shows the name, threw before drawing. */
+const registerActor = () => { const v = store.read('registerActor', ''); return typeof v === 'string' ? v.trim() : ''; };
 const setRegisterActor = (name) => store.write('registerActor', String(name || '').trim());
 
-const registerLog = () => store.read('registerLog', []);
+/* A LOG THAT IS NOT A LIST OF EVENTS IS READ AS NO EVENTS, NOT TRUSTED AS ONE.
+   The key arrives, among other ways, through "Restore from a file", which
+   writes whatever the file holds. An object, a null, a string, or an array
+   with a null in it made loadRegisterLog() below throw — and it runs at the
+   top level of the one script the whole app is, so every page came up blank,
+   the Your data page a good copy would be restored from included. Anything
+   that is not an event object is left out of what is read; the integrity line
+   on the register then says the history does not account for the records,
+   which is the true state, instead of the app saying nothing at all. */
+const registerLog = () => {
+  const v = store.read('registerLog', []);
+  return Array.isArray(v) ? v.filter(e => e && typeof e === 'object' && !Array.isArray(e)) : [];
+};
+
+/* An entity is looked up as an OWN key. `REGISTER_ENTITIES[e.entity]` found
+   Object.prototype members for a logged "constructor" or "toString", so a
+   stray event reached replay and undo as a handler with no methods and threw
+   while the register drew. */
+const registerEntity = (name) => (Object.hasOwn(REGISTER_ENTITIES, name) ? REGISTER_ENTITIES[name] : null);
+
+const maxRegisterSeq = (log, from = 0) => log.reduce((m, e) => Math.max(m, Number.isFinite(e.seq) ? e.seq : 0), from);
 
 function loadRegisterLog() {
-  REG_SEQ = registerLog().reduce((m, e) => Math.max(m, e.seq || 0), 0);
+  REG_SEQ = maxRegisterSeq(registerLog());
 }
 
 /* Appends and returns the event. The ONLY function in the codebase that writes
    the log — everything else calls a recorder below. */
 function logRegister(entity, op, id, detail) {
   const log = registerLog();
+  /* Continued from the log as it is NOW, not only as it was at load. A second
+     tab — the calculator records into the register while the register is
+     open beside it — writes the same key, and a counter read once at boot
+     handed out numbers that tab had already used. Undo marks a sequence
+     number as reversed, so reversing one of two events that share a number
+     passed over the other for good: that change could never be undone. */
+  REG_SEQ = maxRegisterSeq(log, REG_SEQ);
   const ev = {
     seq: ++REG_SEQ,
     at: new Date().toISOString(),
@@ -186,7 +217,7 @@ function lastUndoableEvent() {
   for (let i = log.length - 1; i >= 0; i--) {
     const e = log[i];
     if (e.undoOf || undone.has(e.seq)) continue;
-    if (!REGISTER_ENTITIES[e.entity]) continue;
+    if (!registerEntity(e.entity)) continue;
     return e;
   }
   return null;
@@ -200,7 +231,7 @@ const canUndoRegister = () => !!lastUndoableEvent();
 function undoLastRegisterChange() {
   const e = lastUndoableEvent();
   if (!e) return null;
-  return REGISTER_ENTITIES[e.entity].undo(e) || null;
+  return registerEntity(e.entity).undo(e) || null;
 }
 
 /* ------------------------------------------------------------------ replay */
@@ -221,7 +252,7 @@ function replayRegister() {
 
   const acc = { obs: new Map(), areas: {}, demand: {} };
   for (const e of log) {
-    const handler = REGISTER_ENTITIES[e.entity];
+    const handler = registerEntity(e.entity);
     if (handler) handler.replay(acc, e);
   }
   return { ok: true, observations: [...acc.obs.values()], areaProfiles: acc.areas, demand: acc.demand };
@@ -261,7 +292,12 @@ function registerIntegrity() {
 /* One line of prose for an event, for the history list in a record's drawer. */
 function registerEventText(e) {
   const who = e.actor ? ` by ${e.actor}` : '';
-  const when = String(e.at || '').slice(0, 16).replace('T', ' ');
+  /* On the reader's clock, with its offset. It was the UTC timestamp cut to
+     the minute with no zone, so a change keyed in Kuching at 10:00 read
+     "02:00" — and at 07:00 it read as the day before. caseRaisedAt is the
+     formatter the correction cases use for the same reason. */
+  const t = new Date(e.at);
+  const when = e.at && !Number.isNaN(t.getTime()) ? caseRaisedAt(t) : String(e.at || '');
   const val = (v) => v == null || v === '' ? 'nothing'
     : typeof v === 'object' ? (v.label || v.value || JSON.stringify(v).slice(0, 40)) : String(v);
   if (e.op === 'add') return `${when}${who} — recorded`;

@@ -20,6 +20,11 @@
 State.areaScreen = { city:'kuching', layer:'flood', classes:{}, minRecords:0, maxWeeks:null,
   minLease:null, editing:null };
 
+/* Each control that redraws the page carries an id, so renderKeepFocus can
+   hand focus back to it — see renderAfterTyping in 75-property-grade.js. A
+   locality's Record button is found again by its name. */
+const areaRowButtonId = (n) => `area-rec-${String(n).replace(/[^A-Za-z0-9]+/g, '-')}`;
+
 VIEWS.areas = () => {
   const S = State.areaScreen;
   if (geoLoadState === 'idle') loadSarawakLayers();
@@ -51,9 +56,12 @@ VIEWS.areas = () => {
   const seg = (label, key, opts, onPick) => {
     const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
+    /* aria-pressed carries the state; aria-selected, which the stylesheet
+       keys on, means nothing on a plain button, so a screen reader heard
+       fifteen identical buttons with no word of which layer was drawn. */
     g.append(el('div', { class: 'segmented' }, opts.map(([v, l]) =>
-      el('button', { 'aria-selected': S[key] === v ? 'true' : 'false',
-        onclick: () => { if (onPick) onPick(v); else S[key] = v; render(); } }, l))));
+      el('button', { id: `af-${key}-${v}`, 'aria-selected': S[key] === v ? 'true' : 'false', 'aria-pressed': S[key] === v ? 'true' : 'false',
+        onclick: () => { if (onPick) onPick(v); else S[key] = v; renderKeepFocus(); } }, l))));
     return g;
   };
 
@@ -65,7 +73,7 @@ VIEWS.areas = () => {
   const townField = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
   townField.append(el('label', { class: 'caption', style: 'font-weight:600', for: 'areaTown' }, 'Town'));
   const townSel = el('select', { class: 'select select-sm', id: 'areaTown',
-    onchange: e => { S.city = e.target.value; S.editing = null; render(); } });
+    onchange: e => { S.city = e.target.value; S.editing = null; renderKeepFocus(); } });
   Object.entries(SARAWAK_DIVISIONS).forEach(([division, towns]) => {
     const grp = el('optgroup', { label: `${division} Division` });
     towns.forEach(c => grp.append(el('option', { value: c.id, selected: S.city === c.id ? '' : null },
@@ -87,9 +95,10 @@ VIEWS.areas = () => {
     const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
     g.append(el('div', { class: 'segmented' }, ids.map(id =>
-      el('button', { 'aria-selected': State.rateUnits[which] === id ? 'true' : 'false',
+      el('button', { id: `af-unit-${which}-${id}`, 'aria-selected': State.rateUnits[which] === id ? 'true' : 'false',
+        'aria-pressed': State.rateUnits[which] === id ? 'true' : 'false',
         title: areaUnit(id).why,
-        onclick: () => { setRateUnit(which, id); render(); } }, areaUnit(id).short))));
+        onclick: () => { setRateUnit(which, id); renderKeepFocus(); } }, areaUnit(id).short))));
     return g;
   };
   unitRow.append(unitSeg('Floor area in', 'built', BUILT_UP_UNITS));
@@ -105,9 +114,9 @@ VIEWS.areas = () => {
     r.append(el('span', { class: 'caption', style: 'font-weight:600;min-width:92px' }, attr.short));
     attr.classes.forEach(c => {
       const on = sel.includes(c.id);
-      r.append(el('button', { class: `chip${on ? ' chip-brand' : ''}`, 'aria-pressed': on ? 'true' : 'false',
+      r.append(el('button', { id: `af-${attr.id}-${c.id}`, class: `chip${on ? ' chip-brand' : ''}`, 'aria-pressed': on ? 'true' : 'false',
         title: c.note, style: 'cursor:pointer', onclick: () => {
-          S.classes[attr.id] = on ? sel.filter(x => x !== c.id) : [...sel, c.id]; render();
+          S.classes[attr.id] = on ? sel.filter(x => x !== c.id) : [...sel, c.id]; renderKeepFocus();
         } }, c.label + (c.restricted ? ' · restricted' : '')));
     });
     bar.append(r);
@@ -119,14 +128,14 @@ VIEWS.areas = () => {
     f.append(el('label', { class: 'caption', for: `af-${key}`, style: 'font-weight:600' }, label));
     f.append(el('input', { class: 'input input-inline', id: `af-${key}`, type: 'number', min: '0',
       value: S[key] == null ? '' : String(S[key]), placeholder: ph, style: 'width:88px',
-      onchange: e => { S[key] = e.target.value === '' ? (key === 'minRecords' ? 0 : null) : num0(e.target.value); render(); } }));
+      onchange: e => { S[key] = e.target.value === '' ? (key === 'minRecords' ? 0 : null) : num0(e.target.value); renderAfterTyping(); } }));
     return f;
   };
   row3.append(numFilter('Minimum records held', 'minRecords', '0'));
   row3.append(numFilter('Weeks vacant at most', 'maxWeeks', 'any'));
   row3.append(numFilter('Lease years at least', 'minLease', 'any'));
-  row3.append(el('button', { class: 'chip', style: 'cursor:pointer',
-    onclick: () => { S.classes = {}; S.minRecords = 0; S.maxWeeks = null; S.minLease = null; render(); } },
+  row3.append(el('button', { id: 'af-clear', class: 'chip', style: 'cursor:pointer',
+    onclick: () => { S.classes = {}; S.minRecords = 0; S.maxWeeks = null; S.minLease = null; renderKeepFocus(); } },
     'Clear filters'));
   bar.append(row3);
   wrap.append(bar);
@@ -186,10 +195,18 @@ VIEWS.areas = () => {
   if (layer.kind === 'class') layer.attr.classes.forEach(c =>
     legend.append(swatch(`var(${c.tone})`, c.label + (c.restricted ? ' · restricted' : ''))));
   else if (bands) {
-    legend.append(swatch(`var(${SEQ_STEPS[layer.invert ? SEQ_STEPS.length - 1 : 0]})`,
-      `${layer.text(S.city, shown.find(n => layer.value(S.city, n) === bands.lo)) || fmtNum(bands.lo, 0)} (lowest here)`));
-    legend.append(swatch(`var(${SEQ_STEPS[layer.invert ? 0 : SEQ_STEPS.length - 1]})`,
-      `${layer.text(S.city, shown.find(n => layer.value(S.city, n) === bands.hi)) || fmtNum(bands.hi, 0)} (highest here)`));
+    /* Each swatch is the colour layerColour gives that value — the colour its
+       point is drawn in. They were the two ends of the ramp, which is right
+       while the values differ; with one area recorded, or every area at one
+       value, the point is drawn in the middle step and the legend showed two
+       end colours, both labelled with that one value, neither on the map. */
+    const said = (v) => layer.text(S.city, shown.find(n => layer.value(S.city, n) === v)) || fmtNum(v, 0);
+    if (bands.lo === bands.hi) legend.append(swatch(layerColour(layer, bands, bands.lo),
+      `${said(bands.lo)} (every area recorded here)`));
+    else {
+      legend.append(swatch(layerColour(layer, bands, bands.lo), `${said(bands.lo)} (lowest here)`));
+      legend.append(swatch(layerColour(layer, bands, bands.hi), `${said(bands.hi)} (highest here)`));
+    }
   }
   legend.append(swatch(null, 'Not recorded', true));
   mapCard.append(legend);
@@ -301,8 +318,8 @@ VIEWS.areas = () => {
         m.sampleN
           ? el('span', { class: 'chip chip-bronze' }, `${m.total} · ${m.sampleN} example`)
           : String(m.total)),
-      el('td', {}, el('button', { class: 'btn btn-quiet btn-sm',
-        onclick: () => { S.editing = S.editing === n ? null : n; render(); } },
+      el('td', {}, el('button', { id: areaRowButtonId(n), class: 'btn btn-quiet btn-sm',
+        onclick: () => { S.editing = S.editing === n ? null : n; renderKeepFocus(); } },
         S.editing === n ? 'Close' : 'Record')),
     ]));
     if (S.editing === n) tb.append(el('tr', {},
@@ -315,7 +332,9 @@ VIEWS.areas = () => {
       ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
       : 'Filtered. The map shades the same set.'));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
-  tCard.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
+  /* A size container, so the recorder in its row can be as wide as what shows
+     of the table rather than the table itself — see areaRecorder. */
+  tCard.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md);container-type:inline-size' }, t));
   /* Sixteen columns can say what a locality is classified as. They cannot say
      what the classification MEANS, and the consequence is the half a buyer
      needs — "peat, 3 m or deeper" is a fact, "deep piling dominates build cost"
@@ -349,7 +368,15 @@ VIEWS.areas = () => {
    verified — the register is only worth having if a later reader can tell a
    DID record from something a neighbour mentioned. */
 function areaRecorder(city, area) {
-  const box = el('div', { class: 'sunk', style: 'margin:var(--sm)' });
+  /* As wide as the visible part of the table, and held at its left edge. It
+     sat in a cell spanning all sixteen columns, so it was the table's width —
+     1,674px — and inside a 310px scrolling wrapper on a phone every sentence
+     and field ran off the right edge ("Each fact is saved on its own, with its
+     own source and date…"), and the recorder opened out of sight to the left
+     of the Record button a reader had scrolled across to press. It also
+     inherited the cell's nowrap, so no sentence in it wrapped at any width. */
+  const box = el('div', { class: 'sunk',
+    style: 'margin:var(--sm);width:calc(100cqw - 2 * var(--sm));box-sizing:border-box;position:sticky;left:var(--sm);white-space:normal' });
   box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, `Record for ${area}`));
   box.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
     'Each fact is saved on its own, with its own source and date — a title class established from the title '
@@ -407,15 +434,16 @@ function areaRecorder(city, area) {
     sec.append(f4);
 
     sec.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
-      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
+      el('button', { id: `${uid}-save`, class: 'btn btn-ghost btn-sm', onclick: () => {
         const empty = attr.kind === 'class' ? !draft.class : !isNum(draft.value);
         if (empty) { toast(`Enter a value for ${attr.short.toLowerCase()}, or use Remove`); return; }
         setAreaAttr(city, area, attr.id, draft);
-        render(); toast(`${attr.short} recorded for ${area}`);
+        renderKeepFocus(); toast(`${attr.short} recorded for ${area}`);
       } }, 'Save'),
+      /* Remove goes with what it removed, so focus moves to Save beside it. */
       cur ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
         setAreaAttr(city, area, attr.id, null);
-        render(); toast(`${attr.short} cleared for ${area}`);
+        render(); document.getElementById(`${uid}-save`)?.focus(); toast(`${attr.short} cleared for ${area}`);
       } }, 'Remove') : null,
     ]));
     box.append(sec);
@@ -423,7 +451,7 @@ function areaRecorder(city, area) {
 
   box.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
     el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
-      State.areaScreen.editing = null; render();
+      State.areaScreen.editing = null; render(); document.getElementById(areaRowButtonId(area))?.focus();
     } }, 'Close')));
   box.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'Held in this browser only, alongside the comparables register. Back it up from Your data.'));
@@ -462,8 +490,14 @@ VIEWS.comparables = () => {
   }
 
   const logN = registerLog().length;
-  const undoBtn = el('button', { class: 'btn btn-ghost btn-sm', disabled: !canUndoRegister() ? '' : null,
-    onclick: () => { const what = undoLastRegisterChange(); render(); toast(what || 'Nothing left to undo'); } },
+  /* Focus stays on Undo, or on the name field beside it once nothing is left
+     to undo and the button is disabled. */
+  const undoBtn = el('button', { id: 'register-undo', class: 'btn btn-ghost btn-sm', disabled: !canUndoRegister() ? '' : null,
+    onclick: () => {
+      const what = undoLastRegisterChange(); renderKeepFocus();
+      if (document.activeElement === document.body) document.getElementById('registerActorInput')?.focus();
+      toast(what || 'Nothing left to undo');
+    } },
     'Undo last change');
   actorRow.append(undoBtn);
   admin.append(actorRow);
@@ -490,10 +524,14 @@ VIEWS.comparables = () => {
     rows.length ? 'Standing is decided by the source, not by the number.'
                 : 'The register is empty, which is the true state of the evidence rather than a gap in the software.'));
   if (rows.length) {
-    head.append(el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' },
-      [['Verified', counts.verified || 0], ['Awaiting review', counts.awaiting_review || 0],
-       ['Sourced', counts.sourced || 0], ['No source', counts.unsourced || 0]]
-        .map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
+    /* Every standing has a tile, so the tiles add up to the count above them.
+       A worked-example row has its own standing and had no tile: with the
+       example loaded the card read "17 records" over tiles totalling 1. */
+    const tiles = [['Verified', counts.verified || 0], ['Awaiting review', counts.awaiting_review || 0],
+       ['Sourced', counts.sourced || 0], ['No source', counts.unsourced || 0],
+       ...(counts.sample ? [['Worked example', counts.sample]] : [])];
+    head.append(el('div', { class: tiles.length > 4 ? 'grid grid-5' : 'grid g-4', style: 'margin-top:var(--md)' },
+      tiles.map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
   } else {
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
       'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it from the district panel on the calculator, where the city and district are already set.'));
@@ -511,7 +549,7 @@ VIEWS.comparables = () => {
   wrap.append(head);
 
   if (rows.length) {
-    const t = el('table', { class: 'dt' });
+    const t = el('table', { class: 'dt register-dt' });
     t.append(el('thead', {}, el('tr', {}, ['Standing', 'What', 'Amount', 'Area', 'Rate', 'Ownership',
       'Where', 'Address or project', 'Dated', 'Source', ''].map(h =>
       el('th', { style: 'text-align:left' }, h)))));
@@ -550,7 +588,7 @@ VIEWS.comparables = () => {
         el('td', { style: 'text-align:left' }, title
           ? el('span', { class: title.restricted ? 'chip chip-bronze' : 'chip', title: title.note }, title.label)
           : el('span', { class: 'caption' }, '—')),
-        el('td', { class: 'caption', style: 'text-align:left' }, `${o.area || '—'}, ${o.city || '—'}`),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, `${o.area || '—'}, ${o.city || '—'}`),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.address || '—'),
         el('td', { class: 'caption', style: 'text-align:left' }, o.date || '—'),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.sourceRef || '—'),
@@ -788,10 +826,13 @@ function openObservationDrawer(o) {
 
   const edit = (label, key, kind) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-    f.append(el('label', {}, label));
+    /* Tied to its field. The label stood beside an input with no id, so all
+       five fields reached a screen reader as unnamed edit boxes. */
+    const id = `obs-edit-${key}`;
+    f.append(el('label', { for: id }, label));
     const node = kind === 'number'
-      ? el('input', { class: 'input', type: 'number', value: isNum(o[key]) ? String(o[key]) : '' })
-      : el('input', { class: 'input', type: 'text', value: o[key] || '' });
+      ? el('input', { class: 'input', id, type: 'number', value: isNum(o[key]) ? String(o[key]) : '' })
+      : el('input', { class: 'input', id, type: 'text', value: o[key] || '' });
     node.addEventListener('change', e => {
       const v = kind === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value;
       const i = State.observations.findIndex(x => x.id === o.id);
@@ -813,7 +854,12 @@ function openObservationDrawer(o) {
   edit('Checked against the source by', 'reviewedBy');
 
   const kv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
-  [['Recorded', o.recordedAt || '—'], ['Dated', o.date || '—'],
+  /* recordedAt is stored as the UTC minute, and was printed as stored with no
+     zone — eight hours early in Kuching, and the day before until 08:00. Shown
+     on the reader's clock with its offset, as the History below it is. */
+  const recAt = o.recordedAt ? new Date(`${String(o.recordedAt).replace(' ', 'T')}:00Z`) : null;
+  const recorded = recAt && !Number.isNaN(recAt.getTime()) ? caseRaisedAt(recAt) : (o.recordedAt || '—');
+  [['Recorded', recorded], ['Dated', o.date || '—'],
    ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${o.city || '—'}`]]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
   body.append(kv);
@@ -1241,7 +1287,7 @@ function localityTransactionPanel(city, area) {
     return card;
   }
 
-  const t = el('table', { class: 'dt' });
+  const t = el('table', { class: 'dt register-dt' });
   t.append(el('thead', {}, el('tr', {}, ['Category', 'Subtype', 'Tenure', 'Area band',
     'Latest', 'Dated', 'Median', 'Median PSF', 'P25–P75', 'n', 'Period', 'Source', 'Licence']
     .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
