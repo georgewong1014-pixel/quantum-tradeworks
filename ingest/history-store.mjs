@@ -52,11 +52,11 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { readFile, writeFile, rename, copyFile, rm, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, copyFile, rm, mkdir, stat, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { withLock } from './lockfile.mjs';
-import { loadEngine, ROOT } from '../scanner/scan.mjs';
+import { loadEngine, ROOT, renameRetrying } from '../scanner/scan.mjs';
 
 export const HISTORY_PATH = resolve(ROOT, 'data/price-history.json');
 /* Points kept per symbol. The engine's scanDataHealth reads the same number
@@ -119,15 +119,33 @@ export function formatHistory(hist) {
 /* Written beside itself and renamed over the old file — a rename within one
    volume is all or nothing — with the previous file kept as .bak. A write
    killed at any point leaves either the old file or the new one, never half
-   of either. `beforeRename` exists for the test of exactly that. */
+   of either. `beforeRename` exists for the test of exactly that.
+
+   ON WINDOWS a rename over a file another process holds open fails (EPERM)
+   for as long as it is held, and serve.mjs reads data/price-history.json
+   for the pages: a daily history step, an import or a live.mjs run made
+   while /admin/scanner was open failed at once, the history not written.
+   And copyFile carries a read-only attribute onto the .bak, so once the
+   .bak was read-only every later write failed on the copy. The worker's
+   writeAtomic (scanner/scan.mjs) met both first; this one now does what it
+   does — renameRetrying waits a reader out for a few seconds, and the .bak
+   is made owner-writable before it is replaced and after it is written. */
+const ownerWritable = async (p) => {
+  try { const st = await stat(p); if (!(st.mode & 0o200)) await chmod(p, st.mode | 0o200); } catch { /* absent */ }
+};
 export async function writeAtomic(path, text, { beforeRename = null } = {}) {
   await mkdir(dirname(path), { recursive: true });
   const tmp = `${path}.tmp`;
   await writeFile(tmp, text);
   try {
-    if (existsSync(path)) await copyFile(path, `${path}.bak`);
+    if (existsSync(path)) {
+      const bak = `${path}.bak`;
+      await ownerWritable(bak);
+      await copyFile(path, bak);
+      await ownerWritable(bak);
+    }
     if (beforeRename) await beforeRename();
-    await rename(tmp, path);
+    await renameRetrying(tmp, path);
   } catch (e) { await rm(tmp, { force: true }); throw e; }
 }
 
@@ -421,7 +439,16 @@ export function dateInZone(instant, tz = 'UTC') {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
-const realDay = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
+/* A calendar day, or false. A month 13 or a day 32 is not a Date that rolls
+   over (as 30 February does) but an Invalid Date, whose toISOString() throws
+   a RangeError: one such cell — "2026-13-01", or a day-first "32/01/2026" —
+   crashed the whole import ("FAILED — Invalid time value", nothing written)
+   and prices.mjs with it, where that one row is refused as BAD_DATE. */
+const realDay = (d) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return false;
+  const ms = Date.parse(`${d}T00:00:00Z`);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === d;
+};
 
 /* A daily bar's epoch. Exports disagree about what instant stands for a
    session: some write midnight UTC of the session date, some midnight in the
@@ -451,14 +478,22 @@ export function parseDateCell(raw, { tz = 'UTC' } = {}) {
   if (iso) {
     const [, day, time, zone] = iso;
     if (!realDay(day)) return { error: 'BAD_DATE', why: `"${s}" is not a real day` };
-    if (time && zone) {
-      const z = zone.toUpperCase() === 'Z' ? 'Z' : zone.replace(/^([+-]\d{2})(\d{2})$/, '$1:$2');
+    if (time) {
+      const z = !zone ? 'Z' : zone.toUpperCase() === 'Z' ? 'Z' : zone.replace(/^([+-]\d{2})(\d{2})$/, '$1:$2');
+      const ms = Date.parse(`${day}T${time.length === 5 ? `${time}:00` : time}${z}`);
+      /* A time of day the clock does not have ("10:60", "25:00") or a zone
+         past ±23:59 is no instant: Date.parse gives NaN, and the cell came
+         back as { date: null } — no error, so prices.mjs accepted the price
+         undated and the import's rejects file lost the cell as written. It
+         is refused as the unreal day is. */
+      if (!Number.isFinite(ms)) return { error: 'BAD_DATE', why: `"${s}" is not a real time of day` };
       /* An instant, so it is dated as an epoch is (epochDate): exactly
          midnight UTC is that UTC date. Dated in the zone alone, the instant
          an epoch cell dated 2026-04-13 was 2026-04-12 when written
          "2026-04-13T00:00:00Z" — a whole UTC-stamped export for New York
-         or São Paulo a day early, its Mondays on Sundays. */
-      return { date: epochDate(Date.parse(`${day}T${time.length === 5 ? `${time}:00` : time}${z}`), tz) };
+         or São Paulo a day early, its Mondays on Sundays. A time with no
+         zone is no instant; the day it is written under stands. */
+      if (zone) return { date: epochDate(ms, tz) };
     }
     return { date: day };
   }
