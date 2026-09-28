@@ -274,15 +274,16 @@ a { color: inherit; }
    keyboard, so the people who use it are precisely those most likely to need
    the contrast — and it was the worst ratio in the product. Dark ground,
    light text: 14:1. */
-/* Moved with transform rather than by animating `top`: only transform and
-   opacity are animated anywhere in this product, and `top` is a layout
-   property that re-flows on every frame of the slide. */
+/* Shown and hidden at once, with no slide either way. A focused control is
+   never mid-motion: a headless browser measured the link still above the
+   viewport on Shift+Tab as it slid in, and still over the home link on Tab as
+   it slid out, 0.01ms of reduced motion not yet advanced. A skip link is
+   reached by keyboard to be read, not watched. */
 .skip-link {
   position: absolute; left: var(--md); top: var(--md); z-index: 100;
   background: var(--surface-inv); color: var(--ink-inv); padding: 10px 16px;
   border-radius: var(--r-md); font-weight: 600;
   transform: translateY(calc(-100% - var(--md) - 8px));
-  transition: transform 180ms ease;
 }
 .skip-link:focus { transform: none; }
 
@@ -11368,8 +11369,11 @@ function decisionDock({ figs, blocker, next }) {
   (figs || []).forEach(f => {
     if (!f) return;
     const box = el('div', { class: 'dock-fig' });
-    box.append(el('span', { class: 'dock-fig-v', style: f.tone ? `color:var(${f.tone})` : null },
-      f.value == null || f.value === '' ? '—' : f.value));
+    /* A withheld figure takes no tone: "Worst case at zero" drew its dash in
+       the loss colour on a Cash Wheel with no contract entered. */
+    const withheld = f.value == null || f.value === '';
+    box.append(el('span', { class: 'dock-fig-v', style: f.tone && !withheld ? `color:var(${f.tone})` : null },
+      withheld ? '—' : f.value));
     box.append(el('span', { class: 'dock-fig-k' }, f.label));
     fg.append(box);
   });
@@ -11634,8 +11638,32 @@ function lineChart(container, { values, labels, fmt = v => fmtNum(v, 2), varName
 function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelShort, xFmt, onPick }) {
   chartHost(container, (W) => {
     const narrow = W < 560;
-    const H = narrow ? 320 : Math.max(340, Math.min(480, W * 0.52));
-    const padL = narrow ? 40 : 56, padR = narrow ? 12 : 20, padT = 18, padB = 46;
+    /* A CAPTION WIDER THAN THE CHART GOES ONTO TWO LINES, AND NO TICK LEAVES IT.
+       SVG text does not wrap, and the short caption is only shorter: the
+       value map's measured 318px, so at 390px it ran 18px past the chart's
+       right edge and at 360px past both; and the last tick, centred on the
+       plot's right edge with 12px beyond it, clipped the "%" of "+70%".
+       Measured, as the tornado's labels are — a caption that does not fit is
+       broken at the word that best balances its two lines, and the chart is
+       one line taller for it; each tick and the estimate line's name keep
+       their place unless that would run them off the chart. The canvas
+       measures semibold a few per cent narrow, hence the allowance. */
+    const tw = (t, weight = 400) => textWidth(t, 12, weight) * 1.04 + 2;
+    const cap = narrow ? (xLabelShort || xLabel) : xLabel;
+    let capLines = [cap];
+    if (tw(cap, 600) > W - 8) {
+      const words = String(cap).split(' ');
+      let best = Infinity;
+      for (let i = 1; i < words.length; i++) {
+        const a = words.slice(0, i).join(' '), b = words.slice(i).join(' ');
+        const m = Math.max(tw(a, 600), tw(b, 600));
+        if (m < best) { best = m; capLines = [a, b]; }
+      }
+    }
+    const capExtra = (capLines.length - 1) * 15;
+    const inside = (x, t, weight) => { const h = tw(t, weight) / 2; return clamp(x, h, Math.max(h, W - h)); };
+    const H = (narrow ? 320 : Math.max(340, Math.min(480, W * 0.52))) + capExtra;
+    const padL = narrow ? 40 : 56, padR = narrow ? 12 : 20, padT = 18, padB = 46 + capExtra;
     const iw = W - padL - padR, ih = H - padT - padB;
     const xs = points.map(p => p.x);
     const xlo = Math.min(-40, Math.floor(Math.min(...xs) / 10) * 10), xhi = Math.max(40, Math.ceil(Math.max(...xs) / 10) * 10);
@@ -11671,18 +11699,21 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
     for (let v = xlo; v <= xhi; v += (xhi - xlo) / 4) xticks.push(v);
     xticks.forEach(v => {
       s.append(sv('line', { class: 'gridline', x1: X(v), x2: X(v), y1: padT, y2: padT + ih }));
-      const t = sv('text', { class: 'ax-label', x: X(v), y: H - 26, 'text-anchor': 'middle' });
+      const t = sv('text', { class: 'ax-label', x: inside(X(v), xFmt(v)), y: padT + ih + 20, 'text-anchor': 'middle' });
       t.textContent = xFmt(v); s.append(t);
     });
     /* fair-value line at zero discount */
     s.append(sv('line', { class: 'ax-line', x1: X(0), x2: X(0), y1: padT, y2: padT + ih, 'stroke-width': 1.5 }));
-    const zl = sv('text', { class: 'ax-label', x: X(0), y: padT - 5, 'text-anchor': 'middle', 'font-weight': 600 });
+    const zl = sv('text', { class: 'ax-label', x: inside(X(0), 'Base-case model estimate', 600), y: padT - 5, 'text-anchor': 'middle', 'font-weight': 600 });
     zl.textContent = 'Base-case model estimate'; s.append(zl);
 
     /* Long captions do not wrap in SVG, so a narrow chart takes the short form
-       rather than letting the text run past the plot. */
-    const ax = sv('text', { class: 'ax-label', x: padL + iw / 2, y: H - 8, 'text-anchor': 'middle', 'font-weight': 600 });
-    ax.textContent = narrow ? (xLabelShort || xLabel) : xLabel; s.append(ax);
+       rather than letting the text run past the plot — and one still too long
+       takes the two lines measured above. */
+    capLines.forEach((line, i) => {
+      const ax = sv('text', { class: 'ax-label', x: inside(padL + iw / 2, line, 600), y: padT + ih + 38 + i * 15, 'text-anchor': 'middle', 'font-weight': 600 });
+      ax.textContent = line; s.append(ax);
+    });
     const ay = sv('text', { class: 'ax-label', x: 12, y: padT + ih / 2, 'text-anchor': 'middle', 'font-weight': 600, transform: `rotate(-90 12 ${padT + ih / 2})` });
     ay.textContent = narrow ? (yLabelShort || yLabel) : yLabel; s.append(ay);
 
@@ -12021,6 +12052,19 @@ function waterfallChart(container, { steps, fmt, ccy }) {
 }
 
 /* ------------------------------------------------------ value range strip */
+/* THE LABELS ARE LAID OUT IN PIXELS, ON THE STRIP'S OWN WIDTH.
+   The Bear and Bull labels were absolute boxes placed by percentage and free
+   to wrap. An absolute box is only as wide as the room between its left edge
+   and the strip's right edge, so at 390px on JPM's valuation "Bull $503.10",
+   at 91% of a 310px strip, got 27px, and the stylesheet's break-anywhere rule
+   cut the price in two, three lines deep. A percentage says nothing about
+   width: at 360px "Bear $196.89" and the Base label overlapped, though the
+   bear-to-bull spread was over the 24% that was taken to leave room.
+   The strip is now drawn through chartHost, which knows the width. No label
+   wraps; each is measured, placed on its point as before and kept inside the
+   strip. The three case labels take the one-line form whenever they would
+   meet — as they already did when the range was squeezed — and a line too
+   long for the strip wraps between its cases, never inside a figure. */
 function rangeStrip(bearIn, base, bullIn, price, ccy) {
   /* A bear or bull case can be not computable while the base stands (its
      shift took the model out of bounds). The strip then ends at the base on
@@ -12036,9 +12080,6 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
   const hi = hi0 > lo ? hi0 : lo + 1;
   const at = v => clamp((v - lo) / (hi - lo) * 100, 0, 100);
 
-  /* Keep a label inside the strip instead of letting it hang off either end. */
-  const anchor = (pct) => pct > 88 ? 'translateX(-100%)' : pct < 12 ? 'translateX(0)' : 'translateX(-50%)';
-
   /* When the price sits far outside the modelled range — a business trading at
      a large premium or discount to its own model — the scale has to span both,
      which squeezes bear/base/bull into a sliver and collides their three
@@ -12046,35 +12087,70 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
      one thing the strip exists to show honestly, collapse the three labels into
      one line placed under the compressed range. */
   const spread = at(bull) - at(bear);
-  const tight = spread < 24;
   const mid = (at(bear) + at(bull)) / 2;
+  const baseText = `Base ${fmtMoney(base, ccy)}${isNum(bearIn) ? '' : ' · bear not computable'}${isNum(bullIn) ? '' : ' · bull not computable'}`;
+  const oneLine = [caseLabel('Bear', bearIn), `Base ${fmtMoney(base, ccy)}`, caseLabel('Bull', bullIn)];
 
-  const labels = tight
-    ? [el('div', { class: 'metaline', style: `position:absolute;left:${clamp(mid, 0, 100)}%;top:36px;transform:${anchor(mid)};white-space:nowrap` },
-        `${caseLabel('Bear', bearIn)} · Base ${fmtMoney(base, ccy)} · ${caseLabel('Bull', bullIn)}`)]
-    : [
-        /* A missing case has no position of its own — it would sit on the base
-           label — so it is named beside the base instead. */
-        isNum(bearIn) ? el('div', { class: 'metaline', style: `position:absolute;left:${at(bear)}%;top:36px;transform:${anchor(at(bear))}` }, caseLabel('Bear', bearIn)) : null,
-        isNum(bullIn) ? el('div', { class: 'metaline', style: `position:absolute;left:${at(bull)}%;top:36px;transform:${anchor(at(bull))}` }, caseLabel('Bull', bullIn)) : null,
-        el('div', { class: 'metaline', style: `position:absolute;left:${at(base)}%;top:36px;transform:${anchor(at(base))};color:var(--ink);font-weight:600;white-space:nowrap` },
-          `Base ${fmtMoney(base, ccy)}${isNum(bearIn) ? '' : ' · bear not computable'}${isNum(bullIn) ? '' : ' · bull not computable'}`),
-      ].filter(Boolean);
+  /* Reserve the strip's height before the first draw, which waits for a
+     width: a microtask, as the Valuation tab's other charts are drawn, by
+     when the caller has put the strip on the page, or the resize observer
+     once it is laid out. */
+  const host = el('div', { style: 'min-height:56px;margin-top:var(--xs)' });
+  queueMicrotask(() => chartHost(host, (W) => {
+    /* The .metaline text, 12px. The canvas measures the semibold labels a few
+       per cent narrow of the page (69.4px for 71.2px), so each width carries
+       that allowance rather than let a label run into the next. */
+    const wOf = (t, weight = 400) => Math.ceil(textWidth(t, 12, weight) * 1.04) + 2;
+    /* Near an end a label sits inside its point rather than centred on it,
+       and it never leaves the strip. */
+    const leftOf = (pct, w) => {
+      const x = pct / 100 * W;
+      return clamp(pct > 88 ? x - w : pct < 12 ? x : x - w / 2, 0, Math.max(0, W - w));
+    };
+    const place = (text, pct, style = '') => {
+      const w = wOf(text, /font-weight:600/.test(style) ? 600 : 400);
+      return { text, w, x: leftOf(pct, w), style };
+    };
+    const baseStyle = 'color:var(--ink);font-weight:600';
+    /* A missing case has no position of its own — it would sit on the base
+       label — so it is named beside the base instead. */
+    const row = [
+      isNum(bearIn) ? place(caseLabel('Bear', bearIn), at(bear)) : null,
+      place(baseText, at(base), baseStyle),
+      isNum(bullIn) ? place(caseLabel('Bull', bullIn), at(bull)) : null,
+    ].filter(Boolean);
+    const byX = [...row].sort((a, b) => a.x - b.x);
+    const meet = byX.some((a, i) => i > 0 && byX[i - 1].x + byX[i - 1].w + 8 > a.x);
+    const line = oneLine.join(' · ');
+    const lineW = wOf(line);
+    const tight = spread < 24 || meet;
+    const abs = (t, x, top, style = '') => el('div', { class: 'metaline',
+      style: `position:absolute;left:${x.toFixed(1)}px;top:${top}px;white-space:nowrap${style ? ';' + style : ''}` }, t);
 
-  return el('div', { style: 'position:relative;height:56px;margin-top:var(--xs)' }, [
-    /* A minimum width so the range stays visible as a bar rather than becoming
-       a dot when the price dwarfs it. */
-    /* A neutral ramp, not red-to-green. The green end was the higher valuation,
-       so a price sitting there was rendered in the colour of a good outcome
-       while actually meaning expensive — the opposite of what a reader would
-       take from it. Lightness alone carries the bear-to-bull direction. */
-    el('div', { style: `position:absolute;left:${at(bear)}%;width:${Math.max(spread, 3)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,color-mix(in srgb, var(--s3) 22%, transparent),color-mix(in srgb, var(--s3) 55%, transparent))` }),
-    el('div', { style: `position:absolute;left:${at(base)}%;top:16px;width:2px;height:20px;background:var(--ink);transform:translateX(-1px)` }),
-    hasPx ? el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
-      `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }) : null,
-    ...labels,
-    hasPx ? el('div', { class: 'metaline', style: `position:absolute;left:${at(price)}%;top:0;transform:${anchor(at(price))};color:var(--s2-text);font-weight:600;white-space:nowrap` }, `Price ${fmtMoney(price, ccy)}`) : null,
-  ]);
+    const labels = !tight ? row.map(l => abs(l.text, l.x, 36, l.style))
+      : lineW <= W ? [abs(line, leftOf(clamp(mid, 0, 100), lineW), 36)]
+      /* Too long for the strip even as one line: in the flow under the bar, so
+         the strip grows to hold it, breaking only between the cases. */
+      : [el('div', { class: 'metaline', style: 'padding-top:36px' },
+          oneLine.flatMap((t, i) => [i ? ' · ' : null, el('span', { style: 'white-space:nowrap' }, t)]).filter(Boolean))];
+
+    const priceText = `Price ${fmtMoney(price, ccy)}`;
+    return el('div', { style: 'position:relative;min-height:56px' }, [
+      /* A minimum width so the range stays visible as a bar rather than becoming
+         a dot when the price dwarfs it. */
+      /* A neutral ramp, not red-to-green. The green end was the higher valuation,
+         so a price sitting there was rendered in the colour of a good outcome
+         while actually meaning expensive — the opposite of what a reader would
+         take from it. Lightness alone carries the bear-to-bull direction. */
+      el('div', { style: `position:absolute;left:${at(bear)}%;width:${Math.max(spread, 3)}%;top:22px;height:8px;border-radius:999px;background:linear-gradient(90deg,color-mix(in srgb, var(--s3) 22%, transparent),color-mix(in srgb, var(--s3) 55%, transparent))` }),
+      el('div', { style: `position:absolute;left:${at(base)}%;top:16px;width:2px;height:20px;background:var(--ink);transform:translateX(-1px)` }),
+      hasPx ? el('div', { style: `position:absolute;left:${at(price)}%;top:10px;transform:translateX(-50%)`, class: 'row', html:
+        `<span style="display:block;width:12px;height:12px;border-radius:50%;background:var(--s2);border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line-2)"></span>` }) : null,
+      ...labels,
+      hasPx ? abs(priceText, leftOf(at(price), wOf(priceText, 600)), 0, 'color:var(--s2-text);font-weight:600') : null,
+    ]);
+  }));
+  return host;
 }
 
 /* ==========================================================================
@@ -15900,12 +15976,16 @@ function renderHeatmap() {
 
   const bar = el('div', { class: 'card', style: 'padding:var(--sm) var(--md);margin-bottom:var(--md)' });
   const row = el('div', { class: 'row row-wrap', style: 'gap:var(--md)' });
-  row.append(el('div', { class: 'row', style: 'gap:8px' }, [
+  /* seg-group, as the area screen's strips are: the label keeps its width and
+     goes above the strip when the two do not fit side by side. As a plain row
+     the six-button strip took the width and crushed its label to "Me / asu /
+     re", three lines for one word, at every width from 360 to 768px. */
+  row.append(el('div', { class: 'row seg-group', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Measure'),
     el('div', { class: 'segmented' }, HEAT_MODES.map(m =>
       el('button', { 'aria-selected': st.mode === m.id ? 'true' : 'false', onclick: () => { st.mode = m.id; render(); } }, m.label))),
   ]));
-  row.append(el('div', { class: 'row', style: 'gap:8px' }, [
+  row.append(el('div', { class: 'row seg-group', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Universe'),
     /* Named for what they filter — the market — as on the value map. "FBM
        KLCI" drew eighteen Bursa tiles, four of them not index constituents;
@@ -15961,9 +16041,16 @@ function renderHeatmap() {
 
   /* scale legend — required for any continuous colour scale */
   const leg = el('div', { class: 'row row-wrap', style: 'gap:var(--md);margin-top:var(--md);padding-top:var(--sm);border-top:1px solid var(--grid)' });
-  const ramp = el('div', { class: 'row', style: 'gap:0' });
+  /* The two end labels do not wrap; the ramp gives way instead. A .metaline
+     may break anywhere, so at 390px the 220px ramp squeezed "−3.00%" onto two
+     lines, "−3.00" above "%", on either side of it — a scale whose ends read
+     as a number and a stray sign. min-width:0 lets the ramp shrink below the
+     sum of its 20px steps, which it could not while the labels were the only
+     thing that would. */
+  const ramp = el('div', { class: 'row', style: 'gap:0;min-width:0' });
   DIVERGING.forEach(v => ramp.append(el('span', { style: `width:20px;height:9px;background:var(${v})` })));
-  leg.append(el('span', { class: 'legend-item' }, [el('span', { class: 'metaline' }, mode.fmt(-mode.full)), ramp, el('span', { class: 'metaline' }, mode.fmt(mode.full))]));
+  const rampEnd = (v) => el('span', { class: 'metaline', style: 'white-space:nowrap' }, mode.fmt(v));
+  leg.append(el('span', { class: 'legend-item', style: 'min-width:0' }, [rampEnd(-mode.full), ramp, rampEnd(mode.full)]));
   const missingWhat = mode.price ? `observed ${mode.id === 'd1' ? 'day' : mode.label} change` : mode.label.toLowerCase().replace(/^vs /, 'difference to ');
   /* A price move is dated by the prices it is computed from, which are fixed
      files and sample figures, not a feed — so the caption names their dates. */
@@ -22283,9 +22370,19 @@ VIEWS.marketing = () => {
 
   /* 1 — the property engine on its own default deal. */
   const pm = dealModel(State.deal);
+  /* What is still to be paid, as the calculator, its ledger and the decision
+     record all say. This printed the whole completion figure, booking deposit
+     included, so with RM5,000 paid at offer the card read "Cash to complete
+     RM95.3k" beside a calculator that read RM90.3k under the same name.
+     And a total with a line it cannot price says so, as those surfaces do:
+     with the reserve unpriced (a loan tenure of 0) the card printed the safe
+     cash as the answer where the calculator calls it "so far". Completion is
+     short only by an acquisition or financing line, as the record reckons it;
+     safe cash by any line. */
+  const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   proof.append(proofCard('Sarawak property', 'your inputs', [
-    ['Cash to complete', fmtAmount(pm.transactionCash, 'MYR')],
-    ['Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
+    [pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.'));
@@ -42597,9 +42694,14 @@ const DOCKS = {
     const worst = (g.gates || []).slice().sort((a, b) =>
       (b.severity === 'critical') - (a.severity === 'critical'))[0];
     const queue = propertyReviewQueue(d);
+    /* A safe cash with a cost line unpriced is a total so far, and the dock
+       says so as the capstrip, the tile and the decision record do. With the
+       reserve unpriced (a loan tenure of 0) it read "RM121.8k Safe cash" as
+       the whole answer under a strip reading "So far — a line is unpriced". */
+    const short = (m.missingCostLines || []).length > 0;
     return {
       figs: [
-        { label: 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
+        { label: short ? 'Safe cash so far' : 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
         { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
           tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
         { label: g.verdict || 'Grade', value: g.grade },
@@ -42621,13 +42723,18 @@ const DOCKS = {
   wheel: () => {
     const p = State.wheel, m = wheelMath(p), fit = wheelFit(p, m, null);
     const entered = num0(p.putStrike) > 0;
-    const buffer = entered ? num0(p.eligibleCashUsd) - num0(m.requiredAssignmentCash) : null;
+    /* The buffer is cash against an obligation, so it waits for one. A
+       contract with no deliverable (no contracts, or an adjusted contract
+       not yet verified) computes no obligation, and num0 made it nought: the
+       dock read "$5.0k Cash buffer" in the colour of a surplus above a page
+       saying collateral is suppressed until the terms are known. */
+    const buffer = entered && isNum(m.requiredAssignmentCash) ? num0(p.eligibleCashUsd) - m.requiredAssignmentCash : null;
     return {
       figs: [
-        { label: 'Assignment cash', value: entered ? fmtAmount(m.requiredAssignmentCash, 'USD') : null },
+        { label: 'Assignment cash', value: entered && isNum(m.requiredAssignmentCash) ? fmtAmount(m.requiredAssignmentCash, 'USD') : null },
         { label: 'Cash buffer', value: buffer == null ? null : fmtAmount(buffer, 'USD'),
           tone: buffer == null ? null : (buffer < 0 ? '--dn-text' : '--ok-text') },
-        { label: 'Worst case at zero', value: entered ? fmtAmount(m.putMaxLossIfZero, 'USD') : null, tone: '--dn-text' },
+        { label: 'Worst case at zero', value: entered && isNum(m.putMaxLossIfZero) ? fmtAmount(m.putMaxLossIfZero, 'USD') : null, tone: '--dn-text' },
         { label: 'Phase', value: p.phase === 'call' ? 'Covered call' : 'Cash-secured put' },
       ],
       blocker: entered ? (fit.gates && fit.gates[0]) || null : 'No contract entered, so nothing is calculated yet.',
