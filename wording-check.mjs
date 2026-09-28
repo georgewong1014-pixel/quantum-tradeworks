@@ -124,6 +124,38 @@ for (const [f, text] of scannerSrc) {
 bad += liveBad;
 if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of ${scannerSrc.length} scanner modules — ${liveSeen} use${liveSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
 
+/* ---- bugfix3: property ---- */
+/* A WORKED FIGURE IN THE LAND-UNITS HEADER IS THE ARITHMETIC OF ITS OWN
+   CONSTANTS. It said the listings' rounded 40.47 m² a point moves a 60-point
+   parcel by "nearly a square metre"; it moves it by 0.086 m². A comment is
+   where the next person learns why the code does not round, so its numbers
+   are held to the same standard as the page's. Each figure is recomputed from
+   the constants the file defines. */
+{
+  const src = readFileSync(join(ROOT, 'src', 'js', '67-land-units.js'), 'utf8');
+  const flat = src.replace(/\s*\n\s*/g, ' ');
+  const constant = (name) => {
+    const m = src.match(new RegExp(`const ${name} = ([^;]+);`));
+    return m ? Function('SQFT_PER_ACRE', `return (${m[1]});`)(43560) : NaN;
+  };
+  const exact = constant('SQFT_PER_POINT') * constant('SQM_PER_SQFT');
+  const perPoint = 40.47 - exact;
+  const said = {
+    perPoint: flat.match(/it is ([\d.]+) m² a point too large/),
+    parcel: flat.match(/to a (\d+)-point parcel it moves the area by ([\d.]+) m²/),
+    whole: flat.match(/to a (\d+)-point estate by a whole square metre/),
+  };
+  const wrong = [];
+  if (!said.perPoint || Math.abs(Number(said.perPoint[1]) - perPoint) > 0.00005) wrong.push(`the error a point (${perPoint.toFixed(6)} m²)`);
+  if (!said.parcel || Math.abs(Number(said.parcel[2]) - Number(said.parcel[1]) * perPoint) > 0.0005) wrong.push(`the parcel figure (60 points is ${(60 * perPoint).toFixed(4)} m²)`);
+  if (!said.whole || Math.abs(Number(said.whole[1]) * perPoint - 1) > 0.01) wrong.push(`the square-metre parcel (${(1 / perPoint).toFixed(0)} points)`);
+  if (wrong.length) {
+    bad += 1;   /* one false claim, however many of its figures are wrong */
+    console.error(`FAIL  the land-units header states figures its own constants do not give: ${wrong.join('; ')}`);
+  } else console.log(`ok    the land-units header's rounding figures are its constants' arithmetic — ${perPoint.toFixed(4)} m² a point, ${(Number(said.parcel[1]) * perPoint).toFixed(3)} m² on ${said.parcel[1]} points`);
+}
+/* ---- end bugfix3: property ---- */
+
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`
   : `ok    none of the ${BANNED.length} banned phrases is used as a claim`);

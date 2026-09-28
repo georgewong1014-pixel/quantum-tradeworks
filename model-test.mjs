@@ -1549,6 +1549,243 @@ try {
   }
   /* ---- end bugfix: grade-area-registers ---- */
 
+  /* ---- bugfix3: property ---- */
+  /* Q1 — a tax total over years whose tax is unknown is unknown. With a
+          tenure of 0 every year's tax is null, the running sum left RM0, and
+          the decision record read "after tax on the rent at 24%, totalling
+          RM0 across the hold". */
+  {
+    const r = JSON.parse(await evaluate(`(() => {
+      const kept = State.deal;
+      const d = { ...window.__T.base, tenureYears: 0, rent: 3600, marginalTaxPct: 24 };
+      const m = dealModel(d);
+      State.deal = d;
+      let said = '';
+      try { said = (decisionRecordProperty().textContent.match(/Figures are after tax[^.]*\\./) || [''])[0]; } finally { State.deal = kept; }
+      const t = dealModel(window.__T.taxed);
+      return JSON.stringify({ cumTax: m.cumTax, said, taxed: t.cumTax, taxedSum: t.path.reduce((a, p) => a + p.tax, 0) });
+    })()`));
+    if (r.cumTax !== null) fail('the tax total over years whose tax is unknown is a number', r);
+    else if (/totalling RM/.test(r.said)) fail('the decision record prints a tax total the model cannot compute', r.said);
+    else if (!(r.taxed > 0) || Math.abs(r.taxed - r.taxedSum) > 1e-6) fail('the tax total no longer sums the years it can compute', r);
+    else ok(`a tax total over unknown years is unknown, not RM0 — the record reads "${r.said}"; a computable one still sums its years`, r);
+  }
+
+  /* Q2 — a cash purchase has nothing to service whatever the tenure box
+          says. With no loan and a tenure of 0 the instalment was null, the
+          reserve could not be computed and was listed as a missing cost
+          line, and the page warned that the schedule was unavailable. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = JSON.parse(JSON.stringify(State.deal));
+      const cash = { ...window.__T.base, downPct: 100, tenureYears: 0 };
+      const m = dealModel(cash);
+      const fin = dealModel({ ...window.__T.base, tenureYears: 0 });
+      const aff = borrowerAffordability({ verifiedNetMonthlyIncome: 9000, existingMonthlyDebtPayments: 500 }, m);
+      State.deal = cash; navigate('/property/calculator'); render();
+      await new Promise(res => setTimeout(res, 200));
+      const text = document.querySelector('main').innerText;
+      State.deal = kept; saveDeal(); render();
+      return JSON.stringify({ inst: m.instalment, reserve: m.reserve, computable: m.reserveComputable,
+        missing: m.missingCostLines.map(x => x.label), stressed: aff.stressedInstalment,
+        warned: /loan tenure is zero or negative/.test(text), zeroRate: dealModel({ ...cash, ratePct: 0 }).zeroRateModelled,
+        finInst: fin.instalment, finComputable: fin.reserveComputable });
+    })()`));
+    if (r.inst !== 0 || !r.computable || !(r.reserve > 0) || r.missing.length) fail('a cash purchase with a tenure of 0 has no instalment of nought or no reserve', r);
+    else if (r.warned || r.zeroRate) fail('a cash purchase is warned about a loan schedule or rate it does not have', r);
+    else if (r.stressed !== 0) fail('a cash purchase has an unknown stressed instalment', r);
+    else if (r.finInst !== null || r.finComputable) fail('a financed deal with a tenure of 0 now claims an instalment', r);
+    else ok(`a cash purchase with a tenure of 0 has an instalment of RM0 and a reserve of RM${r.reserve}, and no loan warning; a loan with no tenure is still unknown`, r);
+  }
+
+  /* Q3 — the gains-tax flag names the seller as a sentence does. It
+          lower-cased the short label: "charged at 30% for citizen or pr". */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...window.__T.base, holdYears: 3 };
+      return propertyRiskFlags(d, dealModel(d)).find(f => /gains tax/.test(f.t))?.n || null;
+    })()`);
+    if (!r || /\bpr\b|citizen or pr/.test(r) || !/for a citizen or permanent resident/.test(r)) fail('the gains-tax flag names the seller category as a lower-cased label', r);
+    else ok(`the gains-tax flag reads as a sentence — "${r.slice(0, 80)}…"`, r);
+  }
+
+  /* Q4 — the property report meter counts the reader's month. It keyed on
+          the UTC month, so at 00:30 on 1 October in Kuching (16:30 on 30
+          September in UTC) September's used reports still counted. */
+  {
+    await send('Emulation.setTimezoneOverride', { timezoneId: 'Asia/Kuching' }, sessionId);
+    const r = JSON.parse(await evaluate(`(() => {
+      const Real = Date, fixed = Real.parse('2026-09-30T16:30:00Z');
+      const keptLog = State.propertyReportLog;
+      window.Date = class extends Real { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } };
+      try {
+        State.propertyReportLog = { month: '2026-09', ids: ['a', 'b'] };
+        const month = propertyReportLogNow().month;
+        return JSON.stringify({ month, used: propertyReportLogNow().ids.length });
+      } finally { window.Date = Real; State.propertyReportLog = keptLog; }
+    })()`));
+    await send('Emulation.setTimezoneOverride', { timezoneId: '' }, sessionId);
+    if (r.month !== '2026-10' || r.used !== 0) fail('the property report meter counts the UTC month, not the reader\'s', r);
+    else ok('the property report meter turns over at midnight in Kuching — October at 00:30 on the 1st, with none used', r);
+  }
+
+  /* Q5 — the area screen's "Last transacted" is the newest sale of either
+          kind. It preferred any built sale to every land sale: a 2019 house
+          beside last month's parcel showed 2019. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keptObs = State.observations, keptLog = localStorage.getItem('vl.registerLog');
+      const keptScreen = { ...State.areaScreen };
+      const recent = new Date(); recent.setMonth(recent.getMonth() - 1);
+      State.observations = [];
+      addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 620000, date:'2019-03-01', evidence:'user', sourceRef:'old sale' });
+      addObservation({ city:'kuching', area:'Tabuan', kind:'land-sold', value: 333000, date: caseRaisedAt(recent).slice(0, 10), evidence:'user', sourceRef:'new parcel' });
+      State.areaScreen = { ...State.areaScreen, city: 'kuching', editing: null };
+      navigate('/property/areas'); render();
+      await new Promise(res => setTimeout(res, 300));
+      const table = [...document.querySelectorAll('main table.dt')].find(t => /Last transacted/.test(t.querySelector('thead')?.textContent || ''));
+      const col = [...table.querySelectorAll('thead th')].findIndex(th => th.textContent === 'Last transacted');
+      const row = [...table.querySelectorAll('tbody tr')].find(tr => tr.querySelector('th')?.textContent === 'Tabuan');
+      const cell = row ? row.children[col]?.textContent : null;
+      State.observations = keptObs; saveObservations();
+      if (keptLog == null) localStorage.removeItem('vl.registerLog'); else localStorage.setItem('vl.registerLog', keptLog);
+      loadRegisterLog(); State.areaScreen = keptScreen;
+      return JSON.stringify({ cell });
+    })()`));
+    if (!r.cell || !/333,000/.test(r.cell) || !/land/.test(r.cell) || /620,000/.test(r.cell)) fail('"Last transacted" shows an older built sale over a newer land sale', r);
+    else ok(`"Last transacted" is the newest sale of either kind — ${r.cell}`, r);
+  }
+
+  /* Q6 — a class that can never be graded says so. A financed parcel has no
+          rent, so debt-service cover and rental cash flow cannot apply: at
+          most 60% of the weight can be scored against the 80% a grade needs.
+          It read "Not enough evidence", and the page said the grade was
+          withheld for want of coverage, as though evidence could lift it.
+          The model is unchanged: still U, still 60%. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = JSON.parse(JSON.stringify(State.deal));
+      const drivers = evidenceDriversFor({ ...window.__T.base, propertyType: 'Land' });
+      const strong = { ...window.__T.base, propertyType: 'Land', titleType: 'mixed-zone', bankValuation: window.__T.base.price,
+        evidence: Object.fromEntries(drivers.map(k => [k, 'verified'])), touched: Object.fromEntries(drivers.map(k => [k, true])),
+        checks: Object.fromEntries(SARAWAK_CHECKS.map(c => [c.id, c.adverse === 'yes' ? 'no' : 'yes'])) };
+      const out = {};
+      for (const [name, d] of [['financed', strong], ['cash', { ...strong, downPct: 100 }], ['noTenure', { ...window.__T.base, tenureYears: 0 }]]) {
+        const g = propertyGrade(d, dealModel(d));
+        State.deal = d; navigate('/property/calculator'); render();
+        await new Promise(res => setTimeout(res, 150));
+        const card = [...document.querySelectorAll('main h3')].find(x => /Underwriting Grade/.test(x.textContent))?.closest('.card');
+        const text = card ? card.textContent : '';
+        out[name] = { grade: g.grade, verdict: g.verdict, coverage: g.coverage, reachable: g.reachable, gates: g.gates.length,
+          noEvidence: /no further evidence changes that/.test(text), wantOfCoverage: /could be scored, against the 80% a grade requires/.test(text),
+          doesNotApply: [...(card ? card.querySelectorAll('td span.caption') : [])].filter(s => s.textContent === 'does not apply').length,
+          aCeiling: /short of the 90% an A needs/.test(text) };
+      }
+      State.deal = kept; saveDeal(); render();
+      return JSON.stringify(out);
+    })()`));
+    const f = r.financed, c = r.cash, n = r.noTenure;
+    if (f.grade !== 'U' || Math.abs(f.coverage - 0.6) > 1e-9 || f.gates) fail('the financed parcel is not the case this check is about — U at 60% with no gate', f);
+    else if (f.verdict === 'Not enough evidence' || !f.noEvidence || f.wantOfCoverage || f.doesNotApply !== 2) fail('a financed parcel that no evidence can grade is told it lacks evidence', f);
+    else if (c.verdict === 'Not gradeable for this class' || !c.aCeiling || c.doesNotApply !== 1) fail('a cash parcel does not say it can reach a B and never an A', c);
+    else if (n.verdict !== 'Not enough evidence' || n.doesNotApply) fail('a loan with no tenure is called inapplicable rather than uncomputed', n);
+    else ok(`a financed parcel reads "${f.verdict}" — two pillars do not apply and no evidence lifts ${Math.round(f.reachable * 100)}% to 80%; a cash parcel says an A is out of reach; a let deal with no tenure still lacks evidence`, r);
+  }
+
+  /* Q7 — the keyboard keeps its place on the controls that still dropped it.
+          The borrower's fields sat in a disclosure that came back closed on
+          every redraw, so focus could not return to them; Sarawak Add and
+          Remove, a map point, the calculator's Record, and the comparables
+          drawer's Delete and Import each redrew the page and left focus on
+          <body>. Driven with real key events. */
+  {
+    const keys = async (seq) => {
+      for (const k of seq) {
+        const code = { Tab: 9, Enter: 13, ArrowDown: 40 }[k] || k.charCodeAt(0);
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, windowsVirtualKeyCode: code,
+          ...(k.length === 1 ? { text: k } : k === 'Enter' ? { text: '\r' } : {}) }, sessionId);
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code }, sessionId);
+        await sleep(120);
+      }
+      await sleep(300);
+    };
+    const at = () => evaluate(`(() => { const a = document.activeElement; if (!a) return null; if (a.id) return a.id; const pt = a.getAttribute && a.getAttribute('role') === 'button' && a.closest && a.closest('svg'); return pt ? 'area:' + a.getAttribute('aria-label').split('.')[0] : a.tagName; })()`);
+    const out = {};
+    await evaluate(`(() => { window.__T.q7 = { deal: JSON.parse(JSON.stringify(State.deal)), borrower: localStorage.getItem('vl.borrowerProfile'), borrowerState: JSON.parse(JSON.stringify(State.borrower)),
+      swk: localStorage.getItem('vl.sarawakExposure'), obs: localStorage.getItem('vl.observations'), log: localStorage.getItem('vl.registerLog') };
+      navigate('/property/calculator'); return true; })()`);
+    await sleep(600);
+    /* the borrower's disclosure */
+    await evaluate(`(() => { const d = document.getElementById('b-credit').closest('details'); d.open = true; return true; })()`);
+    await sleep(100);
+    await evaluate(`(() => { const n = document.getElementById('b-verifiedNetMonthlyIncome'); n.scrollIntoView({ block: 'center' }); n.focus(); n.select(); return true; })()`);
+    await keys(['9', '1', '0', '0', 'Tab']); out.income = await at();
+    out.stillOpen = await evaluate(`!!document.getElementById('b-credit')?.closest('details')?.open`);
+    await evaluate(`(() => { document.getElementById('b-credit').focus(); return true; })()`);
+    await keys(['ArrowDown']); out.credit = await at();
+    await evaluate(`(() => { document.getElementById('b-credit').closest('details').open = false; return true; })()`);
+    /* a map point */
+    const pick = await evaluate(`(() => { const name = (g) => g.getAttribute('aria-label').split('.')[0]; const g = [...document.querySelectorAll('main svg g[role="button"]')].find(x => name(x) !== State.deal.district); if (!g) return null; g.scrollIntoView({ block: 'center' }); g.focus(); return name(g); })()`);
+    await keys(['Enter']); await sleep(300); out.map = await at(); out.picked = pick;
+    out.district = await evaluate(`State.deal.district`);
+    /* the calculator's Record — found by its words, so the check runs on a
+       build without the ids it relies on and fails rather than stopping */
+    const button = (label, scope = 'main') => `[...document.querySelectorAll('${scope} button')].find(x => x.textContent.trim() === '${label}')`;
+    const said = () => evaluate(`(() => { const a = document.activeElement; return a && a !== document.body ? (a.tagName + ':' + a.textContent.trim().slice(0, 24)) : 'BODY'; })()`);
+    await evaluate(`(() => { const v = document.querySelector('main input[aria-label="Observed value"]'); v.value = '2100'; const b = ${button('Record')}; b.scrollIntoView({ block: 'center' }); b.focus(); return true; })()`);
+    await keys(['Enter']); out.record = await said();
+    /* Sarawak Add and Remove */
+    await evaluate(`(() => { State.sarawakExposure = []; saveExposures(); navigate('/discover/sarawak'); return true; })()`);
+    await sleep(500);
+    await evaluate(`(() => { ${button('Add')}.focus(); return true; })()`);
+    await keys(['Enter']); out.add = await said();
+    await evaluate(`(() => { const s = document.querySelector('main select[aria-label="Company"]'); s.selectedIndex = 1; s.dispatchEvent(new Event('change', { bubbles: true })); ${button('Add')}.focus(); return true; })()`);
+    await keys(['Enter']);
+    out.second = await evaluate(`State.sarawakExposure[1]?.tk || null`);
+    const removeFirst = `(() => { const d = document.querySelector('main details'); d.open = true; [...d.querySelectorAll('button')].find(b => b.textContent.trim() === 'Remove').focus(); return true; })()`;
+    await evaluate(removeFirst);
+    await keys(['Enter']); out.remove = await said();
+    await evaluate(removeFirst);
+    await keys(['Enter']); out.removeLast = await said();
+    /* the comparables drawer */
+    await evaluate(`(() => { State.observations = []; for (let i = 0; i < 3; i++) addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 100 + i, date: '2026-05-0' + (i + 1), evidence:'user', sourceRef:'q7-' + i });
+      navigate('/property/comparables'); return true; })()`);
+    await sleep(500);
+    const openRow = (src) => `[...document.querySelectorAll('main tbody tr')].find(tr => tr.textContent.includes('${src}'))?.querySelector('button')`;
+    await evaluate(`(() => { const b = ${openRow('q7-1')}; b.scrollIntoView({ block: 'center' }); b.focus(); return true; })()`);
+    await keys(['Enter']);
+    await evaluate(`(() => { ${button('Delete this record', '')}.focus(); return true; })()`);
+    await keys(['Enter']); await sleep(400);
+    out.del = await said();
+    out.delRow = await evaluate(`document.activeElement?.closest('tr')?.textContent.includes('q7-0') || false`);
+    await evaluate(`(() => { const b = ${button('Import')}; b.scrollIntoView({ block: 'center' }); b.focus(); return true; })()`);
+    await keys(['Enter']);
+    await evaluate(`(() => { const ta = [...document.querySelectorAll('textarea')].find(t => /Paste JSON/.test(t.placeholder)); ta.value = JSON.stringify([{ city:'kuching', area:'Tabuan', kind:'sold-price', value: 555, date:'2026-06-01', evidence:'user', sourceRef:'q7-import' }]);
+      ${button('Check this paste', '')}.click(); return true; })()`);
+    await sleep(200);
+    await evaluate(`(() => { [...document.querySelectorAll('button')].find(x => /^Import \\d+ record/.test(x.textContent.trim())).focus(); return true; })()`);
+    await keys(['Enter']); await sleep(400); out.imp = await said();
+    await evaluate(`(() => { const k = window.__T.q7;
+      const put = (key, v) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v);
+      put('borrowerProfile', k.borrower); put('sarawakExposure', k.swk); put('observations', k.obs); put('registerLog', k.log);
+      State.borrower = k.borrowerState; State.sarawakExposure = store.read('sarawakExposure', []);
+      State.observations = store.read('observations', []); loadRegisterLog();
+      State.deal = k.deal; saveDeal(); navigate('/property/calculator'); return true; })()`);
+    await sleep(300);
+    const lost = [];
+    if (out.income !== 'b-variableIncomeMonthlyAverage' || !out.stillOpen) lost.push(`borrower income then Tab → ${out.income}, disclosure open ${out.stillOpen}`);
+    if (out.credit !== 'b-credit') lost.push(`borrower credit record by arrow key → ${out.credit}`);
+    if (!out.picked || out.map !== 'area:' + out.picked || out.district !== out.picked) lost.push(`map point ${out.picked} → ${out.map}`);
+    if (out.record !== 'BUTTON:Record') lost.push(`Record → ${out.record}`);
+    if (out.add !== 'BUTTON:Add') lost.push(`Sarawak Add → ${out.add}`);
+    if (!out.second || !out.remove.startsWith('SUMMARY:' + out.second) || out.removeLast !== 'BUTTON:Add') lost.push(`Sarawak Remove → ${out.remove}, then ${out.removeLast}`);
+    if (out.del !== 'BUTTON:Open' || !out.delRow) lost.push(`drawer Delete → ${out.del} (the row that took its place: ${out.delRow})`);
+    if (out.imp !== 'BUTTON:Import') lost.push(`drawer Import → ${out.imp}`);
+    if (lost.length) fail('focus falls to <body> after a control redraws the page', lost.join('; '));
+    else ok('focus stays in the page through every redraw — borrower fields (disclosure kept open), a map point, Record, Sarawak Add and Remove, the drawer\'s Delete and Import', out);
+  }
+  /* ---- end bugfix3: property ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
