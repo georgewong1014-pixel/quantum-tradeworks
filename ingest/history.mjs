@@ -29,7 +29,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, KEEP } from './history-store.mjs';
+import { updateHistory, mergeBars, describeMerge, engine, loadInstruments, marketOf, KEEP, sourceKind } from './history-store.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
@@ -53,6 +53,7 @@ catch (e) { console.error(`cannot load the scan engine out of index.html — the
 const instruments = await loadInstruments(flag('instruments', 'data/instruments.json'));
 
 let skipped = 0;
+const foreign = [];
 let run;
 try {
   run = await updateHistory(outPath, (hist) => {
@@ -62,6 +63,15 @@ try {
       /* A point without a date cannot be placed on a time axis, and guessing
          today would silently misdate it. */
       if (!p || typeof p.close !== 'number' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { skipped++; continue; }
+      /* A row that names its own source is not this file's reading. fx.mjs
+         merges Bank Negara's USD/MYR into the screen's price file with src
+         'Bank Negara Malaysia' and no capture time, and it was filed under
+         the file's source: a central-bank reference rate became a 'screen'
+         bar with no capture time and, where the screen already held that
+         date, the two ranked equal, so the rate replaced the screen's
+         reading and was recorded as the screen correcting itself. Such a
+         row is left out of this file's merge, and the run names it. */
+      if (p.src && sourceKind(p.src) !== sourceKind(SOURCE)) { foreign.push(`${symbol} (${p.src})`); continue; }
       results.push(mergeBars(hist, symbol, [{ date, close: p.close, volume: p.volume ?? null }],
         { source: SOURCE, capturedAt: p.capturedAt || null, market: marketOf(symbol, instruments), E }));
     }
@@ -77,5 +87,6 @@ console.log(`  source    : ${SOURCE}`);
 console.log(`  symbols   : ${hist.symbols}`);
 lines.forEach(l => console.log(l));
 if (skipped) console.log(`  skipped   : ${skipped} (no usable close or date)`);
+if (foreign.length) console.log(`  left out  : ${foreign.length} row(s) naming their own source, not filed as ${SOURCE} readings: ${foreign.slice(0, 5).join(', ')}${foreign.length > 5 ? ', …' : ''}`);
 console.log(`  depth     : ${depth.length ? `${Math.min(...depth)}-${Math.max(...depth)} day(s) per symbol` : 'none'}`);
 process.exit(totals.rejected || totals.outranked ? 2 : 0);

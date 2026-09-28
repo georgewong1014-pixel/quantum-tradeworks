@@ -712,5 +712,175 @@ try {
 }
 /* ---- end bugfix2: ingest ---- */
 
+/* ---- bugfix4: ingest ---- */
+/* A ROW THAT NAMES ITS OWN SOURCE IS NOT THE FILE'S READING; A DAY WITH
+   NOTHING IMPORTED IS SAID TO BE ONE. history.mjs filed fx.mjs's Bank
+   Negara USD/MYR — merged into the screen's price file with its own src and
+   no capture time — under the file's source: a 'screen' bar with no capture
+   time that, ranking equal with the screen's reading already held for that
+   date, replaced it and was recorded as a correction. daily.mjs read
+   prices.mjs's exit 1 for "no row accepted" as "import FAILED" and stopped
+   there: no FX, and never the closing lines for a day whose every row was
+   held back. The re-run those lines gave named the import alone, so a
+   close corrected as told never reached the history. And its FX line said
+   "from Bank Negara Malaysia, cross-checked" whichever source answered.
+   No network: fetch, the capture, the reader and the scanner are stubs,
+   every file temporary. */
+{
+  const BD = join(tmpdir(), `qt-bugfix4-ingest-${process.pid}`);
+  await rm(BD, { recursive: true, force: true });
+  await mkdir(BD, { recursive: true });
+  const node = (args, opts = {}) => run(process.execPath, args, { cwd: ROOT, ...opts }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  const HEAD = 'symbol,date,close,prev,move_pct,verdict,captured_at,bar_status,why,ocr_line\n';
+  try {
+    /* prices.mjs, then fx.mjs (Bank Negara stubbed, Frankfurter down), then
+       history.mjs on the same file — the manual path the README gives. The
+       screen had already read USD/MYR for that session, after its close. */
+    const review = join(BD, 'watchlist-review.csv'), pp = join(BD, 'personal-prices.json'), hist = join(BD, 'price-history.json');
+    await writeFile(review, HEAD + '1155,2026-09-25,9.87,,,accept,2026-09-25T10:30:00.000Z,FINAL,,x\n');
+    const p1 = await node([join(ROOT, 'ingest/prices.mjs'), '--in', review, '--out', pp, '--licence', 'personal research']);
+    /* fetch as fx.mjs meets it: Bank Negara's rate (4.20 / 4.22), Frankfurter's (4.2135), each up or down. */
+    const fetchAs = (bnmUp, frankUp) => `globalThis.fetch = async (url) => {
+  if (String(url).includes('bnm.gov.my')) { if (${bnmUp}) return { ok: true, status: 200, json: async () => ({ data: { rate: { date: '2026-09-25', buying_rate: 4.2, selling_rate: 4.22, middle_rate: null } } }) }; throw new Error('BNM unreachable'); }
+  if (${frankUp}) return { ok: true, status: 200, json: async () => ({ date: '2026-09-25', rates: { MYR: 4.2135 } }) };
+  throw new Error('frankfurter unreachable');
+};\n`;
+    const pre = {};
+    for (const [k, b, f] of [['bnm', true, false], ['frank', false, true], ['both', true, true], ['none', false, false]]) { await writeFile(join(BD, `fetch-${k}.mjs`), fetchAs(b, f)); pre[k] = pathToFileURL(join(BD, `fetch-${k}.mjs`)).href; }
+    const f1 = await node(['--import', pre.bnm, join(ROOT, 'ingest/fx.mjs'), '--out', pp]);
+    const book1 = JSON.parse(await readFile(pp, 'utf8'));
+    await updateHistory(hist, (x) => [mergeBars(x, 'USDMYR', [{ date: '2026-09-25', close: 4.215 }], { source: 'screen', capturedAt: '2026-09-25T23:30:00.000Z', market: 'FX', E, now: NOW })]);
+    const h1 = await node([join(ROOT, 'ingest/history.mjs'), '--in', pp, '--out', hist]);
+    const got1 = JSON.parse(await readFile(hist, 'utf8'));
+    check(p1.code === 0 && f1.code === 0 && book1.prices.USDMYR?.src === 'Bank Negara Malaysia' && book1.prices.USDMYR.close === 4.21
+      && h1.code === 0 && got1.series.USDMYR?.['2026-09-25'] === 4.215 && same(got1.meta.USDMYR?.['2026-09-25'], { src: 'screen', at: '2026-09-25T23:30:00.000Z' })
+      && !(got1.corrections?.USDMYR || []).length && got1.series['1155']?.['2026-09-25'] === 9.87 && got1.meta['1155']?.['2026-09-25']?.src === 'screen'
+      && /left out\s*: 1 row\(s\) naming their own source\b.*USDMYR \(Bank Negara Malaysia\)/.test(h1.stdout),
+      'bugfix4 ingest: history.mjs leaves out, and names, a row that carries its own source — fx.mjs\'s Bank Negara rate in the screen\'s price file replaced the screen\'s USD/MYR reading for that date as a \'screen\' bar with no capture time, recorded as a correction; the screen\'s own rows are filed as before',
+      { p1: p1.code, f1: [f1.code, f1.stderr.slice(0, 200)], usdmyr: [got1.series.USDMYR, got1.meta.USDMYR, got1.corrections?.USDMYR], out: h1.stdout });
+
+    /* daily.mjs with the capture, the reader, the history and the scanner
+       stubbed (each leaves a mark when it runs), prices.mjs the real one, and
+       fx.mjs the real one on a stubbed fetch (STUB_FX: bnm, frank, both or
+       none up). STUB_READ_THROW makes the reader throw, as a script does. */
+    const DD = join(BD, 'daily');
+    for (const s of ['ingest', 'scanner', 'data']) await mkdir(join(DD, s), { recursive: true });
+    const realScript = (f) => `import { spawnSync } from 'node:child_process'; const r = spawnSync(process.execPath, [${JSON.stringify(join(ROOT, 'ingest', f))}, ...process.argv.slice(2)], { stdio: 'inherit' }); process.exit(r.status ?? 1);`;
+    const marks = (name, text) => `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(name)}, '1'); console.log(${JSON.stringify(text)});`;
+    await writeFile(join(DD, 'ingest/autoshot.mjs'), "console.log('page 1');");
+    await writeFile(join(DD, 'ingest/watchlist.mjs'), "if (process.env.STUB_READ_THROW) throw new Error(process.env.STUB_READ_THROW);\nconsole.log(process.env.STUB_READ || 'candidates 2\\nflagged   2\\nskipped   0');");
+    await writeFile(join(DD, 'ingest/prices.mjs'), realScript('prices.mjs'));
+    await writeFile(join(DD, 'ingest/history.mjs'), marks('history-ran', '  symbols   : 2\n  new bars  : 2\n  depth     : 1-2 day(s) per symbol'));
+    await writeFile(join(DD, 'ingest/fx.mjs'), `import { writeFileSync } from 'node:fs'; import { spawnSync } from 'node:child_process'; writeFileSync('fx-ran', '1');
+const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[process.env.STUB_FX || 'both'], ${JSON.stringify(join(ROOT, 'ingest/fx.mjs'))}, ...process.argv.slice(2)], { stdio: 'inherit' }); process.exit(r.status ?? 1);`);
+    await writeFile(join(DD, 'scanner/scan.mjs'), marks('scan-ran', '0 new alerts recorded\nstatus     COMPLETED (run-stub-1)'));
+    await writeFile(join(DD, 'data/scan-setups.json'), '{"setups":[]}');
+    const held = { source: 'data/watchlist-review.csv', asOf: '2026-09-24', prices: { AAA: { close: 214.3, date: '2026-09-24', capturedAt: '2026-09-24T10:30:00.000Z' }, BBB: { close: 10.1, date: '2026-09-24', capturedAt: '2026-09-24T10:30:00.000Z' } } };
+    const reset = async (csv) => {
+      for (const f of ['history-ran', 'fx-ran', 'scan-ran']) await rm(join(DD, f), { force: true });
+      await writeFile(join(DD, 'data/personal-prices.json'), JSON.stringify(held));
+      await writeFile(join(DD, 'data/watchlist-review.csv'), csv);
+    };
+    const daily = (env = {}) => node([join(ROOT, 'ingest/daily.mjs'), '--url', 'http://example.invalid'], { cwd: DD, env: { ...process.env, ...env } });
+    const lastRun = async () => JSON.parse(await readFile(join(DD, 'data/ingest-runs.json'), 'utf8')).runs.at(-1);
+    const stepOf = (r, name) => r?.steps?.find(s => s.step === name)?.status;
+    const ran = (f) => existsSync(join(DD, f));
+
+    await reset(HEAD + 'AAA,2026-09-25,814.3,214.3,280,CHECK,2026-09-25T10:30:00.000Z,FINAL,implies +280%,x\nBBB,2026-09-25,10.2,10.1,1,CHECK,2026-09-25T10:30:00.000Z,FINAL,conflict,x\n');
+    const d2 = await daily();
+    const r2 = await lastRun();
+    const ran2 = { history: ran('history-ran'), scan: ran('scan-ran'), fx: ran('fx-ran') };
+    const file2 = JSON.parse(await readFile(join(DD, 'data/personal-prices.json'), 'utf8'));
+    check(d2.code === 1 && !/import\s+FAILED/.test(d2.stdout) && /^import\s+nothing accepted, 2 held back for review/m.test(d2.stdout) && stepOf(r2, 'import') === 'warn'
+      && !ran2.history && stepOf(r2, 'history') === 'skipped' && !ran2.scan && stepOf(r2, 'scanner') === 'skipped' && ran2.fx && stepOf(r2, 'fx') === 'ok'
+      && /^NOTHING IMPORTED — every row was held back\.$/m.test(d2.stdout) && /^Open data\/watchlist-review\.csv, correct the rows marked CHECK/m.test(d2.stdout)
+      && r2.status === 'FAILED' && r2.exitCode === 1 && r2.counts?.accepted === 0 && r2.counts?.rejected === 2
+      && same(file2.prices.AAA, held.prices.AAA) && same(file2.prices.BBB, held.prices.BBB) && file2.prices.USDMYR?.close === 4.21,
+      'bugfix4 ingest: daily.mjs reads prices.mjs\'s exit 1 for "no row accepted" as that — the prices the file holds stand, the history and the scanner are skipped, FX still runs, and the run closes "every row was held back" with the file to correct, exit 1; it said "import FAILED" and stopped',
+      { code: d2.code, ran: ran2, steps: r2?.steps, tail: d2.stdout.split('\n').slice(-9) });
+
+    await reset(HEAD);
+    const d3 = await daily({ STUB_READ: 'candidates 0\nflagged   0\nskipped   0' });
+    const r3 = await lastRun();
+    await reset('symbol,date\nAAA,2026-09-25\n');
+    const d4 = await daily();
+    const r4 = await lastRun();
+    check(d3.code === 1 && /^NOTHING IMPORTED — no row was read from the capture\.$/m.test(d3.stdout) && !/every row was held back/.test(d3.stdout) && !/import\s+FAILED/.test(d3.stdout) && stepOf(r3, 'history') === 'skipped'
+      && d4.code === 1 && /^import\s+FAILED/m.test(d4.stdout) && stepOf(r4, 'import') === 'failed' && !ran('fx-ran') && !ran('history-ran'),
+      'bugfix4 ingest: a capture that read no row closes "no row was read from the capture", not "import FAILED"; an import that genuinely fails (a review file with no close column) is still FAILED and stops the run',
+      { d3: d3.stdout.split('\n').slice(-6), d4: d4.stdout.split('\n').slice(-6), r4: r4?.steps });
+
+    /* A step whose script throws is logged with the error it threw, not the
+       last line of Node's stack ("Node.js v24.x"). */
+    await reset(HEAD);
+    const d4b = await daily({ STUB_READ_THROW: 'the OCR engine is not installed' });
+    const r4b = await lastRun();
+    const detailOf = (r, name) => r?.steps?.find(s => s.step === name)?.detail;
+    const said = (d) => d.stdout.split('report written to')[0];
+    check(detailOf(r4, 'import') === 'Error: CSV is missing a required column: close' && /^import\s+FAILED\n\s+Error: CSV is missing a required column: close$/m.test(said(d4).replace(/\r/g, ''))
+      && d4b.code === 1 && detailOf(r4b, 'read') === 'Error: the OCR engine is not installed' && /^read\s+FAILED\n\s+Error: the OCR engine is not installed$/m.test(said(d4b).replace(/\r/g, ''))
+      && ![d4, d4b].some(d => /Node\.js v\d|^\s+at /m.test(said(d))),
+      'bugfix4 ingest: a step whose script threw is reported and logged with the error it threw — the import that found no close column was logged as failing with "Node.js v24", the stack frames printed as the reason',
+      { import: detailOf(r4, 'import'), read: detailOf(r4b, 'read'), d4: said(d4).split('\n').slice(-6), d4b: said(d4b).split('\n').slice(-6) });
+
+    /* The closing lines' re-run, followed as printed after the reader corrects
+       the held-back row: the corrected close reaches the history. */
+    await reset(HEAD + 'AAA,2026-09-25,814.3,214.3,280,CHECK,2026-09-25T10:30:00.000Z,FINAL,implies +280%,x\nBBB,2026-09-25,10.2,10.1,1,accept,2026-09-25T10:30:00.000Z,FINAL,,x\n');
+    const d5 = await daily({ STUB_READ: 'candidates 2\nflagged   1\nskipped   0' });
+    await writeFile(join(DD, 'data/watchlist-review.csv'), HEAD + 'AAA,2026-09-25,216.1,214.3,0.84,accept,2026-09-25T10:30:00.000Z,FINAL,corrected,x\nBBB,2026-09-25,10.2,10.1,1,accept,2026-09-25T10:30:00.000Z,FINAL,,x\n');
+    const told = d5.stdout.split('\n').filter(l => /^\s+node ingest\/\S+\.mjs/.test(l)).map(l => [...l.trim().matchAll(/"([^"]*)"|(\S+)/g)].map(m => m[1] ?? m[2]).slice(1));
+    const did = [];
+    for (const [script, ...args] of told) did.push((await node([join(ROOT, script), ...args], { cwd: DD })).code);
+    const hist5 = existsSync(join(DD, 'data/price-history.json')) ? JSON.parse(await readFile(join(DD, 'data/price-history.json'), 'utf8')) : null;
+    check(d5.code === 2 && told.length && did.every(c => c === 0) && hist5?.series?.AAA?.['2026-09-25'] === 216.1 && hist5?.series?.BBB?.['2026-09-25'] === 10.2,
+      'bugfix4 ingest: the re-run daily.mjs prints for rows held back, followed as printed, puts the corrected close in the history — it named the import alone, which writes only the price file the next run replaces, so the session was lost from the series',
+      { told: told.map(t => t[0]), did, aaa: hist5?.series?.AAA ?? null });
+
+    /* The FX line names the source fx.mjs chose and whether a second agreed. */
+    const fxSay = {};
+    for (const k of ['frank', 'bnm', 'both']) {
+      await reset(HEAD + 'AAA,2026-09-25,216.1,214.3,0.84,accept,2026-09-25T10:30:00.000Z,FINAL,,x\nBBB,2026-09-25,10.2,10.1,1,accept,2026-09-25T10:30:00.000Z,FINAL,,x\n');
+      const d = await daily({ STUB_READ: 'candidates 2\nflagged   0\nskipped   0', STUB_FX: k });
+      const r = await lastRun();
+      fxSay[k] = { code: d.code, line: (d.stdout.match(/^fx\s+(.+)$/m) || [])[1] || null, detail: r?.steps?.find(s => s.step === 'fx')?.detail || null };
+    }
+    check(fxSay.frank.line === 'USD/MYR 4.2135 from Frankfurter (ECB reference rates), not cross-checked — only one source responded'
+      && fxSay.bnm.line === 'USD/MYR 4.21 from Bank Negara Malaysia, not cross-checked — only one source responded'
+      && fxSay.both.line === 'USD/MYR 4.21 from Bank Negara Malaysia, cross-checked (the two sources 0.083% apart)'
+      && Object.values(fxSay).every(x => x.code === 0 && x.detail === x.line),
+      'bugfix4 ingest: daily.mjs\'s FX line names the source the rate came from and whether a second source agreed — it said "from Bank Negara Malaysia, cross-checked" for Frankfurter\'s rate with Bank Negara down, and for a rate nothing checked',
+      fxSay);
+
+    /* Both FX sources down. The import that wrote the price file did not
+       carry the rate the file held (prices.mjs keeps no row that names its
+       own source), so "the previous rate is unchanged" was false; where
+       nothing was imported the file, and its rate, stand. */
+    const withRate = { ...held, prices: { ...held.prices, USDMYR: { close: 4.2, date: '2026-09-24', d1: null, hi: null, lo: null, m12: null, src: 'Bank Negara Malaysia', crossChecked: null } } };
+    await reset(HEAD + 'AAA,2026-09-25,216.1,214.3,0.84,accept,2026-09-25T10:30:00.000Z,FINAL,,x\nBBB,2026-09-25,10.2,10.1,1,accept,2026-09-25T10:30:00.000Z,FINAL,,x\n');
+    await writeFile(join(DD, 'data/personal-prices.json'), JSON.stringify(withRate));
+    const d6 = await daily({ STUB_READ: 'candidates 2\nflagged   0\nskipped   0', STUB_FX: 'none' });
+    const r6 = await lastRun();
+    const file6 = JSON.parse(await readFile(join(DD, 'data/personal-prices.json'), 'utf8'));
+    await reset(HEAD + 'AAA,2026-09-25,814.3,214.3,280,CHECK,2026-09-25T10:30:00.000Z,FINAL,implies +280%,x\nBBB,2026-09-25,10.2,10.1,1,CHECK,2026-09-25T10:30:00.000Z,FINAL,conflict,x\n');
+    await writeFile(join(DD, 'data/personal-prices.json'), JSON.stringify(withRate));
+    const d7 = await daily({ STUB_FX: 'none' });
+    const r7 = await lastRun();
+    const file7 = JSON.parse(await readFile(join(DD, 'data/personal-prices.json'), 'utf8'));
+    const fxLine = (d) => (d.stdout.match(/^fx\s+(.+)$/m) || [])[1] || null;
+    check(d6.code === 2 && file6.prices.USDMYR === undefined && stepOf(r6, 'fx') === 'failed'
+      && fxLine(d6) === 'could not refresh — data/personal-prices.json holds no USD/MYR rate now: the import replaced the file, and the rate it held (4.2 from Bank Negara Malaysia, 2026-09-24) was not carried over'
+      && d7.code === 1 && same(file7.prices.USDMYR, withRate.prices.USDMYR) && stepOf(r7, 'fx') === 'failed'
+      && fxLine(d7) === 'could not refresh — data/personal-prices.json holds USD/MYR 4.2 from Bank Negara Malaysia (2026-09-24)'
+      && [[d6, r6], [d7, r7]].every(([d, r]) => detailOf(r, 'fx') === fxLine(d).replace(/^could not refresh — /, '') && !/previous rate is unchanged/.test(d.stdout)),
+      'bugfix4 ingest: with FX down, daily.mjs says what USD/MYR rate the price file holds — "the previous rate is unchanged" was printed after an import that had replaced the file without it',
+      { d6: [d6.code, fxLine(d6), detailOf(r6, 'fx'), file6.prices.USDMYR ?? null], d7: [d7.code, fxLine(d7), detailOf(r7, 'fx')] });
+  } catch (e) {
+    fail('bugfix4 ingest: the test threw', e.stack || e.message);
+  } finally {
+    await rm(BD, { recursive: true, force: true }).catch(() => {});
+  }
+}
+/* ---- end bugfix4: ingest ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);
