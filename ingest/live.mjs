@@ -215,7 +215,14 @@ if (WANT_QUOTES) {
          the provider names, else the registry market's — and capturedAt is
          when it was fetched, which is what finality is judged by. */
       const market = marketOf(sym, instruments);
-      const date = q.asOf ? (q.tz ? dateInZone(q.asOf, q.tz) : readingSession(E, market, q.asOf).date) : null;
+      /* A bare date (Twelve Data's datetime, when the quote has no
+         timestamp) already names the session. Read as an instant it is
+         midnight UTC, before any session east of London has opened and
+         after New York's previous close, so readingSession filed the quote
+         under the session before. */
+      const date = !q.asOf ? null
+        : /^\d{4}-\d{2}-\d{2}$/.test(q.asOf) ? q.asOf
+        : q.tz ? dateInZone(q.asOf, q.tz) : readingSession(E, market, q.asOf).date;
       prices[sym] = { close: q.price, currency: q.currency, date, capturedAt: fetchedAt,
                       d1: null, hi: null, lo: null, m12: null };
       ok++;

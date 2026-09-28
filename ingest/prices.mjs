@@ -33,6 +33,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { csvRows, numberCell, parseDateCell } from './history-store.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 ? argv[i + 1] : d; };
@@ -47,30 +48,59 @@ if (!inPath) {
   process.exit(1);
 }
 
+/* A number, or null. The store's numberCell reads the cell: blank is no
+   reading, and a comma is a thousands separator only in groups of three —
+   stripping every comma read a decimal-comma "10,5" as 105. */
 const num = (v) => {
-  if (v == null || v === '') return null;
-  const n = Number(String(v).replace(/[, ]/g, ''));
+  const n = numberCell(v);
   return Number.isFinite(n) ? n : null;
 };
 
+/* Read as a CSV, not as lines split on commas (the store's csvRows): a
+   quoted cell is one cell, so a header written "symbol","close" is found
+   and a quoted "1,234.50" is a close, not "1" with the row shifted. */
 function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (!lines.length) throw new Error('empty file');
-  const head = lines[0].split(',').map(h => h.trim().toLowerCase());
+  const table = csvRows(text);
+  if (!table.length) throw new Error('empty file');
+  const head = table[0].cells.map(h => h.toLowerCase());
   const need = ['symbol', 'close'];
   for (const k of need) if (!head.includes(k)) throw new Error(`CSV is missing a required column: ${k}`);
-  return lines.slice(1).map(line => {
-    const cells = line.split(',');
+  return table.slice(1).map(({ cells }) => {
     const row = {};
-    head.forEach((h, i) => row[h] = (cells[i] ?? '').trim());
+    head.forEach((h, i) => row[h] = cells[i] ?? '');
     return row;
   });
 }
 
+/* A JSON input is a list of rows, or an object holding one under prices or
+   rows — and prices may be keyed by symbol, the shape this script, live.mjs
+   and fx.mjs write. That shape was iterated as a list and crashed ("rows is
+   not iterable"); each entry is now a row carrying its key as the symbol. */
+function jsonRows(j) {
+  const list = Array.isArray(j) ? j : (j?.prices ?? j?.rows ?? []);
+  if (Array.isArray(list)) return list;
+  if (list && typeof list === 'object') {
+    return Object.entries(list).map(([symbol, v]) => ({ symbol, ...(v && typeof v === 'object' ? v : { close: v }) }));
+  }
+  throw new Error('the JSON holds no prices: give a list of rows, { "prices": [ … ] }, or { "prices": { SYMBOL: { close, date } } }');
+}
+
 const raw = await readFile(inPath, 'utf8');
-const rows = inPath.toLowerCase().endsWith('.json')
-  ? (() => { const j = JSON.parse(raw); return Array.isArray(j) ? j : (j.prices || j.rows || []); })()
-  : parseCSV(raw);
+const rows = inPath.toLowerCase().endsWith('.json') ? jsonRows(JSON.parse(raw)) : parseCSV(raw);
+
+/* A date cell read as a session date, by the rule the history import and
+   the browser's paste parser use (the store's parseDateCell): ISO as
+   written, a day above 12 settles the order, and 03/04/2026 is refused as
+   ambiguous. The cell used to be copied through unread: "26/09/2025" was
+   refused as "in the future" (a string compared with an ISO date), and
+   "03/04/2026" went into the file as written, for the page to show as the
+   price's date. */
+const readDate = (v) => {
+  const s = String(v ?? '').trim();
+  return s ? parseDateCell(s) : { date: null };
+};
+const asOfRead = asOf ? readDate(asOf) : null;
+if (asOfRead?.error) { console.error(`--as-of: ${asOfRead.why}`); process.exit(1); }
 
 /* "In the future" means after today ANYWHERE: a session date is its
    exchange's own date, and at 22:00 UTC it is already tomorrow in Auckland
@@ -83,12 +113,14 @@ const rejected = [];
 for (const r of rows) {
   const symbol = String(r.symbol || r.ticker || '').trim().toUpperCase();
   const close = num(r.close ?? r.price ?? r.last);
-  const date = String(r.date || r.asof || asOf || '').slice(0, 10) || null;
+  const dateRead = readDate(r.date || r.asof || asOfRead?.date || '');
 
   /* Reject rather than repair. A price that fails a sanity check is a data
      problem to look at, not something to quietly coerce into the file. */
   if (!symbol) { rejected.push({ row: r, why: 'no symbol' }); continue; }
-  if (close == null || close <= 0) { rejected.push({ symbol, why: 'close is missing or not positive' }); continue; }
+  if (close == null || close <= 0) { rejected.push({ symbol, why: 'close is missing, unreadable or not positive' }); continue; }
+  if (dateRead.error) { rejected.push({ symbol, why: dateRead.why }); continue; }
+  const date = dateRead.date;
   if (date && date > today) { rejected.push({ symbol, why: `date ${date} is in the future` }); continue; }
 
   /* A review file from watchlist.mjs carries a verdict column. A row still
@@ -128,7 +160,7 @@ const stale = Object.values(prices).filter(p => p.date && (Date.now() - new Date
 const payload = {
   generated: new Date().toISOString(),
   source: inPath,
-  asOf: asOf || Object.values(prices).map(p => p.date).filter(Boolean).sort().pop() || null,
+  asOf: asOfRead?.date || Object.values(prices).map(p => p.date).filter(Boolean).sort().pop() || null,
   basis: 'end-of-day',
   delayMinutes: null,
   /* Recorded so the app can state, on screen, what right the prices are shown

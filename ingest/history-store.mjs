@@ -166,7 +166,7 @@ export async function appendRejects(path, rejects, { now = new Date().toISOStrin
 
 /* ------------------------------------------------------------ the merge -- */
 
-const num = (v) => (v == null || v === '' ? null : typeof v === 'number' ? v : Number.isFinite(Number(String(v).replace(/[, ]/g, ''))) ? Number(String(v).replace(/[, ]/g, '')) : NaN);
+const num = (v) => numberCell(v);
 const sameNum = (a, b, tol) => (a == null && b == null) || (a != null && b != null && Math.abs(a - b) <= tol * Math.max(Math.abs(a), Math.abs(b), 1e-12));
 
 function barAt(h, sym, d) {
@@ -205,10 +205,22 @@ export function mergeBars(hist, symbol, rows, { source, capturedAt = null, marke
   const sym = String(symbol);
   const out = { symbol: sym, source, market, added: 0, filled: 0, confirmed: 0, unchanged: 0, superseded: [], corrected: [], outranked: [], rejected: [] };
   const rank = sourceRank(source);
-  const list = (Array.isArray(rows) ? rows : []).map(r => ({ date: typeof r?.date === 'string' ? r.date.trim() : r?.date, open: num(r?.open), high: num(r?.high), low: num(r?.low), close: num(r?.close), volume: num(r?.volume), at: r?.capturedAt || capturedAt }));
+  const all = (Array.isArray(rows) ? rows : []).map(r => ({ date: typeof r?.date === 'string' ? r.date.trim() : r?.date, open: num(r?.open), high: num(r?.high), low: num(r?.low), close: num(r?.close), volume: num(r?.volume), at: r?.capturedAt || capturedAt }));
   /* Two rows for one date in one batch is the signature of a series dated
      by two conventions (the UTC day and the session day); neither is
-     guessed between. */
+     guessed between. The same row twice is not two readings, and there is
+     nothing to guess: an export that repeats its last line, or two
+     overlapping exports pasted together, used to lose that session
+     entirely — both copies refused as DUPLICATE_DATE though nothing
+     disagreed. An exact repeat (every field and the capture time) is read
+     once. String() keeps an unreadable cell (NaN) apart from a blank one. */
+  const seenRow = new Set();
+  const list = all.filter(r => {
+    const sig = [r.date, r.open, r.high, r.low, r.close, r.volume, r.at].map(String).join('|');
+    if (seenRow.has(sig)) return false;
+    seenRow.add(sig);
+    return true;
+  });
   const count = new Map();
   list.forEach(r => count.set(r.date, (count.get(r.date) || 0) + 1));
   list.sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -337,6 +349,65 @@ export function describeMerge(results, trim = null) {
   return { totals: t, lines };
 }
 
+/* ---------------------------------------------------------------- cells -- */
+
+/* A CSV's text as rows of cells, read as RFC 4180 writes it: a quoted cell
+   may hold a comma, a line break or a doubled quote. history-import.mjs and
+   prices.mjs split each line on every comma, so an export that quotes its
+   numbers — "1,612.34", as Investing.com and any spreadsheet with grouped
+   figures write them — was cut in two: a close-only file stored a close of
+   1, and an OHLC row slid one column left. A byte-order mark is dropped;
+   CRLF, LF and CR each end a row (inside quotes they are the cell's own);
+   cells are trimmed; and a row whose every cell is blank (a blank line, or
+   the ",,,," a spreadsheet leaves under a table) is no row, where it used
+   to be refused as a BAD_DATE. Each row carries the physical line it
+   starts on, for the rejects file. */
+export function csvRows(text) {
+  const s = String(text ?? '').replace(/^\uFEFF/, '');
+  const rows = [];
+  let cells = [], cell = '', quoted = false, wasQuoted = false, line = 1, start = 1;
+  const endCell = () => { cells.push(cell.trim()); cell = ''; wasQuoted = false; };
+  const endRow = () => { endCell(); if (cells.some(c => c !== '')) rows.push({ line: start, cells }); cells = []; };
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quoted) {
+      if (ch === '"') { if (s[i + 1] === '"') { cell += '"'; i++; } else quoted = false; continue; }
+      if (ch === '\r' && s[i + 1] === '\n') { cell += '\r\n'; i++; line++; continue; }
+      if (ch === '\r' || ch === '\n') line++;
+      cell += ch;
+      continue;
+    }
+    /* A quote opens a quoted cell only at the cell's start; elsewhere it is
+       a character of the cell. */
+    if (ch === '"' && !wasQuoted && cell.trim() === '') { quoted = true; wasQuoted = true; cell = ''; continue; }
+    if (ch === ',') { endCell(); continue; }
+    if (ch === '\r' || ch === '\n') {
+      if (ch === '\r' && s[i + 1] === '\n') i++;
+      endRow(); line++; start = line;
+      continue;
+    }
+    cell += ch;
+  }
+  if (cell !== '' || wasQuoted || cells.length) endRow();
+  return rows;
+}
+
+/* One number cell. Blank is no reading (null): Number('') is 0, and a blank
+   volume was once written as a day with no trades. A comma is a thousands
+   separator only in groups of three ("1,612.34"); stripping every comma,
+   as the readers did, turned a decimal comma ("10,5") into 105 — so a cell
+   with a comma in any other place is NaN, which the store refuses, rather
+   than a number ten times too large. Spaces (a thin-space grouping) are
+   dropped. A number already typed passes through. */
+export function numberCell(raw) {
+  if (raw == null) return null;
+  if (typeof raw === 'number') return raw;
+  const s = String(raw).replace(/\s/g, '');
+  if (s === '') return null;
+  if (s.includes(',')) return /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(s) ? Number(s.replace(/,/g, '')) : NaN;
+  return Number(s);
+}
+
 /* ---------------------------------------------------------------- dates -- */
 
 const DTF = new Map();
@@ -364,7 +435,8 @@ export function epochDate(ms, tz = 'UTC') {
 }
 
 /* One date cell from an import. ISO first; a 10- or 13-digit epoch through
-   epochDate; a date-time with a zone in the exchange's zone; then the
+   epochDate; a date-time with a zone through epochDate too (the exchange's
+   zone, midnight UTC exactly its UTC date); then the
    day-first and month-first forms, where — exactly as the browser's paste
    parser (src/js/25-universe.js parseCloses) — a day above 12 settles the
    order and anything else is refused as ambiguous: 03/04/2026 is 3 April in
@@ -381,7 +453,12 @@ export function parseDateCell(raw, { tz = 'UTC' } = {}) {
     if (!realDay(day)) return { error: 'BAD_DATE', why: `"${s}" is not a real day` };
     if (time && zone) {
       const z = zone.toUpperCase() === 'Z' ? 'Z' : zone.replace(/^([+-]\d{2})(\d{2})$/, '$1:$2');
-      return { date: dateInZone(Date.parse(`${day}T${time.length === 5 ? `${time}:00` : time}${z}`), tz) };
+      /* An instant, so it is dated as an epoch is (epochDate): exactly
+         midnight UTC is that UTC date. Dated in the zone alone, the instant
+         an epoch cell dated 2026-04-13 was 2026-04-12 when written
+         "2026-04-13T00:00:00Z" — a whole UTC-stamped export for New York
+         or São Paulo a day early, its Mondays on Sundays. */
+      return { date: epochDate(Date.parse(`${day}T${time.length === 5 ? `${time}:00` : time}${z}`), tz) };
     }
     return { date: day };
   }

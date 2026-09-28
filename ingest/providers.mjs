@@ -389,6 +389,18 @@ export function yahooProvider({ userAgent } = {}) {
    permits personal use does not become a publishing right because the code
    holds an API token.
    ========================================================================= */
+/* A Twelve Data field as a number, or null. Their values arrive as strings,
+   and Number() of what is absent is not absent: Number(null) and Number('')
+   are 0. A quote whose close came back null was a price of nought on the
+   page; a null timestamp dated the quote 1 January 1970 (and live.mjs filed
+   it under that session); a bar with no close was kept as a close of 0 and
+   refused as a negative price; a blank volume became a day with no trades. */
+const tdNum = (v) => {
+  if (v == null || (typeof v === 'string' && !v.trim())) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
 export function twelveDataProvider({ apiKey, redistribution = false } = {}) {
   if (!apiKey) throw new Error('twelveDataProvider: apiKey is required');
   const call = async (path, params) => {
@@ -406,9 +418,11 @@ export function twelveDataProvider({ apiKey, redistribution = false } = {}) {
     delayMinutes: null,
     async quote(symbol) {
       const j = await call('quote', `symbol=${encodeURIComponent(symbol)}`);
-      if (!j || !Number.isFinite(Number(j.close))) return null;
-      return { symbol, price: Number(j.close), currency: j.currency || null,
-               asOf: Number.isFinite(Number(j.timestamp)) ? new Date(Number(j.timestamp) * 1000).toISOString() : j.datetime || null,
+      const price = tdNum(j?.close);
+      if (price == null) return null;
+      const ts = tdNum(j.timestamp);
+      return { symbol, price, currency: j.currency || null,
+               asOf: ts != null && ts > 0 ? new Date(ts * 1000).toISOString() : j.datetime || null,
                tz: null, delayMinutes: null, source: 'Twelve Data' };
     },
     async history(symbol, from, to) {
@@ -416,11 +430,11 @@ export function twelveDataProvider({ apiKey, redistribution = false } = {}) {
         `symbol=${encodeURIComponent(symbol)}&interval=1day&start_date=${from}&end_date=${to}&outputsize=5000`);
       if (!Array.isArray(j?.values)) return null;
       /* A daily bar's datetime is already the exchange's session date. */
-      const px = (v) => { const n = v == null ? NaN : Number(v); return Number.isFinite(n) && n > 0 ? n : null; };
+      const px = (v) => { const n = tdNum(v); return n != null && n > 0 ? n : null; };
       return j.values
-        .map(v => ({ date: String(v.datetime).slice(0, 10), open: px(v.open), high: px(v.high), low: px(v.low), close: Number(v.close),
-                     volume: v.volume != null && Number.isFinite(Number(v.volume)) ? Number(v.volume) : null, tsUtc: null }))
-        .filter(x => Number.isFinite(x.close))
+        .map(v => ({ date: String(v.datetime).slice(0, 10), open: px(v.open), high: px(v.high), low: px(v.low), close: tdNum(v.close),
+                     volume: tdNum(v.volume), tsUtc: null }))
+        .filter(x => x.close != null)
         .reverse();
     },
   };

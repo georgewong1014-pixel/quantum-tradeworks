@@ -144,5 +144,70 @@ const warned = {};                     /* rule -> [id: detail] */
   } else if (!bad.length) ok(`period agreement: every line of the ${withEnds.length} records with year-ends describes the income statement's year`);
 }
 
+/* ---- bugfix: ingest ---- */
+/* The writers of two more tracked data files, run where they can be run
+   without the network, each in a temporary copy so nothing tracked is
+   touched. napic-ingest.mjs in a checkout holding only the raw sources —
+   property-data/normalized is git-ignored, so a fresh clone has no such
+   folder — threw ENOENT after the reconciliation passed and wrote nothing;
+   it runs here only where the licence-pending sources are present.
+   sarawak-geo.mjs --refresh with one Nominatim request failing deleted that
+   area's point from data/sarawak-geo.json; it must keep the point held. */
+{
+  const fs = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { spawnSync } = await import('node:child_process');
+  const { createRequire } = await import('node:module');
+  const { pathToFileURL } = await import('node:url');
+  const T = fs.mkdtempSync(join(tmpdir(), 'qt-data-check-'));
+  try {
+    const RAWN = join(ROOT, 'property-data', 'raw', 'napic', '2025', 'H1');
+    let modules = null;
+    try { const p = createRequire(join(ROOT, 'napic-ingest.mjs')).resolve('xlsx'); modules = p.slice(0, p.lastIndexOf('node_modules') + 'node_modules'.length); } catch { /* not installed */ }
+    if (!fs.existsSync(RAWN) || !modules) {
+      note(`napic-ingest in a fresh checkout: not run — ${!fs.existsSync(RAWN) ? 'the raw NAPIC sources are not in this checkout (licence-pending and git-ignored)' : 'xlsx is not installed (npm install)'}`);
+    } else {
+      const N = join(T, 'napic');
+      fs.mkdirSync(join(N, 'data'), { recursive: true });
+      fs.copyFileSync(join(ROOT, 'napic-ingest.mjs'), join(N, 'napic-ingest.mjs'));
+      fs.cpSync(RAWN, join(N, 'property-data', 'raw', 'napic', '2025', 'H1'), { recursive: true });
+      const r = spawnSync(process.execPath, [join(N, 'napic-ingest.mjs')], { cwd: N, encoding: 'utf8', env: { ...process.env, NODE_PATH: modules } });
+      const derived = join(N, 'data', 'napic-h1-2025.json');
+      const full = join(N, 'property-data', 'normalized', 'napic', '2025', 'H1', 'sarawak-full.json');
+      const wrote = fs.existsSync(derived) ? fs.readFileSync(derived, 'utf8') : null;
+      if (r.status === 0 && wrote && fs.existsSync(full) && JSON.parse(wrote).summary?.length) {
+        ok('napic-ingest in a fresh checkout holding only the raw sources makes its own output folders and writes both files');
+        note(`napic-ingest's derived file ${wrote === readFileSync(join(ROOT, 'data', 'napic-h1-2025.json'), 'utf8') ? 'is byte-identical to' : 'DIFFERS from'} the committed data/napic-h1-2025.json`);
+      } else fail('napic-ingest in a fresh checkout wrote nothing', { status: r.status, err: String(r.stderr || '').split('\n').filter(l => /Error|ENOENT/.test(l)).slice(0, 3) });
+    }
+
+    const G = join(T, 'geo');
+    fs.mkdirSync(join(G, 'data'), { recursive: true });
+    fs.copyFileSync(join(ROOT, 'data', 'sarawak-geo.json'), join(G, 'data', 'sarawak-geo.json'));
+    const stub = join(G, 'nominatim-stub.mjs');
+    fs.writeFileSync(stub, [
+      'let n = 0;',
+      "globalThis.fetch = async () => { n++; if (n === 2) throw new Error('timed out');",
+      "  return { ok: true, status: 200, json: async () => [{ lat: '1.5', lon: '110.3', display_name: 'Stub place, Sarawak', class: 'place', type: 'suburb', importance: 0.5 }] }; };",
+      'const st = globalThis.setTimeout; globalThis.setTimeout = (fn, ms, ...a) => st(fn, Math.min(ms, 1), ...a);',
+    ].join('\n'));
+    const g = spawnSync(process.execPath, ['--import', pathToFileURL(stub).href, join(ROOT, 'ingest', 'sarawak-geo.mjs'), '--only', 'geo', '--refresh'],
+      { cwd: G, encoding: 'utf8', env: { ...process.env, GEO_UA: 'qt-data-check (test@example.invalid)' } });
+    const before = JSON.parse(readFileSync(join(ROOT, 'data', 'sarawak-geo.json'), 'utf8'));
+    const after = fs.existsSync(join(G, 'data', 'sarawak-geo.json')) ? JSON.parse(readFileSync(join(G, 'data', 'sarawak-geo.json'), 'utf8')) : null;
+    const areas = (d) => Object.values(d?.cities || {}).reduce((s, c) => s + Object.keys(c.areas || {}).length, 0);
+    const tabuan = after?.cities?.kuching?.areas?.Tabuan;
+    if (g.status === 0 && areas(after) === areas(before) && JSON.stringify(tabuan) === JSON.stringify(before.cities.kuching.areas.Tabuan)
+      && after.cities.kuching.areas.Stutong?.matched === 'Stub place, Sarawak')
+      ok(`sarawak-geo --refresh keeps the point already held when a request fails (Kuching / Tabuan), and refreshes the rest — ${areas(after)} of ${areas(before)} areas still in the file`);
+    else fail('sarawak-geo --refresh dropped a held point when one request failed', { status: g.status, areas: [areas(before), areas(after)], tabuan: tabuan || null, err: String(g.stderr || '').slice(0, 200) });
+  } catch (e) {
+    fail('the ingest writers check threw', e.stack || e.message);
+  } finally {
+    fs.rmSync(T, { recursive: true, force: true });
+  }
+}
+/* ---- end bugfix: ingest ---- */
+
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exitCode = failures ? 1 : 0;

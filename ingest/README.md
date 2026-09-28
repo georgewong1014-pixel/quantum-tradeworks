@@ -243,10 +243,13 @@ not a code change. `data/prices.json` is git-ignored — prices are supplied und
 your licence, not shipped in this repo. See `data/prices.example.csv` for the
 column shape.
 
-Validation **rejects rather than repairs**. A negative close, a future date, or
+Validation **rejects rather than repairs**. A negative close, a future date, a
+date that is ambiguous or unreadable (read by the history import's rule:
+ISO as written, a day above 12 settles the order, `03/04/2026` is refused), or
 a close above its own stated 52-week high is reported and dropped, because a
 price that fails a sanity check is a data problem to look at rather than
-something to coerce into the file.
+something to coerce into the file. The CSV may quote its cells, and a quoted
+number may carry thousands separators (`"1,612.34"`).
 
 ### Why end-of-day is the right target
 
@@ -292,7 +295,7 @@ What the store decides, so no writer decides it differently:
 
 | | |
 |---|---|
-| **Validation** | the engine's own `scanValidateBar` (loaded out of `index.html`, as the scanner loads it): BAD_DATE, FUTURE, NEG_PRICE, NEG_VOLUME, HIGH_BELOW, LOW_ABOVE, NON_SESSION_DAY — so the page, the worker and the ingest refuse the same bars. Two rows for one date in one batch are both refused (DUPLICATE_DATE). |
+| **Validation** | the engine's own `scanValidateBar` (loaded out of `index.html`, as the scanner loads it): BAD_DATE, FUTURE, NEG_PRICE, NEG_VOLUME, HIGH_BELOW, LOW_ABOVE, NON_SESSION_DAY — so the page, the worker and the ingest refuse the same bars. Two different rows for one date in one batch are both refused (DUPLICATE_DATE); the same row repeated is read once. |
 | **Conflicts** | a source rank: an import or a provider (`import:<file>`, `yahoo`, `twelvedata`) outranks the screen, and a bar with no recorded source ranks with the screen. A lower rank never replaces a higher one — the row is reported as outranked. An equal or higher rank that disagrees replaces the bar, and every changed field is recorded in `corrections`, which the engine reads as a CORRECTED bar. |
 | **Provisional bars** | a bar captured before its session closed is superseded by any later capture, whatever its rank, and that is not a correction — it was never the session's value. |
 | **A bar is one source's reading** | when the close changes, open, high, low and volume come from the new source too (absent where it has none); a high from one vendor beside another's close describes no real session. |
@@ -330,10 +333,10 @@ pairs' Monday bars on Sunday. Now:
   day, and London to a session still trading. `watchlist.mjs` writes
   `captured_at` and `bar_status` columns before the free-text ones;
   `prices.mjs` carries `captured_at` through.
-- **Imports** read ISO dates as written. A 10- or 13-digit epoch is dated in the
-  instrument's zone (its registry market, or `--tz`), except one at exactly
-  midnight UTC, which is read as that UTC date — the two conventions exports
-  use. Day-first and month-first dates follow the browser's paste rule: a day
+- **Imports** read ISO dates as written. A 10- or 13-digit epoch, or a
+  date-time with a zone, is dated in the instrument's zone (its registry
+  market, or `--tz`), except an instant at exactly midnight UTC, which is read
+  as that UTC date — the two conventions exports use. Day-first and month-first dates follow the browser's paste rule: a day
   above 12 settles the order, and `03/04/2026` is refused as ambiguous rather
   than guessed (the old parser read it as 3 March and then, on a machine in
   Kuala Lumpur, shifted it to the 2nd). The test checks this under two machine
