@@ -597,7 +597,12 @@ for (const [route, heads] of [
    grown in one layer, three companies' dots opened the company beside them. */
 for (const w of [360, 390]) {
   await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
-  for (const route of ['/discover?tab=heatmap', '/discover/value-map', '/compare?companies=AAPL-SEC,MSFT-SEC,MAYBANK']) {
+  /* Compare draws a mark only for a company with a price. The filed US
+     companies have none in this repository (no licensed feed), only on a
+     machine holding its own git-ignored price file, so with AAPL and MSFT this
+     passed there and found no mark at all in CI. The illustrative Bursa
+     companies carry their prices in the dataset, everywhere. */
+  for (const route of ['/discover?tab=heatmap', '/discover/value-map', '/compare?companies=MAYBANK,PBBANK,CIMB']) {
     await send('Page.navigate', { url: BASE + route }, sessionId);
     let ready = false;
     for (let i = 0; i < 40 && !ready; i++) {
