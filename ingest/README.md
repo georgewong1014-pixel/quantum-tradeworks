@@ -383,9 +383,11 @@ losing an export's last row and a screen reading made then).
   TradingView's reads the export file itself.
 - **The file name** is TradingView's `<EXCHANGE>_<SYMBOL>, <INTERVAL>.csv`:
   without `--symbol` (and under `--dir`) the symbol is read from it
-  (`OANDA_XAUUSD, 1D.csv` is `XAUUSD`), and a file whose name says any
-  interval but the day (`1W`, `240`) is refused — a weekly bar read as a
-  daily one would write the week's close over Monday's.
+  (`OANDA_XAUUSD, 1D.csv` is `XAUUSD`), and so is the interval: `1D` goes to
+  the daily series, `1W` and `1M` to the history's frames, kept apart from it
+  ([below](#weekly-and-monthly-exports-imported-as-they-are)), and any other
+  (`240`, `2W`) is refused — a weekly bar read as a daily one would write the
+  week's close over Monday's.
 
 Each bar's capture time is what the engine's bar status reads: FINAL when
 captured at or after the session's close plus its settle margin, PROVISIONAL
@@ -410,11 +412,15 @@ The scanner evaluates your Multi-Timeframe Trading Bot's alerts on this
 history — entries on the day, the trade timeframe on the week and on the
 month, each on its last closed bar ([the routine and what each signal
 means](../README.md#your-tradingview-bot-in-the-scanner)). Its weeks and
-months are built from the daily bars this store holds, so the routine starts
-here, once a week:
+months are the ones your weekly and monthly exports hold, where you have
+imported them, and are built from the daily bars this store holds for every
+week and month after the last imported one. So the routine starts here, once
+a week:
 
 ```bash
 node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1W.csv"
+node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1M.csv"
 node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1D.csv"
 node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1W.csv" --daily "watchlist-shots/OANDA_XAUUSD, 1D.csv"
 node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1M.csv" --daily "watchlist-shots/OANDA_XAUUSD, 1D.csv"
@@ -426,11 +432,18 @@ then the setups and `node scanner/scan.mjs`, as the main README describes.
   the chart, and the bot needs years of them: its weekly criterion 3 (the
   close against an EMA(200)) needs 200 closed weeks, about 1,000 sessions,
   and its monthly criteria 34 to 51 closed months, about 740 to 1,110
-  sessions. Your export of 28 September holds about 300.
-- **Only the daily file is imported.** The history holds one bar per session
-  and the scanner builds the weeks and months from it, so the import refuses
-  the weekly and monthly exports by their names (`1W`, `1M`). They are what
-  tv-verify checks that build against.
+  sessions — and criterion 3, 200 months. Your daily export of 28 September
+  holds about 300 sessions, too few for either; your weekly and monthly
+  exports hold 300 weeks and 300 months, which is why they are imported.
+- **All three files are imported.** The daily export goes to the daily
+  series and the weekly and monthly ones to the history's frames, kept apart
+  from it ([below](#weekly-and-monthly-exports-imported-as-they-are)). The
+  scanner reads an imported week or month wherever it is held, and builds
+  the weeks and months after the last imported one from the daily bars; the
+  week or month still trading when an export was saved gives way to the one
+  the daily bars build once they hold it. tv-verify still checks the weekly
+  and monthly exports against the weeks and months built from the daily
+  file, where the two overlap.
 - **Dated as the import dates them.** tv-verify reads both files with this
   import's session rule, the daily stamps and the weekly and monthly ones
   alike: OANDA's week stamped at 17:00 New York on Sunday is the week of the
@@ -456,9 +469,11 @@ then the setups and `node scanner/scan.mjs`, as the main README describes.
   `live.mjs` — keeps the newest 2,000 bars of each series. `--keep` holds more
   for one import, but the daily run's next write trims back to 2,000. That is
   about 7⅔ years of sessions, 400 weeks and 92 months: enough for every daily
-  and weekly criterion of the bot, and not for its monthly criterion 3, which
-  needs 200 months. The depths the import prints at the end (20, 50, 200 and
-  252 bars) are the daily ones.
+  and weekly criterion of the bot, and not, from the daily bars alone, for
+  its monthly criterion 3, which needs 200 months. The imported monthly
+  export supplies them (each frame keeps its newest 2,000 periods). The
+  depths the import prints at the end (20, 50, 200 and 252 bars) are the
+  daily ones.
 
 ### Checking the history, and the one repair
 
@@ -794,9 +809,40 @@ frames: { "1W" | "1M": { SYM: {
   before March 2006, while its prices range by tens of dollars, and the
   output names the span.
 
-**What reads them.** Nothing yet. The scanner's weekly and monthly bars are
-still built from the daily series. The imported frames are held so they can
-replace those bars, and the import's output says so.
+**What reads them.** The scanner. For a symbol with an imported frame, its
+weekly and monthly bars — a weekly or monthly setup's own, and those a daily
+setup's weekly or monthly condition reads (the bot's trade timeframe) — come
+from one builder in the engine, `scanFrameBars`, so the two always read the
+same bars:
+
+- **Imported where held.** A period the frame holds is read from it, dated by
+  the period's last expected session (the date a complete week built from
+  daily bars gets). Its status is the daily rule on that session: FINAL when
+  the export was saved after it closed, CORRECTED when the frame's own
+  corrections name it, and PROVISIONAL while it was still trading. Each bar
+  is validated again as the engine reads it; an invalid one, or one filed
+  under a key that is not the engine's, is listed and left out.
+- **Built from the daily bars everywhere else.** Before the frame's first
+  period, after its last and in any gap it has, the weeks and months are
+  built from the daily series as before. The week or month still trading
+  when the export was saved gives way to the one built from the daily bars
+  once they hold it, and is never read while it is provisional.
+- **Said on every reading.** A condition read on a weekly or monthly bar
+  says which it read ("weekly bar of 2026-09-25 (imported)" or "(built from
+  daily bars)"), and the alert record carries it (`barOrigin`), as does a
+  weekly or monthly setup's own alert where a frame is held. The series'
+  data version covers where each bar came from, so a re-import is a new
+  version.
+- **Not mixed with adjusted daily bars.** A split or consolidation you have
+  recorded (`data/price-adjustments.json`) dated inside or after the
+  frame's periods adjusts the daily bars on read. Unless the export was
+  imported `--adjusted provider` and saved after that date, its weeks are not
+  read, the run says why, and the weeks are built from the daily bars.
+- **Warm-up counts them.** The bot's warm-up line (and the setup page's
+  "What your history holds") counts the closed weeks and months the scanner
+  reads — imported and built — and says how many of each: 300 imported months
+  make the monthly criterion 3 readable where 92 months of daily bars never
+  could.
 
 **Export the whole chart.** An EMA 200 of weeks computed from 300 weeks will
 not match TradingView's, which runs over every week it has loaded. Before

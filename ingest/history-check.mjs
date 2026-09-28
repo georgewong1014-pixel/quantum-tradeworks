@@ -209,9 +209,13 @@ export function describeFrames(F) {
 }
 
 /* Imported weeks and months against the ones the engine builds from the
-   daily series of the same history (scanBars, timeframe 1W or 1M), where
+   daily series of the same history (scanResample of its daily bars), where
    the daily series reaches: open, high, low, close and volume, each within
-   `tolerance` (relative), with the likely reason for every difference. */
+   `tolerance` (relative), with the likely reason for every difference.
+   Built from the daily bars directly: scanBars with timeframe 1W or 1M now
+   reads the imported weeks and months where the history holds them
+   (scanFrameBars), so asked for the week it returned the imported week
+   itself, and every imported week matched itself. */
 export function compareFrames(history, { E, instruments = [], now = null, tolerance = 1e-9 } = {}) {
   const out = [];
   const same = (a, b) => (a == null && b == null) || (a != null && b != null && Math.abs(a - b) <= tolerance * Math.max(Math.abs(a), Math.abs(b), 1e-12));
@@ -225,7 +229,7 @@ export function compareFrames(history, { E, instruments = [], now = null, tolera
       const imported = Object.keys(f.series || {}).filter(k => isPeriodKey(E, tf, k)).sort();
       const daily = E.scanBars(history, sym, { market, now });
       if (!daily.dates.length || !imported.length) { out.push({ timeframe: tf, symbol: sym, market, unit, noDaily: !daily.dates.length, overlap: 0, matched: 0, periods: [], unmatched: [] }); continue; }
-      const built = E.scanBars(history, sym, { market, timeframe: tf, now });
+      const built = E.scanResample(daily, tf);
       const at = new Map(built.dates.map((d, i) => [periodKey(E, tf, d), i]));
       const dFirst = daily.dates[0], dLast = daily.dates[daily.dates.length - 1];
       const lo = periodKey(E, tf, dFirst), hi = periodKey(E, tf, dLast);

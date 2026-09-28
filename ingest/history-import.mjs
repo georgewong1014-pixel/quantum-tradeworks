@@ -155,11 +155,16 @@ export function exportTimeframe(interval) {
   return null;
 }
 const UNIT = { '1W': 'week', '1M': 'month' };
-/* What reads imported weeks and months today. The engine's weekly and
-   monthly bars are still built from the daily series (scanResample); the
-   frames are held for the day they are read in their place. When that
-   lands, this sentence is the one to change. */
-export const FRAMES_READ = 'held beside the daily series; the scanner\'s weekly and monthly bars are still built from the daily bars until the engine reads imported ones';
+/* What reads imported weeks and months. The engine's weekly and monthly
+   bars (scanFrameBars) are the imported ones wherever a frame holds the
+   period, and are built from the daily series (scanResample) for every
+   period it does not — after the last imported one, before the first, and
+   any gap: the week or month in progress when the export was saved gives
+   way to the one the daily bars build once they hold it. A corporate
+   action recorded inside or after the imported periods, with the export
+   not imported --adjusted provider, stops them being read (the daily bars
+   are adjusted on read and these would not be). */
+export const FRAMES_READ = 'held beside the daily series and read by the scanner: its weekly and monthly bars are the imported ones where held, and built from the daily bars for every period after the last imported one (and any the export lacks)';
 
 /* markAdjusted for an imported week or month: its meta is the frame's,
    keyed by period. */

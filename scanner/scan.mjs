@@ -225,6 +225,10 @@ export const ENGINE_EXPORTS = [
   /* the bot contract: conditions read on a higher timeframe (their last closed bar), and the reader's Multi-Timeframe Trading Bot as setups */
   'SCAN_TF_RANK', 'scanTimeframeRank', 'scanTimeframeWord', 'scanFrame', 'scanFrameAt', 'scanTreeNeeds',
   'SCAN_BOT_SIGNALS', 'scanBotCriteria', 'scanBotTree', 'scanBotPack', 'scanBotWarmup',
+  /* imported weeks and months (history.frames): the engine's week key, which the store files an imported week under
+     (ingest/history-store.mjs loadStoreEngine used to evaluate the region a second time to reach it), what the
+     history holds for a symbol, the one builder of weekly and monthly bars, and a yes-or-no condition's literal */
+  'scanWeekOf', 'scanFramesOf', 'scanFrameBars', 'scanFlagLiteral',
 ];
 
 /* ------------------------------------------------------------ validation -- */
