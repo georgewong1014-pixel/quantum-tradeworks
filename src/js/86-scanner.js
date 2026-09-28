@@ -685,7 +685,7 @@ function scanSetupChips(s, extra = []) {
    setup's own. The engine validates, hashes and evaluates it; these pages
    say it in the condition's own sentence, so a weekly criterion never reads
    as a daily one. */
-const SCAN_TF_RANK = { '1D': 0, '1W': 1, '1M': 2 };
+/* SCAN_TF_RANK is the engine's (24-market-engine.js). */
 const scanCondTf = (c) => (c && typeof c === 'object' && c.timeframe != null && c.timeframe !== '' ? scanTimeframe(c.timeframe) : null);
 const scanTfWord = (tf) => ({ '1D': 'daily', '1W': 'weekly', '1M': 'monthly' }[scanTimeframe(tf)] || String(tf || '').toLowerCase());
 const scanTfPeriod = (tf) => ({ '1D': 'session', '1W': 'week', '1M': 'month' }[scanTimeframe(tf)] || 'bar');
