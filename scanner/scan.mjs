@@ -10,6 +10,8 @@
  *   node scanner/scan.mjs --setups f --history f --alerts f --instruments f --html f
  *                                          a path given here is taken from the current
  *                                          directory; the defaults are in the repository
+ *   node scanner/scan.mjs --now ISO        judge staleness and bar status as though the
+ *                                          clock read ISO (tests on fixed fixtures)
  *
  *   exit 0  ran; whatever matched is recorded (or --check passed)
  *   exit 1  could not run: engine missing, self-test failed, no setups, no history
@@ -20,10 +22,11 @@
  * ONE ENGINE, NOT TWO
  *
  * The rule evaluator is not reimplemented here. This file slices index.html
- * between @scan-engine-start and @scan-engine-end and evaluates that region in
- * Node — the same code the scanner page runs when the reader presses "evaluate
- * now". Two copies of an indicator would drift, and then a match on the page
- * and a match in the record would disagree about whether a rule held.
+ * between @scan-engine-start and @scan-engine-end (the region comes from
+ * src/js/24-market-engine.js) and evaluates it in Node — the same code the
+ * scanner page runs when the reader presses "evaluate now". Two copies of an
+ * indicator would drift, and then a match on the page and a match in the
+ * record would disagree about whether a rule held.
  *
  * EVERY RUN SELF-TESTS
  *
@@ -31,7 +34,9 @@
  * region and the worker still runs, just wrong. So every run first evaluates
  * the engine's own fixture — two instruments, one of which crosses its 50-bar
  * average on volume with RSI in range on the last bar — and refuses to continue
- * unless exactly that one alert comes back and a second pass adds none.
+ * unless exactly that one alert comes back, a second pass adds none, the 0.2
+ * key of the same bar adds none, the tree form records a NEW_MATCH, and the
+ * same history judged months later (stale) records nothing.
  *
  * WHAT THIS IS NOT
  *
@@ -81,13 +86,39 @@ export async function loadEngine(htmlPath = join(ROOT, 'index.html')) {
   const factory = new Function(`
     ${PRELUDE}
     ${src}
-    return { SCAN_VERSION, SCAN_INDICATORS, SCAN_OPERATORS, scanValidate, scanSideLabel, scanPeriodOf,
-             scanSma, scanEma, scanRsi, scanMacd, scanIndicatorSeries,
-             scanRule, scanSetup, scanUniverse, scanUniverseGaps, scanBars, scanKey, scanBarRange,
-             scanRun, scanFixture, scanSelfTest };
+    return { ${ENGINE_EXPORTS.join(', ')} };
   `);
   return factory();
 }
+
+/* Every name the engine region hands out. The page reads the same names as
+   globals; this list is what the worker and the tests can reach. A name
+   missing from the region fails the load with a ReferenceError that names
+   it, rather than a scan that quietly runs without it. */
+export const ENGINE_EXPORTS = [
+  /* constants */
+  'SCAN_VERSION', 'SCAN_MARKETS', 'SCAN_TIMEFRAMES', 'SCAN_LIMITS', 'SCAN_TOLERANCE', 'SCAN_UNITS', 'SCAN_INDICATORS', 'SCAN_DEFAULT_N',
+  'SCAN_OPERATORS', 'SCAN_OP_ALIASES', 'SCAN_STATUSES', 'SCAN_REASONS', 'SCAN_SIMULATION_NOTE', 'SCAN_ISO_DAY',
+  /* hashing and identity */
+  'scanHash', 'scanStable', 'scanCanonical', 'scanKey', 'scanLegacyKey', 'scanAlertId', 'scanSetupsHash',
+  /* markets, time and calendars */
+  'scanMarket', 'scanTimeframe', 'scanIsDay', 'scanWeekday', 'scanAddDays', 'scanDayDiff', 'scanTzParts', 'scanZonedInstant',
+  'scanSessionEnd', 'scanLocalDate', 'scanSessionDateAt', 'scanBarStatus', 'scanCalendar', 'scanWeekdayCalendar', 'scanIsSession',
+  'scanSessionsBetween', 'scanExpectedLastSession', 'scanMarketOf', 'scanRegistry',
+  /* bars and data */
+  'scanValidateBar', 'scanBars', 'scanSeriesBars', 'scanSliceBars', 'scanResample', 'scanDataVersion', 'scanPriceBreaks',
+  'scanReadiness', 'scanDataHealth', 'scanTruncateHistory', 'scanReplayNow',
+  /* indicators */
+  'scanNumeric', 'scanParams', 'scanPeriodOf', 'scanUnitOf', 'scanFieldOf', 'scanSpecKey', 'scanSideLabel',
+  'scanSma', 'scanEma', 'scanRsi', 'scanMacd', 'scanBb', 'scanAtr', 'scanRollExtreme', 'scanChange', 'scanRvol',
+  'scanCache', 'scanIndicatorSeries', 'scanIndicator', 'scanDec', 'scanFmt', 'scanFmtAll',
+  /* rules and setups */
+  'scanOpName', 'scanCompare', 'scanNormaliseSetup', 'scanNormaliseNode', 'scanValidate', 'scanEvaluate', 'scanRule', 'scanSetup',
+  'scanConditionProse', 'scanTreeLines', 'scanConditionCount',
+  /* the run and what reads it */
+  'scanUniverse', 'scanUniverseGaps', 'scanBarRange', 'scanRun', 'scanHistorical', 'scanStatus', 'scanSetupDrift', 'scanSnapshotDrift',
+  'scanFixture', 'scanSelfTest',
+];
 
 /* ------------------------------------------------------------ validation -- */
 
@@ -124,7 +155,8 @@ export async function writeAtomic(path, text) {
 /* One evaluation of a setups file on a history file, merged into an alerts
    file. Pure with respect to the process: no exit, no console; the CLI below
    turns the result into words and a code, and the test reads it directly. */
-export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrumentsPath, dry = false, now = new Date().toISOString() }) {
+export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrumentsPath, dry = false, now = new Date().toISOString(),
+                                runId = `run-${now.replace(/[-:.]/g, '').slice(0, 15)}-${process.pid}`, origin = 'cli' }) {
   if (!existsSync(setupsPath)) throw Object.assign(new Error(`no setups file at ${setupsPath}`), { code: 'NO_SETUPS' });
   if (!existsSync(historyPath)) throw Object.assign(new Error(`no price history at ${historyPath}`), { code: 'NO_HISTORY' });
   const doc = await readJson(setupsPath);
@@ -147,7 +179,11 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   }
   const existing = Array.isArray(existingDoc) ? existingDoc : Array.isArray(existingDoc?.alerts) ? existingDoc.alerts : [];
 
-  const r = E.scanRun(setups, history, { instruments, existing, now });
+  /* The alerts are written in the engine's V2 shape (id, version, event,
+     values, data version, run id), carrying the 0.2 fields — bar, rules,
+     recordedAt — for one release, so this file's printout and
+     ingest/daily.mjs keep reading them. */
+  const r = E.scanRun(setups, history, { instruments, existing, now, runId, origin });
 
   /* A setup none of whose instruments could be tested is a configuration
      problem, not a quiet day: the exit code says so. The engine decides it
@@ -157,9 +193,12 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   const setupLevel = r.skipped.filter(s => !s.symbol);
   const untestedEverywhere = r.untestedEverywhere || [];
 
-  const lastRun = { at: now, asOf: r.asOf, asOfFrom: r.asOfFrom, engine: r.engine, setups: r.setups, evaluated: r.evaluated,
-                    matched: r.matched, recorded: r.alerts.length, untested: r.untested, skipped: r.skipped.length,
-                    problems, untestedEverywhere, stale: r.stale || [] };
+  const lastRun = { at: now, runId, origin, asOf: r.asOf, asOfFrom: r.asOfFrom, engine: r.engine, setups: r.setups, evaluated: r.evaluated,
+                    matched: r.matched, recorded: r.alerts.length, deduped: r.deduped, cooldown: r.cooldown, continuing: r.continuing,
+                    untested: r.untested, skipped: r.skipped.length, setupsHash: E.scanSetupsHash(doc),
+                    problems, untestedEverywhere, stale: r.stale || [], provisional: r.provisional || [],
+                    readiness: (r.readiness?.markets || []).map(m => ({ market: m.market, state: m.state, expected: m.expected, newestFinal: m.newestFinal, inRun: m.inRun, text: m.text })),
+                    cacheStats: r.cacheStats };
   const out = { engine: r.engine, updatedAt: now, lastRun, alerts: [...existing, ...r.alerts] };
   let written = false;
   if (!dry) {
@@ -197,8 +236,9 @@ async function main() {
   const st = E.scanSelfTest();
   if (!st.ok) {
     console.error('SELF-TEST FAILED — the engine extracted from index.html does not reproduce its fixture.');
-    console.error(`  expected one alert for MATCH on the fixture's last bar, and none on a second pass`);
-    console.error(`  got      ${st.alerts} alert(s) for ${st.symbol ?? '—'} on ${st.bar ?? '—'}; second pass ${st.again}`);
+    console.error(`  expected one alert for MATCH on the fixture's last bar; none on a second pass, none against the 0.2 key,`);
+    console.error(`           one NEW_MATCH for the tree form, and none when the same history is judged months later (stale)`);
+    console.error(`  got      ${st.alerts} alert(s) for ${st.symbol ?? '—'} on ${st.bar ?? '—'}; second pass ${st.again}; 0.2 key ${st.legacy}; tree ${st.tree}; stale ${st.stale}`);
     console.error('\nNothing was written. Either the engine changed, or the markers no longer enclose all of it.');
     process.exit(1);
   }
@@ -211,9 +251,14 @@ async function main() {
   const alertsPath = path('alerts', 'data/scan-alerts.json');
   const instrumentsPath = path('instruments', 'data/instruments.json');
   const dry = has('dry');
+  /* --now ISO: judge staleness and bar status as though the clock read this
+     instant. For tests on fixed fixtures; a real run takes the clock. */
+  const nowFlag = flag('now', null);
+  if (nowFlag != null && !Number.isFinite(Date.parse(nowFlag))) { console.error(`--now "${nowFlag}" is not a date-time`); process.exit(1); }
+  const now = nowFlag != null ? new Date(Date.parse(nowFlag)).toISOString() : new Date().toISOString();
 
   let run;
-  try { run = await runOnce({ E, setupsPath, historyPath, alertsPath, instrumentsPath, dry }); }
+  try { run = await runOnce({ E, setupsPath, historyPath, alertsPath, instrumentsPath, dry, now }); }
   catch (err) {
     console.error(`\n${err.message}`);
     if (err.code === 'NO_SETUPS') {
@@ -228,7 +273,7 @@ async function main() {
   const { result: r, problems, setupLevel, untestedEverywhere, written } = run;
   console.log('');
   console.log(`setups     ${r.setups} evaluated${problems.length ? `, ${problems.length} left out` : ''}`);
-  console.log(`bars       ${r.asOf ? E.scanBarRange(r.asOfFrom, r.asOf) : '—'} (each pair on its own instrument's last bar — the engine cannot tell whether that session had closed)`);
+  console.log(`bars       ${r.asOf ? E.scanBarRange(r.asOfFrom, r.asOf) : '—'} (each pair on its own instrument's last final bar; a bar captured before its session closed is provisional and is not evaluated)`);
   console.log(`evaluated  ${r.evaluated} setup × instrument pair${r.evaluated === 1 ? '' : 's'} · ${r.matched} matched · ${r.untested} untested`);
   console.log(`${r.alerts.length} new alert${r.alerts.length === 1 ? '' : 's'} recorded${dry ? ' (dry run — nothing written)' : written ? ` → ${alertsPath}` : ''}`);
   if (r.alerts.length) {
@@ -255,9 +300,20 @@ async function main() {
     /* Grouped by reason, with each instrument's bar count taken out, so a
        large universe prints one line per cause rather than one per pair. */
     const by = new Map();
-    untestedList.forEach(u => { const k = `${u.setup}: ${u.why.replace(/; \d+ held/g, '')}`; by.set(k, [...(by.get(k) || []), u.symbol]); });
+    /* A stale reason names its symbol and dates; grouped without them. */
+    const general = (why) => why.replace(/; \d+ held/g, '').replace(/(^|; )its last final bar is \d{4}-\d{2}-\d{2}, and the session of \d{4}-\d{2}-\d{2}/g, '$1the last final bar is older than the session that');
+    untestedList.forEach(u => { const k = `${u.setup}: ${general(u.why)}`; by.set(k, [...(by.get(k) || []), u.symbol]); });
     console.log('\nuntested:');
     [...by.entries()].forEach(([k, syms]) => console.log(`  ${String(syms.length).padStart(4)}  ${k}  (${syms.slice(0, 6).join(', ')}${syms.length > 6 ? ', …' : ''})`));
+  }
+  const notReady = (r.readiness?.markets || []).filter(m => m.inRun && m.state !== 'READY');
+  if (notReady.length) {
+    console.log('\nmarkets not ready — of those this run evaluated, the session expected by now is not held final:');
+    notReady.forEach(m => console.log(`  · ${m.text}`));
+  }
+  if ((r.provisional || []).length) {
+    console.log('\nprovisional — captured before the close, so the bar before was evaluated:');
+    r.provisional.forEach(x => console.log(`  · ${x.symbol}: ${x.why}`));
   }
   if ((r.stale || []).length) {
     console.log('\nbehind the rest — evaluated, but on an old bar:');

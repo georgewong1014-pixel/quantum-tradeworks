@@ -37,39 +37,64 @@ const TREND_INDICATORS = [
 ];
 const TREND_BY_ID = Object.fromEntries(TREND_INDICATORS.map(i => [i.id, i]));
 
-const sma = (a, n) => a.length < n ? null : a.slice(-n).reduce((s, v) => s + v, 0) / n;
-const pctChange = (a, n) => (a.length <= n || !(a[a.length - 1 - n] > 0))
-  ? null : (a[a.length - 1] / a[a.length - 1 - n] - 1) * 100;
+/* ONE INDICATOR LIBRARY. The averages, the 52-week extremes and the returns
+   come from the market engine (24-market-engine.js) — the arithmetic the
+   scanner applies — so the 50-day average on this page and SMA50 in a
+   scanner rule are one number, computed one way. What stays here is what
+   the engine does not name: the distance from an average, the drawdown,
+   the volatility and the seam check, each built from the engine's values
+   or from the closes themselves. This file computes no average of its own;
+   scanner-test holds it to that. */
 
 /* Returns every indicator plus, for each one that could not be computed, how
    many more closes it needs. "Not yet" and "not applicable" are different
-   answers and the interface has to be able to tell them apart. */
-function trendContext(series) {
+   answers and the interface has to be able to tell them apart.
+
+   THE 52-WEEK HIGH IS A CLOSING HIGH HERE unless highs and lows are held:
+   the highest of 252 closes is not the high of the range, and was labelled
+   as though it were. `ohlc` ({date: [open, high, low]}, as the schema-2
+   history holds it) lets the true high and low be used; without it, or
+   when any bar in the year lacks them, the closing extremes are used and
+   `labels` says so. */
+function trendContext(series, { ohlc = null } = {}) {
   const dates = Object.keys(series || {}).sort();
   const closes = dates.map(d => series[d]).filter(v => isNum(v) && v > 0);
   const n = closes.length;
   const last = n ? closes[n - 1] : null;
   const out = { points: n, first: dates[0] || null, lastDate: dates[dates.length - 1] || null,
-                values: {}, pending: [] };
+                values: {}, pending: [], labels: {}, hiBasis: null };
+
+  let high = null, low = null;
+  if (ohlc && typeof ohlc === 'object') {
+    const kept = dates.filter(d => isNum(series[d]) && series[d] > 0);
+    high = kept.map(d => (Array.isArray(ohlc[d]) && isNum(ohlc[d][1]) ? ohlc[d][1] : null));
+    low = kept.map(d => (Array.isArray(ohlc[d]) && isNum(ohlc[d][2]) ? ohlc[d][2] : null));
+  }
+  const bars = scanSeriesBars(closes, { high, low });
+  const at = n - 1;
+  /* Each series once per call: the 50- and 200-day averages are read three
+     times (level, distance, crossover). */
+  const memo = new Map();
+  const seriesOf = (spec) => { const k = scanSpecKey(spec); if (!memo.has(k)) memo.set(k, scanIndicatorSeries(spec, bars)); return memo.get(k); };
+  const val = (spec) => { const S = seriesOf(spec); return S.status[at] === 'VALID' ? S.values[at] : null; };
 
   const need = (id) => { const req = TREND_BY_ID[id].needs; if (n < req) { out.pending.push({ id, needs: req, have: n, more: req - n }); return true; } return false; };
   const set = (id, v) => { out.values[id] = v; };
 
-  if (!need('sma20'))  set('sma20',  sma(closes, 20));
-  if (!need('sma50'))  set('sma50',  sma(closes, 50));
-  if (!need('sma200')) set('sma200', sma(closes, 200));
-  if (!need('dist50'))  set('dist50',  (last / sma(closes, 50) - 1) * 100);
-  if (!need('dist200')) set('dist200', (last / sma(closes, 200) - 1) * 100);
+  if (!need('sma20'))  set('sma20',  val({ indicator: 'sma', n: 20 }));
+  if (!need('sma50'))  set('sma50',  val({ indicator: 'sma', n: 50 }));
+  if (!need('sma200')) set('sma200', val({ indicator: 'sma', n: 200 }));
+  if (!need('dist50'))  set('dist50',  (last / val({ indicator: 'sma', n: 50 }) - 1) * 100);
+  if (!need('dist200')) set('dist200', (last / val({ indicator: 'sma', n: 200 }) - 1) * 100);
 
   if (!need('cross')) {
     /* The most recent day on which the 50-day crossed the 200-day, found by
        walking the two series rather than inferring from today's positions. */
+    const s50 = seriesOf({ indicator: 'sma', n: 50 }).values;
+    const s200 = seriesOf({ indicator: 'sma', n: 200 }).values;
     let found = null;
     for (let i = n - 1; i >= 200; i--) {
-      const w = closes.slice(0, i + 1);
-      const a = sma(w, 50), b = sma(w, 200);
-      const wp = closes.slice(0, i);
-      const ap = sma(wp, 50), bp = sma(wp, 200);
+      const a = s50[i], b = s200[i], ap = s50[i - 1], bp = s200[i - 1];
       if (a == null || b == null || ap == null || bp == null) break;
       if ((a > b) !== (ap > bp)) { found = { date: dates[i], dir: a > b ? 'up' : 'down' }; break; }
     }
@@ -81,12 +106,18 @@ function trendContext(series) {
      called them computed while printing a dash. */
   const shortHi = need('hi52'), shortLo = need('lo52'), shortDd = need('ddown');
   if (!shortHi && !shortLo && !shortDd) {
-    const w = closes.slice(-252);
-    set('hi52', Math.max(...w)); set('lo52', Math.min(...w));
-    set('ddown', (last / Math.max(...w) - 1) * 100);
+    const rh = bars.hasOHLC ? val({ indicator: 'high_n', n: 252 }) : null;
+    const rl = bars.hasOHLC ? val({ indicator: 'low_n', n: 252 }) : null;
+    const onRange = rh != null && rl != null;
+    const hi = onRange ? rh : val({ indicator: 'close_high_n', n: 252 });
+    const lo = onRange ? rl : val({ indicator: 'close_low_n', n: 252 });
+    set('hi52', hi); set('lo52', lo);
+    set('ddown', (last / hi - 1) * 100);
+    out.hiBasis = onRange ? 'range' : 'close';
   }
+  if (out.hiBasis !== 'range') out.labels = { hi52: '52-week closing high', lo52: '52-week closing low', ddown: 'Drawdown from closing high' };
   [['ret1m', 22], ['ret3m', 66], ['ret6m', 126], ['ret12m', 252]].forEach(([id, k]) => {
-    if (!need(id)) set(id, pctChange(closes, k));
+    if (!need(id)) set(id, val({ indicator: 'change', n: k }));
   });
 
   if (!need('vol')) {
@@ -127,7 +158,7 @@ function volumeContext(volSeries, priceSeries) {
   const n = vols.length;
   if (n < 20) return { points: n, pending: { needs: 20, more: 20 - n } };
   const latest = vols[n - 1];
-  const avg = (k) => n < k ? null : vols.slice(-k).reduce((s, v) => s + v, 0) / k;
+  const avg = (k) => (n < k ? null : scanSma(vols, k)[n - 1]);
   const a20 = avg(20), a50 = avg(50);
 
   /* Up-day and down-day turnover, over the window where both a close and a
@@ -307,7 +338,9 @@ const TREND_STRATEGIES = [
       if (!isNum(hi) || !isNum(lo) || !isNum(p) || hi <= lo) return null;
       const pos = (p - lo) / (hi - lo) * 100;
       return { state: `${pos.toFixed(0)}% of the 52-week range`,
-               detail: `${fmtPct(t.values.ddown, 1)} from the high of ${fmtNum(hi, 2)}; the low was ${fmtNum(lo, 2)}.` };
+               detail: t.hiBasis === 'range'
+                 ? `${fmtPct(t.values.ddown, 1)} from the high of ${fmtNum(hi, 2)}; the low was ${fmtNum(lo, 2)}.`
+                 : `${fmtPct(t.values.ddown, 1)} from the highest close of ${fmtNum(hi, 2)}; the lowest close was ${fmtNum(lo, 2)}. Highs and lows are not held for this series, so these are closing extremes.` };
     },
   },
   {

@@ -2301,11 +2301,12 @@ try {
         const sym = instrumentSymbolFor(row.c), ins = instrumentOfCompany(row.c);
         if (sym !== ins.symbol || resolveInstrument(sym)?.id !== ins.id) drift.push(row.c.id + ': ' + sym + ' vs ' + ins.id);
       }
-      const key = scanKey('qa', 'AAPL', 'daily', '2026-01-02');
-      return { clash, drift, key, n: INSTRUMENTS.size };
+      const ins = resolveInstrument('AAPL');
+      const key = scanKey('qa', 1, ins.id, 'daily', '2026-01-02', 'MATCH');
+      return { clash, drift, key, legacy: scanLegacyKey('qa', 'AAPL', '2026-01-02'), n: INSTRUMENTS.size };
     })()`);
     const p = [...r.clash.map(x => `two instruments share the scanner key ${x}`), ...r.drift.slice(0, 5)];
-    if (r.key !== 'qa|AAPL|daily|2026-01-02') p.push(`the alert key is ${r.key}`);
+    if (r.key !== 'qa|v1|US:AAPL|1D|2026-01-02|MATCH' || r.legacy !== 'qa|AAPL|daily|2026-01-02') p.push(`the alert key is ${r.key} (0.2 form ${r.legacy})`);
     if (p.length) fail('every instrument has one scanner identifier (checklist 16)', p);
     else ok(`every instrument has one scanner identifier (checklist 16) — ${r.n} symbols, none shared across markets, each resolving back to its own instrument, and the alert key built on it`);
   }
@@ -2835,6 +2836,87 @@ try {
     }
     if (bad.length) fail('no table header covers its own first row', bad);
     else ok('no table header covers its own first row — Compare, the screener, the statements and the watchlists');
+  }
+
+  /* ===================================================================== */
+  /* PHASE 3 ROUND 1 — the market engine (src/js/24-market-engine.js)      */
+  /* ===================================================================== */
+  /* ONE ENGINE, TWO HOSTS. The page's engine and the one scanner/scan.mjs
+     slices out of index.html give byte-identical runs on the fixture; the
+     instrument registry's time zones are the engine's; the trend context
+     labels a closing high as one. */
+  {
+    const { loadEngine } = await import('./scanner/scan.mjs');
+    const NE = await loadEngine();
+    const fx = NE.scanFixture();
+    const nodeRun = JSON.stringify(NE.scanRun([fx.setup, fx.setupV2], fx.history, { now: fx.now, runId: 'det', origin: 'det' }));
+    const nodeHist = JSON.stringify(NE.scanHistorical(fx.setupV2, fx.history));
+    const r = await evaluate(`(() => {
+      const fx = scanFixture();
+      const s = {}; const d0 = Date.UTC(2024, 0, 1);
+      for (let i = 0; i < 300; i++) s[new Date(d0 + i * 864e5).toISOString().slice(0, 10)] = 100 + Math.sin(i / 9) * 5 + i * 0.05;
+      const t = trendContext(s);
+      return { run: JSON.stringify(scanRun([fx.setup, fx.setupV2], fx.history, { now: fx.now, runId: 'det', origin: 'det' })),
+               hist: JSON.stringify(scanHistorical(fx.setupV2, fx.history)), selfTest: scanSelfTest().ok, version: SCAN_VERSION,
+               tz: { us: MARKETS.US.tz === SCAN_MARKETS.US.tz, my: MARKETS.MY.tz === SCAN_MARKETS.MY.tz },
+               hiLabel: t.labels.hi52, sma50: t.values.sma50, sma50e: scanIndicator({ indicator: 'sma', n: 50 }, scanSeriesBars(Object.keys(s).sort().map(d => s[d]))).value };
+    })()`);
+    const p = [];
+    if (r.run !== nodeRun) p.push('scanRun on the fixture differs between the page and Node');
+    if (r.hist !== nodeHist) p.push('scanHistorical on the fixture differs between the page and Node');
+    if (!r.selfTest || r.version !== NE.SCAN_VERSION) p.push(`self-test ${r.selfTest}, version ${r.version} vs ${NE.SCAN_VERSION}`);
+    if (!r.tz.us || !r.tz.my) p.push(`MARKETS time zones disagree with SCAN_MARKETS: ${JSON.stringify(r.tz)}`);
+    if (r.hiLabel !== '52-week closing high' || r.sma50 !== r.sma50e) p.push(`trend: label "${r.hiLabel}", sma50 ${r.sma50} vs the engine's ${r.sma50e}`);
+    if (p.length) fail('the page runs the same market engine as the worker', p);
+    else ok(`the page runs the same market engine as the worker — byte-identical scanRun (${r.run.length} chars) and scanHistorical on the fixture, engine ${r.version}, MARKETS' zones read from SCAN_MARKETS, the trend context's averages from the engine and its 52-week high labelled a closing high`);
+  }
+  /* THE CURRENT SCANNER PAGE ON THE NEW ENGINE. With the fixture's files
+     injected: the setups list reads V2 (version chip, tree lines), "Evaluate
+     now" runs and — the fixture being months old against today's clock —
+     reports it untested as stale rather than matched; the builder's Test
+     runs its draft. Nothing throws. */
+  {
+    const events = [];
+    const listen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') events.push(m); };
+    ws.addEventListener('message', listen);
+    try {
+      const r = await evaluate(`(async () => {
+        const keep = { h: scanHistoryFile, s: scanSetupsFile, a: scanAlertsFile, d: scanDraft };
+        const fx = scanFixture();
+        scanHistoryFile = fx.history; scanSetupsFile = { setups: [fx.setup, fx.setupV2] }; scanAlertsFile = { alerts: [], lastRun: null };
+        scanDraft = { ...scanBlankDraft(), id: 'qa-draft', name: 'QA draft', universe: { kind: 'symbols', symbols: ['MATCH'] } };
+        navigate('/my/scanner');
+        await new Promise(r => setTimeout(r, 300));
+        const main = document.querySelector('main');
+        const out = { h1: main.querySelector('h1')?.textContent || '', chips: [...main.querySelectorAll('.chip')].map(c => c.textContent).filter(t => /^v\\d+$|condition|new matches|every match/.test(t)),
+                      tree: [...main.querySelectorAll('.rulelist li')].map(l => l.textContent).filter(t => /any of:|crosses above EMA50|between 50 and 70/.test(t)).length };
+        const ev = [...main.querySelectorAll('button')].find(b => /Evaluate now/.test(b.textContent));
+        ev?.click();
+        await new Promise(r => setTimeout(r, 200));
+        out.summary = [...main.querySelectorAll('details summary, .metaline')].map(x => x.textContent).join(' | ');
+        out.stale = [...main.querySelectorAll('details li')].some(li => /stale series is not evaluated/.test(li.textContent));
+        const test = [...main.querySelectorAll('button')].find(b => /Test against your history/.test(b.textContent));
+        out.testDisabled = test ? test.disabled : null;
+        test?.click();
+        await new Promise(r => setTimeout(r, 200));
+        out.tested = [...(test?.closest('.card')?.querySelectorAll('.metaline') || [])].some(x => /1 setup · 1 evaluation/.test(x.textContent));
+        const ops = [...main.querySelectorAll('select')].find(s => /Operator/.test(s.getAttribute('aria-label') || ''));
+        out.ops = ops ? [...ops.options].map(o => o.value) : [];
+        scanHistoryFile = keep.h; scanSetupsFile = keep.s; scanAlertsFile = keep.a; scanDraft = keep.d;
+        return out;
+      })()`);
+      const thrown = events.map(m => m.params.exceptionDetails?.exception?.description?.split('\n')[0]);
+      const p = [];
+      if (!/scanner/i.test(r.h1)) p.push(`heading "${r.h1}"`);
+      if (!r.chips.includes('v1') || !r.chips.some(c => /new matches only/.test(c)) || !r.chips.some(c => /every match/.test(c))) p.push(`chips ${JSON.stringify(r.chips)}`);
+      if (r.tree < 3) p.push(`only ${r.tree} tree lines`);
+      if (!/2 setups · 4 evaluations/.test(r.summary) || !r.stale) p.push(`evaluate-now summary: ${r.summary.slice(0, 200)} (stale named: ${r.stale})`);
+      if (r.testDisabled !== false || !r.tested) p.push(`builder Test disabled: ${r.testDisabled}, ran: ${r.tested}`);
+      if (r.ops.join() !== 'GREATER_THAN,LESS_THAN,GREATER_THAN_OR_EQUAL,LESS_THAN_OR_EQUAL,EQUALS,CROSSES_ABOVE,CROSSES_BELOW,BETWEEN') p.push(`builder operators ${r.ops.join()}`);
+      if (thrown.length) p.push(`exceptions: ${thrown.join('; ')}`);
+      if (p.length) fail('the scanner page renders and evaluates on engine 0.3.0', p);
+      else ok('the scanner page renders and evaluates on engine 0.3.0 — V2 setups listed with version, mode and tree lines; "Evaluate now" reports the months-old fixture as stale, not matched; the builder offers all eight operators');
+    } finally { ws.removeEventListener('message', listen); }
   }
 
 } catch (e) {
