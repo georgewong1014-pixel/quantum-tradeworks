@@ -91,6 +91,16 @@ function scanOpsStatus() {
     historyMeta: scanOpsHistoryMeta(scanOpsHistory()), control: scanControlFile, now: scanOpsNow(),
     instruments: scanOpsRegistry(), alertState: null });
 }
+/* The setups the worker refuses, and the problems it refuses them for.
+   scanStatus's active.refused counts problems, and one setup can have
+   several: a setup refused for a bad timeframe and a bad group read "2
+   refused" of the one setup. A file that is not a list is refused whole. */
+function scanOpsRefused(doc) {
+  if (!doc) return { setups: 0, problems: 0, file: null };
+  const v = scanValidate(doc);
+  const keys = Object.keys(v.problemsBySetup || {});
+  return { setups: keys.filter(k => k !== '').length, problems: v.problems.length, file: keys.includes('') ? v.problems[0] || 'refused' : null };
+}
 /* The alerts pages' unread count, guarded: null when that function is not
    in this build, or when it has no alerts file to count. */
 function scanOpsUnread() {
@@ -101,14 +111,27 @@ function scanOpsUnread() {
 /* ----------------------------------------------------------------- pieces -- */
 const scanOpsDay = (t) => (t ? String(t).slice(0, 10) : '—');
 const scanOpsWhen = (t) => (t ? `${String(t).replace('T', ' ').slice(0, 16)} UTC` : '—');
+/* How long ago, in calendar days of the same UTC date scanOpsDay prints
+   beside it. Counted in elapsed 24-hour spans, a run at 23:00 read at
+   01:00 the next day was "today" next to yesterday's date. A time after
+   the page's clock has no age. */
 const scanOpsAge = (t) => {
-  const ms = Date.parse(scanOpsNow()) - Date.parse(t);
-  if (!Number.isFinite(ms)) return null;
-  const d = Math.floor(ms / 86400000);
-  return d < 1 ? 'today' : d === 1 ? 'a day ago' : `${d} days ago`;
+  const a = t ? String(t).slice(0, 10) : '', b = scanOpsNow().slice(0, 10);
+  if (!scanIsDay(a) || !scanIsDay(b)) return null;
+  const d = scanDayDiff(a, b);
+  return d < 0 ? null : d === 0 ? 'today' : d === 1 ? 'a day ago' : `${d} days ago`;
 };
-const scanOpsDuration = (ms) => (!Number.isFinite(ms) ? '—' : ms < 1000 ? `${Math.round(ms)} ms`
-  : ms < 60000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.floor(ms / 60000)} min ${Math.round((ms % 60000) / 1000)} s`);
+/* A duration, rounded once at the unit it is shown in. Each part was
+   rounded on its own after the unit was chosen, so 119.6 s read "1 min
+   60 s", 59.96 s "60.0 s" and 999.6 ms "1000 ms". */
+const scanOpsDuration = (ms) => {
+  if (!Number.isFinite(ms)) return '—';
+  if (Math.round(ms) < 1000) return `${Math.round(ms)} ms`;
+  const tenths = Math.round(ms / 100);
+  if (tenths < 600) return `${(tenths / 10).toFixed(1)} s`;
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)} min ${s % 60} s`;
+};
 const scanOpsPlural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /* Shows or hides a node. The hidden attribute alone loses to any author
    display — .btn sets one, and so does a scanner table row on a phone — so
@@ -269,15 +292,32 @@ function scanRunHistoryText(r) {
    write one is not a worker that found nothing: absent reads "not recorded
    by this worker", an empty list reads "none". */
 const SCAN_NOT_WRITTEN = 'not recorded — this worker does not write it';
+/* skippedMarkets lists what the ready gate held back, and the gate runs
+   only when asked (--ready; the daily task asks). An empty list from a run
+   that was not gated, or whose readiness still names a market behind, is
+   not "every market was ready": a manual run on a history a month old said
+   so over its own readiness list naming MY and US behind. */
 function scanRunSkippedMarketsText(r) {
   if (!Array.isArray(r?.skippedMarkets)) return SCAN_NOT_WRITTEN;
   const list = r.skippedMarkets.filter(m => m && typeof m === 'object');
-  return list.length ? list.map(m => `${m.market || 'no market row'} — ${m.reason || 'no reason recorded'}`).join('; ') : 'none — every market in the run was ready';
+  if (list.length) return list.map(m => `${m.market || 'no market row'} — ${m.reason || 'no reason recorded'}`).join('; ');
+  const behind = scanRunReadiness(r).filter(m => m.inRun !== false && m.state && m.state !== 'READY');
+  if (!behind.length) return 'none — every market in the run was ready';
+  const names = behind.map(m => m.market || 'no market row').join(', ');
+  return `none held back — ${names} ${behind.length === 1 ? 'was' : 'were'} not ready${r.ready === false ? ', and the run was not asked to hold such a market back (--ready)' : ''}; the run’s readiness says why`;
 }
 function scanRunCatchUpText(r) {
   const c = r?.catchUp;
+  /* The worker writes catchUp: null on a run that does not catch up — a
+     replay, which evaluates the session it was asked for — and leaves the
+     key out only when it predates catch-up. Read as absent, a replay said
+     "this worker does not write it" of the worker that had just written it. */
+  if (c === null && r && 'catchUp' in r && (r.replayAsOf || r.trigger === 'replay')) return `none — a replay evaluates the session it was asked for${r.replayAsOf ? ` (${r.replayAsOf})` : ''} and catches nothing up`;
   if (!c || typeof c !== 'object') return SCAN_NOT_WRITTEN;
   const pairs = scanOpsN(c.pairs), bars = scanOpsN(c.bars);
+  /* A run the ready gate held back entirely evaluated no pair, and "each
+     was evaluated on that bar alone" was said of none. */
+  if (scanRunCounts(r).evaluated === 0) return 'none — the run evaluated no pair';
   if (pairs === 0 || bars === 0) return 'none — no pair was behind its newest bar, so each was evaluated on that bar alone';
   const many = (v, one, more) => (v == null ? `an unrecorded number of ${more}` : `${fmtNum(v, 0)} ${v === 1 ? one : more}`);
   /* capped may be a count of pairs, their list, or a yes or no. */
@@ -314,16 +354,26 @@ function scanOpsTable(headers, rows, { caption = null, wrapCols = [] } = {}) {
     el('td', { class: i === 0 ? 'ident' : wrapCols.includes(i) ? 'scan-wrap' : null, 'data-label': headers[i] || null }, cell ?? '—'))))));
   return el('div', { class: 'tablewrap' }, t);
 }
-/* Rows a page at a time, so a long list is bounded on screen too. */
+/* Rows a page at a time, so a long list is bounded on screen too.
+   "Show more" redraws the list, and the button that had focus went with
+   it: focus fell to the page's body, and every disclosure the reader had
+   opened closed. The disclosures reopen, and focus lands on the first row
+   the button revealed — where the reader's attention goes next. */
 function scanOpsPaged(rows, build, { step = 50, noun = 'rows' } = {}) {
   const host = el('div');
   let shown = Math.min(step, rows.length);
-  const draw = () => {
+  const draw = (land = null) => {
+    const open = [...host.querySelectorAll('details')].map(d => d.open);
     host.replaceChildren(build(rows.slice(0, shown)));
+    host.querySelectorAll('details').forEach((d, i) => { if (open[i]) d.open = true; });
     if (shown < rows.length) host.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px;align-items:center' }, [
       el('span', { class: 'metaline' }, `Showing ${shown} of ${rows.length} ${noun}.`),
-      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { shown = Math.min(rows.length, shown + step); draw(); } }, `Show ${Math.min(step, rows.length - shown)} more`),
+      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { const from = shown; shown = Math.min(rows.length, shown + step); draw(from); } }, `Show ${Math.min(step, rows.length - shown)} more`),
     ]));
+    if (land == null) return;
+    const table = host.querySelector('table');
+    const cell = table ? [...table.querySelectorAll(':scope > tbody > tr:not(.scan-detail-row)')][land]?.cells[0] : null;
+    if (cell) { cell.tabIndex = -1; cell.focus(); }
   };
   draw();
   return host;
@@ -357,10 +407,15 @@ const SCAN_OPS_OPENABLE = [
     if (typeof scanHistoryFile !== 'undefined') scanHistoryFile = scanAttachAdjustments(d, typeof scanAdjustmentsFile !== 'undefined' ? scanAdjustmentsFile : null);
   }],
 ];
+/* What the last choice of files left unopened. A choice that opened one
+   file re-renders the page, and the status line saying the others were
+   refused went with it: a file that did not parse, chosen beside one that
+   did, was dropped without a word. Kept for this tab, until the next choice. */
+let scanOpsOpenNote = '';
 function scanOpsOpenFiles() {
   const box = el('div', { class: 'scan-open' });
   const input = el('input', { type: 'file', accept: '.json,application/json', multiple: '', hidden: '', 'aria-hidden': 'true', tabindex: '-1' });
-  const out = el('p', { class: 'metaline', role: 'status' });
+  const out = el('p', { class: 'metaline', role: 'status' }, scanOpsOpenNote);
   input.addEventListener('change', async () => {
     const took = [], left = [];
     for (const f of [...(input.files || [])]) {
@@ -373,10 +428,14 @@ function scanOpsOpenFiles() {
         took.push(hit[1]);
       } catch { left.push(`${f.name} (not readable as JSON)`); }
     }
+    /* Cleared, so choosing the same file again — mended, or regenerated —
+       is a change the browser reports. */
+    input.value = '';
     if (took.length) scanOpsRead = true;
-    toast(took.length ? `Opened ${took.join(', ')} — in this tab only` : 'Nothing opened');
+    scanOpsOpenNote = left.length ? `Not opened: ${left.join('; ')}.` : '';
+    toast(took.length ? `Opened ${took.join(', ')} — in this tab only${left.length ? `; ${scanOpsPlural(left.length, 'file')} not opened` : ''}` : 'Nothing opened');
     if (took.length) render();
-    else out.textContent = left.length ? `Not opened: ${left.join('; ')}.` : '';
+    else out.textContent = scanOpsOpenNote;
   });
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => input.click() }, 'Open your files…'), input,
@@ -438,10 +497,12 @@ VIEWS.scannerDashboard = () => {
   ]);
   const a = st.active;
   const setupsDoc = scanOpsSetupsDoc();
+  const refused = scanOpsRefused(setupsDoc);
   tiles.append(tile('Are my setups active?',
     setupsDoc ? `${a.enabled - a.expired} active` : 'No setups file',
     setupsDoc ? [`${a.valid} valid in data/scan-setups.json: ${a.enabled} enabled, ${a.disabled} disabled, ${a.expired} expired.`,
-                 a.refused ? `${scanOpsPlural(a.refused, 'problem')} refused — the worker leaves those setups out.` : null]
+                 refused.file ? `The whole file is refused — ${refused.file}.`
+                   : refused.setups ? `${scanOpsPlural(refused.setups, 'setup')} refused, for ${scanOpsPlural(refused.problems, 'problem')} — the worker leaves ${refused.setups === 1 ? 'it' : 'them'} out.` : null]
               : [scanOpsRead ? 'The worker reads data/scan-setups.json; none is on this machine.' : 'Not loaded yet.'],
     scanOpsLink('/app/scanner/setups', 'Your setups')));
   const ls = st.lastSuccess, la = st.lastAttempt;
@@ -449,7 +510,11 @@ VIEWS.scannerDashboard = () => {
   tiles.append(tile('When did the last scan succeed?',
     ls ? scanOpsDay(lsAt) : 'Never',
     ls ? [`On bars of ${ls.asOf ? scanBarRange(ls.asOfFrom, ls.asOf) : 'no bar'}${scanOpsAge(lsAt) ? ` · ${scanOpsAge(lsAt)}` : ''}.`,
-          ls.legacy ? 'From the alerts file’s last run: no run log is on this machine, so failures are not recorded anywhere.' : null,
+          /* The alerts file's last run stands in for a success whenever no
+             run in the log succeeded — also when the log is here and holds
+             only failures, which it does record. */
+          ls.legacy ? (scanRunsFile ? 'From the alerts file’s last run: no run in the run log succeeded, so this is the last success any file records.'
+                                    : 'From the alerts file’s last run: no run log is on this machine, so failures are not recorded anywhere.') : null,
           la && la !== ls ? `Latest attempt ${scanOpsDay(la.startedAt)}: ${(SCAN_RUN_STATUS[la.status] || [null, la.status])[1]}.` : null]
        : [la ? `The latest attempt, ${scanOpsDay(la.startedAt)}, ${(SCAN_RUN_STATUS[la.status] || [null, 'did not complete'])[1]}.` : 'Nothing has run here.'],
     scanOpsLink('/admin/scanner/jobs', 'Every run')));
@@ -489,7 +554,13 @@ VIEWS.scannerDashboard = () => {
   if (older.length || (!ls && alerts.length)) {
     const rc = el('section', { class: 'card' });
     const list = older.length ? older : alerts.slice(-25).reverse();
-    rc.append(cardHead(ls ? 'Earlier matches — the last five bars with one' : 'Recorded matches — no run recorded, so none is current',
+    /* scanStatus's recent is the five newest bars with a match, and the
+       last scan's bar is usually one of them: the heading said five over
+       four. It counts what is listed. With no success, a run can still be
+       recorded — a failure — so "no run recorded" was not always true. */
+    const nBars = new Set(list.map(x => x.candleDate || x.bar || '')).size;
+    rc.append(cardHead(ls ? `Earlier matches — the last ${nBars === 1 ? 'bar' : `${nBars} bars`} with one`
+      : `Recorded matches — ${la ? 'no scan has succeeded' : 'no run recorded'}, so none is current`,
       'Newest bar first; within a bar, in the order of your setups.'));
     rc.append(scanOpsPaged(list, matchRows, { step: 25, noun: 'matches' }));
     wrap.append(rc);
@@ -567,12 +638,16 @@ function scanOpsSetupPicker(state, onChange) {
   box.append(el('div', { class: 'field' }, [el('label', { for: 'scan-setup-pick' }, 'Setup'), sel,
     el('p', { class: 'metaline' }, scanOpsSetupsDoc() ? 'From data/scan-setups.json, validated as the worker validates it.' : 'No setups file is loaded; paste a setup to use one.')]));
   const ta = el('textarea', { class: 'input scan-paste', id: 'scan-paste', rows: '3', spellcheck: 'false', placeholder: '{ "id": "…", "ruleTree": { … } }' }, state.pasted || '');
-  const msg = el('p', { class: 'metaline', role: 'status' });
+  /* Which of several pasted setups was taken is said, and kept across the
+     re-render the choice causes: the note was worked out and never shown,
+     so a pasted file of five ran its first without a word. */
+  const msg = el('p', { class: 'metaline', role: 'status' }, state.pastedSetup && state.pasteNote ? state.pasteNote : '');
   const use = el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
     state.pasted = ta.value;
     const r = scanOpsParsePasted(ta.value);
     if (r.error) { msg.textContent = r.error; return; }
     state.pastedSetup = r.setup; state.setup = 'pasted'; state.result = null;
+    state.pasteNote = r.note ? `${r.note} It is “${r.setup.name || r.setup.id}”.` : '';
     onChange('scan-setup-pick');
   } }, 'Use this setup');
   box.append(el('div', { class: 'field' }, [el('label', { for: 'scan-paste' }, 'Or paste a setup (the JSON the builder copies)'), ta,
@@ -598,6 +673,44 @@ async function scanOpsChunked(items, fn, { size = 8, onProgress = () => {}, canc
     await new Promise(r => setTimeout(r, 0));
   }
   return !cancelled();
+}
+/* A screen's or a simulation's run, from its button to its end.
+   THE RUN OUTLIVES THE PAGE IT STARTED ON. Its progress, its Cancel and
+   its result were written to the elements of the render that started it;
+   any later render — the theme switched, a page visited and left — drew
+   an idle form over a run still going, with no Cancel, and the result
+   landed in elements no longer on screen: seen only on some later render,
+   and, if the reader had started a shorter run meanwhile, over that one's.
+   A running job now reports to `job.ui`, the controls of the render on
+   screen, which each render hands it (scanOpsJobAttach).
+   FOCUS IS HANDED ON. Started from the keyboard, focus fell to the page's
+   body twice: the run button is disabled for the run, and a disabled
+   control is blurred; and Cancel is hidden when the run stops. It goes to
+   Cancel while the run can be stopped, and back to the run button after. */
+function scanOpsJobAttach(job, ui) {
+  job.ui = ui;
+  ui.runBtn.disabled = true; scanOpsShow(ui.cancelBtn, true);
+  ui.progress.textContent = job.said || '';
+}
+function scanOpsJobStart(S, ui) {
+  if (S.job) S.job.cancelled = true;
+  const job = { cancelled: false, said: '', ui };
+  S.job = job;
+  const focused = document.activeElement === ui.runBtn;
+  scanOpsJobAttach(job, ui);
+  if (focused) ui.cancelBtn.focus();
+  return job;
+}
+const scanOpsJobSay = (job, text) => { job.said = text; job.ui.progress.textContent = text; };
+/* False when a newer run has taken over: nothing of this one is shown or kept. */
+function scanOpsJobEnd(S, job) {
+  if (S.job !== job) return false;
+  S.job = null;
+  const { runBtn, cancelBtn } = job.ui;
+  const focused = document.activeElement === cancelBtn;
+  scanOpsShow(cancelBtn, false); runBtn.disabled = !job.ui.ready;
+  if (focused) runBtn.focus();
+  return true;
 }
 /* The markets a screen can take: those the registry places at least one of
    the reader's series in, alphabetically — the order of the codes, not of
@@ -654,7 +767,10 @@ VIEWS.scannerMarket = () => {
   ]);
   g.append(el('div', { class: 'field' }, [el('label', { for: 'scan-market-pick' }, 'Market'), msel,
     el('p', { class: 'metaline' }, `Markets as the instrument registry (data/instruments.json) places your series, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
-  const asOf = el('input', { class: 'input', type: 'date', id: 'scan-market-asof', value: S.asOf || '', onchange: (e) => { S.asOf = scanIsDay(e.target.value) ? e.target.value : ''; S.result = null; } });
+  /* A replay is of a session that has happened: the worker refuses an
+     --as-of after today, and so does the screen (below). */
+  const today = scanOpsNow().slice(0, 10);
+  const asOf = el('input', { class: 'input', type: 'date', id: 'scan-market-asof', max: today, value: S.asOf || '', onchange: (e) => { S.asOf = scanIsDay(e.target.value) ? e.target.value : ''; S.result = null; } });
   g.append(el('div', { class: 'field' }, [el('label', { for: 'scan-market-asof' }, 'As of (blank for now)'), asOf,
     el('p', { class: 'metaline' }, 'Blank judges your history against today’s clock, as the worker does: a series behind the session expected by now is untested, not evaluated. A date replays that evening — the history cut at it, judged the morning after.')]));
   form.append(g);
@@ -668,15 +784,23 @@ VIEWS.scannerMarket = () => {
     'No price history is loaded, so there is nothing to screen. On the deployed site that is by design — none of the prices this product could ship is licensed for redistribution. Locally, the worker’s data/price-history.json is read here.'));
   wrap.append(form);
 
+  const ui = { runBtn, cancelBtn, progress, results, ready: !runBtn.disabled };
+  if (S.job) scanOpsJobAttach(S.job, ui);
   runBtn.addEventListener('click', async () => {
     const setup = pick.setup;
     if (!setup) return;
-    const job = { cancelled: false };
-    S.job = job;
-    runBtn.disabled = true; scanOpsShow(cancelBtn, true);
-    const s = { ...setup, enabled: true, expires: null, universe: S.market === '__all' ? { kind: 'all' } : { kind: 'market', market: S.market } };
-    const hist = S.asOf ? scanTruncateHistory(history, S.asOf) : history;
-    const now = S.asOf ? scanReplayNow(S.asOf) : scanOpsNow();
+    if (S.asOf && S.asOf > scanOpsNow().slice(0, 10)) {
+      progress.textContent = `${S.asOf} is not a past date, so there is no session to replay — the worker refuses it too. Clear the date to screen now.`;
+      return;
+    }
+    const job = scanOpsJobStart(S, ui);
+    /* What was asked, taken now: the market and the date stay live on the
+       form while the screen runs, and read at its end they labelled a
+       screen of one market with another. */
+    const market = S.market, asOfDay = S.asOf || null, setupKey = S.setup;
+    const s = { ...setup, enabled: true, expires: null, universe: market === '__all' ? { kind: 'all' } : { kind: 'market', market } };
+    const hist = asOfDay ? scanTruncateHistory(history, asOfDay) : history;
+    const now = asOfDay ? scanReplayNow(asOfDay) : scanOpsNow();
     const reg = scanRegistry(scanOpsRegistry());
     const cals = new Map();
     const ctx = { reg, now, cache: scanCache(), calFor: (m) => { const k = m || ''; if (!cals.has(k)) cals.set(k, scanCalendar(hist, scanOpsRegistry(), m || null)); return cals.get(k); } };
@@ -686,18 +810,19 @@ VIEWS.scannerMarket = () => {
     const symbols = all.slice(0, SCAN_OPS_MAX_SCREEN);
     const rows = [];
     const done = await scanOpsChunked(symbols, (sym) => rows.push(scanScreenOne(s, hist, sym, ctx)), {
-      onProgress: (i, n) => { progress.textContent = `Screened ${i} of ${n}…`; }, cancelled: () => job.cancelled });
-    scanOpsShow(cancelBtn, false); runBtn.disabled = false;
-    if (!done) { progress.textContent = `Cancelled after ${rows.length} of ${symbols.length}. Nothing was kept.`; return; }
-    progress.textContent = '';
-    const regCount = S.market === '__all' ? scanOpsRegistry().length : scanOpsRegistry().filter(i => String(i.market || '').toUpperCase() === S.market).length;
+      onProgress: (i, n) => scanOpsJobSay(job, `Screened ${i} of ${n}…`), cancelled: () => job.cancelled });
+    if (!scanOpsJobEnd(S, job)) return;
+    if (!done) { job.ui.progress.textContent = `Cancelled after ${rows.length} of ${symbols.length}. Nothing was kept.`; return; }
+    job.ui.progress.textContent = '';
+    const regCount = market === '__all' ? scanOpsRegistry().length : scanOpsRegistry().filter(i => String(i.market || '').toUpperCase() === market).length;
     /* Where the setup came from decides what the builder can be handed:
        only a setup in the file has an id the builder can find (?from=). */
-    const source = String(S.setup || '').startsWith('file:') ? 'file' : S.setup === 'draft' ? 'draft' : 'pasted';
-    S.result = { at: new Date().toISOString(), setup: s, source, market: S.market, asOf: S.asOf || null, now, rows, capped: all.length > symbols.length ? all.length : 0, registry: regCount };
-    results.replaceChildren(scanScreenResult(S.result));
-    results.querySelector('h2, h3')?.setAttribute('tabindex', '-1');
-    results.querySelector('h2, h3')?.focus({ preventScroll: false });
+    const source = String(setupKey || '').startsWith('file:') ? 'file' : setupKey === 'draft' ? 'draft' : 'pasted';
+    S.result = { at: new Date().toISOString(), setup: s, source, market, asOf: asOfDay, now, rows, capped: all.length > symbols.length ? all.length : 0, registry: regCount };
+    const out = job.ui.results;
+    out.replaceChildren(scanScreenResult(S.result));
+    out.querySelector('h2, h3')?.setAttribute('tabindex', '-1');
+    out.querySelector('h2, h3')?.focus({ preventScroll: false });
   });
   cancelBtn.addEventListener('click', () => { if (S.job) S.job.cancelled = true; });
 
@@ -830,23 +955,36 @@ VIEWS.scannerBacktest = () => {
   wrap.append(form);
 
   const results = el('div', { 'aria-live': 'polite' });
+  const ui = { runBtn, cancelBtn, progress, results, ready: !runBtn.disabled };
+  if (S.job) scanOpsJobAttach(S.job, ui);
   runBtn.addEventListener('click', async () => {
     const s = pick.setup;
     if (!s) return;
-    const job = { cancelled: false };
-    S.job = job; runBtn.disabled = true; scanOpsShow(cancelBtn, true);
+    /* A From after the To holds no bar. Run anyway, the coverage read a
+       window that ended before it began ("2026-03-20 … 2026-01-30") and
+       "testable from: never" for a series every bar of which is testable. */
+    if (S.from && S.to && S.from > S.to) {
+      progress.textContent = `From (${S.from}) is after To (${S.to}), so no bar lies between them. Nothing was simulated.`;
+      return;
+    }
+    const job = scanOpsJobStart(S, ui);
+    /* The window, taken now: the dates stay live on the form while the
+       run goes on, and each instrument read them as it came up, so a date
+       changed mid-run gave the later instruments another window than the
+       earlier ones and the heading the last one typed. */
+    const from = S.from || null, to = S.to || null;
     const syms = S.symbol ? [S.symbol] : universe;
     const cache = scanCache();
     const parts = [];
-    const done = await scanOpsChunked(syms, (sym) => parts.push(scanHistorical(s, history, { symbols: [sym], from: S.from || null, to: S.to || null,
+    const done = await scanOpsChunked(syms, (sym) => parts.push(scanHistorical(s, history, { symbols: [sym], from, to,
       maxBars: SCAN_BACKTEST_MAX_BARS, instruments: scanOpsRegistry(), cache })), {
-      size: 2, onProgress: (i, n) => { progress.textContent = `Simulated ${i} of ${n} instrument${n === 1 ? '' : 's'}…`; }, cancelled: () => job.cancelled });
-    scanOpsShow(cancelBtn, false); runBtn.disabled = false;
-    if (!done) { progress.textContent = `Cancelled after ${parts.length} of ${syms.length}. Nothing was kept.`; return; }
-    progress.textContent = '';
-    S.result = { setup: s, from: S.from || null, to: S.to || null, out: scanBacktestMerge(parts, s) };
-    results.replaceChildren(scanBacktestResult(S.result));
-    const hd = results.querySelector('h3');
+      size: 2, onProgress: (i, n) => scanOpsJobSay(job, `Simulated ${i} of ${n} instrument${n === 1 ? '' : 's'}…`), cancelled: () => job.cancelled });
+    if (!scanOpsJobEnd(S, job)) return;
+    if (!done) { job.ui.progress.textContent = `Cancelled after ${parts.length} of ${syms.length}. Nothing was kept.`; return; }
+    job.ui.progress.textContent = '';
+    S.result = { setup: s, from, to, out: scanBacktestMerge(parts, s) };
+    job.ui.results.replaceChildren(scanBacktestResult(S.result));
+    const hd = job.ui.results.querySelector('h3');
     if (hd) { hd.setAttribute('tabindex', '-1'); hd.focus(); }
   });
   cancelBtn.addEventListener('click', () => { if (S.job) S.job.cancelled = true; });
@@ -1022,15 +1160,24 @@ VIEWS.scannerAdmin = () => {
   /* 5 — alert engine. From the newest run that evaluated — one with counts.
      A run that was skipped, turned away by the lock or failed before
      evaluating has none, and that absence is not a zero: when the latest
-     attempt is such a run it is named beside the one that did evaluate. */
-  const evalRun = runs.find(r => scanRunCounts(r).evaluated != null) || null;
-  const engSrc = evalRun || (lastRunDoc && scanRunCounts(lastRunDoc).evaluated != null ? lastRunDoc : null);
+     attempt is such a run it is named beside the one that did evaluate.
+     So is a run that has counts but evaluated no bar — every market held
+     back by the ready gate — which the dashboard, by scanStatus's rule,
+     calls a run that "evaluated no bar"; this panel called it "the last
+     run that evaluated", over a count of 0 pairs. */
+  const evaluatedSome = (r) => { const n = scanRunCounts(r).evaluated; return n != null && (n > 0 || !!r.asOf); };
+  const evalRun = runs.find(evaluatedSome) || null;
+  const engSrc = evalRun || (lastRunDoc && evaluatedSome(lastRunDoc) ? lastRunDoc : null);
   const lc = scanRunCounts(engSrc);
   const latest = runs[0] || null;
   const cnt = (v) => (v == null ? 'not recorded' : fmtNum(v, 0));
   const fromDoc = (fn) => (evalRun ? fn(evalRun) : 'not in the alerts file’s last run — the run log carries it');
-  wrap.append(panel('Alert engine', engSrc ? `The last run that evaluated: ${evalRun ? `${evalRun.id || 'a run with no id'}, ${scanOpsWhen(evalRun.startedAt)}` : `the alerts file’s last run, ${scanOpsWhen(lastRunDoc.at)} — no run log is loaded`}.${latest && evalRun && latest !== evalRun ? ` The latest attempt, ${latest.id || scanOpsWhen(latest.startedAt)}, was ${(SCAN_RUN_STATUS[latest.status] || [null, String(latest.status || 'unrecorded').toLowerCase()])[1]} and evaluated nothing.` : ''} An alert is written before anything else happens to it, and nothing is ever sent, so no alert can be lost to a delivery failure.`
-      : runs.length ? 'No run in the log evaluated anything: each was skipped, turned away or failed first.' : 'No run is recorded.',
+  /* The alerts file stands in whenever no run in the log evaluated — also
+     with a log loaded that holds only skipped or failed runs, where "no run
+     log is loaded" was false. */
+  const noEvalWhy = runs.length ? 'no run in the run log evaluated anything' : scanRunsFile ? 'the run log holds no scan run' : 'no run log is loaded';
+  wrap.append(panel('Alert engine', engSrc ? `The last run that evaluated: ${evalRun ? `${evalRun.id || 'a run with no id'}, ${scanOpsWhen(evalRun.startedAt)}` : `the alerts file’s last run, ${scanOpsWhen(lastRunDoc.at)} — ${noEvalWhy}`}.${latest && evalRun && latest !== evalRun ? ` The latest attempt, ${latest.id || scanOpsWhen(latest.startedAt)}, was ${(SCAN_RUN_STATUS[latest.status] || [null, String(latest.status || 'unrecorded').toLowerCase()])[1]} and evaluated nothing.` : ''} An alert is written before anything else happens to it, and nothing is ever sent, so no alert can be lost to a delivery failure.`
+      : runs.length ? 'No run in the log evaluated anything: each was skipped, turned away, failed first or had every market held back as not ready.' : 'No run is recorded.',
     engSrc ? el('dl', { class: 'kv scan-kv scan-engine' }, [
       el('dt', {}, 'Evaluated'), el('dd', {}, lc.evaluated == null ? 'not recorded' : `${cnt(lc.evaluated)} setup × instrument pairs${lc.setups != null ? `, ${scanOpsPlural(lc.setups, 'setup')}` : ''}`),
       el('dt', {}, 'Matched'), el('dd', {}, cnt(lc.matched)),
@@ -1051,9 +1198,10 @@ VIEWS.scannerAdmin = () => {
     el('p', { class: 'metaline' }, [`${st.notifications.text} `, scanOpsLink('/admin/scanner/delivery', 'Delivery')])));
 
   /* 7 — usage. */
-  const a = st.active;
+  const a = st.active, refused = scanOpsRefused(scanOpsSetupsDoc());
   wrap.append(panel('Usage', 'On this machine. There are no users to count.',
-    el('dl', { class: 'kv scan-kv' }, [el('dt', {}, 'Active setups'), el('dd', {}, scanOpsSetupsDoc() ? `${a.enabled - a.expired} (of ${a.valid} valid, ${a.refused} refused)` : 'no setups file'),
+    el('dl', { class: 'kv scan-kv' }, [el('dt', {}, 'Active setups'), el('dd', {}, scanOpsSetupsDoc()
+      ? `${a.enabled - a.expired} (of ${a.valid} valid, ${refused.file ? 'the whole file refused' : `${refused.setups} refused`})` : 'no setups file'),
       el('dt', {}, 'Monitored instruments'), el('dd', {}, st.monitored ? fmtNum(st.monitored.instruments, 0) : 'no price history loaded'),
       el('dt', {}, 'Alerts recorded'), el('dd', {}, (() => { const d = scanOpsAlertsDoc(); const l = Array.isArray(d) ? d : d?.alerts; return Array.isArray(l) ? fmtNum(l.length, 0) : 'no alerts file'; })())])));
 
@@ -1087,7 +1235,10 @@ VIEWS.scannerAdmin = () => {
     scanOpsCmd('node scanner/scan.mjs --unlock', 'Clears data/scan.lock when a crashed run left it. A lock whose process is dead, or an hour old, is taken over by the next run anyway, and the takeover is recorded.'),
     scanOpsCmd('node scanner/scan.mjs --runs 20', 'Prints the last twenty runs with their errors — the way to inspect a failure.'),
     audit.length ? el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, `${scanOpsPlural(audit.length, 'control')} in the log; the latest ${scanOpsWhen(audit[0].at || audit[0].startedAt)} (${audit[0].action || 'control'}). `, scanOpsLink('/admin/scanner/jobs', 'The control log')) : null));
-  if (!scanRunsFile) wrap.append(panel('Your own files', 'On a machine that does not run the worker — the deployed site included — open the worker’s files from your disk to read them here.', scanOpsOpenFiles()));
+  /* Kept once files are opened here: opening scan-runs.json took the panel
+     away in the same render, and with it the line naming any file chosen
+     beside it that could not be opened. */
+  if (!scanRunsFile || scanOpsOpened.length) wrap.append(panel('Your own files', 'On a machine that does not run the worker — the deployed site included — open the worker’s files from your disk to read them here.', scanOpsOpenFiles()));
   return wrap;
 };
 
@@ -1140,11 +1291,16 @@ VIEWS.scannerAdminData = () => {
   [['Series', t.series], ['Bars', t.bars], ['Invalid bars', t.invalid], ['Gaps counted', t.gaps], ['Price breaks', t.jumps, t.jumps ? `${fmtNum(t.unexplained, 0)} unexplained` : null], ['Stale series', t.stale], ['Provisional bars', t.provisional]]
     .forEach(([l, v, sub]) => g.append(statTile(l, fmtNum(v, 0), sub ? { sub } : {})));
   sum.append(g);
-  const applied = H.adjustments.actions.filter(a => a.state === 'applied' || a.state === 'acknowledged').length;
+  /* A ratio of 1 records a break as the market's own move and adjusts
+     nothing; counted with the applied actions, a file holding only such a
+     record read "prices are adjusted on read for the 1 corporate action". */
+  const applied = H.adjustments.actions.filter(a => a.state === 'applied').length;
+  const acknowledged = H.adjustments.actions.filter(a => a.state === 'acknowledged').length;
+  const ackText = acknowledged ? ` ${scanOpsPlural(acknowledged, 'break')} you recorded as the market’s own move (ratio 1) ${acknowledged === 1 ? 'is' : 'are'} explained, and ${acknowledged === 1 ? 'its' : 'their'} prices are not adjusted.` : '';
   sum.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     `Held beyond closes and volumes: ${[H.file.ohlc ? 'open, high and low' : null, H.file.meta ? 'capture times' : null, H.file.corrections ? 'corrections' : null].filter(Boolean).join(', ') || 'nothing — no open, high, low, capture time or correction is in this file yet'}. ${applied
       ? `Prices are adjusted on read for the ${scanOpsPlural(applied, 'corporate action')} you recorded in data/price-adjustments.json — never for dividends; the file on disk is unchanged.`
-      : 'No corporate action you recorded applies, so no price is adjusted.'} An indicator is not computed across a break nothing explains.`));
+      : 'No corporate action you recorded changes a price, so no price is adjusted.'}${ackText} An indicator is not computed across a break nothing explains.`));
   wrap.append(sum);
 
   const mk = el('section', { class: 'card' });
@@ -1418,7 +1574,9 @@ function scanJobRow(r) {
     ...notReady.map(m => m.text || `${m.market || 'no market row'}: ${String(m.state).toLowerCase()}`)];
   if (lines.length) det.append(el('ul', { class: 'rulelist' }, lines.slice(0, 40).map(t => el('li', {}, t))));
   if ((r.status === 'FAILED' || r.status === 'CANCELLED') && r.id) det.append(scanOpsCmd(`node scanner/scan.mjs --retry ${r.id}`, 'Runs it again on its own session dates; nothing already recorded is recorded twice.'));
-  const counts = evaluated ? `${fmtNum(c.evaluated, 0)} evaluated · ${fmtNum(c.matched ?? 0, 0)} matched · ${fmtNum(c.recorded ?? 0, 0)} recorded${c.deduped ? ` · ${fmtNum(c.deduped, 0)} already recorded` : ''}${c.untested ? ` · ${fmtNum(c.untested, 0)} untested` : ''}`
+  /* A count the record does not hold is said to be missing, never shown
+     as 0 (this read "0 matched" of a run that recorded no match count). */
+  const counts = evaluated ? `${fmtNum(c.evaluated, 0)} evaluated · ${c.matched == null ? 'no count of matches' : `${fmtNum(c.matched, 0)} matched`} · ${c.recorded == null ? 'no count of alerts recorded' : `${fmtNum(c.recorded, 0)} recorded`}${c.deduped ? ` · ${fmtNum(c.deduped, 0)} already recorded` : ''}${c.untested ? ` · ${fmtNum(c.untested, 0)} untested` : ''}`
     : /^SKIPPED/.test(r.status || '') ? 'none — skipped before evaluating' : r.status === 'FAILED' || r.status === 'CANCELLED' ? 'none — it stopped before evaluating' : unfinished ? 'not yet' : 'not recorded';
   return [scanOpsWhen(r.startedAt), scanRunChip(r.status), r.trigger || r.origin || '—', scanOpsDuration(r.durationMs ?? (Date.parse(r.finishedAt) - Date.parse(r.startedAt))),
     r.asOf ? scanBarRange(r.asOfFrom, r.asOf) : '—', counts, det];
