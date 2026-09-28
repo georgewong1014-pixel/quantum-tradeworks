@@ -600,7 +600,9 @@ VIEWS.userdata = () => {
         el('td', { class: 'metaline' }, `${r.modelVersion} · data ${r.asOf} · ${r.editor}`),
         el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
           if (!confirm(`Delete "${r.name}"?`)) return;
-          deleteWork(r.id); render(); toast('Deleted');
+          /* deleteWork returns the write's result; a refused one said
+             "Deleted" over a record still listed after the render. */
+          const gone = deleteWork(r.id); render(); toast(gone ? 'Deleted' : STORE_UNDELETED);
         } }, 'Delete')),
       ]));
     });
@@ -633,7 +635,7 @@ VIEWS.userdata = () => {
         el('td', { class: 'num' }, dates[0] || '—'),
         el('td', { class: 'num' }, dates[dates.length - 1] || '—'),
         el('td', {}, el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-          delete userData.series[sym]; saveUserData();
+          if (!commitUserData(() => { delete userData.series[sym]; })) { toast(STORE_UNDELETED); return; }
           toast(`${sym} removed`); location.reload();
         } }, 'Remove')),
       ]));
@@ -652,7 +654,8 @@ VIEWS.userdata = () => {
     } }, 'Export these prices'));
     exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!confirm('Remove every price you have added? This cannot be undone and there is no copy on any server.')) return;
-      userData.series = {}; saveUserData(); location.reload();
+      if (!commitUserData(() => { userData.series = {}; })) { toast(STORE_UNDELETED); return; }
+      location.reload();
     } }, 'Remove all'));
     status.append(exp);
   } else {
@@ -726,20 +729,22 @@ VIEWS.userdata = () => {
     report.replaceChildren();
     if (!res.accepted && !res.rejected.length) { report.append(el('p', { class: 'metaline' }, 'Nothing to read.')); return; }
 
-    if (res.accepted) {
+    const kept = !res.accepted || commitUserData(() => {
       for (const [sym, series] of Object.entries(res.series)) {
         userData.series[sym] = { ...(userData.series[sym] || {}), ...series };
       }
       userData.added = new Date().toISOString().slice(0, 10);
-      saveUserData();
-    }
+    });
 
     /* Both halves reported, always. A partial import that only announces its
-       successes is how a reader ends up trusting a series with holes in it. */
+       successes is how a reader ends up trusting a series with holes in it.
+       And a read that the browser refused to keep says so, with no reload
+       offered: the reload would have shown none of it. */
     const summary = el('p', { class: 'body', style: 'font-size:13px' },
       `${res.accepted} close${res.accepted === 1 ? '' : 's'} read across ${res.symbols.length} symbol${res.symbols.length === 1 ? '' : 's'}`
       + (res.rejected.length ? `, and ${res.rejected.length} row${res.rejected.length === 1 ? '' : 's'} could not be read.` : '.'));
     report.append(summary);
+    if (!kept) report.append(el('p', { class: 'body', style: 'font-size:13px;color:var(--bronze)', role: 'alert' }, STORE_REFUSED));
 
     if (res.rejected.length) {
       const det = el('details', { style: 'margin-top:8px' });
@@ -754,7 +759,7 @@ VIEWS.userdata = () => {
       report.append(det);
     }
 
-    if (res.accepted) {
+    if (res.accepted && kept) {
       report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:10px',
         onclick: () => location.reload() },
         'Reload to apply'));
@@ -779,12 +784,14 @@ VIEWS.userdata = () => {
       const j = JSON.parse(await f.text());
       if (!j?.series || typeof j.series !== 'object') { toast('That file has no price series in it'); return; }
       let n = 0;
-      for (const [sym, series] of Object.entries(j.series)) {
-        if (!series || typeof series !== 'object') continue;
-        userData.series[sym] = { ...(userData.series[sym] || {}), ...series };
-        n += Object.keys(series).length;
-      }
-      saveUserData();
+      const kept = commitUserData(() => {
+        for (const [sym, series] of Object.entries(j.series)) {
+          if (!series || typeof series !== 'object') continue;
+          userData.series[sym] = { ...(userData.series[sym] || {}), ...series };
+          n += Object.keys(series).length;
+        }
+      });
+      if (!kept) { e.target.value = ''; toast(STORE_REFUSED); return; }
       toast(`${n} closes restored`);
       location.reload();
     } catch { toast('That file could not be read as JSON'); }
@@ -825,7 +832,24 @@ VIEWS.watchlists = () => {
     const file = fileInp.files?.[0]; if (!file) return;
     try {
       const rep = watchlistsImport(JSON.parse(await file.text()));
-      toast(rep.ok ? `Imported: ${rep.created} list(s) created, ${rep.added} added, ${rep.duplicate} already present${rep.unresolved.length ? `, ${rep.unresolved.length} not recognised: ${rep.unresolved.slice(0, 4).join(', ')}` : ''}` : rep.why);
+      /* The refusals too. A list refused for the plan's limit, and each
+         company refused for a list's, are in rep.refused, which this never
+         read: a Free-plan import of two lists, one of thirty, said "0 list(s)
+         created, 25 added" and nothing of the second list or the five
+         companies over the limit. Grouped by reason, so five refusals for one
+         limit read as one line with their count. */
+      const byWhy = new Map();
+      (rep.refused || []).forEach(x => {
+        const s = String(x), at = s.indexOf(': ');
+        const why = at < 0 ? s : s.slice(at + 2);
+        if (!byWhy.has(why)) byWhy.set(why, []);
+        byWhy.get(why).push(at < 0 ? null : s.slice(0, at));
+      });
+      const refused = [...byWhy].map(([why, who]) => {
+        const named = who.filter(Boolean);
+        return `${who.length} refused — ${why}${named.length ? ` (${named.slice(0, 3).join(', ')}${named.length > 3 ? ` and ${named.length - 3} more` : ''})` : ''}`;
+      }).join('; ');
+      toast(rep.ok ? `Imported: ${rep.created} list(s) created, ${rep.added} added, ${rep.duplicate} already present${rep.unresolved.length ? `, ${rep.unresolved.length} not recognised: ${rep.unresolved.slice(0, 4).join(', ')}` : ''}${refused ? `; ${refused}` : ''}` : rep.why);
       render();
     } catch (e) { toast(`Could not read that file: ${e.message}`); }
   });
@@ -864,6 +888,12 @@ VIEWS.watchlists = () => {
     if (w.updatedAt) head.append(el('span', { class: 'chip' }, `updated ${String(w.updatedAt).slice(0, 10)}`));
     head.append(el('span', { class: 'spacer' }));
     head.append(el('button', { class: 'btn btn-ghost btn-sm', title: 'Open the scanner builder with this list as the universe', onclick: () => {
+      /* A draft with changes in it was replaced without a word — a name
+         typed into the builder, then this button, and the name was gone —
+         where the scanner's own "New setup on this list" and every other
+         start the builder offers ask first. */
+      if (typeof scanDraftUntouched === 'function' && scanDraft && !scanDraftUntouched()
+        && !confirm('Replace the draft open in the builder with a new setup on this list? What is in the draft now is not kept.')) return;
       scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } };
       scanIdAuto = true;
       navigate('/app/scanner/setups/new');

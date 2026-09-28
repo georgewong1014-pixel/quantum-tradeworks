@@ -151,8 +151,14 @@ VIEWS.home = () => {
     const unreadable = realStatus?.priceSource?.unreadable
       ? ` ${realStatus.priceSource.unreadable} of the ${realStatus.priceSource.count ?? 'listed'} entries in ${realStatus.priceSource.file} carry no readable close and were skipped.` : '';
     freshCard.append(el('div', { class: 'metaline', style: 'margin-top:4px' },
-      realStatus === null ? 'Loading filings from SEC EDGAR…'
-      : realStatus.ok ? `${n} companies loaded from SEC EDGAR. Statements are audited and real. `
+      /* Loaded from this site, not from SEC EDGAR. The statements were
+         retrieved from EDGAR when the dataset was built and ship in
+         data/us.json; the page cannot reach sec.gov at all (the CSP allows
+         connections to its own origin only), so "loading filings from SEC
+         EDGAR" described a request that is never made — the claim the
+         loading card was corrected for. */
+      realStatus === null ? 'Loading the filed statements…'
+      : realStatus.ok ? `${n} companies’ statements loaded — retrieved from SEC EDGAR when this dataset was built, not fetched now. Statements are audited and real. `
           + (realStatus.broken?.length ? `${realStatus.broken.length} could not be built and were skipped (${realStatus.broken.map(b => b.id).join(', ')}). ` : '')
           + (realStatus.priced
               ? (realStatus.priceSource?.personal
@@ -1146,7 +1152,11 @@ function renderScreener() {
       /* alert-on-new-match toggle, per screen */
       const lab = el('label', { class: 'checkline', style: 'gap:6px', title: 'Alert me when a new company matches this screen' });
       lab.append(el('input', { type: 'checkbox', checked: s.alertOnMatch !== false ? '' : null,
-        onchange: e => { s.alertOnMatch = e.target.checked; store.write('savedScreens', State.savedScreens); render(); } }));
+        onchange: e => {
+          const was = s.alertOnMatch; s.alertOnMatch = e.target.checked;
+          if (!store.write('savedScreens', State.savedScreens)) { s.alertOnMatch = was; toast(STORE_REFUSED); }
+          render();
+        } }));
       lab.append(el('span', {}, 'Alert on new match'));
       row.append(lab);
       row.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openSavedScreen(i) }, 'Detail'));
@@ -1295,8 +1305,22 @@ function metricStatus(r, k) {
     [['om', 'nm', 'fcfm', 'ocfm'], m.revenueSuspect],
     [['roe'], m.roeWithheld],
     [['payout', 'nm', 'roe', 'pe', 'cashconv', 'ni5', 'niYoY'], m.perShareScaleBroken],
-    [['eps5', 'dps5', 'dilution', 'buyback'], m.shareSeriesBreak
-      ? `The share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn inside the window — a corporate action, not issuance, and no corporate-action source is licensed here to undo it. A rate over a per-share line across that boundary would measure the split, so it is withheld.`
+    /* Each rate by the break it was withheld on. derive() withholds the
+       four-year per-share rates on a break among the five rows they read
+       (perShareBreak), and the share-count rate and buyback yield on the
+       first break in the whole series (shareSeriesBreak). Keyed on the
+       whole-series break, GE's earnings growth — absent because its FY2021
+       earnings were negative — and Alphabet's dividend growth — no dividend
+       in FY2021 — both read "withheld: the share count moves inside the
+       window", about a break years before it; book-value growth, withheld
+       on the same evidence, was not listed at all. And "a corporate action,
+       not issuance" named a cause nothing here can know: Realty Income's
+       1.64× is a merger paid in shares, which is issuance. */
+    [['eps5', 'bv5', 'dps5'], m.perShareBreak
+      ? `The share count moves from ${fmtNum(m.perShareBreak.from, 2)}bn to ${fmtNum(m.perShareBreak.to, 2)}bn between two of the five years this rate reads — a split, a merger or an offering, which the filings are not restated for and no source here identifies. A rate over a per-share line across that step would measure the event, not the company, so it is withheld.`
+      : null],
+    [['dilution', 'buyback'], m.shareSeriesBreak
+      ? `The share count moves from ${fmtNum(m.shareSeriesBreak.from, 2)}bn to ${fmtNum(m.shareSeriesBreak.to, 2)}bn between two consecutive years in the stored series — a split, a merger or an offering, which the filings are not restated for and no source here identifies. A growth rate over the series would measure that one event rather than the company's issuance and buybacks, so it is withheld.`
       : null],
   ];
   for (const [keys, text] of W) if (text && keys.includes(k)) return why('withheld', text);
@@ -1870,9 +1894,13 @@ function saveScreen() {
   /* The currency a money threshold was typed in travels with the screen. */
   def.moneyCcy = screenMoneyCcy(def);
   const snapshot = screenSnapshot(def);
-  State.savedScreens = [...State.savedScreens, {
+  /* Said saved only when the browser kept it. With the quota full this
+     toasted 'Saved "…" — 56 matches frozen' and listed the screen until the
+     next reload, which had never stored it. */
+  const was = State.savedScreens;
+  State.savedScreens = [...was, {
     name, def, snapshot, alertOnMatch: true, asOf: snapshot.asOf, model: snapshot.model }];
-  store.write('savedScreens', State.savedScreens);
+  if (!store.write('savedScreens', State.savedScreens)) { State.savedScreens = was; toast(STORE_REFUSED); render(); return; }
   toast(`Saved "${name}" — ${snapshot.matches.length} matches frozen with their scores`);
   render();
 }
@@ -1951,12 +1979,16 @@ function openSavedScreen(idx) {
     State.screen = def; closeDrawer(); render(); toast(`Loaded "${s.name}"`);
   } }, 'Load these criteria'));
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-    s.snapshot = screenSnapshot(s.def); store.write('savedScreens', State.savedScreens);
+    /* As saveScreen: refreshed only if the browser keeps it. */
+    const was = s.snapshot; s.snapshot = screenSnapshot(s.def);
+    if (!store.write('savedScreens', State.savedScreens)) { s.snapshot = was; toast(STORE_REFUSED); return; }
     closeDrawer(); render(); toast('Snapshot refreshed to today');
   } }, 'Mark reviewed — refresh snapshot'));
   acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-    State.savedScreens = State.savedScreens.filter((_, i) => i !== idx);
-    store.write('savedScreens', State.savedScreens); closeDrawer(); render(); toast('Screen deleted');
+    const was = State.savedScreens;
+    State.savedScreens = was.filter((_, i) => i !== idx);
+    if (!store.write('savedScreens', State.savedScreens)) { State.savedScreens = was; toast(STORE_UNDELETED); return; }
+    closeDrawer(); render(); toast('Screen deleted');
   } }, 'Delete'));
   body.append(acts);
   openDrawer('Saved screen', body);

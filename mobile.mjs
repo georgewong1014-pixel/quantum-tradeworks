@@ -434,6 +434,60 @@ for (const route of ['/company/MSFT-SEC?tab=valuation', '/company/MAYBANK?tab=va
 }
 await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
 /* ---- end bugfix: shell ---- */
+/* ---- bugfix2: equities ---- */
+/* A SENTENCE IN A TABLE CELL IS NOT CUT INSIDE A WORD. .caption breaks
+   anywhere, and a table sized to its narrowest on a phone gave the IPS
+   gates' "Why" 28px — "instalment" cut in two on every line, the card
+   6,000px tall — the demand notes and the evidence tiers the same, and the
+   strategy lens's "Supports" 85px. A word laid out on two lines is found
+   with a Range over it; a break at a hyphen or a dash is ordinary wrapping
+   and not counted. */
+await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+for (const [route, heads] of [
+  ['/property/calculator?city=kuching', ['#|Gate|State|Why', 'Source|State|Counts|Note|', 'Allowance|Triggered by']],
+  ['/methodology/ips', ['IPS §8 says|', '#|Gate|The question it asks', 'Tier|IPS description|']],
+  ['/company/JPM-SEC', ['Strategy|Grade|Supports|Weakens or missing']],
+]) {
+  await send('Page.navigate', { url: BASE + route }, sessionId);
+  let ready = false;
+  for (let i = 0; i < 40 && !ready; i++) {
+    await sleep(500);
+    const p = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof realPending !== 'undefined' && !realPending && typeof U !== 'undefined' && U.some(r => r.c.real)` }, sessionId);
+    ready = p.result?.result?.value === true;
+  }
+  await sleep(800);
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    document.querySelectorAll('#views details').forEach(d => { d.open = true; });
+    const heads = ${JSON.stringify(heads)};
+    const seen = [], cut = [];
+    document.querySelectorAll('#views table.dt').forEach(t => {
+      const h = [...t.querySelectorAll('thead th')].map(x => x.textContent).join('|');
+      const which = heads.find(x => h.startsWith(x));
+      if (!which) return;
+      seen.push(which);
+      t.querySelectorAll('tbody td').forEach(td => {
+        const walker = document.createTreeWalker(td, NodeFilter.SHOW_TEXT);
+        let n;
+        while ((n = walker.nextNode())) {
+          const re = /[^\\s\\u2010-\\u2014-]+/g; let m;
+          while ((m = re.exec(n.data))) {
+            if (m[0].length < 3 || m[0].length > 24) continue;
+            const rg = document.createRange(); rg.setStart(n, m.index); rg.setEnd(n, m.index + m[0].length);
+            const tops = new Set([...rg.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top)));
+            if (tops.size > 1) cut.push(which.split('|')[0] + ': "' + m[0] + '" in a ' + Math.round(td.getBoundingClientRect().width) + 'px cell');
+          }
+        }
+      });
+    });
+    return { seen, cut };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  /* The environmental table renders only once an allowance is recorded, so
+     it is looked for, not required. */
+  const missing = v ? heads.filter(h => !h.startsWith('Allowance') && !v.seen.includes(h)) : heads;
+  if (!v || missing.length || v.cut.length) { bad++; console.log(`FAIL 390px ${route} — words cut inside prose cells: ${v ? [...missing.map(h => 'no table "' + h + '"'), ...v.cut.slice(0, 4)].join('; ') : 'not measured'}`); }
+}
+/* ---- end bugfix2: equities ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

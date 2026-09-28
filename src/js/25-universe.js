@@ -32,6 +32,20 @@ let userData = store.read(USER_DATA_KEY, null) || { series: {}, statements: {}, 
 userData.series = userData.series || {};
 userData.statements = userData.statements || {};
 const saveUserData = () => store.write(USER_DATA_KEY, userData);
+/* A change to the reader's prices, kept only if the browser keeps it. The
+   paste, the restore and both removals changed the series in memory, wrote,
+   and said so whatever the write returned: with the quota full, "2 closes
+   read … Reload to apply" reloaded into a page holding none of them. The
+   change runs on a copy of the series map; a refused write puts the map
+   and its date back, and the caller says nothing was kept. */
+function commitUserData(change) {
+  const was = { series: userData.series, added: userData.added };
+  userData.series = { ...userData.series };
+  change();
+  if (saveUserData()) return true;
+  Object.assign(userData, was);
+  return false;
+}
 
 const userSeriesCount = () => Object.keys(userData.series).length;
 const userCloseCount = () => Object.values(userData.series)
@@ -547,6 +561,24 @@ function documents(c) {
   });
 }
 
+/* WHAT THE EBIT SERIES HOLDS, BY WHERE IT CAME FROM.
+   The illustrative banks carry pre-provision operating profit in that slot, by
+   construction. A filed bank does not: most banks present no operating-income
+   line, so the SEC ingest falls back to pre-tax income, which is struck after
+   credit-loss provisions. Labelling JPMorgan's pre-tax income "Pre-provision
+   profit" understated that measure by the whole provision charge. A filed
+   company's label follows the concept the ingest recorded — and BlackRock, a
+   bank here that files OperatingIncomeLoss, reads as operating profit. */
+function ebitLabel(c) {
+  const concept = c.real && c.provenance && typeof c.provenance === 'object' ? String(c.provenance.ebit?.concept || '') : '';
+  if (/BeforeIncomeTaxes/.test(concept)) {
+    if (/OperatingIncomeLoss/.test(concept)) return 'Operating or pre-tax profit';
+    return c.type === 'bank' ? 'Profit before tax, after provisions' : 'Profit before tax';
+  }
+  if (c.type === 'bank' && !c.real) return 'Pre-provision profit';
+  return 'Operating profit';
+}
+
 /* "What changed" is computed from the company's own last two reported years —
    it is a diff, not a generated narrative. */
 function changeSummary(c) {
@@ -560,13 +592,22 @@ function changeSummary(c) {
   const ratio = isNum(d.sh[i-1]) && isNum(d.sh[i]) && d.sh[i-1] > 0 ? d.sh[i] / d.sh[i-1] : null;
   const splitHere = !!r.m.shareSeriesBreak && isNum(ratio) && (ratio > 1.5 || ratio < 0.67);
   const SPLIT_WHY = 'The share count moves by a corporate action between these two years, so a one-year change in a per-share figure measures the split.';
-  const perShare = (label, a, b) => splitHere ? { label, v: null, withheld: SPLIT_WHY } : { label, v: pctChange(a, b) };
+  /* THE ROW IS NAMED AS THE STATEMENT NAMES IT, AND CARRIES ITS LINE'S KEY.
+     The EBIT row was "Operating profit" for every company, while the
+     statement table beside it calls a filed bank's line "Profit before tax,
+     after provisions" and an illustrative bank's "Pre-provision profit"
+     (ebitLabel): JPMorgan's snapshot and Filings tab reported a change in an
+     operating profit it does not file. The label now comes from ebitLabel,
+     and the key lets a table find the row's series without matching on
+     words that are free to change. */
+  const row = (key, label, v) => ({ key, label, v });
+  const perShare = (key, label, a, b) => splitHere ? { key, label, v: null, withheld: SPLIT_WHY } : row(key, label, pctChange(a, b));
   return [
-    { label:'Revenue',            v:pctChange(d.rev[i-1], d.rev[i]) },
-    { label:'Operating profit',   v:pctChange(d.ebit[i-1], d.ebit[i]) },
-    { label:'Net profit',         v:pctChange(d.ni[i-1], d.ni[i]) },
-    perShare(c.type==='reit' ? 'Distribution per unit' : 'Dividend per share', d.dps[i-1], d.dps[i]),
-    perShare('Shares in issue', d.sh[i-1], d.sh[i]),
+    row('rev',  'Revenue',     pctChange(d.rev[i-1], d.rev[i])),
+    row('ebit', ebitLabel(c),  pctChange(d.ebit[i-1], d.ebit[i])),
+    row('ni',   'Net profit',  pctChange(d.ni[i-1], d.ni[i])),
+    perShare('dps', c.type==='reit' ? 'Distribution per unit' : 'Dividend per share', d.dps[i-1], d.dps[i]),
+    perShare('sh', 'Shares in issue', d.sh[i-1], d.sh[i]),
   ].filter(x => isNum(x.v) || x.withheld);
 }
 /* How a change row renders where it is a number and where it was withheld. */
@@ -632,9 +673,16 @@ const realEnabled = () => {
 /* A price a user typed in themselves. Explicitly not market data, and labelled
    as such everywhere it is used. */
 const manualPrices = store.read('manualPrices', {});
+/* Returns whether the browser kept it. The field reloads the page to price
+   the company, and a refused write came back as the price it replaced, with
+   no word said: the reader's figure was simply gone. A refused one is put
+   back as it was and the caller says so instead of reloading. */
 const setManualPrice = (id, p) => {
+  const had = Object.prototype.hasOwnProperty.call(manualPrices, id), was = manualPrices[id];
   if (isNum(p) && p > 0) manualPrices[id] = p; else delete manualPrices[id];
-  store.write('manualPrices', manualPrices);
+  if (store.write('manualPrices', manualPrices)) return true;
+  if (had) manualPrices[id] = was; else delete manualPrices[id];
+  return false;
 };
 
 /* Business model drives the valuation router, and SEC filings do not carry a

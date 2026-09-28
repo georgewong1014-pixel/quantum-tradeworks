@@ -1035,7 +1035,10 @@ VIEWS.research = () => {
     f.append(el('label', { for: 'realpx' }, `Price (${c.ccy || 'USD'})`));
     f.append(el('input', { class: 'input input-inline', id: 'realpx', type: 'number', step: '0.01',
       value: isNum(c.px?.p) ? c.px.p : '', placeholder: 'not available',
-      onchange: e => { setManualPrice(c.id, parseFloat(e.target.value)); location.reload(); } }));
+      onchange: e => {
+        if (setManualPrice(c.id, parseFloat(e.target.value))) { location.reload(); return; }
+        e.target.value = isNum(c.px?.p) ? c.px.p : ''; toast(STORE_REFUSED);
+      } }));
     pr.append(f);
     pr.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
       c.px?.eod && c.pricePersonal
@@ -1182,12 +1185,18 @@ VIEWS.research = () => {
   ft.append(el('thead', {}, el('tr', {}, ['Strategy', 'Grade', 'Supports', 'Weakens or missing'].map((h, i) =>
     el('th', { style: i === 1 ? null : 'text-align:left' }, h)))));
   const fb = el('tbody');
+  /* Sentences wrap between words. .caption breaks anywhere, which let the
+     table give "Supports" the width of one letter beside the columns that do
+     not wrap: at 390px it was 85px and "Distributions" and "compounding"
+     were cut in two. Whole words and a readable measure; the table scrolls
+     in its .tablewrap. */
+  const prose = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
   lens.fits.forEach(f => fb.append(el('tr', {}, [
     el('td', { style: 'text-align:left' }, f.label),
     el('td', {}, f.state === 'graded' ? f.grade : (FIT_STATES[f.state] || FIT_STATES.missing).token),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+    el('td', { class: 'caption', style: prose },
       f.supports.length ? f.supports.join(' ') : '—'),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+    el('td', { class: 'caption', style: prose },
       [...f.weakens, ...f.missing.map(x => `Missing: ${x}`), ...(f.cap ? [f.cap] : [])].join(' ') || '—'),
   ])));
   ft.append(fb);
@@ -1807,23 +1816,8 @@ function tabBusiness(r) {
 /* ------------------------------------------------------------- financials */
 State.finMode = 'abs';
 
-/* WHAT THE EBIT SERIES HOLDS, BY WHERE IT CAME FROM.
-   The illustrative banks carry pre-provision operating profit in that slot, by
-   construction. A filed bank does not: most banks present no operating-income
-   line, so the SEC ingest falls back to pre-tax income, which is struck after
-   credit-loss provisions. Labelling JPMorgan's pre-tax income "Pre-provision
-   profit" understated that measure by the whole provision charge. A filed
-   company's label follows the concept the ingest recorded — and BlackRock, a
-   bank here that files OperatingIncomeLoss, reads as operating profit. */
-function ebitLabel(c) {
-  const concept = c.real && c.provenance && typeof c.provenance === 'object' ? String(c.provenance.ebit?.concept || '') : '';
-  if (/BeforeIncomeTaxes/.test(concept)) {
-    if (/OperatingIncomeLoss/.test(concept)) return 'Operating or pre-tax profit';
-    return c.type === 'bank' ? 'Profit before tax, after provisions' : 'Profit before tax';
-  }
-  if (c.type === 'bank' && !c.real) return 'Pre-provision profit';
-  return 'Operating profit';
-}
+/* ebitLabel — what the EBIT series holds, by where it came from — lives in
+   25-universe.js beside changeSummary, which labels the same row. */
 
 /* ---------------------------------------------------------- the statements
    THE LINES, DEFINED ONCE.
@@ -2191,8 +2185,11 @@ function tabQuality(r) {
       const tr = el('tr');
       tr.append(el('td', { class: 'ident' }, part.label));
       /* A per-share growth input withheld for a split says so, rather than
-         reading as "not meaningful". */
-      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.shareSeriesBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }));
+         reading as "not meaningful" — on the break inside its own five rows
+         (perShareBreak), which is what withheld it. On the whole-series
+         break, GE's earnings growth, absent for a negative FY2021 base, read
+         "withheld" over a split years outside the window. */
+      tr.append(el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.perShareBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }));
       tr.append(el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}${part.inv ? ' (inverted)' : ''}</span>` }));
       tr.append(el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }));
       tr.append(el('td', {}, `${Math.round(part.w * 100)}%`));
@@ -2245,7 +2242,7 @@ function tabQuality(r) {
   mt.append(el('thead', {}, el('tr', {}, ['Input', 'Raw value', 'Anchor range', 'Input score', 'Weight', 'Contribution'].map(h => el('th', {}, h)))));
   mt.append(el('tbody', {}, r.mom.parts.map(part => el('tr', {}, [
     el('td', { class: 'ident' }, part.label),
-    el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.shareSeriesBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }),
+    el('td', { html: isNum(part.raw) ? part.fmt(part.raw) : (r.m.perShareBreak && ['eps5', 'bv5', 'dps5'].includes(part.k) ? NA_SPLIT : NA) }),
     el('td', { html: `<span class="caption">${part.fmt(part.lo)} → ${part.fmt(part.hi)}</span>` }),
     el('td', { html: isNum(part.score) ? Math.round(part.score) : NA }),
     el('td', {}, `${Math.round(part.w * 100)}%`),
@@ -2398,7 +2395,10 @@ function tabOwnership(r) {
   const kv2 = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
   [['Share count CAGR', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.dilution, 2)],
    ['Net buyback yield', m.shareSeriesBreak ? 'Withheld — see below' : withSign(m.buyback, 2)],
-   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : m.shareSeriesBreak ? 'Withheld — see below' : 'n/m'],
+   /* Withheld on a break inside the five years it reads, not anywhere in
+      the series: Alphabet's, absent because no dividend was paid in FY2021,
+      read "Withheld" over a split years before its window. */
+   [c.type === 'reit' ? 'Distribution per unit CAGR' : 'Dividend per share CAGR', isNum(m.dps5) ? withSign(m.dps5, 1) : m.perShareBreak ? 'Withheld — see below' : 'n/m'],
    ['Payout ratio', isNum(m.payout) ? fmtPct(m.payout, 0) : 'n/m'],
    ['Dividends as % of free cash flow', isNum(m.cashPayout) ? fmtPct(m.cashPayout, 0) : 'n/a']]
    .forEach(([k, v]) => { kv2.append(el('dt', {}, k)); kv2.append(el('dd', {}, v)); });
@@ -2426,7 +2426,14 @@ function tabOwnership(r) {
         + `a discontinuity too large to read as a growth rate. It may be a split, a merger or an offering: the filings `
         + `are reported unadjusted for splits, and no corporate-action source is licensed here to tell which, so a `
         + `growth rate over this series would measure that one event rather than the company's issuance and buybacks. `
-        + `The year-by-year counts above are as filed and remain correct on their own terms.`)));
+        + `The year-by-year counts above are as filed and remain correct on their own terms.`
+        /* The dividend row above says "see below" when a step falls inside
+           the five years its rate reads; this is where that is said, and
+           which step it is — for Nvidia not the one named first. */
+        + (m.perShareBreak
+          ? ` The ${c.type === 'reit' ? 'distribution per unit' : 'dividend per share'} CAGR is withheld for the same reason: the count moves from `
+            + `${fmtNum(m.perShareBreak.from, 3)}bn to ${fmtNum(m.perShareBreak.to, 3)}bn inside the five years that rate reads.`
+          : ''))));
   }
   wrap.append(act);
   columnChart(host, { cats: yearsOf(c).map(y => `FY${y}`), series: [{ key:'sh', label:'Shares in issue', values:d.sh, varName:'--s1' }], fmt: v => fmtNum(v, 2) });
@@ -2446,13 +2453,15 @@ function tabFilings(r) {
     const tw = el('div', { class: 'tablewrap' });
     const t = el('table', { class: 'dt' });
     t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Measure'), el('th', {}, `FY${yrs[li - 1]}`), el('th', {}, `FY${yrs[li]}`), el('th', {}, 'Change')])));
-    const map = { 'Revenue':r.d.rev, 'Operating profit':r.d.ebit, 'Net profit':r.d.ni, 'Dividend per share':r.d.dps, 'Distribution per unit':r.d.dps, 'Shares in issue':r.d.sh };
-    t.append(el('tbody', {}, changed.map(x => el('tr', {}, [
+    /* By the row's key, not its words: keyed on the label, a row renamed to
+       the statement's own name (a bank's pre-tax line) would have found no
+       series and printed both years as absent. */
+    t.append(el('tbody', {}, changed.map(x => { const s = r.d[x.key] || []; return el('tr', {}, [
       el('td', { class: 'ident' }, x.label),
-      el('td', { html: isNum(map[x.label]?.[li - 1]) ? fmtNum(map[x.label][li - 1], 2) : NA }),
-      el('td', { html: isNum(map[x.label]?.[li]) ? fmtNum(map[x.label][li], 2) : NA }),
+      el('td', { html: isNum(s[li - 1]) ? fmtNum(s[li - 1], 2) : NA }),
+      el('td', { html: isNum(s[li]) ? fmtNum(s[li], 2) : NA }),
       el('td', { class: signClass(x.v), title: x.withheld || null }, changeCell(x)),
-    ]))));
+    ]); })));
     tw.append(t);
     return tw;
   };

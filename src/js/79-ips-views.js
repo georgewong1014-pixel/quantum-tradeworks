@@ -2,6 +2,18 @@
    THE IPS ON SCREEN — THE DOCUMENT, THE GATES AND THE THREE NEW TESTS
    ========================================================================== */
 
+/* A SENTENCE IN A TABLE CELL WRAPS BETWEEN WORDS, NEVER INSIDE ONE.
+   .caption carries overflow-wrap:anywhere (styles.css, for the 62-letter XBRL
+   tags), and 'anywhere' takes a column's narrowest width down to one letter.
+   Every table here sits beside columns that do not wrap, so on a phone the
+   table was already wider than the screen and each prose column was given
+   that narrowest width: at 390px the gates' "Why" was 28px, narrower than
+   "instalment", the demand notes 32px, the evidence tiers 32px, and the
+   gates card ran to 6,000px with a word broken on every line. 'normal'
+   keeps each word whole and 12rem a measure a sentence can be read at;
+   the table scrolls inside its .tablewrap, as it already had to. */
+const IPS_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
+
 /* ---- the eight gates, for whichever asset supplied the answers ---- */
 function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
   const a = assessment;
@@ -21,7 +33,7 @@ function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
       el('th', { scope: 'row', style: 'text-align:left' }, String(x.gate.n)),
       el('td', { style: 'text-align:left', title: x.gate.ask }, x.gate.label),
       el('td', { style: 'text-align:left' }, el('span', { class: x.verdict.tone }, x.verdict.label)),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, x.why),
+      el('td', { class: 'caption', style: IPS_PROSE_CELL }, x.why),
     ]));
   });
   t.append(tb);
@@ -77,7 +89,7 @@ function demandPanel(city, area) {
       el('td', { style: 'text-align:left' }, i.counts
         ? el('span', { class: 'chip chip-ok' }, 'yes')
         : el('span', { class: 'caption' }, i.state ? 'no' : '—')),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
+      el('td', { class: 'caption', style: IPS_PROSE_CELL },
         i.state ? i.state.note : i.source.ask),
       el('td', {}, ''),
     ]));
@@ -117,7 +129,7 @@ function environmentalPanel(d) {
         `${ATTR_BY_ID[i.triggeredBy] ? ATTR_BY_ID[i.triggeredBy].short : i.triggeredBy}: ${i.triggeredByClass}`),
       el('td', { class: 'num' }, fmtPct(i.pctOfValue, 2)),
       el('td', { class: 'num' }, fmtMoney(i.annual, 'MYR', 0)),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, i.note),
+      el('td', { class: 'caption', style: IPS_PROSE_CELL }, i.note),
     ]));
   });
   tb.append(el('tr', { style: 'background:var(--surface-sunk)' }, [
@@ -212,7 +224,7 @@ VIEWS.ips = () => {
     ['Watch / Hold', '"Conditions not yet met", naming each one',
      'The outstanding gates are listed, which is more than a Hold would have told you.'],
   ].map(r => el('tr', {}, r.map((c, i) =>
-    el(i ? 'td' : 'th', { scope: i ? null : 'row', class: i === 2 ? 'caption' : '', style: 'text-align:left;white-space:normal' }, c))))));
+    el(i ? 'td' : 'th', { scope: i ? null : 'row', class: i === 2 ? 'caption' : '', style: i === 2 ? IPS_PROSE_CELL : 'text-align:left;white-space:normal' }, c))))));
   dev.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, dl));
   wrap.append(dev);
 
@@ -239,7 +251,7 @@ VIEWS.ips = () => {
   gt.append(el('tbody', {}, IPS_GATES.map(g => el('tr', {}, [
     el('th', { scope: 'row', style: 'text-align:left' }, String(g.n)),
     el('td', { style: 'text-align:left' }, g.label),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, g.ask),
+    el('td', { class: 'caption', style: IPS_PROSE_CELL }, g.ask),
   ]))));
   gates.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, gt));
   wrap.append(gates);
@@ -253,12 +265,12 @@ VIEWS.ips = () => {
     .map((h, i) => el('th', { style: i ? 'text-align:left' : null }, h)))));
   et.append(el('tbody', {}, IPS_EVIDENCE_TIERS.map(t => el('tr', {}, [
     el('th', { scope: 'row', class: 'num' }, String(t.tier)),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, t.label),
+    el('td', { class: 'caption', style: IPS_PROSE_CELL }, t.label),
     el('td', { style: 'text-align:left' }, t.maps.length
       ? t.maps.map(id => el('span', { class: 'chip', style: 'margin-right:4px' },
           (EVIDENCE.find(e => e.id === id) || { label: id }).label))
       : el('span', { class: 'chip chip-bronze' }, 'empty here')),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, t.note),
+    el('td', { class: 'caption', style: IPS_PROSE_CELL }, t.note),
   ]))));
   ev.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, et));
   wrap.append(ev);
