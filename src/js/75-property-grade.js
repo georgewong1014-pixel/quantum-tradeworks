@@ -147,7 +147,17 @@ function loanReadiness(b, m) {
     if (variable > 0 && lookback < 3) notes.income += ' A variable component with under three months of history is not evidence of recurring income.';
   } else { scores.income = null; notes.income = 'No verified net income entered.'; unknowns.push('income'); }
 
-  if (isNum(m?.safeCashRequired) && m.safeCashRequired > 0) {
+  /* Not against a requirement that is short. With a line unpriced — the
+     reserve, whenever the instalment cannot be computed — the total is what
+     is priced so far, and the buffer scored against it and said "required,
+     including the reserve" when the reserve was the line missing. It is
+     open until the requirement is whole, as the total below it already is. */
+  const shortBy = m?.missingCostLines || [];
+  if (shortBy.length) {
+    scores.buffer = null;
+    notes.buffer = `The cash requirement is incomplete — ${shortBy.length === 1 ? 'one line' : `${shortBy.length} lines`} could not be priced (${shortBy.map(x => x.label.toLowerCase()).join(', ')}) — so the buffer cannot be tested against it.`;
+    unknowns.push('liquid buffer');
+  } else if (isNum(m?.safeCashRequired) && m.safeCashRequired > 0) {
     const cash = num0(b.liquidCashAvailable);
     scores.buffer = Math.round(clamp(cash / m.safeCashRequired * 100, 0, 100));
     notes.buffer = cash >= m.safeCashRequired
@@ -328,7 +338,15 @@ function propertyGrade(d, m) {
     gates.push({ id:'breakeven', severity:'serious',
       text:`Cannot break even at the entered rent and cost structure. It would need ${fmtPct(m.breakEvenOccupancy, 0)} occupancy, and 100% is the maximum.`,
       caps:null });
-  if (!isNum(m.reserveCash) || m.reserveCash <= 0)
+  /* An unpriced reserve is not a missing one. With a loan tenure of 0 the
+     reserve could not be priced, and this said "No safe reserve is held after
+     completion" while the reader's months of reserve stood in the ledger. The
+     gate and its cap are unchanged; the sentence says which it is. */
+  if (m.reserveComputable === false)
+    gates.push({ id:'no-reserve', severity:'serious',
+      text:'The reserve cannot be priced: the loan’s instalment could not be computed from the entered tenure, so neither can the months of it the reserve has to cover. Until it is, nothing shows a vacancy or a major repair could be met without new borrowing.',
+      caps:'B' });
+  else if (!isNum(m.reserveCash) || m.reserveCash <= 0)
     gates.push({ id:'no-reserve', severity:'serious',
       text:'No safe reserve is held after completion. A single vacancy or major repair would have to be funded by new borrowing.',
       caps:'B' });
@@ -621,8 +639,10 @@ function dealModel(d) {
   /* Which lines exist but cannot yet be priced. Carried on the model so every
      total that depends on them can say it is incomplete rather than presenting
      a short number as though it were the answer. */
+  /* The group's id travels with each line, so a total can ask whether a
+     missing line is one of its own without matching on label text. */
   const missingCostLines = costGroups.flatMap(g =>
-    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, label: it[0], why: it[2]?.why })));
+    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, groupId: g.id, label: it[0], why: it[2]?.why })));
 
   /* How much of the completion cash rests on a figure nobody has checked. A
      placeholder total looks exactly like a finished one, so the proportion has
@@ -1100,7 +1120,7 @@ function dealModel(d) {
      reserveComputable ? null : { status:'unset', why:'The instalment or the running costs could not be computed, so the reserve cannot be either.' }]] });
   /* Recomputed after the reserve is pushed, so an unpriced reserve is reported
      as a missing line rather than quietly leaving the total short. */
-  if (!reserveComputable) missingCostLines.push({ group:'Emergency reserve',
+  if (!reserveComputable) missingCostLines.push({ group:'Emergency reserve', groupId:'reserve',
     label:'Emergency reserve', why:'The instalment or the running costs could not be computed.' });
 
   /* ---- the three cash figures (specification 29.1) --------------------- */
@@ -1116,8 +1136,15 @@ function dealModel(d) {
   const groupTotal = (id) => sumPriced((costGroups.find(g => g.id === id)?.items || []).map(it => it[1]));
   const transactionCash = groupTotal('acquisition') + groupTotal('financing');
   const improvementCash = groupTotal('improvement');
-  const reserveCash = groupTotal('reserve');
-  const safeCashRequired = transactionCash + improvementCash + reserveCash;
+  /* A reserve that cannot be priced is unknown, not nought. The group's only
+     line is null then, and summing the priced lines of a group with none
+     priced gave 0 — so with a loan tenure of 0 the ledger read "Cash to keep
+     untouched RM0 — 3 months of instalment and owner-paid running costs", and
+     the grade's gate said no reserve was held at all, beside the reader's own
+     three months. The safe-cash total still adds what is priced and names
+     the reserve among its missing lines, as it always did. */
+  const reserveCash = reserveComputable ? groupTotal('reserve') : null;
+  const safeCashRequired = transactionCash + improvementCash + num0(reserveCash);
 
   /* Directive 6.3 asks for four totals, not three. The fourth is what has
      already left the buyer's account — a booking or earnest deposit paid at
@@ -1653,6 +1680,17 @@ const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
 /* Whether the borrower's financing disclosure is open — see its <details>. */
 let borrowerPanelOpen = false;
 
+/* A SENTENCE IN A TABLE CELL WRAPS BETWEEN WORDS, NEVER INSIDE ONE.
+   The grade's "Basis" column and the financing components' carried .caption,
+   whose overflow-wrap:anywhere (styles.css, for 62-letter XBRL tags) takes a
+   column's narrowest width down to one letter. Beside three columns that do
+   not wrap, a phone gave each Basis cell that width: at 390px it was 58px,
+   "transacted", "property", "modelled" and "checklist" were cut in two
+   and one cell ran to 720px tall. 'normal' keeps each word whole and 12rem is
+   a measure a sentence can be read at; the table scrolls in its .tablewrap,
+   as the IPS tables (IPS_PROSE_CELL, 79-ips-views.js) already do. */
+const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
+
 VIEWS.property = () => {
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
@@ -1719,12 +1757,24 @@ VIEWS.property = () => {
      fold on a phone behind the grade, the verdict and the gates.
      A grade answers "is this a good deal". These answer "can I". */
   const strip = el('div', { class: 'capstrip' });
-  [['Cash to complete', fmtAmount(m.transactionCash, 'MYR')],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR')],
+  /* What is still to be paid, as the decision record and the ledger's "Cash
+     still to complete" both say. This printed the whole completion figure,
+     booking deposit included, so with RM5,000 paid at offer the page read
+     "Cash to complete RM95.3k — Paid out on completion day" and the record
+     carried out of the browser read RM90,254 under the same name. */
+  /* And a safe cash that is short says so here, first, as the tile below it
+     and the ledger do. With the reserve unpriced (a loan tenure of 0) the
+     strip read "Safe cash required RM121.8k" as the answer, above a tile
+     that said the same figure was short by the reserve. */
+  const stripShort = (m.missingCostLines || []).length;
+  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR')],
+   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+     stripShort ? `So far — ${stripShort === 1 ? 'a line is' : `${stripShort} lines are`} unpriced` : null],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—']]
-    .forEach(([k, v], i) => strip.append(el('div', {}, [
+    .forEach(([k, v, short], i) => strip.append(el('div', {}, [
       el('span', { class: 'eyebrow', style: 'display:block;margin-bottom:2px' }, k),
       el('span', { class: 'num', style: `font-size:20px;font-weight:700${i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? ';color:var(--dn-text)' : ''}` }, v),
+      short ? el('span', { class: 'caption', style: 'display:block;color:var(--bronze)' }, short) : null,
     ])));
   onePage.append(strip);
 
@@ -1875,8 +1925,16 @@ VIEWS.property = () => {
   }
 
   const answers = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
-  [['Cash to complete', fmtAmount(m.transactionCash, 'MYR'), 'Paid out on completion day'],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'), 'Including rent-ready and the reserve'],
+  /* "Including the reserve" when the reserve was the line that could not be
+     priced: a tenure of 0 left it out of the total and the tile said it was
+     in. A short total says it is short, as the ledger's does. */
+  const unpricedLines = m.missingCostLines || [];
+  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
+     m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
+   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+     unpricedLines.length
+       ? `Short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
+       : 'Including rent-ready and the reserve'],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
      m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
    ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
@@ -1896,7 +1954,7 @@ VIEWS.property = () => {
     el('td', { class: 'num' }, `${p.weight}%`),
     el('td', { class: 'num' }, isNum(p.score) ? String(p.score)
       : el('span', { class: 'caption' }, p.applies === false ? 'does not apply' : 'not tested')),
-    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, p.note || ''),
+    el('td', { class: 'caption', style: PROPERTY_PROSE_CELL }, p.note || ''),
   ])));
   pt.append(pb);
   pw.append(el('div', { class: 'tablewrap' }, pt));
@@ -2033,7 +2091,7 @@ VIEWS.property = () => {
       el('td', { style: 'text-align:left' }, c.label),
       el('td', { class: 'num' }, `${c.weight}%`),
       el('td', { class: 'num' }, isNum(c.score) ? String(c.score) : el('span', { class: 'caption' }, 'not tested')),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, c.note || ''),
+      el('td', { class: 'caption', style: PROPERTY_PROSE_CELL }, c.note || ''),
     ])));
     ct.append(cb);
     bd.append(el('div', { class: 'tablewrap' }, ct));
@@ -2892,8 +2950,14 @@ VIEWS.property = () => {
        ? `Completion needs ${fmtAmount(m.transactionCash, 'MYR')} in total, less what you have already paid.`
        : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
    ['Cash to make rent-ready', m.improvementCash, 'Spent after completion before the property can earn: renovation, furnishing and deposits.'],
-   ['Cash to keep untouched', m.reserveCash, `${m.reserveMonths} months of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`],
-   ['Safe cash required', m.safeCashRequired, 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
+   /* Unknown when it cannot be priced, and the tile says why rather than
+      printing RM0 beside "3 months of instalment". */
+   ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
+     ? `${m.reserveMonths} months of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
+     : `${m.reserveMonths} months of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
+   ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
+     ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
+     : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
     .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel' },
       statTile(label, fmtAmount(amount, 'MYR'), { sub, tone: i === arr.length - 1 ? '--brand' : null }))));
   cash.append(threeCash);

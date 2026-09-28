@@ -1792,6 +1792,111 @@ try {
   }
   /* ---- end bugfix3: property ---- */
 
+  /* ---- bugfix4: misc ---- */
+  /* M1 — the decision record says which figure carries the tax, and when
+          none can. "Figures are after tax" was printed whenever a rate was
+          entered: with a tenure of 0 (no interest, so no tax) it read "after
+          tax on the rent at 24%, totalling — across the hold" above a row of
+          "Not computed"; and with the tax computed, the monthly position and
+          the break-even rent it covered are the model's pre-tax figures
+          (invariant 2 above holds cashflowMonthly to year one BEFORE tax). */
+  {
+    const r = JSON.parse(await evaluate(`(() => {
+      const kept = State.deal;
+      const said = (d) => { State.deal = d; try { return decisionRecordProperty().textContent; } finally { State.deal = kept; } };
+      const none = { ...window.__T.base, tenureYears: 0, rent: 3600, marginalTaxPct: 24 };
+      const taxed = { ...window.__T.base, tenureYears: 35, rent: 6000, marginalTaxPct: 30 };
+      const t0 = said(none), t1 = said(taxed);
+      const m1 = dealModel(taxed), m1u = dealModel({ ...taxed, marginalTaxPct: null });
+      return JSON.stringify({
+        noneClaims: /after tax on the rent at/i.test(t0) || /Figures are after tax/.test(t0),
+        noneSays: /No tax on the rent has been computed/.test(t0) && /No figure in this record is after tax/.test(t0),
+        taxedClaimsAll: /Figures are after tax/.test(t1),
+        taxedSays: /rate of return is after tax on the rent at 30%/.test(t1) && /monthly position and the break-even rent are before tax/.test(t1),
+        cfPreTax: m1.cashflowMonthly === m1u.cashflowMonthly && m1.breakEvenRent === m1u.breakEvenRent,
+        irrTaxed: isNum(m1.irrPct) && isNum(m1u.irrPct) && m1.irrPct < m1u.irrPct,
+      });
+    })()`));
+    if (r.noneClaims || !r.noneSays) fail('misc: the decision record calls figures after tax when no tax could be computed (tenure 0, rate 24%)', r);
+    else if (!r.cfPreTax || !r.irrTaxed) fail('misc: the premise moved — the monthly position or break-even rent now carries the tax, or the rate of return does not', r);
+    else if (r.taxedClaimsAll || !r.taxedSays) fail('misc: the decision record says every figure is after tax when only the rate of return is', r);
+    else ok('misc: the decision record says no figure is after tax when none can be, and names the rate of return as the one that is', r);
+  }
+
+  /* M2 — a reserve that cannot be priced is unknown, not RM0 and not absent.
+          With a loan tenure of 0 the ledger read "Cash to keep untouched RM0",
+          the grade's gate "No safe reserve is held after completion", the
+          loan-readiness buffer scored 100 "against RM121.8k required,
+          including the reserve", and the safe-cash totals on the strip, the
+          tile ("Including rent-ready and the reserve") and the decision record
+          read as whole. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = State.deal;
+      const who = { assessed: true, employmentType: 'salaried', verifiedNetMonthlyIncome: 9000, existingMonthlyDebtPayments: 800,
+        essentialMonthlyCommitments: 2500, liquidCashAvailable: 150000, incomeStabilityMonths: 36, creditReview: 'not_checked', applicantCount: 1, docs: {} };
+      const read = async (d) => {
+        const m = dealModel(d), g = propertyGrade(d, m), lr = loanReadiness(who, m);
+        State.deal = d; navigate('/property/calculator'); render();
+        await new Promise(res => setTimeout(res, 200));
+        const tile = (re) => [...document.querySelectorAll('#views .panel')].map(p => p.innerText.replace(/\\n+/g, ' | ')).find(t => re.test(t)) || null;
+        const out = { reserveCash: m.reserveCash, gate: (g.gates.find(x => x.id === 'no-reserve') || {}).text || null,
+          buffer: lr.scores.buffer, bufferNote: lr.notes.buffer,
+          strip: document.querySelector('#views .capstrip')?.innerText.replace(/\\n+/g, ' | ') || null,
+          untouched: tile(/^Cash to keep untouched/i), safeTile: tile(/^Safe cash required/i) };
+        let rec = '';
+        try { rec = decisionRecordProperty().textContent; } finally { State.deal = kept; }
+        out.recShort = /So far — short/.test(rec) && /Not the full amount/.test(rec);
+        return out;
+      };
+      const none = await read({ ...window.__T.base, tenureYears: 0 });
+      const whole = await read({ ...window.__T.base, tenureYears: 30 });
+      State.deal = kept; saveDeal(); render();
+      return JSON.stringify({ none, whole });
+    })()`));
+    const p = [];
+    if (r.none.reserveCash !== null) p.push(`reserveCash is ${r.none.reserveCash}, not unknown`);
+    if (!r.none.untouched || /RM0\b/.test(r.none.untouched)) p.push(`ledger: ${r.none.untouched}`);
+    if (!r.none.gate || /No safe reserve is held/.test(r.none.gate)) p.push(`gate: ${r.none.gate}`);
+    if (r.none.buffer !== null || /including the reserve/.test(r.none.bufferNote)) p.push(`buffer ${r.none.buffer}: ${r.none.bufferNote}`);
+    /* The strip's labels are eyebrows, upper-cased in the rendered text. */
+    if (!/Safe cash required \| [^|]+ \| So far/i.test(r.none.strip || '')) p.push(`strip: ${r.none.strip}`);
+    if (!r.none.safeTile || /Including rent-ready and the reserve/.test(r.none.safeTile)) p.push(`tile: ${r.none.safeTile}`);
+    if (!r.none.recShort) p.push('the decision record presents the safe cash as whole');
+    if (!(r.whole.reserveCash > 0) || !isFinite(r.whole.buffer) || /So far/.test(r.whole.strip || '') || r.whole.recShort
+      || !/Including rent-ready and the reserve/.test(r.whole.safeTile || '')) p.push(`a priced reserve is now flagged too: ${JSON.stringify(r.whole)}`);
+    if (p.length) fail('misc: an unpriced reserve reads as RM0, as absent, or as a whole total', p);
+    else ok('misc: an unpriced reserve (tenure 0) is unknown in the ledger, the gate, the buffer, the strip, the tile and the record; a priced one is unchanged', r.none);
+  }
+
+  /* M3 — "Cash to complete" is one figure wherever it is printed. With a
+          RM5,000 booking deposit paid at offer, the calculator's strip and
+          tile read RM95.3k "Paid out on completion day" and the decision
+          record RM90,254 under the same name; the ledger's "Cash still to
+          complete" was the record's figure. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = State.deal;
+      const d = { ...window.__T.base, bookingDepositPaid: 5000 };
+      const m = dealModel(d);
+      State.deal = d; navigate('/property/calculator'); render();
+      await new Promise(res => setTimeout(res, 200));
+      const strip = document.querySelector('#views .capstrip')?.innerText.replace(/\\n+/g, ' | ') || '';
+      const tile = [...document.querySelectorAll('#views .panel')].map(p => p.innerText.replace(/\\n+/g, ' | ')).find(t => /^Cash to complete/i.test(t)) || '';
+      let rec = '';
+      try { rec = [...decisionRecordProperty().querySelectorAll('.dr-fig')].map(f => f.textContent).find(t => /^Cash to complete/.test(t)) || ''; }
+      finally { State.deal = kept; saveDeal(); render(); }
+      return JSON.stringify({ still: fmtAmount(m.cashStillRequiredToComplete, 'MYR'), whole: fmtAmount(m.transactionCash, 'MYR'),
+        stillExact: fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0), strip, tile, rec });
+    })()`));
+    const stripV = (r.strip.match(/Cash to complete \| ([^|]+)/i) || [])[1]?.trim();
+    const tileV = (r.tile.match(/Cash to complete \| ([^|]+)/i) || [])[1]?.trim();
+    if (stripV !== r.still || tileV !== r.still || !r.rec.includes(r.stillExact) || r.still === r.whole)
+      fail('misc: "Cash to complete" is a different figure on the calculator and in the decision record once a booking deposit is paid', { stripV, tileV, ...r });
+    else ok(`misc: "Cash to complete" reads ${r.still} on the strip, the tile and the record with RM5,000 paid at offer (the whole completion figure is ${r.whole})`);
+  }
+  /* ---- end bugfix4: misc ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

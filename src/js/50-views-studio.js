@@ -15,6 +15,17 @@
    Every control that redraws through this carries a stable id. */
 const redrawKeepFocus = () => setTimeout(renderKeepFocus, 0);
 
+/* A SENTENCE IN A TABLE CELL WRAPS BETWEEN WORDS, NEVER INSIDE ONE.
+   .caption carries overflow-wrap:anywhere (styles.css, for 62-letter XBRL
+   tags), which takes a column's narrowest width down to one letter. Beside
+   columns that do not wrap, a phone gave the prose column that width: at
+   390px the confidence table's "Rule" was 53px and the nine methods' "Basis"
+   58px, "describes", "unmeasurable", "cyclical" and "commodity" were cut in
+   two, and one Basis cell ran to 880px tall. 'normal' keeps each word whole
+   and 12rem is a measure a sentence can be read at; each table scrolls in its
+   .tablewrap, as the IPS tables (IPS_PROSE_CELL, 79-ips-views.js) already do. */
+const STUDIO_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
+
 /* Net debt, the share count and the reader's own adjustment — shared by the
    two packs whose value is an enterprise value bridged to equity. */
 const BRIDGE_ASSUMPTIONS = [
@@ -653,7 +664,7 @@ function studioOutputs(r, inputs, redraw) {
         x.primary ? `${x.name} · primary` : x.name),
       el('td', { html: isNum(x.value) ? fmtMoney(x.value, c.ccy) : NA }),
       el('td', { class: diffClass(mos), html: isNum(mos) ? withSign(mos, 0) : '<span class="caption">—</span>' }),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal;max-width:320px' }, x.why),
+      el('td', { class: 'caption', style: `${STUDIO_PROSE_CELL};max-width:320px` }, x.why),
     ]);
   })));
   ntw.append(nt); nineCard.append(ntw);
@@ -859,10 +870,10 @@ function explainConfidence(run) {
       el('td', { style: 'text-align:left' }, part),
       el('td', { style: 'text-align:left;white-space:normal' }, reading),
       el('td', { class: 'num' }, isNum(pts) ? `${pts} of ${of}` : `— of ${of}`),
-      el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, rule),
+      el('td', { class: 'caption', style: STUDIO_PROSE_CELL }, rule),
     ])),
     el('tr', {}, [el('td', { style: 'text-align:left;font-weight:600' }, 'Total'), el('td', {}, ''),
-      el('td', { class: 'num', style: 'font-weight:600' }, `${run.conf} of 100`), el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, '78 or more reads High; 58 or more, Medium; anything less, Low.')]),
+      el('td', { class: 'num', style: 'font-weight:600' }, `${run.conf} of 100`), el('td', { class: 'caption', style: STUDIO_PROSE_CELL }, '78 or more reads High; 58 or more, Medium; anything less, Low.')]),
   ]));
   tw.append(t); det.append(tw);
   if (p.caps.length) det.append(el('ul', { class: 'ticklist', style: 'margin-top:8px' }, p.caps.map(x => el('li', {}, x))));
@@ -2626,7 +2637,13 @@ VIEWS.portfolio = () => {
   const xa = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   if (!lim('crossAsset')) {
     xa.append(cardHead('Cross-asset net worth', 'Equities and property in one place, with allocation, combined cash flow and leverage.'));
-    xa.append(upsell('Combine shares and property', 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
+    /* All-Access is not on sale (PLANS.all.launched is false). The offer read
+       "All-Access adds the property portfolio to this view" above "See
+       plans", as if the tier could be bought there. It says what the tier
+       would add, and that it can only be previewed. */
+    xa.append(upsell('Combine shares and property', PLANS.all.launched === false
+      ? 'All-Access would add the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It has not launched and cannot be bought; the plans page can preview it in this browser.'
+      : 'All-Access adds the property portfolio to this view: one allocation, one cash-flow line and one leverage figure across both asset classes. It is the reason the two products exist in the same application.'));
   } else {
     const dm = dealModel(State.deal);
     /* The carrying value is the price. Back-computing it from the exit value

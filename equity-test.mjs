@@ -7169,6 +7169,51 @@ try {
   }
   /* ---- end bugfix4: equities ---- */
 
+  /* ---- bugfix4: misc ---- */
+  /* A TIER THAT IS NOT ON SALE DOES NOT LOOK LIKE ONE THAT IS. All-Access
+     carries launched:false, and PLANS says a tier nobody can obtain must not
+     appear purchasable — yet /pricing gave it "Phase 2", RM79 a month and a
+     primary "Switch to All-Access", the toast after it said "Switched to
+     All-Access", and the portfolio's cross-asset offer read "All-Access adds
+     the property portfolio to this view" above "See plans". The button still
+     does what every card's does (a local change of entitlements); what it
+     says is now what it does. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const card = () => [...document.querySelectorAll('#views .grid.g-3 > .card')].find(c => c.querySelector('h3')?.textContent.trim() === PLANS.all.name);
+      State.plan = 'free'; store.write('plan', 'free');
+      navigate('/pricing'); await w(150);
+      const c = card(), b = c?.querySelector('button');
+      const out = { launched: PLANS.all.launched, chips: [...(c?.querySelectorAll('.chip') || [])].map(x => x.textContent.trim()),
+        text: c?.innerText.replace(/\\n+/g, ' / ') || '', btn: b?.textContent.trim(), primary: !!b?.classList.contains('btn-primary') };
+      b.focus(); b.click(); await w(150);
+      out.plan = State.plan; out.toast = document.getElementById('toast')?.textContent || '';
+      out.after = card()?.querySelector('button')?.textContent.trim();
+      State.plan = 'pro'; store.write('plan', 'pro');
+      /* A portfolio holding cash, so the page draws past its empty state. */
+      const keep = { pf: JSON.stringify(State.portfolios), pfIdx: State.pfIdx };
+      State.portfolios = [...JSON.parse(keep.pf), { id: 'pf-misc4', name: 'Cash only', cash: 1000, cashCcy: 'MYR', holdings: [] }];
+      State.pfIdx = State.portfolios.length - 1;
+      navigate('/my/portfolio'); await w(150);
+      out.offer = [...document.querySelectorAll('#views .card')].map(x => x.innerText).find(t => /Combine shares and property/.test(t))?.replace(/\\n+/g, ' / ') || '';
+      State.portfolios = JSON.parse(keep.pf); State.pfIdx = keep.pfIdx;
+      return out;
+    })()`);
+    await evaluate(`State.plan = 'pro'; store.write('plan', 'pro'); true`);
+    const p = [];
+    if (r.launched !== false) p.push('PLANS.all is launched now — this check describes a tier that is not');
+    if (/^Switch to/.test(r.btn || '') || r.primary || !/Preview/.test(r.btn || '')) p.push(`button "${r.btn}"${r.primary ? ' (primary)' : ''}`);
+    if (!r.chips.includes('Not on sale') || r.chips.includes('Phase 2')) p.push(`chips ${JSON.stringify(r.chips)}`);
+    if (!/proposed/i.test(r.text) || !/cannot be bought/.test(r.text)) p.push('the card does not say its price is proposed and cannot be paid');
+    if (r.plan !== 'all' || /^Switched to/.test(r.toast) || !/Previewing/.test(r.toast)) p.push(`after the press: plan ${r.plan}, toast "${r.toast}"`);
+    if (r.after !== 'Previewing in this browser') p.push(`after the press the button reads "${r.after}"`);
+    if (/All-Access adds/.test(r.offer) || !/not launched and cannot be bought/.test(r.offer)) p.push(`portfolio offer: ${r.offer.slice(0, 160)}`);
+    if (p.length) fail('misc: the unlaunched All-Access tier is offered as a plan that can be switched to or bought', p);
+    else ok('misc: All-Access reads "Not on sale", its price as proposed, its button as a preview in this browser, and the portfolio offer as a tier that has not launched');
+  }
+  /* ---- end bugfix4: misc ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

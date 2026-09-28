@@ -1088,19 +1088,31 @@ VIEWS.plans = () => {
   const grid = el('div', { class: 'grid g-3', style: 'align-items:start' });
   Object.values(PLANS).forEach(pl => {
     const active = State.plan === pl.id;
+    /* A TIER THAT IS NOT ON SALE DOES NOT LOOK LIKE ONE THAT IS.
+       All-Access carries launched:false, and the registry's own note says a
+       tier nobody can obtain must not appear purchasable — yet its card was
+       built exactly like the others: "Phase 2", RM79 a month in the price's
+       type, and a primary "Switch to All-Access" button. The switch is what
+       every card's button is, a local change of entitlements, and it still
+       is; what changes is what the card says. The price is the proposed one
+       and says so, the chip says the tier is not on sale, and the button says
+       it previews the tier in this browser. Whether the prototype's switcher
+       should reach an unlaunched tier at all is a product decision this does
+       not make. */
+    const onSale = pl.launched !== false;
     const card = el('div', { class: 'card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
       el('h3', { class: 'h-card' }, pl.name),
-      active ? el('span', { class: 'chip chip-brand' }, 'Current') : null,
-      pl.id === 'all' ? el('span', { class: 'chip' }, 'Phase 2') : null,
+      active ? el('span', { class: 'chip chip-brand' }, onSale ? 'Current' : 'Previewing') : null,
+      onSale ? null : el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
     ]));
     card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, pl.tagline));
     card.append(el('div', { class: 'row', style: 'gap:6px;align-items:baseline;margin-bottom:2px' }, [
-      el('span', { style: 'font-size:24px;font-weight:700;letter-spacing:-.02em' }, pl.priceMo ? `RM${pl.priceMo}` : 'RM0'),
-      el('span', { class: 'metaline' }, pl.priceMo ? '/month' : 'forever'),
+      el('span', { style: `font-size:24px;font-weight:700;letter-spacing:-.02em${onSale ? '' : ';color:var(--ink-3)'}` }, pl.priceMo ? `RM${pl.priceMo}` : 'RM0'),
+      el('span', { class: 'metaline' }, !pl.priceMo ? 'forever' : onSale ? '/month' : '/month proposed — it cannot be bought'),
     ]));
     if (pl.priceYr) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' },
-      `or RM${pl.priceYr} a year${pl.founding ? ` · founding offer RM${pl.founding} for the first year, ${pl.foundingSeats} seats` : ''}`));
+      `${onSale ? 'or' : 'Proposed at'} RM${pl.priceYr} a year${pl.founding ? ` · founding offer RM${pl.founding} for the first year, ${pl.foundingSeats} seats` : ''}`));
     card.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--md)' }, pl.blurb));
     /* The size of what is being sold, taken from the universe on screen rather
        than written into the copy, so it cannot be left behind when the universe
@@ -1141,9 +1153,12 @@ VIEWS.plans = () => {
     const dl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
     rows.forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', {}, v)); });
     card.append(dl);
-    card.append(el('button', { class: active ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm', style: 'width:100%',
+    card.append(el('button', { class: active || !onSale ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm', style: 'width:100%',
       disabled: active ? '' : null, onclick: () => setPlan(pl.id) },
-      active ? 'Current plan' : `Switch to ${pl.name}`));
+      active ? (onSale ? 'Current plan' : 'Previewing in this browser')
+        : onSale ? `Switch to ${pl.name}` : `Preview ${pl.name} in this browser`));
+    if (!onSale) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      `${pl.name} has not launched and cannot be bought. The preview turns on its entitlements here, as the switch on every card does, so the view it adds can be inspected.`));
     grid.append(card);
   });
   wrap.append(grid);
