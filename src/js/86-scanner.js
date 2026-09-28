@@ -154,6 +154,7 @@ const SCAN_SUBNAV = [
   { id: 'alerts', label: 'Alerts', path: '/app/scanner/alerts' },
   { id: 'backtest', label: 'Historical', path: '/app/scanner/backtest' },
   { id: 'settings', label: 'Settings', path: '/app/scanner/settings' },
+  { id: 'trading', label: 'Trading Index', path: '/research/trading-index' },
 ];
 function scanSubnav(active) {
   if (typeof scannerSubnav === 'function') return scannerSubnav(active);

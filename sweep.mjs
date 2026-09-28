@@ -11,6 +11,8 @@ import { join } from 'node:path';
 const BASE = process.argv[2] || 'http://localhost:8123';
 const ROUTES = [
   '/', '/app', '/welcome', '/discover', '/discover/screener', '/discover/value-map',
+  /* Release A: how each product works, and the Equities research queue. */
+  '/how-it-works', '/research/queue',
   /* The two discover tabs with no path of their own. */
   '/discover?tab=ideas', '/discover?tab=heatmap',
   '/research', '/company/aapl-apple-inc',

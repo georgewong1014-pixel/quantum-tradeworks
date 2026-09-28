@@ -573,6 +573,7 @@ VIEWS.tradingIndex = () => {
   const p = State.qtti;
   const r = qttiRun(p);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(scanSubnav('trading'));
   /* Every control on this form redraws the page, and render() replaced the
      control under the keyboard: focus fell to <body> on each select, tick and
      field. So each control carries an id built from its own label, and the

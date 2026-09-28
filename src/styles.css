@@ -2074,3 +2074,352 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
   .scan-bot-syms { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); max-height: 264px; }
 }
 /* ---- end bot: pages ---- */
+/* ---- release-a: shell ---- */
+/* ==========================================================================
+   THE TWO CHROMES (Release A). <html data-chrome> is written by buildNav()
+   (35-ui.js) from the view on screen: "public" wears the header, "app" the
+   sidebar. With no attribute yet — the frame before the script — the public
+   header shows, since it is the front door's and holds nothing personal.
+   Palette, depth and type are the tokens at the top of this file; nothing
+   here invents a colour. Only transform, opacity and box-shadow move.
+   ========================================================================== */
+:root { --sidebar-w: 264px; }
+
+/* Which chrome shows. A hidden one is display:none — out of the tab order
+   and the accessibility tree, not merely invisible. */
+:root:not([data-chrome="app"]) .appbar,
+:root:not([data-chrome="app"]) .sidebar,
+:root:not([data-chrome="app"]) .navscrim { display: none; }
+:root[data-chrome="app"] .pubbar { display: none; }
+
+/* The bars' shared row. The old .topbar-in wrapped its six links under the
+   brand below 1220px; these rows never wrap, so none of that applies. */
+.bar-in {
+  display: flex; align-items: center; gap: var(--lg);
+  max-width: var(--shell-max); margin: 0 auto; padding: 0 var(--xl);
+  height: 64px;
+}
+.bar-in .brand { flex: none; }
+.bar-actions { display: flex; align-items: center; gap: var(--xs); margin-left: auto; flex: none; }
+@media (max-width: 900px) { .bar-in { padding: 0 var(--lg); gap: var(--md); } }
+@media (max-width: 560px) { .bar-in { padding: 0 var(--md); gap: var(--xs); } }
+
+/* ------------------------------------------------------- status badges */
+/* Live, Beta, Demo, Coming soon — always the word, never a colour alone.
+   Each pairing measures over 4.5:1 in both themes: the text tokens are the
+   ones built for their own washes (--ok-text, --brand, --bronze). */
+.status-badge {
+  display: inline-flex; align-items: center; flex: none;
+  height: 20px; padding: 0 7px; border-radius: 999px;
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .05em;
+  text-transform: uppercase; line-height: 1; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.status-live { color: var(--ok-text); background: color-mix(in srgb, var(--ok) 11%, var(--surface)); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.status-beta { color: var(--brand); background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
+.status-demo { color: var(--bronze); background: var(--bronze-wash); border-color: color-mix(in srgb, var(--bronze) 30%, transparent); }
+.status-soon { color: var(--ink-2); background: var(--surface-sunk); border-color: var(--line-2); }
+
+/* ------------------------------------------------------- public header */
+.pubbar { z-index: 45; }
+.pubnav { flex: 1; min-width: 0; }
+.pubnav-list { list-style: none; padding: 0; display: flex; align-items: center; gap: 2px; }
+.publink {
+  appearance: none; border: 0; background: none; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 12px; border-radius: var(--r-md);
+  font-size: var(--text-body); font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap;
+  transition: box-shadow 180ms ease;
+}
+.publink:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.publink[aria-expanded="true"] { color: var(--ink); background: var(--surface-2); box-shadow: var(--lift-1); }
+.publink[aria-current="page"], .publink[data-current] { color: var(--ink); font-weight: var(--weight-semibold); box-shadow: inset 0 -2px 0 var(--brand); border-radius: var(--r-md) var(--r-md) 0 0; }
+.publink[aria-expanded="true"][data-current] { box-shadow: var(--lift-1); border-radius: var(--r-md); }
+.pub-chev { display: inline-flex; color: var(--ink-3); transition: transform 200ms ease; }
+.publink[aria-expanded="true"] .pub-chev { transform: rotate(180deg); }
+.pub-cta { min-height: 40px; padding: 0 16px; font-size: var(--text-body); }
+/* The finger's floor, where a finger is: this rule sits after the touch
+   block's .btn rule and would otherwise undercut it by 4px. */
+@media (pointer: coarse), (max-width: 768px) { .pub-cta { min-height: 44px; } }
+.pub-menubtn { display: none; }
+
+/* A menu's panel: under its button, floating, the product's depth tokens. */
+.pubmenu { position: relative; }
+.pubpanel {
+  position: absolute; top: calc(100% + 12px); left: -8px; z-index: 5;
+  background: var(--surface); border-radius: var(--r-lg); padding: 10px;
+  box-shadow: var(--lift-3);
+  opacity: 0; transform: translateY(-6px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.pubpanel[data-open="1"] { opacity: 1; transform: none; }
+/* The resources panel is a grid, and an author display outranks the
+   browser's own [hidden] rule: closed, it stayed laid out, invisible, in the
+   tab order and under the pointer. */
+.pubpanel[hidden] { display: none; }
+.pubpanel-products { width: 440px; }
+.pubpanel-resources { width: 500px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--md); padding: 14px 10px 10px; }
+
+/* Product rows: the menu's and the phone sheet's. */
+.pp-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.pp-row {
+  display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; align-items: start;
+  padding: 10px 12px; border-radius: var(--r-md); text-decoration: none; color: var(--ink);
+  transition: transform 160ms ease;
+}
+a.pp-row:hover { background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
+a.pp-row:active { transform: translateY(1px); }
+.pp-ico {
+  width: 38px; height: 38px; border-radius: var(--r-md); display: grid; place-items: center;
+  background: var(--brand-wash); color: var(--brand);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+.pp-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pp-name { font-size: var(--text-body); font-weight: var(--weight-semibold); }
+.pp-blurb { font-size: var(--text-sm); color: var(--ink-3); line-height: 1.45; }
+/* Not built: text, not a control — no hover, no pointer, and its tile
+   drained of the brand colour, while its words keep full contrast. */
+.pp-row-off { cursor: default; }
+.pp-row-off .pp-ico { background: var(--surface-sunk); color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line); }
+.pp-row-off .pp-name { color: var(--ink-2); }
+
+/* Resource groups: the menu's two columns and the sheet's. */
+.rs-label {
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); padding: 4px 10px 6px;
+}
+.rs-list { list-style: none; padding: 0; display: flex; flex-direction: column; }
+.rs-link {
+  display: flex; align-items: center; min-height: 36px; padding: 6px 10px; border-radius: var(--r-sm);
+  font-size: var(--text-body); color: var(--ink-2); text-decoration: none;
+}
+.rs-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.rs-link[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); background: var(--brand-wash); }
+
+/* The phone's sheet: the header's items, stacked, under the header. */
+.pubsheet {
+  position: absolute; top: 100%; left: 0; right: 0;
+  max-height: calc(100dvh - 60px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  box-shadow: 0 28px 60px -28px rgba(10, 14, 12, .35);
+  opacity: 0; transform: translateY(-6px);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.pubsheet[data-open="1"] { opacity: 1; transform: none; }
+.pubsheet[hidden] { display: none; }
+.sheet-in { max-width: 640px; margin: 0 auto; padding: var(--md) var(--md) var(--lg); display: flex; flex-direction: column; gap: var(--xs); }
+.sheet-links { list-style: none; padding: var(--xs) 0; margin: var(--xs) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.sheet-link {
+  appearance: none; border: 0; background: none; cursor: pointer; font: inherit; text-align: left; width: 100%;
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; border-radius: var(--r-md);
+  font-size: var(--text-lead); font-weight: var(--weight-medium); color: var(--ink); text-decoration: none;
+}
+.sheet-link:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.sheet-link[aria-current="page"] { font-weight: var(--weight-semibold); background: var(--brand-wash); }
+.sheet-resources { display: grid; grid-template-columns: 1fr; gap: var(--xs); }
+@media (min-width: 560px) { .sheet-resources { grid-template-columns: 1fr 1fr; } }
+.sheet-theme { margin-top: var(--xs); border-top: 1px solid var(--line); border-radius: 0; padding-top: 6px; color: var(--ink-2); font-size: var(--text-body); }
+.sheet-theme .sb-ico { color: var(--ink-3); }
+
+@media (max-width: 1023.98px) {
+  .pubnav, .pub-theme { display: none; }
+  .pub-menubtn { display: grid; }
+  .pubbar .bar-in { height: 60px; }
+}
+@media (max-width: 400px) { .pub-cta { padding: 0 12px; } }
+
+/* ------------------------------------------------------- app: slim bar */
+.appbar .bar-in { height: var(--topbar-h); gap: var(--xs); }
+.appbar .iconbtn { width: 40px; height: 40px; }
+.appbar .brand { margin-left: 2px; }
+.appbar-search { margin-left: auto; min-width: 0; height: 40px; padding: 0 14px; gap: 8px; color: var(--ink-2); }
+@media (max-width: 360px) { .appbar-search-label { display: none; } }
+
+/* ------------------------------------------------------- app: sidebar */
+.sidebar {
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--line);
+}
+.sb-top { display: flex; align-items: center; justify-content: space-between; gap: var(--xs); padding: 16px 14px 10px 18px; }
+.sb-close { display: none; }
+.sb-search { margin: 4px 12px 6px; min-width: 0; width: auto; height: 38px; padding: 0 10px 0 12px; gap: 9px; }
+/* The search button's label hides below 1080px in the old header's rule; in
+   the sidebar there is room for it at every width it shows at. */
+.sidebar .searchbtn-label, .sidebar .searchbtn .kbd { display: inline; }
+.sb-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 2px 12px 8px; overscroll-behavior: contain; }
+.sb-label {
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); padding: 18px 10px 6px;
+}
+.sb-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sb-list-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+/* The products list keeps its distance from the foot when the sidebar is too
+   short for the foot's auto margin to open any. */
+.sb-nav > ul:nth-of-type(2) { margin-bottom: var(--md); }
+.sb-item { position: relative; }
+.sb-link {
+  appearance: none; border: 0; background: none; cursor: pointer; font: inherit; text-align: left; width: 100%;
+  display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 8px 0 10px; border-radius: var(--r-md);
+  font-size: var(--text-body); font-weight: var(--weight-medium); color: var(--ink-2); text-decoration: none;
+  transition: transform 140ms ease, box-shadow 180ms ease;
+}
+.sb-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.sb-link:active { transform: translateY(1px); }
+.sb-link:focus-visible { outline-offset: -2px; }
+.sb-link[aria-current="page"] {
+  color: var(--ink); font-weight: var(--weight-semibold); background: var(--surface-2);
+  box-shadow: 0 1px 2px rgba(20, 25, 22, .06), 0 6px 16px -10px rgba(20, 25, 22, .22), 0 0 0 1px var(--ring);
+}
+.sb-ico { display: inline-grid; place-items: center; width: 20px; flex: none; color: var(--ink-3); }
+.sb-link:hover .sb-ico { color: var(--ink-2); }
+.sb-link[aria-current="page"] .sb-ico { color: var(--brand); }
+.sb-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-link .status-badge { margin-left: auto; }
+/* My Alerts' count: a link of its own, over the row's right end, to the
+   page that lists the scanner's alerts. The row keeps room for it. */
+.sb-item:has(.sb-count) > .sb-link { padding-right: 52px; }
+.sb-count {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 48px;
+  display: grid; place-items: center; border-radius: var(--r-md); text-decoration: none;
+}
+.sb-count .nav-count { margin-left: 0; transition: transform 140ms ease; }
+.sb-count:hover .nav-count { transform: scale(1.08); }
+.sb-count:focus-visible { outline-offset: -2px; }
+.sb-foot { padding: 4px 12px 14px; }
+.sb-theme .sb-ico { color: var(--ink-3); }
+
+/* Beside the page, from 1024px. The page, the footer, the dock and the
+   toast all move over by its width; nothing is stuck to the top any more,
+   so the sticky measures that stood under the old header come to 0. */
+@media (min-width: 1024px) {
+  :root[data-chrome="app"] { --topbar-h: 0px; }
+  :root[data-chrome="app"] body { padding-left: var(--sidebar-w); }
+  :root[data-chrome="app"] .appbar { display: none; }
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 30; width: var(--sidebar-w);
+  }
+  .navscrim { display: none; }
+  :root[data-chrome="app"] .dock { left: var(--sidebar-w); }
+  :root[data-chrome="app"] .toast { left: calc(50% + var(--sidebar-w) / 2); }
+  :root[data-chrome="app"] .modal { left: calc(50% + var(--sidebar-w) / 2); }
+  /* The company strip stuck 1px above the edge (the measure less the old
+     bar's border); with no bar it rests on the edge. */
+  :root[data-chrome="app"] .ticker-sticky { top: 0; }
+}
+/* A page-length table's header row sticks under whatever bar is measured,
+   not the 60px design height — with the sidebar there is none. A header in
+   a scrolling wrap still pins at 0 (the .tablewrap rule outranks this). */
+table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
+
+/* Below 1024px: a drawer from the left, over a scrim. Invisible and out of
+   the tab order until opened; only its transform animates. */
+@media (max-width: 1023.98px) {
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 58;
+    width: min(320px, 86vw);
+    box-shadow: var(--lift-4);
+    visibility: hidden; transform: translateX(-104%);
+    transition: transform 260ms cubic-bezier(.22, .61, .36, 1);
+  }
+  .sidebar[data-drawer="opening"], .sidebar[data-drawer="open"], .sidebar[data-drawer="closing"] { visibility: visible; }
+  .sidebar[data-drawer="open"] { transform: none; }
+  .sb-close { display: grid; width: 44px; height: 44px; }
+  .sb-link, .sb-search { min-height: 44px; }
+  .navscrim {
+    position: fixed; inset: 0; z-index: 57;
+    background: rgba(10, 14, 12, .5); backdrop-filter: blur(3px);
+    opacity: 0; transition: opacity 220ms ease;
+  }
+  .navscrim[data-open="1"] { opacity: 1; }
+  .navscrim[hidden] { display: none; }
+}
+
+/* ------------------------------------------------------- disclosure */
+/* On both chromes, compact: the same words and the same "Which sources?",
+   in less height. Inside the app it sits at the top of the page column. */
+:root[data-chrome="app"] .disclosure-in { padding-top: 7px; padding-bottom: 7px; row-gap: 6px; }
+/* The warning's words sit beside its icon rather than a line below it: the
+   sentence took the whole row as a flex item and left the icon alone above
+   it. Where the long text is folded behind "Which sources?" (760px and
+   under) the old flow stays, so the button keeps its place after the words. */
+@media (min-width: 761px) {
+  .disclosure-in > #disclosureText { flex: 1 1 520px; min-width: 0; }
+}
+
+/* ------------------------------------------------------- product tabs */
+/* Laid out by the width the row actually has, not the window's: beside the
+   sidebar a 1024px window leaves the row 760px, and a phone-shaped rule
+   keyed to the viewport would get both wrong. */
+.ptabs-host {
+  container-type: inline-size;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+.ptabs-host[hidden] { display: none; }
+.ptabs { display: flex; align-items: center; gap: var(--lg); min-width: 0; }
+.ptabs-name {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink);
+  padding-right: var(--lg); border-right: 1px solid var(--line); height: 24px;
+}
+.ptabs-ico { display: inline-grid; place-items: center; color: var(--brand); }
+.ptabs-list { list-style: none; padding: 0; display: flex; gap: var(--lg); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ptabs-list::-webkit-scrollbar { display: none; }
+.ptab {
+  display: inline-flex; align-items: center; height: 48px; padding: 0 1px;
+  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; text-decoration: none;
+  box-shadow: inset 0 -2px 0 transparent;
+  transition: box-shadow 180ms ease;
+}
+.ptab:hover { color: var(--ink); box-shadow: inset 0 -2px 0 var(--line-2); }
+.ptab[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); box-shadow: inset 0 -2px 0 var(--brand); }
+.ptab:focus-visible { outline-offset: -3px; }
+/* Narrower: the product's name on its own line, the tabs one row that
+   scrolls — seven tabs wrapped into three rows of chips would push a phone's
+   page a fifth of a screen further down. The row fades at whichever end has
+   more to scroll to (data-fade, set by renderProductTabs), and the current
+   tab is scrolled into view. */
+@container (max-width: 940px) {
+  .ptabs { flex-direction: column; align-items: stretch; gap: 0; }
+  .ptabs-name { border-right: 0; padding: 12px 0 0; height: auto; }
+  .ptabs-list { gap: 20px; }
+  .ptab { height: 44px; }
+}
+.ptabs-list[data-fade="end"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.ptabs-list[data-fade="start"] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+          mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+.ptabs-list[data-fade="both"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+}
+
+/* ------------------------------------------------------- footer */
+.footer-grid { grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: var(--xl) var(--lg); }
+@media (max-width: 1080px) {
+  .footer-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .footer-grid > :first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) { .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .footer-grid { grid-template-columns: minmax(0, 1fr); } }
+.foot-product { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.foot-product-off { color: var(--ink-3); }
+.footer .foot-product .status-badge { height: 18px; }
+
+/* ------------------------------------------------------- states */
+@media (forced-colors: active) {
+  .sb-link[aria-current="page"], .rs-link[aria-current="page"], .sheet-link[aria-current="page"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .publink[aria-current="page"], .publink[data-current] { text-decoration: underline; }
+  .status-badge { border-color: CanvasText; }
+}
+@media print {
+  .sidebar, .navscrim, .ptabs-host, .pubsheet, .appbar, .pubbar { display: none !important; }
+  body { padding-left: 0 !important; }
+}
+/* ---- /release-a: shell ---- */
