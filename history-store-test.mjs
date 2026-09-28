@@ -615,5 +615,102 @@ try {
 }
 /* ---- end bugfix: equities-data ---- */
 
+/* ---- bugfix2: ingest ---- */
+/* THE STORE'S WRITE WAITS A READER OUT; ONE IMPOSSIBLE DATE IS ONE REFUSED
+   ROW; A REFUSED PRICE CHANGES NOTHING. writeAtomic failed at once (EPERM)
+   while another process held data/price-history.json open, as serve.mjs
+   does for the pages, and failed on every write once the .bak was
+   read-only. A month 13 or a day 32 threw a RangeError out of the date
+   reader, so one such cell failed a whole import and crashed prices.mjs;
+   a time the clock does not have came back undated with no error, and
+   prices.mjs accepted the price undated. And prices.mjs wrote --out even
+   when it accepted nothing — every row held back, or a capture that read
+   none — so the personal lane's prices vanished, and the next run's
+   day-move check had no previous close to hold a misread against; a
+   symbol held back lost its price the same way. */
+{
+  const BD = join(tmpdir(), `qt-bugfix2-ingest-${process.pid}`);
+  await rm(BD, { recursive: true, force: true });
+  await mkdir(BD, { recursive: true });
+  const store = await import('./ingest/history-store.mjs');
+  const node = (args, opts = {}) => run(process.execPath, args, { cwd: ROOT, ...opts }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  const { open, chmod } = await import('node:fs/promises');
+  try {
+    /* writeAtomic under a reader, and over a read-only .bak. */
+    const held = join(BD, 'held.json');
+    await writeFile(held, '{"v":0}');
+    const fh = await open(held, 'r');
+    const closing = new Promise(r => setTimeout(() => fh.close().then(r, r), 300));
+    let w1 = 'written';
+    try { await store.writeAtomic(held, '{"v":1}'); } catch (e) { w1 = e.code || e.message; }
+    await closing;
+    await chmod(`${held}.bak`, 0o444);
+    let w2 = 'written';
+    try { await store.writeAtomic(held, '{"v":2}'); } catch (e) { w2 = e.code || e.message; }
+    await chmod(`${held}.bak`, 0o666).catch(() => {});
+    check(w1 === 'written' && w2 === 'written' && (await readFile(held, 'utf8')) === '{"v":2}' && (await readFile(`${held}.bak`, 'utf8')) === '{"v":1}',
+      'bugfix2 ingest: the store\'s atomic write waits out a reader holding the history open (it failed at once with EPERM on Windows) and replaces a read-only .bak (every later write failed on the copy)', { w1, w2 });
+
+    /* Impossible dates and times are refused, one row each, never thrown. */
+    const cells = ['2026-13-01', '32/01/2026', '13/0/2026', '0/13/2026', '2026-01-32', '2026-00-10', '2026-13-01T10:00:00Z', '2026-01-05T10:60:00Z', '2026-01-05T25:00:00+08:00', '2026-01-05 99:99'];
+    const read = cells.map(c => { try { const r = parseDateCell(c, { tz: 'Asia/Kuala_Lumpur' }); return r.error || `date ${r.date}`; } catch (e) { return `threw ${e.message}`; } });
+    const kept = ['2026-01-05T10:00:00Z', '2026-01-05T24:00:00Z', '2026-01-05 10:00', '2026-02-28'].map(c => parseDateCell(c, { tz: 'UTC' }).date);
+    check(read.every(x => x === 'BAD_DATE') && same(kept, ['2026-01-05', '2026-01-06', '2026-01-05', '2026-02-28']),
+      'bugfix2 ingest: a month 13, a day 32, a day or month 0, and a time the clock does not have are each refused as BAD_DATE — not a RangeError that fails the whole import, and not an undated row; real instants still date as before', { cells, read, kept });
+    const csvBad = join(BD, 'ZZBAD.csv'), outBad = join(BD, 'bad-history.json');
+    await writeFile(csvBad, 'date,close\n2026-03-02,10\n2026-13-01,11\n2026-03-03,12\n2026-03-04T10:60:00Z,13\n');
+    const rb = await node([join(ROOT, 'ingest/history-import.mjs'), '--in', csvBad, '--symbol', 'ZZBAD', '--out', outBad, '--captured-at', '2026-04-10T00:00:00Z']);
+    const hb = existsSync(outBad) ? JSON.parse(await readFile(outBad, 'utf8')) : {};
+    const rjb = existsSync(rejectsPathFor(outBad)) ? JSON.parse(await readFile(rejectsPathFor(outBad), 'utf8')).rejects : [];
+    check(rb.code === 2 && same(hb.series?.ZZBAD, { '2026-03-02': 10, '2026-03-03': 12 }) && !/FAILED/.test(rb.stdout)
+      && same(rjb.filter(x => x.symbol === 'ZZBAD').map(x => [x.date, x.codes.join(), x.line]), [['2026-13-01', 'BAD_DATE', 3], ['2026-03-04T10:60:00Z', 'BAD_DATE', 5]]),
+      'bugfix2 ingest: history-import writes the rows of a CSV with one impossible date and one impossible time, and refuses those two by line as BAD_DATE — it printed "FAILED — Invalid time value" and wrote nothing', { code: rb.code, series: hb.series, rejects: rjb, out: rb.stdout.slice(0, 300), err: rb.stderr.slice(0, 300) });
+
+    /* prices.mjs: a refused row changes nothing. */
+    const HEAD = 'symbol,date,close,prev,move_pct,verdict,captured_at,bar_status,why,ocr_line\n';
+    const review = join(BD, 'watchlist-review.csv'), pp = join(BD, 'personal-prices.json');
+    const day1 = { generated: '2026-09-25T11:00:00.000Z', source: review, asOf: '2026-09-25', basis: 'end-of-day', licence: 'personal research', count: 3,
+      prices: { AAA: { close: 214.3, date: '2026-09-25', capturedAt: '2026-09-25T10:30:00.000Z', d1: null, hi: null, lo: null, m12: null },
+                BBB: { close: 10.1, date: '2026-09-25', capturedAt: '2026-09-25T10:30:00.000Z', d1: null, hi: null, lo: null, m12: null },
+                USDMYR: { close: 4.21, date: '2026-09-25', d1: null, hi: null, lo: null, m12: null, src: 'Bank Negara Malaysia', crossChecked: null } }, rejected: [] };
+    const day1Text = JSON.stringify(day1, null, 2);
+    const pricesRun = (inFile) => node([join(ROOT, 'ingest/prices.mjs'), '--in', inFile, '--out', pp, '--licence', 'personal research']);
+    await writeFile(pp, day1Text);
+    await writeFile(review, HEAD + 'AAA,2026-09-26,814.3,214.3,280,CHECK,2026-09-26T10:30:00.000Z,FINAL,implies +280%,x\nBBB,2026-09-26,10.2,10.1,1,CHECK,2026-09-26T10:30:00.000Z,FINAL,conflict,x\n');
+    const pa = await pricesRun(review);
+    const afterAll = await readFile(pp, 'utf8');
+    await writeFile(review, HEAD);
+    const pe = await pricesRun(review);
+    const afterEmpty = await readFile(pp, 'utf8');
+    check(pa.code === 1 && afterAll === day1Text && /accepted : 0/.test(pa.stdout) && /rejected : 2/.test(pa.stdout) && /not written/.test(pa.stdout)
+      && pe.code === 1 && afterEmpty === day1Text,
+      'bugfix2 ingest: prices.mjs with every row held back, or with no row at all, leaves --out as it stood and exits 1 — it wrote { prices: {} }, emptying the personal lane and the next run\'s day-move baseline', { pa: pa.code, pe: pe.code, out: pa.stdout.slice(0, 400), file: afterAll.slice(0, 200) });
+
+    await writeFile(pp, day1Text);
+    await writeFile(review, HEAD + 'AAA,2026-09-26,814.3,214.3,280,CHECK,2026-09-26T10:30:00.000Z,FINAL,implies +280%,x\nBBB,2026-09-26,10.2,10.1,1,accept,2026-09-26T10:30:00.000Z,FINAL,,x\n');
+    const pk = await pricesRun(review);
+    const bk = JSON.parse(await readFile(pp, 'utf8'));
+    /* The same held back against a file some other input wrote: nothing of it is kept. */
+    await writeFile(pp, JSON.stringify({ ...day1, source: join(BD, 'another.csv') }));
+    const po = await pricesRun(review);
+    const bo = JSON.parse(await readFile(pp, 'utf8'));
+    check(pk.code === 0 && /accepted : 1/.test(pk.stdout) && bk.prices.BBB?.close === 10.2 && same(bk.prices.AAA, day1.prices.AAA) && !bk.prices.USDMYR && bk.asOf === '2026-09-26'
+      && /kept\s+: 1 refused symbol/.test(pk.stdout) && po.code === 0 && !bo.prices.AAA && bo.prices.BBB?.close === 10.2,
+      'bugfix2 ingest: a symbol held back keeps the price the file held for it (214.30 stays the baseline a second 814.30 is checked against), only from a file written from the same input, never another writer\'s row', { pk: pk.stdout.slice(0, 400), prices: bk.prices, other: bo.prices });
+
+    const eod = join(BD, 'eod.csv'), eodOut = join(BD, 'eod.json');
+    await writeFile(eod, 'symbol,date,close\nCCC,2026-09-25T10:60:00Z,5\nDDD,2026-13-01,6\nEEE,2026-09-25,7\n');
+    const pd = await node([join(ROOT, 'ingest/prices.mjs'), '--in', eod, '--out', eodOut]);
+    const bd = existsSync(eodOut) ? JSON.parse(await readFile(eodOut, 'utf8')) : {};
+    check(pd.code === 0 && same(Object.keys(bd.prices || {}), ['EEE']) && same((bd.rejected || []).map(x => x.symbol), ['CCC', 'DDD']),
+      'bugfix2 ingest: prices.mjs refuses a row with an impossible date or time and writes the rest — it crashed on "2026-13-01" and wrote nothing, and would have filed "10:60" undated', { code: pd.code, err: pd.stderr.slice(0, 200), prices: bd.prices, rejected: bd.rejected });
+  } catch (e) {
+    fail('bugfix2 ingest: the test threw', e.stack || e.message);
+  } finally {
+    await rm(BD, { recursive: true, force: true }).catch(() => {});
+  }
+}
+/* ---- end bugfix2: ingest ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

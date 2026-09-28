@@ -29,6 +29,16 @@
  * close was read. It is passed through to each price as capturedAt, so the
  * history store can record it and the engine can tell a close read after its
  * session from one read while the session traded.
+ *
+ * A REFUSED ROW CHANGES NOTHING
+ *   A file in which no row was accepted is not written: the prices --out
+ *   holds stand, and the exit is 1. And a symbol whose row is refused keeps
+ *   the price the file held for it, when that file was written from the
+ *   same input (the daily review CSV) — --out is also the next run's
+ *   baseline for watchlist.mjs's day-move check.
+ *
+ *   exit 0  written;  exit 1  nothing written (no row accepted, or the
+ *   input could not be read)
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -155,12 +165,58 @@ for (const r of rows) {
   };
 }
 
+/* What --out holds now: what a refusal must leave standing. */
+let before = null;
+try { before = JSON.parse(await readFile(outPath, 'utf8')); } catch { /* no file yet, or unreadable — nothing to keep */ }
+const heldBefore = before?.prices && typeof before.prices === 'object' && !Array.isArray(before.prices) ? before.prices : {};
+const accepted = Object.keys(prices).length;
+const tail = (list) => `${list.length}${list.length ? ' — ' + list.slice(0, 5).map(r => `${r.symbol || '?'} (${r.why})`).join('; ') : ''}`;
+
+/* NOTHING ACCEPTED, NOTHING WRITTEN. A review file with every row still
+   marked CHECK, or a capture that read no row, was written as { prices: {},
+   count: 0 }: every price the personal lane held vanished until the review
+   was done, and — --out being the next run's --baseline — watchlist.mjs then
+   had no previous close to hold a misread digit against: the next run's
+   readings came out "confirm", which is accepted, not "CHECK". The file
+   now stands as it was, and the exit is 1 so the daily run reads nothing
+   downstream (the history, the scanner) off a file this run did not write. */
+if (!accepted) {
+  const held = Object.keys(heldBefore).length;
+  console.log(`not written: ${outPath} — no row was accepted${before ? `, so the ${held} price(s) it holds stand` : ''}`);
+  console.log(`  read     : ${rows.length} row(s)`);
+  console.log(`  accepted : 0`);
+  console.log(`  rejected : ${tail(rejected)}`);
+  console.log(rejected.length ? `Correct the rows in ${inPath} (a row marked CHECK needs its verdict set to accept), then run ingest/prices.mjs on it again.` : `${inPath} holds no rows.`);
+  console.error(`nothing accepted — ${outPath} was not written${before ? '; the prices it holds stand' : ''}`);
+  process.exit(1);
+}
+
+/* A SYMBOL REFUSED KEEPS ITS PRICE. The file was replaced by the accepted
+   rows alone, so a symbol held back for review lost yesterday's close with
+   it — and with it the day-move check: 214.30 misread as 814.30 is held
+   back, the file no longer holds 214.30, and the same misread the next day
+   is "no previous close to check against", accepted. The price the file
+   held for a refused symbol is kept as it was, with its own date and
+   capture time — but only from a file written from this same input: a
+   price another writer put there (live.mjs, or fx.mjs's rate, which names
+   its own src) would be read by history.mjs as this file's reading. */
+const kept = [];
+if (before?.source === inPath) {
+  for (const r of rejected) {
+    const p = r.symbol && heldBefore[r.symbol];
+    if (!p || prices[r.symbol] || p.src || typeof p.close !== 'number') continue;
+    prices[r.symbol] = p;
+    kept.push(r.symbol);
+  }
+}
+
 const stale = Object.values(prices).filter(p => p.date && (Date.now() - new Date(p.date)) / 86400000 > 7).length;
 
 const payload = {
   generated: new Date().toISOString(),
   source: inPath,
-  asOf: asOfRead?.date || Object.values(prices).map(p => p.date).filter(Boolean).sort().pop() || null,
+  /* As of the rows accepted now; a kept price carries its own date. */
+  asOf: asOfRead?.date || Object.entries(prices).filter(([s]) => !kept.includes(s)).map(([, p]) => p.date).filter(Boolean).sort().pop() || null,
   basis: 'end-of-day',
   delayMinutes: null,
   /* Recorded so the app can state, on screen, what right the prices are shown
@@ -175,7 +231,8 @@ await mkdir(dirname(outPath), { recursive: true });
 await writeFile(outPath, JSON.stringify(payload, null, 2));
 
 console.log(`wrote ${outPath}`);
-console.log(`  accepted : ${payload.count}`);
-console.log(`  rejected : ${rejected.length}${rejected.length ? ' — ' + rejected.slice(0, 5).map(r => `${r.symbol || '?'} (${r.why})`).join('; ') : ''}`);
+console.log(`  accepted : ${accepted}`);
+console.log(`  rejected : ${tail(rejected)}`);
+if (kept.length) console.log(`  kept     : ${kept.length} refused symbol(s) keep the price the file held — ${kept.slice(0, 8).map(s => `${s} ${prices[s].close}${prices[s].date ? ` (${prices[s].date})` : ''}`).join(', ')}${kept.length > 8 ? ', …' : ''}`);
 console.log(`  as of    : ${payload.asOf || 'not stated'}${stale ? `  (${stale} rows older than 7 days)` : ''}`);
 if (!licence) console.warn('! No --licence given. The app will show these prices as unverified.');
