@@ -15,9 +15,10 @@
    is one SMA, one EMA, one RSI in this product, and they are these.
 
    PURE. No DOM, no State, no storage, no clock: every function that needs
-   "now" is handed it. The only module-level state is two memo tables (a
-   date formatter per time zone, a session lookup per calendar), which
-   change no answer.
+   "now" is handed it. The only module-level state is three memo tables (a
+   date formatter per time zone, a session lookup per calendar, and what a
+   date string's weekday and day arithmetic come to), which change no
+   answer.
 
    WHAT IT DOES NOT KNOW. No exchange calendar is held — a maintained one
    comes with a licensed feed — so sessions are inferred from the reader's
@@ -130,11 +131,25 @@ const SCAN_MARKETS = {
 const scanMarket = (m) => SCAN_MARKETS[String(m || '').toUpperCase()] || SCAN_MARKETS._default;
 const scanHm = (s) => { const [h, m] = String(s || '24:00').split(':').map(Number); return h * 60 + (m || 0); };
 const SCAN_ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/* Dates are strings, and a run asks about the same few thousand of them
+   millions of times: a 2,000-instrument universe of 500 bars validates,
+   weekdays and steps through a million dates, and every answer built a
+   Date — most of a 2,000 × 500 run's time went there (SC-319). A date's
+   weekday and its neighbours never change, so each answer is remembered by
+   its string, in tables emptied when they pass a size no history reaches,
+   so a long page session cannot grow them without bound. A remembered
+   answer is the answer: nothing here depends on when it was asked. */
+const SCAN_DAY_MEMO = { isDay: new Map(), weekday: new Map(), add: new Map(), cap: 50000 };
+const scanMemo = (m, k, f) => {
+  let v = m.get(k);
+  if (v === undefined) { if (m.size >= SCAN_DAY_MEMO.cap) m.clear(); v = f(); m.set(k, v); }
+  return v;
+};
 /* A key is a date only if it names a real day: '2026-02-30' is not one. */
-const scanIsDay = (d) => typeof d === 'string' && SCAN_ISO_DAY.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`))
-  && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d;
-const scanWeekday = (d) => new Date(`${d}T00:00:00Z`).getUTCDay();
-const scanAddDays = (d, n) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+const scanIsDay = (d) => typeof d === 'string' && scanMemo(SCAN_DAY_MEMO.isDay, d, () => SCAN_ISO_DAY.test(d)
+  && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d);
+const scanWeekday = (d) => scanMemo(SCAN_DAY_MEMO.weekday, d, () => new Date(`${d}T00:00:00Z`).getUTCDay());
+const scanAddDays = (d, n) => scanMemo(SCAN_DAY_MEMO.add, `${d}|${n}`, () => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); });
 const scanDayDiff = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 const scanMs = (t) => (typeof t === 'number' ? t : Date.parse(t));
 
@@ -1111,6 +1126,12 @@ function scanCanonicalOf(s) {
   if (u.kind === 'market') uni.market = String(u.market || '').toUpperCase();
   if (u.kind === 'symbols' || u.kind === 'watchlist') uni.symbols = (Array.isArray(u.symbols) ? u.symbols : []).map(x => String(x).toUpperCase());
   if (Array.isArray(u.instrumentIds)) uni.instrumentIds = u.instrumentIds.map(x => String(x).toUpperCase());
+  /* A watchlist resolved from the export scans whatever the export names at
+     run time, so which list it is and how it resolves are what it means —
+     both are in the hash. The snapshot is kept too: it is what the run falls
+     back on. 'snapshot' is the default, and saying so changes nothing, so a
+     setup written before resolution existed keeps its hash. */
+  if (u.kind === 'watchlist' && u.resolve === 'export') { uni.resolve = 'export'; uni.watchlistId = u.watchlistId ?? null; }
   const opnd = (o) => (o == null ? undefined : typeof o !== 'object' ? o : o.indicator != null ? scanSpecKey(o) : { value: scanNumeric(o.value) ? Number(o.value) : o.value });
   const node = (n) => (!n || typeof n !== 'object' ? n
     : n.type === 'group' ? { logic: n.logic, children: Array.isArray(n.children) ? n.children.map(node) : n.children }
@@ -1204,9 +1225,16 @@ function scanValidate(doc, { limits = null } = {}) {
     if (!['all', 'market', 'symbols', 'watchlist'].includes(u.kind)) bad('universe', 'BAD_UNIVERSE', `universe kind "${u.kind}" is not all, market, symbols or watchlist`);
     else if (u.kind === 'symbols' && (!Array.isArray(u.symbols) || !u.symbols.some(x => typeof x === 'string' && x.trim()))) bad('universe', 'BAD_UNIVERSE', 'universe is "symbols" but names none');
     /* A watchlist lives in a browser; the worker sees only the snapshot of
-       its symbols the page wrote into the setup. Without one there is
-       nothing to scan. */
-    else if (u.kind === 'watchlist' && (!Array.isArray(u.symbols) || !u.symbols.length)) bad('universe', 'BAD_UNIVERSE', 'universe is a watchlist but carries no symbol snapshot — copy the setup JSON again from the scanner page');
+       its symbols the page wrote into the setup, or — resolve 'export' —
+       the list as the reader last exported it to data/watchlists.json.
+       Without a snapshot there is nothing to scan, and nothing for an
+       export-resolved setup to fall back on when its list is not in the
+       export; without the list's id there is nothing to look up. */
+    else if (u.kind === 'watchlist' && u.resolve != null && u.resolve !== 'snapshot' && u.resolve !== 'export') bad('universe', 'BAD_UNIVERSE', `watchlist resolve "${u.resolve}" is not snapshot or export`);
+    else if (u.kind === 'watchlist' && u.resolve === 'export' && !(typeof u.watchlistId === 'string' && u.watchlistId)) bad('universe', 'BAD_UNIVERSE', 'universe is a watchlist resolved from the export but names no watchlistId to find in data/watchlists.json');
+    else if (u.kind === 'watchlist' && (!Array.isArray(u.symbols) || !u.symbols.length)) bad('universe', 'BAD_UNIVERSE', u.resolve === 'export'
+      ? 'universe is a watchlist resolved from the export but carries no symbol snapshot to fall back on when the list is not in the export — save it again in the builder'
+      : 'universe is a watchlist but carries no symbol snapshot — copy the setup JSON again from the scanner page');
     else if (u.kind === 'market' && !u.market) bad('universe', 'BAD_UNIVERSE', 'universe is "market" but names none');
 
     if (hasRules) {
@@ -1424,15 +1452,50 @@ function scanSetup(setup, symbol, bars, { at = null, cache = null, confirmedOnly
 }
 
 /* ----------------------------------------------------------------- universe -- */
+/* WHICH MEMBERS A WATCHLIST MEANS WHEN THE RUN READS IT. A watchlist lives
+   in a browser, which the worker cannot read, so a watchlist universe
+   carries a snapshot of its symbols from when the setup was saved. With
+   resolve 'export' the run reads the list instead from the reader's latest
+   "Export for the scanner" (data/watchlists.json, in watchlistsExport()'s
+   shape, handed in as `watchlists`): that is as live as the last export and
+   no more, and the record says which it was — universeResolvedFrom, with
+   the snapshot's date or the export's time. A list the export does not
+   hold, or no export at all, falls back to the snapshot and says so in
+   `fallback`, which the worker turns into a PARTIAL run: evaluating an
+   older membership quietly would record matches for a list the reader has
+   since changed. A member the export holds without a symbol (a company
+   with no listing the history uses) is named in `unresolved`, not dropped.
+   Returns nulls for every other kind of universe. */
+function scanResolveUniverse(universe, watchlists = null) {
+  const u = universe || { kind: 'all' };
+  if (u.kind !== 'watchlist') return { symbols: null, resolvedFrom: null, fallback: null, unresolved: [] };
+  const snapshot = Array.isArray(u.symbols) ? u.symbols : [];
+  const fromSnapshot = { source: 'snapshot', ...(u.asOf ? { asOf: u.asOf } : {}) };
+  if (u.resolve !== 'export') return { symbols: snapshot, resolvedFrom: fromSnapshot, fallback: null, unresolved: [] };
+  const lists = watchlists && Array.isArray(watchlists.watchlists) ? watchlists.watchlists : null;
+  const list = lists ? lists.find(w => w && w.id === u.watchlistId) : null;
+  if (!list) {
+    const why = !watchlists ? 'there is no data/watchlists.json (export it from the watchlists page with "Export for the scanner")'
+      : !lists ? 'data/watchlists.json is not a watchlists export'
+      : `watchlist ${u.watchlistId} is not in data/watchlists.json${watchlists.exportedAt ? ` (exported ${watchlists.exportedAt})` : ''}`;
+    return { symbols: snapshot, resolvedFrom: fromSnapshot, unresolved: [],
+             fallback: `${why} — evaluated its snapshot of ${u.asOf || 'a date the setup did not record'}` };
+  }
+  const items = Array.isArray(list.items) ? list.items : [];
+  const named = (i) => typeof i?.symbol === 'string' && i.symbol.trim() !== '';
+  return { symbols: items.filter(named).map(i => i.symbol), fallback: null,
+           resolvedFrom: { source: 'export', ...(watchlists.exportedAt ? { exportedAt: watchlists.exportedAt } : {}) },
+           unresolved: items.filter(i => !named(i)).map(i => String(i?.companyId || i?.instrumentId || i?.id || '?')) };
+}
 /* Which instruments a setup looks at. `all` is everything with a series;
-   `market` reads the instrument registry; `symbols` is the reader's list. */
-function scanUniverse(setup, history, instruments) {
+   `market` reads the instrument registry; `symbols` is the reader's list;
+   `watchlist` is the list's members, resolved as above. */
+function scanUniverse(setup, history, instruments, { watchlists = null } = {}) {
   const have = Object.keys(history?.series || {});
   const u = setup?.universe || { kind: 'all' };
-  /* A watchlist universe is the list's symbols, snapshotted into the setup
-     when the JSON was written: the worker cannot read a browser's storage. */
   if (u.kind === 'symbols' || u.kind === 'watchlist') {
-    const want = new Set((u.symbols || []).map(s => String(s).toUpperCase()));
+    const named = u.kind === 'watchlist' ? scanResolveUniverse(u, watchlists).symbols : (u.symbols || []);
+    const want = new Set(named.map(s => String(s).toUpperCase()));
     return have.filter(s => want.has(String(s).toUpperCase()));
   }
   if (u.kind === 'market') {
@@ -1445,12 +1508,13 @@ function scanUniverse(setup, history, instruments) {
 /* What a universe names but cannot scan, so the run can say so rather than
    drop it: a named symbol with no series in the history, and, for a market
    universe, a series with no row in the instrument registry. */
-function scanUniverseGaps(setup, history, instruments) {
+function scanUniverseGaps(setup, history, instruments, { watchlists = null } = {}) {
   const have = new Set(Object.keys(history?.series || {}).map(s => String(s).toUpperCase()));
   const u = setup?.universe || { kind: 'all' };
   if (u.kind === 'symbols' || u.kind === 'watchlist') {
     const seen = new Set();
-    const missing = (u.symbols || []).map(s => String(s)).filter(s => {
+    const named = u.kind === 'watchlist' ? scanResolveUniverse(u, watchlists).symbols : (u.symbols || []);
+    const missing = named.map(s => String(s)).filter(s => {
       const k = s.toUpperCase();
       if (!k.trim() || seen.has(k)) return false;
       seen.add(k);
@@ -1494,6 +1558,45 @@ function scanTruncateHistory(history, asOf) {
    before any market's close on the next. */
 const scanReplayNow = (asOf) => `${scanAddDays(asOf, 1)}T04:00:00Z`;
 
+/* What the worker keeps per pair between runs (its ledger's `pairs`): one
+   entry per setup version, instrument and timeframe — the pair a run
+   evaluates — holding the last bar it was evaluated on. */
+const scanPairKey = (setupId, version, symbol, timeframe) => `${setupId}|v${version}|${String(symbol).toUpperCase()}|${scanTimeframe(timeframe)}`;
+/* How many bars one run catches up per pair. A daily run missed for two
+   weeks is ten sessions; further behind than that is not a missed run but
+   a stopped worker, and --as-of replays those days on purpose, a date at a
+   time, rather than one run recording a month of alerts at once. */
+const SCAN_CATCH_UP_CAP = 10;
+
+/* A missing session before bar j, in words: the sessions the calendar
+   expected between j and the bar before it that the history holds, and
+   what that calendar is. null when none is missing. A weekday calendar
+   cannot tell a holiday from a day nothing was captured, and says so; a
+   weekly bar counts whole weeks with sessions and no bar. */
+function scanGapText(bars, j, cal = null) {
+  const g = bars?.gapBefore?.[j] || 0;
+  if (!(g > 0) || !(j >= 1)) return null;
+  const a = bars.dates[j - 1], b = bars.dates[j];
+  if (bars.timeframe === '1W') {
+    return { count: g, sessions: [], text: `${g} week${g === 1 ? '' : 's'} with sessions and no bar ${g === 1 ? 'lies' : 'lie'} between the weekly bar of ${a} and this one of ${b}` };
+  }
+  const missing = [];
+  for (let d = scanAddDays(a, 1), k = 0; d < b && k < 400; d = scanAddDays(d, 1), k++) if (scanIsSession(cal, d)) missing.push(d);
+  const n = missing.length || g;
+  const list = missing.length ? `${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ` and ${missing.length - 5} more` : ''}` : `${g} session${g === 1 ? '' : 's'}`;
+  const basis = cal?.basis === 'inferred'
+    ? `${n === 1 ? 'a session' : 'sessions'} of the calendar inferred from your history`
+    : `${n === 1 ? 'a weekday' : 'weekdays'} — no exchange calendar is held, so ${n === 1 ? 'it' : 'each'} may have been a holiday or a day nothing was captured`;
+  return { count: n, sessions: missing, text: `the bar before ${b} that your history holds is ${a}; ${list} between them ${n === 1 ? 'has' : 'have'} no bar (${basis})` };
+}
+/* The gap as an alert or a simulated event states it. A NEW_MATCH across a
+   gap is a transition nobody saw happen: the conditions were not evaluated
+   on the missing sessions, so "not met, then met" is two readings with a
+   hole between them, not two consecutive sessions. */
+const scanGapNote = (gap, eventType) => (!gap ? null : eventType === 'NEW_MATCH'
+  ? `a new match across a gap — ${gap.text}. The conditions could not be read on ${gap.count === 1 ? 'that session' : 'those sessions'}, so the change from not met to met is not shown on consecutive sessions.`
+  : gap.text);
+
 /* ---------------------------------------------------------------------- run -- */
 /* The run. Every enabled, unexpired setup against every instrument in its
    universe, on the last final bar of each (a provisional last bar is named,
@@ -1506,8 +1609,35 @@ const scanReplayNow = (asOf) => `${scanAddDays(asOf, 1)}T04:00:00Z`;
 
    `asOf` replays: the history is cut at that date and judged as of the
    morning after it. `existing` is the record so far; `runId` and `origin`
-   are written on every alert. */
-function scanRun(setups, history, { instruments = [], existing = [], now = null, runId = null, origin = null, asOf = null, cache = null } = {}) {
+   are written on every alert.
+
+   CATCH-UP (SC-307). `pairs` is the worker's record of the bar each pair
+   was last evaluated on (scanPairKey → { lastEvaluatedBar }). Given it, a
+   pair evaluates every completed bar after that one, oldest first and at
+   most SCAN_CATCH_UP_CAP of them, each at its own position — every
+   indicator is causal, so bar j is read on exactly the history that ended
+   at j — and a day the scheduler missed still records the crossing or the
+   NEW_MATCH that happened on it, once, on its own bar, exactly as that
+   day's run would have. A pair with no entry (a new setup, or a new
+   version of one) evaluates its last bar only: replay is the way further
+   back. Without `pairs` (the page, a replay, the self-test) every pair is
+   evaluated on its last bar, as before. `out.pairs` is the bar each
+   evaluated pair now stands on, for the worker to keep; a stale series is
+   not evaluated, so it does not move and is caught up once it is current.
+
+   READY (SC-301). With `ready`, an instrument whose market's expected
+   session is not held final (scanReadiness) is not evaluated: the market
+   is listed in `skippedMarkets` with the reason and its pairs do not move,
+   so the next ready run catches them up. It is a judgement of capture
+   times against each market's close, on the calendar the reader's own
+   history implies — not a provider's word that the session is final.
+
+   `markets` narrows a run to the instruments of those registry markets (a
+   replay of one market): the others are counted as left out, not reported
+   missing. `watchlists` is the reader's watchlist export, read by a
+   watchlist universe that resolves from it (scanResolveUniverse). */
+function scanRun(setups, history, { instruments = [], existing = [], now = null, runId = null, origin = null, asOf = null, cache = null,
+                                    pairs = null, catchUpCap = SCAN_CATCH_UP_CAP, ready = false, markets = null, watchlists = null } = {}) {
   const hist = asOf ? scanTruncateHistory(history, asOf) : history;
   const clockNow = asOf ? scanReplayNow(asOf) : now;
   const C = cache || scanCache();
@@ -1516,7 +1646,8 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
      evaluated on a bar well behind the newest one the history holds;
      untestedEverywhere is decided from the pairs actually evaluated. */
   const out = { engine: `scan ${SCAN_VERSION}`, runId, origin, replayAsOf: asOf || null, alerts: [], evaluated: 0, matched: 0, untested: 0,
-                deduped: 0, cooldown: 0, continuing: 0, skipped: [], setups: 0, untestedList: [], untestedEverywhere: [], stale: [], provisional: [] };
+                deduped: 0, cooldown: 0, continuing: 0, skipped: [], setups: 0, untestedList: [], untestedEverywhere: [], stale: [], provisional: [],
+                pairs: {}, catchUp: null, catchUpList: [], skippedMarkets: [], narrowed: null, universeResolvedFrom: [], watchlistFallbacks: [] };
   const prior = Array.isArray(existing) ? existing : [];
   const seen = new Set(prior.map(a => a?.key).filter(Boolean));
   /* The newest recorded bar per setup version, instrument and timeframe:
@@ -1546,6 +1677,20 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
   const newest = Object.keys(hist?.series || {}).map(lastBar).filter(Boolean).sort().pop() || null;
   const staleSeen = new Set(), provSeen = new Set(), evaluatedMarkets = new Set();
   const evaluatedBars = [];
+  const marketRow = (sym) => reg.get(String(sym).toUpperCase())?.market || null;
+  const marketOf = (sym) => { const m = marketRow(sym); return m ? String(m).toUpperCase() : null; };
+  /* Readiness covers every market the history holds, judged on the same
+     bars the run reads; it is decided before the loop so the ready gate can
+     hold a market back. `inRun` is set after it. */
+  const readiness = clockNow ? scanReadiness(hist, instruments, clockNow, { calendars: calFor, barsOf: (sym) => barsOf(sym, '1D') }) : null;
+  const notReady = new Map();
+  if (ready && readiness) readiness.markets.forEach(m => { if (m.state !== 'READY') notReady.set(m.market, m); });
+  const heldBack = new Map();
+  const only = Array.isArray(markets) && markets.length ? new Set(markets.map(m => String(m).toUpperCase())) : null;
+  if (only) out.narrowed = { markets: [...only], instrumentsLeftOut: 0, setupsOutside: [] };
+  const caught = { pairs: 0, bars: 0, capped: 0 };
+  const cap = Math.max(1, Math.floor(Number(catchUpCap)) || SCAN_CATCH_UP_CAP);
+  const generated = typeof hist?.generated === 'string' ? hist.generated : null;
   for (const raw of setups || []) {
     if (!raw || raw.enabled === false) continue;
     const s = scanNormaliseSetup(raw);
@@ -1553,14 +1698,40 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
     const tf = SCAN_TIMEFRAMES[s.timeframe];
     if (!tf || !tf.built) { out.skipped.push({ setup: s.id, why: `timeframe “${raw.timeframe}” is not built — ${tf ? tf.reason : 'the built timeframes are 1D and 1W'}` }); continue; }
     out.setups++;
-    const symbols = scanUniverse(s, hist, instruments);
-    const gaps = scanUniverseGaps(s, hist, instruments);
+    /* A watchlist universe says which membership it read: its snapshot, or
+       the reader's export — and when the export was asked for but could not
+       supply the list, that it fell back, which the worker makes PARTIAL. */
+    const resolution = scanResolveUniverse(s.universe, watchlists);
+    if (resolution.resolvedFrom) out.universeResolvedFrom.push({ setupId: s.id, watchlistId: s.universe.watchlistId ?? null, ...resolution.resolvedFrom });
+    if (resolution.fallback) out.watchlistFallbacks.push({ setup: s.id, watchlistId: s.universe.watchlistId ?? null, why: resolution.fallback });
+    let symbols = scanUniverse(s, hist, instruments, { watchlists });
+    const gaps = scanUniverseGaps(s, hist, instruments, { watchlists });
+    if (only) {
+      const inside = (sym) => only.has(marketOf(sym));
+      const before = symbols.length;
+      symbols = symbols.filter(inside);
+      out.narrowed.instrumentsLeftOut += before - symbols.length;
+      gaps.missing = gaps.missing.filter(inside);
+      gaps.unplaced = [];
+      /* Narrowed to a market this setup has nothing in: not a problem with
+         the setup, only outside what was asked for. */
+      if (!symbols.length) { out.narrowed.setupsOutside.push(s.id); continue; }
+    }
     if (!symbols.length) { out.skipped.push({ setup: s.id, why: `no instrument in its universe has a series${gaps.missing.length ? ` (${gaps.missing.join(', ')})` : ''}` }); continue; }
     gaps.missing.forEach(sym => out.skipped.push({ setup: s.id, symbol: sym, why: 'no series in the price history' }));
     gaps.unplaced.forEach(sym => out.skipped.push({ setup: s.id, symbol: sym, why: 'not in data/instruments.json, so it has no market to be scanned under' }));
+    resolution.unresolved.forEach(m => out.skipped.push({ setup: s.id, symbol: m, why: 'in the watchlist export with no symbol your history uses' }));
     let looked = 0, blind = 0;
     const reasons = [];
     for (const sym of symbols) {
+      const mk = marketOf(sym);
+      if (notReady.has(mk)) {
+        const m = notReady.get(mk);
+        if (!heldBack.has(mk)) heldBack.set(mk, { instruments: new Set(), setups: new Set(), m });
+        heldBack.get(mk).instruments.add(sym);
+        heldBack.get(mk).setups.add(s.id);
+        continue;
+      }
       const bars = barsOf(sym, s.timeframe);
       let at = bars.dates.length - 1;
       if (at >= 0 && bars.status[at] === 'PROVISIONAL') {
@@ -1579,91 +1750,142 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
         if (!reasons.includes('fewer than two bars')) reasons.push('fewer than two bars');
         continue;
       }
-      const bar = bars.dates[at];
-      if (s.expires && bar > s.expires) { out.skipped.push({ setup: s.id, symbol: sym, why: `expired ${s.expires}` }); continue; }
+      /* The bars this run evaluates for the pair: its last final bar and,
+         when the worker's record has it last evaluated on an earlier bar,
+         every completed bar since — the newest `cap` of them. A stale series
+         is not caught up: its last bar is not evaluated either. */
+      const pk = scanPairKey(s.id, s.version, sym, s.timeframe);
+      const lastDone = pairs && scanIsDay(pairs[pk]?.lastEvaluatedBar) ? pairs[pk].lastEvaluatedBar : null;
+      let first = at;
+      if (lastDone && !bars.stale) while (first > 1 && bars.dates[first - 1] > lastDone) first--;
+      const start = Math.max(first, at - cap + 1);
+      let idx = [];
+      for (let j = start; j <= at; j++) idx.push(j);
+      /* Past its expiry a setup is evaluated only on the bars up to it. */
+      if (s.expires) idx = idx.filter(j => bars.dates[j] <= s.expires);
+      if (!idx.length) { out.skipped.push({ setup: s.id, symbol: sym, why: `expired ${s.expires}` }); continue; }
+      const last = idx[idx.length - 1];
+      const bar = bars.dates[last];
+      if (idx.length > 1 || start > first) {
+        caught.pairs += idx.length > 1 ? 1 : 0;
+        caught.bars += idx.length - 1;
+        if (start > first) caught.capped++;
+        out.catchUpList.push({ setup: s.id, version: s.version, symbol: sym, timeframe: s.timeframe, since: lastDone, from: bars.dates[idx[0]], to: bar, bars: idx.length,
+                               missed: start - first, ...(start > first ? { missedFrom: bars.dates[first], missedTo: bars.dates[start - 1] } : {}) });
+      }
       out.evaluated++;
       looked++;
-      evaluatedBars.push(bar);
+      idx.forEach(j => evaluatedBars.push(bars.dates[j]));
       evaluatedMarkets.add(bars.market ? String(bars.market).toUpperCase() : null);
+      if (!(bars.stale && bars.stale.at === last)) out.pairs[pk] = { lastEvaluatedBar: bar };
       if (newest && !staleSeen.has(sym)) {
         const behind = scanDayDiff(bar, newest);
         /* Ten calendar days clears a long holiday closure; a series further
            behind than that was not updated, and its "last bar" is old news. */
         if (behind > 10) { staleSeen.add(sym); out.stale.push({ symbol: sym, bar, why: `last bar ${bar} is ${behind} days behind the newest bar in the history (${newest})` }); }
       }
-      const r = scanEvaluate(s.ruleTree, bars, { at, cache: C });
-      if (r.state === 'UNAVAILABLE') {
-        out.untested++;
-        blind++;
-        const texts = [...new Set(r.conditions.filter(x => x.state === 'UNAVAILABLE').map(x => x.text))];
-        const why = texts.join('; ') || r.reason?.text || 'could not be evaluated';
-        out.untestedList.push({ setup: s.id, symbol: sym, why });
-        /* The reason without this instrument's bar count or name, so one
-           line can stand for the whole universe. */
-        texts.forEach(t => {
-          const g = t.replace(/; \d+ held$/, '').replace(/^its last final bar is \d{4}-\d{2}-\d{2}, and the session of (\d{4}-\d{2}-\d{2}) should be held by now/, 'the last final bar is older than the session of $1, which should be held by now');
-          if (!reasons.includes(g)) reasons.push(g);
-        });
-      }
-      if (r.state !== 'MET') continue;
-      out.matched++;
-      let eventType = 'MATCH';
-      if (s.cooldownMode === 'NEW_MATCH') {
-        const prev = scanEvaluate(s.ruleTree, bars, { at: at - 1, cache: C });
-        if (prev.state === 'MET') {
-          out.continuing++;
-          out.skipped.push({ setup: s.id, symbol: sym, why: `still matching since the bar before (${bars.dates[at - 1]}) — a NEW_MATCH setup records only the bar a match begins` });
-          continue;
+      for (const j of idx) {
+        const jb = bars.dates[j];
+        const r = scanEvaluate(s.ruleTree, bars, { at: j, cache: C });
+        /* Whether the pair could be tested is its newest bar's answer; a
+           caught-up bar still in its warm-up is not a second untested pair. */
+        if (j === last && r.state === 'UNAVAILABLE') {
+          out.untested++;
+          blind++;
+          const texts = [...new Set(r.conditions.filter(x => x.state === 'UNAVAILABLE').map(x => x.text))];
+          const why = texts.join('; ') || r.reason?.text || 'could not be evaluated';
+          out.untestedList.push({ setup: s.id, symbol: sym, why });
+          /* The reason without this instrument's bar count or name, so one
+             line can stand for the whole universe. */
+          texts.forEach(t => {
+            const g = t.replace(/; \d+ held$/, '').replace(/^its last final bar is \d{4}-\d{2}-\d{2}, and the session of (\d{4}-\d{2}-\d{2}) should be held by now/, 'the last final bar is older than the session of $1, which should be held by now');
+            if (!reasons.includes(g)) reasons.push(g);
+          });
         }
-        eventType = prev.state === 'NOT_MET' ? 'NEW_MATCH' : 'FIRST_OBSERVED';
+        if (r.state !== 'MET') continue;
+        out.matched++;
+        let eventType = 'MATCH';
+        if (s.cooldownMode === 'NEW_MATCH') {
+          const prev = scanEvaluate(s.ruleTree, bars, { at: j - 1, cache: C });
+          if (prev.state === 'MET') {
+            out.continuing++;
+            out.skipped.push({ setup: s.id, symbol: sym, why: `still matching since the bar before (${bars.dates[j - 1]}) — a NEW_MATCH setup records only the bar a match begins` });
+            continue;
+          }
+          eventType = prev.state === 'NOT_MET' ? 'NEW_MATCH' : 'FIRST_OBSERVED';
+        }
+        const SYM = String(sym).toUpperCase();
+        const instrumentId = bars.instrumentId;
+        const key = scanKey(s.id, s.version, instrumentId || sym, s.timeframe, jb, eventType);
+        const forms = [key, scanKey(s.id, s.version, sym, s.timeframe, jb, eventType)];
+        if (s.version === 1 && s.timeframe === '1D') forms.push(scanLegacyKey(s.id, sym, jb));
+        if (forms.some(k => seen.has(k))) { out.deduped++; out.skipped.push({ setup: s.id, symbol: sym, why: 'already recorded for this bar' }); continue; }
+        /* Cooldown counts BARS of this instrument, not days: a holiday is not
+           a bar. Counted as the bars held after the previous alert's bar, so a
+           bar removed from the history does not lose the cooldown. */
+        const ck = cdKey(s.id, s.version, SYM, s.timeframe);
+        const prevBar = lastBy.get(ck);
+        if (s.cooldownBars > 0 && prevBar) {
+          let since = 0;
+          for (let k = 0; k <= j; k++) if (bars.dates[k] > prevBar) since++;
+          if (since <= s.cooldownBars) { out.cooldown++; out.skipped.push({ setup: s.id, symbol: sym, why: `within the ${s.cooldownBars}-bar cooldown of ${prevBar}` }); continue; }
+        }
+        const snapshot = { id: s.id, version: s.version, hash: s.hash, name: s.name, timeframe: s.timeframe, universe: s.universe,
+                           confirmationMode: s.confirmationMode, cooldownMode: s.cooldownMode, cooldownBars: s.cooldownBars, expires: s.expires, ruleTree: s.ruleTree };
+        const gap = scanGapText(bars, j, calFor(marketRow(sym)));
+        const vol = bars.volumes?.[j];
+        const rec = {
+          id: scanAlertId(key), key, setupId: s.id, setupName: s.name || s.id, setupVersion: s.version, setupHash: s.hash, setupSnapshot: snapshot,
+          instrumentId, symbol: sym, market: bars.market, timeframe: s.timeframe, candleDate: jb, detectedAt: now || null,
+          eventType, cooldownMode: s.cooldownMode, close: bars.closes[j],
+          /* The volume the history holds for the bar, or null when it holds
+             none — an instrument with no traded volume, or a bar captured
+             without it. Never 0 in its place. */
+          barVolume: scanOk(vol) ? vol : null,
+          barStatus: bars.status[j] || 'UNKNOWN',
+          matchedConditions: r.conditions.map(c => ({ path: c.path, text: c.text, state: c.state, left: c.leftValue, right: c.rightValue,
+            leftLabel: c.leftLabel, rightLabel: c.rightLabel, status: c.state === 'UNAVAILABLE' ? (c.left?.status || 'INVALID_INPUT') : 'VALID', reason: c.reason?.code || null })),
+          dataSourceId: hist?.meta?.[sym]?.[jb]?.src || hist?.source || 'personal-history',
+          dataVersion: scanDataVersion(bars, j),
+          /* The history file's own `generated` stamp as this run read it —
+             when the file was written, not when the bar was captured; null
+             when the file carries none. */
+          historyGenerated: generated,
+          runId, origin, engine: out.engine,
+          ...(resolution.resolvedFrom ? { universeResolvedFrom: resolution.resolvedFrom } : {}),
+          /* Present only when a session is missing between this bar and the
+             one before it (C2): absent is "none missing", never false. */
+          ...(gap ? { gapBefore: true, gapText: scanGapNote(gap, eventType) } : {}),
+          /* 0.2 names, kept for one release: the page and ingest/daily.mjs read them. */
+          bar: jb, rules: r.conditions.map(c => ({ text: c.text, met: c.met })), recordedAt: now || null,
+        };
+        out.alerts.push(rec);
+        forms.forEach(k => seen.add(k));
+        lastBy.set(ck, jb);
       }
-      const SYM = String(sym).toUpperCase();
-      const instrumentId = bars.instrumentId;
-      const key = scanKey(s.id, s.version, instrumentId || sym, s.timeframe, bar, eventType);
-      const forms = [key, scanKey(s.id, s.version, sym, s.timeframe, bar, eventType)];
-      if (s.version === 1 && s.timeframe === '1D') forms.push(scanLegacyKey(s.id, sym, bar));
-      if (forms.some(k => seen.has(k))) { out.deduped++; out.skipped.push({ setup: s.id, symbol: sym, why: 'already recorded for this bar' }); continue; }
-      /* Cooldown counts BARS of this instrument, not days: a holiday is not
-         a bar. Counted as the bars held after the previous alert's bar, so a
-         bar removed from the history does not lose the cooldown. */
-      const ck = cdKey(s.id, s.version, SYM, s.timeframe);
-      const prevBar = lastBy.get(ck);
-      if (s.cooldownBars > 0 && prevBar) {
-        let since = 0;
-        for (let j = 0; j <= at; j++) if (bars.dates[j] > prevBar) since++;
-        if (since <= s.cooldownBars) { out.cooldown++; out.skipped.push({ setup: s.id, symbol: sym, why: `within the ${s.cooldownBars}-bar cooldown of ${prevBar}` }); continue; }
-      }
-      const snapshot = { id: s.id, version: s.version, hash: s.hash, name: s.name, timeframe: s.timeframe, universe: s.universe,
-                         confirmationMode: s.confirmationMode, cooldownMode: s.cooldownMode, cooldownBars: s.cooldownBars, expires: s.expires, ruleTree: s.ruleTree };
-      const rec = {
-        id: scanAlertId(key), key, setupId: s.id, setupName: s.name || s.id, setupVersion: s.version, setupHash: s.hash, setupSnapshot: snapshot,
-        instrumentId, symbol: sym, market: bars.market, timeframe: s.timeframe, candleDate: bar, detectedAt: now || null,
-        eventType, cooldownMode: s.cooldownMode, close: bars.closes[at], barStatus: bars.status[at] || 'UNKNOWN',
-        matchedConditions: r.conditions.map(c => ({ path: c.path, text: c.text, state: c.state, left: c.leftValue, right: c.rightValue,
-          leftLabel: c.leftLabel, rightLabel: c.rightLabel, status: c.state === 'UNAVAILABLE' ? (c.left?.status || 'INVALID_INPUT') : 'VALID', reason: c.reason?.code || null })),
-        dataSourceId: hist?.meta?.[sym]?.[bar]?.src || hist?.source || 'personal-history',
-        dataVersion: scanDataVersion(bars, at), runId, origin, engine: out.engine,
-        /* 0.2 names, kept for one release: the page and ingest/daily.mjs read them. */
-        bar, rules: r.conditions.map(c => ({ text: c.text, met: c.met })), recordedAt: now || null,
-      };
-      out.alerts.push(rec);
-      forms.forEach(k => seen.add(k));
-      lastBy.set(ck, bar);
     }
     /* A setup none of whose instruments could be tested is a configuration
        problem, not a quiet day. Expired pairs are not counted: they were
        never evaluated, and are reported per instrument. */
     if (looked > 0 && blind === looked) out.untestedEverywhere.push({ setup: s.id, why: reasons.slice(0, 3).join('; ') || 'no rule could be tested' });
   }
-  /* The run's as-of is the range of bars actually evaluated — each pair is
-     evaluated on its own instrument's last final bar. */
+  /* The run's as-of is the range of bars actually evaluated — each pair on
+     its own instrument's last final bar, and any bars it caught up. */
   const sortedBars = evaluatedBars.sort();
   out.asOf = sortedBars[sortedBars.length - 1] || null;
   out.asOfFrom = sortedBars[0] || null;
   out.newestInHistory = newest;
-  /* Readiness covers every market the history holds; `inRun` marks the ones
-     this run evaluated an instrument of, which is what a page lists. */
-  out.readiness = clockNow ? scanReadiness(hist, instruments, clockNow, { calendars: calFor, barsOf: (sym) => barsOf(sym, '1D') }) : null;
+  out.catchUp = pairs ? { pairs: caught.pairs, bars: caught.bars, capped: caught.capped, cap } : null;
+  /* The markets the ready gate held back, in readiness order (by code), each
+     SKIPPED_NO_DATA for this run with the sentence readiness gave. Only the
+     markets some setup would have evaluated are named. */
+  out.skippedMarkets = (readiness?.markets || []).filter(m => heldBack.has(m.market)).map(m => ({
+    market: m.market, reason: m.text, state: m.state, status: 'SKIPPED_NO_DATA',
+    instruments: heldBack.get(m.market).instruments.size, setups: [...heldBack.get(m.market).setups] }));
+  out.readyGate = ready ? (readiness ? 'applied' : 'no clock — readiness could not be judged, so no market was held back') : null;
+  /* `inRun` marks the markets this run evaluated an instrument of, which is
+     what a page lists. */
+  out.readiness = readiness;
   if (out.readiness) out.readiness.markets.forEach(m => { m.inRun = evaluatedMarkets.has(m.market); });
   out.cacheStats = { hits: C.stats.hits, misses: C.stats.misses };
   return out;
@@ -1725,10 +1947,14 @@ function scanHistorical(setup, history, { symbols = null, from = null, to = null
         out.matches.push({ symbol: sym, bar: bars.dates[i], close: bars.closes[i], barStatus: r.barStatus,
           conditions: r.conditions.map(c => ({ path: c.path, text: c.text, state: c.state, left: c.leftValue, right: c.rightValue })) });
         const ev = prevState === 'NOT_MET' ? 'NEW_MATCH' : prevState === 'UNAVAILABLE' ? 'FIRST_OBSERVED' : null;
-        if (ev) out.events.push({ symbol: sym, bar: bars.dates[i], close: bars.closes[i], eventType: ev });
+        /* A match right after a missing session says so, as the worker's
+           record does (gapBefore, gapText). */
+        const gap = (bars.gapBefore[i] || 0) > 0 ? scanGapText(bars, i, calFor(market)) : null;
+        const gapOf = (e) => (gap ? { gapBefore: true, gapText: scanGapNote(gap, e) } : {});
+        if (ev) out.events.push({ symbol: sym, bar: bars.dates[i], close: bars.closes[i], eventType: ev, ...gapOf(ev) });
         const recordable = s.cooldownMode === 'EVERY_MATCH' ? 'MATCH' : ev;
         if (recordable && !(s.cooldownBars > 0 && lastRec != null && i - lastRec <= s.cooldownBars)) {
-          out.recorded.push({ symbol: sym, bar: bars.dates[i], close: bars.closes[i], eventType: recordable });
+          out.recorded.push({ symbol: sym, bar: bars.dates[i], close: bars.closes[i], eventType: recordable, ...gapOf(recordable) });
           lastRec = i;
         }
       }
@@ -1826,10 +2052,20 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
   /* Before the run log existed, the alerts file's lastRun was the only
      record of a success; it is read as one. */
   const legacy = lr ? { id: null, kind: 'scan', status: 'COMPLETED', trigger: null, startedAt: lr.at || null, finishedAt: lr.at || null, engine: lr.engine || null,
-                        asOf: lr.asOf || null, asOfFrom: lr.asOfFrom || null, setupsHash: lr.setupsHash || null, recorded: lr.recorded ?? null, legacy: true } : null;
+                        asOf: lr.asOf || null, asOfFrom: lr.asOfFrom || null, setupsHash: lr.setupsHash || null, recorded: lr.recorded ?? null,
+                        evaluated: lr.evaluated ?? null, skippedMarkets: Array.isArray(lr.skippedMarkets) ? lr.skippedMarkets : [], legacy: true } : null;
   const byTime = [...runList].sort((a, b) => String(a.startedAt || '').localeCompare(String(b.startedAt || '')));
   const lastAttempt = byTime[byTime.length - 1] || legacy;
-  const lastSuccess = [...byTime].reverse().find(r => r.status === 'COMPLETED' || r.status === 'PARTIAL') || legacy;
+  /* A run that evaluated no bar at all — every market it would have scanned
+     held back as not ready (--ready), or every pair expired — finished
+     without failing, but it is not a scan that succeeded on any bar: read
+     as one, the dashboard said "the last scan succeeded today, on bars of
+     no bar". It stays the latest attempt and is given its reason below.
+     Only a run that says so (no bar evaluated, and a count of 0) is read
+     this way; a record without counts is read as before. */
+  const evaluatedNothing = (r) => !r?.asOf && (r?.counts?.evaluated === 0 || r?.evaluated === 0);
+  const lastSuccess = [...byTime].reverse().find(r => (r.status === 'COMPLETED' || r.status === 'PARTIAL') && !evaluatedNothing(r))
+    || (legacy && !evaluatedNothing(legacy) ? legacy : null);
   const today = now != null && Number.isFinite(scanMs(now)) ? new Date(scanMs(now)).toISOString().slice(0, 10) : null;
   const v = setupsDoc ? scanValidate(setupsDoc) : { setups: [], problems: [] };
   const active = { valid: v.setups.length, enabled: v.setups.filter(s => s.enabled).length, disabled: v.setups.filter(s => !s.enabled).length,
@@ -1855,18 +2091,26 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
     if (state === 'current') state = 'failed';
     reasons.push(`The latest attempt${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} failed${lastAttempt.error?.message ? `: ${lastAttempt.error.message}` : ''}.`);
   }
+  if (lastAttempt && (lastAttempt.status === 'COMPLETED' || lastAttempt.status === 'PARTIAL') && evaluatedNothing(lastAttempt)) {
+    const held = Array.isArray(lastAttempt.skippedMarkets) ? lastAttempt.skippedMarkets : [];
+    if (state === 'current') state = 'behind';
+    reasons.push(`The latest run${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} evaluated no bar${held.length
+      ? `: every market it would have scanned was held back as not ready — ${held.map(m => m.reason || m.market || 'no market row').join('; ')}` : ''}.`);
+  }
+  const newestBar = historyMeta?.newestBar || null;
+  const historyAge = newestBar && today ? scanDayDiff(newestBar, today) : null;
+  const ageReason = historyAge > 4 ? `Your history's newest bar is ${historyAge} days old. No exchange calendar is held, so this counts calendar days; more than four (a weekend and a day) is behind.` : null;
   if (lastSuccess) {
     const behind = [];
-    const newestBar = historyMeta?.newestBar || null;
     if (newestBar && lastSuccess.asOf && lastSuccess.asOf < newestBar) behind.push(`The last scan ran ${day(lastSuccess.finishedAt || lastSuccess.startedAt)} on bars of ${lastSuccess.asOf}; your history's newest bar is ${newestBar}.`);
     if (setupsDoc && lastSuccess.setupsHash && lastSuccess.setupsHash !== scanSetupsHash(setupsDoc)) behind.push('Your setups changed after the last scan ran, so its result is for setups that no longer stand as written.');
     if (lastSuccess.engine && lastSuccess.engine !== engine) behind.push(`The last scan ran on ${lastSuccess.engine}; this page runs ${engine}.`);
-    if (newestBar && today) {
-      const age = scanDayDiff(newestBar, today);
-      if (age > 4) behind.push(`Your history's newest bar is ${age} days old. No exchange calendar is held, so this counts calendar days; more than four (a weekend and a day) is behind.`);
-    }
+    if (ageReason) behind.push(ageReason);
     if (behind.length && state === 'current') state = 'behind';
     reasons.push(...behind);
+  } else if (lastAttempt && evaluatedNothing(lastAttempt)) {
+    /* Held back with no success before it: an old history is usually why. */
+    if (ageReason) reasons.push(ageReason);
   } else if (lastAttempt && state === 'current') state = 'failed';
   const order = new Map(v.setups.map((s, i) => [s.id, i]));
   const rank = (a) => (order.has(a.setupId) ? order.get(a.setupId) : order.size);
@@ -1961,8 +2205,12 @@ function scanSelfTest() {
   const r = scanRun([setup], history, { now, runId: 'self-test', origin: 'self-test' });
   const a = r.alerts[0];
   const key = scanKey('fixture-breakout', 1, 'MATCH', '1D', lastBar, 'MATCH');
+  /* The fixture's last bar carries 2,200 shares and its history no
+     `generated` stamp: the record holds the one and says null for the
+     other, rather than a 0 or a date made up. */
   const ok = r.alerts.length === 1 && !!a && a.symbol === 'MATCH' && a.bar === lastBar && a.candleDate === lastBar && a.key === key
-    && a.id === scanAlertId(key) && a.matchedConditions.length === 3 && a.matchedConditions.every(x => x.state === 'MET') && a.rules.every(x => x.met === true);
+    && a.id === scanAlertId(key) && a.matchedConditions.length === 3 && a.matchedConditions.every(x => x.state === 'MET') && a.rules.every(x => x.met === true)
+    && a.barVolume === 2200 && a.historyGenerated === null && !('gapBefore' in a);
   const again = scanRun([setup], history, { existing: r.alerts, now });
   const legacy = scanRun([{ ...setup, cooldownBars: 0 }], history, { existing: [{ key: scanLegacyKey('fixture-breakout', 'MATCH', lastBar), setupId: 'fixture-breakout', symbol: 'MATCH', bar: lastBar }], now });
   const tree = scanRun([setupV2], history, { now });

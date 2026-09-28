@@ -147,6 +147,7 @@ jobs:
                             'data/scan-setups.json','data/scan-alerts.json','data/scan-alerts.json.bak','data/scan-alerts.json.tmp',
                             'data/price-history.json.bak','data/price-history.json.tmp','data/price-history.rejects.json',
                             'data/scan-runs.json','data/scan.lock','data/scan-control.json','data/scan-deliveries.json','data/ingest-runs.json',
+                            'data/scan-ledger.json','data/watchlists.json',
                             'watchlist-symbols.txt','qtti/observations.json','qtti/observations.draft.json'];
             // Every directory and pattern .gitignore marks as licensed or
             // personal. The NAPIC raw sources and the capture profile (live
@@ -155,7 +156,8 @@ jobs:
             const PATTERNS = [/^watchlist-shots\//, /^qtti\/screenshots\//, /^qtti\/out\//,
                               /^property-data\/(raw|staging|normalized|rejects)\//,
                               /^\.chrome-watchlist\//, /\.state\.json$/, /^data\/watchlist-review[^/]*\.(csv|txt)$/,
-                              /^data\/(price-history(\.rejects)?\.json|scan-(runs|control|deliveries)\.json|scan\.lock|ingest-runs\.json)(\.|$)/];
+                              /^data\/(price-history(\.rejects)?\.json|scan-(runs|control|deliveries)\.json|scan\.lock|ingest-runs\.json)(\.|$)/,
+                              /^data\/(scan-ledger|watchlists)\.json(\.|$)/];
             const tracked = execSync('git ls-files', { encoding: 'utf8' }).split('\n');
             const bad = BANNED.filter(f => tracked.includes(f));
             const shots = tracked.filter(f => PATTERNS.some(re => re.test(f)));
