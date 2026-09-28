@@ -30,6 +30,7 @@ import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { dirname, resolve, join } from 'node:path';
+import { engine, loadInstruments, marketOf, readingSession } from './history-store.mjs';
 
 const run = promisify(execFile);
 const argv = process.argv.slice(2);
@@ -424,7 +425,25 @@ const { candidates, skipped } = extractCandidates(rows, known);
 let prev = {};
 try { prev = JSON.parse(await readFile(baseline, 'utf8')).prices || {}; } catch { /* first run */ }
 
-const today = new Date().toISOString().slice(0, 10);
+/* WHEN AND FOR WHICH SESSION. Every row used to carry this machine's UTC
+   day, so a US close read at 18:30 in Kuala Lumpur — before New York had
+   opened — was filed under a date whose session had not happened yet. The
+   capture instant is the screenshot's own time (the newest image's
+   modification time, or --captured-at), and each row is dated by its
+   instrument's exchange, in that exchange's zone: the session in progress
+   if one was trading (and then PROVISIONAL — a reading, not a close), else
+   the last session that had closed. */
+const images_ = Array.isArray(inPath) ? inPath : [inPath];
+const capturedFlag = flag('captured-at', null);
+if (capturedFlag && !Number.isFinite(Date.parse(capturedFlag))) { console.error(`--captured-at "${capturedFlag}" is not a date-time`); process.exit(1); }
+const capturedAt = capturedFlag ? new Date(Date.parse(capturedFlag)).toISOString()
+  : new Date(Math.max(...(await Promise.all(images_.map(async i => (await stat(i)).mtimeMs))))).toISOString();
+let E;
+try { E = await engine(); }
+catch (e) { console.error(`cannot load the scan engine out of index.html — it dates each row by its exchange's session: ${e.message}`); process.exit(1); }
+const registryRows = await loadInstruments(REGISTRY);
+const sessionOf = (symbol) => readingSession(E, marketOf(symbol, registryRows), capturedAt);
+
 const reviewed = candidates.map(c => {
   const last = prev[c.symbol]?.close;
   const move = (last != null && last > 0) ? ((c.close - last) / last) * 100 : null;
@@ -434,19 +453,22 @@ const reviewed = candidates.map(c => {
   else if (c.unknown) { verdict = 'CHECK'; why = `${c.symbol} is not in ${SYMBOL_FILE} — the symbol may be misread`; }
   else if (move == null) { verdict = 'confirm'; why = 'no previous close to check against'; }
   else if (Math.abs(move) > moveLimit) { verdict = 'CHECK'; why = `implies ${move > 0 ? '+' : ''}${move.toFixed(1)}% in a day — likely a misread digit`; }
-  return { ...c, prev: last ?? null, movePct: move == null ? null : +move.toFixed(2), verdict, why };
+  const session = sessionOf(c.symbol);
+  if (!session.date && verdict !== 'CHECK') { verdict = 'CHECK'; why = 'no session could be found for the capture time'; }
+  return { ...c, prev: last ?? null, movePct: move == null ? null : +move.toFixed(2), verdict, why, date: session.date || '', barStatus: session.status };
 });
 
 const flagged = reviewed.filter(r => r.verdict === 'CHECK');
 
 await mkdir(dirname(outPath), { recursive: true });
-/* prices.mjs splits on commas by column index, so the free-text columns are
-   kept last AND stripped of commas — a company name with one in it would
-   otherwise shift every column to its right. */
+/* prices.mjs splits on commas and maps cells by the header's names, so the
+   free-text columns are kept last AND stripped of commas — a company name
+   with one in it would otherwise shift every column to its right.
+   captured_at goes before them, with the session's status beside it. */
 const flat = (s) => `"${String(s || '').replace(/[",]/g, ' ').trim()}"`;
-const header = 'symbol,date,close,prev,move_pct,verdict,why,ocr_line';
+const header = 'symbol,date,close,prev,move_pct,verdict,captured_at,bar_status,why,ocr_line';
 const csv = [header, ...reviewed.map(r => [
-  r.symbol, today, r.close, r.prev ?? '', r.movePct ?? '', r.verdict,
+  r.symbol, r.date, r.close, r.prev ?? '', r.movePct ?? '', r.verdict, capturedAt, r.barStatus || '',
   flat(r.why), flat(r.line.slice(0, 120)),
 ].join(','))].join('\n');
 await writeFile(outPath, csv + '\n');
@@ -462,6 +484,9 @@ console.log(`rows      ${rows.length}`);
 console.log(`symbols   ${known.length
   ? `${known.length} known${fromRegistry ? ` (${known.length - fromRegistry} from ${SYMBOL_FILE}, ${fromRegistry} from ${REGISTRY})` : ` from ${SYMBOL_FILE}`}`
   : `none declared — symbols taken from OCR as-is`}`);
+console.log(`captured  ${capturedAt}${capturedFlag ? ' (--captured-at)' : ' (the screenshot\'s own time)'}`);
+const provisional = reviewed.filter(r => r.barStatus === 'PROVISIONAL');
+if (provisional.length) console.log(`          ${provisional.length} row(s) read while their session still traded — kept as PROVISIONAL readings, never evaluated as a close: ${provisional.slice(0, 8).map(r => r.symbol).join(', ')}${provisional.length > 8 ? ', …' : ''}`);
 console.log(`candidates ${reviewed.length}`);
 console.log(`flagged   ${flagged.length}`);
 for (const f of flagged) console.log(`          ${f.symbol}: ${f.why}`);

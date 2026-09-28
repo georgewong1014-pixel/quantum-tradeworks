@@ -23,7 +23,12 @@
  *   you actually hold in --licence so it travels with the data.
  *
  * CSV columns (header required, order free):
- *   symbol,date,close[,prev,high52,low52,ret12m]
+ *   symbol,date,close[,prev,high52,low52,ret12m,captured_at]
+ *
+ * captured_at (the review CSV from watchlist.mjs writes it) is the instant the
+ * close was read. It is passed through to each price as capturedAt, so the
+ * history store can record it and the engine can tell a close read after its
+ * session from one read while the session traded.
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -67,7 +72,11 @@ const rows = inPath.toLowerCase().endsWith('.json')
   ? (() => { const j = JSON.parse(raw); return Array.isArray(j) ? j : (j.prices || j.rows || []); })()
   : parseCSV(raw);
 
-const today = new Date().toISOString().slice(0, 10);
+/* "In the future" means after today ANYWHERE: a session date is its
+   exchange's own date, and at 22:00 UTC it is already tomorrow in Auckland
+   and Sydney. The engine's own FUTURE check, in the history store, judges
+   each date in its market's zone. */
+const today = new Date(Date.now() + 14 * 3600000).toISOString().slice(0, 10);
 const prices = {};
 const rejected = [];
 
@@ -103,8 +112,11 @@ for (const r of rows) {
     rejected.push({ symbol, why: `close ${close} exceeds the stated 52-week high ${high52}` }); continue;
   }
 
+  const capturedRaw = String(r.captured_at ?? r.capturedat ?? r.capturedAt ?? '').trim();
+  const capturedAt = capturedRaw && Number.isFinite(Date.parse(capturedRaw)) ? new Date(Date.parse(capturedRaw)).toISOString() : null;
+
   prices[symbol] = {
-    close, date,
+    close, date, ...(capturedAt ? { capturedAt } : {}),
     d1: prev != null && prev > 0 ? +(((close - prev) / prev) * 100).toFixed(3) : null,
     hi: high52, lo: low52,
     m12: ret12m,

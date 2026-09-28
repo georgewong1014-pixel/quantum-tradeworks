@@ -210,7 +210,7 @@ await writeFile(P.setups, JSON.stringify({ setups: [setup, { ...setup, id: 'too-
 const warn = await cli(...files);
 check(warn.code === 2 && /UNTESTED EVERYWHERE/.test(warn.stdout) && /too-long/.test(warn.stdout), 'a setup no instrument holds enough bars for exits 2 and is named', { code: warn.code });
 const none = await cli('--setups', join(dir, 'missing.json'), '--history', P.history, '--alerts', P.alerts);
-check(none.code === 1 && /no setups file/.test(none.stderr), 'a missing setups file exits 1 with the path', { code: none.code, err: none.stderr.slice(0, 200) });
+check(none.code === 3 && /no setups file/.test(none.stderr) && /status     SKIPPED_NO_SETUPS/.test(none.stdout), 'a missing setups file is SKIPPED_NO_SETUPS, exits 3 and names the path', { code: none.code, err: none.stderr.slice(0, 200) });
 await writeFile(P.alerts, '{not json');
 const badA = await cli(...files);
 check(badA.code === 1 && (await readFile(P.alerts, 'utf8')) === '{not json', 'an unreadable alerts file is left alone and the run exits 1', { code: badA.code });
@@ -341,7 +341,7 @@ check(vex.problems.length === 0 && vex.setups.length === exDoc.setups.length, 't
     'the record is written beside itself and renamed over: the previous one is kept as .bak, no .tmp is left', { code: rel2.code, bak: !!bak });
   await writeFile(join(d2, 'empty.json'), JSON.stringify({ setups: [] }));
   const empty = await cliIn(d2, '--setups', 'empty.json', '--history', 'history.json', '--alerts', 'alerts.json', '--dry');
-  check(empty.code === 1 && /holds no setups/.test(empty.stderr), 'a setups file with an empty list exits 1, as "no setups"', { code: empty.code, err: empty.stderr.slice(0, 200) });
+  check(empty.code === 3 && /holds no setups/.test(empty.stderr), 'a setups file with an empty list exits 3, as "no setups"', { code: empty.code, err: empty.stderr.slice(0, 200) });
   await writeFile(join(d2, 'expired.json'), JSON.stringify({ setups: [{ ...setup, id: 'old', expires: '2026-01-31', rules: [{ left: { indicator: 'sma', n: 500 }, op: 'above', right: { value: 1 } }] }] }));
   const expd = await cliIn(d2, '--setups', 'expired.json', '--history', 'history.json', '--alerts', 'alerts.json', '--dry');
   check(expd.code === 0 && !/UNTESTED EVERYWHERE/.test(expd.stdout), 'an expired setup with a rule nothing can test does not exit 2', { code: expd.code });
@@ -1014,11 +1014,277 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
   check(bigRun.evaluated === 400 && ms1 < 10000, `a large universe: 400 instruments × 300 bars, one three-condition setup, in ${ms1} ms (budget 10 s)`, { evaluated: bigRun.evaluated, ms: ms1 });
 }
 
+/* --------------------------------------------------- THE WORKER'S OWN FILES -- */
+/* Round 2 (data and worker): the runs log, the lock, pause, replay, retry,
+   deliveries, the backtest CLI and the exit codes — each on its own
+   temporary folder passed as --data, never the repository's files. */
+{
+  const { hostname } = await import('node:os');
+  const { spawn } = await import('node:child_process');
+  const FXT = E.scanFixture();
+  const WNOW = FXT.now;
+  const SCAN = join(ROOT, 'scanner/scan.mjs');
+  const scan = async (...args) => {
+    try { const { stdout, stderr } = await run(process.execPath, [SCAN, ...args]); return { code: 0, stdout, stderr }; }
+    catch (e) { return { code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }; }
+  };
+  const folders = [];
+  const folder = async (name, { alerts = null } = {}) => {
+    const d = join(tmpdir(), `qt-worker-${name}-${process.pid}`);
+    await rm(d, { recursive: true, force: true });
+    await mkdir(d, { recursive: true });
+    await writeFile(join(d, 'scan-setups.json'), JSON.stringify({ setups: [FXT.setup] }));
+    await writeFile(join(d, 'price-history.json'), JSON.stringify(FXT.history));
+    if (alerts != null) await writeFile(join(d, 'scan-alerts.json'), alerts);
+    folders.push(d);
+    return d;
+  };
+  const json = async (p) => (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null);
+  const runsOf = async (d) => (await json(join(d, 'scan-runs.json'))) || { runs: [], audit: [] };
+  const statusLine = (out) => (out.match(/^status\s+(\S+)\s+\((run-[^)]+)\)/m) || []).slice(1);
+  const seenExit = new Map();
+  const note = (r) => { const [s] = statusLine(r.stdout); if (s) seenExit.set(s, r.code); };
+
+  /* 1 — a run is logged PENDING → RUNNING → COMPLETED, with its counts and duration; the delivery record follows. */
+  const W1 = await folder('runs');
+  const r1 = await scan('--data', W1, '--now', WNOW); note(r1);
+  const log1 = await runsOf(W1);
+  const run1 = log1.runs[0] || {};
+  check(r1.code === 0 && log1.schema === 1 && log1.runs.length === 1 && run1.status === 'COMPLETED' && run1.exitCode === 0 && run1.kind === 'scan' && run1.trigger === 'manual'
+    && JSON.stringify(run1.transitions.map(t => t.status)) === JSON.stringify(['PENDING', 'RUNNING', 'COMPLETED']) && run1.durationMs >= 0
+    && run1.counts?.recorded === 1 && run1.counts?.evaluated === 2 && /^sha256:/.test(run1.historyHash || '') && run1.historyNewest === FXT.lastBar && run1.engine === `scan ${E.SCAN_VERSION}`
+    && run1.now === new Date(WNOW).toISOString() && run1.asOf === FXT.lastBar && Array.isArray(run1.readiness) && statusLine(r1.stdout)[1] === run1.id,
+    'a run is logged in scan-runs.json: PENDING, RUNNING, then COMPLETED, with its counts, history hash, clock, bars, readiness and duration; the id is printed', run1);
+  const del1 = await json(join(W1, 'scan-deliveries.json'));
+  const alerts1 = (await json(join(W1, 'scan-alerts.json')))?.alerts || [];
+  check(del1?.schema === 1 && del1.channels?.IN_APP?.status === 'ACTIVE' && ['EMAIL', 'TELEGRAM', 'PUSH'].every(c => del1.channels[c]?.status === 'NOT_CONFIGURED' && del1.channels[c].why.length > 40)
+    && del1.deliveries.length === 1 && del1.deliveries[0].id === `${alerts1[0]?.id}:IN_APP` && del1.deliveries[0].status === 'SENT' && del1.deliveries[0].channel === 'IN_APP' && del1.deliveries[0].attemptCount === 1
+    && del1.deliveries[0].runId === run1.id && run1.counts.deliveries === 1,
+    'the delivery record: IN_APP active with one SENT row per new alert; email, Telegram and push NOT_CONFIGURED, each with its reason and no row', del1);
+  check(/TELEGRAM/.test(JSON.stringify(del1.channels)) && /SC-315/.test(del1.channels.TELEGRAM.why) && /SC-318/.test(del1.channels.PUSH.why) && /privacy notice/.test(del1.channels.EMAIL.why),
+    'the unconfigured channels name what blocks them (a server, a contact address held under a privacy notice) and their items');
+  const r2 = await scan('--data', W1, '--now', WNOW); note(r2);
+  const r3 = await scan('--data', W1, '--now', WNOW); note(r3);
+  const log3 = await runsOf(W1);
+  const del3 = await json(join(W1, 'scan-deliveries.json'));
+  check(r2.code === 0 && log3.runs[1]?.counts?.recorded === 0 && log3.runs[1]?.counts?.deduped === 1 && del3.deliveries.length === 1,
+    'a second run (the record changed, so it evaluates) records nothing new and delivers nothing again');
+  check(r3.code === 3 && log3.runs[2]?.status === 'SKIPPED_NO_DATA' && /nothing changed since/.test(log3.runs[2].skipReason || '') && log3.runs[2].comparedWith === log3.runs[1].id
+    && (await json(join(W1, 'scan-alerts.json'))).alerts.length === 1,
+    'a third run on exactly the same engine, setups, history and record is SKIPPED_NO_DATA (exit 3), saying which run it matches', log3.runs[2]);
+  /* The history rewritten (the same bars, other bytes) is new input; --trigger daily names the scheduled run. */
+  await writeFile(join(W1, 'price-history.json'), JSON.stringify(FXT.history, null, 1));
+  const rd = await scan('--data', W1, '--now', WNOW, '--trigger', 'daily'); note(rd);
+  const logd = await runsOf(W1);
+  check(rd.code === 0 && logd.runs[3]?.trigger === 'daily' && logd.runs[3].origin === 'daily' && (await scan('--data', W1, '--trigger', 'hourly')).code === 1,
+    '--trigger daily is recorded on the run (ingest/daily.mjs passes it); an unknown trigger is refused');
+
+  /* 2 — pause and resume. */
+  const p1 = await scan('--data', W1, '--pause', 'holiday week');
+  const ctl = await json(join(W1, 'scan-control.json'));
+  const pr = await scan('--data', W1, '--now', WNOW); note(pr);
+  const st = await scan('--data', W1, '--now', WNOW, '--status', '--json');
+  const stj = JSON.parse(st.stdout || '{}');
+  const rs = await scan('--data', W1, '--resume');
+  const logp = await runsOf(W1);
+  check(p1.code === 0 && ctl?.paused === true && ctl.reason === 'holiday week' && pr.code === 3 && logp.runs[4]?.status === 'SKIPPED_PAUSED' && /holiday week/.test(logp.runs[4].skipReason)
+    && stj.status?.state === 'paused' && stj.control?.paused === true && rs.code === 0 && (await json(join(W1, 'scan-control.json'))).paused === false,
+    '--pause "why" writes scan-control.json; a run while paused is SKIPPED_PAUSED (exit 3); --status says paused; --resume clears it', { ctl, state: stj.status?.state });
+  check(logp.audit.filter(a => a.action === 'pause' && a.reason === 'holiday week').length === 1 && logp.audit.some(a => a.action === 'resume') && logp.audit.every(a => a.at && 'operator' in a && a.host),
+    'pause and resume are audited with the time, the account and the machine', logp.audit);
+
+  /* 3 — replay: the same alerts as a run on the cut history, deduplicated, audited. */
+  const W2 = await folder('replay');
+  const rp1 = await scan('--data', W2, '--as-of', FXT.lastBar); note(rp1);
+  const aRep = (await json(join(W2, 'scan-alerts.json')))?.alerts || [];
+  const direct = E.scanRun([FXT.setup], E.scanTruncateHistory(FXT.history, FXT.lastBar), { now: E.scanReplayNow(FXT.lastBar) });
+  check(rp1.code === 0 && aRep.length === direct.alerts.length && aRep.length === 1 && aRep[0].key === direct.alerts[0].key && aRep[0].origin === 'replay',
+    '--as-of DATE records exactly the alerts a run on the history cut at DATE records, marked origin replay', { got: aRep.map(a => a.key), want: direct.alerts.map(a => a.key) });
+  const rp2 = await scan('--data', W2, '--as-of', FXT.lastBar); note(rp2);
+  const logr = await runsOf(W2);
+  const reps = logr.audit.filter(a => a.action === 'replay');
+  check(rp2.code === 0 && (await json(join(W2, 'scan-alerts.json'))).alerts.length === 1 && reps.length === 2 && reps[0].added === 1 && reps[1].added === 0 && reps[1].deduped === 1
+    && reps.every(a => a.asOf === FXT.lastBar && a.runId && a.status === 'COMPLETED') && logr.runs.every(r => r.trigger === 'replay' && r.replayAsOf === FXT.lastBar),
+    'replaying the same date again adds nothing (never skipped: it was asked for); each replay is one audit entry with what it added', reps);
+  const rp3 = await scan('--data', W2, '--as-of', '2025-01-02'); note(rp3);
+  const rp3run = (await runsOf(W2)).runs.pop();
+  const rp4 = await scan('--data', W2, '--as-of', '2099-01-02');
+  check(rp3.code === 3 && rp3run.status === 'SKIPPED_NO_DATA' && /on or before 2025-01-02/.test(rp3run.skipReason) && rp4.code === 1 && /not a past date/.test(rp4.stderr),
+    'a replay before the history\'s first bar is SKIPPED_NO_DATA; a replay of a future date fails as an argument error');
+  const del2 = await json(join(W2, 'scan-deliveries.json'));
+  check(del2.deliveries.length === 1, 'a replay writes IN_APP rows only for alerts it added — nothing is resent');
+
+  /* 4 — retry: a failed run re-run on its own session dates, audited. */
+  const W3 = await folder('retry', { alerts: '{not json' });
+  const f1 = await scan('--data', W3, '--now', WNOW); note(f1);
+  const failed = (await runsOf(W3)).runs[0] || {};
+  check(f1.code === 1 && failed.status === 'FAILED' && failed.error?.category === 'IO' && /^run-.+\/e1$/.test(failed.error.correlationId) && f1.stderr.includes(failed.error.correlationId)
+    && (await readFile(join(W3, 'scan-alerts.json'), 'utf8')) === '{not json' && failed.historyNewest === FXT.lastBar,
+    'an unreadable record fails the run (exit 1): FAILED with category IO and a correlation id printed beside the message; the record is untouched', failed);
+  await rm(join(W3, 'scan-alerts.json'));
+  /* The history moves on after the failure; the retry must use the failed run's cut, not today's file. */
+  const later = JSON.parse(JSON.stringify(FXT.history));
+  for (const sym of Object.keys(later.series)) { later.series[sym]['2026-04-07'] = 1; if (later.volume?.[sym]) later.volume[sym]['2026-04-07'] = 1; }
+  await writeFile(join(W3, 'price-history.json'), JSON.stringify(later));
+  const t1 = await scan('--data', W3, '--retry', failed.id); note(t1);
+  const logt = await runsOf(W3);
+  const retried = logt.runs[1] || {};
+  const aRet = (await json(join(W3, 'scan-alerts.json')))?.alerts || [];
+  check(t1.code === 0 && retried.status === 'COMPLETED' && retried.retryOf === failed.id && retried.trigger === 'retry' && retried.now === failed.now && aRet.length === 1 && aRet[0].candleDate === FXT.lastBar
+    && logt.audit.some(a => a.action === 'retry' && a.retryOf === failed.id && a.added === 1),
+    '--retry RUNID re-runs the failed scan on its own session dates — the history cut where it was and its clock — and is audited', { retried, alerts: aRet.map(a => a.candleDate) });
+  const t2 = await scan('--data', W3, '--retry', retried.id);
+  const t3 = await scan('--data', W3, '--retry', 'run-nope');
+  check(t2.code === 0 && (await json(join(W3, 'scan-alerts.json'))).alerts.length === 1 && t3.code === 1 && /no run run-nope/.test(t3.stderr) && (await runsOf(W3)).runs.pop().error?.category === 'ARGS',
+    'a retry of a completed run adds nothing; a retry of an unknown run fails, logged as an argument error');
+
+  /* 5 — the lock: two workers at once. */
+  const W4 = await folder('lock');
+  const spawnScan = (...args) => new Promise((resolve_) => {
+    const c = spawn(process.execPath, [SCAN, ...args]);
+    let stdout = '', stderr = '';
+    c.stdout.on('data', d => { stdout += d; }); c.stderr.on('data', d => { stderr += d; });
+    c.on('close', (code) => resolve_({ code, stdout, stderr }));
+  });
+  const A = spawnScan('--data', W4, '--now', WNOW, '--hold', '2500');
+  const lockPath = join(W4, 'scan.lock');
+  /* The lock is taken, then the run is written PENDING: wait for both. */
+  let midRuns = { runs: [] };
+  for (let i = 0; i < 200 && !(existsSync(lockPath) && midRuns.runs.length); i++) {
+    await new Promise(r => setTimeout(r, 25));
+    try { midRuns = await runsOf(W4); } catch { /* caught mid-rename */ }
+  }
+  const B = await spawnScan('--data', W4, '--now', WNOW); note(B);
+  const Ares = await A; note(Ares);
+  const logl = await runsOf(W4);
+  const skippedL = logl.runs.find(r => r.status === 'SKIPPED_LOCKED');
+  check(midRuns.runs[0]?.status === 'PENDING' && Ares.code === 0 && B.code === 3 && skippedL && skippedL.error?.category === 'LOCK' && /pid \d+/.test(skippedL.skipReason)
+    && logl.runs.some(r => r.status === 'COMPLETED') && logl.runs.length === 2 && !existsSync(lockPath) && (await json(join(W4, 'scan-alerts.json'))).alerts.length === 1,
+    'two workers at once: one holds the lock (PENDING while it does) and completes; the other is SKIPPED_LOCKED (exit 3) naming the holder; both are logged, one alert, the lock released',
+    { a: Ares.code, b: B.code, runs: logl.runs.map(r => r.status) });
+  const W5 = await folder('race');
+  const both = await Promise.all([spawnScan('--data', W5, '--now', WNOW), spawnScan('--data', W5, '--now', WNOW)]);
+  const logR = await runsOf(W5);
+  const aR = (await json(join(W5, 'scan-alerts.json')))?.alerts || [];
+  check(aR.length === 1 && logR.runs.length === 2 && !logR.runs.some(r => r.status === 'FAILED') && both.every(x => [0, 3].includes(x.code)) && !existsSync(join(W5, 'scan.lock')),
+    'two workers started in the same instant: the record holds the one alert once — nothing duplicated, nothing lost — and both runs are logged', { codes: both.map(x => x.code), runs: logR.runs.map(r => r.status) });
+
+  /* 6 — a lock left behind: dead, hour-old, or live. */
+  const W6 = await folder('stale');
+  let deadPid = 999999; while (deadPid > 1000) { try { process.kill(deadPid, 0); deadPid--; } catch (e) { if (e.code === 'ESRCH') break; deadPid--; } }
+  await writeFile(join(W6, 'scan.lock'), JSON.stringify({ pid: deadPid, host: hostname(), startedAt: new Date().toISOString(), runId: 'run-orphan', token: 'x' }));
+  await writeFile(join(W6, 'scan-runs.json'), JSON.stringify({ schema: 1, runs: [{ id: 'run-orphan', kind: 'scan', status: 'RUNNING', startedAt: new Date(Date.now() - 60000).toISOString(), errors: [], transitions: [] }], audit: [] }));
+  const s1 = await scan('--data', W6, '--now', WNOW); note(s1);
+  const logs = await runsOf(W6);
+  const orphan = logs.runs.find(r => r.id === 'run-orphan');
+  const taker = logs.runs.find(r => r.id !== 'run-orphan');
+  check(s1.code === 0 && taker?.lockTakeover?.why === 'dead' && orphan.status === 'FAILED' && orphan.error?.category === 'ABANDONED' && logs.audit.some(a => a.action === 'lock-takeover' && a.why === 'dead' && a.closedRun === 'run-orphan'),
+    'a lock whose process is dead is taken over and the takeover audited; the run it belonged to is closed FAILED/ABANDONED', { taker: taker?.lockTakeover, orphan: orphan?.error });
+  await writeFile(join(W6, 'scan.lock'), JSON.stringify({ pid: process.pid, host: hostname(), startedAt: new Date(Date.now() - 2 * 3600000).toISOString(), runId: 'run-old', token: 'y' }));
+  await writeFile(join(W6, 'price-history.json'), JSON.stringify(FXT.history, null, 2));
+  const s2 = await scan('--data', W6, '--now', WNOW); note(s2);
+  check(s2.code === 0 && (await runsOf(W6)).audit.some(a => a.action === 'lock-takeover' && a.why === 'stale'), 'a lock over an hour old is taken over as stale even while its pid answers (Windows reuses pids)');
+  await writeFile(join(W6, 'scan.lock'), JSON.stringify({ pid: process.pid, host: hostname(), startedAt: new Date().toISOString(), runId: 'run-live', token: 'z' }));
+  const s3 = await scan('--data', W6, '--now', WNOW); note(s3);
+  const u1 = await scan('--data', W6, '--unlock');
+  const u2 = await scan('--data', W6, '--unlock', '--force');
+  check(s3.code === 3 && u1.code === 1 && /live process/.test(u1.stderr) && existsSync(join(W6, 'scan.lock')) === false && u2.code === 0
+    && (await runsOf(W6)).audit.some(a => a.action === 'unlock' && a.forced === true && a.previous?.runId === 'run-live'),
+    'a fresh lock held by a live process turns a run away; --unlock refuses it, --unlock --force removes it, audited');
+
+  /* 7 — the delivery record fails; the alerts do not. */
+  const W7 = await folder('delivery');
+  await mkdir(join(W7, 'scan-deliveries.json'));                      /* a directory where the file should be */
+  const dv = await scan('--data', W7, '--now', WNOW); note(dv);
+  const runD = (await runsOf(W7)).runs[0] || {};
+  check(dv.code === 2 && runD.status === 'PARTIAL' && runD.errors.some(e => e.category === 'DELIVERY') && (await json(join(W7, 'scan-alerts.json'))).alerts.length === 1 && /DELIVERY RECORD NOT WRITTEN/.test(dv.stdout),
+    'a delivery record that cannot be written leaves the alert recorded and the run PARTIAL (exit 2) with a DELIVERY error', runD.errors);
+
+  /* 8 — the engine missing is logged too; the log is capped. */
+  const W8 = await folder('engine');
+  const ef = await scan('--data', W8, '--html', join(W8, 'no-index.html')); note(ef);
+  const runE = (await runsOf(W8)).runs[0] || {};
+  check(ef.code === 1 && runE.status === 'FAILED' && runE.error?.category === 'ENGINE' && runE.engine === null, 'a run that cannot load the engine exits 1 and is still logged, FAILED with category ENGINE');
+  await writeFile(join(W8, 'scan-runs.json'), JSON.stringify({ schema: 1, runs: Array.from({ length: 505 }, (_, i) => ({ id: `old-${i}`, kind: 'scan', status: 'COMPLETED', startedAt: '2026-01-01T00:00:00Z' })), audit: [] }));
+  const cp = await scan('--data', W8, '--now', WNOW);
+  const logc = await runsOf(W8);
+  check(cp.code === 0 && logc.runs.length === 500 && logc.runs[499].status === 'COMPLETED' && logc.runs[499].id.startsWith('run-') && logc.runs[0].id === 'old-6' && existsSync(join(W8, 'scan-runs.json.bak')),
+    'the runs log keeps its newest 500 runs and is written atomically, with a .bak');
+
+  /* 9 — the read-only commands. */
+  const rn = await scan('--data', W1, '--runs', '2', '--json');
+  const rnj = JSON.parse(rn.stdout || '{}');
+  const rt = await scan('--data', W1, '--runs', '3');
+  const sj = await scan('--data', W1, '--now', WNOW, '--status');
+  check(rn.code === 0 && rnj.runs?.length === 2 && rt.code === 0 && /SKIPPED_PAUSED/.test(rt.stdout) && sj.code === 0 && /^scanner\s+\S+/m.test(sj.stdout) && /NOT CONFIGURED/.test(sj.stdout) && /intraday/.test(sj.stdout),
+    '--runs [n] lists the newest runs (and --json gives them whole); --status prints the dashboard\'s answers, the channels and that intraday is not built');
+  const bt = await scan('--data', W1, '--backtest', FXT.setup.id, '--json');
+  const btj = JSON.parse(bt.stdout || '{}');
+  const want = E.scanHistorical(E.scanValidate({ setups: [FXT.setup] }).setups[0], FXT.history, {});
+  check(bt.code === 0 && btj.simulation === true && JSON.stringify(btj.recorded) === JSON.stringify(want.recorded) && btj.recorded.some(x => x.bar === FXT.lastBar && x.symbol === 'MATCH'),
+    '--backtest SETUPID --json is scanHistorical on the worker\'s files: marked a simulation, the same recorded bars', { got: btj.recorded, want: want.recorded });
+  const bt2 = await scan('--data', W1, '--backtest', FXT.setup.id, '--to', E.scanAddDays(FXT.lastBar, -1), '--json');
+  const bt3 = await scan('--data', W1, '--backtest', FXT.setup.id);
+  const bt4 = await scan('--data', W1, '--backtest', 'nope');
+  const bt5 = await scan('--data', W1, '--backtest', FXT.setup.id, '--from', '1/2/2026');
+  check(bt2.code === 0 && !JSON.parse(bt2.stdout).recorded.some(x => x.bar === FXT.lastBar) && bt3.code === 0 && /a simulation, not a backtest of returns/.test(bt3.stdout) && /no entries, exits, costs/.test(bt3.stdout)
+    && bt4.code === 1 && /no setup "nope"/.test(bt4.stderr) && bt5.code === 1 && (await runsOf(W1)).runs.every(r => r.kind === 'scan'),
+    '--to bounds the window; the printout says it is a simulation with no returns; an unknown setup or a bad date exits 1; a backtest writes no run');
+
+  /* 10 — the exit codes, as each status was actually reached above. */
+  const want0123 = { COMPLETED: 0, FAILED: 1, PARTIAL: 2, SKIPPED_NO_DATA: 3, SKIPPED_PAUSED: 3, SKIPPED_LOCKED: 3 };
+  const bad = Object.entries(want0123).filter(([s, c]) => seenExit.get(s) !== c);
+  check(!bad.length, 'exit codes: 0 COMPLETED, 1 FAILED, 2 PARTIAL, 3 SKIPPED (no data, paused, locked) — each reached above by a real run', Object.fromEntries(seenExit));
+
+  /* 11 — ingest/daily.mjs, with every step stubbed in a temporary folder. */
+  const D = join(tmpdir(), `qt-daily-${process.pid}`);
+  await rm(D, { recursive: true, force: true });
+  await mkdir(join(D, 'ingest'), { recursive: true }); await mkdir(join(D, 'scanner'), { recursive: true }); await mkdir(join(D, 'data'), { recursive: true });
+  folders.push(D);
+  await writeFile(join(D, 'ingest/autoshot.mjs'), "console.log('page 1');");
+  await writeFile(join(D, 'ingest/watchlist.mjs'), "console.log('candidates 3\\nflagged   0\\nskipped   0');");
+  await writeFile(join(D, 'ingest/prices.mjs'), "console.log('  accepted : 3\\n  rejected : 0');");
+  await writeFile(join(D, 'ingest/history.mjs'), "const c = Number(process.env.STUB_HISTORY_EXIT || 0); console.log('  symbols   : 3\\n  new bars  : 3\\n  depth     : 1-3 day(s) per symbol'); process.exit(c);");
+  await writeFile(join(D, 'scanner/scan.mjs'), "import { writeFileSync } from 'node:fs'; writeFileSync('scan-called.json', JSON.stringify(process.argv.slice(2))); console.log('0 new alerts recorded'); console.log('status     ' + (process.env.STUB_SCAN_STATUS || 'COMPLETED') + ' (run-stub-1)'); process.exit(Number(process.env.STUB_SCAN_EXIT || 0));");
+  await writeFile(join(D, 'data/scan-setups.json'), '{"setups":[]}');
+  const daily = async (env) => {
+    await rm(join(D, 'scan-called.json'), { force: true });
+    try { const { stdout } = await run(process.execPath, [join(ROOT, 'ingest/daily.mjs'), '--url', 'http://example.invalid', '--no-fx'], { cwd: D, env: { ...process.env, ...env } }); return { code: 0, stdout }; }
+    catch (e) { return { code: e.code, stdout: e.stdout || '' }; }
+  };
+  const lastIngest = async () => ((await json(join(D, 'data/ingest-runs.json')))?.runs || []).slice(-1)[0] || {};
+  const dA = await daily({ STUB_HISTORY_EXIT: '1' });
+  const iA = await lastIngest();
+  check(dA.code === 2 && !existsSync(join(D, 'scan-called.json')) && /scanner\s+skipped — the history was not updated/.test(dA.stdout)
+    && iA.steps?.find(s => s.step === 'history')?.status === 'failed' && iA.steps?.find(s => s.step === 'scanner')?.status === 'skipped' && iA.status === 'PARTIAL' && iA.kind === 'ingest',
+    'daily.mjs never starts the scanner when the history step failed, says so, and logs the run in data/ingest-runs.json', { code: dA.code, steps: iA.steps });
+  const dB = await daily({ STUB_SCAN_EXIT: '3', STUB_SCAN_STATUS: 'SKIPPED_PAUSED' });
+  const iB = await lastIngest();
+  const argvB = await json(join(D, 'scan-called.json'));
+  check(dB.code === 0 && JSON.stringify(argvB) === JSON.stringify(['--trigger', 'daily']) && /scanner\s+skipped — paused/.test(dB.stdout) && iB.scanner?.status === 'SKIPPED_PAUSED' && iB.scanner.runId === 'run-stub-1' && iB.scanner.exit === 3 && iB.status === 'COMPLETED',
+    'the scanner is started with --trigger daily; a paused scanner (exit 3) is reported and is not a failure of the daily run', { code: dB.code, argv: argvB, scanner: iB.scanner });
+  const dC = await daily({ STUB_SCAN_EXIT: '3', STUB_SCAN_STATUS: 'SKIPPED_LOCKED' });
+  const dD = await daily({ STUB_SCAN_EXIT: '2', STUB_SCAN_STATUS: 'PARTIAL' });
+  const dE = await daily({ STUB_HISTORY_EXIT: '2' });
+  const runsI = (await json(join(D, 'data/ingest-runs.json'))).runs;
+  check(dC.code === 2 && dD.code === 2 && /a setup was skipped/.test(dD.stdout) && dE.code === 2 && existsSync(join(D, 'scan-called.json')) && /some rows were refused/.test(dE.stdout) && runsI.length === 5
+    && runsI.every(r => r.startedAt && r.finishedAt && r.durationMs >= 0 && Array.isArray(r.steps)),
+    'a scan turned away by the lock, or partial, makes the daily run exit 2; a history written with rows refused still scans (and exits 2 so the rows are looked at); every daily run is logged', { codes: [dC.code, dD.code, dE.code] });
+
+  for (const d of folders) await rm(d, { recursive: true, force: true });
+}
+
 /* The two data files are personal and git-ignored; CI also checks this, but a
    local run should say so before a push does. */
 try {
   const { stdout: tracked } = await run('git', ['ls-files'], { cwd: ROOT });
   check(!/^data\/scan-(setups|alerts)\.json$/m.test(tracked), 'neither scanner data file is tracked by git');
+  check(!/^data\/(scan-(runs|control|deliveries)\.json|scan\.lock|ingest-runs\.json|price-history(\.rejects)?\.json)/m.test(tracked),
+    'none of the worker\'s or the ingest\'s own files (runs, lock, control, deliveries, ingest runs, history, rejects) is tracked by git');
+  const ignore = await readFile(join(ROOT, '.gitignore'), 'utf8');
+  const ci = await readFile(join(ROOT, '.github/workflows/checks.yml'), 'utf8');
+  const newFiles = ['data/scan-runs.json', 'data/scan.lock', 'data/scan-control.json', 'data/scan-deliveries.json', 'data/ingest-runs.json', 'data/price-history.rejects.json'];
+  check(newFiles.every(f => ignore.split(/\r?\n/).includes(f) && ci.includes(`'${f}'`)), 'every new data file is git-ignored AND in CI\'s "no licensed data" list', newFiles.filter(f => !ignore.includes(f) || !ci.includes(`'${f}'`)));
 } catch { ok('git is not available here — the tracked-files check runs in CI'); }
 
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);

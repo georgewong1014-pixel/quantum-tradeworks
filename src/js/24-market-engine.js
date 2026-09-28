@@ -79,15 +79,52 @@ function scanStable(v) {
 /* Each market's session, in its own time zone. `close` is the end of the
    regular session and `settleMin` the margin after it before a captured bar
    is treated as final (closing auctions and the vendor's settle). `days` are
-   the weekdays sessions fall on (0 = Sunday). Markets without a row here —
-   26 of the registry's 30 — take _default: weekdays, and a close at the end
-   of the UTC day, which is later than every one of their real closes and so
-   never calls a bar final early. Half-days and holidays are not held. */
+   the weekdays sessions fall on (0 = Sunday). Half-days and holidays are
+   not held.
+
+   The rows after CRYPTO are the other registry markets, added with the
+   ingest (round 2) because a reading cannot be dated without them: a
+   screen captured at 18:30 in Kuala Lumpur shows Monday's close for Tokyo
+   and Sydney, an in-progress Monday for London, and Friday's close for New
+   York, and only each exchange's own zone and hours can say which. The
+   hours are the exchanges' published regular sessions, typed by hand —
+   not a maintained calendar — and each errs late rather than early: a
+   close later than the real one only delays the moment a bar is called
+   final, while one earlier would call an auction price final. `breaks` is
+   filled only where the midday break is certain; nothing reads it yet.
+   Commodities (COM) trade nearly round the clock and have no session a
+   screen reading could close, so they stay on _default: weekdays, and a
+   close at the end of the UTC day. */
 const SCAN_MARKETS = {
   US: { code: 'US', label: 'United States', tz: 'America/New_York', open: '09:30', close: '16:00', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
   MY: { code: 'MY', label: 'Bursa Malaysia', tz: 'Asia/Kuala_Lumpur', open: '09:00', close: '17:00', breaks: [['12:30', '14:30']], days: [1, 2, 3, 4, 5], settleMin: 30 },
   FX: { code: 'FX', label: 'Currency pairs', tz: 'America/New_York', open: null, close: '17:00', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 0 },
   CRYPTO: { code: 'CRYPTO', label: 'Crypto', tz: 'UTC', open: null, close: '24:00', breaks: [], days: [0, 1, 2, 3, 4, 5, 6], settleMin: 0 },
+  AU: { code: 'AU', label: 'Australia (ASX)', tz: 'Australia/Sydney', open: '10:00', close: '16:15', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  NZ: { code: 'NZ', label: 'New Zealand (NZX)', tz: 'Pacific/Auckland', open: '10:00', close: '16:45', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  JP: { code: 'JP', label: 'Japan (TSE)', tz: 'Asia/Tokyo', open: '09:00', close: '15:30', breaks: [['11:30', '12:30']], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  HK: { code: 'HK', label: 'Hong Kong (HKEX)', tz: 'Asia/Hong_Kong', open: '09:30', close: '16:10', breaks: [['12:00', '13:00']], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  CN: { code: 'CN', label: 'China (SSE)', tz: 'Asia/Shanghai', open: '09:30', close: '15:00', breaks: [['11:30', '13:00']], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  KR: { code: 'KR', label: 'Korea (KRX)', tz: 'Asia/Seoul', open: '09:00', close: '15:30', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  TW: { code: 'TW', label: 'Taiwan (TWSE)', tz: 'Asia/Taipei', open: '09:00', close: '13:30', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  IN: { code: 'IN', label: 'India (NSE)', tz: 'Asia/Kolkata', open: '09:15', close: '15:30', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  SG: { code: 'SG', label: 'Singapore (SGX)', tz: 'Asia/Singapore', open: '09:00', close: '17:15', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  TH: { code: 'TH', label: 'Thailand (SET)', tz: 'Asia/Bangkok', open: '10:00', close: '16:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  ID: { code: 'ID', label: 'Indonesia (IDX)', tz: 'Asia/Jakarta', open: '09:00', close: '16:15', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  PH: { code: 'PH', label: 'Philippines (PSE)', tz: 'Asia/Manila', open: '09:30', close: '15:15', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  VN: { code: 'VN', label: 'Vietnam (HOSE)', tz: 'Asia/Ho_Chi_Minh', open: '09:00', close: '15:00', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  GB: { code: 'GB', label: 'United Kingdom (LSE)', tz: 'Europe/London', open: '08:00', close: '16:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  DE: { code: 'DE', label: 'Germany (Xetra)', tz: 'Europe/Berlin', open: '09:00', close: '17:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  FR: { code: 'FR', label: 'France (Euronext Paris)', tz: 'Europe/Paris', open: '09:00', close: '17:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  EU: { code: 'EU', label: 'Euro area (STOXX)', tz: 'Europe/Berlin', open: '09:00', close: '18:00', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  ES: { code: 'ES', label: 'Spain (BME)', tz: 'Europe/Madrid', open: '09:00', close: '17:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  IT: { code: 'IT', label: 'Italy (Borsa Italiana)', tz: 'Europe/Rome', open: '09:00', close: '17:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  NL: { code: 'NL', label: 'Netherlands (Euronext Amsterdam)', tz: 'Europe/Amsterdam', open: '09:00', close: '17:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  CH: { code: 'CH', label: 'Switzerland (SIX)', tz: 'Europe/Zurich', open: '09:00', close: '17:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  SE: { code: 'SE', label: 'Sweden (Nasdaq Stockholm)', tz: 'Europe/Stockholm', open: '09:00', close: '17:40', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  CA: { code: 'CA', label: 'Canada (TSX)', tz: 'America/Toronto', open: '09:30', close: '16:00', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  BR: { code: 'BR', label: 'Brazil (B3)', tz: 'America/Sao_Paulo', open: '10:00', close: '18:00', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
+  MX: { code: 'MX', label: 'Mexico (BMV)', tz: 'America/Mexico_City', open: '08:30', close: '15:00', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 30 },
   _default: { code: '_default', label: 'Other markets', tz: 'UTC', open: null, close: '24:00', breaks: [], days: [1, 2, 3, 4, 5], settleMin: 0, calendar: 'weekday-only' },
 };
 const scanMarket = (m) => SCAN_MARKETS[String(m || '').toUpperCase()] || SCAN_MARKETS._default;
@@ -1710,8 +1747,12 @@ function scanHistorical(setup, history, { symbols = null, from = null, to = null
    per market, the session expected by now and which series hold it; per
    series, the bars, the invalid ones with their codes, the gaps against the
    calendar (inferred or weekday), the close-to-close breaks, the volume
-   coverage and whether it sits at the ingest's 500-point keep. In market
+   coverage and whether it sits at the ingest's keep (SCAN_HISTORY_KEEP). In market
    order, then symbol order — neutral, not ranked. */
+/* The points per series ingest/history-store.mjs keeps (its KEEP); the
+   store's test holds the two equal. It was 500 in one writer and 2000 in
+   another until the store became the only writer. */
+const SCAN_HISTORY_KEEP = 2000;
 function scanDataHealth(history, instruments, now) {
   const reg = scanRegistry(instruments);
   const syms = Object.keys(history?.series || {});
@@ -1750,7 +1791,7 @@ function scanDataHealth(history, instruments, now) {
       const withVol = b.volumes.filter(scanOk).length;
       series.push({ symbol: sym, market, bars: n, first: b.dates[0] || null, last, hasOHLC: b.hasOHLC,
                     volumeCoverage: n ? withVol / n : 0, invalid: b.invalid, dropped, gaps, jumps, statusCounts,
-                    stale: b.stale, behindSessions: b.stale ? b.stale.sessionsBehind : 0, atKeepLimit: keys.length >= 500, dataVersion: b.dataVersion });
+                    stale: b.stale, behindSessions: b.stale ? b.stale.sessionsBehind : 0, atKeepLimit: keys.length >= SCAN_HISTORY_KEEP, dataVersion: b.dataVersion });
       totals.bars += n; totals.invalid += b.invalid.length; totals.gaps += gaps.filter(g => g.counted).length; totals.jumps += jumps.length;
       totals.stale += b.stale ? 1 : 0; totals.provisional += statusCounts.PROVISIONAL;
     });

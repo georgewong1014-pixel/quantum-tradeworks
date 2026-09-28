@@ -19,6 +19,16 @@ data/watchlist-review*.txt
 
 # the accumulated series is built from those prices and inherits their terms
 data/price-history.json
+# ingest/history-store.mjs writes it atomically (.tmp renamed over it, the
+# previous file kept as .bak), under a lock, and puts every row it refused in
+# a rejects file — all of them the same prices, under the same terms.
+data/price-history.json.tmp
+data/price-history.json.bak
+data/price-history.json.lock
+data/price-history.json.lock.*
+data/price-history.rejects.json
+data/price-history.rejects.json.tmp
+data/price-history.rejects.json.bak
 
 # where you drop watchlist screenshots. Someone else's licensed data rendered
 # as pixels — never committed, never deployed.
@@ -91,6 +101,20 @@ data/scan-alerts.json
 # The worker writes the record beside itself and keeps the previous one.
 data/scan-alerts.json.tmp
 data/scan-alerts.json.bak
+# The worker's own files: the run log and audit, the lock, the pause switch
+# and the delivery record. They name your setups, your instruments and the
+# account that ran them, and they describe the alert record above.
+data/scan-runs.json
+data/scan-runs.json.*
+data/scan.lock
+data/scan.lock.*
+data/scan-control.json
+data/scan-control.json.*
+data/scan-deliveries.json
+data/scan-deliveries.json.*
+# The daily run's own log (ingest/daily.mjs).
+data/ingest-runs.json
+data/ingest-runs.json.*
 
 # Worktrees made by parallel agents (Claude Code). Never part of the product.
 .claude/worktrees/
