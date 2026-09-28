@@ -2570,7 +2570,6 @@ try {
 }
 /* ---- end bugfix2: engine ---- */
 
-console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 
 /* ---- bugfix2: scanner ---- */
 /* THE OPS FIXTURE, HELD TO THE WORKER BY VALUE AS WELL AS BY KEY. The round
