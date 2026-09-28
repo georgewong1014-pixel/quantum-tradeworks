@@ -2592,12 +2592,60 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
      an attempt; the last success is the latest run on the history as it
      stands. */
   const replayed = (r) => !!r?.replayAsOf || r?.trigger === 'replay';
-  const lastSuccess = [...byTime].reverse().find(r => (r.status === 'COMPLETED' || r.status === 'PARTIAL') && !evaluatedNothing(r) && !replayed(r))
+  /* A RETRY ANSWERS FOR THE RUN IT RETRIED. --retry re-runs a logged run on
+     the history cut where that run read it, by that run's clock: it is a
+     scan of that run's moment, not of its own. Placed by its own start, a
+     retry of Friday's run made after Monday's had scanned Monday's bar was
+     "the last scan" — the dashboard went behind ("the last scan ran today
+     on bars of Friday") with Friday's matches as the last scan's — and a
+     failed one hid that Monday's had succeeded. So a run is placed at the
+     start of the run it answers for: a retry at its run's (through a retry
+     of a retry), unless that run read no history — the retry then read the
+     history as it stands, and answers for itself. A run the log no longer
+     holds is placed by the clock the retry read by, which is its run's. A
+     retry of the latest run still comes after it, as that run's scan.
+     Replays answer for no moment of the scanning, and are left out of
+     these runs altogether (above). */
+  const byId = new Map(runList.filter(r => r.id != null).map(r => [r.id, r]));
+  const answersFor = (r) => {
+    let x = r;
+    const seen = new Set();
+    while (x.trigger === 'retry' && x.retryOf != null && !seen.has(x.retryOf)) {
+      seen.add(x.retryOf);
+      const o = byId.get(x.retryOf);
+      if (!o) return String(x.now || x.startedAt || '');
+      if (!o.historyNewest) break;
+      x = o;
+    }
+    return String(x.startedAt || '');
+  };
+  const nonReplays = byTime.filter(r => !replayed(r)).map((r, i) => ({ r, i, at: answersFor(r) }))
+    .sort((a, b) => a.at.localeCompare(b.at) || a.i - b.i).map(x => x.r);
+  /* THE STATE IS THE SCANNING'S, NOT A REPLAY'S. A replay was left out of
+     the last success, but the latest attempt still judged the state: a
+     replay that failed on a typo in --setup put FAILED over a scanner that
+     was current, one that evaluated no bar put it behind, and a completed
+     one hid a scheduled run that had failed before it. The state reads the
+     latest run that is not a replay; a replay stays the latest attempt,
+     shown as one. */
+  const lastNonReplay = nonReplays[nonReplays.length - 1] || (legacy && !replayed(legacy) ? legacy : null);
+  const lastSuccess = [...nonReplays].reverse().find(r => (r.status === 'COMPLETED' || r.status === 'PARTIAL') && !evaluatedNothing(r))
     || (legacy && !evaluatedNothing(legacy) && !replayed(legacy) ? legacy : null);
   const today = now != null && Number.isFinite(scanMs(now)) ? new Date(scanMs(now)).toISOString().slice(0, 10) : null;
   const v = setupsDoc ? scanValidate(setupsDoc) : { setups: [], problems: [] };
+  /* REFUSED COUNTS SETUPS. It counted problems, and one setup can have
+     several: a setup with a bad timeframe and a bad group logic was "2
+     refused" in --status. A setup passes whole or is refused whole, so the
+     refused are the entries that did not pass — two entries sharing an id
+     are two, though problemsBySetup keys them once. A file that is not a
+     list is refused whole, and how many setups it meant to hold is not
+     known: null, with the reason in fileRefused, never a 0. problems counts
+     the reasons. */
+  const setupList = Array.isArray(setupsDoc) ? setupsDoc : Array.isArray(setupsDoc?.setups) ? setupsDoc.setups : null;
   const active = { valid: v.setups.length, enabled: v.setups.filter(s => s.enabled).length, disabled: v.setups.filter(s => !s.enabled).length,
-                   expired: v.setups.filter(s => s.enabled && s.expires && today && s.expires < today).length, refused: v.problems.length };
+                   expired: v.setups.filter(s => s.enabled && s.expires && today && s.expires < today).length,
+                   refused: !setupsDoc ? 0 : setupList ? setupList.length - v.setups.length : null, problems: v.problems.length,
+                   fileRefused: setupsDoc && !setupList ? v.problems[0] || null : null };
   const histSyms = Array.isArray(historyMeta?.symbols) ? historyMeta.symbols : null;
   let monitored = null;
   if (histSyms) {
@@ -2615,14 +2663,19 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
   const day = (t) => (t ? String(t).slice(0, 10) : '—');
   if (!lastAttempt) { state = 'never'; reasons.push('No scan has been recorded on this machine: neither a run log nor a last run in the alerts file.'); }
   if (control?.paused) { if (state !== 'never') state = 'paused'; reasons.push(`The worker is paused${control.since ? ` since ${day(control.since)}` : ''}${control.reason ? `: ${control.reason}` : ''}.`); }
-  if (lastAttempt && lastAttempt.status === 'FAILED') {
+  /* With a later attempt that answers for an older moment — a replay, or a
+     retry of an older run — the run the state reads is named as the latest
+     on the history as it stands, not as the latest attempt. */
+  const latest = (noun) => (lastNonReplay === lastAttempt ? `latest ${noun}` : `latest ${noun} on your history as it stands`);
+  const nonReplayFailed = !!lastNonReplay && lastNonReplay.status === 'FAILED';
+  if (nonReplayFailed) {
     if (state === 'current') state = 'failed';
-    reasons.push(`The latest attempt${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} failed${lastAttempt.error?.message ? `: ${lastAttempt.error.message}` : ''}.`);
+    reasons.push(`The ${latest('attempt')}${lastNonReplay.id ? ` (${lastNonReplay.id})` : ''} on ${day(lastNonReplay.startedAt)} failed${lastNonReplay.error?.message ? `: ${lastNonReplay.error.message}` : ''}.`);
   }
-  if (lastAttempt && (lastAttempt.status === 'COMPLETED' || lastAttempt.status === 'PARTIAL') && evaluatedNothing(lastAttempt)) {
-    const held = Array.isArray(lastAttempt.skippedMarkets) ? lastAttempt.skippedMarkets : [];
+  if (lastNonReplay && (lastNonReplay.status === 'COMPLETED' || lastNonReplay.status === 'PARTIAL') && evaluatedNothing(lastNonReplay)) {
+    const held = Array.isArray(lastNonReplay.skippedMarkets) ? lastNonReplay.skippedMarkets : [];
     if (state === 'current') state = 'behind';
-    reasons.push(`The latest run${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} evaluated no bar${held.length
+    reasons.push(`The ${latest('run')}${lastNonReplay.id ? ` (${lastNonReplay.id})` : ''} on ${day(lastNonReplay.startedAt)} evaluated no bar${held.length
       ? `: every market it would have scanned was held back as not ready — ${held.map(m => m.reason || m.market || 'no market row').join('; ')}` : ''}.`);
   }
   const newestBar = historyMeta?.newestBar || null;
@@ -2636,26 +2689,30 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
     if (ageReason) behind.push(ageReason);
     if (behind.length && state === 'current') state = 'behind';
     reasons.push(...behind);
-  } else if (lastAttempt && evaluatedNothing(lastAttempt)) {
+  } else if (lastNonReplay && evaluatedNothing(lastNonReplay)) {
     /* Held back with no success before it: an old history is usually why. */
     if (ageReason) reasons.push(ageReason);
-  } else if (lastAttempt && lastAttempt.status !== 'FAILED') {
-    /* NO SUCCESS, AND AN ATTEMPT THAT DID NOT FAIL. This read "failed" with
+  } else if (lastAttempt && !nonReplayFailed) {
+    /* NO SUCCESS, AND NO FAILURE BUT A REPLAY'S. This read "failed" with
        no reason at all, so a first run still RUNNING, one skipped for want
        of a setups file, a cancelled one or a lone replay put "The latest
        scan failed." over an empty list, beside a tile saying the attempt
        was running or skipped. Nothing has succeeded, so it is not current;
-       nothing failed, so it is behind — and it says which attempt, when,
-       and what became of it. A FAILED attempt has its reason above. */
-    const s = lastAttempt.status;
-    const what = replayed(lastAttempt) && (s === 'COMPLETED' || s === 'PARTIAL')
-      ? `was a replay of ${lastAttempt.replayAsOf || 'a past session'}, which evaluates that session as though the history ended there`
+       nothing but a replay failed, so it is behind — and it says which
+       attempt, when, and what became of it: the latest that is not a
+       replay, or with none, the replay (one that failed says so here). A
+       run that is not a replay and FAILED has its reason above. */
+    const x = lastNonReplay || lastAttempt, s = x.status;
+    const done = s === 'COMPLETED' || s === 'PARTIAL';
+    const what = replayed(x) && done
+      ? `was a replay of ${x.replayAsOf || 'a past session'}, which evaluates that session as though the history ended there`
       : s === 'RUNNING' || s === 'PENDING' ? 'has not finished'
       : s === 'CANCELLED' ? 'was cancelled before it finished'
-      : String(s || '').startsWith('SKIPPED') ? `was skipped${lastAttempt.skipReason ? `: ${String(lastAttempt.skipReason).replace(/\.\s*$/, '')}` : ''}`
+      : s === 'FAILED' ? `failed${x.error?.message ? `: ${String(x.error.message).replace(/\.\s*$/, '')}` : ''}`
+      : String(s || '').startsWith('SKIPPED') ? `was skipped${x.skipReason ? `: ${String(x.skipReason).replace(/\.\s*$/, '')}` : ''}`
       : `ended ${s ? String(s).toLowerCase().replace(/_/g, ' ') : 'with no status recorded'}`;
     if (state === 'current') state = 'behind';
-    reasons.push(`No scan of your history as it stands has succeeded on this machine: the latest attempt${lastAttempt.id ? ` (${lastAttempt.id})` : ''} on ${day(lastAttempt.startedAt)} ${what}.`);
+    reasons.push(`No scan of your history as it stands has succeeded on this machine: the ${x === lastAttempt ? 'latest attempt' : 'latest attempt on it'}${x.id ? ` (${x.id})` : ''} on ${day(x.startedAt)}${replayed(x) && !done ? `, a replay of ${x.replayAsOf || 'a past session'},` : ''} ${what}.`);
     if (ageReason) reasons.push(ageReason);
   }
   const order = new Map(v.setups.map((s, i) => [s.id, i]));

@@ -2479,5 +2479,96 @@ try {
 }
 /* ---- end bugfix: equities-data ---- */
 
+/* ---- bugfix2: engine ---- */
+/* WHAT scanStatus STILL GOT WRONG. It counted a setups file's problems as
+   its refused setups; it placed a retry of an older run as the last scan;
+   and a replay that was the latest attempt still judged the state. Each
+   check failed on the engine before its fix. */
+{
+  const eng = `scan ${E.SCAN_VERSION}`;
+  const XF = E.scanFixture();
+  /* One setup with two problems is one refused setup; two setups sharing an
+     id are two, though problemsBySetup keys them once; a file that is not a
+     list has no count of setups to give, never a 0. */
+  const twoProblems = { ...XF.setup, id: 'two-problems', timeframe: 'nope', logic: 'XOR' };
+  const aOne = E.scanStatus({ setupsDoc: { setups: [twoProblems, XF.setup] } }).active;
+  const aDup = E.scanStatus({ setupsDoc: { setups: [XF.setup, { ...XF.setup, name: 'copy' }] } }).active;
+  const aWhole = E.scanStatus({ setupsDoc: { setups: 'x' } }).active;
+  const aNone = E.scanStatus({}).active;
+  check(aOne.refused === 1 && aOne.problems === 2 && aOne.valid === 1 && aOne.fileRefused === null && aDup.refused === 2 && aDup.valid === 0
+    && aWhole.refused === null && /neither a list/.test(aWhole.fileRefused || '') && aNone.refused === 0 && aNone.fileRefused === null,
+    'bugfix2 engine: scanStatus counts refused setups, not their problems — a setup with a bad timeframe and a bad group logic is 1 refused (it was 2), two setups sharing an id are 2, and a file that is not a list is refused whole with its reason and no count',
+    { one: aOne, dup: aDup, whole: aWhole, none: aNone });
+
+  /* A retry answers for the run it retried. */
+  const hm = { newestBar: '2026-09-25' };
+  const at = '2026-09-28T12:00:00Z';
+  const rec = (id, startedAt, asOf, extra = {}) => ({ id, kind: 'scan', trigger: 'daily', status: 'COMPLETED', startedAt, finishedAt: startedAt, now: startedAt,
+    engine: eng, asOf, asOfFrom: asOf, historyNewest: asOf, counts: { evaluated: 2 }, ...extra });
+  const fri = rec('r-fri', '2026-09-24T22:00:00Z', '2026-09-24'), mon = rec('r-mon', '2026-09-26T22:00:00Z', '2026-09-25');
+  const retryFri = rec('r-retry-fri', '2026-09-28T09:00:00Z', '2026-09-24', { trigger: 'retry', retryOf: 'r-fri', now: fri.now });
+  const alertsDoc = { alerts: [{ id: 'a-mon', setupId: 's', symbol: 'M', candleDate: '2026-09-25', runId: 'r-mon' }, { id: 'a-fri', setupId: 's', symbol: 'F', candleDate: '2026-09-24', runId: 'r-retry-fri' }] };
+  const sRetry = E.scanStatus({ runs: { runs: [fri, mon, retryFri] }, alertsDoc, historyMeta: hm, now: at });
+  const sRetryFailed = E.scanStatus({ runs: { runs: [fri, mon, { ...retryFri, status: 'FAILED', asOf: null, counts: null, error: { message: 'boom' } }] }, alertsDoc, historyMeta: hm, now: at });
+  /* A retry of the latest run, which failed, is that run's scan; a retry of
+     a run the log no longer holds is placed by the clock it read by; a
+     retry of a run that read no history read it as it stands. */
+  const monFailed = { ...mon, status: 'FAILED', asOf: null, counts: null, error: { message: 'disk full' } };
+  const retryMon = rec('r-retry-mon', '2026-09-28T09:00:00Z', '2026-09-25', { trigger: 'retry', retryOf: 'r-mon', now: mon.now });
+  const sRetryLatest = E.scanStatus({ runs: { runs: [fri, monFailed, retryMon] }, alertsDoc, historyMeta: hm, now: at });
+  const sRetryGone = E.scanStatus({ runs: { runs: [mon, retryFri] }, alertsDoc, historyMeta: hm, now: at });
+  const monUnread = { ...monFailed, historyNewest: null };
+  const retryUnread = rec('r-retry-unread', '2026-09-28T09:00:00Z', '2026-09-25', { trigger: 'retry', retryOf: 'r-mon', now: '2026-09-28T09:00:00Z' });
+  const sRetryUnread = E.scanStatus({ runs: { runs: [fri, monUnread, retryUnread] }, alertsDoc, historyMeta: hm, now: at });
+  check(sRetry.state === 'current' && !sRetry.reasons.length && sRetry.lastSuccess?.id === 'r-mon' && sRetry.lastAttempt?.id === 'r-retry-fri' && same(sRetry.latestMatches.map(a => a.id), ['a-mon'])
+    && sRetryFailed.state === 'current' && sRetryFailed.lastSuccess?.id === 'r-mon'
+    && sRetryLatest.state === 'current' && sRetryLatest.lastSuccess?.id === 'r-retry-mon'
+    && sRetryGone.state === 'current' && sRetryGone.lastSuccess?.id === 'r-mon' && sRetryUnread.state === 'current' && sRetryUnread.lastSuccess?.id === 'r-retry-unread',
+    'bugfix2 engine: scanStatus — a retry of Friday\'s run made after Monday\'s scan answers for Friday: the dashboard stays current with Monday\'s matches (it went behind, "the last scan ran today on bars of Friday"), a failed one does not turn it failed, and a retry of the latest run is still that run\'s scan',
+    { retry: [sRetry.state, sRetry.lastSuccess?.id, sRetry.reasons], failed: [sRetryFailed.state, sRetryFailed.reasons], latest: [sRetryLatest.state, sRetryLatest.lastSuccess?.id],
+      gone: [sRetryGone.state, sRetryGone.lastSuccess?.id], unread: [sRetryUnread.state, sRetryUnread.lastSuccess?.id] });
+
+  /* The state is the scanning's, not a replay's: a replay that failed or
+     evaluated no bar does not judge it, and one that completed does not
+     hide a scheduled run's failure. */
+  const replay = (status, extra = {}) => ({ id: 'r-replay', kind: 'scan', trigger: 'replay', replayAsOf: '2026-08-03', status, startedAt: '2026-09-28T10:00:00Z', finishedAt: '2026-09-28T10:00:05Z',
+    engine: eng, asOf: '2026-08-03', asOfFrom: '2026-08-03', counts: { evaluated: 2 }, ...extra });
+  const sReplayFailed = E.scanStatus({ runs: { runs: [mon, replay('FAILED', { asOf: null, counts: null, error: { message: '--setup typo: no such setup' } })] }, historyMeta: hm, now: at });
+  const sReplayEmpty = E.scanStatus({ runs: { runs: [mon, replay('PARTIAL', { asOf: null, asOfFrom: null, counts: { evaluated: 0 } })] }, historyMeta: hm, now: at });
+  const sHidden = E.scanStatus({ runs: { runs: [fri, { ...monFailed }, replay('COMPLETED')] }, historyMeta: hm, now: at });
+  const sLoneFailed = E.scanStatus({ runs: { runs: [replay('FAILED', { asOf: null, counts: null, error: { message: 'boom' } })] }, historyMeta: hm, now: at });
+  check(sReplayFailed.state === 'current' && !sReplayFailed.reasons.length && sReplayFailed.lastAttempt?.id === 'r-replay'
+    && sReplayEmpty.state === 'current' && !sReplayEmpty.reasons.length
+    && sHidden.state === 'failed' && /The latest attempt on your history as it stands \(r-mon\) on 2026-09-26 failed: disk full\./.test(sHidden.reasons.join(' '))
+    && sLoneFailed.state === 'behind' && /latest attempt \(r-replay\) on 2026-09-28, a replay of 2026-08-03, failed: boom\./.test(sLoneFailed.reasons.join(' ')),
+    'bugfix2 engine: scanStatus judges the state by the runs that are not replays — a replay that failed on a typo, or evaluated no bar, leaves a current scanner current (it read FAILED or behind), a completed replay no longer hides a scheduled run that failed, and a lone failed replay is behind with its reason',
+    { failed: [sReplayFailed.state, sReplayFailed.reasons], empty: [sReplayEmpty.state, sReplayEmpty.reasons], hidden: [sHidden.state, sHidden.reasons], lone: [sLoneFailed.state, sLoneFailed.reasons] });
+
+  /* The same through the worker: --status after a retry of an older run, after a failed replay, and of a setup with two problems. */
+  const SCAN = join(ROOT, 'scanner/scan.mjs');
+  const cli = async (...args) => { try { return (await run(process.execPath, [SCAN, ...args])).stdout; } catch (e) { return `${e.stdout || ''}${e.stderr || ''}`; } };
+  const dir2 = join(tmpdir(), `qt-bf2-engine-${process.pid}`);
+  await rm(dir2, { recursive: true, force: true });
+  await mkdir(dir2, { recursive: true });
+  const dates = Object.keys(XF.history.series.MATCH).sort(), prev = dates[dates.length - 2];
+  await writeFile(join(dir2, 'scan-setups.json'), JSON.stringify({ setups: [XF.setup, twoProblems] }));
+  await writeFile(join(dir2, 'price-history.json'), JSON.stringify(E.scanTruncateHistory(XF.history, prev)));
+  await cli('--data', dir2, '--now', E.scanReplayNow(prev));
+  const first = JSON.parse(await readFile(join(dir2, 'scan-runs.json'), 'utf8')).runs[0];
+  await writeFile(join(dir2, 'price-history.json'), JSON.stringify(XF.history));
+  await cli('--data', dir2, '--now', XF.now);
+  await cli('--data', dir2, '--now', XF.now, '--retry', first.id);
+  const afterRetry = await cli('--data', dir2, '--now', XF.now, '--status');
+  await cli('--data', dir2, '--now', XF.now, '--as-of', prev, '--setup', 'no-such-setup');
+  const afterReplay = await cli('--data', dir2, '--now', XF.now, '--status');
+  const line = (out, k) => (out.split('\n').find(l => l.startsWith(k)) || '').replace(/\s+/g, ' ').trim();
+  check(line(afterRetry, 'scanner') === 'scanner CURRENT' && line(afterRetry, 'last ok').endsWith(`bars of ${XF.lastBar}`) && line(afterRetry, 'matches') === 'matches 1 on the last successful run\'s bar'
+    && line(afterReplay, 'scanner') === 'scanner CURRENT' && line(afterReplay, 'last try').startsWith('last try FAILED') && line(afterRetry, 'setups') === 'setups 1 enabled of 1 valid, 1 refused',
+    'bugfix2 engine: node scanner/scan.mjs --status stays CURRENT after a --retry of an older run and after a replay that failed on a typo (they read BEHIND with 0 matches, and FAILED), and counts a setup with two problems as 1 refused',
+    { retry: afterRetry.split('\n').slice(0, 8), replay: afterReplay.split('\n').slice(0, 8) });
+  await rm(dir2, { recursive: true, force: true });
+}
+/* ---- end bugfix2: engine ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
