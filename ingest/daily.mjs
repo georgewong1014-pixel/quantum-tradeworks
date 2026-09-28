@@ -19,10 +19,10 @@
  * failed, the scanner would evaluate yesterday's file and report it as
  * today's scan; it is skipped and the report says why. It is started with
  * --trigger daily --ready, and its own exit codes are read: 0 completed, 2
- * partial, 3 skipped (paused, locked by another run, no setups, or nothing
- * new), 1 failed. Only a failure, a partial run or a lock held by another
- * run make this run exit 2; a pause the reader asked for, or a day with
- * nothing new, is not something to look at.
+ * partial, 3 skipped (paused, locked by another run, no setups, no bar to
+ * evaluate, or nothing new), 1 failed. Only a failure, a partial run or a
+ * lock held by another run make this run exit 2; a pause the reader asked
+ * for, or a day with nothing new, is not something to look at.
  *
  * AND ONLY ON THE MARKETS THAT ARE READY. An updated file is not a final
  * one: a Bursa close read at 16:30 is an afternoon price. With --ready the
@@ -188,6 +188,17 @@ if (!historyUpdated) {
   /* The markets the ready gate held back, one line each in the scanner's
      fixed form "not ready  CODE — why". */
   const notReady = [...out.matchAll(/^not ready\s+(\S+) — (.+)$/gm)].map(m => ({ market: m[1], reason: m[2].trim() }));
+  /* What else made the scan PARTIAL, read off the heading the scanner prints
+     for each (printRun). A fixed list — "a setup was skipped, could not be
+     tested, or its delivery record failed" — was printed whatever the reason,
+     so a version ledger that could not be written, or a watchlist snapshot
+     read in place of the export, was reported as none of what happened; and
+     beside a market held back, nothing else was named at all. */
+  const partialWhy = [[/^LEFT OUT —/m, 'a setup was left out'], [/^SKIPPED:$/m, 'a setup was skipped'],
+                      [/^UNTESTED EVERYWHERE —/m, 'a setup could not be tested on any instrument'],
+                      [/^WATCHLIST SNAPSHOT USED —/m, 'a watchlist snapshot was read in place of the export'],
+                      [/^DELIVERY RECORD NOT WRITTEN —/m, 'the delivery record could not be written'],
+                      [/^LEDGER NOT WRITTEN —/m, 'the version ledger could not be written']].filter(([re]) => re.test(out)).map(([, why]) => why);
   Object.assign(scanner, { ran: true, exit: code, status: st?.[1] || null, runId: st?.[2] || null, recorded: n != null ? Number(n) : null, skippedMarkets: notReady });
   const lastErr = (err || out).trim().split('\n').filter(Boolean).pop() || 'see above';
   if (code === 0) { say(`scanner   ${n ?? '?'} new alert(s) recorded in data/scan-alerts.json`); step('scanner', 'ok', scanner.status); }
@@ -195,13 +206,25 @@ if (!historyUpdated) {
     say(`scanner   ${n ?? '?'} new alert(s) recorded; not ready, so not scanned today (SKIPPED_NO_DATA — the next run catches them up):`);
     notReady.forEach(m => say(`          ${m.market} — ${m.reason}`));
     say('          readiness is judged from capture times against each market\'s close, not confirmed by a provider');
+    if (partialWhy.length) say(`          and ${partialWhy.join('; ')} — node scanner/scan.mjs --runs 1 says which`);
     step('scanner', 'warn', `${scanner.status}; not ready: ${notReady.map(m => m.market).join(', ')}`);
     bump(2);
   }
-  else if (code === 2) { say(`scanner   ${n ?? '?'} new alert(s) recorded; a setup was skipped, could not be tested, or its delivery record failed — node scanner/scan.mjs --runs 1 says which`); step('scanner', 'warn', scanner.status); bump(2); }
+  else if (code === 2) {
+    const why = partialWhy.length ? partialWhy.join('; ')
+      : 'a setup was skipped or could not be tested, a watchlist snapshot was read, or the delivery record or the version ledger could not be written';
+    say(`scanner   ${n ?? '?'} new alert(s) recorded; ${why} — node scanner/scan.mjs --runs 1 says which`); step('scanner', 'warn', scanner.status); bump(2);
+  }
   else if (code === 3) {
+    /* SKIPPED_NO_DATA is the scanner's status for inputs unchanged since a
+       run that evaluated, and for a history that holds no bar — a first run
+       whose every row the history refused writes one. Both were reported as
+       "nothing new since the last scan"; the scanner's own sentence says
+       which (stdout for the first, stderr for the second). */
+    const noData = /^nothing changed since /m.test(out) ? 'nothing new since the last scan'
+      : `no bar to evaluate: ${(err.split('\n').map(l => l.trim()).find(Boolean)) || 'the scanner found no data'}`;
     const why = { SKIPPED_PAUSED: 'paused — node scanner/scan.mjs --resume to continue', SKIPPED_LOCKED: 'another scan held the lock, and records what this one would have',
-                  SKIPPED_NO_DATA: 'nothing new since the last scan', SKIPPED_NO_SETUPS: 'no setups to evaluate' }[scanner.status] || 'skipped';
+                  SKIPPED_NO_DATA: noData, SKIPPED_NO_SETUPS: 'no setups to evaluate' }[scanner.status] || 'skipped';
     say(`scanner   skipped — ${why}`);
     step('scanner', 'skipped', scanner.status);
     if (scanner.status === 'SKIPPED_LOCKED') bump(2);
