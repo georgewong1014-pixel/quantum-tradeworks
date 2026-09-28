@@ -147,7 +147,13 @@ function watchlistSymbols(wlId) {
 }
 /* The export: every list with the brief's fields, versioned and stamped, and
    honest about where it lives. Import accepts the same shape and the older
-   { id, name, ids } one. */
+   { id, name, ids } one.
+   The scanner's worker reads this same document, saved as
+   data/watchlists.json by "Export for the scanner" (round 3 contract C3):
+   it resolves a setup's list by watchlists[].id, takes the members'
+   items[].symbol, and records exportedAt as when the list was taken. So
+   those three fields are the worker's input as well as the reader's
+   backup, and changing their shape changes what the scanner evaluates. */
 function watchlistsExport() {
   return { kind: 'quantum-tradeworks-watchlists', schema: WATCHLIST_SCHEMA, exportedAt: new Date().toISOString(),
            owner: 'this browser — there are no accounts, so no ownerId',

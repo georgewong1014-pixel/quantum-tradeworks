@@ -1,5 +1,5 @@
 {
-  "_note": "Copy this file to data/scan-setups.json (git-ignored) and edit it. Every setup is yours: the product proposes none, ranks none, and delivers nothing. Ids are part of every alert key, so renaming a setup starts its history afresh. These are written in the 0.2 form (logic and rules), which engine 0.3.0 reads unchanged; a setup may instead carry a ruleTree of nested ALL/ANY groups, a version, cooldownMode NEW_MATCH or EVERY_MATCH, and timeframe 1D or 1W (weekly bars derived from the daily ones). Bars are evaluated on the last final bar your history holds: a bar captured before its session closed is provisional and never confirms a match, and a history behind the session expected by now is stale and is reported as untested. A watchlist universe carries the symbols the page snapshotted when the JSON was written — the worker cannot read a browser. Volume rules (trend-breakout below) need a recorded volume: the screen capture (ingest/daily.mjs) records closes only, so on that history alone they are untested and the setup cannot match — volume comes from ingest/live.mjs or an export imported with a volume column (ingest/history-import.mjs).",
+  "_note": "Copy this file to data/scan-setups.json (git-ignored) and edit it. Every setup is yours: the product proposes none, ranks none, and delivers nothing. Ids are part of every alert key, so renaming a setup starts its history afresh. The first four are written in the 0.2 form (logic and rules), which engine 0.3.0 reads unchanged. The fifth, trend-breakout-tree, is the 0.3 form the builder writes: a version, a ruleTree of ALL/ANY groups that may nest (up to three deep and twenty conditions), operands that are an indicator or { \"value\": n }, cooldownMode NEW_MATCH or EVERY_MATCH, and timeframe 1D or 1W (weekly bars derived from the daily ones). It holds the first setup’s conditions, so it is disabled: enabled beside it, both would record the same crossings. Bars are evaluated on the last final bar your history holds: a bar captured before its session closed is provisional and never confirms a match, and a history behind the session expected by now is stale and is reported as untested. A watchlist universe carries the symbols the page snapshotted when the setup was saved — the worker cannot read a browser; with \"resolve\": \"export\" the worker resolves the list from data/watchlists.json (the watchlists page’s \"Export for the scanner\") and evaluates the snapshot when the list is not in that file. Volume rules (trend-breakout below) need a recorded volume: the screen capture (ingest/daily.mjs) records closes only, so on that history alone they are untested and the setup cannot match — volume comes from ingest/live.mjs or an export imported with a volume column (ingest/history-import.mjs).",
   "setups": [
     {
       "id": "trend-breakout",
@@ -138,6 +138,88 @@
       ],
       "cooldownBars": 10,
       "expires": null
+    },
+    {
+      "id": "trend-breakout-tree",
+      "version": 1,
+      "name": "Trend breakout, written as a rule tree",
+      "description": "The first setup’s conditions in the 0.3 form, with volume OR relative volume in a nested group, recording only the bar a match begins.",
+      "enabled": false,
+      "universe": {
+        "kind": "symbols",
+        "symbols": [
+          "NVDA",
+          "AAPL",
+          "1155"
+        ]
+      },
+      "timeframe": "1D",
+      "confirmationMode": "BAR_CLOSE",
+      "cooldownMode": "NEW_MATCH",
+      "cooldownBars": 5,
+      "expires": null,
+      "ruleTree": {
+        "type": "group",
+        "logic": "ALL",
+        "children": [
+          {
+            "type": "condition",
+            "left": {
+              "indicator": "price"
+            },
+            "op": "CROSSES_ABOVE",
+            "right": {
+              "indicator": "ema",
+              "n": 50
+            }
+          },
+          {
+            "type": "group",
+            "logic": "ANY",
+            "children": [
+              {
+                "type": "condition",
+                "left": {
+                  "indicator": "volume"
+                },
+                "op": "GREATER_THAN",
+                "right": {
+                  "indicator": "volume_avg",
+                  "n": 20,
+                  "multiplier": 1.5
+                }
+              },
+              {
+                "type": "condition",
+                "left": {
+                  "indicator": "rvol",
+                  "n": 20
+                },
+                "op": "GREATER_THAN",
+                "right": {
+                  "value": 1.5
+                }
+              }
+            ]
+          },
+          {
+            "type": "condition",
+            "left": {
+              "indicator": "rsi",
+              "n": 14
+            },
+            "op": "BETWEEN",
+            "range": [
+              {
+                "value": 50
+              },
+              {
+                "value": 70
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

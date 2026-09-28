@@ -3515,6 +3515,472 @@ try {
     else ok(`the scanner pages state which file is absent — ${Object.keys(r.pages).length} pages with no scanner file at all each say what is missing and what writes it, and print no raw value`);
   }
 
+  /* ---- round 3: user ---- */
+  /* PHASE 3 ROUND 3 — user: the alert history under an injected record of
+     250, id collisions, an alert evaluated again, the builder's doors and
+     examples, the session's indicator cache, and watchlists resolved by
+     export. The alerts file arrives through the browser's own request
+     interception, so the loader reads it as it reads the real one; every
+     other file is set in memory. Everything is put back afterwards. */
+  {
+    const r3events = [];
+    const r3listen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') r3events.push(m.params.exceptionDetails?.exception?.description?.split('\n')[0]); };
+    ws.addEventListener('message', r3listen);
+    const { readFileSync: r3read } = await import('node:fs');
+    const { loadEngine: r3load } = await import('./scanner/scan.mjs');
+    const R3E = await r3load();
+    /* 250 records: five symbols of fifty each, three setups, eighty
+       sessions, so most bars carry several records and the order's
+       tie-breaks (detection time, then file order) are exercised. Closes
+       have nothing to do with the order. */
+    const r3days = [];
+    for (let d = '2026-01-05'; r3days.length < 80; d = R3E.scanAddDays(d, 1)) if (R3E.scanWeekday(d) >= 1 && R3E.scanWeekday(d) <= 5) r3days.push(d);
+    const r3alerts = Array.from({ length: 250 }, (_, i) => {
+      const setupId = ['qa-r3-a', 'qa-r3-b', 'qa-r3-c'][i % 3], symbol = ['AAA', 'BBB', 'CCC', 'DDD', 'EEE'][Math.floor(i / 50)], bar = r3days[(i * 13) % 80];
+      const key = R3E.scanKey(setupId, 1, symbol, '1D', bar, 'MATCH');
+      return { id: R3E.scanAlertId(key), key, setupId, setupName: `QA ${setupId}`, setupVersion: 1, symbol, market: null, timeframe: '1D', candleDate: bar, bar,
+        detectedAt: `${R3E.scanAddDays(bar, 1)}T0${i % 7}:00:00Z`, eventType: 'MATCH', close: Math.round((50 + ((i * 7919) % 1000) / 7) * 100) / 100,
+        engine: `scan ${R3E.SCAN_VERSION}`, rules: [] };
+    });
+    /* The order, stated independently of the page: bar descending, then
+       detection time descending, then the file's own order. */
+    const r3order = r3alerts.map((a, i) => ({ a, i })).sort((x, y) => y.a.candleDate.localeCompare(x.a.candleDate) || y.a.detectedAt.localeCompare(x.a.detectedAt) || x.i - y.i).map(x => x.a.id);
+    const r3count = (f) => r3alerts.filter(f).length;
+    const body = Buffer.from(JSON.stringify({ alerts: r3alerts, lastRun: null })).toString('base64');
+    const r3fulfil = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.method === 'Fetch.requestPaused') send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 200,
+        responseHeaders: [{ name: 'Content-Type', value: 'application/json' }, { name: 'Cache-Control', value: 'no-store' }], body }, sessionId);
+    };
+    try {
+      ws.addEventListener('message', r3fulfil);
+      await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/scan-alerts.json*', requestStage: 'Request' }] }, sessionId);
+      await send('Page.reload', {}, sessionId);
+      await waitFiled();
+
+      /* SC-310 2 — THE HISTORY PAGE UNDER 250 RECORDS. Page 2 exists and
+         holds the next fifty in order; setup, symbol and the bar range
+         (held in the address) each narrow the set to the count the record
+         gives; a range that is not a date bounds nothing and says so; the
+         date field applies when left, not while it is typed; and permuting
+         every close across the record leaves the order exactly as it was. */
+      {
+        const r = await evaluate(`(async () => {
+          const w = (ms) => new Promise(r => setTimeout(r, ms));
+          const keep = { pr: localStorage.getItem('vl.scanPrefs'), as: localStorage.getItem('vl.scanAlertState') };
+          localStorage.removeItem('vl.scanPrefs'); localStorage.removeItem('vl.scanAlertState');
+          const main = () => document.querySelector('main');
+          const ids = () => [...main().querySelectorAll('table.scan-alerts-t tbody a')].map(a => a.getAttribute('href')).filter(h => h.includes('/app/scanner/alerts/')).map(h => decodeURIComponent(h.split('/').pop().split('?')[0]));
+          const showing = () => { const m = main().innerText.match(/Showing (\\d+)–(\\d+) of (\\d+)/); return m ? [+m[1], +m[2], +m[3]] : null; };
+          const out = { loaded: scanAlertList().length };
+          navigate('/app/scanner/alerts'); await w(250);
+          out.p1 = { showing: showing(), ids: ids() };
+          [...main().querySelectorAll('button')].find(b => b.textContent.trim() === 'Next').click(); await w(250);
+          out.p2 = { showing: showing(), ids: ids(), q: location.search };
+          navigate('/app/scanner/alerts?setup=qa-r3-b'); await w(200); out.setup = showing();
+          navigate('/app/scanner/alerts?symbol=CCC'); await w(200); out.symbol = showing();
+          navigate('/app/scanner/alerts?from=2026-02-02&to=2026-02-27'); await w(200);
+          out.range = { showing: showing(), bars: [...main().querySelectorAll('table.scan-alerts-t tbody tr')].map(tr => tr.cells[2].textContent), says: /Bars between 2026-02-02 and 2026-02-27, inclusive/.test(main().innerText) };
+          navigate('/app/scanner/alerts?setup=qa-r3-a&symbol=AAA&from=2026-02-02'); await w(200); out.both = showing();
+          navigate('/app/scanner/alerts?from=2026-13-45'); await w(200); out.bad = { showing: showing(), says: /not a date/.test(main().innerText) };
+          navigate('/app/scanner/alerts'); await w(200);
+          const inp = main().querySelector('input[aria-label="Bar to"]');
+          inp.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(inp, '2026-03-06');
+          inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); await w(120);
+          out.typing = location.search;
+          inp.blur(); await w(250);
+          out.blurred = { q: location.search, showing: showing() };
+          navigate('/app/scanner/alerts'); await w(200);
+          const before = scanAlertsInOrder().map(scanAlertIdOf);
+          const list = scanAlertList(), closes = list.map(a => a.close);
+          list.forEach((a, i) => { a.close = closes[list.length - 1 - i] * (1 + (i % 5)); });
+          navigate('/app/scanner/alerts?page=1'); await w(200);
+          out.permuted = { same: JSON.stringify(scanAlertsInOrder().map(scanAlertIdOf)) === JSON.stringify(before), p1: ids() };
+          list.forEach((a, i) => { a.close = closes[i]; });
+          [['vl.scanPrefs', keep.pr], ['vl.scanAlertState', keep.as]].forEach(([k, v]) => { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); });
+          return out;
+        })()`);
+        const p = [];
+        const inRange = (a, f, t) => (!f || a.candleDate >= f) && (!t || a.candleDate <= t);
+        if (r.loaded !== 250) p.push(`the loader read ${r.loaded} records from the intercepted file, not 250`);
+        if (JSON.stringify(r.p1.showing) !== '[1,50,250]' || JSON.stringify(r.p1.ids) !== JSON.stringify(r3order.slice(0, 50))) p.push(`page 1: ${JSON.stringify(r.p1.showing)}, order ${r.p1.ids.slice(0, 3)} vs ${r3order.slice(0, 3)}`);
+        if (JSON.stringify(r.p2.showing) !== '[51,100,250]' || !/page=2/.test(r.p2.q) || JSON.stringify(r.p2.ids) !== JSON.stringify(r3order.slice(50, 100))) p.push(`page 2: ${JSON.stringify(r.p2.showing)} at "${r.p2.q}"`);
+        if (r.setup?.[2] !== r3count(a => a.setupId === 'qa-r3-b')) p.push(`setup filter: ${JSON.stringify(r.setup)}`);
+        if (r.symbol?.[2] !== 50) p.push(`symbol filter: ${JSON.stringify(r.symbol)}`);
+        const nRange = r3count(a => inRange(a, '2026-02-02', '2026-02-27'));
+        if (r.range.showing?.[2] !== nRange || !r.range.says || r.range.bars.some(b => b < '2026-02-02' || b > '2026-02-27') || r.range.bars.join() !== [...r.range.bars].sort().reverse().join()) p.push(`range: ${JSON.stringify(r.range.showing)} vs ${nRange}, says ${r.range.says}`);
+        if (r.both?.[2] !== r3count(a => a.setupId === 'qa-r3-a' && a.symbol === 'AAA' && inRange(a, '2026-02-02', null))) p.push(`combined filters: ${JSON.stringify(r.both)}`);
+        if (r.bad.showing?.[2] !== 250 || !r.bad.says) p.push(`a bad date: ${JSON.stringify(r.bad)}`);
+        if (/to=/.test(r.typing) || !/to=2026-03-06/.test(r.blurred.q) || r.blurred.showing?.[2] !== r3count(a => inRange(a, null, '2026-03-06'))) p.push(`the date field: while typed "${r.typing}", when left "${r.blurred.q}" ${JSON.stringify(r.blurred.showing)}`);
+        if (!r.permuted.same || JSON.stringify(r.permuted.p1) !== JSON.stringify(r3order.slice(0, 50))) p.push('permuting the closes moved the order');
+        if (p.length) fail('round 3 user: the alert history pages, filters and orders 250 injected records by date alone', p);
+        else ok(`round 3 user: the alert history pages, filters and orders 250 injected records by date alone — read through the loader from an intercepted data/scan-alerts.json; pages of 50 with page 2 in the address holding records 51–100 in bar, detection, file order; setup, symbol and a bar range held in the address narrow to ${r.setup[2]}, 50 and ${nRange}; a bad date bounds nothing and says so; the date applies when the field is left; permuting every close leaves the order unchanged`);
+      }
+
+      /* NAV 1 — AN ID TWO RECORDS SHARE. Given two records with different
+         keys and one id, the address lists both rather than showing the
+         first; each opens by its key and names the other; the history
+         page's rows carry the key; and nothing is marked read until one
+         record is actually opened. */
+      {
+        const r = await evaluate(`(async () => {
+          const w = (ms) => new Promise(r => setTimeout(r, ms));
+          const keepFile = scanAlertsFile, keepSt = localStorage.getItem('vl.scanAlertState');
+          localStorage.removeItem('vl.scanAlertState');
+          const list = scanAlertList(), x = list[3], y0 = list[4];
+          const y = { ...y0, id: x.id };
+          scanAlertsFile = { ...keepFile, alerts: list.map(a => (a === y0 ? y : a)) };
+          const main = () => document.querySelector('main');
+          const out = {};
+          navigate('/app/scanner/alerts/' + x.id); await w(200);
+          out.card = { view: State.view, says: /2 records share the id/.test(main().innerText), links: [...main().querySelectorAll('.scan-collision a')].map(a => a.getAttribute('href')), status: scanAlertStatus(x) };
+          navigate(out.card.links.map(h => h.replace(location.origin, '')).find(h => h.includes(encodeURIComponent(y.key))) || '/'); await w(200);
+          out.second = { view: State.view, h1: main().querySelector('h1')?.textContent || '', note: /shared by 2 records/.test(main().innerText), other: main().innerText.includes(x.key), status: scanAlertStatus(x) };
+          out.paths = [scanAlertPath(x), scanAlertPath(y), scanAlertPath(list[5])];
+          navigate('/app/scanner/alerts?status=ALL&symbol=' + x.symbol + '&from=' + x.candleDate + '&to=' + x.candleDate); await w(200);
+          out.row = [...main().querySelectorAll('table.scan-alerts-t tbody a')].map(a => a.getAttribute('href')).find(h => h.includes(x.id)) || '';
+          out.keys = { x: x.key, y: y.key, yBar: y.candleDate };
+          scanAlertsFile = keepFile;
+          if (keepSt == null) localStorage.removeItem('vl.scanAlertState'); else localStorage.setItem('vl.scanAlertState', keepSt);
+          return out;
+        })()`);
+        const p = [];
+        if (r.card.view !== 'scannerAlert' || !r.card.says || r.card.links.length !== 2 || !r.card.links.every(h => /\?key=/.test(h)) || r.card.status !== 'NEW') p.push(`the shared id: ${JSON.stringify(r.card)}`);
+        if (r.second.view !== 'scannerAlert' || !r.second.h1.includes(r.keys.yBar) || !r.second.note || !r.second.other || r.second.status !== 'READ') p.push(`the second record by its key: ${JSON.stringify(r.second)}`);
+        if (!r.paths[0].includes(`?key=${encodeURIComponent(r.keys.x)}`) || !r.paths[1].includes(`?key=${encodeURIComponent(r.keys.y)}`) || r.paths[2].includes('?key=')) p.push(`addresses: ${JSON.stringify(r.paths)}`);
+        if (!r.row.includes(`?key=${encodeURIComponent(r.keys.x)}`)) p.push(`the history row's link: ${r.row}`);
+        if (p.length) fail('round 3 user: an alert id two records share lists both, and each opens by its key', p);
+        else ok('round 3 user: an alert id two records share lists both, and each opens by its key — the address alone gives a card naming both with their keys (nothing marked read); each record opens by its key and links the other; only colliding records carry ?key= in their address, on the history page too');
+      }
+    } finally {
+      await send('Fetch.disable', {}, sessionId);
+      ws.removeEventListener('message', r3fulfil);
+      /* The real record back, as the loader would read it. */
+      await evaluate(`(async () => { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')).catch(() => null); return true; })()`).catch(() => null);
+    }
+
+    /* The fixture files for the rest, as the round 2 checks set them: an
+       EVERY_MATCH setup and the fixture's tree replayed over the fixture
+       history, plus one 0.2 record with no id. */
+    const r3Seed = `(() => {
+      window.__r3keep = window.__r3keep || { h: scanHistoryFile, s: scanSetupsFile, a: scanAlertsFile, d: scanDraft, ds: scanDraftSeed, dl: scanDownload, cf: window.confirm,
+        st: localStorage.getItem('vl.scanSetups'), as: localStorage.getItem('vl.scanAlertState'), pr: localStorage.getItem('vl.scanPrefs') };
+      ['vl.scanSetups', 'vl.scanAlertState', 'vl.scanPrefs'].forEach(k => localStorage.removeItem(k));
+      const fx = scanFixture();
+      const above = { id: 'qa-above', name: 'QA close above SMA5', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D',
+        cooldownMode: 'EVERY_MATCH', cooldownBars: 0, ruleTree: { type: 'group', logic: 'ALL', children: [
+          { type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 5 } }] } };
+      let alerts = [];
+      Object.keys(fx.history.series.MATCH).sort().slice(20).forEach(d => {
+        alerts = alerts.concat(scanRun([above, fx.setupV2], fx.history, { existing: alerts, asOf: d, now: scanReplayNow(d), runId: 'run-' + d, origin: 'replay' }).alerts);
+      });
+      alerts.push({ key: 'old-setup|MATCH|daily|2026-02-02', setupId: 'old-setup', setupName: 'A 0.2 setup', symbol: 'MATCH', timeframe: 'daily', bar: '2026-02-02',
+        close: 101.2, recordedAt: '2026-02-03T01:00:00Z', rules: [{ text: 'price above SMA20', met: true }], engine: 'scan 0.2.0' });
+      scanHistoryFile = fx.history; scanAlertsFile = { alerts, lastRun: null }; scanSetupsFile = { setups: [above, fx.setupV2] };
+      scanDraft = null; scanEditDraft = null; scanDraftSeed = null;
+      scanAdoptFromFile('qa-above');
+      return { tree: alerts.find(a => a.setupId === 'fixture-breakout-v2' && a.eventType === 'NEW_MATCH').id, legacy: scanAlertIdOf(alerts[alerts.length - 1]) };
+    })()`;
+    const r3Restore = `(() => { const k = window.__r3keep; if (!k) return true;
+      scanHistoryFile = k.h; scanSetupsFile = k.s; scanAlertsFile = k.a; scanDraft = k.d; scanDraftSeed = k.ds; scanEditDraft = null; scanDownload = k.dl; window.confirm = k.cf;
+      [['vl.scanSetups', k.st], ['vl.scanAlertState', k.as], ['vl.scanPrefs', k.pr]].forEach(([n, v]) => { if (v == null) localStorage.removeItem(n); else localStorage.setItem(n, v); });
+      delete window.__r3keep; navigate('/research'); return true; })()`;
+    const r3Helpers = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const main = () => document.querySelector('main');
+      const q = (lab) => [...main().querySelectorAll('[aria-label]')].find(n => n.getAttribute('aria-label') === lab);
+      const set = (n, v) => { const proto = n.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(n, v); n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      const btn = (re) => [...main().querySelectorAll('button')].find(b => re.test(b.textContent.trim()));`;
+    try {
+      /* SC-310 1 AND 3 — AN ALERT, EVALUATED AGAIN. The fixture's tree
+         alert: its recorded values equal EMA50, the 20-bar volume average,
+         relative volume and RSI14 computed afresh on the history cut at the
+         bar (to 1e-9); it "Reproduces"; the sparkline draws the closes up
+         to the bar and no further; the volume on the bar is the record's,
+         or — on a record that predates the field — the history's, labelled
+         so. "Build a setup from this one" opens the builder on a copy with
+         the record's hash. With the bar's close altered in the history, the
+         page says the history has changed, that it does not reproduce, and
+         names that bar with both closes, and a correction logged after
+         detection by its date. A record carrying C2's fields states them. */
+      {
+        const r = await evaluate(`(async () => {
+          ${r3Helpers}
+          const { tree } = ${r3Seed};
+          const a = scanAlertList().find(x => x.id === tree);
+          navigate('/app/scanner/alerts/' + tree); await w(250);
+          const cut = scanTruncateHistory(scanHistoryFile, a.candleDate);
+          const bars = scanBars(cut, 'MATCH', { market: a.market, now: a.detectedAt, calendar: scanCalendar(cut, scanRegistryList(), a.market) });
+          const at = bars.dates.length - 1;
+          const v = (spec) => scanIndicator(spec, bars, { at }).value;
+          const c = Object.fromEntries(a.matchedConditions.map(m => [m.path, m]));
+          const near = (x, y) => Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) <= 1e-9 * Math.max(1, Math.abs(y));
+          const spark = main().querySelector('svg.spark');
+          const t1 = main().innerText;
+          const out = {
+            values: near(c['1'].right, v({ indicator: 'ema', n: 50 })) && near(c['2.1'].right, v({ indicator: 'volume_avg', n: 20 }) * 1.5) && near(c['2.2'].left, v({ indicator: 'rvol', n: 20 })) && near(c['3'].left, v({ indicator: 'rsi', n: 14 })),
+            reproduces: /^Reproduces\\./.test(main().querySelector('.scan-reproduce')?.textContent || ''),
+            spark: { pts: spark ? (spark.querySelector('path').getAttribute('d').match(/[ML]/g) || []).length : 0, want: Math.min(60, at + 1), last: bars.dates[at] === a.candleDate,
+              caption: /nothing after the bar is drawn/.test(t1) && t1.includes('up to and including ' + a.candleDate) },
+            volume: 'barVolume' in a ? /2200\\s+as the record holds it/.test(t1) : /Not on the record, which predates the field\\. The history as loaded holds 2200 for this bar now/.test(t1),
+            build: [...main().querySelectorAll('a')].find(x => /Build a setup from this one/.test(x.textContent))?.getAttribute('href') || '',
+          };
+          navigate('/app/scanner/setups/new?fromAlert=' + tree); await w(250);
+          out.draft = { id: scanDraft.id, name: scanDraft.name, hash: scanHash(scanCanonical(scanDraftSetup(scanDraft))) === a.setupHash, note: /Started from the setup that recorded MATCH on/.test(main().innerText) };
+          const base = scanHistoryFile;
+          const alt = JSON.parse(JSON.stringify(base));
+          alt.series.MATCH[a.candleDate] = 103.9;
+          const earlier = Object.keys(alt.series.MATCH).sort()[10];
+          alt.corrections = { MATCH: [{ date: earlier, field: 'close', from: 99, to: alt.series.MATCH[earlier], src: 'qa-import', at: '2099-01-01T00:00:00Z' }] };
+          scanHistoryFile = alt;
+          navigate('/app/scanner/alerts/' + tree + '?v=alt'); await w(250);
+          const t2 = main().innerText;
+          out.altered = { changed: /has changed since this was recorded/.test(t2), differs: /^Does not reproduce\\./.test(main().querySelector('.scan-reproduce')?.textContent || ''),
+            named: t2.includes(a.candleDate + ' — recorded 104.5, now 103.9'), corrected: t2.includes(earlier + ' — corrected') };
+          scanHistoryFile = base;
+          const c2 = { ...a, id: 'a0c2c2c2c', key: a.key + '|qa-c2', barVolume: null, historyGenerated: '2026-04-07T01:02:03Z', gapBefore: true, gapText: 'the session of 2026-04-03 is not held',
+            universeResolvedFrom: { source: 'export', exportedAt: '2026-04-06T20:00:00Z' } };
+          scanAlertsFile = { ...scanAlertsFile, alerts: [...scanAlertList(), c2] };
+          navigate('/app/scanner/alerts/a0c2c2c2c'); await w(250);
+          const t3 = main().innerText;
+          out.c2 = { none: /none held/.test(t3) && /not a volume of nought/.test(t3), gap: /across a gap/.test(t3) && t3.includes('the session of 2026-04-03 is not held'),
+            exported: t3.includes('your export of 2026-04-06 20:00'), generated: t3.includes('2026-04-07 01:02') };
+          navigate('/app/scanner/alerts?status=ALL'); await w(200);
+          out.c2.row = /new match · across a gap/.test(main().innerText);
+          return out;
+        })()`);
+        const p = [];
+        if (!r.values) p.push('the recorded values differ from EMA50, the volume average, RVOL or RSI14 computed on the history cut at the bar');
+        if (!r.reproduces) p.push('no "Reproduces" line');
+        if (r.spark.pts !== r.spark.want || !r.spark.last || !r.spark.caption) p.push(`sparkline: ${JSON.stringify(r.spark)}`);
+        if (!r.volume) p.push('volume on the bar not stated as the record or the history holds it');
+        if (!/\/app\/scanner\/setups\/new\?fromAlert=a[0-9a-f]{8}$/.test(r.build)) p.push(`build link: ${r.build}`);
+        if (r.draft.id !== 'fixture-breakout-v2-copy' || r.draft.name !== 'Copy of Fixture breakout (tree)' || !r.draft.hash || !r.draft.note) p.push(`built draft: ${JSON.stringify(r.draft)}`);
+        if (!r.altered.changed || !r.altered.differs || !r.altered.named || !r.altered.corrected) p.push(`altered history: ${JSON.stringify(r.altered)}`);
+        if (Object.values(r.c2).some(x => x !== true)) p.push(`C2 fields: ${JSON.stringify(r.c2)}`);
+        if (p.length) fail('round 3 user: an alert is evaluated again on the history cut at its bar, and the changes are named', p);
+        else ok(`round 3 user: an alert is evaluated again on the history cut at its bar, and the changes are named — its values equal EMA50, the volume average, RVOL and RSI14 to 1e-9 and it reproduces; the sparkline draws the ${r.spark.want} closes up to the bar and no further; volume on the bar is stated; "Build a setup from this one" opens a copy with the record's hash; an altered close reads "changed", "does not reproduce", and names the bar with both closes and a later correction by date; barVolume null, historyGenerated, universeResolvedFrom and gapBefore are each stated`);
+      }
+
+      /* C5, SC-316 1 — THE BUILDER'S DOORS. ?market= gives a market
+         universe; ?from= a copy under a new id and "Copy of …", its tree the
+         setup's, combined with ?market=; the same address again keeps what
+         was typed; a different address over a changed draft asks, and "Keep
+         my draft" keeps it; the company page's ?from=<company>&symbol= opens
+         on the symbol with no complaint; an unknown setup and a record with
+         no copy of its setup say why the draft is blank. */
+      {
+        const r = await evaluate(`(async () => {
+          ${r3Helpers}
+          const { legacy } = ${r3Seed};
+          const out = {};
+          navigate('/app/scanner/setups/new?market=MY'); await w(200);
+          out.market = { u: scanDraft.universe, sel: q('Market')?.value || null };
+          navigate('/app/scanner/setups/new?from=qa-above&market=US'); await w(200);
+          const src = scanRecordSetup(scanStoreRead().setups['qa-above']);
+          out.copy = { id: scanDraft.id, name: scanDraft.name, u: scanDraft.universe, tree: JSON.stringify(scanDraft.ruleTree) === JSON.stringify(src.ruleTree), mode: scanDraft.cooldownMode,
+            note: /Started from QA close above SMA5 \\(saved here, v1\\)/.test(main().innerText) && /as the link asked/.test(main().innerText) };
+          set(q('Name'), 'Mine'); await w(50);
+          navigate('/app/scanner/alerts'); await w(150);
+          navigate('/app/scanner/setups/new?from=qa-above&market=US'); await w(200);
+          out.kept = q('Name')?.value;
+          navigate('/app/scanner/setups/new?market=MY'); await w(200);
+          out.ask = { card: !!main().querySelector('.scan-seed-ask'), name: scanDraft.name };
+          btn(/^Keep my draft$/).click(); await w(200);
+          out.keep = { card: !!main().querySelector('.scan-seed-ask'), name: scanDraft.name, u: scanDraft.universe.kind };
+          navigate('/app/scanner/setups/new?from=qa-above'); await w(200);
+          btn(/^Start from this link$/).click(); await w(200);
+          out.started = { name: scanDraft.name, u: scanDraft.universe.kind };
+          navigate('/my/scanner?from=AAPL-SEC&symbol=AAPL'); await w(250);
+          out.company = { view: State.view, u: scanDraft.universe, blank: /No setup/.test(main().innerText) };
+          navigate('/app/scanner/setups/new?from=nope'); await w(200);
+          out.nope = /No setup “nope” is saved here/.test(main().innerText);
+          navigate('/app/scanner/setups/new?fromAlert=' + legacy); await w(200);
+          out.legacy = /predates engine 0.3.0 and carries no copy of its setup/.test(main().innerText) && scanDraft.id === '';
+          return out;
+        })()`);
+        const p = [];
+        if (JSON.stringify(r.market.u) !== '{"kind":"market","market":"MY"}' || r.market.sel !== 'MY') p.push(`?market=MY: ${JSON.stringify(r.market)}`);
+        if (r.copy.id !== 'qa-above-copy' || r.copy.name !== 'Copy of QA close above SMA5' || JSON.stringify(r.copy.u) !== '{"kind":"market","market":"US"}' || !r.copy.tree || r.copy.mode !== 'EVERY_MATCH' || !r.copy.note) p.push(`?from=&market=: ${JSON.stringify(r.copy)}`);
+        if (r.kept !== 'Mine') p.push(`the same address again lost the typed name (${r.kept})`);
+        if (!r.ask.card || r.ask.name !== 'Mine' || r.keep.card || r.keep.name !== 'Mine' || r.keep.u !== 'market') p.push(`a new address over a changed draft: ${JSON.stringify([r.ask, r.keep])}`);
+        if (r.started.name !== 'Copy of QA close above SMA5' || r.started.u !== 'all') p.push(`"Start from this link": ${JSON.stringify(r.started)}`);
+        if (r.company.view !== 'scannerSetupNew' || JSON.stringify(r.company.u) !== '{"kind":"symbols","symbols":["AAPL"]}' || r.company.blank) p.push(`the company page's link: ${JSON.stringify(r.company)}`);
+        if (!r.nope || !r.legacy) p.push(`unknown setup ${r.nope}, legacy record ${r.legacy}`);
+        if (p.length) fail('round 3 user: the builder starts from ?market=, ?from= and ?fromAlert=, and never drops a changed draft', p);
+        else ok('round 3 user: the builder starts from ?market=, ?from= and ?fromAlert=, and never drops a changed draft — a market universe; a copy under qa-above-copy and "Copy of …" with the setup\'s tree, on the market the link names; the same address keeps typing; a different one asks, and keeps the draft when told; the company page\'s ?from=&symbol= opens on the symbol; an unknown setup and a record with no copy each say why the draft is blank');
+      }
+
+      /* SC-305 4, SC-317 1 — START FROM AN EXAMPLE; NO INTRADAY OPTION.
+         The select offers every committed example, labelled not a
+         suggestion; choosing the rule-tree one loads it (read-only nested
+         tree) and keeps focus on the select; over a changed draft it asks,
+         and a refusal keeps the draft. "Copy example configuration" is the
+         file's rule-tree example, disabled. The timeframe select offers
+         1D and 1W and shows 1H, 15M and 5M disabled. */
+      {
+        const exIds = JSON.parse(r3read(new URL('./scanner/setups.example.json', import.meta.url), 'utf8')).setups.map(s => s.id);
+        const r = await evaluate(`(async () => {
+          ${r3Helpers}
+          ${r3Seed};
+          navigate('/app/scanner/setups/new?'); await w(200);
+          const sel = q('Start from an example');
+          const out = { options: [...sel.options].map(o => o.value).filter(Boolean), caption: /not a suggestion/.test(sel.closest('.card').innerText) };
+          const tf = q('Timeframe');
+          out.tf = { on: [...tf.options].filter(o => !o.disabled).map(o => o.value), off: [...tf.options].filter(o => o.disabled).map(o => o.value + ':' + /not available/.test(o.textContent)) };
+          set(sel, 'trend-breakout-tree'); await w(250);
+          out.tree = { name: scanDraft.name, nested: !scanTreeIsFlat(scanDraft.ruleTree), readOnly: !!q('Replace the nested conditions with one group'),
+            note: /an illustration of the syntax, not a suggestion/.test(main().innerText), focus: document.activeElement?.getAttribute('aria-label') };
+          set(q('Name'), 'Changed'); await w(50);
+          window.confirm = () => false;
+          set(q('Start from an example'), 'rsi-below-30'); await w(200);
+          out.refused = { name: scanDraft.name, sel: q('Start from an example').value };
+          window.confirm = () => true;
+          set(q('Start from an example'), 'rsi-below-30'); await w(200);
+          out.replaced = { name: scanDraft.name, left: scanDraft.ruleTree.children[0].left.indicator, op: scanDraft.ruleTree.children[0].op };
+          /* A draft set by another page (as "New setup on this list" does)
+             is not the example's: its words are not shown over it, and a
+             link that would replace it asks first. */
+          scanDraft = { ...scanBlankDraft(), name: 'From elsewhere' };
+          navigate('/app/scanner/setups/new?'); await w(200);
+          out.foreign = { notes: !!main().querySelector('.scan-seed-notes'), name: scanDraft.name };
+          navigate('/app/scanner/setups/new?market=US'); await w(200);
+          out.foreign.ask = !!main().querySelector('.scan-seed-ask');
+          out.copyDoc = { n: SCAN_EXAMPLE_DOC.setups.length, disabled: SCAN_EXAMPLE_DOC.setups.every(s => s.enabled === false),
+            same: JSON.stringify(SCAN_EXAMPLE_DOC.setups.map(s => ({ ...s, enabled: null }))) === JSON.stringify(SCAN_EXAMPLES.setups.filter(s => s.ruleTree).map(s => ({ ...s, enabled: null }))) };
+          return out;
+        })()`);
+        const p = [];
+        if (r.options.join() !== exIds.join() || !r.caption) p.push(`the examples offered: ${r.options.join()} (file: ${exIds.join()}), labelled ${r.caption}`);
+        if (r.tf.on.join() !== '1D,1W' || r.tf.off.join() !== '1H:true,15M:true,5M:true') p.push(`timeframes: ${JSON.stringify(r.tf)}`);
+        if (r.tree.name !== 'Trend breakout, written as a rule tree' || !r.tree.nested || !r.tree.readOnly || !r.tree.note || r.tree.focus !== 'Start from an example') p.push(`the rule-tree example: ${JSON.stringify(r.tree)}`);
+        if (r.refused.name !== 'Changed' || r.refused.sel !== '') p.push(`refusing kept ${JSON.stringify(r.refused)}`);
+        if (r.replaced.name !== 'RSI below 30' || r.replaced.left !== 'rsi' || r.replaced.op !== 'LESS_THAN') p.push(`replacing: ${JSON.stringify(r.replaced)}`);
+        if (r.foreign.notes || r.foreign.name !== 'From elsewhere' || !r.foreign.ask) p.push(`a draft set by another page: ${JSON.stringify(r.foreign)}`);
+        if (r.copyDoc.n !== 1 || !r.copyDoc.disabled || !r.copyDoc.same) p.push(`the example configuration: ${JSON.stringify(r.copyDoc)}`);
+        if (p.length) fail('round 3 user: the builder starts from a committed example, and offers no intraday timeframe', p);
+        else ok(`round 3 user: the builder starts from a committed example, and offers no intraday timeframe — all ${r.options.length} examples of scanner/setups.example.json, labelled an illustration and not a suggestion; the rule tree loads read-only with focus kept on the select; a changed draft is replaced only when the reader agrees; "Copy example configuration" is the file's rule-tree example, disabled; 1D and 1W are the only enabled timeframes, 1H, 15M and 5M shown as not available`);
+      }
+
+      /* SC-303 4 — ONE CACHE FOR THE SESSION. "Evaluate now" computes the
+         series; the builder's Test of a copy of the same setup on the same
+         history computes none and reuses them, from the same cache; a
+         changed close is computed afresh. */
+      {
+        const r = await evaluate(`(async () => {
+          ${r3Helpers}
+          ${r3Seed};
+          const nums = () => { const m = (main().querySelector('.scan-cache-line')?.textContent || '').match(/Indicators: (\\d+) computed, (\\d+) reused/); return m ? [+m[1], +m[2]] : null; };
+          navigate('/app/scanner/setups'); await w(200);
+          const C0 = scanPageCache();
+          btn(/^Evaluate this browser/).click(); await w(200);
+          const out = { evaluate: nums() };
+          navigate('/app/scanner/setups/new?from=qa-above'); await w(200);
+          btn(/^Test against your history/).click(); await w(200);
+          out.test = nums();
+          out.same = scanPageCache() === C0;
+          /* On a clock at the fixture's last bar, so nothing is stale and
+             both sides of the condition are read: once to fill the cache,
+             then with one close changed, then unchanged again. */
+          const alt = JSON.parse(JSON.stringify(scanHistoryFile));
+          const last = Object.keys(alt.series.MATCH).sort().pop();
+          alt.series.MATCH[last] += 1;
+          const setup = [scanRecordSetup(scanStoreRead().setups['qa-above'])];
+          scanRunHere(setup, scanHistoryFile, { instruments: [], now: scanReplayNow(last) });
+          const again = scanRunHere(setup, alt, { instruments: [], now: scanReplayNow(last) });
+          const same = scanRunHere(setup, scanHistoryFile, { instruments: [], now: scanReplayNow(last) });
+          out.changed = again.sessionCache; out.unchanged = same.sessionCache;
+          return out;
+        })()`);
+        const p = [];
+        if (!r.evaluate || !(r.evaluate[0] > 0)) p.push(`Evaluate now: ${JSON.stringify(r.evaluate)}`);
+        if (!r.test || r.test[0] !== 0 || !(r.test[1] > 0) || !r.same) p.push(`Test after it: ${JSON.stringify(r.test)}, same cache ${r.same}`);
+        if (!(r.changed.misses > 0) || r.unchanged.misses !== 0) p.push(`a changed close: ${JSON.stringify(r.changed)}; unchanged: ${JSON.stringify(r.unchanged)}`);
+        if (p.length) fail('round 3 user: "Evaluate now" and the builder\'s Test share one indicator cache for the session', p);
+        else ok(`round 3 user: "Evaluate now" and the builder's Test share one indicator cache for the session — Evaluate computed ${r.evaluate[0]} series, the Test of a copy computed none and reused ${r.test[1]}, from the same cache; a changed close is computed afresh (${r.changed.misses} computed) where the same history computes nothing`);
+      }
+
+      /* SC-311 1 — A WATCHLIST RESOLVED FROM THE EXPORT (page side, C3).
+         The builder offers the snapshot or "your latest export", worded as
+         the export and not as the browser; "Export for the scanner" writes
+         watchlists.json in watchlistsExport()'s own shape and the page
+         records when; the setup saves with resolve 'export' and its
+         snapshot; switching back to the snapshot is a new version; a list
+         changed since the export says so; the scanner's watchlists page and
+         the watchlists page both offer the export. */
+      {
+        const r = await evaluate(`(async () => {
+          ${r3Helpers}
+          ${r3Seed};
+          const lists = State.watchlists || [];
+          /* A list with a member that has a symbol: an empty one is refused
+             by the builder, rightly, and other checks leave lists behind. */
+          const w0 = lists.find(l => watchlistSymbols(l.id).symbols.length);
+          if (!w0) return { none: true };
+          let got = null;
+          scanDownload = (name, doc) => { got = { name, doc }; };
+          const radio = (l) => [...main().querySelectorAll('input[type=radio]')].find(x => x.getAttribute('aria-label') === 'Resolve the list from: ' + l);
+          navigate('/app/scanner/setups/new?'); await w(200);
+          set(q('Name'), 'QA export list'); await w(50);
+          set(q('Universe'), 'watchlist'); await w(200);
+          set(q('Watchlist'), w0.id); await w(200);
+          const out = { radios: !!radio('The list as you save it') && !!radio('Your latest export for the scanner') && radio('The list as you save it').checked,
+            never: /Not exported for the scanner from this browser/.test(main().innerText) };
+          radio('Your latest export for the scanner').click(); await w(100);
+          out.wording = /resolved from your latest export — the worker cannot read this browser/.test(main().innerText) && /The worker resolves the list from your latest export of it/.test(main().innerText);
+          q('Export for the scanner (watchlists.json)').click(); await w(200);
+          out.download = got && { name: got.name, kind: got.doc.kind, lists: got.doc.watchlists.map(x => x.id).join() === lists.map(x => x.id).join(),
+            shape: JSON.stringify(Object.keys(got.doc)) === JSON.stringify(Object.keys(watchlistsExport())), symbols: got.doc.watchlists[0].items.some(i => i.symbol) };
+          out.recorded = !!got && scanStoreRead().watchlistsExported?.at === got.doc.exportedAt && /as the list stands now/.test(main().innerText);
+          out.pre = { list: w0.name, status: main().querySelector('.scan-status')?.textContent || '', problems: [...main().querySelectorAll('.scan-problems-all li')].map(l => l.textContent) };
+          const sb = btn(/^Save$/);
+          out.pre.button = sb ? { label: sb.getAttribute('aria-label'), disabled: sb.disabled, connected: sb.isConnected } : null;
+          out.pre.id = scanDraft?.id;
+          sb?.click(); await w(250);
+          out.pre.after = { path: location.pathname, view: State.view, keys: Object.keys(scanStoreRead().setups) };
+          const rec = scanStoreRead().setups['qa-export-list'];
+          out.saved = rec ? { v: rec.current, resolve: rec.versions[0].setup.universe.resolve, snap: (rec.versions[0].setup.universe.symbols || []).length, asOf: !!rec.versions[0].setup.universe.asOf } : null;
+          if (!rec) return out;
+          navigate('/app/scanner/watchlists'); await w(200);
+          out.page = { chip: /resolved from your latest export/.test(main().innerText), card: /The lists file the worker reads/.test(main().innerText) && /Last exported for the scanner from this browser/.test(main().innerText) };
+          navigate('/app/scanner/setups/qa-export-list/edit'); await w(200);
+          radio('The list as you save it').click(); await w(100);
+          out.status = main().querySelector('.scan-status')?.textContent || '';
+          btn(/^Save \\(new version\\)$/).click(); await w(250);
+          const rec2 = scanStoreRead().setups['qa-export-list'];
+          out.v2 = { v: rec2.current, resolves: rec2.versions.map(x => x.setup.universe.resolve || 'snapshot').join() };
+          const st = scanStoreRead(); st.watchlistsExported.lists[w0.id].symbols = st.watchlistsExported.lists[w0.id].symbols.slice(1); scanStoreWrite(st);
+          const ch = scanWatchlistExportState(w0.id);
+          out.changed = ch.state === 'CHANGED' && /1 added/.test(ch.text);
+          got = null;
+          navigate('/my/watchlists'); await w(300);
+          q('Export for the scanner (watchlists.json)')?.click(); await w(100);
+          out.myPage = got?.name || null;
+          return out;
+        })()`);
+        const p = [];
+        if (r.none) p.push('the test profile holds no watchlist with a member that has a symbol');
+        else {
+          if (!r.radios || !r.never || !r.wording) p.push(`the resolve choice: ${JSON.stringify({ radios: r.radios, never: r.never, wording: r.wording })}`);
+          if (!r.download || r.download.name !== 'watchlists.json' || r.download.kind !== 'quantum-tradeworks-watchlists' || !r.download.lists || !r.download.shape || !r.download.symbols || !r.recorded) p.push(`the export: ${JSON.stringify(r.download)}, recorded ${r.recorded}`);
+          if (!r.saved || r.saved.v !== 1 || r.saved.resolve !== 'export' || !r.saved.snap || !r.saved.asOf) p.push(`saved: ${JSON.stringify(r.saved)} — before saving: ${JSON.stringify(r.pre)}`);
+          if (r.saved && (!r.page.chip || !r.page.card)) p.push(`the watchlist scanner page: ${JSON.stringify(r.page)}`);
+          if (r.saved && (!/saving creates v2/.test(r.status) || r.v2.v !== 2 || r.v2.resolves !== 'export,snapshot')) p.push(`back to the snapshot: "${r.status}", ${JSON.stringify(r.v2)}`);
+          if (r.saved && !r.changed) p.push('a list changed since the export is not reported');
+          if (r.saved && r.myPage !== 'watchlists.json') p.push(`the watchlists page's export: ${r.myPage}`);
+        }
+        if (p.length) fail('round 3 user: a watchlist setup can resolve from the scanner export, and says what that means', p);
+        else ok('round 3 user: a watchlist setup can resolve from the scanner export, and says what that means — "resolved from your latest export — the worker cannot read this browser"; "Export for the scanner" writes watchlists.json in watchlistsExport()\'s shape and is recorded; the setup saves with resolve export and its snapshot; back to the snapshot is v2; a list changed since the export is named; both watchlist pages offer the export');
+      }
+    } finally {
+      await evaluate(r3Restore).catch(() => null);
+    }
+    ws.removeEventListener('message', r3listen);
+    if (r3events.length) fail('round 3 user: the scanner pages threw', r3events.slice(0, 5));
+    else ok('round 3 user: the scanner pages ran every round 3 check above with no exception');
+  }
+  /* ---- end round 3: user ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
