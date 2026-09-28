@@ -404,6 +404,62 @@ session dating are repaired by fetching them again (below). Nothing intraday is
 fetched, in either lane: intraday bars need a data licence this product does
 not hold.
 
+### Your TradingView bot: the import's side
+
+The scanner evaluates your Multi-Timeframe Trading Bot's alerts on this
+history — entries on the day, the trade timeframe on the week and on the
+month, each on its last closed bar ([the routine and what each signal
+means](../README.md#your-tradingview-bot-in-the-scanner)). Its weeks and
+months are built from the daily bars this store holds, so the routine starts
+here, once a week:
+
+```bash
+node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1W.csv" --daily "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+node scanner/tv-verify.mjs --csv "watchlist-shots/OANDA_XAUUSD, 1M.csv" --daily "watchlist-shots/OANDA_XAUUSD, 1D.csv"
+```
+
+then the setups and `node scanner/scan.mjs`, as the main README describes.
+
+- **Scroll back before exporting.** TradingView exports the bars loaded on
+  the chart, and the bot needs years of them: its weekly criterion 3 (the
+  close against an EMA(200)) needs 200 closed weeks, about 1,000 sessions,
+  and its monthly criteria 34 to 51 closed months, about 740 to 1,110
+  sessions. Your export of 28 September holds about 300.
+- **Only the daily file is imported.** The history holds one bar per session
+  and the scanner builds the weeks and months from it, so the import refuses
+  the weekly and monthly exports by their names (`1W`, `1M`). They are what
+  tv-verify checks that build against.
+- **Dated as the import dates them.** tv-verify reads both files with this
+  import's session rule, the daily stamps and the weekly and monthly ones
+  alike: OANDA's week stamped at 17:00 New York on Sunday is the week of the
+  Monday, and a month stamped on the evening of the 31st is the next month.
+  Dated by the UTC day instead, February's bar, stamped on the evening of 31
+  January, would fall in January beside January's own, and tv-verify refuses
+  a file with two bars in one period rather than compare it.
+- **What it reports, per week or month:** MATCH (open, high, low, close and
+  volume all agree); PARTIAL (the daily export begins after the period's
+  first session, or the period was in progress when a file was saved — the
+  fields that differ are listed); HOLIDAY (a weekday on which neither file
+  has a bar: the scanner leaves the period's volume blank, because a missing
+  day is not a day of nought, and the sessions held sum to TradingView's);
+  DIFFERS, which exits 1 and names the fields and both values. A session the
+  daily export lacks and TradingView's week holds is DIFFERS, not HOLIDAY:
+  the sessions held do not sum to TradingView's volume.
+- **The same days, every week.** Each week's export repeats what the last one
+  held. A bar that agrees is unchanged; last week's PROVISIONAL row (saved
+  before 17:00 New York, while its session traded) is finalised; a value that
+  changed is written and recorded as a correction; and the import outranks a
+  screen reading of the same day.
+- **The 2,000-bar keep.** Every write — this import, the daily run,
+  `live.mjs` — keeps the newest 2,000 bars of each series. `--keep` holds more
+  for one import, but the daily run's next write trims back to 2,000. That is
+  about 7⅔ years of sessions, 400 weeks and 92 months: enough for every daily
+  and weekly criterion of the bot, and not for its monthly criterion 3, which
+  needs 200 months. The depths the import prints at the end (20, 50, 200 and
+  252 bars) are the daily ones.
+
 ### Checking the history, and the one repair
 
 ```bash

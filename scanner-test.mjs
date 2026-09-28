@@ -3556,5 +3556,153 @@ try {
 }
 /* ---- end bot: engine ---- */
 
+/* ---- bot: tools ---- */
+/* TV-VERIFY ON WEEKLY AND MONTHLY EXPORTS, AND THE BARS THE ENGINE BUILDS
+   FROM A DAILY ONE. The owner's bot reads the week and the month, and the
+   scanner builds both from the daily history; tv-verify --daily checks that
+   build against TradingView's own weekly and monthly charts. Every file here
+   is synthetic and written by this block: an OANDA-style gold series on the
+   FX session — each daily bar stamped at 17:00 New York the evening before
+   its session — from January 2023, with Christmas, New Year's Day and Good
+   Friday missing; weekly and monthly exports aggregated from it as
+   TradingView builds them, each stamped at its first session's opening
+   (June 2026's bar at 21:00 UTC on Sunday 31 May: a month that ends on a
+   weekend); and a daily export that begins on a Wednesday and was saved
+   mid-session. The weeks and months are keyed here without the tool. */
+{
+  const TVB = await import('./scanner/tv-verify.mjs');
+  const { utimes } = await import('node:fs/promises');
+  const NY = 'America/New_York';
+  const HOLIDAYS = new Set(['2023-12-25', '2024-01-01', '2024-03-29', '2024-12-25', '2025-01-01', '2025-04-18', '2025-12-25', '2026-01-01', '2026-04-03']);
+  const utcDay = (d) => new Date(`${d}T00:00:00Z`).getUTCDay();
+  const monday = (d) => { const t = new Date(`${d}T00:00:00Z`); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); };
+  const month = (d) => d.slice(0, 7);
+  const sessions = [];
+  for (let d = '2023-01-02'; d <= '2026-10-02'; d = E.scanAddDays(d, 1)) if (utcDay(d) >= 1 && utcDay(d) <= 5 && !HOLIDAYS.has(d)) sessions.push(d);
+  let seed = 11;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const r3 = (x) => Math.round(x * 1000) / 1000;
+  let px = 1900;
+  const truth = sessions.map(date => {
+    const open = px, close = r3(open * (1 + (rnd() - 0.49) * 0.03));
+    const high = r3(Math.max(open, close) * (1 + rnd() * 0.01)), low = r3(Math.min(open, close) * (1 - rnd() * 0.01));
+    px = close;
+    return { date, stamp: E.scanZonedInstant(E.scanAddDays(date, -1), 17 * 60, NY) / 1000, open, high, low, close, volume: 100000 + Math.floor(rnd() * 900000) };
+  });
+  const agg = (rows, keyOf) => {
+    const out = [];
+    for (const r of rows) {
+      const k = keyOf(r.date), g = out[out.length - 1];
+      if (g && g.k === k) { g.high = Math.max(g.high, r.high); g.low = Math.min(g.low, r.low); g.close = r.close; g.volume += r.volume; }
+      else out.push({ k, date: r.date, stamp: r.stamp, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume });
+    }
+    return out;
+  };
+  const csvOf = (rows, extra = null) => [`time,open,high,low,close,Volume${extra ? `,${extra.titles.join(',')}` : ''}`,
+    ...rows.map((r, i) => [r.stamp, r.open, r.high, r.low, r.close, r.volume, ...(extra ? extra.cols.map(c => (c[i] == null ? '' : c[i])) : [])].join(','))].join('\n');
+  /* The daily export: from Wednesday 10 January 2024 to Wednesday 30
+     September 2026, saved at 11:00 New York that day — its last row is the
+     session still trading, with a close the session did not end on. */
+  const dailyRows = truth.filter(r => r.date >= '2024-01-10' && r.date <= '2026-09-30');
+  const fin = dailyRows[dailyRows.length - 1];
+  const ipClose = r3(fin.open * 1.0007);
+  dailyRows[dailyRows.length - 1] = { ...fin, close: ipClose, high: Math.max(fin.open, ipClose), low: Math.min(fin.open, ipClose), volume: Math.floor(fin.volume / 2) };
+  const dailyAt = '2026-09-30T15:00:00.000Z', laterAt = '2026-10-02T22:00:00.000Z';
+  const weeks = agg(truth, monday), months = agg(truth, month);
+  const dailyCsv = csvOf(dailyRows), weekCsv = csvOf(weeks), monthCsv = csvOf(months);
+  const D = { text: dailyCsv, file: 'OANDA_XAUUSD, 1D.csv', at: dailyAt };
+
+  check(TVB.intervalOf('OANDA_XAUUSD, 1W.csv') === '1W' && TVB.intervalOf('watchlist-shots/OANDA_XAUUSD, 1M.csv') === '1M' && TVB.intervalOf('OANDA_XAUUSD, 1D.csv') === '1D'
+    && TVB.intervalOf('OANDA_XAUUSD, 1W (1).csv') === '1W' && TVB.intervalOf('OANDA_XAUUSD, 240.csv') === '240' && TVB.intervalOf('OANDA_XAUUSD, 1m.csv') === '1m' && TVB.intervalOf('prices.csv') === null,
+    'bot tools: tv-verify reads the interval from TradingView\'s file name — 1D, 1W, 1M (a capital M; "1m" is not guessed to be a month), 240; a browser\'s " (1)" copy; null for another name');
+
+  /* Weekly: the export's own indicators, and its bars against the engine's. */
+  const wBars = E.scanSeriesBars(weeks.map(w => w.close), { open: weeks.map(w => w.open), high: weeks.map(w => w.high), low: weeks.map(w => w.low), volumes: weeks.map(w => w.volume) });
+  const plotOf = (bars, id, title) => E.SCAN_INDICATORS[id].pine(bars, E.scanParams({ indicator: id }).params).plots.find(([t]) => t === title)[1];
+  const wCols = [['sma_cross', 'Plot'], ['color_ma', 'Color MA'], ['cm_macd', 'MACD'], ['cm_macd', 'Histogram'], ['wavetrend', 'WT Average-WT1']];
+  const weekCsvInd = csvOf(weeks, { titles: wCols.map(([, t]) => t), cols: wCols.map(([id, t]) => plotOf(wBars, id, t)) });
+  const wRep = await TVB.verify(weekCsvInd, { E, file: 'OANDA_XAUUSD, 1W.csv', daily: D, market: 'FX', symbol: 'XAUUSD', at: laterAt });
+  const wp = wRep.periods, byKey = (c, k) => c.periods.find(x => x.period === k);
+  const exportWeeksBefore = weeks.filter(w => w.k < '2024-01-08').length;
+  const plot = wRep.rows.find(r => r.title === 'Plot'), colorMa = wRep.rows.find(r => r.title === 'Color MA');
+  check(wRep.interval === '1W' && wRep.summary.differs === 0 && plot.result === 'MATCH' && colorMa.result === 'NOT SETTLED' && /needs 200 bars/.test(colorMa.note)
+    && wRep.rows.filter(r => r.kind === 'plot').every(r => ['MATCH', 'NOT SETTLED'].includes(r.result)) && /— \d+ weekly bars, stamped/.test(TVB.table(wRep)),
+    'bot tools: a weekly export\'s indicators are computed from its own bars — the SMA 50 MATCHes, the SMA 200 of Color MA needs 200 weeks and is NOT SETTLED, nothing DIFFERS; the table names the bars weekly',
+    wRep.rows.filter(r => r.kind === 'plot').map(r => [r.title, r.result]));
+  const hol = wp.periods.filter(x => x.result === 'HOLIDAY').map(x => x.period);
+  const first = byKey(wp, '2024-01-08'), lastW = byKey(wp, '2026-09-28'), june = byKey(wp, '2026-06-01');
+  check(wp.summary.differs === 0 && wp.summary.partial === 2 && wp.summary.holiday === 7 && wp.summary.match === wp.summary.compared - 9
+    && JSON.stringify(hol) === JSON.stringify(['2024-03-25', '2024-12-23', '2024-12-30', '2025-04-14', '2025-12-22', '2025-12-29', '2026-03-30'])
+    && wp.outside.exportBefore.n === exportWeeksBefore && wp.outside.exportBefore.to === '2024-01-01' && wp.outside.exportAfter.n === 0
+    && first.result === 'PARTIAL' && /begins on 2024-01-10, after the week's first expected session \(2024-01-08\): built from 3 of its 5 weekdays/.test(first.why) && first.fields.includes('open')
+    && lastW.result === 'PARTIAL' && /still in progress in the daily export: its last session held is 2026-09-30, and the week runs to 2026-10-02/.test(lastW.why)
+    && june.result === 'MATCH' && new Date(weeks.find(w => w.k === '2026-06-01').stamp * 1000).toISOString() === '2026-05-31T21:00:00.000Z',
+    'bot tools: weekly bars built from the daily export by the engine agree with TradingView\'s week by week — the first week PARTIAL (the daily export begins on a Wednesday), the last PARTIAL (in progress), the seven weeks with Christmas, New Year\'s Day or Good Friday HOLIDAY; the weeks before the daily export counted, not compared; the week stamped 21:00 UTC on a Sunday is the Monday\'s',
+    { summary: wp.summary, hol, first: first?.why, last: lastW?.why, outside: wp.outside });
+  const xmas = byKey(wp, '2025-12-22');
+  check(xmas.built.volume === null && xmas.theirs.volume === weeks.find(w => w.k === '2025-12-22').volume && xmas.fields.length === 1
+    && /no daily bar on 2025-12-25 — a holiday: TradingView's bar has no session there either \(the 4 sessions held sum to its volume/.test(xmas.why),
+    'bot tools: a week with a holiday is HOLIDAY, not DIFFERS — open, high, low and close agree; the engine leaves the week\'s volume blank (a missing day is not a day of nought) and the four sessions held sum to TradingView\'s', xmas);
+
+  /* Monthly, with every month that ends on a weekend. */
+  const mRep = await TVB.verify(monthCsv, { E, file: 'OANDA_XAUUSD, 1M.csv', daily: D, market: 'FX', symbol: 'XAUUSD', at: laterAt });
+  const mp = mRep.periods;
+  const weekendEnds = months.map(m => m.k).filter(k => { const lastDay = E.scanAddDays(`${E.scanAddDays(`${k}-28`, 4).slice(0, 7)}-01`, -1); return k >= '2024-02' && k <= '2026-08' && [0, 6].includes(utcDay(lastDay)); });
+  const sep = byKey(mp, '2026-09-01'), jun = byKey(mp, '2026-06-01');
+  check(mRep.interval === '1M' && mRep.summary.differs === 0 && mp.summary.differs === 0 && mp.summary.partial === 2 && mp.summary.holiday === 7
+    && weekendEnds.length >= 8 && weekendEnds.every(k => ['MATCH', 'HOLIDAY'].includes(byKey(mp, `${k}-01`).result) && ['MATCH', 'HOLIDAY'].includes(byKey(mp, E.scanMonthOf(E.scanAddDays(`${k}-28`, 4)))?.result))
+    && jun.result === 'MATCH' && jun.built.open === truth.find(r => r.date === '2026-06-01').open && byKey(mp, '2026-05-01').result === 'MATCH'
+    && byKey(mp, '2024-01-01').result === 'PARTIAL' && sep.result === 'PARTIAL' && /its last daily bar, 2026-09-30, was saved before that session closed/.test(sep.why)
+    && mp.outside.exportBefore.n === 12 && mp.outside.exportAfter.n === 1 && mp.outside.exportAfter.from === '2026-10-01',
+    `bot tools: monthly bars built from the daily export agree with TradingView's — every month that ends on a weekend (${weekendEnds.length} of them) and the month after it; June 2026, stamped on Sunday 31 May, is June and opens on Monday 1 June; September PARTIAL (its last bar saved mid-session), October only in the export`,
+    { summary: mp.summary, sep: sep?.why, outside: mp.outside, bad: weekendEnds.filter(k => byKey(mp, `${k}-01`).result !== 'MATCH') });
+  /* Dated by the UTC day instead (the default market), a monthly stamp at
+     17:00 New York on the last day of a month is that month: February
+     2023's bar, stamped Tuesday 31 January, lands in January beside
+     January's own (stamped Sunday 1 January, for Monday the 2nd). */
+  let clash = null;
+  try { TVB.compareBars(E, { dailyText: dailyCsv, text: monthCsv, interval: '1M', market: null, symbol: 'XAUUSD', file: 'OANDA_XAUUSD, 1M.csv' }); } catch (e) { clash = e.message; }
+  check(/^OANDA_XAUUSD, 1M\.csv: the bars dated 2023-01-01 and 2023-01-31 are both in the month 2023-01 — is it a 1M export\?$/.test(clash || ''),
+    'bot tools: the session rule is what makes the months right — dated by the UTC day, February 2023\'s bar (stamped 31 January, 22:00 UTC) falls in January beside January\'s own, and the comparison is refused', clash);
+
+  /* A bar TradingView has that the build does not: one weekly high bent,
+     and a Tuesday the daily export lacks (not a holiday: TradingView's
+     week holds it). */
+  const bentWeeks = weeks.map(w => (w.k === '2025-06-02' ? { ...w, high: r3(w.high * 1.002) } : w));
+  const gapDaily = dailyCsv.split('\n').filter(l => !l.startsWith(`${truth.find(r => r.date === '2025-07-15').stamp},`)).join('\n');
+  const bent = TVB.compareBars(E, { dailyText: gapDaily, text: csvOf(bentWeeks), interval: '1W', market: 'FX', symbol: 'XAUUSD', dailyAt, at: laterAt });
+  const bh = byKey(bent, '2025-06-02'), gap = byKey(bent, '2025-07-14');
+  check(bent.summary.differs === 2 && bh.result === 'DIFFERS' && JSON.stringify(bh.fields) === '["high"]' && bh.why === 'differs in high'
+    && gap.result === 'DIFFERS' && gap.fields.includes('volume') && /^no daily bar on 2025-07-15 \(the sessions held sum to a volume of \d+, TradingView's bar has \d+: it holds a session the daily export does not\)/.test(gap.why),
+    'bot tools: a weekly high that differs DIFFERS, naming the field; a session missing from the daily export that TradingView\'s week holds DIFFERS (not HOLIDAY), saying so', { bh, gap });
+  /* A daily row whose date cell is unreadable is refused and listed; it
+     names no period, and asking for its week would throw out of the comparison. */
+  let badDates = null;
+  try { badDates = TVB.compareBars(E, { dailyText: `${dailyCsv}\n2026-13-01,1,1,1,1,1\nnot-a-date,1,1,1,1,1`, text: weekCsv, interval: '1W', market: 'FX', symbol: 'XAUUSD', dailyAt, at: laterAt }); } catch (e) { badDates = { threw: e.message }; }
+  check(badDates.summary?.differs === 0 && badDates.summary.compared === wp.summary.compared && JSON.stringify(badDates.daily.refused.map(x => [x.date, x.codes.join()])) === '[["2026-13-01","BAD_DATE"],["not-a-date","BAD_DATE"]]',
+    'bot tools: a daily row with an unreadable date ("2026-13-01", "not-a-date") is listed as refused (BAD_DATE) and belongs to no week; the weeks compare as before', badDates.threw || badDates.daily?.refused);
+
+  /* The command line, on files written here with their modification times
+     set as the owner's would be. */
+  const botDir = join(tmpdir(), `qt-bot-tools-${process.pid}`);
+  await mkdir(botDir, { recursive: true });
+  try {
+    const put = async (name, text, at) => { const p = join(botDir, name); await writeFile(p, text); await utimes(p, new Date(at), new Date(at)); return p; };
+    const fD = await put('OANDA_XAUUSD, 1D.csv', dailyCsv, dailyAt), fW = await put('OANDA_XAUUSD, 1W.csv', weekCsv, laterAt), fM = await put('OANDA_XAUUSD, 1M.csv', monthCsv, laterAt);
+    const fE = await put('FX_EURUSD, 1D.csv', dailyCsv, dailyAt), fB = await put('OANDA_XAUUSD, 1W (1).csv', csvOf(bentWeeks), laterAt);
+    const cli = async (...a) => { try { const r = await run(process.execPath, [join(ROOT, 'scanner/tv-verify.mjs'), ...a]); return { code: 0, out: r.stdout, err: r.stderr }; } catch (e) { return { code: e.code, out: e.stdout || '', err: e.stderr || '' }; } };
+    const [w, m, same, other, b] = [await cli('--csv', fW, '--daily', fD), await cli('--csv', fM, '--daily', fD), await cli('--csv', fD, '--daily', fD), await cli('--csv', fW, '--daily', fE), await cli('--csv', fB, '--daily', fD)];
+    check(w.code === 0 && /Weekly bars built from OANDA_XAUUSD, 1D\.csv by the engine/.test(w.out) && /dated by the Currency pairs session \(FX\): a stamp at or after 17:00 America\/New_York opens the next day's session/.test(w.out)
+      && /compared +\d+ weeks, week of 2024-01-08 … week of 2026-09-28: \d+ MATCH, 2 PARTIAL, 7 HOLIDAY, 0 DIFFERS/.test(w.out) && /\(the last PROVISIONAL\)/.test(w.out)
+      && m.code === 0 && /\d+ MATCH, 2 PARTIAL, 7 HOLIDAY, 0 DIFFERS/.test(m.out) && /not compared +12 months of OANDA_XAUUSD, 1M\.csv before the daily export begins \(2023-01 … 2023-12\)/.test(m.out)
+      && same.code === 2 && /--daily builds weekly and monthly bars, and OANDA_XAUUSD, 1D\.csv is a 1D export/.test(same.err)
+      && other.code === 2 && /--csv is OANDA:XAUUSD and --daily is FX:EURUSD — export the same symbol twice/.test(other.err)
+      && b.code === 1 && /week of 2025-06-02 +DIFFERS +differs in high — high built [\d.]+, TradingView [\d.]+/.test(b.out),
+      'bot tools: node scanner/tv-verify.mjs --csv <1W or 1M> --daily <1D> — XAUUSD\'s market (FX) from the registry, each file\'s save time from its modification time; exit 0 with PARTIAL and HOLIDAY periods explained, 1 when a period DIFFERS, 2 for a daily --csv or another symbol',
+      { w: w.out.split('\n').filter(l => /compared|daily export/.test(l)), m: m.code, same: same.err, other: other.err, b: b.code });
+  } finally { await rm(botDir, { recursive: true, force: true }); }
+}
+/* ---- end bot: tools ---- */
+
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
