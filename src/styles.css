@@ -2423,3 +2423,384 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
   body { padding-left: 0 !important; }
 }
 /* ---- /release-a: shell ---- */
+/* ---- release-a: public ---- */
+/* THE HOMEPAGE AND /how-it-works (55-views-public.js).
+   ---------------------------------------------------------------------------
+   Calm on purpose: one column of intent, generous space between sections, one
+   dominant action, and no figures on the homepage at all — a first-time
+   visitor is deciding what this is, not reading a terminal. Everything here is
+   built from the tokens at the top of this file (surfaces, ink, --brand, the
+   --lift depth steps, the 8/12/16/24/32/48/64/96 spacing) in both themes.
+   Only transform, opacity and box-shadow move. */
+
+.pub { display: flex; flex-direction: column; gap: var(--x4); }
+@media (max-width: 760px) { .pub { gap: var(--xxxl); } }
+
+/* Each product keeps one accent, used only on its icon, its steps and a faint
+   glow — never on text, so no accent has to clear a contrast bar. */
+.pub-acc-equities { --acc: var(--brand); }
+.pub-acc-scanner  { --acc: var(--s1); }
+.pub-acc-property { --acc: var(--s2); }
+.pub-acc-business { --acc: var(--ink-3); }
+
+/* ------------------------------------------------------------------ hero */
+.pub-hero { position: relative; isolation: isolate; text-align: center; padding: var(--xxxl) 0 0; }
+/* A soft field of light behind the headline, inside the section's own box so
+   it can never widen the page. Three low-opacity radial washes in the
+   product's colours; each fades out well before the box edge. */
+.pub-hero::before {
+  content: ''; position: absolute; z-index: -1; pointer-events: none;
+  inset: calc(var(--xl) * -1) 0 calc(var(--xl) * -1);
+  background:
+    radial-gradient(48% 60% at 50% 36%, color-mix(in srgb, var(--brand) 9%, transparent), transparent 72%),
+    radial-gradient(34% 44% at 82% 66%, color-mix(in srgb, var(--bronze) 6%, transparent), transparent 72%),
+    radial-gradient(34% 44% at 18% 70%, color-mix(in srgb, var(--s1) 5%, transparent), transparent 72%);
+}
+@media (max-width: 760px) { .pub-hero { padding-top: var(--xl); } }
+
+.pub-kicker {
+  display: inline-block; padding: 7px 16px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 86%, transparent); box-shadow: var(--lift-1);
+  font-size: var(--text-label); font-weight: var(--weight-semibold); letter-spacing: .09em; text-transform: uppercase;
+  color: var(--ink-2); line-height: 1.5;
+}
+.pub-kicker-dot { color: var(--bronze); font-weight: var(--weight-bold); }
+
+.pub-h1 {
+  font-size: clamp(36px, 5.6vw, 64px); font-weight: var(--weight-bold); line-height: 1.05; letter-spacing: -.034em;
+  max-width: 13.5em; margin: var(--lg) auto 0; text-wrap: balance; color: var(--ink);
+}
+.pub-lede {
+  font-size: clamp(16px, 1.45vw, 19px); line-height: 1.6; color: var(--ink-2);
+  max-width: 35em; margin: var(--lg) auto 0; text-wrap: pretty;
+}
+.pub-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sm); margin-top: var(--xl); }
+/* The page's buttons, a step larger than the app's: 48px, which is a target
+   on every pointer, not only a finger. */
+.pub-btn { min-height: 48px; padding: 0 22px; font-size: 15px; border-radius: var(--r-md); gap: var(--xs); }
+.pub-btn.btn-ghost { color: var(--ink); box-shadow: var(--lift-1); }
+.pub-btn.btn-ghost:hover { box-shadow: var(--lift-2); }
+.pub-btn:active { transform: translateY(0) scale(.985); }
+.pub-btn:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3px; }
+@media (max-width: 479px) {
+  .pub-ctas { flex-direction: column; align-items: stretch; }
+  .pub-ctas .pub-btn { width: 100%; }
+}
+
+.pub-arrow { display: inline-flex; flex: none; transition: transform 200ms ease; }
+.pub-arrow svg { width: 16px; height: 16px; }
+.pub-btn:hover .pub-arrow, .pub-textlink:hover .pub-arrow, a.pub-card:hover .pub-arrow { transform: translateX(3px); }
+
+.pub-textlink {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+  font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--brand); text-decoration: none;
+  border-radius: var(--r-xs);
+}
+.pub-textlink:hover { text-decoration: underline; text-underline-offset: 4px; }
+.pub-textlink:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+
+/* A heading a jump link sent focus to is a place, not a control. */
+.pub [tabindex="-1"]:focus { outline: none; }
+
+/* -------------------------------------------------------------- sections */
+.pub-section { scroll-margin-top: var(--lg); }
+.pub-section-hd { text-align: center; margin-bottom: var(--xl); }
+.pub-h2 { font-size: clamp(26px, 2.5vw, 34px); font-weight: var(--weight-bold); line-height: 1.15; letter-spacing: -.026em; text-wrap: balance; }
+.pub-body { font-size: var(--text-lead); line-height: 1.65; color: var(--ink-2); margin-top: var(--md); max-width: 38em; }
+
+/* --------------------------------------------------------- product cards */
+.pub-cards { display: grid; gap: var(--lg); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 600px)  { .pub-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .pub-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.pub-card {
+  position: relative; display: flex; flex-direction: column; height: 100%;
+  padding: var(--lg); border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, var(--acc, var(--brand)) 6%, transparent), transparent 60%),
+    var(--surface);
+  box-shadow: var(--lift-2); color: inherit; text-decoration: none;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+a.pub-card:hover { transform: translateY(-4px); box-shadow: var(--lift-3); }
+a.pub-card:active { transform: translateY(-1px); box-shadow: var(--lift-2); }
+a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3px; border-radius: var(--r-xl); }
+/* Not built: flat, dashed and quiet — present so the product's shape is
+   honest, and visibly not a way in. No hover, no pointer. The dash is an
+   inset outline rather than a border, so its content lines up to the pixel
+   with the three cards beside it. */
+.pub-card-soon {
+  background: color-mix(in srgb, var(--surface-sunk) 72%, transparent);
+  box-shadow: none; outline: 1px dashed var(--line-2); outline-offset: -1px;
+}
+.pub-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sm); margin-bottom: var(--lg); }
+.pub-ico {
+  width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: var(--r-md);
+  color: var(--acc, var(--brand));
+  background: color-mix(in srgb, var(--acc, var(--brand)) 12%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc, var(--brand)) 22%, transparent);
+}
+.pub-card-product {
+  font-size: var(--text-label); font-weight: var(--weight-semibold); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3);
+}
+.pub-card-title { font-size: var(--text-card); font-weight: var(--weight-bold); line-height: 1.2; letter-spacing: -.016em; margin-top: 6px; }
+.pub-card-blurb { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: var(--xs); }
+.pub-card-go {
+  margin-top: auto; padding-top: var(--lg); display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--brand);
+}
+.pub-card-note { margin-top: auto; padding-top: var(--lg); font-size: var(--text-sm); color: var(--ink-3); }
+
+/* The disclosure line under the cards: badge, one sentence, one link. */
+.pub-disclose {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px var(--sm);
+  max-width: 62rem; margin: var(--xl) auto 0; text-align: center;
+  font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2);
+}
+.pub-disclose .pub-textlink { font-size: var(--text-sm); }
+
+/* ---------------------------------------------------- research, connected */
+.pub-connected {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--xl);
+  padding: var(--xl) var(--lg); border-radius: var(--r-xl); box-shadow: var(--lift-2);
+  background:
+    radial-gradient(90% 80% at 0% 0%, color-mix(in srgb, var(--brand) 6%, transparent), transparent 60%),
+    radial-gradient(70% 70% at 100% 100%, color-mix(in srgb, var(--bronze) 6%, transparent), transparent 60%),
+    var(--surface);
+}
+@media (min-width: 960px) {
+  .pub-connected { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: var(--xxl); padding: var(--xxl); align-items: center; }
+}
+.pub-local {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--md); align-items: start;
+  margin-top: var(--xl); padding: var(--md) var(--lg) var(--xs); border-radius: var(--r-lg);
+  background: var(--surface-sunk); box-shadow: inset 0 0 0 1px var(--line);
+}
+.pub-local-t { font-size: var(--text-body); font-weight: var(--weight-bold); color: var(--ink); margin-top: 7px; }
+.pub-local-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 4px; }
+.pub-glyph {
+  width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: var(--r-md);
+  color: var(--brand); background: var(--brand-wash);
+}
+.pub-kinds { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--md); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 600px) { .pub-kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pub-kind {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--md); align-items: start;
+  padding: var(--lg) var(--md) var(--lg) var(--lg); border-radius: var(--r-lg);
+  background: var(--surface-2); box-shadow: var(--lift-1);
+}
+.pub-kind-t { font-size: 15px; font-weight: var(--weight-bold); letter-spacing: -.008em; margin-top: 7px; }
+.pub-kind-b { font-size: var(--text-body); line-height: 1.5; color: var(--ink-2); margin-top: 4px; }
+/* On a phone the panel is the card: cards inside it again left a column of
+   text 200px wide inside three layers of padding. The four kinds become rows
+   under hairlines, and the browser note loses a step of padding. */
+@media (max-width: 599px) {
+  .pub-connected { padding: var(--xl) var(--md); gap: var(--lg); }
+  .pub-local { padding: var(--md) var(--md) var(--xs); gap: var(--sm); }
+  .pub-kinds { gap: 0; }
+  .pub-kind { padding: var(--md) 0; border-radius: 0; background: none; box-shadow: none; border-top: 1px solid var(--line); }
+  .pub-kind:last-child { padding-bottom: 0; }
+}
+
+/* release-a: fallback until shell merges — the status badge's look while the
+   shell's own .status-badge rules are on another branch. Applied only to a
+   badge drawn without productBadge, so once the shell lands nothing here
+   styles anything. */
+.pub-badge-fallback {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 999px; flex: none;
+  font-size: var(--text-label); font-weight: var(--weight-semibold); letter-spacing: .01em; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.pub-badge-fallback::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pub-badge-fallback.status-live { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.pub-badge-fallback.status-beta { background: var(--brand-wash); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
+.pub-badge-fallback.status-demo { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
+.pub-badge-fallback.status-soon { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line-2); }
+/* /release-a: fallback */
+
+/* ============================================================ how it works */
+.hiw-hd { padding-top: var(--xxl); }
+.hiw-h1 { font-size: clamp(32px, 4.6vw, 54px); max-width: 15em; }
+.hiw-toc-list {
+  list-style: none; margin: var(--xl) auto 0; padding: 0; max-width: 60rem;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: var(--xs);
+}
+.hiw-toc-link {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--md); border-radius: 999px;
+  background: var(--surface-2); box-shadow: var(--lift-1); text-decoration: none;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.hiw-toc-link:hover { transform: translateY(-1px); box-shadow: var(--lift-2); color: var(--ink); }
+.hiw-toc-link:active { transform: translateY(0); box-shadow: var(--lift-1); }
+.hiw-toc-link:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+@media (max-width: 599px) {
+  .hiw-toc-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* An odd one out spans the row rather than sitting alone in half of it. */
+  .hiw-toc-list li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .hiw-toc-link { width: 100%; justify-content: center; text-align: center; padding: 6px var(--sm); line-height: 1.3; }
+}
+
+/* The status legend. */
+.hiw-status {
+  padding: var(--lg); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--lift-1);
+  scroll-margin-top: var(--lg);
+}
+.hiw-status-h { font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.hiw-status-list { display: grid; gap: var(--lg); grid-template-columns: minmax(0, 1fr); margin-top: var(--md); }
+@media (min-width: 640px)  { .hiw-status-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .hiw-status-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.hiw-status-item dt { margin-bottom: var(--xs); }
+.hiw-status-item dd { margin: 0; }
+.hiw-status-m { display: block; font-size: var(--text-body); line-height: 1.5; color: var(--ink); }
+.hiw-status-who { display: block; font-size: var(--text-label); color: var(--ink-3); margin-top: 4px; }
+
+/* One product. */
+.hiw-products { display: flex; flex-direction: column; gap: var(--xl); }
+.hiw-product {
+  position: relative; padding: var(--xl) var(--lg); border-radius: var(--r-xl); box-shadow: var(--lift-2);
+  background:
+    radial-gradient(60% 50% at 100% 0%, color-mix(in srgb, var(--acc, var(--brand)) 7%, transparent), transparent 62%),
+    var(--surface);
+  scroll-margin-top: var(--lg);
+}
+@media (min-width: 900px) { .hiw-product { padding: var(--xxl); } }
+.hiw-product-soon {
+  background: color-mix(in srgb, var(--surface-sunk) 72%, transparent); box-shadow: none;
+  outline: 1px dashed var(--line-2); outline-offset: -1px;
+}
+/* A phone loses a step of padding at each level, so the examples keep a
+   readable measure inside the product card. */
+@media (max-width: 599px) {
+  .hiw-product { padding: var(--lg) var(--md); }
+  .hiw-panel { padding: var(--md); }
+  .hiw-ex-actions .pub-btn, .hiw-product-ft .pub-btn { width: 100%; }
+  .hiw-pills-k { flex: 1 0 100%; margin: 0 0 2px; }
+}
+/* A long label wraps inside its button rather than out of it. */
+.pub-btn { text-align: center; line-height: 1.3; padding-top: 10px; padding-bottom: 10px; }
+.hiw-product-hd { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--md) var(--xl); }
+.hiw-product-id { display: flex; align-items: flex-start; gap: var(--md); flex: 1 1 440px; min-width: 0; }
+.hiw-product-name { font-size: clamp(22px, 2.1vw, 28px); font-weight: var(--weight-bold); line-height: 1.15; letter-spacing: -.02em; }
+.hiw-product-q { font-size: var(--text-lead); line-height: 1.5; color: var(--ink-2); margin-top: 6px; }
+.hiw-product-status { flex: 0 1 340px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--xs); }
+.hiw-product-note { font-size: var(--text-label); line-height: 1.5; color: var(--ink-3); }
+@media (min-width: 900px) { .hiw-product-status { align-items: flex-end; text-align: right; } }
+.hiw-soon { margin-top: var(--lg); font-size: var(--text-body); line-height: 1.6; color: var(--ink-2); max-width: 60ch; }
+.hiw-product-ft { margin-top: var(--xl); display: flex; flex-wrap: wrap; gap: var(--sm); }
+
+/* Input → analysis → result → save → next. A column with a spine on a
+   phone; a row with a rail from 1024px, where five columns have room. */
+.hiw-steps { list-style: none; margin: var(--xl) 0 0; padding: 0; display: grid; }
+.hiw-step { position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--md); padding-bottom: var(--lg); }
+.hiw-step:last-child { padding-bottom: 0; }
+.hiw-step:not(:last-child)::before {
+  content: ''; position: absolute; left: 17px; top: 42px; bottom: 6px; width: 2px; border-radius: 2px;
+  background: color-mix(in srgb, var(--acc, var(--brand)) 26%, var(--line));
+}
+.hiw-step-n {
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  font-size: var(--text-sm); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; color: var(--ink);
+  background: var(--surface-2); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--acc, var(--brand)) 55%, var(--line)), var(--lift-1);
+}
+.hiw-step-k { font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-top: 8px; }
+.hiw-step-t { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 4px; max-width: 60ch; }
+@media (min-width: 1024px) {
+  .hiw-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--lg); }
+  .hiw-step { display: block; padding-bottom: 0; }
+  .hiw-step:not(:last-child)::before { left: 48px; right: calc(var(--lg) * -1 + 12px); top: 17px; bottom: auto; width: auto; height: 2px; }
+  .hiw-step-k { margin-top: var(--md); }
+}
+
+/* Worked examples, below the steps. */
+.hiw-examples { margin-top: var(--xxl); padding-top: var(--xl); border-top: 1px solid var(--line); display: grid; gap: var(--xl); }
+.hiw-examples-h { font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.hiw-example { min-width: 0; }
+.hiw-ex-t, .hiw-cap-t { font-size: 17px; font-weight: var(--weight-bold); letter-spacing: -.01em; }
+.hiw-ex-b, .hiw-cap-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 4px; max-width: 62ch; }
+.hiw-seg { margin: var(--md) 0 0; }
+.hiw-seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); font-weight: var(--weight-semibold); box-shadow: var(--lift-1); }
+.hiw-panel {
+  margin-top: var(--md); padding: var(--lg); border-radius: var(--r-lg);
+  background: var(--surface-2); box-shadow: var(--lift-1);
+}
+.hiw-label { margin-bottom: var(--md); line-height: 1.5; }
+.hiw-panel .hiw-label:last-child { margin-bottom: 0; }
+.hiw-tiles { gap: var(--lg) var(--md); }
+/* Five outputs in one row where they fit, three and two where they do not —
+   never four and an orphan, which is what auto-fit gave at 1024px. */
+.hiw-tiles.grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 600px)  { .hiw-tiles.grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .hiw-tiles.grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.hiw-tiles-6 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+@media (min-width: 1024px) { .hiw-tiles-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .hiw-tiles.hiw-tiles-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hiw-ex-actions { margin-top: var(--lg); display: flex; flex-wrap: wrap; gap: var(--sm); }
+.hiw-pills { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); margin-top: var(--md); }
+.hiw-pills-k { font-size: var(--text-sm); color: var(--ink-3); margin-right: 4px; }
+.hiw-pill {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--md); border-radius: 999px;
+  background: var(--surface-2); box-shadow: var(--lift-1); text-decoration: none;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.hiw-pill:hover { transform: translateY(-1px); box-shadow: var(--lift-2); }
+.hiw-pill:active { transform: translateY(0); box-shadow: var(--lift-1); }
+.hiw-pill:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+
+.hiw-figure { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--md) var(--xl); align-items: center; }
+@media (min-width: 900px) { .hiw-figure { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); } }
+.hiw-figure .proof-card { box-shadow: var(--lift-2); border-color: transparent; }
+.hiw-cap .pub-textlink { margin-top: 4px; }
+.hiw-aside {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--md); align-items: start;
+  padding: var(--md) var(--lg); border-radius: var(--r-lg); background: var(--surface-sunk); box-shadow: inset 0 0 0 1px var(--line);
+}
+.hiw-aside p { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); max-width: 78ch; margin-top: 7px; }
+@media (max-width: 599px) { .hiw-aside { padding: var(--md); gap: var(--sm); } }
+
+/* The connected journey. */
+.hiw-journey { scroll-margin-top: var(--lg); }
+.hiw-sec-hd { text-align: center; margin-bottom: var(--xl); }
+.hiw-sec-hd .pub-body { margin-left: auto; margin-right: auto; }
+.hiw-path { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--md); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px)  { .hiw-path { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* In two columns the fifth step — back to the company — closes the loop
+   across the full row instead of sitting alone in half of it. */
+@media (min-width: 640px) and (max-width: 1099px) { .hiw-path-step:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+@media (min-width: 1100px) { .hiw-path { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--lg); } }
+.hiw-path-step {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start;
+  padding: var(--lg); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--lift-2);
+}
+.hiw-path-n {
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--brand); background: var(--brand-wash);
+}
+.hiw-path-t { font-size: 16px; font-weight: var(--weight-bold); letter-spacing: -.01em; margin-top: var(--md); }
+.hiw-path-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 6px; }
+.hiw-path-step .pub-textlink { margin-top: auto; padding-top: var(--xs); font-size: var(--text-sm); }
+/* The chevron between two steps, on the row layout only, where the next step
+   is beside this one rather than under it. */
+@media (min-width: 1100px) {
+  .hiw-path-step:not(:last-child)::after {
+    content: ''; position: absolute; top: 40px; right: calc(var(--lg) * -1 + 6px); width: 10px; height: 10px;
+    border-top: 2px solid var(--line-2); border-right: 2px solid var(--line-2); transform: rotate(45deg);
+  }
+}
+
+/* The closing action. */
+.hiw-end {
+  text-align: center; padding: var(--xxl) var(--lg); border-radius: var(--r-xl); box-shadow: var(--lift-2);
+  background:
+    radial-gradient(60% 90% at 50% 0%, color-mix(in srgb, var(--brand) 10%, transparent), transparent 70%),
+    var(--surface);
+}
+.hiw-end .pub-body { margin-left: auto; margin-right: auto; }
+@media (max-width: 760px) { .hiw-end { padding: var(--xl) var(--lg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  a.pub-card:hover, .hiw-toc-link:hover, .hiw-pill:hover, .pub-btn:active { transform: none; }
+  .pub-btn:hover .pub-arrow, .pub-textlink:hover .pub-arrow, a.pub-card:hover .pub-arrow { transform: none; }
+}
+/* ---- /release-a: public ---- */

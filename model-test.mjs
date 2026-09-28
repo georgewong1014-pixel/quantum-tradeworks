@@ -1925,14 +1925,16 @@ try {
           0) it printed "Safe cash RM121.8k" as the answer the calculator
           calls "so far". Completion is short only by an acquisition or
           financing line — one is unset in the fee registry for the last
-          case, and put back. */
+          case, and put back. The card moved with the other examples from
+          the homepage to /how-it-works (Release A), where it is one of three
+          proof cards, so it is found by its title rather than its place. */
   {
     const r = JSON.parse(await evaluate(`(async () => {
       const kept = State.deal;
       const card = async (d) => {
-        State.deal = d; navigate('/'); render();
+        State.deal = d; navigate('/how-it-works'); render();
         await new Promise(res => setTimeout(res, 200));
-        const c = document.querySelector('#views .proof-card');
+        const c = [...document.querySelectorAll('#views .proof-card')].find(x => /^Sarawak property/.test(x.querySelector('.proof-hd')?.textContent || ''));
         const m = dealModel(d);
         const pk = c ? [...c.querySelectorAll('.pk')].map(x => x.textContent) : [];
         const pv = c ? [...c.querySelectorAll('.pv')].map(x => x.textContent) : [];
@@ -1960,8 +1962,8 @@ try {
       p.push(`a priced deal is flagged or moved: ${JSON.stringify(whole)}`);
     if (!noFee.missing.includes('acquisition') || noFee.pk[0] !== 'Cash to complete so far' || noFee.pk[1] !== 'Safe cash so far')
       p.push(`an unset acquisition fee: card "${noFee.pk[0]}" / "${noFee.pk[1]}" (${noFee.missing.join(', ')})`);
-    if (p.length) fail('views: the landing page\'s property card prints a different cash to complete from the calculator, or a short total as whole', p);
-    else ok(`views: the landing card reads ${paid.still} to complete with RM5,000 paid at offer, and marks a total with an unpriced line "so far"`);
+    if (p.length) fail('views: the property card on /how-it-works prints a different cash to complete from the calculator, or a short total as whole', p);
+    else ok(`views: the property card on /how-it-works reads ${paid.still} to complete with RM5,000 paid at offer, and marks a total with an unpriced line "so far"`);
   }
   /* ---- end bugfix5: views ---- */
 

@@ -81,7 +81,7 @@ const LICENSED = [
 const FRAMES = [
   {
     id: 'home-hero', path: '/', w: 1200, h: 630, wait: 5200,
-    what: 'The homepage, at Open Graph size. The three proof figures are computed live by the same engines the product runs on, not typeset.',
+    what: 'The homepage, at Open Graph size: what the product is, its one action, and the four products with their status. It carries no figures; the computed examples are on /how-it-works.',
   },
   {
     id: 'wheel-payoff', path: '/wheel', w: 1180, h: 900, wait: 4200,

@@ -4992,11 +4992,12 @@ try {
       closeDrawer({ restore: false });
       State.corrections = keepCases;
 
-      /* 10. The homepage's worked contract is the worked contract, whatever
-         the reader's own plan holds. */
+      /* 10. The worked contract's card is the worked contract, whatever the
+         reader's own plan holds. It moved with the other examples from the
+         homepage to /how-it-works (Release A). */
       const keepWheel = State.wheel;
       State.wheel = { ...State.wheel, adjustedContract: true, adjustmentVerified: false, openFees: 20, fxConversionCostMyr: 500 };
-      navigate('/');
+      navigate('/how-it-works');
       const wheelCard = [...document.querySelectorAll('.proof-card')].find(x => /Cash Wheel/.test(x.textContent));
       const want = wheelMath({ ...WHEEL_WORKED_EXAMPLE });
       out.wheel = { shown: wheelCard ? [...wheelCard.querySelectorAll('.pv')].map(x => x.textContent) : null,
@@ -5045,7 +5046,7 @@ try {
     if (r.restoreNames.length < 2 || r.restoreNames.some(n => !n)) p.push(`the restore drawer has an unnamed control: ${JSON.stringify(r.restoreNames)}`);
     if (!r.search || /“”/.test(r.search)) p.push(`a filters-only search with no match reads ${JSON.stringify(r.search)}`);
     if (!r.idx.flagged || r.idx.drawn || !r.idx.legend) p.push(`${r.idx.id} is indexed off a base at or below zero: ${JSON.stringify(r.idx)}`);
-    if (JSON.stringify(r.wheel.shown) !== JSON.stringify(r.wheel.want)) p.push(`the homepage's worked Wheel contract read the reader's plan: ${JSON.stringify(r.wheel)}`);
+    if (JSON.stringify(r.wheel.shown) !== JSON.stringify(r.wheel.want)) p.push(`the worked Wheel contract on /how-it-works read the reader's plan: ${JSON.stringify(r.wheel)}`);
     if (p.length) fail('the equity views say what they hold — moat, model differences, report lines, saved runs, price note, templates, tab strips, drawer names, worked contract, indexed chart, explorer search', p);
     else ok(`the equity views say what they hold — "Revenue growth stability" on the moat page, ${r.largest.n} model gaps in the neutral tone, the report's ${r.jpm.lab} and no bank cash-flow lines, ${r.split.id}'s per-share CAGR withheld, "Save this run" opens only the run it saved, the price-history note, both interest-cover templates stated not applied, two tablists, named drawer controls, the worked contract at ${r.wheel.want.join(' / ')}, ${r.idx.id}'s index left undrawn off its non-positive base`);
   }
@@ -7582,6 +7583,114 @@ try {
     else ok(`bot pages: the setup page names each of the ${r.weeklyConds} weekly conditions "on the last closed weekly bar", says what the history holds for them, and the alert page reads each condition on its bar — ${wk} on the weekly bar closing 2026-09-18, ${dy} on the daily bar of the alert — as the setup's matches do; both pages name it "your script’s ${r.title}"`);
   }
   /* ---- end bot: pages ---- */
+  /* ---- release-a: public ---- */
+  /* THE HOMEPAGE AND /how-it-works (Release A, 55-views-public.js).
+     The homepage is the brief's: its eyebrow and headline, one primary action
+     (the workspace), the four products read from PRODUCTS — each one with a
+     path a whole-card link to a route that renders, the one without a path
+     text with no link in it — the disclosure line to /data-sources and the
+     line about where saved work lives; and no figure, chart, table or example
+     at all, because it must not read as a trading terminal. The examples are
+     on /how-it-works: five steps for every built product and none for the
+     unbuilt one, the four status meanings, the five-step journey, the three
+     computed proof cards, every primary button to /app, and a company pick
+     that repaints its panel under the pressed button — it used to re-render
+     the page and drop focus to <body> — with the illustrative label on an
+     illustrative company. Every link on both pages resolves to a route that
+     renders. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const P = typeof PRODUCTS !== 'undefined' ? PRODUCTS : PUB_PRODUCTS_FALLBACK;
+      const LABEL = typeof PRODUCT_STATUS !== 'undefined' ? PRODUCT_STATUS : PUB_STATUS_FALLBACK;
+      const main = () => document.querySelector('#views');
+      const resolves = (h) => { const u = new URL(h, location.origin); const rt = matchRoute(u.pathname); return !!rt && typeof VIEWS[rt.view] === 'function'; };
+      const dead = (root) => [...root.querySelectorAll('a[href]')].map(a => a.getAttribute('href')).filter(h => !h.startsWith('#') && !resolves(h));
+      const out = {};
+      navigate('/'); await w(150);
+      const m = main();
+      out.home = {
+        view: State.view,
+        h1: m.querySelector('h1')?.textContent,
+        kicker: m.querySelector('.pub-kicker')?.textContent,
+        primary: [...m.querySelectorAll('.btn-primary')].map(b => [b.textContent.trim(), b.getAttribute('href')]),
+        explore: [...m.querySelectorAll('a')].find(a => a.textContent.trim() === 'Explore products')?.getAttribute('href'),
+        cards: [...m.querySelectorAll('.pub-card')].map(c => ({ tag: c.tagName, href: c.getAttribute('href'),
+          title: c.querySelector('.pub-card-title')?.textContent, links: c.querySelectorAll('a').length,
+          badge: c.querySelector('.status-badge')?.textContent.trim() })),
+        want: P.map(p => ({ path: p.path ? href(p.path) : null, task: p.task, badge: LABEL[p.status] })),
+        figures: m.querySelectorAll('svg[aria-label], canvas, table, .proof-card, .stat, .segmented, .hero-proof').length,
+        dataSources: !!m.querySelector('.pub-disclose a[href$="/data-sources"]'),
+        myData: !!m.querySelector('a[href$="/my/data"]'),
+        dead: dead(m),
+      };
+      navigate('/how-it-works'); await w(150);
+      const h = main();
+      out.hiw = {
+        view: State.view,
+        primary: [...h.querySelectorAll('.btn-primary')].map(b => b.getAttribute('href')),
+        sections: P.map(p => { const s = h.querySelector('#hiw-' + p.id);
+          return s ? { id: p.id, built: !!p.path, steps: s.querySelectorAll('.hiw-step').length, links: s.querySelectorAll('a').length } : { id: p.id, missing: true }; }),
+        legend: h.querySelectorAll('.hiw-status-item').length,
+        journey: h.querySelectorAll('.hiw-path-step').length,
+        proofs: [...h.querySelectorAll('.proof-card .proof-hd')].map(x => x.firstElementChild?.textContent),
+        dead: dead(h),
+      };
+      const btns = [...h.querySelectorAll('.hiw-seg button')];
+      const pick = async (b) => {
+        if (!b) return null;
+        b.focus(); b.click(); await w(60);
+        return { focused: b.isConnected && document.activeElement === b,
+          pressed: main().querySelector('.hiw-seg button[aria-pressed="true"]') === b,
+          label: main().querySelector('.hiw-panel .hiw-label')?.textContent || '' };
+      };
+      out.pick = { n: btns.length,
+        illus: await pick(btns.find(b => BY_ID.get(b.dataset.pick) && !BY_ID.get(b.dataset.pick).c.real)),
+        real: await pick(btns.find(b => BY_ID.get(b.dataset.pick)?.c.real)) };
+      navigate('/');
+      return out;
+    })()`);
+    const p = [];
+    const { home, hiw, pick } = r;
+    if (home.view !== 'marketing') p.push(`/ renders ${home.view}`);
+    if (home.h1 !== 'Make financial decisions with greater clarity.') p.push(`homepage h1: "${home.h1}"`);
+    if (home.kicker !== 'Research · Monitor · Model · Plan') p.push(`homepage eyebrow: "${home.kicker}"`);
+    if (home.primary.length !== 1 || home.primary[0][0] !== 'Open your workspace' || !/\/app$/.test(home.primary[0][1] || ''))
+      p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
+    if (home.explore !== '#products') p.push(`"Explore products" goes to ${home.explore}`);
+    if (home.cards.length !== home.want.length) p.push(`${home.cards.length} product cards for ${home.want.length} products`);
+    home.want.forEach((want, i) => {
+      const c = home.cards[i] || {};
+      if (c.title !== want.task) p.push(`card ${i + 1} is titled "${c.title}", not "${want.task}"`);
+      if (c.badge !== want.badge) p.push(`card "${want.task}" wears "${c.badge}", not "${want.badge}"`);
+      if (want.path && (c.tag !== 'A' || c.href !== want.path)) p.push(`card "${want.task}" is ${c.tag} to ${c.href}, not a link to ${want.path}`);
+      if (!want.path && (c.tag === 'A' || c.links)) p.push(`card "${want.task}" has no product to open and still links (${c.tag}, ${c.links} links)`);
+    });
+    if (home.figures) p.push(`the homepage carries ${home.figures} figures, charts, tables or examples`);
+    if (!home.dataSources || !home.myData) p.push(`homepage links: data sources ${home.dataSources}, your data ${home.myData}`);
+    if (home.dead.length) p.push(`homepage links to no page: ${home.dead.join(', ')}`);
+    if (hiw.view !== 'howItWorks') p.push(`/how-it-works renders ${hiw.view}`);
+    if (!hiw.primary.length || hiw.primary.some(x => !/\/app$/.test(x || ''))) p.push(`/how-it-works primary actions: ${JSON.stringify(hiw.primary)}`);
+    hiw.sections.forEach(s => {
+      if (s.missing) p.push(`/how-it-works has no section for ${s.id}`);
+      else if (s.built && s.steps !== 5) p.push(`${s.id}: ${s.steps} workflow steps, not 5`);
+      else if (!s.built && (s.steps || s.links)) p.push(`${s.id} is not built and shows ${s.steps} steps and ${s.links} links`);
+    });
+    if (hiw.legend !== 4) p.push(`${hiw.legend} status meanings, not 4`);
+    if (hiw.journey !== 5) p.push(`${hiw.journey} journey steps, not 5`);
+    for (const t of ['Sarawak property', 'US options Cash Wheel', 'QT Trading Index'])
+      if (!hiw.proofs.includes(t)) p.push(`/how-it-works lost the "${t}" example (${hiw.proofs.join(', ')})`);
+    if (hiw.dead.length) p.push(`/how-it-works links to no page: ${hiw.dead.join(', ')}`);
+    if (pick.n < 3 || !pick.illus || !pick.real) p.push(`the report preview offers ${pick.n} companies (illustrative ${!!pick.illus}, filed ${!!pick.real})`);
+    for (const [k, x] of [['illustrative', pick.illus], ['filed', pick.real]]) {
+      if (x && (!x.focused || !x.pressed)) p.push(`picking the ${k} company lost focus or its pressed state: ${JSON.stringify(x)}`);
+    }
+    if (pick.illus && !/illustrative figures/.test(pick.illus.label)) p.push(`an illustrative company's preview is not labelled: "${pick.illus.label}"`);
+    if (pick.real && !/filed with the SEC/.test(pick.real.label)) p.push(`a filed company's preview does not say so: "${pick.real.label}"`);
+    if (p.length) fail('release-a public: the homepage and /how-it-works say what the brief says, and every link on them opens a page', p);
+    else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS and no figures; /how-it-works has the steps, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
+  }
+  /* ---- end release-a: public ---- */
 
 } catch (e) {
   fail('harness error', e.message);
