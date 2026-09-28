@@ -1559,22 +1559,33 @@ try {
   /* Q1 — a tax total over years whose tax is unknown is unknown. With a
           tenure of 0 every year's tax is null, the running sum left RM0, and
           the decision record read "after tax on the rent at 24%, totalling
-          RM0 across the hold". */
+          RM0 across the hold".
+          The record's half went vacuous when the sentence was reworded
+          (bugfix4: misc M1): it looked for "Figures are after tax", which the
+          record no longer prints, so it read "" and could not fail — a record
+          printing "which comes to RM0 across the hold" passed. It now takes
+          the tax sentence in whichever of its three forms the record uses,
+          fails when there is none, and is anchored: the taxed deal's sentence
+          must carry the model's own total, so a rewording that loses the
+          sentence fails here rather than passing. */
   {
     const r = JSON.parse(await evaluate(`(() => {
       const kept = State.deal;
       const d = { ...window.__T.base, tenureYears: 0, rent: 3600, marginalTaxPct: 24 };
-      const m = dealModel(d);
-      State.deal = d;
-      let said = '';
-      try { said = (decisionRecordProperty().textContent.match(/Figures are after tax[^.]*\\./) || [''])[0]; } finally { State.deal = kept; }
-      const t = dealModel(window.__T.taxed);
-      return JSON.stringify({ cumTax: m.cumTax, said, taxed: t.cumTax, taxedSum: t.path.reduce((a, p) => a + p.tax, 0) });
+      const m = dealModel(d), t = dealModel(window.__T.taxed);
+      const sentence = (deal) => {
+        State.deal = deal;
+        try { return (decisionRecordProperty().textContent.match(/(Every figure in this record is BEFORE tax|No tax on the rent has been computed|The rate of return is after tax)[^.]*\\./) || [''])[0]; }
+        finally { State.deal = kept; }
+      };
+      return JSON.stringify({ cumTax: m.cumTax, said: sentence(d), taxedSaid: sentence(window.__T.taxed), taxedTotal: fmtMoney(t.cumTax, 'MYR', 0),
+        taxed: t.cumTax, taxedSum: t.path.reduce((a, p) => a + p.tax, 0) });
     })()`));
     if (r.cumTax !== null) fail('the tax total over years whose tax is unknown is a number', r);
-    else if (/totalling RM/.test(r.said)) fail('the decision record prints a tax total the model cannot compute', r.said);
     else if (!(r.taxed > 0) || Math.abs(r.taxed - r.taxedSum) > 1e-6) fail('the tax total no longer sums the years it can compute', r);
-    else ok(`a tax total over unknown years is unknown, not RM0 — the record reads "${r.said}"; a computable one still sums its years`, r);
+    else if (!r.taxedSaid.includes(r.taxedTotal)) fail('the decision record does not print the tax total the model computes, or this check no longer finds the record\'s tax sentence', r);
+    else if (!r.said || /after tax|comes to|totalling|RM/.test(r.said)) fail('the decision record prints a tax total the model cannot compute, or states no tax basis', r.said || r);
+    else ok(`a tax total over unknown years is unknown, not RM0 — the record reads "${r.said}"; a computable one still sums its years and the record prints it, ${r.taxedTotal}`, r);
   }
 
   /* Q2 — a cash purchase has nothing to service whatever the tenure box
@@ -1591,13 +1602,21 @@ try {
       State.deal = cash; navigate('/property/calculator'); render();
       await new Promise(res => setTimeout(res, 200));
       const text = document.querySelector('main').innerText;
+      /* The anchor for "warned": the same words on the loan that has no
+         schedule, so a reworded warning fails here rather than leaving the
+         cash purchase's clause unable to fail (as Q1's sentence clause was). */
+      State.deal = { ...window.__T.base, tenureYears: 0 }; render();
+      await new Promise(res => setTimeout(res, 200));
+      const finText = document.querySelector('main').innerText;
       State.deal = kept; saveDeal(); render();
       return JSON.stringify({ inst: m.instalment, reserve: m.reserve, computable: m.reserveComputable,
         missing: m.missingCostLines.map(x => x.label), stressed: aff.stressedInstalment,
         warned: /loan tenure is zero or negative/.test(text), zeroRate: dealModel({ ...cash, ratePct: 0 }).zeroRateModelled,
+        finWarned: /loan tenure is zero or negative/.test(finText), finZeroRate: dealModel({ ...window.__T.base, ratePct: 0 }).zeroRateModelled,
         finInst: fin.instalment, finComputable: fin.reserveComputable });
     })()`));
     if (r.inst !== 0 || !r.computable || !(r.reserve > 0) || r.missing.length) fail('a cash purchase with a tenure of 0 has no instalment of nought or no reserve', r);
+    else if (!r.finWarned || r.finZeroRate !== true) fail('a loan with no tenure or no rate is not flagged, so the cash purchase\'s "not warned" proves nothing', r);
     else if (r.warned || r.zeroRate) fail('a cash purchase is warned about a loan schedule or rate it does not have', r);
     else if (r.stressed !== 0) fail('a cash purchase has an unknown stressed instalment', r);
     else if (r.finInst !== null || r.finComputable) fail('a financed deal with a tenure of 0 now claims an instalment', r);
@@ -1694,7 +1713,9 @@ try {
     if (f.grade !== 'U' || Math.abs(f.coverage - 0.6) > 1e-9 || f.gates) fail('the financed parcel is not the case this check is about — U at 60% with no gate', f);
     else if (f.verdict === 'Not enough evidence' || !f.noEvidence || f.wantOfCoverage || f.doesNotApply !== 2) fail('a financed parcel that no evidence can grade is told it lacks evidence', f);
     else if (c.verdict === 'Not gradeable for this class' || !c.aCeiling || c.doesNotApply !== 1) fail('a cash parcel does not say it can reach a B and never an A', c);
-    else if (n.verdict !== 'Not enough evidence' || n.doesNotApply) fail('a loan with no tenure is called inapplicable rather than uncomputed', n);
+    /* n is also the anchor for f.wantOfCoverage: the words the parcel must not
+       read are the ones a deal short of evidence does read. */
+    else if (n.verdict !== 'Not enough evidence' || n.doesNotApply || !n.wantOfCoverage) fail('a loan with no tenure is called inapplicable rather than uncomputed, or is not told the coverage it lacks', n);
     else ok(`a financed parcel reads "${f.verdict}" — two pillars do not apply and no evidence lifts ${Math.round(f.reachable * 100)}% to 80%; a cash parcel says an A is out of reach; a let deal with no tenure still lacks evidence`, r);
   }
 
