@@ -1310,17 +1310,125 @@ function balanceAfter(principal, annualRatePct, years, monthsElapsed) {
    ========================================================================== */
 let sarawakGeo = null, sarawakIncome = null, geoLoadState = 'idle';
 
+/* 'failed' when the positions did not arrive. The file ships with the site,
+   so an absence is a failed load, not a build without it — and a request
+   that failed outright (offline, a dropped connection) threw here, left the
+   state at 'loading' for good, and the area screen went on saying the
+   positions were loading, or that none had been retrieved for Kuching. It
+   is not retried on every redraw; a reload asks again. */
 async function loadSarawakLayers() {
   if (geoLoadState !== 'idle') return;
   geoLoadState = 'loading';
-  sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json'));
+  sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json')).catch(() => null);
   /* Git-ignored while its licence is unconfirmed, so absent is the normal
      case rather than an error. */
-  sarawakIncome = await fetchJson(dataUrl('sarawak-income.json'));
-  geoLoadState = 'done';
+  sarawakIncome = await fetchJson(dataUrl('sarawak-income.json')).catch(() => null);
+  geoLoadState = sarawakGeo ? 'done' : 'failed';
   /* Both views that draw localities, or the second one paints an empty map
      forever: the fetch resolves, the flag flips, and nothing asks again. */
   if (State.view === 'property' || State.view === 'areas') render();
+}
+
+/* THE CONTROL IN USE SURVIVES A REDRAW THE READER DID NOT ASK FOR.
+   ---------------------------------------------------------------------------
+   These pages are drawn at once and drawn again when their data lands: boot
+   routes again once the filings are in (95-boot.js), and loadSarawakLayers
+   above redraws the two views that draw localities. render() replaces the
+   whole view, so a control the reader had reached before then — a layer on
+   the area screen, the town, the "Recording as" name, a calculator field —
+   went with it and focus fell to <body>, throwing a keyboard or
+   screen-reader reader back to the top of the page. That window is a second
+   or two on a fast line, and as long as the 2.4MB of filings and NAPIC
+   tables take on a slow one. A name half typed into "Recording as" was
+   saved as the field left the page (the browser commits an edited field as
+   it is removed), while the field drawn in its place a moment before read
+   blank.
+
+   A view in these files calls this first, while the page it is about to
+   replace is still in place. A microtask later the redraw is over, and only
+   if focus fell to <body> — a control whose own action moved focus has done
+   so by then, synchronously — it goes back to the same control in the new
+   page: by id, or else by what the control says and which of its kind it
+   was, for the buttons and links that carry no id. What the reader was
+   typing in it comes too, where it had not yet been committed, and a
+   <details> it sat in is opened again, since a closed one cannot hold
+   focus. A point on a locality map has no id and is drawn a frame later, so
+   it is named to cityMap, which hands focus to it when it draws.
+
+   THE CARET COMES WITH IT. A field focused by script takes the caret at its
+   start, with nothing selected. So on the calculator, Tab from one field to
+   the next — which selects the next field's figure, for typing to replace —
+   was followed a tick later by the redraw the first field's change asks for
+   (renderAfterTyping), and typing 77 into a floor area of 0 recorded 770;
+   a price of 572000 retyped as 600000 would have read 600000572000. Focus
+   handed back to a field the data landed under mid-number would do the
+   same — 12, then 3, reading 312 — so the caret is restored with it. Where
+   the redraw's own caller put focus back on the same control
+   (renderKeepFocus), only the caret is restored. A number field has no
+   selection a page can read or set, so its state is taken from what Chrome
+   reports as the document's selection — its whole figure, after Tab — and
+   put back with select(), or else the caret goes to the end, where typing
+   leaves it. */
+const typedSinceCommit = new WeakSet();
+document.addEventListener('input', (e) => typedSinceCommit.add(e.target), true);
+document.addEventListener('change', (e) => typedSinceCommit.delete(e.target), true);
+function fieldCaret(n) {
+  if (!n || !/^(INPUT|TEXTAREA)$/.test(n.tagName)) return null;
+  try { if (typeof n.selectionStart === 'number') return [n.selectionStart, n.selectionEnd, n.selectionDirection]; }
+  catch { /* number and date fields throw rather than answer */ }
+  if (n.type !== 'number' || n.value === '') return null;
+  const s = document.getSelection();
+  return s && s.type === 'Range' && s.toString() === n.value ? 'all' : 'end';
+}
+function putCaret(n, caret) {
+  if (Array.isArray(caret)) { try { n.setSelectionRange(...caret); } catch { /* not a text field now */ } return; }
+  if (caret === 'all') { n.select(); return; }
+  /* Setting a value moves the caret to its end. */
+  if (caret === 'end' && n.value !== '') { const v = n.value; n.value = ''; n.value = v; }
+}
+/* WHETHER A PAGE HERE HAS FINISHED DRAWING ITSELF: the filings have landed or
+   failed (boot routes again either way, which redraws) and no locality
+   positions are in flight (loadSarawakLayers redraws when they land). After
+   this, no redraw is still to come that the reader did not ask for. The
+   browser harnesses wait for it instead of sleeping a fixed time after a
+   load, which on a loaded machine ended before the page had booted
+   ("registerLog is not defined") or before it had redrawn (a check pressed a
+   layer, the redraw landed, and focus read <body>). Declared, so it answers
+   even from a script that stopped part-way — and then it throws or stays
+   false, and the wait says so, rather than reading a half-booted page as
+   ready. */
+function propertyPagesSettled() {
+  return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading';
+}
+function keepFocusThroughRedraw() {
+  const a = document.activeElement;
+  if (!a || a === document.body || !viewRoot.contains(a)) return;
+  const map = a.closest('svg[data-city]');
+  if (map && a.dataset.area) { cityMapFocus = { city: map.dataset.city, name: a.dataset.area }; return; }
+  const said = (n) => (n.getAttribute('aria-label') || n.textContent || '').replace(/\s+/g, ' ').trim();
+  const kin = (root) => [...root.querySelectorAll(a.tagName)].filter(n => !n.id && said(n) === said(a));
+  const nth = a.id ? -1 : kin(viewRoot).indexOf(a);
+  const typed = typedSinceCommit.has(a) ? a.value : null;
+  /* A summary's own disclosure may have been closed; any other holder of focus sat in open ones. */
+  const ownOpen = a.tagName === 'SUMMARY' && !!a.parentElement?.open;
+  const caret = fieldCaret(a);
+  queueMicrotask(() => {
+    if (a.isConnected) return;
+    const at = document.activeElement;
+    if (at && at !== document.body) {
+      if (caret && a.id && at.id === a.id) putCaret(at, caret);
+      return;
+    }
+    const n = a.id ? document.getElementById(a.id) : kin(viewRoot)[nth];
+    if (!n || !viewRoot.contains(n)) return;
+    for (let d = n.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) {
+      if (n.tagName === 'SUMMARY' && d === n.parentElement) { if (ownOpen) d.open = true; }
+      else d.open = true;
+    }
+    if (typed !== null && n.value !== typed) n.value = typed;
+    n.focus({ preventScroll: true });
+    if (caret && document.activeElement === n) putCaret(n, caret);
+  });
 }
 
 /* ==========================================================================
@@ -1797,6 +1905,8 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     svg.setAttribute('width', String(contentW)); svg.setAttribute('height', String(H));
     svg.setAttribute('style', 'display:block;margin:0 auto;max-width:100%');
     svg.setAttribute('role', 'img');
+    /* Which town's map, so a redraw can name a focused point back to it (keepFocusThroughRedraw). */
+    svg.setAttribute('data-city', cityId);
     /* Built by hand rather than through the chart layer, so it needed the tab
        stop adding separately — and did not have one. */
     svg.setAttribute('tabindex', '0');

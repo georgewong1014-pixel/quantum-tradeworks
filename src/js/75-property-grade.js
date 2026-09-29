@@ -1363,8 +1363,18 @@ function propertyRiskFlags(d, m) {
 /* A recorded exposure's summary, by company and theme — the pair Add refuses
    to record twice — so focus can be handed to a record after a redraw. */
 const swkRecordId = (rec) => `swk-rec-${slugParam(`${rec.id}-${rec.theme}`)}`;
+/* Which records the reader has open, by the same key — see the record's <details>. */
+const swkOpenRecords = new Set();
 
 VIEWS.sarawak = () => {
+  /* The records open on the page this drawing replaces stay open in it —
+     those still held: one just removed, or gone from another tab, is
+     forgotten, so a record added again later does not come back open. */
+  const swkHeld = new Set((State.sarawakExposure || []).map(swkRecordId));
+  document.querySelectorAll('#views details > summary[id^="swk-rec-"]').forEach(sm => {
+    if (sm.parentElement.open) swkOpenRecords.add(sm.id); else swkOpenRecords.delete(sm.id);
+  });
+  [...swkOpenRecords].forEach(k => { if (!swkHeld.has(k)) swkOpenRecords.delete(k); });
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   const hd = el('div', { class: 'page-hd' });
   hd.append(el('div', {}, [
@@ -1521,7 +1531,13 @@ VIEWS.sarawak = () => {
       'Completeness counts the eleven fields section 19.2 asks for. A thin record cannot pass for a researched one.'));
     recs.forEach((rec, i) => {
       const theme = SARAWAK_THEMES.find(t => t.id === rec.theme);
-      const det = el('details', { style: 'border-top:1px solid var(--line);padding:10px 0' });
+      /* OPEN STAYS OPEN. Add and Remove redraw the page, and every record
+         came back closed: a reader halfway through one company's fields who
+         added the next found the first shut, and had to find it and open it
+         again to go on. The view reads which were open off the page it
+         replaces (swkOpenRecords, at its top). */
+      const det = el('details', { style: 'border-top:1px solid var(--line);padding:10px 0',
+        open: swkOpenRecords.has(swkRecordId(rec)) ? '' : null });
       /* Both numbers on the summary line, never averaged into one. A record can
          be fully written and entirely unsourced, and a reader has to be able to
          see that without opening it. */
@@ -1679,6 +1695,9 @@ function usePropertyReport(id) {
 const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
 /* Whether the borrower's financing disclosure is open — see its <details>. */
 let borrowerPanelOpen = false;
+/* What the calculator's "record what you observed" form holds before Record —
+   see the form. */
+let observationDraft = null;
 
 /* A SENTENCE IN A TABLE CELL WRAPS BETWEEN WORDS, NEVER INSIDE ONE.
    The grade's "Basis" column and the financing components' carried .caption,
@@ -1692,6 +1711,8 @@ let borrowerPanelOpen = false;
 const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
 
 VIEWS.property = () => {
+  /* Drawn again when the filings and the locality positions land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
      or Reset on either path. */
@@ -2166,12 +2187,16 @@ VIEWS.property = () => {
   /* The address IS the share. One control to put it on the clipboard, beside
      the fields it describes, and a sentence saying what travels with it. */
   loc.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-bottom:10px' }, [
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: async () => {
+    el('button', { class: 'btn btn-ghost btn-sm', id: 'property-copy-link', onclick: async () => {
       try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every input of this deal'); }
       catch { toast('Could not reach the clipboard — copy the address bar instead'); }
     } }, 'Copy a link to this deal'),
     el('span', { class: 'metaline' }, 'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. It carries the Sarawak checklist answers too, with how each was established. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. Your loan-readiness inputs are about you, not the deal, and do not travel.'),
-    store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); render(); } } }, 'Restore my previous deal') : null,
+    /* Restore goes once it has restored, and focus went with it to <body>;
+       it goes to Copy, which sat beside it. */
+    store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+      if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); render(); focusAfterRedraw('#property-copy-link'); }
+    } }, 'Restore my previous deal') : null,
   ]));
 
   const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
@@ -2360,10 +2385,26 @@ VIEWS.property = () => {
       toast(srcInp.value.trim()
         ? `Recorded for ${d.district}${hasArea ? '' : ' — no area, so no price per unit from this one'}`
         : `Recorded for ${d.district} — no source, so it counts as a note`);
+      observationDraft = null;
       renderKeepFocus();
     } }, 'Record');
+    /* WHAT IS ENTERED HERE BEFORE RECORD IS KEPT THROUGH A REDRAW.
+       These fields were the only copy of what had been typed, and any redraw
+       of the page drew them empty: a deal field changed above the form, or
+       the filings landing a moment after the page opened, turned an achieved
+       rent of 2100 with its tenancy reference and address back into an
+       asking rent with nothing entered. Each field writes the draft as it
+       changes, a drawing reads it back, and Record lets it go. */
+    const draftFields = { kind: kindSel, value: valInp, area: areaInp, unit: unitSel, title: titleSel,
+      evidence: evSel, date: dateInp, source: srcInp, address: addrInp };
+    const held = observationDraft;
+    if (held) Object.entries(draftFields).forEach(([k, n]) => { if (k !== 'unit' && held[k] != null) n.value = held[k]; });
     [kindSel, valInp, areaWrap, titleSel, evSel, dateInp, addrInp, srcInp, addBtn].forEach(x => form.append(x));
     syncKind();
+    /* The unit after the kind, whose units syncKind has just offered. */
+    if (held && [...unitSel.options].some(o => o.value === held.unit)) unitSel.value = held.unit;
+    const keepDraft = () => { observationDraft = Object.fromEntries(Object.entries(draftFields).map(([k, n]) => [k, n.value])); };
+    Object.values(draftFields).forEach(n => { n.addEventListener('input', keepDraft); n.addEventListener('change', keepDraft); });
     oc.append(form);
     oc.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'Stored in this browser only. It is never sent anywhere, it is not published with the site, and it carries no redistribution right — the same position as every other figure you supply here.'));
@@ -3279,7 +3320,7 @@ VIEWS.property = () => {
       buy.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: left > 0 ? null : '',
         onclick: () => {
           if (!usePropertyReport(d.projectId)) { toast(`This month's ${included} included reports are used`); return; }
-          toast(`Included report used — ${propertyReportsLeft()} left this month`); render();
+          toast(`Included report used — ${propertyReportsLeft()} left this month`); render(); focusAfterRedraw('#property-report-full h3');
         } }, left > 0
           ? `Use an included report — ${left} of ${included} left this month`
           : `All ${included} included reports used this month`));
@@ -3287,7 +3328,9 @@ VIEWS.property = () => {
     buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       State.propertyReportsBought = [...State.propertyReportsBought, d.projectId];
       store.write('propertyReportsBought', State.propertyReportsBought);
-      toast('Report unlocked — no payment was taken, this is a prototype'); render();
+      /* The offer is replaced by the report, and focus went to <body> with
+         the button; it goes to the report's first heading. */
+      toast('Report unlocked — no payment was taken, this is a prototype'); render(); focusAfterRedraw('#property-report-full h3');
     } }, `Unlock this report (prototype — no payment)`));
     buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'));
     out.append(el('div', {}, buy));
@@ -3297,7 +3340,7 @@ VIEWS.property = () => {
   }
 
   /* ---------- exits and the alternative ---------- */
-  const exitCard = el('div', { class: 'card' });
+  const exitCard = el('div', { class: 'card', id: 'property-report-full' });
   exitCard.append(cardHead('Selling in year 5 and year 10',
     'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.'));
   const exTable = el('table', { class: 'dt' });

@@ -142,7 +142,18 @@ try {
 
   console.log(`target  ${BASE}\n`);
   await send('Page.navigate', { url: `${BASE}/property/calculator` }, sessionId);
-  await sleep(4000);
+  /* Waited for, not slept on: until the page says it has drawn its data in
+     (propertyPagesSettled, 70-property.js). A fixed 4s ended before boot on
+     a loaded machine, and every check after it read a page not yet there. */
+  {
+    let last = 'no answer';
+    for (const t = Date.now(); ; await sleep(100)) {
+      const r = await send('Runtime.evaluate', { expression: 'propertyPagesSettled()', returnByValue: true }, sessionId);
+      if (r.result?.result?.value === true) break;
+      last = r.result?.exceptionDetails ? String(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text).split('\n')[0] : 'not settled';
+      if (Date.now() - t > 30000) throw new Error(`the calculator did not finish loading in 30s — it last answered: ${last}`);
+    }
+  }
 
   /* Two deals: the shipped default, which runs at a monthly loss, and one let
      at a rent high enough to produce taxable income. Several checks are vacuous
@@ -1966,6 +1977,172 @@ try {
     else ok(`views: the property card on /how-it-works reads ${paid.still} to complete with RM5,000 paid at offer, and marks a total with an unpriced line "so far"`);
   }
   /* ---- end bugfix5: views ---- */
+
+  /* ---- bugfix: property-focus ---- */
+  /* F4 — typing after Tab replaces the next field's figure, and typing after
+          Enter goes on the end. A field's change redraws the page a tick
+          later (renderAfterTyping) and focus was handed back to the new
+          field with the caret at its start and nothing selected: Tab from
+          the floor area to the land area, which selects the land area's 0,
+          then 77, recorded 770 — a price retyped the same way would have
+          read 600000572000 — and 600000 then Enter, then 1, read 1600000.
+          Driven with real key events, because the defect is between them. */
+  {
+    const key = async (k, code, text) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, windowsVirtualKeyCode: code, ...(text ? { text } : {}) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code }, sessionId);
+    };
+    const typeIn = async (t) => { for (const ch of t) { await key(ch, ch.charCodeAt(0), ch); await sleep(40); } };
+    await evaluate(`(() => { window.__T.f3 = JSON.parse(JSON.stringify(State.deal)); navigate('/property/calculator'); return true; })()`);
+    await sleep(600);
+    await evaluate(`(() => { const n = document.getElementById('d-sqft'); n.scrollIntoView({ block: 'center' }); n.focus(); n.select(); return true; })()`);
+    await typeIn('1100');
+    await key('Tab', 9); await sleep(300);
+    const next = await evaluate(`JSON.stringify({ id: document.activeElement?.id || document.activeElement?.tagName, was: document.activeElement?.value })`);
+    await typeIn('77'); await sleep(100);
+    const tabbed = JSON.parse(await evaluate(`JSON.stringify({ ...${next}, now: document.activeElement?.value, sqft: State.deal.sqft })`));
+    await evaluate(`(() => { const n = document.getElementById('d-price'); n.scrollIntoView({ block: 'center' }); n.focus(); n.select(); return true; })()`);
+    await typeIn('600000');
+    await key('Enter', 13, '\r'); await sleep(300);
+    await typeIn('1'); await sleep(100);
+    const entered = JSON.parse(await evaluate(`JSON.stringify({ at: document.activeElement?.id, now: document.activeElement?.value, price: State.deal.price })`));
+    await evaluate(`(() => { document.activeElement?.blur(); State.deal = window.__T.f3; saveDeal(); render(); return true; })()`);
+    const p = [];
+    if (tabbed.sqft !== 1100) p.push(`the floor area typed as 1100 recorded ${tabbed.sqft}`);
+    if (tabbed.now !== '77') p.push(`Tab to ${tabbed.id} (reading ${tabbed.was}), then 77, reads ${tabbed.now}`);
+    if (entered.price !== 600000 || entered.at !== 'd-price' || entered.now !== '6000001') p.push(`600000, Enter, then 1 in the price reads ${entered.now} on ${entered.at} (recorded ${entered.price})`);
+    if (p.length) fail('focus: a field redrawn after a change loses its caret, and typing lands at the start of the figure', p);
+    else ok(`focus: Tab then typing replaces the next field's figure (${tabbed.id}: 77), and Enter keeps the caret at the end of the price (6000001)`);
+  }
+  /* F5 — Unlock and Restore hand focus on. Each redrew the page with plain
+          render() and went itself — the offer is replaced by the report, and
+          Restore goes once the deal is back — so focus fell to <body> and a
+          keyboard reader started again from the top of the calculator. */
+  {
+    const at = () => evaluate(`(() => { const a = document.activeElement; if (!a || a === document.body) return 'BODY';
+      return (a.id || a.tagName) + ':' + a.textContent.trim().slice(0, 32) + (a.closest('#property-report-full') ? ' (in the report)' : ''); })()`);
+    const pressLabelled = async (label) => {
+      const found = await evaluate(`(() => { const b = [...document.querySelectorAll('main button')].find(x => x.textContent.trim().startsWith(${JSON.stringify(label)}));
+        if (!b) return false; b.scrollIntoView({ block: 'center' }); b.focus(); return true; })()`);
+      if (!found) return `no "${label}" button`;
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', windowsVirtualKeyCode: 13, text: '\r' }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+      await sleep(400);
+      return at();
+    };
+    await evaluate(`(() => { window.__T.f5 = { deal: JSON.parse(JSON.stringify(State.deal)), bought: localStorage.getItem('vl.propertyReportsBought'), before: localStorage.getItem('vl.dealBeforeLink') };
+      State.propertyReportsBought = []; store.write('propertyReportsBought', []); navigate('/property/calculator'); return true; })()`);
+    await sleep(600);
+    const unlocked = await pressLabelled('Unlock this report');
+    await evaluate(`(() => { store.write('dealBeforeLink', { ...State.deal, price: 500000 }); render(); return true; })()`);
+    await sleep(300);
+    const restored = await pressLabelled('Restore my previous deal');
+    const price = await evaluate('State.deal.price');
+    await evaluate(`(() => { const k = window.__T.f5; const put = (key, v) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v);
+      put('propertyReportsBought', k.bought); put('dealBeforeLink', k.before); State.propertyReportsBought = store.read('propertyReportsBought', []);
+      State.deal = k.deal; saveDeal(); render(); return true; })()`);
+    const p = [];
+    if (!/ \(in the report\)$/.test(unlocked) || !unlocked.startsWith('H3:')) p.push(`Unlock → ${unlocked}`);
+    if (!restored.startsWith('property-copy-link:') || price !== 500000) p.push(`Restore → ${restored} (the deal's price ${price})`);
+    if (p.length) fail('focus: Unlock or Restore on the calculator drops focus on <body>', p);
+    else ok(`focus: Unlock hands focus to the report (${unlocked}), Restore to the link control beside it`);
+  }
+  /* F6 — what is typed into the calculator's "record what you observed"
+          form survives a redraw until Record takes it. The fields were the
+          only copy, and any redraw — a deal field changed above them, the
+          filings landing — drew them empty. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = { deal: JSON.parse(JSON.stringify(State.deal)), obs: localStorage.getItem('vl.observations'), log: localStorage.getItem('vl.registerLog') };
+      navigate('/property/calculator'); await new Promise(res => setTimeout(res, 400));
+      const q = (l) => document.querySelector('main [aria-label="' + l + '"]');
+      const set = (l, v) => { const n = q(l); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      set('What you observed', 'land-sold'); set('Observed value', '880000'); set('Land area', '4'); set('Source reference', 'SPA 7');
+      set('Address or project', 'Lot 12');
+      const read = () => ['What you observed', 'Observed value', 'Land area', 'Unit the area is in', 'Source reference', 'Address or project'].map(l => q(l)?.value);
+      const typed = read();
+      const t = document.getElementById('dealType'); t.value = [...t.options].find(o => o.value !== t.value).value; t.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(res => setTimeout(res, 200));
+      const redrawn = read();
+      const before = State.observations.length;
+      document.getElementById('obs-record').click();
+      await new Promise(res => setTimeout(res, 200));
+      const rec = State.observations[0];
+      const after = read();
+      const put = (key, v) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v);
+      put('observations', kept.obs); put('registerLog', kept.log); State.observations = store.read('observations', []); loadRegisterLog();
+      State.deal = kept.deal; saveDeal(); render();
+      return JSON.stringify({ typed, redrawn, added: State.observations.length === before ? 0 : 1, rec: rec && { kind: rec.kind, value: rec.value, landSqft: rec.landSqft, landUnit: rec.landUnit, sourceRef: rec.sourceRef, address: rec.address }, after });
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.redrawn) !== JSON.stringify(r.typed)) p.push(`typed ${JSON.stringify(r.typed)}, and after the property type changed the form read ${JSON.stringify(r.redrawn)}`);
+    if (!r.rec || r.rec.kind !== 'land-sold' || r.rec.value !== 880000 || r.rec.landUnit !== r.typed[3] || r.rec.sourceRef !== 'SPA 7' || r.rec.address !== 'Lot 12')
+      p.push(`Record after the redraw recorded ${JSON.stringify(r.rec)}`);
+    if (r.after[1] !== '' || r.after[4] !== '') p.push(`the form still reads ${JSON.stringify(r.after)} after Record`);
+    if (p.length) fail('state: the calculator\'s observation form is emptied by a redraw before Record', p);
+    else ok(`state: the observation form keeps what was typed (${r.typed.slice(0, 3).join(', ')} ${r.typed[3]}) through a redraw, Record records it, and the form is empty after`);
+  }
+  /* F7 — the Cash Wheel's close debit, commission and roll figures survive a
+          redraw until the transition reads them. They were drawn at 0 on
+          every redraw, so a close debit of 1.20 and a commission of 0.65,
+          then a contract field corrected above them, recorded the buy-back
+          as free: realised result overstated by $120.65 on 100 shares. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = { wheel: JSON.parse(JSON.stringify(State.wheel)), legs: JSON.parse(JSON.stringify(State.wheelLegs || [])) };
+      const tick = () => new Promise(res => setTimeout(res, 150));
+      navigate('/us-options/wheel'); await tick();
+      State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true, state: 'candidate' }; State.wheelLegs = []; saveWheel(); saveWheelLegs(); render(); await tick();
+      const btn = (t) => [...document.querySelectorAll('main button')].find(x => x.textContent.trim() === t);
+      const type = (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); };
+      const correct = () => { const f = document.querySelector('#wheel-inputs input[type=number]'); f.value = String(Number(f.value) + 1); f.dispatchEvent(new Event('change', { bubbles: true })); };
+      btn('Start a cycle').click(); await tick();
+      btn('Record the put as opened').click(); await tick();
+      type('r-debit', '0.40');
+      type('w-closedebit', '1.20'); type('w-closecomm', '0.65');
+      correct(); await tick();
+      const shown = ['w-closedebit', 'w-closecomm', 'r-debit'].map(id => document.getElementById(id)?.value);
+      const rollOpen = !!document.getElementById('r-debit')?.closest('details')?.open;
+      btn('I bought it back').click(); await tick();
+      const close = State.wheelLegs.find(l => l.action === 'close');
+      const out = { shown, rollOpen, closeCash: close?.netCash ?? null, shares: close?.shares ?? null };
+      State.wheel = kept.wheel; State.wheelLegs = kept.legs; saveWheel(); saveWheelLegs(); render();
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (r.shown.join() !== '1.20,0.65,0.40') p.push(`after a contract field was corrected the figures read ${r.shown.join(', ')} (typed 1.20, 0.65, 0.40)`);
+    if (!r.rollOpen) p.push('the roll, holding a typed figure, came back closed');
+    if (r.closeCash !== -(1.20 * r.shares + 0.65)) p.push(`"I bought it back" recorded a closing cash of ${r.closeCash} for ${r.shares} shares`);
+    if (p.length) fail('state: the Cash Wheel records a buy-back with figures a redraw set to 0', p);
+    else ok(`state: the Cash Wheel keeps a typed close debit and commission through a redraw, and records the buy-back at ${r.closeCash}`);
+  }
+  /* F8 — a Sarawak exposure record open for editing stays open when another
+          is added or removed. Add and Remove redraw the page, and every
+          record came back closed. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const kept = localStorage.getItem('vl.sarawakExposure');
+      const tick = () => new Promise(res => setTimeout(res, 200));
+      State.sarawakExposure = []; saveExposures(); navigate('/discover/sarawak'); await tick();
+      const add = (i) => { const s = document.querySelector('main select[aria-label="Company"]'); s.selectedIndex = i; s.dispatchEvent(new Event('change', { bubbles: true })); document.getElementById('swk-add').click(); };
+      const openOf = (rec) => !!document.getElementById(swkRecordId(rec))?.parentElement.open;
+      add(0); await tick();
+      document.getElementById(swkRecordId(State.sarawakExposure[0])).parentElement.open = true;
+      add(1); await tick(); add(2); await tick();
+      const afterAdd = State.sarawakExposure.map(openOf);
+      const [first, second, third] = State.sarawakExposure;
+      [...document.getElementById(swkRecordId(second)).parentElement.querySelectorAll('button')].find(b => b.textContent.trim() === 'Remove').click();
+      await tick();
+      const afterRemove = { first: openOf(first), third: openOf(third), n: State.sarawakExposure.length };
+      if (kept == null) localStorage.removeItem('vl.sarawakExposure'); else localStorage.setItem('vl.sarawakExposure', kept);
+      State.sarawakExposure = store.read('sarawakExposure', []); render();
+      return JSON.stringify({ afterAdd, afterRemove });
+    })()`));
+    if (r.afterAdd.join() !== 'true,false,false' || !r.afterRemove.first || r.afterRemove.third || r.afterRemove.n !== 2)
+      fail('state: a Sarawak exposure record open for editing closes when another is added or removed', r);
+    else ok('state: a Sarawak exposure record open for editing stays open through two Adds and a Remove, and the others stay closed');
+  }
+  /* ---- end bugfix: property-focus ---- */
 
 } catch (e) {
   fail('harness error', e.message);

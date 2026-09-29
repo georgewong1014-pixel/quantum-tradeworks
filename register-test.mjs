@@ -190,9 +190,34 @@ try {
     return r.result.result.value;
   };
 
+  /* A PAGE IS READY WHEN IT SAYS SO, NOT AFTER A FIXED SLEEP.
+     Every load here slept 2.5s (4s the first) and then used the page. On a
+     loaded machine the page had not booted by then — check 7 read
+     "registerLog is not defined", and check 8 stopped the run on
+     "addObservation is not defined" — or it had booted and not yet redrawn
+     for its data, which lands after the first paint and redraws the page: a
+     check that pressed a control in between read focus on <body>. load()
+     marks the page it leaves, navigates, and waits (up to 30s) until the
+     new page answers propertyPagesSettled() (70-property.js): the filings
+     landed or failed, no locality positions in flight, so no redraw the
+     reader did not ask for is still to come. A page that never gets there
+     is a failure that says what it last answered. */
+  const load = async (path, sid = sessionId) => {
+    await send('Runtime.evaluate', { expression: 'window.__rtLeaving = true', returnByValue: true }, sid);
+    await send('Page.navigate', { url: `${BASE}${path}` }, sid);
+    let last = 'no answer';
+    for (const t = Date.now(); Date.now() - t < 30000; await sleep(100)) {
+      const r = await send('Runtime.evaluate', { expression: '!window.__rtLeaving && propertyPagesSettled()', returnByValue: true }, sid);
+      if (r.result?.result?.value === true) return;
+      last = r.result?.exceptionDetails
+        ? String(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text).split('\n')[0]
+        : 'not settled';
+    }
+    throw new Error(`${path} did not finish loading in 30s — it last answered: ${last}`);
+  };
+
   console.log(`target  ${BASE}\n`);
-  await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
-  await sleep(4000);
+  await load('/property/comparables');
 
   /* Every entity the app declares must have operations here. A new entity with
      none is a hole in this test, and it is an error rather than a pass. */
@@ -356,8 +381,8 @@ try {
     for (const [k, v] of CORRUPT) {
       await evaluate(`(() => { ['registerLog','registerActor','observations','areaProfiles','demand'].forEach(x => localStorage.removeItem('vl.' + x));
         localStorage.setItem('vl.' + ${JSON.stringify(k)}, ${JSON.stringify(JSON.stringify(v))}); return true; })()`);
-      await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
-      await sleep(2500);
+      const booted = await load('/property/comparables').then(() => null, e => e.message);
+      if (booted) { bad.push(`vl.${k} = ${JSON.stringify(v)}: ${booted}`); continue; }
       const r = await evaluate(`(() => {
         const h1 = document.querySelector('main h1')?.textContent || '';
         let recorded = false, undo = null;
@@ -382,8 +407,7 @@ try {
          reader's. The five labels stood beside inputs with no id; the history
          and "Recorded" printed the stored UTC minute with no zone. */
   {
-    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
-    await sleep(2500);
+    await load('/property/comparables');
     await send('Emulation.setTimezoneOverride', { timezoneId: 'Asia/Kuching' }, sessionId);
     const r = JSON.parse(await evaluate(`(async () => {
       const rec = addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 420000, date:'2026-05-01', evidence:'user', sourceRef:'SPA 1' });
@@ -412,8 +436,7 @@ try {
          one area recorded, the point took the middle step and the legend
          showed both ends of the ramp, each labelled with that one value. */
   {
-    await send('Page.navigate', { url: `${BASE}/property/areas` }, sessionId);
-    await sleep(2500);
+    await load('/property/areas');
     const r = JSON.parse(await evaluate(`(async () => {
       setAreaAttr('kuching', 'Tabuan', 'lease', { value: 70, class: '', source: 'unstated', asOf: '', ref: '' });
       State.areaScreen = { ...State.areaScreen, city: 'kuching', layer: 'lease' }; render();
@@ -433,8 +456,7 @@ try {
           worked-example row has a standing of its own and had no tile, so
           with the example loaded "17 records" sat over tiles totalling 1. */
   {
-    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
-    await sleep(2500);
+    await load('/property/comparables');
     const r = JSON.parse(await evaluate(`(async () => {
       seedWorkedExample();
       addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 1, date:'2026-05-01', evidence:'user', sourceRef:'x' });
@@ -486,14 +508,12 @@ try {
     };
     const at = () => evaluate(`document.activeElement?.id || document.activeElement?.tagName || null`);
     const out = {};
-    await send('Page.navigate', { url: `${BASE}/property/areas` }, sessionId);
-    await sleep(2500);
+    await load('/property/areas');
     await evaluate(`(() => { [...document.querySelectorAll('main table button')].find(b => b.textContent === 'Record').focus(); return true; })()`);
     await press(); out.record = await at();
     await evaluate(`(() => { document.querySelectorAll('main .segmented button')[1].focus(); return true; })()`);
     await press(); out.layer = await at();
-    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
-    await sleep(2500);
+    await load('/property/comparables');
     await evaluate(`(() => { addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 1, date:'2026-05-01', evidence:'user' });
       addObservation({ city:'kuching', area:'Tabuan', kind:'sold-price', value: 2, date:'2026-05-02', evidence:'user' }); render();
       [...document.querySelectorAll('main button')].find(b => b.textContent === 'Undo last change').focus(); return true; })()`);
@@ -512,8 +532,7 @@ try {
           and "docume / nt exists", and still ran 12px past its wrapper, over
           the Open button. */
   {
-    await send('Page.navigate', { url: `${BASE}/property/comparables` }, sessionId);
-    await sleep(2500);
+    await load('/property/comparables');
     const r = JSON.parse(await evaluate(`(async () => {
       seedWorkedExample(); render(); await new Promise(res => setTimeout(res, 300));
       const t = [...document.querySelectorAll('main table.dt')].find(x => /Standing/.test(x.querySelector('thead')?.textContent || ''));
@@ -667,6 +686,192 @@ try {
     else console.log('ok    two tabs keep each other\'s records — comparables, area attributes, demand, unlocked reports and Sarawak exposures, an edit to a record drawn before the other tab\'s Add included; the register\'s history accounts for both');
   }
   /* ---- end bugfix3: property ---- */
+
+  /* ---- bugfix: property-focus ---- */
+  /* F1 — the control in use keeps focus, and what is typed in it, when the
+          page redraws because its data landed. The area screen, the register
+          and the calculator are drawn at once and drawn again when the
+          filings (and, on two of them, the locality positions) arrive, and
+          render() replaced the page under the reader: focus fell to <body>
+          from a layer, a map point, an Export button and a calculator field
+          mid-number, and "Recording as" with a name half typed was saved
+          while the field drawn beside it read blank. The data is HELD here
+          (the Fetch domain) until the control is in use, so the redraw lands
+          under it on every run — not only when a loaded machine happens to
+          time it so, which is how check 12 found it. */
+  {
+    let holdRe = null;
+    const held = [];
+    const onPause = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.method !== 'Fetch.requestPaused' || m.sessionId !== sessionId) return;
+      if (holdRe && holdRe.test(m.params.request.url)) held.push(m.params.requestId);
+      else send('Fetch.continueRequest', { requestId: m.params.requestId }, sessionId);
+    };
+    const words = { lost: [], pending: null, failed: null };
+    ws.addEventListener('message', onPause);
+    await send('Network.enable', {}, sessionId);
+    await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+    await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/us.json*' }, { urlPattern: '*/data/sarawak-geo.json*' }] }, sessionId);
+    const key = async (k, code, text) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, windowsVirtualKeyCode: code, ...(text ? { text } : {}) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code }, sessionId);
+    };
+    const typeIn = async (t) => { for (const ch of t) await key(ch, ch.charCodeAt(0), ch); };
+    const at = () => evaluate(`(() => { const a = document.activeElement; if (!a || a === document.body) return 'BODY';
+      if (a.id) return a.id; if (a.dataset?.area) return 'area:' + a.dataset.area; return a.tagName + ':' + a.textContent.trim().slice(0, 24); })()`);
+    const until = async (expr, what) => {
+      for (const t = Date.now(); Date.now() - t < 30000; await sleep(50)) { try { if (await evaluate(expr)) return; } catch { /* booting */ } }
+      throw new Error(`${what} — not seen in 30s`);
+    };
+    /* Open `path` with the files matching `hold` held back; once `ready`
+       holds on the page (drawn, data still out), `use` puts the reader on a
+       control; then the data lands, and this returns once the page has
+       drawn it in. */
+    const underLanding = async (path, hold, ready, use) => {
+      holdRe = hold;
+      await evaluate('window.__rtLeaving = true');
+      await send('Page.navigate', { url: `${BASE}${path}` }, sessionId);
+      await until(`!window.__rtLeaving && realPending === true && (${ready})`, `${path} drawn with its data held`);
+      const r = await use();
+      holdRe = null;
+      while (held.length) await send('Fetch.continueRequest', { requestId: held.shift() }, sessionId);
+      await until('propertyPagesSettled()', `${path} redrawn with its data`);
+      await sleep(300);
+      return r;
+    };
+    const lost = [], kept = [];
+    try {
+      /* a layer on the area screen */
+      await underLanding('/property/areas', /us\.json|sarawak-geo\.json/, `!!document.getElementById('af-layer-title')`,
+        () => evaluate(`document.getElementById('af-layer-title').focus()`));
+      const layer = await at();
+      (layer === 'af-layer-title' ? kept : lost).push(`a layer → ${layer}`);
+
+      /* a number typed into a filter, and the typing that follows it */
+      await underLanding('/property/areas', /us\.json|sarawak-geo\.json/, `!!document.getElementById('af-minLease')`, async () => {
+        await evaluate(`(() => { State.areaScreen.minLease = null; document.getElementById('af-minLease').focus(); return true; })()`);
+        await typeIn('30');
+      });
+      const filter = await at();
+      await typeIn('5'); await key('Tab', 9); await sleep(300);
+      const lease = await evaluate('State.areaScreen.minLease');
+      await evaluate('(() => { State.areaScreen.minLease = null; return true; })()');
+      (filter === 'af-minLease' && lease === 305 ? kept : lost).push(`the lease filter, 30 typed before and 5 after → ${filter}, filtering on ${lease}`);
+
+      /* a point on the locality map (the positions are in, the filings are not) */
+      const point = await underLanding('/property/areas', /us\.json/, `document.querySelectorAll('main svg g[data-area]').length > 1`,
+        () => evaluate(`(() => { const g = document.querySelectorAll('main svg g[data-area]')[1]; g.focus(); return g.dataset.area; })()`));
+      const onMap = await at();
+      (onMap === 'area:' + point ? kept : lost).push(`the map point ${point} → ${onMap}`);
+
+      /* "Recording as", a name half typed */
+      await underLanding('/property/comparables', /us\.json/, `!!document.getElementById('registerActorInput')`, async () => {
+        await evaluate(`(() => { localStorage.removeItem('vl.registerActor'); document.getElementById('registerActorInput').focus(); return true; })()`);
+        await typeIn('AL');
+      });
+      const actor = { at: await at(), shows: await evaluate(`document.getElementById('registerActorInput')?.value`) };
+      await key('Tab', 9); await sleep(200);
+      actor.recordingAs = await evaluate('registerActor()');
+      await evaluate(`(() => { localStorage.removeItem('vl.registerActor'); return true; })()`);
+      (actor.at === 'registerActorInput' && actor.shows === 'AL' && actor.recordingAs === 'AL' ? kept : lost)
+        .push(`"Recording as" with AL typed → ${actor.at}, the field reading "${actor.shows}" while recording as "${actor.recordingAs}"`);
+
+      /* a button with no id */
+      await underLanding('/property/comparables', /us\.json/, `[...document.querySelectorAll('main button')].some(b => b.textContent.startsWith('Export JSON'))`,
+        () => evaluate(`[...document.querySelectorAll('main button')].find(b => b.textContent.startsWith('Export JSON')).focus()`));
+      const exp = await at();
+      (exp.startsWith('BUTTON:Export JSON') ? kept : lost).push(`Export JSON → ${exp}`);
+
+      /* a calculator field, mid-number */
+      await underLanding('/property/calculator', /us\.json|sarawak-geo\.json/, `!!document.getElementById('d-sqft')`, async () => {
+        await evaluate(`(() => { const n = document.getElementById('d-sqft'); n.scrollIntoView({ block: 'center' }); n.focus(); n.select(); return true; })()`);
+        await typeIn('12');
+      });
+      const field = await at();
+      await typeIn('3');
+      const sqft = await evaluate(`document.getElementById('d-sqft')?.value`);
+      await evaluate(`(() => { localStorage.removeItem('vl.deal'); return true; })()`);
+      (field === 'd-sqft' && sqft === '123' ? kept : lost).push(`the floor area, 12 typed before and 3 after → ${field}, reading ${sqft}`);
+
+      /* F3, below: the area screen while the locality positions are out, and once their request has failed */
+      holdRe = /sarawak-geo\.json/;
+      await evaluate('window.__rtLeaving = true');
+      await send('Page.navigate', { url: `${BASE}/property/areas` }, sessionId);
+      await until(`!window.__rtLeaving && realPending === false && geoLoadState === 'loading' && !!document.getElementById('areaTown')`, '/property/areas with its positions held');
+      const read = async () => JSON.parse(await evaluate(`JSON.stringify({ state: geoLoadState,
+        town: document.getElementById('areaTown')?.selectedOptions[0]?.textContent,
+        card: [...document.querySelectorAll('main .card')].map(c => c.textContent).find(t => /^Kuching —/.test(t)) || '' })`));
+      words.pending = await read();
+      holdRe = null;
+      while (held.length) await send('Fetch.failRequest', { requestId: held.shift(), errorReason: 'ConnectionReset' }, sessionId);
+      for (const t = Date.now(); Date.now() - t < 5000 && (await read()).state === 'loading'; await sleep(100)) { /* the failure lands */ }
+      await sleep(200);
+      words.failed = await read();
+    } catch (err) {
+      lost.push(`the check could not run: ${String(err.message).split('\n')[0]}`);
+    } finally {
+      holdRe = null;
+      while (held.length) await send('Fetch.continueRequest', { requestId: held.shift() }, sessionId);
+      await send('Fetch.disable', {}, sessionId);
+      await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+      ws.removeEventListener('message', onPause);
+    }
+    if (lost.length) fail('a redraw when the data lands takes the control in use from the reader', lost.join('; '));
+    else console.log(`ok    the control in use keeps focus and its typing when the data lands — ${kept.length} cases: a layer, a typed filter, a map point, "Recording as", an id-less button, a calculator field`);
+
+    /* F3 — the area screen says the positions are loading while they are,
+            and that they could not be loaded when they could not. Until
+            they arrived it told a reader on Kuching that coordinates were
+            retrieved "for Kuching, Sibu, Miri and Bintulu only" and listed
+            Kuching as "table only"; a request that failed outright threw,
+            left the state at loading for good, and the page said so
+            forever. */
+    const { pending, failed } = words;
+    const wrong = [];
+    if (!pending || !failed) wrong.push('the positions were never held and failed — see the check above');
+    else {
+      if (/table only/.test(pending.town) || /Coordinates were retrieved for/.test(pending.card) || !/Loading the locality positions/.test(pending.card))
+        wrong.push(`while loading: the town reads "${pending.town}", the map card "${pending.card.slice(0, 120)}"`);
+      if (failed.state !== 'failed' || /table only/.test(failed.town) || !/could not be loaded/.test(failed.card))
+        wrong.push(`after the request failed: the state is ${failed.state}, the town reads "${failed.town}", the map card "${failed.card.slice(0, 120)}"`);
+    }
+    if (wrong.length) fail('the area screen says Kuching has no coordinates while its positions load, or after they fail', wrong.join('; '));
+    else console.log('ok    the area screen says the positions are loading while they are, and that they could not be loaded when the request fails — never that Kuching has none');
+  }
+  /* F2 — what the area recorder holds unsaved survives a redraw. Its
+          sections kept their entries in a closure drawn with the page, and
+          every Save redraws the page: a flood class chosen, then the title
+          class saved, came back "Not recorded", and Save under flood then
+          said there was nothing to save. */
+  {
+    await load('/property/areas');
+    const r = JSON.parse(await evaluate(`(async () => {
+      ['registerLog', 'areaProfiles'].forEach(k => localStorage.removeItem('vl.' + k)); State.areaProfiles = {}; loadRegisterLog();
+      State.areaScreen = { ...State.areaScreen, city: 'kuching', editing: 'Tabuan' }; render();
+      const pick = (id, i) => { const s = document.getElementById(id); s.value = s.options[i].value; s.dispatchEvent(new Event('change', { bubbles: true })); return s.value; };
+      const chosen = pick('ar-flood', 2);
+      pick('ar-title', 1); document.getElementById('ar-title-save').click();
+      await new Promise(res => setTimeout(res, 100));
+      const shown = document.getElementById('ar-flood')?.value;
+      document.getElementById('ar-flood-save').click();
+      await new Promise(res => setTimeout(res, 100));
+      const saved = State.areaProfiles['kuching|Tabuan']?.flood?.class || null;
+      /* An entry left unsaved goes with the recorder when it closes. */
+      pick('ar-drainage', 1);
+      State.areaScreen.editing = null; render();
+      State.areaScreen.editing = 'Tabuan'; render();
+      const reopened = document.getElementById('ar-drainage')?.value;
+      State.areaScreen.editing = null; render();
+      ['registerLog', 'areaProfiles'].forEach(k => localStorage.removeItem('vl.' + k)); State.areaProfiles = {}; loadRegisterLog();
+      return JSON.stringify({ chosen, shown, saved, reopened });
+    })()`));
+    if (r.shown !== r.chosen || r.saved !== r.chosen)
+      fail('the area recorder drops an unsaved entry when another section is saved', r);
+    else if (r.reopened !== '') fail('the area recorder brings back an entry left unsaved when it was closed', r);
+    else console.log(`ok    the area recorder keeps an unsaved flood class (${r.chosen}) through the title's Save and saves it after; an entry left unsaved goes when it closes`);
+  }
+  /* ---- end bugfix: property-focus ---- */
 
   console.log(failures
     ? `\n${failures} invariant${failures === 1 ? '' : 's'} broken.`

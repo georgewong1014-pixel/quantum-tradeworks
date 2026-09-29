@@ -18,7 +18,7 @@
 /* `classes` holds one selected-id array per class attribute, so a filter on
    title and a filter on flood are the same code path. */
 State.areaScreen = { city:'kuching', layer:'flood', classes:{}, minRecords:0, maxWeeks:null,
-  minLease:null, editing:null };
+  minLease:null, editing:null, drafts:null };
 
 /* Each control that redraws the page carries an id, so renderKeepFocus can
    hand focus back to it — see renderAfterTyping in 75-property-grade.js. A
@@ -28,7 +28,11 @@ const areaRowButtonId = (n) => `area-rec-${String(n).replace(/[^A-Za-z0-9]+/g, '
 const obsOpenId = (o) => `obs-open-${String(o.id).replace(/[^A-Za-z0-9]+/g, '-')}`;
 
 VIEWS.areas = () => {
+  /* Drawn again when the filings and the locality positions land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const S = State.areaScreen;
+  /* What the recorder holds unsaved goes when it closes — see areaRecorder. */
+  if (!S.editing) S.drafts = null;
   if (geoLoadState === 'idle') loadSarawakLayers();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
@@ -74,6 +78,8 @@ VIEWS.areas = () => {
      other and how somebody looking for Dalat will go looking for it. */
   const townField = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
   townField.append(el('label', { class: 'caption', style: 'font-weight:600', for: 'areaTown' }, 'Town'));
+  /* "table only" is known once the positions are in: before that, and when
+     they failed to load, every town read "— table only", Kuching included. */
   const townSel = el('select', { class: 'select select-sm', id: 'areaTown',
     onchange: e => { S.city = e.target.value; S.editing = null; renderKeepFocus(); } });
   Object.entries(SARAWAK_DIVISIONS).forEach(([division, towns]) => {
@@ -81,7 +87,7 @@ VIEWS.areas = () => {
     towns.forEach(c => grp.append(el('option', { value: c.id, selected: S.city === c.id ? '' : null },
       /* Say which towns can be drawn, rather than letting a reader pick one and
          find the map missing with no explanation. */
-      `${c.name}${sarawakGeo?.cities?.[c.id] ? '' : ' — table only'}`)));
+      `${c.name}${!sarawakGeo || sarawakGeo.cities?.[c.id] ? '' : ' — table only'}`)));
     townSel.append(grp);
   });
   townField.append(townSel);
@@ -145,7 +151,9 @@ VIEWS.areas = () => {
   if (!names.length) {
     wrap.append(emptyState(geoLoadState === 'loading'
       ? 'Loading locality positions…'
-      : `No mapped localities are held for ${city.name}. The map draws only places this build has a recorded position for; none has been invented.`));
+      : geoLoadState === 'failed'
+        ? `The locality positions could not be loaded, and nothing is recorded for ${city.name} yet. Reload the page to try again.`
+        : `No mapped localities are held for ${city.name}. The map draws only places this build has a recorded position for; none has been invented.`));
     return wrap;
   }
 
@@ -231,6 +239,18 @@ VIEWS.areas = () => {
   }
 
   if (canMap) wrap.append(mapCard);
+  /* NOT YET, OR NOT THIS TIME — NOT "NO COORDINATES".
+     While the positions were in flight, and for good when they failed to
+     load, the card below told a reader on Kuching that coordinates were
+     retrieved "for Kuching, Sibu, Miri and Bintulu only" and that Kuching
+     had no geocoded point to shade. */
+  else if (!sarawakGeo) {
+    const wait = el('div', { class: 'card' });
+    wait.append(cardHead(`${city.name} — map`, geoLoadState === 'failed'
+      ? 'The locality positions could not be loaded, so the map cannot be drawn. The table below works without them. Reload the page to try again.'
+      : 'Loading the locality positions. The map is drawn when they arrive; the table below works now.'));
+    wrap.append(wait);
+  }
   else {
     /* NO GUESSED POSITIONS. Coordinates were retrieved for four towns; drawing
        the other sixteen from invented positions would put a locality on the
@@ -388,10 +408,25 @@ function areaRecorder(city, area) {
     'Each fact is saved on its own, with its own source and date — a title class established from the title '
     + 'document and a flood account from a neighbour are not the same evidence and are never dated together.'));
 
+  /* WHAT IS ENTERED AND NOT YET SAVED IS HELD IN STATE, NOT IN THE DRAWING.
+     Each section's entries lived in a closure made when the page was drawn,
+     and every Save redraws the page: a flood class picked, then the title
+     class saved, came back "Not recorded", and Save under flood then said
+     there was nothing to save. The redraw when the filings land did the same
+     to whatever had been entered by then. A section's entries are held here
+     from its first edit, per locality, read by each drawing, and let go when
+     the section is saved or removed or the recorder closes. A section not
+     edited is drawn from what is recorded, so a change made elsewhere (Undo
+     on the register, another tab) shows. */
+  const key = `${city}|${area}`;
+  if (State.areaScreen.drafts?.key !== key) State.areaScreen.drafts = { key, byAttr: {} };
+  const drafts = State.areaScreen.drafts.byAttr;
+
   AREA_ATTRS.forEach(attr => {
     const cur = areaAttr(city, area, attr.id);
-    const draft = { class: cur?.class || '', value: isNum(cur?.value) ? cur.value : null,
+    const draft = drafts[attr.id] || { class: cur?.class || '', value: isNum(cur?.value) ? cur.value : null,
       source: cur?.source || 'unstated', asOf: cur?.asOf || '', ref: cur?.ref || '' };
+    const put = (k, v) => { draft[k] = v; drafts[attr.id] = draft; };
 
     const sec = el('div', { style: 'padding:var(--md) 0;border-top:1px solid var(--grid)' });
     sec.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:baseline' }, [
@@ -405,7 +440,7 @@ function areaRecorder(city, area) {
     if (attr.kind === 'class') {
       f1.append(el('label', { for: uid }, 'Classification'));
       const sc = el('select', { class: 'select a-text', id: uid, 'aria-label': `${attr.label} classification`,
-        onchange: e => { draft.class = e.target.value; } });
+        onchange: e => put('class', e.target.value) });
       sc.append(el('option', { value: '' }, 'Not recorded'));
       attr.classes.forEach(c => sc.append(el('option', { value: c.id, selected: draft.class === c.id ? '' : null },
         `${c.label} — ${c.note}`)));
@@ -414,14 +449,14 @@ function areaRecorder(city, area) {
       f1.append(el('label', { for: uid }, `Value (${attr.unit})`));
       f1.append(el('input', { class: 'input a-text', id: uid, type: 'number', min: '0',
         value: draft.value == null ? '' : String(draft.value), 'aria-label': `${attr.label} in ${attr.unit}`,
-        onchange: e => { draft.value = e.target.value === '' ? null : num0(e.target.value); } }));
+        onchange: e => put('value', e.target.value === '' ? null : num0(e.target.value)) }));
     }
     sec.append(f1);
 
     const f2 = el('div', { class: 'assumption' });
     f2.append(el('label', { for: `${uid}-src` }, 'Established from'));
     const ss = el('select', { class: 'select a-text', id: `${uid}-src`, 'aria-label': `Source for ${attr.label}`,
-      onchange: e => { draft.source = e.target.value; } });
+      onchange: e => put('source', e.target.value) });
     AREA_SOURCES.forEach(s => ss.append(el('option', { value: s.id, selected: draft.source === s.id ? '' : null },
       s.label + (s.verified ? '' : ' (unverified)'))));
     f2.append(ss); sec.append(f2);
@@ -429,26 +464,26 @@ function areaRecorder(city, area) {
     const f3 = el('div', { class: 'assumption' });
     f3.append(el('label', { for: `${uid}-asof` }, 'As at'));
     f3.append(el('input', { class: 'input a-text', id: `${uid}-asof`, type: 'date', value: draft.asOf,
-      'aria-label': `Date ${attr.label} was established`, onchange: e => { draft.asOf = e.target.value; } }));
+      'aria-label': `Date ${attr.label} was established`, onchange: e => put('asOf', e.target.value) }));
     sec.append(f3);
 
     const f4 = el('div', { class: 'assumption' });
     f4.append(el('label', { for: `${uid}-ref` }, 'Reference'));
     f4.append(el('input', { class: 'input a-text', id: `${uid}-ref`, type: 'text', value: draft.ref,
       placeholder: 'Document, map sheet, policy or file number, or who said it',
-      'aria-label': `Reference for ${attr.label}`, onchange: e => { draft.ref = e.target.value; } }));
+      'aria-label': `Reference for ${attr.label}`, onchange: e => put('ref', e.target.value) }));
     sec.append(f4);
 
     sec.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
       el('button', { id: `${uid}-save`, class: 'btn btn-ghost btn-sm', onclick: () => {
         const empty = attr.kind === 'class' ? !draft.class : !isNum(draft.value);
         if (empty) { toast(`Enter a value for ${attr.short.toLowerCase()}, or use Remove`); return; }
-        setAreaAttr(city, area, attr.id, draft);
+        setAreaAttr(city, area, attr.id, draft); delete drafts[attr.id];
         renderKeepFocus(); toast(`${attr.short} recorded for ${area}`);
       } }, 'Save'),
       /* Remove goes with what it removed, so focus moves to Save beside it. */
       cur ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
-        setAreaAttr(city, area, attr.id, null);
+        setAreaAttr(city, area, attr.id, null); delete drafts[attr.id];
         render(); document.getElementById(`${uid}-save`)?.focus(); toast(`${attr.short} cleared for ${area}`);
       } }, 'Remove') : null,
     ]));
@@ -465,6 +500,8 @@ function areaRecorder(city, area) {
 }
 
 VIEWS.comparables = () => {
+  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Property'),
@@ -895,6 +932,8 @@ function openObservationDrawer(o) {
 }
 
 VIEWS.status = () => {
+  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Status'),
@@ -998,6 +1037,8 @@ VIEWS.status = () => {
 };
 
 VIEWS.boundaries = () => {
+  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Learn'),

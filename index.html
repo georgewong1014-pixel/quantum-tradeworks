@@ -31418,17 +31418,125 @@ function balanceAfter(principal, annualRatePct, years, monthsElapsed) {
    ========================================================================== */
 let sarawakGeo = null, sarawakIncome = null, geoLoadState = 'idle';
 
+/* 'failed' when the positions did not arrive. The file ships with the site,
+   so an absence is a failed load, not a build without it — and a request
+   that failed outright (offline, a dropped connection) threw here, left the
+   state at 'loading' for good, and the area screen went on saying the
+   positions were loading, or that none had been retrieved for Kuching. It
+   is not retried on every redraw; a reload asks again. */
 async function loadSarawakLayers() {
   if (geoLoadState !== 'idle') return;
   geoLoadState = 'loading';
-  sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json'));
+  sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json')).catch(() => null);
   /* Git-ignored while its licence is unconfirmed, so absent is the normal
      case rather than an error. */
-  sarawakIncome = await fetchJson(dataUrl('sarawak-income.json'));
-  geoLoadState = 'done';
+  sarawakIncome = await fetchJson(dataUrl('sarawak-income.json')).catch(() => null);
+  geoLoadState = sarawakGeo ? 'done' : 'failed';
   /* Both views that draw localities, or the second one paints an empty map
      forever: the fetch resolves, the flag flips, and nothing asks again. */
   if (State.view === 'property' || State.view === 'areas') render();
+}
+
+/* THE CONTROL IN USE SURVIVES A REDRAW THE READER DID NOT ASK FOR.
+   ---------------------------------------------------------------------------
+   These pages are drawn at once and drawn again when their data lands: boot
+   routes again once the filings are in (95-boot.js), and loadSarawakLayers
+   above redraws the two views that draw localities. render() replaces the
+   whole view, so a control the reader had reached before then — a layer on
+   the area screen, the town, the "Recording as" name, a calculator field —
+   went with it and focus fell to <body>, throwing a keyboard or
+   screen-reader reader back to the top of the page. That window is a second
+   or two on a fast line, and as long as the 2.4MB of filings and NAPIC
+   tables take on a slow one. A name half typed into "Recording as" was
+   saved as the field left the page (the browser commits an edited field as
+   it is removed), while the field drawn in its place a moment before read
+   blank.
+
+   A view in these files calls this first, while the page it is about to
+   replace is still in place. A microtask later the redraw is over, and only
+   if focus fell to <body> — a control whose own action moved focus has done
+   so by then, synchronously — it goes back to the same control in the new
+   page: by id, or else by what the control says and which of its kind it
+   was, for the buttons and links that carry no id. What the reader was
+   typing in it comes too, where it had not yet been committed, and a
+   <details> it sat in is opened again, since a closed one cannot hold
+   focus. A point on a locality map has no id and is drawn a frame later, so
+   it is named to cityMap, which hands focus to it when it draws.
+
+   THE CARET COMES WITH IT. A field focused by script takes the caret at its
+   start, with nothing selected. So on the calculator, Tab from one field to
+   the next — which selects the next field's figure, for typing to replace —
+   was followed a tick later by the redraw the first field's change asks for
+   (renderAfterTyping), and typing 77 into a floor area of 0 recorded 770;
+   a price of 572000 retyped as 600000 would have read 600000572000. Focus
+   handed back to a field the data landed under mid-number would do the
+   same — 12, then 3, reading 312 — so the caret is restored with it. Where
+   the redraw's own caller put focus back on the same control
+   (renderKeepFocus), only the caret is restored. A number field has no
+   selection a page can read or set, so its state is taken from what Chrome
+   reports as the document's selection — its whole figure, after Tab — and
+   put back with select(), or else the caret goes to the end, where typing
+   leaves it. */
+const typedSinceCommit = new WeakSet();
+document.addEventListener('input', (e) => typedSinceCommit.add(e.target), true);
+document.addEventListener('change', (e) => typedSinceCommit.delete(e.target), true);
+function fieldCaret(n) {
+  if (!n || !/^(INPUT|TEXTAREA)$/.test(n.tagName)) return null;
+  try { if (typeof n.selectionStart === 'number') return [n.selectionStart, n.selectionEnd, n.selectionDirection]; }
+  catch { /* number and date fields throw rather than answer */ }
+  if (n.type !== 'number' || n.value === '') return null;
+  const s = document.getSelection();
+  return s && s.type === 'Range' && s.toString() === n.value ? 'all' : 'end';
+}
+function putCaret(n, caret) {
+  if (Array.isArray(caret)) { try { n.setSelectionRange(...caret); } catch { /* not a text field now */ } return; }
+  if (caret === 'all') { n.select(); return; }
+  /* Setting a value moves the caret to its end. */
+  if (caret === 'end' && n.value !== '') { const v = n.value; n.value = ''; n.value = v; }
+}
+/* WHETHER A PAGE HERE HAS FINISHED DRAWING ITSELF: the filings have landed or
+   failed (boot routes again either way, which redraws) and no locality
+   positions are in flight (loadSarawakLayers redraws when they land). After
+   this, no redraw is still to come that the reader did not ask for. The
+   browser harnesses wait for it instead of sleeping a fixed time after a
+   load, which on a loaded machine ended before the page had booted
+   ("registerLog is not defined") or before it had redrawn (a check pressed a
+   layer, the redraw landed, and focus read <body>). Declared, so it answers
+   even from a script that stopped part-way — and then it throws or stays
+   false, and the wait says so, rather than reading a half-booted page as
+   ready. */
+function propertyPagesSettled() {
+  return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading';
+}
+function keepFocusThroughRedraw() {
+  const a = document.activeElement;
+  if (!a || a === document.body || !viewRoot.contains(a)) return;
+  const map = a.closest('svg[data-city]');
+  if (map && a.dataset.area) { cityMapFocus = { city: map.dataset.city, name: a.dataset.area }; return; }
+  const said = (n) => (n.getAttribute('aria-label') || n.textContent || '').replace(/\s+/g, ' ').trim();
+  const kin = (root) => [...root.querySelectorAll(a.tagName)].filter(n => !n.id && said(n) === said(a));
+  const nth = a.id ? -1 : kin(viewRoot).indexOf(a);
+  const typed = typedSinceCommit.has(a) ? a.value : null;
+  /* A summary's own disclosure may have been closed; any other holder of focus sat in open ones. */
+  const ownOpen = a.tagName === 'SUMMARY' && !!a.parentElement?.open;
+  const caret = fieldCaret(a);
+  queueMicrotask(() => {
+    if (a.isConnected) return;
+    const at = document.activeElement;
+    if (at && at !== document.body) {
+      if (caret && a.id && at.id === a.id) putCaret(at, caret);
+      return;
+    }
+    const n = a.id ? document.getElementById(a.id) : kin(viewRoot)[nth];
+    if (!n || !viewRoot.contains(n)) return;
+    for (let d = n.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) {
+      if (n.tagName === 'SUMMARY' && d === n.parentElement) { if (ownOpen) d.open = true; }
+      else d.open = true;
+    }
+    if (typed !== null && n.value !== typed) n.value = typed;
+    n.focus({ preventScroll: true });
+    if (caret && document.activeElement === n) putCaret(n, caret);
+  });
 }
 
 /* ==========================================================================
@@ -31905,6 +32013,8 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     svg.setAttribute('width', String(contentW)); svg.setAttribute('height', String(H));
     svg.setAttribute('style', 'display:block;margin:0 auto;max-width:100%');
     svg.setAttribute('role', 'img');
+    /* Which town's map, so a redraw can name a focused point back to it (keepFocusThroughRedraw). */
+    svg.setAttribute('data-city', cityId);
     /* Built by hand rather than through the chart layer, so it needed the tab
        stop adding separately — and did not have one. */
     svg.setAttribute('tabindex', '0');
@@ -34596,8 +34706,18 @@ function propertyRiskFlags(d, m) {
 /* A recorded exposure's summary, by company and theme — the pair Add refuses
    to record twice — so focus can be handed to a record after a redraw. */
 const swkRecordId = (rec) => `swk-rec-${slugParam(`${rec.id}-${rec.theme}`)}`;
+/* Which records the reader has open, by the same key — see the record's <details>. */
+const swkOpenRecords = new Set();
 
 VIEWS.sarawak = () => {
+  /* The records open on the page this drawing replaces stay open in it —
+     those still held: one just removed, or gone from another tab, is
+     forgotten, so a record added again later does not come back open. */
+  const swkHeld = new Set((State.sarawakExposure || []).map(swkRecordId));
+  document.querySelectorAll('#views details > summary[id^="swk-rec-"]').forEach(sm => {
+    if (sm.parentElement.open) swkOpenRecords.add(sm.id); else swkOpenRecords.delete(sm.id);
+  });
+  [...swkOpenRecords].forEach(k => { if (!swkHeld.has(k)) swkOpenRecords.delete(k); });
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   const hd = el('div', { class: 'page-hd' });
   hd.append(el('div', {}, [
@@ -34754,7 +34874,13 @@ VIEWS.sarawak = () => {
       'Completeness counts the eleven fields section 19.2 asks for. A thin record cannot pass for a researched one.'));
     recs.forEach((rec, i) => {
       const theme = SARAWAK_THEMES.find(t => t.id === rec.theme);
-      const det = el('details', { style: 'border-top:1px solid var(--line);padding:10px 0' });
+      /* OPEN STAYS OPEN. Add and Remove redraw the page, and every record
+         came back closed: a reader halfway through one company's fields who
+         added the next found the first shut, and had to find it and open it
+         again to go on. The view reads which were open off the page it
+         replaces (swkOpenRecords, at its top). */
+      const det = el('details', { style: 'border-top:1px solid var(--line);padding:10px 0',
+        open: swkOpenRecords.has(swkRecordId(rec)) ? '' : null });
       /* Both numbers on the summary line, never averaged into one. A record can
          be fully written and entirely unsourced, and a reader has to be able to
          see that without opening it. */
@@ -34912,6 +35038,9 @@ function usePropertyReport(id) {
 const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
 /* Whether the borrower's financing disclosure is open — see its <details>. */
 let borrowerPanelOpen = false;
+/* What the calculator's "record what you observed" form holds before Record —
+   see the form. */
+let observationDraft = null;
 
 /* A SENTENCE IN A TABLE CELL WRAPS BETWEEN WORDS, NEVER INSIDE ONE.
    The grade's "Basis" column and the financing components' carried .caption,
@@ -34925,6 +35054,8 @@ let borrowerPanelOpen = false;
 const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
 
 VIEWS.property = () => {
+  /* Drawn again when the filings and the locality positions land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
      or Reset on either path. */
@@ -35399,12 +35530,16 @@ VIEWS.property = () => {
   /* The address IS the share. One control to put it on the clipboard, beside
      the fields it describes, and a sentence saying what travels with it. */
   loc.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-bottom:10px' }, [
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: async () => {
+    el('button', { class: 'btn btn-ghost btn-sm', id: 'property-copy-link', onclick: async () => {
       try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every input of this deal'); }
       catch { toast('Could not reach the clipboard — copy the address bar instead'); }
     } }, 'Copy a link to this deal'),
     el('span', { class: 'metaline' }, 'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. It carries the Sarawak checklist answers too, with how each was established. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. Your loan-readiness inputs are about you, not the deal, and do not travel.'),
-    store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); render(); } } }, 'Restore my previous deal') : null,
+    /* Restore goes once it has restored, and focus went with it to <body>;
+       it goes to Copy, which sat beside it. */
+    store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
+      if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); render(); focusAfterRedraw('#property-copy-link'); }
+    } }, 'Restore my previous deal') : null,
   ]));
 
   const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
@@ -35593,10 +35728,26 @@ VIEWS.property = () => {
       toast(srcInp.value.trim()
         ? `Recorded for ${d.district}${hasArea ? '' : ' — no area, so no price per unit from this one'}`
         : `Recorded for ${d.district} — no source, so it counts as a note`);
+      observationDraft = null;
       renderKeepFocus();
     } }, 'Record');
+    /* WHAT IS ENTERED HERE BEFORE RECORD IS KEPT THROUGH A REDRAW.
+       These fields were the only copy of what had been typed, and any redraw
+       of the page drew them empty: a deal field changed above the form, or
+       the filings landing a moment after the page opened, turned an achieved
+       rent of 2100 with its tenancy reference and address back into an
+       asking rent with nothing entered. Each field writes the draft as it
+       changes, a drawing reads it back, and Record lets it go. */
+    const draftFields = { kind: kindSel, value: valInp, area: areaInp, unit: unitSel, title: titleSel,
+      evidence: evSel, date: dateInp, source: srcInp, address: addrInp };
+    const held = observationDraft;
+    if (held) Object.entries(draftFields).forEach(([k, n]) => { if (k !== 'unit' && held[k] != null) n.value = held[k]; });
     [kindSel, valInp, areaWrap, titleSel, evSel, dateInp, addrInp, srcInp, addBtn].forEach(x => form.append(x));
     syncKind();
+    /* The unit after the kind, whose units syncKind has just offered. */
+    if (held && [...unitSel.options].some(o => o.value === held.unit)) unitSel.value = held.unit;
+    const keepDraft = () => { observationDraft = Object.fromEntries(Object.entries(draftFields).map(([k, n]) => [k, n.value])); };
+    Object.values(draftFields).forEach(n => { n.addEventListener('input', keepDraft); n.addEventListener('change', keepDraft); });
     oc.append(form);
     oc.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'Stored in this browser only. It is never sent anywhere, it is not published with the site, and it carries no redistribution right — the same position as every other figure you supply here.'));
@@ -36512,7 +36663,7 @@ VIEWS.property = () => {
       buy.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: left > 0 ? null : '',
         onclick: () => {
           if (!usePropertyReport(d.projectId)) { toast(`This month's ${included} included reports are used`); return; }
-          toast(`Included report used — ${propertyReportsLeft()} left this month`); render();
+          toast(`Included report used — ${propertyReportsLeft()} left this month`); render(); focusAfterRedraw('#property-report-full h3');
         } }, left > 0
           ? `Use an included report — ${left} of ${included} left this month`
           : `All ${included} included reports used this month`));
@@ -36520,7 +36671,9 @@ VIEWS.property = () => {
     buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       State.propertyReportsBought = [...State.propertyReportsBought, d.projectId];
       store.write('propertyReportsBought', State.propertyReportsBought);
-      toast('Report unlocked — no payment was taken, this is a prototype'); render();
+      /* The offer is replaced by the report, and focus went to <body> with
+         the button; it goes to the report's first heading. */
+      toast('Report unlocked — no payment was taken, this is a prototype'); render(); focusAfterRedraw('#property-report-full h3');
     } }, `Unlock this report (prototype — no payment)`));
     buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'));
     out.append(el('div', {}, buy));
@@ -36530,7 +36683,7 @@ VIEWS.property = () => {
   }
 
   /* ---------- exits and the alternative ---------- */
-  const exitCard = el('div', { class: 'card' });
+  const exitCard = el('div', { class: 'card', id: 'property-report-full' });
   exitCard.append(cardHead('Selling in year 5 and year 10',
     'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.'));
   const exTable = el('table', { class: 'dt' });
@@ -38723,7 +38876,12 @@ const daysSince = (iso) => {
   return Number.isFinite(n) ? n : null;
 };
 
+/* The figures typed for a cycle transition, until it is made, and the open
+   leg they are for — see resolveInput. */
+let wheelResolveDraft = { leg: null, figures: {} };
 VIEWS.wheel = () => {
+  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const p = State.wheel;
   const m = wheelMath(p);
   const fit = wheelFit(p, m, null);
@@ -39123,16 +39281,28 @@ VIEWS.wheel = () => {
     'Only the transitions this state permits are offered. A cycle cannot skip assignment, and a leg cannot be resolved twice.'));
 
   /* Where a transition needs a figure, it is asked for rather than assumed. */
+  /* AND WHAT IS TYPED FOR IT IS KEPT UNTIL THE TRANSITION.
+     These fields were the only copy of the figures, drawn at 0, and the page
+     redraws on every contract field (renderAfterTyping) and when the filings
+     land. A close debit of 1.20 and a commission of 0.65, then the contract
+     corrected above them, came back 0 and 0 — and "I bought it back"
+     recorded the buy-back as free, its realised result overstated by
+     $120.65 on 100 shares. Held as typed for the open leg they resolve, let
+     go by the transition that reads them, and never offered to another leg
+     (a reset, a resumed cycle). */
+  if (wheelResolveDraft.leg !== (openLeg?.id ?? null)) wheelResolveDraft = { leg: openLeg?.id ?? null, figures: {} };
+  const figures = wheelResolveDraft.figures;
   const resolveInput = (label, id) => {
     const f = el('div', { class: 'field', style: 'max-width:230px;margin-top:8px' });
     f.append(el('label', { for: id }, label));
-    f.append(el('input', { class: 'input', id, type: 'number', step: '0.01', value: '0' }));
+    f.append(el('input', { class: 'input', id, type: 'number', step: '0.01', value: figures[id] ?? '0',
+      oninput: e => { figures[id] = e.target.value; } }));
     return f;
   };
   const numFrom = (id) => num0(document.getElementById(id)?.value);
   /* The button pressed is usually gone once the state moves, so focus goes to
      the state it moved to rather than falling to the top of the page. */
-  const go = (next) => { p.state = next; saveWheel(); render(); document.getElementById('wheel-cycle-state')?.focus(); };
+  const go = (next) => { p.state = next; wheelResolveDraft = { leg: null, figures: {} }; saveWheel(); render(); document.getElementById('wheel-cycle-state')?.focus(); };
 
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
 
@@ -39272,7 +39442,8 @@ VIEWS.wheel = () => {
 
   /* The roll, which can only ever be two legs. */
   if (openLeg) {
-    const rollBox = el('details', { style: 'margin-top:var(--md)' });
+    /* Open again after a redraw while it holds figures typed into it. */
+    const rollBox = el('details', { style: 'margin-top:var(--md)', open: Object.keys(figures).some(k => k.startsWith('r-')) ? '' : null });
     rollBox.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'Roll this contract'));
     rollBox.append(el('p', { class: 'metaline', style: 'margin:8px 0' },
       'A roll is recorded as two transactions: closing the current contract and opening a new one. The realised result of the leg being closed is kept whatever the net cash looks like — a roll can show a credit and still have lost money, and that is exactly when the net figure alone misleads.'));
@@ -39290,6 +39461,7 @@ VIEWS.wheel = () => {
       toast(`Closed leg realised ${fmtMoney(res.realisedOnClose, 'USD')}; net roll ${fmtMoney(res.netRollCash, 'USD')}`);
       /* As go() does for every other change to the cycle: the redraw took
          the button, and focus goes to the cycle's state, not to <body>. */
+      wheelResolveDraft = { leg: null, figures: {} };
       render(); focusAfterRedraw('#wheel-cycle-state');
     } }, 'Record the roll'));
     cyc.append(rollBox);
@@ -39298,7 +39470,7 @@ VIEWS.wheel = () => {
   if (legs.length) acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
     if (!confirm('Clear this cycle and all its legs?')) return;
     State.wheelLegs = []; saveWheelLegs(); p.state = 'candidate'; p.phase = 'put';
-    p.economicShareBasisOverride = null; p.shareCostBasisOverride = null; saveWheel(); render();
+    p.economicShareBasisOverride = null; p.shareCostBasisOverride = null; wheelResolveDraft = { leg: null, figures: {} }; saveWheel(); render();
     focusAfterRedraw('#wheel-cycle-state');
   } }, 'Clear the cycle'));
   cyc.append(acts);
@@ -45808,7 +45980,7 @@ VIEWS.scannerAdminDelivery = () => {
 /* `classes` holds one selected-id array per class attribute, so a filter on
    title and a filter on flood are the same code path. */
 State.areaScreen = { city:'kuching', layer:'flood', classes:{}, minRecords:0, maxWeeks:null,
-  minLease:null, editing:null };
+  minLease:null, editing:null, drafts:null };
 
 /* Each control that redraws the page carries an id, so renderKeepFocus can
    hand focus back to it — see renderAfterTyping in 75-property-grade.js. A
@@ -45818,7 +45990,11 @@ const areaRowButtonId = (n) => `area-rec-${String(n).replace(/[^A-Za-z0-9]+/g, '
 const obsOpenId = (o) => `obs-open-${String(o.id).replace(/[^A-Za-z0-9]+/g, '-')}`;
 
 VIEWS.areas = () => {
+  /* Drawn again when the filings and the locality positions land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const S = State.areaScreen;
+  /* What the recorder holds unsaved goes when it closes — see areaRecorder. */
+  if (!S.editing) S.drafts = null;
   if (geoLoadState === 'idle') loadSarawakLayers();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
@@ -45864,6 +46040,8 @@ VIEWS.areas = () => {
      other and how somebody looking for Dalat will go looking for it. */
   const townField = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
   townField.append(el('label', { class: 'caption', style: 'font-weight:600', for: 'areaTown' }, 'Town'));
+  /* "table only" is known once the positions are in: before that, and when
+     they failed to load, every town read "— table only", Kuching included. */
   const townSel = el('select', { class: 'select select-sm', id: 'areaTown',
     onchange: e => { S.city = e.target.value; S.editing = null; renderKeepFocus(); } });
   Object.entries(SARAWAK_DIVISIONS).forEach(([division, towns]) => {
@@ -45871,7 +46049,7 @@ VIEWS.areas = () => {
     towns.forEach(c => grp.append(el('option', { value: c.id, selected: S.city === c.id ? '' : null },
       /* Say which towns can be drawn, rather than letting a reader pick one and
          find the map missing with no explanation. */
-      `${c.name}${sarawakGeo?.cities?.[c.id] ? '' : ' — table only'}`)));
+      `${c.name}${!sarawakGeo || sarawakGeo.cities?.[c.id] ? '' : ' — table only'}`)));
     townSel.append(grp);
   });
   townField.append(townSel);
@@ -45935,7 +46113,9 @@ VIEWS.areas = () => {
   if (!names.length) {
     wrap.append(emptyState(geoLoadState === 'loading'
       ? 'Loading locality positions…'
-      : `No mapped localities are held for ${city.name}. The map draws only places this build has a recorded position for; none has been invented.`));
+      : geoLoadState === 'failed'
+        ? `The locality positions could not be loaded, and nothing is recorded for ${city.name} yet. Reload the page to try again.`
+        : `No mapped localities are held for ${city.name}. The map draws only places this build has a recorded position for; none has been invented.`));
     return wrap;
   }
 
@@ -46021,6 +46201,18 @@ VIEWS.areas = () => {
   }
 
   if (canMap) wrap.append(mapCard);
+  /* NOT YET, OR NOT THIS TIME — NOT "NO COORDINATES".
+     While the positions were in flight, and for good when they failed to
+     load, the card below told a reader on Kuching that coordinates were
+     retrieved "for Kuching, Sibu, Miri and Bintulu only" and that Kuching
+     had no geocoded point to shade. */
+  else if (!sarawakGeo) {
+    const wait = el('div', { class: 'card' });
+    wait.append(cardHead(`${city.name} — map`, geoLoadState === 'failed'
+      ? 'The locality positions could not be loaded, so the map cannot be drawn. The table below works without them. Reload the page to try again.'
+      : 'Loading the locality positions. The map is drawn when they arrive; the table below works now.'));
+    wrap.append(wait);
+  }
   else {
     /* NO GUESSED POSITIONS. Coordinates were retrieved for four towns; drawing
        the other sixteen from invented positions would put a locality on the
@@ -46178,10 +46370,25 @@ function areaRecorder(city, area) {
     'Each fact is saved on its own, with its own source and date — a title class established from the title '
     + 'document and a flood account from a neighbour are not the same evidence and are never dated together.'));
 
+  /* WHAT IS ENTERED AND NOT YET SAVED IS HELD IN STATE, NOT IN THE DRAWING.
+     Each section's entries lived in a closure made when the page was drawn,
+     and every Save redraws the page: a flood class picked, then the title
+     class saved, came back "Not recorded", and Save under flood then said
+     there was nothing to save. The redraw when the filings land did the same
+     to whatever had been entered by then. A section's entries are held here
+     from its first edit, per locality, read by each drawing, and let go when
+     the section is saved or removed or the recorder closes. A section not
+     edited is drawn from what is recorded, so a change made elsewhere (Undo
+     on the register, another tab) shows. */
+  const key = `${city}|${area}`;
+  if (State.areaScreen.drafts?.key !== key) State.areaScreen.drafts = { key, byAttr: {} };
+  const drafts = State.areaScreen.drafts.byAttr;
+
   AREA_ATTRS.forEach(attr => {
     const cur = areaAttr(city, area, attr.id);
-    const draft = { class: cur?.class || '', value: isNum(cur?.value) ? cur.value : null,
+    const draft = drafts[attr.id] || { class: cur?.class || '', value: isNum(cur?.value) ? cur.value : null,
       source: cur?.source || 'unstated', asOf: cur?.asOf || '', ref: cur?.ref || '' };
+    const put = (k, v) => { draft[k] = v; drafts[attr.id] = draft; };
 
     const sec = el('div', { style: 'padding:var(--md) 0;border-top:1px solid var(--grid)' });
     sec.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:baseline' }, [
@@ -46195,7 +46402,7 @@ function areaRecorder(city, area) {
     if (attr.kind === 'class') {
       f1.append(el('label', { for: uid }, 'Classification'));
       const sc = el('select', { class: 'select a-text', id: uid, 'aria-label': `${attr.label} classification`,
-        onchange: e => { draft.class = e.target.value; } });
+        onchange: e => put('class', e.target.value) });
       sc.append(el('option', { value: '' }, 'Not recorded'));
       attr.classes.forEach(c => sc.append(el('option', { value: c.id, selected: draft.class === c.id ? '' : null },
         `${c.label} — ${c.note}`)));
@@ -46204,14 +46411,14 @@ function areaRecorder(city, area) {
       f1.append(el('label', { for: uid }, `Value (${attr.unit})`));
       f1.append(el('input', { class: 'input a-text', id: uid, type: 'number', min: '0',
         value: draft.value == null ? '' : String(draft.value), 'aria-label': `${attr.label} in ${attr.unit}`,
-        onchange: e => { draft.value = e.target.value === '' ? null : num0(e.target.value); } }));
+        onchange: e => put('value', e.target.value === '' ? null : num0(e.target.value)) }));
     }
     sec.append(f1);
 
     const f2 = el('div', { class: 'assumption' });
     f2.append(el('label', { for: `${uid}-src` }, 'Established from'));
     const ss = el('select', { class: 'select a-text', id: `${uid}-src`, 'aria-label': `Source for ${attr.label}`,
-      onchange: e => { draft.source = e.target.value; } });
+      onchange: e => put('source', e.target.value) });
     AREA_SOURCES.forEach(s => ss.append(el('option', { value: s.id, selected: draft.source === s.id ? '' : null },
       s.label + (s.verified ? '' : ' (unverified)'))));
     f2.append(ss); sec.append(f2);
@@ -46219,26 +46426,26 @@ function areaRecorder(city, area) {
     const f3 = el('div', { class: 'assumption' });
     f3.append(el('label', { for: `${uid}-asof` }, 'As at'));
     f3.append(el('input', { class: 'input a-text', id: `${uid}-asof`, type: 'date', value: draft.asOf,
-      'aria-label': `Date ${attr.label} was established`, onchange: e => { draft.asOf = e.target.value; } }));
+      'aria-label': `Date ${attr.label} was established`, onchange: e => put('asOf', e.target.value) }));
     sec.append(f3);
 
     const f4 = el('div', { class: 'assumption' });
     f4.append(el('label', { for: `${uid}-ref` }, 'Reference'));
     f4.append(el('input', { class: 'input a-text', id: `${uid}-ref`, type: 'text', value: draft.ref,
       placeholder: 'Document, map sheet, policy or file number, or who said it',
-      'aria-label': `Reference for ${attr.label}`, onchange: e => { draft.ref = e.target.value; } }));
+      'aria-label': `Reference for ${attr.label}`, onchange: e => put('ref', e.target.value) }));
     sec.append(f4);
 
     sec.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
       el('button', { id: `${uid}-save`, class: 'btn btn-ghost btn-sm', onclick: () => {
         const empty = attr.kind === 'class' ? !draft.class : !isNum(draft.value);
         if (empty) { toast(`Enter a value for ${attr.short.toLowerCase()}, or use Remove`); return; }
-        setAreaAttr(city, area, attr.id, draft);
+        setAreaAttr(city, area, attr.id, draft); delete drafts[attr.id];
         renderKeepFocus(); toast(`${attr.short} recorded for ${area}`);
       } }, 'Save'),
       /* Remove goes with what it removed, so focus moves to Save beside it. */
       cur ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
-        setAreaAttr(city, area, attr.id, null);
+        setAreaAttr(city, area, attr.id, null); delete drafts[attr.id];
         render(); document.getElementById(`${uid}-save`)?.focus(); toast(`${attr.short} cleared for ${area}`);
       } }, 'Remove') : null,
     ]));
@@ -46255,6 +46462,8 @@ function areaRecorder(city, area) {
 }
 
 VIEWS.comparables = () => {
+  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Property'),
@@ -46685,6 +46894,8 @@ function openObservationDrawer(o) {
 }
 
 VIEWS.status = () => {
+  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Status'),
@@ -46788,6 +46999,8 @@ VIEWS.status = () => {
 };
 
 VIEWS.boundaries = () => {
+  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Learn'),

@@ -506,7 +506,12 @@ const daysSince = (iso) => {
   return Number.isFinite(n) ? n : null;
 };
 
+/* The figures typed for a cycle transition, until it is made, and the open
+   leg they are for — see resolveInput. */
+let wheelResolveDraft = { leg: null, figures: {} };
 VIEWS.wheel = () => {
+  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
+  keepFocusThroughRedraw();
   const p = State.wheel;
   const m = wheelMath(p);
   const fit = wheelFit(p, m, null);
@@ -906,16 +911,28 @@ VIEWS.wheel = () => {
     'Only the transitions this state permits are offered. A cycle cannot skip assignment, and a leg cannot be resolved twice.'));
 
   /* Where a transition needs a figure, it is asked for rather than assumed. */
+  /* AND WHAT IS TYPED FOR IT IS KEPT UNTIL THE TRANSITION.
+     These fields were the only copy of the figures, drawn at 0, and the page
+     redraws on every contract field (renderAfterTyping) and when the filings
+     land. A close debit of 1.20 and a commission of 0.65, then the contract
+     corrected above them, came back 0 and 0 — and "I bought it back"
+     recorded the buy-back as free, its realised result overstated by
+     $120.65 on 100 shares. Held as typed for the open leg they resolve, let
+     go by the transition that reads them, and never offered to another leg
+     (a reset, a resumed cycle). */
+  if (wheelResolveDraft.leg !== (openLeg?.id ?? null)) wheelResolveDraft = { leg: openLeg?.id ?? null, figures: {} };
+  const figures = wheelResolveDraft.figures;
   const resolveInput = (label, id) => {
     const f = el('div', { class: 'field', style: 'max-width:230px;margin-top:8px' });
     f.append(el('label', { for: id }, label));
-    f.append(el('input', { class: 'input', id, type: 'number', step: '0.01', value: '0' }));
+    f.append(el('input', { class: 'input', id, type: 'number', step: '0.01', value: figures[id] ?? '0',
+      oninput: e => { figures[id] = e.target.value; } }));
     return f;
   };
   const numFrom = (id) => num0(document.getElementById(id)?.value);
   /* The button pressed is usually gone once the state moves, so focus goes to
      the state it moved to rather than falling to the top of the page. */
-  const go = (next) => { p.state = next; saveWheel(); render(); document.getElementById('wheel-cycle-state')?.focus(); };
+  const go = (next) => { p.state = next; wheelResolveDraft = { leg: null, figures: {} }; saveWheel(); render(); document.getElementById('wheel-cycle-state')?.focus(); };
 
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
 
@@ -1055,7 +1072,8 @@ VIEWS.wheel = () => {
 
   /* The roll, which can only ever be two legs. */
   if (openLeg) {
-    const rollBox = el('details', { style: 'margin-top:var(--md)' });
+    /* Open again after a redraw while it holds figures typed into it. */
+    const rollBox = el('details', { style: 'margin-top:var(--md)', open: Object.keys(figures).some(k => k.startsWith('r-')) ? '' : null });
     rollBox.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'Roll this contract'));
     rollBox.append(el('p', { class: 'metaline', style: 'margin:8px 0' },
       'A roll is recorded as two transactions: closing the current contract and opening a new one. The realised result of the leg being closed is kept whatever the net cash looks like — a roll can show a credit and still have lost money, and that is exactly when the net figure alone misleads.'));
@@ -1073,6 +1091,7 @@ VIEWS.wheel = () => {
       toast(`Closed leg realised ${fmtMoney(res.realisedOnClose, 'USD')}; net roll ${fmtMoney(res.netRollCash, 'USD')}`);
       /* As go() does for every other change to the cycle: the redraw took
          the button, and focus goes to the cycle's state, not to <body>. */
+      wheelResolveDraft = { leg: null, figures: {} };
       render(); focusAfterRedraw('#wheel-cycle-state');
     } }, 'Record the roll'));
     cyc.append(rollBox);
@@ -1081,7 +1100,7 @@ VIEWS.wheel = () => {
   if (legs.length) acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
     if (!confirm('Clear this cycle and all its legs?')) return;
     State.wheelLegs = []; saveWheelLegs(); p.state = 'candidate'; p.phase = 'put';
-    p.economicShareBasisOverride = null; p.shareCostBasisOverride = null; saveWheel(); render();
+    p.economicShareBasisOverride = null; p.shareCostBasisOverride = null; wheelResolveDraft = { leg: null, figures: {} }; saveWheel(); render();
     focusAfterRedraw('#wheel-cycle-state');
   } }, 'Clear the cycle'));
   cyc.append(acts);
