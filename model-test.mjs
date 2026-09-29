@@ -2144,6 +2144,55 @@ try {
   }
   /* ---- end bugfix: property-focus ---- */
 
+  /* ---- fixwave: shell ---- */
+  /* THE SITE HUNT OF 2026-09-29, ON THE CALCULATOR (fixwave: shell). Both
+     failed on 0e1119b. P4 — "Weeks a year you would use it yourself" redraws
+     the page from its change, which fires as Tab or Shift+Tab leaves it:
+     nothing held focus at that moment, so render() had nothing to give back,
+     and focus fell to <body>. P14 — the dock's "Review N sample inputs"
+     opened its list and left focus on the dock, so the next Tab went on into
+     the footer. Driven with real key events. */
+  {
+    const key = async (k, code, text, shift = false) => {
+      const modifiers = shift ? 8 : 0;
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, windowsVirtualKeyCode: code, ...(text ? { text } : {}), modifiers }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code, modifiers }, sessionId);
+      await sleep(40);
+    };
+    const DESC = `((a) => !a || a === document.body ? 'BODY' : a.id === 'main' ? 'MAIN' : (a.id || a.tagName + ':' + (a.getAttribute('aria-label') || a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40)))`;
+    const STOPS = `[...document.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]')]
+      .filter(n => n.tabIndex >= 0 && n.getClientRects().length && !n.closest('[inert]'))`;
+    await evaluate(`(() => { window.__T.fw = JSON.parse(JSON.stringify(State.deal)); navigate('/property/calculator'); return true; })()`);
+    await sleep(700);
+    const p = [];
+    for (const [typed, shift] of [['3', false], ['5', true]]) {
+      const want = await evaluate(`(() => { const n = document.getElementById('ownUseWeeks'); if (!n) return null; n.scrollIntoView({ block: 'center' }); n.focus(); n.select();
+        const s = ${STOPS}; return ${DESC}(s[s.indexOf(n) + (${shift} ? -1 : 1)]); })()`);
+      if (!want) { p.push('no "Weeks a year you would use it yourself" field'); break; }
+      await key(typed, typed.charCodeAt(0), typed);
+      await key('Tab', 9, '', shift); await sleep(400);
+      const got = JSON.parse(await evaluate(`JSON.stringify({ at: ${DESC}(document.activeElement), weeks: State.deal.ownUseWeeks })`));
+      if (got.at !== want || got.weeks !== Number(typed)) p.push(`${typed} typed, then ${shift ? 'Shift+Tab' : 'Tab'}: focus ${got.at}, not ${want}; recorded ${got.weeks}`);
+    }
+    const dockBtn = await evaluate(`(() => { const b = [...document.querySelectorAll('body > .dock button')].find(x => /^Review \\d+ sample input/.test(x.textContent.trim())); if (!b) return false; b.focus(); return document.activeElement === b; })()`);
+    if (!dockBtn) p.push('no "Review N sample inputs" in the dock');
+    else {
+      await key('Enter', 13, '\r'); await sleep(200);
+      /* The page scrolls to the list smoothly, for longer the further it goes. */
+      for (let i = 0, y = null; i < 40; i++) { const now = await evaluate('scrollY'); if (now === y) break; y = now; await sleep(150); }
+      const opened = JSON.parse(await evaluate(`JSON.stringify((() => { const a = document.activeElement, det = a?.closest?.('details'), r = a.getBoundingClientRect();
+        const dock = document.querySelector('body > .dock')?.getBoundingClientRect().top ?? innerHeight;
+        return { at: ${DESC}(a), inList: !!det && det.open && /Review \\d+ sample input/.test(det.querySelector('summary')?.textContent || ''), seen: r.top >= 0 && r.bottom <= dock }; })())`));
+      await key('Tab', 9, ''); await sleep(200);
+      const next = JSON.parse(await evaluate(`JSON.stringify({ at: ${DESC}(document.activeElement), inList: !!document.activeElement.closest('details') && /Review \\d+ sample input/.test(document.activeElement.closest('details').querySelector('summary')?.textContent || '') })`));
+      if (!opened.inList || !opened.seen || !next.inList) p.push(`Enter on the dock's review button: focus ${opened.at}${opened.inList ? ' in the list' : ''}${opened.seen ? '' : ', out of sight'}; the next Tab: ${next.at}${next.inList ? ' in the list' : ''}`);
+    }
+    await evaluate(`(() => { document.activeElement?.blur(); State.deal = window.__T.fw; saveDeal(); render(); return true; })()`);
+    if (p.length) fail('fixwave: shell — on the calculator, Tab past a field that redraws, and the dock\'s review button, leave focus where the reader cannot use it', p);
+    else ok('fixwave: shell — Tab and Shift+Tab past "Weeks a year you would use it yourself" move one stop on after the redraw, and the dock\'s review button takes focus into the list it opens');
+  }
+  /* ---- end fixwave: shell ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

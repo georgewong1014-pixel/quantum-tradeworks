@@ -28,7 +28,11 @@ function openSearch() {
   /* A close before this frame was overridden by it, leaving the scrim over
      the page: the frame does nothing once the box has closed. */
   requestAnimationFrame(() => { if (!searchOpen) return; searchModal.dataset.open = '1'; scrim.dataset.open = '1'; searchInput.focus(); searchInput.select(); });
-  runSearch('');
+  /* The results answer the box as it reopens. The last query is kept, and
+     selected so that typing replaces it, but the list drawn under it was
+     the empty box's: "nvda" in the box over Maybank, Public Bank, CIMB,
+     and Enter opened Maybank. */
+  runSearch(searchInput.value);
 }
 function closeSearch({ restore = true } = {}) {
   /* closeDrawer calls this unconditionally; a search that is not open has no
@@ -90,7 +94,7 @@ function runSearch(q) {
         onclick: () => { closeSearch({ restore: false }); navigate('/my/tracked'); } });
       hover(b);
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
+      nm.append(el('div', { class: 'row', style: 'gap:2px 6px;flex-wrap:wrap' }, [
         el('span', { style: 'font-size:13px;font-weight:600' }, ins.symbol), marketChip(ins.market),
         el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on Watchlists › Tracked`));
@@ -103,7 +107,10 @@ function runSearch(q) {
       onclick: () => { closeSearch({ restore: false }); openResearch(r.c.id); } });
     hover(b);
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
+    /* The row of chips wraps. Its tokens are nowrap and do not shrink, and on a
+       phone the last of them, the exchange, ran out of the name's column and
+       over the price: "Bursa Main" printed across RM10.86 at 360, 390 and 430. */
+    nm.append(el('div', { class: 'row', style: 'gap:2px 6px;flex-wrap:wrap' }, [
       el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
       r.c.personal ? el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'personal research') : null,
       /* The code the reader may have typed, so a hit on it is visibly a hit.
@@ -466,7 +473,14 @@ const DOCKS = {
             .find(x => /Review \d+ sample input/.test(x.querySelector('summary')?.textContent || ''));
           if (!det) return;
           det.open = true;
-          det.scrollIntoView({ block: 'center' });
+          /* Into the list it opened. Focus stayed on the dock, which is last
+             in the page, so the next Tab went on into the footer and the list
+             was out of the keyboard's reach. Its summary takes focus; the
+             next Tab is the list's first "Go to it". From the list's top, so
+             the summary holding focus is in sight: centred, a list taller
+             than the screen put it above the top edge. */
+          det.querySelector('summary')?.focus({ preventScroll: true });
+          det.scrollIntoView({ block: 'start' });
         },
       } : null,
     };

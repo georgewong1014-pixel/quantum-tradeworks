@@ -1808,6 +1808,15 @@ VIEWS.compare = () => {
       'Sector alone is not a peer group. Business model, capital intensity, maturity and market convention all change which metrics mean the same thing across two companies.'),
   ]));
   wrap.append(hd);
+  /* The names in a ?companies= link that are no company here, said rather
+     than dropped (applyRoute, 35-ui.js). */
+  const missing = State.compareMissing || [];
+  if (missing.length) {
+    const list = missing.map(s => `“${s.slice(0, 40)}”`);
+    const one = list.length === 1;
+    wrap.append(el('p', { class: 'note body', role: 'status', style: 'margin:0 0 var(--md);padding:var(--sm) var(--md);max-width:72ch;background:var(--surface-sunk);border-left:3px solid var(--warn);border-radius:0 var(--r-sm) var(--r-sm) 0;overflow-wrap:anywhere' },
+      `${one ? list[0] : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`} in the link ${one ? 'is not a company' : 'are not companies'} in this build, so ${State.compare.length ? `${one ? 'it is' : 'they are'} left out` : 'there is nothing to compare'}.`));
+  }
 
   /* picker */
   const pick = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
@@ -2311,7 +2320,10 @@ function sampleBanner() {
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 300px;margin:0' },
       'These holdings, investment cases, watchlists and price alerts were written into this browser so the views have something to show. They are not yours, nobody holds them, and every figure derived from them is illustrative. Clearing keeps any list or alert you have changed.'),
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: clearSeededData }, 'Clear and start my own'),
+    /* The banner goes with what it describes, and the button with it: focus
+       fell to the top of the page. It goes to the page's heading, as the
+       dashboard's "Clear the sample data" sends it (40-views-discover.js). */
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear and start my own'),
   ]));
   return b;
 }

@@ -9,6 +9,11 @@
 
   /my/* is excluded here and in robots.txt. /app and /welcome are application
   shells rather than destinations.
+
+  /discover and /learn are left out for the same reason as the aliases: with
+  no tab in the address they show the screener and the metric dictionary,
+  whose own addresses, /discover/screener and /learn/glossary, are listed and
+  are what their canonical links name.
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://quantum-tradeworks.vercel.app/</loc><priority>1.0</priority></url>
@@ -27,15 +32,13 @@
   <url><loc>https://quantum-tradeworks.vercel.app/research</loc><priority>0.9</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/research/trading-index</loc><priority>0.8</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/us-options/wheel</loc><priority>0.8</priority></url>
-  <url><loc>https://quantum-tradeworks.vercel.app/discover</loc><priority>0.8</priority></url>
-  <url><loc>https://quantum-tradeworks.vercel.app/discover/screener</loc><priority>0.7</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/discover/screener</loc><priority>0.8</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/discover/value-map</loc><priority>0.7</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/discover/sarawak</loc><priority>0.7</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/compare</loc><priority>0.6</priority></url>
 
-  <url><loc>https://quantum-tradeworks.vercel.app/learn</loc><priority>0.7</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/methodology</loc><priority>0.7</priority></url>
-  <url><loc>https://quantum-tradeworks.vercel.app/learn/glossary</loc><priority>0.6</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/learn/glossary</loc><priority>0.7</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/learn/product-boundaries</loc><priority>0.6</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/data-sources</loc><priority>0.7</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/corrections</loc><priority>0.5</priority></url>
