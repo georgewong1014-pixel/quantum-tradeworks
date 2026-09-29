@@ -5169,5 +5169,28 @@ try {
 }
 /* ---- end bugfix: engine-worker ---- */
 
+/* ---- record status ---- */
+/* A matched setup's record gives each condition a status beside its reason.
+   It read the LEFT side only, so a condition whose right side could not be
+   read — price above an EMA 200 on 66 bars — was recorded "VALID" with the
+   reason NEEDS_BARS, and the alert page printed "valid · NEEDS_BARS". */
+{
+  const fx = E.scanFixture();
+  const setup = E.scanNormaliseSetup({ id: 'status-any', name: 'Status ANY', enabled: true, universe: { kind: 'all' }, timeframe: '1D',
+    cooldownMode: 'EVERY_MATCH', ruleTree: { type: 'group', logic: 'ANY', children: [
+      { type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 0 } },
+      { type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'ema', n: 200 } },
+      { type: 'condition', left: { indicator: 'ema', n: 200 }, op: 'GREATER_THAN', right: { value: 0 } }] } });
+  const run = E.scanRun([setup], fx.history, { now: fx.now, runId: 'status', origin: 'test' });
+  const a = (run.alerts || []).find(x => x.setupId === 'status-any');
+  const mc = a ? a.matchedConditions : [];
+  const rightMissing = mc[1], leftMissing = mc[2];
+  check(!!a && mc[0]?.status === 'VALID' && rightMissing?.state === 'UNAVAILABLE' && rightMissing.status !== 'VALID' && rightMissing.reason === 'NEEDS_BARS'
+    && leftMissing?.state === 'UNAVAILABLE' && leftMissing.status !== 'VALID' && E.scanRecordStatus({ state: 'UNAVAILABLE', left: { status: 'VALID' }, right: { value: 1 } }) === 'INVALID_INPUT'
+    && E.scanRecordStatus({ state: 'MET' }) === 'VALID',
+    'record status: a condition that could not be read is recorded with the status of the operand that could not be — its right side (an EMA 200 on 66 bars) as well as its left — never "VALID" beside NEEDS_BARS',
+    { alert: !!a, statuses: mc.map(x => [x.state, x.status, x.reason]) });
+}
+/* ---- end record status ---- */
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);

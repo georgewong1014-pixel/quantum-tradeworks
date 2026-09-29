@@ -8206,6 +8206,33 @@ try {
     else ok('scanner pages: the builder refuses a new setup under an id only the worker\'s file holds (FILE_ID — adopt it, or choose another), and a copy\'s id passes over the file\'s ids as over this browser\'s');
   }
   /* ---- end bugfix: scanner-pages ---- */
+  /* ---- bugfix: held across a gap ---- */
+  /* What the history holds for a setup is judged as the evaluator reads it: a
+     reading never spans a gap, so imported weeks to December and daily bars
+     from March leave only the weeks since March readable. The setup page and
+     the bot card counted every closed week (395) against a need of 200 and
+     said every condition could be read; every weekly reading was untested. */
+  {
+    const r = await evaluate(`(() => {
+      const add = (d, n) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
+      const H = { schema: 2, series: { GAPX: {} }, ohlc: { GAPX: {} }, volume: { GAPX: {} }, meta: { GAPX: {} },
+        frames: { '1W': { GAPX: { series: {}, ohlc: {}, volume: {}, meta: {} } } } };
+      const F = H.frames['1W'].GAPX;
+      let px = 100, k = 0;
+      for (let d = '2019-01-07'; d <= '2025-12-29'; d = add(d, 7)) { px += Math.sin(k++); F.series[d] = px; F.ohlc[d] = [px - 1, px + 2, px - 2]; F.meta[d] = { src: 'import:test', at: '2026-09-28T21:00:00Z' }; }
+      for (let d = '2026-03-02'; d <= '2026-09-25'; d = add(d, 1)) { const wd = new Date(d + 'T00:00:00Z').getUTCDay(); if (wd === 0 || wd === 6) continue; px += 0.3;
+        H.series.GAPX[d] = px; H.ohlc.GAPX[d] = [px - 0.5, px + 1, px - 1]; H.meta.GAPX[d] = { src: 'test', at: add(d, 1) + 'T12:00:00Z' }; }
+      const byTf = new Map([['1W', new Map([['ema200', { label: 'EMA(200)', needs: 200, ohlc: false }], ['ema20', { label: 'EMA(20)', needs: 20, ohlc: false }]])]]);
+      const held = scanHeldOf('GAPX', H), line = scanHistoryNeeds(['GAPX'], byTf, H)[0].lines[0];
+      return { weeks: held.weeks, run: held.runs?.["1W"], known: line.known, text: line.text };
+    })()`);
+    const p = [];
+    if (!r || r.weeks < 300 || r.run?.run !== 30 || r.run?.gapFrom !== '2026-03-06') p.push(`held ${JSON.stringify(r)}`);
+    if (r?.known !== false || !/Unknown: EMA\(200\)/.test(r?.text || '') || /EMA\(20\),/.test(r?.text || '') || !/a gap, and your history has one before 2026-03-06, so 30 closed weeks since it can be read/.test(r?.text || '')) p.push(`the line: ${r?.text}`);
+    if (p.length) fail('scanner pages: what the history holds is judged since its last gap, as a reading is', p);
+    else ok(`scanner pages: 395 closed weeks with a gap before 2026-03-06 leave 30 readable — EMA(200) is named unknown and EMA(20) readable, and the line says where the gap is: "${r.text.slice(0, 140)}…"`);
+  }
+  /* ---- end bugfix: held across a gap ---- */
 
 } catch (e) {
   fail('harness error', e.message);

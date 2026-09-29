@@ -939,11 +939,24 @@ function scanHeldOf(symbol, history = scanHistoryFile) {
     if (!scanHeldMemo.cal.has(mkt || '')) scanHeldMemo.cal.set(mkt || '', scanCalendar(history, reg, mkt));
     const cal = scanHeldMemo.cal.get(mkt || '');
     const d = scanBars(history, symbol, { market: mkt, calendar: cal });
-    const frames = {};
+    const frames = {}, runs = {};
+    /* The bars a window can read: those since the last gap of more sessions
+       (or periods) than the series tolerates, up to the last closed bar —
+       the evaluator never spans one (MISSING_SESSION), whatever the count
+       before it. Imported weeks to December and daily bars from March leave
+       weeks with no bar: 343 closed weeks held, every weekly reading still
+       untested, and the page said every condition could be read. */
+    const runOf = (w, idx) => {
+      const at = idx.length ? idx[idx.length - 1] : -1;
+      let g = 0;
+      for (let j = at; j >= 1; j--) if ((w.gapBefore?.[j] || 0) > (w.gapTolerance ?? 0)) { g = j; break; }
+      return { run: idx.filter(k => k >= g).length, gapFrom: g > 0 ? w.dates[g] : null };
+    };
     const closed = (T) => {
       const w = scanFrame(d, T)?.bars || scanResample(d, T, { calendar: cal });
       const idx = [];
       (w.complete || []).forEach((c, k) => { if (c) idx.push(k); });
+      runs[T] = runOf(w, idx);
       if (Array.isArray(w.origin)) {
         const imp = idx.filter(k => w.origin[k] === 'imported');
         const key = (k) => (T === '1M' ? scanMonthOf(w.dates[k]) : scanWeekOf(w.dates[k]));
@@ -953,7 +966,8 @@ function scanHeldOf(symbol, history = scanHistoryFile) {
       return idx.length;
     };
     const dailyWeeks = (scanResample(d, '1W', { calendar: cal }).complete || []).filter(Boolean).length;
-    out = { symbol, daily: d.dates.length, from: d.dates[0] || null, to: d.dates[d.dates.length - 1] || null, weeks: closed('1W'), months: closed('1M'), hasOHLC: !!d.hasOHLC, dailyWeeks, frames };
+    runs['1D'] = runOf(d, d.dates.map((_, k) => k));
+    out = { symbol, daily: d.dates.length, from: d.dates[0] || null, to: d.dates[d.dates.length - 1] || null, weeks: closed('1W'), months: closed('1M'), hasOHLC: !!d.hasOHLC, dailyWeeks, frames, runs };
   }
   scanHeldMemo.map.set(symbol, out);
   return out;
@@ -1013,10 +1027,13 @@ function scanHistoryNeeds(symbols, byTf, history = scanHistoryFile) {
     const lines = [...byTf].filter(([, m]) => m.size).map(([tf, m]) => {
       const needs = [...m.values()];
       const have = scanHeldCount(held, tf);
-      const heldText = tf === '1D' ? `${scanPlural(have, 'daily bar')} held` : `${scanPlural(have, `closed ${scanTfPeriod(tf)}`)} held${scanHeldOrigin(held, tf)}`;
+      const r = held.runs?.[tf], run = r ? Math.min(r.run, have) : have;
+      const unitWord = tf === '1D' ? 'daily bar' : `closed ${scanTfPeriod(tf)}`;
+      const gapText = run < have && r?.gapFrom ? `; a reading never spans a gap, and your history has one before ${r.gapFrom}, so ${scanPlural(run, unitWord)} since it can be read` : '';
+      const heldText = (tf === '1D' ? `${scanPlural(have, 'daily bar')} held` : `${scanPlural(have, `closed ${scanTfPeriod(tf)}`)} held${scanHeldOrigin(held, tf)}`) + gapText;
       const label = SCAN_TIMEFRAMES[tf]?.label || tf;
       const ohlcHeld = held.frames?.[tf] ? held.frames[tf].hasOHLC : held.hasOHLC;
-      const short = needs.filter(x => (x.ohlc && !ohlcHeld) || x.needs > have);
+      const short = needs.filter(x => (x.ohlc && !ohlcHeld) || x.needs > run);
       unknown += short.length;
       if (!short.length) {
         const most = needs.reduce((a, x) => (x.needs > a.needs ? x : a), needs[0]);

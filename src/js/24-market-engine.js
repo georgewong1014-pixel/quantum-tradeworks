@@ -2921,6 +2921,17 @@ function scanFrameGap(F, k, d) {
   if (!le || le > d) return null;
   return k + 1 < F.periods.length && F.periods[k + 1] === q ? null : q;
 }
+/* A recorded condition's status: VALID when it was decided, else the status of
+   the first operand that could not be read — the left side, its previous bar
+   (a crossing), the right side or its previous bar — so a condition whose
+   right side (a weekly EMA 200 in its warm-up) is the one missing no longer
+   reads "valid" beside its reason. INVALID_INPUT when no operand says. */
+function scanRecordStatus(c) {
+  if (!c || c.state !== 'UNAVAILABLE') return 'VALID';
+  const parts = [c.left, c.prevLeft, ...(Array.isArray(c.right) ? c.right : [c.right]), c.prevRight];
+  const bad = parts.find(p => p && typeof p === 'object' && p.status && p.status !== 'VALID');
+  return bad ? bad.status : 'INVALID_INPUT';
+}
 function scanEvalHigher(cond, tf, bars, i, cache) {
   const own = bars?.timeframe || '1D', word = scanTimeframeWord(tf), unit = tf === '1M' ? 'month' : 'week';
   const label = cond?.left && typeof cond.left === 'object' && cond.left.indicator != null ? scanSideLabel(cond.left) : 'the condition';
@@ -3575,7 +3586,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
              version of that timeframe's bars up to the one read
              (barVersion); one on the setup's own carries none of them. */
           matchedConditions: r.conditions.map(c => ({ path: c.path, text: c.text, state: c.state, left: c.leftValue, right: c.rightValue,
-            leftLabel: c.leftLabel, rightLabel: c.rightLabel, status: c.state === 'UNAVAILABLE' ? (c.left?.status || 'INVALID_INPUT') : 'VALID', reason: c.reason?.code || null,
+            leftLabel: c.leftLabel, rightLabel: c.rightLabel, status: scanRecordStatus(c), reason: c.reason?.code || null,
             ...(c.timeframe ? { timeframe: c.timeframe, barDate: c.barDate ?? null, barOrigin: c.barOrigin ?? null,
               ...((v) => (v ? { barVersion: v } : {}))(barVersionOf(c.timeframe, c.barDate)) } : {}) })),
           /* An imported week or month names the export it came from; a
