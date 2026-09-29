@@ -658,6 +658,15 @@ function openRestoreDrawer() {
       ul.append(el('li', {}, `${label} — ${has ? 'REPLACES what is here now' : 'nothing here to replace'}`));
     });
     report.append(ul);
+    /* What the file holds in a shape this app does not write is named with
+       the reason and not written (STORE_SHAPES, 00-core.js): written, one
+       list turned into a record threw on every workspace page. */
+    if (r.refused.length) {
+      report.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
+        'Not restored — the file holds these in a shape this app does not write, so what is here now is kept:'));
+      report.append(el('ul', { class: 'ticklist', style: 'margin-top:6px' }, r.refused.map(({ k, why }) =>
+        el('li', {}, `${(PORTABLE_KEYS.find(x => x.k === k) || {}).label || k} — not restored: it ${why}`))));
+    }
     if (r.ignored.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `Ignored, because this build does not recognise them: ${r.ignored.join(', ')}.`));
 

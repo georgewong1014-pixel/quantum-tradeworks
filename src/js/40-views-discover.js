@@ -434,7 +434,12 @@ function myDashOwn() {
   /* Lists holding at least one company the visitor put there, and the lists
      they made themselves (the checklist's "Create a watchlist"). */
   const lists = all.filter(w => myDashOwnIds(w).length);
-  const createdLists = all.filter(w => !seedIds.includes(w.id) && (w.ids || []).length);
+  /* A seeded list holding only companies the visitor added — the samples
+     cleared out of it (clearSeededData), or removed one by one — is theirs
+     now, as /my/watchlists calls it. Judged by its id alone, a list kept
+     through "Clear" could never tick the step, and on Free no other list
+     could be made. */
+  const createdLists = all.filter(w => (w.ids || []).length && myDashOwnIds(w).length === w.ids.length);
   /* Seeded lists still holding a seeded company: whatever is in them that the
      visitor did not add is a sample, and is not counted. */
   const sampleLists = all.filter(w => seedIds.includes(w.id) && myDashOwnIds(w).length < (w.ids || []).length);
@@ -450,8 +455,11 @@ function myDashOwn() {
   const portfolios = (State.portfolios || []).filter(p => p && !seededPF.includes(p.id) && (p.holdings || []).length);
   const priceAlerts = (State.priceAlerts || []).filter(pa => pa && !seededPA(pa));
   const d = State.deal;
-  const dealStarted = !!d && (!!d.userStarted || Object.values(d.touched || {}).some(Boolean));
-  const propertySnaps = typeof loadWork === 'function' ? loadWork().filter(w => w?.kind === 'property').length : 0;
+  const dealStarted = dealIsTheReaders(d);
+  /* A snapshot of the calculator's sample inputs is not a start on a model
+     of the reader's own (workIsSample): it ticked the step and turned the
+     first-time checklist into the returning dashboard. */
+  const propertySnaps = typeof loadWork === 'function' ? loadWork().filter(w => w?.kind === 'property' && !workIsSample(w)).length : 0;
   const researched = (State.recentCompanies || []).filter(id => BY_ID.has(id));
   const setupsKnown = setups.length + (fileActive ? fileActive.valid : 0);
   /* The scanner's record counts as the visitor's own: its matches are of their
@@ -605,12 +613,22 @@ VIEWS.home = () => {
     sub: fa ? `Of ${fa.valid} valid in the worker’s file${o.setups.length ? ` · ${o.setups.length} saved here` : ''}`
       : o.setups.length ? `Of ${myDashPlural(o.setups.length, 'setup')} saved in this browser — the worker runs them once exported` : 'None saved yet' }));
   const st = typeof scanAlertStateRead === 'function' ? scanAlertStateRead() : {};
-  const unread = o.alerts && typeof scanAlertStatus === 'function' ? o.alerts.filter(a => scanAlertStatus(a, st) === 'NEW').length : null;
+  /* Unread as the sidebar's badge counts it (scanUnreadCount): a setup muted
+     in the scanner's settings is left out. This counted every NEW match, so
+     with one setup muted the tile read 5 unread beside a badge reading 2 on
+     the same screen. The muted ones are named, as the scanner's own tile
+     names them; with the in-app count switched off there is no badge, and
+     every new match is counted. */
+  const newN = o.alerts && typeof scanAlertStatus === 'function' ? o.alerts.filter(a => scanAlertStatus(a, st) === 'NEW').length : null;
+  const counted = newN !== null && typeof scanUnreadCount === 'function' ? scanUnreadCount() : null;
+  const unread = counted ?? newN;
+  const mutedN = counted !== null ? newN - counted : 0;
+  const unreadSaid = `${unread} unread${mutedN > 0 ? ` — ${mutedN} more from muted setups, not counted` : ''}`;
   tiles.append(myDashTile({ icon: 'bell', path: '/app/scanner/alerts',
     label: since ? 'New scanner alerts' : o.alerts ? 'Unread scanner alerts' : 'Scanner alerts',
     value: since ? String(since.length) : o.alerts ? String(unread) : 'No record',
-    sub: since ? `Since ${myDashWhen(visit.prev)} · ${unread} unread${undated ? ` · ${undated} with no recorded time` : ''}`
-      : o.alerts ? `Of ${myDashPlural(o.alerts.length, 'match', 'matches')} recorded — no earlier visit to count from`
+    sub: since ? `Since ${myDashWhen(visit.prev)} · ${unreadSaid}${undated ? ` · ${undated} with no recorded time` : ''}`
+      : o.alerts ? `Of ${myDashPlural(o.alerts.length, 'match', 'matches')} recorded — no earlier visit to count from${mutedN > 0 ? ` · ${mutedN} from muted setups, not counted` : ''}`
       : o.setupsKnown ? 'The record stays on the machine the worker runs on' : 'You have no scanner setup yet' }));
   tiles.append(myDashTile({ icon: 'grid', label: 'Instruments watchlisted', path: '/my/watchlists',
     value: String(o.instruments.size),
@@ -874,7 +892,16 @@ function blankScreen() {
            crit:{}, local:{ shariahOnly:false, excludePn17:true, klciOnly:false },
            cols:['roic','om','pe','dy','fcfy','ndEbit'], sort:{ k:'quality', dir:-1 } };
 }
-State.screen = State.screen || blankScreen();
+/* The market chosen at onboarding, or in the launcher's "Screen a market",
+   is the screener's default from then on — the question says it "sets the
+   default market filter on the screener". Both wrote it to storage and
+   nothing read it back, so it lasted until the next reload. Only the market
+   is taken back: the rest of a screen is the session's. */
+State.screen = State.screen || (() => {
+  const s = blankScreen(), kept = store.read('screen', null);
+  if (['US', 'MY'].includes(kept?.universe)) s.universe = kept.universe;
+  return s;
+})();
 State.density = store.read('density', 'comfortable');
 State.compareCcy = store.read('compareCcy', 'common');
 State.dividendsReceived = store.read('dividendsReceived', []);

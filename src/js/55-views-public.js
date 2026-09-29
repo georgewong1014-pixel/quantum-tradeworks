@@ -275,13 +275,22 @@ function hiwPropertyCard() {
    contract blanked all three to a dash. fmtAmount, not fmtMoney, so the cards
    share one scale: beside "RM95.3k" a "$5000.00" reads as a different kind of
    number. */
+/* Its source is the worked contract, and it says so. It was tagged "figures
+   you enter" — the tool's description, not this card's — so a reader who had
+   entered their own contract read the fixed example's $5.0k under a tag
+   that said the figures were theirs, and the ringgit line rested on a rate
+   and a buffer the card never named. Both are the example's own inputs,
+   read from it rather than retyped. */
 function hiwWheelCard() {
-  const wm = wheelMath({ ...WHEEL_WORKED_EXAMPLE });
-  return pubProofCard('US options Cash Wheel', 'figures you enter', [
+  const ex = WHEEL_WORKED_EXAMPLE;
+  const wm = wheelMath({ ...ex });
+  return pubProofCard('US options Cash Wheel', 'worked example · illustrative', [
     ['Assignment cash', fmtAmount(wm.requiredAssignmentCash, 'USD')],
     ['In ringgit', fmtAmount(wm.safeAssignmentCashMyr, 'MYR')],
     ['Worst case', fmtAmount(wm.putMaxLossIfZero, 'USD'), '--dn-text'],
-  ], 'One cash-secured put at a $50 strike. The obligation is shown before any premium, because the obligation is the decision.');
+  ], `An illustrative contract, not yours and not a quote: ${ex.contracts} cash-secured put at a $${ex.putStrike} strike on ${ex.contractMultiplier} shares. `
+    + `The ringgit line converts at the example’s ${ex.myrPerUsd} ringgit a dollar plus a ${ex.fxBufferPct}% currency buffer. `
+    + 'The obligation is shown before any premium, because the obligation is the decision.');
 }
 
 /* The Trading Index on the specification's published example. */
@@ -647,6 +656,15 @@ VIEWS.launcher = () => {
     q('Start from what?');
     const mode = seg('mode', [['own', 'My own figures'], ['example', 'A worked example']], 'example');
     open = () => {
+      /* The reader's deal is kept aside, not replaced. This wrote the default
+         deal over one the reader had entered — a price of 888,000 came back
+         as 572,000 — with no question and nothing to restore it from. A deal
+         of their own (dealIsTheReaders, the rule every page reads a deal by)
+         goes where a shared link puts the deal it displaces, and the
+         calculator's "Restore my previous deal" offers it back. */
+      const had = State.deal;
+      const kept = dealIsTheReaders(had);
+      if (kept) store.write('dealBeforeLink', had);
       State.deal = { ...PROPERTY_DEFAULT_DEAL, city,
         district: (SARAWAK_CITIES.find(c => c.id === city)?.districts || [''])[0],
         projectId: (projectsForCity(city)[0] || {}).id || customProjectId(city),
@@ -658,6 +676,7 @@ VIEWS.launcher = () => {
          ours, replace them. */
       saveDeal();
       navigate('/property/calculator');
+      if (kept) toast('Your previous deal is kept — “Restore my previous deal” puts it back');
       if (mode === 'own') setTimeout(() => {
         const det = [...document.querySelectorAll('details')]
           .find(x => /Review \d+ sample input/.test(x.querySelector('summary')?.textContent || ''));
@@ -690,6 +709,13 @@ VIEWS.launcher = () => {
     q('Start from what?', 'This build carries no option-chain data, so a contract is entered by hand either way.');
     const mode = seg('mode', [['own', 'My own contract'], ['example', 'A worked contract']], 'example');
     open = () => {
+      /* A contract the reader entered is theirs, as the worked-example
+         loader already holds (93-worked-example.js): "My own contract" opens
+         it as it is rather than blanking it, and the worked contract asks
+         before it replaces it. Both replaced it without a word. */
+      const own = num0(State.wheel?.putStrike) > 0 && !State.wheel?.isWorkedExample;
+      if (own && mode === 'own') { navigate('/wheel'); toast('Your contract is open as you left it'); return; }
+      if (own && !confirm('Replace the contract you entered with the worked contract? Yours is not kept.')) return;
       State.wheel = mode === 'example'
         ? { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true }
         : { ...State.wheel, ...WHEEL_BLANK_CONTRACT, isWorkedExample: false };
@@ -702,6 +728,13 @@ VIEWS.launcher = () => {
     q('Start from what?', 'Phase 1 reads nothing from your screenshot — every panel is transcribed by you.');
     const mode = seg('mode', [['own', 'My own chart evidence'], ['example', 'The §14 worked example']], 'example');
     open = () => {
+      /* Chart evidence the reader transcribed — a symbol, or a panel marked
+         present — is kept the same way as a contract. */
+      const q = State.qtti;
+      const own = !!q && JSON.stringify(q) !== JSON.stringify(qttiWorkedExample())
+        && (String(q.symbol || '').trim() !== '' || ['daily', 'weekly', 'monthly'].some(t => q.timeframes?.[t]?.present));
+      if (own && mode === 'own') { navigate('/trading-index'); toast('Your chart evidence is open as you left it'); return; }
+      if (own && !confirm('Replace the chart evidence you entered with the §14 worked example? Yours is not kept.')) return;
       if (mode === 'example') State.qtti = qttiWorkedExample();
       else State.qtti = { ...State.qtti, symbol:'',
         timeframes:{ daily:qttiBlankPanel(), weekly:qttiBlankPanel(), monthly:qttiBlankPanel() },
@@ -740,6 +773,30 @@ VIEWS.launcher = () => {
 /* ==========================================================================
    WATCHLISTS — its own destination, not a panel on a dashboard.
    ========================================================================== */
+/* WHAT OF "EVERYTHING YOU HAVE MADE" IS A SAMPLE. The first visit writes two
+   portfolios, two cases, two watchlists and two price alerts, and the worked
+   example writes comparables, area attributes, their register history and a
+   Cash Wheel contract. The card counted all of them as the reader's work,
+   with no sample label and no banner, while the six personal pages call the
+   same records samples that are not the reader's. Each key says which of
+   its records are samples by the rules those pages use: how many, for a
+   list, or whether the one record is, for a single one. */
+const HELD_SAMPLES = {
+  portfolios: (v) => v.filter(p => SEEDED_PF_IDS.includes(p.id)).length,
+  theses: (v) => v.filter(t => SEEDED_THESIS_IDS.includes(t.id)).length,
+  watchlists: (v) => v.filter(isSeededWL).length,
+  priceAlerts: (v) => v.filter(isSeededPA).length,
+  observations: (v) => v.filter(o => o.sample).length,
+  registerLog: (v) => v.filter(e => e.actor === SAMPLE_ACTOR).length,
+};
+const HELD_IS_SAMPLE = {
+  areaProfiles: (v) => { const attrs = Object.values(v).flatMap(p => (isRecord(p) ? Object.values(p) : [])); return attrs.length > 0 && attrs.every(a => a?.sample); },
+  wheelPlan: (v) => !!v.isWorkedExample,
+  qttiPlan: (v) => JSON.stringify(v) === JSON.stringify(qttiWorkedExample()),
+  /* A deal nobody has started (dealIsTheReaders, 15-derivation.js). */
+  deal: (v) => !dealIsTheReaders(v),
+};
+
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(mySubnav('userdata'));
@@ -751,6 +808,7 @@ VIEWS.userdata = () => {
       'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.'),
   ]));
   wrap.append(hd);
+  appendSampleBanner(wrap);
 
   /* Why this exists, said once and without hedging. */
   const why = el('div', { class: 'card' });
@@ -791,7 +849,8 @@ VIEWS.userdata = () => {
       const res = restoreBackup(await file.text());
       e.target.value = '';
       if (!res.ok) { toast(res.error); return; }
-      toast(`Restored ${res.restored} item${res.restored === 1 ? '' : 's'} — reloading`);
+      const left = res.refused || [];
+      toast(`Restored ${res.restored} item${res.restored === 1 ? '' : 's'}${left.length ? ` — ${left.length} left as ${left.length === 1 ? 'it was' : 'they were'}, not in the shape this app writes: ${left.join(', ')}` : ''} — reloading`);
       /* A reload rather than a re-render: State was populated from storage at
          boot, and half the app would still be holding the pre-restore values. */
       setTimeout(() => location.reload(), 700);
@@ -827,7 +886,10 @@ VIEWS.userdata = () => {
       tb2.append(el('tr', {}, [
         el('td', { style: 'text-align:left' }, r.name),
         el('td', {}, WORK_KINDS[r.kind]?.label || r.kind),
-        el('td', {}, r.savedAt),
+        /* The stamp is UTC (15-derivation.js), and printed bare it read eight
+           hours early in Malaysia; fmtSaved names the zone, as the Workspace
+           and the tools' Resume menu do. */
+        el('td', {}, fmtSaved(r.savedAt)),
         el('td', { class: 'metaline' }, `${r.modelVersion} · data ${r.asOf} · ${r.editor}`),
         el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
           if (!confirm(`Delete "${r.name}"?`)) return;
@@ -908,16 +970,23 @@ VIEWS.userdata = () => {
     const v = store.read(k, null);
     /* A setting stored as a bare value (the base currency) is held too. */
     const n = Array.isArray(v) ? v.length : (v && typeof v === 'object' ? 1 : (v !== null && v !== undefined && v !== '' ? 1 : 0));
-    return { k, label, n, has: v !== null && v !== undefined && n > 0 };
+    const samples = Array.isArray(v) && HELD_SAMPLES[k] ? HELD_SAMPLES[k](v) : 0;
+    const sampleOnly = isRecord(v) && HELD_IS_SAMPLE[k] ? HELD_IS_SAMPLE[k](v) : false;
+    return { k, label, n, list: Array.isArray(v), samples, sampleOnly, has: v !== null && v !== undefined && n > 0 };
   });
   const kv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
+  const records = (n) => `${n} record${n === 1 ? '' : 's'}`;
   held.filter(x => x.has).forEach(x => {
+    const own = x.n - x.samples;
     kv.append(el('dt', {}, x.label));
-    kv.append(el('dd', {}, Array.isArray(store.read(x.k, null)) ? `${x.n} record${x.n === 1 ? '' : 's'}` : 'saved'));
+    kv.append(el('dd', {}, !x.list ? (x.sampleOnly ? 'a sample — not yours' : 'saved')
+      : x.samples ? `${own ? `${records(own)} · ` : ''}${x.samples} sample${x.samples === 1 ? '' : 's'} — not yours` : records(x.n)));
   });
   if (held.some(x => x.has)) all.append(kv);
   else all.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'Nothing saved yet. Anything you build — a property model, an investment case, a comparable — appears here and can be carried to another browser.'));
+  if (held.some(x => x.samples || x.sampleOnly)) all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    'A sample was written into this browser on a first visit, or by the worked example, so the pages have something to show. Samples are counted apart from your own work here; Export everything carries them too, with the marks that say they are samples.'));
 
   all.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
     el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
@@ -1005,14 +1074,20 @@ VIEWS.userdata = () => {
     'Dates must be YYYY-MM-DD, or day-first where the day is unambiguous. 03/04/2026 is refused rather than guessed — reading it the wrong way round would move the whole series by months.'));
   wrap.append(add);
 
-  /* Restore an export. */
+  /* Restore exported prices. Named for the one file it takes: as "Restore an
+     export — a file previously exported from this page" it refused both the
+     page's other exports, and "Export these prices" is offered only once
+     prices have been pasted. The other two files are pointed to the control
+     that takes them. */
   const restore = el('div', { class: 'card' });
-  restore.append(cardHead('Restore an export', 'A file previously exported from this page.'));
-  const file = el('input', { class: 'input', type: 'file', accept: '.json', 'aria-label': 'Restore an export' });
+  restore.append(cardHead('Restore exported prices', 'A file from “Export these prices” above — the price series you pasted. A backup and the Export everything file each have their own restore, further up this page.'));
+  const file = el('input', { class: 'input', type: 'file', accept: '.json', 'aria-label': 'Restore exported prices' });
   file.addEventListener('change', async (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     try {
       const j = JSON.parse(await f.text());
+      const sibling = siblingFileOf(j);
+      if (sibling && sibling !== 'prices') { e.target.value = ''; toast(SIBLING_FILES[sibling]); return; }
       if (!j?.series || typeof j.series !== 'object') { toast('That file has no price series in it'); return; }
       let n = 0;
       const kept = commitUserData(() => {
@@ -1060,8 +1135,11 @@ VIEWS.watchlists = () => {
   /* A browser can hold more lists than its plan allows — the seed has two, the
      Free plan one. Those are kept; only creating another is refused, and the
      line says which of the two is the case rather than '2 of 1'. */
-  const over = lists.length > LIMITS.watchlists;
-  ctl.append(cardHead('New watchlist', `${over ? `${lists.length} lists held — this plan allows ${LIMITS.watchlists}, so the ones you have are kept and no more can be created` : `${lists.length} of ${LIMITS.watchlists} on this plan`}, each holding up to ${LIMITS.watchlistStocks} companies. Stored in this browser only — there are no accounts, so nothing here follows you to another device.`));
+  /* Counted as wlCreate counts them: the reader's own lists, not the samples
+     (06-watchlists.js). */
+  const own = ownWatchlistCount(), samples = lists.length - own;
+  const over = own > LIMITS.watchlists;
+  ctl.append(cardHead('New watchlist', `${over ? `${own} lists of your own — this plan allows ${LIMITS.watchlists}, so the ones you have are kept and no more can be created` : `${own} of ${LIMITS.watchlists} on this plan`}${samples ? ` (the ${samples === 1 ? 'sample list does' : `${samples} sample lists do`} not count)` : ''}, each holding up to ${LIMITS.watchlistStocks} companies. Stored in this browser only — there are no accounts, so nothing here follows you to another device.`));
   const nameInp = el('input', { class: 'input', placeholder: 'Name', 'aria-label': 'New watchlist name', style: 'flex:1;min-width:160px' });
   const createBtn = el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
     const r = wlCreate(nameInp.value); toast(r.ok ? `Created “${r.watchlist.name}”` : r.why); if (r.ok) render(); } }, 'Create');
@@ -1123,8 +1201,8 @@ VIEWS.watchlists = () => {
     head.append(el('input', { class: 'input input-inline', value: w.name, 'aria-label': `Name of watchlist ${w.name}`, style: 'flex:1 1 180px;font-weight:600',
       onchange: e => { const r = wlRename(w.id, e.target.value); toast(r.ok ? 'Renamed' : r.why); render(); } }));
     head.append(el('span', { class: 'chip' }, `${items.length}/${LIMITS.watchlistStocks}`));
-    head.append(el('span', { class: 'chip', title: w.createdAt ? null : (w.createdAtSource || null) }, w.createdAt ? `created ${String(w.createdAt).slice(0, 10)}` : 'created: date unknown'));
-    if (w.updatedAt) head.append(el('span', { class: 'chip' }, `updated ${String(w.updatedAt).slice(0, 10)}`));
+    head.append(el('span', { class: 'chip', title: w.createdAt ? null : (w.createdAtSource || null) }, w.createdAt ? `created ${localDayOf(w.createdAt)}` : 'created: date unknown'));
+    if (w.updatedAt) head.append(el('span', { class: 'chip' }, `updated ${localDayOf(w.updatedAt)}`));
     head.append(el('span', { class: 'spacer' }));
     head.append(el('button', { class: 'btn btn-ghost btn-sm', title: 'Open the scanner builder with this list as the universe', onclick: () => {
       /* A draft with changes in it was replaced without a word — a name
@@ -1170,7 +1248,8 @@ VIEWS.watchlists = () => {
           el('td', { style: 'text-align:left;white-space:normal' }, row ? `${row.c.name}${illusText(row.c)}` : 'not in the universe'),
           el('td', {}, el('span', { class: it.coverage === 'filed' ? 'chip chip-ok' : 'chip chip-bronze' }, it.coverage)),
           el('td', { class: 'caption' }, it.instrumentId || '—'),
-          el('td', { class: 'caption' }, it.addedAt ? String(it.addedAt).slice(0, 10) : 'unknown'),
+          /* A seeded list's own members carry no date: they are the samples. */
+          el('td', { class: 'caption' }, it.addedAt ? localDayOf(it.addedAt) : SEEDED_WL_IDS.includes(w.id) ? 'sample' : 'unknown'),
           el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Remove ${row ? row.c.tk : it.companyId} from ${w.name}`,
             onclick: () => {
               const r = wlRemove(w.id, it.companyId); toast(r.ok ? 'Removed' : r.why); render();
@@ -1420,7 +1499,10 @@ VIEWS.about = () => trustPage('About',
       ['A research tool. It shows the figures a company reported, derives measures from them, and models a range of values under assumptions you can see and change.',
        'It is also a property calculator: you enter a purchase and it returns the monthly cash flow, the break-even rent and the cash required.']],
     ['What it is not',
-      ['Not advice. It does not tell you what to buy, hold or sell, produces no ratings or target prices, asks nothing about your circumstances, and executes nothing.',
+      /* "Asks nothing about your circumstances" was unqualified, beside a
+         property calculator whose loan-readiness check asks for income,
+         debts and a credit record. */
+      ['Not advice. It does not tell you what to buy, hold or sell, produces no ratings or target prices, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment.',
        'Not a data vendor. It does not redistribute market data, and where a price is shown its source and licence are stated on the page.']],
     ['Legal entity and registration',
       'No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.', true],

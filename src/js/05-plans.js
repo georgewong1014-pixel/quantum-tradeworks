@@ -116,6 +116,21 @@ const State = {
   ]),
 };
 
+/* THE ACTIVE WATCHLIST IS REMEMBERED. wlIdx was a plain field, never stored,
+   so every reload, new tab or shared link made the first list active again:
+   a company page that read "Add to watchlist" for the list the reader had
+   just made read "✓ On your watchlist" after a reload — it was showing the
+   first list — and pressing it removed the company from that one. Every
+   change of the active list goes through this setter, which keeps the
+   list's id (not its place, which a deletion shifts); the id is resolved
+   back to a place once the lists are read (06-watchlists.js). */
+{
+  let wlIdx = State.wlIdx;
+  Object.defineProperty(State, 'wlIdx', { enumerable: true, configurable: true,
+    get: () => wlIdx,
+    set(i) { wlIdx = i; const w = State.watchlists?.[i]; if (w?.id) store.write('wlActive', w.id); } });
+}
+
 /* --------------------------------------------------------- entitlements */
 State.plan = store.read('plan', 'free');
 /* The reader's calendar month, on their own clock. The meter keyed on

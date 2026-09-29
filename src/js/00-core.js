@@ -44,6 +44,19 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const sum = (a) => a.reduce((t, v) => t + (v || 0), 0);
 const last = (a) => a[a.length - 1];
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+/* A date as the reader's calendar has it. toISOString().slice(0, 10) is the
+   UTC date, which from 16:00 to midnight in Los Angeles — and from midnight
+   to 08:00 in Kuala Lumpur — is a different day: a watchlist made on the
+   28th read "created 2026-09-29", and a dividend's "Date paid" defaulted to
+   tomorrow. localDayOf takes a stored timestamp to the reader's date; a bare
+   date (no clock time to place) is already one and is kept as it is. */
+const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const localDayOf = (v) => {
+  const s = String(v ?? '');
+  if (s.length <= 10) return s;
+  const d = new Date(s);
+  return Number.isFinite(d.getTime()) ? localDay(d) : s.slice(0, 10);
+};
 
 /* CAGR over an array; null when the base is non-positive (a growth rate off a
    negative base is meaningless — we surface "n/m" rather than a fake number). */
@@ -257,10 +270,84 @@ function inkOn(hex) {
 }
 
 /* ------------------------------------------------------------------ state */
+/* THE SHAPE EACH KEPT KEY IS WRITTEN IN.
+   A restore wrote whatever the file held ("Restore from a file" checked the
+   format and the key names, never the values), so a hand-edited or truncated
+   export with "portfolios": {…} — one portfolio, not a list of them — was
+   accepted, and every workspace page threw on .filter or .forEach. The throw
+   reached the top level of the one script, so the filings never loaded
+   either, and it survived every reload: /my/data, which could put it right,
+   was the only page left standing. Each key the export carries is declared
+   here in the shape this app writes it. A restore refuses a value in any
+   other shape, key by key, with the reason; and store.read gives back a
+   value already stored in another shape as the app can read it, so a
+   browser that took such a file before this check existed works again
+   without its storage being cleared by hand. A list keeps its readable
+   entries and drops the rest, as migrateWatchlists does for watchlists.
+   What has nothing readable left is absent — the caller's fallback, as for
+   a key never written — except the three lists the first visit seeds:
+   those read as they do once the samples are cleared, the reader's own and
+   empty (clearSeededData), which is what migrateWatchlists already does
+   for the watchlists, rather than as the samples come back. */
+const isRecord = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const SHAPE_RECORDS = { list: true, item: isRecord, what: 'a record' };
+const SHAPE_RECORD = { ok: isRecord, what: 'a record' };
+const STORE_SHAPES = {
+  /* activePF() reads the first portfolio and the views assume it exists, and
+     every one of them maps its holdings. */
+  portfolios: { list: true, nonEmpty: true, what: 'a portfolio with a list of holdings',
+                item: (p) => isRecord(p) && Array.isArray(p.holdings) && p.holdings.every(isRecord),
+                emptied: () => [{ id: 'pf-user', name: 'My portfolio', cash: 0, cashCcy: 'MYR', holdings: [] }] },
+  /* The case card and its evaluation read these three lists unguarded. */
+  theses: { list: true, what: 'an investment case with its lists of conditions, catalysts and risks',
+            item: (t) => isRecord(t) && ['conds', 'catalysts', 'risks'].every(k => Array.isArray(t[k])), emptied: () => [] },
+  /* migrateWatchlists makes the one empty list of the reader's own. */
+  watchlists: { ...SHAPE_RECORDS, emptied: () => [] }, priceAlerts: { ...SHAPE_RECORDS, emptied: () => [] },
+  observations: SHAPE_RECORDS, registerLog: SHAPE_RECORDS, corrections: SHAPE_RECORDS,
+  opportunities: SHAPE_RECORDS, wheelLegs: SHAPE_RECORDS, dividendsReceived: SHAPE_RECORDS,
+  savedScreens: SHAPE_RECORDS, savedWork: SHAPE_RECORDS, runs: SHAPE_RECORDS, sarawakExposure: SHAPE_RECORDS, comparisons: SHAPE_RECORDS,
+  areaProfiles: SHAPE_RECORD, demand: SHAPE_RECORD, deal: SHAPE_RECORD, wheelPlan: SHAPE_RECORD, qttiPlan: SHAPE_RECORD,
+  manualPrices: SHAPE_RECORD, userData: SHAPE_RECORD, wht: SHAPE_RECORD, reviews: SHAPE_RECORD, borrowerProfile: SHAPE_RECORD,
+  valuation: SHAPE_RECORD, scanSetups: SHAPE_RECORD, scanAlertState: SHAPE_RECORD, scanPrefs: SHAPE_RECORD,
+  registerActor: { ok: (v) => typeof v === 'string', what: 'text' },
+  baseCcy: { ok: (v) => v === 'MYR' || v === 'USD', what: 'MYR or USD' },
+};
+const kindOfValue = (v) => v === null ? 'nothing' : Array.isArray(v) ? 'a list' : typeof v === 'object' ? 'a record'
+  : typeof v === 'string' ? `the text “${v.slice(0, 24)}”` : typeof v === 'number' ? 'a number' : typeof v === 'boolean' ? 'true or false' : typeof v;
+/* Why a value is not in its key's shape, or null when it is. */
+function storedShapeFault(k, v) {
+  const s = STORE_SHAPES[k];
+  if (!s) return null;
+  if (s.list) {
+    if (!Array.isArray(v)) return `holds ${kindOfValue(v)} where this app writes a list`;
+    if (s.nonEmpty && !v.length) return 'holds an empty list, and this app always keeps at least one';
+    const bad = v.filter(x => !s.item(x)).length;
+    return bad ? `has ${bad} of ${v.length} entries that ${bad === 1 ? 'is not' : 'are not'} ${s.what}` : null;
+  }
+  return s.ok(v) ? null : `holds ${kindOfValue(v)} where this app writes ${s.what}`;
+}
+/* A stored value as the app can read it: itself, its readable entries, its
+   emptied state, or undefined for absent. null is left as null — the app
+   writes it itself (a cleared borrower profile), and store.read has always
+   returned it. */
+function readAsWritten(k, v) {
+  const s = STORE_SHAPES[k];
+  if (!s || v === null) return v;
+  const none = () => (s.emptied ? s.emptied() : undefined);
+  if (!s.list) return s.ok(v) ? v : none();
+  if (!Array.isArray(v)) return none();
+  const kept = v.filter(s.item);
+  if (kept.length === v.length) return s.nonEmpty && !v.length ? none() : v;
+  return kept.length ? kept : none();
+}
 const store = {
   read(key, fallback) {
-    try { const v = localStorage.getItem('vl.' + key); return v ? JSON.parse(v) : fallback; }
-    catch { return fallback; }
+    try {
+      const raw = localStorage.getItem('vl.' + key);
+      if (!raw) return fallback;
+      const v = readAsWritten(key, JSON.parse(raw));
+      return v === undefined ? fallback : v;
+    } catch { return fallback; }
   },
   /* A refused write — the quota full, storage switched off, private mode — is
      still swallowed, so the page keeps working in memory; but it returns
@@ -360,16 +447,39 @@ function exportEverything() {
    contain "Long-term core" is a guess about which the reader meant, and a wrong
    guess here silently corrupts the thing they were trying to protect. The
    confirmation says exactly what is about to be overwritten. */
+/* The page's other two files, recognised by their own marks, so a refusal
+   can name the control that takes them. The backup the same page downloads
+   was told only that it was "not a Quantum Tradeworks export". */
+const SIBLING_FILES = {
+  backup: 'That file is a full backup, from “Download a backup”. “Restore from a backup”, on the same card, restores it.',
+  everything: 'That file is from “Export everything”. “Restore from a file”, under Everything you have made, restores it.',
+  prices: 'That file holds the prices you pasted, from “Export these prices”. “Restore exported prices”, at the foot of this page, restores it.',
+};
+const siblingFileOf = (doc) => !doc || typeof doc !== 'object' ? null
+  : doc.format === 'quantum-tradeworks-backup' ? 'backup'
+  : doc.format === 'quantum-tradeworks/user-data' ? 'everything'
+  : !doc.format && isRecord(doc.series) ? 'prices' : null;
+
 function importEverything(doc) {
+  const sibling = siblingFileOf(doc);
+  if (sibling && sibling !== 'everything') return { ok:false, err: SIBLING_FILES[sibling] };
   if (!doc || doc.format !== 'quantum-tradeworks/user-data')
     return { ok:false, err:'That file is not a Quantum Tradeworks export.' };
   if (!doc.data || typeof doc.data !== 'object')
     return { ok:false, err:'That export carries no data block.' };
   const known = PORTABLE_KEYS.map(x => x.k);
-  const incoming = Object.keys(doc.data).filter(k => known.includes(k));
+  const recognised = Object.keys(doc.data).filter(k => known.includes(k));
   const ignored = Object.keys(doc.data).filter(k => !known.includes(k));
-  if (!incoming.length) return { ok:false, err:'That export holds nothing this build recognises.' };
-  return { ok:true, incoming, ignored, exportedAt:doc.exportedAt,
+  if (!recognised.length) return { ok:false, err:'That export holds nothing this build recognises.' };
+  /* Refused key by key (see STORE_SHAPES): the rest of the file is still
+     offered, and what is here now under a refused key is kept. An export
+     never carries null, so a null is nothing to restore. */
+  const refused = recognised.map(k => ({ k, why: doc.data[k] === null ? 'holds nothing' : storedShapeFault(k, doc.data[k]) })).filter(x => x.why);
+  const incoming = recognised.filter(k => !refused.some(x => x.k === k));
+  const labelOf = (k) => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k;
+  if (!incoming.length) return { ok:false, refused,
+    err:`Nothing in that file can be restored, because nothing in it is in the shape this app writes: ${refused.map(x => `${labelOf(x.k)} ${x.why}`).join('; ')}.` };
+  return { ok:true, incoming, ignored, refused, exportedAt:doc.exportedAt,
     apply() { incoming.forEach(k => store.write(k, doc.data[k])); } };
 }
 

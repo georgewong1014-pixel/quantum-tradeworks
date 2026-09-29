@@ -77,10 +77,17 @@ function migrateWatchlists() {
 const wlById = (wlId) => (State.watchlists || []).find(w => w.id === wlId) || null;
 const wlTouch = (w) => { w.updatedAt = new Date().toISOString(); };
 
+/* The samples do not use up the plan. The seed writes two lists into a fresh
+   browser — "not yours, and nothing on this page counts them", My Dashboard
+   says — and the Free plan allows one, so the dashboard's first step,
+   "Create a watchlist", was refused on the page it sends the reader to. A
+   seeded list the reader has changed is theirs and counts (isSeededWL). */
+const ownWatchlistCount = () => (State.watchlists || []).filter(w => !isSeededWL(w)).length;
+const limitSaid = (n, one) => `${n} ${one}${n === 1 ? '' : 's'} is the maximum on this plan`;
 /* Create. The limit is the plan's, and the reason a creation is refused is
    returned, never toasted from inside a service. */
 function wlCreate(name) {
-  if (State.watchlists.length >= LIMITS.watchlists) return { ok: false, why: `${LIMITS.watchlists} watchlists is the maximum on this plan` };
+  if (ownWatchlistCount() >= LIMITS.watchlists) return { ok: false, why: limitSaid(LIMITS.watchlists, 'watchlist') };
   const now = new Date().toISOString();
   const w = { id: nextWatchlistId(), name: String(name || '').trim() || `Watchlist ${State.watchlists.length + 1}`,
               ids: [], added: {}, createdAt: now, updatedAt: now, schema: WATCHLIST_SCHEMA };
@@ -206,3 +213,9 @@ function watchlistsImport(doc) {
 }
 
 migrateWatchlists();
+/* The list the reader last made active (the wlIdx setter, 05-plans.js), when
+   it is still here; otherwise the first, as before. */
+{
+  const i = State.watchlists.findIndex(w => w.id === store.read('wlActive', null));
+  if (i > 0) State.wlIdx = i;
+}

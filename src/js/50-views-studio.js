@@ -1233,8 +1233,10 @@ function addToThesis(id) {
     conds: [{ type:'val', op:'>', v:15, label:'Price moves more than 15% above the base-case model estimate' }],
     /* Ninety days from creation. A fixed '2026-10-30' became a review date
        already in the past for any thesis started after it. */
-    horizon: '3–5 years', review: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10), conf: 'Low', questions: [],
-    created: new Date().toISOString().slice(0, 10),
+    horizon: '3–5 years', review: localDay(new Date(Date.now() + 90 * 86400000)), conf: 'Low', questions: [],
+    /* Both on the reader's calendar (localDay, 00-core.js). The UTC date
+       dated a case started on a Los Angeles evening the next day. */
+    created: localDay(),
     /* Its conditions are evaluated against live figures, so what the case
        was written against is worth keeping: the workspace can then say the
        model or the statements have moved under it. */
@@ -1254,6 +1256,7 @@ function addToThesis(id) {
    ?tab=thesis, so a reload, Back or a copied link went to the wrong tab. */
 function sevenSteps(r, t) {
   const { c, d, m } = r;
+  const sample = !!t && SEEDED_THESIS_IDS.includes(t.id);
   const wacc = isNum(r.inputs.wacc) ? r.inputs.wacc : null;
   const moatRead = (c.moat.support?.length || 0) + (c.moat.counter?.length || 0);
   /* AN UNSCORED PILLAR IS NOT A SCORE. A bank loaded from filings has none of
@@ -1298,17 +1301,23 @@ function sevenSteps(r, t) {
       ok: r.val.confBand !== 'Low' && !r.val.err,
       note: `${r.val.pack.name}, ${r.val.confBand.toLowerCase()} confidence${r.val.mos ? `, ${withSign(r.val.mos.base, 0)} against the base case` : ''}.`,
       go: () => openResearch(c.id, 'valuation') },
+    /* The seeded case is a sample, not work done here: it satisfied steps 6
+       and 7 on a first visit ("6 of 7 satisfied … computed from the work
+       done in the product") though the reader had written nothing. */
     { n:6, title:'Write down what would prove you wrong',
-      ok: !!(t && t.conds?.length && t.oneLine),
-      note: t ? `${t.conds.length} invalidation condition(s)${t.oneLine ? '' : ', but no investment case written yet'}.`
+      ok: !sample && !!(t && t.conds?.length && t.oneLine),
+      note: sample ? 'The case here is a sample written into this browser, not yours — this step is open until you write your own.'
+        : t ? `${t.conds.length} invalidation condition(s)${t.oneLine ? '' : ', but no investment case written yet'}.`
               : 'No thesis written for this company yet.',
       go: () => openResearch(c.id, 'thesis') },
     /* A review date that has passed is a check that was missed, not one that
-       is scheduled — so it no longer satisfies the step. */
+       is scheduled — so it no longer satisfies the step. Today is the
+       reader's own date, as the review date is (localDay). */
     { n:7, title:'Set when you will check again',
-      ok: !!(t && t.review) && t.review >= new Date().toISOString().slice(0, 10),
-      note: !t?.review ? 'No review date set.'
-        : t.review < new Date().toISOString().slice(0, 10) ? `The review date ${t.review} has passed. Set the next one.`
+      ok: !sample && !!(t && t.review) && t.review >= localDay(),
+      note: sample ? 'The review date here is the sample case’s, not one you set.'
+        : !t?.review ? 'No review date set.'
+        : t.review < localDay() ? `The review date ${t.review} has passed. Set the next one.`
         : `Next review ${t.review}, horizon ${t.horizon}.`,
       go: () => openResearch(c.id, 'thesis') },
   ];
@@ -1377,6 +1386,9 @@ function thesisCard(t, expanded) {
   hd.append(el('div', {}, [
     el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:3px' }, [
       el('h3', { class: 'h-card' }, r.c.tk), marketChip(r.c.mkt),
+      /* A seeded case says so wherever it is shown, as the research home and
+         Saved Models do: on the company page it had no mark at all. */
+      SEEDED_THESIS_IDS.includes(t.id) ? el('span', { class: 'chip chip-bronze', title: 'Written into this browser on a first visit to show what a case looks like. Not your work.' }, 'sample') : null,
       el('span', { class: 'chip' }, `${t.conf} confidence`),
       evalr.breaches.length ? sevChip('serious', `${evalr.breaches.length} condition breached`) : sevChip('good', 'No condition breached'),
     ]),
@@ -1384,7 +1396,9 @@ function thesisCard(t, expanded) {
   ]));
   hd.append(el('div', { class: 'row', style: 'gap:6px' }, [
     el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(t.ticker) }, 'Research'),
-    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openThesisEditor(t) }, 'Edit'),
+    /* An id, so closing the editor finds this button again once the edit
+       has redrawn the page under the drawer (closeDrawer, 35-ui.js). */
+    el('button', { class: 'btn btn-quiet btn-sm', id: `thesis-edit-${t.id}`, onclick: () => openThesisEditor(t) }, 'Edit'),
   ]));
   card.append(hd);
 
@@ -1491,6 +1505,20 @@ function thesisCard(t, expanded) {
 
 function openThesisEditor(t) {
   const body = el('div');
+  /* Every change is kept as it is made (saveTheses on each input), so the
+     page under the drawer shows it as it is made. Only Save redrew the page,
+     so closing with ×, Escape or the scrim left the card showing the case
+     as it was before — the edit kept in storage, in Saved Models and after a
+     reload, and apparently discarded on the page. One redraw once typing
+     pauses, not one a keystroke, and only of the page the editor was opened
+     on. */
+  const page = location.pathname;
+  let redrawTimer = null;
+  const keep = () => {
+    saveTheses();
+    clearTimeout(redrawTimer);
+    redrawTimer = setTimeout(() => { if (location.pathname === page) render(); }, 200);
+  };
   /* Every label is joined to its control. They were siblings with no `for`
      and no id, so all nine controls in this drawer — the case, the lists,
      the horizon, the review date and the confidence — had no accessible
@@ -1500,8 +1528,8 @@ function openThesisEditor(t) {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
     f.append(el('label', { for: `th-${key}` }, label));
     const inp = multiline
-      ? el('textarea', { class: 'input', id: `th-${key}`, oninput: e => { t[key] = e.target.value; saveTheses(); } }, t[key] || '')
-      : el('input', { class: 'input', id: `th-${key}`, value: t[key] || '', oninput: e => { t[key] = e.target.value; saveTheses(); } });
+      ? el('textarea', { class: 'input', id: `th-${key}`, oninput: e => { t[key] = e.target.value; keep(); } }, t[key] || '')
+      : el('input', { class: 'input', id: `th-${key}`, value: t[key] || '', oninput: e => { t[key] = e.target.value; keep(); } });
     f.append(inp);
     if (note) f.append(el('p', { class: 'metaline' }, note));
     return f;
@@ -1512,7 +1540,7 @@ function openThesisEditor(t) {
   const listField = (label, key, note) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
     f.append(el('label', { for: `th-${key}` }, label));
-    f.append(el('textarea', { class: 'input', id: `th-${key}`, oninput: e => { t[key] = e.target.value.split('\n').filter(Boolean); saveTheses(); } }, (t[key] || []).join('\n')));
+    f.append(el('textarea', { class: 'input', id: `th-${key}`, oninput: e => { t[key] = e.target.value.split('\n').filter(Boolean); keep(); } }, (t[key] || []).join('\n')));
     f.append(el('p', { class: 'metaline' }, note || 'One per line.'));
     return f;
   };
@@ -1523,13 +1551,13 @@ function openThesisEditor(t) {
   ['horizon', 'review'].forEach(k => {
     const f = el('div', { class: 'field' });
     f.append(el('label', { for: `th-${k}` }, k === 'horizon' ? 'Intended holding horizon' : 'Next review date'));
-    f.append(el('input', { class: 'input', id: `th-${k}`, type: k === 'review' ? 'date' : 'text', value: t[k], oninput: e => { t[k] = e.target.value; saveTheses(); } }));
+    f.append(el('input', { class: 'input', id: `th-${k}`, type: k === 'review' ? 'date' : 'text', value: t[k], oninput: e => { t[k] = e.target.value; keep(); } }));
     row.append(f);
   });
   body.append(row);
   const cf = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   cf.append(el('label', { for: 'th-conf' }, 'Confidence'));
-  const cs = el('select', { class: 'select', id: 'th-conf', onchange: e => { t.conf = e.target.value; saveTheses(); } });
+  const cs = el('select', { class: 'select', id: 'th-conf', onchange: e => { t.conf = e.target.value; keep(); } });
   ['Low', 'Medium', 'High'].forEach(v => cs.append(el('option', { value: v, selected: t.conf === v ? '' : null }, v)));
   cf.append(cs); body.append(cf);
 
@@ -1538,9 +1566,10 @@ function openThesisEditor(t) {
        today's figures, so that is what it now stands on. */
     /* A case whose company is not loaded keeps the stamp it has: there are no
        figures of today's to re-stamp it against. */
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => { const co = BY_ID.get(t.ticker)?.c; if (co) t.stamp = buildStamp(co); saveTheses(); closeDrawer(); render(); toast('Thesis saved'); } }, 'Save'),
+    el('button', { class: 'btn btn-primary btn-sm', onclick: () => { clearTimeout(redrawTimer); const co = BY_ID.get(t.ticker)?.c; if (co) t.stamp = buildStamp(co); saveTheses(); closeDrawer(); render(); toast('Thesis saved'); } }, 'Save'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       if (!confirm('Delete this thesis? Its review history will be removed too.')) return;
+      clearTimeout(redrawTimer);
       /* The dialog promises the review history goes with it; only the thesis
          was removed, and its reviews stayed in storage and in backups. */
       const reviews = store.read('reviews', {});
@@ -2284,13 +2313,31 @@ const seededPortfolios = () => (State.portfolios || []).filter(p => SEEDED_PF_ID
 const seededTheses = () => (State.theses || []).filter(t => SEEDED_THESIS_IDS.includes(t.id));
 const isSeededWL = (w) => SEEDED_WL_IDS.includes(w.id) && !w.updatedAt;
 const isSeededPA = (pa) => SEEDED_PA_IDS.includes(pa.id) && !pa.updatedAt;
+/* The seed's own companies in a seeded list: the members with no date added
+   (06-watchlists.js dates every member a reader adds; the seed's were
+   migrated with none). The dashboard already counted only a seeded list's
+   dated members as the reader's (myDashOwnIds). */
+const seededMembersOf = (w) => SEEDED_WL_IDS.includes(w?.id) ? (w.ids || []).filter(id => !(w.added && w.added[id])) : [];
 const hasSeededData = () => seededPortfolios().length > 0 || seededTheses().length > 0
-  || (State.watchlists || []).some(isSeededWL) || (State.priceAlerts || []).some(isSeededPA);
+  || (State.watchlists || []).some(w => isSeededWL(w) || seededMembersOf(w).length) || (State.priceAlerts || []).some(isSeededPA);
 
 function clearSeededData() {
   const ownPf = (State.portfolios || []).filter(p => !SEEDED_PF_IDS.includes(p.id));
   const ownTh = (State.theses || []).filter(t => !SEEDED_THESIS_IDS.includes(t.id));
-  const ownWl = (State.watchlists || []).filter(w => !isSeededWL(w));
+  /* A seeded list the reader has added to is kept, and the seed's own
+     companies leave it. It was kept whole: one "Add to watchlist" on a
+     company page made the six seeded companies stay after clearing, with no
+     sample label left on /my/watchlists, while the dashboard went on calling
+     them samples with no way left to clear them — and on Free the "Create a
+     watchlist" step could never be ticked. With only the reader's companies
+     in it, every page counts it as a list of their own. */
+  const ownWl = (State.watchlists || []).filter(w => !isSeededWL(w)).map(w => {
+    const seeds = seededMembersOf(w);
+    if (!seeds.length) return w;
+    const added = { ...(w.added || {}) };
+    seeds.forEach(id => { delete added[id]; });
+    return { ...w, ids: w.ids.filter(id => !seeds.includes(id)), added };
+  });
   const activeWlId = activeWL()?.id;
   dropDividendsOf(SEEDED_PF_IDS);
   /* activePF() reads State.portfolios[0] and the view assumes it exists, so the
@@ -2319,7 +2366,7 @@ function sampleBanner() {
   b.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 300px;margin:0' },
-      'These holdings, investment cases, watchlists and price alerts were written into this browser so the views have something to show. They are not yours, nobody holds them, and every figure derived from them is illustrative. Clearing keeps any list or alert you have changed.'),
+      'These holdings, investment cases, watchlists and price alerts were written into this browser so the views have something to show. They are not yours, nobody holds them, and every figure derived from them is illustrative. Clearing keeps any list or alert you have changed — a list without the sample companies in it.'),
     /* The banner goes with what it describes, and the button with it: focus
        fell to the top of the page. It goes to the page's heading, as the
        dashboard's "Clear the sample data" sends it (40-views-discover.js). */
@@ -2402,7 +2449,7 @@ VIEWS.portfolio = () => {
   const sel = el('select', { class: 'select', style: 'width:auto;min-width:190px', 'aria-label': 'Active portfolio', id: 'pf-active',
     onchange: e => { State.pfIdx = +e.target.value; redrawKeepFocus(); } });
   State.portfolios.forEach((p, i) => sel.append(el('option', { value: i, selected: i === State.pfIdx ? '' : null },
-    `${p.name} · ${p.holdings.length} holdings`)));
+    `${p.name} · ${p.holdings.length} holding${p.holdings.length === 1 ? '' : 's'}`)));
   hr.append(sel);
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPortfolioManager(), html: `${icon('briefcase', 13)} Manage` }));
   hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openAddHolding(), html: `${icon('plus', 13)} Add holding` }));
@@ -2433,7 +2480,7 @@ VIEWS.portfolio = () => {
   const unpricedNote = unpricedN ? `${unpricedN} without a price excluded` : '';
   const tiles = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
   tiles.append(el('div', { class: 'card' }, statTile('Portfolio value', fmtAmount(totalVal, State.baseCcy),
-    { sub: `${pos.length} positions${unpricedN ? ` (${unpricedN} without a price)` : ''} + ${fmtAmount(cashBase, State.baseCcy)} cash` })));
+    { sub: `${pos.length} position${pos.length === 1 ? '' : 's'}${unpricedN ? ` (${unpricedN} without a price)` : ''} + ${fmtAmount(cashBase, State.baseCcy)} cash` })));
   tiles.append(el('div', { class: 'card' }, statTile('Unrealised change', totalCost ? withSign((securities - totalCost) / totalCost * 100, 1) : '—',
     { sub: totalCost ? `of which ${withSign(fxContribution, 1)} is currency${unpricedNote ? ` · ${unpricedNote}` : ''}`
                      : (pos.length ? 'No holding here has a price, so there is no return to measure' : 'No holdings yet'),
@@ -2449,8 +2496,10 @@ VIEWS.portfolio = () => {
   const hc = el('div', { class: 'card', style: 'padding:0;overflow:hidden;margin-bottom:var(--md)' });
   const hh = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
   hh.append(el('h3', { class: 'h-card' }, 'Holdings'));
+  /* "Sample positions." only on a seeded portfolio: it ended the caption of
+     every portfolio, the reader's own included. */
   hh.append(el('p', { class: 'caption', style: 'margin-top:2px' },
-    `Return is split into the price move in the reporting currency and the currency effect of translating into ${State.baseCcy}. Net yield applies the illustrative withholding rates set on the Compare view — it is a scenario, not a tax calculation. Sample positions.`));
+    `Return is split into the price move in the reporting currency and the currency effect of translating into ${State.baseCcy}. Net yield applies the illustrative withholding rates set on the Compare view — it is a scenario, not a tax calculation.${SEEDED_PF_IDS.includes(pf.id) ? ' Sample positions.' : ''}`));
   hc.append(hh);
   const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
   const t = el('table', { class: 'dt' });
@@ -2491,15 +2540,27 @@ VIEWS.portfolio = () => {
   wrap.append(hc);
 
   /* exposures */
+  /* Over the priced holdings only, as value, weight and return are. Every
+     holding was summed in, and an unpriced one added its null as nought: the
+     US sleeve read "Health Care 0.0%", and the reader's own Microsoft
+     "Technology 0.0%" beside "Financials 100.0%" — an absent value shown as
+     zero, under the table's note that such holdings are not counted at
+     nought. They are named under each card instead. */
   const ex = el('div', { class: 'grid g-2' });
   const bySector = {}, byType = {};
-  pos.forEach(p => {
+  priced.forEach(p => {
     bySector[p.r.c.sector] = (bySector[p.r.c.sector] || 0) + p.valBase;
     byType[p.r.c.type] = (byType[p.r.c.type] || 0) + p.valBase;
   });
+  const unpricedTks = pos.filter(p => p.unpriced).map(p => p.r.c.tk);
+  const oneLeft = unpricedTks.length === 1;
+  const leftOut = !unpricedTks.length ? ''
+    : unpricedTks.length === pos.length ? `No price is carried for any holding here (${unpricedTks.join(', ')}), so there is no value to share out — not a share of nought.`
+    : `Left out: ${unpricedTks.join(', ')}. No price is carried for ${oneLeft ? 'it' : 'them'} here, so ${oneLeft ? 'it has' : 'they have'} no value to share — not a share of nought.`;
   [['Sector exposure', bySector], ['Business-model exposure', byType]].forEach(([label, obj]) => {
     const card = el('div', { class: 'card' });
     card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.'));
+    if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${v / totalVal * 100}%;background:var(${SERIES[i % 8]})`, title: k })));
@@ -2553,8 +2614,11 @@ VIEWS.portfolio = () => {
 
   const selH = el('select', { class: 'select select-sm', id: 'divHold', 'aria-label': 'Holding' });
   pos.forEach(p2 => selH.append(el('option', { value: p2.h.id }, p2.r.c.tk + ' — ' + p2.r.c.name)));
+  /* Today on the reader's calendar: the UTC date defaulted a payment
+     recorded on a Kuala Lumpur morning, or a Los Angeles evening, to the
+     wrong day. */
   const dDate = el('input', { class: 'input input-inline', type: 'date', id: 'divDate',
-    value: new Date().toISOString().slice(0, 10), 'aria-label': 'Payment date' });
+    value: localDay(), 'aria-label': 'Payment date' });
   /* The amount is stored in the holding's own currency, so the field says
      which one. Labelled only "Amount" on a page in the reader's base currency,
      ringgit typed for a US holding were counted as dollars — 4.4 times over. */
@@ -2727,7 +2791,12 @@ VIEWS.portfolio = () => {
    was a bare ticker ('AAPL') that matches no option value ('AAPL-SEC'), so the
    select fell back to showing its first option while an untouched form saved
    the other company. */
+/* The reader's own, which the plan counts (see ownWatchlistCount). */
+const ownPortfolioCount = () => (State.portfolios || []).filter(p => !SEEDED_PF_IDS.includes(p.id)).length;
+const ownAlertCount = () => (State.priceAlerts || []).filter(pa => !isSeededPA(pa)).length;
 function openPriceAlertEditor(existing) {
+  /* Refused before the form, not after it has been filled in. */
+  if (!existing && ownAlertCount() >= LIMITS.priceAlerts) { toast(limitSaid(LIMITS.priceAlerts, 'price alert')); return; }
   const defaultId = BY_ID.get(State.ticker)?.c.id || U[0]?.c.id;
   const pa = existing ? { ...existing }
     : { id: `pa-${Date.now()}`, ticker: defaultId, op: '<', price: 0, note: '' };
@@ -2774,7 +2843,7 @@ function openPriceAlertEditor(existing) {
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
     if (!(pa.price > 0)) { toast('Set a price above zero'); return; }
     if (!existing) {
-      if (State.priceAlerts.length >= LIMITS.priceAlerts) { toast(`${LIMITS.priceAlerts} price alerts is the maximum`); return; }
+      if (ownAlertCount() >= LIMITS.priceAlerts) { toast(limitSaid(LIMITS.priceAlerts, 'price alert')); return; }
       State.priceAlerts.push(pa);
     } else {
       /* Stamped so an edited sample alert counts as the reader's own and is
@@ -2820,7 +2889,7 @@ function openWatchlistManager() {
     const r = wlCreate(`Watchlist ${State.watchlists.length + 1}`);
     if (!r.ok) { toast(r.why); return; }
     closeDrawer(); render(); toast('Watchlist created');
-  } }, `New watchlist (${State.watchlists.length}/${LIMITS.watchlists})`));
+  } }, `New watchlist (${ownWatchlistCount()}/${LIMITS.watchlists})`));
 
   /* Import: paste tickers or Bursa codes. Anything unmatched is reported rather
      than dropped silently, so a bad import is visible. */
@@ -2888,11 +2957,11 @@ function openPortfolioManager() {
   });
 
   body.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--sm)', onclick: () => {
-    if (State.portfolios.length >= LIMITS.portfolios) { toast(`${LIMITS.portfolios} portfolios is the maximum`); return; }
+    if (ownPortfolioCount() >= LIMITS.portfolios) { toast(limitSaid(LIMITS.portfolios, 'portfolio')); return; }
     State.portfolios.push({ id: `pf-${Date.now()}`, name: `Portfolio ${State.portfolios.length + 1}`, cash: 0, cashCcy: State.baseCcy, holdings: [] });
     State.pfIdx = State.portfolios.length - 1;
     savePortfolios(); closeDrawer(); render(); toast('Portfolio created');
-  } }, `New portfolio (${State.portfolios.length}/${LIMITS.portfolios})`));
+  } }, `New portfolio (${ownPortfolioCount()}/${LIMITS.portfolios})`));
   openDrawer('Manage portfolios', body);
 }
 
@@ -3028,20 +3097,32 @@ State.onboarding = store.read('onboarding', null);
 const onboarded = () => !!State.onboarding?.done;
 
 function completeOnboarding(answers) {
-  const done = { ...answers, done: true, at: new Date().toISOString() };
+  /* The answers given now, over the ones given before. "Skip" on a return
+     visit replaced the stored record with {skipped:true}, so the level, the
+     market and the currency answered last time were gone. */
+  const { done: _d, at: _a, skipped: _s, ...before } = isRecord(State.onboarding) ? State.onboarding : {};
+  const done = { ...before, ...answers, done: true, at: new Date().toISOString() };
   State.onboarding = done;
   store.write('onboarding', done);
 
-  /* The answers take effect immediately rather than being stored and ignored. */
-  if (done.ccy) { State.baseCcy = done.ccy; store.write('baseCcy', done.ccy); }
-  setExplainDepth(done.level === 'experienced' ? 'technical' : done.level === 'basic' ? 'context' : 'simple');
+  /* The answers take effect immediately rather than being stored and ignored.
+     Only the ones given now: an earlier answer has taken effect already, and
+     the reader may have changed the setting since. Skip reset the
+     explanation depth to Simple — a question not answered read as "new
+     investor" — undoing a Technical depth set in a metric's drawer. */
+  if (answers.ccy) { State.baseCcy = answers.ccy; store.write('baseCcy', answers.ccy); }
+  if (answers.level) setExplainDepth(answers.level === 'experienced' ? 'technical' : answers.level === 'basic' ? 'context' : 'simple');
   /* The screener filters on `universe`; nothing reads a `market` key, so the
      answer used to be stored and ignored. Written where the launcher's own
      "Which market?" step writes it. Compare has no market filter, so the
      question no longer claims to set one there. */
-  if (done.market && done.market !== 'both' && State.screen) {
-    State.screen.universe = done.market; store.write('screen', State.screen);
+  if (answers.market && answers.market !== 'both' && State.screen) {
+    State.screen.universe = answers.market; store.write('screen', State.screen);
   }
+  /* "Skip — take me to the app" goes to the app. It followed the goal
+     answered before it, so a reader who picked "Learn investment
+     fundamentals" and then skipped landed on /learn, outside the app. */
+  if (answers.skipped) { navigate('/app'); return; }
 
   /* One task, chosen by the first answer, and it is a real destination rather
      than a tour. */
