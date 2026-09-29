@@ -1060,9 +1060,38 @@ for (const w of [360, 390]) {
       const over = await ev(`document.documentElement.scrollWidth - innerWidth`);
       if (typeof over !== 'number' || over > 2) fails.push(`${w}px ${path}${open ? ` with #${open} open` : ''}: overflow ${over}px`);
     }
+    /* 6. Each menu panel sits inside the viewport, measured on the panel itself
+       and not only as page overflow — at 1024px the resources panel ran 11px
+       past a viewport narrowed by a scrollbar, 38px on CI, whose Linux runner
+       has neither Inter nor Segoe and lays the header out in a wider font. So
+       the check runs with the page's font AND with Verdana forced, which gives
+       the same answer on any machine. */
+    for (const w of [1024, 1100]) {
+      await load('/', w);
+      for (const font of [null, 'Verdana, sans-serif']) {
+        const r = await ev(`(async () => {
+          const wait = (ms) => new Promise(res => setTimeout(res, ms));
+          document.getElementById('probeFont')?.remove();
+          ${font ? `const st = document.createElement('style'); st.id = 'probeFont'; st.textContent = 'body, button, a { font-family: ${font} !important; }'; document.head.append(st); await wait(120);` : ''}
+          const out = [];
+          for (const id of ['menuProductsBtn', 'menuResourcesBtn']) {
+            const btn = document.getElementById(id);
+            if (!btn || !btn.offsetParent) { out.push(id + ' not shown'); continue; }
+            btn.click(); await wait(300);
+            const p = document.getElementById(btn.getAttribute('aria-controls')).getBoundingClientRect();
+            const vw = document.documentElement.clientWidth;
+            if (p.left < 0 || p.right > vw) out.push(id + ' panel ' + Math.round(p.left) + '–' + Math.round(p.right) + ' of ' + vw);
+            btn.click(); await wait(250);
+          }
+          document.getElementById('probeFont')?.remove();
+          return out;
+        })()`);
+        (Array.isArray(r) ? r : [`the menu probe returned ${JSON.stringify(r)}`]).forEach(x => fails.push(`${w}px${font ? ' in Verdana' : ''}: ${x}`));
+      }
+    }
   } catch (e) { fails.push(`the shell checks threw: ${e.message}`); }
   if (fails.length) { bad++; console.log(`FAIL release-a shell — ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
-  else console.log('ok   release-a shell: each chrome on its views at 1440 and 390, every chrome link renders, menus and the sheet work from the keyboard, the drawer traps focus and closes on Escape, no overflow at 360/768/1024/1440');
+  else console.log('ok   release-a shell: each chrome on its views at 1440 and 390, every chrome link renders, menus and the sheet work from the keyboard, the drawer traps focus and closes on Escape, no overflow at 360/768/1024/1440, and every menu panel inside the viewport at 1024 and 1100 in the page\'s font and in Verdana');
 }
 /* ---- /release-a: shell ---- */
 } catch (e) {

@@ -2221,6 +2221,12 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
 .pubpanel[hidden] { display: none; }
 .pubpanel-products { width: 440px; }
 .pubpanel-resources { width: 500px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--md); padding: 14px 10px 10px; }
+/* The resources panel opens from its button's right edge, leftwards over the
+   header: from the left edge it ran past the viewport at 1024px (11px with
+   the page's font and a scrollbar, 38px on CI's wider fallback font, 75px on
+   the widest). No panel is ever wider than the viewport less its gutters. */
+.pubpanel-resources { left: auto; right: -8px; }
+.pubpanel { max-width: calc(100vw - 32px); }
 
 /* Product rows: the menu's and the phone sheet's. */
 .pp-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 2px; }
