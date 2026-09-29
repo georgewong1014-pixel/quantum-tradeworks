@@ -540,7 +540,14 @@ $('.skip-link')?.addEventListener('click', (e) => { e.preventDefault(); focusMai
 /* Anything else that still sets a hash keeps working. */
 window.addEventListener('hashchange', () => { if (fromHash()) history.replaceState(history.state, '', location.pathname + location.search); });
 
-if (!fromHash()) applyRoute();
+/* Once every module has run. The build puts them in one script in file
+   order, and the decision record defines its view after this one
+   (97-decision-record.js): routed here, /decision-record found no view and
+   drew "That page does not exist" — for as long as the filings took to
+   land, when boot routes again and the page turned into the record under
+   the reader, focus falling to <body>; and for good with the filings off
+   (?real=0), when nothing routes again. */
+queueMicrotask(() => { if (!fromHash()) applyRoute(); });
 
 /* "Synthetic data only" was the banner's old sentence, true when the universe
    was the sample set and false since the filings joined it; at this line only

@@ -8439,6 +8439,270 @@ try {
   }
   /* ---- end bugfix: render-focus ---- */
 
+  /* ---- bugfix: render-focus-verify ---- */
+  /* V1–V12 — what render()'s restore still got wrong (35-ui.js), found by
+          keyboard walks of every route at 1440 and 390: with a redraw of
+          the page on screen at every stop, and with the data held back and
+          released under a spread of each page's stops. A chart given focus
+          back was drawn again a frame later and focus fell to <body>; a
+          control below a chart or under the company page's sticky strip
+          rose by that height at every redraw, until it left the screen; a
+          heading focus had been sent to lost it; a card's "Delete" pressed
+          handed focus to the next card's; a scanner field went to <body>;
+          a figure in a table swiped sideways, and a tab in a strip
+          scrolled along to, came back out of sight; typing kept
+          through one redraw went with the next; a field dropped down the
+          screen when more was drawn above it; a table's scroller lost focus
+          when the filings changed its figures; /decision-record read "That
+          page does not exist" until the filings landed; and every redraw
+          played the page's entrance again. Each is driven through a real
+          redraw: the OS switching theme (no theme chosen, so the page
+          redraws to follow it), the filings landing (held back through the
+          Fetch domain), or the key that asked for it. */
+  {
+    let holdRe = null;
+    const held = [];
+    const onPause = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.method !== 'Fetch.requestPaused' || m.sessionId !== sessionId) return;
+      if (holdRe && holdRe.test(m.params.request.url)) held.push(m.params.requestId);
+      else send('Fetch.continueRequest', { requestId: m.params.requestId }, sessionId);
+    };
+    ws.addEventListener('message', onPause);
+    const view = (w, h) => send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 1000 }, sessionId);
+    await send('Network.enable', {}, sessionId);
+    await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+    await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/us.json*' }, { urlPattern: '*/data/sarawak-geo.json*' }] }, sessionId);
+    const key = async (k, code, text) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, windowsVirtualKeyCode: code, ...(text ? { text } : {}) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code }, sessionId);
+    };
+    const typeIn = async (t) => { for (const ch of t) { await key(ch, ch.toUpperCase().charCodeAt(0), ch); await sleep(20); } };
+    const until = async (expr, what) => {
+      for (const t = Date.now(); Date.now() - t < 30000; await sleep(50)) { try { if (await evaluate(expr)) return; } catch { /* booting */ } }
+      throw new Error(`${what} — not seen in 30s`);
+    };
+    const open = async (path, hold, ready) => {
+      holdRe = hold;
+      await evaluate('window.__rvLeaving = true');
+      await send('Page.navigate', { url: `${BASE}${path}` }, sessionId);
+      await until(`!window.__rvLeaving && ${hold ? 'realPending === true' : 'propertyPagesSettled()'} && (${ready})`,
+        `${path} drawn${hold ? ' with its data held' : ''}`);
+      await sleep(300);
+    };
+    const release = async (path) => {
+      holdRe = null;
+      while (held.length) await send('Fetch.continueRequest', { requestId: held.shift() }, sessionId);
+      await until('propertyPagesSettled()', `${path} redrawn with its data`);
+      await sleep(300);
+    };
+    let scheme = 'light';
+    const flip = async () => {
+      scheme = scheme === 'light' ? 'dark' : 'light';
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+      await sleep(400);
+    };
+    /* The control in focus: which, what it holds, its caret, where it sits
+       on screen, and the box round it that hides it, if one does. */
+    const at = async () => JSON.parse(await evaluate(`JSON.stringify((() => {
+      const a = document.activeElement;
+      if (!a || a === document.body) return { at: 'BODY' };
+      let caret = null;
+      try { if (typeof a.selectionStart === 'number') caret = [a.selectionStart, a.selectionEnd]; } catch { /* a number field */ }
+      const r = a.getBoundingClientRect();
+      let hidden = null;
+      for (let p = a.parentElement; p && p !== document.body; p = p.parentElement) {
+        const cs = getComputedStyle(p); if (!/(auto|scroll|hidden)/.test(cs.overflowX + cs.overflowY)) continue;
+        const q = p.getBoundingClientRect();
+        if (r.right <= q.left + 1 || r.left >= q.right - 1) { hidden = p.className || p.tagName; break; }
+      }
+      /* A cell under the table's pinned first column is hidden by it. */
+      const pin = a.closest('tr')?.querySelector('.pin, th[scope=row], td:first-child');
+      if (!hidden && pin && pin !== a && getComputedStyle(pin).position === 'sticky' && r.left < pin.getBoundingClientRect().right - 2) hidden = 'the pinned column';
+      return { at: a.id || (a.tagName === 'A' ? a.getAttribute('href') : a.tagName + ':' + (a.getAttribute('aria-label') || a.textContent).trim().slice(0, 48)),
+        value: /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) ? a.value : null, caret, top: Math.round(r.top), y: Math.round(scrollY), hidden };
+    })())`));
+    const said = (x) => x.at === 'BODY' ? 'BODY' : `${x.at}${x.value != null ? ` reading ${JSON.stringify(x.value)}` : ''}${x.caret ? `, caret ${JSON.stringify(x.caret)}` : ''}, ${x.top}px down${x.hidden ? `, hidden by ${x.hidden}` : ''}`;
+    const kept = [], lost = [];
+    const saved = {};
+    const CASES = 14;
+    let broke = null;
+    try {
+      saved.theme = await evaluate(`localStorage.getItem('vl.theme')`);
+      saved.watchlists = await evaluate(`localStorage.getItem('vl.watchlists')`);
+      await evaluate(`localStorage.removeItem('vl.theme')`);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+
+      /* V1 — a chart given focus back is not drawn again under it: the
+         value map's, across the OS switching theme. */
+      await view(1440, 900);
+      await open('/discover/value-map', null, `!!document.querySelector('#main svg.chart-focusable')`);
+      const chart = await evaluate(`(() => { const s = document.querySelector('#main svg.chart-focusable'); s.scrollIntoView({ block: 'center' }); s.focus(); return document.activeElement === s ? 'SVG:' + s.getAttribute('aria-label').slice(0, 48) : null; })()`);
+      await flip();
+      const onChart = await at();
+      (chart && onChart.at.toUpperCase() === chart.toUpperCase() ? kept : lost).push(`the value map's chart → ${said(onChart)}`);
+
+      /* V2 — nothing below a chart, or under the company page's sticky
+         strip, moves when the page redraws: three OS theme switches with
+         focus on a control there — under the strip at 1440, below the
+         price line at 390, and below the valuation tab's charts, which are
+         drawn in microtasks after the page. */
+      for (const [w, h, path, tag, words] of [[1440, 900, '/company/maybank', 'button', 'Price / book'], [390, 844, '/company/maybank', 'button', 'Open full comparison'],
+        [1440, 900, '/company/maybank?tab=valuation', 'summary', 'Show the table view']]) {
+        const find = `[...document.querySelectorAll('#main ${tag}')].find(b => b.textContent.trim().startsWith(${JSON.stringify(words)}))`;
+        await view(w, h);
+        await open(path, null, `!!${find}`);
+        await evaluate(`(() => { const b = ${find}; b.scrollIntoView({ block: 'center' }); b.focus({ preventScroll: true }); return true; })()`);
+        await sleep(400);
+        const was = await at();
+        for (let k = 0; k < 3; k++) await flip();
+        const now = await at();
+        (now.at === was.at && Math.abs(now.top - was.top) <= 2 && !now.hidden ? kept : lost)
+          .push(`${w}px, ${was.at} ${was.top}px down → after three redraws ${said(now)}`);
+      }
+
+      /* V3 — a heading focus was sent to (a jump link on the home page)
+         keeps it when the filings land. */
+      await view(1440, 900);
+      await open('/', /us\.json/, `!!document.querySelector('#main a[href="#products"]')`);
+      await evaluate(`document.querySelector('#main a[href="#products"]').focus()`);
+      await key('Enter', 13, '\r'); await sleep(200);
+      const jumped = await at();
+      await release('/');
+      const onHead = await at();
+      (jumped.at === 'pub-products-h' && onHead.at === 'pub-products-h' ? kept : lost).push(`the Products heading, reached by its jump link → ${said(jumped)}; the filings land → ${said(onHead)}`);
+
+      /* V4 — a card's "Delete", pressed, does not hand focus to the next
+         card's: three watchlists, the first deleted by keyboard. */
+      await evaluate(`localStorage.setItem('vl.watchlists', JSON.stringify([
+        { id: 'wl-rv-a', name: 'Alpha list', ids: ['MAYBANK'], created: '2026-09-01' },
+        { id: 'wl-rv-b', name: 'Beta list', ids: [], created: '2026-09-02' },
+        { id: 'wl-rv-c', name: 'Gamma list', ids: [], created: '2026-09-03' }]))`);
+      await open('/my/watchlists', null, `[...document.querySelectorAll('#main button')].filter(b => b.textContent.trim() === 'Delete').length === 3`);
+
+      /* V7 — a name typed into a list's "Add a company" and not yet added,
+         across two OS theme switches: put back after the first as a plain
+         value, it went with the second. */
+      await evaluate(`(() => { const n = document.querySelector('#main input[aria-label="Add a company to Beta list"]'); n.scrollIntoView({ block: 'center' }); n.focus(); return true; })()`);
+      await typeIn('ma');
+      await flip();
+      const addOnce = await at();
+      await flip();
+      const addTwice = await at();
+      (addTwice.at.includes('Add a company to Beta list') && addTwice.value === 'ma' && JSON.stringify(addTwice.caret) === '[2,2]' ? kept : lost)
+        .push(`"ma" typed into Beta list's "Add a company" → one OS switch: ${said(addOnce)}; two: ${said(addTwice)}`);
+
+      await evaluate(`(() => { window.confirm = () => true; [...document.querySelectorAll('#main button')].find(b => b.textContent.trim() === 'Delete').focus(); return true; })()`);
+      await key('Enter', 13, '\r'); await sleep(400);
+      const afterDelete = await at();
+      const lists = await evaluate(`State.watchlists.map(w => w.name).join(', ')`);
+      (lists === 'Beta list, Gamma list' && afterDelete.at === 'main' ? kept : lost).push(`Delete on "Alpha list" → ${said(afterDelete)}; lists left: ${lists}`);
+      await evaluate(`(() => { const v = ${JSON.stringify(saved.watchlists)}; if (v == null) localStorage.removeItem('vl.watchlists'); else localStorage.setItem('vl.watchlists', v); return true; })()`);
+
+      /* V5 — a scanner field, whose id is numbered afresh at every draw,
+         with a name half typed, across the OS switching theme. */
+      await open('/app/scanner/setups/new', null, `!!document.querySelector('#main .scan-builder input[aria-label="Name"]')`);
+      await evaluate(`(() => { const n = document.querySelector('#main .scan-builder input[aria-label="Name"]'); n.scrollIntoView({ block: 'center' }); n.focus(); n.select(); return true; })()`);
+      await typeIn('ab');
+      await flip();
+      const onName = await at();
+      const nameField = await evaluate(`document.activeElement?.getAttribute('aria-label')`);
+      await typeIn('c');
+      const named = await evaluate(`document.querySelector('#main .scan-builder input[aria-label="Name"]')?.value`);
+      (nameField === 'Name' && onName.value === 'ab' && JSON.stringify(onName.caret) === '[2,2]' && named === 'abc' ? kept : lost)
+        .push(`the setup's Name with "ab" typed → ${said(onName)} (${nameField}); then c → ${JSON.stringify(named)}`);
+      await evaluate(`(() => { scanDraft = null; return true; })()`);
+
+      /* V6 — a figure in a statement table swiped back to the earliest year
+         on a phone, across the OS switching theme: still in sight, not
+         swung to the latest years under the pinned line names. */
+      await view(390, 844);
+      await open('/app/equities/aapl/financials', null, `[...document.querySelectorAll('#main td[tabindex]')].length > 4`);
+      const cell = await evaluate(`(() => { const c = document.querySelector('#main td[tabindex]'); const tw = c.closest('.tablewrap');
+        if (!tw || tw.scrollWidth <= tw.clientWidth + 4) return null; c.scrollIntoView({ block: 'center' }); tw.scrollLeft = 0; c.focus({ preventScroll: true });
+        return c.getAttribute('aria-label'); })()`);
+      await sleep(300);
+      const cellWas = await at();
+      await flip();
+      const onCell = await at();
+      (cell && onCell.at.includes(cell.slice(0, 40)) && !cellWas.hidden && !onCell.hidden ? kept : lost).push(`${cell ? cell.slice(0, 40) : 'no table wider than its card'} → ${said(onCell)}`);
+      /* V8 — the control in use stays where it was on the screen when the
+         data lands and the page is drawn with more above it: the
+         calculator's "What you observed", with the map of the town's areas
+         drawn above it when the locality positions land. */
+      await view(1440, 900);
+      const observed = `[...document.querySelectorAll('#main select')].find(s => (s.labels?.[0]?.textContent || s.getAttribute('aria-label') || '').includes('What you observed'))`;
+      await open('/property/calculator', /us\.json|sarawak-geo\.json/, `!!${observed}`);
+      await evaluate(`(() => { const s = ${observed}; s.scrollIntoView({ block: 'center' }); s.focus({ preventScroll: true }); return true; })()`);
+      await sleep(200);
+      const obsWas = await at();
+      await release('/property/calculator');
+      const obsNow = await at();
+      (obsNow.at === obsWas.at && Math.abs(obsNow.top - obsWas.top) <= 2 ? kept : lost).push(`"What you observed" ${obsWas.top}px down → after the data lands ${said(obsNow)}`);
+
+      /* V9 — a box that holds focus because it scrolls (the methodology's
+         table of company types, whose figures the filings change) keeps it
+         when the filings land. */
+      await open('/methodology', /us\.json/, `[...document.querySelectorAll('#main .tablewrap')].some(t => /Company type/.test(t.textContent))`);
+      const box = await evaluate(`(() => { const t = [...document.querySelectorAll('#main .tablewrap')].find(t => /Company type/.test(t.textContent));
+        t.scrollIntoView({ block: 'center' }); t.focus({ preventScroll: true }); return document.activeElement === t; })()`);
+      await release('/methodology');
+      const onBox = await evaluate(`(() => { const a = document.activeElement; return a.matches?.('.tablewrap') && /Company type/.test(a.textContent) ? 'the company-type table' : a === document.body ? 'BODY' : a.id || a.tagName; })()`);
+      (box && onBox === 'the company-type table' ? kept : lost).push(`the company-type table's scroller → ${onBox}`);
+
+      /* V10 — /decision-record is the record from the first paint, not
+         "That page does not exist" until the filings land — and with the
+         filings off (?real=0), for good. */
+      await open('/decision-record', /us\.json/, `document.readyState === 'complete' && !!document.querySelector('#main h1')`);
+      const drHeld = await evaluate(`State.view`);
+      await release('/decision-record');
+      holdRe = null;
+      await evaluate('window.__rvLeaving = true');
+      await send('Page.navigate', { url: `${BASE}/decision-record?real=0` }, sessionId);
+      await until(`!window.__rvLeaving && document.readyState === 'complete' && !!document.querySelector('#main h1')`, '/decision-record?real=0 drawn');
+      await sleep(300);
+      const drOff = await evaluate(`State.view`);
+      (drHeld === 'decisionRecord' && drOff === 'decisionRecord' ? kept : lost).push(`/decision-record with the filings on their way: ${drHeld}; with them off: ${drOff}`);
+
+      /* V11 — a redraw of the page on screen does not fade the page out and
+         slide it in again; a new page still enters. */
+      await open('/discover/screener', null, `!!document.getElementById('covRange')`);
+      const entering = "document.querySelector('#views > section.view').getAnimations().length";
+      const onRedraw = await evaluate(`(() => { render(); return ${entering}; })()`);
+      const onNavigate = await evaluate(`(() => { navigate('/discover/value-map'); return ${entering}; })()`);
+      (onRedraw === 0 && onNavigate > 0 ? kept : lost).push(`animations on the page after a redraw: ${onRedraw}; after a navigation: ${onNavigate}`);
+      /* V12 — a tab in the Scanner's own strip, scrolled along to it on a
+         phone, is still in sight in its strip after the OS switches theme
+         (the new strip started at its beginning and then swung to the
+         current tab). */
+      await view(360, 780);
+      await open('/app/scanner', null, `!!document.querySelector('#views .ptabs-list')`);
+      const lastTab = await evaluate(`(() => { const l = [...document.querySelectorAll('#views .ptabs-list')].find(x => x.scrollWidth > x.clientWidth + 4);
+        if (!l) return null; const tabs = [...l.querySelectorAll('a')]; const t = tabs[tabs.length - 1]; t.focus(); t.scrollIntoView({ block: 'center', inline: 'nearest' });
+        return t.textContent.trim(); })()`);
+      await sleep(300);
+      await flip();
+      const inStrip = await evaluate(`(() => { const a = document.activeElement; const l = a?.closest?.('.ptabs-list'); if (!l) return a === document.body ? 'BODY' : 'not in the strip';
+        const r = a.getBoundingClientRect(), q = l.getBoundingClientRect(); return (r.left >= q.left - 1 && r.right <= q.right + 1 ? 'in sight' : 'out of sight') + ': ' + a.textContent.trim(); })()`);
+      (lastTab && inStrip === `in sight: ${lastTab}` ? kept : lost).push(`the strip's last tab, ${lastTab || 'no strip wider than the screen'} → ${inStrip}`);
+    } catch (err) {
+      broke = `the checks stopped: ${String(err.message).split('\n')[0]}`;
+    } finally {
+      holdRe = null;
+      while (held.length) await send('Fetch.continueRequest', { requestId: held.shift() }, sessionId);
+      await send('Fetch.disable', {}, sessionId);
+      await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+      await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+      if (saved.theme != null) await evaluate(`localStorage.setItem('vl.theme', ${JSON.stringify(saved.theme)}); true`).catch(() => {});
+      ws.removeEventListener('message', onPause);
+    }
+    if (lost.length || kept.length < CASES) fail('render-focus-verify: a redraw of the page on screen still loses, hides, moves or misplaces the control in use',
+      [...lost, ...(kept.length + lost.length < CASES ? [broke || 'not every case ran'] : [])]);
+    else ok(`render-focus-verify: the control in use comes back where the reader left it — ${kept.length} cases: a chart; a control under the sticky strip, one below a chart and one below the valuation tab's charts that stay put through three redraws; a heading reached by a jump link; a name typed and not yet added, through two redraws; a card's Delete that does not pass to the next card; a scanner field mid-typing; a figure in a table swiped sideways; a field with more drawn above it; a table's scroller; /decision-record from the first paint and with the filings off; no entrance replayed by a redraw; a tab scrolled along to in the Scanner's strip on a phone`);
+  }
+  /* ---- end bugfix: render-focus-verify ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

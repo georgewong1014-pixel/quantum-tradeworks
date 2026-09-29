@@ -2080,7 +2080,12 @@ function statementTable(r) {
      its card — every phone, and any desktop with changes shown — it opens
      scrolled to them, and the edge shadow on the left says earlier years are
      there. */
-  requestAnimationFrame(() => { if (tw.scrollWidth > tw.clientWidth + 4) tw.scrollLeft = tw.scrollWidth; });
+  /* Not when the reader is in it: a redraw of the page (an OS switch to
+     dark) gives focus back to the figure in use and scrolls the table back to
+     where it was (render(), 35-ui.js), and this, a frame later, swung it to
+     the latest years and left that figure out of sight behind the pinned
+     line names. */
+  requestAnimationFrame(() => { if (tw.scrollWidth > tw.clientWidth + 4 && !tw.contains(document.activeElement)) tw.scrollLeft = tw.scrollWidth; });
   stmt.append(el('div', { style: 'padding:var(--sm) var(--lg)' }, [
     el('p', { class: 'metaline stmt-swipe' }, 'The line names stay pinned; swipe the table sideways for the other years.'),
     el('p', { class: 'metaline' }, 'CAGR is null where the base period is non-positive — shown as n/m rather than as a computed number that would not mean anything.'

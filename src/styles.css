@@ -3233,3 +3233,9 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
   .disclosure-in > svg { left: var(--md); }
 }
 /* ---- /release-a: integration ---- */
+
+/* ---- bugfix: render-focus-verify ---- */
+/* A redraw of the page on screen (render(), 35-ui.js) is not an entrance:
+   the page is not faded out and slid up again under the reader. */
+.view[data-active="1"][data-redrawn="1"] { animation: none; }
+/* ---- end bugfix: render-focus-verify ---- */

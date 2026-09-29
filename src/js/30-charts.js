@@ -58,18 +58,44 @@ function niceTicks(lo, hi, count = 4) {
 const TOUCH_TARGET = 44;
 const touchLayout = () => matchMedia('(pointer: coarse), (max-width: 768px)').matches;
 
-/* Re-render on container resize so charts stay responsive without a library. */
+/* Re-render on container resize so charts stay responsive without a library.
+   ON A CHANGE OF WIDTH ONLY. A chart is drawn from its width alone, and the
+   drawing it puts in its box changes the box's height, which the observer
+   heard as a resize: every chart was drawn twice, the second a frame after
+   the first, and a chart that held focus — the value map, a company's price
+   line, handed focus back by render() after a redraw of the page (35-ui.js)
+   — was replaced under the reader a frame later and focus fell to <body>. */
 const RESIZERS = new WeakMap();
+/* A chart built into a page before the page is on screen has no width to
+   draw at, and waited for the observer below: two frames with an empty box,
+   the page under it drawn a chart's height too high and then pushed back
+   down. On a redraw of the page on screen that jump moved the reader —
+   scroll anchoring holds the control in focus where the empty box had put
+   it, so a control below a chart rose by the chart's height at every
+   redraw, 192px a time under a company's price line on a phone, until it
+   left the screen. render() (35-ui.js) calls drawChartsInPlace as soon as
+   the page is in place, so they are drawn before anything is laid out on
+   screen. */
+const CHARTS_UNDRAWN = new Set();
+function drawChartsInPlace() {
+  for (const c of CHARTS_UNDRAWN) { if (c.isConnected && !c.__drawnW) c.__redraw(); }
+  CHARTS_UNDRAWN.clear();
+}
 function chartHost(container, draw) {
   const run = () => {
     const w = container.clientWidth;
     if (!w) return;
+    container.__drawnW = w;
     container.replaceChildren(draw(w));
   };
   run();
+  if (!container.__drawnW) CHARTS_UNDRAWN.add(container);
   if (!RESIZERS.has(container)) {
     let raf = 0;
-    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(run); });
+    const ro = new ResizeObserver(() => {
+      if (container.clientWidth === container.__drawnW) return;
+      cancelAnimationFrame(raf); raf = requestAnimationFrame(run);
+    });
     ro.observe(container);
     RESIZERS.set(container, ro);
   } else {

@@ -1575,7 +1575,10 @@ function wireSectionTabs(nav) {
   if (!list || list.dataset.wired) return;
   list.dataset.wired = '1';
   const cur = nav.querySelector('.ptab[aria-current]');
-  if (cur && list.scrollWidth > list.clientWidth + 1) {
+  /* Not while a tab in it holds focus: a strip redrawn under the reader
+     (render() gives focus back, and where the strip was scrolled) keeps the
+     tab in use in view rather than swinging to the current one. */
+  if (cur && !list.contains(document.activeElement) && list.scrollWidth > list.clientWidth + 1) {
     const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
     list.scrollLeft += (c.left + c.width / 2) - (l.left + l.width / 2);
   }
@@ -1728,10 +1731,13 @@ function bootSkeleton() {
    the redraw and whatever called it are over, and only if focus fell to
    <body> — a caller that moved focus has done so by then, synchronously —
    it goes back to the same control in the new page: by id, or else by
-   which of its kind it was, a link by its address and anything else by
-   what it says. What the reader was typing in it comes too, where it had
-   not yet been committed, and a <details> it sat in is opened again, since
-   a closed one cannot hold focus. Only on a redraw of the page already on
+   which of its kind it was in its record, a link by its address and
+   anything else by what it says (recordOf, below). What the reader was
+   typing in it comes too, where it had not yet been committed, a <details>
+   it sat in is opened again, since a closed one cannot hold focus, and a
+   box round it that scrolls on its own is scrolled back to where it was.
+   Where there is no such control any more, focus goes to the page's main
+   landmark, never to <body>. Only on a redraw of the page already on
    screen: a navigation keeps its own rule (afterRoute puts focus on the new
    page), and a control is never looked for on another page. Where one task
    redraws twice, the first note stands, because it is what the reader had.
@@ -1778,52 +1784,180 @@ const redrawFocusClaims = [];
    a redraw of that page is under way. */
 let renderedPage = null, focusNote = null;
 const pageOnScreen = () => `${State.view} ${location.pathname}`;
+const saidBy = (n) => (n?.getAttribute?.('aria-label') || n?.textContent || '').replace(/\s+/g, ' ').trim();
+/* What a control is called, to find it again. A box that holds focus only
+   because it scrolls (Chrome makes a scroller with nothing focusable in it
+   a Tab stop) has no name of its own but the whole of what it holds — a
+   table, whose figures the filings landing change: the "Companies" column
+   on /methodology, focused, was not found again and focus left it. Such a
+   box is known by its kind of box instead. */
+const FOCUS_OWN_NAME = 'a[href], button, input, select, textarea, summary, [role], [tabindex], [aria-label]';
+const nameOf = (n) => n.matches(FOCUS_OWN_NAME) ? saidBy(n) : `${n.tagName}.${n.className}`;
+/* WHICH RECORD A CONTROL BELONGS TO. Controls with no id were found again by
+   their words and their place among the controls saying the same, and a
+   card's "Delete" is word for word every other card's. Pressed on
+   /my/watchlists, it took its own list away and render() handed focus to
+   the next list's "Delete" — one Enter and a confirm from removing that one
+   too. So a control is also known by the record it sits in — the words
+   heading each row, card, panel or list item round it — and is found again
+   by its place among its kind in that record only while that record holds
+   as many of them as it did: a record gone, or one of its controls gone,
+   leaves nothing to guess between. */
+const REDRAW_RECORD = 'tr, li, .card, .panel, fieldset';
+function recordOf(n, root) {
+  const heads = [];
+  for (let r = n.parentElement?.closest(REDRAW_RECORD); r && root.contains(r); r = r.parentElement?.closest(REDRAW_RECORD)) {
+    const head = r.tagName === 'TR' ? [...r.cells].find(c => c.textContent.trim()) : r.querySelector('h1, h2, h3, h4, h5, h6, legend, caption');
+    heads.push(saidBy(head).slice(0, 80));
+  }
+  return heads.join(' / ');
+}
 function noteFocusForRedraw() {
   const a = document.activeElement;
   if (!a || a === document.body) return null;
   const scope = REDRAW_FOCUS_SCOPES.find(s => a.closest(s));
   if (!scope || redrawFocusClaims.some(claim => claim(a))) return null;
-  const said = (n) => (n.getAttribute('aria-label') || n.textContent || '').replace(/\s+/g, ' ').trim();
   const link = a.tagName === 'A' ? a.getAttribute('href') : null;
-  const words = said(a);
+  const words = nameOf(a);
+  /* Its kind: the same element saying the same, a link going to the same
+     address. With an id, it is looked for by id first; an id numbered
+     afresh at every draw (the scanner's fields, 86-scanner.js) is gone from
+     the new page, and then a control that says something is found as its
+     kind is. */
   const kin = (root) => [...root.querySelectorAll(a.tagName)]
-    .filter(n => !n.id && (link !== null ? n.getAttribute('href') === link : said(n) === words));
+    .filter(n => (a.id || !n.id) && (link !== null ? n.getAttribute('href') === link : nameOf(n) === words));
+  const root = a.closest(scope);
+  const record = recordOf(a, root);
+  const all = kin(root);
+  const mine = all.filter(n => recordOf(n, root) === record);
+  const scrolled = [];
+  for (let p = a.parentElement, up = 1; p && p !== root; p = p.parentElement, up++) {
+    if (p.scrollLeft || p.scrollTop) scrolled.push([up, p.scrollLeft, p.scrollTop]);
+  }
   return {
-    a, scope, kin, page: pageOnScreen(),
-    nth: a.id ? -1 : kin(a.closest(scope)).indexOf(a),
+    a, scope, kin, record, page: pageOnScreen(),
+    nth: mine.indexOf(a), count: mine.length,
+    /* The only one of its kind on the page is itself wherever it now sits. */
+    alone: all.length === 1,
+    findable: !a.id || link !== null || words !== '',
+    /* A heading or a card that focusAfterRedraw or a jump link gave focus
+       holds it through tabindex=-1, and the one drawn in its place has none. */
+    tabindex: a.getAttribute('tabindex'),
+    /* How far the boxes round it that scroll on their own had been scrolled
+       — a statement table swiped sideways on a phone, a strip of tabs. The
+       ones drawn in their place start at their beginning, and the control
+       given focus back sat outside the part of its box on screen. Held by
+       how many steps up from the control each one is. */
+    scrolled,
+    /* How far down the screen it sat, when it was on the screen: see stayPut. */
+    top: onScreenTop(a, scope),
     typed: typedSinceCommit.has(a) ? a.value : null,
     /* A summary's own disclosure may have been closed; any other holder of focus sat in open ones. */
     ownOpen: a.tagName === 'SUMMARY' && !!a.parentElement?.open,
     caret: fieldCaret(a),
   };
 }
+function counterpartOf(h) {
+  const root = document.querySelector(h.scope);
+  if (!root) return null;
+  if (h.a.id) {
+    const n = document.getElementById(h.a.id);
+    if (n && root.contains(n)) return n;
+    if (!h.findable) return null;
+  }
+  const all = h.kin(root);
+  const mine = all.filter(n => recordOf(n, root) === h.record);
+  if (mine.length === h.count) return mine[h.nth];
+  return h.alone && all.length === 1 ? all[0] : null;
+}
+/* What was typed and not yet committed, in the field drawn in its place —
+   and still uncommitted there. It was put back as a plain value, so the
+   next redraw before the reader typed again found nothing uncommitted and
+   drew the field empty: "ma" typed into a watchlist's "Add a company"
+   survived one OS theme switch and went with the second, and the locality
+   positions land a moment after the filings on the area screen and the
+   calculator. */
+function keepTyping(h, n) {
+  if (h.typed === null || !('value' in n)) return;
+  if (n.value !== h.typed) n.value = h.typed;
+  typedSinceCommit.add(n);
+}
+/* THE CONTROL STAYS WHERE IT WAS ON THE SCREEN. The browser keeps what the
+   reader is looking at still when something above it changes size (scroll
+   anchoring), but not across a redraw, which replaces what it was holding
+   still: a page drawn again with more or less above the control in use put
+   that control somewhere else on the screen. On the calculator the
+   locality positions landing drew the map of the town's areas above "What
+   you have recorded", and "What you observed", in use below it, dropped
+   479px, to 880px down a 900px screen, under the dock. Where it was on
+   screen, the page is scrolled by what it moved.
+   Only in the page (a header, the sidebar and the dock do not scroll with
+   it), and only where it was on screen: a control scrolled away from is not
+   what the reader is looking at. */
+function onScreenTop(n, scope) {
+  if (scope !== '#main') return null;
+  const r = n.getBoundingClientRect();
+  return r.bottom > 0 && r.top < innerHeight ? r.top : null;
+}
+function stayPut(h, n) {
+  if (h.top === null) return;
+  const moved = n.getBoundingClientRect().top - h.top;
+  /* Not for a pixel or two: the sticky strip's measured offsets settle a
+     frame after a redraw, and following them crept a control 1px a redraw. */
+  if (Math.abs(moved) > 2) window.scrollBy({ top: moved, behavior: 'instant' });
+}
+/* The scrollers round the control, as far along as they were (see scrolled). */
+function scrollBack(h, n) {
+  for (const [up, left, top] of h.scrolled) {
+    let p = n;
+    for (let k = 0; k < up && p; k++) p = p.parentElement;
+    if (p && p !== document.body) { p.scrollLeft = left; p.scrollTop = top; }
+  }
+}
 function giveFocusBack(h) {
   const { a, caret } = h;
   if (a.isConnected || renderedPage !== h.page) return;
   const at = document.activeElement;
   if (at && at !== document.body) {
-    if (caret && a.id && at.id === a.id) putCaret(at, caret);
+    if (a.id && at.id === a.id) { scrollBack(h, at); stayPut(h, at); if (caret) putCaret(at, caret); }
     return;
   }
-  const root = document.querySelector(h.scope);
-  const n = !root ? null : a.id ? document.getElementById(a.id) : h.kin(root)[h.nth];
-  if (!n || !root.contains(n)) return;
+  const n = counterpartOf(h);
+  /* A control that is gone — a record deleted, a label changed by its own
+     action, a button disabled — leaves focus on the page's main landmark, as
+     focusAfterRedraw does (05-plans.js), rather than on <body> or on
+     another record's control. */
+  if (!n) { focusMain(); return; }
   for (let d = n.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) {
     if (n.tagName === 'SUMMARY' && d === n.parentElement) { if (h.ownOpen) d.open = true; }
     else d.open = true;
   }
-  if (h.typed !== null && n.value !== h.typed) n.value = h.typed;
+  keepTyping(h, n);
+  if (h.tabindex !== null && !n.hasAttribute('tabindex')) n.setAttribute('tabindex', h.tabindex);
+  scrollBack(h, n);
   n.focus({ preventScroll: true });
-  if (caret && document.activeElement === n) putCaret(n, caret);
+  if (document.activeElement !== n) { focusMain(); return; }
+  stayPut(h, n);
+  if (caret) putCaret(n, caret);
 }
 
 function render() {
+  const samePage = renderedPage === pageOnScreen();
   /* Before anything is replaced, and on a redraw of the page on screen only
      — see noteFocusForRedraw above. */
-  if (!focusNote && renderedPage === pageOnScreen()) {
-    focusNote = noteFocusForRedraw();
-    if (focusNote) queueMicrotask(() => { const h = focusNote; focusNote = null; giveFocusBack(h); });
-  }
+  const note = !focusNote && samePage ? (focusNote = noteFocusForRedraw()) : null;
+  /* Handed back once the page is drawn — AFTER the microtasks the page's
+     views queued as they drew. The valuation tab draws its three charts in
+     microtasks (50-views-studio.js); handed back before them, a control
+     below the charts was focused while their boxes were still empty, and
+     scroll anchoring held it where the empty boxes had put it. */
+  try { drawPage(samePage); }
+  finally { if (note) queueMicrotask(() => { focusNote = null; giveFocusBack(note); }); }
+}
+function drawPage(samePage) {
+  /* Whether the company page's ticker strip is stuck, read before the page
+     it is on is replaced — see the strip, below. */
+  const stripWasStuck = samePage && !!viewRoot.querySelector('.ticker-sticky.is-stuck');
   buildNav();
   renderProductTabs();
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
@@ -1833,8 +1967,19 @@ function render() {
      page, from the register row itself (80-registers.js). Not on the
      skeleton: there is no surface yet to describe. */
   if (!(realPending && UNIVERSE_VIEWS.has(State.view))) mountFlagNotice(node, State.view, State.researchTab);
-  const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
+  /* A redraw of the page on screen does not play the page's entrance again
+     (styles.css, .view[data-redrawn]). It did at every redraw — every
+     filter changed on the screener, the filings landing, an OS switch to
+     dark, a tab of the page's own strip — the whole page faded out and slid
+     up 6px under the reader, and the control given focus back was measured
+     6px off where it came to rest (stayPut). A new page still enters. */
+  const section = el('section', { class: 'view', data: samePage ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
+  /* The page's charts, which could not be drawn before it had a width
+     (30-charts.js): now, so a redraw puts the page back as it was, the
+     chart in focus is there to be given focus back, and nothing below a
+     chart jumps. */
+  drawChartsInPlace();
   /* Read once the view is drawn: a view can move to another address as it
      draws (/my/scanner?symbol= opens the setup builder). */
   renderedPage = pageOnScreen();
@@ -1903,6 +2048,15 @@ function render() {
   document.documentElement.classList.remove('strip-stuck');
   const strip = $('.ticker-sticky', section);
   if (strip) {
+    /* A REDRAW OF THE PAGE ON SCREEN KEEPS THE STRIP AS IT WAS. It was drawn
+       unstuck and found stuck again two frames later, 44px taller at 1440
+       and 56px at 390 — so the page under it jumped up and back on every
+       redraw, and with focus now kept on the control in use (above), the
+       browser's scroll anchoring held that control where the short strip had
+       left it: each OS switch between light and dark scrolled a company page
+       44px further, until the control sat under the strip. The state it had
+       is its state until the observer below says otherwise. */
+    if (stripWasStuck) { strip.classList.add('is-stuck'); document.documentElement.classList.add('strip-stuck'); }
     const sentinel = strip.previousElementSibling;
     if (sentinel) {
       /* Stuck means the sentinel has gone up past the top edge. Out of the
