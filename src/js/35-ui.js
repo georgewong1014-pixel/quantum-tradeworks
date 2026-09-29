@@ -352,7 +352,7 @@ const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
     question: 'How is this company performing financially?', action: 'Research a company', actionPath: '/research',
-    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies and one US listing carry illustrative figures; no licensed prices for either market.' },
+    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
     task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',

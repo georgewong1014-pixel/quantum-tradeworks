@@ -3527,8 +3527,8 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
       Quantum Tradeworks is a research and analysis prototype. It does not provide investment advice, personal recommendations, or a suitability
       assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell
       any security. Financial figures come from <strong>two different places and are labelled on every page</strong>: statements filed with
-      the US SEC, which are audited and real, and illustrative figures for the Malaysian companies, which are synthetic and created for
-      interface demonstration. <strong>No market-data licence is in place for either exchange.</strong> A filed company therefore carries no
+      the US SEC, which are audited and real, and illustrative figures for the Malaysian companies and any other company marked
+      illustrative, which are synthetic and created for interface demonstration. <strong>No market-data licence is in place for either exchange.</strong> A filed company therefore carries no
       price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as
       unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and
       is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed
@@ -15368,7 +15368,7 @@ const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
     question: 'How is this company performing financially?', action: 'Research a company', actionPath: '/research',
-    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies and one US listing carry illustrative figures; no licensed prices for either market.' },
+    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
     task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
@@ -27763,7 +27763,7 @@ VIEWS.terms = () => trustPage('Terms',
     ['Research, not advice',
       'Everything here is general information. It does not take account of your objectives, financial situation or needs, and nothing on this site is a recommendation to deal in any security or property.'],
     ['Sample data',
-      'The Malaysian companies carry synthetic financials that exist to demonstrate the interface, as does one US listing; the rest of the US set carries audited statements from SEC filings. Each company is labelled with which it is, wherever it appears. Do not use a sample figure for a decision.'],
+      'The Malaysian companies carry synthetic financials that exist to demonstrate the interface, as does any US listing marked illustrative; the rest of the US set carries audited statements from SEC filings. Each company is labelled with which it is, wherever it appears. Do not use a sample figure for a decision.'],
     ['No warranty on figures',
       'Data is drawn from filings and files you supply. Errors are possible, are corrected when found, and are logged. Verify anything you intend to act on against the primary source.'],
     ['Prices and licensing',
