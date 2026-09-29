@@ -644,7 +644,7 @@ VIEWS.launcher = () => {
   const seg = (k, opts, dflt) => {
     const cur = a[k] ?? dflt;
     card.append(el('div', { class: 'segmented', style: 'flex-wrap:wrap' }, opts.map(([v, lab]) =>
-      el('button', { 'aria-selected': cur === v ? 'true' : 'false', onclick: () => set(k, v) }, lab))));
+      el('button', { 'aria-pressed': cur === v ? 'true' : 'false', onclick: () => set(k, v) }, lab))));
     return cur;
   };
 

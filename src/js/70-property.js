@@ -1351,8 +1351,10 @@ async function loadSarawakLayers() {
   geoLoadState = 'loading';
   sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json')).catch(() => null);
   /* Git-ignored while its licence is unconfirmed, so absent is the normal
-     case rather than an error. */
-  sarawakIncome = await fetchJson(dataUrl('sarawak-income.json')).catch(() => null);
+     case rather than an error — and asked for only on the owner's machine
+     (OWNER_MACHINE, 25-universe.js): the deployed site never has it, and
+     asking there was a 404 on every property page's first load. */
+  sarawakIncome = OWNER_MACHINE ? await fetchJson(dataUrl('sarawak-income.json')).catch(() => null) : null;
   geoLoadState = sarawakGeo ? 'done' : 'failed';
   /* Both views that draw localities, or the second one paints an empty map
      forever: the fetch resolves, the flag flips, and nothing asks again. */
@@ -1863,7 +1865,11 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     svg.setAttribute('viewBox', `0 0 ${contentW} ${H}`);
     svg.setAttribute('width', String(contentW)); svg.setAttribute('height', String(H));
     svg.setAttribute('style', 'display:block;margin:0 auto;max-width:100%');
-    svg.setAttribute('role', 'img');
+    /* A group, as the heatmap is (30-charts.js): its points are buttons. As
+       an img, whose contents are one picture to a screen reader, the eight
+       buttons inside it were not there at all, and an ARIA checker calls an
+       img holding tab stops a nested interactive control. */
+    svg.setAttribute('role', 'group');
     /* Which town's map, so a redraw can name a focused point back to it (redrawFocusClaims, above). */
     svg.setAttribute('data-city', cityId);
     /* Built by hand rather than through the chart layer, so it needed the tab

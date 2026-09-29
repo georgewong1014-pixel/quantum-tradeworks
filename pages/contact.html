@@ -3285,19 +3285,46 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
    the page is not faded out and slid up again under the reader. */
 .view[data-active="1"][data-redrawn="1"] { animation: none; }
 /* ---- end bugfix: render-focus-verify ---- */
+
+/* ---- audit: quality ---- */
+/* THE FRAME BEFORE THE SCRIPT HOLDS THE HEADER AND NOTHING THAT MOVES.
+   The page is one 3.2MB document with its script last, so the browser paints
+   what precedes the script before it has run: the header, the disclosure,
+   an empty <main> — and the footer straight under it, 150px from the top.
+   The script then drew the page into <main> and the footer fell 1,500px:
+   Lighthouse measured a cumulative layout shift of 0.44 to 1.2 on every page
+   (0.1 is the most it calls good), and took the footer's legal paragraph,
+   painted in that first frame, for the page's largest content. On an app
+   page the disclosure jumped as well, from under the public header to the
+   top of the sidebar's column. Until the script has chosen the chrome
+   (buildShell writes <html data-chrome>, 35-ui.js) neither is drawn; both
+   appear with the page, where they belong, so nothing that was on screen
+   moves. The public header stays: it is the first frame's only content. */
+:root:not([data-chrome]) .disclosure,
+:root:not([data-chrome]) .footer { display: none; }
+
+/* A segmented choice says which option is on with aria-pressed. It said so
+   with aria-selected, which is allowed only on a tab, an option or a row: on
+   a plain button a screen reader drops it, so "Absolute / Peer percentile"
+   on the screener and every strip like it were announced with no word of
+   which was chosen, and Lighthouse failed aria-allowed-attr on the screener
+   and the calculator. The look is the one a strip's selected tab has. A
+   segmented row of links (the scanner's pages) marks the page it is on with
+   aria-current, which it already carried. */
+.segmented button[aria-pressed="true"], .segmented a[aria-current="page"] {
+  background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1);
+}
+/* ---- end audit: quality ---- */
 </style>
 <!--
-  Vercel Web Analytics. First-party, cookieless, and it collects no personal
-  data — page, referrer, country, device class and nothing that identifies a
-  person. That is the only analytics this product can honestly run before it has
-  a published privacy notice and an entity behind it, and /privacy states
-  exactly what it records.
-
-  The script 404s harmlessly until Web Analytics is switched on for the
-  deployment, so nothing here needs changing to enable or disable it. Turning it
-  off in the dashboard turns it off everywhere.
+  NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
+  stood here, and Web Analytics was never switched on for the deployment, so
+  every first load of every page asked for it and logged a 404 — a failed
+  request and a console error, for a script that counted nothing. It is
+  removed rather than left to fail. It returns together with a consent notice,
+  when analytics is actually switched on (the launch audit's P2), and /privacy
+  says what it records from the same commit — not before.
 -->
-<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -3450,7 +3477,10 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
 </aside>
 <div class="navscrim" id="navScrim" hidden></div>
 
-<div class="disclosure">
+<!-- A landmark of its own, named, so the notice is found by landmark
+     navigation: outside every landmark, a reader moving by landmarks went
+     from the header to the page and never met it. -->
+<div class="disclosure" role="region" aria-label="Disclosure">
   <div class="disclosure-in">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
     <span id="disclosureText"><strong>Beta preview.</strong> Do not use figures here for investment decisions.<span class="disclosure-long"> Some companies carry illustrative figures that are synthetic and do not represent real financials.</span></span>
@@ -3469,6 +3499,11 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
   <!-- An Equities or Property page's row of product tabs (renderProductTabs). -->
   <div class="ptabs-host" id="productTabs" hidden></div>
   <div id="views"></div>
+  <!-- What a page says about a change the reader made, for a screen reader:
+       a page is redrawn whole, and a live region drawn with it is a new
+       node, which is not announced. This one stays put (the screener's
+       count, 40-views-discover.js). -->
+  <p class="sr-only" id="liveStatus" role="status" aria-live="polite"></p>
 </main>
 
 <footer class="footer">
@@ -3579,7 +3614,11 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--ink-3);flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <!-- A placeholder is not a label: it disappears the moment anything is
          typed, and several screen readers do not announce it at all. -->
-    <input class="input" id="searchInput" aria-label="Search companies by ticker, name or Bursa code" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
+    <!-- Described by how the list below works, and followed by a status line
+         that says how many matched: typing into it announced nothing, so a
+         screen reader heard the box and silence, with no word that ten
+         results had appeared under it or how to reach them. -->
+    <input class="input" id="searchInput" aria-label="Search companies by ticker, name or Bursa code" aria-describedby="searchHint" aria-controls="searchResults" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
     <span class="kbd">Esc</span>
     <!-- A way out that does not require knowing a key or finding the dimmed
          page behind the box. -->
@@ -3588,6 +3627,8 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
     </button>
   </div>
   <div id="searchResults" style="overflow-y:auto;padding:var(--xs)"></div>
+  <p class="sr-only" id="searchHint">Matches are listed below as you type. The down arrow moves into them, and Enter opens the first.</p>
+  <p class="sr-only" id="searchStatus" role="status" aria-live="polite"></p>
 </div>
 
 <div class="viztip" id="viztip" role="status" aria-live="polite"></div>
@@ -3801,7 +3842,7 @@ function explainMetric(key, opts = {}) {
   const DEPTHS = [['simple', 'Simple'], ['context', 'Investor context'], ['technical', 'Technical']];
   const seg = el('div', { class: 'segmented' });
   DEPTHS.forEach(([id, label]) => seg.append(el('button', {
-    'aria-selected': explainDepth() === id ? 'true' : 'false',
+    'aria-pressed': explainDepth() === id ? 'true' : 'false',
     onclick: () => { setExplainDepth(id); explainMetric(key, opts); },
   }, label)));
   body.append(seg);
@@ -6096,11 +6137,10 @@ function restoreBackup(text) {
                      Until it is set, /contact keeps saying no route is
                      published, because none is.
 
-   ANALYTICS is Vercel Web Analytics, enabled in the Vercel dashboard rather
-   than here. It is first-party, cookieless and collects no personal data, which
-   is the only kind this product can honestly run before a privacy notice exists
-   — and the privacy page states exactly what it records. Nothing loads unless
-   the deployment has it switched on. */
+   ANALYTICS: none. The Vercel Web Analytics tag was removed from the page
+   (src/index.template.html) because analytics was never switched on and the
+   tag only ever logged a 404. It comes back with a consent notice when
+   analytics is switched on, and not before. */
 const LAUNCH = {
   waitlistEndpoint: '',
   contactEmail: '',
@@ -13715,6 +13755,23 @@ function applyFx() {
    shows what it holds and what became of each action. */
 let scanAdjustmentsFile = null;
 
+/* THE PERSONAL LANE IS ASKED FOR ONLY WHERE IT CAN EXIST.
+   Every file below but us.json, instruments.json and the NAPIC set — the
+   price file (or ?personal=1's own, and its statements), the accumulated
+   history and its corporate actions, the scanner's setups and alerts, the
+   worker's four ops files — and the Sarawak income cache (70-property.js)
+   are git-ignored. They live on the owner's own machine and are never
+   deployed, so the published site asked for them anyway and each answered
+   404: nine failed requests and nine console errors on every first load, a
+   tenth on a property page, for files that cannot be there. They are now
+   requested only when the page is served from this machine by its own name
+   (localhost, 127.0.0.1, ::1), and there exactly as before — absent or
+   present, nothing about the local lane changed.
+   Exact names, not "anything that resolves here": a *.localhost name reaches
+   the same server, but it is not how the owner opens the site, and it is how
+   a check loads the site as production serves it (live.localhost). */
+const OWNER_MACHINE = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname);
+
 async function loadRealData() {
   const j = await fetchJson(dataUrl('us.json'));
   if (!j) throw new Error(`could not load ${dataUrl('us.json')} — it is missing, or the host returned a page instead of the file`);
@@ -13729,16 +13786,18 @@ async function loadRealData() {
      research rather than licensed market data. */
   const personal = new URLSearchParams(location.search).get('personal') === '1';
   const priceFile = personal ? 'data/personal-prices.json' : 'data/prices.json';
-  try {
-    const pb = await fetchJson(dataUrl(priceFile.split('/').pop()));
-    if (pb) { priceBook = pb; priceBook.personal = personal; priceBook.file = priceFile; }
-  } catch { /* no price file supplied */ }
+  if (OWNER_MACHINE) {
+    try {
+      const pb = await fetchJson(dataUrl(priceFile.split('/').pop()));
+      if (pb) { priceBook = pb; priceBook.personal = personal; priceBook.file = priceFile; }
+    } catch { /* no price file supplied */ }
+  }
 
   /* Malaysian statements, personal-research lane only. Requested explicitly or
      not at all: this file is git-ignored so it is absent from any deployment,
      and loading it silently where it happened to exist would make the same
      screen mean two different things depending on whose machine it ran on. */
-  if (personal) {
+  if (personal && OWNER_MACHINE) {
     try {
       const mf = await fetchJson(dataUrl('personal-fundamentals.json'));
       if (mf?.results?.length) myFundamentals = mf;
@@ -13753,27 +13812,34 @@ async function loadRealData() {
   /* Official NAPIC aggregates and benchmarks. Optional: absent is a normal
      state and every panel that reads it says so rather than rendering blank. */
   try { await loadNapic(); } catch { /* the panel reports it */ }
-  try { trackedHistory = await fetchJson(dataUrl('price-history.json')); }
-  catch { /* no history yet */ }
-  /* The scanner's two files: the reader's setups and the worker's record of
-     matches. Both git-ignored, both absent on the deployed site; the scanner
-     page says what each would show. */
-  try { scanSetupsFile = await fetchJson(dataUrl('scan-setups.json')); } catch { /* none */ }
-  try { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')); } catch { /* none */ }
-  /* The corporate actions the reader recorded for their own history
-     (data/price-adjustments.json, git-ignored, so absent on the deployed
-     site). Absent is no adjustment — adjustmentVersion 'none' — not an
-     error; the data page says which. Attached below. */
-  try { scanAdjustmentsFile = await fetchJson(dataUrl('price-adjustments.json')); } catch { scanAdjustmentsFile = null; }
-  /* Phase 3 — ops. The worker's operations files: its run log, its pause
-     switch, its delivery record and the daily task's step log. Each is
-     optional and git-ignored; absent is the deployed site's normal state, and
-     every page that reads one says which is absent (87-scanner-ops.js). Read
-     together, because they are four small files and the dashboard needs all
-     of them before it can say whether the last scan is current. */
-  [scanRunsFile, scanControlFile, scanDeliveriesFile, ingestRunsFile] = await Promise.all(
-    ['scan-runs.json', 'scan-control.json', 'scan-deliveries.json', 'ingest-runs.json']
-      .map(f => fetchJson(dataUrl(f)).catch(() => null)));
+  /* Everything from here to the ops files is the personal lane: off the
+     owner's machine none of it is asked for, and each stays null — the
+     state every page that reads one already calls absent. */
+  if (OWNER_MACHINE) {
+    try { trackedHistory = await fetchJson(dataUrl('price-history.json')); }
+    catch { /* no history yet */ }
+    /* The scanner's two files: the reader's setups and the worker's record of
+       matches. Both git-ignored, both absent on the deployed site; the scanner
+       page says what each would show. */
+    try { scanSetupsFile = await fetchJson(dataUrl('scan-setups.json')); } catch { /* none */ }
+    try { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')); } catch { /* none */ }
+    /* The corporate actions the reader recorded for their own history
+       (data/price-adjustments.json, git-ignored, so absent on the deployed
+       site). Absent is no adjustment — adjustmentVersion 'none' — not an
+       error; the data page says which. Attached below. */
+    try { scanAdjustmentsFile = await fetchJson(dataUrl('price-adjustments.json')); } catch { scanAdjustmentsFile = null; }
+    /* Phase 3 — ops. The worker's operations files: its run log, its pause
+       switch, its delivery record and the daily task's step log. Each is
+       optional and git-ignored; absent is the deployed site's normal state, and
+       every page that reads one says which is absent (87-scanner-ops.js). Read
+       together, because they are four small files and the dashboard needs all
+       of them before it can say whether the last scan is current. */
+    [scanRunsFile, scanControlFile, scanDeliveriesFile, ingestRunsFile] = await Promise.all(
+      ['scan-runs.json', 'scan-control.json', 'scan-deliveries.json', 'ingest-runs.json']
+        .map(f => fetchJson(dataUrl(f)).catch(() => null)));
+  }
+  /* Read — every one of them answered, or, off the owner's machine, none of
+     them can: either way the ops pages may now say what is absent. */
   scanOpsRead = true;
   /* The scanner's copy of the file, before the merge below: the worker never
      sees this browser's pasted closes. A shallow copy of the series map is
@@ -14727,7 +14793,9 @@ function tableTwin(caption, headers, rows) {
   det.append(el('summary', { style: 'cursor:pointer;color:var(--ink-3);font-size:12px' }, caption));
   const wrap = el('div', { class: 'tablewrap', style: 'margin-top:var(--xs)' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, headers.map(h => el('th', {}, h)))));
+  /* A header left blank for the eye — the label column of a two-column
+     twin — still names its column for a screen reader. */
+  t.append(el('thead', {}, el('tr', {}, headers.map(h => el('th', {}, h === '' ? el('span', { class: 'sr-only' }, 'Figure') : h)))));
   t.append(el('tbody', {}, rows.map(r => el('tr', {}, r.map((cell, i) =>
     el('td', { class: i === 0 ? 'ident' : '', html: String(cell) }))))));
   wrap.append(t);
@@ -17163,7 +17231,12 @@ const UNIVERSE_VIEWS = new Set([
 ]);
 
 function bootSkeleton() {
-  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  /* A screen tall, so the footer waits below the fold with the page. The
+     card is 450px, and the footer painted under it was pushed 1,500px down
+     when the filings landed — a layout shift of 0.12 to 0.42 on /pricing,
+     the screener and the dashboard, measured by Lighthouse and by the
+     layout-shift entries (the audit block in sweep.mjs). */
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md);min-height:100vh' });
   const card = el('div', { class: 'card' });
   card.append(el('p', { class: 'eyebrow' }, 'Loading filings'));
   card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, 'Reading the audited statements'));
@@ -17852,7 +17925,7 @@ VIEWS.researchQueue = () => {
   fxCard.append(el('div', { class: 'row', style: 'margin-top:10px;gap:6px' }, [
     el('span', { class: 'caption' }, 'Base currency'),
     el('div', { class: 'segmented', style: 'margin-left:auto' }, ['USD', 'MYR'].map(cc =>
-      el('button', { 'aria-selected': State.baseCcy === cc ? 'true' : 'false', onclick: () => { State.baseCcy = cc; store.write('baseCcy', cc); render(); } }, cc))),
+      el('button', { 'aria-pressed': State.baseCcy === cc ? 'true' : 'false', onclick: () => { State.baseCcy = cc; store.write('baseCcy', cc); render(); } }, cc))),
   ]));
   ctx.append(fxCard);
 
@@ -18909,6 +18982,17 @@ function renderKeepFocus() {
   if (id) document.getElementById(id)?.focus({ preventScroll: true });
 }
 
+/* What the screener last said its count was, and the live region that says
+   a new one. The region is emptied a moment later, so the words do not sit
+   in the page after they have been read. */
+let screenMatchSaid = null, liveSayTimer = null;
+function liveSay(text) {
+  const live = $('#liveStatus');
+  if (!live) return;
+  live.textContent = text;
+  clearTimeout(liveSayTimer);
+  liveSayTimer = setTimeout(() => { if (live.textContent === text) live.textContent = ''; }, 5000);
+}
 function renderScreener() {
   const sc = State.screen;
   /* A template whose criteria have since been changed is no longer applied —
@@ -18938,9 +19022,12 @@ function renderScreener() {
     el('span', { class: 'spacer' }),
     el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.screen = blankScreen(); render(); } }, 'Reset'),
   ]));
-  railHd.append(el('div', { class: 'segmented', style: 'margin-top:10px;width:100%' }, [
-    el('button', { style: 'flex:1', 'aria-selected': sc.mode === 'abs' ? 'true' : 'false', onclick: () => setMode('abs') }, 'Absolute'),
-    el('button', { style: 'flex:1', 'aria-selected': sc.mode === 'pct' ? 'true' : 'false',
+  /* Each strip of choices on the screener is a group named for what it
+     chooses: a screen reader reached "Absolute, toggle button, pressed" and
+     "MYR, toggle button, pressed" with no word of what either decided. */
+  railHd.append(el('div', { class: 'segmented', role: 'group', 'aria-label': 'Thresholds as', style: 'margin-top:10px;width:100%' }, [
+    el('button', { style: 'flex:1', 'aria-pressed': sc.mode === 'abs' ? 'true' : 'false', onclick: () => setMode('abs') }, 'Absolute'),
+    el('button', { style: 'flex:1', 'aria-pressed': sc.mode === 'pct' ? 'true' : 'false',
       title: lim('percentileMode') ? null : 'Peer-percentile screening is part of Equities Research',
       onclick: () => { if (!lim('percentileMode')) { toast('Peer-percentile screening is part of Equities Research'); go('plans'); return; } setMode('pct'); } }, 'Peer percentile'),
   ]));
@@ -19008,8 +19095,11 @@ function renderScreener() {
 
   /* business model */
   const bm = el('div', { style: 'margin-bottom:var(--md)' });
-  bm.append(el('label', { class: 'caption', style: 'display:block;margin-bottom:4px;font-weight:600;color:var(--ink-2)' }, 'Business model'));
-  const bmRow = el('div', { class: 'row row-wrap', style: 'gap:5px' });
+  /* The chips' group is named by this caption. A <label> for no control
+     names nothing, so "bank, toggle button" was heard with no word that it
+     filters by business model; aria-labelledby makes it the group's name. */
+  bm.append(el('label', { class: 'caption', id: 'scr-bm-label', style: 'display:block;margin-bottom:4px;font-weight:600;color:var(--ink-2)' }, 'Business model'));
+  const bmRow = el('div', { class: 'row row-wrap', role: 'group', 'aria-labelledby': 'scr-bm-label', style: 'gap:5px' });
   [...new Set(U.map(r => r.c.type))].forEach(t => {
     const on = sc.types.includes(t);
     /* aria-pressed: the on state was only the chip's colour. */
@@ -19149,8 +19239,18 @@ function renderScreener() {
 
   const resHd = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
   const hdRow = el('div', { class: 'row row-wrap', style: 'gap:var(--sm)' });
+  /* The count, said when a change moves it. A filter set, a chip removed or
+     the universe switched redraws the page with focus back on the control,
+     and the new count sat in a heading above it that nothing announced: a
+     screen reader changed a threshold and heard nothing of what it did.
+     Said through the live region that outlives the redraw (#liveStatus,
+     index.template.html) whenever it differs from the count last drawn;
+     the first draw after a load has nothing to differ from. */
+  const matchSaid = `${passed.length} of ${U.length} companies match`;
+  if (screenMatchSaid !== null && screenMatchSaid !== matchSaid) liveSay(matchSaid);
+  screenMatchSaid = matchSaid;
   hdRow.append(el('div', {}, [
-    el('h3', { class: 'h-card' }, `${passed.length} of ${U.length} companies match`),
+    el('h3', { class: 'h-card' }, matchSaid),
     el('p', { class: 'caption', style: 'margin-top:2px' }, 'Same as-of date, data version and model version reproduce this exact result.'),
   ]));
 
@@ -19161,18 +19261,22 @@ function renderScreener() {
      anyone comparing a Bursa company against its own history rather than
      against a US one. */
   const ccyRow = el('div', { class: 'row', style: 'gap:6px;align-items:center;margin-left:auto' });
-  ccyRow.append(el('span', { class: 'caption' }, 'Show money in'));
-  ccyRow.append(el('div', { class: 'segmented' }, [
+  ccyRow.append(el('span', { class: 'caption', id: 'scr-ccy-label' }, 'Show money in'));
+  ccyRow.append(el('div', { class: 'segmented', role: 'group', 'aria-labelledby': 'scr-ccy-label' }, [
     ['local', 'Local'], ['MYR', 'MYR'], ['USD', 'USD'],
   ].map(([v, label]) => el('button', {
-    'aria-selected': screenCcy() === v ? 'true' : 'false',
+    'aria-pressed': screenCcy() === v ? 'true' : 'false',
     title: v === 'local' ? 'Each company in the currency it reports in. Nothing is converted.'
                          : `Everything converted to ${v} at the rate shown below the table.`,
     onclick: () => { State.screenCcy = v; store.write('screenCcy', v); render(); } }, label))));
   hdRow.append(ccyRow);
   hdRow.append(el('span', { class: 'spacer' }));
-  /* By id: its words change with each press (see co-watch, 45-views-research.js). */
-  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'scr-medians', 'aria-pressed': sc.showMedians !== false ? 'true' : 'false',
+  /* By id: its words change with each press (see co-watch, 45-views-research.js).
+     Its words say what a press does, so it is an action, not a toggle: it
+     also carried aria-pressed, and a screen reader said "Hide medians,
+     toggle button, pressed" — pressed meaning the medians were showing,
+     read beside words saying to hide them. */
+  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'scr-medians',
     onclick: () => { sc.showMedians = sc.showMedians === false; render(); },
     html: `${icon('scale', 13)} ${sc.showMedians !== false ? 'Hide' : 'Show'} medians` }));
   /* The count belongs on the button. A reader who has widened the table to
@@ -19255,7 +19359,10 @@ function renderScreener() {
         id: c2.get ? `scr-sort-${c2.k}` : null,
         'aria-sort': sc.sort.k === c2.k ? (sc.sort.dir === 1 ? 'ascending' : 'descending') : null,
         onclick: c2.get ? sortBy : null,
-        html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
+        /* The arrow is for the eye; aria-sort says the order. Read aloud it
+           was part of every header's name: "Quality, black down-pointing
+           triangle", "Value, up down arrow". */
+        html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
       if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
       htr.append(th);
     });
@@ -19398,10 +19505,10 @@ function renderScreener() {
     resCard.append(tw);
     resCard.append(el('div', { style: 'padding:9px var(--lg);border-top:1px solid var(--line);display:flex;gap:var(--sm);align-items:center' }, [
       el('span', { class: 'metaline' }, `${sorted.length} rows · scroll the table for the rest`),
-      el('div', { class: 'segmented', style: 'margin-left:var(--sm)' }, [
-        el('button', { 'aria-selected': (State.density || 'comfortable') === 'comfortable' ? 'true' : 'false',
+      el('div', { class: 'segmented', role: 'group', 'aria-label': 'Row density', style: 'margin-left:var(--sm)' }, [
+        el('button', { 'aria-pressed': (State.density || 'comfortable') === 'comfortable' ? 'true' : 'false',
           onclick: () => { State.density = 'comfortable'; store.write('density', 'comfortable'); render(); } }, 'Comfortable'),
-        el('button', { 'aria-selected': State.density === 'compact' ? 'true' : 'false',
+        el('button', { 'aria-pressed': State.density === 'compact' ? 'true' : 'false',
           onclick: () => { State.density = 'compact'; store.write('density', 'compact'); render(); } }, 'Compact'),
       ]),
       el('span', { class: 'spacer' }),
@@ -20409,7 +20516,7 @@ function renderRadar() {
     const g = el('div', { class: 'row', style: 'gap:8px' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
     g.append(el('div', { class: 'segmented' }, opts.map(([v, l]) =>
-      el('button', { 'aria-selected': rr[key] === v ? 'true' : 'false', onclick: () => { rr[key] = v; render(); } }, l))));
+      el('button', { 'aria-pressed': rr[key] === v ? 'true' : 'false', onclick: () => { rr[key] = v; render(); } }, l))));
     return g;
   };
   barRow.append(mkSeg('Universe', 'universe', [['all', 'All'], ['US', 'US'], ['MY', 'Bursa'], ['watchlist', 'Watchlist']]));
@@ -20860,7 +20967,7 @@ function renderHeatmap() {
   row.append(el('div', { class: 'row seg-group', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Measure'),
     el('div', { class: 'segmented' }, HEAT_MODES.map(m =>
-      el('button', { 'aria-selected': st.mode === m.id ? 'true' : 'false', onclick: () => { st.mode = m.id; render(); } }, m.label))),
+      el('button', { 'aria-pressed': st.mode === m.id ? 'true' : 'false', onclick: () => { st.mode = m.id; render(); } }, m.label))),
   ]));
   row.append(el('div', { class: 'row seg-group', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Universe'),
@@ -20868,7 +20975,7 @@ function renderHeatmap() {
        KLCI" drew eighteen Bursa tiles, four of them not index constituents;
        "S&P 500" was every US row carried here. */
     el('div', { class: 'segmented' }, [['all', 'All'], ['US', 'US'], ['MY', 'Bursa'], ['watchlist', 'Watchlist']].map(([v, l]) =>
-      el('button', { 'aria-selected': st.universe === v ? 'true' : 'false', onclick: () => { st.universe = v; render(); } }, l))),
+      el('button', { 'aria-pressed': st.universe === v ? 'true' : 'false', onclick: () => { st.universe = v; render(); } }, l))),
   ]));
   bar.append(row);
   wrap.append(bar);
@@ -22202,7 +22309,8 @@ VIEWS.research = () => {
       : c.px?.eod
         /* "the price file you supplied" attributed data/prices.json to the
            reader, who supplied nothing — /my/data reads "Nothing yet" on the
-           same profile. That file is git-ignored and 404s in production, so no
+           same profile. That file is git-ignored and never even requested in
+           production (OWNER_MACHINE, 25-universe.js), so no
            deployed reader sees this branch at all; it fires only where someone
            has put a price file in the data directory, and it should name the
            file and its stated licence rather than credit whoever is looking. */
@@ -23310,7 +23418,7 @@ function tabFinancials(r) {
   chartCard.append(cardHead(`${isBank ? 'Total income' : 'Revenue'}, ${ebitLabel(c).toLowerCase()}${isBank ? '' : ' and free cash flow'}`,
     `Reported ${c.ccy} billions, FY${yrs[0]}–FY${last(yrs)}${fyEnd ? ` — the latest fiscal year ended ${fyEnd}` : ''}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
     el('div', { class: 'segmented' }, [['abs', 'Reported'], ['idx', 'Indexed to 100']].map(([v, l]) =>
-      el('button', { 'aria-selected': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
+      el('button', { 'aria-pressed': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
   const host = el('div', { style: 'width:100%' });
   chartCard.append(host);
 
@@ -26221,10 +26329,10 @@ VIEWS.compare = () => {
   ccyBar.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'metaline' }, 'Show totals in'),
     el('div', { class: 'segmented' }, [
-      el('button', { 'aria-selected': !showLocal ? 'true' : 'false', id: 'cmp-ccy-common',
+      el('button', { 'aria-pressed': !showLocal ? 'true' : 'false', id: 'cmp-ccy-common',
         onclick: () => { State.compareCcy = 'common'; store.write('compareCcy', 'common'); redrawKeepFocus(); } },
         `Common currency (${State.baseCcy})`),
-      el('button', { 'aria-selected': showLocal ? 'true' : 'false', id: 'cmp-ccy-local',
+      el('button', { 'aria-pressed': showLocal ? 'true' : 'false', id: 'cmp-ccy-local',
         onclick: () => { State.compareCcy = 'local'; store.write('compareCcy', 'local'); redrawKeepFocus(); } },
         'Local currency'),
     ]),
@@ -28106,7 +28214,7 @@ VIEWS.launcher = () => {
   const seg = (k, opts, dflt) => {
     const cur = a[k] ?? dflt;
     card.append(el('div', { class: 'segmented', style: 'flex-wrap:wrap' }, opts.map(([v, lab]) =>
-      el('button', { 'aria-selected': cur === v ? 'true' : 'false', onclick: () => set(k, v) }, lab))));
+      el('button', { 'aria-pressed': cur === v ? 'true' : 'false', onclick: () => set(k, v) }, lab))));
     return cur;
   };
 
@@ -29253,7 +29361,7 @@ VIEWS.workspace = () => {
   [{ id: 'all', label: 'All' }, ...WORKSPACE_KINDS].forEach(k => {
     const n = k.id === 'all' ? all.length : counts[k.id];
     if (k.id !== 'all' && !n) return;
-    seg.append(el('button', { id: `ws-kind-${k.id}`, 'aria-pressed': W.kind === k.id ? 'true' : 'false', 'aria-selected': W.kind === k.id ? 'true' : 'false',
+    seg.append(el('button', { id: `ws-kind-${k.id}`, 'aria-pressed': W.kind === k.id ? 'true' : 'false', 
       onclick: () => { W.kind = k.id; renderKeepFocus(); } }, `${k.label} · ${n}`));
   });
   const q = el('div', { class: 'field ws-search' });
@@ -32690,8 +32798,10 @@ async function loadSarawakLayers() {
   geoLoadState = 'loading';
   sarawakGeo = await fetchJson(dataUrl('sarawak-geo.json')).catch(() => null);
   /* Git-ignored while its licence is unconfirmed, so absent is the normal
-     case rather than an error. */
-  sarawakIncome = await fetchJson(dataUrl('sarawak-income.json')).catch(() => null);
+     case rather than an error — and asked for only on the owner's machine
+     (OWNER_MACHINE, 25-universe.js): the deployed site never has it, and
+     asking there was a 404 on every property page's first load. */
+  sarawakIncome = OWNER_MACHINE ? await fetchJson(dataUrl('sarawak-income.json')).catch(() => null) : null;
   geoLoadState = sarawakGeo ? 'done' : 'failed';
   /* Both views that draw localities, or the second one paints an empty map
      forever: the fetch resolves, the flag flips, and nothing asks again. */
@@ -33202,7 +33312,11 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     svg.setAttribute('viewBox', `0 0 ${contentW} ${H}`);
     svg.setAttribute('width', String(contentW)); svg.setAttribute('height', String(H));
     svg.setAttribute('style', 'display:block;margin:0 auto;max-width:100%');
-    svg.setAttribute('role', 'img');
+    /* A group, as the heatmap is (30-charts.js): its points are buttons. As
+       an img, whose contents are one picture to a screen reader, the eight
+       buttons inside it were not there at all, and an ARIA checker calls an
+       img holding tab stops a nested interactive control. */
+    svg.setAttribute('role', 'group');
     /* Which town's map, so a redraw can name a focused point back to it (redrawFocusClaims, above). */
     svg.setAttribute('data-city', cityId);
     /* Built by hand rather than through the chart layer, so it needed the tab
@@ -37715,10 +37829,10 @@ VIEWS.property = () => {
       /* A group named by its question, and the answer given carried by
          aria-pressed. Ten rows of "Yes", "No", "Not sure" reached a screen
          reader with no question attached and no word of which was chosen —
-         aria-selected, which the stylesheet keys on, means nothing on a
-         plain button. */
+         aria-selected means nothing on a plain button, and an ARIA checker
+         calls it not allowed there; the stylesheet keys on aria-pressed. */
       el('div', { class: 'segmented', style: 'flex:none', role: 'group', 'aria-label': ptr(`chk.${c.id}`, c.q) }, ['yes', 'no', 'unknown'].map(v =>
-        el('button', { 'aria-selected': d.checks?.[c.id] === v ? 'true' : 'false', 'aria-pressed': d.checks?.[c.id] === v ? 'true' : 'false',
+        el('button', { 'aria-pressed': d.checks?.[c.id] === v ? 'true' : 'false',
           id: `chk-${c.id}-${v}`,
           onclick: () => { d.checks = { ...(d.checks || {}), [c.id]: v }; saveDeal(); renderKeepFocus(); } },
           v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Not sure'))),
@@ -37942,7 +38056,10 @@ VIEWS.property = () => {
     ]));
   });
   evT.append(evB);
-  ev.append(el('div', { style: 'overflow-x:auto' }, evT));
+  /* The table is wider than its card at every width, and nothing in it takes
+     focus, so the keyboard could not scroll to its last column: the box is a
+     named tab stop of its own, which the arrow keys then scroll. */
+  ev.append(el('div', { style: 'overflow-x:auto', tabindex: '0', role: 'region', 'aria-label': 'What this rests on, table' }, evT));
   /* Names the weakest row rather than asserting a floor. The previous sentence
      claimed "evidenced at least to a figure you supplied" — rank 3 — whenever
      the worst row cleared rank 1, so a table whose weakest entry was
@@ -38568,8 +38685,10 @@ function financingChoicesPanel(d, m) {
   }
 
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  /* The corner header names its column for a screen reader, which read the
+     row headers' column as an empty header — the eye needs no word there. */
   t.append(el('thead', {}, el('tr', {}, ['', 'Cover that shrinks with the loan', 'Cover that stays level']
-    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, i ? h : el('span', { class: 'sr-only' }, 'Question'))))));
   t.append(el('tbody', {}, PROTECTION_COMPARISON.map(r => el('tr', {}, [
     el('th', { scope: 'row', style: 'text-align:left' }, r.q),
     el('td', { style: 'white-space:normal;text-align:left' }, r.mrta),
@@ -42683,7 +42802,7 @@ function scanSubnav(active) {
   SCAN_SUBNAV.filter(s => { const r = matchRoute(s.path); return r && VIEWS[r.view]; }).forEach(s => {
     const n = s.id === 'alerts' && unread ? unread : 0;
     row.append(el('a', {
-      href: href(s.path), 'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null,
+      href: href(s.path), 'aria-current': active === s.id ? 'page' : null,
       'aria-label': n ? `${s.label}, ${n} unread` : null,
       onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(s.path); } }, n ? `${s.label} · ${n}` : s.label));
   });
@@ -45953,7 +46072,7 @@ const SCANNER_OPS_NAV = [
 function scanOpsSubnav(active) {
   const row = el('nav', { class: 'segmented scan-subnav', 'aria-label': 'Operations sections' });
   SCANNER_OPS_NAV.forEach(s => row.append(scanOpsLink(s.path, s.label, {
-    'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null })));
+    'aria-current': active === s.id ? 'page' : null })));
   return row;
 }
 function scanOpsHead(eyebrow, title, lead) {
@@ -46848,7 +46967,7 @@ function scanBacktestResult(R) {
   const cur = views.find(v => v[0] === S.view) || views[0];
   dates.append(cardHead('Matching dates', 'Symbol order, then date order. Each row opens the conditions and the values they compared on that bar.'));
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Which dates', style: 'margin-bottom:var(--sm)' });
-  views.forEach(([id, label, list]) => seg.append(el('button', { 'aria-pressed': id === cur[0] ? 'true' : 'false', 'aria-selected': id === cur[0] ? 'true' : 'false',
+  views.forEach(([id, label, list]) => seg.append(el('button', { 'aria-pressed': id === cur[0] ? 'true' : 'false', 
     onclick: () => { S.view = id; const fresh = scanBacktestResult(R); box.replaceWith(fresh); fresh.querySelector(`.segmented button[aria-pressed="true"]`)?.focus(); } }, `${label} (${list.length})`)));
   dates.append(seg);
   const byBar = new Map(o.matches.map(m => [`${m.symbol}|${m.bar}`, m]));
@@ -47329,7 +47448,7 @@ VIEWS.scannerAdminJobs = () => {
     const host = el('div');
     const draw = () => {
       seg.replaceChildren(...GROUPS.filter(([k, , fn]) => k === 'all' || k === F.filter || runs.some(fn)).map(([k, label, fn]) => el('button', {
-        'aria-pressed': F.filter === k ? 'true' : 'false', 'aria-selected': F.filter === k ? 'true' : 'false',
+        'aria-pressed': F.filter === k ? 'true' : 'false', 
         onclick: () => { F.filter = k; draw(); seg.querySelector('[aria-pressed="true"]')?.focus(); } }, `${label} (${runs.filter(fn).length})`)));
       const list = runs.filter(GROUPS.find(([k]) => k === F.filter)[2]);
       host.replaceChildren(list.length ? scanOpsPaged(list, (rows) => scanOpsDetailRows(scanOpsTable(['Started', 'Status', 'Trigger', 'Duration', 'Bars', 'Counts', 'Detail'],
@@ -47562,11 +47681,11 @@ VIEWS.areas = () => {
   const seg = (label, key, opts, onPick) => {
     const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
-    /* aria-pressed carries the state; aria-selected, which the stylesheet
-       keys on, means nothing on a plain button, so a screen reader heard
+    /* aria-pressed carries the state, and the stylesheet keys on it;
+       aria-selected means nothing on a plain button, so a screen reader heard
        fifteen identical buttons with no word of which layer was drawn. */
     g.append(el('div', { class: 'segmented' }, opts.map(([v, l]) =>
-      el('button', { id: `af-${key}-${v}`, 'aria-selected': S[key] === v ? 'true' : 'false', 'aria-pressed': S[key] === v ? 'true' : 'false',
+      el('button', { id: `af-${key}-${v}`, 'aria-pressed': S[key] === v ? 'true' : 'false',
         onclick: () => { if (onPick) onPick(v); else S[key] = v; renderKeepFocus(); } }, l))));
     return g;
   };
@@ -47603,7 +47722,7 @@ VIEWS.areas = () => {
     const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
     g.append(el('div', { class: 'segmented' }, ids.map(id =>
-      el('button', { id: `af-unit-${which}-${id}`, 'aria-selected': State.rateUnits[which] === id ? 'true' : 'false',
+      el('button', { id: `af-unit-${which}-${id}`, 
         'aria-pressed': State.rateUnits[which] === id ? 'true' : 'false',
         title: areaUnit(id).why,
         onclick: () => { setRateUnit(which, id); renderKeepFocus(); } }, areaUnit(id).short))));
@@ -47774,8 +47893,10 @@ VIEWS.areas = () => {
     `Floor RM/${bu}`, `Land RM/${lu}`, `Charge RM/${bu}/mo`,
     'Last transacted', 'Records', ''];
   const t = el('table', { class: 'dt' });
+  /* The last column, the Record buttons', is named for a screen reader: an
+     empty header left each of its buttons announced with no column at all. */
   t.append(el('thead', {}, el('tr', {},
-    cols.map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
+    cols.map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h || el('span', { class: 'sr-only' }, 'Actions'))))));
   const tb = el('tbody');
   shown.forEach(n => {
     const m = areaMetrics(S.city, n);
@@ -49198,7 +49319,7 @@ function closeSearch({ restore = true } = {}) {
   /* Stale results were left in the box after it closed, and — because the
      closed box is display:none only since the [hidden] rule below — they used
      to sit in the page's tab order, invisible, after the footer. */
-  searchHideTimer = setTimeout(() => { searchHideTimer = null; searchModal.hidden = true; searchResults.replaceChildren(); }, 200);
+  searchHideTimer = setTimeout(() => { searchHideTimer = null; searchModal.hidden = true; searchResults.replaceChildren(); $('#searchStatus')?.replaceChildren(); }, 200);
   if (drawer.dataset.open !== '1') scrim.dataset.open = '0';
   const back = searchLastFocus; searchLastFocus = null;
   if (!restore) return;
@@ -49308,6 +49429,15 @@ function runSearch(q) {
   }
   if (!hits.length && !routeHits.length)
     searchResults.append(emptyState('Nothing matches that search — no company, and no page.'));
+  /* The count, said. The list appears silently under the box, so a screen
+     reader heard what it typed and nothing else — not that anything had
+     matched, nor how many. Said once the list is drawn, for the text in the
+     box; an empty box says nothing. */
+  const status = $('#searchStatus');
+  if (status) status.textContent = !term ? ''
+    : (!hits.length && !routeHits.length) ? 'Nothing matches that search.'
+    : [hits.length ? (found.total > hits.length ? `${hits.length} of ${found.total} matches shown` : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`) : null,
+       routeHits.length ? `${routeHits.length} ${routeHits.length === 1 ? 'page' : 'pages'}` : null].filter(Boolean).join(' and ') + '.';
 }
 /* Debounced: a keystroke every 40ms re-ranked the whole registry each time. */
 let searchTimer = null;

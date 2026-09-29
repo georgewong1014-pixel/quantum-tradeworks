@@ -98,7 +98,7 @@ VIEWS.researchQueue = () => {
   fxCard.append(el('div', { class: 'row', style: 'margin-top:10px;gap:6px' }, [
     el('span', { class: 'caption' }, 'Base currency'),
     el('div', { class: 'segmented', style: 'margin-left:auto' }, ['USD', 'MYR'].map(cc =>
-      el('button', { 'aria-selected': State.baseCcy === cc ? 'true' : 'false', onclick: () => { State.baseCcy = cc; store.write('baseCcy', cc); render(); } }, cc))),
+      el('button', { 'aria-pressed': State.baseCcy === cc ? 'true' : 'false', onclick: () => { State.baseCcy = cc; store.write('baseCcy', cc); render(); } }, cc))),
   ]));
   ctx.append(fxCard);
 
@@ -1155,6 +1155,17 @@ function renderKeepFocus() {
   if (id) document.getElementById(id)?.focus({ preventScroll: true });
 }
 
+/* What the screener last said its count was, and the live region that says
+   a new one. The region is emptied a moment later, so the words do not sit
+   in the page after they have been read. */
+let screenMatchSaid = null, liveSayTimer = null;
+function liveSay(text) {
+  const live = $('#liveStatus');
+  if (!live) return;
+  live.textContent = text;
+  clearTimeout(liveSayTimer);
+  liveSayTimer = setTimeout(() => { if (live.textContent === text) live.textContent = ''; }, 5000);
+}
 function renderScreener() {
   const sc = State.screen;
   /* A template whose criteria have since been changed is no longer applied —
@@ -1184,9 +1195,12 @@ function renderScreener() {
     el('span', { class: 'spacer' }),
     el('button', { class: 'btn btn-quiet btn-sm', onclick: () => { State.screen = blankScreen(); render(); } }, 'Reset'),
   ]));
-  railHd.append(el('div', { class: 'segmented', style: 'margin-top:10px;width:100%' }, [
-    el('button', { style: 'flex:1', 'aria-selected': sc.mode === 'abs' ? 'true' : 'false', onclick: () => setMode('abs') }, 'Absolute'),
-    el('button', { style: 'flex:1', 'aria-selected': sc.mode === 'pct' ? 'true' : 'false',
+  /* Each strip of choices on the screener is a group named for what it
+     chooses: a screen reader reached "Absolute, toggle button, pressed" and
+     "MYR, toggle button, pressed" with no word of what either decided. */
+  railHd.append(el('div', { class: 'segmented', role: 'group', 'aria-label': 'Thresholds as', style: 'margin-top:10px;width:100%' }, [
+    el('button', { style: 'flex:1', 'aria-pressed': sc.mode === 'abs' ? 'true' : 'false', onclick: () => setMode('abs') }, 'Absolute'),
+    el('button', { style: 'flex:1', 'aria-pressed': sc.mode === 'pct' ? 'true' : 'false',
       title: lim('percentileMode') ? null : 'Peer-percentile screening is part of Equities Research',
       onclick: () => { if (!lim('percentileMode')) { toast('Peer-percentile screening is part of Equities Research'); go('plans'); return; } setMode('pct'); } }, 'Peer percentile'),
   ]));
@@ -1254,8 +1268,11 @@ function renderScreener() {
 
   /* business model */
   const bm = el('div', { style: 'margin-bottom:var(--md)' });
-  bm.append(el('label', { class: 'caption', style: 'display:block;margin-bottom:4px;font-weight:600;color:var(--ink-2)' }, 'Business model'));
-  const bmRow = el('div', { class: 'row row-wrap', style: 'gap:5px' });
+  /* The chips' group is named by this caption. A <label> for no control
+     names nothing, so "bank, toggle button" was heard with no word that it
+     filters by business model; aria-labelledby makes it the group's name. */
+  bm.append(el('label', { class: 'caption', id: 'scr-bm-label', style: 'display:block;margin-bottom:4px;font-weight:600;color:var(--ink-2)' }, 'Business model'));
+  const bmRow = el('div', { class: 'row row-wrap', role: 'group', 'aria-labelledby': 'scr-bm-label', style: 'gap:5px' });
   [...new Set(U.map(r => r.c.type))].forEach(t => {
     const on = sc.types.includes(t);
     /* aria-pressed: the on state was only the chip's colour. */
@@ -1395,8 +1412,18 @@ function renderScreener() {
 
   const resHd = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
   const hdRow = el('div', { class: 'row row-wrap', style: 'gap:var(--sm)' });
+  /* The count, said when a change moves it. A filter set, a chip removed or
+     the universe switched redraws the page with focus back on the control,
+     and the new count sat in a heading above it that nothing announced: a
+     screen reader changed a threshold and heard nothing of what it did.
+     Said through the live region that outlives the redraw (#liveStatus,
+     index.template.html) whenever it differs from the count last drawn;
+     the first draw after a load has nothing to differ from. */
+  const matchSaid = `${passed.length} of ${U.length} companies match`;
+  if (screenMatchSaid !== null && screenMatchSaid !== matchSaid) liveSay(matchSaid);
+  screenMatchSaid = matchSaid;
   hdRow.append(el('div', {}, [
-    el('h3', { class: 'h-card' }, `${passed.length} of ${U.length} companies match`),
+    el('h3', { class: 'h-card' }, matchSaid),
     el('p', { class: 'caption', style: 'margin-top:2px' }, 'Same as-of date, data version and model version reproduce this exact result.'),
   ]));
 
@@ -1407,18 +1434,22 @@ function renderScreener() {
      anyone comparing a Bursa company against its own history rather than
      against a US one. */
   const ccyRow = el('div', { class: 'row', style: 'gap:6px;align-items:center;margin-left:auto' });
-  ccyRow.append(el('span', { class: 'caption' }, 'Show money in'));
-  ccyRow.append(el('div', { class: 'segmented' }, [
+  ccyRow.append(el('span', { class: 'caption', id: 'scr-ccy-label' }, 'Show money in'));
+  ccyRow.append(el('div', { class: 'segmented', role: 'group', 'aria-labelledby': 'scr-ccy-label' }, [
     ['local', 'Local'], ['MYR', 'MYR'], ['USD', 'USD'],
   ].map(([v, label]) => el('button', {
-    'aria-selected': screenCcy() === v ? 'true' : 'false',
+    'aria-pressed': screenCcy() === v ? 'true' : 'false',
     title: v === 'local' ? 'Each company in the currency it reports in. Nothing is converted.'
                          : `Everything converted to ${v} at the rate shown below the table.`,
     onclick: () => { State.screenCcy = v; store.write('screenCcy', v); render(); } }, label))));
   hdRow.append(ccyRow);
   hdRow.append(el('span', { class: 'spacer' }));
-  /* By id: its words change with each press (see co-watch, 45-views-research.js). */
-  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'scr-medians', 'aria-pressed': sc.showMedians !== false ? 'true' : 'false',
+  /* By id: its words change with each press (see co-watch, 45-views-research.js).
+     Its words say what a press does, so it is an action, not a toggle: it
+     also carried aria-pressed, and a screen reader said "Hide medians,
+     toggle button, pressed" — pressed meaning the medians were showing,
+     read beside words saying to hide them. */
+  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'scr-medians',
     onclick: () => { sc.showMedians = sc.showMedians === false; render(); },
     html: `${icon('scale', 13)} ${sc.showMedians !== false ? 'Hide' : 'Show'} medians` }));
   /* The count belongs on the button. A reader who has widened the table to
@@ -1501,7 +1532,10 @@ function renderScreener() {
         id: c2.get ? `scr-sort-${c2.k}` : null,
         'aria-sort': sc.sort.k === c2.k ? (sc.sort.dir === 1 ? 'ascending' : 'descending') : null,
         onclick: c2.get ? sortBy : null,
-        html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
+        /* The arrow is for the eye; aria-sort says the order. Read aloud it
+           was part of every header's name: "Quality, black down-pointing
+           triangle", "Value, up down arrow". */
+        html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
       if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
       htr.append(th);
     });
@@ -1644,10 +1678,10 @@ function renderScreener() {
     resCard.append(tw);
     resCard.append(el('div', { style: 'padding:9px var(--lg);border-top:1px solid var(--line);display:flex;gap:var(--sm);align-items:center' }, [
       el('span', { class: 'metaline' }, `${sorted.length} rows · scroll the table for the rest`),
-      el('div', { class: 'segmented', style: 'margin-left:var(--sm)' }, [
-        el('button', { 'aria-selected': (State.density || 'comfortable') === 'comfortable' ? 'true' : 'false',
+      el('div', { class: 'segmented', role: 'group', 'aria-label': 'Row density', style: 'margin-left:var(--sm)' }, [
+        el('button', { 'aria-pressed': (State.density || 'comfortable') === 'comfortable' ? 'true' : 'false',
           onclick: () => { State.density = 'comfortable'; store.write('density', 'comfortable'); render(); } }, 'Comfortable'),
-        el('button', { 'aria-selected': State.density === 'compact' ? 'true' : 'false',
+        el('button', { 'aria-pressed': State.density === 'compact' ? 'true' : 'false',
           onclick: () => { State.density = 'compact'; store.write('density', 'compact'); render(); } }, 'Compact'),
       ]),
       el('span', { class: 'spacer' }),
@@ -2655,7 +2689,7 @@ function renderRadar() {
     const g = el('div', { class: 'row', style: 'gap:8px' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
     g.append(el('div', { class: 'segmented' }, opts.map(([v, l]) =>
-      el('button', { 'aria-selected': rr[key] === v ? 'true' : 'false', onclick: () => { rr[key] = v; render(); } }, l))));
+      el('button', { 'aria-pressed': rr[key] === v ? 'true' : 'false', onclick: () => { rr[key] = v; render(); } }, l))));
     return g;
   };
   barRow.append(mkSeg('Universe', 'universe', [['all', 'All'], ['US', 'US'], ['MY', 'Bursa'], ['watchlist', 'Watchlist']]));
@@ -3106,7 +3140,7 @@ function renderHeatmap() {
   row.append(el('div', { class: 'row seg-group', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Measure'),
     el('div', { class: 'segmented' }, HEAT_MODES.map(m =>
-      el('button', { 'aria-selected': st.mode === m.id ? 'true' : 'false', onclick: () => { st.mode = m.id; render(); } }, m.label))),
+      el('button', { 'aria-pressed': st.mode === m.id ? 'true' : 'false', onclick: () => { st.mode = m.id; render(); } }, m.label))),
   ]));
   row.append(el('div', { class: 'row seg-group', style: 'gap:8px' }, [
     el('span', { class: 'caption', style: 'font-weight:600' }, 'Universe'),
@@ -3114,7 +3148,7 @@ function renderHeatmap() {
        KLCI" drew eighteen Bursa tiles, four of them not index constituents;
        "S&P 500" was every US row carried here. */
     el('div', { class: 'segmented' }, [['all', 'All'], ['US', 'US'], ['MY', 'Bursa'], ['watchlist', 'Watchlist']].map(([v, l]) =>
-      el('button', { 'aria-selected': st.universe === v ? 'true' : 'false', onclick: () => { st.universe = v; render(); } }, l))),
+      el('button', { 'aria-pressed': st.universe === v ? 'true' : 'false', onclick: () => { st.universe = v; render(); } }, l))),
   ]));
   bar.append(row);
   wrap.append(bar);

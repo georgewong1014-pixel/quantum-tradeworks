@@ -202,7 +202,7 @@ const SCANNER_OPS_NAV = [
 function scanOpsSubnav(active) {
   const row = el('nav', { class: 'segmented scan-subnav', 'aria-label': 'Operations sections' });
   SCANNER_OPS_NAV.forEach(s => row.append(scanOpsLink(s.path, s.label, {
-    'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null })));
+    'aria-current': active === s.id ? 'page' : null })));
   return row;
 }
 function scanOpsHead(eyebrow, title, lead) {
@@ -1097,7 +1097,7 @@ function scanBacktestResult(R) {
   const cur = views.find(v => v[0] === S.view) || views[0];
   dates.append(cardHead('Matching dates', 'Symbol order, then date order. Each row opens the conditions and the values they compared on that bar.'));
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Which dates', style: 'margin-bottom:var(--sm)' });
-  views.forEach(([id, label, list]) => seg.append(el('button', { 'aria-pressed': id === cur[0] ? 'true' : 'false', 'aria-selected': id === cur[0] ? 'true' : 'false',
+  views.forEach(([id, label, list]) => seg.append(el('button', { 'aria-pressed': id === cur[0] ? 'true' : 'false', 
     onclick: () => { S.view = id; const fresh = scanBacktestResult(R); box.replaceWith(fresh); fresh.querySelector(`.segmented button[aria-pressed="true"]`)?.focus(); } }, `${label} (${list.length})`)));
   dates.append(seg);
   const byBar = new Map(o.matches.map(m => [`${m.symbol}|${m.bar}`, m]));
@@ -1578,7 +1578,7 @@ VIEWS.scannerAdminJobs = () => {
     const host = el('div');
     const draw = () => {
       seg.replaceChildren(...GROUPS.filter(([k, , fn]) => k === 'all' || k === F.filter || runs.some(fn)).map(([k, label, fn]) => el('button', {
-        'aria-pressed': F.filter === k ? 'true' : 'false', 'aria-selected': F.filter === k ? 'true' : 'false',
+        'aria-pressed': F.filter === k ? 'true' : 'false', 
         onclick: () => { F.filter = k; draw(); seg.querySelector('[aria-pressed="true"]')?.focus(); } }, `${label} (${runs.filter(fn).length})`)));
       const list = runs.filter(GROUPS.find(([k]) => k === F.filter)[2]);
       host.replaceChildren(list.length ? scanOpsPaged(list, (rows) => scanOpsDetailRows(scanOpsTable(['Started', 'Status', 'Trigger', 'Duration', 'Bars', 'Counts', 'Detail'],

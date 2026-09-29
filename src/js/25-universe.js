@@ -920,6 +920,23 @@ function applyFx() {
    shows what it holds and what became of each action. */
 let scanAdjustmentsFile = null;
 
+/* THE PERSONAL LANE IS ASKED FOR ONLY WHERE IT CAN EXIST.
+   Every file below but us.json, instruments.json and the NAPIC set — the
+   price file (or ?personal=1's own, and its statements), the accumulated
+   history and its corporate actions, the scanner's setups and alerts, the
+   worker's four ops files — and the Sarawak income cache (70-property.js)
+   are git-ignored. They live on the owner's own machine and are never
+   deployed, so the published site asked for them anyway and each answered
+   404: nine failed requests and nine console errors on every first load, a
+   tenth on a property page, for files that cannot be there. They are now
+   requested only when the page is served from this machine by its own name
+   (localhost, 127.0.0.1, ::1), and there exactly as before — absent or
+   present, nothing about the local lane changed.
+   Exact names, not "anything that resolves here": a *.localhost name reaches
+   the same server, but it is not how the owner opens the site, and it is how
+   a check loads the site as production serves it (live.localhost). */
+const OWNER_MACHINE = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname);
+
 async function loadRealData() {
   const j = await fetchJson(dataUrl('us.json'));
   if (!j) throw new Error(`could not load ${dataUrl('us.json')} — it is missing, or the host returned a page instead of the file`);
@@ -934,16 +951,18 @@ async function loadRealData() {
      research rather than licensed market data. */
   const personal = new URLSearchParams(location.search).get('personal') === '1';
   const priceFile = personal ? 'data/personal-prices.json' : 'data/prices.json';
-  try {
-    const pb = await fetchJson(dataUrl(priceFile.split('/').pop()));
-    if (pb) { priceBook = pb; priceBook.personal = personal; priceBook.file = priceFile; }
-  } catch { /* no price file supplied */ }
+  if (OWNER_MACHINE) {
+    try {
+      const pb = await fetchJson(dataUrl(priceFile.split('/').pop()));
+      if (pb) { priceBook = pb; priceBook.personal = personal; priceBook.file = priceFile; }
+    } catch { /* no price file supplied */ }
+  }
 
   /* Malaysian statements, personal-research lane only. Requested explicitly or
      not at all: this file is git-ignored so it is absent from any deployment,
      and loading it silently where it happened to exist would make the same
      screen mean two different things depending on whose machine it ran on. */
-  if (personal) {
+  if (personal && OWNER_MACHINE) {
     try {
       const mf = await fetchJson(dataUrl('personal-fundamentals.json'));
       if (mf?.results?.length) myFundamentals = mf;
@@ -958,27 +977,34 @@ async function loadRealData() {
   /* Official NAPIC aggregates and benchmarks. Optional: absent is a normal
      state and every panel that reads it says so rather than rendering blank. */
   try { await loadNapic(); } catch { /* the panel reports it */ }
-  try { trackedHistory = await fetchJson(dataUrl('price-history.json')); }
-  catch { /* no history yet */ }
-  /* The scanner's two files: the reader's setups and the worker's record of
-     matches. Both git-ignored, both absent on the deployed site; the scanner
-     page says what each would show. */
-  try { scanSetupsFile = await fetchJson(dataUrl('scan-setups.json')); } catch { /* none */ }
-  try { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')); } catch { /* none */ }
-  /* The corporate actions the reader recorded for their own history
-     (data/price-adjustments.json, git-ignored, so absent on the deployed
-     site). Absent is no adjustment — adjustmentVersion 'none' — not an
-     error; the data page says which. Attached below. */
-  try { scanAdjustmentsFile = await fetchJson(dataUrl('price-adjustments.json')); } catch { scanAdjustmentsFile = null; }
-  /* Phase 3 — ops. The worker's operations files: its run log, its pause
-     switch, its delivery record and the daily task's step log. Each is
-     optional and git-ignored; absent is the deployed site's normal state, and
-     every page that reads one says which is absent (87-scanner-ops.js). Read
-     together, because they are four small files and the dashboard needs all
-     of them before it can say whether the last scan is current. */
-  [scanRunsFile, scanControlFile, scanDeliveriesFile, ingestRunsFile] = await Promise.all(
-    ['scan-runs.json', 'scan-control.json', 'scan-deliveries.json', 'ingest-runs.json']
-      .map(f => fetchJson(dataUrl(f)).catch(() => null)));
+  /* Everything from here to the ops files is the personal lane: off the
+     owner's machine none of it is asked for, and each stays null — the
+     state every page that reads one already calls absent. */
+  if (OWNER_MACHINE) {
+    try { trackedHistory = await fetchJson(dataUrl('price-history.json')); }
+    catch { /* no history yet */ }
+    /* The scanner's two files: the reader's setups and the worker's record of
+       matches. Both git-ignored, both absent on the deployed site; the scanner
+       page says what each would show. */
+    try { scanSetupsFile = await fetchJson(dataUrl('scan-setups.json')); } catch { /* none */ }
+    try { scanAlertsFile = await fetchJson(dataUrl('scan-alerts.json')); } catch { /* none */ }
+    /* The corporate actions the reader recorded for their own history
+       (data/price-adjustments.json, git-ignored, so absent on the deployed
+       site). Absent is no adjustment — adjustmentVersion 'none' — not an
+       error; the data page says which. Attached below. */
+    try { scanAdjustmentsFile = await fetchJson(dataUrl('price-adjustments.json')); } catch { scanAdjustmentsFile = null; }
+    /* Phase 3 — ops. The worker's operations files: its run log, its pause
+       switch, its delivery record and the daily task's step log. Each is
+       optional and git-ignored; absent is the deployed site's normal state, and
+       every page that reads one says which is absent (87-scanner-ops.js). Read
+       together, because they are four small files and the dashboard needs all
+       of them before it can say whether the last scan is current. */
+    [scanRunsFile, scanControlFile, scanDeliveriesFile, ingestRunsFile] = await Promise.all(
+      ['scan-runs.json', 'scan-control.json', 'scan-deliveries.json', 'ingest-runs.json']
+        .map(f => fetchJson(dataUrl(f)).catch(() => null)));
+  }
+  /* Read — every one of them answered, or, off the owner's machine, none of
+     them can: either way the ops pages may now say what is absent. */
   scanOpsRead = true;
   /* The scanner's copy of the file, before the merge below: the worker never
      sees this browser's pasted closes. A shallow copy of the series map is

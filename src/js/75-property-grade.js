@@ -3119,10 +3119,10 @@ VIEWS.property = () => {
       /* A group named by its question, and the answer given carried by
          aria-pressed. Ten rows of "Yes", "No", "Not sure" reached a screen
          reader with no question attached and no word of which was chosen —
-         aria-selected, which the stylesheet keys on, means nothing on a
-         plain button. */
+         aria-selected means nothing on a plain button, and an ARIA checker
+         calls it not allowed there; the stylesheet keys on aria-pressed. */
       el('div', { class: 'segmented', style: 'flex:none', role: 'group', 'aria-label': ptr(`chk.${c.id}`, c.q) }, ['yes', 'no', 'unknown'].map(v =>
-        el('button', { 'aria-selected': d.checks?.[c.id] === v ? 'true' : 'false', 'aria-pressed': d.checks?.[c.id] === v ? 'true' : 'false',
+        el('button', { 'aria-pressed': d.checks?.[c.id] === v ? 'true' : 'false',
           id: `chk-${c.id}-${v}`,
           onclick: () => { d.checks = { ...(d.checks || {}), [c.id]: v }; saveDeal(); renderKeepFocus(); } },
           v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Not sure'))),
@@ -3346,7 +3346,10 @@ VIEWS.property = () => {
     ]));
   });
   evT.append(evB);
-  ev.append(el('div', { style: 'overflow-x:auto' }, evT));
+  /* The table is wider than its card at every width, and nothing in it takes
+     focus, so the keyboard could not scroll to its last column: the box is a
+     named tab stop of its own, which the arrow keys then scroll. */
+  ev.append(el('div', { style: 'overflow-x:auto', tabindex: '0', role: 'region', 'aria-label': 'What this rests on, table' }, evT));
   /* Names the weakest row rather than asserting a floor. The previous sentence
      claimed "evidenced at least to a figure you supplied" — rank 3 — whenever
      the worst row cleared rank 1, so a table whose weakest entry was

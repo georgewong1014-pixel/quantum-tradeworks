@@ -445,7 +445,10 @@ try {
   }
 
   /* 14 — three small promises: the search finds a Bursa code, the saved-case
-          button's route exists, the analytics script is included once. */
+          button's route exists, and no analytics script is included. It was
+          included once; analytics was never switched on, so the tag only
+          logged a 404 on every first load, and the launch audit removed it
+          until it returns with a consent notice. */
   {
     const r = await evaluate(`(() => {
       runSearch('1155');
@@ -455,8 +458,8 @@ try {
     })()`);
     if (!r.found) fail('searching the Bursa code 1155 does not list Maybank', r);
     else if (!r.theses) fail('/my/theses does not resolve to a route', r);
-    else if (r.insights !== 1) fail(`the analytics script is included ${r.insights} times`, r);
-    else ok('the search finds a Bursa code, /my/theses resolves, and the analytics script is included once', r);
+    else if (r.insights !== 0) fail(`the analytics script is included ${r.insights} times — analytics is not switched on and the tag only 404s`, r);
+    else ok('the search finds a Bursa code, /my/theses resolves, and no analytics script is included', r);
   }
 
   /* 15 — the tab is in the address, a foreign tab does not cross views, and
@@ -10230,6 +10233,137 @@ try {
     }
   }
   /* ---- end fixwave: scanner ---- */
+
+  /* ---- audit: quality ---- */
+  /* The launch audit's Q3: the search box and the screener, as a screen
+     reader and a keyboard are given them. The search said nothing when its
+     list appeared; a segmented choice said which option was on with
+     aria-selected, which is not allowed on a button and which a screen
+     reader drops (Lighthouse failed aria-allowed-attr on the screener and
+     the calculator); the screener's strips of choices were unnamed, its
+     sort arrows were read as part of every header, "Hide medians" said
+     pressed beside words saying hide, and a count a filter changed was
+     not said. Every state is put back. */
+  {
+    const aq = (body) => evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const main = () => document.querySelector('main');
+      const nameOf = (n) => { const lb = n.getAttribute('aria-labelledby');
+        return ((n.getAttribute('aria-label') || '') || (lb ? lb.split(/\\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ') : '')).trim(); };
+      ${body}
+    })()`);
+    try {
+      /* The search box is named, described, and says its count. */
+      {
+        const r = await aq(`
+          const out = {};
+          const i = document.getElementById('searchInput'), st = document.getElementById('searchStatus');
+          const hint = document.getElementById(i.getAttribute('aria-describedby') || '');
+          out.named = !!(i.getAttribute('aria-label') || '').trim();
+          out.hint = hint ? hint.textContent.trim() : '';
+          out.controls = i.getAttribute('aria-controls') === 'searchResults' && !!document.getElementById('searchResults');
+          out.role = st ? st.getAttribute('role') : null;
+          if (!st) return out;
+          navigate('/discover/screener'); await w(300);
+          openSearch(); await w(250);
+          const typeInto = async (t) => { i.value = t; i.dispatchEvent(new Event('input', { bubbles: true })); await w(450); };
+          await typeInto('bank');
+          out.bank = { said: st.textContent, rows: searchResults.querySelectorAll('button').length };
+          await typeInto('zzqxv');
+          out.none = st.textContent;
+          await typeInto('');
+          out.empty = st.textContent;
+          await typeInto('bank');
+          closeSearch(); await w(350);
+          out.closed = st.textContent;
+          i.value = '';
+          return out;
+        `);
+        const p = [];
+        if (!r.named) p.push('the search box has no name');
+        if (!r.hint) p.push('the search box is described by nothing');
+        if (!r.controls) p.push('the search box does not name the list it controls');
+        if (r.role !== 'status') p.push(`the search's status line is ${r.role === null ? 'missing' : 'role ' + r.role}`);
+        const m = /^(\d+) (?:of \d+ matches shown|match(?:es)?)\b/.exec(r.bank?.said || '');
+        if (r.role === 'status' && (!m || Number(m[1]) !== r.bank.rows)) p.push(`"bank" listed ${r.bank?.rows} companies and the status said "${r.bank?.said}"`);
+        if (r.role === 'status' && r.none !== 'Nothing matches that search.') p.push(`a search that matches nothing said "${r.none}"`);
+        if (r.role === 'status' && (r.empty || r.closed)) p.push(`an empty box or a closed search still says "${r.empty || r.closed}"`);
+        if (p.length) fail('audit quality Q3: the search box is not described, or its count is not said', p);
+        else ok(`audit quality Q3: the search box is named, described and says its count — "${r.bank.said}" for "bank"`);
+      }
+
+      /* The screener: named strips, pressed states, headers read without
+         their arrows, a medians action that is not a toggle, and a count
+         said when a filter moves it. */
+      {
+        const r = await aq(`
+          const out = {};
+          navigate('/discover/screener'); await w(400);
+          const segs = [...main().querySelectorAll('.segmented')].filter(s => s.querySelector('button:not([role=tab])'));
+          out.segs = segs.length;
+          out.unnamed = segs.filter(s => s.getAttribute('role') !== 'group' || !nameOf(s)).map(s => s.textContent.trim().slice(0, 40));
+          out.unpressed = segs.flatMap(s => [...s.querySelectorAll('button:not([role=tab])')]).filter(b => !/^(true|false)$/.test(b.getAttribute('aria-pressed') || '')).map(b => b.textContent.trim());
+          const bm = [...main().querySelectorAll('[role=group]')].find(g => nameOf(g) === 'Business model');
+          out.bm = bm ? bm.querySelectorAll('button[aria-pressed]').length : 0;
+          out.arrowsRead = [...main().querySelectorAll('th')].filter(th => { const c = th.cloneNode(true);
+            c.querySelectorAll('[aria-hidden=true]').forEach(x => x.remove()); return /[▲▼↕]/.test(c.textContent); }).map(th => th.textContent.trim().slice(0, 30));
+          out.sortable = main().querySelectorAll('th .sort-ind').length;
+          out.medians = document.getElementById('scr-medians')?.getAttribute('aria-pressed') ?? null;
+          const on = main().querySelector('.segmented button[aria-pressed=true]');
+          const off = on && on.parentElement.querySelector('button[aria-pressed=false]');
+          out.styled = !!(on && off) && getComputedStyle(on).backgroundColor !== getComputedStyle(off).backgroundColor
+            && getComputedStyle(on).fontWeight !== getComputedStyle(off).fontWeight;
+          const head = () => [...main().querySelectorAll('h3')].map(h => h.textContent).find(t => / companies match$/.test(t)) || '';
+          const chip = () => bmChip();
+          const bmChip = () => [...main().querySelectorAll('[role=group] button[aria-pressed]')].find(b => b.textContent.trim() === 'bank');
+          const before = head();
+          bmChip()?.click(); await w(350);
+          out.after = head(); out.said = document.getElementById('liveStatus')?.textContent || '';
+          out.liveRole = document.getElementById('liveStatus')?.getAttribute('role') || null;
+          bmChip()?.click(); await w(350);
+          out.restored = head() === before;
+          return out;
+        `);
+        const p = [];
+        if (!r.segs) p.push('no segmented strip found on the screener');
+        if (r.unnamed.length) p.push(`strips with no group name: ${r.unnamed.join(' / ')}`);
+        if (r.unpressed.length) p.push(`segmented buttons with no pressed state: ${r.unpressed.join(', ')}`);
+        if (!r.bm) p.push('the business-model chips are not a group named "Business model"');
+        if (!r.sortable || r.arrowsRead.length) p.push(`sort arrows read as part of ${r.arrowsRead.length} header name(s): ${r.arrowsRead.slice(0, 3).join(', ')}`);
+        if (r.medians !== null) p.push(`"Hide/Show medians" says aria-pressed=${r.medians} while its words say what a press does`);
+        if (!r.styled) p.push('a pressed segment looks like the others — the style did not follow aria-pressed');
+        if (r.liveRole !== 'status' || !r.after || r.said !== r.after) p.push(`a filter moved the count to "${r.after}" and the live region said "${r.said}"`);
+        if (!r.restored) p.push('the business-model chip was not put back');
+        if (p.length) fail('audit quality Q3: the screener\'s controls are not named, or their state is not said', p);
+        else ok(`audit quality Q3: the screener's ${r.segs} strips are named groups with pressed states, headers read without arrows, and "${r.said}" is said when a filter moves it`);
+      }
+
+      /* No aria-selected where it is not allowed, on the pages that carry
+         segmented strips. */
+      {
+        const pages = ['/discover/screener', '/property/calculator', '/property/areas', '/compare?companies=MSFT-SEC,AAPL-SEC',
+          '/company/aapl-apple-inc?tab=financials', '/my/workspace', '/discover?tab=heatmap', '/discover?tab=ideas', '/app/scanner',
+          '/admin/scanner/jobs', '/', '/pricing', '/app'];
+        const r = await aq(`
+          const out = {};
+          for (const p of ${JSON.stringify(pages)}) {
+            navigate(p); await w(300);
+            const bad = [...document.querySelectorAll('[aria-selected]')]
+              .filter(n => !/^(tab|option|row|gridcell|columnheader|rowheader|treeitem)$/.test(n.getAttribute('role') || ''));
+            if (bad.length) out[p] = bad.slice(0, 3).map(n => n.tagName + ':' + n.textContent.trim().slice(0, 30));
+          }
+          navigate('/discover/screener'); await w(200);
+          return out;
+        `);
+        const where = Object.entries(r);
+        if (where.length) fail(`audit quality: aria-selected on an element whose role does not allow it, on ${where.length} page(s)`, r);
+        else ok(`audit quality: no element carries aria-selected where its role does not allow it, across ${pages.length} pages`);
+      }
+    } catch (err) {
+      fail('audit quality: the checks stopped', String(err.message).split('\n')[0]);
+    }
+  }
+  /* ---- end audit: quality ---- */
 
 } catch (e) {
   fail('harness error', e.message);

@@ -1102,7 +1102,8 @@ VIEWS.research = () => {
       : c.px?.eod
         /* "the price file you supplied" attributed data/prices.json to the
            reader, who supplied nothing — /my/data reads "Nothing yet" on the
-           same profile. That file is git-ignored and 404s in production, so no
+           same profile. That file is git-ignored and never even requested in
+           production (OWNER_MACHINE, 25-universe.js), so no
            deployed reader sees this branch at all; it fires only where someone
            has put a price file in the data directory, and it should name the
            file and its stated licence rather than credit whoever is looking. */
@@ -2210,7 +2211,7 @@ function tabFinancials(r) {
   chartCard.append(cardHead(`${isBank ? 'Total income' : 'Revenue'}, ${ebitLabel(c).toLowerCase()}${isBank ? '' : ' and free cash flow'}`,
     `Reported ${c.ccy} billions, FY${yrs[0]}–FY${last(yrs)}${fyEnd ? ` — the latest fiscal year ended ${fyEnd}` : ''}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
     el('div', { class: 'segmented' }, [['abs', 'Reported'], ['idx', 'Indexed to 100']].map(([v, l]) =>
-      el('button', { 'aria-selected': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
+      el('button', { 'aria-pressed': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
   const host = el('div', { style: 'width:100%' });
   chartCard.append(host);
 

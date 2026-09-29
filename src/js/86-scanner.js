@@ -162,7 +162,7 @@ function scanSubnav(active) {
   SCAN_SUBNAV.filter(s => { const r = matchRoute(s.path); return r && VIEWS[r.view]; }).forEach(s => {
     const n = s.id === 'alerts' && unread ? unread : 0;
     row.append(el('a', {
-      href: href(s.path), 'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null,
+      href: href(s.path), 'aria-current': active === s.id ? 'page' : null,
       'aria-label': n ? `${s.label}, ${n} unread` : null,
       onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(s.path); } }, n ? `${s.label} · ${n}` : s.label));
   });
