@@ -189,10 +189,13 @@ async function scanCopy(text, done) {
 }
 /* A card saying an address names nothing in the reader's record — never the
    not-found card: the page exists; the record does not hold that one. */
-function scanNotInRecord(what, detail, back) {
+/* `page`: the card is the whole page (an address naming a setup or an
+   alert the record does not hold), so its title is the page's one h1 —
+   those pages had no h1 at all, and their first heading was this h2. */
+function scanNotInRecord(what, detail, back, { page = false } = {}) {
   const card = el('div', { class: 'card' });
   card.append(el('p', { class: 'eyebrow' }, 'Not in your record'));
-  card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, what));
+  card.append(el(page ? 'h1' : 'h2', { class: 'h-card', style: 'margin-top:4px' }, what));
   card.append(el('p', { class: 'body', style: 'margin-top:8px' }, detail));
   if (back) card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, scanLink(back[0], back[1], { class: 'btn btn-ghost btn-sm' })));
   return card;
@@ -224,6 +227,17 @@ function scanRender({ fallback = null, focus = null } = {}) {
   if (!key) return;
   const pool = [...document.querySelectorAll('main button, main a[href], main input, main select, main textarea')].filter(n => !n.disabled);
   (pool.find(n => scanFocusKey(n) === key) || (fallback ? pool.find(n => scanFocusKey(n) === fallback) : null))?.focus({ preventScroll: true });
+}
+
+/* A SETUP SAVED HERE THAT THE ENGINE NOW REFUSES — one saved before a
+   rule it breaks existed, such as an operator other than "is" on a
+   yes-or-no reading (FLAG_OPERATOR) — is reported where it is listed, with
+   the engine's reasons, and never rewritten: the worker leaves it out, and
+   so does anything here that runs it. Null when it validates. */
+function scanRefusedNote(s) {
+  const ps = (scanValidate({ setups: [s] }).problemsBySetup[s.id] || []).map(p => `${p.path ? `${p.path}: ` : ''}${p.text}`).map(t => t.charAt(0).toUpperCase() + t.slice(1));
+  return ps.length ? el('p', { class: 'caption scan-note scan-warn scan-refused', style: 'margin-top:6px' },
+    `Refused as it stands, as the worker refuses it — it records nothing, and nothing here changes it for you. ${ps.join('; ')}. Edit it to write the condition again.`) : null;
 }
 
 /* A labelled fact, for the detail pages' key–value grids. An absent value
@@ -395,7 +409,9 @@ function scanExportDoc({ st = scanStoreRead(), now = new Date().toISOString() } 
   };
 }
 function scanMarkExported(doc, { st = scanStoreRead() } = {}) {
-  st.exported = { at: doc.exportedAt, setups: Object.fromEntries(doc.setups.map(s => [s.id, { version: s.version, hash: s.hash, enabled: s.enabled }])) };
+  /* The name too: the worker writes it into every alert it records, so a
+     rename is something the file has not been told (scanDriftRows). */
+  st.exported = { at: doc.exportedAt, setups: Object.fromEntries(doc.setups.map(s => [s.id, { version: s.version, hash: s.hash, enabled: s.enabled, name: s.name || s.id }])) };
   scanStoreWrite(st);
 }
 const scanExportName = () => 'scan-setups.json';
@@ -466,11 +482,17 @@ function scanDriftRows({ st = scanStoreRead(), fileDoc = scanSetupsFile } = {}) 
   if (fileDoc == null) {
     browser.forEach(b => {
       const ex = st.exported?.setups?.[b.id];
-      const same = ex && ex.version === b.version && ex.hash === b.hash && ex.enabled === b.enabled;
+      /* An export recorded before names were kept says nothing of the
+         name, and is not read as a rename. */
+      const renamed = !!ex && typeof ex.name === 'string' && ex.name !== (b.name || b.id);
+      const same = ex && ex.version === b.version && ex.hash === b.hash && ex.enabled === b.enabled && !renamed;
+      const onlyName = renamed && ex.version === b.version && ex.hash === b.hash && ex.enabled === b.enabled;
       rows.set(b.id, same
         ? { id: b.id, state: 'UNCONFIRMED', browser: b, file: null, text: `Exported ${scanDay(st.exported.at)} as v${b.version}. The worker’s file cannot be seen from here, so whether it still holds that version cannot be confirmed.` }
-        : { id: b.id, state: 'NOT_EXPORTED', browser: b, file: null, text: ex
-            ? `Changed since the export of ${scanDay(st.exported.at)} (which carried v${ex.version}${ex.enabled ? '' : ', disabled'}). The worker’s file cannot be seen from here; until you export, the worker runs whatever that file holds.`
+        : { id: b.id, state: 'NOT_EXPORTED', browser: b, file: null, renamed, text: onlyName
+            ? `Renamed here since the export of ${scanDay(st.exported.at)}, which carried v${ex.version} as “${ex.name}”. The worker’s file cannot be seen from here; until you export, the worker names it “${ex.name}” in every match it records.`
+            : ex
+            ? `Changed since the export of ${scanDay(st.exported.at)} (which carried v${ex.version}${ex.enabled ? '' : ', disabled'}${renamed ? ` as “${ex.name}”` : ''}). The worker’s file cannot be seen from here; until you export, the worker runs whatever that file holds.`
             : 'Never exported. The worker’s file cannot be seen from here, and this browser’s copy is the only copy until you export it.' });
     });
     /* Deleted here after the last export, which carried it: the worker's
@@ -500,12 +522,22 @@ function scanDriftRows({ st = scanStoreRead(), fileDoc = scanSetupsFile } = {}) 
       : (f.updated && rec?.updated && String(f.updated) > String(rec.updated) ? 'FILE_NEWER' : 'NOT_EXPORTED');
     else state = known && x.fileVersion <= x.browserVersion ? 'NOT_EXPORTED' : 'FILE_NEWER';
     const en = x.enabledDiffers ? ` It is ${b.enabled ? 'enabled' : 'disabled'} here and ${f.enabled ? 'enabled' : 'disabled'} in the file.` : '';
-    const text = state === 'NOT_EXPORTED'
-      ? `Saved here as v${x.browserVersion}; the file still holds v${x.fileVersion}, which is what the worker runs.${en}`
+    /* A rename: the worker writes the file's name into every match it
+       records, so it is said which name that is. */
+    const nm = x.nameDiffers ? (state === 'NOT_EXPORTED'
+      ? ` It is named “${x.browserName}” here and “${x.fileName}” in the file, which every match the worker records carries until you export.`
+      : ` It is named “${x.fileName}” in the file and “${x.browserName}” here.`) : '';
+    const onlyName = x.nameDiffers && !x.rulesDiffer && !x.enabledDiffers && x.browserVersion === x.fileVersion;
+    const text = onlyName
+      ? (state === 'NOT_EXPORTED'
+        ? `Renamed here: the file carries v${x.fileVersion}, the version saved here, as “${x.fileName}”, and the worker names it so in every match it records until you export.`
+        : `Renamed in the file, to “${x.fileName}”, after this browser’s copy (“${x.browserName}”); the conditions are v${x.fileVersion} on both sides.`)
+      : state === 'NOT_EXPORTED'
+      ? `Saved here as v${x.browserVersion}; the file still holds v${x.fileVersion}, which is what the worker runs.${en}${nm}`
       : x.rulesDiffer
-        ? `The file holds v${x.fileVersion} with conditions this browser has not seen (edited by hand, or in another browser); here the current version is v${x.browserVersion}.${en}`
-        : `The file was changed after this browser’s copy.${en}`;
-    rows.set(x.id, { id: x.id, state, browser: b, file: f, text, enabledDiffers: x.enabledDiffers });
+        ? `The file holds v${x.fileVersion} with conditions this browser has not seen (edited by hand, or in another browser); here the current version is v${x.browserVersion}.${en}${nm}`
+        : `The file was changed after this browser’s copy.${en}${nm}`;
+    rows.set(x.id, { id: x.id, state, browser: b, file: f, text, enabledDiffers: x.enabledDiffers, nameDiffers: x.nameDiffers });
   });
   return [...rows.values()];
 }
@@ -702,7 +734,7 @@ const scanHigherTfs = (tf) => Object.values(SCAN_TIMEFRAMES)
    timeframe other than its setup's names it ("on the last closed weekly
    bar"), unless the engine's words already say one. */
 function scanCondSentence(c, setupTf = null) {
-  let t = scanConditionProse(c);
+  let t = scanConditionProse(c, { setupTf });
   /* The engine names a condition's own timeframe first ("weekly: …"); these
      pages say it last, and only where it is not the setup's own. */
   t = t.replace(/^(daily|weekly|monthly): /i, '');
@@ -891,7 +923,7 @@ function scanNeedsOf(setups) {
        Pine indicators); the engine's own MACD and Bollinger name the field
        in their label, so each field is its own entry. */
     const key = def.sideLabel ? scanSpecKey(o, { multiplier: false }).replace(/\)\.\w+$/, ')') : scanSpecKey(o, { multiplier: false });
-    const head = def.sideLabel ? def.sideLabel(params, null) : scanSideLabel({ ...o, multiplier: undefined });
+    const head = def.sideLabel ? def.sideLabel(params, null) : scanSideLabel({ ...o, multiplier: undefined }, { timeframe: tf });
     const fl = def.sideLabel && f ? def.fieldLabels?.[f] : null;
     const field = typeof fl === 'function' ? fl(params) : fl || (def.sideLabel && f && !def.fieldLabels ? f : '');
     if (!byTf.has(tf)) byTf.set(tf, new Map());
@@ -1369,7 +1401,7 @@ VIEWS.scannerSetups = () => {
         el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
           scanLink(scanSetupPath(r.id), s?.name || r.name || r.id, { style: 'font-weight:600', data: { scanFocus: `drift:${r.id}` } }), scanDriftChip(r),
           el('span', { class: 'spacer' }),
-          (r.state === 'FILE_NEWER' || r.state === 'FILE_ONLY') ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Adopt ${r.id} from the file`, onclick: () => {
+          (r.state === 'FILE_NEWER' || r.state === 'FILE_ONLY') ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Adopt from file: ${r.id}`, onclick: () => {
             const out = scanAdoptFromFile(r.id);
             toast(out.ok ? `Adopted ${r.id} as v${out.version}` : `Not adopted — ${out.problems[0]}`);
             /* Adopted, the row has nothing left to adopt and the button goes:
@@ -1435,6 +1467,8 @@ VIEWS.scannerSetups = () => {
       if (s.description) p.append(el('p', { class: 'body', style: 'margin-top:6px;font-size:13px' }, s.description));
       p.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `Universe: ${scanUniverseProse(s.universe)} · ${scanTimeframeProse(s)}.`));
       p.append(scanTreeList(s.ruleTree, s.timeframe));
+      const refusedNote = scanRefusedNote(s);
+      if (refusedNote) p.append(refusedNote);
       const wd = scanWatchlistDrift(s);
       if (wd && !wd.same) p.append(el('p', { class: 'caption scan-note', style: 'margin-top:6px' }, wd.text));
       p.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, nAlerts
@@ -1499,7 +1533,7 @@ VIEWS.scannerSetup = () => {
   const fileSetup = drift?.file || null;
   const alerts = scanAlertsInOrder(scanAlertsOf(id));
   if (!rec && !fileSetup && !alerts.length) {
-    wrap.append(scanNotInRecord(`No setup “${id}”`, `This browser holds no setup with that id, ${scanSetupsFile ? 'data/scan-setups.json does not name it' : 'data/scan-setups.json cannot be seen from here'}, and ${scanAlertsFile ? 'no recorded match names it' : 'the alerts file cannot be seen from here'}.`, ['/app/scanner/setups', 'Your setups']));
+    wrap.append(scanNotInRecord(`No setup “${id}”`, `This browser holds no setup with that id, ${scanSetupsFile ? 'data/scan-setups.json does not name it' : 'data/scan-setups.json cannot be seen from here'}, and ${scanAlertsFile ? 'no recorded match names it' : 'the alerts file cannot be seen from here'}.`, ['/app/scanner/setups', 'Your setups'], { page: true }));
     return wrap;
   }
   const cur = rec ? scanRecordSetup(rec) : fileSetup;
@@ -1551,6 +1585,7 @@ VIEWS.scannerSetup = () => {
     cv.append(facts);
     cv.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Conditions'));
     cv.append(scanTreeList(cur.ruleTree, cur.timeframe));
+    if (rec) { const refusedNote = scanRefusedNote(cur); if (refusedNote) cv.append(refusedNote); }
     if (drift) cv.append(el('p', { class: 'caption scan-note', style: 'margin-top:var(--sm)' }, drift.text));
     const wd = scanWatchlistDrift(cur);
     if (wd) cv.append(el('p', { class: 'caption scan-note', style: 'margin-top:6px' }, wd.text));
@@ -1905,7 +1940,7 @@ function scanBuilderView(mode) {
     if (!rec || rec.deleted) {
       wrap.append(scanNotInRecord(`No setup “${id}” to edit`, rec?.deleted
         ? 'That setup is deleted. Restore it from the setups page to edit it.'
-        : 'This browser holds no setup with that id. A setup only in the worker’s file is adopted first, from the setups page; then it can be edited here.', ['/app/scanner/setups', 'Your setups']));
+        : 'This browser holds no setup with that id. A setup only in the worker’s file is adopted first, from the setups page; then it can be edited here.', ['/app/scanner/setups', 'Your setups'], { page: true }));
       return wrap;
     }
     if (!scanEditDraft || scanEditDraft.id !== id || scanEditDraft.base !== rec.current) scanEditDraft = { id, base: rec.current, d: scanAsDraft(scanRecordSetup(rec)) };
@@ -2201,7 +2236,18 @@ function scanBuilder(d, ctx) {
         }
       }, { 'aria-label': `${L}: left side` })));
       params(c.left, 'Left');
-      grid.append(field('Operator', select(scanOpName(c.op) || c.op, OPS, v => {
+      /* A yes-or-no reading is asked "is true" or "is false" and nothing
+         else — the engine refuses any other operator on it (FLAG_OPERATOR).
+         Every operator was offered, and switching to "crosses above" kept
+         the builder's 1: "… crosses above 1", ready to save, which never
+         holds. Only "is" is offered; an operator a saved setup already
+         holds stays shown, marked refused, and is not changed for the
+         reader. */
+      const opNow = scanOpName(c.op) || c.op;
+      const opItems = unit === 'flag'
+        ? [['EQUALS', 'is — true or false (=)'], ...(opNow !== 'EQUALS' ? [[opNow, `${SCAN_OPERATORS[opNow]?.label || opNow} — not asked of a yes-or-no reading, so refused`, true]] : [])]
+        : OPS;
+      grid.append(field('Operator', select(opNow, opItems, v => {
         const was = scanOpName(c.op);
         c.op = v;
         if (v === 'BETWEEN' && was !== 'BETWEEN') { delete c.right; c.range = [{ value: null }, { value: null }]; }
@@ -2253,7 +2299,7 @@ function scanBuilder(d, ctx) {
       c3.append(row);
     });
     const full = tree.children.length >= SCAN_LIMITS.maxConditions;
-    c3.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Add a condition', disabled: full ? '' : null, onclick: () => {
+    c3.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': full ? `The limit is ${SCAN_LIMITS.maxConditions} conditions` : 'Add a condition', disabled: full ? '' : null, onclick: () => {
       tree.children.push(scanBlankCondition()); rebuild(`Condition ${tree.children.length}: left side`);
     } }, full ? `The limit is ${SCAN_LIMITS.maxConditions} conditions` : 'Add a condition'));
   }
@@ -2282,7 +2328,7 @@ function scanBuilder(d, ctx) {
     if (!out.ok) { toast(`Not saved — ${out.problems[0]}`); refresh(); return; }
     if (mode === 'new') { scanDraft = null; scanIdAuto = true; } else scanEditDraft = null;
     toast(out.created ? `Saved ${out.id} as v${out.version}` : out.bumped ? `Saved as v${out.version}; the earlier versions are kept`
-      : out.metaChanged ? `No change to the conditions — still v${out.version}; the name and flags are updated` : `No change — still v${out.version}`);
+      : out.metaChanged ? `No change to the conditions — still v${out.version}; the name and flags are updated — export to tell the worker` : `No change — still v${out.version}`);
     navigate(scanSetupPath(out.id));
   } }, mode === 'edit' ? 'Save (new version)' : 'Save');
   const testBtn = el('button', { class: 'btn btn-ghost', 'aria-label': 'Test against your history (not recorded)', onclick: () => {
@@ -2303,7 +2349,7 @@ function scanBuilder(d, ctx) {
     }
     return { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: [s] };
   };
-  const copyBtn = el('button', { class: 'btn btn-ghost', 'aria-label': 'Copy setup JSON', onclick: async () => {
+  const copyBtn = el('button', { class: 'btn btn-ghost', 'aria-label': 'Copy JSON of this setup', onclick: async () => {
     const t = JSON.stringify(draftDoc(), null, 2);
     pre.textContent = t; pre.hidden = false;
     await scanCopy(t, 'Setup JSON copied — to add it to a file, paste the object inside its "setups" list');
@@ -2435,7 +2481,7 @@ VIEWS.scannerWatchlists = () => {
       el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
         /* A draft with changes in it was replaced without a word, where
            every other start the builder offers asks first. */
-        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `New setup on ${w.name}`, onclick: () => {
+        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `New setup on this list: ${w.name}`, onclick: () => {
           if (scanDraft && !scanDraftUntouched() && !confirm('Replace the draft open in the builder with a new setup on this list? What is in the draft now is not kept.')) return;
           scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } }; scanIdAuto = true; navigate('/app/scanner/setups/new');
         } }, 'New setup on this list'),
@@ -2742,27 +2788,54 @@ function scanReproduce(a, { history = scanHistoryFile, list = scanAlertList() } 
   const out = { bar, sym, bars: null, at: -1, closes: [], values: [], state: null, text: '' };
   if (!history?.series) return { ...out, state: 'NO_HISTORY', text: 'The price history is not loaded here, so the bar cannot be evaluated again — on the deployed site it never is.' };
   if (!history.series[sym]) return { ...out, state: 'NO_SERIES', text: `The history holds no series ${sym}, so the bar cannot be evaluated again.` };
-  const heldNow = history.series[sym];
   const since = a.detectedAt || a.recordedAt || null;
+  const reg0 = scanRegistryList();
+  const mkt0 = 'market' in a ? a.market : scanMarketOf(sym, reg0);
+  /* EACH RECORD AGAINST THE BARS OF ITS OWN TIMEFRAME. Every close a
+     record holds was compared with history.series, which holds daily
+     closes only: a weekly record read from imported weekly bars was set
+     against the daily close filed under its date, so its own page said it
+     reproduced and then listed its own bar as a close that differed
+     ("recorded 324.04, now 835.85"), and every daily alert on the symbol
+     listed it too. A week dated by a holiday Friday's Thursday has no daily
+     close under its date at all, and read "now not held". A record's close
+     is its bar's close: the week's or the month's, as the history builds
+     that bar now (imported where held, else from the daily bars). */
+  const closesNow = new Map();
+  const closesOf = (tf) => {
+    if (!closesNow.has(tf)) {
+      if (tf === '1D') closesNow.set(tf, (d) => history.series[sym][d]);
+      else {
+        const b = scanBars(history, sym, { timeframe: tf, market: mkt0, calendar: scanCalendar(history, reg0, mkt0), staleTolerance: Infinity });
+        const m = new Map(b.dates.map((d, i) => [d, b.closes[i]]));
+        closesNow.set(tf, (d) => m.get(d));
+      }
+    }
+    return closesNow.get(tf);
+  };
   const diffs = new Map();
   const note = (x) => {
     const d = scanAlertBar(x);
-    if (!x || x.symbol !== sym || !d || d > bar || !isNum(x.close) || diffs.has(d)) return;
-    const now = heldNow[d];
-    if (!isNum(now) || Math.abs(now - x.close) > scanTol(now, x.close)) diffs.set(d, { date: d, recorded: x.close, now: isNum(now) ? now : null, via: 'record' });
-    else diffs.set(d, null);
+    if (!x || x.symbol !== sym || !d || d > bar || !isNum(x.close)) return;
+    const tf = scanTimeframe(x.timeframe);
+    if (tf !== '1D' && tf !== '1W' && tf !== '1M') return;
+    const k = `${tf}|${d}`;
+    if (diffs.has(k)) return;
+    const now = closesOf(tf)(d);
+    if (!isNum(now) || Math.abs(now - x.close) > scanTol(now, x.close)) diffs.set(k, { date: d, timeframe: tf, recorded: x.close, now: isNum(now) ? now : null, via: 'record' });
+    else diffs.set(k, null);
   };
   note(a);
   list.forEach(note);
+  /* The corrections log names daily closes. */
   (Array.isArray(history.corrections?.[sym]) ? history.corrections[sym] : []).forEach(c => {
-    if (c?.field !== 'close' || !c.date || c.date > bar || diffs.get(c.date)) return;
+    if (c?.field !== 'close' || !c.date || c.date > bar || diffs.get(`1D|${c.date}`)) return;
     if (since && c.at && String(c.at) <= String(since)) return;
-    diffs.set(c.date, { date: c.date, recorded: c.from ?? null, now: c.to ?? null, via: 'correction', at: c.at || null, src: c.src || null });
+    diffs.set(`1D|${c.date}`, { date: c.date, timeframe: '1D', recorded: c.from ?? null, now: c.to ?? null, via: 'correction', at: c.at || null, src: c.src || null });
   });
-  out.closes = [...diffs.values()].filter(Boolean).sort((x, y) => y.date.localeCompare(x.date));
+  out.closes = [...diffs.values()].filter(Boolean).sort((x, y) => y.date.localeCompare(x.date) || (SCAN_TF_RANK[x.timeframe] ?? 0) - (SCAN_TF_RANK[y.timeframe] ?? 0));
   const src = scanAlertSetup(a);
-  const reg = scanRegistryList();
-  const mkt = 'market' in a ? a.market : scanMarketOf(sym, reg);
+  const reg = reg0, mkt = mkt0;
   const cut = scanTruncateHistory(history, bar);
   /* NOT STALE BECAUSE IT IS CUT. The cut ends at the alert's bar, and the
      clock is the moment the record was made, which can be sessions later:
@@ -2844,7 +2917,8 @@ VIEWS.scannerAlert = () => {
   if (clash && !a) {
     const card = el('div', { class: 'card scan-collision' });
     card.append(el('p', { class: 'eyebrow' }, 'One id, several records'));
-    card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, `${scanPlural(clash.length, 'record')} share the id ${want}`));
+    /* The whole page, so its one h1 (as scanNotInRecord's { page }). */
+    card.append(el('h1', { class: 'h-card', style: 'margin-top:4px' }, `${scanPlural(clash.length, 'record')} share the id ${want}`));
     card.append(el('p', { class: 'body', style: 'margin-top:8px;max-width:72ch' }, `An alert’s id is an eight-digit hash of its key, so two different keys can, rarely, give the same id. Each record is listed with its own key and opens by it. Their read and archived status in this browser is shared, because status is kept by id.${wantKey ? ` None of them has the key ${wantKey}.` : ''}`));
     const ul = el('ul', { class: 'scan-alert-mini', style: 'margin-top:var(--sm)' });
     clash.forEach(x => ul.append(el('li', {}, [
@@ -2858,7 +2932,7 @@ VIEWS.scannerAlert = () => {
   if (!a) {
     wrap.append(scanNotInRecord(`No alert “${want}”`, scanAlertsFile
       ? `data/scan-alerts.json holds ${scanPlural(list.length, 'record')}, and none has that id. An alert’s id is taken from its key, so it does not change; a record removed from the file cannot be shown.`
-      : 'data/scan-alerts.json cannot be seen from here — it lives on the machine the worker runs on and is never deployed.', ['/app/scanner/alerts', 'All alerts']));
+      : 'data/scan-alerts.json cannot be seen from here — it lives on the machine the worker runs on and is never deployed.', ['/app/scanner/alerts', 'All alerts'], { page: true }));
     return wrap;
   }
   const id = scanAlertIdOf(a);
@@ -3003,10 +3077,13 @@ VIEWS.scannerAlert = () => {
        reads as the one it moved from. */
     const pair = (x) => { const f = scanValuesFmt([x.recorded, x.now], prefs, 'price'); return [x.recorded, x.now].map(v => (isNum(v) ? f(v) : 'not held')); };
     c5.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, rep.closes.length
-      ? `${scanPlural(rep.closes.length, 'bar')} up to ${bar} ${rep.closes.length === 1 ? 'has a close' : 'have closes'} that differ from the record:`
+      ? `${scanPlural(rep.closes.length, 'bar')} up to ${bar} ${rep.closes.length === 1 ? 'has a close that differs' : 'have closes that differ'} from the record:`
       : `No close the record holds for ${a.symbol} up to ${bar} differs from the history, and its corrections log names none changed since this was detected.`));
+    /* A weekly or monthly record's close is its week's or month's, and says
+       so beside a daily one of the same date. */
+    const tfNote = (x) => (x.timeframe && x.timeframe !== '1D' ? ` (${scanTfWord(x.timeframe)} bar)` : '');
     if (rep.closes.length) c5.append(el('ul', { class: 'rulelist scan-close-diffs' }, rep.closes.slice(0, 20).map(x => { const [was, is] = pair(x); return el('li', { class: 'caption' }, x.via === 'record'
-      ? `${x.date} — recorded ${was}, now ${is}`
+      ? `${x.date}${tfNote(x)} — recorded ${was}, now ${is}`
       : `${x.date} — corrected${x.at ? ` ${scanStamp(x.at)}` : ' (time not recorded)'}${x.src ? ` by ${x.src}` : ''}, from ${was} to ${is}`); })));
     if (rep.closes.length > 20) c5.append(el('p', { class: 'caption' }, `Showing the latest 20 of ${rep.closes.length}.`));
   }
@@ -3069,7 +3146,9 @@ VIEWS.scannerAlert = () => {
   const lineage = el('ol', { class: 'scan-lineage' }, [
     el('li', {}, `data/price-history.json${a.historyGenerated ? `, generated ${scanStamp(a.historyGenerated)} when this was evaluated` : scanHistoryFile?.generated ? `, generated ${scanStamp(scanHistoryFile.generated)} as loaded now` : ''}${scanHistoryFile?.source ? `, source “${scanHistoryFile.source}”` : ''}`),
     el('li', {}, `series ${a.symbol}${a.instrumentId && a.instrumentId !== a.symbol ? ` (${a.instrumentId})` : ''}, ${SCAN_TIMEFRAMES[scanTimeframe(a.timeframe)]?.label?.toLowerCase() || 'daily'} bars up to ${bar}${a.dataVersion ? ` — data version ${a.dataVersion}` : ''}`),
-    el('li', {}, `engine ${a.engine || '?'} evaluated setup ${a.setupId} v${version ?? '?'}${a.runId ? ` in run ${a.runId}` : ''}${urf ? `, its list resolved from ${urf.source === 'export' ? `the export of ${scanStamp(urf.exportedAt)}` : `its snapshot of ${urf.asOf || '?'}`}` : ''}`),
+    /* A value the record does not carry says so, as its facts do
+       (scanFact), rather than print "engine ?" or "v?". */
+    el('li', {}, `${a.engine ? `engine ${a.engine}` : 'the engine (not recorded on this record)'} evaluated setup ${a.setupId} ${version != null ? `v${version}` : '(version not recorded)'}${a.runId ? ` in run ${a.runId}` : ''}${urf ? `, its list resolved from ${urf.source === 'export' ? `the export of ${scanStamp(urf.exportedAt)}` : `its snapshot of ${urf.asOf || '?'}`}` : ''}`),
     el('li', {}, 'written to data/scan-alerts.json; read here. Nothing was sent.'),
   ]);
   c4.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Lineage'));

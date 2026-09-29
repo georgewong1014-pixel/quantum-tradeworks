@@ -9927,6 +9927,292 @@ try {
     await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
   }
   /* ---- end fixwave: equities ---- */
+  /* ---- fixwave: scanner ---- */
+  /* The scanner findings of the 2026-09-29 site hunt, on the scanner pages.
+     Each check fails on 0e1119b. The pages run on this file's scanner seed
+     (scanSeedP3) and on histories built here from the engine's fixture;
+     everything is put back. Page code is written without template
+     literals, so nothing in it is filled in by this file. */
+  {
+    const fwThrown = [];
+    const fwListen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') fwThrown.push(m.params.exceptionDetails?.exception?.description?.split('\n')[0]); };
+    ws.addEventListener('message', fwListen);
+    const fw = (body) => evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const main = () => document.querySelector('main');
+      const text = () => main().innerText;
+      const q = (lab) => [...main().querySelectorAll('[aria-label]')].find(n => n.getAttribute('aria-label') === lab);
+      const set = (n, v) => { const proto = n.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(n, v); n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      const any = { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 } }] };
+      ${body}
+    })()`);
+    try {
+      await evaluate(scanSeedP3);
+
+      /* SCN-01. A yes-or-no left side offered every operator, and one
+         switched to "crosses above" kept the builder's 1 — "… crosses above
+         1", ready to save, which never holds. Only "is" is offered now; a
+         setup saved before with another operator is reported on the list,
+         its page and its edit page (refused, Save disabled), and its
+         operator is shown as it is, never changed for the reader. */
+      {
+        const r = await fw(`
+          const out = {};
+          scanDraft = null; scanEditDraft = null; localStorage.removeItem('vl.scanSetups');
+          navigate('/app/scanner/setups/new'); await w(200);
+          set(q('Condition 1: left side'), 'cm_macd.above'); await w(80);
+          out.ops = [...q('Condition 1: operator').options].filter(o => !o.disabled).map(o => o.value);
+          out.sentence = main().querySelector('.scan-cond .scan-prose')?.textContent || '';
+          const tree = { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'cm_macd', field: 'above' }, op: 'CROSSES_ABOVE', right: { value: 1 } }] };
+          const at = '2026-09-01T00:00:00Z';
+          localStorage.setItem('vl.scanSetups', JSON.stringify({ schema: 1, exported: null, setups: { 'fw-old-flag': { id: 'fw-old-flag', name: 'Old flag crossing', enabled: true, created: at, updated: at, deleted: null, current: 1,
+            versions: [{ version: 1, savedAt: at, hash: 'h', source: 'builder', setup: { timeframe: '1D', universe: { kind: 'symbols', symbols: ['MATCH'] }, confirmationMode: 'BAR_CLOSE', cooldownMode: 'NEW_MATCH', cooldownBars: 0, expires: null, ruleTree: tree } }] } } }));
+          navigate('/app/scanner/setups'); await w(150);
+          out.listNote = main().querySelector('.scan-refused')?.textContent || '';
+          navigate('/app/scanner/setups/fw-old-flag'); await w(150);
+          out.pageNote = main().querySelector('.scan-refused')?.textContent || '';
+          navigate('/app/scanner/setups/fw-old-flag/edit'); await w(200);
+          const op = q('Condition 1: operator');
+          out.editOp = op ? { value: op.value, disabled: !!op.selectedOptions[0]?.disabled, enabled: [...op.options].filter(o => !o.disabled).map(o => o.value) } : null;
+          const pr = main().querySelector('.scan-cond .scan-problems');
+          out.problem = pr && !pr.hidden ? pr.textContent : '';
+          out.saveDisabled = [...main().querySelectorAll('button')].find(b => b.textContent.trim().startsWith('Save'))?.disabled;
+          out.stored = JSON.parse(localStorage.getItem('vl.scanSetups')).setups['fw-old-flag'].versions[0].setup.ruleTree.children[0].op;
+          scanEditDraft = null; scanDraft = null; localStorage.removeItem('vl.scanSetups');
+          return out;
+        `);
+        const p = [];
+        if (JSON.stringify(r.ops) !== '["EQUALS"]') p.push(`a yes-or-no left side offers ${r.ops.join(', ')}`);
+        if (!/is true$/.test(r.sentence)) p.push(`the condition reads "${r.sentence}"`);
+        if (!/yes-or-no reading/.test(r.listNote) || !/yes-or-no reading/.test(r.pageNote)) p.push(`a saved "crosses above 1" on a flag is not reported: list "${r.listNote}", page "${r.pageNote}"`);
+        if (!r.editOp || r.editOp.value !== 'CROSSES_ABOVE' || !r.editOp.disabled || JSON.stringify(r.editOp.enabled) !== '["EQUALS"]') p.push(`its edit page's operator: ${JSON.stringify(r.editOp)}`);
+        if (!/yes-or-no reading/.test(r.problem) || r.saveDisabled !== true) p.push(`its edit page's problem "${r.problem}", Save disabled: ${r.saveDisabled}`);
+        if (r.stored !== 'CROSSES_ABOVE') p.push(`the stored operator became ${r.stored}`);
+        if (p.length) fail('fixwave SCN-01: a yes-or-no reading is asked only "is true" or "is false" in the builder, and a setup saved with another operator on one is reported, not changed', p);
+        else ok('fixwave SCN-01: a yes-or-no reading is asked only "is true" or "is false" in the builder — the only operator offered — and a setup saved with "crosses above 1" on one is reported on the list, its page and its edit page, which shows its operator as refused, disables Save and changes nothing');
+      }
+
+      /* SCN-04. The builder's sentence said "52-week high" of any 252-bar
+         window: a monthly condition's is 252 months, and a daily setup's is
+         252 sessions until an instrument says which market. */
+      {
+        const r = await fw(`
+          const out = {};
+          scanDraft = null;
+          navigate('/app/scanner/setups/new'); await w(200);
+          set(q('Condition 1: operator'), 'GREATER_THAN'); await w(60);
+          set(q('Condition 1: right side'), 'high_n'); await w(60);
+          out.daily = main().querySelector('.scan-cond .scan-prose')?.textContent || '';
+          set(q('Condition 1: timeframe'), '1M'); await w(60);
+          out.monthly = main().querySelector('.scan-cond .scan-prose')?.textContent || '';
+          scanDraft = null;
+          return out;
+        `);
+        if (!/252-session high/.test(r.daily) || !/252-month high/.test(r.monthly) || /52-week/.test(r.daily + r.monthly)) fail('fixwave SCN-04: the builder names a 252-bar window by the bars it reads', r);
+        else ok(`fixwave SCN-04: the builder names a 252-bar window by the bars it reads — "${r.daily}"; on a monthly condition, "${r.monthly}"`);
+      }
+
+      /* SCN-02 and SCN-14. A weekly record read from imported weekly bars
+         was compared with the daily close under its date: its own page
+         said it reproduced, then listed its own bar as a close that
+         differed, and every daily alert on the symbol listed it too. Each
+         record is compared with the bars of its own timeframe. And one
+         differing close read "has a close that differ"; a record with no
+         engine or version printed "engine ?" and "v?". */
+      {
+        const r = await fw(`
+          const out = {};
+          const fx = scanFixture();
+          const h = JSON.parse(JSON.stringify(fx.history));
+          const weeks = {};
+          Object.keys(h.series.MATCH).sort().forEach(d => { weeks[scanWeekOf(d)] = Math.round(h.series.MATCH[d] * 200) / 100; });
+          h.frames = { '1W': { MATCH: { series: weeks, meta: {} } } };
+          const wk = { id: 'fw-weekly', name: 'FW weekly', version: 1, enabled: true, universe: { kind: 'symbols', symbols: ['MATCH'] }, timeframe: '1W', cooldownMode: 'EVERY_MATCH', cooldownBars: 0, ruleTree: any };
+          const dy = { ...wk, id: 'fw-daily', name: 'FW daily', timeframe: '1D' };
+          let alerts = [];
+          Object.keys(h.series.MATCH).sort().slice(-8).forEach(d => { const run = scanRun([wk, dy], h, { existing: alerts, asOf: d, now: scanReplayNow(d), runId: 'fw-' + d, origin: 'replay' }); alerts = alerts.concat(run.alerts); });
+          const weekly = alerts.filter(a => a.setupId === 'fw-weekly'), daily = alerts.filter(a => a.setupId === 'fw-daily');
+          out.counts = [weekly.length, daily.length];
+          scanHistoryFile = h; scanAlertsFile = { alerts, lastRun: null };
+          const read = async (a) => { navigate(scanAlertPath(a)); await w(150);
+            return { bar: scanAlertBar(a), diffs: [...main().querySelectorAll('.scan-close-diffs li')].map(li => li.textContent),
+                     line: [...main().querySelectorAll('.metaline')].map(x => x.textContent).find(t => t.includes('from the record') || t.startsWith('No close the record holds')) || '',
+                     verdict: main().querySelector('.scan-reproduce')?.textContent || '' }; };
+          out.weekly = await read(weekly[weekly.length - 1]);
+          out.daily = await read(daily[daily.length - 1]);
+          /* One daily close changed since it was recorded. */
+          const moved = daily[daily.length - 3];
+          h.series.MATCH[moved.candleDate] = h.series.MATCH[moved.candleDate] + 1;
+          out.one = await read(daily[daily.length - 1]);
+          /* A record with an id and no engine or version. */
+          const bare = { ...daily[daily.length - 1], id: 'afw00bare', key: 'fw-bare-key' };
+          delete bare.engine; delete bare.setupVersion;
+          alerts.push(bare);
+          navigate('/app/scanner/alerts/afw00bare'); await w(150);
+          out.lineage = [...main().querySelectorAll('.scan-lineage li')].map(li => li.textContent);
+          return out;
+        `);
+        const p = [];
+        if (r.counts[0] < 1 || r.counts[1] < 2) p.push(`the seed recorded ${r.counts[0]} weekly and ${r.counts[1]} daily alerts`);
+        if (r.weekly.diffs.length || !/^No close the record holds/.test(r.weekly.line) || !/^Reproduces/.test(r.weekly.verdict)) p.push(`the weekly alert of ${r.weekly.bar}: ${r.weekly.verdict.slice(0, 60)} | ${r.weekly.line} ${JSON.stringify(r.weekly.diffs)}`);
+        if (r.daily.diffs.length) p.push(`the daily alert of ${r.daily.bar} lists ${JSON.stringify(r.daily.diffs)}`);
+        if (!/^1 bar up to \S+ has a close that differs from the record:$/.test(r.one.line) || r.one.diffs.length !== 1) p.push(`one close moved: "${r.one.line}" ${JSON.stringify(r.one.diffs)}`);
+        const eng = r.lineage.find(t => /evaluated setup/.test(t)) || '';
+        if (/engine \?|v\?/.test(eng) || !/not recorded/.test(eng)) p.push(`lineage: "${eng}"`);
+        if (p.length) fail('fixwave SCN-02/SCN-14: an alert\'s closes are compared on its own timeframe, one differing close reads in the singular, and a missing engine says it is not recorded', p);
+        else ok(`fixwave SCN-02/SCN-14: a weekly record read from imported weeks is compared with its week's close, not the daily close of its date — its page and a daily alert's list no differing close; one close moved reads "${r.one.line}"; a record with no engine or version says so ("${eng.slice(0, 80)}…")`);
+      }
+
+      /* SCN-06. Market screening and Historical offered the setups file,
+         the builder's draft and a pasted setup — not the setups saved in
+         this browser, which the Setups page calls "Your setups"; with no
+         file (the published site) a saved setup could only be pasted. */
+      {
+        const r = await fw(`
+          const out = {};
+          localStorage.removeItem('vl.scanSetups'); scanDraft = null;
+          const saved = scanSaveSetup({ id: 'fw-saved', name: 'FW saved here', enabled: true, universe: { kind: 'all' }, timeframe: '1D', cooldownMode: 'NEW_MATCH', ruleTree: any });
+          out.saved = saved.ok;
+          const pick = () => { const s = document.getElementById('scan-setup-pick'); return s ? [...s.options].map(o => ({ v: o.value, t: o.textContent, g: o.parentElement.tagName === 'OPTGROUP' ? o.parentElement.label : '' })) : null; };
+          navigate('/app/scanner/market'); await w(200);
+          out.market = pick();
+          out.note = document.getElementById('scan-setup-pick')?.parentElement.querySelector('.metaline')?.textContent || '';
+          navigate('/app/scanner/backtest'); await w(200);
+          out.backtest = pick();
+          const keepF = scanSetupsFile; scanSetupsFile = null;
+          navigate('/app/scanner/market'); await w(200);
+          out.hosted = pick();
+          scanSetupsFile = keepF;
+          localStorage.removeItem('vl.scanSetups');
+          return out;
+        `);
+        const has = (list) => (list || []).some(o => o.v === 'saved:fw-saved' && o.g === 'Saved in this browser' && /FW saved here \(v1, saved here\)/.test(o.t));
+        if (!r.saved || !has(r.market) || !has(r.backtest) || !has(r.hosted) || !/the setups saved in this browser/.test(r.note)) fail('fixwave SCN-06: a setup saved in this browser is offered by Market screening and Historical', r);
+        else ok('fixwave SCN-06: a setup saved in this browser is offered by Market screening and Historical, in a group of its own beside the file\'s — and with no setups file, as on the published site');
+      }
+
+      /* SCN-08. A rename saved here left the setup "in step" with the
+         file, which still named it the old way in every match the worker
+         recorded; nothing asked for the export. */
+      {
+        const r = await fw(`
+          const out = {};
+          localStorage.removeItem('vl.scanSetups'); scanEditDraft = null;
+          const keepF = scanSetupsFile;
+          const base = { id: 'fw-named', name: 'Nested breakout', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D', cooldownMode: 'NEW_MATCH', ruleTree: any };
+          scanSetupsFile = { setups: [base] };
+          scanAdoptFromFile('fw-named');
+          out.before = scanDriftRows().find(x => x.id === 'fw-named')?.state;
+          navigate('/app/scanner/setups/fw-named/edit'); await w(200);
+          set(q('Name'), 'Nested breakout renamed'); await w(60);
+          [...main().querySelectorAll('button')].find(b => b.textContent.trim().startsWith('Save')).click(); await w(250);
+          out.toast = document.getElementById('toast')?.textContent || '';
+          const row = scanDriftRows().find(x => x.id === 'fw-named');
+          out.visible = { state: row?.state, text: row?.text };
+          navigate('/app/scanner/setups'); await w(150);
+          out.allInStep = /in step with data\\/scan-setups\\.json\\./.test(text());
+          scanSetupsFile = null;
+          scanMarkExported(scanExportDoc());
+          out.exported = scanDriftRows().find(x => x.id === 'fw-named')?.state;
+          scanSaveSetup({ ...base, name: 'Renamed again' });
+          const hosted = scanDriftRows().find(x => x.id === 'fw-named');
+          out.hosted = { state: hosted?.state, text: hosted?.text };
+          scanSetupsFile = keepF; scanEditDraft = null; localStorage.removeItem('vl.scanSetups');
+          return out;
+        `);
+        const p = [];
+        if (r.before !== 'IN_STEP') p.push(`adopted: ${r.before}`);
+        if (!/export to tell the worker/.test(r.toast)) p.push(`toast "${r.toast}"`);
+        if (r.visible.state !== 'NOT_EXPORTED' || !/Renamed here/.test(r.visible.text || '') || !/“Nested breakout”/.test(r.visible.text || '') || r.allInStep) p.push(`file visible: ${JSON.stringify(r.visible)}, the card says all in step: ${r.allInStep}`);
+        if (r.exported !== 'UNCONFIRMED' || r.hosted.state !== 'NOT_EXPORTED' || !/Renamed here since the export/.test(r.hosted.text || '') || !/“Nested breakout renamed”/.test(r.hosted.text || '')) p.push(`file not visible: exported ${r.exported}, then ${JSON.stringify(r.hosted)}`);
+        if (p.length) fail('fixwave SCN-08: a setup renamed here asks for the export that tells the worker its name', p);
+        else ok('fixwave SCN-08: a setup renamed here asks for the export that tells the worker its name — with the file visible it is not exported ("Renamed here …"), with it not visible the rename since the last export is named, and the save says to export');
+      }
+
+      /* SCN-09. Data health never looked at the imported weekly and
+         monthly bars, and said "Nothing to look at" with a recorded split
+         inside them that makes the engine refuse them. */
+      {
+        const r = await fw(`
+          const out = {};
+          const keepA = scanAdjustmentsFile, keepH = scanHistoryFile;
+          const fx = scanFixture();
+          const h = JSON.parse(JSON.stringify(fx.history));
+          const weeks = {};
+          Object.keys(h.series.MATCH).sort().forEach(d => { weeks[scanWeekOf(d)] = h.series.MATCH[d]; });
+          h.frames = { '1W': { MATCH: { series: weeks, meta: {} } } };
+          scanHistoryFile = h; scanAdjustmentsFile = { schema: 1, actions: [{ symbol: 'MATCH', date: '2026-02-02', ratio: 1.001, kind: 'split' }] };
+          navigate('/admin/scanner/data'); await w(250);
+          const sec = main().querySelector('section[aria-label="Weekly and monthly bars"]');
+          out.section = sec ? sec.innerText : '';
+          out.tile = text().includes('Imported weekly and monthly bars');
+          out.look = (text().match(/(\\d+) of (\\d+) series have something to look at/) || []).slice(1).map(Number);
+          scanAdjustmentsFile = keepA; scanHistoryFile = keepH;
+          return out;
+        `);
+        if (!/MATCH/.test(r.section) || !/not read/.test(r.section) || !/split of ratio 1\.001 on 2026-02-02/.test(r.section) || !r.tile || !(r.look[0] >= 1)) fail('fixwave SCN-09: Data health counts the imported weekly and monthly bars and names a frame the engine refuses', r);
+        else ok(`fixwave SCN-09: Data health counts the imported weekly and monthly bars and names a frame the engine refuses — MATCH's weekly bars, not read for the split recorded inside them; ${r.look[0]} of ${r.look[1]} series have something to look at`);
+      }
+
+      /* SCN-10 and SCN-12. The dashboard's tile said "No channel" beside a
+         Settings page saying one exists, in the app; three addresses the
+         record does not hold had no h1. */
+      {
+        const r = await fw(`
+          const out = { h1: {} };
+          navigate('/app/scanner'); await w(150);
+          out.tile = [...main().querySelectorAll('.scan-q')].find(t => t.textContent.includes('notifications working'))?.innerText || '';
+          navigate('/admin/scanner'); await w(150);
+          out.ops = text().includes('No channel');
+          for (const p of ['/app/scanner/setups/nope', '/app/scanner/setups/nope/edit', '/app/scanner/alerts/a12345678']) { navigate(p); await w(120); out.h1[p] = [...main().querySelectorAll('h1')].map(x => x.textContent); }
+          return out;
+        `);
+        const p = [];
+        if (!/In-app only/.test(r.tile) || /No channel/.test(r.tile) || !/One channel exists: in the app/.test(r.tile) || r.ops) p.push(`the notifications tile: "${r.tile.replace(/\n/g, ' | ')}"; the overview says No channel: ${r.ops}`);
+        Object.entries(r.h1).forEach(([k, v]) => { if (v.length !== 1 || !/^No (setup|alert) /.test(v[0])) p.push(`${k}: h1 ${JSON.stringify(v)}`); });
+        if (p.length) fail('fixwave SCN-10/SCN-12: the notifications tile names the in-app channel, and every scanner address has one h1', p);
+        else ok('fixwave SCN-10/SCN-12: the notifications tile names the one channel there is, in the app, as Settings does; an address naming a setup or an alert the record does not hold has one h1');
+      }
+
+      /* SCN-13. A button's accessible name holds its visible words: the
+         disabled "The limit is 20 conditions" was named "Add a condition",
+         and "Copy JSON", "Adopt from file" and "New setup on this list"
+         were named otherwise. */
+      {
+        const r = await fw(`
+          const out = { mismatch: [] };
+          const words = (s) => String(s).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+          const holds = (name, seen) => { const a = words(name), b = words(seen); if (!b.length) return true; for (let i = 0; i + b.length <= a.length; i++) if (b.every((x, j) => a[i + j] === x)) return true; return false; };
+          const check = (where) => [...main().querySelectorAll('button[aria-label], a[aria-label]')].filter(b => b.getClientRects().length && b.textContent.trim())
+            .filter(b => !holds(b.getAttribute('aria-label'), b.textContent.trim())).forEach(b => out.mismatch.push(where + ': "' + b.textContent.trim() + '" is named "' + b.getAttribute('aria-label') + '"'));
+          scanDraft = null; localStorage.removeItem('vl.scanSetups');
+          navigate('/app/scanner/setups/new'); await w(150);
+          for (let i = 0; i < 25; i++) { const b = q('Add a condition'); if (!b || b.disabled) break; b.click(); await w(20); }
+          const full = [...main().querySelectorAll('button')].find(b => b.textContent.trim().startsWith('The limit is'));
+          out.limit = full ? { text: full.textContent.trim(), name: full.getAttribute('aria-label'), disabled: full.disabled } : null;
+          check('builder');
+          scanDraft = null;
+          navigate('/app/scanner/setups'); await w(150);
+          check('setups');
+          navigate('/app/scanner/watchlists'); await w(150);
+          check('watchlists');
+          return out;
+        `);
+        const p = [...r.mismatch];
+        if (!r.limit || !r.limit.disabled || (r.limit.name && r.limit.name !== r.limit.text)) p.push(`the condition limit: ${JSON.stringify(r.limit)}`);
+        if (p.length) fail('fixwave SCN-13: every scanner button\'s accessible name holds its visible words', p);
+        else ok(`fixwave SCN-13: every button on the builder, the setups and the watchlists pages is named with its visible words — the disabled "${r.limit.text}" among them`);
+      }
+      if (fwThrown.length) fail('fixwave scanner: the pages threw', fwThrown.slice(0, 5));
+    } catch (err) {
+      fail('fixwave scanner: the checks stopped', String(err.message).split('\n')[0]);
+    } finally {
+      ws.removeEventListener('message', fwListen);
+      await evaluate(scanRestoreP3).catch(() => {});
+    }
+  }
+  /* ---- end fixwave: scanner ---- */
 
 } catch (e) {
   fail('harness error', e.message);

@@ -572,7 +572,7 @@ VIEWS.scannerDashboard = () => {
        : [la ? 'No scan has evaluated a bar yet, so no match can be shown — see the latest attempt beside this.' : 'No scan has been recorded, so no match can be shown.'],
     scanOpsLink('/app/scanner/alerts', 'Alert history')));
   const unread = scanOpsUnread();
-  tiles.append(tile('Are notifications working?', 'No channel',
+  tiles.append(tile('Are notifications working?', 'In-app only',
     [st.notifications.text,
      unread == null ? (typeof scanUnreadCount === 'function' ? 'Unread in this browser: not counted — no alerts file is visible here.' : 'Unread in this browser: not counted — the alerts pages are not in this build.') : `${scanOpsPlural(unread, 'alert')} unread in this browser.`],
     el('span', {}, [scanOpsLink('/app/scanner/settings', 'Settings'), ' · ', scanOpsLink('/admin/scanner/delivery', 'Delivery')])));
@@ -653,16 +653,25 @@ const scanMarketState = { market: '__all', setup: null, pasted: '', pastedSetup:
    exactly as the worker validates it), the builder's draft when there is
    one and it validates, and a setup pasted here. Keyed so a choice survives
    a re-render. */
+/* THE SETUPS SAVED IN THIS BROWSER are "your setups" too — the Setups page
+   is titled so — and they were not offered: a setup just saved was missing
+   from both pages, one edited here to v2 was offered only as the file's
+   v1, and on the published site, which has no file, a saved setup could be
+   run only by copying its JSON and pasting it. Each is offered at its
+   current version, validated as the worker validates it, in a group of its
+   own, apart from the file's copy of the same id. */
 function scanOpsSetupChoices(pasted) {
   const out = [];
   const doc = scanOpsSetupsDoc();
-  if (doc) scanValidate(doc).setups.forEach(s => out.push({ key: `file:${s.id}`, label: `${s.name || s.id} (v${s.version}${s.enabled ? '' : ', disabled'})`, setup: s }));
+  if (doc) scanValidate(doc).setups.forEach(s => out.push({ key: `file:${s.id}`, group: 'In data/scan-setups.json', label: `${s.name || s.id} (v${s.version}${s.enabled ? '' : ', disabled'})`, setup: s }));
+  if (typeof scanBrowserSetups === 'function') scanValidate({ setups: scanBrowserSetups() }).setups
+    .forEach(s => out.push({ key: `saved:${s.id}`, group: 'Saved in this browser', label: `${s.name || s.id} (v${s.version}${s.enabled ? '' : ', disabled'}, saved here)`, setup: s }));
   const draft = typeof scanDraft !== 'undefined' ? scanDraft : null;
   if (draft && typeof draft === 'object') {
     const v = scanValidate({ setups: [{ ...draft, id: draft.id || 'builder-draft', enabled: true }] });
-    if (v.setups.length) out.push({ key: 'draft', label: 'The builder’s draft (not saved)', setup: v.setups[0] });
+    if (v.setups.length) out.push({ key: 'draft', group: 'Not saved', label: 'The builder’s draft (not saved)', setup: v.setups[0] });
   }
-  if (pasted) out.push({ key: 'pasted', label: `Pasted here: ${pasted.name || pasted.id}`, setup: pasted });
+  if (pasted) out.push({ key: 'pasted', group: 'Not saved', label: `Pasted here: ${pasted.name || pasted.id}`, setup: pasted });
   return out;
 }
 /* A pasted setup, validated with the worker's own function: the JSON the
@@ -680,12 +689,16 @@ function scanOpsSetupPicker(state, onChange) {
   const box = el('div', { class: 'grid g-2 scan-form' });
   const choices = scanOpsSetupChoices(state.pastedSetup);
   if (!choices.some(c => c.key === state.setup)) state.setup = choices[0]?.key || null;
+  const groups = [...new Set(choices.map(c => c.group))];
   const sel = el('select', { class: 'select', id: 'scan-setup-pick', onchange: (e) => { state.setup = e.target.value; state.result = null; onChange('scan-setup-pick'); } },
-    choices.length ? choices.map(c => el('option', { value: c.key, selected: c.key === state.setup ? '' : null }, c.label))
+    choices.length ? groups.map(g => el('optgroup', { label: g }, choices.filter(c => c.group === g).map(c => el('option', { value: c.key, selected: c.key === state.setup ? '' : null }, c.label))))
                    : [el('option', { value: '' }, 'No setup available — paste one')]);
   if (!choices.length) sel.disabled = true;
+  const from = [scanOpsSetupsDoc() ? 'data/scan-setups.json' : null, choices.some(c => c.key.startsWith('saved:')) ? 'the setups saved in this browser' : null].filter(Boolean);
   box.append(el('div', { class: 'field' }, [el('label', { for: 'scan-setup-pick' }, 'Setup'), sel,
-    el('p', { class: 'metaline' }, scanOpsSetupsDoc() ? 'From data/scan-setups.json, validated as the worker validates it.' : 'No setups file is loaded; paste a setup to use one.')]));
+    el('p', { class: 'metaline' }, from.length
+      ? `From ${from.join(' and ')}, validated as the worker validates it.${from.length > 1 ? ' A setup saved here runs here as saved; the worker runs the file’s copy until you export.' : ''}`
+      : 'No setups file is loaded and no setup is saved in this browser; paste a setup to use one.')]));
   const ta = el('textarea', { class: 'input scan-paste', id: 'scan-paste', rows: '3', spellcheck: 'false', placeholder: '{ "id": "…", "ruleTree": { … } }' }, state.pasted || '');
   /* Which of several pasted setups was taken is said, and kept across the
      re-render the choice causes: the note was worked out and never shown,
@@ -866,7 +879,7 @@ VIEWS.scannerMarket = () => {
     const regCount = market === '__all' ? scanOpsRegistry().length : scanOpsRegistry().filter(i => String(i.market || '').toUpperCase() === market).length;
     /* Where the setup came from decides what the builder can be handed:
        only a setup in the file has an id the builder can find (?from=). */
-    const source = String(setupKey || '').startsWith('file:') ? 'file' : setupKey === 'draft' ? 'draft' : 'pasted';
+    const source = String(setupKey || '').startsWith('file:') ? 'file' : String(setupKey || '').startsWith('saved:') ? 'saved' : setupKey === 'draft' ? 'draft' : 'pasted';
     S.result = { at: new Date().toISOString(), setup: s, source, market, asOf: asOfDay, now, rows, capped: all.length > symbols.length ? all.length : 0, registry: regCount };
     const out = job.ui.results;
     out.replaceChildren(scanScreenResult(S.result));
@@ -925,13 +938,13 @@ function scanScreenResult(R) {
 function scanScreenSave(R) {
   const q = new URLSearchParams();
   if (R.market !== '__all') q.set('market', R.market);
-  if (R.source === 'file' && R.setup?.id) q.set('from', R.setup.id);
+  if ((R.source === 'file' || R.source === 'saved') && R.setup?.id) q.set('from', R.setup.id);
   const path = `/app/scanner/setups/new${q.toString() ? `?${q}` : ''}`;
   const name = R.setup?.name || R.setup?.id || 'this setup';
   const where = R.market === '__all' ? null : R.market;
   const pick = where ? '' : ' Choose that universe there: the link cannot carry it.';
-  const what = R.source === 'file'
-    ? `opens the builder on a copy of ${name}${where ? ` with ${where} as its universe` : ''}. The setup in your file is not changed.${pick}`
+  const what = R.source === 'file' || R.source === 'saved'
+    ? `opens the builder on a copy of ${name}${where ? ` with ${where} as its universe` : ''}. The setup ${R.source === 'saved' ? 'saved here' : 'in your file'} is not changed.${pick}`
     : R.source === 'draft'
       ? `opens the builder, where your draft is${where ? `, asking it for ${where} as the universe` : ''}.${pick}`
       : `opens the builder${where ? ` with ${where} as the universe` : ''}. A pasted setup is not in your setups file, so its conditions do not travel in the link: paste them there.${pick}`;
@@ -1342,7 +1355,11 @@ VIEWS.scannerAdminData = () => {
   const sum = el('section', { class: 'card' });
   sum.append(cardHead('The file', `data/price-history.json · schema ${H.file.schema} · written ${scanOpsWhen(H.file.generated)} · judged at ${scanOpsWhen(H.at)} · engine ${H.engine}`));
   const g = el('div', { class: 'grid scan-counts' });
-  [['Series', t.series], ['Bars', t.bars], ['Invalid bars', t.invalid], ['Gaps counted', t.gaps], ['Price breaks', t.jumps, t.jumps ? `${fmtNum(t.unexplained, 0)} unexplained` : null], ['Stale series', t.stale], ['Provisional bars', t.provisional]]
+  /* Bars are the daily bars; the imported weeks and months are counted
+     beside them (scanDataHealth's frames), with the frames not read. */
+  const tfWord = (tf) => (tf === '1M' ? 'monthly' : 'weekly');
+  [['Series', t.series], ['Daily bars', t.bars], ['Imported weekly and monthly bars', t.importedBars ?? 0, t.framesRefused ? `${scanOpsPlural(t.framesRefused, 'frame')} not read` : t.importedInvalid ? `${fmtNum(t.importedInvalid, 0)} invalid` : null],
+   ['Invalid bars', t.invalid], ['Gaps counted', t.gaps], ['Price breaks', t.jumps, t.jumps ? `${fmtNum(t.unexplained, 0)} unexplained` : null], ['Stale series', t.stale], ['Provisional bars', t.provisional]]
     .forEach(([l, v, sub]) => g.append(statTile(l, fmtNum(v, 0), sub ? { sub } : {})));
   sum.append(g);
   /* A ratio of 1 records a break as the market's own move and adjusts
@@ -1468,14 +1485,40 @@ VIEWS.scannerAdminData = () => {
   }
   wrap.append(brk);
 
-  const flagged = (s) => s.invalid.length || s.gaps.some(x => x.counted) || s.jumps.length || s.stale || s.shifted || s.duplicates.length || s.dropped.badDate || s.dropped.nonFinite || s.dropped.nonPositive;
+  /* THE IMPORTED WEEKS AND MONTHS. This page counted the daily bars only
+     and never looked at the weekly and monthly bars imported from the
+     reader's exports: a recorded split inside SPY's imported weeks made the
+     engine refuse them, and the page said "Nothing to look at" while the
+     setup page said the weeks were not read. Each frame is listed as a
+     weekly or monthly setup reads it, with the reason one is refused. */
+  const frames = Array.isArray(H.frames) ? H.frames : [];
+  const fr = el('section', { class: 'card', 'aria-label': 'Weekly and monthly bars' });
+  fr.append(cardHead('Weekly and monthly bars', 'The weeks and months imported from your own exports, as a weekly or monthly setup reads them: the imported bar where the export holds the period, one built from your daily bars where it does not. Nothing is corrected here — only named.'));
+  if (!frames.length) fr.append(el('p', { class: 'metaline' }, 'Your history holds no imported weekly or monthly bars, so every weekly and monthly bar is built from your daily bars.'));
+  else {
+    const notRead = frames.filter(f => f.refused);
+    if (notRead.length) fr.append(el('p', { class: 'caption scan-note scan-warn', style: 'margin:0 0 var(--sm)' },
+      `${scanOpsPlural(notRead.length, 'imported frame')} ${notRead.length === 1 ? 'is' : 'are'} not read: ${notRead.map(f => `${f.symbol}’s ${tfWord(f.timeframe)} bars`).join(', ')}. The engine builds ${notRead.length === 1 ? 'those weeks or months' : 'them'} from your daily bars instead — the reason is in the table.`));
+    fr.append(scanOpsTable(['Series', 'Timeframe', 'Imported bars', 'First … last', 'Read', 'Invalid', 'What the engine does'], frames.map(f => {
+      const gave = f.refused ? 0 : f.held - f.read - f.invalid.length;
+      return [f.symbol, tfWord(f.timeframe), fmtNum(f.held, 0), `${f.first} … ${f.last}`,
+        f.refused ? 'none' : `${fmtNum(f.read, 0)} of ${fmtNum(f.held, 0)}${gave > 0 ? ` (${fmtNum(gave, 0)} in progress, built from your daily bars)` : ''}`,
+        f.invalid.length ? `${f.invalid.length}: ${f.invalid.slice(0, 3).map(x => `${x.date} ${x.codes.join('/')}`).join('; ')}${f.invalid.length > 3 ? '; …' : ''}` : 'none',
+        f.refused ? el('span', {}, [sevChip('warning', 'not read'), ' ', el('span', { class: 'caption' }, `${f.refused.charAt(0).toUpperCase()}${f.refused.slice(1)}.`)]) : 'read where it holds the period'];
+    }), { wrapCols: [4, 6], caption: 'Imported weekly and monthly bars per series' }));
+  }
+  wrap.append(fr);
+
+  const framesOf = (s) => (Array.isArray(s.frames) ? s.frames : []);
+  const flagged = (s) => s.invalid.length || s.gaps.some(x => x.counted) || s.jumps.length || s.stale || s.shifted || s.duplicates.length || s.dropped.badDate || s.dropped.nonFinite || s.dropped.nonPositive
+    || framesOf(s).some(f => f.refused || f.invalid.length);
   const ser = el('section', { class: 'card' });
   const only = el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': 'true' }, 'Only series with something to look at');
   ser.append(cardHead('Series', 'In market order, then symbol order — the order of the file’s keys, not of anything about the series.'));
   const host = el('div');
   const draw = (all) => {
     const rows = H.series.filter(s => all || flagged(s));
-    host.replaceChildren(rows.length ? scanOpsPaged(rows, (list) => scanOpsTable(['Series', 'Market', 'Bars', 'First … last', 'Invalid', 'Gaps', 'Price breaks', 'Volume', 'Stale', 'Keep limit'],
+    host.replaceChildren(rows.length ? scanOpsPaged(rows, (list) => scanOpsTable(['Series', 'Market', 'Daily bars', 'First … last', 'Invalid', 'Gaps', 'Price breaks', 'Volume', 'Stale', 'Keep limit', 'Imported weeks and months'],
       list.map(s => [s.symbol, s.market || 'no market row', fmtNum(s.bars, 0), `${s.first || '—'} … ${s.last || '—'}`,
         s.invalid.length ? `${s.invalid.length}: ${s.invalid.slice(0, 3).map(x => `${x.date} ${x.codes.join('/')}`).join('; ')}${s.invalid.length > 3 ? '; …' : ''}` : 'none',
         (() => { const c = s.gaps.filter(x => x.counted); return s.gaps.length ? `${c.length} counted${s.gaps.length - c.length ? `, ${s.gaps.length - c.length} read as a possible holiday` : ''}${c.length ? ` (latest ${c[c.length - 1].after} → ${c[c.length - 1].before})` : ''}` : 'none'; })(),
@@ -1483,8 +1526,9 @@ VIEWS.scannerAdminData = () => {
         `${Math.round(s.volumeCoverage * 100)}% of bars`, s.stale ? `${s.behindSessions} session${s.behindSessions === 1 ? '' : 's'} behind ${s.stale.expected}` : 'no',
         /* The store's keep, read from the engine rather than typed: this
            said 500 after the store moved to 2000. */
-        s.atKeepLimit ? `at the ${fmtNum(SCAN_HISTORY_KEEP, 0)}-bar keep` : 'no']), { wrapCols: [4, 5, 6], caption: 'Health per series' }), { step: 50, noun: 'series' })
-      : el('p', { class: 'metaline' }, 'Nothing to look at: no series has an invalid bar, a counted gap, a price break, a shifted date or a stale last bar.'));
+        s.atKeepLimit ? `at the ${fmtNum(SCAN_HISTORY_KEEP, 0)}-bar keep` : 'no',
+        framesOf(s).length ? framesOf(s).map(f => `${tfWord(f.timeframe)}: ${f.refused ? 'not read' : `${fmtNum(f.read, 0)} of ${fmtNum(f.held, 0)} read`}${f.invalid.length ? `, ${f.invalid.length} invalid` : ''}`).join('; ') : 'none']), { wrapCols: [4, 5, 6, 10], caption: 'Health per series' }), { step: 50, noun: 'series' })
+      : el('p', { class: 'metaline' }, 'Nothing to look at: no series has an invalid bar, a counted gap, a price break, a shifted date, a stale last bar or imported weeks or months refused.'));
   };
   let all = false;
   only.addEventListener('click', () => { all = !all; only.setAttribute('aria-pressed', all ? 'false' : 'true'); only.textContent = all ? 'Show only series with something to look at' : 'Only series with something to look at'; draw(all); });

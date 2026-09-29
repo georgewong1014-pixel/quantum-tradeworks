@@ -614,6 +614,10 @@ export const WORKER_FILES = { runs: 'scan-runs.json', lock: 'scan.lock', control
 export const workerPaths = (dir) => Object.fromEntries(Object.entries(WORKER_FILES).map(([k, f]) => [k, join(dir, f)]));
 
 export const RUNS_CAP = 500, AUDIT_CAP = 1000, DELIVERIES_CAP = 10000;
+/* The matched alerts a run's record lists by id (nine characters, about
+   sixteen bytes a line in the log): RUNS_CAP runs of this many stay under
+   five megabytes. */
+export const MATCHED_IDS_CAP = 500;
 export const LOCK_STALE_MS = 3600000;
 export const EXIT_CODES = { COMPLETED: 0, FAILED: 1, CANCELLED: 1, PARTIAL: 2, SKIPPED_NO_DATA: 3, SKIPPED_NO_SETUPS: 3, SKIPPED_LOCKED: 3, SKIPPED_PAUSED: 3 };
 export const RUN_STATUSES = ['PENDING', 'RUNNING', 'COMPLETED', 'PARTIAL', 'FAILED', 'CANCELLED', 'SKIPPED_NO_DATA', 'SKIPPED_NO_SETUPS', 'SKIPPED_LOCKED', 'SKIPPED_PAUSED'];
@@ -1313,6 +1317,16 @@ async function main() {
                  continuing: r.continuing, untested: r.untested, skipped: r.skipped.length, problems: problems.length, untestedEverywhere: untestedEverywhere.length, deliveries: 0 };
   run.readiness = (r.readiness?.markets || []).map(m => ({ market: m.market, state: m.state, expected: m.expected, newestFinal: m.newestFinal, inRun: m.inRun, text: m.text }));
   run.stale = (r.stale || []).length; run.provisional = (r.provisional || []).length;
+  /* The id of every alert this run matched — recorded now, or found
+     already recorded — so the dashboard's "matched on the last scan" is
+     this run's matches: a weekly setup's match on the last closed week,
+     found again by the next run, was dropped from it for not being dated
+     on the newest daily bar. Past MATCHED_IDS_CAP the list is not kept and
+     the dashboard reads the bar, as it did before. */
+  if (Array.isArray(r.matchedAlertIds)) {
+    if (r.matchedAlertIds.length <= MATCHED_IDS_CAP) run.matchedAlertIds = r.matchedAlertIds;
+    else run.matchedAlertIdsDropped = r.matchedAlertIds.length;
+  }
   /* The imported weeks and months not read, with why: a split recorded
      against them (scanFramesOf). Kept on the run as the summary prints it. */
   run.framesRefused = r.framesRefused || [];

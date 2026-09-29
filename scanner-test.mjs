@@ -410,7 +410,7 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
     && E.SCAN_INDICATORS.rsi.calcVersion === 2 && /Wilder/.test(E.SCAN_INDICATORS.rsi.formula) && /Wilder/.test(E.SCAN_INDICATORS.atr.formula) && /POPULATION/.test(E.SCAN_INDICATORS.bb.formula),
     'MACD has line/signal/hist, Bollinger upper/middle/lower/width/%b; RSI (calcVersion 2) and ATR are Wilder\'s; Bollinger states its population deviation');
   check(E.SCAN_INDICATORS.atr.inputs.includes('high') && E.SCAN_INDICATORS.high_n.inputs.join() === 'high' && E.SCAN_INDICATORS.low_n.inputs.join() === 'low'
-    && E.SCAN_INDICATORS.close_high_n.inputs.join() === 'close' && E.scanSideLabel({ indicator: 'close_high_n' }) === '52-week closing high' && E.scanSideLabel({ indicator: 'high_n' }) === '52-week high',
+    && E.SCAN_INDICATORS.close_high_n.inputs.join() === 'close' && E.scanSideLabel({ indicator: 'close_high_n' }, { timeframe: '1D', market: 'US' }) === '52-week closing high' && E.scanSideLabel({ indicator: 'high_n' }, { timeframe: '1D', market: 'US' }) === '52-week high',
     'ATR and the true high/low need highs and lows; the close-based extremes are labelled closing highs and lows');
   check(['US', 'MY', 'FX', 'CRYPTO', '_default'].every(k => E.SCAN_MARKETS[k]?.tz && Array.isArray(E.SCAN_MARKETS[k].days)) && E.SCAN_MARKETS.US.tz === 'America/New_York' && E.SCAN_MARKETS.MY.tz === 'Asia/Kuala_Lumpur'
     && E.SCAN_MARKETS.US.settleMin === 30 && E.SCAN_MARKETS.CRYPTO.days.length === 7, 'SCAN_MARKETS has US, MY, FX, CRYPTO and _default with zone, close, settle and weekdays');
@@ -892,9 +892,9 @@ const ohlcBars = (L) => ({ ...E.scanSeriesBars(L.c, { open: L.o, high: L.h, low:
     'behind after a setups edit; failed (not current) when a failure follows a success, keeping the success; paused when the control file says so');
   const matchesDoc = { alerts: [{ id: 'x1', setupId: 'a', symbol: 'Z', bar: '2026-08-07' }, { id: 'x2', setupId: 'b', symbol: 'Y', candleDate: '2026-08-07' }, { id: 'x3', setupId: 'a', symbol: 'Z', bar: '2026-08-01' }] };
   const lm = SS({ runs: { runs: runsOk }, alertsDoc: matchesDoc, setupsDoc, historyMeta: { newestBar: '2026-08-07', symbols: ['MATCH', 'FLAT'] }, now: '2026-08-08T12:00:00Z', alertState: { x1: 'READ' } });
-  check(same(lm.latestMatches.map(a => a.id), ['x2', 'x1']) && same(lm.recent.map(a => a.id), ['x2', 'x1', 'x3']) && lm.notifications.channel === 'none' && lm.notifications.inApp.unread === 2
+  check(same(lm.latestMatches.map(a => a.id), ['x2', 'x1']) && same(lm.recent.map(a => a.id), ['x2', 'x1', 'x3']) && lm.notifications.channel === 'in_app' && lm.notifications.inApp.unread === 2
     && lm.active.valid === 2 && lm.active.enabled === 2 && lm.monitored.instruments === 2,
-    'latest matches come in setup order, not file or close order; recent spans the last bars; notifications say there is no channel, with the unread count', { latest: lm.latestMatches.map(a => a.id) });
+    'latest matches come in setup order, not file or close order; recent spans the last bars; notifications name the one channel, in the app, with the unread count', { latest: lm.latestMatches.map(a => a.id) });
 
   /* --------------------------------------------------------- data health -- */
   const dhDays = weekdays('2026-06-01', 12);
@@ -3054,7 +3054,10 @@ try {
   const every = [];
   for (const id of PIDS) for (const [f, unit] of Object.entries(pd[id].fields)) {
     if (id === 'tv_rsi' && /^bb/.test(f)) continue;
-    const v = vOne({ indicator: id, field: f }, 'GREATER_THAN_OR_EQUAL', { value: unit === 'direction' ? -1 : unit === 'price' ? 1 : 0 });
+    /* A yes-or-no field is asked "is true" (EQUALS 1): any other operator on
+       one is refused (fixwave SCN-01). */
+    const v = unit === 'flag' ? vOne({ indicator: id, field: f }, 'EQUALS', { value: 1 })
+      : vOne({ indicator: id, field: f }, 'GREATER_THAN_OR_EQUAL', { value: unit === 'direction' ? -1 : unit === 'price' ? 1 : 0 });
     if (!v.setups.length) every.push(`${id}.${f}: ${v.problems.join('; ')}`);
   }
   check(!every.length, 'every field of every Pine indicator validates in a setup against a value of its unit', every.slice(0, 4));
@@ -3164,7 +3167,9 @@ try {
   for (const id of IDS_ENGINE) { const d = PN.SCAN_INDICATORS[id]; (d.fields ? Object.keys(d.fields) : [null]).forEach(f => dSpecs.push(f ? { indicator: id, field: f } : { indicator: id })); }
   dSpecs.push({ indicator: 'sma', n: 5 }, { indicator: 'ema', n: 3 }, { indicator: 'rsi', n: 3 }, { indicator: 'bb', n: 10, k: 1, field: 'pctb' }, { indicator: 'macd', fast: 5, slow: 9, signal: 4, field: 'hist' }, { indicator: 'atr', n: 5 }, { indicator: 'change', n: 3 }, { indicator: 'rvol', n: 5 });
   const moved = dSpecs.filter(s => { const r = PN.scanIndicatorSeries(s, DB);
-    return PN.scanHash(JSON.stringify({ v: r.values, s: r.status, r: r.reason.map(x => x?.code ?? null), needs: r.needs, unit: r.unit, label: r.label })) !== DIGESTS[PN.scanSpecKey(s)]; }).map(s => PN.scanSpecKey(s));
+    /* The one intended change: a 252-bar window on daily bars of no known
+       market is "252-session", which read "52-week" (fixwave SCN-04). */
+    return PN.scanHash(JSON.stringify({ v: r.values, s: r.status, r: r.reason.map(x => x?.code ?? null), needs: r.needs, unit: r.unit, label: r.label.replace(/^252-session /, '52-week ') })) !== DIGESTS[PN.scanSpecKey(s)]; }).map(s => PN.scanSpecKey(s));
   check(dSpecs.length === 29 && !moved.length, 'no engine indicator\'s output changed: the values, statuses, reasons, needs, units and labels of all fifteen (29 operands) hash as they did before the pine section', moved);
   const wh = { schema: 2, series: { X: {} }, volume: { X: {} }, ohlc: { X: {} }, meta: { X: {} } };
   const skip = ['2026-02-16', '2026-03-03', '2026-03-04', '2026-03-05', '2026-03-06', '2026-03-09', '2026-03-10', '2026-03-11', '2026-03-12', '2026-03-13'];
@@ -3284,7 +3289,9 @@ try {
 
   /* ---------------------------------------------------- nothing changes -- */
   const fx = BE.scanFixture();
-  const dig = { run: H(BE.scanRun([fx.setup, fx.setupV2], fx.history, { now: fx.now, runId: 'd', origin: 'd' })), hist: H(BE.scanHistorical(fx.setupV2, fx.history)),
+  /* The run's list of the alerts it matched (fixwave SCN-03) is a field
+     added beside what was evaluated, and is left out of the digest. */
+  const dig = { run: H((({ matchedAlertIds, ...r }) => r)(BE.scanRun([fx.setup, fx.setupV2], fx.history, { now: fx.now, runId: 'd', origin: 'd' }))), hist: H(BE.scanHistorical(fx.setupV2, fx.history)),
                 hist1: H(BE.scanHistorical(fx.setup, fx.history)), self: H(BE.scanSelfTest()), v2: BE.scanNormaliseSetup(fx.setupV2).hash, v1: BE.scanNormaliseSetup(fx.setup).hash };
   check(same(dig, { run: '3989264f', hist: '078cee25', hist1: '5a472da0', self: 'b612d1db', v2: 'aca992dc', v1: '5f78a874' }),
     'bot engine: the fixture\'s run, its historical testing, the self-test and both setups\' hashes digest exactly as on main before conditions had timeframes', dig);
@@ -4145,7 +4152,14 @@ try {
     const FLAG = /^(.*) is (true|false)(?:, not (true|false))?$/;
     const back = (t) => { const m = FLAG.exec(t); if (!m) return t; const b = (w) => (w === 'true' ? '1' : '0'); return m[3] ? `${m[1]} ${b(m[2])} not equal to ${b(m[3])}` : `${m[1]} ${b(m[2])} equal to ${b(m[2])}`; };
     let mapped = 0;
-    const walk = (x) => (Array.isArray(x) ? x.map(walk) : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, k === 'text' && typeof v === 'string' && FLAG.test(v) ? (mapped++, back(v)) : walk(v)])) : x);
+    /* And two changes of fixwave: a run lists the alerts it matched
+       (matchedAlertIds, SCN-03), which is left out; a window of n bars is
+       named by the bars it reads (SCN-04), and read back into main's
+       "52-week" for 252 and "n-bar" otherwise — these histories have no
+       market, so no daily window here reads "52-week". */
+    const WIN = /\b(\d+)-(?:session|week|month|bar) (high|low|closing high|closing low)\b/g;
+    const winBack = (s) => s.replace(WIN, (_, n, what) => `${Number(n) === 252 ? '52-week' : `${n}-bar`} ${what}`);
+    const walk = (x) => (Array.isArray(x) ? x.map(walk) : typeof x === 'string' ? winBack(x) : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== 'matchedAlertIds').map(([k, v]) => [k, k === 'text' && typeof v === 'string' && FLAG.test(v) ? (mapped++, back(winBack(v))) : walk(v)])) : x);
     const HD = (x) => FE.scanHash(JSON.stringify(walk(x)));
     const out = {};
     const NEWF = { wavetrend: ['bull'], cm_macd: ['bull', 'histUp', 'histDown', 'histMoved'], bot_macd: ['histMoved'] };
@@ -5192,5 +5206,151 @@ try {
     { alert: !!a, statuses: mc.map(x => [x.state, x.status, x.reason]) });
 }
 /* ---- end record status ---- */
+
+/* ---- fixwave: scanner ---- */
+/* The scanner findings of the 2026-09-29 site hunt that live in the engine
+   and the worker. Each check fails on 0e1119b. */
+{
+  const fwSetup = (id, tree, extra = {}) => ({ id, name: id, enabled: true, universe: { kind: 'all' }, timeframe: '1D', cooldownMode: 'NEW_MATCH', ruleTree: tree, ...extra });
+  const fwAll = (...children) => ({ type: 'group', logic: 'ALL', children });
+
+  /* SCN-01. A yes-or-no reading (unit 'flag') is 1 or 0, and the builder
+     asks it "is true" or "is false" — EQUALS 1 or 0. Every other operator
+     was accepted: "crosses above 1" and "above 1" never hold on a 0/1
+     reading, "at or below 1" and "between 0 and 1" always do, and the
+     setup saved, ran and recorded nothing without a word. The engine now
+     refuses any other operator on a flag, with the reason; "is true" and
+     "is false", the bot's criteria and the committed examples still pass. */
+  {
+    const flagCond = (c) => fwAll({ type: 'condition', left: { indicator: 'cm_macd', field: 'above' }, ...c });
+    const one = (id, c) => E.scanValidate({ setups: [fwSetup(id, flagCond(c))] });
+    const refused = [['ca1', { op: 'CROSSES_ABOVE', right: { value: 1 } }], ['gt1', { op: 'GREATER_THAN', right: { value: 1 } }],
+                     ['le1', { op: 'LESS_THAN_OR_EQUAL', right: { value: 1 } }], ['cb0', { op: 'CROSSES_BELOW', right: { value: 0 } }],
+                     ['ca0', { op: 'CROSSES_ABOVE', right: { value: 0 } }], ['btw', { op: 'BETWEEN', range: [{ value: 0 }, { value: 1 }] }],
+                     ['vsflag', { op: 'GREATER_THAN', right: { indicator: 'wavetrend', field: 'bull' } }]]
+      .map(([id, c]) => { const v = one(id, c); const ps = v.problemsBySetup[id] || []; return { id, kept: v.setups.length, codes: ps.map(p => p.code), text: ps.map(p => p.text).join(' | ') }; });
+    const yes = one('is-true', { op: 'EQUALS', right: { value: 1 } }), no = one('is-false', { op: 'EQUALS', right: { value: 0 } });
+    const bot = E.scanBotPack();
+    const botProblems = E.scanValidate({ setups: Array.isArray(bot) ? bot : bot.setups || [] }).problems;
+    const exDoc = JSON.parse(await readFile(join(ROOT, 'scanner/setups.example.json'), 'utf8'));
+    const exProblems = E.scanValidate(exDoc).problems;
+    check(refused.every(r => r.kept === 0 && r.codes.includes('FLAG_OPERATOR') && /true or false/.test(r.text) && /CM MACD/.test(r.text))
+      && yes.setups.length === 1 && no.setups.length === 1 && !botProblems.length && !exProblems.length,
+      'fixwave SCN-01: a yes-or-no reading is asked only "is true" or "is false" (EQUALS 1 or 0) — crosses above 1, above 1, at or below 1, crosses below 0, crosses above 0, between 0 and 1 and a comparison with another flag are refused with the reason (FLAG_OPERATOR); the bot\'s criteria and the committed examples still pass',
+      { refused, yes: yes.problems, no: no.problems, botProblems: botProblems.slice(0, 3), exProblems: exProblems.slice(0, 3) });
+  }
+
+  /* SCN-04. "52-week high" was said whenever n was 252, on whatever bars:
+     252 monthly bars (21 years), 252 weekly bars, 252 daily bars of a
+     seven-day crypto market (36 weeks) — while n 52 on a weekly setup, the
+     real 52-week high, read "52-bar high". The window is now named by the
+     bars it reads: 52 weeks only for 252 daily bars of a weekday market or
+     52 weekly bars; otherwise sessions, weeks or months, and bars where
+     the timeframe is not known. The worker's records read the evaluation's
+     sentence, which knows the bars. */
+  {
+    const L = (s, ctx) => E.scanSideLabel(s, ctx);
+    const labels = {
+      bare: L({ indicator: 'high_n' }), usDaily: L({ indicator: 'high_n' }, { timeframe: '1D', market: 'US' }), cryptoDaily: L({ indicator: 'high_n' }, { timeframe: '1D', market: 'CRYPTO' }),
+      weekly: L({ indicator: 'high_n' }, { timeframe: '1W' }), weekly52: L({ indicator: 'high_n', n: 52 }, { timeframe: '1W' }), monthly: L({ indicator: 'close_low_n' }, { timeframe: '1M' }),
+      noMarket: L({ indicator: 'close_high_n' }, { timeframe: '1D' }),
+    };
+    const cond = { type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'close_high_n' } };
+    const prose = { monthlyCond: E.scanConditionProse({ ...cond, timeframe: '1M' }), weeklySetup52: E.scanConditionProse({ ...cond, right: { indicator: 'close_high_n', n: 52 } }, { setupTf: '1W' }),
+                    unknown: E.scanConditionProse(cond) };
+    /* On bars: 300 sessions of a US series and 300 days of a crypto one. */
+    const usDays = weekdays('2025-01-06', 300), cDays = Array.from({ length: 300 }, (_, i) => E.scanAddDays('2025-01-01', i));
+    const h = { series: { SPY: seriesOf(usDays, lcgSeries(300, 91).c), BTCUSD: seriesOf(cDays, lcgSeries(300, 92).c) } };
+    const evText = (sym, market, tf) => E.scanEvaluate(fwAll(cond), E.scanBars(h, sym, { market, timeframe: tf })).conditions[0].text;
+    const ev = { spy: evText('SPY', 'US', '1D'), btc: evText('BTCUSD', 'CRYPTO', '1D'), spyWeekly: evText('SPY', 'US', '1W') };
+    const p = [];
+    if (labels.bare !== '252-bar high') p.push(`no timeframe: ${labels.bare}`);
+    if (labels.usDaily !== '52-week high') p.push(`US daily: ${labels.usDaily}`);
+    if (labels.cryptoDaily !== '252-session high') p.push(`crypto daily: ${labels.cryptoDaily}`);
+    if (labels.weekly !== '252-week high' || labels.weekly52 !== '52-week high') p.push(`weekly: ${labels.weekly}; n 52: ${labels.weekly52}`);
+    if (labels.monthly !== '252-month closing low') p.push(`monthly: ${labels.monthly}`);
+    if (labels.noMarket !== '252-session closing high') p.push(`daily, no market: ${labels.noMarket}`);
+    if (!/252-month closing high/.test(prose.monthlyCond) || /52-week/.test(prose.monthlyCond)) p.push(`monthly condition: ${prose.monthlyCond}`);
+    if (!/52-week closing high/.test(prose.weeklySetup52)) p.push(`weekly setup, n 52: ${prose.weeklySetup52}`);
+    if (!/252-bar closing high/.test(prose.unknown)) p.push(`no timeframe: ${prose.unknown}`);
+    if (!/52-week closing high/.test(ev.spy) || !/252-session closing high/.test(ev.btc) || /52-week/.test(ev.btc) || !/252-week closing high/.test(ev.spyWeekly)) p.push(`evaluated: ${JSON.stringify(ev)}`);
+    check(!p.length, 'fixwave SCN-04: a highest-high window is named by the bars it reads — 52 weeks for 252 daily bars of a weekday market or 52 weekly bars; 252 sessions of crypto, 252 weeks, 252 months; 252 bars where no timeframe is known — in the label, the condition\'s sentence and what an evaluation read', p);
+  }
+
+  /* SCN-08. A setup's name is not part of its version, but the worker
+     writes it into every alert. A rename saved here left the drift "in
+     step", so nothing asked for the export and new records kept the old
+     name. The drift now tells a name apart. */
+  {
+    const s = E.scanNormaliseSetup(fwSetup('renamed', fwAll({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 } }), { version: 2, name: 'Nested breakout' }));
+    const d = E.scanSetupDrift([{ ...s, name: 'Nested breakout renamed' }], { setups: [s] });
+    const same = E.scanSetupDrift([s], { setups: [s] });
+    check(!d.inSync && !d.same.includes('renamed') && d.differ[0]?.nameDiffers === true && d.differ[0]?.rulesDiffer === false && same.inSync,
+      'fixwave SCN-08: a setup renamed here and not in the worker\'s file is not in step — the drift says the name differs, and the conditions do not', d);
+  }
+
+  /* SCN-09. Data health counted daily bars only and never looked at the
+     imported weekly and monthly bars: a recorded split inside SPY's
+     imported weeks made the engine refuse them (and build the weeks from
+     the daily bars), and the page said "Nothing to look at". The health
+     report now holds each imported frame — its bars, its range, what the
+     engine reads of it, and the reason it refuses one. */
+  {
+    const days = weekdays('2025-01-06', 200), L2 = lcgSeries(200, 77);
+    const weeks = {};
+    for (let d = '2025-01-06'; d <= '2025-09-29'; d = E.scanAddDays(d, 7)) weeks[d] = 100 + (Number(d.slice(8)) % 7);
+    const base = { schema: 2, series: { SPY: seriesOf(days, L2.c) }, frames: { '1W': { SPY: { series: weeks, meta: {} } } } };
+    const n = Object.keys(weeks).length;
+    const plain = E.scanDataHealth(base, [], '2025-11-05T12:00:00Z');
+    const split = E.scanDataHealth(E.scanAttachAdjustments(base, { schema: 1, actions: [{ symbol: 'SPY', date: '2025-06-02', ratio: 1.001, kind: 'split' }] }), [], '2025-11-05T12:00:00Z');
+    const f0 = (plain.frames || [])[0], f1 = (split.frames || [])[0];
+    check(!!f0 && f0.symbol === 'SPY' && f0.timeframe === '1W' && f0.held === n && f0.read === n && !f0.refused && plain.totals.importedBars === n && plain.totals.framesRefused === 0
+      && !!f1 && f1.held === n && f1.read === 0 && /split of ratio 1\.001 on 2025-06-02/.test(f1.refused || '') && split.totals.framesRefused === 1,
+      `fixwave SCN-09: the health report holds the imported weekly bars — ${n} held and read; with a split recorded inside them, none read and the reason named`, { plain: f0, split: f1, totals: [plain.totals, split.totals] });
+  }
+
+  /* SCN-10. The dashboard and the operations overview said "No channel
+     exists", where Settings says one channel exists — in the app — and
+     Delivery lists In-app as active. One statement now. */
+  {
+    const st = E.scanStatus({});
+    check(st.notifications.channel === 'in_app' && /^One channel exists: in the app/.test(st.notifications.text) && !/no channel/i.test(st.notifications.text) && /nothing is sent/.test(st.notifications.text),
+      'fixwave SCN-10: the status names the one channel there is — in the app — as Settings and Delivery do, not "No channel exists"', st.notifications);
+  }
+
+  /* SCN-03. The dashboard's "matched on the last scan" counted the alerts
+     dated on the run's newest bar or written by that run. A weekly setup's
+     match on the last closed week, found again by the next run with
+     nothing changed, was neither: "12 matches" became "9". The run now
+     records every alert it matched — new or already recorded — and the
+     dashboard reads that list. */
+  {
+    const FX = E.scanFixture();
+    const dir = join(tmpdir(), `qt-fixwave-scanner-${process.pid}`);
+    await rm(dir, { recursive: true, force: true });
+    await mkdir(dir, { recursive: true });
+    try {
+      const weekly = fwSetup('weekly-any', fwAll({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 } }), { name: 'Weekly, any close', timeframe: '1W', cooldownMode: 'EVERY_MATCH' });
+      const daily = fwSetup('daily-any', fwAll({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { value: 1 } }), { name: 'Daily, any close', cooldownMode: 'EVERY_MATCH' });
+      await writeFile(join(dir, 'scan-setups.json'), JSON.stringify({ setups: [daily, weekly] }));
+      await writeFile(join(dir, 'price-history.json'), JSON.stringify(FX.history));
+      const W = join(ROOT, 'scanner/scan.mjs');
+      const go = async (...a) => { try { const r = await run(process.execPath, [W, '--data', dir, '--now', FX.now, ...a]); return { code: 0, out: r.stdout }; } catch (e) { return { code: e.code, out: e.stdout || '' }; } };
+      const status = async () => JSON.parse((await go('--status', '--json')).out || '{}').status || {};
+      const r1 = await go();
+      const s1 = await status();
+      const r2 = await go();
+      const s2 = await status();
+      const runs = JSON.parse(await readFile(join(dir, 'scan-runs.json'), 'utf8')).runs;
+      const wk = (s) => (s.latestMatches || []).filter(a => a.setupId === 'weekly-any').map(a => `${a.symbol} ${a.candleDate || a.bar}`);
+      const n1 = (s1.latestMatches || []).length, n2 = (s2.latestMatches || []).length;
+      check(r1.code === 0 && r2.code === 0 && runs[1]?.counts?.deduped > 0 && n1 === n2 && n1 === 4 && wk(s2).length === 2 && wk(s2).every(x => / 2026-04-03$/.test(x))
+        && Array.isArray(runs[1]?.matchedAlertIds) && runs[1].matchedAlertIds.length === 4,
+        'fixwave SCN-03: the same scan on the same bars shows the same matches — a weekly setup\'s match on the last closed week (2026-04-03), found again by a second run beside the daily bar 2026-04-06, is still one of the last scan\'s matches; the run records every alert it matched',
+        { codes: [r1.code, r2.code], first: n1, second: n2, weekly: [wk(s1), wk(s2)], ids: runs.map(r => r.matchedAlertIds), counts: runs.map(r => r.counts) });
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }
+}
+/* ---- end fixwave: scanner ---- */
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
