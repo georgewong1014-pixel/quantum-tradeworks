@@ -418,8 +418,17 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   /* Every page, reached at every address that serves one, and the 404. */
   const pages = await getAll([...statics.filter(s => s !== '/'), '/nope-xyz', '/deep/unknown/path/for-served-check', '/wp-login.php', '/.env']);
   let largest = ['', 0];
+  /* Addresses only a bot asks for. Vercel's own firewall answers some of them
+     before any rewrite runs (on production, /wp-login.php is a 403 text/plain
+     from the platform), which is better than our 404 page: what must hold is
+     that a probe is never sent the app — a small 404 page, or a block. */
+  const PROBES = ['/wp-login.php', '/.env'];
   for (const [path, r] of pages) {
     if (!r.status) { p.push(`${path}: ${described(r)}`); continue; }
+    if (PROBES.includes(path) && (r.status === 403 || r.status === 404) && !/text\/html/i.test(r.headers.get('content-type') || '')) {
+      if (Buffer.byteLength(r.body, 'utf8') > PAGE_LIMIT) p.push(`${path}: a ${r.status} of ${(Buffer.byteLength(r.body, 'utf8') / 1024).toFixed(0)}kB — a probe is sent too much`);
+      continue;
+    }
     const size = Buffer.byteLength(r.body, 'utf8');
     if (size > largest[1]) largest = [path, size];
     if (size > PAGE_LIMIT) p.push(`${path}: ${(size / 1024).toFixed(0)}kB, over the ${PAGE_LIMIT / 1024}kB a page may weigh — the app is in it again`);
@@ -428,7 +437,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     const srcs = scriptSrcs(r.body), css = stylesheets(r.body);
     if (srcs.length !== 1 || srcs[0] !== `/${APP.script.file}`) p.push(`${path}: loads the scripts ${JSON.stringify(srcs)}, not /${APP.script.file} alone`);
     if (css.length !== 1 || css[0] !== `/${APP.styles.file}`) p.push(`${path}: loads the stylesheets ${JSON.stringify(css)}, not /${APP.styles.file} alone`);
-    if (['/wp-login.php', '/.env'].includes(path) && r.status !== 404) p.push(`${path}: ${described(r)}, not 404`);
+    if (PROBES.includes(path) && r.status !== 404) p.push(`${path}: ${described(r)}, not 404 or a platform block`);
   }
   /* index.html is the app whole, as every tool that reads it expects. */
   const index = (await getAll(['/index.html'])).get('/index.html');
