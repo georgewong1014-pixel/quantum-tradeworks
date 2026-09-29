@@ -8904,13 +8904,14 @@ try {
       say(ex.first.shown === ex.want[0].id && ex.second.shown === ex.want[1].id && ex.second.name === ex.want[1].name,
         `SCN-05 one change: the picker shows "${ex.first.shown}"; the next: "${ex.second.shown}", the draft named "${ex.second.name}" (want ${ex.want[1].name})`);
 
-      /* SCN-07 — Adopt and a bulk Archive hand focus to what is left. */
+      /* SCN-07 — Adopt and a bulk Archive hand focus to what is left. Each Adopt
+         button is named "Adopt from file: <id>", its visible words first (SCN-13). */
       await evaluate(`(() => { window.__fwScan = { f: scanSetupsFile, a: scanAlertsFile };
         scanSetupsFile = { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: JSON.parse(JSON.stringify(SCAN_EXAMPLES.setups)) };
         ['vl.scanSetups', 'vl.scanAlertState', 'vl.scanPrefs'].forEach(k => localStorage.removeItem(k)); navigate('/app/scanner/setups'); return true; })()`);
       await sleep(400);
-      const adoptId = await evaluate(`document.querySelectorAll('#main button[aria-label^="Adopt "]')[1]?.getAttribute('aria-label').replace(/^Adopt (.*) from the file$/, '$1')`);
-      await focusOn(`document.querySelector('#main button[aria-label="Adopt ${adoptId} from the file"]')`);
+      const adoptId = await evaluate(`document.querySelectorAll('#main button[aria-label^="Adopt from file: "]')[1]?.getAttribute('aria-label').replace(/^Adopt from file: /, '')`);
+      await focusOn(`document.querySelector('#main button[aria-label="Adopt from file: ${adoptId}"]')`);
       await key('Enter'); await sleep(400);
       const adoptOne = await evaluate(`(() => { const a = document.activeElement; return { at: ${DESC}(a), row: a.tagName === 'A' && !!a.closest('.scan-drift') && decodeURIComponent(a.getAttribute('href')).endsWith('/${adoptId}') }; })()`);
       await focusOn(`[...document.querySelectorAll('#main button')].find(b => /^Adopt all/.test(b.textContent))`);
@@ -8988,12 +8989,12 @@ try {
          returning one. A snapshot of an edited deal is the reader's. */
       {
         const r = await evaluate(`(async () => { ${W}
-          const before = myDashOwn().propertySnaps;
+          const before = myDashOwn().propertySnaps, own0 = myDashOwn().hasOwn;
           const rec = saveWork('property', 'WS17 untouched');
           const it = workspaceItems().find(i => i.kind === 'work' && i.key === rec.id);
           const o = myDashOwn();
           navigate('/app'); await w(150);
-          const out = { sample: !!it?.sample, detail: it?.detail || '', snaps: o.propertySnaps - before, hasOwn: o.hasOwn, start: !!document.querySelector('.dash-start') };
+          const out = { sample: !!it?.sample, detail: it?.detail || '', snaps: o.propertySnaps - before, own0, hasOwn: o.hasOwn, start: !!document.querySelector('.dash-start') };
           navigate('/my/workspace'); await w(150);
           const row = [...document.querySelectorAll('.ws-row')].find(x => x.textContent.includes('WS17 untouched'));
           out.chip = !!row && [...row.querySelectorAll('.chip')].some(c => c.textContent.trim() === 'sample');
@@ -9008,7 +9009,10 @@ try {
         const p = [];
         if (!r.sample || /Your own inputs/.test(r.detail)) p.push(`an untouched deal's snapshot is listed as "${r.detail}", sample ${r.sample}`);
         if (!r.chip) p.push('Saved Models shows no sample chip on it');
-        if (r.snaps || r.hasOwn || !r.start) p.push(`it counts as own work: ${r.snaps} property snapshots, hasOwn ${r.hasOwn}, first-time checklist ${r.start}`);
+        /* Judged against the browser as it was: the untouched snapshot must change
+           nothing. (A browser that already holds the reader's own work — scanner
+           setups in the worker's file, say — is a returning one before and after.) */
+        if (r.snaps || r.hasOwn !== r.own0 || (!r.own0 && !r.start)) p.push(`it counts as own work: ${r.snaps} property snapshots, hasOwn ${r.own0} before and ${r.hasOwn} after, first-time checklist ${r.start}`);
         if (r.mine.sample || r.mine.snaps !== 1) p.push(`an edited deal's snapshot: sample ${r.mine.sample}, counted ${r.mine.snaps}`);
         report('WS-17', 'a snapshot of the sample inputs is labelled a sample and is not counted as the reader\'s work; an edited one is', p);
       }
@@ -9065,31 +9069,40 @@ try {
             const cap = cards.map(c => c.querySelector('.caption')).find(n => n && /Return is split/.test(n.textContent))?.textContent || '';
             const tile = cards.map(txt).find(t => /^Portfolio value/i.test(t)) || '';
             const opt = [...document.querySelectorAll('#pf-active option')].map(o => o.textContent);
-            return { expo, cap, tile, opt };
+            const pf = activePF();
+            return { expo, cap, tile, opt, unpriced: pf ? positionsOf(pf).filter(Boolean).filter(p => p.unpriced).length : 0 };
           };
-          State.portfolios.push({ id: 'pf-ws', name: 'WS own', cash: 0, cashCcy: 'MYR', holdings: [{ id: 'MSFT-SEC', qty: 10, cost: 400, fx0: 4.4, fee: 0, rebate: 0 }] });
+          /* Chosen from the data this build holds: the owner's own prices file
+             prices MSFT, and a hard-coded MSFT could not run there. */
+          const UN = U.find(x => x.c.real && x.c.mkt === 'US' && !isNum(x.c.px?.p))?.c.id || null;
+          const PR = isNum(BY_ID.get('PBBANK')?.c.px?.p) ? 'PBBANK' : (U.find(x => x.c.mkt === 'MY' && isNum(x.c.px?.p))?.c.id || null);
+          if (!UN || !PR) return { skip: true, UN, PR };
+          State.portfolios.push({ id: 'pf-ws', name: 'WS own', cash: 0, cashCcy: 'MYR', holdings: [{ id: UN, qty: 10, cost: 400, fx0: 4.4, fee: 0, rebate: 0 }] });
           State.pfIdx = State.portfolios.length - 1; navigate('/my/portfolio'); await w(150);
           const one = read();
-          activePF().holdings.push({ id: 'PBBANK', qty: 1000, cost: 4, fx0: 4.4, fee: 0, rebate: 0 }); render(); await w(100);
+          activePF().holdings.push({ id: PR, qty: 1000, cost: 4, fx0: 4.4, fee: 0, rebate: 0 }); render(); await w(100);
           const two = read();
           State.pfIdx = State.portfolios.findIndex(p => p.id === 'pf-2'); render(); await w(100);
           const sleeve = read();
           State.pfIdx = State.portfolios.findIndex(p => p.id === 'pf-1'); render(); await w(100);
           const seeded = read();
           State.portfolios = State.portfolios.filter(p => p.id !== 'pf-ws'); State.pfIdx = 0; savePortfolios();
-          return { one, two, sleeve, seeded, msftPriced: isNum(BY_ID.get('MSFT-SEC')?.c.px?.p), pbPriced: isNum(BY_ID.get('PBBANK')?.c.px?.p) };
+          return { one, two, sleeve, seeded, UN, PR };
         })()`);
         const p6 = [], p7 = [];
-        if (r.msftPriced || !r.pbPriced) p6.push(`the check needs MSFT-SEC unpriced and PBBANK priced: ${r.msftPriced}, ${r.pbPriced}`);
-        for (const [k, v] of [['MSFT alone', r.one], ['MSFT and PBBANK', r.two], ['the US sleeve', r.sleeve]]) {
-          if (v.expo.some(t => /\b0\.0%/.test(t))) p6.push(`${k}: an exposure reads 0.0% — ${v.expo.join(' || ').slice(0, 240)}`);
-          if (!v.expo.every(t => /no price/i.test(t))) p6.push(`${k}: the exposure cards do not say which holdings have no price`);
+        if (r.skip) p6.push(`this build holds no unpriced US filer and priced Bursa company to check with: ${r.UN}, ${r.PR}`);
+        else {
+          for (const [k, v] of [[`${r.UN} alone`, r.one], [`${r.UN} and ${r.PR}`, r.two], ['the US sleeve', r.sleeve]]) {
+            if (v.expo.some(t => /\b0\.0%/.test(t))) p6.push(`${k}: an exposure reads 0.0% — ${v.expo.join(' || ').slice(0, 240)}`);
+            /* Named wherever a holding on screen has no price, and only there. */
+            if (v.unpriced && !v.expo.every(t => /no price/i.test(t))) p6.push(`${k}: the exposure cards do not say which holdings have no price`);
+          }
+          if (!r.two.expo.some(t => /100\.0%/.test(t))) p6.push(`${r.UN} and ${r.PR}: the priced holding is not the whole of the priced value — ${r.two.expo[0]}`);
         }
-        if (!r.two.expo.some(t => /100\.0%/.test(t))) p6.push(`MSFT and PBBANK: the priced holding is not the whole of the priced value — ${r.two.expo[0]}`);
-        if (/Sample positions/.test(r.one.cap)) p7.push(`the reader's own portfolio is captioned "…${r.one.cap.slice(-40)}"`);
-        if (!/Sample positions/.test(r.seeded.cap)) p7.push('the seeded portfolio lost its "Sample positions." caption');
-        if (/\b1 positions\b/.test(r.one.tile)) p7.push(`tile reads "${r.one.tile}"`);
-        if (r.one.opt.some(o => /\b1 holdings\b/.test(o))) p7.push(`select reads ${JSON.stringify(r.one.opt)}`);
+        if (!r.skip && /Sample positions/.test(r.one.cap)) p7.push(`the reader's own portfolio is captioned "…${r.one.cap.slice(-40)}"`);
+        if (!r.skip && !/Sample positions/.test(r.seeded.cap)) p7.push('the seeded portfolio lost its "Sample positions." caption');
+        if (!r.skip && /\b1 positions\b/.test(r.one.tile)) p7.push(`tile reads "${r.one.tile}"`);
+        if (!r.skip && r.one.opt.some(o => /\b1 holdings\b/.test(o))) p7.push(`select reads ${JSON.stringify(r.one.opt)}`);
         report('WS-06', 'a holding with no price is left out of the exposure shares and named, never shown at 0.0%', p6);
         report('WS-07', '"Sample positions." captions only a seeded portfolio, and one position or holding is singular', p7);
       }
@@ -9832,12 +9845,16 @@ try {
           out.seen.push('empty list: ' + (h0.includes(nm) ? 'heatmap says so' : 'heatmap silent') + ', ' + (v0.includes(nm) && !vChart ? 'value map says so' : 'value map silent'));
           if (!h0.includes(nm)) out.bad.push('heatmap on an empty watchlist does not say it is empty');
           if (!v0.includes(nm) || vChart) out.bad.push('value map on an empty watchlist: sentence ' + v0.includes(nm) + ', empty chart drawn ' + vChart);
-          activeWL().ids = ['AAPL-SEC'];
+          /* A filer this build holds no price for: the owner's prices file prices
+             AAPL, so a hard-coded AAPL could not test the case there. */
+          const unpricedFiler = U.find(x => x.c.real && !isNum(x.c.px?.p))?.c.id || null;
+          activeWL().ids = unpricedFiler ? [unpricedFiler] : [];
           render(); await w(300);
           const v1 = text();
           State.heat.universe = 'watchlist'; navigate('/discover?tab=heatmap'); await w(350);
           const h1 = text();
-          if (!/The one company on your active watchlist .* cannot be plotted/.test(v1) || !/The one company on your active watchlist .* cannot be drawn/.test(h1)) out.bad.push('a watchlist of one unpriced filer: the charts do not say none can be drawn');
+          if (!unpricedFiler) out.bad.push('this build holds no filer without a price to check the one-unpriced-company case with');
+          else if (!/The one company on your active watchlist .* cannot be plotted/.test(v1) || !/The one company on your active watchlist .* cannot be drawn/.test(h1)) out.bad.push('a watchlist of one unpriced filer (' + unpricedFiler + '): the charts do not say none can be drawn');
         } finally {
           activeWL().ids = keep.ids; State.heat.universe = keep.heat; State.radar.universe = keep.radar;
         }
