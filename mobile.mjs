@@ -558,7 +558,7 @@ await sleep(2500);
    and not counted. */
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
 for (const [route, heads] of [
-  ['/property/calculator?city=kuching', ['#|Gate|State|Why', 'Source|State|Counts|Note', 'Allowance|Triggered by']],
+  ['/property/calculator?city=kuching', ['#|Gate|State|Why', 'Source|State|Counts', 'Allowance|Triggered by']],
   ['/methodology/ips', ['IPS §8 says|', '#|Gate|The question it asks', 'Tier|IPS description|']],
   ['/company/JPM-SEC', ['Strategy|Grade|Supports|Weakens or missing']],
 ]) {
@@ -1234,6 +1234,24 @@ for (const w of [360, 390]) {
       if (!r || r.n < 14) fails.push(`${w}px: measured ${r?.n} controls`);
       (r?.out || []).slice(0, 6).forEach(x => fails.push(`${w}px ${x}`));
       if ((r?.out || []).length > 6) fails.push(`${w}px … and ${r.out.length - 6} more`);
+    }
+    /* The demand table fits its card in a wider font too. With this build's
+       font it had 9px to spare at 1440 and CI's Linux runner, which has
+       neither Inter nor Segoe, laid it out 52px too wide; Verdana forced
+       gives the same answer on any machine. */
+    for (const w of [1440, 1024]) {
+      await loadAt('/property/calculator', w);
+      const r = await evalM(`(() => {
+        const st = document.createElement('style'); st.id = 'probeFont';
+        st.textContent = 'body, button, a, select, th, td, div, span, p { font-family: Verdana, sans-serif !important; }';
+        document.head.append(st);
+        document.querySelectorAll('#views details').forEach(d => { d.open = true; });
+        const dt = document.getElementById('demand-employment')?.closest('table');
+        const out = dt ? { table: Math.round(dt.getBoundingClientRect().width), wrap: dt.closest('.tablewrap').clientWidth } : null;
+        st.remove(); return out;
+      })()`);
+      if (!r) fails.push(`${w}px in Verdana: no demand table`);
+      else if (r.table > r.wrap + 1) fails.push(`${w}px in Verdana: the demand table is ${r.table}px in a ${r.wrap}px card`);
     }
     if (fails.length) { bad++; console.log(`FAIL fixwave P2/P3 — a select on the calculator cannot show what is chosen in it:`); fails.slice(0, 24).forEach(f => console.log(`     ${f}`)); }
     else console.log('ok   fixwave P2/P3: the demand states, evidence grades, owner statement, recorder selects and the seller category show their text in full at 1440, 1024, 390 and 360');

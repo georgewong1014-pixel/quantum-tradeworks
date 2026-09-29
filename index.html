@@ -39423,11 +39423,14 @@ function demandPanel(city, area) {
 
   /* Room for the state to be read without pushing the note out of sight.
      With the selects at their own width the table ran to 880px in a 663px
-     card at 1440 and the note scrolled away: the source's name wraps, the
-     note keeps 9rem, and the empty fifth column, which held nothing, is
-     gone — 654px. */
+     card at 1440 and the note scrolled away. A note column of its own,
+     kept at 9rem beside the select, still left the table 654px in 663px with
+     this build's font and 715px on a machine with a wider one (CI's Linux
+     runner): nothing in a row could give way. The note now sits under the
+     source it describes, in the same cell, where it wraps as far as it must —
+     three columns, and the only fixed width is the select's own. */
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
-  t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts', 'Note'].map((h, i) =>
+  t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts'].map((h, i) =>
     el('th', { style: i ? null : 'text-align:left' }, h)))));
   const tb = el('tbody');
   test.items.forEach(i => {
@@ -39453,13 +39456,13 @@ function demandPanel(city, area) {
         i.source.label,
         i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'not occupier demand') : null,
         i.source.fragile && !i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'fragile') : null,
+        el('div', { class: 'caption', style: 'text-align:left;white-space:normal;overflow-wrap:normal;font-weight:400;margin-top:2px;min-width:8rem' },
+          i.state ? i.state.note : i.source.ask),
       ].filter(Boolean)),
       el('td', { style: 'text-align:left' }, sel),
       el('td', { style: 'text-align:left' }, i.counts
         ? el('span', { class: 'chip chip-ok' }, 'yes')
         : el('span', { class: 'caption' }, i.state ? 'no' : '—')),
-      el('td', { class: 'caption', style: `${IPS_PROSE_CELL};min-width:9rem` },
-        i.state ? i.state.note : i.source.ask),
     ]));
   });
   t.append(tb);
