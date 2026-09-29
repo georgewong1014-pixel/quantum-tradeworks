@@ -12089,6 +12089,9 @@ function openDrawer(title, node) {
   /* The body sits under the drawer's h2 title; its headings step from there. */
   fitHeadingLevels(drawerBody, 2);
   drawer.hidden = false;
+  /* A box in the body that scrolls and holds nothing to focus is a named
+     Tab stop from the moment the drawer opens (fitScrollStops). */
+  fitScrollStops(drawerBody);
   const seq = ++drawerSeq;
   requestAnimationFrame(() => { if (seq !== drawerSeq) return; drawer.dataset.open = '1'; scrim.dataset.open = '1'; });
   $$('[data-close-drawer]', drawer)[0]?.focus();
@@ -13577,7 +13580,8 @@ window.addEventListener('resize', () => fitRails());
    focus. A box that stops overflowing — the phone turned,
    the window widened — gives the attributes back. Only what this adds is
    ever taken away: a box a view named itself (the evidence table,
-   75-property-grade.js) is left as it was drawn. */
+   75-property-grade.js) is left as it was drawn. The drawer's body, and
+   the boxes in it, are fitted the same way (openDrawer, queueScrollStops). */
 /* More than a pixel of rounding. axe lets 13px pass as its own margin, but
    what a box hides is hidden however little it is, and a box that measured
    exactly 13px over here measured over 13 while axe ran (the calculator's
@@ -13602,19 +13606,31 @@ function scrollsItself(n) {
 }
 const holdsTabStop = (box) => [...box.querySelectorAll(SCROLL_STOP_TABBABLE)]
   .some(n => n.tabIndex >= 0 && !n.disabled && shown(n));
+/* The table a box is the frame of: its only content, however deep — not a
+   table somewhere in a larger box, which the drawer's whole body can be
+   (a metric's definition, with its distribution table far down it, was
+   announced "Metric definition, table"). */
+function framedTable(box) {
+  const t = box.querySelector('table');
+  for (let p = t; p && p !== box; p = p.parentElement) if (p.parentElement.children.length !== 1) return null;
+  return t;
+}
 /* What the box is called: its table's caption or label, else the last
    heading before it in the page — found walking out from the box through
    the siblings before each ancestor, nearest first. */
 function scrollStopName(box) {
-  const table = box.querySelector('table');
+  const table = framedTable(box);
   let name = oneLine(table?.caption?.textContent) || oneLine(table?.getAttribute('aria-label'));
-  for (let n = box; !name && n && n !== viewRoot && n !== document.body; n = n.parentElement) {
+  /* In the page, no further out than the page; in the drawer, no further
+     out than the drawer, whose own title is the heading before its body. */
+  for (let n = box; !name && n && n !== viewRoot && n !== drawer && n !== document.body; n = n.parentElement) {
     for (let s = n.previousElementSibling; s && !name; s = s.previousElementSibling) {
       const h = s.matches(SCROLL_STOP_HEADING) ? s : [...s.querySelectorAll(SCROLL_STOP_HEADING)].pop();
       name = oneLine(h?.textContent);
     }
   }
-  name = (name || oneLine(viewRoot.querySelector('h1')?.textContent) || 'This page').slice(0, 90);
+  const fallback = drawer.contains(box) ? drawerTitle : viewRoot.querySelector('h1');
+  name = (name || oneLine(fallback?.textContent) || 'This page').slice(0, 90);
   return `${name}${table ? ', table' : box.classList.contains('chart-scroll') ? ', chart' : ''}`;
 }
 function giveBackScrollStop(box) {
@@ -13626,9 +13642,10 @@ function giveBackScrollStop(box) {
 }
 function fitScrollStops(root = viewRoot) {
   /* Innermost first, so a box holding a box that becomes a Tab stop is
-     known to hold one; everything is measured before anything is written. */
+     known to hold one; everything is measured before anything is written.
+     The root itself too: the drawer's body is a box that scrolls. */
   const boxes = [], giveBack = [];
-  for (const n of [...root.querySelectorAll('*')].reverse()) {
+  for (const n of [root, ...root.querySelectorAll('*')].reverse()) {
     const mine = n.dataset.scrollStop !== undefined;
     if (!scrollsItself(n) || holdsTabStop(n) || boxes.some(b => n.contains(b))) { if (mine) giveBack.push(n); continue; }
     /* A tab stop its view made it: the view has said what it is. */
@@ -13666,19 +13683,32 @@ function fitScrollStops(root = viewRoot) {
     if (box.dataset.scrollStop !== note) box.dataset.scrollStop = note;
   }
 }
-/* Once a frame at most: a resize or a reflow reports many sizes in a row. */
+/* Once a frame at most: a resize or a reflow reports many sizes in a row.
+   The page, and the drawer, which sits outside it. In the drawer a derived
+   line's "Inputs" table (openLineDrawer) is 39px wider than the drawer at
+   1440 and 104px at 360, and a metric's definition (openMetricInfo) is a
+   body of text 500px taller than the drawer on a phone and on a desktop,
+   with nothing in either to focus. The drawer keeps Tab inside itself
+   (95-boot.js) among the stops it can find, which a box that is a Tab stop
+   only by the browser's own rule is not: Tab went from the close button to
+   the close button, and the arrow keys scrolled the page behind. A closed
+   drawer is hidden, so its boxes give back what they were given. */
 function queueScrollStops() {
   if (scrollStopQueued) return;
   scrollStopQueued = true;
-  requestAnimationFrame(() => { scrollStopQueued = false; fitScrollStops(); });
+  requestAnimationFrame(() => { scrollStopQueued = false; fitScrollStops(); fitScrollStops(drawerBody); });
 }
 window.addEventListener('resize', queueScrollStops);
 /* And whenever the page's content changes without a draw — a figure filled
    in when its data lands, a row added in place — which can widen a table
    past its box while the page as a whole keeps its size, so the
    ResizeObserver on it (drawPage) hears nothing. Not attributes: this code
-   writes some, and a change it makes must not call it back. */
-new MutationObserver(queueScrollStops).observe(viewRoot, { childList: true, subtree: true, characterData: true });
+   writes some, and a change it makes must not call it back. The drawer's
+   body the same way: openDrawer replaces it, and some drawers redraw in
+   place. */
+const scrollStopWatch = new MutationObserver(queueScrollStops);
+scrollStopWatch.observe(viewRoot, { childList: true, subtree: true, characterData: true });
+scrollStopWatch.observe(drawerBody, { childList: true, subtree: true, characterData: true });
 /* The topbar's real height, for scroll-padding-top and everything that sticks
    under it. --topbar-h is the design value; the measured one is what is
    actually stuck to the top of the viewport. Two bars since Release A, and at

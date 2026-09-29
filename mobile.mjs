@@ -1427,9 +1427,118 @@ for (const w of [360, 390]) {
       wide.unreachable.forEach(u => fails.push(`1440 /property/calculator: a box scrolls and the keyboard cannot reach it — ${u}`));
       wide.marked.forEach(n => fails.push(`1440 /property/calculator: kept as a scroll stop though it no longer scrolls — ${n}`));
     }
+    /* THE DRAWER (slim verification). It sits outside <main>, and its boxes
+       were never made Tab stops: a metric's definition is a body of text
+       taller than the drawer at 360x640 and at 1440x900, and a derived
+       line's "Inputs" table is wider than the drawer at every width, with
+       nothing in either to focus. The drawer keeps Tab among the stops it
+       finds (95-boot.js), which a box that is a Tab stop only by the
+       browser's own rule is not, so on a company with no filing links Tab
+       went from the close button to the close button, and the arrow keys
+       scrolled the page behind. Every metric definition and a spread of
+       statement cells on a filed and an illustrative company are opened
+       here; each box in the drawer, its body included, that scrolls with
+       nothing to focus must be a named region Tab stop — called ", table"
+       only when it is a table's frame, not a body with a table somewhere
+       in it — and none may keep a stop with nothing to scroll to. Then by keyboard: Tab from the close
+       button reaches the Inputs table with a ring, ArrowRight scrolls it,
+       and Tab and Shift+Tab stay in the drawer. */
+    const DRAWER = `(() => {
+      const TAB = 'a[href], area[href], button, input:not([type="hidden"]), select, textarea, summary, iframe, [contenteditable]:not([contenteditable="false"]), [tabindex]';
+      const shown = (n) => (n.checkVisibility ? n.checkVisibility() : n.getClientRects().length > 0);
+      const root = document.getElementById('drawerBody');
+      const out = { unreachable: [], unnamed: [], misnamed: [], marked: [], stops: 0 };
+      for (const n of [root, ...root.querySelectorAll('*')]) {
+        const x = n.scrollWidth > n.clientWidth + 13, y = n.scrollHeight > n.clientHeight + 13;
+        const s = getComputedStyle(n);
+        const scrolls = ((x && /^(auto|scroll)$/.test(s.overflowX)) || (y && /^(auto|scroll)$/.test(s.overflowY))) && shown(n);
+        const who = (n.id || n.tagName.toLowerCase() + '.' + String(n.className).split(' ')[0]) + ' in "' + document.getElementById('drawerTitle').textContent + '"';
+        if (n.dataset.scrollStop !== undefined && !(n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1)) out.marked.push(who);
+        if (!scrolls || [...n.querySelectorAll(TAB)].some(k => k.tabIndex >= 0 && !k.disabled && shown(k))) continue;
+        if (n.tabIndex < 0) out.unreachable.push(who + ' (' + Math.max(n.scrollWidth - n.clientWidth, n.scrollHeight - n.clientHeight) + 'px hidden)');
+        else if (n.getAttribute('role') !== 'region' || !n.getAttribute('aria-label')) out.unnamed.push(who);
+        else {
+          out.stops++;
+          /* ", table" says the box is a table's frame; a box that holds more
+             than the table (the drawer's body) must not say it. */
+          const t = n.querySelector('table');
+          let framed = !!t;
+          for (let p = t; framed && p && p !== n; p = p.parentElement) if (p.parentElement.children.length !== 1) framed = false;
+          if (/, table( \\d+ of \\d+)?$/.test(n.getAttribute('aria-label')) !== framed) out.misnamed.push(who + ' named "' + n.getAttribute('aria-label') + '", though it ' + (framed ? 'is' : 'is not') + " a table's frame");
+        }
+      }
+      return out;
+    })()`;
+    let drawers = 0, drawerStops = 0;
+    for (const [w, h] of [[360, 640], [1440, 900]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      const opens = [];
+      await send('Page.navigate', { url: BASE + '/discover/screener' }, sessionId);
+      for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) break; }
+      await sleep(600);
+      const nf = await ev(`FIELDS.length`);
+      for (let i = 0; i < nf; i++) opens.push([`metric ${i}`, `openMetricInfo(FIELDS[${i}]); true`]);
+      const measureAll = async (list) => {
+        for (const [what, open] of list) {
+          const o = await ev(open);
+          if (o !== true) { fails.push(`${w} drawer ${what}: not opened (${o?.error || o})`); continue; }
+          await sleep(60);
+          const r = await ev(DRAWER);
+          if (!r || r.error) { fails.push(`${w} drawer ${what}: ${r?.error || 'not measured'}`); continue; }
+          drawers++; drawerStops += r.stops;
+          r.unreachable.forEach(u => fails.push(`${w} drawer ${what}: a box scrolls and the keyboard cannot reach it — ${u}`));
+          r.unnamed.forEach(u => fails.push(`${w} drawer ${what}: a scroll box is a Tab stop with no role or name — ${u}`));
+          r.misnamed.forEach(u => fails.push(`${w} drawer ${what}: a Tab stop says it is what it is not — ${u}`));
+          r.marked.forEach(u => fails.push(`${w} drawer ${what}: kept as a scroll stop though it no longer scrolls — ${u}`));
+        }
+      };
+      await measureAll(opens);
+      for (const co of ['aapl-apple-inc', 'MAYBANK']) {
+        await send('Page.navigate', { url: `${BASE}/company/${co}?tab=financials` }, sessionId);
+        for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) break; }
+        await sleep(600);
+        const nc = await ev(`document.querySelectorAll('td.cell-sourced').length`);
+        if (!(nc > 0)) { fails.push(`${w} /company/${co}?tab=financials: no statement cell to open`); continue; }
+        const cells = [];
+        for (let i = 0; i < nc; i += Math.max(1, Math.floor(nc / 20))) cells.push([`${co} cell ${i}`, `(() => { document.querySelectorAll('td.cell-sourced')[${i}].click(); return true; })()`]);
+        await measureAll(cells);
+      }
+    }
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await send('Page.navigate', { url: BASE + '/company/MAYBANK?tab=financials' }, sessionId);
+    for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) break; }
+    await sleep(600);
+    const derived = await ev(`(() => { const td = [...document.querySelectorAll('td.cell-sourced')].find(t => /derived/.test(t.parentElement.textContent)); if (!td) return false; td.focus(); td.click(); return true; })()`);
+    await sleep(400);
+    const where = () => ev(`(() => { const a = document.activeElement, s = getComputedStyle(a); return { name: a.getAttribute('aria-label'), inDrawer: document.getElementById('drawer').contains(a), ring: a.matches(':focus-visible') && s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2, left: a.scrollLeft }; })()`);
+    let inputs = null;
+    const path = [];
+    if (derived !== true) fails.push('390 /company/MAYBANK?tab=financials: no derived line to open');
+    else {
+      for (let i = 0; i < 6 && !inputs; i++) {
+        await press('Tab', 9);
+        const k = await where();
+        path.push(k?.name || '?');
+        if (k?.name === 'Inputs, table') inputs = k;
+      }
+      if (!inputs) fails.push(`390 drawer "Inputs": Tab from the close button never reached the table (${path.join(' → ')})`);
+      else {
+        if (!inputs.ring) fails.push('390 drawer "Inputs": the table takes focus with no visible ring');
+        for (let k = 0; k < 2; k++) await press('ArrowRight', 39);
+        await sleep(300);
+        if (!((await where())?.left > inputs.left)) fails.push('390 drawer "Inputs": ArrowRight did not scroll the table');
+        await press('Tab', 9);
+        if (!(await where())?.inDrawer) fails.push('390 drawer "Inputs": Tab from the table left the drawer');
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 }, sessionId);
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers: 8 }, sessionId);
+        await sleep(150);
+        if ((await where())?.name !== 'Inputs, table') fails.push('390 drawer "Inputs": Shift+Tab did not return to the table');
+      }
+    }
+    if (!drawerStops) fails.push('no drawer box needed a Tab stop, so none was tested');
     if (!total) fails.push('no scroll box needed a Tab stop on any page at 390, so none was tested');
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
-    if (!fails.length) console.log(`ok   audit slim: at 360 and 390 every scroll box on ${PAGES.length} pages is a Tab stop or holds one — ${total} named regions over both widths, no name twice; Tab reaches the calculator's "${prep?.name}" with a ring and ArrowRight scrolls it; at 1440 none keeps a stop it no longer needs`);
+    if (!fails.length) console.log(`ok   audit slim: at 360 and 390 every scroll box on ${PAGES.length} pages is a Tab stop or holds one — ${total} named regions over both widths, no name twice; Tab reaches the calculator's "${prep?.name}" with a ring and ArrowRight scrolls it; at 1440 none keeps a stop it no longer needs; in ${drawers} drawers at 360 and 1440 every box that scrolls with nothing to focus is a named stop (${drawerStops}), and Tab from the close button reaches a derived line's "Inputs" table, which ArrowRight scrolls, without leaving the drawer`);
   } catch (e) { fails.push(`the checks threw: ${e.message}`); }
   if (fails.length) { bad++; console.log(`FAIL audit slim — a scroll box the keyboard cannot reach, or a Tab stop with no name: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
 }
