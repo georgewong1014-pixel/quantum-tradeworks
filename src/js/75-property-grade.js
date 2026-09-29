@@ -54,7 +54,7 @@ const BORROWER_DOCS = [
   { k:'deposit',    label:'Evidence of where the deposit came from' },
 ];
 
-State.borrower = store.read('borrowerProfile', null) || {
+const blankBorrower = () => ({
   assessed: false,
   employmentType: 'salaried',
   verifiedNetMonthlyIncome: 0,
@@ -68,8 +68,23 @@ State.borrower = store.read('borrowerProfile', null) || {
   creditReview: 'not_checked',
   applicantCount: 1,
   docs: {},
-};
+});
+State.borrower = store.read('borrowerProfile', null) || blankBorrower();
 const saveBorrower = () => store.write('borrowerProfile', State.borrower);
+/* ANOTHER TAB'S FINANCING DETAILS ARE KEPT, AND AN ERASE STAYS ERASED.
+   The profile is saved whole and never travels in the address, so a tab
+   opened earlier held the copy it read at boot: an income of 9,000 entered in
+   a second tab was set back to 0 for good by the first tab's next edit, and
+   "Erase my financing details" there was undone by the same edit here. It is
+   read again when another tab writes it (PROPERTY_SHARED_KEYS, 70-property.js)
+   — in place, because the fields on screen hold this object from when they
+   were drawn, and a new one would take their next edit to a copy nobody
+   saves. */
+function rereadBorrower() {
+  const fresh = store.read('borrowerProfile', null) || blankBorrower();
+  Object.keys(State.borrower).forEach(k => { if (!Object.hasOwn(fresh, k)) delete State.borrower[k]; });
+  Object.assign(State.borrower, fresh);
+}
 
 /* Specification 30.3. Every figure shows its own formula on screen, because a
    ratio a reader cannot reproduce is a number they have to trust. */
@@ -169,9 +184,15 @@ function loanReadiness(b, m) {
   scores.documents = Math.round(provided / BORROWER_DOCS.length * 100);
   notes.documents = `${provided} of ${BORROWER_DOCS.length} documents gathered. A lender's own checklist overrides this one.`;
 
-  scores.structure = num0(b.applicantCount) >= 1 && a.income > 0 ? 70 : null;
-  notes.structure = 'Applicant count and tenure fit recorded. Joint-applicant evidence and declared source of funds are not modelled in this build.';
-  if (scores.structure == null) unknowns.push('application structure');
+  /* NOT TESTED, BECAUSE NOTHING HERE ASKS. It scored 70 as soon as an income
+     was entered, on a basis that said the applicant count and tenure fit were
+     "recorded" — the page has no control for either (applicantCount is a
+     hidden default of 1), and the 70 went into the total. Scored when there
+     is something to score it on. Not an open item for the reader either: no
+     answer they could give would settle it, so it is not listed with the
+     ones a total waits for. */
+  scores.structure = null;
+  notes.structure = 'Not tested: this build has no input for the number of applicants or for how the loan tenure fits their ages, and joint-applicant evidence and declared source of funds are not modelled.';
 
   const tested = READINESS_COMPONENTS.filter(c => isNum(scores[c.k]));
   const testedWeight = tested.reduce((s, c) => s + c.weight, 0);
@@ -469,12 +490,14 @@ function propertyGrade(d, m) {
      rates and not survive a vacancy, and the weaker of the two is the one that
      decides whether it holds. */
   const worstRate = m.stress?.rate?.[m.stress.rate.length - 1]?.monthly;
-  const worstVac = m.stress?.vacancy?.[m.stress.vacancy.length - 1]?.monthly;
+  /* No vacancy stress for a class with no tenancy — the stress card tests
+     none, and the note named "the deepest vacancy tested" regardless. */
+  const worstVac = noTenancy ? null : m.stress?.vacancy?.[m.stress.vacancy.length - 1]?.monthly;
   const worstCase = [worstRate, worstVac].filter(isNum);
   if (worstCase.length) {
     const worst = Math.min(...worstCase);
     scores.downside = Math.round(clamp(50 + worst / 30, 0, 100));
-    notes.downside = `Worst modelled month is ${fmtAmount(worst, 'MYR')}, across the highest rate and the deepest vacancy tested.`;
+    notes.downside = `Worst modelled month is ${fmtAmount(worst, 'MYR')}, across the highest rate${isNum(worstVac) ? ' and the deepest vacancy' : ''} tested.`;
   } else { scores.downside = null; notes.downside = 'The downside cases could not be computed.'; }
 
   /* Demand and management readiness together, per directive 6.5. The management
@@ -1090,9 +1113,15 @@ function dealModel(d) {
      excluded them from both, which understated the with-rent burn and
      contradicted cashflowMonthly on the same screen. */
   const rentLinkedMonthly = (mgmtY + repairY) / 12;
-  const ownerFixedMonthly = instalment + (opex - mgmtY - repairY) / 12;
+  /* NOT WITHOUT THE INSTALMENT. With a loan tenure of 0 the instalment is
+     null, and null added as nought: a RM514,800 loan contributed nothing, and
+     the paragraph beside the reserve said the property "burns RM0 a month
+     with rent still coming in … 6 months with no rent is RM2.5k" under a tile
+     saying the reserve could not be priced. Unknown, as the reserve is. */
+  const burnable = isNum(instalment) && isNum(opex);
+  const ownerFixedMonthly = burnable ? instalment + (opex - mgmtY - repairY) / 12 : null;
   const stressedRentMonthly = effectiveRentN / 12;
-  const burnWithRent = Math.max(0, ownerFixedMonthly + rentLinkedMonthly - stressedRentMonthly);
+  const burnWithRent = burnable ? Math.max(0, ownerFixedMonthly + rentLinkedMonthly - stressedRentMonthly) : null;
   const burnWithoutRent = ownerFixedMonthly;
   /* The larger of the two, at full value. An earlier draft of this line scaled
      the no-rent case by 0.6, which had no basis and made the reserve smaller
@@ -1112,8 +1141,8 @@ function dealModel(d) {
   /* Shown alongside, because the specification asks for three and six months at
      minimum and a single figure hides how quickly the answer moves. */
   const reserveScenarios = [3, 6].map(mo => ({ months: mo,
-    noRent: Math.round(mo * burnWithoutRent),
-    stressedRent: Math.round(mo * burnWithRent) }));
+    noRent: burnable ? Math.round(mo * burnWithoutRent) : null,
+    stressedRent: burnable ? Math.round(mo * burnWithRent) : null }));
 
   costGroups.push({ id:'reserve', label:'Emergency reserve', items:[
     [`${reserveMonths} month${reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs`, reserve,
@@ -1302,8 +1331,14 @@ function propertyRiskFlags(d, m) {
   const out = [];
   if (m.dscr != null && m.dscr < 1) out.push({ sev:'serious', t:'The rent does not cover the loan',
     n:`Debt-service cover of ${fmtX(m.dscr, 2)} means net operating income falls short of the instalments. The shortfall is funded from your own income every month.` });
+  /* After them, not before: the monthly position is taken on the rent less
+     the vacancy allowance, with the repair reserve among the costs. It said
+     "before any repairs or void periods", which made the figure sound as if
+     it would grow once those were counted. */
   if (m.cashflowMonthly < 0) out.push({ sev:'warning', t:'Negative monthly cash flow',
-    n:`This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold before any repairs or void periods.` });
+    n: m.letsToTenant === false
+      ? `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, with no rent to set against it.`
+      : `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, after the ${fmtPct(num0(d.vacancyPct), 0)} vacancy allowance and the ${fmtPct(num0(d.repairReservePct), 0)} repair reserve modelled here.` });
   /* Every comparison below needs a comparable to compare against. On a custom
      entry there is none, so the flag is absent rather than evaluated against a
      missing bound — `price > undefined` is false, and a silent false here would
@@ -2117,8 +2152,13 @@ VIEWS.property = () => {
     ])));
     ct.append(cb);
     bd.append(el('div', { class: 'tablewrap' }, ct));
+    /* Withheld only while credit conduct or affordability is open (the band
+       above). With the buffer alone open — a cost line unpriced — the tile
+       showed its total and this said a total was withheld. */
     if (lr.unknowns.length) bd.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
-      `Not assessed: ${lr.unknowns.join(', ')}. A total is withheld while any of these is open rather than presented with the gap inside it.`));
+      `Not assessed: ${lr.unknowns.join(', ')}. ` + (isNum(lr.score)
+        ? `The total is weighted over the components that were tested, and ${lr.unknowns.length === 1 ? 'this is' : 'these are'} left out of it rather than scored as nought.`
+        : 'A total is withheld while any of these is open rather than presented with the gap inside it.')));
     bd.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', onclick: () => {
       if (!confirm('Remove everything you entered about your income, debts and credit? There is no copy anywhere else.')) return;
       store.write('borrowerProfile', null); location.reload();
@@ -2174,7 +2214,7 @@ VIEWS.property = () => {
   loc.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, '1 · Where'));
 
   const cityField = el('div', { class: 'field' });
-  cityField.append(el('label', { for: 'dealCity' }, 'City'));
+  cityField.append(el('label', { for: 'dealCity' }, ptr('in.city', 'City')));
   /* Read before the controls are built, so they render already showing what the
      link asked for. */
   /* Written on arrival too, so a bare /property/calculator becomes a link that
@@ -2211,7 +2251,7 @@ VIEWS.property = () => {
 
   const cityDef = SARAWAK_CITIES.find(c => c.id === d.city) || SARAWAK_CITIES[0];
   const distField = el('div', { class: 'field', style: 'margin-top:10px' });
-  distField.append(el('label', { for: 'dealDistrict' }, 'District or neighbourhood'));
+  distField.append(el('label', { for: 'dealDistrict' }, ptr('in.district', 'District or neighbourhood')));
   const distSel = el('select', { class: 'select', id: 'dealDistrict',
     onchange: e => { d.district = e.target.value; saveDeal(); syncPropertyUrl(d); renderKeepFocus(); } });
   cityDef.districts.forEach(x => distSel.append(el('option', { value: x, selected: d.district === x ? '' : null }, x)));
@@ -2304,7 +2344,10 @@ VIEWS.property = () => {
        only for the kinds that need one — a weeks-vacant record has no area and
        asking for one would be noise. */
     const form = el('div', { style: 'margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;align-items:end' });
-    const kindSel = el('select', { class:'select select-sm', 'aria-label':'What you observed' });
+    /* The kind and the evidence class each take the form's whole row. In a
+       120px track "What you observed" showed half its label on a phone and
+       "Evidence quality" lost the end of its grade. */
+    const kindSel = el('select', { class:'select select-sm', style:'grid-column:1/-1;max-width:none', 'aria-label':'What you observed' });
     OBSERVATION_KINDS.forEach(k => kindSel.append(el('option', { value:k.id }, `${k.label} (${k.unit})`)));
     const valInp = el('input', { class:'input input-sm', type:'number', inputmode:'decimal',
       placeholder:'Amount', 'aria-label':'Observed value' });
@@ -2343,7 +2386,7 @@ VIEWS.property = () => {
     };
     kindSel.addEventListener('change', syncKind);
 
-    const evSel = el('select', { class:'select select-sm', 'aria-label':'Evidence quality' });
+    const evSel = el('select', { class:'select select-sm', style:'grid-column:1/-1;max-width:none', 'aria-label':'Evidence quality' });
     /* Every class except the tool's own seeded default. Offering only rank 2 and
        above meant the weakest thing a reader could say about a number they half
        remembered was "developer supplied" — so the dropdown made them overstate
@@ -2375,7 +2418,9 @@ VIEWS.property = () => {
       addObservation({ city:d.city, area:d.district, kind:kindSel.value, value:v,
                        evidence:evSel.value, date:dateInp.value,
                        sourceRef:srcInp.value.trim(), address:addrInp.value.trim(),
-                       propertyType:d.propertyType,
+                       /* A land sale is of land, whatever the deal on screen
+                          is: it was stamped "Condominium". */
+                       propertyType: k.family === 'land' ? 'Land' : d.propertyType,
                        titleType: titleSel.value || '',
                        ...(k.area === 'land'
                          ? { landSqft: sqftValue, landUnit: unitSel.value }
@@ -2426,7 +2471,7 @@ VIEWS.property = () => {
   }
 
   const typeField = el('div', { class: 'field', style: 'margin-top:10px' });
-  typeField.append(el('label', { for: 'dealType' }, 'Property type'));
+  typeField.append(el('label', { for: 'dealType' }, ptr('in.propertyType', 'Property type')));
   const typeSel = el('select', { class: 'select', id: 'dealType',
     onchange: e => { d.propertyType = e.target.value; saveDeal(); syncPropertyUrl(d); renderKeepFocus(); } });
   PROPERTY_TYPES.forEach(x => typeSel.append(el('option', { value: x, selected: d.propertyType === x ? '' : null }, x)));
@@ -2442,7 +2487,7 @@ VIEWS.property = () => {
      from the type, so changing the type later does not silently discard a
      decision somebody made deliberately. */
   const classField = el('div', { class: 'field', style: 'margin-top:10px' });
-  classField.append(el('label', { for: 'dealClass' }, 'Asset class'));
+  classField.append(el('label', { for: 'dealClass' }, ptr('in.assetClass', 'Asset class')));
   const inferredClass = PROPERTY_TYPE_CLASS[d.propertyType] || 'residential';
   const classSel = el('select', { class: 'select', id: 'dealClass',
     onchange: e => {
@@ -2464,7 +2509,7 @@ VIEWS.property = () => {
     + 'exit are still modelled, because those are real: a parcel with a loan on it costs money every month.'));
 
   const titleField = el('div', { class: 'field', style: 'margin-top:10px' });
-  titleField.append(el('label', { for: 'dealTitle' }, 'Title class'));
+  titleField.append(el('label', { for: 'dealTitle' }, ptr('in.titleType', 'Title class')));
   const titleSel = el('select', { class: 'select', id: 'dealTitle',
     onchange: e => { d.titleType = e.target.value; saveDeal(); renderKeepFocus(); } });
   TITLE_TYPES.forEach(t => titleSel.append(el('option', { value: t.id, selected: d.titleType === t.id ? '' : null }, t.label)));
@@ -2484,7 +2529,7 @@ VIEWS.property = () => {
 
   if (d.titleType !== 'strata') {
     const leaseField = el('div', { class: 'field', style: 'margin-top:10px' });
-    leaseField.append(el('label', { for: 'dealLease' }, 'Years remaining on the lease (0 if freehold)'));
+    leaseField.append(el('label', { for: 'dealLease' }, ptr('in.remainingLease', 'Years remaining on the lease (0 if freehold)')));
     /* On change, as every other figure on the rail is, and never from an
        empty box. It re-rendered the page on each keystroke, so focus left the
        field after the first digit — typing 45 recorded 4 and dropped the
@@ -2507,7 +2552,7 @@ VIEWS.property = () => {
   rail.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, '2 · What'));
 
   const psel = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-  psel.append(el('label', { for: 'pj' }, 'Project'));
+  psel.append(el('label', { for: 'pj' }, ptr('in.project', 'Project')));
   const cityProjects = projectsForCity(d.city);
   const ps = el('select', { class: 'select', id: 'pj', onchange: e => {
     d.projectId = e.target.value;
@@ -2642,8 +2687,9 @@ VIEWS.property = () => {
           markTouched(d, k); saveDeal(); renderAfterTyping();
         } }));
       /* Said beside the number rather than only in the evidence section below,
-         because this is where a reader decides whether to trust it. */
-      if (EVIDENCE_DRIVERS.includes(k) && shownEvidence(d, k) === 'illustrative_default')
+         because this is where a reader decides whether to trust it. Only for
+         a figure this class has: a parcel's rent is used by nothing. */
+      if (evidenceDriversFor(d).includes(k) && shownEvidence(d, k) === 'illustrative_default')
         f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
           'Illustrative default — not yours, and not from any market'));
       rail.append(f);
@@ -2652,12 +2698,18 @@ VIEWS.property = () => {
 
   /* Provenance for the figures that actually move the answer. */
   rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, '9 · Evidence quality'));
-  rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
-    'Where each of the four figures below came from — the price and the rent drive every output.'));
+  /* The figures this class has (evidenceDriversFor, 70-property.js). A
+     bare parcel was told that "the price and the rent drive every output"
+     and asked to grade a rent and a service charge the page withholds. */
+  const railDrivers = evidenceDriversFor(d);
+  rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, railDrivers.includes('rent')
+    ? 'Where each of the four figures below came from — the price and the rent drive every output.'
+    : `Where each of the ${railDrivers.length === 2 ? 'two' : railDrivers.length} figures below came from — the price drives every output.`));
   [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
+    .filter(([k]) => railDrivers.includes(k))
     .forEach(([k, label]) => {
       const f = el('div', { class: 'assumption' });
-      f.append(el('label', { for: `ev-${k}` }, label));
+      f.append(el('label', { for: `ev-${k}` }, ptr(`evr.${k}`, label)));
       const sel = el('select', { class: 'select select-sm', id: `ev-${k}`,
         onchange: e => {
           d.evidence = { ...(d.evidence || {}), [k]: e.target.value };
@@ -2993,10 +3045,11 @@ VIEWS.property = () => {
        : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
    ['Cash to make rent-ready', m.improvementCash, 'Spent after completion before the property can earn: renovation, furnishing and deposits.'],
    /* Unknown when it cannot be priced, and the tile says why rather than
-      printing RM0 beside "3 months of instalment". */
+      printing RM0 beside "3 months of instalment". One month is "1 month",
+      as the ledger above already says; the tile read "1 months". */
    ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
-     ? `${m.reserveMonths} months of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
-     : `${m.reserveMonths} months of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
+     ? `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
+     : `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
    ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
      : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
@@ -3013,8 +3066,11 @@ VIEWS.property = () => {
     min: '1', max: '24', step: '1', value: String(m.reserveMonths), style: 'text-align:right',
     onchange: e => { d.reserveMonths = num0(e.target.value); markTouched(d, 'reserveMonths'); saveDeal(); renderAfterTyping(); } }));
   resRow.append(resField);
-  resRow.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
-    `At the entered rent and costs, holding this property burns ${fmtAmount(m.burnWithRent, 'MYR')} a month with rent still coming in and ${fmtAmount(m.burnWithoutRent, 'MYR')} a month with none. `
+  /* Said to be unknown where the instalment is (a loan tenure of 0), as the
+     tile above says, never priced as though the loan cost nothing. */
+  resRow.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' }, !isNum(m.burnWithoutRent)
+    ? 'What holding this property burns a month, and the three- and six-month figures, are not computed: the loan’s instalment could not be worked out from the entered tenure.'
+    : `At the entered rent and costs, holding this property burns ${fmtAmount(m.burnWithRent, 'MYR')} a month with rent still coming in and ${fmtAmount(m.burnWithoutRent, 'MYR')} a month with none. `
     + m.reserveScenarios.map(s => `${s.months} months with no rent is ${fmtAmount(s.noRent, 'MYR')}`).join('; ') + '.'));
   cash.append(resRow);
 
@@ -3117,8 +3173,12 @@ VIEWS.property = () => {
   stressCard.append(cardHead('What breaks it',
     'The useful question is not what this returns but at what point it stops working. Each row moves one assumption and leaves the rest as entered.'));
 
-  if (m.negativeAtBest) stressCard.append(el('p', { class: 'body', style: 'margin-bottom:var(--md);color:var(--dn-text)' },
-    'This deal is cash-flow negative even at a 0% interest rate with the unit never empty. No interest rate or occupancy level makes it pay for itself — the shortfall is structural, in the price against the rent.'));
+  /* A class with no tenancy has no rent for the price to stand against: the
+     page withholds rent for it, and this said the shortfall lay "in the price
+     against the rent" of a bare parcel. */
+  if (m.negativeAtBest) stressCard.append(el('p', { class: 'body', style: 'margin-bottom:var(--md);color:var(--dn-text)' }, m.letsToTenant === false
+    ? 'This class earns no rent, so no interest rate makes it pay for itself: whatever it costs to hold — the outgoings, and the instalment where there is a loan — comes from you until it is sold.'
+    : 'This deal is cash-flow negative even at a 0% interest rate with the unit never empty. No interest rate or occupancy level makes it pay for itself — the shortfall is structural, in the price against the rent.'));
 
   const stressGrid = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
   /* The three cases are displayed as three different things, because they are:
@@ -3225,7 +3285,9 @@ VIEWS.property = () => {
   /* The placement target and the vacancy allowance describe the same thing.
      Shown side by side rather than reconciled silently — the model uses the
      vacancy figure, and if the two disagree that is the reader's to settle. */
-  if (isNum(m.impliedVacancyPct)) {
+  /* Not for a class with no tenancy: its vacancy is used by nothing, and
+     this called the entered figure "the figure every output above uses". */
+  if (isNum(m.impliedVacancyPct) && m.letsToTenant !== false) {
     const gap = Math.abs(m.impliedVacancyPct - num0(d.vacancyPct));
     ops.append(el('div', { class: 'note', style: `margin-top:var(--md);border-left:3px solid var(${gap > 2 ? '--warn' : '--line'})` },
       el('p', { class: 'body', style: 'font-size:13px' },
@@ -3262,7 +3324,8 @@ VIEWS.property = () => {
   const ev = el('div', { class: 'card' });
   ev.append(cardHead('What this rests on',
     'A figure a seller quoted and a figure taken from a transacted comparable are not the same evidence.'));
-  const evRows = [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']];
+  const evRows = [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
+    .filter(([k]) => evidenceDriversFor(d).includes(k));
   /* shownEvidence, not d.evidence. Reading the stored label directly is what
      made this table contradict the selectors three inches above it: an
      untouched deal showed "Illustrative default" in every selector while this

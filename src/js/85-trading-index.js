@@ -1105,6 +1105,11 @@ VIEWS.opportunities = () => {
   const draft = oppDraft ||= { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
   /* Each control carries its own label: the labels had no `for` and the
      inputs no id, so all seven fields were unnamed to a screen reader. */
+  /* The district is chosen from the city's own list, which follows the city.
+     It was free text, so a record could name a district no locality, select
+     or link in the calculator could match — and a blank one opened there as
+     "Demand — null" (dealDistrict, 70-property.js). */
+  let fillDistricts = null;
   const f = (label, key, kind) => {
     const fl = el('div', { class: 'field', style: 'margin-top:8px' });
     const id = `opp-new-${key}`;
@@ -1113,6 +1118,15 @@ VIEWS.opportunities = () => {
     if (kind === 'city') {
       input = el('select', { class: 'select', id });
       SARAWAK_CITIES.forEach(c => input.append(el('option', { value: c.id }, c.name)));
+    } else if (kind === 'district') {
+      const box = input = el('select', { class: 'select', id });
+      fillDistricts = () => {
+        const listed = (SARAWAK_CITIES.find(c => c.id === draft.city) || SARAWAK_CITIES[0]).districts;
+        if (!listed.includes(draft.district)) draft.district = '';
+        box.replaceChildren(el('option', { value: '' }, 'Not recorded'), ...listed.map(x => el('option', { value: x }, x)));
+        box.value = draft.district;
+      };
+      fillDistricts();
     } else if (kind === 'type') {
       input = el('select', { class: 'select', id });
       PROPERTY_TYPES.forEach(t => input.append(el('option', { value: t }, t)));
@@ -1121,7 +1135,7 @@ VIEWS.opportunities = () => {
     }
     /* A figure not given is 0 in the draft, and an empty field on the page. */
     input.value = kind === 'num' ? (draft[key] || '') : draft[key];
-    const keep = e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; };
+    const keep = e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; if (kind === 'city') fillDistricts?.(); };
     input.addEventListener('input', keep);
     input.addEventListener('change', keep);
     fl.append(input);
@@ -1129,7 +1143,7 @@ VIEWS.opportunities = () => {
   };
   add.append(f('Project or address', 'name'));
   add.append(f('City', 'city', 'city'));
-  add.append(f('Area or district', 'district'));
+  add.append(f('Area or district', 'district', 'district'));
   add.append(f('Property type', 'type', 'type'));
   add.append(f('Asking price (RM)', 'askingPrice', 'num'));
   add.append(f('Built-up area (sq ft)', 'sqft', 'num'));
@@ -1201,14 +1215,22 @@ VIEWS.opportunities = () => {
 
   /* The register itself. Newest first — an explicit, stated order. */
   list.forEach((o, i) => {
-    const { m, grade, finance } = modelled[i];
+    const { d: md, m, grade, finance } = modelled[i];
+    /* Where it is modelled, said where it differs from what was recorded: a
+       district left blank, or typed and not on the city's list, stands in as
+       the calculator's (candidateModel) and the card says which. */
+    const cityName = (SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).name || '—';
+    const listedAt = listedDistrict(o.deal.city, o.deal.district);
+    const place = listedAt ? ` · ${listedAt}`
+      : o.deal.district ? ` · ${o.deal.district} (not one of ${cityName}'s districts — modelled in ${md.district})`
+      : ` · district not recorded — ${md.district} stands in`;
     const card = el('div', { class: 'card' });
     const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[grade.grade];
     card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
       el('div', {}, [
         el('h3', { class: 'h-card', id: `opp-${i}-name`, style: 'margin:0' }, o.name),
         el('p', { class: 'metaline', style: 'margin-top:2px' },
-          `${(SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).name || '—'}${o.deal.district ? ' · ' + o.deal.district : ''} · ${o.deal.propertyType}`),
+          `${cityName}${place} · ${o.deal.propertyType}`),
       ]),
       el('div', { style: 'margin-left:auto;text-align:right' }, [
         el('div', { class: 'num', style: `font-size:24px;font-weight:700;color:var(${gradeTone})` }, grade.grade),
@@ -1304,7 +1326,22 @@ VIEWS.opportunities = () => {
     eg.append(edField('Bank valuation (RM)', () => o.deal.bankValuation, v => { setDeal('bankValuation', v); }));
     eg.append(edField('Registered valuer (RM)', () => o.valuerEstimate, v => { o.valuerEstimate = v; }));
     eg.append(edField('Name or address', () => o.name, v => { o.name = v; }, 'text'));
-    eg.append(edField('Area or district', () => o.deal.district, v => { o.deal = { ...o.deal, district: v || null }; }, 'text'));
+    /* From the city's list, as the form above. A district typed before the
+       list stays offered, marked, until it is changed. */
+    {
+      const w = el('div', { class: 'field' });
+      const id = `opp-${i}-area-or-district`;
+      w.append(el('label', { for: id }, 'Area or district'));
+      const s = el('select', { class: 'select', id });
+      const listed = (SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).districts || [];
+      s.append(el('option', { value: '' }, 'Not recorded'));
+      if (o.deal.district && !listedAt) s.append(el('option', { value: o.deal.district }, `${o.deal.district} — not one of ${cityName}'s districts`));
+      listed.forEach(x => s.append(el('option', { value: x }, x)));
+      s.value = listedAt || o.deal.district || '';
+      s.addEventListener('change', e => { o.deal = { ...o.deal, district: e.target.value || null }; saveOpportunities(); redrawKeepFocus(); });
+      w.append(s);
+      eg.append(w);
+    }
     eg.append(edField('Built-up area (sq ft)', () => o.deal.sqft, v => { setDeal('sqft', v); mark('sqft', v > 0); }));
     ed.append(eg);
     ed.append(el('p', { class: 'metaline', style: 'margin-top:6px' },

@@ -62,16 +62,26 @@ function demandPanel(city, area) {
     el('span', { class: 'body', style: 'font-size:13px' }, test.why),
   ]));
 
+  /* Room for the state to be read without pushing the note out of sight.
+     With the selects at their own width the table ran to 880px in a 663px
+     card at 1440 and the note scrolled away: the source's name wraps, the
+     note keeps 9rem, and the empty fifth column, which held nothing, is
+     gone — 654px. */
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
-  t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts', 'Note', ''].map((h, i) =>
+  t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts', 'Note'].map((h, i) =>
     el('th', { style: i ? null : 'text-align:left' }, h)))));
   const tb = el('tbody');
   test.items.forEach(i => {
     /* An id and renderKeepFocus, because render() rebuilds the page: a
        keyboard reader changing a source's state with the arrow keys was put
        back at the top of the document after every step, a long calculator
-       above the control they had just used. */
-    const sel = el('select', { class: 'select select-sm', id: `demand-${i.source.id}`, 'aria-label': `State of ${i.source.label} demand`,
+       above the control they had just used.
+       Sized to its longest state, not to the cell. At width:100% a select
+       in an auto-width table cell asks for no width at all, and beside the
+       12rem note column all seven were squashed to their arrow — 0px of text
+       at 1440, 6px on a phone — so the state the demand gate reads could not
+       be seen without opening each one. */
+    const sel = el('select', { class: 'select select-sm', style: 'width:auto;max-width:none', id: `demand-${i.source.id}`, 'aria-label': `State of ${i.source.label} demand`,
       onchange: e => {
         setDemand(city, area, i.source.id, e.target.value ? { state: e.target.value, asOf: new Date().toISOString().slice(0, 10) } : null);
         renderKeepFocus();
@@ -80,7 +90,7 @@ function demandPanel(city, area) {
     DEMAND_STATES.forEach(s => sel.append(el('option', { value: s.id, title: s.note,
       selected: i.state && i.state.id === s.id ? '' : null }, s.label)));
     tb.append(el('tr', {}, [
-      el('th', { scope: 'row', style: 'text-align:left' }, [
+      el('th', { scope: 'row', style: 'text-align:left;white-space:normal' }, [
         i.source.label,
         i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'not occupier demand') : null,
         i.source.fragile && !i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'fragile') : null,
@@ -89,9 +99,8 @@ function demandPanel(city, area) {
       el('td', { style: 'text-align:left' }, i.counts
         ? el('span', { class: 'chip chip-ok' }, 'yes')
         : el('span', { class: 'caption' }, i.state ? 'no' : '—')),
-      el('td', { class: 'caption', style: IPS_PROSE_CELL },
+      el('td', { class: 'caption', style: `${IPS_PROSE_CELL};min-width:9rem` },
         i.state ? i.state.note : i.source.ask),
-      el('td', {}, ''),
     ]));
   });
   t.append(tb);
@@ -111,9 +120,9 @@ function environmentalPanel(d) {
     'IPS §6.7 requires recurring allowances in coastal, flood-prone or humid environments. '
     + 'Every one below is triggered by something recorded against this locality — nothing is inferred from the town.'));
 
-  if (!env.anyRecorded) {
+  if (env.buildingless || !env.anyRecorded) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, env.why));
-    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    if (!env.buildingless) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `Record coastal exposure, flood history or ground conditions for ${d.district} on the area screen and this fills in.`));
     return card;
   }
@@ -128,8 +137,10 @@ function environmentalPanel(d) {
       el('td', { class: 'caption', style: 'text-align:left' },
         `${ATTR_BY_ID[i.triggeredBy] ? ATTR_BY_ID[i.triggeredBy].short : i.triggeredBy}: ${i.triggeredByClass}`),
       el('td', { class: 'num' }, fmtPct(i.pctOfValue, 2)),
-      el('td', { class: 'num' }, fmtMoney(i.annual, 'MYR', 0)),
-      el('td', { class: 'caption', style: IPS_PROSE_CELL }, i.note),
+      /* An offered line (fit-out) is shown and kept out of the total. */
+      el('td', { class: i.offered ? 'num caption' : 'num' }, fmtMoney(i.annual, 'MYR', 0)),
+      el('td', { class: 'caption', style: IPS_PROSE_CELL }, i.offered
+        ? `${i.note} Not in the total: nothing here records that the letting is furnished.` : i.note),
     ]));
   });
   tb.append(el('tr', { style: 'background:var(--surface-sunk)' }, [
@@ -178,7 +189,10 @@ function rentVersusBuyPanel(d, m) {
   g.append(el('div', { class: 'panel' }, statTile('Price to rent', `${fmtNum(r.priceToRent, 1)}×`,
     { sub: 'Purchase price over one year of market rent' })));
   g.append(el('div', { class: 'panel' }, statTile('True cost to own', fmtMoney(r.trueCarrying, 'MYR', 0),
-    { sub: `A year, including ${fmtMoney(r.opportunity, 'MYR', 0)} the deposit is not earning elsewhere` })));
+    /* On everything put in, which is what the model charges it on — the
+       deposit, the fees, the renovation and the reserve. It said "the
+       deposit", and RM9,110 is 7% of RM130,142, not of a RM57,200 deposit. */
+    { sub: `A year, including ${fmtMoney(r.opportunity, 'MYR', 0)} the ${fmtMoney(r.committed, 'MYR', 0)} of cash put in is not earning elsewhere` })));
   g.append(el('div', { class: 'panel' }, statTile('Cost to rent instead',
     isNum(r.rentInstead) ? fmtMoney(r.rentInstead, 'MYR', 0) : '—',
     { sub: isNum(r.weeks) ? `${fmtNum(r.weeks, 0)} weeks at this property's own rent` : 'Enter your weeks of use' })));

@@ -558,7 +558,7 @@ await sleep(2500);
    and not counted. */
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
 for (const [route, heads] of [
-  ['/property/calculator?city=kuching', ['#|Gate|State|Why', 'Source|State|Counts|Note|', 'Allowance|Triggered by']],
+  ['/property/calculator?city=kuching', ['#|Gate|State|Why', 'Source|State|Counts|Note', 'Allowance|Triggered by']],
   ['/methodology/ips', ['IPS §8 says|', '#|Gate|The question it asks', 'Tier|IPS description|']],
   ['/company/JPM-SEC', ['Strategy|Grade|Supports|Weakens or missing']],
 ]) {
@@ -1094,6 +1094,88 @@ for (const w of [360, 390]) {
   else console.log('ok   release-a shell: each chrome on its views at 1440 and 390, every chrome link renders, menus and the sheet work from the keyboard, the drawer traps focus and closes on Escape, no overflow at 360/768/1024/1440, and every menu panel inside the viewport at 1024 and 1100 in the page\'s font and in Verdana');
 }
 /* ---- /release-a: shell ---- */
+/* ---- fixwave: property ---- */
+{
+  const evalM = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId)).result?.result?.value;
+  const loadAt = async (path, w) => {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: w < 768 ? 844 : 900, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (const t = Date.now(); Date.now() - t < 30000; await sleep(150))
+      if (await evalM(`typeof propertyPagesSettled === 'function' && document.readyState === 'complete' && propertyPagesSettled()`) === true) break;
+    await sleep(400);
+  };
+  /* P1 — THE END OF THE FOOTER CAN BE SCROLLED CLEAR OF THE DOCK. The space
+     for the fixed decision dock was reserved on #views, above the footer, so
+     at the bottom of the page the dock sat on the footer's last lines — the
+     legal paragraph's "Nothing here may be used for an investment decision"
+     — 143px of it at 390px and 31px at 1440, with nothing left to scroll. */
+  {
+    const fails = [];
+    for (const [path, w, must] of [['/property/calculator', 390, true], ['/property/calculator', 1440, true],
+      ['/us-options/wheel', 390, false], ['/research/trading-index', 390, false]]) {
+      await loadAt(path, w);
+      const r = await evalM(`(async () => {
+        const dock = document.querySelector('body > .dock');
+        if (!dock) return { dock: false };
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+        await new Promise(res => setTimeout(res, 350));
+        const legal = document.querySelector('body > .footer .footer-legal') || document.querySelector('body > .footer');
+        return { dock: true, end: Math.round(legal.getBoundingClientRect().bottom), top: Math.round(dock.getBoundingClientRect().top) };
+      })()`);
+      if (!r || !r.dock) { if (must) fails.push(`${w}px ${path}: no dock to measure`); continue; }
+      if (r.end > r.top + 1) fails.push(`${w}px ${path}: the footer ends at ${r.end}px, under the dock from ${r.top}px`);
+    }
+    if (fails.length) { bad++; console.log(`FAIL fixwave P1 — the decision dock covers the end of the footer: ${fails.join('; ')}`); }
+    else console.log('ok   fixwave P1: at the bottom of the calculator (390, 1440), the wheel and the Trading Index, the whole footer sits above the dock');
+  }
+  /* P2, P3 — A SELECT SHOWS WHAT IS CHOSEN IN IT. The demand card's seven
+     State selects sat in auto-width table cells beside a 12rem prose column
+     and were squashed to their arrow (0px of text at 1440); the evidence
+     grades and the owner-statement cadence sat in the rail's 78px value
+     column ("Illustra", "month"); on a phone the recorder's "What you
+     observed" and "Evidence quality" had half their text, and "Who would be
+     selling" 220px for a 385px category. Every option of these must fit
+     (the recorder's kind: the chosen one — its longest, "Management or
+     service charge (RM/month)", is 270px against the 1440 rail's 200px). */
+  {
+    const CLIPPED = `(() => {
+      const span = document.createElement('span'); span.style.cssText = 'position:absolute;left:-9999px;visibility:hidden;white-space:pre'; document.body.append(span);
+      const width = (s, t) => { const cs = getComputedStyle(s); span.style.font = cs.font; span.style.letterSpacing = cs.letterSpacing; span.textContent = t; return span.getBoundingClientRect().width; };
+      const room = (s) => { const cs = getComputedStyle(s); return s.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - (cs.appearance === 'none' ? 0 : 20); };
+      const out = []; let n = 0;
+      const check = (s, every) => { n++; const r = room(s);
+        (every ? [...s.options].map(o => o.textContent) : [s.selectedOptions[0]?.textContent || '']).forEach(t => {
+          const need = width(s, t); if (need > r + 1) out.push((s.id || s.getAttribute('aria-label')) + ' "' + t + '" ' + Math.round(need) + 'px in ' + Math.round(r) + 'px'); }); };
+      document.querySelectorAll('main select[id^="demand-"], main select[id^="ev-"], main #d-ownerReportCadence').forEach(s => check(s, true));
+      ['What you observed', 'Evidence quality'].forEach(l => { const s = document.querySelector('main select[aria-label="' + l + '"]');
+        if (s) check(s, l === 'Evidence quality'); else out.push('no "' + l + '" select'); });
+      /* And at 1440 the demand table, its states now at their own width,
+         still fits its card, so the note beside each is not scrolled away. */
+      const dt = document.getElementById('demand-employment')?.closest('table');
+      if (innerWidth >= 1440 && dt && dt.getBoundingClientRect().width > dt.closest('.tablewrap').clientWidth + 1)
+        out.push('the demand table is ' + Math.round(dt.getBoundingClientRect().width) + 'px in a ' + dt.closest('.tablewrap').clientWidth + 'px card');
+      const who = document.getElementById('disposerCategory');
+      if (!who) out.push('no "Who would be selling" control');
+      else if (who.tagName === 'SELECT') check(who, true);
+      else who.querySelectorAll('label').forEach(l => { n++; const b = l.getBoundingClientRect(), c = who.closest('.card').getBoundingClientRect();
+        if (l.scrollWidth > l.clientWidth + 1 || b.right > c.right + 1) out.push('"' + l.textContent.trim() + '" runs past its card'); });
+      span.remove();
+      return { n, out };
+    })()`;
+    const fails = [];
+    for (const w of [1440, 1024, 390, 360]) {
+      await loadAt('/property/calculator', w);
+      const r = await evalM(CLIPPED);
+      if (!r || r.n < 14) fails.push(`${w}px: measured ${r?.n} controls`);
+      (r?.out || []).slice(0, 6).forEach(x => fails.push(`${w}px ${x}`));
+      if ((r?.out || []).length > 6) fails.push(`${w}px … and ${r.out.length - 6} more`);
+    }
+    if (fails.length) { bad++; console.log(`FAIL fixwave P2/P3 — a select on the calculator cannot show what is chosen in it:`); fails.slice(0, 24).forEach(f => console.log(`     ${f}`)); }
+    else console.log('ok   fixwave P2/P3: the demand states, evidence grades, owner statement, recorder selects and the seller category show their text in full at 1440, 1024, 390 and 360');
+  }
+}
+/* ---- end fixwave: property ---- */
+
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

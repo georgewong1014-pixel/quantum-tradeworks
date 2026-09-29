@@ -627,7 +627,7 @@ VIEWS.comparables = () => {
         el('td', { style: 'text-align:left' }, title
           ? el('span', { class: title.restricted ? 'chip chip-bronze' : 'chip', title: title.note }, title.label)
           : el('span', { class: 'caption' }, '—')),
-        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, `${o.area || '—'}, ${o.city || '—'}`),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, `${o.area || '—'}, ${townName(o.city)}`),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.address || '—'),
         el('td', { class: 'caption', style: 'text-align:left' }, o.date || '—'),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.sourceRef || '—'),
@@ -705,6 +705,10 @@ VIEWS.comparables = () => {
   return wrap;
 };
 
+/* A record's town by the name every page shows. The register printed the
+   stored id — "Tabuan, kuching" — beside rows that said "Kuching". */
+const townName = (id) => SARAWAK_CITIES.find(c => c.id === id)?.name || id || '—';
+
 /* Bulk entry. A district's worth of transactions through a seven-control inline
    form is an afternoon of clicking and a reliable source of typing errors. */
 function openComparableImport() {
@@ -765,7 +769,20 @@ function openComparableImport() {
     if (!OBS_BY_ID[kind]) return { err: `kind "${r.kind}" is not one of ${OBSERVATION_KINDS.map(k => k.id).join(', ')}` };
     if (!Number.isFinite(value) || value <= 0) return { err: `value "${r.value}" is not a number above zero` };
     if (!r.city) return { err: 'no city' };
+    /* THE TOWN AS EVERY PAGE KEYS IT. The city was stored as pasted, so
+       "Kuching" — the name every page shows — sat beside the id "kuching"
+       and its rows were read nowhere: the calculator's district panel, the
+       area screen, the grade and the exit gate all match the id. Matched by
+       id or name in any case, and refused, with its reason, when it is no
+       town this register keeps. A district on the town's list is spelt as
+       the list spells it; one that is not stays as typed, a locality of the
+       reader's own, as the area screen allows. */
+    const town = SARAWAK_CITIES.find(c => slugParam(c.id) === slugParam(r.city) || slugParam(c.name) === slugParam(r.city));
+    if (!town) return { err: `city "${r.city}" is not one of the Sarawak towns this register keeps` };
     if (!r.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))) return { err: `date "${r.date}" is not YYYY-MM-DD` };
+    /* A calendar date, not only its shape: 2026-13-45 passed. */
+    const day = new Date(`${r.date}T00:00:00Z`);
+    if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== String(r.date)) return { err: `date "${r.date}" is not a date on the calendar` };
     const ev = String(r.evidence || 'user');
     if (!EVIDENCE.some(e => e.id === ev)) return { err: `evidence "${ev}" is not a known source class` };
     /* EVERY FIELD THE EXPORT WRITES COMES BACK. The record was rebuilt from
@@ -778,7 +795,7 @@ function openComparableImport() {
     const areaOf = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) || !(Number(v) > 0)) ? null : Number(v);
     const unit = (v, fallback) => (v && AREA_UNIT_BY_ID[v]) ? v : fallback;
     const title = String(r.titleType || '');
-    return { ok: { city: String(r.city), area: String(r.area || ''), kind, value,
+    return { ok: { city: town.id, area: listedDistrict(town.id, r.area) || String(r.area || ''), kind, value,
                    date: String(r.date), evidence: ev,
                    propertyType: String(r.propertyType || ''), address: String(r.address || ''),
                    sourceRef: String(r.sourceRef || ''), reviewedBy: String(r.reviewedBy || ''),
@@ -869,17 +886,21 @@ function openObservationDrawer(o) {
   };
   body.append(chipRow, whyP);
 
-  const edit = (label, key, kind) => {
+  const edit = (label, key, kind, unit) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
     /* Tied to its field. The label stood beside an input with no id, so all
        five fields reached a screen reader as unnamed edit boxes. */
     const id = `obs-edit-${key}`;
     f.append(el('label', { for: id }, label));
+    /* An area kept in square feet is shown and corrected in the unit it was
+       typed in (unit), as the register shows it: 4 points, not 1,742.4. */
+    const shown = unit ? fromSqft(o[key], unit) : o[key];
     const node = kind === 'number'
-      ? el('input', { class: 'input', id, type: 'number', value: isNum(o[key]) ? String(o[key]) : '' })
+      ? el('input', { class: 'input', id, type: 'number', value: isNum(shown) ? String(unit ? +shown.toFixed(areaUnit(unit).dp) : shown) : '' })
       : el('input', { class: 'input', id, type: 'text', value: o[key] || '' });
     node.addEventListener('change', e => {
-      const v = kind === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value;
+      const typed = kind === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value;
+      const v = unit && isNum(typed) ? toSqft(typed, unit) : typed;
       const i = State.observations.findIndex(x => x.id === o.id);
       if (i > -1) {
         recordObservationEdited(o.id, key, State.observations[i][key], v);
@@ -894,7 +915,12 @@ function openObservationDrawer(o) {
   };
   edit('Address or project', 'address');
   edit('Property type', 'propertyType');
-  edit('Built-up area (sq ft)', 'sqft', 'number');
+  /* A land record's area is its land area. The drawer offered only the
+     built-up area — a field a land sale never uses — so the 4 points behind
+     the register's RM45,000/pt could be neither seen nor corrected, and a
+     figure typed there changed nothing the register showed. */
+  if (OBS_BY_ID[o.kind]?.area === 'land') edit(`Land area (${areaUnit(o.landUnit || 'point').label})`, 'landSqft', 'number', o.landUnit || 'point');
+  else edit('Built-up area (sq ft)', 'sqft', 'number');
   edit('Source reference — the filing, listing, tenancy or document this came from', 'sourceRef');
   edit('Checked against the source by', 'reviewedBy');
 
@@ -905,7 +931,7 @@ function openObservationDrawer(o) {
   const recAt = o.recordedAt ? new Date(`${String(o.recordedAt).replace(' ', 'T')}:00Z`) : null;
   const recorded = recAt && !Number.isNaN(recAt.getTime()) ? caseRaisedAt(recAt) : (o.recordedAt || '—');
   [['Recorded', recorded], ['Dated', o.date || '—'],
-   ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${o.city || '—'}`]]
+   ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${townName(o.city)}`]]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
   body.append(kv);
   body.append(histHost);

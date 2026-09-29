@@ -1090,9 +1090,9 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
    Fixed to the bottom, one row, collapsible. z-index 35 puts it above the page
    and the sticky sub-nav at 25, and below the topbar at 40, the drawer at 61,
    the modal at 62 and the toast at 70 — a summary that covered a dialog would
-   be worse than no summary. #views carries the bottom padding so the dock can
-   never sit on top of the last card; padding the body would leave the footer
-   underneath it instead. */
+   be worse than no summary. The footer carries the dock's measured height
+   below itself (see .dock ~ .footer), so nothing on the page — the last card
+   or the footer's last line — has to stay under it. */
 .dock {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
   background: var(--surface-2); border-top: 1px solid var(--line-2);
@@ -1113,11 +1113,17 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .dock-acts { display: flex; gap: 8px; margin-left: auto; }
-#views[data-dock="1"] { padding-bottom: 132px; }
+/* THE DOCK SAT ON THE END OF THE FOOTER. The space for it was reserved on
+   #views, which ends above the footer, so at the bottom of the page the dock
+   covered the footer's last lines — the legal paragraph's "Nothing here may
+   be used for an investment decision", 143px of it on a phone and 31px at
+   1440 — and there was nothing further to scroll. The room is reserved after
+   the footer instead, at the dock's measured height (--dock-h, published by
+   render() and following the dock as it wraps), so the whole page can be
+   scrolled clear of it. The dock is mounted just before the footer. */
+.dock ~ .footer { padding-bottom: calc(var(--xl) + var(--dock-h, 0px)); }
 @media (max-width: 720px) {
-  /* On a phone the figures wrap to two rows and the actions need their own,
-     so the reserved space grows with it. */
-  #views[data-dock="1"] { padding-bottom: 188px; }
+  /* On a phone the figures wrap to two rows and the actions need their own. */
   .dock-figs { gap: var(--md); width: 100%; }
   .dock-acts { margin-left: 0; width: 100%; }
   .dock-acts .btn { flex: 1 1 0; }
@@ -1571,6 +1577,11 @@ details > summary::marker { content: ''; }
    dragging inside the field. A contract name and a screenshot filename fared
    little better at 37% and 25%. */
 .assumption .a-text { grid-column: 1 / -1; width: 100%; }
+/* A choice gets its own row for the same reason. In the 78px column the
+   evidence grades read "Illustra" for "Illustrative default" and "Verifie",
+   and the owner statement "month" and "not ag" — 40px of text for 51-120px
+   of words, at every width. */
+.assumption > .select-sm { grid-column: 1 / -1; width: 100%; max-width: none; }
 .assumption .a-note { grid-column: 1 / -1; font-size:12px; color: var(--ink-3); margin-top: -4px; }
 /* An input moved off its derived default is marked as the reader's, with the
    default beside it; the rule is a bronze edge, not a colour on the number. */
@@ -30985,6 +30996,31 @@ const saveDeal = () => {
 const slugParam = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const matchBySlug = (list, want) => list.find(x => slugParam(x) === slugParam(want));
 
+/* A DEAL'S DISTRICT IS ONE OF ITS CITY'S.
+   The calculator's district select, the address and every locality lookup
+   read a district from the city's own list. A register record carried
+   whatever was typed as its "Area or district", or null where nothing was,
+   and opening it in the calculator put that into the deal: "Demand — null",
+   "No sourced transactions recorded in null", the select showing City
+   centre; and a typed "Jalan Pedada" was modelled while the select showed
+   Town centre and the link carried a district no recipient could match.
+   listedDistrict finds a name on the city's list whatever its case or
+   spacing. dealDistrict is the district a deal is modelled at: the one it
+   names when the city lists it, else the stand-in offered where the city
+   lists that, else the city's first — which is what choosing the city
+   does. */
+const listedDistrict = (city, want) => {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  return def && want ? matchBySlug(def.districts, want) || null : null;
+};
+const dealDistrict = (city, want, standIn) => {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  if (!def) return want;
+  return listedDistrict(city, want) || listedDistrict(city, standIn) || def.districts[0];
+};
+/* A deal saved from such a record is put on its city's list when it loads. */
+State.deal.district = dealDistrict(State.deal.city, State.deal.district);
+
 /* THE WHOLE DEAL IN THE ADDRESS, NOT THREE FIELDS OF IT.
    ---------------------------------------------------------------------------
    The address carried city, district and type; a pasted link reproduced the
@@ -31289,9 +31325,7 @@ function workspaceLinkBanner(kind, plan, save) {
    established. The grade and the risk flags used to treat every answer
    alike: a 'yes' to flood, single-employer demand and unsold supply scored
    the local-demand pillar 100, exactly as all-'no' did, and a 'yes' to "has
-   the strata title issued" was raised as a risk. The leasehold question asks
-   two things at once and has no adverse answer; an answer to it counts as
-   settled and nothing more. */
+   the strata title issued" was raised as a risk. */
 const CHECK_ANSWERS = ['yes', 'no', 'unknown'];
 const SARAWAK_CHECKS = [
   { id:'title-restricted', adverse:'yes', q:'Is the title Native Area Land, NCR or another restricted class?',
@@ -31304,7 +31338,14 @@ const SARAWAK_CHECKS = [
     ],
     affects:['Whether the purchase can complete at all', 'Financing', 'Resale pool'],
     why:'Transfer of restricted classes is limited by the Sarawak Land Code. If it applies, no financial model matters until it is resolved.' },
-  { id:'lease-remaining', adverse:null, q:'If leasehold, how many years remain and has extension been applied for?',
+  /* Asked "how many years remain and has extension been applied for?" and
+     answered yes or no, with no adverse answer — so Yes and No alike counted
+     as settled and lifted local demand from 0 to 10, and a short lease with
+     nothing applied for, answered No, raised nothing. It now asks whether the
+     tenure has been confirmed, which the three answers can say, as the
+     resale question below does. */
+  { id:'lease-remaining', adverse:'no', flag:'The tenure and any remaining lease have not been confirmed',
+    q:'Have you confirmed the tenure on the title — freehold, or the years of lease remaining and whether an extension has been applied for?',
     who:'Lawyer, Land and Survey Department', sev:'warning',
     why:'Short remaining leases can reduce financing availability and resale demand. Confirm applicable thresholds with the intended lender.' },
   { id:'strata-issued', adverse:'no', flag:'The strata title has not issued', q:'For an apartment: has the strata title issued, or is it still a master title?',
@@ -32495,9 +32536,10 @@ const PROPERTY_I18N = {
   'ev.developer': { en:'Developer supplied', ms:'Daripada pemaju', zh:'发展商提供' },
   'ev.estimated': { en:'Estimated', ms:'Anggaran', zh:'估算' },
   'ev.assumed':   { en:'Assumed', ms:'Andaian', zh:'假设' },
+  'ev.illustrative_default': { en:'Illustrative default', ms:'Nilai lalai ilustratif', zh:'示例默认值' },
   /* the ten risk questions */
   'chk.title-restricted': { en:'Is the title Native Area Land, NCR or another restricted class?', ms:'Adakah hakmilik ini Tanah Kawasan Bumiputera (Native Area Land), NCR atau kelas terhad lain?', zh:'地契是否属土著地区土地（Native Area Land）、土著习俗地（NCR）或其他受限地类？' },
-  'chk.lease-remaining':  { en:'If leasehold, how many years remain and has extension been applied for?', ms:'Jika pajakan, berapa tahun berbaki dan adakah lanjutan tempoh dipohon?', zh:'若属租赁地契，尚余多少年？是否已申请延长年限？' },
+  'chk.lease-remaining':  { en:'Have you confirmed the tenure on the title — freehold, or the years of lease remaining and whether an extension has been applied for?', ms:'Adakah anda telah mengesahkan pegangan pada hakmilik — pegangan bebas, atau baki tahun pajakan dan sama ada lanjutan tempoh telah dipohon?', zh:'你是否已核实地契上的年限——永久地契，或租约尚余多少年、是否已申请延长？' },
   'chk.strata-issued':    { en:'For an apartment: has the strata title issued, or is it still a master title?', ms:'Bagi apartmen: adakah hakmilik strata telah dikeluarkan, atau masih hakmilik induk?', zh:'公寓单位：分层地契是否已发出，还是仍属总地契？' },
   'chk.flood':            { en:'Is the site in an area with a known flood history?', ms:'Adakah tapak ini terletak di kawasan yang ada sejarah banjir?', zh:'该地点是否位于已知有水灾记录的地区？' },
   'chk.single-employer':  { en:'Does rental demand here depend on one employer or one industry?', ms:'Adakah permintaan sewa di sini bergantung pada satu majikan atau satu industri?', zh:'这里的租赁需求是否依赖单一雇主或单一行业？' },
@@ -32506,13 +32548,25 @@ const PROPERTY_I18N = {
   'chk.supply':           { en:'Is there substantial unsold or newly completed supply nearby?', ms:'Adakah banyak unit belum terjual atau baru siap berhampiran?', zh:'附近是否有大量未售出或刚竣工的单位？' },
   'chk.comparables':      { en:'Have you verified comparable rental transactions, not asking prices?', ms:'Adakah anda telah mengesahkan transaksi sewa setanding, bukan kadar sewa yang diminta?', zh:'是否已核实同类单位的实际成交租金，而非叫价？' },
   'chk.resale-time':      { en:'Have you established how long a resale would realistically take in this district?', ms:'Adakah anda telah memastikan berapa lama jualan semula secara realistik mengambil masa di daerah ini?', zh:'你是否已确认在这个县转售实际需要多久？' },
-  /* calculator inputs */
+  /* calculator inputs — every label in Your deal, which the summary's note
+     says is translated. Twenty-five of its fifty were missing and stayed
+     English under a note in Bahasa Malaysia saying they were not. */
+  'in.city':      { en:'City', ms:'Bandar', zh:'城市' },
+  'in.district':  { en:'District or neighbourhood', ms:'Daerah atau kawasan kejiranan', zh:'地区或社区' },
+  'in.propertyType':{ en:'Property type', ms:'Jenis hartanah', zh:'产业类型' },
+  'in.assetClass':{ en:'Asset class', ms:'Kelas aset', zh:'资产类别' },
+  'in.titleType': { en:'Title class', ms:'Kelas hakmilik', zh:'地契类别' },
+  'in.remainingLease':{ en:'Years remaining on the lease (0 if freehold)', ms:'Baki tahun pajakan (0 jika pegangan bebas)', zh:'租约剩余年数（永久地契填 0）' },
+  'in.project':   { en:'Project', ms:'Projek', zh:'项目' },
   'in.sqft':      { en:'Built-up area (sq ft)', ms:'Keluasan binaan (sq ft)', zh:'建筑面积 (sq ft)' },
   'in.landSqft':  { en:'Land area (sq ft, 0 if none)', ms:'Keluasan tanah (sq ft, 0 jika tiada)', zh:'土地面积 (sq ft，无则填 0)' },
   'in.parking':   { en:'Allocated parking bays', ms:'Petak letak kereta diperuntukkan', zh:'分配的停车位' },
   'in.price':     { en:'Purchase price (RM)', ms:'Harga belian (RM)', zh:'购买价格 (RM)' },
   'in.bankValuation': { en:'Bank or valuer estimate (RM, 0 if not yet known)', ms:'Nilaian bank atau penilai (RM, 0 jika belum diketahui)', zh:'银行或估价师估值 (RM，未知则填 0)' },
   'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
+  'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
+  'in.renoRentUpliftPct':{ en:'Share of the rent that depends on the renovation (%)', ms:'Bahagian sewa yang bergantung pada ubah suai (%)', zh:'取决于装修的租金比例 (%)' },
+  'in.renoValueRecoveryPct':{ en:'Share of the renovation a buyer will pay for at exit (%)', ms:'Bahagian kos ubah suai yang akan dibayar pembeli semasa jualan (%)', zh:'出售时买家愿为装修支付的比例 (%)' },
   'in.downPct':   { en:'Deposit (%)', ms:'Deposit (%)', zh:'头期 (%)' },
   'in.ratePct':   { en:'Loan interest rate (%)', ms:'Kadar faedah pinjaman (%)', zh:'贷款利率 (%)' },
   'in.tenureYears':{ en:'Loan tenure (years)', ms:'Tempoh pinjaman (tahun)', zh:'贷款期限 (年)' },
@@ -32526,6 +32580,23 @@ const PROPERTY_I18N = {
   'in.insurance': { en:'Annual insurance (RM)', ms:'Insurans tahunan (RM)', zh:'每年保险费 (RM)' },
   'in.mgmtPct':   { en:'Letting and management fee (% of rent)', ms:'Fi sewaan dan pengurusan (% sewa)', zh:'出租与管理费 (占租金 %)' },
   'in.repairReservePct':{ en:'Repair reserve (% of rent)', ms:'Rizab pembaikan (% sewa)', zh:'维修储备 (占租金 %)' },
+  'in.selfManaged':{ en:'I will manage this property myself', ms:'Saya akan mengurus hartanah ini sendiri', zh:'我将自行管理此产业' },
+  'in.leasingFeeMonths':{ en:'Tenant placement fee (months of rent)', ms:'Fi mendapatkan penyewa (bulan sewa)', zh:'招租费（月租金数）' },
+  'in.renewalFeeMonths':{ en:'Renewal fee (months of rent)', ms:'Fi pembaharuan sewaan (bulan sewa)', zh:'续约费（月租金数）' },
+  'in.mgmtMinMonthly':{ en:'Minimum monthly fee (RM)', ms:'Fi bulanan minimum (RM)', zh:'每月最低管理费 (RM)' },
+  'in.tenancyMonths':{ en:'Expected tenancy length (months)', ms:'Jangkaan tempoh penyewaan (bulan)', zh:'预计租约期（月）' },
+  'in.daysToFirstTenant':{ en:'Target days to place a tenant', ms:'Sasaran hari untuk mendapatkan penyewa', zh:'找到租客的目标天数' },
+  'in.depositMonths':{ en:'Tenancy deposit held (months)', ms:'Deposit sewaan yang dipegang (bulan)', zh:'所持租赁押金（月）' },
+  'in.repairApprovalLimit':{ en:'Repair the manager may authorise without asking (RM)', ms:'Had pembaikan yang boleh diluluskan pengurus tanpa merujuk pemilik (RM)', zh:'管理人无需请示即可批准的维修金额 (RM)' },
+  'in.inspectionsPerYear':{ en:'Inspections a year, with a written report', ms:'Pemeriksaan setahun, dengan laporan bertulis', zh:'每年检查次数（附书面报告）' },
+  'in.arrearsChaseDays':{ en:'Days late before arrears are chased', ms:'Hari lewat sebelum tunggakan dituntut', zh:'欠租多少天后开始追讨' },
+  'in.ownerReportCadence':{ en:'Owner statement', ms:'Penyata pemilik', zh:'业主结单' },
+  'in.tenantPaysUtilities':{ en:'Tenant pays utilities, not the owner', ms:'Penyewa membayar utiliti, bukan pemilik', zh:'水电费由租客而非业主支付' },
+  /* the four figures whose evidence is graded, named as the rail names them */
+  'evr.price':    { en:'Purchase price', ms:'Harga belian', zh:'购买价格' },
+  'evr.rent':     { en:'Expected rent', ms:'Jangkaan sewa', zh:'预计租金' },
+  'evr.maintenance':{ en:'Maintenance', ms:'Penyelenggaraan', zh:'维修费' },
+  'evr.sqft':     { en:'Built-up area', ms:'Keluasan binaan', zh:'建筑面积' },
   'in.holdYears': { en:'Holding period (years)', ms:'Tempoh pegangan (tahun)', zh:'持有期 (年)' },
   'in.apprecPct': { en:'Annual capital growth (%)', ms:'Pertumbuhan modal tahunan (%)', zh:'年资本增值 (%)' },
   'in.sellMonths':{ en:'Expected months to sell', ms:'Jangkaan bulan untuk menjual', zh:'预计出售月数' },
@@ -32558,11 +32629,13 @@ const tr = (key) => METRIC_DICTIONARY[key]?.[lang()] || METRIC_DICTIONARY[key]?.
    figures and their names only — the surrounding explanation stays in English
    because a half-translated argument is harder to trust than an English one. */
 const SUMMARY_COPY = {
-  en: { title:'Summary', note:'Input labels, evidence grades and the ten risk questions are translated. The longer explanations remain in English.',
+  /* Says what is translated and no more: it claimed "input labels" while
+     half the rail's and every other panel's stayed English. */
+  en: { title:'Summary', note:'The labels in Your deal, its evidence grades and the ten risk questions are translated. The panels below and the longer explanations remain in English.',
         forEvery:'For every ringgit of rent you collect', afterAll:'after every cost modelled here', perMonth:'a month' },
-  ms: { title:'Ringkasan', note:'Label input, gred bukti dan sepuluh soalan risiko telah diterjemah. Penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
+  ms: { title:'Ringkasan', note:'Label dalam Your deal, gred buktinya dan sepuluh soalan risiko telah diterjemah. Panel di bawah dan penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
         forEvery:'Bagi setiap ringgit sewa yang dikutip', afterAll:'selepas semua kos yang dimodelkan di sini', perMonth:'sebulan' },
-  zh: { title:'摘要', note:'输入项名称、证据等级与十道风险问题已翻译，较长的说明仍为英文。',
+  zh: { title:'摘要', note:'“Your deal”中的输入项名称、其证据等级与十道风险问题已翻译；下方各面板及较长的说明仍为英文。',
         forEvery:'每收取一令吉租金', afterAll:'扣除此处模型中的所有成本后', perMonth:'每月' },
 };
 
@@ -32812,12 +32885,34 @@ const PROPERTY_SHARED_KEYS = {
   sarawakExposure:       () => { State.sarawakExposure = store.read('sarawakExposure', []); },
   propertyReportsBought: () => { State.propertyReportsBought = store.read('propertyReportsBought', []); },
   propertyReportLog:     () => { State.propertyReportLog = store.read('propertyReportLog', { month: meterMonth(), ids: [] }); },
+  borrowerProfile:       () => rereadBorrower(),
 };
 window.addEventListener('storage', (e) => {
   if (e.storageArea && e.storageArea !== localStorage) return;
   if (e.key === null) { Object.values(PROPERTY_SHARED_KEYS).forEach(f => f()); return; }
   const k = String(e.key).startsWith('vl.') ? String(e.key).slice(3) : null;
   if (k && Object.hasOwn(PROPERTY_SHARED_KEYS, k)) PROPERTY_SHARED_KEYS[k]();
+});
+/* A PAGE SHOWN AGAIN FROM THE BACK-FORWARD CACHE READS WHAT WAS SAVED SINCE.
+   Back to a page the browser kept resumes it exactly as it was, and nothing
+   announces the writes made while it was away: another document in this tab
+   made them, and `storage` reaches only the other tabs that are open. The
+   calculator came back holding the deal it had before — it showed a price
+   of 572000 while 650000 was saved — and the next edit wrote the old deal
+   back over the reader's. On a restore the deal, the financing details and
+   the lists above are read again, and the page is drawn from them. */
+window.addEventListener('pageshow', (e) => {
+  if (!e.persisted) return;
+  const held = () => JSON.stringify([State.deal, State.borrower, ...Object.keys(PROPERTY_SHARED_KEYS).map(k => State[k])]);
+  const was = held();
+  Object.values(PROPERTY_SHARED_KEYS).forEach(f => f());
+  const saved = store.read('deal', null);
+  if (saved) {
+    saved.holdYears = normHoldYears(saved.holdYears);
+    saved.district = dealDistrict(saved.city, saved.district);
+    State.deal = saved;
+  }
+  if (held() !== was) render();
 });
 
 /* THE COMPARABLES REGISTER IS THIS, EXTENDED — NOT A SECOND STORE.
@@ -32952,7 +33047,10 @@ function comparableSupport(d) {
    rather than the mean: with a handful of observations one unusual figure
    moves a mean and does not move a median. */
 function observationsFor(city, area) {
-  const rows = State.observations.filter(o => o.city === city && (!area || o.area === area));
+  /* A district's records, never the city's. With no district this returned
+     every record in the town, and the panel headed "What you have recorded —
+     null" summarised Kuching as though it were one locality. */
+  const rows = area ? State.observations.filter(o => o.city === city && o.area === area) : [];
   const groups = {};
   for (const o of rows) {
     const g = (groups[o.kind] = groups[o.kind] || { kind: OBS_BY_ID[o.kind], values: [], best: null, latest: null });
@@ -33466,20 +33564,26 @@ function returnsAndTaxPanel(d, m) {
 
   /* ---- who is selling ----
      The exit charge differs by seller, and the model used to assume one kind
-     while saying so on a single screen. It is an input now. */
-  const who = el('div', { class: 'assumption', style: 'margin-top:var(--lg)' });
-  who.append(el('label', { for: 'disposerCategory' }, 'Who would be selling'));
-  const sel = el('select', { class: 'input a-text', id: 'disposerCategory',
-    'aria-label': 'Who would be selling the property',
-    onchange: e => {
-      State.deal.disposerCategory = e.target.value;
-      markTouched(State.deal, 'disposerCategory'); saveDeal(); renderFromControl(e.target);
-    } });
+     while saying so on a single screen. It is an input now.
+     Three radios whose words wrap, not a select. Each category is the Act's
+     sentence, up to 79 characters, and a select shows one line of it: on a
+     phone the box held 220px of the 385px "An individual who is a Malaysian
+     citizen or permanent resident". The arrow keys still move between them,
+     and each redraw hands focus back to the one chosen. */
+  const who = el('fieldset', { id: 'disposerCategory', style: 'margin:var(--lg) 0 0;padding:0;border:0;min-width:0' });
+  who.append(el('legend', { style: 'padding:0;margin-bottom:6px;font-size:14px;line-height:20px;color:var(--ink-2)' }, 'Who would be selling'));
   RPGT_CATEGORY_IDS.forEach(id => {
     const c = RPGT_SCHEDULE.categories[id];
-    sel.append(el('option', { value: id, selected: (d.disposerCategory || 'citizen') === id ? 'selected' : null }, c.label));
+    const l = el('label', { class: 'checkline', style: 'align-items:flex-start' });
+    l.append(el('input', { type: 'radio', name: 'disposerCategory', id: `disposerCategory-${id}`, value: id, style: 'margin-top:2px',
+      checked: (d.disposerCategory || 'citizen') === id ? '' : null,
+      onchange: e => {
+        State.deal.disposerCategory = e.target.value;
+        markTouched(State.deal, 'disposerCategory'); saveDeal(); renderFromControl(e.target);
+      } }));
+    l.append(el('span', {}, c.label));
+    who.append(l);
   });
-  who.append(sel);
   card.append(who);
 
   if (m.rpgtResult) {
@@ -33650,7 +33754,7 @@ const BORROWER_DOCS = [
   { k:'deposit',    label:'Evidence of where the deposit came from' },
 ];
 
-State.borrower = store.read('borrowerProfile', null) || {
+const blankBorrower = () => ({
   assessed: false,
   employmentType: 'salaried',
   verifiedNetMonthlyIncome: 0,
@@ -33664,8 +33768,23 @@ State.borrower = store.read('borrowerProfile', null) || {
   creditReview: 'not_checked',
   applicantCount: 1,
   docs: {},
-};
+});
+State.borrower = store.read('borrowerProfile', null) || blankBorrower();
 const saveBorrower = () => store.write('borrowerProfile', State.borrower);
+/* ANOTHER TAB'S FINANCING DETAILS ARE KEPT, AND AN ERASE STAYS ERASED.
+   The profile is saved whole and never travels in the address, so a tab
+   opened earlier held the copy it read at boot: an income of 9,000 entered in
+   a second tab was set back to 0 for good by the first tab's next edit, and
+   "Erase my financing details" there was undone by the same edit here. It is
+   read again when another tab writes it (PROPERTY_SHARED_KEYS, 70-property.js)
+   — in place, because the fields on screen hold this object from when they
+   were drawn, and a new one would take their next edit to a copy nobody
+   saves. */
+function rereadBorrower() {
+  const fresh = store.read('borrowerProfile', null) || blankBorrower();
+  Object.keys(State.borrower).forEach(k => { if (!Object.hasOwn(fresh, k)) delete State.borrower[k]; });
+  Object.assign(State.borrower, fresh);
+}
 
 /* Specification 30.3. Every figure shows its own formula on screen, because a
    ratio a reader cannot reproduce is a number they have to trust. */
@@ -33765,9 +33884,15 @@ function loanReadiness(b, m) {
   scores.documents = Math.round(provided / BORROWER_DOCS.length * 100);
   notes.documents = `${provided} of ${BORROWER_DOCS.length} documents gathered. A lender's own checklist overrides this one.`;
 
-  scores.structure = num0(b.applicantCount) >= 1 && a.income > 0 ? 70 : null;
-  notes.structure = 'Applicant count and tenure fit recorded. Joint-applicant evidence and declared source of funds are not modelled in this build.';
-  if (scores.structure == null) unknowns.push('application structure');
+  /* NOT TESTED, BECAUSE NOTHING HERE ASKS. It scored 70 as soon as an income
+     was entered, on a basis that said the applicant count and tenure fit were
+     "recorded" — the page has no control for either (applicantCount is a
+     hidden default of 1), and the 70 went into the total. Scored when there
+     is something to score it on. Not an open item for the reader either: no
+     answer they could give would settle it, so it is not listed with the
+     ones a total waits for. */
+  scores.structure = null;
+  notes.structure = 'Not tested: this build has no input for the number of applicants or for how the loan tenure fits their ages, and joint-applicant evidence and declared source of funds are not modelled.';
 
   const tested = READINESS_COMPONENTS.filter(c => isNum(scores[c.k]));
   const testedWeight = tested.reduce((s, c) => s + c.weight, 0);
@@ -34065,12 +34190,14 @@ function propertyGrade(d, m) {
      rates and not survive a vacancy, and the weaker of the two is the one that
      decides whether it holds. */
   const worstRate = m.stress?.rate?.[m.stress.rate.length - 1]?.monthly;
-  const worstVac = m.stress?.vacancy?.[m.stress.vacancy.length - 1]?.monthly;
+  /* No vacancy stress for a class with no tenancy — the stress card tests
+     none, and the note named "the deepest vacancy tested" regardless. */
+  const worstVac = noTenancy ? null : m.stress?.vacancy?.[m.stress.vacancy.length - 1]?.monthly;
   const worstCase = [worstRate, worstVac].filter(isNum);
   if (worstCase.length) {
     const worst = Math.min(...worstCase);
     scores.downside = Math.round(clamp(50 + worst / 30, 0, 100));
-    notes.downside = `Worst modelled month is ${fmtAmount(worst, 'MYR')}, across the highest rate and the deepest vacancy tested.`;
+    notes.downside = `Worst modelled month is ${fmtAmount(worst, 'MYR')}, across the highest rate${isNum(worstVac) ? ' and the deepest vacancy' : ''} tested.`;
   } else { scores.downside = null; notes.downside = 'The downside cases could not be computed.'; }
 
   /* Demand and management readiness together, per directive 6.5. The management
@@ -34686,9 +34813,15 @@ function dealModel(d) {
      excluded them from both, which understated the with-rent burn and
      contradicted cashflowMonthly on the same screen. */
   const rentLinkedMonthly = (mgmtY + repairY) / 12;
-  const ownerFixedMonthly = instalment + (opex - mgmtY - repairY) / 12;
+  /* NOT WITHOUT THE INSTALMENT. With a loan tenure of 0 the instalment is
+     null, and null added as nought: a RM514,800 loan contributed nothing, and
+     the paragraph beside the reserve said the property "burns RM0 a month
+     with rent still coming in … 6 months with no rent is RM2.5k" under a tile
+     saying the reserve could not be priced. Unknown, as the reserve is. */
+  const burnable = isNum(instalment) && isNum(opex);
+  const ownerFixedMonthly = burnable ? instalment + (opex - mgmtY - repairY) / 12 : null;
   const stressedRentMonthly = effectiveRentN / 12;
-  const burnWithRent = Math.max(0, ownerFixedMonthly + rentLinkedMonthly - stressedRentMonthly);
+  const burnWithRent = burnable ? Math.max(0, ownerFixedMonthly + rentLinkedMonthly - stressedRentMonthly) : null;
   const burnWithoutRent = ownerFixedMonthly;
   /* The larger of the two, at full value. An earlier draft of this line scaled
      the no-rent case by 0.6, which had no basis and made the reserve smaller
@@ -34708,8 +34841,8 @@ function dealModel(d) {
   /* Shown alongside, because the specification asks for three and six months at
      minimum and a single figure hides how quickly the answer moves. */
   const reserveScenarios = [3, 6].map(mo => ({ months: mo,
-    noRent: Math.round(mo * burnWithoutRent),
-    stressedRent: Math.round(mo * burnWithRent) }));
+    noRent: burnable ? Math.round(mo * burnWithoutRent) : null,
+    stressedRent: burnable ? Math.round(mo * burnWithRent) : null }));
 
   costGroups.push({ id:'reserve', label:'Emergency reserve', items:[
     [`${reserveMonths} month${reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs`, reserve,
@@ -34898,8 +35031,14 @@ function propertyRiskFlags(d, m) {
   const out = [];
   if (m.dscr != null && m.dscr < 1) out.push({ sev:'serious', t:'The rent does not cover the loan',
     n:`Debt-service cover of ${fmtX(m.dscr, 2)} means net operating income falls short of the instalments. The shortfall is funded from your own income every month.` });
+  /* After them, not before: the monthly position is taken on the rent less
+     the vacancy allowance, with the repair reserve among the costs. It said
+     "before any repairs or void periods", which made the figure sound as if
+     it would grow once those were counted. */
   if (m.cashflowMonthly < 0) out.push({ sev:'warning', t:'Negative monthly cash flow',
-    n:`This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold before any repairs or void periods.` });
+    n: m.letsToTenant === false
+      ? `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, with no rent to set against it.`
+      : `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, after the ${fmtPct(num0(d.vacancyPct), 0)} vacancy allowance and the ${fmtPct(num0(d.repairReservePct), 0)} repair reserve modelled here.` });
   /* Every comparison below needs a comparable to compare against. On a custom
      entry there is none, so the flag is absent rather than evaluated against a
      missing bound — `price > undefined` is false, and a silent false here would
@@ -35713,8 +35852,13 @@ VIEWS.property = () => {
     ])));
     ct.append(cb);
     bd.append(el('div', { class: 'tablewrap' }, ct));
+    /* Withheld only while credit conduct or affordability is open (the band
+       above). With the buffer alone open — a cost line unpriced — the tile
+       showed its total and this said a total was withheld. */
     if (lr.unknowns.length) bd.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
-      `Not assessed: ${lr.unknowns.join(', ')}. A total is withheld while any of these is open rather than presented with the gap inside it.`));
+      `Not assessed: ${lr.unknowns.join(', ')}. ` + (isNum(lr.score)
+        ? `The total is weighted over the components that were tested, and ${lr.unknowns.length === 1 ? 'this is' : 'these are'} left out of it rather than scored as nought.`
+        : 'A total is withheld while any of these is open rather than presented with the gap inside it.')));
     bd.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', onclick: () => {
       if (!confirm('Remove everything you entered about your income, debts and credit? There is no copy anywhere else.')) return;
       store.write('borrowerProfile', null); location.reload();
@@ -35770,7 +35914,7 @@ VIEWS.property = () => {
   loc.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, '1 · Where'));
 
   const cityField = el('div', { class: 'field' });
-  cityField.append(el('label', { for: 'dealCity' }, 'City'));
+  cityField.append(el('label', { for: 'dealCity' }, ptr('in.city', 'City')));
   /* Read before the controls are built, so they render already showing what the
      link asked for. */
   /* Written on arrival too, so a bare /property/calculator becomes a link that
@@ -35807,7 +35951,7 @@ VIEWS.property = () => {
 
   const cityDef = SARAWAK_CITIES.find(c => c.id === d.city) || SARAWAK_CITIES[0];
   const distField = el('div', { class: 'field', style: 'margin-top:10px' });
-  distField.append(el('label', { for: 'dealDistrict' }, 'District or neighbourhood'));
+  distField.append(el('label', { for: 'dealDistrict' }, ptr('in.district', 'District or neighbourhood')));
   const distSel = el('select', { class: 'select', id: 'dealDistrict',
     onchange: e => { d.district = e.target.value; saveDeal(); syncPropertyUrl(d); renderKeepFocus(); } });
   cityDef.districts.forEach(x => distSel.append(el('option', { value: x, selected: d.district === x ? '' : null }, x)));
@@ -35900,7 +36044,10 @@ VIEWS.property = () => {
        only for the kinds that need one — a weeks-vacant record has no area and
        asking for one would be noise. */
     const form = el('div', { style: 'margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;align-items:end' });
-    const kindSel = el('select', { class:'select select-sm', 'aria-label':'What you observed' });
+    /* The kind and the evidence class each take the form's whole row. In a
+       120px track "What you observed" showed half its label on a phone and
+       "Evidence quality" lost the end of its grade. */
+    const kindSel = el('select', { class:'select select-sm', style:'grid-column:1/-1;max-width:none', 'aria-label':'What you observed' });
     OBSERVATION_KINDS.forEach(k => kindSel.append(el('option', { value:k.id }, `${k.label} (${k.unit})`)));
     const valInp = el('input', { class:'input input-sm', type:'number', inputmode:'decimal',
       placeholder:'Amount', 'aria-label':'Observed value' });
@@ -35939,7 +36086,7 @@ VIEWS.property = () => {
     };
     kindSel.addEventListener('change', syncKind);
 
-    const evSel = el('select', { class:'select select-sm', 'aria-label':'Evidence quality' });
+    const evSel = el('select', { class:'select select-sm', style:'grid-column:1/-1;max-width:none', 'aria-label':'Evidence quality' });
     /* Every class except the tool's own seeded default. Offering only rank 2 and
        above meant the weakest thing a reader could say about a number they half
        remembered was "developer supplied" — so the dropdown made them overstate
@@ -35971,7 +36118,9 @@ VIEWS.property = () => {
       addObservation({ city:d.city, area:d.district, kind:kindSel.value, value:v,
                        evidence:evSel.value, date:dateInp.value,
                        sourceRef:srcInp.value.trim(), address:addrInp.value.trim(),
-                       propertyType:d.propertyType,
+                       /* A land sale is of land, whatever the deal on screen
+                          is: it was stamped "Condominium". */
+                       propertyType: k.family === 'land' ? 'Land' : d.propertyType,
                        titleType: titleSel.value || '',
                        ...(k.area === 'land'
                          ? { landSqft: sqftValue, landUnit: unitSel.value }
@@ -36022,7 +36171,7 @@ VIEWS.property = () => {
   }
 
   const typeField = el('div', { class: 'field', style: 'margin-top:10px' });
-  typeField.append(el('label', { for: 'dealType' }, 'Property type'));
+  typeField.append(el('label', { for: 'dealType' }, ptr('in.propertyType', 'Property type')));
   const typeSel = el('select', { class: 'select', id: 'dealType',
     onchange: e => { d.propertyType = e.target.value; saveDeal(); syncPropertyUrl(d); renderKeepFocus(); } });
   PROPERTY_TYPES.forEach(x => typeSel.append(el('option', { value: x, selected: d.propertyType === x ? '' : null }, x)));
@@ -36038,7 +36187,7 @@ VIEWS.property = () => {
      from the type, so changing the type later does not silently discard a
      decision somebody made deliberately. */
   const classField = el('div', { class: 'field', style: 'margin-top:10px' });
-  classField.append(el('label', { for: 'dealClass' }, 'Asset class'));
+  classField.append(el('label', { for: 'dealClass' }, ptr('in.assetClass', 'Asset class')));
   const inferredClass = PROPERTY_TYPE_CLASS[d.propertyType] || 'residential';
   const classSel = el('select', { class: 'select', id: 'dealClass',
     onchange: e => {
@@ -36060,7 +36209,7 @@ VIEWS.property = () => {
     + 'exit are still modelled, because those are real: a parcel with a loan on it costs money every month.'));
 
   const titleField = el('div', { class: 'field', style: 'margin-top:10px' });
-  titleField.append(el('label', { for: 'dealTitle' }, 'Title class'));
+  titleField.append(el('label', { for: 'dealTitle' }, ptr('in.titleType', 'Title class')));
   const titleSel = el('select', { class: 'select', id: 'dealTitle',
     onchange: e => { d.titleType = e.target.value; saveDeal(); renderKeepFocus(); } });
   TITLE_TYPES.forEach(t => titleSel.append(el('option', { value: t.id, selected: d.titleType === t.id ? '' : null }, t.label)));
@@ -36080,7 +36229,7 @@ VIEWS.property = () => {
 
   if (d.titleType !== 'strata') {
     const leaseField = el('div', { class: 'field', style: 'margin-top:10px' });
-    leaseField.append(el('label', { for: 'dealLease' }, 'Years remaining on the lease (0 if freehold)'));
+    leaseField.append(el('label', { for: 'dealLease' }, ptr('in.remainingLease', 'Years remaining on the lease (0 if freehold)')));
     /* On change, as every other figure on the rail is, and never from an
        empty box. It re-rendered the page on each keystroke, so focus left the
        field after the first digit — typing 45 recorded 4 and dropped the
@@ -36103,7 +36252,7 @@ VIEWS.property = () => {
   rail.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, '2 · What'));
 
   const psel = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
-  psel.append(el('label', { for: 'pj' }, 'Project'));
+  psel.append(el('label', { for: 'pj' }, ptr('in.project', 'Project')));
   const cityProjects = projectsForCity(d.city);
   const ps = el('select', { class: 'select', id: 'pj', onchange: e => {
     d.projectId = e.target.value;
@@ -36238,8 +36387,9 @@ VIEWS.property = () => {
           markTouched(d, k); saveDeal(); renderAfterTyping();
         } }));
       /* Said beside the number rather than only in the evidence section below,
-         because this is where a reader decides whether to trust it. */
-      if (EVIDENCE_DRIVERS.includes(k) && shownEvidence(d, k) === 'illustrative_default')
+         because this is where a reader decides whether to trust it. Only for
+         a figure this class has: a parcel's rent is used by nothing. */
+      if (evidenceDriversFor(d).includes(k) && shownEvidence(d, k) === 'illustrative_default')
         f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
           'Illustrative default — not yours, and not from any market'));
       rail.append(f);
@@ -36248,12 +36398,18 @@ VIEWS.property = () => {
 
   /* Provenance for the figures that actually move the answer. */
   rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, '9 · Evidence quality'));
-  rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
-    'Where each of the four figures below came from — the price and the rent drive every output.'));
+  /* The figures this class has (evidenceDriversFor, 70-property.js). A
+     bare parcel was told that "the price and the rent drive every output"
+     and asked to grade a rent and a service charge the page withholds. */
+  const railDrivers = evidenceDriversFor(d);
+  rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, railDrivers.includes('rent')
+    ? 'Where each of the four figures below came from — the price and the rent drive every output.'
+    : `Where each of the ${railDrivers.length === 2 ? 'two' : railDrivers.length} figures below came from — the price drives every output.`));
   [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
+    .filter(([k]) => railDrivers.includes(k))
     .forEach(([k, label]) => {
       const f = el('div', { class: 'assumption' });
-      f.append(el('label', { for: `ev-${k}` }, label));
+      f.append(el('label', { for: `ev-${k}` }, ptr(`evr.${k}`, label)));
       const sel = el('select', { class: 'select select-sm', id: `ev-${k}`,
         onchange: e => {
           d.evidence = { ...(d.evidence || {}), [k]: e.target.value };
@@ -36589,10 +36745,11 @@ VIEWS.property = () => {
        : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
    ['Cash to make rent-ready', m.improvementCash, 'Spent after completion before the property can earn: renovation, furnishing and deposits.'],
    /* Unknown when it cannot be priced, and the tile says why rather than
-      printing RM0 beside "3 months of instalment". */
+      printing RM0 beside "3 months of instalment". One month is "1 month",
+      as the ledger above already says; the tile read "1 months". */
    ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
-     ? `${m.reserveMonths} months of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
-     : `${m.reserveMonths} months of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
+     ? `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
+     : `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
    ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
      : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
@@ -36609,8 +36766,11 @@ VIEWS.property = () => {
     min: '1', max: '24', step: '1', value: String(m.reserveMonths), style: 'text-align:right',
     onchange: e => { d.reserveMonths = num0(e.target.value); markTouched(d, 'reserveMonths'); saveDeal(); renderAfterTyping(); } }));
   resRow.append(resField);
-  resRow.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' },
-    `At the entered rent and costs, holding this property burns ${fmtAmount(m.burnWithRent, 'MYR')} a month with rent still coming in and ${fmtAmount(m.burnWithoutRent, 'MYR')} a month with none. `
+  /* Said to be unknown where the instalment is (a loan tenure of 0), as the
+     tile above says, never priced as though the loan cost nothing. */
+  resRow.append(el('p', { class: 'metaline', style: 'flex:1 1 300px' }, !isNum(m.burnWithoutRent)
+    ? 'What holding this property burns a month, and the three- and six-month figures, are not computed: the loan’s instalment could not be worked out from the entered tenure.'
+    : `At the entered rent and costs, holding this property burns ${fmtAmount(m.burnWithRent, 'MYR')} a month with rent still coming in and ${fmtAmount(m.burnWithoutRent, 'MYR')} a month with none. `
     + m.reserveScenarios.map(s => `${s.months} months with no rent is ${fmtAmount(s.noRent, 'MYR')}`).join('; ') + '.'));
   cash.append(resRow);
 
@@ -36713,8 +36873,12 @@ VIEWS.property = () => {
   stressCard.append(cardHead('What breaks it',
     'The useful question is not what this returns but at what point it stops working. Each row moves one assumption and leaves the rest as entered.'));
 
-  if (m.negativeAtBest) stressCard.append(el('p', { class: 'body', style: 'margin-bottom:var(--md);color:var(--dn-text)' },
-    'This deal is cash-flow negative even at a 0% interest rate with the unit never empty. No interest rate or occupancy level makes it pay for itself — the shortfall is structural, in the price against the rent.'));
+  /* A class with no tenancy has no rent for the price to stand against: the
+     page withholds rent for it, and this said the shortfall lay "in the price
+     against the rent" of a bare parcel. */
+  if (m.negativeAtBest) stressCard.append(el('p', { class: 'body', style: 'margin-bottom:var(--md);color:var(--dn-text)' }, m.letsToTenant === false
+    ? 'This class earns no rent, so no interest rate makes it pay for itself: whatever it costs to hold — the outgoings, and the instalment where there is a loan — comes from you until it is sold.'
+    : 'This deal is cash-flow negative even at a 0% interest rate with the unit never empty. No interest rate or occupancy level makes it pay for itself — the shortfall is structural, in the price against the rent.'));
 
   const stressGrid = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
   /* The three cases are displayed as three different things, because they are:
@@ -36821,7 +36985,9 @@ VIEWS.property = () => {
   /* The placement target and the vacancy allowance describe the same thing.
      Shown side by side rather than reconciled silently — the model uses the
      vacancy figure, and if the two disagree that is the reader's to settle. */
-  if (isNum(m.impliedVacancyPct)) {
+  /* Not for a class with no tenancy: its vacancy is used by nothing, and
+     this called the entered figure "the figure every output above uses". */
+  if (isNum(m.impliedVacancyPct) && m.letsToTenant !== false) {
     const gap = Math.abs(m.impliedVacancyPct - num0(d.vacancyPct));
     ops.append(el('div', { class: 'note', style: `margin-top:var(--md);border-left:3px solid var(${gap > 2 ? '--warn' : '--line'})` },
       el('p', { class: 'body', style: 'font-size:13px' },
@@ -36858,7 +37024,8 @@ VIEWS.property = () => {
   const ev = el('div', { class: 'card' });
   ev.append(cardHead('What this rests on',
     'A figure a seller quoted and a figure taken from a transacted comparable are not the same evidence.'));
-  const evRows = [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']];
+  const evRows = [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
+    .filter(([k]) => evidenceDriversFor(d).includes(k));
   /* shownEvidence, not d.evidence. Reading the stored label directly is what
      made this table contradict the selectors three inches above it: an
      untouched deal showed "Illustrative default" in every selector while this
@@ -37689,25 +37856,36 @@ function environmentalAllowance(d) {
   const cls = (attrId) => areaAttr(city, area, attrId)?.class || null;
   const recorded = { coastal: cls('coastal'), flood: cls('flood'), ground: cls('ground') };
   const anyRecorded = Object.values(recorded).some(Boolean);
+  /* THE ALLOWANCES MAINTAIN A BUILDING, SO A BARE PARCEL CARRIES NONE. Every
+     one of them is the upkeep of something built — membranes, paint, fittings,
+     furniture, the aprons round a piled structure — and a Land parcel was
+     charged all of them: RM4,576 a year on a flooded, saline plot, enough on
+     its own to fail Net economics for a cash parcel with no outgoings. */
+  const buildingless = propertyClassOf(d) === 'land';
 
-  const items = ENV_ALLOWANCES.map(a => {
+  const items = buildingless ? [] : ENV_ALLOWANCES.map(a => {
     const hit = Object.entries(a.triggers).find(([attr, classes]) =>
       recorded[attr] && classes.includes(recorded[attr]));
     if (!hit) return null;
     /* Fit-out only bites on a furnished letting, and this product has no field
-       saying whether it is one — so it is offered rather than applied. */
+       saying whether it is one — so it is offered rather than applied. It was
+       applied: listed with its own note saying so and added to the total
+       anyway, RM858 of a Sibu condominium's RM2,688. It stays on the list,
+       marked offered, and out of the total. */
     const annual = num0(d.price) * (a.pctOfValue / 100);
-    return { ...a, triggeredBy: hit[0], triggeredByClass: recorded[hit[0]], annual };
+    return { ...a, triggeredBy: hit[0], triggeredByClass: recorded[hit[0]], annual, offered: a.id === 'fitout' };
   }).filter(Boolean);
 
-  const annual = items.reduce((s, i) => s + i.annual, 0);
+  const annual = items.filter(i => !i.offered).reduce((s, i) => s + i.annual, 0);
   return {
-    items, annual, monthly: annual / 12, recorded, anyRecorded,
+    items, annual, monthly: annual / 12, recorded, anyRecorded, buildingless,
     /* What has NOT been established, because an absent allowance because
        nothing was recorded is a different statement from one because the
        locality is dry and inland. */
-    unexamined: ['coastal', 'flood', 'ground'].filter(k => !recorded[k]),
-    why: !anyRecorded
+    unexamined: buildingless ? [] : ['coastal', 'flood', 'ground'].filter(k => !recorded[k]),
+    why: buildingless
+      ? 'This is a bare parcel: there is no building, fitting or furnishing for any of these allowances to maintain, so none is applied.'
+      : !anyRecorded
       ? 'No coastal, flood or ground record exists for this locality, so no environmental allowance is computed. That is an absence of evidence, not an absence of exposure.'
       : items.length
         ? `${items.length} allowance${items.length === 1 ? '' : 's'} triggered by what has been recorded here.`
@@ -37748,7 +37926,7 @@ function rentVersusBuy(d, m, weeksOfOwnUsePerYear) {
   const priceToRent = price / annualRent;
 
   /* The owner's true annual carrying cost: everything that recurs, plus the
-     return the deposit is not earning elsewhere. Leaving out opportunity cost
+     return the cash put in is not earning elsewhere. Leaving out opportunity cost
      is what makes ownership look free. */
   /* opex, not a field called annualOperatingCost — which the model does not
      produce. The first version of this read that name, got zero, and quietly
@@ -37773,7 +37951,7 @@ function rentVersusBuy(d, m, weeksOfOwnUsePerYear) {
   const consumption = isNum(ratio) && ratio < 0.25;
 
   return {
-    ok: true, priceToRent, carrying, opportunity, trueCarrying, rentInstead, ratio, weeks, consumption,
+    ok: true, priceToRent, carrying, committed: equity, opportunity, trueCarrying, rentInstead, ratio, weeks, consumption,
     classification: !isNum(weeks)
       ? 'Not classified — enter the weeks a year you would actually use it.'
       : consumption
@@ -38345,16 +38523,26 @@ function demandPanel(city, area) {
     el('span', { class: 'body', style: 'font-size:13px' }, test.why),
   ]));
 
+  /* Room for the state to be read without pushing the note out of sight.
+     With the selects at their own width the table ran to 880px in a 663px
+     card at 1440 and the note scrolled away: the source's name wraps, the
+     note keeps 9rem, and the empty fifth column, which held nothing, is
+     gone — 654px. */
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
-  t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts', 'Note', ''].map((h, i) =>
+  t.append(el('thead', {}, el('tr', {}, ['Source', 'State', 'Counts', 'Note'].map((h, i) =>
     el('th', { style: i ? null : 'text-align:left' }, h)))));
   const tb = el('tbody');
   test.items.forEach(i => {
     /* An id and renderKeepFocus, because render() rebuilds the page: a
        keyboard reader changing a source's state with the arrow keys was put
        back at the top of the document after every step, a long calculator
-       above the control they had just used. */
-    const sel = el('select', { class: 'select select-sm', id: `demand-${i.source.id}`, 'aria-label': `State of ${i.source.label} demand`,
+       above the control they had just used.
+       Sized to its longest state, not to the cell. At width:100% a select
+       in an auto-width table cell asks for no width at all, and beside the
+       12rem note column all seven were squashed to their arrow — 0px of text
+       at 1440, 6px on a phone — so the state the demand gate reads could not
+       be seen without opening each one. */
+    const sel = el('select', { class: 'select select-sm', style: 'width:auto;max-width:none', id: `demand-${i.source.id}`, 'aria-label': `State of ${i.source.label} demand`,
       onchange: e => {
         setDemand(city, area, i.source.id, e.target.value ? { state: e.target.value, asOf: new Date().toISOString().slice(0, 10) } : null);
         renderKeepFocus();
@@ -38363,7 +38551,7 @@ function demandPanel(city, area) {
     DEMAND_STATES.forEach(s => sel.append(el('option', { value: s.id, title: s.note,
       selected: i.state && i.state.id === s.id ? '' : null }, s.label)));
     tb.append(el('tr', {}, [
-      el('th', { scope: 'row', style: 'text-align:left' }, [
+      el('th', { scope: 'row', style: 'text-align:left;white-space:normal' }, [
         i.source.label,
         i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'not occupier demand') : null,
         i.source.fragile && !i.source.notDemand ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px' }, 'fragile') : null,
@@ -38372,9 +38560,8 @@ function demandPanel(city, area) {
       el('td', { style: 'text-align:left' }, i.counts
         ? el('span', { class: 'chip chip-ok' }, 'yes')
         : el('span', { class: 'caption' }, i.state ? 'no' : '—')),
-      el('td', { class: 'caption', style: IPS_PROSE_CELL },
+      el('td', { class: 'caption', style: `${IPS_PROSE_CELL};min-width:9rem` },
         i.state ? i.state.note : i.source.ask),
-      el('td', {}, ''),
     ]));
   });
   t.append(tb);
@@ -38394,9 +38581,9 @@ function environmentalPanel(d) {
     'IPS §6.7 requires recurring allowances in coastal, flood-prone or humid environments. '
     + 'Every one below is triggered by something recorded against this locality — nothing is inferred from the town.'));
 
-  if (!env.anyRecorded) {
+  if (env.buildingless || !env.anyRecorded) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, env.why));
-    card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    if (!env.buildingless) card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `Record coastal exposure, flood history or ground conditions for ${d.district} on the area screen and this fills in.`));
     return card;
   }
@@ -38411,8 +38598,10 @@ function environmentalPanel(d) {
       el('td', { class: 'caption', style: 'text-align:left' },
         `${ATTR_BY_ID[i.triggeredBy] ? ATTR_BY_ID[i.triggeredBy].short : i.triggeredBy}: ${i.triggeredByClass}`),
       el('td', { class: 'num' }, fmtPct(i.pctOfValue, 2)),
-      el('td', { class: 'num' }, fmtMoney(i.annual, 'MYR', 0)),
-      el('td', { class: 'caption', style: IPS_PROSE_CELL }, i.note),
+      /* An offered line (fit-out) is shown and kept out of the total. */
+      el('td', { class: i.offered ? 'num caption' : 'num' }, fmtMoney(i.annual, 'MYR', 0)),
+      el('td', { class: 'caption', style: IPS_PROSE_CELL }, i.offered
+        ? `${i.note} Not in the total: nothing here records that the letting is furnished.` : i.note),
     ]));
   });
   tb.append(el('tr', { style: 'background:var(--surface-sunk)' }, [
@@ -38461,7 +38650,10 @@ function rentVersusBuyPanel(d, m) {
   g.append(el('div', { class: 'panel' }, statTile('Price to rent', `${fmtNum(r.priceToRent, 1)}×`,
     { sub: 'Purchase price over one year of market rent' })));
   g.append(el('div', { class: 'panel' }, statTile('True cost to own', fmtMoney(r.trueCarrying, 'MYR', 0),
-    { sub: `A year, including ${fmtMoney(r.opportunity, 'MYR', 0)} the deposit is not earning elsewhere` })));
+    /* On everything put in, which is what the model charges it on — the
+       deposit, the fees, the renovation and the reserve. It said "the
+       deposit", and RM9,110 is 7% of RM130,142, not of a RM57,200 deposit. */
+    { sub: `A year, including ${fmtMoney(r.opportunity, 'MYR', 0)} the ${fmtMoney(r.committed, 'MYR', 0)} of cash put in is not earning elsewhere` })));
   g.append(el('div', { class: 'panel' }, statTile('Cost to rent instead',
     isNum(r.rentInstead) ? fmtMoney(r.rentInstead, 'MYR', 0) : '—',
     { sub: isNum(r.weeks) ? `${fmtNum(r.weeks, 0)} weeks at this property's own rent` : 'Enter your weeks of use' })));
@@ -39117,6 +39309,13 @@ function candidateModel(o) {
   if (unpriced) delete od.price;
   if (!(num0(od.sqft) > 0)) delete od.sqft;
   const d = { ...State.deal, ...od, touched: o.touched || {}, evidence: o.evidence || {}, checks: o.checks || {} };
+  /* And a district the record's city lists. A blank one was null in the
+     deal, and a typed one the city does not list was modelled under a name
+     no locality, select or link could match; each is the calculator's
+     district where that is in the same city, as its price stands in, or else
+     the city's first. The record keeps what was typed (dealDistrict,
+     70-property.js). */
+  d.district = dealDistrict(d.city, od.district, State.deal.city === d.city ? State.deal.district : null);
   const m = dealModel(d);
   return { d, m, grade: propertyGrade(d, m), finance: propertyFinanceability(d, m) };
 }
@@ -41119,6 +41318,11 @@ VIEWS.opportunities = () => {
   const draft = oppDraft ||= { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
   /* Each control carries its own label: the labels had no `for` and the
      inputs no id, so all seven fields were unnamed to a screen reader. */
+  /* The district is chosen from the city's own list, which follows the city.
+     It was free text, so a record could name a district no locality, select
+     or link in the calculator could match — and a blank one opened there as
+     "Demand — null" (dealDistrict, 70-property.js). */
+  let fillDistricts = null;
   const f = (label, key, kind) => {
     const fl = el('div', { class: 'field', style: 'margin-top:8px' });
     const id = `opp-new-${key}`;
@@ -41127,6 +41331,15 @@ VIEWS.opportunities = () => {
     if (kind === 'city') {
       input = el('select', { class: 'select', id });
       SARAWAK_CITIES.forEach(c => input.append(el('option', { value: c.id }, c.name)));
+    } else if (kind === 'district') {
+      const box = input = el('select', { class: 'select', id });
+      fillDistricts = () => {
+        const listed = (SARAWAK_CITIES.find(c => c.id === draft.city) || SARAWAK_CITIES[0]).districts;
+        if (!listed.includes(draft.district)) draft.district = '';
+        box.replaceChildren(el('option', { value: '' }, 'Not recorded'), ...listed.map(x => el('option', { value: x }, x)));
+        box.value = draft.district;
+      };
+      fillDistricts();
     } else if (kind === 'type') {
       input = el('select', { class: 'select', id });
       PROPERTY_TYPES.forEach(t => input.append(el('option', { value: t }, t)));
@@ -41135,7 +41348,7 @@ VIEWS.opportunities = () => {
     }
     /* A figure not given is 0 in the draft, and an empty field on the page. */
     input.value = kind === 'num' ? (draft[key] || '') : draft[key];
-    const keep = e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; };
+    const keep = e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; if (kind === 'city') fillDistricts?.(); };
     input.addEventListener('input', keep);
     input.addEventListener('change', keep);
     fl.append(input);
@@ -41143,7 +41356,7 @@ VIEWS.opportunities = () => {
   };
   add.append(f('Project or address', 'name'));
   add.append(f('City', 'city', 'city'));
-  add.append(f('Area or district', 'district'));
+  add.append(f('Area or district', 'district', 'district'));
   add.append(f('Property type', 'type', 'type'));
   add.append(f('Asking price (RM)', 'askingPrice', 'num'));
   add.append(f('Built-up area (sq ft)', 'sqft', 'num'));
@@ -41215,14 +41428,22 @@ VIEWS.opportunities = () => {
 
   /* The register itself. Newest first — an explicit, stated order. */
   list.forEach((o, i) => {
-    const { m, grade, finance } = modelled[i];
+    const { d: md, m, grade, finance } = modelled[i];
+    /* Where it is modelled, said where it differs from what was recorded: a
+       district left blank, or typed and not on the city's list, stands in as
+       the calculator's (candidateModel) and the card says which. */
+    const cityName = (SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).name || '—';
+    const listedAt = listedDistrict(o.deal.city, o.deal.district);
+    const place = listedAt ? ` · ${listedAt}`
+      : o.deal.district ? ` · ${o.deal.district} (not one of ${cityName}'s districts — modelled in ${md.district})`
+      : ` · district not recorded — ${md.district} stands in`;
     const card = el('div', { class: 'card' });
     const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[grade.grade];
     card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
       el('div', {}, [
         el('h3', { class: 'h-card', id: `opp-${i}-name`, style: 'margin:0' }, o.name),
         el('p', { class: 'metaline', style: 'margin-top:2px' },
-          `${(SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).name || '—'}${o.deal.district ? ' · ' + o.deal.district : ''} · ${o.deal.propertyType}`),
+          `${cityName}${place} · ${o.deal.propertyType}`),
       ]),
       el('div', { style: 'margin-left:auto;text-align:right' }, [
         el('div', { class: 'num', style: `font-size:24px;font-weight:700;color:var(${gradeTone})` }, grade.grade),
@@ -41318,7 +41539,22 @@ VIEWS.opportunities = () => {
     eg.append(edField('Bank valuation (RM)', () => o.deal.bankValuation, v => { setDeal('bankValuation', v); }));
     eg.append(edField('Registered valuer (RM)', () => o.valuerEstimate, v => { o.valuerEstimate = v; }));
     eg.append(edField('Name or address', () => o.name, v => { o.name = v; }, 'text'));
-    eg.append(edField('Area or district', () => o.deal.district, v => { o.deal = { ...o.deal, district: v || null }; }, 'text'));
+    /* From the city's list, as the form above. A district typed before the
+       list stays offered, marked, until it is changed. */
+    {
+      const w = el('div', { class: 'field' });
+      const id = `opp-${i}-area-or-district`;
+      w.append(el('label', { for: id }, 'Area or district'));
+      const s = el('select', { class: 'select', id });
+      const listed = (SARAWAK_CITIES.find(c => c.id === o.deal.city) || {}).districts || [];
+      s.append(el('option', { value: '' }, 'Not recorded'));
+      if (o.deal.district && !listedAt) s.append(el('option', { value: o.deal.district }, `${o.deal.district} — not one of ${cityName}'s districts`));
+      listed.forEach(x => s.append(el('option', { value: x }, x)));
+      s.value = listedAt || o.deal.district || '';
+      s.addEventListener('change', e => { o.deal = { ...o.deal, district: e.target.value || null }; saveOpportunities(); redrawKeepFocus(); });
+      w.append(s);
+      eg.append(w);
+    }
     eg.append(edField('Built-up area (sq ft)', () => o.deal.sqft, v => { setDeal('sqft', v); mark('sqft', v > 0); }));
     ed.append(eg);
     ed.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
@@ -46853,7 +47089,7 @@ VIEWS.comparables = () => {
         el('td', { style: 'text-align:left' }, title
           ? el('span', { class: title.restricted ? 'chip chip-bronze' : 'chip', title: title.note }, title.label)
           : el('span', { class: 'caption' }, '—')),
-        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, `${o.area || '—'}, ${o.city || '—'}`),
+        el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, `${o.area || '—'}, ${townName(o.city)}`),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.address || '—'),
         el('td', { class: 'caption', style: 'text-align:left' }, o.date || '—'),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, o.sourceRef || '—'),
@@ -46931,6 +47167,10 @@ VIEWS.comparables = () => {
   return wrap;
 };
 
+/* A record's town by the name every page shows. The register printed the
+   stored id — "Tabuan, kuching" — beside rows that said "Kuching". */
+const townName = (id) => SARAWAK_CITIES.find(c => c.id === id)?.name || id || '—';
+
 /* Bulk entry. A district's worth of transactions through a seven-control inline
    form is an afternoon of clicking and a reliable source of typing errors. */
 function openComparableImport() {
@@ -46991,7 +47231,20 @@ function openComparableImport() {
     if (!OBS_BY_ID[kind]) return { err: `kind "${r.kind}" is not one of ${OBSERVATION_KINDS.map(k => k.id).join(', ')}` };
     if (!Number.isFinite(value) || value <= 0) return { err: `value "${r.value}" is not a number above zero` };
     if (!r.city) return { err: 'no city' };
+    /* THE TOWN AS EVERY PAGE KEYS IT. The city was stored as pasted, so
+       "Kuching" — the name every page shows — sat beside the id "kuching"
+       and its rows were read nowhere: the calculator's district panel, the
+       area screen, the grade and the exit gate all match the id. Matched by
+       id or name in any case, and refused, with its reason, when it is no
+       town this register keeps. A district on the town's list is spelt as
+       the list spells it; one that is not stays as typed, a locality of the
+       reader's own, as the area screen allows. */
+    const town = SARAWAK_CITIES.find(c => slugParam(c.id) === slugParam(r.city) || slugParam(c.name) === slugParam(r.city));
+    if (!town) return { err: `city "${r.city}" is not one of the Sarawak towns this register keeps` };
     if (!r.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(r.date))) return { err: `date "${r.date}" is not YYYY-MM-DD` };
+    /* A calendar date, not only its shape: 2026-13-45 passed. */
+    const day = new Date(`${r.date}T00:00:00Z`);
+    if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== String(r.date)) return { err: `date "${r.date}" is not a date on the calendar` };
     const ev = String(r.evidence || 'user');
     if (!EVIDENCE.some(e => e.id === ev)) return { err: `evidence "${ev}" is not a known source class` };
     /* EVERY FIELD THE EXPORT WRITES COMES BACK. The record was rebuilt from
@@ -47004,7 +47257,7 @@ function openComparableImport() {
     const areaOf = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) || !(Number(v) > 0)) ? null : Number(v);
     const unit = (v, fallback) => (v && AREA_UNIT_BY_ID[v]) ? v : fallback;
     const title = String(r.titleType || '');
-    return { ok: { city: String(r.city), area: String(r.area || ''), kind, value,
+    return { ok: { city: town.id, area: listedDistrict(town.id, r.area) || String(r.area || ''), kind, value,
                    date: String(r.date), evidence: ev,
                    propertyType: String(r.propertyType || ''), address: String(r.address || ''),
                    sourceRef: String(r.sourceRef || ''), reviewedBy: String(r.reviewedBy || ''),
@@ -47095,17 +47348,21 @@ function openObservationDrawer(o) {
   };
   body.append(chipRow, whyP);
 
-  const edit = (label, key, kind) => {
+  const edit = (label, key, kind, unit) => {
     const f = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
     /* Tied to its field. The label stood beside an input with no id, so all
        five fields reached a screen reader as unnamed edit boxes. */
     const id = `obs-edit-${key}`;
     f.append(el('label', { for: id }, label));
+    /* An area kept in square feet is shown and corrected in the unit it was
+       typed in (unit), as the register shows it: 4 points, not 1,742.4. */
+    const shown = unit ? fromSqft(o[key], unit) : o[key];
     const node = kind === 'number'
-      ? el('input', { class: 'input', id, type: 'number', value: isNum(o[key]) ? String(o[key]) : '' })
+      ? el('input', { class: 'input', id, type: 'number', value: isNum(shown) ? String(unit ? +shown.toFixed(areaUnit(unit).dp) : shown) : '' })
       : el('input', { class: 'input', id, type: 'text', value: o[key] || '' });
     node.addEventListener('change', e => {
-      const v = kind === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value;
+      const typed = kind === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value;
+      const v = unit && isNum(typed) ? toSqft(typed, unit) : typed;
       const i = State.observations.findIndex(x => x.id === o.id);
       if (i > -1) {
         recordObservationEdited(o.id, key, State.observations[i][key], v);
@@ -47120,7 +47377,12 @@ function openObservationDrawer(o) {
   };
   edit('Address or project', 'address');
   edit('Property type', 'propertyType');
-  edit('Built-up area (sq ft)', 'sqft', 'number');
+  /* A land record's area is its land area. The drawer offered only the
+     built-up area — a field a land sale never uses — so the 4 points behind
+     the register's RM45,000/pt could be neither seen nor corrected, and a
+     figure typed there changed nothing the register showed. */
+  if (OBS_BY_ID[o.kind]?.area === 'land') edit(`Land area (${areaUnit(o.landUnit || 'point').label})`, 'landSqft', 'number', o.landUnit || 'point');
+  else edit('Built-up area (sq ft)', 'sqft', 'number');
   edit('Source reference — the filing, listing, tenancy or document this came from', 'sourceRef');
   edit('Checked against the source by', 'reviewedBy');
 
@@ -47131,7 +47393,7 @@ function openObservationDrawer(o) {
   const recAt = o.recordedAt ? new Date(`${String(o.recordedAt).replace(' ', 'T')}:00Z`) : null;
   const recorded = recAt && !Number.isNaN(recAt.getTime()) ? caseRaisedAt(recAt) : (o.recordedAt || '—');
   [['Recorded', recorded], ['Dated', o.date || '—'],
-   ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${o.city || '—'}`]]
+   ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${townName(o.city)}`]]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
   body.append(kv);
   body.append(histHost);
@@ -48454,11 +48716,14 @@ function decisionRecordProperty() {
   const out = el('div', { class: 'decision-record' });
 
   const where = [d.district, SARAWAK_CITIES.find(c => c.id === d.city)?.name].filter(Boolean).join(', ');
+  /* Prepared on the reader's clock, with its zone — in all three records.
+     It printed the UTC minute bare: "04:11" at 12:11 in Kuching, and the
+     day before until 08:00, on the page that goes to a lender or a lawyer. */
   out.append(el('div', { class: 'dr-head' }, [
     el('p', { class: 'eyebrow' }, 'Decision record · property'),
     el('h1', {}, `${d.propertyType || 'Property'}${where ? ` — ${where}` : ''}`),
     el('p', { class: 'metaline' },
-      `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${MODEL_VERSION} · research only, not advice`),
+      `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
   ]));
 
   /* ---- what it comes to ------------------------------------------------ */
@@ -48634,7 +48899,7 @@ function decisionRecordWheel() {
     el('p', { class: 'eyebrow' }, 'Decision record · options cash wheel'),
     el('h1', {}, `${(p.symbol || '').trim() || 'Unnamed contract'} — cash-secured put and covered call`),
     el('p', { class: 'metaline' },
-      `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${MODEL_VERSION} · research only, not advice`),
+      `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
   ]));
 
   if (p.isWorkedExample) out.append(el('p', { class: 'dr-warn' },
@@ -48734,7 +48999,7 @@ VIEWS.decisionRecord = () => {
       el('p', { class: 'eyebrow' }, 'Decision record · Trading Index'),
       el('h1', {}, `${State.qtti?.symbol || 'Instrument'} — trend evidence`),
       el('p', { class: 'metaline' },
-        `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · research only, not advice`),
+        `Prepared ${caseRaisedAt(new Date())} · research only, not advice`),
     ]));
     const figs = el('div', { class: 'dr-figs' });
     /* Confidence is its own measure: a run is assessable before its five
