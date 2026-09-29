@@ -177,7 +177,7 @@ const CAPABILITY_REGISTER = [
                        : 'no price history is held here, and this site ships none. ')
         + tail;
     } },
-  { name:'Portfolio and My Investments', status:'maintenance', path:'/my/portfolio',
+  { name:'Portfolio and holdings', status:'maintenance', path:'/my/portfolio',
     now:'Holdings, weights, currency attribution and thesis links.' },
   { name:'Thesis, catalysts and invalidation', status:'maintenance', path:'/my/theses',
     now:'User-authored conditions evaluated against current data, with the proximity rule published.' },

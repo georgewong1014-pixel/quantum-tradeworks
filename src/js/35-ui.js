@@ -162,10 +162,13 @@ function statTile(label, value, { delta, sub, spark, tone } = {}) {
   return t;
 }
 
-function cardHead(title, subtitle, right) {
+/* heading: false draws the title as text, for a toolbar above a page's own
+   h1 — the report's and the decision record's — which as an h3 was the
+   first heading in main, ahead of the h1. */
+function cardHead(title, subtitle, right, { heading = true } = {}) {
   const h = el('div', { class: 'card-hd' });
   const l = el('div');
-  l.append(el('h3', { class: 'h-card' }, title));
+  l.append(el(heading ? 'h3' : 'p', { class: 'h-card' }, title));
   if (subtitle) l.append(el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, subtitle));
   h.append(l);
   if (right) h.append(right);
@@ -328,9 +331,12 @@ function toast(msg) {
    sentence qualifying that status cannot differ between two of them. Each
    status was checked against what the code does, not what the brief hoped:
 
-   - Equities is Beta. The US companies are audited SEC filings (data/us.json);
-     the Malaysian ones are the illustrative set (10-dataset.js); no market-data
-     licence is held for either exchange, so a filed company carries no price.
+   - Equities is Beta. The filed US companies are audited SEC filings
+     (data/us.json); the Malaysian ones, and one US listing (PGR), are the
+     illustrative set (10-dataset.js) — as the disclosure strip, the Terms and
+     every company page say; no market-data licence is held for either
+     exchange, so a filed company carries no price. The note said every US
+     company was filed, which the strip on the same page contradicted.
    - The Scanner is Beta. Setups, the builder and every page work anywhere,
      but every evaluation reads data/price-history.json — git-ignored, built on
      the reader's own machine — and matches are written by a worker on that
@@ -346,7 +352,7 @@ const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
     question: 'How is this company performing financially?', action: 'Research a company', actionPath: '/research',
-    status: 'beta', statusNote: 'US companies from their audited SEC filings and Malaysian companies from illustrative figures, with no licensed prices for either market.' },
+    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies and one US listing carry illustrative figures; no licensed prices for either market.' },
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
     task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
@@ -379,6 +385,13 @@ function productBadge(id) {
   b.toString = () => b.outerHTML;
   return b;
 }
+/* THE NOTE, FOR EVERYONE. A badge's qualifying sentence was only its
+   `title`: a mouse's tooltip, never reached by a keyboard, a finger or a
+   screen reader — the Scanner's "this site ships no prices, so here it has
+   nothing to scan" was hover-only. A link that wears a badge carries the
+   note as its description (the name stays short: "Quantum Scanner, Beta"),
+   and the menus link to the page that prints every note. */
+const productNote = (id) => { const p = productById(id); return p ? `${PRODUCT_STATUS[p.status] || p.status}: ${p.statusNote}` : null; };
 /* The product a view belongs to, or null — the dashboard, the personal pages
    and the public pages belong to none. Read from SECTION_OF (below), the one
    table that says where every view sits. */
@@ -710,7 +723,7 @@ const META = {
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'Your dashboard: what changed since your last visit, your setups’ matches, what you monitor and what you have saved — all read from this browser.',
+  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you monitor and what you have saved — read from this browser and the scanner’s own record.',
   onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
   launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
@@ -931,7 +944,9 @@ function afterRoute(beforeView) {
     if (drawer.dataset.open === '1') closeDrawer({ restore: false });
     focusMain();
   } else {
-    document.querySelector('.subnav [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+    /* Any tab strip, whatever it is drawn as: the screener's tools are a
+       segmented control since Release A's fixes, not a .subnav row. */
+    document.querySelector('#views [role="tablist"] [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
     if (fromMenu) focusMain();
   }
 }
@@ -1139,10 +1154,11 @@ function openResearch(id, tab) {
    pages that are not items of their own sit where they fit: holdings and
    investment cases are things a reader saved (Saved Models), and tracked
    instruments are followed like a watchlist. The Trading Index is a section
-   of the Scanner, as its page's strip says. The decision record serves
-   property, the wheel and the trading index alike, and onboarding and the
-   goal launcher sit before any of them, so none of those is claimed; nor is
-   any public page — the sidebar is not on them. */
+   of the Scanner, as its page's strip says. Onboarding and the goal
+   launcher are the dashboard's. The decision record serves property, the
+   wheel and the trading index alike, so it is not in this table: its item
+   follows the record on screen (decisionRecordSection). No public page is
+   claimed — the sidebar is not on them. */
 const SECTION_OF = {
   home: 'dashboard',
   watchlists: 'watchlists', tracked: 'watchlists',
@@ -1153,10 +1169,25 @@ const SECTION_OF = {
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
   property: 'property', opportunities: 'property', comparables: 'property', areas: 'property',
   tradingIndex: 'scanner',
+  /* Preferences and the goal launcher are reached from My Dashboard's
+     "Other ways in", so the dashboard is where a reader on them is; with
+     no item current the sidebar gave no location at all. */
+  onboarding: 'dashboard', launcher: 'dashboard',
   /* Every scanner page, the operations pages included: they are the
      scanner's, even though the navigation carries no link to them. */
   ...Object.fromEntries(SCANNER_VIEWS.map(v => [v, 'scanner'])),
 };
+/* The decision record prints whichever of three tools' work is on it — the
+   property deal, the Cash Wheel or the Trading Index — so its sidebar item
+   is that tool's product, read as the page reads it (97-decision-record.js):
+   the subject chosen if it is ready, else the first ready one. A switch of
+   subject re-renders (renderKeepFocus), so the sidebar follows it. */
+function decisionRecordSection() {
+  if (State.view !== 'decisionRecord' || typeof DECISION_SUBJECTS === 'undefined') return null;
+  const ready = DECISION_SUBJECTS.filter(s => { try { return s.ready(); } catch { return false; } });
+  const id = State.decisionSubject && ready.some(s => s.id === State.decisionSubject) ? State.decisionSubject : ready[0]?.id;
+  return { property: 'property', wheel: 'equities', tradingIndex: 'scanner' }[id] || null;
+}
 /* Guarded twice: the function may not exist in a build without the alerts
    pages, and a throw inside the chrome would take every page down with it. */
 function navUnread() {
@@ -1171,7 +1202,7 @@ function navUnread() {
    routes them in-app), so middle-click, open in a new tab and copy link
    address all work. */
 const shellEl = {
-  pubbar: $('#pubbar'), pubnav: $('#pubnav'), sheet: $('#pubSheet'), sheetBtn: $('#pubMenuBtn'),
+  pubbar: $('#pubbar'), pubnav: $('#pubnav'), sheet: $('#pubSheet'), sheetBtn: $('#pubMenuBtn'), pubScrim: $('#pubScrim'),
   appbar: $('#appbar'), sidebar: $('#sidebar'), appnav: $('#appnav'), navOpen: $('#navOpen'), navClose: $('#navClose'),
   navScrim: $('#navScrim'), tabsHost: $('#productTabs'),
 };
@@ -1205,10 +1236,13 @@ function productRows() {
       ]),
     ];
     return el('li', {}, p.path
-      ? shellLink(p.path, { class: 'pp-row', 'data-product': p.id }, kids)
+      ? shellLink(p.path, { class: `pp-row pub-acc-${p.id}`, 'data-product': p.id, 'aria-description': productNote(p.id) }, kids)
       : el('div', { class: 'pp-row pp-row-off', 'data-product': p.id }, kids));
   });
 }
+/* Under the product rows: where every badge's note is printed. */
+const productsLegendLink = () => el('p', { class: 'pp-foot' },
+  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Live, Beta and Coming soon mean'));
 /* Drawn twice — the menu and the phone sheet — so each copy's labels carry
    their own ids. */
 function resourceLists(prefix) {
@@ -1271,20 +1305,32 @@ function closeMenu({ restore = true } = {}) {
   if (restore) btn.focus();
   return true;
 }
+/* THE PAGE BEHIND AN OPEN SHEET OR DRAWER. Dimmed by a scrim, and inert:
+   out of the tab order and out of a screen reader's swipe order, which
+   honours aria-modal inconsistently. The sheet covered the page under the
+   header, and Tab past its last item went on to "Which sources?", hidden
+   under the still-open sheet; a swipe walked into the covered page. */
+const BEHIND = () => ['.disclosure', '#main', 'body > .footer'].map(s => document.querySelector(s)).filter(Boolean);
+const setBehindInert = (on, extra = []) => [...BEHIND(), ...extra].forEach(n => { if (on) n.setAttribute('inert', ''); else n.removeAttribute('inert'); });
 function openSheet() {
   if (sheetOpen) return;
   sheetOpen = true;
   shellEl.sheet.hidden = false;
+  shellEl.pubScrim && (shellEl.pubScrim.hidden = false);
+  /* The name stays "Menu": it was swapped to "Close the menu" with
+     aria-expanded, so a screen reader said "Close the menu, expanded" — the
+     state twice. aria-expanded carries it; the icon turns to a cross. */
   shellEl.sheetBtn.setAttribute('aria-expanded', 'true');
-  shellEl.sheetBtn.setAttribute('aria-label', 'Close the menu');
-  requestAnimationFrame(() => { if (sheetOpen) shellEl.sheet.dataset.open = '1'; });
+  setBehindInert(true);
+  requestAnimationFrame(() => { if (sheetOpen) { shellEl.sheet.dataset.open = '1'; if (shellEl.pubScrim) shellEl.pubScrim.dataset.open = '1'; } });
 }
 function closeSheet({ restore = true } = {}) {
   if (!sheetOpen) return false;
   sheetOpen = false;
   shellEl.sheet.hidden = true; delete shellEl.sheet.dataset.open;
+  if (shellEl.pubScrim) { shellEl.pubScrim.hidden = true; delete shellEl.pubScrim.dataset.open; }
   shellEl.sheetBtn.setAttribute('aria-expanded', 'false');
-  shellEl.sheetBtn.setAttribute('aria-label', 'Menu');
+  setBehindInert(false);
   if (restore) shellEl.sheetBtn.focus();
   return true;
 }
@@ -1302,6 +1348,10 @@ function openNavDrawer() {
   sb.dataset.drawer = 'opening';
   shellEl.navScrim.hidden = false;
   shellEl.navOpen.setAttribute('aria-expanded', 'true');
+  /* The page behind is inert as well as dimmed: the Tab trap (95-boot.js)
+     keeps a keyboard inside, but a screen reader's swipe walked into the
+     dimmed page. */
+  setBehindInert(true, [shellEl.appbar]);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     if (!navDrawerOpen) return;
     sb.dataset.drawer = 'open'; shellEl.navScrim.dataset.open = '1';
@@ -1312,7 +1362,10 @@ function closeNavDrawer({ restore = true, instant = false } = {}) {
   if (!navDrawerOpen) return false;
   navDrawerOpen = false;
   const sb = shellEl.sidebar;
-  ['role', 'aria-modal', 'aria-label'].forEach(a => sb.removeAttribute(a));
+  ['role', 'aria-modal'].forEach(a => sb.removeAttribute(a));
+  /* Back to the landmark it is when it is not a dialog (index.template.html). */
+  sb.setAttribute('aria-label', 'Workspace');
+  setBehindInert(false, [shellEl.appbar]);
   shellEl.navOpen.setAttribute('aria-expanded', 'false');
   shellEl.navScrim.dataset.open = '0';
   const done = () => { sb.dataset.drawer = 'closed'; shellEl.navScrim.hidden = true; };
@@ -1334,7 +1387,7 @@ function buildShell() {
   /* The public header: Products, How it works, Pricing, Resources. */
   if (shellEl.pubnav) {
     shellEl.pubnav.append(el('ul', { class: 'pubnav-list' }, [
-      pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows())], 'pubpanel-products'),
+      pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows()), productsLegendLink()], 'pubpanel-products'),
       el('li', {}, shellLink('/how-it-works', { class: 'publink', 'data-pub': 'howItWorks' }, 'How it works')),
       el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Pricing')),
       pubMenu('menuResources', 'Resources', resourceLists('menu'), 'pubpanel-resources'),
@@ -1346,6 +1399,7 @@ function buildShell() {
     shellEl.sheet.append(el('div', { class: 'sheet-in' }, [
       el('p', { class: 'rs-label', id: 'sheet-products' }, 'Products'),
       el('ul', { class: 'pp-list', 'aria-labelledby': 'sheet-products' }, productRows()),
+      productsLegendLink(),
       el('ul', { class: 'sheet-links' }, [
         el('li', {}, shellLink('/how-it-works', { class: 'sheet-link', 'data-pub': 'howItWorks' }, 'How it works')),
         el('li', {}, shellLink('/pricing', { class: 'sheet-link', 'data-pub': 'plans' }, 'Pricing')),
@@ -1357,11 +1411,16 @@ function buildShell() {
       ]),
     ]));
     shellEl.sheetBtn.addEventListener('click', () => (sheetOpen ? closeSheet() : openSheet()));
+    /* Leaving the header by Tab closes the sheet, as leaving a header menu
+       does (pubMenu), so focus never lands on something it covers. */
+    shellEl.pubbar.addEventListener('focusout', (e) => {
+      if (sheetOpen && e.relatedTarget && !shellEl.pubbar.contains(e.relatedTarget)) closeSheet({ restore: false });
+    });
   }
   /* The sidebar: My Workspace, Products, then the reader's data and plans. */
   if (shellEl.appnav) {
-    const item = (n, extra = []) => el('li', { class: 'sb-item', 'data-item': n.id }, [
-      shellLink(n.path, { class: 'sb-link', 'data-nav-id': n.id }, [shellIcon(n.icon), el('span', { class: 'sb-text' }, n.label), ...extra]),
+    const item = (n, extra = []) => el('li', { class: `sb-item${n.acc ? ` pub-acc-${n.acc}` : ''}`, 'data-item': n.id }, [
+      shellLink(n.path, { class: 'sb-link', 'data-nav-id': n.id, 'aria-description': n.note || null }, [shellIcon(n.icon), el('span', { class: 'sb-text' }, n.label), ...extra]),
     ]);
     const products = PRODUCTS.filter(p => SHOW_UNBUILT || p.path);
     shellEl.appnav.append(
@@ -1369,7 +1428,7 @@ function buildShell() {
       el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-ws' }, APP_NAV_WORKSPACE.map(n => item(n))),
       el('p', { class: 'sb-label', id: 'sb-products' }, 'Products'),
       el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-products' },
-        products.map(p => item({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path }, [productBadge(p.id)]))),
+        products.map(p => item({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path, note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
       el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => item(n))),
     );
     shellEl.navOpen?.addEventListener('click', openNavDrawer);
@@ -1387,7 +1446,7 @@ function buildShell() {
   /* The footer's Products and Resources, from the same tables. */
   const footP = $('#footProducts'), footR = $('#footResources');
   if (footP) footP.append(...PRODUCTS.map(p => el('li', {}, p.path
-    ? shellLink(p.path, { class: 'foot-product' }, [p.name, productBadge(p.id)])
+    ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))));
   if (footR) footR.append(
     ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),
@@ -1411,7 +1470,7 @@ function buildNav() {
   /* A drawer or a sheet belongs to the chrome that opened it. */
   if (chrome === 'public') closeNavDrawer({ restore: false, instant: true });
   else closeSheet({ restore: false });
-  const section = SECTION_OF[State.view] || null;
+  const section = SECTION_OF[State.view] || decisionRecordSection() || null;
   shellEl.appnav?.querySelectorAll('a.sb-link').forEach(a => {
     if (a.dataset.navId === section) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
@@ -1432,7 +1491,10 @@ function buildNav() {
     alertsLi.querySelector('.sb-count')?.remove();
     const unread = typeof scanUnreadCount === 'function' ? navUnread() : null;
     if (unread) {
-      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': `Scanner alerts, ${unread} unread`,
+      /* The name says what the pill shows — "99+" over 99 — so a voice
+         command naming the visible text finds it; the exact count is in the
+         title. */
+      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': `Scanner alerts, ${unread > 99 ? '99+' : unread} unread`,
         title: `${unread} unread scanner alert${unread === 1 ? '' : 's'} — opens the Scanner’s alerts` },
         el('span', { class: 'nav-count' }, [shellIcon(PRODUCT_ICON.scanner, 11, 'sb-count-ico'), unread > 99 ? '99+' : String(unread)])));
     }
@@ -1443,7 +1505,13 @@ function buildNav() {
     const on = a.dataset.pub ? a.dataset.pub === State.view : res ? a.dataset.path === res.path : false;
     if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
-  $('#menuResourcesBtn')?.toggleAttribute('data-current', !!res);
+  /* The mark on a closed menu is drawn, and said: the underline alone told
+     assistive technology nothing until the menu was opened. */
+  const resBtn = $('#menuResourcesBtn');
+  if (resBtn) {
+    resBtn.toggleAttribute('data-current', !!res);
+    if (res) resBtn.setAttribute('aria-description', `Current page: ${res.label}`); else resBtn.removeAttribute('aria-description');
+  }
 }
 
 /* THE PRODUCT'S TABS, above its pages. Drawn into their own host in <main>,
@@ -1458,31 +1526,90 @@ function renderProductTabs() {
   if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; return; }
   const p = productById(pid);
   const here = tabs.find(t => t.views.includes(State.view));
-  const nav = el('nav', { class: 'ptabs', 'aria-label': `${p.name} sections` }, [
-    el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]),
-    el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {},
-      shellLink(t.path, { class: 'ptab', 'aria-current': t === here ? 'page' : null }, t.label)))),
-  ]);
+  const nav = sectionTabs({ label: `${p.name} sections`, pid, tabs: tabs.map(t => ({ label: t.label, path: t.path, current: t === here })) });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
-  /* Where the row is narrower than its tabs it scrolls: the current tab is
-     brought into it, so the page's own name is never the one scrolled out of
-     sight, and the row fades at whichever end has more — the sign that there
-     is more, which a hidden scrollbar does not give. */
-  const list = nav.querySelector('.ptabs-list'), cur = nav.querySelector('.ptab[aria-current]');
-  if (list && cur && list.scrollWidth > list.clientWidth + 1) {
+  wireSectionTabs(nav);
+}
+
+/* ONE ROW OF SECTION TABS, ONE COMPONENT. The Equities and Property rows
+   above (renderProductTabs), the Scanner's own strip (scannerSubnav,
+   87-scanner-ops.js) and the personal pages' strip (mySubnav) are the same
+   level of navigation, and were two unrelated patterns: an underline row with
+   the product's name and badge for two products, and for the third a grey box
+   of pills with no name, wrapping into three rows on a phone. Each is now
+   this: the product's name and badge where there is a product, then one row
+   of underline tabs that scrolls, with the current tab marked aria-current.
+   A strip drawn inside a view (inView) takes the band's look where it sits,
+   at the top of the page (.ptabs-inview). */
+function sectionTabs({ label, pid = null, tabs, cls = '', inView = false }) {
+  const p = pid ? productById(pid) : null;
+  const nav = el('nav', { class: `ptabs ${pid ? `pub-acc-${pid} ` : ''}${cls}`.trim(), 'aria-label': label }, [
+    p ? el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]) : null,
+    el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {},
+      shellLink(t.path, { class: 'ptab', 'aria-current': t.current ? 'page' : null, 'aria-label': t.ariaLabel || null }, t.label)))),
+  ]);
+  if (!inView) return nav;
+  const band = el('div', { class: 'ptabs-host ptabs-inview' }, nav);
+  /* Laid out once it is on the page: the view is built before render()
+     mounts it, and a strip redrawn by its own page is mounted by that page. */
+  requestAnimationFrame(() => { if (nav.isConnected) wireSectionTabs(nav); });
+  return band;
+}
+/* Where the row is narrower than its tabs it scrolls: the current tab is
+   brought into it, so the page's own name is never the one scrolled out of
+   sight, and the row fades at whichever end has more — the sign that there
+   is more, which a hidden scrollbar does not give. A tab reached by Tab is
+   scrolled clear of the fade too: the browser's own focus scroll left a
+   half-hidden tab at the row's edge, 80% outside it and under the mask, its
+   focus ring a sliver (scroll-padding on the list keeps it clear). */
+function wireSectionTabs(nav) {
+  const list = nav.querySelector('.ptabs-list');
+  if (!list || list.dataset.wired) return;
+  list.dataset.wired = '1';
+  const cur = nav.querySelector('.ptab[aria-current]');
+  if (cur && list.scrollWidth > list.clientWidth + 1) {
     const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
     list.scrollLeft += (c.left + c.width / 2) - (l.left + l.width / 2);
   }
-  if (list) { list.addEventListener('scroll', () => fadeTabs(list), { passive: true }); fadeTabs(list); }
+  list.addEventListener('scroll', () => fadeTabs(list), { passive: true });
+  list.addEventListener('focusin', (e) => {
+    if (!e.target.matches?.('.ptab') || list.scrollWidth <= list.clientWidth + 1) return;
+    e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    fadeTabs(list);
+  });
+  fadeTabs(list);
 }
 function fadeTabs(list) {
   const max = list.scrollWidth - list.clientWidth;
   const f = max <= 1 ? '' : list.scrollLeft <= 1 ? 'end' : list.scrollLeft >= max - 1 ? 'start' : 'both';
   if (f) list.dataset.fade = f; else delete list.dataset.fade;
 }
-window.addEventListener('resize', () => { const l = document.querySelector('#productTabs .ptabs-list'); if (l) fadeTabs(l); });
+window.addEventListener('resize', () => document.querySelectorAll('.ptabs-list').forEach(fadeTabs));
 buildShell();
+
+/* ONE DOMINANT ACTION ON A PUBLIC PAGE. The header's "Open workspace" and
+   the homepage's "Open your workspace" were two filled buttons of one colour
+   within 550px of each other, and on /pricing the header's outweighed the
+   page's own. While a primary action of the page is on screen the header's
+   steps down to the outline style; scrolled past it, the header's is the
+   primary again. Only the look changes — it is the same link throughout. */
+let ctaWatch = null;
+function watchPageCta() {
+  ctaWatch?.disconnect(); ctaWatch = null;
+  const cta = shellEl.pubbar?.querySelector('.pub-cta');
+  if (!cta) return;
+  cta.classList.remove('pub-cta-quiet');
+  if (chromeOf(State.view) !== 'public' || typeof IntersectionObserver !== 'function') return;
+  const primaries = [...viewRoot.querySelectorAll('.btn-primary')];
+  if (!primaries.length) return;
+  const seen = new Set();
+  ctaWatch = new IntersectionObserver((entries) => {
+    entries.forEach(e => (e.isIntersecting ? seen.add(e.target) : seen.delete(e.target)));
+    cta.classList.toggle('pub-cta-quiet', seen.size > 0);
+  });
+  primaries.forEach(p => ctaWatch.observe(p));
+}
 
 let stickyObserver = null;
 let stickySizer = null;
@@ -1629,15 +1756,16 @@ function render() {
      so a company page announced itself as "Research" and every shared link
      previewed identically. */
 
-  /* On a public page the disclosure is a single compact line. A four-line
-     warning block above the headline buries the thing a first-time visitor
-     came to read, and a warning nobody reaches is not a warning. Inside the
-     app it stays in full, because there the sample data IS the context.
-     The surface follows the chrome (chromeOf): it was keyed to '/' alone, so
-     /how-it-works, pricing and the trust pages wore the app's long strip
-     under the public header. On every public page "Which sources?" opens the
-     rest of the sentence, so no word of it is out of reach. */
+  /* The disclosure is a single compact line on both chromes (styles.css,
+     the disclosure strip). A four-line warning block above the headline
+     buries the thing a reader came to read, and a warning nobody reaches is
+     not a warning; inside the app the full breakdown put every workspace
+     page's heading a third to two-thirds of the way down a phone. The
+     material sentence is always shown, and on every page "Which sources?"
+     opens the rest of it, so no word is out of reach. The surface still
+     follows the chrome (chromeOf) for the rules that differ between them. */
   document.body.dataset.surface = chromeOf(State.view);
+  watchPageCta();
 
   /* Reveal the compact ticker identity only once the full header is gone. */
   stickyObserver?.disconnect();

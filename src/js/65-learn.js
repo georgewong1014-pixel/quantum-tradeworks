@@ -17,12 +17,6 @@ const LEARN_TABS = [
 
 VIEWS.learn = () => {
   const wrap = el('div');
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Learn'),
-    el('h1', {}, 'Methodology, in public'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'If a number cannot be explained, it should not be shown. Every formula, weight, anchor range and limitation used anywhere in this prototype is published here.'),
-  ])));
   /* /learn/glossary is a route in the table and a link in the navigation, but
      'glossary' is not a tab id — the tab is 'dictionary', labelled "Metric
      dictionary". The lookup returned undefined and calling it threw, so the
@@ -31,6 +25,17 @@ VIEWS.learn = () => {
      aliased rather than renamed because these URLs are already in the wild. */
   const panels = { dictionary: learnDictionary, scoring: learnScoring, models: learnModels, data: learnData, trust: learnTrust };
   if (!panels[State.learnTab]) State.learnTab = LEARN_TAB_ALIAS[State.learnTab] || 'dictionary';
+  /* The heading names the tab on screen. Five Resources links open this
+     page — Methodology, Data sources, Glossary, Learn, Corrections — and every
+     one landed on the same "Methodology, in public", so the heading never
+     confirmed which had been chosen. The section's name is the eyebrow. */
+  const tabLabel = LEARN_TABS.find(t => t.id === State.learnTab)?.label || 'Metric dictionary';
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Learn · Methodology, in public'),
+    el('h1', {}, tabLabel),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'If a number cannot be explained, it should not be shown. Every formula, weight, anchor range and limitation used anywhere in this prototype is published here.'),
+  ])));
 
   /* Through the address. Four of the five tabs are pages in their own right
      (/learn/glossary, /methodology, /data-sources, /corrections) and the

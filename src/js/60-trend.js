@@ -392,11 +392,15 @@ const TREND_STRATEGIES = [
 VIEWS.tracked = () => {
   const wrap = el('div', { class: 'stack' });
   wrap.append(mySubnav('tracked'));
-  wrap.append(el('div', {}, [
-    el('h1', { class: 'h1' }, 'Tracked'),
-    el('p', { class: 'lede' },
+  /* The personal pages' heading. `.h1` and `.lede` had no rules, so this
+     title was the browser's 32px at weight 600 — a size and weight no other
+     page uses. */
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'My workspace'),
+    el('h1', {}, 'Tracked'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Price and trend only. Nothing here is valued, scored or ranked — these are instruments the engine cannot analyse, followed so the direction is visible alongside the research.'),
-  ]));
+  ])));
 
   const book = priceBook?.prices || {};
   const series = trackedHistory?.series || {};
@@ -545,13 +549,13 @@ VIEWS.tracked = () => {
 VIEWS.alerts = () => {
   const wrap = el('div');
   wrap.append(mySubnav('alerts'));
-  appendSampleBanner(wrap);
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Alerts'),
     el('h1', {}, 'Tell me what changed, and why it matters to my thesis'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Every alert names the fact that changed, the source period, and which thesis condition it maps to. None of them contains an instruction to buy or sell.'),
   ])));
+  appendSampleBanner(wrap);
 
   /* generated alert feed, thesis-linked first */
   const items = [];

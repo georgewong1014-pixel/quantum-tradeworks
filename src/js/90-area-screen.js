@@ -1085,7 +1085,9 @@ VIEWS.plans = () => {
   ]));
   wrap.append(bar);
 
-  const grid = el('div', { class: 'grid g-3', style: 'align-items:start' });
+  /* Equal-height cards, each a column with its action at the foot, so the
+     three actions sit on one line; they stood at three heights. */
+  const grid = el('div', { class: 'grid g-3 plan-grid' });
   Object.values(PLANS).forEach(pl => {
     const active = State.plan === pl.id;
     /* A TIER THAT IS NOT ON SALE DOES NOT LOOK LIKE ONE THAT IS.
@@ -1100,7 +1102,7 @@ VIEWS.plans = () => {
        should reach an unlaunched tier at all is a product decision this does
        not make. */
     const onSale = pl.launched !== false;
-    const card = el('div', { class: 'card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
+    const card = el('div', { class: 'card plan-card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
       el('h3', { class: 'h-card' }, pl.name),
       active ? el('span', { class: 'chip chip-brand' }, onSale ? 'Current' : 'Previewing') : null,
@@ -1153,12 +1155,17 @@ VIEWS.plans = () => {
     const dl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
     rows.forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', {}, v)); });
     card.append(dl);
-    card.append(el('button', { class: active || !onSale ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm', style: 'width:100%',
-      disabled: active ? '' : null, onclick: () => setPlan(pl.id) },
-      active ? (onSale ? 'Current plan' : 'Previewing in this browser')
-        : onSale ? `Switch to ${pl.name}` : `Preview ${pl.name} in this browser`));
-    if (!onSale) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    if (!onSale) card.append(el('p', { class: 'metaline', style: 'margin:-4px 0 var(--md)' },
       `${pl.name} has not launched and cannot be bought. The preview turns on its entitlements here, as the switch on every card does, so the view it adds can be inspected.`));
+    /* The plan in force is a state, said as one — a marked line with a tick —
+       not a disabled button at 45% opacity, which in the dark theme was
+       barely there. The others are full-height buttons (.btn, not .btn-sm):
+       a 30px "Switch to…" was outweighed by the header's 40px action. */
+    card.append(active
+      ? el('p', { class: 'plan-cta plan-current' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 15) }),
+          onSale ? 'Current plan' : 'Previewing in this browser'])
+      : el('button', { class: `plan-cta btn ${onSale ? 'btn-primary' : 'btn-ghost'}`, onclick: () => setPlan(pl.id) },
+          onSale ? `Switch to ${pl.name}` : `Preview ${pl.name} in this browser`));
     grid.append(card);
   });
   wrap.append(grid);
@@ -1168,8 +1175,12 @@ VIEWS.plans = () => {
   pr.append(cardHead('Property Deal Check — priced per report',
     'Transactional rather than recurring. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this covers the same ground and adds the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
-  const pt = el('table', { class: 'dt' });
-  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Price', 'What it adds'].map(h => el('th', {}, h)))));
+  /* "What it adds" is prose, left-aligned in its cells, so its heading is
+     too — it sat right-aligned over them. Below 600px the rows stack (name
+     and price, then what it adds): the table ran 336px in a 308px scroller
+     and cut the description to a 100px column. */
+  const pt = el('table', { class: 'dt dt-stack' });
+  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Price', 'What it adds'].map((h, i) => el('th', { style: i === 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
     ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.'],
     ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Comparable transactions, price and rental ranges, net operating income, cash-on-cash, debt-service cover, ten-year scenarios, exit costs and the equity comparison.'],
@@ -1182,7 +1193,9 @@ VIEWS.plans = () => {
   /* what is deliberately not monetised */
   const mp = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   /* One line where the argument used to be, with the argument a click away. */
-  const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
+  /* Spaced from the report card above it, as every card on the page is:
+     the two touched with no gap. */
+  const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand);margin-top:var(--md)' });
   boundaryLine.append(el('p', { class: 'body', style: 'font-size:13px' },
     'What you are paying for is research: analysis, evidence and tools that let you reach your own conclusion — not a conclusion. There are no ratings, no target prices and no suitability questions, and that is a product boundary rather than a backlog.'));
   boundaryLine.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', href: href('/learn/product-boundaries'),

@@ -2105,7 +2105,7 @@ try {
       const stamped = items.filter(i => i.kind !== 'thesis').every(i => i.stamp?.model);
       navigate('/my/workspace'); await wait(200);
       const listed = document.querySelectorAll('.ws-list .ws-row:not(.ws-head)').length;
-      const inNav = [...document.querySelectorAll('main .segmented a')].some(a => a.textContent === 'Workspace' && a.getAttribute('aria-selected') === 'true');
+      const inNav = [...document.querySelectorAll('main nav.my-subnav a[aria-current=page]')].some(a => a.textContent === 'Workspace');
       const doc = exportEverything();
       const exported = ['runs', 'comparisons', 'savedScreens', 'savedWork', 'theses'].filter(k => k in doc.data);
       const run0 = doc.data.runs[0];
@@ -7212,7 +7212,8 @@ try {
         text: c?.innerText.replace(/\\n+/g, ' / ') || '', btn: b?.textContent.trim(), primary: !!b?.classList.contains('btn-primary') };
       b.focus(); b.click(); await w(150);
       out.plan = State.plan; out.toast = document.getElementById('toast')?.textContent || '';
-      out.after = card()?.querySelector('button')?.textContent.trim();
+      /* The plan in force is a marked line, not a disabled button (release-a fix). */
+      out.after = card()?.querySelector('.plan-cta')?.textContent.trim();
       State.plan = 'pro'; store.write('plan', 'pro');
       /* A portfolio holding cash, so the page draws past its empty state. */
       const keep = { pf: JSON.stringify(State.portfolios), pfIdx: State.pfIdx };
@@ -7891,6 +7892,64 @@ try {
     else ok(`release-a integration: ${Object.values(r.surfaces).filter(s => s.chrome === 'public').length} public pages wear the short disclosure with every word behind "Which sources?"; one "Screener" product tab, current on all four screener tabs, over the page's own strip; the Trading Index last in SCANNER_SUBNAV; the unread count named "${r.count.label}"; /welcome's ${r.welcome.map(b => b.t.split(' ')[0]).join(' and ')} at ${Math.min(...r.welcome.map(b => b.h))}px; the footnote's link says "${r.foot}"`);
   }
   /* ---- end release-a: integration ---- */
+
+  /* ---- release-a: fixes ---- */
+  /* THE DASHBOARD COUNTS ONLY WHAT THE VISITOR DID. One "Add to watchlist" on
+     a company page adds to the active list — the seeded Core watchlist on a
+     fresh profile, and step 2 of the journey /how-it-works describes — and
+     that one touch made all six seeded companies "yours": 7 instruments "in 1
+     list of your own", and "Create a watchlist" ticked with no list created.
+     Also: the Continue rows use the reader's clock, as the lede does, and a
+     list of illustrative companies wears the illustrative chip. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = { wl: JSON.stringify(State.watchlists), idx: State.wlIdx, visit: localStorage.getItem('vl.dashVisit'),
+        recent: JSON.stringify(State.recentCompanies || []) };
+      const out = {};
+      try {
+        /* A fresh profile's lists, as 05-plans.js seeds them and the migration dates them: no member dated. */
+        const seed = (id, name, ids) => ({ id, name, ids: [...ids], added: Object.fromEntries(ids.map(x => [x, null])), createdAt: null, updatedAt: null, schema: WATCHLIST_SCHEMA });
+        State.watchlists = [seed('wl-1', 'Core watchlist', ['AAPL', 'MAYBANK', 'PBBANK', 'NVDA', 'AXREIT', 'TENAGA'].filter(x => BY_ID.has(x))),
+                            seed('wl-2', 'Bursa income', ['MAYBANK', 'PBBANK', 'PETGAS', 'KLCC', 'IGBREIT'].filter(x => BY_ID.has(x)))];
+        State.wlIdx = 0; saveWatchlists();
+        const msft = [...BY_ID.keys()].find(k => /^MSFT/.test(k)) || 'MSFT';
+        toggleWatch(msft, 0); await w(40);
+        navigate('/app'); await w(120);
+        const tile = [...document.querySelectorAll('#views .dash-tile')].find(t => /Instruments watchlisted/.test(t.textContent));
+        out.tile = tile ? { v: tile.querySelector('.dash-tile-v')?.textContent, sub: tile.querySelector('.stat-sub')?.textContent, note: tile.querySelector('.dash-tile-note')?.textContent || null } : null;
+        const own = myDashOwn();
+        out.instruments = own.instruments.size; out.created = own.createdLists.length;
+        out.stepDone = myDashSteps(own).find(s => s.k === 'watchlist')?.done;
+        /* A list the visitor made, of illustrative companies, edited an hour ago. */
+        const illus = U.filter(r => !r.c.real).slice(0, 2).map(r => r.c.id);
+        const hourAgo = new Date(Date.now() - 3600e3).toISOString();
+        State.watchlists.push({ id: 'wl-fix-own', name: 'Fix own', ids: illus, added: Object.fromEntries(illus.map(x => [x, hourAgo])), createdAt: hourAgo, updatedAt: hourAgo, schema: WATCHLIST_SCHEMA });
+        saveWatchlists();
+        navigate('/app'); await w(120);
+        const row = [...document.querySelectorAll('#views .dash-cont .dash-row')].find(x => /Fix own/.test(x.textContent));
+        out.row = row ? { meta: row.querySelector('.dash-row-s')?.textContent || '', chip: row.querySelector('.chip-bronze')?.textContent || null } : null;
+        out.local = myDashWhen(Date.parse(hourAgo));
+      } finally {
+        State.watchlists = JSON.parse(keep.wl); State.wlIdx = keep.idx; saveWatchlists();
+        State.recentCompanies = JSON.parse(keep.recent);
+        if (keep.visit == null) localStorage.removeItem('vl.dashVisit'); else localStorage.setItem('vl.dashVisit', keep.visit);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (r.instruments !== 1) p.push(`one company added to the seeded list counts ${r.instruments} instruments, not 1`);
+    if (r.stepDone !== false || r.created !== 0) p.push(`"Create a watchlist" is ${r.stepDone ? 'ticked' : 'not ticked'} with ${r.created} list(s) created`);
+    if (r.tile && (r.tile.v !== '1' || /of your own/.test(r.tile.sub || '') || !/Sample companies not counted/.test(r.tile.note || ''))) p.push(`the tile reads ${JSON.stringify(r.tile)}`);
+    if (!r.row) p.push("a list of the visitor's own is not in Continue");
+    else {
+      if (/UTC/.test(r.row.meta) || !r.row.meta.includes(r.local)) p.push(`the Continue row's time is "${r.row.meta}", not the reader's clock ("${r.local}")`);
+      if (r.row.chip !== 'illustrative figures') p.push(`a list of illustrative companies wears ${JSON.stringify(r.row.chip)}`);
+    }
+    if (p.length) fail("release-a fixes: the dashboard counts only what the visitor did, on the reader's clock, with the illustrative chip", p);
+    else ok(`release-a fixes: one company added to the seeded list counts as 1 instrument (${r.tile ? r.tile.note : 'no tile'}), "Create a watchlist" stays open, and a list of the visitor's own reads "${r.row.meta}" with its illustrative chip`);
+  }
+  /* ---- end release-a: fixes ---- */
 
 } catch (e) {
   fail('harness error', e.message);

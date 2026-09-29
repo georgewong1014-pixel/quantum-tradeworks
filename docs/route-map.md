@@ -24,13 +24,16 @@ A view wears one of two chromes, decided by `chromeOf(view)` and written to
 - **app** — every other view. They wear the sidebar at 1024px and wider, and
   below that a slim bar whose menu button opens the same sidebar as a drawer.
 
-The beta/demo disclosure bar is on both chromes, its words unchanged. On a
-public page (`body[data-surface="public"]`, which follows the chrome) it is
-one compact line — "Beta preview. Do not use figures here for investment
-decisions." — with "Which sources?" opening the rest of the sentence at
-every width, so every word of it is one press away on `/`, `/how-it-works`,
-pricing and the trust pages alike. On an app page it is the full strip, its
-source breakdown folded behind "Which sources?" at 760px and under.
+The beta/demo disclosure bar is on both chromes, its words unchanged, and
+on both it is one compact line. Its first sentence is written at boot by
+`refreshDisclosure()` (95-boot.js) from what actually loaded — with the
+filings in, "Beta preview — mixed sources. Do not use figures here for
+investment decisions." — and "Which sources?" opens the rest at every
+width: the source breakdown and the two research-mode chips ("Research
+mode", "No advice · No recommendations"). Every word of it is one press away
+on every page. Inside the app it used to run the whole breakdown and the
+chips at every width above 760px, which put a workspace page's heading a
+third to two-thirds of the way down a phone.
 
 ## Routes
 
@@ -47,7 +50,7 @@ whichever address opened it.
 | `/app` | home | app | My Dashboard (workspace) | canonical |
 | `/how-it-works` | howItWorks | public | — (public header) | canonical |
 | `/research/queue` | researchQueue | app | Equities Research (product) | canonical |
-| `/welcome` | onboarding | app | none (no sidebar item current) | canonical |
+| `/welcome` | onboarding | app | My Dashboard (reached from its "Other ways in") | canonical |
 | `/discover` | discover | app | Equities Research (product) | canonical |
 | `/discover/screener` | discover · tab screener | app | Equities Research (product) | canonical |
 | `/discover/value-map` | discover · tab radar | app | Equities Research (product) | canonical |
@@ -84,7 +87,7 @@ whichever address opened it.
 | `/app/scanner/alerts` | scannerAlerts | app | Quantum Scanner (product) | canonical |
 | `/app/scanner/alerts/:alert` | scannerAlert | app | Quantum Scanner (product) | its own address |
 | `/app/scanner/settings` | scannerSettings | app | Quantum Scanner (product) | canonical |
-| `/start` | launcher | app | none (no sidebar item current) | canonical |
+| `/start` | launcher | app | My Dashboard (reached from its "Other ways in") | canonical |
 | `/my/data` | userdata | app | Your data & settings (workspace) | canonical |
 | `/my/workspace` | workspace | app | Saved Models (workspace) | canonical |
 | `/app/workspace` | workspace | app | Saved Models (workspace) | alias of `/my/workspace` |
@@ -109,7 +112,7 @@ whichever address opened it.
 | `/data-sources` | learn · tab data | public | — (public header) | canonical |
 | `/learn/product-boundaries` | boundaries | public | — (public header) | canonical |
 | `/status` | status | public | — (public header) | canonical |
-| `/decision-record` | decisionRecord | app | none (no sidebar item current) | canonical |
+| `/decision-record` | decisionRecord | app | the product of the record on screen: Property Intelligence (a property deal), Equities Research (the Cash Wheel) or Quantum Scanner (the Trading Index) | canonical |
 | `/methodology/ips` | ips | public | — (public header) | canonical |
 | `/corrections` | learn · tab trust | public | — (public header) | canonical |
 | `/pricing` | plans | public | — (public header) | canonical |
@@ -140,8 +143,10 @@ Two tabs of the discover view have no path of their own and ride on
 
 Left out on purpose: every alias above; `/my/*`, `/app/watchlists`,
 `/app/workspace`, `/app/scanner/*` and `/admin/*`, which `robots.txt`
-disallows (personal or one machine's); `/app`, `/welcome` and `/start`,
-which are application shells rather than destinations; parameterised pages.
+disallows (personal or one machine's); `/app` — My Dashboard, the visitor's
+own counts and saved work — which `robots.txt` also disallows, by that
+address alone (`Disallow: /app$`); `/welcome` and `/start`, which are
+application shells rather than destinations; parameterised pages.
 
 ## Navigation map
 
@@ -225,12 +230,19 @@ One row above an Equities or Property page (a nav landmark named
   overview view is built.
 - The company page (`research`) and its report keep their own tabs and get
   no product row.
-- **Quantum Scanner** keeps its own section strip (87-scanner-ops.js
-  `SCANNER_SUBNAV`, which every scanner page draws through `scanSubnav`):
-  Dashboard, Market (your series), Setups, Watchlists, Alerts, Historical,
-  Settings, **Trading Index** (`/research/trading-index`, a section of the
-  scanner since Release A). The Trading Index's page shows the strip with
-  itself current.
+- **Quantum Scanner** keeps its own section table (87-scanner-ops.js
+  `SCANNER_SUBNAV`, which every scanner page draws through `scanSubnav`,
+  named "Scanner sections"): Dashboard, Market (your series), Setups,
+  Watchlists, Alerts, Historical, Settings, **Trading Index**
+  (`/research/trading-index`, a section of the scanner since Release A).
+  It is drawn with the same component as the Equities and Property rows
+  (`sectionTabs`, 35-ui.js) — the product's name and badge, one scrolling
+  row of underline tabs — at the top of the page rather than in
+  `#productTabs`, because each scanner page names its own section. The
+  Trading Index's page shows the row with itself current.
+- The personal pages (`/my/*`) draw `mySubnav` with the same component,
+  without a product name: Portfolio · Watchlists · Investment cases ·
+  Alerts · Tracked · Workspace · Your data.
 
 ### Footer
 
@@ -238,7 +250,10 @@ Products (the four; Business Intelligence as text with its badge) ·
 Resources (Methodology, Data sources, Glossary, Learn, Corrections, What this
 product will not do, Build status, Report a data error) · Company (About,
 Contact, Plans & pricing, Privacy, Terms). Tagline "Research · Monitor ·
-Model · Plan"; the legal paragraph is unchanged.
+Model · Plan"; the legal paragraph is unchanged. That is the public
+chrome's footer. Under an app page the footer is the slim one — Resources,
+Company and the legal paragraph — since the sidebar already carries the
+brand and the products.
 
 ## Redirect map
 

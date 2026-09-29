@@ -63,8 +63,10 @@ const PUB_GLYPH = {
 const pubSvg = (name, size) => ICON[name] ? icon(name, size)
   : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${PUB_GLYPH[name] || ''}</svg>`;
 const pubArrow = () => el('span', { class: 'pub-arrow', 'aria-hidden': 'true', html: pubSvg('arrow', 16) });
-const PUB_ICON_OF = { equities: 'doc', scanner: 'target', property: 'home', business: 'briefcase' };
-const pubIcon = (id) => el('span', { class: 'pub-ico', 'aria-hidden': 'true', html: pubSvg(PUB_ICON_OF[id] || 'grid', 22) });
+/* The product's icon from the shell's table (PRODUCT_ICON, 35-ui.js), so a
+   product looks the same on its card as in the menu, the sidebar and its
+   tab row: Equities was a document here and a chart everywhere else. */
+const pubIcon = (id) => el('span', { class: 'pub-ico', 'aria-hidden': 'true', html: pubSvg(PRODUCT_ICON[id] || 'grid', 22) });
 const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true', html: pubSvg(name, 18) });
 
 /* One product as a card. The whole card is the link, named by its task and
@@ -75,12 +77,15 @@ const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const open = !!p.path;
+  /* Described by the blurb and the status with its note — "Beta: …" — rather
+     than by the badge, whose one word was all a screen reader heard, and its
+     qualifying note a mouse's tooltip only. */
   const card = open
     ? pubLink(p.path, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('t')} ${id('n')}`, 'aria-describedby': `${id('b')} ${id('s')}` })
     : el('div', { class: `pub-card pub-card-soon pub-acc-${p.id}` });
   const badge = pubBadge(p);
-  badge.id = id('s');
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), badge]));
+  if (open) card.append(el('span', { class: 'sr-only', id: id('s') }, productNote(p.id)));
   card.append(el('p', { class: 'pub-card-product', id: id('n') }, p.name));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') }, p.task));
   card.append(el('p', { class: 'pub-card-blurb', id: id('b') }, p.blurb));
@@ -148,11 +153,12 @@ VIEWS.marketing = () => {
     ]),
   ]));
   const kinds = el('ul', { class: 'pub-kinds' });
-  [['doc', 'Companies', 'Valuation runs, comparisons and investment cases you save.'],
-   ['list', 'Watchlists', 'The companies you follow — and a universe a scanner setup can check.'],
-   ['target', 'Scanner setups', 'Your own rules, with every version of each kept.'],
-   ['home', 'Property models', 'Deals saved from the calculator, and the properties you record.'],
-  ].forEach(([g, t, b]) => kinds.append(el('li', { class: 'pub-kind' }, [
+  /* Each kind in its product's icon and accent, as on the cards above. */
+  [[PRODUCT_ICON.equities, 'Companies', 'Valuation runs, comparisons and investment cases you save.', 'equities'],
+   ['list', 'Watchlists', 'The companies you follow — and a universe a scanner setup can check.', null],
+   [PRODUCT_ICON.scanner, 'Scanner setups', 'Your own rules, with every version of each kept.', 'scanner'],
+   [PRODUCT_ICON.property, 'Property models', 'Deals saved from the calculator, and the properties you record.', 'property'],
+  ].forEach(([g, t, b, acc]) => kinds.append(el('li', { class: `pub-kind${acc ? ` pub-acc-${acc}` : ''}` }, [
     pubGlyph(g), el('div', {}, [el('h3', { class: 'pub-kind-t' }, t), el('p', { class: 'pub-kind-b' }, b)]),
   ])));
   panel.append(kinds);
@@ -191,7 +197,7 @@ const HIW_FLOW = {
     ['Analysis', 'Each rule is checked on every completed daily bar, by one engine shared by this page and the worker on your computer.'],
     ['Result', 'A record of which conditions held on which bar, with their values. A record, not a signal: nothing is ranked and nothing is sent.'],
     ['Save', 'Setups are kept in this browser with every version of each; the worker writes its matches to a file on your computer.'],
-    ['Next', 'Open a match, read the values behind it, and go to the company it names.'],
+    ['Next', 'Open a match, read the values behind it, and go on to the company page where the instrument is a company, or to Tracked where it is followed by price only.'],
   ],
   property: [
     ['Input', 'The purchase: price, financing, rent and costs. The calculator starts on illustrative defaults and marks each one until you replace it.'],
@@ -317,7 +323,7 @@ function hiwReportBody(r) {
   out.push(el('div', { class: 'hiw-ex-actions' },
     el('a', { class: 'btn btn-ghost pub-btn', href: href(companyPath(r.c)),
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); openResearch(r.c.id); } },
-      'Open the complete research report', pubArrow())));
+      'Open the full report', pubArrow())));
   return out;
 }
 function hiwReportPreview() {
@@ -412,8 +418,20 @@ function hiwProduct(p) {
   const steps = HIW_FLOW[p.id];
   if (steps && p.path) s.append(hiwSteps(p, steps));
   else s.append(el('p', { class: 'hiw-soon' }, `Planned: ${String(p.blurb || '').replace(/\.$/, '').toLowerCase()}. Its workflow is described here once it is built.`));
+  /* The examples fold on a phone. Open, they made the page 10,876px — about
+     thirteen screens at 390px — and the connected journey, the page's core
+     idea, began near 9,000px. Folded behind "Worked examples", every one of
+     them is a tap away and the steps and the journey come first; above 760px
+     they are open, as the page was drawn. */
   const ex = p.path && HIW_EXAMPLES[p.id] ? HIW_EXAMPLES[p.id]() : null;
-  if (ex && ex.length) s.append(el('div', { class: 'hiw-examples' }, [el('h3', { class: 'hiw-examples-h' }, 'Worked examples'), ...ex]));
+  if (ex && ex.length) {
+    const folded = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
+    s.append(el('details', { class: 'hiw-examples', open: folded ? null : '' }, [
+      el('summary', { class: 'hiw-examples-sum' }, [el('h3', { class: 'hiw-examples-h' }, 'Worked examples'),
+        el('span', { class: 'hiw-examples-n caption' }, `${ex.length === 1 ? 'One example' : `${ex.length} examples`}, computed by the product’s own model`)]),
+      el('div', { class: 'hiw-examples-body' }, ex),
+    ]));
+  }
   if (p.path && p.action && p.actionPath) s.append(el('div', { class: 'hiw-product-ft' },
     pubLink(p.actionPath, { class: 'btn btn-ghost pub-btn' }, p.action, pubArrow())));
   return s;
@@ -427,7 +445,10 @@ const HIW_JOURNEY = [
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
   ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', 'New setup'],
   ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
-  ['Back to the company', 'Each match names its instrument and links to the company page, where the research picks up again.', null, null],
+  /* A match links to a company page only where its instrument is a company
+     (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
+     links to Tracked. The step said every match led to a company. */
+  ['Back to the company', 'Each match names its instrument. Where that is a company, it links to the company page and the research picks up again; a price-only instrument links to Tracked.', null, null],
 ];
 function hiwJourney() {
   const s = el('section', { class: 'hiw-journey', id: 'hiw-journey', 'aria-labelledby': 'hiw-journey-h' });
@@ -481,8 +502,14 @@ VIEWS.howItWorks = () => {
     'Each product starts from something you choose or enter, shows its working, and keeps what you save in this browser. '
     + 'Here is each one step by step, how they connect, and worked examples computed by the products’ own models.'));
   hd.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
+  /* A jump link for each product that is built. Business Intelligence was a
+     fourth identical pill — a link, styled as a way into a product the brief
+     says is never a link or a button. It is text here, with its badge, as on
+     the homepage card; its section below is still on the page. */
   const toc = el('ul', { class: 'hiw-toc-list' });
-  P.forEach(p => toc.append(el('li', {}, pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name))));
+  P.forEach(p => toc.append(el('li', {}, p.path
+    ? pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name)
+    : el('span', { class: 'hiw-toc-soon' }, [p.name, pubBadge(p)]))));
   toc.append(el('li', {}, pubJump('hiw-journey', { class: 'hiw-toc-link' }, 'The connected journey')));
   hd.append(el('nav', { class: 'hiw-toc', 'aria-label': 'On this page' }, toc));
   wrap.append(hd);
@@ -1011,11 +1038,16 @@ VIEWS.watchlists = () => {
   /* Above the heading, matching the other five. A strip that sits above the
      title on four pages and below it on two reads as a different control. */
   wrap.append(mySubnav('watchlists'));
+  /* The personal pages' heading — eyebrow, 24px title, standfirst — as My
+     Dashboard and Saved Models beside it in the sidebar have. It was a 40px
+     display heading with the sample banner above it, the one page of the
+     four that looked like a different product. */
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'My workspace'),
+    el('h1', {}, 'Watchlists'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
+  ])));
   appendSampleBanner(wrap);
-  wrap.append(el('div', {}, [
-    el('h1', { class: 'h-display' }, 'Watchlists'),
-    el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
-  ]));
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
 
   /* Create, export and import — the operations the brief names, on the page
@@ -1302,18 +1334,20 @@ function openTrendDrawer(row, t) {
   tbl.append(tb2);
   body.append(el('div', { style: 'overflow-x:auto' }, tbl));
   body.append(el('p', { class: 'metaline' },
-    `Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Extend it by pasting closes under My Investments → Your data.`));
+    [`Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Extend it by pasting closes under `,
+      el('a', { href: href('/my/data'), 'data-path': '/my/data' }, 'Your data & settings'), '.']));
 
   openDrawer(`${row.sym} — trend context`, body);
 }
 
-/* Shared secondary navigation for the personal surfaces. */
+/* Shared secondary navigation for the personal surfaces — the same section
+   row the products wear (sectionTabs, 35-ui.js), with no product name: one
+   scrolling row of underline tabs, the page on screen current. As a box of
+   pills it wrapped into two rows on a phone, a different control from the
+   row a reader had just used on a product page. */
 function mySubnav(active) {
-  const row = el('div', { class: 'segmented', style: 'margin-bottom:var(--md);flex-wrap:wrap' });
-  SUBNAV_MY.forEach(s => row.append(el('a', {
-    href: href(s.path), 'aria-selected': active === s.id ? 'true' : 'false',
-    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(s.path); } }, s.label)));
-  return row;
+  return sectionTabs({ label: 'Personal pages', cls: 'my-subnav', inView: true,
+    tabs: SUBNAV_MY.map(s => ({ label: s.label, path: s.path, current: active === s.id })) });
 }
 
 /* A consistent empty state: says what the surface is for and offers the one
@@ -1335,9 +1369,17 @@ function emptyStateCta(title, body, ctaLabel, ctaPath) {
    is not yet registered — a reader can act on the second and is misled by the
    first.
    ========================================================================== */
+/* Headed as every page but the two marketing ones is: an eyebrow naming the
+   menu it is reached from, a 24px title, a standfirst. As 40px display
+   headings these four were a fifth heading size on the public chrome, beside
+   /pricing and /learn at 24px under the same header. */
 function trustPage(title, lede, blocks) {
   const wrap = el('div', { class: 'stack' });
-  wrap.append(el('div', {}, [el('h1', { class: 'h-display' }, title), el('p', { class: 'body-lg' }, lede)]));
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Resources'),
+    el('h1', {}, title),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
+  ])));
   blocks.forEach(([heading, body, pending]) => {
     const card = el('div', { class: 'card' });
     card.append(el('div', { class: 'row', style: 'gap:8px' }, [
@@ -1445,16 +1487,23 @@ VIEWS.notfound = () => {
   const wrap = el('div', { class: 'stack' });
   const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxxl) var(--lg)' });
   card.append(el('div', { class: 'num', style: 'font-size:44px;font-weight:700' }, '404'));
-  card.append(el('h1', { class: 'h-section', style: 'margin-top:6px' },
+  card.append(el('h1', { class: 'page-title', style: 'margin-top:6px' },
     State.notFoundWhat ? `No ${State.notFoundWhat}` : 'That page does not exist'));
-  card.append(el('p', { class: 'metaline', style: 'margin:10px auto 16px;max-width:54ch' },
+  card.append(el('p', { class: 'body-lg', style: 'margin:10px auto 0;max-width:54ch' },
     State.notFoundWhat
-      ? 'It may have been renamed, or it may not be in the universe this build covers. Search for it, or start from Discover.'
+      ? 'It may have been renamed, or it may not be in the universe this build covers. Search for it, or start from Equities Research.'
       : 'The link may be out of date. Everything below is a real destination.'));
-  const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap' });
-  [['Discover', '/discover'], ['Research', '/research'], ['Property', '/property'], ['Home', '/']]
-    .forEach(([l, p]) => row.append(el('a', { class: 'btn', href: href(p),
-      onclick: (e) => { e.preventDefault(); State.notFoundWhat = null; navigate(p); } }, l)));
+  /* The way out, in the navigation this build has: the workspace as the one
+     primary action, the products that exist by name (from PRODUCTS, so a
+     product that is not built is never offered), and home. The row still
+     named the old header — Discover, Research, Property — as bare .btn text
+     with no border or fill, so four words sat under the heading looking like
+     a sentence rather than four ways out. */
+  const go = (p) => (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); State.notFoundWhat = null; navigate(p); };
+  const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap;margin-top:var(--lg)' });
+  row.append(el('a', { class: 'btn btn-primary', href: href('/app'), onclick: go('/app') }, 'Open your workspace'));
+  PRODUCTS.filter(p => p.path).forEach(p => row.append(el('a', { class: 'btn btn-ghost', href: href(p.path), onclick: go(p.path) }, p.name)));
+  row.append(el('a', { class: 'btn btn-ghost', href: href('/'), onclick: go('/') }, 'Home'));
   card.append(row);
   wrap.append(card);
   return wrap;

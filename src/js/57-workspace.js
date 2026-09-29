@@ -217,7 +217,9 @@ VIEWS.workspace = () => {
   shown.forEach((i, idx) => {
     const status = el('span', { class: WS_STATUS_CLASS[i.diff.status] || 'chip', title: i.diff.text }, i.diff.label);
     const acts = el('div', { class: 'ws-acts' });
-    acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
+    /* Outline, not primary: a filled Open on every row was a page of primary
+       actions, none of them dominant. Named for its row, as Delete is. */
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm ws-open', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
     (i.extra || []).forEach(([label, path]) => acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(path),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label)));
     /* Confirmed only if the browser kept it: a refused write left the list as
@@ -235,7 +237,7 @@ VIEWS.workspace = () => {
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Delete ${i.name}`,
       onclick: () => { if (!confirm(`Delete "${i.name}"? This browser holds the only copy.`)) return;
         kept(i.remove, 'Deleted', () => {
-          const opens = $$('#views .ws-row .ws-acts > .btn-primary');
+          const opens = $$('#views .ws-row .ws-acts > .ws-open');
           const next = opens[Math.min(idx, opens.length - 1)] || document.getElementById('ws-q');
           if (next) next.focus(); else focusMain();
         }); } }, 'Delete'));

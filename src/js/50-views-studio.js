@@ -1628,7 +1628,6 @@ function openReview(t) {
 VIEWS.thesis = () => {
   const wrap = el('div');
   wrap.append(mySubnav('thesis'));
-  appendSampleBanner(wrap);
   const hd = el('div', { class: 'page-hd' });
   hd.append(el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Thesis'),
@@ -1638,6 +1637,9 @@ VIEWS.thesis = () => {
   ]));
   hd.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
   wrap.append(hd);
+  /* Under the heading, on every personal page: the page says what it is
+     before it says whose data is on it. */
+  appendSampleBanner(wrap);
 
   const stats = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
   const evals = State.theses.map(t => ({ t, e: evaluateThesis(t) }));
@@ -2300,7 +2302,9 @@ function clearSeededData() {
    happened to mention it. Returns null when there is nothing seeded left. */
 function sampleBanner() {
   if (!hasSeededData()) return null;
-  const b = el('div', { class: 'note', style: 'border-left:3px solid var(--bronze);margin-bottom:var(--md)' });
+  /* Padded off its rule: the class it carried has no rule of its own, so its
+     text and button sat against the 3px bronze edge. */
+  const b = el('div', { class: 'note sample-banner' });
   b.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 300px;margin:0' },
@@ -2370,7 +2374,6 @@ VIEWS.portfolio = () => {
      actually reach were each a dead end, and the two that carried the way out
      were unreachable. Four calls restore six finished surfaces to each other. */
   wrap.append(mySubnav('portfolio'));
-  appendSampleBanner(wrap);
   const pf = activePF();
 
   const hd = el('div', { class: 'page-hd' });
@@ -2391,6 +2394,7 @@ VIEWS.portfolio = () => {
   hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openAddHolding(), html: `${icon('plus', 13)} Add holding` }));
   hd.append(hr);
   wrap.append(hd);
+  appendSampleBanner(wrap);
 
   const pos = positionsOf(pf);
   const securities = sum(pos.map(p => p.valBase));

@@ -549,7 +549,7 @@ function decisionDock({ figs, blocker, next }) {
    kind and redraws through renderKeepFocus, which hands focus to the control
    that comes back under that id — all four come back, since a save or a
    reset leaves the saved list at least as long as it was. */
-function workBar(kind, onReset) {
+function workBar(kind, onReset, { primary = false, saveLabel = 'Save' } = {}) {
   const def = WORK_KINDS[kind];
   if (!def) return null;
   const saved = loadWork().filter(r => r.kind === kind);
@@ -560,7 +560,7 @@ function workBar(kind, onReset) {
 
   row.append(el('span', { class: 'eyebrow', style: 'margin-right:2px' }, 'This browser only'));
 
-  row.append(el('button', { class: 'btn btn-ghost btn-sm', id: wid('save'), onclick: () => {
+  row.append(el('button', { class: `btn ${primary ? 'btn-primary' : 'btn-ghost'} btn-sm`, id: wid('save'), onclick: () => {
     const suggested = def.name();
     const name = prompt(`Name this ${def.label.toLowerCase()}`, suggested);
     if (name === null) return;
@@ -570,7 +570,7 @@ function workBar(kind, onReset) {
     const refused = store.failed;
     const rec = saveWork(kind, name.trim() || suggested);
     renderKeepFocus(); toast(store.failed !== refused ? STORE_REFUSED : rec ? `Saved "${rec.name}"` : 'Could not save');
-  } }, 'Save'));
+  } }, saveLabel));
 
   if (saved.length) {
     const sel = el('select', { class: 'select select-sm', id: wid('resume'), 'aria-label': `Resume a saved ${def.label.toLowerCase()}`,

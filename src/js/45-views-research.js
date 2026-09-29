@@ -824,7 +824,27 @@ VIEWS.researchHome = () => {
   let searchTimer = null;
   inp.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
   mkSel.addEventListener('change', runSearch); cvSel.addEventListener('change', runSearch);
-  search.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [inp, mkSel, cvSel]));
+  /* THE PAGE'S ONE ACTION. The overview had no primary at all — its main
+     affordance was a 34px field — though "Research a company" is the
+     product's one action (PRODUCTS). The field is the page's largest control
+     now, and the button does what it says: with one match it opens that
+     company; with several it moves to the first result, so the list is one
+     Tab away; with nothing typed it puts the cursor in the field. Enter in
+     the field is the same press. */
+  const act = () => {
+    clearTimeout(searchTimer);
+    if (!inp.value.trim() && !mkSel.value && !cvSel.value) { inp.focus(); return; }
+    runSearch();
+    const hits = [...results.querySelectorAll('button')];
+    if (hits.length === 1) hits[0].click();
+    else if (hits.length) hits[0].focus();
+    else inp.focus();
+  };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); act(); } });
+  inp.classList.add('rh-search');
+  const eq = typeof productById === 'function' ? productById('equities') : null;
+  search.append(el('div', { class: 'row row-wrap rh-searchrow', style: 'gap:8px' }, [inp, mkSel, cvSel,
+    el('button', { type: 'button', class: 'btn btn-primary rh-go', onclick: act }, eq?.action || 'Research a company')]));
   search.append(results);
   wrap.append(search);
 
@@ -892,8 +912,13 @@ VIEWS.researchHome = () => {
   const th = State.theses || [];
   if (th.length) {
     const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
+    /* A seeded case says it is a sample, as the dashboard and the personal
+       pages do: under "Your own written theses" the two seeded ones read as
+       the visitor's. */
+    const seeded = (t) => typeof SEEDED_THESIS_IDS !== 'undefined' && SEEDED_THESIS_IDS.includes(t.id);
     th.slice(0, 8).forEach(t => row.append(el('button', { class: 'btn btn-ghost btn-sm',
-      onclick: () => navigate('/my/theses') }, t.ticker)));
+      'aria-label': seeded(t) ? `${t.ticker}, sample case` : null,
+      onclick: () => navigate('/my/theses') }, [t.ticker, seeded(t) ? el('span', { class: 'chip chip-bronze', 'aria-hidden': 'true' }, 'sample') : null])));
     cases.append(row);
   } else cases.append(el('p', { class: 'metaline' }, 'No cases saved yet. A case records your own reasoning and the conditions that would change it.'));
   wrap.append(cases);
@@ -1588,8 +1613,11 @@ function tabSnapshot(r) {
       priceHistory(c)
         ? `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`
         : `No observed price history has been imported for ${c.tk}, and none is drawn: a chart generated to fit a stated return would be a series that never existed, and a 200-day average over it a confident figure for nothing.`));
-    tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `Add closes for ${c.tk} under My Investments → Your data to enable this. They stay in this browser.`));
+    /* Named as the sidebar names it since Release A, and a link to it: the
+       header item "My Investments" this pointed through no longer exists. */
+    tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, [
+      `Add closes for ${c.tk} under `, el('a', { href: href('/my/data'), 'data-path': '/my/data' }, 'Your data & settings'),
+      ' to enable this. They stay in this browser.']));
   } else {
     const t = trendContext(real.series, { ohlc: real.ohlc });
     const ctx = TREND_STRATEGIES[0].evaluate(t);

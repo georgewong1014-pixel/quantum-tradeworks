@@ -1720,7 +1720,7 @@ VIEWS.property = () => {
     el('span', { class: 'chip chip-bronze' }, 'Not a valuation'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' }, [
       'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.',
-      el('span', { class: 'disclosure-long' },
+      el('span', { class: 'fold-phone' },
         ' This is an investment estimate built from your inputs and sample transaction data. Figures are scenarios, not predictions.'),
     ]),
   ]));
@@ -1732,12 +1732,15 @@ VIEWS.property = () => {
      `touched` and `evidence` are cleared with them, so the restored figures go
      back to being honestly labelled illustrative defaults rather than
      inheriting the previous reader's provenance. */
+  /* Saving the deal is the calculator's working action, so it is the page's
+     one primary button; the report paywall's buttons at the page's end were
+     the only filled ones, 15,000px down. */
   wrap.append(workBar('property', () => {
     State.deal = { ...PROPERTY_DEFAULT_DEAL, touched: {},
       evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
       checks: { ...PROPERTY_DEFAULT_DEAL.checks } };
     saveDeal();
-  }));
+  }, { primary: true, saveLabel: 'Save this deal' }));
 
   /* Stated once, at the top, while any figure that drives the model is still a
      seeded number. "Built from your inputs" in the line above is only true once
@@ -3273,7 +3276,7 @@ VIEWS.property = () => {
     const included = num0(lim('propertyReports'));
     if (included > 0) {
       const left = propertyReportsLeft();
-      buy.append(el('button', { class: 'btn btn-primary btn-sm', disabled: left > 0 ? null : '',
+      buy.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: left > 0 ? null : '',
         onclick: () => {
           if (!usePropertyReport(d.projectId)) { toast(`This month's ${included} included reports are used`); return; }
           toast(`Included report used — ${propertyReportsLeft()} left this month`); render();
@@ -3281,7 +3284,7 @@ VIEWS.property = () => {
           ? `Use an included report — ${left} of ${included} left this month`
           : `All ${included} included reports used this month`));
     }
-    buy.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       State.propertyReportsBought = [...State.propertyReportsBought, d.projectId];
       store.write('propertyReportsBought', State.propertyReportsBought);
       toast('Report unlocked — no payment was taken, this is a prototype'); render();

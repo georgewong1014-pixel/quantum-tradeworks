@@ -93,7 +93,7 @@ function runSearch(q) {
       nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
         el('span', { style: 'font-size:13px;font-weight:600' }, ins.symbol), marketChip(ins.market),
         el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]));
-      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on My Investments › Tracked`));
+      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on Watchlists › Tracked`));
       b.append(nm);
       return b;
     }

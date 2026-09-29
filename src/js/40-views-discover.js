@@ -36,6 +36,9 @@ function marketSummary(mkt) {
   return { rows, capTotal, wChg, advancers, total: rows.length, filed, asOf, leftOut: priced.length - rows.length };
 }
 
+/* Whether the active watchlist is still the seeded sample (isSeededWL,
+   50-views-studio.js). */
+const activeWLIsSample = () => { try { const w = activeWL(); return !!w && typeof isSeededWL === 'function' && isSeededWL(w); } catch { return false; } };
 VIEWS.researchQueue = () => {
   const wrap = el('div');
 
@@ -176,7 +179,13 @@ VIEWS.researchQueue = () => {
     const body = el('div', { style: 'min-width:0;flex:1' });
     const t = el('div', { class: 'row row-wrap', style: 'gap:6px' });
     t.append(el('span', { style: 'font-size:13px;font-weight:600;color:var(--ink)' }, f.title));
-    if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, 'Watchlist'));
+    /* The illustrative marker every other company surface carries, as the
+       watchlist rows and the differences panel beside this feed do: an event
+       computed from synthetic figures (a discount, a payout ratio) is a
+       synthetic event, and the page's META says each company is labelled. */
+    const fr = BY_ID.get(f.id);
+    if (fr) { const ic = illusChip(fr.c); if (ic) t.append(ic); }
+    if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, activeWLIsSample() ? 'Sample watchlist' : 'Watchlist'));
     body.append(t);
     body.append(el('p', { class: 'caption', style: 'margin-top:2px' }, f.detail));
     const acts = el('div', { class: 'row', style: 'gap:4px;margin-top:6px' });
@@ -199,11 +208,15 @@ VIEWS.researchQueue = () => {
   const wlSel = el('select', { class: 'select', style: 'width:auto;max-width:190px;height:30px;font-size:13px',
     'aria-label': 'Active watchlist',
     onchange: e => { State.wlIdx = +e.target.value; render(); } });
+  /* A seeded list says it is one here, as the dashboard and the Watchlists
+     page do: the reader did not choose these companies. */
   State.watchlists.forEach((w, i) => wlSel.append(el('option', { value: i, selected: i === State.wlIdx ? '' : null },
-    `${w.name} (${w.ids.length})`)));
+    `${w.name} (${w.ids.length})${typeof isSeededWL === 'function' && isSeededWL(w) ? ' · sample' : ''}`)));
   wlHead.append(wlSel);
   wlHead.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openWatchlistManager(), html: `${icon('grid', 13)} Manage` }));
   wl.append(wlHead);
+  if (activeWLIsSample()) wl.append(el('p', { class: 'metaline', style: 'margin:-4px 0 6px' }, [el('span', { class: 'chip chip-bronze' }, 'Sample'),
+    ' A list written into this browser so the page has something to show — not one you chose.']));
   const wlRows = State.watchlist.map(id => BY_ID.get(id)).filter(Boolean);
   if (!wlRows.length) wl.append(emptyState('No companies on the watchlist yet.'));
   else {
@@ -397,13 +410,35 @@ const myDashPlural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}
    twice over, because it lives in two places: the setups saved in this
    browser, and data/scan-setups.json, which is what the worker runs and is
    only ever visible on the machine it runs on. */
+/* THE COMPANIES IN A LIST THAT ARE THE VISITOR'S OWN. A seeded list stopped
+   being a sample the moment anything touched it (isSeededWL reads updatedAt),
+   so one "Add to watchlist" on a company page — which adds to the active
+   list, the seeded Core watchlist on a fresh profile, and is the second step
+   of the journey /how-it-works describes — made all six seeded companies
+   "yours": the tile read 7 instruments in a list of your own, the checklist
+   ticked "Create a watchlist" when none had been created, and "Continue"
+   listed the sample list beside a note saying samples are not counted. A
+   member carries the date it was added (06-watchlists.js); the seed's
+   members were migrated with none, so in a seeded list only a dated member
+   is the visitor's. Any other list is theirs whole. */
+function myDashOwnIds(w) {
+  const seedIds = typeof SEEDED_WL_IDS !== 'undefined' ? SEEDED_WL_IDS : [];
+  const ids = Array.isArray(w?.ids) ? w.ids : [];
+  return seedIds.includes(w?.id) ? ids.filter(id => w.added && w.added[id]) : ids;
+}
 function myDashOwn() {
-  const seededWL = (w) => (typeof isSeededWL === 'function' ? isSeededWL(w) : false);
   const seededPA = (pa) => (typeof isSeededPA === 'function' ? isSeededPA(pa) : false);
   const seededPF = typeof SEEDED_PF_IDS !== 'undefined' ? SEEDED_PF_IDS : [];
-  const lists = (State.watchlists || []).filter(w => w && !seededWL(w) && (w.ids || []).length);
-  const sampleLists = (State.watchlists || []).filter(w => w && seededWL(w));
-  const instruments = new Set(lists.flatMap(w => w.ids));
+  const seedIds = typeof SEEDED_WL_IDS !== 'undefined' ? SEEDED_WL_IDS : [];
+  const all = (State.watchlists || []).filter(Boolean);
+  /* Lists holding at least one company the visitor put there, and the lists
+     they made themselves (the checklist's "Create a watchlist"). */
+  const lists = all.filter(w => myDashOwnIds(w).length);
+  const createdLists = all.filter(w => !seedIds.includes(w.id) && (w.ids || []).length);
+  /* Seeded lists still holding a seeded company: whatever is in them that the
+     visitor did not add is a sample, and is not counted. */
+  const sampleLists = all.filter(w => seedIds.includes(w.id) && myDashOwnIds(w).length < (w.ids || []).length);
+  const instruments = new Set(lists.flatMap(myDashOwnIds));
   const scanSt = typeof scanStoreRead === 'function' ? scanStoreRead() : null;
   const setups = scanSt && typeof scanBrowserSetups === 'function' ? scanBrowserSetups({ st: scanSt }) : [];
   const setupsDoc = typeof scanSetupsFile !== 'undefined' ? scanSetupsFile : null;
@@ -419,8 +454,12 @@ function myDashOwn() {
   const propertySnaps = typeof loadWork === 'function' ? loadWork().filter(w => w?.kind === 'property').length : 0;
   const researched = (State.recentCompanies || []).filter(id => BY_ID.has(id));
   const setupsKnown = setups.length + (fileActive ? fileActive.valid : 0);
-  const hasOwn = lists.length + setupsKnown + saved.length + portfolios.length + priceAlerts.length + propertySnaps > 0 || dealStarted;
-  return { lists, sampleLists, instruments, scanSt, setups, setupsDoc, scan, fileActive, alerts, saved, portfolios,
+  /* The scanner's record counts as the visitor's own: its matches are of their
+     setups. With a record and no readable setups file (renamed, or every setup
+     in it invalid) the page drew the first-time checklist and hid the matches
+     the sidebar was counting as unread on the same screen. */
+  const hasOwn = lists.length + setupsKnown + saved.length + portfolios.length + priceAlerts.length + propertySnaps + (alerts?.length || 0) > 0 || dealStarted;
+  return { lists, createdLists, sampleLists, instruments, scanSt, setups, setupsDoc, scan, fileActive, alerts, saved, portfolios,
            priceAlerts, dealStarted, propertySnaps, researched, setupsKnown, hasOwn,
            samples: typeof hasSeededData === 'function' && hasSeededData() };
 }
@@ -434,15 +473,20 @@ function myDashOwn() {
 function myDashSteps(o) {
   const eq = productById('equities'), sc = productById('scanner'), pr = productById('property');
   const lastCo = o.researched.length ? BY_ID.get(o.researched[0]) : null;
-  const inList = o.lists.length ? `${myDashPlural(o.lists.length, 'list')} of your own, ${myDashPlural(o.instruments.size, 'company', 'companies')}` : '';
+  const createdIds = new Set(o.createdLists.flatMap(w => w.ids || []));
+  const inList = o.createdLists.length ? `${myDashPlural(o.createdLists.length, 'list')} of your own, ${myDashPlural(createdIds.size, 'company', 'companies')}` : '';
+  /* Companies added to a sample list are the visitor's, but no list was
+     created: the step says where they went rather than ticking itself. */
+  const inSample = !o.createdLists.length && o.instruments.size
+    ? `${myDashPlural(o.instruments.size, 'company', 'companies')} you added ${o.instruments.size === 1 ? 'sits' : 'sit'} in a sample list. A list of your own keeps your companies apart from the samples.` : '';
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
   return [
     { k: 'research', product: 'equities', title: 'Research a company', done: !!lastCo,
       note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}.`
         : 'Statements, ratios and a valuation range, every figure with its formula and its source.',
       action: eq?.action || 'Research a company', path: eq?.actionPath || '/research' },
-    { k: 'watchlist', product: null, title: 'Create a watchlist', done: o.lists.length > 0,
-      note: o.lists.length ? `${inList}.` : 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
+    { k: 'watchlist', product: null, title: 'Create a watchlist', done: o.createdLists.length > 0,
+      note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
       action: 'Create a watchlist', path: '/my/watchlists' },
     { k: 'setup', product: 'scanner', title: 'Create a scanner setup', done: o.setupsKnown > 0,
       note: o.setupsKnown ? `${setupsText}.` : 'Conditions you choose, checked on each daily close of the price history you supply, with a record of every bar on which they held.',
@@ -508,9 +552,12 @@ VIEWS.home = () => {
     : !o.alerts ? `Welcome back — you were last here ${myDashWhen(visit.prev)}.${o.setupsKnown ? ' The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : ''}`
     : since.length ? `Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`
     : `Nothing new in the scanner’s record since you were last here, ${myDashWhen(visit.prev)}${undated ? ` — ${myDashPlural(undated, 'match', 'matches')} with no recorded time cannot be placed either side of it` : ''}.`;
+  /* The page's name is part of its heading. As an eyebrow <p> above an h1
+     reading only "Good morning", heading navigation and the rotor never
+     named the page; the heading is now "My Dashboard: Good morning", drawn
+     as before. */
   wrap.append(el('div', { class: 'page-hd dash-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My Dashboard'),
-    el('h1', {}, myDashGreeting()),
+    el('h1', {}, [el('span', { class: 'eyebrow dash-eyebrow' }, 'My Dashboard'), el('span', { class: 'sr-only' }, ': '), myDashGreeting()]),
     el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
   ])));
 
@@ -567,8 +614,8 @@ VIEWS.home = () => {
       : o.setupsKnown ? 'The record stays on the machine the worker runs on' : 'You have no scanner setup yet' }));
   tiles.append(myDashTile({ icon: 'grid', label: 'Instruments watchlisted', path: '/my/watchlists',
     value: String(o.instruments.size),
-    sub: o.lists.length ? `In ${myDashPlural(o.lists.length, 'list')} of your own` : 'No list of your own yet',
-    note: o.sampleLists.length ? 'Sample lists not counted' : null }));
+    sub: o.instruments.size ? `Added by you, in ${myDashPlural(o.lists.length, 'list')}` : 'None added by you yet',
+    note: o.sampleLists.length ? 'Sample companies not counted' : null }));
   const moved = o.saved.filter(i => ['model', 'data', 'both'].includes(i.diff?.status)).length;
   const kinds = (typeof WORKSPACE_KINDS !== 'undefined' ? WORKSPACE_KINDS : []).map(k => [k, o.saved.filter(i => i.kind === k.id).length]).filter(([, n]) => n);
   tiles.append(myDashTile({ icon: 'doc', label: 'Saved models', path: '/my/workspace',
@@ -672,8 +719,17 @@ function myDashContinue(o) {
     ...o.saved.map(i => ({ at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
       illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null,
       act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
-    ...o.lists.map(w => ({ at: t(w.updatedAt || w.createdAt), when: w.updatedAt || w.createdAt, kind: 'Watchlist', name: w.name,
-      detail: myDashPlural(w.ids.length, 'company', 'companies'), path: '/my/watchlists' })),
+    /* A list names what the visitor put in it; a sample list says how many of
+       its companies are samples. Its chip is the workspace's rule: every
+       company illustrative, or some. */
+    ...o.lists.map(w => {
+      const own = myDashOwnIds(w).length, rest = (w.ids || []).length - own;
+      const rows = (w.ids || []).map(id => BY_ID.get(id)).filter(Boolean);
+      const illN = rows.filter(r => !r.c.real).length;
+      return { at: t(w.updatedAt || w.createdAt), when: w.updatedAt || w.createdAt, kind: rest ? 'Watchlist · sample list' : 'Watchlist', name: w.name,
+        detail: rest ? `${myDashPlural(own, 'company', 'companies')} added by you · ${rest} sample` : myDashPlural(own, 'company', 'companies'),
+        illus: illN && illN === rows.length ? 'all' : illN ? 'some' : null, path: '/my/watchlists' };
+    }),
     ...o.setups.map(s => ({ at: t(s.updated || s.created), when: s.updated || s.created, kind: 'Scanner setup', name: s.name || s.id,
       detail: `v${s.version} · ${s.enabled === false ? 'disabled' : 'enabled'}`, path: scanSetupPath(s.id) })),
     ...o.portfolios.map(p => ({ at: -Infinity, when: null, kind: 'Portfolio', name: p.name, detail: myDashPlural(p.holdings.length, 'holding'), path: '/my/portfolio' })),
@@ -690,7 +746,14 @@ function myDashContinue(o) {
   } else {
     const ul = el('ul', { class: 'dash-list dash-cont' });
     rows.forEach(r => {
-      const meta = [r.detail, r.when ? (typeof fmtSaved === 'function' ? fmtSaved(r.when) : String(r.when).slice(0, 16)) : null].filter(Boolean).join(' · ');
+      /* One clock on the page: the reader's. The lede gives the last visit in
+         local time; these rows gave UTC with an ISO date, so a list edited an
+         hour ago read as older than a visit five hours ago. A bare date has no
+         time of day to convert and is printed as the date it is. */
+      const when = !r.when ? null : String(r.when).length <= 10
+        ? new Date(`${String(r.when)}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : Number.isFinite(r.at) ? myDashWhen(r.at) : null;
+      const meta = [r.detail, when].filter(Boolean).join(' · ');
       const chips = [
         r.illus === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
           : r.illus === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
@@ -1256,7 +1319,7 @@ function renderScreener() {
         el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
           `${U.length - backed} of ${U.length} companies have no observed price history`),
         el('p', { class: 'metaline' },
-          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Add your own closes under My Investments → Your data.`),
+          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Add your own closes under Your data & settings.`),
       ]));
     }
   }
@@ -3111,10 +3174,14 @@ VIEWS.discover = () => {
   /* Equities Research's Screener (Release A): the product tab row above
      names the product, and this strip is the Screener's sub-tabs. */
   hd.append(el('p', { class: 'eyebrow' }, 'Screener'));
-  hd.append(el('h1', { style: 'font-size:24px;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
+  /* The page title's weight, 700, as on every other page (it was 600). */
+  hd.append(el('h1', { style: 'font-size:24px;font-weight:700;letter-spacing:-.02em;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
   /* Through the address: /discover/screener and /discover/value-map have
-     routes of their own, the other two ride on ?tab=. */
-  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id })));
+     routes of their own, the other two ride on ?tab=. A segmented control,
+     not a second underline row: under the product's own underline tabs, two
+     identical rows gave no sign which was the product's and which this
+     page's. The tablist, its keys and its one tab stop are unchanged. */
+  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id }), { class: 'segmented tools-seg' }));
   wrap.append(hd);
 
   /* With a fallback: a tab id this view does not know renders the screener

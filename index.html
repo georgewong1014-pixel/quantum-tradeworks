@@ -62,6 +62,14 @@
   --text-card:    20px;   /* card headings */
   --text-h1:      24px;   /* page headings */
   --text-display: 32px;   /* marketing display */
+  /* The marketing tier (Release A): the homepage and /how-it-works only.
+     Fluid between a phone and 1440px, each with its floor and ceiling. */
+  --text-lede:       clamp(16px, 1.45vw, 19px);  /* a marketing page's standfirst */
+  --text-h3-lg:      clamp(22px, 2.1vw, 28px);   /* a product's name on /how-it-works */
+  --text-h2:         clamp(26px, 2.5vw, 34px);   /* a marketing section heading */
+  --text-stat:       30px;                       /* a dashboard count */
+  --text-display-lg: clamp(32px, 4.6vw, 54px);   /* /how-it-works' headline */
+  --text-hero:       clamp(36px, 5.6vw, 64px);   /* the homepage's headline */
 
   --weight-body:     400;
   --weight-medium:   500;
@@ -369,7 +377,11 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   display: flex; align-items: baseline; gap: 6px;
 }
 .brand-name span { color: var(--logo-teal-text); font-weight: 700; letter-spacing: -.01em; }
-@media (max-width: 520px) { .brand-name span { display: none; } }
+/* Only in a bar, and only where a bar genuinely cannot hold it. It hid
+   "Tradeworks" below 520px everywhere — in the footer and the 320px drawer,
+   which have room — and in the header, which has room since its action reads
+   "Open" on a phone. The product's name is not truncated to fit a phone. */
+@media (max-width: 339px) { .bar-in .brand-name span { display: none; } }
 .brand-tagline {
   font-size:12px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--ink-3); margin-top: 5px; font-weight:600;
@@ -424,16 +436,21 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .disclosure svg { width: 14px; height: 14px; flex: none; color: var(--bronze); }
 .disclosure strong { color: var(--ink); font-weight:600; }
 
-/* On a public page (the public chrome) the disclosure collapses to one
-   compact line: the warning still appears above the fold, but it no longer
-   occupies four lines in front of the headline. The elaboration is folded
-   behind "Which sources?" at every width — never removed, so every word of
-   the disclosure is one press away on every page. */
-body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size:12px; }
-body[data-surface="public"] .disclosure-in .chip { display: none; }
-body[data-surface="public"] .disclosure-long { display: none; }
-body[data-surface="public"] #disclosureMore { display: inline; }
-body[data-surface="public"][data-disclosure="open"] .disclosure-long { display: inline; }
+/* ONE COMPACT LINE, ON BOTH CHROMES (Release A). The warning still appears
+   above the fold, but it no longer occupies four lines in front of the
+   headline. The elaboration — the source breakdown and the two research-mode
+   chips — is folded behind "Which sources?" at every width, never removed, so
+   every word of the disclosure is one press away on every page.
+   It was one line on the public pages only. Inside the app it ran the whole
+   breakdown and the two chips beside it: three lines at 1440px, five at 768
+   and 1024, and at 390 it put a workspace page's heading 311–577px down an
+   844px screen — every workspace page, every visit, for a sentence the
+   reader had already been shown. The material sentence (beta preview, do
+   not use for investment decisions) is the same on both, and always shown. */
+.disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size:12px; }
+.disclosure-long { display: none; }
+#disclosureMore { display: inline; }
+body[data-disclosure="open"] .disclosure-long { display: inline; }
 
 /* THE WARNING WAS EATING HALF THE PHONE.
    ---------------------------------------------------------------------------
@@ -446,14 +463,16 @@ body[data-surface="public"][data-disclosure="open"] .disclosure-long { display: 
    breakdown, behind a control that says what it holds. A warning nobody reaches
    is not a warning, and neither is one that pushes the page off the screen.
 
-   The button hides itself where the long text already shows, so there is never
-   a control that expands something already visible. */
-#disclosureMore { display: none; font-size: 12px; }
+   Since Release A the breakdown folds at every width on both chromes (above),
+   so the button is always there and always expands something hidden. */
+#disclosureMore { font-size: 12px; }
 @media (max-width: 760px) {
-  body:not([data-surface="public"]) .disclosure-long { display: none; }
-  body:not([data-surface="public"]) #disclosureMore { display: inline; }
-  body[data-disclosure="open"] .disclosure-long { display: inline; }
   .disclosure-in .chip { font-size:12px; }
+  /* The property page's own qualifier folds on a phone as it always has,
+     and opens with the strip's "Which sources?". It borrowed the strip's
+     class, which now folds at every width. */
+  .fold-phone { display: none; }
+  body[data-disclosure="open"] .fold-phone { display: inline; }
 }
 .disclosure a { color: var(--ink); text-underline-offset: 3px; }
 
@@ -1228,8 +1247,9 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 @media (max-width: 640px) { .view { padding: var(--lg) 0 var(--xxl); } }
 
 .page-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--lg); flex-wrap: wrap; margin-bottom: var(--lg); }
-.page-hd h1 { font-size: 24px; font-weight:700; letter-spacing: -.02em; }
+.page-hd h1, .page-title { font-size: var(--text-h1); font-weight:700; letter-spacing: -.02em; }
 .page-hd > div:first-child { flex: 1 1 560px; min-width: 0; }
+@media (max-width: 760px) { .page-title { font-size: 22px; } }
 
 /* PROGRESSIVE DISCLOSURE ON THE PHONE.
    ---------------------------------------------------------------------------
@@ -1902,7 +1922,42 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   background: var(--bronze-wash); color: var(--bronze);
   border: 1px solid color-mix(in srgb, var(--bronze) 30%, transparent);
 }
-.scan-subnav { margin-bottom: 0; flex-wrap: wrap; }
+/* /pricing (VIEWS.plans, 90-area-screen.js). */
+.plan-grid { align-items: stretch; }
+.plan-card { display: flex; flex-direction: column; }
+.plan-cta { margin-top: auto; width: 100%; min-height: 44px; }
+.plan-current {
+  display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--r-md);
+  background: var(--brand-wash); color: var(--brand); font-size: var(--text-sm); font-weight: var(--weight-semibold);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent);
+}
+.plan-current svg { width: 15px; height: 15px; }
+@media (max-width: 599px) {
+  table.dt-stack, table.dt-stack tbody, table.dt-stack tr, table.dt-stack td { display: block; width: auto; }
+  table.dt-stack { min-width: 0; }
+  table.dt-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  table.dt-stack tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--md); padding: var(--sm) var(--md); border-top: 1px solid var(--grid); }
+  table.dt-stack tr:first-child { border-top: 0; }
+  table.dt-stack td { padding: 0 !important; border: 0 !important; background: none !important; text-align: left !important; }
+  table.dt-stack td:nth-child(2) { text-align: right !important; font-weight: var(--weight-semibold); }
+  table.dt-stack td:nth-child(3) { grid-column: 1 / -1; max-width: none !important; color: var(--ink-2); }
+}
+/* The Equities overview's search (researchHome): the page's largest control
+   and its one primary action, a 48px row. */
+.rh-searchrow .input.rh-search, .rh-searchrow .select { height: 48px; font-size: var(--text-body); }
+.rh-searchrow .input.rh-search { padding: 0 14px; }
+.rh-searchrow .rh-go { min-height: 48px; padding: 0 20px; font-size: var(--text-body); }
+@media (max-width: 560px) { .rh-searchrow .rh-go { flex: 1 1 100%; } }
+/* The sample-data banner on the personal pages (sampleBanner,
+   50-views-studio.js): a bronze note with room inside its rule. */
+.sample-banner {
+  padding: var(--sm) var(--md); margin-bottom: var(--md); border-radius: var(--r-md);
+  background: var(--bronze-wash); border: 1px solid color-mix(in srgb, var(--bronze) 26%, transparent);
+  border-left: 3px solid var(--bronze);
+}
+.stack > .sample-banner { margin-bottom: 0; }
+/* The operations pages' strip; the Scanner's own is a section row now. */
+.segmented.scan-subnav { margin-bottom: 0; flex-wrap: wrap; }
 
 /* The state band: a coloured edge keyed to the state, the chip and the
    headline saying it in words. */
@@ -2089,6 +2144,12 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
   text-transform: uppercase; line-height: 1; white-space: nowrap;
   border: 1px solid transparent;
 }
+/* Heard as a separate word — "Equities Research, Beta" — not run on as
+   "Equities Research BETA": a comma for a screen reader, drawn nowhere. */
+.status-badge::before {
+  content: ", "; position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
 .status-live { color: var(--ok-text); background: color-mix(in srgb, var(--ok) 11%, var(--surface)); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
 .status-beta { color: var(--brand); background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
 .status-demo { color: var(--bronze); background: var(--bronze-wash); border-color: color-mix(in srgb, var(--bronze) 30%, transparent); }
@@ -2111,11 +2172,38 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
 .publink[aria-expanded="true"][data-current] { box-shadow: var(--lift-1); border-radius: var(--r-md); }
 .pub-chev { display: inline-flex; color: var(--ink-3); transition: transform 200ms ease; }
 .publink[aria-expanded="true"] .pub-chev { transform: rotate(180deg); }
-.pub-cta { min-height: 40px; padding: 0 16px; font-size: var(--text-body); }
+.pub-cta { min-height: 40px; padding: 0 16px; font-size: var(--text-body); gap: .28em; }
 /* The finger's floor, where a finger is: this rule sits after the touch
    block's .btn rule and would otherwise undercut it by 4px. */
 @media (pointer: coarse), (max-width: 768px) { .pub-cta { min-height: 44px; } }
+/* Stepped down while the page's own primary action is on screen
+   (watchPageCta, 35-ui.js): the outline button, not a second filled one. */
+/* Outranks the dark theme's primary-text rule (:root[data-theme="dark"]
+   .btn-primary), which left dark ink on the dark outline button. */
+:root .pubbar .pub-cta.pub-cta-quiet {
+  background: var(--surface-2); color: var(--ink); border-color: var(--line-2);
+  box-shadow: var(--lift-1);
+}
+:root .pubbar .pub-cta.pub-cta-quiet:hover { box-shadow: var(--lift-2); }
+/* A phone's header: "Open", its name still "Open workspace", so the whole
+   wordmark fits beside it instead of shrinking to "Quantum". */
+@media (max-width: 520px) {
+  .pub-cta-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .pub-cta { padding: 0 14px; }
+}
 .pub-menubtn { display: none; }
+.pub-menubtn .ico-close, .pub-menubtn[aria-expanded="true"] .ico-open { display: none; }
+.pub-menubtn[aria-expanded="true"] .ico-close { display: block; }
+/* The page under the open sheet, dimmed, as under the app's drawer; a press
+   on it closes the sheet (a click outside the header does) and reaches
+   nothing beneath. Under the header, over everything else. */
+.pubscrim {
+  position: fixed; inset: 0; z-index: 44;
+  background: rgba(10, 14, 12, .45); backdrop-filter: blur(2px);
+  opacity: 0; transition: opacity 200ms ease;
+}
+.pubscrim[data-open="1"] { opacity: 1; }
+.pubscrim[hidden], :root[data-chrome="app"] .pubscrim { display: none; }
 
 /* A menu's panel: under its button, floating, the product's depth tokens. */
 .pubmenu { position: relative; }
@@ -2143,15 +2231,26 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
 }
 a.pp-row:hover { background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
 a.pp-row:active { transform: translateY(1px); }
+/* Each product's icon in its own accent (--acc, .pub-acc-*), as on its
+   homepage card: one icon and one colour per product on every surface. */
 .pp-ico {
   width: 38px; height: 38px; border-radius: var(--r-md); display: grid; place-items: center;
-  background: var(--brand-wash); color: var(--brand);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 16%, transparent);
+  background: color-mix(in srgb, var(--acc, var(--brand)) 12%, var(--surface-2)); color: var(--acc, var(--brand));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc, var(--brand)) 20%, transparent);
 }
 .pp-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .pp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pp-name { font-size: var(--text-body); font-weight: var(--weight-semibold); }
 .pp-blurb { font-size: var(--text-sm); color: var(--ink-3); line-height: 1.45; }
+/* Where the badges' notes are printed, under the product rows. */
+.pp-foot { margin: 4px 0 0; padding: 8px 12px 2px; border-top: 1px solid var(--line); }
+.pp-foot-link {
+  display: inline-flex; align-items: center; min-height: 36px; font-size: var(--text-sm); font-weight: var(--weight-semibold);
+  color: var(--brand); text-decoration: none; border-radius: var(--r-xs);
+}
+.pp-foot-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pubsheet .pp-foot-link { min-height: 44px; }
+@media (pointer: coarse) { .pp-foot-link { min-height: 44px; } }
 /* Not built: text, not a control — no hover, no pointer, and its tile
    drained of the brand colour, while its words keep full contrast. */
 .pp-row-off { cursor: default; }
@@ -2169,6 +2268,8 @@ a.pp-row:active { transform: translateY(1px); }
   font-size: var(--text-body); color: var(--ink-2); text-decoration: none;
 }
 .rs-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+/* The phone's sheet is a finger's list: every Resources link there was 36px. */
+.pubsheet .rs-link { min-height: 44px; }
 .rs-link[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); background: var(--brand-wash); }
 
 /* The phone's sheet: the header's items, stacked, under the header. */
@@ -2200,6 +2301,14 @@ a.pp-row:active { transform: translateY(1px); }
   .pubnav, .pub-theme { display: none; }
   .pub-menubtn { display: grid; }
   .pubbar .bar-in { height: 60px; }
+}
+/* A touch screen wider than a phone — a tablet held landscape, 1024px — is
+   still a finger. The site's own touch rule (pointer: coarse) gives 44px to
+   its controls; the shell's own links were left out of it: the header's
+   links and every sidebar item at 40px, the Resources links at 36px. */
+@media (pointer: coarse) {
+  .publink { height: 44px; }
+  .rs-link, .sb-link, .sb-search { min-height: 44px; }
 }
 @media (max-width: 400px) { .pub-cta { padding: 0 12px; } }
 
@@ -2248,7 +2357,7 @@ a.pp-row:active { transform: translateY(1px); }
 }
 .sb-ico { display: inline-grid; place-items: center; width: 20px; flex: none; color: var(--ink-3); }
 .sb-link:hover .sb-ico { color: var(--ink-2); }
-.sb-link[aria-current="page"] .sb-ico { color: var(--brand); }
+.sb-link[aria-current="page"] .sb-ico { color: var(--acc, var(--brand)); }
 .sb-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-link .status-badge { margin-left: auto; }
 /* My Alerts' count: a link of its own, over the row's right end, to the
@@ -2315,13 +2424,10 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 }
 
 /* ------------------------------------------------------- disclosure */
-/* On both chromes, compact: the same words and the same "Which sources?",
-   in less height. Inside the app it sits at the top of the page column. */
-:root[data-chrome="app"] .disclosure-in { padding-top: 7px; padding-bottom: 7px; row-gap: 6px; }
-/* The warning's words sit beside its icon rather than a line below it: the
-   sentence took the whole row as a flex item and left the icon alone above
-   it. Where the long text is folded behind "Which sources?" (760px and
-   under) the old flow stays, so the button keeps its place after the words. */
+/* On both chromes, compact: one line, the same words and the same "Which
+   sources?" (the rules with the strip, near the top of this file). Inside
+   the app it sits at the top of the page column. The warning's words sit
+   beside their icon, and the button at the row's end. */
 @media (min-width: 761px) {
   .disclosure-in > #disclosureText { flex: 1 1 520px; min-width: 0; }
 }
@@ -2342,18 +2448,46 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
   font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink);
   padding-right: var(--lg); border-right: 1px solid var(--line); height: 24px;
 }
-.ptabs-ico { display: inline-grid; place-items: center; color: var(--brand); }
-.ptabs-list { list-style: none; padding: 0; display: flex; gap: var(--lg); min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.ptabs-list::-webkit-scrollbar { display: none; }
-.ptab {
-  display: inline-flex; align-items: center; height: 48px; padding: 0 1px;
-  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; text-decoration: none;
-  box-shadow: inset 0 -2px 0 transparent;
-  transition: box-shadow 180ms ease;
+.ptabs-ico { display: inline-grid; place-items: center; color: var(--acc, var(--brand)); }
+.ptabs-list { list-style: none; padding: 0 7px; margin: 0 -7px; display: flex; gap: var(--lg); min-width: 0; overflow-x: auto; scrollbar-width: none; scroll-padding-inline: 48px; }
+/* The same row drawn by a page itself — the Scanner's sections, the personal
+   pages' — at the top of the view: pulled up over the view's top padding and
+   out across the shell's side padding, so its band, border and position are
+   the ones the Equities and Property rows have above the view. The space
+   under it comes out at the view's 32px (24px on a phone) whatever the page
+   stacks it in. */
+.ptabs-inview {
+  margin: calc(var(--xl) * -1) calc(var(--xl) * -1) var(--xl);
+  padding: 0 var(--xl);
 }
-.ptab:hover { color: var(--ink); box-shadow: inset 0 -2px 0 var(--line-2); }
-.ptab[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); box-shadow: inset 0 -2px 0 var(--brand); }
-.ptab:focus-visible { outline-offset: -3px; }
+.stack > .ptabs-inview { margin-bottom: var(--xs); }
+.scan-page > .ptabs-inview, div[style*="gap:var(--md)"] > .ptabs-inview { margin-bottom: var(--md); }
+@media (max-width: 900px) { .ptabs-inview { margin-left: calc(var(--lg) * -1); margin-right: calc(var(--lg) * -1); padding: 0 var(--lg); } }
+@media (max-width: 640px) {
+  .ptabs-inview { margin-top: calc(var(--lg) * -1); margin-bottom: var(--lg); }
+  .stack > .ptabs-inview { margin-bottom: 0; }
+  .scan-page > .ptabs-inview, div[style*="gap:var(--md)"] > .ptabs-inview { margin-bottom: var(--xs); }
+}
+@media (max-width: 560px) { .ptabs-inview { margin-left: calc(var(--md) * -1); margin-right: calc(var(--md) * -1); padding: 0 var(--md); } }
+.ptabs-list::-webkit-scrollbar { display: none; }
+/* 8px of padding inside each tab, taken back by its margin, so the row's
+   spacing is what it was and the focus ring — inset, since the row scrolls
+   and would clip an outset one — clears the label instead of crossing its
+   first and last letters. The underline stays the label's width. */
+.ptab {
+  position: relative; display: inline-flex; align-items: center; height: 48px; padding: 0 8px; margin: 0 -7px;
+  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; text-decoration: none;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+.ptab::after {
+  content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px; border-radius: 2px 2px 0 0;
+  background: var(--brand); opacity: 0; transition: opacity 180ms ease;
+}
+.ptab:hover { color: var(--ink); }
+.ptab:hover::after { opacity: .35; }
+.ptab[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); }
+.ptab[aria-current="page"]::after { opacity: 1; }
+.ptab:focus-visible { outline-offset: -2px; }
 /* Narrower: the product's name on its own line, the tabs one row that
    scrolls — seven tabs wrapped into three rows of chips would push a phone's
    page a fifth of a screen further down. The row fades at whichever end has
@@ -2379,16 +2513,49 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 }
 
 /* ------------------------------------------------------- footer */
-.footer-grid { grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)); gap: var(--xl) var(--lg); }
+/* The Products column is the widest of the three: a product's name and its
+   badge are one unit, and at the old even split "Business Intelligence ·
+   Coming soon" broke onto two lines beside three rows that did not. */
+.footer-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)); gap: var(--xl) var(--lg); }
 @media (max-width: 1080px) {
-  .footer-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .footer-grid { grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)); }
   .footer-grid > :first-child { grid-column: 1 / -1; }
 }
-@media (max-width: 640px) { .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .footer-grid > :nth-child(2) { grid-column: 1 / -1; }
+}
 @media (max-width: 420px) { .footer-grid { grid-template-columns: minmax(0, 1fr); } }
-.foot-product { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.foot-product { display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; font-size: var(--text-sm); }
 .foot-product-off { color: var(--ink-3); }
 .footer .foot-product .status-badge { height: 18px; }
+/* Inside the app the sidebar already carries the brand and the products, so
+   the footer under a workspace page is the slim one: Resources, Company and
+   the legal paragraph. The whole marketing footer ran ~620px under every
+   workspace page at 1440 and ~1,650px on a phone. */
+:root[data-chrome="app"] .footer-grid > :nth-child(-n+2) { display: none; }
+:root[data-chrome="app"] .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 720px; }
+:root[data-chrome="app"] .footer { padding-top: var(--xl); }
+@media (max-width: 420px) { :root[data-chrome="app"] .footer-grid { grid-template-columns: minmax(0, 1fr); } }
+/* The space above the footer is the section rhythm, 96px (80 on a phone):
+   the view's own bottom padding was 96 on top of the footer's 48. */
+.view { padding-bottom: var(--xxl); }
+@media (max-width: 640px) { .view { padding-bottom: var(--xl); } }
+/* The brand block: the mark in its gutter, the rest on one edge. */
+.foot-brand { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: start; }
+.foot-desc { font-size: var(--text-sm); max-width: 36ch; margin-top: var(--sm); }
+/* The rule above the legal paragraph runs the footer's width; the paragraph's
+   own measure stays 90 characters. Capped with the text, the rule stopped
+   halfway across the footer, at x=694 of 1216. */
+.footer .footer-legal { max-width: none; padding-right: max(0px, calc(100% - 90ch)); }
+/* A footer link keeps its 44px target on a touch screen without moving its
+   words: the padding that makes the target is taken back by a negative
+   margin, so every link starts on its column heading's edge, as the row of
+   text beside them (Business Intelligence) always did. It stood 6px in, and
+   centred inside a 44px minimum, a short one further still. */
+@media (pointer: coarse), (max-width: 768px) {
+  .footer a, .footer .linklike { margin-inline: -6px; justify-content: flex-start; }
+}
 
 /* ------------------------------------------------------- states */
 @media (forced-colors: active) {
@@ -2422,7 +2589,14 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-acc-business { --acc: var(--ink-3); }
 
 /* ------------------------------------------------------------------ hero */
-.pub-hero { position: relative; isolation: isolate; text-align: center; padding: var(--xxxl) 0 0; }
+/* THE FIVE-SECOND TEST. "What can I do, with which tool, and what will I
+   get" is answered by the four product cards, so they belong on the first
+   screen with the headline. With 64px above the kicker and the full 96px
+   section gap under the buttons, the card titles sat under the fold at
+   1024x768 and on every phone, and at 1440x900 their "Open …" lines did. The
+   hero now starts 32px down (16px on a phone), and the products follow it at
+   48px; the sections after them keep the 96px rhythm. */
+.pub-hero { position: relative; isolation: isolate; text-align: center; padding: var(--xl) 0 0; margin-bottom: calc(var(--xxl) - var(--x4)); }
 /* A soft field of light behind the headline, inside the section's own box so
    it can never widen the page. Three low-opacity radial washes in the
    product's colours; each fades out well before the box edge. */
@@ -2434,7 +2608,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
     radial-gradient(34% 44% at 82% 66%, color-mix(in srgb, var(--bronze) 6%, transparent), transparent 72%),
     radial-gradient(34% 44% at 18% 70%, color-mix(in srgb, var(--s1) 5%, transparent), transparent 72%);
 }
-@media (max-width: 760px) { .pub-hero { padding-top: var(--xl); } }
+@media (max-width: 760px) { .pub-hero { padding-top: var(--md); margin-bottom: calc(var(--xxl) - var(--xxxl)); } }
 
 .pub-kicker {
   display: inline-block; padding: 7px 16px; border-radius: 999px;
@@ -2445,21 +2619,47 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-kicker-dot { color: var(--bronze); font-weight: var(--weight-bold); }
 
 .pub-h1 {
-  font-size: clamp(36px, 5.6vw, 64px); font-weight: var(--weight-bold); line-height: 1.05; letter-spacing: -.034em;
+  font-size: var(--text-hero); font-weight: var(--weight-bold); line-height: 1.05; letter-spacing: -.034em;
   max-width: 13.5em; margin: var(--lg) auto 0; text-wrap: balance; color: var(--ink);
 }
 .pub-lede {
-  font-size: clamp(16px, 1.45vw, 19px); line-height: 1.6; color: var(--ink-2);
+  font-size: var(--text-lede); line-height: 1.6; color: var(--ink-2);
   max-width: 35em; margin: var(--lg) auto 0; text-wrap: pretty;
 }
 .pub-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sm); margin-top: var(--xl); }
 /* The page's buttons, a step larger than the app's: 48px, which is a target
    on every pointer, not only a finger. */
-.pub-btn { min-height: 48px; padding: 0 22px; font-size: 15px; border-radius: var(--r-md); gap: var(--xs); }
+.pub-btn { min-height: 48px; padding: 0 22px; font-size: var(--text-lead); border-radius: var(--r-md); gap: var(--xs); }
 .pub-btn.btn-ghost { color: var(--ink); box-shadow: var(--lift-1); }
 .pub-btn.btn-ghost:hover { box-shadow: var(--lift-2); }
 .pub-btn:active { transform: translateY(0) scale(.985); }
 .pub-btn:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3px; }
+/* A short screen — a phone, or a tablet held landscape — gives the headline
+   less air, so the products it introduces reach the first screen. */
+@media (max-width: 599px), (min-width: 1000px) and (max-height: 860px) {
+  .pub-hero .pub-h1 { margin-top: var(--md); }
+  .pub-hero .pub-lede { margin-top: var(--md); }
+  .pub-hero .pub-ctas { margin-top: var(--lg); }
+}
+@media (min-width: 1000px) and (max-height: 860px) {
+  .pub-hero:not(.hiw-hd) { padding-top: 0; margin-top: calc(var(--md) * -1); }
+  .pub-hero .pub-h1 { font-size: var(--text-display-lg); }
+  #products .pub-section-hd { margin-bottom: var(--md); }
+}
+@media (min-width: 1000px) and (max-width: 1199px) {
+  .pub-card { padding: var(--md); }
+  .pub-card-top { margin-bottom: var(--sm); }
+  .pub-card-go, .pub-card-note { padding-top: var(--sm); }
+  /* Four across at this width leaves "Open Property Intelligence" no room
+     for its arrow on one line. */
+  .pub-card-go { font-size: var(--text-label); white-space: nowrap; }
+}
+/* On a phone the products are the next thing under the buttons, so a button
+   that only scrolls to them is left out; the one action stays. */
+@media (max-width: 599px) {
+  .pub-hero:not(.hiw-hd) .pub-ctas .btn-ghost { display: none; }
+  .pub-hero .pub-h1 { font-size: var(--text-display); }
+}
 @media (max-width: 479px) {
   .pub-ctas { flex-direction: column; align-items: stretch; }
   .pub-ctas .pub-btn { width: 100%; }
@@ -2483,13 +2683,17 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 /* -------------------------------------------------------------- sections */
 .pub-section { scroll-margin-top: var(--lg); }
 .pub-section-hd { text-align: center; margin-bottom: var(--xl); }
-.pub-h2 { font-size: clamp(26px, 2.5vw, 34px); font-weight: var(--weight-bold); line-height: 1.15; letter-spacing: -.026em; text-wrap: balance; }
+.pub-h2 { font-size: var(--text-h2); font-weight: var(--weight-bold); line-height: 1.15; letter-spacing: -.026em; text-wrap: balance; }
 .pub-body { font-size: var(--text-lead); line-height: 1.65; color: var(--ink-2); margin-top: var(--md); max-width: 38em; }
 
 /* --------------------------------------------------------- product cards */
+/* Four across from 1000px — at 1024 two rows of two put the second pair's
+   titles under the fold — two across on a tablet, and on a phone four
+   compact rows (below). */
 .pub-cards { display: grid; gap: var(--lg); grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 600px)  { .pub-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1100px) { .pub-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .pub-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--md); } }
+#products .pub-section-hd { margin-bottom: var(--lg); }
 
 .pub-card {
   position: relative; display: flex; flex-direction: column; height: 100%;
@@ -2528,6 +2732,31 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
   font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--brand);
 }
 .pub-card-note { margin-top: auto; padding-top: var(--lg); font-size: var(--text-sm); color: var(--ink-3); }
+@media (min-width: 600px) {
+  .pub-card-top { margin-bottom: var(--md); }
+  .pub-card-go, .pub-card-note { padding-top: var(--md); }
+}
+/* A phone: each product one compact row — its icon in a gutter, its name and
+   badge on the first line, the task, and the blurb — so the first two tasks
+   are on the first screen rather than one 260px card. The whole row is still
+   the link; its "Open …" line, which only repeats the product's name, is left
+   to the row's own hover, focus and pressed states. */
+@media (max-width: 599px) {
+  .pub-cards { gap: var(--sm); }
+  .pub-card {
+    display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; column-gap: 14px; row-gap: 2px;
+    align-items: start; padding: var(--md); border-radius: var(--r-lg);
+  }
+  .pub-card-top { display: contents; }
+  .pub-card-top .pub-ico { grid-column: 1; grid-row: 1 / span 3; }
+  .pub-card-top .status-badge { grid-column: 3; grid-row: 1; align-self: center; }
+  .pub-card-product { grid-column: 2; grid-row: 1; align-self: center; font-size: var(--text-micro); }
+  .pub-card-title { grid-column: 2 / -1; grid-row: 2; margin-top: 2px; font-size: var(--text-lead); }
+  .pub-card-blurb { grid-column: 2 / -1; grid-row: 3; margin-top: 2px; font-size: var(--text-sm); line-height: 1.45; }
+  .pub-card-go { display: none; }
+  .pub-card-note { grid-column: 2 / -1; grid-row: 4; padding-top: 4px; font-size: var(--text-label); }
+  a.pub-card:focus-visible { border-radius: var(--r-lg); }
+}
 
 /* The disclosure line under the cards: badge, one sentence, one link. */
 .pub-disclose {
@@ -2558,7 +2787,7 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
 .pub-local-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 4px; }
 .pub-glyph {
   width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: var(--r-md);
-  color: var(--brand); background: var(--brand-wash);
+  color: var(--acc, var(--brand)); background: color-mix(in srgb, var(--acc, var(--brand)) 12%, var(--surface-2));
 }
 .pub-kinds { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--md); grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 600px) { .pub-kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -2567,7 +2796,7 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
   padding: var(--lg) var(--md) var(--lg) var(--lg); border-radius: var(--r-lg);
   background: var(--surface-2); box-shadow: var(--lift-1);
 }
-.pub-kind-t { font-size: 15px; font-weight: var(--weight-bold); letter-spacing: -.008em; margin-top: 7px; }
+.pub-kind-t { font-size: var(--text-lead); font-weight: var(--weight-bold); letter-spacing: -.008em; margin-top: 7px; }
 .pub-kind-b { font-size: var(--text-body); line-height: 1.5; color: var(--ink-2); margin-top: 4px; }
 /* On a phone the panel is the card: cards inside it again left a column of
    text 200px wide inside three layers of padding. The four kinds become rows
@@ -2582,7 +2811,7 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
 
 /* ============================================================ how it works */
 .hiw-hd { padding-top: var(--xxl); }
-.hiw-h1 { font-size: clamp(32px, 4.6vw, 54px); max-width: 15em; }
+.hiw-h1 { font-size: var(--text-display-lg); max-width: 15em; }
 .hiw-toc-list {
   list-style: none; margin: var(--xl) auto 0; padding: 0; max-width: 60rem;
   display: flex; flex-wrap: wrap; justify-content: center; gap: var(--xs);
@@ -2596,11 +2825,20 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
 .hiw-toc-link:hover { transform: translateY(-1px); box-shadow: var(--lift-2); color: var(--ink); }
 .hiw-toc-link:active { transform: translateY(0); box-shadow: var(--lift-1); }
 .hiw-toc-link:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+/* Not built: text with its badge — flat and dashed like its homepage card,
+   no lift, no pointer, nothing to press. */
+.hiw-toc-soon {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--xs); min-height: 44px; padding: 0 var(--md);
+  border-radius: 999px; outline: 1px dashed var(--line-2); outline-offset: -1px;
+  background: color-mix(in srgb, var(--surface-sunk) 72%, transparent);
+  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-2); cursor: default;
+}
 @media (max-width: 599px) {
   .hiw-toc-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* An odd one out spans the row rather than sitting alone in half of it. */
   .hiw-toc-list li:last-child:nth-child(odd) { grid-column: 1 / -1; }
-  .hiw-toc-link { width: 100%; justify-content: center; text-align: center; padding: 6px var(--sm); line-height: 1.3; }
+  .hiw-toc-link, .hiw-toc-soon { width: 100%; justify-content: center; text-align: center; padding: 6px var(--sm); line-height: 1.3; }
+  .hiw-toc-soon { flex-wrap: wrap; gap: 2px var(--xs); }
 }
 
 /* The status legend. */
@@ -2643,7 +2881,7 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
 .pub-btn { text-align: center; line-height: 1.3; padding-top: 10px; padding-bottom: 10px; }
 .hiw-product-hd { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--md) var(--xl); }
 .hiw-product-id { display: flex; align-items: flex-start; gap: var(--md); flex: 1 1 440px; min-width: 0; }
-.hiw-product-name { font-size: clamp(22px, 2.1vw, 28px); font-weight: var(--weight-bold); line-height: 1.15; letter-spacing: -.02em; }
+.hiw-product-name { font-size: var(--text-h3-lg); font-weight: var(--weight-bold); line-height: 1.15; letter-spacing: -.02em; }
 .hiw-product-q { font-size: var(--text-lead); line-height: 1.5; color: var(--ink-2); margin-top: 6px; }
 .hiw-product-status { flex: 0 1 340px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--xs); }
 .hiw-product-note { font-size: var(--text-label); line-height: 1.5; color: var(--ink-3); }
@@ -2674,11 +2912,27 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
   .hiw-step-k { margin-top: var(--md); }
 }
 
-/* Worked examples, below the steps. */
-.hiw-examples { margin-top: var(--xxl); padding-top: var(--xl); border-top: 1px solid var(--line); display: grid; gap: var(--xl); }
-.hiw-examples-h { font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+/* Worked examples, below the steps: a disclosure, folded on a phone and open
+   above 760px (hiwProduct). Its summary says it is one — a + beside the
+   title, − once open — and is a 44px target. */
+.hiw-examples { margin-top: var(--xxl); padding-top: var(--xl); border-top: 1px solid var(--line); }
+.hiw-examples-body { display: grid; gap: var(--xl); margin-top: var(--xl); }
+.hiw-examples-sum {
+  cursor: pointer; list-style: none; min-height: 44px; display: grid; grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 10px; align-items: center; border-radius: var(--r-sm);
+}
+.hiw-examples-sum::-webkit-details-marker { display: none; }
+.hiw-examples-sum::before {
+  content: '+'; grid-row: 1 / span 2; display: inline-grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 999px; border: 1px solid var(--line-2); font-size: var(--text-lead); line-height: 1; color: var(--ink-2); background: var(--surface-sunk);
+}
+.hiw-examples[open] > .hiw-examples-sum::before { content: '−'; }
+.hiw-examples-sum:hover::before { border-color: var(--ink-3); color: var(--ink); }
+.hiw-examples-sum:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
+.hiw-examples-n { grid-column: 2; }
+.hiw-examples-h { grid-column: 2; font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
 .hiw-example { min-width: 0; }
-.hiw-ex-t, .hiw-cap-t { font-size: 17px; font-weight: var(--weight-bold); letter-spacing: -.01em; }
+.hiw-ex-t, .hiw-cap-t { font-size: var(--text-lead); font-weight: var(--weight-bold); letter-spacing: -.01em; }
 .hiw-ex-b, .hiw-cap-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 4px; max-width: 62ch; }
 .hiw-seg { margin: var(--md) 0 0; }
 .hiw-seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); font-weight: var(--weight-semibold); box-shadow: var(--lift-1); }
@@ -2739,7 +2993,7 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
   width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none;
   font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--brand); background: var(--brand-wash);
 }
-.hiw-path-t { font-size: 16px; font-weight: var(--weight-bold); letter-spacing: -.01em; margin-top: var(--md); }
+.hiw-path-t { font-size: var(--text-lead); font-weight: var(--weight-bold); letter-spacing: -.01em; margin-top: var(--md); }
 .hiw-path-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 6px; }
 .hiw-path-step .pub-textlink { margin-top: auto; padding-top: var(--xs); font-size: var(--text-sm); }
 /* The chevron between two steps, on the row layout only, where the next step
@@ -2773,6 +3027,8 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
    are transitioned. */
 .dash { display: flex; flex-direction: column; gap: var(--lg); }
 .dash > .page-hd { margin-bottom: 0; }
+/* The page's name, drawn as the eyebrow it was, inside the h1. */
+.dash-hd h1 .dash-eyebrow { display: block; letter-spacing: .1em; margin-bottom: 2px; }
 .dash-hd .body-lg { max-width: 64ch; }
 /* The site clamps a page's standfirst to two lines on a phone (the
    progressive-disclosure rule above). Here it is not preamble: it is the
@@ -2862,10 +3118,10 @@ a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3
   background: var(--brand-wash); color: var(--brand);
 }
 .dash-tile-v {
-  font-size: 30px; font-weight: var(--weight-bold); letter-spacing: -.025em; line-height: 1.1;
+  font-size: var(--text-stat); font-weight: var(--weight-bold); letter-spacing: -.025em; line-height: 1.1;
   font-variant-numeric: tabular-nums; color: var(--ink);
 }
-.dash-tile-v.is-text { font-size: 18px; letter-spacing: -.01em; line-height: 1.35; }
+.dash-tile-v.is-text { font-size: var(--text-lead); letter-spacing: -.01em; line-height: 1.35; }
 .dash-tile-note { font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--bronze); }
 .dash-tile-go {
   position: absolute; top: var(--lg); right: var(--md); width: 18px; height: 18px; color: var(--ink-3);
@@ -2951,13 +3207,19 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
   .dash-tile-ic { width: 26px; height: 26px; border-radius: 8px; }
   .dash-tile > :not(.dash-tile-v):not(.dash-tile-go) { grid-column: 1; }
   .dash-tile-v { grid-column: 2; grid-row: 1 / span 3; align-self: center; text-align: right; }
-  .dash-tile-v.is-text { font-size: 15px; }
+  .dash-tile-v.is-text { font-size: var(--text-body); }
   .dash-tile-go { top: 50%; margin-top: -9px; }
   .dash-note { padding: var(--md); }
 }
 @media (pointer: coarse), (max-width: 768px) {
   .dash-co { min-height: 44px; }
   .dash-scanline .dash-inline { display: inline-flex; align-items: center; min-height: 44px; }
+}
+/* Still under reduced motion, as the public pages' cards are: a lift on
+   hover is movement, and the global .01ms rule only made it a jump. */
+@media (prefers-reduced-motion: reduce) {
+  .dash-tile:hover, .dash-more-link:hover, .dash-co:hover,
+  .dash-tile:hover .dash-tile-go, a.dash-row:hover .dash-row-go { transform: none; }
 }
 /* ---- /release-a: dashboard ---- */
 /* ---- release-a: integration ---- */
@@ -2967,27 +3229,33 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
    They are the page's exit, so they are a 44px target at every width. */
 .ob-foot .btn { min-height: 44px; min-width: 44px; padding: 0 14px; }
 /* The disclosure strip's layout, on both chromes. Wherever its sentence
-   wrapped — every phone, and every app page narrower than the sentence — the
-   warning icon sat alone on a row above it, and the two chips split: one
-   beside the words, the other alone on a row under the icon. The icon now
-   hangs in the strip's left gutter beside the first line on a phone, the
-   sentence and its controls share one column, and the chips travel as one
-   group, stacked at the right beside the words where there is room. Nothing
-   is hidden that was shown: the same words, the same "Which sources?". */
-.disclosure-chips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+   wrapped — every phone — the warning icon sat alone on a row above it. The
+   icon now hangs in the strip's left gutter beside the first line, and the
+   sentence and "Which sources?" share one column. The two research-mode
+   chips are part of what "Which sources?" opens: one group, after the
+   breakdown, on a row of their own. Nothing is hidden that the button does
+   not open: the same words, the same chips. */
+.disclosure-chips { display: none; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basis: 100%; }
 @media (min-width: 761px) {
-  :root[data-chrome="app"] .disclosure-in { flex-wrap: nowrap; }
-  :root[data-chrome="app"] .disclosure-in > #disclosureText { flex: 1 1 auto; }
-  :root[data-chrome="app"] .disclosure-chips { flex: none; flex-direction: column; align-items: flex-end; }
+  body[data-disclosure="open"] .disclosure-chips { padding-left: 26px; }
 }
+/* "Which sources?" keeps the finger's 44px wherever the touch rule gives it
+   one, without the strip growing to hold it: its box overhangs the line by
+   the strip's own padding, so a one-line strip stays one line tall. It was
+   the 44px button, alone on a row of its own, that made the strip 57px at
+   768 and 96px on a phone. */
+@media (pointer: coarse), (max-width: 768px) {
+  #disclosureMore { margin-block: -13px; vertical-align: middle; }
+}
+/* On a phone the sentence and its button run as one paragraph — "…for
+   investment decisions. Which sources?" — rather than a row of words and a
+   row for the button. */
 @media (max-width: 760px) {
-  .disclosure-in { position: relative; padding-left: calc(var(--lg) + 22px); }
-  .disclosure-in > svg { position: absolute; left: var(--lg); top: 9px; }
-  body[data-surface="public"] .disclosure-in { row-gap: 0; }
-  body[data-surface="public"] .disclosure-in > svg { top: 8px; }
-  /* On a phone the chips flow one by one after "Which sources?", as they did
-     before they were grouped: grouped, they took a row each. */
-  .disclosure-chips { display: contents; }
+  .disclosure-in { display: block; position: relative; padding-left: calc(var(--lg) + 22px); line-height: 1.5; }
+  .disclosure-in > svg { position: absolute; left: var(--lg); top: 8px; }
+  #disclosureMore { margin-left: 6px; }
+  body[data-disclosure="open"] .disclosure-chips { display: flex; margin: 10px 0 2px; }
 }
 @media (max-width: 560px) {
   .disclosure-in { padding-left: calc(var(--md) + 22px); }
@@ -3056,15 +3324,25 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
       <button type="button" class="iconbtn pub-theme" id="themeToggle" data-theme-toggle aria-label="Switch colour theme" title="Switch colour theme">
         <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
       </button>
-      <a class="btn btn-primary pub-cta" href="/app" data-path="/app">Open workspace</a>
-      <!-- Below 1024px the links above fold into this sheet. -->
+      <!-- On a phone it reads "Open" so the whole wordmark fits beside it; its
+           name stays "Open workspace" (the rest is visually hidden, not gone).
+           While the page's own primary action is on screen it steps down to
+           the outline style (render(), 35-ui.js): one dominant action. -->
+      <a class="btn btn-primary pub-cta" href="/app" data-path="/app">Open<span class="pub-cta-more"> workspace</span></a>
+      <!-- Below 1024px the links above fold into this sheet. Its name stays
+           "Menu"; aria-expanded says whether it is open, and the icon turns
+           to a cross, as the drawer's close button looks. -->
       <button type="button" class="iconbtn pub-menubtn" id="pubMenuBtn" aria-expanded="false" aria-controls="pubSheet" aria-label="Menu">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg class="ico-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg class="ico-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
   </div>
-  <div class="pubsheet" id="pubSheet" hidden></div>
+  <!-- The same navigation as the header's, so the same landmark: below
+       1024px #pubnav is not displayed and this is the Primary nav. -->
+  <nav class="pubsheet" id="pubSheet" aria-label="Primary" hidden></nav>
 </header>
+<div class="pubscrim" id="pubScrim" hidden></div>
 
 <!-- APP: everything a reader works in. A persistent sidebar at 1024px and
      wider; below that this slim bar, whose menu button opens the same
@@ -3102,7 +3380,9 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
   </div>
 </header>
 
-<div class="sidebar" id="sidebar">
+<!-- A landmark of its own, so the search and the theme are reachable by
+     landmark navigation; while it is the drawer it is a dialog instead. -->
+<aside class="sidebar" id="sidebar" aria-label="Workspace">
   <div class="sb-top">
     <a class="brand" href="/" data-path="/" aria-label="Quantum Tradeworks home">
       <span class="brand-mark" aria-hidden="true">
@@ -3144,7 +3424,7 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
       <span class="sb-label-text" data-theme-label>Theme</span>
     </button>
   </div>
-</div>
+</aside>
 <div class="navscrim" id="navScrim" hidden></div>
 
 <div class="disclosure">
@@ -3171,8 +3451,11 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
 <footer class="footer">
   <div class="shell">
     <div class="footer-grid">
-      <div>
-        <div class="row" style="gap:10px;align-items:flex-start">
+      <!-- The mark in a gutter of its own, and everything else — wordmark,
+           tagline, the one-line description, the two markets — on one left
+           edge beside it. The description started at the mark's edge, 56px
+           left of the tagline it sat directly under, with no space between. -->
+      <div class="foot-brand">
           <span class="brand-mark" aria-hidden="true" style="width:46px;height:46px">
             <!-- Full mark: descending four-square staircase and the 2×3 grid. -->
             <svg viewBox="0 0 100 100" role="img">
@@ -3196,16 +3479,15 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
                     stroke-width="12.5" stroke-linecap="round"/>
             </svg>
           </span>
-          <span>
+          <div class="foot-brand-body">
             <span class="brand-name">Quantum <span>Tradeworks</span></span>
             <span class="brand-tagline" style="display:block">Research <i>·</i> Monitor <i class="amber">·</i> Model <i>·</i> Plan</span>
-          </span>
-        </div>
-        <p class="body" style="font-size:13px;max-width:36ch">A financial decision workspace: research a company, monitor your own setups, model a property. Business planning is next.</p>
-        <div class="row row-wrap" style="margin-top:var(--md);gap:6px">
-          <span class="chip chip-us">United States</span>
-          <span class="chip chip-my">Bursa Malaysia</span>
-        </div>
+            <p class="body foot-desc">A financial decision workspace: research a company, monitor your own setups, model a property. Business planning is next.</p>
+            <div class="row row-wrap" style="margin-top:var(--md);gap:6px">
+              <span class="chip chip-us">United States</span>
+              <span class="chip chip-my">Bursa Malaysia</span>
+            </div>
+          </div>
       </div>
       <!-- The column headings are h2: sections of the page beside main's,
            not parts of whatever main ended on. As h4 they skipped a level
@@ -3879,7 +4161,9 @@ function upsell(title, detail) {
   ]));
   box.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--sm)' }, detail));
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('plans') }, 'See plans'),
+    /* Outline: a plan prompt is never the page's primary action — on the
+       property calculator it was the only filled button, at the page's end. */
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'),
     el('span', { class: 'metaline' }, 'No payment is processed in this prototype.'),
   ]));
   return box;
@@ -13644,7 +13928,7 @@ function decisionDock({ figs, blocker, next }) {
    kind and redraws through renderKeepFocus, which hands focus to the control
    that comes back under that id — all four come back, since a save or a
    reset leaves the saved list at least as long as it was. */
-function workBar(kind, onReset) {
+function workBar(kind, onReset, { primary = false, saveLabel = 'Save' } = {}) {
   const def = WORK_KINDS[kind];
   if (!def) return null;
   const saved = loadWork().filter(r => r.kind === kind);
@@ -13655,7 +13939,7 @@ function workBar(kind, onReset) {
 
   row.append(el('span', { class: 'eyebrow', style: 'margin-right:2px' }, 'This browser only'));
 
-  row.append(el('button', { class: 'btn btn-ghost btn-sm', id: wid('save'), onclick: () => {
+  row.append(el('button', { class: `btn ${primary ? 'btn-primary' : 'btn-ghost'} btn-sm`, id: wid('save'), onclick: () => {
     const suggested = def.name();
     const name = prompt(`Name this ${def.label.toLowerCase()}`, suggested);
     if (name === null) return;
@@ -13665,7 +13949,7 @@ function workBar(kind, onReset) {
     const refused = store.failed;
     const rec = saveWork(kind, name.trim() || suggested);
     renderKeepFocus(); toast(store.failed !== refused ? STORE_REFUSED : rec ? `Saved "${rec.name}"` : 'Could not save');
-  } }, 'Save'));
+  } }, saveLabel));
 
   if (saved.length) {
     const sel = el('select', { class: 'select select-sm', id: wid('resume'), 'aria-label': `Resume a saved ${def.label.toLowerCase()}`,
@@ -14553,10 +14837,13 @@ function statTile(label, value, { delta, sub, spark, tone } = {}) {
   return t;
 }
 
-function cardHead(title, subtitle, right) {
+/* heading: false draws the title as text, for a toolbar above a page's own
+   h1 — the report's and the decision record's — which as an h3 was the
+   first heading in main, ahead of the h1. */
+function cardHead(title, subtitle, right, { heading = true } = {}) {
   const h = el('div', { class: 'card-hd' });
   const l = el('div');
-  l.append(el('h3', { class: 'h-card' }, title));
+  l.append(el(heading ? 'h3' : 'p', { class: 'h-card' }, title));
   if (subtitle) l.append(el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, subtitle));
   h.append(l);
   if (right) h.append(right);
@@ -14719,9 +15006,12 @@ function toast(msg) {
    sentence qualifying that status cannot differ between two of them. Each
    status was checked against what the code does, not what the brief hoped:
 
-   - Equities is Beta. The US companies are audited SEC filings (data/us.json);
-     the Malaysian ones are the illustrative set (10-dataset.js); no market-data
-     licence is held for either exchange, so a filed company carries no price.
+   - Equities is Beta. The filed US companies are audited SEC filings
+     (data/us.json); the Malaysian ones, and one US listing (PGR), are the
+     illustrative set (10-dataset.js) — as the disclosure strip, the Terms and
+     every company page say; no market-data licence is held for either
+     exchange, so a filed company carries no price. The note said every US
+     company was filed, which the strip on the same page contradicted.
    - The Scanner is Beta. Setups, the builder and every page work anywhere,
      but every evaluation reads data/price-history.json — git-ignored, built on
      the reader's own machine — and matches are written by a worker on that
@@ -14737,7 +15027,7 @@ const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
     question: 'How is this company performing financially?', action: 'Research a company', actionPath: '/research',
-    status: 'beta', statusNote: 'US companies from their audited SEC filings and Malaysian companies from illustrative figures, with no licensed prices for either market.' },
+    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies and one US listing carry illustrative figures; no licensed prices for either market.' },
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
     task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
@@ -14770,6 +15060,13 @@ function productBadge(id) {
   b.toString = () => b.outerHTML;
   return b;
 }
+/* THE NOTE, FOR EVERYONE. A badge's qualifying sentence was only its
+   `title`: a mouse's tooltip, never reached by a keyboard, a finger or a
+   screen reader — the Scanner's "this site ships no prices, so here it has
+   nothing to scan" was hover-only. A link that wears a badge carries the
+   note as its description (the name stays short: "Quantum Scanner, Beta"),
+   and the menus link to the page that prints every note. */
+const productNote = (id) => { const p = productById(id); return p ? `${PRODUCT_STATUS[p.status] || p.status}: ${p.statusNote}` : null; };
 /* The product a view belongs to, or null — the dashboard, the personal pages
    and the public pages belong to none. Read from SECTION_OF (below), the one
    table that says where every view sits. */
@@ -15101,7 +15398,7 @@ const META = {
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
-  home:        'Your dashboard: what changed since your last visit, your setups’ matches, what you monitor and what you have saved — all read from this browser.',
+  home:        'Your dashboard: your setups’ matches since your last visit where the scanner’s record is on this machine, what you monitor and what you have saved — read from this browser and the scanner’s own record.',
   onboarding:  'Four questions that set your preferences — how much is explained, which market the screener starts on, which currency totals are shown in — and where you start.',
   launcher:    'Start with your goal: pick one of the five things this product does and it opens the right tool.',
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
@@ -15322,7 +15619,9 @@ function afterRoute(beforeView) {
     if (drawer.dataset.open === '1') closeDrawer({ restore: false });
     focusMain();
   } else {
-    document.querySelector('.subnav [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+    /* Any tab strip, whatever it is drawn as: the screener's tools are a
+       segmented control since Release A's fixes, not a .subnav row. */
+    document.querySelector('#views [role="tablist"] [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
     if (fromMenu) focusMain();
   }
 }
@@ -15530,10 +15829,11 @@ function openResearch(id, tab) {
    pages that are not items of their own sit where they fit: holdings and
    investment cases are things a reader saved (Saved Models), and tracked
    instruments are followed like a watchlist. The Trading Index is a section
-   of the Scanner, as its page's strip says. The decision record serves
-   property, the wheel and the trading index alike, and onboarding and the
-   goal launcher sit before any of them, so none of those is claimed; nor is
-   any public page — the sidebar is not on them. */
+   of the Scanner, as its page's strip says. Onboarding and the goal
+   launcher are the dashboard's. The decision record serves property, the
+   wheel and the trading index alike, so it is not in this table: its item
+   follows the record on screen (decisionRecordSection). No public page is
+   claimed — the sidebar is not on them. */
 const SECTION_OF = {
   home: 'dashboard',
   watchlists: 'watchlists', tracked: 'watchlists',
@@ -15544,10 +15844,25 @@ const SECTION_OF = {
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
   property: 'property', opportunities: 'property', comparables: 'property', areas: 'property',
   tradingIndex: 'scanner',
+  /* Preferences and the goal launcher are reached from My Dashboard's
+     "Other ways in", so the dashboard is where a reader on them is; with
+     no item current the sidebar gave no location at all. */
+  onboarding: 'dashboard', launcher: 'dashboard',
   /* Every scanner page, the operations pages included: they are the
      scanner's, even though the navigation carries no link to them. */
   ...Object.fromEntries(SCANNER_VIEWS.map(v => [v, 'scanner'])),
 };
+/* The decision record prints whichever of three tools' work is on it — the
+   property deal, the Cash Wheel or the Trading Index — so its sidebar item
+   is that tool's product, read as the page reads it (97-decision-record.js):
+   the subject chosen if it is ready, else the first ready one. A switch of
+   subject re-renders (renderKeepFocus), so the sidebar follows it. */
+function decisionRecordSection() {
+  if (State.view !== 'decisionRecord' || typeof DECISION_SUBJECTS === 'undefined') return null;
+  const ready = DECISION_SUBJECTS.filter(s => { try { return s.ready(); } catch { return false; } });
+  const id = State.decisionSubject && ready.some(s => s.id === State.decisionSubject) ? State.decisionSubject : ready[0]?.id;
+  return { property: 'property', wheel: 'equities', tradingIndex: 'scanner' }[id] || null;
+}
 /* Guarded twice: the function may not exist in a build without the alerts
    pages, and a throw inside the chrome would take every page down with it. */
 function navUnread() {
@@ -15562,7 +15877,7 @@ function navUnread() {
    routes them in-app), so middle-click, open in a new tab and copy link
    address all work. */
 const shellEl = {
-  pubbar: $('#pubbar'), pubnav: $('#pubnav'), sheet: $('#pubSheet'), sheetBtn: $('#pubMenuBtn'),
+  pubbar: $('#pubbar'), pubnav: $('#pubnav'), sheet: $('#pubSheet'), sheetBtn: $('#pubMenuBtn'), pubScrim: $('#pubScrim'),
   appbar: $('#appbar'), sidebar: $('#sidebar'), appnav: $('#appnav'), navOpen: $('#navOpen'), navClose: $('#navClose'),
   navScrim: $('#navScrim'), tabsHost: $('#productTabs'),
 };
@@ -15596,10 +15911,13 @@ function productRows() {
       ]),
     ];
     return el('li', {}, p.path
-      ? shellLink(p.path, { class: 'pp-row', 'data-product': p.id }, kids)
+      ? shellLink(p.path, { class: `pp-row pub-acc-${p.id}`, 'data-product': p.id, 'aria-description': productNote(p.id) }, kids)
       : el('div', { class: 'pp-row pp-row-off', 'data-product': p.id }, kids));
   });
 }
+/* Under the product rows: where every badge's note is printed. */
+const productsLegendLink = () => el('p', { class: 'pp-foot' },
+  shellLink('/how-it-works', { class: 'pp-foot-link' }, 'What Live, Beta and Coming soon mean'));
 /* Drawn twice — the menu and the phone sheet — so each copy's labels carry
    their own ids. */
 function resourceLists(prefix) {
@@ -15662,20 +15980,32 @@ function closeMenu({ restore = true } = {}) {
   if (restore) btn.focus();
   return true;
 }
+/* THE PAGE BEHIND AN OPEN SHEET OR DRAWER. Dimmed by a scrim, and inert:
+   out of the tab order and out of a screen reader's swipe order, which
+   honours aria-modal inconsistently. The sheet covered the page under the
+   header, and Tab past its last item went on to "Which sources?", hidden
+   under the still-open sheet; a swipe walked into the covered page. */
+const BEHIND = () => ['.disclosure', '#main', 'body > .footer'].map(s => document.querySelector(s)).filter(Boolean);
+const setBehindInert = (on, extra = []) => [...BEHIND(), ...extra].forEach(n => { if (on) n.setAttribute('inert', ''); else n.removeAttribute('inert'); });
 function openSheet() {
   if (sheetOpen) return;
   sheetOpen = true;
   shellEl.sheet.hidden = false;
+  shellEl.pubScrim && (shellEl.pubScrim.hidden = false);
+  /* The name stays "Menu": it was swapped to "Close the menu" with
+     aria-expanded, so a screen reader said "Close the menu, expanded" — the
+     state twice. aria-expanded carries it; the icon turns to a cross. */
   shellEl.sheetBtn.setAttribute('aria-expanded', 'true');
-  shellEl.sheetBtn.setAttribute('aria-label', 'Close the menu');
-  requestAnimationFrame(() => { if (sheetOpen) shellEl.sheet.dataset.open = '1'; });
+  setBehindInert(true);
+  requestAnimationFrame(() => { if (sheetOpen) { shellEl.sheet.dataset.open = '1'; if (shellEl.pubScrim) shellEl.pubScrim.dataset.open = '1'; } });
 }
 function closeSheet({ restore = true } = {}) {
   if (!sheetOpen) return false;
   sheetOpen = false;
   shellEl.sheet.hidden = true; delete shellEl.sheet.dataset.open;
+  if (shellEl.pubScrim) { shellEl.pubScrim.hidden = true; delete shellEl.pubScrim.dataset.open; }
   shellEl.sheetBtn.setAttribute('aria-expanded', 'false');
-  shellEl.sheetBtn.setAttribute('aria-label', 'Menu');
+  setBehindInert(false);
   if (restore) shellEl.sheetBtn.focus();
   return true;
 }
@@ -15693,6 +16023,10 @@ function openNavDrawer() {
   sb.dataset.drawer = 'opening';
   shellEl.navScrim.hidden = false;
   shellEl.navOpen.setAttribute('aria-expanded', 'true');
+  /* The page behind is inert as well as dimmed: the Tab trap (95-boot.js)
+     keeps a keyboard inside, but a screen reader's swipe walked into the
+     dimmed page. */
+  setBehindInert(true, [shellEl.appbar]);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     if (!navDrawerOpen) return;
     sb.dataset.drawer = 'open'; shellEl.navScrim.dataset.open = '1';
@@ -15703,7 +16037,10 @@ function closeNavDrawer({ restore = true, instant = false } = {}) {
   if (!navDrawerOpen) return false;
   navDrawerOpen = false;
   const sb = shellEl.sidebar;
-  ['role', 'aria-modal', 'aria-label'].forEach(a => sb.removeAttribute(a));
+  ['role', 'aria-modal'].forEach(a => sb.removeAttribute(a));
+  /* Back to the landmark it is when it is not a dialog (index.template.html). */
+  sb.setAttribute('aria-label', 'Workspace');
+  setBehindInert(false, [shellEl.appbar]);
   shellEl.navOpen.setAttribute('aria-expanded', 'false');
   shellEl.navScrim.dataset.open = '0';
   const done = () => { sb.dataset.drawer = 'closed'; shellEl.navScrim.hidden = true; };
@@ -15725,7 +16062,7 @@ function buildShell() {
   /* The public header: Products, How it works, Pricing, Resources. */
   if (shellEl.pubnav) {
     shellEl.pubnav.append(el('ul', { class: 'pubnav-list' }, [
-      pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows())], 'pubpanel-products'),
+      pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows()), productsLegendLink()], 'pubpanel-products'),
       el('li', {}, shellLink('/how-it-works', { class: 'publink', 'data-pub': 'howItWorks' }, 'How it works')),
       el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Pricing')),
       pubMenu('menuResources', 'Resources', resourceLists('menu'), 'pubpanel-resources'),
@@ -15737,6 +16074,7 @@ function buildShell() {
     shellEl.sheet.append(el('div', { class: 'sheet-in' }, [
       el('p', { class: 'rs-label', id: 'sheet-products' }, 'Products'),
       el('ul', { class: 'pp-list', 'aria-labelledby': 'sheet-products' }, productRows()),
+      productsLegendLink(),
       el('ul', { class: 'sheet-links' }, [
         el('li', {}, shellLink('/how-it-works', { class: 'sheet-link', 'data-pub': 'howItWorks' }, 'How it works')),
         el('li', {}, shellLink('/pricing', { class: 'sheet-link', 'data-pub': 'plans' }, 'Pricing')),
@@ -15748,11 +16086,16 @@ function buildShell() {
       ]),
     ]));
     shellEl.sheetBtn.addEventListener('click', () => (sheetOpen ? closeSheet() : openSheet()));
+    /* Leaving the header by Tab closes the sheet, as leaving a header menu
+       does (pubMenu), so focus never lands on something it covers. */
+    shellEl.pubbar.addEventListener('focusout', (e) => {
+      if (sheetOpen && e.relatedTarget && !shellEl.pubbar.contains(e.relatedTarget)) closeSheet({ restore: false });
+    });
   }
   /* The sidebar: My Workspace, Products, then the reader's data and plans. */
   if (shellEl.appnav) {
-    const item = (n, extra = []) => el('li', { class: 'sb-item', 'data-item': n.id }, [
-      shellLink(n.path, { class: 'sb-link', 'data-nav-id': n.id }, [shellIcon(n.icon), el('span', { class: 'sb-text' }, n.label), ...extra]),
+    const item = (n, extra = []) => el('li', { class: `sb-item${n.acc ? ` pub-acc-${n.acc}` : ''}`, 'data-item': n.id }, [
+      shellLink(n.path, { class: 'sb-link', 'data-nav-id': n.id, 'aria-description': n.note || null }, [shellIcon(n.icon), el('span', { class: 'sb-text' }, n.label), ...extra]),
     ]);
     const products = PRODUCTS.filter(p => SHOW_UNBUILT || p.path);
     shellEl.appnav.append(
@@ -15760,7 +16103,7 @@ function buildShell() {
       el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-ws' }, APP_NAV_WORKSPACE.map(n => item(n))),
       el('p', { class: 'sb-label', id: 'sb-products' }, 'Products'),
       el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-products' },
-        products.map(p => item({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path }, [productBadge(p.id)]))),
+        products.map(p => item({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path, note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
       el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => item(n))),
     );
     shellEl.navOpen?.addEventListener('click', openNavDrawer);
@@ -15778,7 +16121,7 @@ function buildShell() {
   /* The footer's Products and Resources, from the same tables. */
   const footP = $('#footProducts'), footR = $('#footResources');
   if (footP) footP.append(...PRODUCTS.map(p => el('li', {}, p.path
-    ? shellLink(p.path, { class: 'foot-product' }, [p.name, productBadge(p.id)])
+    ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))));
   if (footR) footR.append(
     ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),
@@ -15802,7 +16145,7 @@ function buildNav() {
   /* A drawer or a sheet belongs to the chrome that opened it. */
   if (chrome === 'public') closeNavDrawer({ restore: false, instant: true });
   else closeSheet({ restore: false });
-  const section = SECTION_OF[State.view] || null;
+  const section = SECTION_OF[State.view] || decisionRecordSection() || null;
   shellEl.appnav?.querySelectorAll('a.sb-link').forEach(a => {
     if (a.dataset.navId === section) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
@@ -15823,7 +16166,10 @@ function buildNav() {
     alertsLi.querySelector('.sb-count')?.remove();
     const unread = typeof scanUnreadCount === 'function' ? navUnread() : null;
     if (unread) {
-      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': `Scanner alerts, ${unread} unread`,
+      /* The name says what the pill shows — "99+" over 99 — so a voice
+         command naming the visible text finds it; the exact count is in the
+         title. */
+      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': `Scanner alerts, ${unread > 99 ? '99+' : unread} unread`,
         title: `${unread} unread scanner alert${unread === 1 ? '' : 's'} — opens the Scanner’s alerts` },
         el('span', { class: 'nav-count' }, [shellIcon(PRODUCT_ICON.scanner, 11, 'sb-count-ico'), unread > 99 ? '99+' : String(unread)])));
     }
@@ -15834,7 +16180,13 @@ function buildNav() {
     const on = a.dataset.pub ? a.dataset.pub === State.view : res ? a.dataset.path === res.path : false;
     if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
-  $('#menuResourcesBtn')?.toggleAttribute('data-current', !!res);
+  /* The mark on a closed menu is drawn, and said: the underline alone told
+     assistive technology nothing until the menu was opened. */
+  const resBtn = $('#menuResourcesBtn');
+  if (resBtn) {
+    resBtn.toggleAttribute('data-current', !!res);
+    if (res) resBtn.setAttribute('aria-description', `Current page: ${res.label}`); else resBtn.removeAttribute('aria-description');
+  }
 }
 
 /* THE PRODUCT'S TABS, above its pages. Drawn into their own host in <main>,
@@ -15849,31 +16201,90 @@ function renderProductTabs() {
   if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; return; }
   const p = productById(pid);
   const here = tabs.find(t => t.views.includes(State.view));
-  const nav = el('nav', { class: 'ptabs', 'aria-label': `${p.name} sections` }, [
-    el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]),
-    el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {},
-      shellLink(t.path, { class: 'ptab', 'aria-current': t === here ? 'page' : null }, t.label)))),
-  ]);
+  const nav = sectionTabs({ label: `${p.name} sections`, pid, tabs: tabs.map(t => ({ label: t.label, path: t.path, current: t === here })) });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
-  /* Where the row is narrower than its tabs it scrolls: the current tab is
-     brought into it, so the page's own name is never the one scrolled out of
-     sight, and the row fades at whichever end has more — the sign that there
-     is more, which a hidden scrollbar does not give. */
-  const list = nav.querySelector('.ptabs-list'), cur = nav.querySelector('.ptab[aria-current]');
-  if (list && cur && list.scrollWidth > list.clientWidth + 1) {
+  wireSectionTabs(nav);
+}
+
+/* ONE ROW OF SECTION TABS, ONE COMPONENT. The Equities and Property rows
+   above (renderProductTabs), the Scanner's own strip (scannerSubnav,
+   87-scanner-ops.js) and the personal pages' strip (mySubnav) are the same
+   level of navigation, and were two unrelated patterns: an underline row with
+   the product's name and badge for two products, and for the third a grey box
+   of pills with no name, wrapping into three rows on a phone. Each is now
+   this: the product's name and badge where there is a product, then one row
+   of underline tabs that scrolls, with the current tab marked aria-current.
+   A strip drawn inside a view (inView) takes the band's look where it sits,
+   at the top of the page (.ptabs-inview). */
+function sectionTabs({ label, pid = null, tabs, cls = '', inView = false }) {
+  const p = pid ? productById(pid) : null;
+  const nav = el('nav', { class: `ptabs ${pid ? `pub-acc-${pid} ` : ''}${cls}`.trim(), 'aria-label': label }, [
+    p ? el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]) : null,
+    el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {},
+      shellLink(t.path, { class: 'ptab', 'aria-current': t.current ? 'page' : null, 'aria-label': t.ariaLabel || null }, t.label)))),
+  ]);
+  if (!inView) return nav;
+  const band = el('div', { class: 'ptabs-host ptabs-inview' }, nav);
+  /* Laid out once it is on the page: the view is built before render()
+     mounts it, and a strip redrawn by its own page is mounted by that page. */
+  requestAnimationFrame(() => { if (nav.isConnected) wireSectionTabs(nav); });
+  return band;
+}
+/* Where the row is narrower than its tabs it scrolls: the current tab is
+   brought into it, so the page's own name is never the one scrolled out of
+   sight, and the row fades at whichever end has more — the sign that there
+   is more, which a hidden scrollbar does not give. A tab reached by Tab is
+   scrolled clear of the fade too: the browser's own focus scroll left a
+   half-hidden tab at the row's edge, 80% outside it and under the mask, its
+   focus ring a sliver (scroll-padding on the list keeps it clear). */
+function wireSectionTabs(nav) {
+  const list = nav.querySelector('.ptabs-list');
+  if (!list || list.dataset.wired) return;
+  list.dataset.wired = '1';
+  const cur = nav.querySelector('.ptab[aria-current]');
+  if (cur && list.scrollWidth > list.clientWidth + 1) {
     const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
     list.scrollLeft += (c.left + c.width / 2) - (l.left + l.width / 2);
   }
-  if (list) { list.addEventListener('scroll', () => fadeTabs(list), { passive: true }); fadeTabs(list); }
+  list.addEventListener('scroll', () => fadeTabs(list), { passive: true });
+  list.addEventListener('focusin', (e) => {
+    if (!e.target.matches?.('.ptab') || list.scrollWidth <= list.clientWidth + 1) return;
+    e.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    fadeTabs(list);
+  });
+  fadeTabs(list);
 }
 function fadeTabs(list) {
   const max = list.scrollWidth - list.clientWidth;
   const f = max <= 1 ? '' : list.scrollLeft <= 1 ? 'end' : list.scrollLeft >= max - 1 ? 'start' : 'both';
   if (f) list.dataset.fade = f; else delete list.dataset.fade;
 }
-window.addEventListener('resize', () => { const l = document.querySelector('#productTabs .ptabs-list'); if (l) fadeTabs(l); });
+window.addEventListener('resize', () => document.querySelectorAll('.ptabs-list').forEach(fadeTabs));
 buildShell();
+
+/* ONE DOMINANT ACTION ON A PUBLIC PAGE. The header's "Open workspace" and
+   the homepage's "Open your workspace" were two filled buttons of one colour
+   within 550px of each other, and on /pricing the header's outweighed the
+   page's own. While a primary action of the page is on screen the header's
+   steps down to the outline style; scrolled past it, the header's is the
+   primary again. Only the look changes — it is the same link throughout. */
+let ctaWatch = null;
+function watchPageCta() {
+  ctaWatch?.disconnect(); ctaWatch = null;
+  const cta = shellEl.pubbar?.querySelector('.pub-cta');
+  if (!cta) return;
+  cta.classList.remove('pub-cta-quiet');
+  if (chromeOf(State.view) !== 'public' || typeof IntersectionObserver !== 'function') return;
+  const primaries = [...viewRoot.querySelectorAll('.btn-primary')];
+  if (!primaries.length) return;
+  const seen = new Set();
+  ctaWatch = new IntersectionObserver((entries) => {
+    entries.forEach(e => (e.isIntersecting ? seen.add(e.target) : seen.delete(e.target)));
+    cta.classList.toggle('pub-cta-quiet', seen.size > 0);
+  });
+  primaries.forEach(p => ctaWatch.observe(p));
+}
 
 let stickyObserver = null;
 let stickySizer = null;
@@ -16020,15 +16431,16 @@ function render() {
      so a company page announced itself as "Research" and every shared link
      previewed identically. */
 
-  /* On a public page the disclosure is a single compact line. A four-line
-     warning block above the headline buries the thing a first-time visitor
-     came to read, and a warning nobody reaches is not a warning. Inside the
-     app it stays in full, because there the sample data IS the context.
-     The surface follows the chrome (chromeOf): it was keyed to '/' alone, so
-     /how-it-works, pricing and the trust pages wore the app's long strip
-     under the public header. On every public page "Which sources?" opens the
-     rest of the sentence, so no word of it is out of reach. */
+  /* The disclosure is a single compact line on both chromes (styles.css,
+     the disclosure strip). A four-line warning block above the headline
+     buries the thing a reader came to read, and a warning nobody reaches is
+     not a warning; inside the app the full breakdown put every workspace
+     page's heading a third to two-thirds of the way down a phone. The
+     material sentence is always shown, and on every page "Which sources?"
+     opens the rest of it, so no word is out of reach. The surface still
+     follows the chrome (chromeOf) for the rules that differ between them. */
   document.body.dataset.surface = chromeOf(State.view);
+  watchPageCta();
 
   /* Reveal the compact ticker identity only once the full header is gone. */
   stickyObserver?.disconnect();
@@ -16252,6 +16664,9 @@ function marketSummary(mkt) {
   return { rows, capTotal, wChg, advancers, total: rows.length, filed, asOf, leftOut: priced.length - rows.length };
 }
 
+/* Whether the active watchlist is still the seeded sample (isSeededWL,
+   50-views-studio.js). */
+const activeWLIsSample = () => { try { const w = activeWL(); return !!w && typeof isSeededWL === 'function' && isSeededWL(w); } catch { return false; } };
 VIEWS.researchQueue = () => {
   const wrap = el('div');
 
@@ -16392,7 +16807,13 @@ VIEWS.researchQueue = () => {
     const body = el('div', { style: 'min-width:0;flex:1' });
     const t = el('div', { class: 'row row-wrap', style: 'gap:6px' });
     t.append(el('span', { style: 'font-size:13px;font-weight:600;color:var(--ink)' }, f.title));
-    if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, 'Watchlist'));
+    /* The illustrative marker every other company surface carries, as the
+       watchlist rows and the differences panel beside this feed do: an event
+       computed from synthetic figures (a discount, a payout ratio) is a
+       synthetic event, and the page's META says each company is labelled. */
+    const fr = BY_ID.get(f.id);
+    if (fr) { const ic = illusChip(fr.c); if (ic) t.append(ic); }
+    if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, activeWLIsSample() ? 'Sample watchlist' : 'Watchlist'));
     body.append(t);
     body.append(el('p', { class: 'caption', style: 'margin-top:2px' }, f.detail));
     const acts = el('div', { class: 'row', style: 'gap:4px;margin-top:6px' });
@@ -16415,11 +16836,15 @@ VIEWS.researchQueue = () => {
   const wlSel = el('select', { class: 'select', style: 'width:auto;max-width:190px;height:30px;font-size:13px',
     'aria-label': 'Active watchlist',
     onchange: e => { State.wlIdx = +e.target.value; render(); } });
+  /* A seeded list says it is one here, as the dashboard and the Watchlists
+     page do: the reader did not choose these companies. */
   State.watchlists.forEach((w, i) => wlSel.append(el('option', { value: i, selected: i === State.wlIdx ? '' : null },
-    `${w.name} (${w.ids.length})`)));
+    `${w.name} (${w.ids.length})${typeof isSeededWL === 'function' && isSeededWL(w) ? ' · sample' : ''}`)));
   wlHead.append(wlSel);
   wlHead.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openWatchlistManager(), html: `${icon('grid', 13)} Manage` }));
   wl.append(wlHead);
+  if (activeWLIsSample()) wl.append(el('p', { class: 'metaline', style: 'margin:-4px 0 6px' }, [el('span', { class: 'chip chip-bronze' }, 'Sample'),
+    ' A list written into this browser so the page has something to show — not one you chose.']));
   const wlRows = State.watchlist.map(id => BY_ID.get(id)).filter(Boolean);
   if (!wlRows.length) wl.append(emptyState('No companies on the watchlist yet.'));
   else {
@@ -16613,13 +17038,35 @@ const myDashPlural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}
    twice over, because it lives in two places: the setups saved in this
    browser, and data/scan-setups.json, which is what the worker runs and is
    only ever visible on the machine it runs on. */
+/* THE COMPANIES IN A LIST THAT ARE THE VISITOR'S OWN. A seeded list stopped
+   being a sample the moment anything touched it (isSeededWL reads updatedAt),
+   so one "Add to watchlist" on a company page — which adds to the active
+   list, the seeded Core watchlist on a fresh profile, and is the second step
+   of the journey /how-it-works describes — made all six seeded companies
+   "yours": the tile read 7 instruments in a list of your own, the checklist
+   ticked "Create a watchlist" when none had been created, and "Continue"
+   listed the sample list beside a note saying samples are not counted. A
+   member carries the date it was added (06-watchlists.js); the seed's
+   members were migrated with none, so in a seeded list only a dated member
+   is the visitor's. Any other list is theirs whole. */
+function myDashOwnIds(w) {
+  const seedIds = typeof SEEDED_WL_IDS !== 'undefined' ? SEEDED_WL_IDS : [];
+  const ids = Array.isArray(w?.ids) ? w.ids : [];
+  return seedIds.includes(w?.id) ? ids.filter(id => w.added && w.added[id]) : ids;
+}
 function myDashOwn() {
-  const seededWL = (w) => (typeof isSeededWL === 'function' ? isSeededWL(w) : false);
   const seededPA = (pa) => (typeof isSeededPA === 'function' ? isSeededPA(pa) : false);
   const seededPF = typeof SEEDED_PF_IDS !== 'undefined' ? SEEDED_PF_IDS : [];
-  const lists = (State.watchlists || []).filter(w => w && !seededWL(w) && (w.ids || []).length);
-  const sampleLists = (State.watchlists || []).filter(w => w && seededWL(w));
-  const instruments = new Set(lists.flatMap(w => w.ids));
+  const seedIds = typeof SEEDED_WL_IDS !== 'undefined' ? SEEDED_WL_IDS : [];
+  const all = (State.watchlists || []).filter(Boolean);
+  /* Lists holding at least one company the visitor put there, and the lists
+     they made themselves (the checklist's "Create a watchlist"). */
+  const lists = all.filter(w => myDashOwnIds(w).length);
+  const createdLists = all.filter(w => !seedIds.includes(w.id) && (w.ids || []).length);
+  /* Seeded lists still holding a seeded company: whatever is in them that the
+     visitor did not add is a sample, and is not counted. */
+  const sampleLists = all.filter(w => seedIds.includes(w.id) && myDashOwnIds(w).length < (w.ids || []).length);
+  const instruments = new Set(lists.flatMap(myDashOwnIds));
   const scanSt = typeof scanStoreRead === 'function' ? scanStoreRead() : null;
   const setups = scanSt && typeof scanBrowserSetups === 'function' ? scanBrowserSetups({ st: scanSt }) : [];
   const setupsDoc = typeof scanSetupsFile !== 'undefined' ? scanSetupsFile : null;
@@ -16635,8 +17082,12 @@ function myDashOwn() {
   const propertySnaps = typeof loadWork === 'function' ? loadWork().filter(w => w?.kind === 'property').length : 0;
   const researched = (State.recentCompanies || []).filter(id => BY_ID.has(id));
   const setupsKnown = setups.length + (fileActive ? fileActive.valid : 0);
-  const hasOwn = lists.length + setupsKnown + saved.length + portfolios.length + priceAlerts.length + propertySnaps > 0 || dealStarted;
-  return { lists, sampleLists, instruments, scanSt, setups, setupsDoc, scan, fileActive, alerts, saved, portfolios,
+  /* The scanner's record counts as the visitor's own: its matches are of their
+     setups. With a record and no readable setups file (renamed, or every setup
+     in it invalid) the page drew the first-time checklist and hid the matches
+     the sidebar was counting as unread on the same screen. */
+  const hasOwn = lists.length + setupsKnown + saved.length + portfolios.length + priceAlerts.length + propertySnaps + (alerts?.length || 0) > 0 || dealStarted;
+  return { lists, createdLists, sampleLists, instruments, scanSt, setups, setupsDoc, scan, fileActive, alerts, saved, portfolios,
            priceAlerts, dealStarted, propertySnaps, researched, setupsKnown, hasOwn,
            samples: typeof hasSeededData === 'function' && hasSeededData() };
 }
@@ -16650,15 +17101,20 @@ function myDashOwn() {
 function myDashSteps(o) {
   const eq = productById('equities'), sc = productById('scanner'), pr = productById('property');
   const lastCo = o.researched.length ? BY_ID.get(o.researched[0]) : null;
-  const inList = o.lists.length ? `${myDashPlural(o.lists.length, 'list')} of your own, ${myDashPlural(o.instruments.size, 'company', 'companies')}` : '';
+  const createdIds = new Set(o.createdLists.flatMap(w => w.ids || []));
+  const inList = o.createdLists.length ? `${myDashPlural(o.createdLists.length, 'list')} of your own, ${myDashPlural(createdIds.size, 'company', 'companies')}` : '';
+  /* Companies added to a sample list are the visitor's, but no list was
+     created: the step says where they went rather than ticking itself. */
+  const inSample = !o.createdLists.length && o.instruments.size
+    ? `${myDashPlural(o.instruments.size, 'company', 'companies')} you added ${o.instruments.size === 1 ? 'sits' : 'sit'} in a sample list. A list of your own keeps your companies apart from the samples.` : '';
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
   return [
     { k: 'research', product: 'equities', title: 'Research a company', done: !!lastCo,
       note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}.`
         : 'Statements, ratios and a valuation range, every figure with its formula and its source.',
       action: eq?.action || 'Research a company', path: eq?.actionPath || '/research' },
-    { k: 'watchlist', product: null, title: 'Create a watchlist', done: o.lists.length > 0,
-      note: o.lists.length ? `${inList}.` : 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
+    { k: 'watchlist', product: null, title: 'Create a watchlist', done: o.createdLists.length > 0,
+      note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
       action: 'Create a watchlist', path: '/my/watchlists' },
     { k: 'setup', product: 'scanner', title: 'Create a scanner setup', done: o.setupsKnown > 0,
       note: o.setupsKnown ? `${setupsText}.` : 'Conditions you choose, checked on each daily close of the price history you supply, with a record of every bar on which they held.',
@@ -16724,9 +17180,12 @@ VIEWS.home = () => {
     : !o.alerts ? `Welcome back — you were last here ${myDashWhen(visit.prev)}.${o.setupsKnown ? ' The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : ''}`
     : since.length ? `Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`
     : `Nothing new in the scanner’s record since you were last here, ${myDashWhen(visit.prev)}${undated ? ` — ${myDashPlural(undated, 'match', 'matches')} with no recorded time cannot be placed either side of it` : ''}.`;
+  /* The page's name is part of its heading. As an eyebrow <p> above an h1
+     reading only "Good morning", heading navigation and the rotor never
+     named the page; the heading is now "My Dashboard: Good morning", drawn
+     as before. */
   wrap.append(el('div', { class: 'page-hd dash-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My Dashboard'),
-    el('h1', {}, myDashGreeting()),
+    el('h1', {}, [el('span', { class: 'eyebrow dash-eyebrow' }, 'My Dashboard'), el('span', { class: 'sr-only' }, ': '), myDashGreeting()]),
     el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
   ])));
 
@@ -16783,8 +17242,8 @@ VIEWS.home = () => {
       : o.setupsKnown ? 'The record stays on the machine the worker runs on' : 'You have no scanner setup yet' }));
   tiles.append(myDashTile({ icon: 'grid', label: 'Instruments watchlisted', path: '/my/watchlists',
     value: String(o.instruments.size),
-    sub: o.lists.length ? `In ${myDashPlural(o.lists.length, 'list')} of your own` : 'No list of your own yet',
-    note: o.sampleLists.length ? 'Sample lists not counted' : null }));
+    sub: o.instruments.size ? `Added by you, in ${myDashPlural(o.lists.length, 'list')}` : 'None added by you yet',
+    note: o.sampleLists.length ? 'Sample companies not counted' : null }));
   const moved = o.saved.filter(i => ['model', 'data', 'both'].includes(i.diff?.status)).length;
   const kinds = (typeof WORKSPACE_KINDS !== 'undefined' ? WORKSPACE_KINDS : []).map(k => [k, o.saved.filter(i => i.kind === k.id).length]).filter(([, n]) => n);
   tiles.append(myDashTile({ icon: 'doc', label: 'Saved models', path: '/my/workspace',
@@ -16888,8 +17347,17 @@ function myDashContinue(o) {
     ...o.saved.map(i => ({ at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
       illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null,
       act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
-    ...o.lists.map(w => ({ at: t(w.updatedAt || w.createdAt), when: w.updatedAt || w.createdAt, kind: 'Watchlist', name: w.name,
-      detail: myDashPlural(w.ids.length, 'company', 'companies'), path: '/my/watchlists' })),
+    /* A list names what the visitor put in it; a sample list says how many of
+       its companies are samples. Its chip is the workspace's rule: every
+       company illustrative, or some. */
+    ...o.lists.map(w => {
+      const own = myDashOwnIds(w).length, rest = (w.ids || []).length - own;
+      const rows = (w.ids || []).map(id => BY_ID.get(id)).filter(Boolean);
+      const illN = rows.filter(r => !r.c.real).length;
+      return { at: t(w.updatedAt || w.createdAt), when: w.updatedAt || w.createdAt, kind: rest ? 'Watchlist · sample list' : 'Watchlist', name: w.name,
+        detail: rest ? `${myDashPlural(own, 'company', 'companies')} added by you · ${rest} sample` : myDashPlural(own, 'company', 'companies'),
+        illus: illN && illN === rows.length ? 'all' : illN ? 'some' : null, path: '/my/watchlists' };
+    }),
     ...o.setups.map(s => ({ at: t(s.updated || s.created), when: s.updated || s.created, kind: 'Scanner setup', name: s.name || s.id,
       detail: `v${s.version} · ${s.enabled === false ? 'disabled' : 'enabled'}`, path: scanSetupPath(s.id) })),
     ...o.portfolios.map(p => ({ at: -Infinity, when: null, kind: 'Portfolio', name: p.name, detail: myDashPlural(p.holdings.length, 'holding'), path: '/my/portfolio' })),
@@ -16906,7 +17374,14 @@ function myDashContinue(o) {
   } else {
     const ul = el('ul', { class: 'dash-list dash-cont' });
     rows.forEach(r => {
-      const meta = [r.detail, r.when ? (typeof fmtSaved === 'function' ? fmtSaved(r.when) : String(r.when).slice(0, 16)) : null].filter(Boolean).join(' · ');
+      /* One clock on the page: the reader's. The lede gives the last visit in
+         local time; these rows gave UTC with an ISO date, so a list edited an
+         hour ago read as older than a visit five hours ago. A bare date has no
+         time of day to convert and is printed as the date it is. */
+      const when = !r.when ? null : String(r.when).length <= 10
+        ? new Date(`${String(r.when)}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : Number.isFinite(r.at) ? myDashWhen(r.at) : null;
+      const meta = [r.detail, when].filter(Boolean).join(' · ');
       const chips = [
         r.illus === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
           : r.illus === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
@@ -17472,7 +17947,7 @@ function renderScreener() {
         el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
           `${U.length - backed} of ${U.length} companies have no observed price history`),
         el('p', { class: 'metaline' },
-          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Add your own closes under My Investments → Your data.`),
+          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Add your own closes under Your data & settings.`),
       ]));
     }
   }
@@ -19327,10 +19802,14 @@ VIEWS.discover = () => {
   /* Equities Research's Screener (Release A): the product tab row above
      names the product, and this strip is the Screener's sub-tabs. */
   hd.append(el('p', { class: 'eyebrow' }, 'Screener'));
-  hd.append(el('h1', { style: 'font-size:24px;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
+  /* The page title's weight, 700, as on every other page (it was 600). */
+  hd.append(el('h1', { style: 'font-size:24px;font-weight:700;letter-spacing:-.02em;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
   /* Through the address: /discover/screener and /discover/value-map have
-     routes of their own, the other two ride on ?tab=. */
-  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id })));
+     routes of their own, the other two ride on ?tab=. A segmented control,
+     not a second underline row: under the product's own underline tabs, two
+     identical rows gave no sign which was the product's and which this
+     page's. The tablist, its keys and its one tab stop are unchanged. */
+  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id }), { class: 'segmented tools-seg' }));
   wrap.append(hd);
 
   /* With a fallback: a tab id this view does not know renders the screener
@@ -20167,7 +20646,27 @@ VIEWS.researchHome = () => {
   let searchTimer = null;
   inp.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 120); });
   mkSel.addEventListener('change', runSearch); cvSel.addEventListener('change', runSearch);
-  search.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [inp, mkSel, cvSel]));
+  /* THE PAGE'S ONE ACTION. The overview had no primary at all — its main
+     affordance was a 34px field — though "Research a company" is the
+     product's one action (PRODUCTS). The field is the page's largest control
+     now, and the button does what it says: with one match it opens that
+     company; with several it moves to the first result, so the list is one
+     Tab away; with nothing typed it puts the cursor in the field. Enter in
+     the field is the same press. */
+  const act = () => {
+    clearTimeout(searchTimer);
+    if (!inp.value.trim() && !mkSel.value && !cvSel.value) { inp.focus(); return; }
+    runSearch();
+    const hits = [...results.querySelectorAll('button')];
+    if (hits.length === 1) hits[0].click();
+    else if (hits.length) hits[0].focus();
+    else inp.focus();
+  };
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); act(); } });
+  inp.classList.add('rh-search');
+  const eq = typeof productById === 'function' ? productById('equities') : null;
+  search.append(el('div', { class: 'row row-wrap rh-searchrow', style: 'gap:8px' }, [inp, mkSel, cvSel,
+    el('button', { type: 'button', class: 'btn btn-primary rh-go', onclick: act }, eq?.action || 'Research a company')]));
   search.append(results);
   wrap.append(search);
 
@@ -20235,8 +20734,13 @@ VIEWS.researchHome = () => {
   const th = State.theses || [];
   if (th.length) {
     const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
+    /* A seeded case says it is a sample, as the dashboard and the personal
+       pages do: under "Your own written theses" the two seeded ones read as
+       the visitor's. */
+    const seeded = (t) => typeof SEEDED_THESIS_IDS !== 'undefined' && SEEDED_THESIS_IDS.includes(t.id);
     th.slice(0, 8).forEach(t => row.append(el('button', { class: 'btn btn-ghost btn-sm',
-      onclick: () => navigate('/my/theses') }, t.ticker)));
+      'aria-label': seeded(t) ? `${t.ticker}, sample case` : null,
+      onclick: () => navigate('/my/theses') }, [t.ticker, seeded(t) ? el('span', { class: 'chip chip-bronze', 'aria-hidden': 'true' }, 'sample') : null])));
     cases.append(row);
   } else cases.append(el('p', { class: 'metaline' }, 'No cases saved yet. A case records your own reasoning and the conditions that would change it.'));
   wrap.append(cases);
@@ -20931,8 +21435,11 @@ function tabSnapshot(r) {
       priceHistory(c)
         ? `No observed price history has been imported for ${c.tk}. The chart below is a generated illustration consistent with the stated 12-month return, and running a 200-day average over it would produce a confident figure for a series that never existed.`
         : `No observed price history has been imported for ${c.tk}, and none is drawn: a chart generated to fit a stated return would be a series that never existed, and a 200-day average over it a confident figure for nothing.`));
-    tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `Add closes for ${c.tk} under My Investments → Your data to enable this. They stay in this browser.`));
+    /* Named as the sidebar names it since Release A, and a link to it: the
+       header item "My Investments" this pointed through no longer exists. */
+    tc.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, [
+      `Add closes for ${c.tk} under `, el('a', { href: href('/my/data'), 'data-path': '/my/data' }, 'Your data & settings'),
+      ' to enable this. They stay in this browser.']));
   } else {
     const t = trendContext(real.series, { ohlc: real.ohlc });
     const ctx = TREND_STRATEGIES[0].evaluate(t);
@@ -22070,7 +22577,7 @@ VIEWS.researchReport = () => {
   /* ---------- the chrome: not part of what prints ---------- */
   const bar = el('div', { class: 'card dr-chrome' });
   bar.append(cardHead('Research report',
-    `${live.c.name} on one page, laid out for printing. ${S.fromRun ? `Rendered from saved run ${S.run.runId}.` : 'Rendered from the current dataset and your current Studio assumptions.'}`));
+    `${live.c.name} on one page, laid out for printing. ${S.fromRun ? `Rendered from saved run ${S.run.runId}.` : 'Rendered from the current dataset and your current Studio assumptions.'}`, null, { heading: false }));
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => window.print() }, 'Print or save as PDF'));
   acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(companyHref),
@@ -23973,7 +24480,6 @@ function openReview(t) {
 VIEWS.thesis = () => {
   const wrap = el('div');
   wrap.append(mySubnav('thesis'));
-  appendSampleBanner(wrap);
   const hd = el('div', { class: 'page-hd' });
   hd.append(el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Thesis'),
@@ -23983,6 +24489,9 @@ VIEWS.thesis = () => {
   ]));
   hd.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
   wrap.append(hd);
+  /* Under the heading, on every personal page: the page says what it is
+     before it says whose data is on it. */
+  appendSampleBanner(wrap);
 
   const stats = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
   const evals = State.theses.map(t => ({ t, e: evaluateThesis(t) }));
@@ -24645,7 +25154,9 @@ function clearSeededData() {
    happened to mention it. Returns null when there is nothing seeded left. */
 function sampleBanner() {
   if (!hasSeededData()) return null;
-  const b = el('div', { class: 'note', style: 'border-left:3px solid var(--bronze);margin-bottom:var(--md)' });
+  /* Padded off its rule: the class it carried has no rule of its own, so its
+     text and button sat against the 3px bronze edge. */
+  const b = el('div', { class: 'note sample-banner' });
   b.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 300px;margin:0' },
@@ -24715,7 +25226,6 @@ VIEWS.portfolio = () => {
      actually reach were each a dead end, and the two that carried the way out
      were unreachable. Four calls restore six finished surfaces to each other. */
   wrap.append(mySubnav('portfolio'));
-  appendSampleBanner(wrap);
   const pf = activePF();
 
   const hd = el('div', { class: 'page-hd' });
@@ -24736,6 +25246,7 @@ VIEWS.portfolio = () => {
   hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openAddHolding(), html: `${icon('plus', 13)} Add holding` }));
   hd.append(hr);
   wrap.append(hd);
+  appendSampleBanner(wrap);
 
   const pos = positionsOf(pf);
   const securities = sum(pos.map(p => p.valBase));
@@ -25502,8 +26013,10 @@ const PUB_GLYPH = {
 const pubSvg = (name, size) => ICON[name] ? icon(name, size)
   : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${PUB_GLYPH[name] || ''}</svg>`;
 const pubArrow = () => el('span', { class: 'pub-arrow', 'aria-hidden': 'true', html: pubSvg('arrow', 16) });
-const PUB_ICON_OF = { equities: 'doc', scanner: 'target', property: 'home', business: 'briefcase' };
-const pubIcon = (id) => el('span', { class: 'pub-ico', 'aria-hidden': 'true', html: pubSvg(PUB_ICON_OF[id] || 'grid', 22) });
+/* The product's icon from the shell's table (PRODUCT_ICON, 35-ui.js), so a
+   product looks the same on its card as in the menu, the sidebar and its
+   tab row: Equities was a document here and a chart everywhere else. */
+const pubIcon = (id) => el('span', { class: 'pub-ico', 'aria-hidden': 'true', html: pubSvg(PRODUCT_ICON[id] || 'grid', 22) });
 const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true', html: pubSvg(name, 18) });
 
 /* One product as a card. The whole card is the link, named by its task and
@@ -25514,12 +26027,15 @@ const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
   const open = !!p.path;
+  /* Described by the blurb and the status with its note — "Beta: …" — rather
+     than by the badge, whose one word was all a screen reader heard, and its
+     qualifying note a mouse's tooltip only. */
   const card = open
     ? pubLink(p.path, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('t')} ${id('n')}`, 'aria-describedby': `${id('b')} ${id('s')}` })
     : el('div', { class: `pub-card pub-card-soon pub-acc-${p.id}` });
   const badge = pubBadge(p);
-  badge.id = id('s');
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), badge]));
+  if (open) card.append(el('span', { class: 'sr-only', id: id('s') }, productNote(p.id)));
   card.append(el('p', { class: 'pub-card-product', id: id('n') }, p.name));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') }, p.task));
   card.append(el('p', { class: 'pub-card-blurb', id: id('b') }, p.blurb));
@@ -25587,11 +26103,12 @@ VIEWS.marketing = () => {
     ]),
   ]));
   const kinds = el('ul', { class: 'pub-kinds' });
-  [['doc', 'Companies', 'Valuation runs, comparisons and investment cases you save.'],
-   ['list', 'Watchlists', 'The companies you follow — and a universe a scanner setup can check.'],
-   ['target', 'Scanner setups', 'Your own rules, with every version of each kept.'],
-   ['home', 'Property models', 'Deals saved from the calculator, and the properties you record.'],
-  ].forEach(([g, t, b]) => kinds.append(el('li', { class: 'pub-kind' }, [
+  /* Each kind in its product's icon and accent, as on the cards above. */
+  [[PRODUCT_ICON.equities, 'Companies', 'Valuation runs, comparisons and investment cases you save.', 'equities'],
+   ['list', 'Watchlists', 'The companies you follow — and a universe a scanner setup can check.', null],
+   [PRODUCT_ICON.scanner, 'Scanner setups', 'Your own rules, with every version of each kept.', 'scanner'],
+   [PRODUCT_ICON.property, 'Property models', 'Deals saved from the calculator, and the properties you record.', 'property'],
+  ].forEach(([g, t, b, acc]) => kinds.append(el('li', { class: `pub-kind${acc ? ` pub-acc-${acc}` : ''}` }, [
     pubGlyph(g), el('div', {}, [el('h3', { class: 'pub-kind-t' }, t), el('p', { class: 'pub-kind-b' }, b)]),
   ])));
   panel.append(kinds);
@@ -25630,7 +26147,7 @@ const HIW_FLOW = {
     ['Analysis', 'Each rule is checked on every completed daily bar, by one engine shared by this page and the worker on your computer.'],
     ['Result', 'A record of which conditions held on which bar, with their values. A record, not a signal: nothing is ranked and nothing is sent.'],
     ['Save', 'Setups are kept in this browser with every version of each; the worker writes its matches to a file on your computer.'],
-    ['Next', 'Open a match, read the values behind it, and go to the company it names.'],
+    ['Next', 'Open a match, read the values behind it, and go on to the company page where the instrument is a company, or to Tracked where it is followed by price only.'],
   ],
   property: [
     ['Input', 'The purchase: price, financing, rent and costs. The calculator starts on illustrative defaults and marks each one until you replace it.'],
@@ -25756,7 +26273,7 @@ function hiwReportBody(r) {
   out.push(el('div', { class: 'hiw-ex-actions' },
     el('a', { class: 'btn btn-ghost pub-btn', href: href(companyPath(r.c)),
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); openResearch(r.c.id); } },
-      'Open the complete research report', pubArrow())));
+      'Open the full report', pubArrow())));
   return out;
 }
 function hiwReportPreview() {
@@ -25851,8 +26368,20 @@ function hiwProduct(p) {
   const steps = HIW_FLOW[p.id];
   if (steps && p.path) s.append(hiwSteps(p, steps));
   else s.append(el('p', { class: 'hiw-soon' }, `Planned: ${String(p.blurb || '').replace(/\.$/, '').toLowerCase()}. Its workflow is described here once it is built.`));
+  /* The examples fold on a phone. Open, they made the page 10,876px — about
+     thirteen screens at 390px — and the connected journey, the page's core
+     idea, began near 9,000px. Folded behind "Worked examples", every one of
+     them is a tap away and the steps and the journey come first; above 760px
+     they are open, as the page was drawn. */
   const ex = p.path && HIW_EXAMPLES[p.id] ? HIW_EXAMPLES[p.id]() : null;
-  if (ex && ex.length) s.append(el('div', { class: 'hiw-examples' }, [el('h3', { class: 'hiw-examples-h' }, 'Worked examples'), ...ex]));
+  if (ex && ex.length) {
+    const folded = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
+    s.append(el('details', { class: 'hiw-examples', open: folded ? null : '' }, [
+      el('summary', { class: 'hiw-examples-sum' }, [el('h3', { class: 'hiw-examples-h' }, 'Worked examples'),
+        el('span', { class: 'hiw-examples-n caption' }, `${ex.length === 1 ? 'One example' : `${ex.length} examples`}, computed by the product’s own model`)]),
+      el('div', { class: 'hiw-examples-body' }, ex),
+    ]));
+  }
   if (p.path && p.action && p.actionPath) s.append(el('div', { class: 'hiw-product-ft' },
     pubLink(p.actionPath, { class: 'btn btn-ghost pub-btn' }, p.action, pubArrow())));
   return s;
@@ -25866,7 +26395,10 @@ const HIW_JOURNEY = [
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
   ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', 'New setup'],
   ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
-  ['Back to the company', 'Each match names its instrument and links to the company page, where the research picks up again.', null, null],
+  /* A match links to a company page only where its instrument is a company
+     (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
+     links to Tracked. The step said every match led to a company. */
+  ['Back to the company', 'Each match names its instrument. Where that is a company, it links to the company page and the research picks up again; a price-only instrument links to Tracked.', null, null],
 ];
 function hiwJourney() {
   const s = el('section', { class: 'hiw-journey', id: 'hiw-journey', 'aria-labelledby': 'hiw-journey-h' });
@@ -25920,8 +26452,14 @@ VIEWS.howItWorks = () => {
     'Each product starts from something you choose or enter, shows its working, and keeps what you save in this browser. '
     + 'Here is each one step by step, how they connect, and worked examples computed by the products’ own models.'));
   hd.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
+  /* A jump link for each product that is built. Business Intelligence was a
+     fourth identical pill — a link, styled as a way into a product the brief
+     says is never a link or a button. It is text here, with its badge, as on
+     the homepage card; its section below is still on the page. */
   const toc = el('ul', { class: 'hiw-toc-list' });
-  P.forEach(p => toc.append(el('li', {}, pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name))));
+  P.forEach(p => toc.append(el('li', {}, p.path
+    ? pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name)
+    : el('span', { class: 'hiw-toc-soon' }, [p.name, pubBadge(p)]))));
   toc.append(el('li', {}, pubJump('hiw-journey', { class: 'hiw-toc-link' }, 'The connected journey')));
   hd.append(el('nav', { class: 'hiw-toc', 'aria-label': 'On this page' }, toc));
   wrap.append(hd);
@@ -26450,11 +26988,16 @@ VIEWS.watchlists = () => {
   /* Above the heading, matching the other five. A strip that sits above the
      title on four pages and below it on two reads as a different control. */
   wrap.append(mySubnav('watchlists'));
+  /* The personal pages' heading — eyebrow, 24px title, standfirst — as My
+     Dashboard and Saved Models beside it in the sidebar have. It was a 40px
+     display heading with the sample banner above it, the one page of the
+     four that looked like a different product. */
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'My workspace'),
+    el('h1', {}, 'Watchlists'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
+  ])));
   appendSampleBanner(wrap);
-  wrap.append(el('div', {}, [
-    el('h1', { class: 'h-display' }, 'Watchlists'),
-    el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
-  ]));
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
 
   /* Create, export and import — the operations the brief names, on the page
@@ -26741,18 +27284,20 @@ function openTrendDrawer(row, t) {
   tbl.append(tb2);
   body.append(el('div', { style: 'overflow-x:auto' }, tbl));
   body.append(el('p', { class: 'metaline' },
-    `Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Extend it by pasting closes under My Investments → Your data.`));
+    [`Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Extend it by pasting closes under `,
+      el('a', { href: href('/my/data'), 'data-path': '/my/data' }, 'Your data & settings'), '.']));
 
   openDrawer(`${row.sym} — trend context`, body);
 }
 
-/* Shared secondary navigation for the personal surfaces. */
+/* Shared secondary navigation for the personal surfaces — the same section
+   row the products wear (sectionTabs, 35-ui.js), with no product name: one
+   scrolling row of underline tabs, the page on screen current. As a box of
+   pills it wrapped into two rows on a phone, a different control from the
+   row a reader had just used on a product page. */
 function mySubnav(active) {
-  const row = el('div', { class: 'segmented', style: 'margin-bottom:var(--md);flex-wrap:wrap' });
-  SUBNAV_MY.forEach(s => row.append(el('a', {
-    href: href(s.path), 'aria-selected': active === s.id ? 'true' : 'false',
-    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(s.path); } }, s.label)));
-  return row;
+  return sectionTabs({ label: 'Personal pages', cls: 'my-subnav', inView: true,
+    tabs: SUBNAV_MY.map(s => ({ label: s.label, path: s.path, current: active === s.id })) });
 }
 
 /* A consistent empty state: says what the surface is for and offers the one
@@ -26774,9 +27319,17 @@ function emptyStateCta(title, body, ctaLabel, ctaPath) {
    is not yet registered — a reader can act on the second and is misled by the
    first.
    ========================================================================== */
+/* Headed as every page but the two marketing ones is: an eyebrow naming the
+   menu it is reached from, a 24px title, a standfirst. As 40px display
+   headings these four were a fifth heading size on the public chrome, beside
+   /pricing and /learn at 24px under the same header. */
 function trustPage(title, lede, blocks) {
   const wrap = el('div', { class: 'stack' });
-  wrap.append(el('div', {}, [el('h1', { class: 'h-display' }, title), el('p', { class: 'body-lg' }, lede)]));
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Resources'),
+    el('h1', {}, title),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
+  ])));
   blocks.forEach(([heading, body, pending]) => {
     const card = el('div', { class: 'card' });
     card.append(el('div', { class: 'row', style: 'gap:8px' }, [
@@ -26884,16 +27437,23 @@ VIEWS.notfound = () => {
   const wrap = el('div', { class: 'stack' });
   const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxxl) var(--lg)' });
   card.append(el('div', { class: 'num', style: 'font-size:44px;font-weight:700' }, '404'));
-  card.append(el('h1', { class: 'h-section', style: 'margin-top:6px' },
+  card.append(el('h1', { class: 'page-title', style: 'margin-top:6px' },
     State.notFoundWhat ? `No ${State.notFoundWhat}` : 'That page does not exist'));
-  card.append(el('p', { class: 'metaline', style: 'margin:10px auto 16px;max-width:54ch' },
+  card.append(el('p', { class: 'body-lg', style: 'margin:10px auto 0;max-width:54ch' },
     State.notFoundWhat
-      ? 'It may have been renamed, or it may not be in the universe this build covers. Search for it, or start from Discover.'
+      ? 'It may have been renamed, or it may not be in the universe this build covers. Search for it, or start from Equities Research.'
       : 'The link may be out of date. Everything below is a real destination.'));
-  const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap' });
-  [['Discover', '/discover'], ['Research', '/research'], ['Property', '/property'], ['Home', '/']]
-    .forEach(([l, p]) => row.append(el('a', { class: 'btn', href: href(p),
-      onclick: (e) => { e.preventDefault(); State.notFoundWhat = null; navigate(p); } }, l)));
+  /* The way out, in the navigation this build has: the workspace as the one
+     primary action, the products that exist by name (from PRODUCTS, so a
+     product that is not built is never offered), and home. The row still
+     named the old header — Discover, Research, Property — as bare .btn text
+     with no border or fill, so four words sat under the heading looking like
+     a sentence rather than four ways out. */
+  const go = (p) => (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); State.notFoundWhat = null; navigate(p); };
+  const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap;margin-top:var(--lg)' });
+  row.append(el('a', { class: 'btn btn-primary', href: href('/app'), onclick: go('/app') }, 'Open your workspace'));
+  PRODUCTS.filter(p => p.path).forEach(p => row.append(el('a', { class: 'btn btn-ghost', href: href(p.path), onclick: go(p.path) }, p.name)));
+  row.append(el('a', { class: 'btn btn-ghost', href: href('/'), onclick: go('/') }, 'Home'));
   card.append(row);
   wrap.append(card);
   return wrap;
@@ -27118,7 +27678,9 @@ VIEWS.workspace = () => {
   shown.forEach((i, idx) => {
     const status = el('span', { class: WS_STATUS_CLASS[i.diff.status] || 'chip', title: i.diff.text }, i.diff.label);
     const acts = el('div', { class: 'ws-acts' });
-    acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
+    /* Outline, not primary: a filled Open on every row was a page of primary
+       actions, none of them dominant. Named for its row, as Delete is. */
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm ws-open', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
     (i.extra || []).forEach(([label, path]) => acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(path),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label)));
     /* Confirmed only if the browser kept it: a refused write left the list as
@@ -27136,7 +27698,7 @@ VIEWS.workspace = () => {
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Delete ${i.name}`,
       onclick: () => { if (!confirm(`Delete "${i.name}"? This browser holds the only copy.`)) return;
         kept(i.remove, 'Deleted', () => {
-          const opens = $$('#views .ws-row .ws-acts > .btn-primary');
+          const opens = $$('#views .ws-row .ws-acts > .ws-open');
           const next = opens[Math.min(idx, opens.length - 1)] || document.getElementById('ws-q');
           if (next) next.focus(); else focusMain();
         }); } }, 'Delete'));
@@ -27558,11 +28120,15 @@ const TREND_STRATEGIES = [
 VIEWS.tracked = () => {
   const wrap = el('div', { class: 'stack' });
   wrap.append(mySubnav('tracked'));
-  wrap.append(el('div', {}, [
-    el('h1', { class: 'h1' }, 'Tracked'),
-    el('p', { class: 'lede' },
+  /* The personal pages' heading. `.h1` and `.lede` had no rules, so this
+     title was the browser's 32px at weight 600 — a size and weight no other
+     page uses. */
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'My workspace'),
+    el('h1', {}, 'Tracked'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Price and trend only. Nothing here is valued, scored or ranked — these are instruments the engine cannot analyse, followed so the direction is visible alongside the research.'),
-  ]));
+  ])));
 
   const book = priceBook?.prices || {};
   const series = trackedHistory?.series || {};
@@ -27711,13 +28277,13 @@ VIEWS.tracked = () => {
 VIEWS.alerts = () => {
   const wrap = el('div');
   wrap.append(mySubnav('alerts'));
-  appendSampleBanner(wrap);
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Alerts'),
     el('h1', {}, 'Tell me what changed, and why it matters to my thesis'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Every alert names the fact that changed, the source period, and which thesis condition it maps to. None of them contains an instruction to buy or sell.'),
   ])));
+  appendSampleBanner(wrap);
 
   /* generated alert feed, thesis-linked first */
   const items = [];
@@ -27911,12 +28477,6 @@ const LEARN_TABS = [
 
 VIEWS.learn = () => {
   const wrap = el('div');
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Learn'),
-    el('h1', {}, 'Methodology, in public'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'If a number cannot be explained, it should not be shown. Every formula, weight, anchor range and limitation used anywhere in this prototype is published here.'),
-  ])));
   /* /learn/glossary is a route in the table and a link in the navigation, but
      'glossary' is not a tab id — the tab is 'dictionary', labelled "Metric
      dictionary". The lookup returned undefined and calling it threw, so the
@@ -27925,6 +28485,17 @@ VIEWS.learn = () => {
      aliased rather than renamed because these URLs are already in the wild. */
   const panels = { dictionary: learnDictionary, scoring: learnScoring, models: learnModels, data: learnData, trust: learnTrust };
   if (!panels[State.learnTab]) State.learnTab = LEARN_TAB_ALIAS[State.learnTab] || 'dictionary';
+  /* The heading names the tab on screen. Five Resources links open this
+     page — Methodology, Data sources, Glossary, Learn, Corrections — and every
+     one landed on the same "Methodology, in public", so the heading never
+     confirmed which had been chosen. The section's name is the eyebrow. */
+  const tabLabel = LEARN_TABS.find(t => t.id === State.learnTab)?.label || 'Metric dictionary';
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Learn · Methodology, in public'),
+    el('h1', {}, tabLabel),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'If a number cannot be explained, it should not be shown. Every formula, weight, anchor range and limitation used anywhere in this prototype is published here.'),
+  ])));
 
   /* Through the address. Four of the five tabs are pages in their own right
      (/learn/glossary, /methodology, /data-sources, /corrections) and the
@@ -33969,7 +34540,7 @@ VIEWS.property = () => {
     el('span', { class: 'chip chip-bronze' }, 'Not a valuation'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' }, [
       'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.',
-      el('span', { class: 'disclosure-long' },
+      el('span', { class: 'fold-phone' },
         ' This is an investment estimate built from your inputs and sample transaction data. Figures are scenarios, not predictions.'),
     ]),
   ]));
@@ -33981,12 +34552,15 @@ VIEWS.property = () => {
      `touched` and `evidence` are cleared with them, so the restored figures go
      back to being honestly labelled illustrative defaults rather than
      inheriting the previous reader's provenance. */
+  /* Saving the deal is the calculator's working action, so it is the page's
+     one primary button; the report paywall's buttons at the page's end were
+     the only filled ones, 15,000px down. */
   wrap.append(workBar('property', () => {
     State.deal = { ...PROPERTY_DEFAULT_DEAL, touched: {},
       evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
       checks: { ...PROPERTY_DEFAULT_DEAL.checks } };
     saveDeal();
-  }));
+  }, { primary: true, saveLabel: 'Save this deal' }));
 
   /* Stated once, at the top, while any figure that drives the model is still a
      seeded number. "Built from your inputs" in the line above is only true once
@@ -35522,7 +36096,7 @@ VIEWS.property = () => {
     const included = num0(lim('propertyReports'));
     if (included > 0) {
       const left = propertyReportsLeft();
-      buy.append(el('button', { class: 'btn btn-primary btn-sm', disabled: left > 0 ? null : '',
+      buy.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: left > 0 ? null : '',
         onclick: () => {
           if (!usePropertyReport(d.projectId)) { toast(`This month's ${included} included reports are used`); return; }
           toast(`Included report used — ${propertyReportsLeft()} left this month`); render();
@@ -35530,7 +36104,7 @@ VIEWS.property = () => {
           ? `Use an included report — ${left} of ${included} left this month`
           : `All ${included} included reports used this month`));
     }
-    buy.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+    buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
       State.propertyReportsBought = [...State.propertyReportsBought, d.projectId];
       store.write('propertyReportsBought', State.propertyReportsBought);
       toast('Report unlocked — no payment was taken, this is a prototype'); render();
@@ -37407,7 +37981,7 @@ const CAPABILITY_REGISTER = [
                        : 'no price history is held here, and this site ships none. ')
         + tail;
     } },
-  { name:'Portfolio and My Investments', status:'maintenance', path:'/my/portfolio',
+  { name:'Portfolio and holdings', status:'maintenance', path:'/my/portfolio',
     now:'Holdings, weights, currency attribution and thesis links.' },
   { name:'Thesis, catalysts and invalidation', status:'maintenance', path:'/my/theses',
     now:'User-authored conditions evaluated against current data, with the proximity rule published.' },
@@ -43080,15 +43654,18 @@ const SCANNER_SUBNAV = [
    main navigation read "Scanner 24" over a strip that read only "Alerts".
    No count when nothing is counted (no alerts file, in-app off) or none is
    unread, as the main navigation's badge. */
+/* Drawn as the product tab row Equities and Property wear (sectionTabs,
+   35-ui.js): the Scanner's name and badge, then one scrolling row of
+   underline tabs. It was a grey box of pills with no name, wrapping into
+   three rows on a phone, one level of navigation drawn two ways across the
+   three products. The table and the unread count are unchanged. */
 function scannerSubnav(active) {
-  const row = el('nav', { class: 'segmented scan-subnav', 'aria-label': 'Scanner sections' });
   const unread = scanOpsUnread();
-  SCANNER_SUBNAV.forEach(s => {
-    const n = s.id === 'alerts' && unread > 0 ? unread : 0;
-    row.append(scanOpsLink(s.path, n ? `${s.label} · ${n}` : s.label, {
-      'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null, 'aria-label': n ? `${s.label}, ${n} unread` : null }));
-  });
-  return row;
+  return sectionTabs({ label: 'Scanner sections', pid: 'scanner', cls: 'scan-subnav', inView: true,
+    tabs: SCANNER_SUBNAV.map(s => {
+      const n = s.id === 'alerts' && unread > 0 ? unread : 0;
+      return { label: n ? `${s.label} · ${n}` : s.label, path: s.path, current: active === s.id, ariaLabel: n ? `${s.label}, ${n} unread` : null };
+    }) });
 }
 const SCANNER_OPS_NAV = [
   { id: 'overview', label: 'Overview',    path: '/admin/scanner' },
@@ -43402,8 +43979,14 @@ VIEWS.scannerDashboard = () => {
   const S = SCAN_STATE[st.state] || SCAN_STATE.never;
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(scannerSubnav('dashboard'));
-  wrap.append(scanOpsHead('Quantum Scanner · personal lane', 'Scanner',
-    'Whether your setups are active, when the last scan succeeded, which setups matched and whether anything is delivered — read from what the worker recorded on this machine. Nothing here is a scan run by this page and presented as the worker’s.'));
+  /* The product's one action, as its entry in PRODUCTS names it, is the
+     overview's primary: the page had none, and "Create a setup" was two
+     clicks away under Setups. */
+  const head = scanOpsHead('Quantum Scanner · personal lane', 'Scanner',
+    'Whether your setups are active, when the last scan succeeded, which setups matched and whether anything is delivered — read from what the worker recorded on this machine. Nothing here is a scan run by this page and presented as the worker’s.');
+  const sc = typeof productById === 'function' ? productById('scanner') : null;
+  if (sc?.action && sc.actionPath && matchRoute(sc.actionPath)) head.append(scanOpsLink(sc.actionPath, sc.action, { class: 'btn btn-primary' }));
+  wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
 
@@ -45678,7 +46261,9 @@ VIEWS.plans = () => {
   ]));
   wrap.append(bar);
 
-  const grid = el('div', { class: 'grid g-3', style: 'align-items:start' });
+  /* Equal-height cards, each a column with its action at the foot, so the
+     three actions sit on one line; they stood at three heights. */
+  const grid = el('div', { class: 'grid g-3 plan-grid' });
   Object.values(PLANS).forEach(pl => {
     const active = State.plan === pl.id;
     /* A TIER THAT IS NOT ON SALE DOES NOT LOOK LIKE ONE THAT IS.
@@ -45693,7 +46278,7 @@ VIEWS.plans = () => {
        should reach an unlaunched tier at all is a product decision this does
        not make. */
     const onSale = pl.launched !== false;
-    const card = el('div', { class: 'card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
+    const card = el('div', { class: 'card plan-card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
       el('h3', { class: 'h-card' }, pl.name),
       active ? el('span', { class: 'chip chip-brand' }, onSale ? 'Current' : 'Previewing') : null,
@@ -45746,12 +46331,17 @@ VIEWS.plans = () => {
     const dl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
     rows.forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', {}, v)); });
     card.append(dl);
-    card.append(el('button', { class: active || !onSale ? 'btn btn-ghost btn-sm' : 'btn btn-primary btn-sm', style: 'width:100%',
-      disabled: active ? '' : null, onclick: () => setPlan(pl.id) },
-      active ? (onSale ? 'Current plan' : 'Previewing in this browser')
-        : onSale ? `Switch to ${pl.name}` : `Preview ${pl.name} in this browser`));
-    if (!onSale) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    if (!onSale) card.append(el('p', { class: 'metaline', style: 'margin:-4px 0 var(--md)' },
       `${pl.name} has not launched and cannot be bought. The preview turns on its entitlements here, as the switch on every card does, so the view it adds can be inspected.`));
+    /* The plan in force is a state, said as one — a marked line with a tick —
+       not a disabled button at 45% opacity, which in the dark theme was
+       barely there. The others are full-height buttons (.btn, not .btn-sm):
+       a 30px "Switch to…" was outweighed by the header's 40px action. */
+    card.append(active
+      ? el('p', { class: 'plan-cta plan-current' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 15) }),
+          onSale ? 'Current plan' : 'Previewing in this browser'])
+      : el('button', { class: `plan-cta btn ${onSale ? 'btn-primary' : 'btn-ghost'}`, onclick: () => setPlan(pl.id) },
+          onSale ? `Switch to ${pl.name}` : `Preview ${pl.name} in this browser`));
     grid.append(card);
   });
   wrap.append(grid);
@@ -45761,8 +46351,12 @@ VIEWS.plans = () => {
   pr.append(cardHead('Property Deal Check — priced per report',
     'Transactional rather than recurring. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this covers the same ground and adds the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
-  const pt = el('table', { class: 'dt' });
-  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Price', 'What it adds'].map(h => el('th', {}, h)))));
+  /* "What it adds" is prose, left-aligned in its cells, so its heading is
+     too — it sat right-aligned over them. Below 600px the rows stack (name
+     and price, then what it adds): the table ran 336px in a 308px scroller
+     and cut the description to a 100px column. */
+  const pt = el('table', { class: 'dt dt-stack' });
+  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Price', 'What it adds'].map((h, i) => el('th', { style: i === 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
     ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.'],
     ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Comparable transactions, price and rental ranges, net operating income, cash-on-cash, debt-service cover, ten-year scenarios, exit costs and the equity comparison.'],
@@ -45775,7 +46369,9 @@ VIEWS.plans = () => {
   /* what is deliberately not monetised */
   const mp = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   /* One line where the argument used to be, with the argument a click away. */
-  const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
+  /* Spaced from the report card above it, as every card on the page is:
+     the two touched with no gap. */
+  const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand);margin-top:var(--md)' });
   boundaryLine.append(el('p', { class: 'body', style: 'font-size:13px' },
     'What you are paying for is research: analysis, evidence and tools that let you reach your own conclusion — not a conclusion. There are no ratings, no target prices and no suitability questions, and that is a product boundary rather than a backlog.'));
   boundaryLine.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', href: href('/learn/product-boundaries'),
@@ -46262,7 +46858,7 @@ function runSearch(q) {
       nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
         el('span', { style: 'font-size:13px;font-weight:600' }, ins.symbol), marketChip(ins.market),
         el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]));
-      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on My Investments › Tracked`));
+      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on Watchlists › Tracked`));
       b.append(nm);
       return b;
     }
@@ -46996,7 +47592,7 @@ VIEWS.decisionRecord = () => {
   const bar = el('div', { class: 'card dr-chrome' });
   bar.append(cardHead('Decision record',
     'One page holding the figures, every input with where it came from, the pictures and everything still open. '
-    + 'Print it or save it as PDF — this is the version that leaves the browser.'));
+    + 'Print it or save it as PDF — this is the version that leaves the browser.', null, { heading: false }));
   if (ready.length > 1) {
     const seg = el('div', { class: 'segmented', style: 'margin-top:var(--md)', role: 'tablist' });
     /* Focus stays on the tab that was pressed; render() alone replaced it and

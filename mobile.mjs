@@ -950,6 +950,13 @@ for (const w of [360, 390]) {
         if (State.view === 'notfound') bad.push(where + ' ' + p + ': the not-found card');
       }
       const things = [...document.querySelectorAll('a, button')].filter(n => /Business Intelligence/.test(n.textContent));
+      /* release-a fixes: and on the pages that name it most — the homepage,
+         /how-it-works (whose jump list made it a link) and the dashboard. */
+      for (const p of ['/', '/how-it-works', '/app']) {
+        navigate(p); await w(80);
+        [...document.querySelectorAll('a, button')].filter(n => /Business Intelligence/.test(n.textContent)).forEach(n => things.push(n));
+      }
+      navigate('/property/areas'); await w(80);
       const inSidebar = /Business Intelligence/.test(document.getElementById('sidebar')?.textContent || '');
       const tabsPresent = !!document.querySelector('#productTabs nav[aria-label="Property Intelligence sections"]');
       /* The chrome draws some lists twice (the menu and the phone sheet);
@@ -1000,6 +1007,19 @@ for (const w of [360, 390]) {
     await press('Enter');
     const sheet = await ev(`({ exp: document.getElementById('pubMenuBtn').getAttribute('aria-expanded'), shown: document.getElementById('pubSheet').getClientRects().length > 0,
       over: document.documentElement.scrollWidth - innerWidth })`);
+    /* release-a fixes: the open sheet is a finger's list — every link and
+       button in it 44px tall (its Resources links were 36px) — the page behind
+       it is inert, and the menu button keeps its name while its icon turns
+       to a cross. */
+    await sleep(250);
+    const sheetT = await ev(`({ small: [...document.querySelectorAll('#pubSheet a, #pubSheet button')].filter(n => n.getClientRects().length && n.getBoundingClientRect().height < 44)
+        .map(n => n.textContent.trim() + ' ' + Math.round(n.getBoundingClientRect().height)),
+      inert: ['.disclosure', '#main', 'body > .footer'].every(s => document.querySelector(s)?.inert === true),
+      label: document.getElementById('pubMenuBtn').getAttribute('aria-label'),
+      cross: getComputedStyle(document.querySelector('#pubMenuBtn .ico-close')).display !== 'none' })`);
+    if (sheetT?.small?.length) fails.push(`targets under 44px in the open sheet: ${sheetT.small.join(', ')}`);
+    if (!sheetT?.inert) fails.push('the page behind the open sheet is not inert');
+    if (sheetT?.label !== 'Menu' || !sheetT?.cross) fails.push(`the open sheet's button: ${JSON.stringify(sheetT)}`);
     await press('Escape');
     const sheetClosed = await ev(`({ hidden: document.getElementById('pubSheet').hidden, focus: document.activeElement?.id })`);
     if (sheet?.exp !== 'true' || !sheet.shown) fails.push(`the sheet did not open from the keyboard: ${JSON.stringify(sheet)}`);
