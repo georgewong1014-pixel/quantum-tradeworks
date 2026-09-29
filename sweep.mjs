@@ -178,6 +178,78 @@ for (const route of ROUTES) {
   if (issues.length) { bad++; console.log(`FAIL ${route}`); issues.forEach(i => console.log('     ' + i)); }
   else console.log(`ok   ${route}`);
 }
+/* ---- audit: serving ---- */
+/* THE HEAD AN ADDRESS IS SERVED IS THE HEAD ITS PAGE SETS. The router writes
+   the title, the description and the canonical once its script runs; a link
+   preview and a crawler read the HTML before it does, and until build.mjs
+   wrote a page per route every address was served the homepage's. Each
+   address without a parameter — the page's own ROUTES, read from the page —
+   is fetched raw, as a preview fetches it, then opened here, and the two
+   must agree. served-check.mjs holds the served head to the router's code
+   evaluated offline; this holds it to the router running in a browser, so
+   the two cannot share a mistake. An unknown address is served 404 and the
+   app still draws its not-found card on it; a parameter route is the app,
+   served 200. */
+{
+  const decode = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const tagIn = (html, re) => { const m = html.slice(0, html.indexOf('</head>')).match(re); return m ? decode(m[1]) : null; };
+  const served = async (path) => {
+    const r = await fetch(BASE + path, { redirect: 'manual' });
+    const html = await r.text();
+    return { status: r.status, title: tagIn(html, /<title>([^<]*)<\/title>/),
+      description: tagIn(html, /<meta name="description" content="([^"]*)">/),
+      canonical: tagIn(html, /<link rel="canonical" href="([^"]*)">/),
+      ogUrl: tagIn(html, /<meta property="og:url" content="([^"]*)">/),
+      robots: tagIn(html, /<meta name="robots" content="([^"]*)">/) };
+  };
+  const evalValue = async (expression) => (await send('Runtime.evaluate', { returnByValue: true, expression }, sessionId)).result?.result?.value;
+  /* Opened fresh, and read once the router has run: the old document is
+     marked so it cannot be mistaken for the new one. */
+  const open = async (path) => {
+    await evalValue('window.__servingMark = 1');
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 100; i++) {
+      if (await evalValue(`!window.__servingMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`)) break;
+      await sleep(100);
+    }
+    return evalValue(`({ view: State.view, title: document.title,
+      description: document.querySelector('meta[name="description"]')?.getAttribute('content') ?? null,
+      canonical: document.querySelector('link[rel="canonical"]')?.href ?? null,
+      main: (document.querySelector('main')?.innerText || '').slice(0, 400) })`);
+  };
+  const at = (u) => { try { const x = new URL(u); return x.pathname + x.search; } catch { return String(u); } };
+  const problems = [];
+  const statics = await evalValue(`[...new Set(ROUTES.filter(r => !r.path.includes(':')).map(r => r.path))].filter(p => matchRoute(p).path === p)`) || [];
+  if (statics.length < 40) problems.push(`only ${statics.length} addresses without a parameter read from the page's ROUTES`);
+  for (const path of statics) {
+    const s = await served(path);
+    const c = await open(path);
+    if (s.status !== 200) { problems.push(`${path}: served ${s.status}`); continue; }
+    if (!c || c.view === 'notfound') { problems.push(`${path}: the page did not open (${c && c.view})`); continue; }
+    if (s.title !== c.title) problems.push(`${path}: served title ${JSON.stringify(s.title)}, the page sets ${JSON.stringify(c.title)}`);
+    if (s.description !== c.description) problems.push(`${path}: served description ${JSON.stringify((s.description || '').slice(0, 60))}…, the page sets ${JSON.stringify((c.description || '').slice(0, 60))}…`);
+    if (at(s.canonical) !== at(c.canonical)) problems.push(`${path}: served canonical ${s.canonical}, the page sets ${c.canonical}`);
+    if (s.ogUrl !== s.canonical) problems.push(`${path}: og:url ${s.ogUrl} is not the canonical ${s.canonical}`);
+    if (s.robots) problems.push(`${path}: served with robots ${s.robots}`);
+  }
+  for (const path of ['/nope-xyz', '/deep/unknown/address/for-the-sweep']) {
+    const s = await served(path);
+    const c = await open(path);
+    if (s.status !== 404) problems.push(`${path}: served ${s.status}, not 404`);
+    if (s.robots !== 'noindex') problems.push(`${path}: served with robots ${JSON.stringify(s.robots)}, not noindex`);
+    if (!c || c.view !== 'notfound' || !/does not exist/i.test(c.main)) problems.push(`${path}: the not-found card is not drawn (${c && c.view}: ${JSON.stringify((c?.main || '').slice(0, 60))})`);
+    else if (s.title !== c.title) problems.push(`${path}: served title ${JSON.stringify(s.title)}, the page sets ${JSON.stringify(c.title)}`);
+  }
+  const param = await served('/company/aapl-apple-inc');
+  if (param.status !== 200) problems.push(`/company/aapl-apple-inc: served ${param.status}, not 200`);
+  /* A trailing /index.html names its folder. Answered with the 404 page, the
+     router took the folder for the app's own base and drew the homepage. */
+  const folder = await open('/nope-folder/index.html');
+  if (!folder || folder.view !== 'notfound' || !/does not exist/i.test(folder.main)) problems.push(`/nope-folder/index.html: ${folder && folder.view}, not the not-found card`);
+  if (problems.length) { bad++; console.log(`FAIL serving: the head served is not the head the page sets`); problems.slice(0, 20).forEach(p => console.log('     ' + p)); }
+  else console.log(`ok   serving: ${statics.length} addresses served the title, description and canonical their page sets; two unknown addresses 404 with the not-found card drawn, and an unknown folder's /index.html too; a company address 200`);
+}
+/* ---- end audit: serving ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

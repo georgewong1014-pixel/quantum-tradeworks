@@ -52,11 +52,30 @@ jobs:
       - name: JavaScript parses
         run: node syntax.mjs
 
-      # The one failure mode the src/ split introduces. index.html and
-      # vercel.json are both committed build outputs; if either drifts from the
-      # source, what deploys is not what anybody reviewed.
-      - name: index.html and vercel.json match src/
+      # The one failure mode the src/ split introduces. index.html, 404.html,
+      # the route pages under pages/ and vercel.json are all committed build
+      # outputs; if any drifts from the source, or a page is left behind by a
+      # route that is gone, what deploys is not what anybody reviewed. It also
+      # holds sitemap.xml to the canonical addresses the router sets.
+      - name: index.html, 404.html, pages/ and vercel.json match src/
         run: node build.mjs --check
+
+      # Every address is served what Vercel will serve it, before any script
+      # runs — which is all a link preview or a crawler ever reads. A route's
+      # own title, description, canonical and og: tags on its own page; the
+      # generic page for /company/:id and the other parameter routes; a real
+      # 404, with noindex, for an address nothing answers; a 308 for a trailing
+      # slash; the data files untouched; the headers, CSP first, on every page.
+      # serve.mjs answers from vercel.json by Vercel's rules, so this needs no
+      # browser. `node served-check.mjs --url <site>` asks the deployed site.
+      - name: every address is served its own head, and an unknown one a 404
+        run: |
+          nohup node serve.mjs --port 8124 > /tmp/serve-static.log 2>&1 &
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null http://localhost:8124/ && break
+            sleep 0.25
+          done
+          node served-check.mjs http://localhost:8124
 
       # The SEC ingest's selection rule — which of a concept's many reported
       # facts becomes the year's figure — on a fixture, with no network. It
