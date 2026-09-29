@@ -1081,7 +1081,12 @@ function scanBacktestResult(R) {
     rows.map(r => {
       const m = byBar.get(`${r.symbol}|${r.bar}`) || r;
       const det = el('details', { class: 'scan-row-det' });
-      det.append(el('summary', { class: 'caption' }, `${(m.conditions || []).filter(x => x.state === 'MET').length} of ${(m.conditions || []).length} conditions held${m.barStatus === 'UNKNOWN' ? ' · no capture time recorded for the bar' : m.barStatus ? ` · bar ${m.barStatus.toLowerCase()}` : ''}`));
+      /* A weekly or monthly setup's own bar says whether it was imported or
+         built from the daily bars (scanHistorical's barOrigin), as the
+         alert page's "Read on" says it of the worker's record; the rows
+         said neither, while a condition read on a higher timeframe did. */
+      const origin = m.barOrigin === 'imported' ? ' · imported' : m.barOrigin === 'daily' ? ' · built from daily bars' : '';
+      det.append(el('summary', { class: 'caption' }, `${(m.conditions || []).filter(x => x.state === 'MET').length} of ${(m.conditions || []).length} conditions held${m.barStatus === 'UNKNOWN' ? ' · no capture time recorded for the bar' : m.barStatus ? ` · bar ${m.barStatus.toLowerCase()}` : ''}${origin}`));
       det.append(scanOpsConds(m.conditions));
       return [r.symbol, r.bar, scanOpsPrice(r.close), r.eventType ? r.eventType.replace(/_/g, ' ').toLowerCase() : 'held', det];
     }), { wrapCols: [4], caption: `${cur[1]}, symbol then date order` }), { step: 100, noun: 'dates' }));
