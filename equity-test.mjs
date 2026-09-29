@@ -8703,6 +8703,568 @@ try {
   }
   /* ---- end bugfix: render-focus-verify ---- */
 
+
+
+
+  /* ---- fixwave: workspace ---- */
+  /* THE WORKSPACE PAGES, AFTER THE 2026-09-29 HUNT. One check per finding,
+     each named by its id. It runs last because it starts from a cleared
+     browser (the first visit's samples are what several findings are
+     about) and reloads the app five times; nothing after it reads what it
+     leaves. Exceptions and console errors are collected while it runs, so
+     a page that throws fails the check that opened it. */
+  {
+    const wsErrors = [];
+    const wsListen = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.sessionId !== sessionId) return;
+      if (m.method === 'Runtime.exceptionThrown') wsErrors.push(String(m.params.exceptionDetails?.exception?.description || m.params.exceptionDetails?.text || 'exception').split('\n')[0]);
+      if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') wsErrors.push((m.params.args || []).map(a => a.value ?? a.description ?? '').join(' ').split('\n')[0].slice(0, 200));
+    };
+    ws.addEventListener('message', wsListen);
+    /* A fresh page load, waited on until the filings are in (or 20s, so a
+       page that never finishes loading is reported rather than hung on). */
+    const wsOpen = async (path, seed) => {
+      await evaluate(`(() => { ${seed === undefined ? '' : `localStorage.clear(); ${seed};`} window.__wsGone = true; return true; })()`);
+      await send('Page.navigate', { url: `${BASE}${path}` }, sessionId);
+      for (const t = Date.now(); Date.now() - t < 20000; await sleep(100)) {
+        try { if (await evaluate(`!window.__wsGone && typeof realPending !== 'undefined' && !realPending && !!State.view`)) { await sleep(300); return true; } } catch { /* booting */ }
+      }
+      return false;
+    };
+    const FRESH = (plan) => `localStorage.setItem('vl.plan', JSON.stringify('${plan}')); localStorage.setItem('vl.onboarding', JSON.stringify({ done: true, at: '2026-09-27T00:00:00Z' }))`;
+    const W = 'const w = (ms) => new Promise(r => setTimeout(r, ms)); const txt = (n) => (n ? n.innerText : \'\').replace(/\\s+/g, \' \').trim();';
+    const report = (id, what, p, okText) => { if (p.length) fail(`fixwave workspace ${id}: ${what}`, p); else ok(`fixwave workspace ${id}: ${okText || what}`); };
+    try {
+      /* ---------- A first visit on the Free plan: the seeded samples ---------- */
+      await wsOpen('/app', FRESH('free'));
+
+      /* WS-17 — a snapshot of the calculator's untouched sample inputs is a
+         sample, not "your own inputs", and does not make the dashboard the
+         returning one. A snapshot of an edited deal is the reader's. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          const before = myDashOwn().propertySnaps;
+          const rec = saveWork('property', 'WS17 untouched');
+          const it = workspaceItems().find(i => i.kind === 'work' && i.key === rec.id);
+          const o = myDashOwn();
+          navigate('/app'); await w(150);
+          const out = { sample: !!it?.sample, detail: it?.detail || '', snaps: o.propertySnaps - before, hasOwn: o.hasOwn, start: !!document.querySelector('.dash-start') };
+          navigate('/my/workspace'); await w(150);
+          const row = [...document.querySelectorAll('.ws-row')].find(x => x.textContent.includes('WS17 untouched'));
+          out.chip = !!row && [...row.querySelectorAll('.chip')].some(c => c.textContent.trim() === 'sample');
+          const keepDeal = JSON.stringify(State.deal);
+          State.deal = { ...State.deal, price: 610000, touched: { ...(State.deal.touched || {}), price: true } };
+          const mine = saveWork('property', 'WS17 edited');
+          const it2 = workspaceItems().find(i => i.kind === 'work' && i.key === mine.id);
+          out.mine = { sample: !!it2?.sample, snaps: myDashOwn().propertySnaps - before };
+          deleteWork(rec.id); deleteWork(mine.id); State.deal = JSON.parse(keepDeal);
+          return out;
+        })()`);
+        const p = [];
+        if (!r.sample || /Your own inputs/.test(r.detail)) p.push(`an untouched deal's snapshot is listed as "${r.detail}", sample ${r.sample}`);
+        if (!r.chip) p.push('Saved Models shows no sample chip on it');
+        if (r.snaps || r.hasOwn || !r.start) p.push(`it counts as own work: ${r.snaps} property snapshots, hasOwn ${r.hasOwn}, first-time checklist ${r.start}`);
+        if (r.mine.sample || r.mine.snaps !== 1) p.push(`an edited deal's snapshot: sample ${r.mine.sample}, counted ${r.mine.snaps}`);
+        report('WS-17', 'a snapshot of the sample inputs is labelled a sample and is not counted as the reader\'s work; an edited one is', p);
+      }
+
+      /* WS-05 — /my/data names the samples as samples, with the banner. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          const held = () => { const card = [...document.querySelectorAll('main .card')].find(c => /Everything you have made/.test(c.querySelector('h3, h2')?.textContent || ''));
+            const dts = [...(card?.querySelectorAll('dt') || [])]; return Object.fromEntries(dts.map(d => [d.textContent.trim(), d.nextElementSibling?.textContent.trim() || ''])); };
+          navigate('/my/data'); await w(150);
+          const out = { banner: !!document.querySelector('main .sample-banner'), first: held() };
+          seedWorkedExample(); render(); await w(150);
+          out.example = held();
+          clearWorkedExample(); render();
+          return out;
+        })()`);
+        const p = [];
+        if (!r.banner) p.push('/my/data has no sample banner');
+        for (const k of ['Portfolios and holdings', 'Investment cases', 'Watchlists', 'Price alerts'])
+          if (!/sample/i.test(r.first[k] || '')) p.push(`first visit: "${k}" reads "${r.first[k]}"`);
+        for (const k of ['Property comparables', 'Cash Wheel plan'])
+          if (!/sample|worked example/i.test(r.example[k] || '')) p.push(`worked example loaded: "${k}" reads "${r.example[k]}"`);
+        report('WS-05', '"Everything you have made" says which records are samples, and the page carries the sample banner', p);
+      }
+
+      /* EQ-05 — the seeded case on a company page says it is a sample and
+         the seven-step review does not count it as the reader's work. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          navigate('/company/MAYBANK'); await w(250);
+          const btn = [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()).find(t => /investment case|Save research/.test(t)) || '';
+          navigate('/company/MAYBANK?tab=thesis'); await w(250);
+          const cards = [...document.querySelectorAll('main .card')];
+          const seven = cards.find(c => /Seven-step review/.test(c.textContent));
+          const step6 = seven ? [...seven.querySelectorAll('.row')].map(x => txt(x)).find(t => /Write down what would prove you wrong/i.test(t)) : '';
+          const card = cards.find(c => /Invalidation conditions/.test(c.textContent));
+          return { btn, sampleChip: !!card && [...card.querySelectorAll('.chip')].some(c => /sample/i.test(c.textContent)), step6: step6 || '' };
+        })()`);
+        const p = [];
+        if (!/sample/i.test(r.btn)) p.push(`header button reads "${r.btn}"`);
+        if (!r.sampleChip) p.push('the Thesis tab\'s case carries no sample chip');
+        if (/Satisfied/i.test(r.step6) || !/sample/i.test(r.step6)) p.push(`seven-step review, step 6: "${r.step6}"`);
+        report('EQ-05', 'the seeded investment case is marked as a sample on the company page and is not counted as work done', p);
+      }
+
+      /* WS-06 / WS-07 — the reader's own portfolio: no unpriced holding at
+         0.0% in the exposures, no "Sample positions." caption, and counts
+         in the singular where there is one. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          const read = () => {
+            const cards = [...document.querySelectorAll('main .card')];
+            const expo = cards.filter(c => /Sector exposure|Business-model exposure/.test(c.querySelector('h3')?.textContent || '')).map(txt);
+            const cap = cards.map(c => c.querySelector('.caption')).find(n => n && /Return is split/.test(n.textContent))?.textContent || '';
+            const tile = cards.map(txt).find(t => /^Portfolio value/i.test(t)) || '';
+            const opt = [...document.querySelectorAll('#pf-active option')].map(o => o.textContent);
+            return { expo, cap, tile, opt };
+          };
+          State.portfolios.push({ id: 'pf-ws', name: 'WS own', cash: 0, cashCcy: 'MYR', holdings: [{ id: 'MSFT-SEC', qty: 10, cost: 400, fx0: 4.4, fee: 0, rebate: 0 }] });
+          State.pfIdx = State.portfolios.length - 1; navigate('/my/portfolio'); await w(150);
+          const one = read();
+          activePF().holdings.push({ id: 'PBBANK', qty: 1000, cost: 4, fx0: 4.4, fee: 0, rebate: 0 }); render(); await w(100);
+          const two = read();
+          State.pfIdx = State.portfolios.findIndex(p => p.id === 'pf-2'); render(); await w(100);
+          const sleeve = read();
+          State.pfIdx = State.portfolios.findIndex(p => p.id === 'pf-1'); render(); await w(100);
+          const seeded = read();
+          State.portfolios = State.portfolios.filter(p => p.id !== 'pf-ws'); State.pfIdx = 0; savePortfolios();
+          return { one, two, sleeve, seeded, msftPriced: isNum(BY_ID.get('MSFT-SEC')?.c.px?.p), pbPriced: isNum(BY_ID.get('PBBANK')?.c.px?.p) };
+        })()`);
+        const p6 = [], p7 = [];
+        if (r.msftPriced || !r.pbPriced) p6.push(`the check needs MSFT-SEC unpriced and PBBANK priced: ${r.msftPriced}, ${r.pbPriced}`);
+        for (const [k, v] of [['MSFT alone', r.one], ['MSFT and PBBANK', r.two], ['the US sleeve', r.sleeve]]) {
+          if (v.expo.some(t => /\b0\.0%/.test(t))) p6.push(`${k}: an exposure reads 0.0% — ${v.expo.join(' || ').slice(0, 240)}`);
+          if (!v.expo.every(t => /no price/i.test(t))) p6.push(`${k}: the exposure cards do not say which holdings have no price`);
+        }
+        if (!r.two.expo.some(t => /100\.0%/.test(t))) p6.push(`MSFT and PBBANK: the priced holding is not the whole of the priced value — ${r.two.expo[0]}`);
+        if (/Sample positions/.test(r.one.cap)) p7.push(`the reader's own portfolio is captioned "…${r.one.cap.slice(-40)}"`);
+        if (!/Sample positions/.test(r.seeded.cap)) p7.push('the seeded portfolio lost its "Sample positions." caption');
+        if (/\b1 positions\b/.test(r.one.tile)) p7.push(`tile reads "${r.one.tile}"`);
+        if (r.one.opt.some(o => /\b1 holdings\b/.test(o))) p7.push(`select reads ${JSON.stringify(r.one.opt)}`);
+        report('WS-06', 'a holding with no price is left out of the exposure shares and named, never shown at 0.0%', p6);
+        report('WS-07', '"Sample positions." captions only a seeded portfolio, and one position or holding is singular', p7);
+      }
+
+      /* WS-15 — dates are the reader's local date. The zone is chosen so its
+         date differs from the UTC date at the moment the check runs. */
+      {
+        const tz = new Date().getUTCHours() >= 10 ? 'Pacific/Kiritimati' : 'Pacific/Pago_Pago';
+        await send('Emulation.setTimezoneOverride', { timezoneId: tz }, sessionId);
+        let r;
+        try {
+          r = await evaluate(`(async () => { ${W}
+            const d = new Date(), pad = (n) => String(n).padStart(2, '0');
+            const local = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()), utc = d.toISOString().slice(0, 10);
+            const keepPlan = State.plan; State.plan = 'pro';
+            const c = wlCreate('WS15 list'); wlAdd(c.watchlist.id, 'MSFT-SEC');
+            navigate('/my/watchlists'); await w(150);
+            const card = [...document.querySelectorAll('main .card')].find(k => k.querySelector('input[aria-label="Name of watchlist WS15 list"]'));
+            const chips = [...(card?.querySelectorAll('.chip') || [])].map(x => x.textContent.trim());
+            const added = [...(card?.querySelectorAll('tbody tr') || [])].map(tr => tr.children[4].textContent.trim());
+            wlDelete(c.watchlist.id);
+            State.theses = State.theses.filter(t => t.ticker !== 'TENAGA');
+            addToThesis('TENAGA');
+            const th = State.theses.find(t => t.ticker === 'TENAGA');
+            State.theses = State.theses.filter(t => t !== th); saveTheses();
+            State.pfIdx = Math.max(0, State.portfolios.findIndex(p => p.id === 'pf-1'));
+            navigate('/my/portfolio'); await w(150);
+            const div = document.getElementById('divDate')?.value || null;
+            State.plan = keepPlan;
+            return { tz: Intl.DateTimeFormat().resolvedOptions().timeZone, local, utc, chips, added, created: th?.created, review: th?.review, div };
+          })()`);
+        } finally { await send('Emulation.setTimezoneOverride', { timezoneId: '' }, sessionId); }
+        const p = [];
+        if (r.local === r.utc) p.push(`in ${r.tz} the local date ${r.local} is the UTC date — the check cannot tell them apart`);
+        if (!r.chips.includes(`created ${r.local}`) || !r.chips.includes(`updated ${r.local}`)) p.push(`watchlist chips ${JSON.stringify(r.chips)} (local ${r.local})`);
+        if (!r.added.length || r.added.some(a => a !== r.local)) p.push(`Added column ${JSON.stringify(r.added)} (local ${r.local})`);
+        if (r.created !== r.local) p.push(`a case started now is "Created ${r.created}" (local ${r.local})`);
+        if (r.div !== r.local) p.push(`the dividend's Date paid defaults to ${r.div} (local ${r.local})`);
+        report('WS-15', `dates on the watchlist, case and dividend surfaces are the reader's local date (${r.tz}, local ${r.local}, UTC ${r.utc})`, p);
+      }
+
+      /* WS-08 — the thesis editor keeps every keystroke, so closing it with
+         Escape shows what was kept, and focus goes back to the card's Edit. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          navigate('/my/theses'); await w(150);
+          const t = State.theses.find(x => x.id === 't1') || State.theses[0];
+          const tk = BY_ID.get(t.ticker)?.c.tk || t.ticker;
+          const cardOf = () => [...document.querySelectorAll('main .card')].find(c => c.querySelector('h3')?.textContent.trim() === tk && /Invalidation conditions/.test(c.textContent));
+          const edit = [...cardOf().querySelectorAll('button')].find(b => b.textContent.trim() === 'Edit');
+          edit.focus(); edit.click(); await w(400);
+          const f = document.getElementById('th-oneLine');
+          const said = 'WS08 my own words about ' + tk;
+          f.focus(); f.value = said; f.dispatchEvent(new Event('input', { bubbles: true }));
+          const conf = document.getElementById('th-conf'); conf.value = 'High'; conf.dispatchEvent(new Event('change', { bubbles: true }));
+          await w(60);
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          await w(800);
+          const card = cardOf();
+          const a = document.activeElement;
+          return { stored: (store.read('theses', []).find(x => x.id === t.id) || {}).oneLine === said, shown: !!card && card.textContent.includes(said) && /High confidence/.test(card.textContent),
+            focus: a && a.textContent.trim() === 'Edit' && card && card.contains(a) ? 'the card\\'s Edit' : (a?.id || a?.tagName) };
+        })()`);
+        const p = [];
+        if (!r.stored) p.push('the typed case was not kept');
+        if (!r.shown) p.push('closing the editor with Escape leaves the card showing the case as it was before the edit');
+        if (r.focus !== 'the card\'s Edit') p.push(`focus after the close is on ${r.focus}`);
+        report('WS-08', 'an edit kept by the thesis editor shows on the card when the drawer closes without Save, and focus returns to Edit', p);
+      }
+
+      /* WS-10 — a feed item reached through an investment case says so, and
+         one reached through a list names the list. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          State.alertKinds = ALERT_KINDS.map(k => k.id);
+          const listed = new Set(State.watchlists.flatMap(w => w.ids || []));
+          const viaCase = FEED.find(f => !listed.has(f.id) && BY_ID.get(f.id));
+          const viaList = FEED.find(f => State.watchlist.includes(f.id) && !State.theses.some(t => t.ticker === f.id));
+          if (viaCase && !State.theses.some(t => t.ticker === viaCase.id)) State.theses = [...State.theses, { id: 't-ws10', ticker: viaCase.id, oneLine: 'ws10', quality: '', valCase: '', catalysts: [], risks: [], conds: [], horizon: '3–5 years', review: '2030-01-01', conf: 'Low', questions: [], created: '2026-09-29' }];
+          navigate('/my/alerts'); await w(200);
+          const item = (f) => f ? txt([...document.querySelectorAll('main .noteitem')].find(n => n.textContent.includes(f.title))) : null;
+          const out = { caseTitle: viaCase?.title, caseItem: item(viaCase), listTitle: viaList?.title, listItem: item(viaList), list: activeWL().name };
+          State.theses = State.theses.filter(t => t.id !== 't-ws10');
+          return out;
+        })()`);
+        const p = [];
+        if (!r.caseTitle) p.push('no feed item outside every list to check with');
+        else if (!r.caseItem) p.push(`"${r.caseTitle}" is not in the feed although a case is written on it`);
+        else if (/Mapped to your watchlist/i.test(r.caseItem) || !/investment case/i.test(r.caseItem)) p.push(`reached through a case only: "${r.caseItem.slice(0, 200)}"`);
+        if (r.listItem && !r.listItem.includes(r.list)) p.push(`reached through the active list "${r.list}": "${r.listItem.slice(0, 200)}"`);
+        report('WS-10', 'an alert feed item names what it is mapped to — the list by name, or the investment case', p);
+      }
+
+      /* WS-03 — on the Free plan the samples do not use up the allowance,
+         the refusals are grammatical, and an alert over the cap is refused
+         before its form is filled in. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          navigate('/my/watchlists'); await w(150);
+          const head = [...document.querySelectorAll('main .card')].find(c => /New watchlist/.test(c.querySelector('h3')?.textContent || ''));
+          const out = { plan: State.plan, cardSays: txt(head?.querySelector('.caption, p')), create: wlCreate('WS03 mine') };
+          out.again = wlCreate('WS03 second');
+          navigate('/my/portfolio'); await w(100);
+          openPortfolioManager(); await w(350);
+          const nb = [...document.querySelectorAll('#drawer button')].find(b => /^New portfolio/.test(b.textContent.trim()));
+          const n0 = State.portfolios.length; nb?.click(); await w(100);
+          out.pf = { label: nb?.textContent.trim(), made: State.portfolios.length - n0, toast: document.getElementById('toast').textContent };
+          closeDrawer({ restore: false }); await w(350);
+          const own = State.priceAlerts.filter(pa => !['pa-1', 'pa-2'].includes(pa.id));
+          const room = LIMITS.priceAlerts - own.length;
+          for (let i = 0; i < room; i++) State.priceAlerts.push({ id: 'pa-ws03-' + i, ticker: 'MAYBANK', op: '<', price: 1 + i, note: '' });
+          navigate('/my/alerts'); await w(100);
+          openPriceAlertEditor(); await w(350);
+          out.alert = { open: drawer.dataset.open === '1', toast: document.getElementById('toast').textContent, cap: LIMITS.priceAlerts };
+          closeDrawer({ restore: false }); await w(350);
+          State.priceAlerts = State.priceAlerts.filter(pa => !/^pa-ws03-/.test(pa.id)); savePriceAlerts();
+          return out;
+        })()`);
+        const p = [];
+        if (r.plan !== 'free') p.push(`the check ran on the ${r.plan} plan`);
+        if (!r.create.ok) p.push(`Create refused on a first visit: "${r.create.why}"`);
+        if (/lists held/.test(r.cardSays)) p.push(`the card counts the samples: "${r.cardSays}"`);
+        if (r.again.ok || !/^1 watchlist is the maximum/.test(r.again.why || '')) p.push(`a second list of the reader's own: ${JSON.stringify(r.again)}`);
+        if (r.pf.made !== 1) p.push(`New portfolio (${r.pf.label}) refused on a first visit: "${r.pf.toast}"`);
+        if (r.alert.open || !new RegExp('^' + r.alert.cap + ' price alerts? (is|are) the maximum').test(r.alert.toast)) p.push(`New price alert at the cap: drawer open ${r.alert.open}, toast "${r.alert.toast}"`);
+        report('WS-03', 'the samples do not use up the Free plan\'s lists, portfolios or alerts; a refusal comes before the form and reads in the singular', p);
+      }
+
+      /* WS-04 — a company added to the seeded list, then the samples
+         cleared: the list keeps only what the reader added, and the
+         dashboard counts it as a list of their own. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          State.wlIdx = State.watchlists.findIndex(w => w.id === 'wl-1');
+          toggleWatch('KLCC');
+          const touched = !!State.watchlists.find(w => w.id === 'wl-1')?.updatedAt;
+          clearSeededData(); await w(50);
+          const kept = State.watchlists.find(w => w.id === 'wl-1');
+          const o = myDashOwn();
+          const step = myDashSteps(o).find(s => s.k === 'watchlist');
+          navigate('/my/watchlists'); await w(150);
+          const unknown = [...document.querySelectorAll('main table.dt tbody tr')].filter(tr => tr.children[4]?.textContent.trim() === 'unknown').length;
+          return { touched, ids: kept ? kept.ids : null, created: o.createdLists.length, sampleLists: o.sampleLists.length, step: step.done, samples: hasSeededData(), unknown };
+        })()`);
+        const p = [];
+        if (!r.touched) p.push('adding a company did not touch the seeded list — the check is not testing the case');
+        if (!r.ids || r.ids.join() !== 'KLCC') p.push(`after clearing, the list the reader added to holds ${JSON.stringify(r.ids)}`);
+        if (r.sampleLists || r.samples) p.push(`samples still counted after clearing: ${r.sampleLists} sample lists, hasSeededData ${r.samples}`);
+        if (!r.created || !r.step) p.push(`the dashboard does not count it as a list of the reader's own (${r.created} created, step done ${r.step})`);
+        if (r.unknown) p.push(`${r.unknown} rows on /my/watchlists read Added "unknown"`);
+        report('WS-04', 'clearing the samples takes the seeded companies out of a list the reader added to, and both pages then call it theirs', p);
+      }
+
+      /* WS-09 — the dashboard's unread figure agrees with the sidebar badge
+         when a setup is muted, and says why the new count differs. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          const keep = { a: scanAlertsFile, st: localStorage.getItem('vl.scanAlertState'), pr: localStorage.getItem('vl.scanPrefs'), dv: localStorage.getItem('vl.dashVisit') };
+          ['vl.scanAlertState', 'vl.dashVisit'].forEach(k => localStorage.removeItem(k));
+          scanPrefsWrite({ inApp: true, muted: { 'ws-muted': true } });
+          const mk = (setupId, sym, d) => ({ key: setupId + '|' + sym + '|daily|' + d, setupId, setupName: setupId, symbol: sym, timeframe: 'daily', bar: d, close: 10, recordedAt: d + 'T01:00:00Z', rules: [{ text: 'price above SMA20', met: true }], engine: 'scan 0.2.0' });
+          scanAlertsFile = { alerts: [mk('ws-muted', 'AAA', '2026-09-01'), mk('ws-muted', 'BBB', '2026-09-02'), mk('ws-muted', 'CCC', '2026-09-03'), mk('ws-on', 'DDD', '2026-09-04'), mk('ws-on', 'EEE', '2026-09-05')], lastRun: null };
+          navigate('/app'); await w(200);
+          const tile = [...document.querySelectorAll('main .dash-tile')].find(t => /scanner alerts/i.test(t.querySelector('.stat-label')?.textContent || ''));
+          const out = { label: txt(tile?.querySelector('.stat-label')), value: txt(tile?.querySelector('.dash-tile-v')), sub: txt(tile?.querySelector('.stat-sub')), badge: scanUnreadCount() };
+          scanAlertsFile = keep.a;
+          [['vl.scanAlertState', keep.st], ['vl.scanPrefs', keep.pr], ['vl.dashVisit', keep.dv]].forEach(([k, v]) => v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v));
+          render();
+          return out;
+        })()`);
+        const p = [];
+        if (r.badge !== 2) p.push(`the sidebar badge counts ${r.badge}, not the 2 unmuted — the check is not testing the case`);
+        if (r.value !== String(r.badge)) p.push(`"${r.label}" reads ${r.value} while the badge reads ${r.badge}`);
+        if (!/3 .*muted/.test(r.sub)) p.push(`the tile does not say the other 3 are from muted setups: "${r.sub}"`);
+        report('WS-09', 'the dashboard\'s unread scanner alerts agree with the sidebar badge, and the muted ones are named', p);
+      }
+
+      /* EQ-07 — the active watchlist survives a reload. */
+      {
+        await evaluate(`(() => { State.plan = 'pro'; store.write('plan', 'pro'); const r = wlCreate('WS07 Tech names'); return r.ok; })()`);
+        await wsOpen('/company/AAPL-SEC');
+        const r = await evaluate(`(() => ({ active: activeWL()?.name, btn: [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()).find(t => /watchlist/i.test(t)) }))()`);
+        const p = [];
+        if (r.active !== 'WS07 Tech names') p.push(`after a reload the active list is "${r.active}"`);
+        if (r.btn !== 'Add to watchlist') p.push(`the company page's button reads "${r.btn}"`);
+        report('EQ-07', 'the list made active stays active across a reload, so the company page\'s toggle acts on it', p);
+      }
+
+      /* WS-11 — the onboarding's market answer is the screener's default
+         after a reload. */
+      {
+        await evaluate(`(() => { completeOnboarding({ goal: 'monitor', level: 'basic', market: 'MY', ccy: State.baseCcy }); return true; })()`);
+        await wsOpen('/discover/screener');
+        const r = await evaluate(`({ universe: State.screen?.universe, stored: store.read('screen', null)?.universe, sel: document.getElementById('uniSel')?.value })`);
+        const p = [];
+        if (r.universe !== 'MY' || (r.sel && r.sel !== 'MY')) p.push(`after a reload the screener opens on ${r.universe} (select ${r.sel}) with ${r.stored} stored`);
+        report('WS-11', 'the market chosen in onboarding is still the screener\'s market after a reload', p);
+      }
+
+      /* WS-12 — Skip leaves the answers already given, and the explanation
+         depth, as they were, and goes into the app. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          const skip = () => [...document.querySelectorAll('main button')].find(b => /^Skip/.test(b.textContent.trim()))?.click();
+          setExplainDepth('technical');
+          State.onboarding = { goal: 'us', level: 'experienced', market: 'US', ccy: 'USD', done: true, at: '2026-09-27T00:00:00Z' }; store.write('onboarding', State.onboarding);
+          State.obStep = 0; State.obDraft = {}; navigate('/welcome'); await w(120);
+          skip(); await w(200);
+          const a = { depth: store.read('explainDepth', null), level: store.read('onboarding', {}).level, market: store.read('onboarding', {}).market, path: location.pathname };
+          State.obStep = 0; State.obDraft = {}; navigate('/welcome'); await w(120);
+          [...document.querySelectorAll('main .ob-option')].find(b => /Learn investment fundamentals/.test(b.textContent))?.click(); await w(120);
+          skip(); await w(200);
+          return { a, b: { path: location.pathname, view: State.view } };
+        })()`);
+        const p = [];
+        if (r.a.depth !== 'technical') p.push(`Skip reset the explanation depth to ${r.a.depth}`);
+        if (r.a.level !== 'experienced' || r.a.market !== 'US') p.push(`Skip dropped the stored answers: level ${r.a.level}, market ${r.a.market}`);
+        if (r.a.path !== '/app') p.push(`Skip went to ${r.a.path}`);
+        if (r.b.path !== '/app') p.push(`Skip after answering "Learn investment fundamentals" went to ${r.b.path} (${r.b.view})`);
+        report('WS-12', 'Skip keeps the stored preferences and takes the reader into the app', p);
+      }
+
+      /* WS-02 — the /start launcher keeps the reader's own deal, contract
+         and chart evidence: the deal is kept aside for "Restore my previous
+         deal", and a worked example asks before it replaces the others. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          const asked = [], keepConfirm = window.confirm;
+          let answer = false;
+          window.confirm = (m) => { asked.push(m); return answer; };
+          const open = async (goal, a) => {
+            /* Arriving at /start from another page clears the goal (35-ui.js), so it is set once there. */
+            navigate('/start'); await w(100);
+            State.launcher.goal = goal; State.launcher.a[goal] = a; render(); await w(100);
+            [...document.querySelectorAll('main button')].find(b => /^Open the /.test(b.textContent.trim()))?.click(); await w(600);
+          };
+          const out = {};
+          try {
+            State.deal = { ...PROPERTY_DEFAULT_DEAL, price: 888000, touched: { price: true }, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {} };
+            store.write('deal', State.deal); store.write('dealBeforeLink', null);
+            await open('property', { city: 'kuching', mode: 'own' });
+            const restore = [...document.querySelectorAll('main button')].find(b => /Restore my previous deal/.test(b.textContent));
+            out.deal = { kept: store.read('dealBeforeLink', null)?.price ?? null, offered: !!restore, path: location.pathname };
+            restore?.click(); await w(200);
+            out.deal.back = State.deal.price;
+
+            State.wheel = { ...State.wheel, ...WHEEL_BLANK_CONTRACT, putStrike: 61, contracts: 1, isWorkedExample: false }; saveWheel();
+            asked.length = 0; answer = false;
+            await open('wheel', { mode: 'example' });
+            out.wheelDeclined = { strike: store.read('wheelPlan', {}).putStrike, asked: asked.length };
+            await open('wheel', { mode: 'own' });
+            out.wheelOwn = { strike: store.read('wheelPlan', {}).putStrike };
+            answer = true; asked.length = 0;
+            await open('wheel', { mode: 'example' });
+            out.wheelAccepted = { strike: store.read('wheelPlan', {}).putStrike, asked: asked.length };
+
+            const panel = { ...qttiBlankPanel(), present: true };
+            State.qtti = { ...qttiDefaultPlan(), symbol: 'WS02 OWN', timeframes: { daily: panel, weekly: qttiBlankPanel(), monthly: qttiBlankPanel() } }; saveQtti();
+            answer = false; asked.length = 0;
+            await open('trading', { mode: 'example' });
+            out.qttiDeclined = { symbol: store.read('qttiPlan', {}).symbol, asked: asked.length };
+            await open('trading', { mode: 'own' });
+            out.qttiOwn = { symbol: store.read('qttiPlan', {}).symbol };
+          } finally { window.confirm = keepConfirm; }
+          return out;
+        })()`);
+        const p = [];
+        if (r.deal.kept !== 888000 || !r.deal.offered || r.deal.back !== 888000) p.push(`the reader's deal: kept aside ${r.deal.kept}, restore offered ${r.deal.offered} on ${r.deal.path}, restored to ${r.deal.back}`);
+        if (r.wheelDeclined.strike !== 61 || !r.wheelDeclined.asked) p.push(`a worked contract over the reader's (declined): strike ${r.wheelDeclined.strike}, asked ${r.wheelDeclined.asked}`);
+        if (r.wheelOwn.strike !== 61) p.push(`"My own contract" blanked the reader's contract: strike ${r.wheelOwn.strike}`);
+        if (r.wheelAccepted.strike !== 50 || !r.wheelAccepted.asked) p.push(`a worked contract, accepted: strike ${r.wheelAccepted.strike}, asked ${r.wheelAccepted.asked}`);
+        if (r.qttiDeclined.symbol !== 'WS02 OWN' || !r.qttiDeclined.asked) p.push(`the §14 example over the reader's evidence (declined): ${JSON.stringify(r.qttiDeclined)}`);
+        if (r.qttiOwn.symbol !== 'WS02 OWN') p.push(`"My own chart evidence" blanked the reader's: ${JSON.stringify(r.qttiOwn)}`);
+        report('WS-02', 'the /start launcher never replaces the reader\'s deal, contract or chart evidence unasked', p);
+      }
+
+      /* WS-13 and WS-14 — each restore names the control that takes the
+         other files, the price restore says what it takes, and a saved
+         snapshot's time on /my/data carries its zone. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          const out = { fromBackup: importEverything(backupPayload()).err || 'accepted', fromEverything: restoreBackup(JSON.stringify(exportEverything())).error || 'accepted' };
+          const rec = saveWork('property', 'WS14 deal');
+          navigate('/my/data'); await w(150);
+          const row = [...document.querySelectorAll('main table.dt tr')].find(tr => tr.textContent.includes('WS14 deal'));
+          out.saved = { cell: row?.children[2]?.textContent.trim(), want: fmtSaved(rec.savedAt) };
+          const made = [...document.querySelectorAll('main .card')].find(c => /Everything you have made/.test(c.querySelector('h3')?.textContent || ''));
+          out.made = { samples: hasSeededData(), dl: !!made?.querySelector('dl dt'), nothing: /Nothing saved yet/.test(made?.textContent || ''), sampleNote: /A sample was written/.test(made?.textContent || '') };
+          deleteWork(rec.id);
+          const card = [...document.querySelectorAll('main .card')].filter(c => c.querySelector('input[type=file].input')).pop();
+          out.card = { title: txt(card?.querySelector('h3')), text: txt(card) };
+          const input = card?.querySelector('input[type=file]');
+          if (input) {
+            const dt = new DataTransfer(); dt.items.add(new File([JSON.stringify(exportEverything())], 'everything.json', { type: 'application/json' }));
+            input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true })); await w(300);
+            out.priceToast = document.getElementById('toast').textContent;
+          }
+          return out;
+        })()`);
+        const p13 = [], p14 = [];
+        if (!/Restore from a backup/.test(r.fromBackup)) p13.push(`"Restore from a file" given a backup says "${r.fromBackup}"`);
+        if (!/Restore from a file/.test(r.fromEverything)) p13.push(`"Restore from a backup" given an Export-everything file says "${r.fromEverything}"`);
+        if (/^Restore an export$/.test(r.card.title) || !/Export these prices/.test(r.card.text)) p13.push(`the price-restore card reads "${r.card.title}" — "${r.card.text.slice(0, 120)}"`);
+        if (!/Restore from a file/.test(r.priceToast || '')) p13.push(`the price restore given an Export-everything file says "${r.priceToast}"`);
+        if (r.saved.cell !== r.saved.want || !/UTC$/.test(r.saved.cell || '')) p14.push(`Saved reads "${r.saved.cell}", want "${r.saved.want}"`);
+        const p5 = [];
+        if (r.made.samples) p5.push('samples are still held — the check is not testing the case');
+        if (!r.made.dl || r.made.nothing) p5.push(`with the samples cleared, "Everything you have made": records listed ${r.made.dl}, "Nothing saved yet" ${r.made.nothing}`);
+        report('WS-05', 'with the samples cleared, "Everything you have made" lists the reader\'s records and does not also say "Nothing saved yet"', p5);
+        report('WS-13', 'each restore on /my/data names what it takes and points a sibling file to the control that takes it', p13);
+        report('WS-14', 'a saved snapshot\'s time on /my/data names its zone', p14);
+      }
+
+      /* SHELL-02 and SHELL-03 — the public pages say what the product does:
+         the wheel card is the worked example, labelled, with its inputs; the
+         claims about the reader's circumstances are scoped. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          navigate('/how-it-works'); await w(200);
+          const card = [...document.querySelectorAll('.proof-card')].find(c => /Cash Wheel/.test(c.textContent));
+          const out = { tag: txt(card?.querySelector('.proof-hd .proof-src')), card: txt(card), pages: {} };
+          for (const path of ['/learn/product-boundaries', '/about', '/methodology/ips', '/corrections']) {
+            navigate(path); await w(200);
+            const t = txt(document.querySelector('main'));
+            out.pages[path] = t.split(/(?<=[.!?])\\s+/).filter(s => /circumstances|your income/i.test(s)).map(s => s.slice(0, 220));
+          }
+          return out;
+        })()`);
+        const p2 = [], p3 = [];
+        if (/figures you enter/i.test(r.tag) || !/worked example|illustrative/i.test(r.tag + ' ' + r.card)) p2.push(`the wheel card's source reads "${r.tag}"`);
+        if (!/4\.42/.test(r.card) || !/5%/.test(r.card)) p2.push(`the card does not state the rate and buffer its ringgit line uses: "${r.card.slice(0, 240)}"`);
+        for (const [path, ss] of Object.entries(r.pages)) {
+          for (const s of ss) {
+            if (/Any question about your income/i.test(s)) p3.push(`${path}: "${s}"`);
+            else if (/asks nothing about your circumstances/i.test(s) && !/equity research/i.test(s)) p3.push(`${path}: "${s}"`);
+          }
+          if (ss.length && !ss.some(s => /loan-readiness/i.test(s))) p3.push(`${path} makes a claim about the reader's circumstances without naming the loan-readiness check`);
+        }
+        report('SHELL-02', 'the How it works wheel card is labelled as the worked example and states the rate and buffer behind its ringgit figure', p2);
+        report('SHELL-03', 'no public page says the product asks nothing about the reader\'s circumstances without naming the loan-readiness check', p3);
+      }
+
+      /* WS-01 — a restored file whose values are not the shape this app
+         writes is refused key by key, and a browser that already holds such
+         a value (restored before this check existed) reads it as absent —
+         the seeded lists as the reader's own and empty, as clearing the
+         samples leaves them, not as the samples again: no page throws and
+         the filings still load. */
+      {
+        const r = await evaluate(`(async () => { ${W}
+          const doc = (data) => ({ format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-09-29T00:00:00Z', data });
+          const LISTS = ['portfolios', 'theses', 'watchlists', 'observations', 'registerLog', 'corrections', 'opportunities', 'wheelLegs', 'priceAlerts', 'dividendsReceived', 'savedScreens', 'savedWork', 'runs', 'sarawakExposure', 'comparisons'];
+          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs'];
+          const bad = [];
+          const accepted = (k, v) => { const x = importEverything(doc({ [k]: v })); return x.ok && x.incoming.includes(k); };
+          LISTS.forEach(k => { if (accepted(k, { id: 'x' })) bad.push(k + ' as a record'); if (accepted(k, [1, 'x'])) bad.push(k + ' as a list of non-records'); });
+          MAPS.forEach(k => { if (accepted(k, [])) bad.push(k + ' as a list'); if (accepted(k, 'x')) bad.push(k + ' as text'); });
+          if (accepted('registerActor', 5)) bad.push('registerActor as a number');
+          if (accepted('baseCcy', 'EUR')) bad.push('baseCcy as EUR');
+          if (accepted('portfolios', [{ id: 'p', name: 'no holdings' }])) bad.push('a portfolio with no holdings list');
+          if (accepted('portfolios', [])) bad.push('an empty portfolios list');
+          const unknown = PORTABLE_KEYS.map(x => x.k).filter(k => ![...LISTS, ...MAPS, 'registerActor', 'baseCcy'].includes(k));
+          const good = importEverything(doc({ baseCcy: 'MYR', registerActor: 'me', theses: seedTheses() }));
+          const mixed = doc({ portfolios: { name: 'x', holdings: [] }, theses: seedTheses() });
+          openRestoreDrawer(); await w(350);
+          document.querySelector('#drawerBody textarea').value = JSON.stringify(mixed);
+          [...document.querySelectorAll('#drawerBody button')].find(b => b.textContent.trim() === 'Check this file').click(); await w(80);
+          const drawerText = txt(document.getElementById('drawerBody'));
+          const restoreBtn = [...document.querySelectorAll('#drawerBody button')].map(b => b.textContent.trim()).find(t => /^Restore \\d/.test(t)) || null;
+          closeDrawer({ restore: false }); await w(350);
+          return { bad, unknown, good: good.ok && good.incoming.length === 3, drawerText, restoreBtn };
+        })()`);
+        const p = [];
+        if (r.bad.length) p.push(`accepted for restore: ${r.bad.join(', ')}`);
+        if (r.unknown.length) p.push(`PORTABLE_KEYS holds keys this check does not classify: ${r.unknown.join(', ')}`);
+        if (!r.good) p.push('a file in the shapes this app writes was not accepted in full');
+        if (!/Portfolios and holdings.{0,80}not restored/i.test(r.drawerText)) p.push(`the check drawer does not say the portfolios will not be restored: "${r.drawerText.slice(0, 300)}"`);
+        if (r.restoreBtn !== 'Restore 1 item') p.push(`the drawer offers "${r.restoreBtn}" for a file with one readable key`);
+        report('WS-01', 'a restore refuses, key by key and with the reason, any value that is not the shape this app writes', p);
+
+        const BAD1 = { portfolios: { name: 'x', holdings: [] }, theses: { id: 't' }, priceAlerts: { id: 'x' }, watchlists: {}, observations: {}, savedWork: {}, runs: {},
+          dividendsReceived: {}, registerLog: {}, comparisons: {}, savedScreens: {}, corrections: {}, sarawakExposure: {}, opportunities: {}, wheelLegs: {},
+          deal: [], wheelPlan: [], qttiPlan: [], reviews: [], valuation: [], areaProfiles: [], demand: [], manualPrices: [], userData: [], wht: [],
+          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], registerActor: 5, baseCcy: 'EUR' };
+        const BAD2 = Object.fromEntries(['theses', 'priceAlerts', 'watchlists', 'observations', 'savedWork', 'runs', 'dividendsReceived', 'registerLog', 'comparisons',
+          'savedScreens', 'corrections', 'sarawakExposure', 'opportunities', 'wheelLegs'].map(k => [k, [1, 'x', null]]));
+        BAD2.portfolios = [{ id: 'p-bad', name: 'no holdings' }];
+        const PAGES = ['/my/portfolio', '/my/theses', '/my/alerts', '/my/workspace', '/my/watchlists', '/my/data', '/property/calculator', '/us-options/wheel',
+          '/research/trading-index', '/company/AAPL-SEC', '/compare', '/discover/screener', '/app'];
+        for (const [name, BAD] of [['wrong types', BAD1], ['lists of non-records', BAD2]]) {
+          wsErrors.length = 0;
+          const seed = `${FRESH('pro')}; ${Object.entries(BAD).map(([k, v]) => `localStorage.setItem(${JSON.stringify('vl.' + k)}, ${JSON.stringify(JSON.stringify(v))})`).join('; ')}`;
+          const loaded = await wsOpen('/app', seed);
+          const boot = await evaluate(`({ ok: !!(typeof realStatus !== 'undefined' && realStatus && realStatus.ok), filed: typeof U === 'undefined' ? 0 : U.filter(r => r.c.real).length, h1: !!document.querySelector('main h1'),
+            emptied: typeof State === 'undefined' ? null : [State.portfolios?.length === 1 && State.portfolios[0].id === 'pf-user' && !State.portfolios[0].holdings.length, (State.theses || []).length === 0, (State.priceAlerts || []).length === 0, (State.watchlists || []).length === 1 && !(State.watchlists[0].ids || []).length, !hasSeededData()] })`).catch(e => ({ threw: e.message }));
+          const pages = [];
+          for (const path of PAGES) {
+            const at = wsErrors.length;
+            const v = await evaluate(`(async () => { ${W} try { navigate(${JSON.stringify(path)}); } catch (e) { return 'threw: ' + e.message; } await w(150); return document.querySelector('main h1') ? 'ok' : 'no heading'; })()`).catch(e => `threw: ${e.message.split('\n')[0]}`);
+            const errs = wsErrors.slice(at);
+            if (v !== 'ok' || errs.length) pages.push(`${path}: ${v}${errs.length ? ` — ${errs[0]}` : ''}`);
+          }
+          const q = [];
+          if (!loaded || !boot.ok || !boot.filed || !boot.h1) q.push(`the app with ${name} stored: loaded ${loaded}, ${JSON.stringify(boot)}${wsErrors.length ? ` — ${wsErrors[0]}` : ''}`);
+          if (!boot.emptied || boot.emptied.includes(false)) q.push(`portfolios, cases, alerts and watchlists do not read as the reader's own and empty (${JSON.stringify(boot.emptied)})`);
+          q.push(...pages);
+          report('WS-01', `a browser already holding ${name} for the kept keys reads them as absent, the seeded lists as cleared: the filings load and no page throws`, q,
+            `a browser already holding ${name} for every kept key reads them as absent, the seeded lists as cleared: the filings load and ${PAGES.length} pages draw with no error`);
+        }
+      }
+    } catch (err) {
+      fail('fixwave workspace: the checks stopped', String(err.message).split('\n')[0]);
+    } finally {
+      ws.removeEventListener('message', wsListen);
+    }
+  }
+  /* ---- end fixwave: workspace ---- */
+
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

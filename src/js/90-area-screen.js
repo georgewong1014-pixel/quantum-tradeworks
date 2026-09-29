@@ -1082,7 +1082,10 @@ function scopeCard() {
   ['Buy, sell or hold ratings of any kind',
    'Target prices, price objectives or "fair value" presented as a single figure',
    'Ranked lists presented as preference — sorts are arithmetic, not editorial',
-   'Any question about your income, goals, risk tolerance or circumstances',
+   /* Scoped to what is true. It said "any question about your income … or
+      circumstances", and the property calculator's loan-readiness check asks
+      for income, debts, commitments and a credit record. */
+   'Any question about your goals or risk tolerance. The one input about you is optional: the property calculator’s loan-readiness check, which uses the income, debts and credit record you choose to enter, held only in this browser, to judge whether a loan is within reach',
    'Output that differs from one user to another — everyone sees the same analysis',
    'Portfolio construction, allocation guidance or rebalancing instructions',
    'Trade execution, brokerage connection or order routing'].forEach(x =>

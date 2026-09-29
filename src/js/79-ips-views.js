@@ -43,7 +43,9 @@ function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
   /* THE LINE THAT KEEPS THIS HONEST. */
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'This states what is true of the evidence. It is not a recommendation, a rating or a suitability assessment, '
-    + 'and no part of it tells you what to do — this product holds no licence to advise and asks nothing about your circumstances. '
+    /* The execution gate reads the borrower's figures, so "asks nothing about
+       your circumstances" was not true of this card. */
+    + 'and no part of it tells you what to do — this product holds no licence to advise. The only figures about you it reads are the income and debts you may enter in the property calculator’s optional loan-readiness check, which the execution gate uses to test whether the instalment survives a rate move. '
     + `Governing document: ${IPS_VERSION}.`));
   return card;
 }
@@ -211,8 +213,9 @@ VIEWS.ips = () => {
     'Section 8 requires every decision to state Buy, Watch/Hold or Reject, and section 10 calls the output a recommendation. '
     + 'This product publishes neither, and the reason is not stylistic.'));
   dev.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
-    'It is research only. It holds no licence to advise, it asks nothing about your circumstances, and the disclosure on every '
-    + 'page rests on that. The substance of section 8 is kept in full; only the verb changes.'));
+    'It is research only. It holds no licence to advise and makes no personal recommendation, and the disclosure on every '
+    + 'page rests on that. The one place it takes figures about you is the property calculator’s optional loan-readiness check: the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. '
+    + 'The substance of section 8 is kept in full; only the verb changes.'));
   const dl = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
   dl.append(el('thead', {}, el('tr', {}, ['IPS §8 says', 'This product says', 'Why it is the same information']
     .map(h => el('th', { style: 'text-align:left' }, h)))));

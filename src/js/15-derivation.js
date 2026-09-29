@@ -177,6 +177,23 @@ const WORK_KINDS = {
               name:() => `${State.qtti?.symbol || 'Run'} — ${new Date().toISOString().slice(0, 10)}` },
 };
 
+/* Whether a deal holds anything the reader entered: a field they touched,
+   or the whole deal started by them. The calculator marks every other
+   figure a sample input; the dashboard, the launcher, Your data and Saved
+   Models all read a deal by this one rule. */
+const dealIsTheReaders = (d) => !!d && (!!d.userStarted || Object.values(d.touched || {}).some(Boolean));
+/* A snapshot of nothing the reader entered — the calculator's sample
+   inputs, the Cash Wheel's worked contract, the Trading Index's §14 example —
+   is a sample, not their work. Every snapshot was listed as "Your own inputs
+   to the tool, as saved", and counted as the reader's own work on the
+   dashboard, while the calculator it was taken from said "10 sample inputs". */
+function workIsSample(w) {
+  const p = w?.payload || {};
+  if (w?.kind === 'property') return !!p.deal && !dealIsTheReaders(p.deal);
+  if (w?.kind === 'wheel') return !!p.wheelPlan?.isWorkedExample;
+  if (w?.kind === 'trading') return !!p.qttiPlan && JSON.stringify(p.qttiPlan) === JSON.stringify(qttiWorkedExample());
+  return false;
+}
 const loadWork = () => store.read('savedWork', []);
 const persistWork = (list) => store.write('savedWork', list);
 /* STORE_REFUSED's counterpart for a removal the browser refused to write:
@@ -292,11 +309,21 @@ function backupPayload() {
 function restoreBackup(text) {
   let obj;
   try { obj = JSON.parse(text); } catch { return { ok:false, error:'That file is not valid JSON.' }; }
+  /* This page's other two files are named, with the control that takes
+     them: "Export everything"'s file was told only that it was "not a
+     Quantum Tradeworks backup". */
+  const sibling = siblingFileOf(obj);
+  if (sibling && sibling !== 'backup') return { ok:false, error: SIBLING_FILES[sibling] };
   if (!obj || obj.format !== 'quantum-tradeworks-backup' || !obj.data || typeof obj.data !== 'object')
     return { ok:false, error:'That file is not a Quantum Tradeworks backup.' };
   const before = [];
   let restored = 0;
+  /* A kept key in a shape this app does not write is left as it is here,
+     and named, as the restore from a file does (STORE_SHAPES, 00-core.js). A
+     backup carries null where the app wrote null, so null is restored. */
+  const refused = Object.entries(obj.data).filter(([k, v]) => v !== null && storedShapeFault(k, v)).map(([k]) => k);
   for (const [k, v] of Object.entries(obj.data)) {
+    if (refused.includes(k)) continue;
     let prior = null;
     try { prior = localStorage.getItem(STORE_PREFIX + k); } catch { /* storage unreadable: the write below is refused too */ }
     if (!store.write(k, v)) {
@@ -312,7 +339,7 @@ function restoreBackup(text) {
     before.push([k, prior]);
     restored++;
   }
-  return { ok:true, restored };
+  return { ok:true, restored, refused };
 }
 
 /* LAUNCH CONFIGURATION — the two things a campaign needs that code cannot supply.

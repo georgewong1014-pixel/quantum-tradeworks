@@ -104,17 +104,21 @@ function workspaceItems() {
     });
   });
 
-  loadWork().forEach(w => items.push({
+  /* A snapshot of the tool's sample inputs or worked example is a sample
+     (workIsSample, 15-derivation.js), and says so. */
+  loadWork().forEach(w => { const sample = workIsSample(w); items.push({
     kind: 'work', key: w.id, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
     created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
-    detail: 'Your own inputs to the tool, as saved',
+    sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
+    detail: sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
+      : 'Your own inputs to the tool, as saved',
     open: () => {
       if (!resumeWork(w.id)) { toast('That record holds nothing to restore'); return; }
       navigate(WORK_PATHS[w.kind] || '/my/data'); toast(`Resumed "${w.name}"`);
     },
     duplicate: () => duplicateWork(w.id),
     remove: () => deleteWork(w.id),
-  }));
+  }); });
 
   items.forEach(it => { it.diff = stampDiff(it.stamp, it.legacy); });
   return items;
@@ -245,7 +249,7 @@ VIEWS.workspace = () => {
       el('div', { class: 'ws-name' }, [
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
           el('span', { class: 'chip' }, WORKSPACE_KIND_ONE[i.kind]),
-          i.sample ? el('span', { class: 'chip chip-bronze', title: 'Seeded on a first visit to show what a case looks like. Not your work.' }, 'sample') : null,
+          i.sample ? el('span', { class: 'chip chip-bronze', title: i.sampleWhy || 'Seeded on a first visit to show what a case looks like. Not your work.' }, 'sample') : null,
           i.illustrative === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
             : i.illustrative === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
         ]),

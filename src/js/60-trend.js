@@ -594,9 +594,22 @@ VIEWS.alerts = () => {
     }));
   });
 
+  /* Each item names what brought it here: the active list, by name, and the
+     investment case, when there is one. Every item said "Mapped to your
+     watchlist", including those that came only through a case on a company
+     no list holds — and the heading above promises that each alert names
+     what it maps to. A sample list or case is called one. */
+  const wl = activeWL();
   FEED.filter(f => State.watchlist.includes(f.id) || State.theses.some(t => t.ticker === f.id)).slice(0, 8).forEach(f => {
+    const inList = State.watchlist.includes(f.id);
+    const th = State.theses.find(t => t.ticker === f.id);
+    const tk = BY_ID.get(f.id)?.c.tk || f.id;
+    const listSample = inList && SEEDED_WL_IDS.includes(wl?.id) && !(wl.added && wl.added[f.id]);
+    const caseSample = !!th && SEEDED_THESIS_IDS.includes(th.id);
+    const to = [inList ? `${listSample ? 'the sample list' : 'your watchlist'} “${wl.name}”` : null,
+      th ? `${caseSample ? 'the sample investment case' : 'your investment case'} on ${tk}` : null].filter(Boolean).join(' and ');
     items.push({ sev:f.sev, kind:f.kind, id:f.id, title:f.title, what:f.detail,
-      detail:'Mapped to your watchlist. No thesis condition covers this yet.', source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${dataDateLabel(BY_ID.get(f.id)?.c)}` });
+      detail:`Mapped to ${to}. ${th ? 'None of its conditions covers this yet.' : 'No thesis condition covers this yet.'}`, source:`FY${latestFy(BY_ID.get(f.id)?.c)} reported · ${dataDateLabel(BY_ID.get(f.id)?.c)}` });
   });
 
   /* User-set price thresholds, evaluated against the current price. Collected
@@ -664,7 +677,10 @@ VIEWS.alerts = () => {
 
   /* ---------- price alert manager ---------- */
   const pac = el('div', { class: 'card' });
-  pac.append(cardHead(`Price alerts — ${State.priceAlerts.length}/${LIMITS.priceAlerts}`,
+  /* The count the plan's cap applies to is the reader's own (ownAlertCount);
+     the samples are named beside it rather than filling two of three slots. */
+  const samplePA = State.priceAlerts.length - ownAlertCount();
+  pac.append(cardHead(`Price alerts — ${ownAlertCount()}/${LIMITS.priceAlerts}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
     'Thresholds you set yourself. They fire on price alone, which is why they are the one alert type off by default in the list below.',
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
   if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));
@@ -679,6 +695,7 @@ VIEWS.alerts = () => {
     const tk = r ? r.c.tk : pa.ticker;
     const row = el('div', { class: 'row row-wrap', style: `gap:8px;padding:8px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
     row.append(el('span', { style: 'font-size:13px;font-weight:600;min-width:74px' }, tk));
+    if (isSeededPA(pa)) row.append(el('span', { class: 'chip chip-bronze', title: 'Written into this browser on a first visit. Not yours, and not counted against the plan.' }, 'sample'));
     row.append(el('span', { class: 'metaline' }, `${pa.op} ${r ? fmtMoney(pa.price, r.c.ccy) : pa.price}`));
     row.append(el('span', { class: 'spacer' }));
     row.append(!priced ? el('span', { class: 'chip', title: 'No price is carried for this company, so the threshold cannot be tested.' }, 'No price')

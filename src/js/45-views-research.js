@@ -758,9 +758,13 @@ function companyActions(r) {
     title: held.length ? `Compare with ${next.filter(x => x !== c.id).map(x => BY_ID.get(x)?.c.tk).join(', ')}` : 'Open a comparison with this company',
     before: () => { if (dropped.length) toast(`${cap} is the most a comparison holds — ${dropped.map(x => BY_ID.get(x)?.c.tk).join(', ')} left it`); } }));
   const thesis = (State.theses || []).find(t => t.ticker === c.id);
+  /* The seeded case is not the reader's (SEEDED_THESIS_IDS), and the button
+     called it "your investment case" on a first visit. */
+  const sampleCase = !!thesis && SEEDED_THESIS_IDS.includes(thesis.id);
   acts.append(el('button', { class: 'btn btn-ghost btn-sm',
-    title: 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind',
-    onclick: () => addToThesis(c.id) }, thesis ? 'Open your investment case' : 'Save research'));
+    title: sampleCase ? 'A sample investment case, written into this browser on a first visit to show what one looks like. Not your work.'
+      : 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind',
+    onclick: () => addToThesis(c.id) }, sampleCase ? 'Open the sample investment case' : thesis ? 'Open your investment case' : 'Save research'));
   const sym = c.tk || c.code || c.id;
   const on = scannerLaneOn();
   if (on) acts.append(link(`/my/scanner?from=${encodeURIComponent(c.id)}&symbol=${encodeURIComponent(sym)}`, 'Open scanner',
