@@ -1367,12 +1367,15 @@ VIEWS.scannerSetups = () => {
       const s = r.browser || r.file;
       const li = el('li', {}, [
         el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-          scanLink(scanSetupPath(r.id), s?.name || r.name || r.id, { style: 'font-weight:600' }), scanDriftChip(r),
+          scanLink(scanSetupPath(r.id), s?.name || r.name || r.id, { style: 'font-weight:600', data: { scanFocus: `drift:${r.id}` } }), scanDriftChip(r),
           el('span', { class: 'spacer' }),
           (r.state === 'FILE_NEWER' || r.state === 'FILE_ONLY') ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Adopt ${r.id} from the file`, onclick: () => {
             const out = scanAdoptFromFile(r.id);
             toast(out.ok ? `Adopted ${r.id} as v${out.version}` : `Not adopted — ${out.problems[0]}`);
-            scanRender();
+            /* Adopted, the row has nothing left to adopt and the button goes:
+               focus stays on the row, on its link, rather than falling to
+               the top of the page. */
+            scanRender({ fallback: `drift:${r.id}` });
           } }, 'Adopt from file') : null,
         ]),
         el('p', { class: 'caption', style: 'margin-top:2px' }, r.text),
@@ -1391,7 +1394,8 @@ VIEWS.scannerSetups = () => {
   if (fileOnly.length > 1) dc.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', onclick: () => {
     const res = fileOnly.map(r => scanAdoptFromFile(r.id));
     toast(`Adopted ${res.filter(x => x.ok).length} of ${fileOnly.length} from the file`);
-    scanRender();
+    /* On to the export beneath, the next thing the adopted setups want. */
+    scanRender({ fallback: 'BUTTON:Export scan-setups.json' });
   } }, `Adopt all ${fileOnly.length} from the file`));
   const exp = scanExportControls({ primary: off.some(r => r.state === 'NOT_EXPORTED' || r.state === 'BROWSER_ONLY') });
   exp.style.marginTop = 'var(--md)';
@@ -1514,7 +1518,8 @@ VIEWS.scannerSetup = () => {
   }
   if (rec?.deleted) acts.append(el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'delete-restore' }, onclick: () => { scanSetMeta(id, { deleted: null }); toast('Restored'); scanRender(); } }, 'Restore'));
   if (drift && (drift.state === 'FILE_NEWER' || drift.state === 'FILE_ONLY')) acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-    const out = scanAdoptFromFile(id); toast(out.ok ? `Adopted as v${out.version}` : `Not adopted — ${out.problems[0]}`); scanRender();
+    /* Adopted, the setup is this browser's and its Disable takes the place. */
+    const out = scanAdoptFromFile(id); toast(out.ok ? `Adopted as v${out.version}` : `Not adopted — ${out.problems[0]}`); scanRender({ fallback: 'toggle' });
   } }, 'Adopt from file'));
   head.append(acts);
   wrap.append(head);
@@ -1944,21 +1949,29 @@ function scanBuilderView(mode) {
    says what they are: illustrations of the file's syntax, not suggestions,
    and none claimed to mean anything. A changed draft is not replaced
    without asking. */
+/* The picker shows the example the draft was started from. It was drawn
+   afresh at "Choose an example…" after each one loaded, so it never said which
+   was loaded, and an arrow key — which on Windows changes a closed select —
+   chose the first example again at every press: the other four could not be
+   reached from the keyboard. */
+const scanShownExample = () => (scanSeedOwns() && scanDraftSeed.example) || '';
 function scanExamplePicker() {
   const card = el('div', { class: 'card scan-examples' });
   const id = `scanf-${++scanFieldSeq}`;
   const s = el('select', { class: 'select', id, 'aria-label': 'Start from an example', onchange: (e) => {
     const ex = SCAN_EXAMPLES.setups.find(x => x.id === e.target.value);
     if (!ex) return;
-    if (!scanDraftUntouched() && !confirm('Replace the draft with this example? What is in the draft now is not kept.')) { e.target.value = ''; return; }
+    if (!scanDraftUntouched() && !confirm('Replace the draft with this example? What is in the draft now is not kept.')) { e.target.value = scanShownExample(); return; }
     const d = scanAsDraft(ex);
     if (scanStoreRead().setups[d.id] || scanFileSetupIds().has(d.id)) d.id = scanCopyId(d.id);
     scanSetDraft(d, scanSeedSig(), [`Started from the example “${ex.name}” (scanner/setups.example.json) — an illustration of the syntax, not a suggestion. Its id, name, universe and every condition are yours to replace.`]);
+    scanDraftSeed.example = ex.id;
     render();
     document.querySelector('main [aria-label="Start from an example"]')?.focus();
   } });
   s.append(el('option', { value: '' }, 'Choose an example…'));
   SCAN_EXAMPLES.setups.forEach(x => s.append(el('option', { value: x.id }, `${x.name} — ${x.ruleTree != null ? 'rule tree (0.3 form)' : 'rules (0.2 form)'}${x.enabled === false ? ', disabled' : ''}`)));
+  s.value = scanShownExample();
   card.append(el('div', { class: 'row row-wrap', style: 'gap:var(--sm) var(--md);align-items:flex-end' }, [
     el('div', { class: 'field', style: 'flex:1 1 260px;min-width:0;margin:0' }, [el('label', { for: id }, 'Start from an example'), s]),
     el('p', { class: 'caption', style: 'flex:2 1 320px;margin:0;max-width:62ch' }, `The ${SCAN_EXAMPLES.setups.length} examples in scanner/setups.example.json, loaded into the draft as written. An illustration of the syntax, not a suggestion: the product proposes no setup, and no condition in them is claimed to mean anything.`),
@@ -2624,7 +2637,9 @@ VIEWS.scannerAlerts = () => {
     scanSetAlertStatus(ids, status);
     toast(`${scanPlural(ids.length, 'alert')} marked ${status.toLowerCase()}`);
     scanAlertSel = new Set();
-    scanRender();
+    /* Where the action empties the list the buttons go with it: to the
+       empty list's "Show every match". */
+    scanRender({ fallback: 'BUTTON:Show every match' });
   } }, label);
   /* The count, and the header's box, follow every tick. The box kept the
      state it was drawn with: ticked from the header and one row unticked,

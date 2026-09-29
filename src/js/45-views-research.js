@@ -745,7 +745,10 @@ function companyActions(r) {
   const link = (path, label, { before, ...attrs } = {}) => el('a', { class: 'btn btn-ghost btn-sm', href: href(path), ...attrs,
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); before?.(); navigate(path); } }, label);
   const watching = State.watchlist.includes(c.id);
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': watching ? 'true' : 'false',
+  /* An id, because its words change with what it does: render() finds the
+     control in use again by id first, and by its words it found nothing and
+     left focus on <main> after every press (35-ui.js, giveFocusBack). */
+  acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'co-watch', 'aria-pressed': watching ? 'true' : 'false',
     onclick: () => toggleWatch(c.id) }, watching ? '✓ On your watchlist' : 'Add to watchlist'));
   /* Compare adds this company to the selection already held, rather than
      replacing it, and drops the oldest when the plan's cap is reached — with a
@@ -1298,8 +1301,15 @@ VIEWS.research = () => {
     const s = el('select', { class: 'select select-sm', 'aria-label': 'Jump to a section of this report',
       onchange: (e) => {
         const t = document.getElementById(e.target.value);
-        if (t) { t.scrollIntoView({ block: 'start' }); t.focus?.(); }
         e.target.selectedIndex = 0;
+        if (!t) return;
+        /* The reader goes where the page went. A heading takes no focus of its
+           own, so t.focus() did nothing: focus stayed on the select in the
+           strip, and the next Tab went on from there rather than from the
+           section. tabindex=-1 holds focus without joining the Tab order. */
+        t.setAttribute('tabindex', '-1');
+        t.focus({ preventScroll: true });
+        t.scrollIntoView({ block: 'start' });
       } });
     s.append(el('option', { value: '' }, `Jump to… (${heads.length})`));
     heads.forEach(h => s.append(el('option', { value: h.id }, h.textContent.trim().slice(0, 46))));

@@ -785,8 +785,13 @@ async function fetchJson(url) {
   try { return await r.json(); } catch { return null; }
 }
 
+/* The app's own file names the front door. The host serves /index.html as
+   the file it is (the rewrite to the app skips dotted paths), and the path
+   was matched as it stood, so the app answered its own front door with
+   "That page does not exist". A trailing /index.html is the directory it
+   sits in, which is also what BASE takes it to be. */
 function matchRoute(pathname) {
-  const clean = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname).replace(/\/+$/, '') || '/';
+  const clean = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname).replace(/\/index\.html$/, '').replace(/\/+$/, '') || '/';
   for (const r of ROUTES) {
     if (!r.path.includes(':')) { if (r.path === clean) return { ...r, params: {} }; continue; }
     const rp = r.path.split('/'), cp = clean.split('/');
@@ -840,6 +845,25 @@ function canonicalPath(route) {
   if (route.path.includes(':')) {
     const p = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
     return p.replace(/\/+$/, '') || '/';
+  }
+  /* Learn and the Screener name the page by the tab on screen, as a company
+     page does. Compared by the route row's tab alone, /learn and
+     /learn/glossary — one dictionary — were each their own canonical, and
+     /learn?tab=scoring and /discover?tab=heatmap, pages of their own, named
+     /learn and /discover, whose content is the dictionary and the screener.
+     A tab with a path of its own is named by it (the path the tab strip
+     goes to); the other tabs by the view's address and ?tab=. The tab is
+     the route's, else the one the address names when this is the page in
+     the address, else the view's first — which is what applyRoute shows. */
+  if (route.view === 'learn' || route.view === 'discover') {
+    const tabs = route.view === 'learn' ? LEARN_TABS : DISCOVER_TABS;
+    const norm = (t) => (route.view === 'learn' && LEARN_TAB_ALIAS[t]) || t;
+    const here = matchRoute(location.pathname)?.path === route.path;
+    const raw = route.tab || (here ? new URLSearchParams(location.search).get('tab') : null);
+    const tab = raw && tabs.some(x => x.id === norm(raw)) ? norm(raw) : tabs[0].id;
+    const own = ROUTES.find(r => !r.alias && r.view === route.view && r.tab && norm(r.tab) === tab);
+    const bare = ROUTES.find(r => !r.alias && r.view === route.view && !r.tab);
+    return own ? own.path : `${bare.path}?tab=${tab}`;
   }
   /* Never an alias row. The brief's aliases sit ABOVE the canonical rows (so
      that matchRoute reads them first), and go() already skips them for that
@@ -917,8 +941,14 @@ function navigate(path, { push = true, replace = false } = {}) {
   if (replace) history.replaceState({ path }, '', url);
   else if (push && (location.pathname + location.search) !== url) history.pushState({ path }, '', url);
   const before = State.view;
+  /* Which strip of the page's own tabs asked for this, if one did — read
+     before the page is drawn again and the tab that has focus goes. By the
+     click too, for a browser that does not focus a button it clicks. */
+  const inStrip = (n) => n?.closest?.('#views [role="tablist"]');
+  const tablist = inStrip(document.activeElement) || inStrip(window.event?.target);
+  const strip = tablist ? tablist.getAttribute('aria-label') || '' : null;
   applyRoute();
-  afterRoute(before);
+  afterRoute(before, { strip });
 }
 
 /* What happens after the address changed and the page re-rendered — shared
@@ -930,7 +960,7 @@ function navigate(path, { push = true, replace = false } = {}) {
    it can be used far down the page — and puts focus back on the tab now
    selected, because render() rebuilt the strip and destroyed the button that
    had focus, which drops focus to <body>. */
-function afterRoute(beforeView) {
+function afterRoute(beforeView, { strip = null } = {}) {
   const pathChanged = location.pathname !== lastPath;
   lastPath = location.pathname;
   /* A menu or the navigation drawer that led here has done its job, and the
@@ -939,14 +969,23 @@ function afterRoute(beforeView) {
      is about to be hidden with its menu, and focus would fall to <body>. */
   const fromMenu = openMenuLi || sheetOpen || navDrawerOpen;
   closeShellMenus({ restore: false });
-  if (State.view !== beforeView || pathChanged) {
+  /* A tab of the page's own strip is a tab change wherever its address is.
+     Four of Learn's five tabs and two of the Screener's have a path of their
+     own, and choosing one was treated as a new page: the page went to the
+     top and focus to <main>, so the next arrow key did nothing, while the
+     tab beside it (a ?tab= one) kept focus where it was. */
+  const tabChosen = strip !== null && State.view === beforeView;
+  if (!tabChosen && (State.view !== beforeView || pathChanged)) {
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (drawer.dataset.open === '1') closeDrawer({ restore: false });
     focusMain();
   } else {
     /* Any tab strip, whatever it is drawn as: the screener's tools are a
-       segmented control since Release A's fixes, not a .subnav row. */
-    document.querySelector('#views [role="tablist"] [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+       segmented control since Release A's fixes, not a .subnav row. The
+       strip the tab was chosen in, where a page has more than one. */
+    const lists = [...document.querySelectorAll('#views [role="tablist"]')];
+    const list = (strip !== null && lists.find(l => (l.getAttribute('aria-label') || '') === strip)) || lists[0];
+    list?.querySelector('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
     if (fromMenu) focusMain();
   }
 }
@@ -967,6 +1006,12 @@ function focusMain() {
    same two, so the checker and the router agree on what a path names. */
 const COMPANY_ROUTE_VIEWS = new Set(['research', 'researchReport']);
 function applyRoute() {
+  /* And the address becomes the route's own (see matchRoute), so a link or a
+     reload taken from it is the clean one. */
+  if (/\/index\.html$/.test(location.pathname)) {
+    const at = location.pathname.slice(BASE.length).replace(/\/index\.html$/, '') || '/';
+    history.replaceState(history.state, '', href(at) + location.search + location.hash);
+  }
   const route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
   /* A route whose view is defined in a module this build does not carry —
@@ -1042,9 +1087,16 @@ function applyRoute() {
     /* Through the same resolver as a company address, so every name
        /app/equities/:id accepts — 1155, maybank, aapl, a CIK — works here too.
        Matching BY_ID alone dropped 1155 without a word. */
-    const ids = [...new Set(qs.get('companies').split(',').map(s => companyFromSlug(s.trim())).filter(Boolean))];
-    if (ids.length) State.compare = ids.slice(0, lim('compare'));
-  }
+    /* A name that resolves to no company is said on the page (VIEWS.compare),
+       not dropped without a word; and a link none of whose names resolve
+       compares nothing and says so, rather than showing the selection kept
+       in this browser under an address naming other companies. */
+    const names = qs.get('companies').split(',').map(s => s.trim()).filter(Boolean);
+    const found = names.map(companyFromSlug);
+    const ids = [...new Set(found.filter(Boolean))];
+    State.compareMissing = names.filter((s, i) => !found[i]);
+    State.compare = ids.slice(0, lim('compare'));
+  } else if (route.view === 'compare') State.compareMissing = [];
   /* THE TAB IS PART OF THE ADDRESS. Tab clicks used to change State and
      re-render without touching the URL, so Back never restored a tab and a
      shared link never carried one. Every tab strip now navigates, and the
@@ -1075,6 +1127,14 @@ function applyRoute() {
     const t = qs.get('tab');
     if (!(t && (LEARN_TABS.some(x => x.id === t) || LEARN_TAB_ALIAS[t]))) State.learnTab = 'dictionary';
   }
+  /* And /discover is the screener, by the same rule. Only Learn had it: Back
+     from /discover?tab=heatmap left the Heatmap on screen under /discover,
+     and after ?tab=ideas every later /discover opened on Screening
+     Strategies — the address no longer said what was on screen. */
+  if (route.view === 'discover' && !route.tab) {
+    const t = qs.get('tab');
+    if (!(t && DISCOVER_TABS.some(x => x.id === t))) State.discoverTab = 'screener';
+  }
 
   /* A screen template named in the address (?template=div-cover) loads as the
      screen, so a link can open the screener on the question it promises —
@@ -1104,6 +1164,8 @@ function applyRoute() {
    rewritten in place (replace, not push: a chip click is not a new page). */
 function saveCompare() {
   store.write('compare', State.compare);
+  /* The address is about to name this selection, not the link's misses. */
+  State.compareMissing = [];
   const q = new URLSearchParams(location.search);
   if (State.view !== 'compare' || !q.has('companies')) return;
   q.set('companies', State.compare.join(','));
@@ -1310,12 +1372,19 @@ function closeMenu({ restore = true } = {}) {
    honours aria-modal inconsistently. The sheet covered the page under the
    header, and Tab past its last item went on to "Which sources?", hidden
    under the still-open sheet; a swipe walked into the covered page. */
-const BEHIND = () => ['.disclosure', '#main', 'body > .footer'].map(s => document.querySelector(s)).filter(Boolean);
+/* The decision dock too: render() mounts it at body level, outside #main, so
+   its one action stayed in a screen reader's reach behind the modal drawer.
+   A dock drawn while one is open is made inert as it is mounted (drawPage). */
+const BEHIND = () => ['.disclosure', '#main', 'body > .dock', 'body > .footer'].map(s => document.querySelector(s)).filter(Boolean);
 const setBehindInert = (on, extra = []) => [...BEHIND(), ...extra].forEach(n => { if (on) n.setAttribute('inert', ''); else n.removeAttribute('inert'); });
 function openSheet() {
   if (sheetOpen) return;
   sheetOpen = true;
   shellEl.sheet.hidden = false;
+  /* At its top, with Products first, every time. The sheet is built once and
+     kept, and it reopened where it had last been scrolled to: Terms chosen
+     from its foot, the sheet opened again on /terms 564px down, mid-list. */
+  shellEl.sheet.scrollTop = 0;
   shellEl.pubScrim && (shellEl.pubScrim.hidden = false);
   /* The name stays "Menu": it was swapped to "Close the menu" with
      aria-expanded, so a screen reader said "Close the menu, expanded" — the
@@ -1812,9 +1881,46 @@ function recordOf(n, root) {
   }
   return heads.join(' / ');
 }
+/* A FIELD LEFT BY TAB. A text field's change fires as Tab or Shift+Tab takes
+   focus from it: the field has let go and the next control does not have it
+   yet, so at that moment nothing holds focus. A change that redraws the page
+   there replaced the control the browser was moving to, and focus fell to
+   <body> — the calculator's "Weeks a year you would use it yourself" and the
+   company page's required discount, typed and Tabbed past, sent the next Tab
+   to "Skip to content" at the top of the page. The field that is committing
+   is the control in use: it is noted as the one Tab is leaving, and focus
+   goes one stop on from the field drawn in its place, the way the key was
+   going (giveFocusBack). The key is known for the task it is pressed in. */
+let tabLeaving = null;
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  tabLeaving = { back: e.shiftKey };
+  setTimeout(() => { tabLeaving = null; }, 0);
+}, true);
+const TAB_STOPS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]';
+/* One stop on from `n`, as Tab would go: brought into view as Tab brings
+   it, and a text field's figure selected, so typing replaces it as it would
+   after the key. False where there is no stop that way to take focus. */
+function tabOnFrom(n, step) {
+  const stops = [...document.querySelectorAll(TAB_STOPS)].filter(x => x.tabIndex >= 0 && x.getClientRects().length && !x.closest('[inert]'));
+  const at = stops.indexOf(n);
+  if (at < 0) return false;
+  for (let i = at + step; i >= 0 && i < stops.length; i += step) {
+    const to = stops[i];
+    to.focus();
+    if (document.activeElement !== to) continue;
+    if (to.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|range|color|file)$/.test(to.type)) to.select?.();
+    return true;
+  }
+  return false;
+}
 function noteFocusForRedraw() {
-  const a = document.activeElement;
-  if (!a || a === document.body) return null;
+  let a = document.activeElement, left = 0;
+  if (!a || a === document.body) {
+    const e = window.event;
+    if (!tabLeaving || e?.type !== 'change' || !(e.target instanceof Element) || !e.target.isConnected) return null;
+    a = e.target; left = tabLeaving.back ? -1 : 1;
+  }
   const scope = REDRAW_FOCUS_SCOPES.find(s => a.closest(s));
   if (!scope || redrawFocusClaims.some(claim => claim(a))) return null;
   const link = a.tagName === 'A' ? a.getAttribute('href') : null;
@@ -1854,7 +1960,9 @@ function noteFocusForRedraw() {
     typed: typedSinceCommit.has(a) ? a.value : null,
     /* A summary's own disclosure may have been closed; any other holder of focus sat in open ones. */
     ownOpen: a.tagName === 'SUMMARY' && !!a.parentElement?.open,
-    caret: fieldCaret(a),
+    caret: left ? null : fieldCaret(a),
+    /* +1 or −1 where Tab or Shift+Tab is leaving the field (see tabLeaving). */
+    left,
   };
 }
 function counterpartOf(h) {
@@ -1938,6 +2046,8 @@ function giveFocusBack(h) {
   n.focus({ preventScroll: true });
   if (document.activeElement !== n) { focusMain(); return; }
   stayPut(h, n);
+  /* Tab was leaving it: on to where the key was going. */
+  if (h.left && tabOnFrom(n, h.left)) return;
   if (caret) putCaret(n, caret);
 }
 
@@ -2007,6 +2117,8 @@ function drawPage(samePage) {
     const dock = decisionDock(dockSpec);
     const footer = document.querySelector('body > .footer');
     footer ? footer.before(dock) : document.body.append(dock);
+    /* Behind an open sheet or drawer, as the page it summarises is (BEHIND). */
+    if (sheetOpen || navDrawerOpen) dock.setAttribute('inert', '');
     viewRoot.dataset.dock = '1';
     /* THE DOCK COVERED THE FIELD BEING TYPED INTO. The browser scrolls a
        focused control only until it touches the bottom edge of the viewport,

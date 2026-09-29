@@ -1049,6 +1049,9 @@ VIEWS.watchlists = () => {
   ])));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
+  /* A control of the page drawn again, by its label — where focus goes when
+     the one pressed is gone (focusAfterRedraw, 05-plans.js). */
+  const labelled = (l) => () => [...document.querySelectorAll('#main button, #main input')].find(n => n.getAttribute('aria-label') === l);
 
   /* Create, export and import — the operations the brief names, on the page
      the brief names, rather than in a drawer behind another page's button.
@@ -1137,6 +1140,10 @@ VIEWS.watchlists = () => {
     if (lists.length > 1) head.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Delete “${w.name}”?`)) return;
       const r = wlDelete(w.id); toast(r.ok ? 'Watchlist deleted' : r.why); render();
+      /* The card goes, and its Delete with it; focus fell to the top of the
+         page. It goes to the New watchlist field — not to the next card, whose
+         own Delete is one Enter away. */
+      if (r.ok) focusAfterRedraw(labelled('New watchlist name'));
     } }, 'Delete'));
     card.append(head);
 
@@ -1156,7 +1163,7 @@ VIEWS.watchlists = () => {
     else {
       const t = el('table', { class: 'dt' });
       t.append(el('thead', {}, el('tr', {}, ['Symbol', 'Company', 'Coverage', 'Instrument id', 'Added', ''].map((h, i) => el('th', i === 1 ? { style: 'text-align:left' } : {}, h)))));
-      t.append(el('tbody', {}, items.map(it => {
+      t.append(el('tbody', {}, items.map((it, i) => {
         const row = BY_ID.get(it.companyId);
         return el('tr', {}, [
           el('td', { class: 'ident' }, row ? el('a', { href: href(companyPath(row.c)), onclick: (e) => { e.preventDefault(); openResearch(row.c.id); } }, row.c.tk) : it.companyId),
@@ -1165,7 +1172,14 @@ VIEWS.watchlists = () => {
           el('td', { class: 'caption' }, it.instrumentId || '—'),
           el('td', { class: 'caption' }, it.addedAt ? String(it.addedAt).slice(0, 10) : 'unknown'),
           el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Remove ${row ? row.c.tk : it.companyId} from ${w.name}`,
-            onclick: () => { const r = wlRemove(w.id, it.companyId); toast(r.ok ? 'Removed' : r.why); render(); } }, '×')),
+            onclick: () => {
+              const r = wlRemove(w.id, it.companyId); toast(r.ok ? 'Removed' : r.why); render();
+              /* The row goes, and its × with it, which dropped focus at the top
+                 of the page: on to the next row's ×, or, from the last row,
+                 to this list's "Add a company". */
+              const next = items[i + 1];
+              if (r.ok) focusAfterRedraw(labelled(next ? `Remove ${BY_ID.get(next.companyId)?.c.tk || next.companyId} from ${w.name}` : `Add a company to ${w.name}`));
+            } }, '×')),
         ]);
       })));
       card.append(el('div', { class: 'tablewrap', style: 'margin-top:10px' }, t));

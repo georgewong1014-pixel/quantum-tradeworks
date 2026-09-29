@@ -1366,7 +1366,8 @@ function renderScreener() {
     onclick: () => { State.screenCcy = v; store.write('screenCcy', v); render(); } }, label))));
   hdRow.append(ccyRow);
   hdRow.append(el('span', { class: 'spacer' }));
-  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': sc.showMedians !== false ? 'true' : 'false',
+  /* By id: its words change with each press (see co-watch, 45-views-research.js). */
+  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'scr-medians', 'aria-pressed': sc.showMedians !== false ? 'true' : 'false',
     onclick: () => { sc.showMedians = sc.showMedians === false; render(); },
     html: `${icon('scale', 13)} ${sc.showMedians !== false ? 'Hide' : 'Show'} medians` }));
   /* The count belongs on the button. A reader who has widened the table to

@@ -15905,8 +15905,13 @@ async function fetchJson(url) {
   try { return await r.json(); } catch { return null; }
 }
 
+/* The app's own file names the front door. The host serves /index.html as
+   the file it is (the rewrite to the app skips dotted paths), and the path
+   was matched as it stood, so the app answered its own front door with
+   "That page does not exist". A trailing /index.html is the directory it
+   sits in, which is also what BASE takes it to be. */
 function matchRoute(pathname) {
-  const clean = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname).replace(/\/+$/, '') || '/';
+  const clean = (pathname.startsWith(BASE) ? pathname.slice(BASE.length) : pathname).replace(/\/index\.html$/, '').replace(/\/+$/, '') || '/';
   for (const r of ROUTES) {
     if (!r.path.includes(':')) { if (r.path === clean) return { ...r, params: {} }; continue; }
     const rp = r.path.split('/'), cp = clean.split('/');
@@ -15960,6 +15965,25 @@ function canonicalPath(route) {
   if (route.path.includes(':')) {
     const p = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname;
     return p.replace(/\/+$/, '') || '/';
+  }
+  /* Learn and the Screener name the page by the tab on screen, as a company
+     page does. Compared by the route row's tab alone, /learn and
+     /learn/glossary — one dictionary — were each their own canonical, and
+     /learn?tab=scoring and /discover?tab=heatmap, pages of their own, named
+     /learn and /discover, whose content is the dictionary and the screener.
+     A tab with a path of its own is named by it (the path the tab strip
+     goes to); the other tabs by the view's address and ?tab=. The tab is
+     the route's, else the one the address names when this is the page in
+     the address, else the view's first — which is what applyRoute shows. */
+  if (route.view === 'learn' || route.view === 'discover') {
+    const tabs = route.view === 'learn' ? LEARN_TABS : DISCOVER_TABS;
+    const norm = (t) => (route.view === 'learn' && LEARN_TAB_ALIAS[t]) || t;
+    const here = matchRoute(location.pathname)?.path === route.path;
+    const raw = route.tab || (here ? new URLSearchParams(location.search).get('tab') : null);
+    const tab = raw && tabs.some(x => x.id === norm(raw)) ? norm(raw) : tabs[0].id;
+    const own = ROUTES.find(r => !r.alias && r.view === route.view && r.tab && norm(r.tab) === tab);
+    const bare = ROUTES.find(r => !r.alias && r.view === route.view && !r.tab);
+    return own ? own.path : `${bare.path}?tab=${tab}`;
   }
   /* Never an alias row. The brief's aliases sit ABOVE the canonical rows (so
      that matchRoute reads them first), and go() already skips them for that
@@ -16037,8 +16061,14 @@ function navigate(path, { push = true, replace = false } = {}) {
   if (replace) history.replaceState({ path }, '', url);
   else if (push && (location.pathname + location.search) !== url) history.pushState({ path }, '', url);
   const before = State.view;
+  /* Which strip of the page's own tabs asked for this, if one did — read
+     before the page is drawn again and the tab that has focus goes. By the
+     click too, for a browser that does not focus a button it clicks. */
+  const inStrip = (n) => n?.closest?.('#views [role="tablist"]');
+  const tablist = inStrip(document.activeElement) || inStrip(window.event?.target);
+  const strip = tablist ? tablist.getAttribute('aria-label') || '' : null;
   applyRoute();
-  afterRoute(before);
+  afterRoute(before, { strip });
 }
 
 /* What happens after the address changed and the page re-rendered — shared
@@ -16050,7 +16080,7 @@ function navigate(path, { push = true, replace = false } = {}) {
    it can be used far down the page — and puts focus back on the tab now
    selected, because render() rebuilt the strip and destroyed the button that
    had focus, which drops focus to <body>. */
-function afterRoute(beforeView) {
+function afterRoute(beforeView, { strip = null } = {}) {
   const pathChanged = location.pathname !== lastPath;
   lastPath = location.pathname;
   /* A menu or the navigation drawer that led here has done its job, and the
@@ -16059,14 +16089,23 @@ function afterRoute(beforeView) {
      is about to be hidden with its menu, and focus would fall to <body>. */
   const fromMenu = openMenuLi || sheetOpen || navDrawerOpen;
   closeShellMenus({ restore: false });
-  if (State.view !== beforeView || pathChanged) {
+  /* A tab of the page's own strip is a tab change wherever its address is.
+     Four of Learn's five tabs and two of the Screener's have a path of their
+     own, and choosing one was treated as a new page: the page went to the
+     top and focus to <main>, so the next arrow key did nothing, while the
+     tab beside it (a ?tab= one) kept focus where it was. */
+  const tabChosen = strip !== null && State.view === beforeView;
+  if (!tabChosen && (State.view !== beforeView || pathChanged)) {
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (drawer.dataset.open === '1') closeDrawer({ restore: false });
     focusMain();
   } else {
     /* Any tab strip, whatever it is drawn as: the screener's tools are a
-       segmented control since Release A's fixes, not a .subnav row. */
-    document.querySelector('#views [role="tablist"] [role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+       segmented control since Release A's fixes, not a .subnav row. The
+       strip the tab was chosen in, where a page has more than one. */
+    const lists = [...document.querySelectorAll('#views [role="tablist"]')];
+    const list = (strip !== null && lists.find(l => (l.getAttribute('aria-label') || '') === strip)) || lists[0];
+    list?.querySelector('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
     if (fromMenu) focusMain();
   }
 }
@@ -16087,6 +16126,12 @@ function focusMain() {
    same two, so the checker and the router agree on what a path names. */
 const COMPANY_ROUTE_VIEWS = new Set(['research', 'researchReport']);
 function applyRoute() {
+  /* And the address becomes the route's own (see matchRoute), so a link or a
+     reload taken from it is the clean one. */
+  if (/\/index\.html$/.test(location.pathname)) {
+    const at = location.pathname.slice(BASE.length).replace(/\/index\.html$/, '') || '/';
+    history.replaceState(history.state, '', href(at) + location.search + location.hash);
+  }
   const route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
   /* A route whose view is defined in a module this build does not carry —
@@ -16162,9 +16207,16 @@ function applyRoute() {
     /* Through the same resolver as a company address, so every name
        /app/equities/:id accepts — 1155, maybank, aapl, a CIK — works here too.
        Matching BY_ID alone dropped 1155 without a word. */
-    const ids = [...new Set(qs.get('companies').split(',').map(s => companyFromSlug(s.trim())).filter(Boolean))];
-    if (ids.length) State.compare = ids.slice(0, lim('compare'));
-  }
+    /* A name that resolves to no company is said on the page (VIEWS.compare),
+       not dropped without a word; and a link none of whose names resolve
+       compares nothing and says so, rather than showing the selection kept
+       in this browser under an address naming other companies. */
+    const names = qs.get('companies').split(',').map(s => s.trim()).filter(Boolean);
+    const found = names.map(companyFromSlug);
+    const ids = [...new Set(found.filter(Boolean))];
+    State.compareMissing = names.filter((s, i) => !found[i]);
+    State.compare = ids.slice(0, lim('compare'));
+  } else if (route.view === 'compare') State.compareMissing = [];
   /* THE TAB IS PART OF THE ADDRESS. Tab clicks used to change State and
      re-render without touching the URL, so Back never restored a tab and a
      shared link never carried one. Every tab strip now navigates, and the
@@ -16195,6 +16247,14 @@ function applyRoute() {
     const t = qs.get('tab');
     if (!(t && (LEARN_TABS.some(x => x.id === t) || LEARN_TAB_ALIAS[t]))) State.learnTab = 'dictionary';
   }
+  /* And /discover is the screener, by the same rule. Only Learn had it: Back
+     from /discover?tab=heatmap left the Heatmap on screen under /discover,
+     and after ?tab=ideas every later /discover opened on Screening
+     Strategies — the address no longer said what was on screen. */
+  if (route.view === 'discover' && !route.tab) {
+    const t = qs.get('tab');
+    if (!(t && DISCOVER_TABS.some(x => x.id === t))) State.discoverTab = 'screener';
+  }
 
   /* A screen template named in the address (?template=div-cover) loads as the
      screen, so a link can open the screener on the question it promises —
@@ -16224,6 +16284,8 @@ function applyRoute() {
    rewritten in place (replace, not push: a chip click is not a new page). */
 function saveCompare() {
   store.write('compare', State.compare);
+  /* The address is about to name this selection, not the link's misses. */
+  State.compareMissing = [];
   const q = new URLSearchParams(location.search);
   if (State.view !== 'compare' || !q.has('companies')) return;
   q.set('companies', State.compare.join(','));
@@ -16430,12 +16492,19 @@ function closeMenu({ restore = true } = {}) {
    honours aria-modal inconsistently. The sheet covered the page under the
    header, and Tab past its last item went on to "Which sources?", hidden
    under the still-open sheet; a swipe walked into the covered page. */
-const BEHIND = () => ['.disclosure', '#main', 'body > .footer'].map(s => document.querySelector(s)).filter(Boolean);
+/* The decision dock too: render() mounts it at body level, outside #main, so
+   its one action stayed in a screen reader's reach behind the modal drawer.
+   A dock drawn while one is open is made inert as it is mounted (drawPage). */
+const BEHIND = () => ['.disclosure', '#main', 'body > .dock', 'body > .footer'].map(s => document.querySelector(s)).filter(Boolean);
 const setBehindInert = (on, extra = []) => [...BEHIND(), ...extra].forEach(n => { if (on) n.setAttribute('inert', ''); else n.removeAttribute('inert'); });
 function openSheet() {
   if (sheetOpen) return;
   sheetOpen = true;
   shellEl.sheet.hidden = false;
+  /* At its top, with Products first, every time. The sheet is built once and
+     kept, and it reopened where it had last been scrolled to: Terms chosen
+     from its foot, the sheet opened again on /terms 564px down, mid-list. */
+  shellEl.sheet.scrollTop = 0;
   shellEl.pubScrim && (shellEl.pubScrim.hidden = false);
   /* The name stays "Menu": it was swapped to "Close the menu" with
      aria-expanded, so a screen reader said "Close the menu, expanded" — the
@@ -16932,9 +17001,46 @@ function recordOf(n, root) {
   }
   return heads.join(' / ');
 }
+/* A FIELD LEFT BY TAB. A text field's change fires as Tab or Shift+Tab takes
+   focus from it: the field has let go and the next control does not have it
+   yet, so at that moment nothing holds focus. A change that redraws the page
+   there replaced the control the browser was moving to, and focus fell to
+   <body> — the calculator's "Weeks a year you would use it yourself" and the
+   company page's required discount, typed and Tabbed past, sent the next Tab
+   to "Skip to content" at the top of the page. The field that is committing
+   is the control in use: it is noted as the one Tab is leaving, and focus
+   goes one stop on from the field drawn in its place, the way the key was
+   going (giveFocusBack). The key is known for the task it is pressed in. */
+let tabLeaving = null;
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  tabLeaving = { back: e.shiftKey };
+  setTimeout(() => { tabLeaving = null; }, 0);
+}, true);
+const TAB_STOPS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]';
+/* One stop on from `n`, as Tab would go: brought into view as Tab brings
+   it, and a text field's figure selected, so typing replaces it as it would
+   after the key. False where there is no stop that way to take focus. */
+function tabOnFrom(n, step) {
+  const stops = [...document.querySelectorAll(TAB_STOPS)].filter(x => x.tabIndex >= 0 && x.getClientRects().length && !x.closest('[inert]'));
+  const at = stops.indexOf(n);
+  if (at < 0) return false;
+  for (let i = at + step; i >= 0 && i < stops.length; i += step) {
+    const to = stops[i];
+    to.focus();
+    if (document.activeElement !== to) continue;
+    if (to.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|reset|range|color|file)$/.test(to.type)) to.select?.();
+    return true;
+  }
+  return false;
+}
 function noteFocusForRedraw() {
-  const a = document.activeElement;
-  if (!a || a === document.body) return null;
+  let a = document.activeElement, left = 0;
+  if (!a || a === document.body) {
+    const e = window.event;
+    if (!tabLeaving || e?.type !== 'change' || !(e.target instanceof Element) || !e.target.isConnected) return null;
+    a = e.target; left = tabLeaving.back ? -1 : 1;
+  }
   const scope = REDRAW_FOCUS_SCOPES.find(s => a.closest(s));
   if (!scope || redrawFocusClaims.some(claim => claim(a))) return null;
   const link = a.tagName === 'A' ? a.getAttribute('href') : null;
@@ -16974,7 +17080,9 @@ function noteFocusForRedraw() {
     typed: typedSinceCommit.has(a) ? a.value : null,
     /* A summary's own disclosure may have been closed; any other holder of focus sat in open ones. */
     ownOpen: a.tagName === 'SUMMARY' && !!a.parentElement?.open,
-    caret: fieldCaret(a),
+    caret: left ? null : fieldCaret(a),
+    /* +1 or −1 where Tab or Shift+Tab is leaving the field (see tabLeaving). */
+    left,
   };
 }
 function counterpartOf(h) {
@@ -17058,6 +17166,8 @@ function giveFocusBack(h) {
   n.focus({ preventScroll: true });
   if (document.activeElement !== n) { focusMain(); return; }
   stayPut(h, n);
+  /* Tab was leaving it: on to where the key was going. */
+  if (h.left && tabOnFrom(n, h.left)) return;
   if (caret) putCaret(n, caret);
 }
 
@@ -17127,6 +17237,8 @@ function drawPage(samePage) {
     const dock = decisionDock(dockSpec);
     const footer = document.querySelector('body > .footer');
     footer ? footer.before(dock) : document.body.append(dock);
+    /* Behind an open sheet or drawer, as the page it summarises is (BEHIND). */
+    if (sheetOpen || navDrawerOpen) dock.setAttribute('inert', '');
     viewRoot.dataset.dock = '1';
     /* THE DOCK COVERED THE FIELD BEING TYPED INTO. The browser scrolls a
        focused control only until it touches the bottom edge of the viewport,
@@ -18721,7 +18833,8 @@ function renderScreener() {
     onclick: () => { State.screenCcy = v; store.write('screenCcy', v); render(); } }, label))));
   hdRow.append(ccyRow);
   hdRow.append(el('span', { class: 'spacer' }));
-  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': sc.showMedians !== false ? 'true' : 'false',
+  /* By id: its words change with each press (see co-watch, 45-views-research.js). */
+  hdRow.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'scr-medians', 'aria-pressed': sc.showMedians !== false ? 'true' : 'false',
     onclick: () => { sc.showMedians = sc.showMedians === false; render(); },
     html: `${icon('scale', 13)} ${sc.showMedians !== false ? 'Hide' : 'Show'} medians` }));
   /* The count belongs on the button. A reader who has widened the table to
@@ -21297,7 +21410,10 @@ function companyActions(r) {
   const link = (path, label, { before, ...attrs } = {}) => el('a', { class: 'btn btn-ghost btn-sm', href: href(path), ...attrs,
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); before?.(); navigate(path); } }, label);
   const watching = State.watchlist.includes(c.id);
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': watching ? 'true' : 'false',
+  /* An id, because its words change with what it does: render() finds the
+     control in use again by id first, and by its words it found nothing and
+     left focus on <main> after every press (35-ui.js, giveFocusBack). */
+  acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'co-watch', 'aria-pressed': watching ? 'true' : 'false',
     onclick: () => toggleWatch(c.id) }, watching ? '✓ On your watchlist' : 'Add to watchlist'));
   /* Compare adds this company to the selection already held, rather than
      replacing it, and drops the oldest when the plan's cap is reached — with a
@@ -21850,8 +21966,15 @@ VIEWS.research = () => {
     const s = el('select', { class: 'select select-sm', 'aria-label': 'Jump to a section of this report',
       onchange: (e) => {
         const t = document.getElementById(e.target.value);
-        if (t) { t.scrollIntoView({ block: 'start' }); t.focus?.(); }
         e.target.selectedIndex = 0;
+        if (!t) return;
+        /* The reader goes where the page went. A heading takes no focus of its
+           own, so t.focus() did nothing: focus stayed on the select in the
+           strip, and the next Tab went on from there rather than from the
+           section. tabindex=-1 holds focus without joining the Tab order. */
+        t.setAttribute('tabindex', '-1');
+        t.focus({ preventScroll: true });
+        t.scrollIntoView({ block: 'start' });
       } });
     s.append(el('option', { value: '' }, `Jump to… (${heads.length})`));
     heads.forEach(h => s.append(el('option', { value: h.id }, h.textContent.trim().slice(0, 46))));
@@ -25395,6 +25518,15 @@ VIEWS.compare = () => {
       'Sector alone is not a peer group. Business model, capital intensity, maturity and market convention all change which metrics mean the same thing across two companies.'),
   ]));
   wrap.append(hd);
+  /* The names in a ?companies= link that are no company here, said rather
+     than dropped (applyRoute, 35-ui.js). */
+  const missing = State.compareMissing || [];
+  if (missing.length) {
+    const list = missing.map(s => `“${s.slice(0, 40)}”`);
+    const one = list.length === 1;
+    wrap.append(el('p', { class: 'note body', role: 'status', style: 'margin:0 0 var(--md);padding:var(--sm) var(--md);max-width:72ch;background:var(--surface-sunk);border-left:3px solid var(--warn);border-radius:0 var(--r-sm) var(--r-sm) 0;overflow-wrap:anywhere' },
+      `${one ? list[0] : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`} in the link ${one ? 'is not a company' : 'are not companies'} in this build, so ${State.compare.length ? `${one ? 'it is' : 'they are'} left out` : 'there is nothing to compare'}.`));
+  }
 
   /* picker */
   const pick = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
@@ -25898,7 +26030,10 @@ function sampleBanner() {
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 300px;margin:0' },
       'These holdings, investment cases, watchlists and price alerts were written into this browser so the views have something to show. They are not yours, nobody holds them, and every figure derived from them is illustrative. Clearing keeps any list or alert you have changed.'),
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: clearSeededData }, 'Clear and start my own'),
+    /* The banner goes with what it describes, and the button with it: focus
+       fell to the top of the page. It goes to the page's heading, as the
+       dashboard's "Clear the sample data" sends it (40-views-discover.js). */
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear and start my own'),
   ]));
   return b;
 }
@@ -27736,6 +27871,9 @@ VIEWS.watchlists = () => {
   ])));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
+  /* A control of the page drawn again, by its label — where focus goes when
+     the one pressed is gone (focusAfterRedraw, 05-plans.js). */
+  const labelled = (l) => () => [...document.querySelectorAll('#main button, #main input')].find(n => n.getAttribute('aria-label') === l);
 
   /* Create, export and import — the operations the brief names, on the page
      the brief names, rather than in a drawer behind another page's button.
@@ -27824,6 +27962,10 @@ VIEWS.watchlists = () => {
     if (lists.length > 1) head.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Delete “${w.name}”?`)) return;
       const r = wlDelete(w.id); toast(r.ok ? 'Watchlist deleted' : r.why); render();
+      /* The card goes, and its Delete with it; focus fell to the top of the
+         page. It goes to the New watchlist field — not to the next card, whose
+         own Delete is one Enter away. */
+      if (r.ok) focusAfterRedraw(labelled('New watchlist name'));
     } }, 'Delete'));
     card.append(head);
 
@@ -27843,7 +27985,7 @@ VIEWS.watchlists = () => {
     else {
       const t = el('table', { class: 'dt' });
       t.append(el('thead', {}, el('tr', {}, ['Symbol', 'Company', 'Coverage', 'Instrument id', 'Added', ''].map((h, i) => el('th', i === 1 ? { style: 'text-align:left' } : {}, h)))));
-      t.append(el('tbody', {}, items.map(it => {
+      t.append(el('tbody', {}, items.map((it, i) => {
         const row = BY_ID.get(it.companyId);
         return el('tr', {}, [
           el('td', { class: 'ident' }, row ? el('a', { href: href(companyPath(row.c)), onclick: (e) => { e.preventDefault(); openResearch(row.c.id); } }, row.c.tk) : it.companyId),
@@ -27852,7 +27994,14 @@ VIEWS.watchlists = () => {
           el('td', { class: 'caption' }, it.instrumentId || '—'),
           el('td', { class: 'caption' }, it.addedAt ? String(it.addedAt).slice(0, 10) : 'unknown'),
           el('td', {}, el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Remove ${row ? row.c.tk : it.companyId} from ${w.name}`,
-            onclick: () => { const r = wlRemove(w.id, it.companyId); toast(r.ok ? 'Removed' : r.why); render(); } }, '×')),
+            onclick: () => {
+              const r = wlRemove(w.id, it.companyId); toast(r.ok ? 'Removed' : r.why); render();
+              /* The row goes, and its × with it, which dropped focus at the top
+                 of the page: on to the next row's ×, or, from the last row,
+                 to this list's "Add a company". */
+              const next = items[i + 1];
+              if (r.ok) focusAfterRedraw(labelled(next ? `Remove ${BY_ID.get(next.companyId)?.c.tk || next.companyId} from ${w.name}` : `Add a company to ${w.name}`));
+            } }, '×')),
         ]);
       })));
       card.append(el('div', { class: 'tablewrap', style: 'margin-top:10px' }, t));
@@ -29372,7 +29521,13 @@ function learnModels() {
     'A bank has no meaningful free cash flow. A REIT distributes contracted income. A commodity producer earns nothing like its trailing figures at the wrong point in the cycle. Each company type is routed to a model pack that suits it, and the routing reason is published on the company page.'));
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, ['Company type', 'Primary model', 'Secondary checks', 'Companies'].map(h => el('th', {}, h)))));
+  /* The Companies column wraps as the checks beside it do. It kept the table's
+     nowrap, and a mature row's list made it 2,537px wide: 1,865px of the table
+     ran past its card at 1440, the column's heading with it, and every short
+     row's companies sat off-screen, so the Bank to Early-stage rows read as if
+     no company were routed to them. */
+  const MEMBERS = 'text-align:left;white-space:normal;min-width:220px';
+  t.append(el('thead', {}, el('tr', {}, ['Company type', 'Primary model', 'Secondary checks', 'Companies'].map((h, i) => el('th', i === 3 ? { style: MEMBERS } : {}, h)))));
   /* Every type routeModel handles, and the pack from routeModel itself. The
      table used to list seven types and take each pack from the first company
      of that type: the insurer and early-stage rows were missing though their
@@ -29389,7 +29544,7 @@ function learnModels() {
       el('td', { class: 'ident' }, label),
       el('td', { style: 'text-align:left;white-space:normal;max-width:200px' }, pack?.name || '—'),
       el('td', { style: 'text-align:left;white-space:normal;max-width:260px', class: 'caption' }, pack?.secondary.join(' · ') || '—'),
-      el('td', {}, members.map(m => m.c.tk + illusText(m.c)).join(', ') || '—'),
+      el('td', { style: MEMBERS }, members.map(m => m.c.tk + illusText(m.c)).join(', ') || '—'),
     ]);
   })));
   tw.append(t); intro.append(tw);
@@ -42750,12 +42905,15 @@ VIEWS.scannerSetups = () => {
       const s = r.browser || r.file;
       const li = el('li', {}, [
         el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-          scanLink(scanSetupPath(r.id), s?.name || r.name || r.id, { style: 'font-weight:600' }), scanDriftChip(r),
+          scanLink(scanSetupPath(r.id), s?.name || r.name || r.id, { style: 'font-weight:600', data: { scanFocus: `drift:${r.id}` } }), scanDriftChip(r),
           el('span', { class: 'spacer' }),
           (r.state === 'FILE_NEWER' || r.state === 'FILE_ONLY') ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Adopt ${r.id} from the file`, onclick: () => {
             const out = scanAdoptFromFile(r.id);
             toast(out.ok ? `Adopted ${r.id} as v${out.version}` : `Not adopted — ${out.problems[0]}`);
-            scanRender();
+            /* Adopted, the row has nothing left to adopt and the button goes:
+               focus stays on the row, on its link, rather than falling to
+               the top of the page. */
+            scanRender({ fallback: `drift:${r.id}` });
           } }, 'Adopt from file') : null,
         ]),
         el('p', { class: 'caption', style: 'margin-top:2px' }, r.text),
@@ -42774,7 +42932,8 @@ VIEWS.scannerSetups = () => {
   if (fileOnly.length > 1) dc.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', onclick: () => {
     const res = fileOnly.map(r => scanAdoptFromFile(r.id));
     toast(`Adopted ${res.filter(x => x.ok).length} of ${fileOnly.length} from the file`);
-    scanRender();
+    /* On to the export beneath, the next thing the adopted setups want. */
+    scanRender({ fallback: 'BUTTON:Export scan-setups.json' });
   } }, `Adopt all ${fileOnly.length} from the file`));
   const exp = scanExportControls({ primary: off.some(r => r.state === 'NOT_EXPORTED' || r.state === 'BROWSER_ONLY') });
   exp.style.marginTop = 'var(--md)';
@@ -42897,7 +43056,8 @@ VIEWS.scannerSetup = () => {
   }
   if (rec?.deleted) acts.append(el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'delete-restore' }, onclick: () => { scanSetMeta(id, { deleted: null }); toast('Restored'); scanRender(); } }, 'Restore'));
   if (drift && (drift.state === 'FILE_NEWER' || drift.state === 'FILE_ONLY')) acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-    const out = scanAdoptFromFile(id); toast(out.ok ? `Adopted as v${out.version}` : `Not adopted — ${out.problems[0]}`); scanRender();
+    /* Adopted, the setup is this browser's and its Disable takes the place. */
+    const out = scanAdoptFromFile(id); toast(out.ok ? `Adopted as v${out.version}` : `Not adopted — ${out.problems[0]}`); scanRender({ fallback: 'toggle' });
   } }, 'Adopt from file'));
   head.append(acts);
   wrap.append(head);
@@ -43327,21 +43487,29 @@ function scanBuilderView(mode) {
    says what they are: illustrations of the file's syntax, not suggestions,
    and none claimed to mean anything. A changed draft is not replaced
    without asking. */
+/* The picker shows the example the draft was started from. It was drawn
+   afresh at "Choose an example…" after each one loaded, so it never said which
+   was loaded, and an arrow key — which on Windows changes a closed select —
+   chose the first example again at every press: the other four could not be
+   reached from the keyboard. */
+const scanShownExample = () => (scanSeedOwns() && scanDraftSeed.example) || '';
 function scanExamplePicker() {
   const card = el('div', { class: 'card scan-examples' });
   const id = `scanf-${++scanFieldSeq}`;
   const s = el('select', { class: 'select', id, 'aria-label': 'Start from an example', onchange: (e) => {
     const ex = SCAN_EXAMPLES.setups.find(x => x.id === e.target.value);
     if (!ex) return;
-    if (!scanDraftUntouched() && !confirm('Replace the draft with this example? What is in the draft now is not kept.')) { e.target.value = ''; return; }
+    if (!scanDraftUntouched() && !confirm('Replace the draft with this example? What is in the draft now is not kept.')) { e.target.value = scanShownExample(); return; }
     const d = scanAsDraft(ex);
     if (scanStoreRead().setups[d.id] || scanFileSetupIds().has(d.id)) d.id = scanCopyId(d.id);
     scanSetDraft(d, scanSeedSig(), [`Started from the example “${ex.name}” (scanner/setups.example.json) — an illustration of the syntax, not a suggestion. Its id, name, universe and every condition are yours to replace.`]);
+    scanDraftSeed.example = ex.id;
     render();
     document.querySelector('main [aria-label="Start from an example"]')?.focus();
   } });
   s.append(el('option', { value: '' }, 'Choose an example…'));
   SCAN_EXAMPLES.setups.forEach(x => s.append(el('option', { value: x.id }, `${x.name} — ${x.ruleTree != null ? 'rule tree (0.3 form)' : 'rules (0.2 form)'}${x.enabled === false ? ', disabled' : ''}`)));
+  s.value = scanShownExample();
   card.append(el('div', { class: 'row row-wrap', style: 'gap:var(--sm) var(--md);align-items:flex-end' }, [
     el('div', { class: 'field', style: 'flex:1 1 260px;min-width:0;margin:0' }, [el('label', { for: id }, 'Start from an example'), s]),
     el('p', { class: 'caption', style: 'flex:2 1 320px;margin:0;max-width:62ch' }, `The ${SCAN_EXAMPLES.setups.length} examples in scanner/setups.example.json, loaded into the draft as written. An illustration of the syntax, not a suggestion: the product proposes no setup, and no condition in them is claimed to mean anything.`),
@@ -44007,7 +44175,9 @@ VIEWS.scannerAlerts = () => {
     scanSetAlertStatus(ids, status);
     toast(`${scanPlural(ids.length, 'alert')} marked ${status.toLowerCase()}`);
     scanAlertSel = new Set();
-    scanRender();
+    /* Where the action empties the list the buttons go with it: to the
+       empty list's "Show every match". */
+    scanRender({ fallback: 'BUTTON:Show every match' });
   } }, label);
   /* The count, and the header's box, follow every tick. The box kept the
      state it was drawn with: ticked from the header and one row unticked,
@@ -47876,7 +48046,11 @@ function openSearch() {
   /* A close before this frame was overridden by it, leaving the scrim over
      the page: the frame does nothing once the box has closed. */
   requestAnimationFrame(() => { if (!searchOpen) return; searchModal.dataset.open = '1'; scrim.dataset.open = '1'; searchInput.focus(); searchInput.select(); });
-  runSearch('');
+  /* The results answer the box as it reopens. The last query is kept, and
+     selected so that typing replaces it, but the list drawn under it was
+     the empty box's: "nvda" in the box over Maybank, Public Bank, CIMB,
+     and Enter opened Maybank. */
+  runSearch(searchInput.value);
 }
 function closeSearch({ restore = true } = {}) {
   /* closeDrawer calls this unconditionally; a search that is not open has no
@@ -47938,7 +48112,7 @@ function runSearch(q) {
         onclick: () => { closeSearch({ restore: false }); navigate('/my/tracked'); } });
       hover(b);
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
+      nm.append(el('div', { class: 'row', style: 'gap:2px 6px;flex-wrap:wrap' }, [
         el('span', { style: 'font-size:13px;font-weight:600' }, ins.symbol), marketChip(ins.market),
         el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on Watchlists › Tracked`));
@@ -47951,7 +48125,10 @@ function runSearch(q) {
       onclick: () => { closeSearch({ restore: false }); openResearch(r.c.id); } });
     hover(b);
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
+    /* The row of chips wraps. Its tokens are nowrap and do not shrink, and on a
+       phone the last of them, the exchange, ran out of the name's column and
+       over the price: "Bursa Main" printed across RM10.86 at 360, 390 and 430. */
+    nm.append(el('div', { class: 'row', style: 'gap:2px 6px;flex-wrap:wrap' }, [
       el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
       r.c.personal ? el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'personal research') : null,
       /* The code the reader may have typed, so a hit on it is visibly a hit.
@@ -48314,7 +48491,14 @@ const DOCKS = {
             .find(x => /Review \d+ sample input/.test(x.querySelector('summary')?.textContent || ''));
           if (!det) return;
           det.open = true;
-          det.scrollIntoView({ block: 'center' });
+          /* Into the list it opened. Focus stayed on the dock, which is last
+             in the page, so the next Tab went on into the footer and the list
+             was out of the keyboard's reach. Its summary takes focus; the
+             next Tab is the list's first "Go to it". From the list's top, so
+             the summary holding focus is in sight: centred, a list taller
+             than the screen put it above the top edge. */
+          det.querySelector('summary')?.focus({ preventScroll: true });
+          det.scrollIntoView({ block: 'start' });
         },
       } : null,
     };

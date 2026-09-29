@@ -3874,7 +3874,10 @@ try {
         if (r.options.join() !== exIds.join() || !r.caption) p.push(`the examples offered: ${r.options.join()} (file: ${exIds.join()}), labelled ${r.caption}`);
         if (r.tf.on.join() !== '1D,1W,1M' || r.tf.off.join() !== '1H:true,15M:true,5M:true') p.push(`timeframes: ${JSON.stringify(r.tf)}`);
         if (r.tree.name !== 'Trend breakout, written as a rule tree' || !r.tree.nested || !r.tree.readOnly || !r.tree.note || r.tree.focus !== 'Start from an example') p.push(`the rule-tree example: ${JSON.stringify(r.tree)}`);
-        if (r.refused.name !== 'Changed' || r.refused.sel !== '') p.push(`refusing kept ${JSON.stringify(r.refused)}`);
+        /* fixwave: shell (SCN-05) — the picker shows the example the draft
+           was started from, so a refusal puts it back to that, not to "Choose
+           an example…". */
+        if (r.refused.name !== 'Changed' || r.refused.sel !== 'trend-breakout-tree') p.push(`refusing kept ${JSON.stringify(r.refused)}`);
         if (r.replaced.name !== 'RSI below 30' || r.replaced.left !== 'rsi' || r.replaced.op !== 'LESS_THAN') p.push(`replacing: ${JSON.stringify(r.replaced)}`);
         if (r.foreign.notes || r.foreign.name !== 'From elsewhere' || !r.foreign.ask) p.push(`a draft set by another page: ${JSON.stringify(r.foreign)}`);
         if (r.copyDoc.n !== 1 || !r.copyDoc.disabled || !r.copyDoc.same) p.push(`the example configuration: ${JSON.stringify(r.copyDoc)}`);
@@ -8596,7 +8599,9 @@ try {
       await key('Enter', 13, '\r'); await sleep(400);
       const afterDelete = await at();
       const lists = await evaluate(`State.watchlists.map(w => w.name).join(', ')`);
-      (lists === 'Beta list, Gamma list' && afterDelete.at === 'main' ? kept : lost).push(`Delete on "Alpha list" → ${said(afterDelete)}; lists left: ${lists}`);
+      /* fixwave: shell (WS-16) — not <main> at the top of the page but the
+         New watchlist field; still never the next card. */
+      (lists === 'Beta list, Gamma list' && afterDelete.at === 'INPUT:New watchlist name' ? kept : lost).push(`Delete on "Alpha list" → ${said(afterDelete)}; lists left: ${lists}`);
       await evaluate(`(() => { const v = ${JSON.stringify(saved.watchlists)}; if (v == null) localStorage.removeItem('vl.watchlists'); else localStorage.setItem('vl.watchlists', v); return true; })()`);
 
       /* V5 — a scanner field, whose id is numbered afresh at every draw,
@@ -8642,13 +8647,17 @@ try {
 
       /* V9 — a box that holds focus because it scrolls (the methodology's
          table of company types, whose figures the filings change) keeps it
-         when the filings land. */
+         when the filings land. At 390: since fixwave: shell (SHELL-05) the
+         table wraps inside its card at 1440, and a box that does not scroll
+         takes no focus. */
+      await view(390, 844);
       await open('/methodology', /us\.json/, `[...document.querySelectorAll('#main .tablewrap')].some(t => /Company type/.test(t.textContent))`);
       const box = await evaluate(`(() => { const t = [...document.querySelectorAll('#main .tablewrap')].find(t => /Company type/.test(t.textContent));
         t.scrollIntoView({ block: 'center' }); t.focus({ preventScroll: true }); return document.activeElement === t; })()`);
       await release('/methodology');
       const onBox = await evaluate(`(() => { const a = document.activeElement; return a.matches?.('.tablewrap') && /Company type/.test(a.textContent) ? 'the company-type table' : a === document.body ? 'BODY' : a.id || a.tagName; })()`);
       (box && onBox === 'the company-type table' ? kept : lost).push(`the company-type table's scroller → ${onBox}`);
+      await view(1440, 900);
 
       /* V10 — /decision-record is the record from the first paint, not
          "That page does not exist" until the filings land — and with the
@@ -8702,6 +8711,245 @@ try {
     else ok(`render-focus-verify: the control in use comes back where the reader left it — ${kept.length} cases: a chart; a control under the sticky strip, one below a chart and one below the valuation tab's charts that stay put through three redraws; a heading reached by a jump link; a name typed and not yet added, through two redraws; a card's Delete that does not pass to the next card; a scanner field mid-typing; a figure in a table swiped sideways; a field with more drawn above it; a table's scroller; /decision-record from the first paint and with the filings off; no entrance replayed by a redraw; a tab scrolled along to in the Scanner's strip on a phone`);
   }
   /* ---- end bugfix: render-focus-verify ---- */
+
+  /* ---- fixwave: shell ---- */
+  /* THE SITE HUNT OF 2026-09-29 — THE SHELL, AND FOCUS THE READER'S OWN KEYS
+     LOST. Each is driven as the finding drove it, with real key events where
+     the fault lies between the keys, and each failed on 0e1119b:
+     SHELL-01 the search reopened holding "nvda" over the empty box's list,
+     and Enter opened Maybank; SHELL-04 /discover showed whichever tab was
+     used last; SHELL-05 the methodology's router table ran 1,865px past its
+     card; SHELL-08 /learn and /learn/glossary each named themselves while
+     /learn?tab=scoring named /learn, the dictionary; SHELL-09 a tab whose
+     address is a path put focus on <main> and went to the top; SHELL-12
+     /index.html was the 404 card; EQ-12 the section jump left focus on the
+     select; EQ-19 a name in ?companies= that is no company was dropped
+     without a word; EQ-22 a figure typed and Tabbed past, and a toggle whose
+     words change, dropped focus; WS-16 × Remove, Delete and the sample
+     banner's Clear left focus at the top of the page; SCN-05 the example
+     picker went back to "Choose an example…" at every change; SCN-07 Adopt
+     and a bulk Archive left focus at the top of the page. */
+  {
+    const kept = [], lost = [];
+    const say = (good, text) => (good ? kept : lost).push(text);
+    const KEY = { Enter: [13, '\r'], Escape: [27, ''], Tab: [9, ''], ArrowRight: [39, ''], '/': [191, '/'] };
+    const key = async (k, shift = false) => {
+      const [code, text] = KEY[k] || [k.toUpperCase().charCodeAt(0), k];
+      const modifiers = shift ? 8 : 0;
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, windowsVirtualKeyCode: code, ...(text ? { text } : {}), modifiers }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code, modifiers }, sessionId);
+      await sleep(60);
+    };
+    const typeIn = async (t) => { for (const ch of t) await key(ch); };
+    const view = (w, h) => send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false }, sessionId);
+    const DESC = `((a) => !a || a === document.body ? 'BODY' : a.id === 'main' ? 'MAIN'
+      : a.tagName + ':' + (a.getAttribute('aria-label') || a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 48))`;
+    const active = () => evaluate(`${DESC}(document.activeElement)`);
+    const focusOn = (expr) => evaluate(`(() => { const n = ${expr}; if (!n) return false; n.scrollIntoView({ block: 'center' }); n.focus(); return document.activeElement === n; })()`);
+    const visit = async (path, ms = 350) => { await evaluate(`(() => { navigate(${JSON.stringify(path)}); return true; })()`); await sleep(ms); };
+    const CASES = 12;
+    let broke = null;
+    const snapshot = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])))`);
+    try {
+      await view(1440, 900);
+
+      /* SHELL-01 — the reopened search answers the text in its box. */
+      await visit('/research');
+      await evaluate(`(() => { focusMain(); return true; })()`);
+      await key('/'); await sleep(300);
+      await typeIn('nvda'); await sleep(400);
+      await key('Escape'); await sleep(350);
+      await key('/'); await sleep(350);
+      const reopened = await evaluate(`({ box: searchInput.value, first: (searchResults.querySelector('button')?.querySelector('span')?.textContent || '').trim() })`);
+      await key('Enter'); await sleep(400);
+      const opened = await evaluate(`State.view === 'research' ? State.ticker : State.view`);
+      say(reopened.box === 'nvda' && reopened.first === 'NVDA' && opened === 'NVDA-SEC',
+        `SHELL-01 the search reopened with "${reopened.box}" in the box lists ${reopened.first || 'nothing'} first; Enter opened ${opened}`);
+
+      /* SHELL-04 — /discover with no tab in its address is the screener. */
+      const disc = await evaluate(`(async () => {
+        const w = (ms) => new Promise(r => setTimeout(r, ms));
+        const shown = () => ({ at: location.pathname + location.search, tab: State.discoverTab,
+          selected: document.querySelector('#views [role=tablist][aria-label="Screener tools"] [aria-selected=true]')?.textContent.trim() });
+        navigate('/discover'); await w(150);
+        go('discover', { tab: 'heatmap' }); await w(150);
+        const popped = new Promise(r => addEventListener('popstate', () => setTimeout(r, 150), { once: true }));
+        history.back(); await popped;
+        const back = shown();
+        navigate('/discover?tab=ideas'); await w(100); navigate('/about'); await w(100); navigate('/discover'); await w(150);
+        return { back, again: shown() };
+      })()`);
+      say(disc.back.at === '/discover' && disc.back.tab === 'screener' && disc.back.selected === 'Stock Screener' && disc.again.tab === 'screener' && disc.again.selected === 'Stock Screener',
+        `SHELL-04 Back from the Heatmap to ${disc.back.at} shows ${disc.back.selected}; /discover after /discover?tab=ideas shows ${disc.again.selected}`);
+
+      /* SHELL-05 — the router table's Companies column wraps inside its card. */
+      await visit('/methodology', 500);
+      const router = await evaluate(`(() => { const t = [...document.querySelectorAll('#main table')].find(x => /Company type/.test(x.tHead?.textContent || '')); if (!t) return null;
+        const w = t.closest('.tablewrap'), td = t.tBodies[0].rows[0].cells[3];
+        return { table: Math.round(t.scrollWidth), wrap: Math.round(w.clientWidth), ws: getComputedStyle(td).whiteSpace }; })()`);
+      say(router && router.table <= router.wrap + 1 && router.ws !== 'nowrap',
+        `SHELL-05 at 1440 the router table is ${router?.table}px in a ${router?.wrap}px card, its Companies cells white-space ${router?.ws}`);
+
+      /* SHELL-08 — one page, one canonical address: the tab on screen names it. */
+      const canon = await evaluate(`(() => { const out = {};
+        for (const p of ['/learn', '/learn/glossary', '/learn?tab=scoring', '/learn?tab=models', '/methodology', '/equities/methodology', '/corrections',
+          '/discover', '/discover/screener', '/discover/value-map', '/discover?tab=heatmap', '/discover?tab=ideas']) {
+          navigate(p); out[p] = document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, ''); }
+        return out; })()`);
+      const wantCanon = { '/learn': '/learn/glossary', '/learn/glossary': '/learn/glossary', '/learn?tab=scoring': '/learn?tab=scoring', '/learn?tab=models': '/methodology',
+        '/methodology': '/methodology', '/equities/methodology': '/methodology', '/corrections': '/corrections', '/discover': '/discover/screener',
+        '/discover/screener': '/discover/screener', '/discover/value-map': '/discover/value-map', '/discover?tab=heatmap': '/discover?tab=heatmap', '/discover?tab=ideas': '/discover?tab=ideas' };
+      const canonWrong = Object.entries(wantCanon).filter(([p, c]) => canon[p] !== c).map(([p, c]) => `${p} → ${canon[p]} (want ${c})`);
+      say(!canonWrong.length, `SHELL-08 canonicals: ${canonWrong.length ? canonWrong.join('; ') : `${Object.keys(wantCanon).length} addresses, each naming the page its tab shows`}`);
+
+      /* SHELL-09 — choosing a tab keeps focus on the tab chosen and the page
+         where it is, whether the tab's address is a path or ?tab=. */
+      const tabWalk = [];
+      for (const [path, label, steps] of [['/learn/glossary', 'Methodology sections', ['Scoring architecture', 'Valuation model router']],
+        ['/discover/screener', 'Screener tools', ['Quality vs Value Map']]]) {
+        await visit(path, 500);
+        await evaluate(`(() => { window.scrollTo({ top: 200, behavior: 'instant' }); document.querySelector('#views [role=tablist][aria-label="${label}"] [aria-selected=true]').focus({ preventScroll: true }); return true; })()`);
+        for (const want of steps) {
+          await key('ArrowRight'); await key('Enter'); await sleep(400);
+          const r = await evaluate(`({ at: ${DESC}(document.activeElement), y: Math.round(scrollY), path: location.pathname + location.search })`);
+          tabWalk.push({ want, ...r });
+        }
+      }
+      /* Not to the top: the page stays where it was, give or take the few
+         pixels that bring the chosen tab out from under the sticky header. */
+      const tabBad = tabWalk.filter(t => t.at !== `BUTTON:${t.want}` || t.y < 150);
+      say(!tabBad.length, `SHELL-09 ${tabWalk.map(t => `${t.want} → ${t.path}: focus ${t.at}, scrolled to ${t.y}`).join('; ')}`);
+
+      /* EQ-19 — a name in ?companies= that is no company is named on the page. */
+      const cmp = await evaluate(`(() => { const main = () => document.querySelector('#main').innerText;
+        navigate('/compare?companies=zzz,yyy'); const none = { ids: State.compare.join(','), named: /zzz/.test(main()) && /yyy/.test(main()) };
+        navigate('/compare?companies=AAPL,zzz'); const one = { ids: State.compare.join(','), named: /zzz/.test(main()) };
+        navigate('/compare'); return { none, one }; })()`);
+      say(cmp.none.ids === '' && cmp.none.named && cmp.one.ids === 'AAPL-SEC' && cmp.one.named,
+        `EQ-19 ?companies=zzz,yyy compares [${cmp.none.ids}], naming the misses: ${cmp.none.named}; ?companies=AAPL,zzz compares [${cmp.one.ids}], naming zzz: ${cmp.one.named}`);
+
+      /* EQ-22 — a figure typed and Tabbed past moves on one stop; a toggle
+         whose words change keeps focus. */
+      await visit('/company/PGR', 600);
+      const wasDisc = await evaluate(`State.requiredDiscount`);
+      await focusOn(`document.getElementById('reqDisc')`);
+      await evaluate(`(() => { document.getElementById('reqDisc').select(); return true; })()`);
+      await typeIn('10'); await key('Tab'); await sleep(400);
+      const tabbed = await evaluate(`(() => { const a = document.activeElement, f = document.getElementById('reqDisc');
+        const stops = [...document.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]')]
+          .filter(n => n.tabIndex >= 0 && n.getClientRects().length);
+        return { at: ${DESC}(a), next: stops[stops.indexOf(f) + 1] === a, disc: State.requiredDiscount }; })()`);
+      await evaluate(`(() => { State.requiredDiscount = ${JSON.stringify(wasDisc)}; store.write('requiredDiscount', State.requiredDiscount); return true; })()`);
+      const toggles = [];
+      for (const [path, find] of [['/company/PGR', `[...document.querySelectorAll('#main button')].find(b => /watchlist/i.test(b.textContent))`],
+        ['/discover/screener', `[...document.querySelectorAll('#main button')].find(b => /medians/.test(b.textContent))`]]) {
+        await visit(path, 500);
+        await focusOn(find);
+        const before = await active();
+        await key('Enter'); await sleep(350);
+        const once = await active();
+        await key('Enter'); await sleep(350);
+        toggles.push({ before, once, twice: await active() });
+      }
+      say(tabbed.disc === 10 && tabbed.next && toggles.every(t => t.once !== t.before && /^BUTTON:/.test(t.once) && t.twice === t.before),
+        `EQ-22 10 typed into the required discount, then Tab: recorded ${tabbed.disc}, focus ${tabbed.at}${tabbed.next ? ', the next stop' : ''}; ${toggles.map(t => `${t.before} → Enter → ${t.once} → Enter → ${t.twice}`).join('; ')}`);
+
+      /* EQ-12 — the section jump lands the heading clear of the strip and
+         takes focus there. */
+      await send('Page.navigate', { url: `${BASE}/company/aapl-apple-inc` }, sessionId);
+      await waitFiled(); await sleep(500);
+      const jumpTo = await evaluate(`(() => { window.scrollTo({ top: 0, behavior: 'instant' }); const s = document.querySelector('select[aria-label="Jump to a section of this report"]'); if (!s) return null;
+        s.focus(); return ([...s.options].find(o => o.textContent.trim() === 'Valuation range') || s.options[3]).value; })()`);
+      await sleep(300);
+      await evaluate(`(() => { const s = document.querySelector('select[aria-label="Jump to a section of this report"]'); s.value = ${JSON.stringify(jumpTo)}; s.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+      await sleep(1200);
+      const jumped = await evaluate(`(() => { const h = document.getElementById(${JSON.stringify(jumpTo)}); if (!h) return null;
+        return { top: Math.round(h.getBoundingClientRect().top), strip: Math.round(document.querySelector('.ticker-sticky').getBoundingClientRect().bottom), onIt: document.activeElement === h, at: ${DESC}(document.activeElement) }; })()`);
+      say(jumped && jumped.top >= jumped.strip && jumped.onIt, `EQ-12 "${jumpTo}" jumped to: heading ${jumped?.top}px down under a strip ending at ${jumped?.strip}px, focus ${jumped?.at}`);
+
+      /* WS-16 — × Remove, Delete and Clear hand focus to what follows. */
+      const tks = await evaluate(`(() => { const ids = U.filter(r => !r.c.real).slice(0, 3).map(r => r.c.id); const now = '2026-09-02T00:00:00Z';
+        State.watchlists = [{ id: 'wl-1', name: 'Core watchlist', ids, added: {}, createdAt: '2026-09-01T00:00:00Z', updatedAt: null, schema: WATCHLIST_SCHEMA },
+          { id: 'wl-fw', name: 'Fixwave list', ids: [], added: {}, createdAt: now, updatedAt: now, schema: WATCHLIST_SCHEMA }];
+        State.wlIdx = 0; saveWatchlists(); window.confirm = () => true; navigate('/my/watchlists'); return ids.map(id => BY_ID.get(id).c.tk); })()`);
+      await sleep(400);
+      const wl = {};
+      await focusOn(`document.querySelector('#main button[aria-label="Remove ${tks[1]} from Core watchlist"]')`);
+      await key('Enter'); await sleep(350); wl.middle = await active();
+      await focusOn(`document.querySelector('#main button[aria-label="Remove ${tks[2]} from Core watchlist"]')`);
+      await key('Enter'); await sleep(350); wl.last = await active();
+      await focusOn(`[...document.querySelectorAll('#main .card')].find(c => c.querySelector('input[aria-label="Name of watchlist Fixwave list"]'))?.querySelector('button.btn-quiet')`);
+      await key('Enter'); await sleep(350); wl.deleted = await active();
+      /* The removals changed Core watchlist, which is the reader's now; an
+         untouched sample list brings the banner back. */
+      await evaluate(`(() => { State.watchlists.push({ id: 'wl-2', name: 'Sample list', ids: [], added: {}, createdAt: '2026-09-01T00:00:00Z', updatedAt: null, schema: WATCHLIST_SCHEMA });
+        saveWatchlists(); render(); return true; })()`);
+      wl.banner = await focusOn(`document.querySelector('#main .sample-banner button')`);
+      await key('Enter'); await sleep(350); wl.cleared = await active();
+      say(wl.middle === `BUTTON:Remove ${tks[2]} from Core watchlist` && wl.last === 'INPUT:Add a company to Core watchlist' && wl.deleted === 'INPUT:New watchlist name'
+        && wl.banner && wl.cleared === 'H1:Watchlists',
+        `WS-16 × on the middle row → ${wl.middle}; × on the last → ${wl.last}; Delete → ${wl.deleted}; Clear and start my own → ${wl.cleared}`);
+
+      /* SCN-05 — the example picker shows the example loaded, so the next
+         change moves on from it. */
+      const ex = await evaluate(`(async () => { const w = (ms) => new Promise(r => setTimeout(r, ms));
+        scanDraft = null; scanDraftSeed = null; window.confirm = () => true; navigate('/app/scanner/setups/new'); await w(200);
+        const pick = () => document.querySelector('#main select[aria-label="Start from an example"]');
+        const step = async () => { const s = pick(); s.selectedIndex = s.selectedIndex + 1; s.dispatchEvent(new Event('change', { bubbles: true })); await w(150);
+          return { shown: pick().value, name: document.querySelector('#main .scan-builder input[aria-label="Name"]')?.value }; };
+        const first = await step(), second = await step();
+        const want = SCAN_EXAMPLES.setups.slice(0, 2).map(x => ({ id: x.id, name: x.name }));
+        scanDraft = null; scanDraftSeed = null;
+        return { first, second, want }; })()`);
+      say(ex.first.shown === ex.want[0].id && ex.second.shown === ex.want[1].id && ex.second.name === ex.want[1].name,
+        `SCN-05 one change: the picker shows "${ex.first.shown}"; the next: "${ex.second.shown}", the draft named "${ex.second.name}" (want ${ex.want[1].name})`);
+
+      /* SCN-07 — Adopt and a bulk Archive hand focus to what is left. */
+      await evaluate(`(() => { window.__fwScan = { f: scanSetupsFile, a: scanAlertsFile };
+        scanSetupsFile = { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: JSON.parse(JSON.stringify(SCAN_EXAMPLES.setups)) };
+        ['vl.scanSetups', 'vl.scanAlertState', 'vl.scanPrefs'].forEach(k => localStorage.removeItem(k)); navigate('/app/scanner/setups'); return true; })()`);
+      await sleep(400);
+      const adoptId = await evaluate(`document.querySelectorAll('#main button[aria-label^="Adopt "]')[1]?.getAttribute('aria-label').replace(/^Adopt (.*) from the file$/, '$1')`);
+      await focusOn(`document.querySelector('#main button[aria-label="Adopt ${adoptId} from the file"]')`);
+      await key('Enter'); await sleep(400);
+      const adoptOne = await evaluate(`(() => { const a = document.activeElement; return { at: ${DESC}(a), row: a.tagName === 'A' && !!a.closest('.scan-drift') && decodeURIComponent(a.getAttribute('href')).endsWith('/${adoptId}') }; })()`);
+      await focusOn(`[...document.querySelectorAll('#main button')].find(b => /^Adopt all/.test(b.textContent))`);
+      await key('Enter'); await sleep(400);
+      const adoptAll = await active();
+      const firstId = await evaluate(`(() => { localStorage.removeItem('vl.scanSetups'); const id = scanSetupsFile.setups[0].id; navigate('/app/scanner/setups/' + encodeURIComponent(id)); return id; })()`);
+      await sleep(400);
+      const pageBtn = await focusOn(`[...document.querySelectorAll('#main button')].find(b => b.textContent.trim() === 'Adopt from file')`);
+      if (pageBtn) { await key('Enter'); await sleep(400); }
+      const adoptPage = pageBtn ? await active() : 'no Adopt from file on the setup page';
+      await evaluate(`(() => { scanAlertsFile = { alerts: ['AAA', 'BBB', 'CCC'].map((symbol, i) => ({ id: 'afw0000' + i, key: 'fixwave-' + i, setupId: ${JSON.stringify(firstId)}, setupName: 'Fixwave', setupVersion: 1,
+          symbol, market: null, timeframe: '1D', candleDate: '2026-09-0' + (i + 1), bar: '2026-09-0' + (i + 1), detectedAt: '2026-09-0' + (i + 2) + 'T01:00:00Z', eventType: 'MATCH', close: 10 + i, engine: 'scan ' + SCAN_VERSION, rules: [] })), lastRun: null };
+        navigate('/app/scanner/alerts'); return true; })()`);
+      await sleep(400);
+      await focusOn(`[...document.querySelectorAll('#main button')].find(b => b.textContent.trim() === 'Archive')`);
+      await key('Enter'); await sleep(400);
+      const archived = await active();
+      await evaluate(`(() => { scanSetupsFile = window.__fwScan.f; scanAlertsFile = window.__fwScan.a; delete window.__fwScan; return true; })()`);
+      say(adoptOne.row && adoptAll === 'BUTTON:Export scan-setups.json' && /^BUTTON:(Disable|Enable)$/.test(adoptPage) && archived === 'BUTTON:Show every match',
+        `SCN-07 Adopt ${adoptId} → ${adoptOne.at}${adoptOne.row ? ' (its row)' : ''}; Adopt all → ${adoptAll}; Adopt on the setup page → ${adoptPage}; Archive of every alert shown → ${archived}`);
+
+      /* SHELL-12 — /index.html is the front door. */
+      await send('Page.navigate', { url: `${BASE}/index.html` }, sessionId);
+      await waitFiled(); await sleep(300);
+      const door = await evaluate(`({ view: State.view, path: location.pathname, canon: document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '') })`);
+      say(door.view === 'marketing' && door.path === '/' && door.canon === '/', `SHELL-12 /index.html → ${door.view} at ${door.path}, canonical ${door.canon}`);
+    } catch (err) {
+      broke = `the checks stopped: ${String(err.message).split('\n')[0]}`;
+    } finally {
+      await evaluate(`(() => { const s = ${JSON.stringify(snapshot)}; const o = JSON.parse(s); localStorage.clear(); Object.entries(o).forEach(([k, v]) => localStorage.setItem(k, v)); return true; })()`).catch(() => {});
+      await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+      await send('Page.navigate', { url: `${BASE}/research` }, sessionId);
+      await waitFiled();
+    }
+    if (lost.length || kept.length < CASES) fail('fixwave: shell — the shell, and focus after the reader\'s own keys, as the 2026-09-29 hunt found them',
+      [...lost, ...(kept.length + lost.length < CASES ? [broke || `${kept.length + lost.length} of ${CASES} cases ran`] : [])]);
+    else ok(`fixwave: shell — ${kept.length} cases: the reopened search answers its box; /discover is the screener; the router table wraps in its card; one canonical per page and tab; a tab keeps focus whether its address is a path or ?tab=; the section jump takes focus to the heading; a missing ?companies= name is named; Tab past a typed figure and a toggle keep focus; × Remove, Delete and Clear hand focus on; the example picker shows the example; Adopt and Archive hand focus on; /index.html is the front door`);
+  }
+  /* ---- end fixwave: shell ---- */
 
 } catch (e) {
   fail('harness error', e.message);

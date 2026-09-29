@@ -51,7 +51,7 @@ whichever address opened it.
 | `/how-it-works` | howItWorks | public | — (public header) | canonical |
 | `/research/queue` | researchQueue | app | Equities Research (product) | canonical |
 | `/welcome` | onboarding | app | My Dashboard (reached from its "Other ways in") | canonical |
-| `/discover` | discover | app | Equities Research (product) | canonical |
+| `/discover` | discover | app | Equities Research (product) | the tab on screen: `/discover/screener` with no `?tab=`, else `/discover?tab=<tab>` |
 | `/discover/screener` | discover · tab screener | app | Equities Research (product) | canonical |
 | `/discover/value-map` | discover · tab radar | app | Equities Research (product) | canonical |
 | `/research` | researchHome | app | Equities Research (product) | canonical |
@@ -106,7 +106,7 @@ whichever address opened it.
 | `/trading-index` | tradingIndex | app | Quantum Scanner (product) | alias of `/research/trading-index` |
 | `/research/trading-index` | tradingIndex | app | Quantum Scanner (product) | canonical |
 | `/learn/trading-index` | tradingIndex | app | Quantum Scanner (product) | alias of `/research/trading-index` |
-| `/learn` | learn | public | — (public header) | canonical |
+| `/learn` | learn | public | — (public header) | the tab on screen: `/learn/glossary` with no `?tab=`, `/learn?tab=scoring`, else the tab's own path |
 | `/learn/glossary` | learn · tab glossary | public | — (public header) | canonical |
 | `/methodology` | learn · tab models | public | — (public header) | canonical |
 | `/data-sources` | learn · tab data | public | — (public header) | canonical |
@@ -129,15 +129,18 @@ three Release A branches merged, every route above has its view
 
 Two tabs of the discover view have no path of their own and ride on
 `/discover` as `?tab=ideas` and `?tab=heatmap`; Learn's scoring tab is
-`/learn?tab=scoring`.
+`/learn?tab=scoring`. Each of those is its own canonical. `/discover` and
+`/learn` with no tab show the screener and the metric dictionary, and name
+`/discover/screener` and `/learn/glossary` as their canonical, so the sitemap
+lists those two and not the bare addresses.
 
 ## Sitemap
 
 `sitemap.xml` lists canonical, crawlable pages only: `/`, `/how-it-works`,
 `/research/queue`, `/property`, `/property/opportunities`,
 `/property/comparables`, `/research`, `/research/trading-index`,
-`/us-options/wheel`, `/discover`, `/discover/screener`, `/discover/value-map`,
-`/discover/sarawak`, `/compare`, `/learn`, `/methodology`, `/learn/glossary`,
+`/us-options/wheel`, `/discover/screener`, `/discover/value-map`,
+`/discover/sarawak`, `/compare`, `/methodology`, `/learn/glossary`,
 `/learn/product-boundaries`, `/data-sources`, `/corrections`, `/status`,
 `/pricing`, `/about`, `/contact`, `/privacy`, `/terms`.
 

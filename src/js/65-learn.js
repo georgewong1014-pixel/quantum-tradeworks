@@ -175,7 +175,13 @@ function learnModels() {
     'A bank has no meaningful free cash flow. A REIT distributes contracted income. A commodity producer earns nothing like its trailing figures at the wrong point in the cycle. Each company type is routed to a model pack that suits it, and the routing reason is published on the company page.'));
   const tw = el('div', { class: 'tablewrap' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, ['Company type', 'Primary model', 'Secondary checks', 'Companies'].map(h => el('th', {}, h)))));
+  /* The Companies column wraps as the checks beside it do. It kept the table's
+     nowrap, and a mature row's list made it 2,537px wide: 1,865px of the table
+     ran past its card at 1440, the column's heading with it, and every short
+     row's companies sat off-screen, so the Bank to Early-stage rows read as if
+     no company were routed to them. */
+  const MEMBERS = 'text-align:left;white-space:normal;min-width:220px';
+  t.append(el('thead', {}, el('tr', {}, ['Company type', 'Primary model', 'Secondary checks', 'Companies'].map((h, i) => el('th', i === 3 ? { style: MEMBERS } : {}, h)))));
   /* Every type routeModel handles, and the pack from routeModel itself. The
      table used to list seven types and take each pack from the first company
      of that type: the insurer and early-stage rows were missing though their
@@ -192,7 +198,7 @@ function learnModels() {
       el('td', { class: 'ident' }, label),
       el('td', { style: 'text-align:left;white-space:normal;max-width:200px' }, pack?.name || '—'),
       el('td', { style: 'text-align:left;white-space:normal;max-width:260px', class: 'caption' }, pack?.secondary.join(' · ') || '—'),
-      el('td', {}, members.map(m => m.c.tk + illusText(m.c)).join(', ') || '—'),
+      el('td', { style: MEMBERS }, members.map(m => m.c.tk + illusText(m.c)).join(', ') || '—'),
     ]);
   })));
   tw.append(t); intro.append(tw);

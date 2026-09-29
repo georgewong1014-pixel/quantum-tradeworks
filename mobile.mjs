@@ -1094,6 +1094,71 @@ for (const w of [360, 390]) {
   else console.log('ok   release-a shell: each chrome on its views at 1440 and 390, every chrome link renders, menus and the sheet work from the keyboard, the drawer traps focus and closes on Escape, no overflow at 360/768/1024/1440, and every menu panel inside the viewport at 1024 and 1100 in the page\'s font and in Verdana');
 }
 /* ---- /release-a: shell ---- */
+/* ---- fixwave: shell ---- */
+/* THE SITE HUNT OF 2026-09-29, ON A PHONE (fixwave: shell). Each failed on
+   0e1119b: SHELL-06 a Bursa result's "Bursa Main" ran out of its column and
+   over the price at 360, 390 and 430; SHELL-10 the decision dock stayed in
+   the accessibility tree behind the open navigation drawer, a modal; SHELL-11
+   the phone's menu sheet reopened where it had last been scrolled to, with
+   Products out of sight. */
+{
+  const fails = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    return r.result?.exceptionDetails ? { error: r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text } : r.result?.result?.value;
+  };
+  const load = async (path, w, h = 844) => {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 40; i++) {
+      await sleep(400);
+      if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined'`) === true) break;
+    }
+    await sleep(300);
+  };
+  try {
+    /* SHELL-06 — every result row's words stay in their own column. */
+    for (const w of [360, 390, 430]) {
+      await load('/research', w);
+      await ev(`(() => { openSearch(); return true; })()`); await sleep(300);
+      await ev(`(() => { searchInput.value = 'bank'; runSearch('bank'); return true; })()`); await sleep(200);
+      const r = await ev(`(() => { const rows = [...searchResults.querySelectorAll('button')];
+        const over = rows.map(b => { const nm = b.firstElementChild, price = nm.nextElementSibling;
+          const right = Math.max(...[...nm.querySelectorAll('*')].map(n => n.getBoundingClientRect().right));
+          return { who: nm.textContent.trim().slice(0, 24), past: Math.round(right - nm.getBoundingClientRect().right), onPrice: price ? Math.round(right - price.getBoundingClientRect().left) : 0 }; })
+          .filter(x => x.past > 0 || x.onPrice > 0);
+        closeSearch({ restore: false }); return { n: rows.length, over }; })()`);
+      if (!r || r.error || !r.n) fails.push(`${w}px search for "bank": ${r?.error || 'no rows'}`);
+      else r.over.forEach(x => fails.push(`${w}px search: "${x.who}" runs ${x.past}px out of its column, ${x.onPrice}px over the price`));
+    }
+    /* SHELL-10 — the dock is inert behind the open drawer, and a dock drawn
+       while it is open is too; closing it gives the dock back. */
+    for (const path of ['/property', '/us-options/wheel']) {
+      await load(path, 390);
+      await ev(`(() => { document.getElementById('navOpen').click(); return true; })()`); await sleep(350);
+      const inert = `(() => { const d = document.querySelector('body > .dock'); return d ? !!d.closest('[inert]') : 'no dock'; })()`;
+      const open = await ev(inert);
+      await ev(`(() => { render(); return true; })()`); await sleep(150);
+      const redrawn = await ev(inert);
+      await ev(`(() => { closeNavDrawer(); return true; })()`); await sleep(350);
+      const shut = await ev(inert);
+      if (open !== true || redrawn !== true || shut !== false) fails.push(`${path} at 390: the dock inert with the drawer open ${open}, after a redraw under it ${redrawn}, after it closed ${shut}`);
+    }
+    /* SHELL-11 — the sheet opens at its top every time. */
+    await load('/about', 390, 700);
+    await ev(`(() => { document.getElementById('pubMenuBtn').click(); return true; })()`); await sleep(300);
+    const first = await ev(`document.getElementById('pubSheet').scrollTop`);
+    await ev(`(() => { const s = document.getElementById('pubSheet'); s.scrollTop = s.scrollHeight; [...s.querySelectorAll('a')].find(a => a.textContent.trim() === 'Terms').click(); return true; })()`);
+    await sleep(400);
+    await ev(`(() => { document.getElementById('pubMenuBtn').click(); return true; })()`); await sleep(300);
+    const again = await ev(`({ top: document.getElementById('pubSheet').scrollTop, path: location.pathname })`);
+    await ev(`(() => { closeSheet({ restore: false }); return true; })()`);
+    if (first !== 0 || again?.top !== 0 || again?.path !== '/terms') fails.push(`the sheet opened at ${first}px, and reopened on ${again?.path} at ${again?.top}px`);
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  if (fails.length) { bad++; console.log(`FAIL fixwave: shell — ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+  else console.log('ok   fixwave: shell — search results keep their words in their columns at 360, 390 and 430; the dock is inert behind the open drawer, redrawn or not, and back once it closes; the phone sheet reopens at its top');
+}
+/* ---- end fixwave: shell ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);
