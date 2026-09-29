@@ -1969,10 +1969,10 @@ VIEWS.compare = () => {
   ccyBar.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'metaline' }, 'Show totals in'),
     el('div', { class: 'segmented' }, [
-      el('button', { 'aria-selected': !showLocal ? 'true' : 'false', id: 'cmp-ccy-common',
+      el('button', { 'aria-pressed': !showLocal ? 'true' : 'false', id: 'cmp-ccy-common',
         onclick: () => { State.compareCcy = 'common'; store.write('compareCcy', 'common'); redrawKeepFocus(); } },
         `Common currency (${State.baseCcy})`),
-      el('button', { 'aria-selected': showLocal ? 'true' : 'false', id: 'cmp-ccy-local',
+      el('button', { 'aria-pressed': showLocal ? 'true' : 'false', id: 'cmp-ccy-local',
         onclick: () => { State.compareCcy = 'local'; store.write('compareCcy', 'local'); redrawKeepFocus(); } },
         'Local currency'),
     ]),

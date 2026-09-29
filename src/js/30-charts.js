@@ -645,7 +645,9 @@ function tableTwin(caption, headers, rows) {
   det.append(el('summary', { style: 'cursor:pointer;color:var(--ink-3);font-size:12px' }, caption));
   const wrap = el('div', { class: 'tablewrap', style: 'margin-top:var(--xs)' });
   const t = el('table', { class: 'dt' });
-  t.append(el('thead', {}, el('tr', {}, headers.map(h => el('th', {}, h)))));
+  /* A header left blank for the eye — the label column of a two-column
+     twin — still names its column for a screen reader. */
+  t.append(el('thead', {}, el('tr', {}, headers.map(h => el('th', {}, h === '' ? el('span', { class: 'sr-only' }, 'Figure') : h)))));
   t.append(el('tbody', {}, rows.map(r => el('tr', {}, r.map((cell, i) =>
     el('td', { class: i === 0 ? 'ident' : '', html: String(cell) }))))));
   wrap.append(t);

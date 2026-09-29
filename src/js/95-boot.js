@@ -45,7 +45,7 @@ function closeSearch({ restore = true } = {}) {
   /* Stale results were left in the box after it closed, and — because the
      closed box is display:none only since the [hidden] rule below — they used
      to sit in the page's tab order, invisible, after the footer. */
-  searchHideTimer = setTimeout(() => { searchHideTimer = null; searchModal.hidden = true; searchResults.replaceChildren(); }, 200);
+  searchHideTimer = setTimeout(() => { searchHideTimer = null; searchModal.hidden = true; searchResults.replaceChildren(); $('#searchStatus')?.replaceChildren(); }, 200);
   if (drawer.dataset.open !== '1') scrim.dataset.open = '0';
   const back = searchLastFocus; searchLastFocus = null;
   if (!restore) return;
@@ -155,6 +155,15 @@ function runSearch(q) {
   }
   if (!hits.length && !routeHits.length)
     searchResults.append(emptyState('Nothing matches that search — no company, and no page.'));
+  /* The count, said. The list appears silently under the box, so a screen
+     reader heard what it typed and nothing else — not that anything had
+     matched, nor how many. Said once the list is drawn, for the text in the
+     box; an empty box says nothing. */
+  const status = $('#searchStatus');
+  if (status) status.textContent = !term ? ''
+    : (!hits.length && !routeHits.length) ? 'Nothing matches that search.'
+    : [hits.length ? (found.total > hits.length ? `${hits.length} of ${found.total} matches shown` : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`) : null,
+       routeHits.length ? `${routeHits.length} ${routeHits.length === 1 ? 'page' : 'pages'}` : null].filter(Boolean).join(' and ') + '.';
 }
 /* Debounced: a keystroke every 40ms re-ranked the whole registry each time. */
 let searchTimer = null;

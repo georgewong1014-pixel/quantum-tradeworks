@@ -3250,3 +3250,33 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
    the page is not faded out and slid up again under the reader. */
 .view[data-active="1"][data-redrawn="1"] { animation: none; }
 /* ---- end bugfix: render-focus-verify ---- */
+
+/* ---- audit: quality ---- */
+/* THE FRAME BEFORE THE SCRIPT HOLDS THE HEADER AND NOTHING THAT MOVES.
+   The page is one 3.2MB document with its script last, so the browser paints
+   what precedes the script before it has run: the header, the disclosure,
+   an empty <main> — and the footer straight under it, 150px from the top.
+   The script then drew the page into <main> and the footer fell 1,500px:
+   Lighthouse measured a cumulative layout shift of 0.44 to 1.2 on every page
+   (0.1 is the most it calls good), and took the footer's legal paragraph,
+   painted in that first frame, for the page's largest content. On an app
+   page the disclosure jumped as well, from under the public header to the
+   top of the sidebar's column. Until the script has chosen the chrome
+   (buildShell writes <html data-chrome>, 35-ui.js) neither is drawn; both
+   appear with the page, where they belong, so nothing that was on screen
+   moves. The public header stays: it is the first frame's only content. */
+:root:not([data-chrome]) .disclosure,
+:root:not([data-chrome]) .footer { display: none; }
+
+/* A segmented choice says which option is on with aria-pressed. It said so
+   with aria-selected, which is allowed only on a tab, an option or a row: on
+   a plain button a screen reader drops it, so "Absolute / Peer percentile"
+   on the screener and every strip like it were announced with no word of
+   which was chosen, and Lighthouse failed aria-allowed-attr on the screener
+   and the calculator. The look is the one a strip's selected tab has. A
+   segmented row of links (the scanner's pages) marks the page it is on with
+   aria-current, which it already carried. */
+.segmented button[aria-pressed="true"], .segmented a[aria-current="page"] {
+  background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1);
+}
+/* ---- end audit: quality ---- */

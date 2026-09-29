@@ -184,7 +184,7 @@ VIEWS.workspace = () => {
   [{ id: 'all', label: 'All' }, ...WORKSPACE_KINDS].forEach(k => {
     const n = k.id === 'all' ? all.length : counts[k.id];
     if (k.id !== 'all' && !n) return;
-    seg.append(el('button', { id: `ws-kind-${k.id}`, 'aria-pressed': W.kind === k.id ? 'true' : 'false', 'aria-selected': W.kind === k.id ? 'true' : 'false',
+    seg.append(el('button', { id: `ws-kind-${k.id}`, 'aria-pressed': W.kind === k.id ? 'true' : 'false', 
       onclick: () => { W.kind = k.id; renderKeepFocus(); } }, `${k.label} · ${n}`));
   });
   const q = el('div', { class: 'field ws-search' });

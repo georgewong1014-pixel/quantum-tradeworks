@@ -314,8 +314,10 @@ function financingChoicesPanel(d, m) {
   }
 
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  /* The corner header names its column for a screen reader, which read the
+     row headers' column as an empty header — the eye needs no word there. */
   t.append(el('thead', {}, el('tr', {}, ['', 'Cover that shrinks with the loan', 'Cover that stays level']
-    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, i ? h : el('span', { class: 'sr-only' }, 'Question'))))));
   t.append(el('tbody', {}, PROTECTION_COMPARISON.map(r => el('tr', {}, [
     el('th', { scope: 'row', style: 'text-align:left' }, r.q),
     el('td', { style: 'white-space:normal;text-align:left' }, r.mrta),

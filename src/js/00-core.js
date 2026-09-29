@@ -205,7 +205,7 @@ function explainMetric(key, opts = {}) {
   const DEPTHS = [['simple', 'Simple'], ['context', 'Investor context'], ['technical', 'Technical']];
   const seg = el('div', { class: 'segmented' });
   DEPTHS.forEach(([id, label]) => seg.append(el('button', {
-    'aria-selected': explainDepth() === id ? 'true' : 'false',
+    'aria-pressed': explainDepth() === id ? 'true' : 'false',
     onclick: () => { setExplainDepth(id); explainMetric(key, opts); },
   }, label)));
   body.append(seg);

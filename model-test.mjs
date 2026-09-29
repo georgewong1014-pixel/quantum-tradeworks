@@ -1511,8 +1511,11 @@ try {
       const out = {};
       for (const path of ['/property/calculator', '/property/areas']) {
         navigate(path); await wait();
-        const btns = [...document.querySelectorAll('main .segmented button')];
-        out[path] = { n: btns.length, silent: btns.filter(b => b.getAttribute('aria-pressed') !== (b.getAttribute('aria-selected') === 'true' ? 'true' : 'false')).length };
+        /* aria-pressed is the state and the only one: aria-selected, which
+           the strips carried beside it for the stylesheet, is not allowed on
+           a button (the launch audit's quality block moved the style). */
+        const btns = [...document.querySelectorAll('main .segmented button:not([role=tab])')];
+        out[path] = { n: btns.length, silent: btns.filter(b => !/^(true|false)$/.test(b.getAttribute('aria-pressed') || '') || b.hasAttribute('aria-selected')).length };
         if (path === '/property/calculator') out.unnamedGroups = [...document.querySelectorAll('main .segmented')]
           .filter(s => [...s.querySelectorAll('button')].some(b => /^(Yes|No|Not sure)$/.test(b.textContent.trim())))
           .filter(s => s.getAttribute('role') !== 'group' || !(s.getAttribute('aria-label') || '').trim()).length;
@@ -2611,6 +2614,52 @@ try {
     else ok('fixwave P6: an income entered in another tab survives this tab\'s next edit, an erase in another tab stays erased, and a page restored from the cache reads the deal saved since');
   }
   /* ---- end fixwave: property ---- */
+
+  /* ---- audit: quality ---- */
+  /* The launch audit's accessibility pass over the calculator, beyond what
+     Lighthouse scores. The locality map was an img holding eight buttons —
+     one picture to a screen reader, its points not there at all; the loan
+     cover table's corner header was empty, so its row headers' column had
+     no name; and "What this rests on" is a table wider than its card at
+     every width in a box nothing in which takes focus, so the keyboard
+     could not reach its last column. Also Lighthouse's own failure on this
+     page, aria-allowed-attr: aria-selected on the checklist's buttons. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const FOCUSABLE = 'a[href],button,input,select,textarea,summary,[tabindex]:not([tabindex="-1"])';
+      const out = {};
+      for (const p of ['/property/calculator', '/property/areas']) {
+        navigate(p);
+        for (let i = 0; i < 20 && (typeof geoLoadState === 'undefined' || geoLoadState === 'loading'); i++) await w(150);
+        await w(400);
+        out[p] = {
+          nested: [...document.querySelectorAll('main [role=img]')].filter(n => n.querySelector(FOCUSABLE)).map(n => (n.getAttribute('aria-label') || n.tagName).slice(0, 60)),
+          maps: document.querySelectorAll('main svg[data-city]').length,
+          emptyTh: [...document.querySelectorAll('main th')].filter(th => !th.textContent.trim() && !(th.getAttribute('aria-label') || '').trim()).length,
+          selected: [...document.querySelectorAll('main [aria-selected]')].filter(n => !/^(tab|option|row|gridcell|columnheader|rowheader|treeitem)$/.test(n.getAttribute('role') || '')).length,
+        };
+      }
+      navigate('/property/calculator'); await w(400);
+      const card = [...document.querySelectorAll('main .card')].find(c => /^What this rests on/.test(c.querySelector('.h-card')?.textContent || ''));
+      const box = card && [...card.querySelectorAll('div')].find(d => getComputedStyle(d).overflowX === 'auto' && d.querySelector('table'));
+      out.box = box ? { tab: box.tabIndex, role: box.getAttribute('role'), name: box.getAttribute('aria-label') || '', focusable: !!box.querySelector(FOCUSABLE) } : null;
+      return out;
+    })()`);
+    const p = [];
+    for (const path of ['/property/calculator', '/property/areas']) {
+      const x = r[path];
+      if (x.nested.length) p.push(`${path}: an img holds tab stops — ${x.nested.join('; ')}`);
+      if (x.emptyTh) p.push(`${path}: ${x.emptyTh} table header(s) with no name`);
+      if (x.selected) p.push(`${path}: ${x.selected} element(s) carry aria-selected where their role does not allow it`);
+    }
+    if (!r['/property/calculator'].maps && !r['/property/areas'].maps) p.push('no locality map was drawn, so the map was not tested');
+    if (!r.box) p.push('the "What this rests on" table box was not found');
+    else if (!r.box.focusable && !(r.box.tab === 0 && r.box.role === 'region' && r.box.name)) p.push(`the "What this rests on" box scrolls and the keyboard cannot reach it: ${JSON.stringify(r.box)}`);
+    if (p.length) fail('audit quality: the calculator has an img holding buttons, an unnamed header, aria-selected on a button, or a scroll box the keyboard cannot reach', p);
+    else ok(`audit quality: the locality map is a group of buttons, every table header is named, no button carries aria-selected, and the evidence table's box is a named tab stop`);
+  }
+  /* ---- end audit: quality ---- */
 
 } catch (e) {
   fail('harness error', e.message);

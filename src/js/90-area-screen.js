@@ -60,11 +60,11 @@ VIEWS.areas = () => {
   const seg = (label, key, opts, onPick) => {
     const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
-    /* aria-pressed carries the state; aria-selected, which the stylesheet
-       keys on, means nothing on a plain button, so a screen reader heard
+    /* aria-pressed carries the state, and the stylesheet keys on it;
+       aria-selected means nothing on a plain button, so a screen reader heard
        fifteen identical buttons with no word of which layer was drawn. */
     g.append(el('div', { class: 'segmented' }, opts.map(([v, l]) =>
-      el('button', { id: `af-${key}-${v}`, 'aria-selected': S[key] === v ? 'true' : 'false', 'aria-pressed': S[key] === v ? 'true' : 'false',
+      el('button', { id: `af-${key}-${v}`, 'aria-pressed': S[key] === v ? 'true' : 'false',
         onclick: () => { if (onPick) onPick(v); else S[key] = v; renderKeepFocus(); } }, l))));
     return g;
   };
@@ -101,7 +101,7 @@ VIEWS.areas = () => {
     const g = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
     g.append(el('span', { class: 'caption', style: 'font-weight:600' }, label));
     g.append(el('div', { class: 'segmented' }, ids.map(id =>
-      el('button', { id: `af-unit-${which}-${id}`, 'aria-selected': State.rateUnits[which] === id ? 'true' : 'false',
+      el('button', { id: `af-unit-${which}-${id}`, 
         'aria-pressed': State.rateUnits[which] === id ? 'true' : 'false',
         title: areaUnit(id).why,
         onclick: () => { setRateUnit(which, id); renderKeepFocus(); } }, areaUnit(id).short))));
@@ -272,8 +272,10 @@ VIEWS.areas = () => {
     `Floor RM/${bu}`, `Land RM/${lu}`, `Charge RM/${bu}/mo`,
     'Last transacted', 'Records', ''];
   const t = el('table', { class: 'dt' });
+  /* The last column, the Record buttons', is named for a screen reader: an
+     empty header left each of its buttons announced with no column at all. */
   t.append(el('thead', {}, el('tr', {},
-    cols.map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
+    cols.map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h || el('span', { class: 'sr-only' }, 'Actions'))))));
   const tb = el('tbody');
   shown.forEach(n => {
     const m = areaMetrics(S.city, n);

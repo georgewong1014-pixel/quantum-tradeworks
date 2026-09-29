@@ -1756,7 +1756,12 @@ const UNIVERSE_VIEWS = new Set([
 ]);
 
 function bootSkeleton() {
-  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  /* A screen tall, so the footer waits below the fold with the page. The
+     card is 450px, and the footer painted under it was pushed 1,500px down
+     when the filings landed — a layout shift of 0.12 to 0.42 on /pricing,
+     the screener and the dashboard, measured by Lighthouse and by the
+     layout-shift entries (the audit block in sweep.mjs). */
+  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md);min-height:100vh' });
   const card = el('div', { class: 'card' });
   card.append(el('p', { class: 'eyebrow' }, 'Loading filings'));
   card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, 'Reading the audited statements'));

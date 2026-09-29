@@ -358,11 +358,10 @@ function restoreBackup(text) {
                      Until it is set, /contact keeps saying no route is
                      published, because none is.
 
-   ANALYTICS is Vercel Web Analytics, enabled in the Vercel dashboard rather
-   than here. It is first-party, cookieless and collects no personal data, which
-   is the only kind this product can honestly run before a privacy notice exists
-   — and the privacy page states exactly what it records. Nothing loads unless
-   the deployment has it switched on. */
+   ANALYTICS: none. The Vercel Web Analytics tag was removed from the page
+   (src/index.template.html) because analytics was never switched on and the
+   tag only ever logged a 404. It comes back with a consent notice when
+   analytics is switched on, and not before. */
 const LAUNCH = {
   waitlistEndpoint: '',
   contactEmail: '',

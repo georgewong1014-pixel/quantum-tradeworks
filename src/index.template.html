@@ -36,17 +36,14 @@
 /*@INJECT:styles*/
 </style>
 <!--
-  Vercel Web Analytics. First-party, cookieless, and it collects no personal
-  data — page, referrer, country, device class and nothing that identifies a
-  person. That is the only analytics this product can honestly run before it has
-  a published privacy notice and an entity behind it, and /privacy states
-  exactly what it records.
-
-  The script 404s harmlessly until Web Analytics is switched on for the
-  deployment, so nothing here needs changing to enable or disable it. Turning it
-  off in the dashboard turns it off everywhere.
+  NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
+  stood here, and Web Analytics was never switched on for the deployment, so
+  every first load of every page asked for it and logged a 404 — a failed
+  request and a console error, for a script that counted nothing. It is
+  removed rather than left to fail. It returns together with a consent notice,
+  when analytics is actually switched on (the launch audit's P2), and /privacy
+  says what it records from the same commit — not before.
 -->
-<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -199,7 +196,10 @@
 </aside>
 <div class="navscrim" id="navScrim" hidden></div>
 
-<div class="disclosure">
+<!-- A landmark of its own, named, so the notice is found by landmark
+     navigation: outside every landmark, a reader moving by landmarks went
+     from the header to the page and never met it. -->
+<div class="disclosure" role="region" aria-label="Disclosure">
   <div class="disclosure-in">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
     <span id="disclosureText"><strong>Beta preview.</strong> Do not use figures here for investment decisions.<span class="disclosure-long"> Some companies carry illustrative figures that are synthetic and do not represent real financials.</span></span>
@@ -218,6 +218,11 @@
   <!-- An Equities or Property page's row of product tabs (renderProductTabs). -->
   <div class="ptabs-host" id="productTabs" hidden></div>
   <div id="views"></div>
+  <!-- What a page says about a change the reader made, for a screen reader:
+       a page is redrawn whole, and a live region drawn with it is a new
+       node, which is not announced. This one stays put (the screener's
+       count, 40-views-discover.js). -->
+  <p class="sr-only" id="liveStatus" role="status" aria-live="polite"></p>
 </main>
 
 <footer class="footer">
@@ -328,7 +333,11 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--ink-3);flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <!-- A placeholder is not a label: it disappears the moment anything is
          typed, and several screen readers do not announce it at all. -->
-    <input class="input" id="searchInput" aria-label="Search companies by ticker, name or Bursa code" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
+    <!-- Described by how the list below works, and followed by a status line
+         that says how many matched: typing into it announced nothing, so a
+         screen reader heard the box and silence, with no word that ten
+         results had appeared under it or how to reach them. -->
+    <input class="input" id="searchInput" aria-label="Search companies by ticker, name or Bursa code" aria-describedby="searchHint" aria-controls="searchResults" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
     <span class="kbd">Esc</span>
     <!-- A way out that does not require knowing a key or finding the dimmed
          page behind the box. -->
@@ -337,6 +346,8 @@
     </button>
   </div>
   <div id="searchResults" style="overflow-y:auto;padding:var(--xs)"></div>
+  <p class="sr-only" id="searchHint">Matches are listed below as you type. The down arrow moves into them, and Enter opens the first.</p>
+  <p class="sr-only" id="searchStatus" role="status" aria-live="polite"></p>
 </div>
 
 <div class="viztip" id="viztip" role="status" aria-live="polite"></div>

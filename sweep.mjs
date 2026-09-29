@@ -178,6 +178,87 @@ for (const route of ROUTES) {
   if (issues.length) { bad++; console.log(`FAIL ${route}`); issues.forEach(i => console.log('     ' + i)); }
   else console.log(`ok   ${route}`);
 }
+/* ---- audit: quality ---- */
+/* THE FIRST LOAD AS PRODUCTION SERVES IT. The loop above counts exceptions
+   and network errors, not a 404: a request the server answered is not a
+   failed load to Chrome, so ten of them on every page went unseen — the
+   personal-lane files (git-ignored, never deployed) and the Vercel Web
+   Analytics tag (never switched on), each a failed request and a console
+   error on every first load of the live site. Nor did anything measure the
+   page moving under the reader: the footer, painted before the script ran,
+   fell 1,500px when the page was drawn, a cumulative layout shift of 0.44
+   to 1.2 where 0.1 is the most Lighthouse calls good.
+
+   So each page is loaded cold, at a phone's width and a desktop's, from an
+   address that is not the owner's machine (live.localhost reaches the same
+   server; the app asks for the personal lane only on localhost, 127.0.0.1
+   and ::1), and must make no request that fails, log no error, ask for no
+   personal file, carry no analytics tag and shift by no more than 0.1. Then,
+   on the owner's machine, the personal lane must still be asked for. */
+{
+  const u = new URL(BASE);
+  const ownMachine = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  const live = ownMachine ? `${u.protocol}//live.localhost${u.port ? ':' + u.port : ''}` : BASE;
+  const PERSONAL = /\/data\/(prices|personal-[a-z-]+|price-history|price-adjustments|scan-[a-z-]+|ingest-runs|sarawak-income|watchlists)\.json/;
+  let seen = [], broken = [], logged = [];
+  const aqListen = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.method === 'Network.requestWillBeSent') seen.push(m.params.request.url);
+    if (m.method === 'Network.responseReceived' && m.params.response.status >= 400) broken.push(`${m.params.response.status} ${m.params.response.url}`);
+    if (m.method === 'Network.loadingFailed' && !m.params.canceled) broken.push(`${m.params.errorText} ${m.params.requestId}`);
+    if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') logged.push(`${m.params.entry.text} ${m.params.entry.url || ''}`.trim());
+    if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') logged.push(m.params.args.map(a => a.value ?? a.description ?? '').join(' ').slice(0, 160));
+    if (m.method === 'Runtime.exceptionThrown') logged.push(String(m.params.exceptionDetails?.exception?.description || m.params.exceptionDetails?.text).split('\n')[0]);
+  };
+  ws.addEventListener('message', aqListen);
+  await send('Log.enable', {}, sessionId);
+  const PAGES = ['/', '/pricing', '/discover/screener', '/app', '/property/calculator', '/property/areas', '/app/scanner', '/admin/scanner'];
+  const WIDTHS = [[1280, 900, false], [390, 844, true]];
+  const aqBad = [];
+  for (const [w, h, mobile] of WIDTHS) {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, sessionId);
+    for (const p of PAGES) {
+      seen = []; broken = []; logged = [];
+      await send('Page.navigate', { url: live + p }, sessionId);
+      await sleep(2600);
+      const r = (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `new Promise(res => {
+        const shifts = [];
+        new PerformanceObserver(l => shifts.push(...l.getEntries())).observe({ type: 'layout-shift', buffered: true });
+        setTimeout(() => res({ cls: shifts.reduce((s, e) => s + e.value, 0), host: location.hostname,
+          analytics: document.querySelectorAll('script[src*="_vercel/insights"]').length,
+          booted: typeof realPending !== 'undefined' && !realPending }), 150);
+      })` }, sessionId)).result?.result?.value || {};
+      const issues = [];
+      if (!r.booted) issues.push('the page did not finish loading');
+      if (broken.length) issues.push(`${broken.length} failed request(s): ${broken.slice(0, 4).join(', ')}`);
+      if (logged.length) issues.push(`${logged.length} console error(s): ${logged.slice(0, 3).join(' | ')}`);
+      const personal = seen.filter(x => PERSONAL.test(x));
+      if (personal.length) issues.push(`asked for the personal lane: ${personal.slice(0, 4).join(', ')}`);
+      if (r.analytics) issues.push('carries the analytics tag');
+      if (!(r.cls <= 0.1)) issues.push(`cumulative layout shift ${Number(r.cls).toFixed(3)}`);
+      if (issues.length) { aqBad.push(p); console.log(`FAIL first load ${r.host || live}${p} @${w}`); issues.forEach(i => console.log('     ' + i)); }
+      else console.log(`ok   first load ${r.host}${p} @${w}: no failed request, no error, CLS ${r.cls.toFixed(3)}`);
+    }
+  }
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  /* The owner's machine keeps the personal lane exactly as it was: the same
+     files are still asked for, present or absent. */
+  if (ownMachine) {
+    seen = [];
+    await send('Page.navigate', { url: BASE + '/property/calculator' }, sessionId);
+    await sleep(2600);
+    const want = ['prices.json', 'price-history.json', 'scan-setups.json', 'scan-alerts.json', 'price-adjustments.json',
+      'scan-runs.json', 'scan-control.json', 'scan-deliveries.json', 'ingest-runs.json', 'sarawak-income.json'];
+    const missing = want.filter(f => !seen.some(x => new URL(x).pathname.endsWith('/data/' + f)));
+    if (missing.length) { aqBad.push('owner lane'); console.log(`FAIL the owner's machine no longer asks for ${missing.join(', ')}`); }
+    else console.log(`ok   the owner's machine (${u.hostname}) still asks for all ${want.length} personal-lane files`);
+  }
+  ws.removeEventListener('message', aqListen);
+  console.log(aqBad.length ? `first load: ${aqBad.length} check(s) failed, counted with the routes below`
+    : `first load: ${PAGES.length} pages at ${WIDTHS.length} widths clean on ${live}`);
+  bad += aqBad.length;
+}
+/* ---- end audit: quality ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();
