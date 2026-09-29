@@ -1318,6 +1318,122 @@ for (const w of [360, 390]) {
   else console.log('ok   audit content: /privacy, /terms, /about, /contact and /pricing at 360, 390 and 768, light and dark — no overflow, every "To be supplied" marker inside its card, the draft line on the first screen, the plan buttons 44px, the pricing lede whole');
 }
 /* ---- end audit: content ---- */
+/* ---- audit: slim ---- */
+/* A SCROLL BOX THE KEYBOARD CAN REACH (the quality owner's open item from
+   the launch audit). On a phone a table wider than its card scrolls inside
+   its box, and a box with nothing focusable in it could not be scrolled from
+   the keyboard — axe's scrollable-region-focusable, three times on the
+   property calculator at 390px. The shell now makes each such box a named
+   region Tab stop after every draw (fitScrollStops, 35-ui.js). Measured here
+   at 360 and 390 as axe measures it, not by the marker the shell writes (a
+   box the shell marks must still have something to scroll): every box in <main>
+   that scrolls by more than 13px on an axis it lets scroll, and is drawn
+   (not inside a closed <details>), must be a Tab stop or hold one; a box
+   that is a Tab stop only by itself must be a region with a name no other
+   region on the page has; Tab reaches it with a visible ring, and the arrow
+   keys scroll it. At 1440 the calculator's boxes fit, and none keeps a Tab
+   stop it no longer needs. */
+{
+  const fails = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    return r.result?.exceptionDetails ? { error: r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text } : r.result?.result?.value;
+  };
+  const press = async (key, code) => {
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: code }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code }, sessionId);
+    await sleep(120);
+  };
+  const MEASURE = `(() => {
+    const shown = (n) => (n.checkVisibility ? n.checkVisibility() : n.getClientRects().length > 0);
+    const TAB = 'a[href], area[href], button, input:not([type="hidden"]), select, textarea, summary, iframe, [contenteditable]:not([contenteditable="false"]), [tabindex]';
+    const tabbable = (n) => n.matches(TAB) && n.tabIndex >= 0 && !n.disabled && shown(n);
+    const main = document.querySelector('main');
+    const who = (n) => n.tagName.toLowerCase() + (n.className && typeof n.className === 'string' ? '.' + n.className.split(' ')[0] : '') + ' under "' + ((n.closest('.card') || main).querySelector('h1,h2,h3,h4,.h-card')?.textContent || '').trim().slice(0, 40) + '"';
+    const unreachable = [], stops = [];
+    for (const n of main.querySelectorAll('*')) {
+      const x = n.scrollWidth > n.clientWidth + 13, y = n.scrollHeight > n.clientHeight + 13;
+      if (!x && !y) continue;
+      const s = getComputedStyle(n);
+      if (!((x && /^(auto|scroll)$/.test(s.overflowX)) || (y && /^(auto|scroll)$/.test(s.overflowY))) || !shown(n)) continue;
+      const inside = [...n.querySelectorAll(TAB)].some(tabbable);
+      if (!inside && !tabbable(n)) unreachable.push(who(n) + ' (' + (n.scrollWidth - n.clientWidth) + 'px hidden)');
+      else if (!inside) stops.push({ role: n.getAttribute('role'), name: (n.getAttribute('aria-label') || '').trim(), who: who(n) });
+    }
+    const names = [...main.querySelectorAll('[role="region"]')].map(r => (r.getAttribute('aria-label') || '').trim()).filter(Boolean);
+    const twice = names.filter((s, i) => names.indexOf(s) !== i);
+    /* The shell marks a box for anything past a pixel of rounding (35-ui.js); one with nothing to scroll to keeps no stop. */
+    const marked = [...main.querySelectorAll('[data-scroll-stop]')].filter(n => !(n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1)).map(who);
+    return { unreachable, stops, twice, marked };
+  })()`;
+  const PAGES = ['/property/calculator', '/company/aapl-apple-inc?tab=financials', '/discover/screener', '/methodology/ips', '/data-sources', '/us-options/wheel'];
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    let total = 0;
+    for (const w of [360, 390]) for (const p of PAGES) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await send('Page.navigate', { url: BASE + p }, sessionId);
+      for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) break; }
+      await sleep(900);
+      const r = await ev(MEASURE);
+      if (!r || r.error) { fails.push(`${w} ${p}: ${r?.error || 'not measured'}`); continue; }
+      total += r.stops.length;
+      r.unreachable.forEach(u => fails.push(`${w} ${p}: a box scrolls and the keyboard cannot reach it — ${u}`));
+      r.stops.filter(s => s.role !== 'region' || !s.name).forEach(s => fails.push(`${w} ${p}: a scroll box is a Tab stop with ${s.role ? `role ${s.role}` : 'no role'} and ${s.name ? `the name "${s.name}"` : 'no name'} — ${s.who}`));
+      r.twice.forEach(n => fails.push(`${w} ${p}: two regions are both called "${n}"`));
+      r.marked.forEach(n => fails.push(`${w} ${p}: kept as a scroll stop though it no longer scrolls — ${n}`));
+    }
+    /* The calculator's first such box, by keyboard: Tab from the stop before
+       it lands on it with a visible ring, and ArrowRight scrolls it. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await send('Page.navigate', { url: BASE + '/property/calculator' }, sessionId);
+    for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) break; }
+    await sleep(900);
+    const prep = await ev(`(() => {
+      const shown = (n) => (n.checkVisibility ? n.checkVisibility() : n.getClientRects().length > 0);
+      const TAB = 'a[href], area[href], button, input:not([type="hidden"]), select, textarea, summary, iframe, [contenteditable]:not([contenteditable="false"]), [tabindex]';
+      const tabbable = (n) => n.matches(TAB) && n.tabIndex >= 0 && !n.disabled && shown(n);
+      const box = [...document.querySelectorAll('main [role="region"][tabindex="0"]')].find(n => n.scrollWidth > n.clientWidth + 13 && shown(n) && ![...n.querySelectorAll(TAB)].some(tabbable));
+      if (!box) return { error: 'no scroll box that is a Tab stop by itself on the calculator at 390' };
+      const order = [...document.querySelectorAll(TAB)].filter(tabbable);
+      const before = order[order.indexOf(box) - 1];
+      box.dataset.slimProbe = '1';
+      document.documentElement.style.scrollBehavior = 'auto';
+      before.focus();
+      return { name: box.getAttribute('aria-label') };
+    })()`);
+    if (!prep || prep.error) fails.push(`390 /property/calculator keyboard: ${prep?.error || 'not measured'}`);
+    else {
+      await press('Tab', 9);
+      await sleep(250);
+      const at = await ev(`(() => { const a = document.activeElement; const s = getComputedStyle(a);
+        return { on: a.dataset.slimProbe === '1', ring: a.matches(':focus-visible') && s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2, outline: s.outlineStyle + ' ' + s.outlineWidth, left: a.scrollLeft }; })()`);
+      if (!at?.on) fails.push(`390 /property/calculator: Tab from the control before "${prep.name}" did not land on it`);
+      else {
+        if (!at.ring) fails.push(`390 /property/calculator: "${prep.name}" takes focus with no visible ring (${at.outline})`);
+        for (let k = 0; k < 3; k++) await press('ArrowRight', 39);
+        await sleep(300);
+        const left = await ev(`document.activeElement.scrollLeft`);
+        if (!(left > at.left)) fails.push(`390 /property/calculator: ArrowRight on "${prep.name}" did not scroll it (${at.left} → ${left})`);
+      }
+    }
+    /* Wider: the same page's boxes fit, and give their Tab stops back. */
+    await ev(`document.activeElement?.blur(); true`);
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await sleep(800);
+    const wide = await ev(MEASURE);
+    if (!wide || wide.error) fails.push(`1440 /property/calculator: ${wide?.error || 'not measured'}`);
+    else {
+      wide.unreachable.forEach(u => fails.push(`1440 /property/calculator: a box scrolls and the keyboard cannot reach it — ${u}`));
+      wide.marked.forEach(n => fails.push(`1440 /property/calculator: kept as a scroll stop though it no longer scrolls — ${n}`));
+    }
+    if (!total) fails.push('no scroll box needed a Tab stop on any page at 390, so none was tested');
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+    if (!fails.length) console.log(`ok   audit slim: at 360 and 390 every scroll box on ${PAGES.length} pages is a Tab stop or holds one — ${total} named regions over both widths, no name twice; Tab reaches the calculator's "${prep?.name}" with a ring and ArrowRight scrolls it; at 1440 none keeps a stop it no longer needs`);
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  if (fails.length) { bad++; console.log(`FAIL audit slim — a scroll box the keyboard cannot reach, or a Tab stop with no name: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+}
+/* ---- end audit: slim ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

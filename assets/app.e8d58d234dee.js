@@ -13556,6 +13556,129 @@ let fitRails = () => {};
 /* A viewport that changes height changes which rails fit, and a
    ResizeObserver on the rail itself never hears about it. */
 window.addEventListener('resize', () => fitRails());
+
+/* A SCROLL BOX THE KEYBOARD CAN REACH, AND A SCREEN READER CAN NAME.
+   A box that scrolls — a wide table in its .tablewrap on a phone, any
+   overflow-x container — and holds nothing that takes focus could not be
+   scrolled from the keyboard: nothing in it is a Tab stop, so its hidden
+   columns were out of reach (axe: scrollable-region-focusable; the launch
+   audit found three on the property calculator at 390px, and the pattern is
+   every static table wider than its card on a phone). Chrome now makes such
+   a box a Tab stop of its own, but with no role and no name, so a screen
+   reader landed on it and said nothing; other browsers do not.
+   So after every draw, and whenever the page changes size, each box in the
+   page that overflows and holds no Tab stop becomes
+   one: tabindex=0, role=region, and a name — its table's caption, else the
+   nearest heading before it, with ", table" when it holds one — numbered
+   where two would share it, since two regions with one name are one
+   landmark listed twice. The global :focus-visible ring marks it, outside
+   its edge, where a sticky table header cannot paint over it (styles.css
+   keeps the box's own corners), and the arrow keys scroll it once it has
+   focus. A box that stops overflowing — the phone turned,
+   the window widened — gives the attributes back. Only what this adds is
+   ever taken away: a box a view named itself (the evidence table,
+   75-property-grade.js) is left as it was drawn. */
+/* More than a pixel of rounding. axe lets 13px pass as its own margin, but
+   what a box hides is hidden however little it is, and a box that measured
+   exactly 13px over here measured over 13 while axe ran (the calculator's
+   "If the interest rate rises" table at 360px): a stop is due wherever
+   there is anything to scroll to. */
+const SCROLL_STOP_SLACK = 1;
+const SCROLL_STOP_TABBABLE = 'a[href], area[href], button, input:not([type="hidden"]), select, textarea, summary, iframe, audio[controls], video[controls], [contenteditable]:not([contenteditable="false"]), [tabindex]';
+const SCROLL_STOP_HEADING = 'h1, h2, h3, h4, h5, h6, [role="heading"], .h-card';
+const oneLine = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+let scrollStopSizer = null, scrollStopQueued = false;
+/* Drawn, and not inside a closed <details>: Chrome keeps a closed one's
+   contents laid out (content-visibility: hidden), so a table in it still
+   measures as overflowing though no one can see or reach it. */
+const shown = (n) => (n.checkVisibility ? n.checkVisibility() : n.getClientRects().length > 0);
+/* Scrolls, as axe measures it: content past the box by more than the
+   slack, on an axis the box lets scroll. */
+function scrollsItself(n) {
+  const x = n.scrollWidth > n.clientWidth + SCROLL_STOP_SLACK, y = n.scrollHeight > n.clientHeight + SCROLL_STOP_SLACK;
+  if (!x && !y) return false;
+  const s = getComputedStyle(n);
+  return ((x && /^(auto|scroll)$/.test(s.overflowX)) || (y && /^(auto|scroll)$/.test(s.overflowY))) && shown(n);
+}
+const holdsTabStop = (box) => [...box.querySelectorAll(SCROLL_STOP_TABBABLE)]
+  .some(n => n.tabIndex >= 0 && !n.disabled && shown(n));
+/* What the box is called: its table's caption or label, else the last
+   heading before it in the page — found walking out from the box through
+   the siblings before each ancestor, nearest first. */
+function scrollStopName(box) {
+  const table = box.querySelector('table');
+  let name = oneLine(table?.caption?.textContent) || oneLine(table?.getAttribute('aria-label'));
+  for (let n = box; !name && n && n !== viewRoot && n !== document.body; n = n.parentElement) {
+    for (let s = n.previousElementSibling; s && !name; s = s.previousElementSibling) {
+      const h = s.matches(SCROLL_STOP_HEADING) ? s : [...s.querySelectorAll(SCROLL_STOP_HEADING)].pop();
+      name = oneLine(h?.textContent);
+    }
+  }
+  name = (name || oneLine(viewRoot.querySelector('h1')?.textContent) || 'This page').slice(0, 90);
+  return `${name}${table ? ', table' : box.classList.contains('chart-scroll') ? ', chart' : ''}`;
+}
+function giveBackScrollStop(box) {
+  /* Taken from under focus, the focus would fall to <body>: kept until
+     the reader leaves it. */
+  if (box === document.activeElement) { box.addEventListener('blur', () => queueScrollStops(), { once: true }); return; }
+  for (const a of box.dataset.scrollStop.split(' ')) if (a) box.removeAttribute(a);
+  delete box.dataset.scrollStop;
+}
+function fitScrollStops(root = viewRoot) {
+  /* Innermost first, so a box holding a box that becomes a Tab stop is
+     known to hold one; everything is measured before anything is written. */
+  const boxes = [], giveBack = [];
+  for (const n of [...root.querySelectorAll('*')].reverse()) {
+    const mine = n.dataset.scrollStop !== undefined;
+    if (!scrollsItself(n) || holdsTabStop(n) || boxes.some(b => n.contains(b))) { if (mine) giveBack.push(n); continue; }
+    /* A tab stop its view made it: the view has said what it is. */
+    if (!mine && n.hasAttribute('tabindex')) continue;
+    boxes.push(n);
+  }
+  giveBack.forEach(giveBackScrollStop);
+  if (!boxes.length) return;
+  boxes.reverse();
+  /* Names already given — a view's own named regions included — and how many
+     boxes here would take each, so a shared one is numbered. */
+  const taken = new Map();
+  for (const r of root.querySelectorAll('[role="region"][aria-label]')) {
+    if (!boxes.includes(r)) taken.set(r.getAttribute('aria-label'), (taken.get(r.getAttribute('aria-label')) || 0) + 1);
+  }
+  const named = boxes.map(b => [b, scrollStopName(b)]);
+  const count = new Map();
+  named.forEach(([, s]) => count.set(s, (count.get(s) || 0) + 1));
+  const seen = new Map();
+  for (const [box, base] of named) {
+    const before = taken.get(base) || 0, total = before + count.get(base);
+    const k = before + (seen.get(base) || 0) + 1;
+    seen.set(base, (seen.get(base) || 0) + 1);
+    const label = total > 1 ? `${base} ${k} of ${total}` : base;
+    const added = new Set((box.dataset.scrollStop || '').split(' ').filter(Boolean));
+    const set = (attr, value) => {
+      if (box.hasAttribute(attr) && !added.has(attr)) return;
+      if (box.getAttribute(attr) !== value) box.setAttribute(attr, value);
+      added.add(attr);
+    };
+    set('tabindex', '0');
+    set('role', 'region');
+    if (!box.hasAttribute('aria-labelledby')) set('aria-label', label);
+    const note = [...added].join(' ');
+    if (box.dataset.scrollStop !== note) box.dataset.scrollStop = note;
+  }
+}
+/* Once a frame at most: a resize or a reflow reports many sizes in a row. */
+function queueScrollStops() {
+  if (scrollStopQueued) return;
+  scrollStopQueued = true;
+  requestAnimationFrame(() => { scrollStopQueued = false; fitScrollStops(); });
+}
+window.addEventListener('resize', queueScrollStops);
+/* And whenever the page's content changes without a draw — a figure filled
+   in when its data lands, a row added in place — which can widen a table
+   past its box while the page as a whole keeps its size, so the
+   ResizeObserver on it (drawPage) hears nothing. Not attributes: this code
+   writes some, and a change it makes must not call it back. */
+new MutationObserver(queueScrollStops).observe(viewRoot, { childList: true, subtree: true, characterData: true });
 /* The topbar's real height, for scroll-padding-top and everything that sticks
    under it. --topbar-h is the design value; the measured one is what is
    actually stuck to the top of the viewport. Two bars since Release A, and at
@@ -13799,7 +13922,9 @@ function noteFocusForRedraw() {
   const all = kin(root);
   const mine = all.filter(n => recordOf(n, root) === record);
   const scrolled = [];
-  for (let p = a.parentElement, up = 1; p && p !== root; p = p.parentElement, up++) {
+  /* From the control itself: a scroll box in focus (fitScrollStops) is the
+     box the reader has been scrolling with the arrow keys. */
+  for (let p = a, up = 0; p && p !== root; p = p.parentElement, up++) {
     if (p.scrollLeft || p.scrollTop) scrolled.push([up, p.scrollLeft, p.scrollTop]);
   }
   return {
@@ -14106,6 +14231,15 @@ function drawPage(samePage) {
     railSizer = new ResizeObserver(() => fitRails());
     rails.forEach(r => railSizer.observe(r));
   }
+
+  /* Scroll boxes the keyboard can reach (fitScrollStops): now, before focus
+     is handed back, so a box in focus is found again as the Tab stop it was;
+     then whenever the page changes size — a chart or a map drawn a moment
+     later, the filings landing, a disclosure opened, the phone turned. */
+  scrollStopSizer?.disconnect();
+  fitScrollStops();
+  scrollStopSizer = new ResizeObserver(queueScrollStops);
+  scrollStopSizer.observe(section);
 }
 
 document.addEventListener('click', e => {

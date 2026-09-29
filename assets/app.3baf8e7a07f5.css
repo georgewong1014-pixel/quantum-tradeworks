@@ -3342,3 +3342,12 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
 .trust-section { margin-top: var(--lg); padding-top: var(--lg); border-top: 1px solid var(--line); }
 .trust-section .body { max-width: 75ch; }
 /* ---- end audit: content ---- */
+
+/* ---- audit: slim ---- */
+/* A scroll box made a Tab stop because nothing in it is one (fitScrollStops,
+   35-ui.js) takes the global :focus-visible ring, outside its edge, where no
+   sticky table header can paint over it — but keeps its own corners: the
+   global rule's small radius would square a table box's rounded ones for as
+   long as it held focus. */
+.tablewrap[data-scroll-stop]:focus-visible { border-radius: var(--r-md); }
+/* ---- end audit: slim ---- */
