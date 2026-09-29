@@ -16605,18 +16605,25 @@ function buildNav() {
 /* THE PRODUCT'S TABS, above its pages. Drawn into their own host in <main>,
    outside the view, so a tab change does not replay the view's entrance on
    the strip the reader just pressed. A nav landmark named for the product;
-   the tab for the page on screen is current. */
+   the tab for the page on screen is current.
+   A strip the same as the one on screen is left in place. It was rebuilt on
+   every render, so a tab the reader had reached went to <body> when the
+   filings landed a moment after the page opened, and a strip scrolled along
+   on a phone jumped back to its current tab. */
 function renderProductTabs() {
   const host = shellEl.tabsHost;
   if (!host) return;
   const pid = productOf(State.view);
   const tabs = PRODUCT_TABS[pid];
-  if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; return; }
+  if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; delete host.dataset.strip; return; }
   const p = productById(pid);
   const here = tabs.find(t => t.views.includes(State.view));
+  const strip = JSON.stringify([pid, tabs.map(t => [t.label, t.path]), here?.path ?? null]);
+  if (!host.hidden && host.dataset.strip === strip) return;
   const nav = sectionTabs({ label: `${p.name} sections`, pid, tabs: tabs.map(t => ({ label: t.label, path: t.path, current: t === here })) });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
+  host.dataset.strip = strip;
   wireSectionTabs(nav);
 }
 
@@ -16786,7 +16793,125 @@ function bootSkeleton() {
   return wrap;
 }
 
+/* THE CONTROL IN USE SURVIVES A REDRAW OF ITS OWN PAGE.
+   ---------------------------------------------------------------------------
+   render() replaces the whole view, the product tabs above it and the dock
+   below it, so a control the reader had reached in any of them went with a
+   redraw and focus fell to <body>, throwing a keyboard or screen-reader
+   reader back to the skip link. The redraws a control asks for mostly hand
+   focus on themselves (renderKeepFocus, focusAfterRedraw); the ones nobody
+   asked for could not. Every page that does not wait behind the skeleton is
+   drawn at once and drawn again when the filings land (boot routes again,
+   95-boot.js), and the area screen and the calculator again when the
+   locality positions do — a second or two on a fast line, as long as the
+   2.4MB of filings take on a slow one. With them held back, a name being
+   typed into "Record a property" on /property/opportunities, and an
+   Equities or Property tab, each went to <body>. The property pages carried
+   their own copy of this (keepFocusThroughRedraw, 70-property.js); this
+   replaces it, for every page.
+
+   So render() notes the control in focus before it draws anything, where it
+   sits somewhere a redraw replaces (REDRAW_FOCUS_SCOPES — never a drawer,
+   the search or a dialog, which a redraw leaves alone). A microtask later
+   the redraw and whatever called it are over, and only if focus fell to
+   <body> — a caller that moved focus has done so by then, synchronously —
+   it goes back to the same control in the new page: by id, or else by
+   which of its kind it was, a link by its address and anything else by
+   what it says. What the reader was typing in it comes too, where it had
+   not yet been committed, and a <details> it sat in is opened again, since
+   a closed one cannot hold focus. Only on a redraw of the page already on
+   screen: a navigation keeps its own rule (afterRoute puts focus on the new
+   page), and a control is never looked for on another page. Where one task
+   redraws twice, the first note stands, because it is what the reader had.
+
+   THE CARET COMES WITH IT. A field focused by script takes the caret at its
+   start, with nothing selected. A field's change redraws a tick later
+   (renderKeepFocus from a setTimeout), after Tab has moved focus to the next
+   field and selected its figure for typing to replace, and the next field
+   came back with the caret before its figure: on the screener a maximum of
+   30, retyped 40 after Tab, read 4030, and on /compare a Bursa withholding
+   of 0 retyped 7 read 70. Where the redraw's caller put focus back on the
+   same control (renderKeepFocus), only the caret is restored. A number field
+   has no selection a page can read or set, so its state is taken from what
+   Chrome reports as the document's selection — its whole figure, after
+   Tab — and put back with select(), or else the caret goes to the end,
+   where typing leaves it. */
+const typedSinceCommit = new WeakSet();
+document.addEventListener('input', (e) => typedSinceCommit.add(e.target), true);
+document.addEventListener('change', (e) => typedSinceCommit.delete(e.target), true);
+function fieldCaret(n) {
+  if (!n || !/^(INPUT|TEXTAREA)$/.test(n.tagName)) return null;
+  try { if (typeof n.selectionStart === 'number') return [n.selectionStart, n.selectionEnd, n.selectionDirection]; }
+  catch { /* number and date fields throw rather than answer */ }
+  if (n.type !== 'number' || n.value === '') return null;
+  const s = document.getSelection();
+  return s && s.type === 'Range' && s.toString() === n.value ? 'all' : 'end';
+}
+function putCaret(n, caret) {
+  if (Array.isArray(caret)) { try { n.setSelectionRange(...caret); } catch { /* not a text field now */ } return; }
+  if (caret === 'all') { n.select(); return; }
+  /* Setting a value moves the caret to its end. */
+  if (caret === 'end' && n.value !== '') { const v = n.value; n.value = ''; n.value = v; }
+}
+/* Where a control sits that render() replaces: the page and its product
+   tabs (#main), the dock, and the chrome — built once, all but the
+   sidebar's scanner-alert count, which is drawn afresh with every page. */
+const REDRAW_FOCUS_SCOPES = ['#main', '.dock', '#sidebar', '#appbar', '#pubbar'];
+/* A control drawn later than the page — a point on a locality map, a frame
+   after it — is not there to be found when the redraw ends. The module that
+   draws it claims it here and hands focus to it when it draws (cityMap,
+   70-property.js). */
+const redrawFocusClaims = [];
+/* The page render() last drew, and its note of the control in focus while
+   a redraw of that page is under way. */
+let renderedPage = null, focusNote = null;
+const pageOnScreen = () => `${State.view} ${location.pathname}`;
+function noteFocusForRedraw() {
+  const a = document.activeElement;
+  if (!a || a === document.body) return null;
+  const scope = REDRAW_FOCUS_SCOPES.find(s => a.closest(s));
+  if (!scope || redrawFocusClaims.some(claim => claim(a))) return null;
+  const said = (n) => (n.getAttribute('aria-label') || n.textContent || '').replace(/\s+/g, ' ').trim();
+  const link = a.tagName === 'A' ? a.getAttribute('href') : null;
+  const words = said(a);
+  const kin = (root) => [...root.querySelectorAll(a.tagName)]
+    .filter(n => !n.id && (link !== null ? n.getAttribute('href') === link : said(n) === words));
+  return {
+    a, scope, kin, page: pageOnScreen(),
+    nth: a.id ? -1 : kin(a.closest(scope)).indexOf(a),
+    typed: typedSinceCommit.has(a) ? a.value : null,
+    /* A summary's own disclosure may have been closed; any other holder of focus sat in open ones. */
+    ownOpen: a.tagName === 'SUMMARY' && !!a.parentElement?.open,
+    caret: fieldCaret(a),
+  };
+}
+function giveFocusBack(h) {
+  const { a, caret } = h;
+  if (a.isConnected || renderedPage !== h.page) return;
+  const at = document.activeElement;
+  if (at && at !== document.body) {
+    if (caret && a.id && at.id === a.id) putCaret(at, caret);
+    return;
+  }
+  const root = document.querySelector(h.scope);
+  const n = !root ? null : a.id ? document.getElementById(a.id) : h.kin(root)[h.nth];
+  if (!n || !root.contains(n)) return;
+  for (let d = n.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) {
+    if (n.tagName === 'SUMMARY' && d === n.parentElement) { if (h.ownOpen) d.open = true; }
+    else d.open = true;
+  }
+  if (h.typed !== null && n.value !== h.typed) n.value = h.typed;
+  n.focus({ preventScroll: true });
+  if (caret && document.activeElement === n) putCaret(n, caret);
+}
+
 function render() {
+  /* Before anything is replaced, and on a redraw of the page on screen only
+     — see noteFocusForRedraw above. */
+  if (!focusNote && renderedPage === pageOnScreen()) {
+    focusNote = noteFocusForRedraw();
+    if (focusNote) queueMicrotask(() => { const h = focusNote; focusNote = null; giveFocusBack(h); });
+  }
   buildNav();
   renderProductTabs();
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
@@ -16798,6 +16923,9 @@ function render() {
   if (!(realPending && UNIVERSE_VIEWS.has(State.view))) mountFlagNotice(node, State.view, State.researchTab);
   const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
+  /* Read once the view is drawn: a view can move to another address as it
+     draws (/my/scanner?symbol= opens the setup builder). */
+  renderedPage = pageOnScreen();
   /* Now, not only when headingWatch next runs, so anything that reads the
      page straight after a render reads the levels it states. */
   fitHeadingLevels(viewRoot);
@@ -18140,7 +18268,10 @@ function sortScreenRows(rows, sc) {
    replaces the whole view, so the focused slider, select or checkbox was
    destroyed under the reader: one arrow press moved the completeness slider,
    focus fell to <body>, and the next press did nothing. Controls that re-render
-   carry an id, and focus returns to the new element with the same id. */
+   carry an id, and focus returns to the new element with the same id.
+   At once, by id; render() then puts back the caret or the selection the
+   field had (noteFocusForRedraw, 35-ui.js), so a figure Tab selected is
+   still selected for typing to replace. */
 function renderKeepFocus() {
   const id = document.activeElement?.id;
   render();
@@ -23276,7 +23407,9 @@ VIEWS.researchReport = () => {
    tab, or Tab out of a field each left focus on <body>, and the next Tab
    started again from the skip link. The redraw waits one task, so focus has
    settled wherever the key sent it — the same control, or the next one after
-   a Tab — and renderKeepFocus returns it to the redrawn control with that id.
+   a Tab — and renderKeepFocus returns it to the redrawn control with that id,
+   with the caret or selection it had there: after Tab, the next field's
+   figure selected, so typing replaces it (render(), 35-ui.js).
    Every control that redraws through this carries a stable id. */
 const redrawKeepFocus = () => setTimeout(renderKeepFocus, 0);
 
@@ -31438,62 +31571,12 @@ async function loadSarawakLayers() {
 }
 
 /* THE CONTROL IN USE SURVIVES A REDRAW THE READER DID NOT ASK FOR.
-   ---------------------------------------------------------------------------
    These pages are drawn at once and drawn again when their data lands: boot
    routes again once the filings are in (95-boot.js), and loadSarawakLayers
-   above redraws the two views that draw localities. render() replaces the
-   whole view, so a control the reader had reached before then — a layer on
-   the area screen, the town, the "Recording as" name, a calculator field —
-   went with it and focus fell to <body>, throwing a keyboard or
-   screen-reader reader back to the top of the page. That window is a second
-   or two on a fast line, and as long as the 2.4MB of filings and NAPIC
-   tables take on a slow one. A name half typed into "Recording as" was
-   saved as the field left the page (the browser commits an edited field as
-   it is removed), while the field drawn in its place a moment before read
-   blank.
-
-   A view in these files calls this first, while the page it is about to
-   replace is still in place. A microtask later the redraw is over, and only
-   if focus fell to <body> — a control whose own action moved focus has done
-   so by then, synchronously — it goes back to the same control in the new
-   page: by id, or else by what the control says and which of its kind it
-   was, for the buttons and links that carry no id. What the reader was
-   typing in it comes too, where it had not yet been committed, and a
-   <details> it sat in is opened again, since a closed one cannot hold
-   focus. A point on a locality map has no id and is drawn a frame later, so
-   it is named to cityMap, which hands focus to it when it draws.
-
-   THE CARET COMES WITH IT. A field focused by script takes the caret at its
-   start, with nothing selected. So on the calculator, Tab from one field to
-   the next — which selects the next field's figure, for typing to replace —
-   was followed a tick later by the redraw the first field's change asks for
-   (renderAfterTyping), and typing 77 into a floor area of 0 recorded 770;
-   a price of 572000 retyped as 600000 would have read 600000572000. Focus
-   handed back to a field the data landed under mid-number would do the
-   same — 12, then 3, reading 312 — so the caret is restored with it. Where
-   the redraw's own caller put focus back on the same control
-   (renderKeepFocus), only the caret is restored. A number field has no
-   selection a page can read or set, so its state is taken from what Chrome
-   reports as the document's selection — its whole figure, after Tab — and
-   put back with select(), or else the caret goes to the end, where typing
-   leaves it. */
-const typedSinceCommit = new WeakSet();
-document.addEventListener('input', (e) => typedSinceCommit.add(e.target), true);
-document.addEventListener('change', (e) => typedSinceCommit.delete(e.target), true);
-function fieldCaret(n) {
-  if (!n || !/^(INPUT|TEXTAREA)$/.test(n.tagName)) return null;
-  try { if (typeof n.selectionStart === 'number') return [n.selectionStart, n.selectionEnd, n.selectionDirection]; }
-  catch { /* number and date fields throw rather than answer */ }
-  if (n.type !== 'number' || n.value === '') return null;
-  const s = document.getSelection();
-  return s && s.type === 'Range' && s.toString() === n.value ? 'all' : 'end';
-}
-function putCaret(n, caret) {
-  if (Array.isArray(caret)) { try { n.setSelectionRange(...caret); } catch { /* not a text field now */ } return; }
-  if (caret === 'all') { n.select(); return; }
-  /* Setting a value moves the caret to its end. */
-  if (caret === 'end' && n.value !== '') { const v = n.value; n.value = ''; n.value = v; }
-}
+   above redraws the two views that draw localities. render() hands focus,
+   its caret and what was typed back to the control in use (35-ui.js), for
+   these pages as for every other; a point on a locality map, drawn a frame
+   after the page, is claimed for cityMap below. */
 /* WHETHER A PAGE HERE HAS FINISHED DRAWING ITSELF: the filings have landed or
    failed (boot routes again either way, which redraws) and no locality
    positions are in flight (loadSarawakLayers redraws when they land). After
@@ -31507,36 +31590,6 @@ function putCaret(n, caret) {
    ready. */
 function propertyPagesSettled() {
   return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading';
-}
-function keepFocusThroughRedraw() {
-  const a = document.activeElement;
-  if (!a || a === document.body || !viewRoot.contains(a)) return;
-  const map = a.closest('svg[data-city]');
-  if (map && a.dataset.area) { cityMapFocus = { city: map.dataset.city, name: a.dataset.area }; return; }
-  const said = (n) => (n.getAttribute('aria-label') || n.textContent || '').replace(/\s+/g, ' ').trim();
-  const kin = (root) => [...root.querySelectorAll(a.tagName)].filter(n => !n.id && said(n) === said(a));
-  const nth = a.id ? -1 : kin(viewRoot).indexOf(a);
-  const typed = typedSinceCommit.has(a) ? a.value : null;
-  /* A summary's own disclosure may have been closed; any other holder of focus sat in open ones. */
-  const ownOpen = a.tagName === 'SUMMARY' && !!a.parentElement?.open;
-  const caret = fieldCaret(a);
-  queueMicrotask(() => {
-    if (a.isConnected) return;
-    const at = document.activeElement;
-    if (at && at !== document.body) {
-      if (caret && a.id && at.id === a.id) putCaret(at, caret);
-      return;
-    }
-    const n = a.id ? document.getElementById(a.id) : kin(viewRoot)[nth];
-    if (!n || !viewRoot.contains(n)) return;
-    for (let d = n.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) {
-      if (n.tagName === 'SUMMARY' && d === n.parentElement) { if (ownOpen) d.open = true; }
-      else d.open = true;
-    }
-    if (typed !== null && n.value !== typed) n.value = typed;
-    n.focus({ preventScroll: true });
-    if (caret && document.activeElement === n) putCaret(n, caret);
-  });
 }
 
 /* ==========================================================================
@@ -31968,6 +32021,15 @@ const AREA_CONFIDENCE = {
    keeps a hollow, dashed mark. That distinction is the whole point: an
    unexamined area must never be able to look like a safe one. */
 let cityMapFocus = null;
+/* A point on the map that had focus when the page was redrawn is named here,
+   and the map drawn in its place hands focus to it — render() (35-ui.js)
+   cannot, because the new map draws a frame after the page. */
+redrawFocusClaims.push((a) => {
+  const map = a.closest('svg[data-city]');
+  if (!map || !a.dataset?.area) return false;
+  cityMapFocus = { city: map.dataset.city, name: a.dataset.area };
+  return true;
+});
 function cityMap(cityId, selectedArea, onPick, paint) {
   const city = sarawakGeo?.cities?.[cityId];
   const areas = Object.entries(city?.areas || {});
@@ -32013,7 +32075,7 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     svg.setAttribute('width', String(contentW)); svg.setAttribute('height', String(H));
     svg.setAttribute('style', 'display:block;margin:0 auto;max-width:100%');
     svg.setAttribute('role', 'img');
-    /* Which town's map, so a redraw can name a focused point back to it (keepFocusThroughRedraw). */
+    /* Which town's map, so a redraw can name a focused point back to it (redrawFocusClaims, above). */
     svg.setAttribute('data-city', cityId);
     /* Built by hand rather than through the chart layer, so it needed the tab
        stop adding separately — and did not have one. */
@@ -35054,8 +35116,6 @@ let observationDraft = null;
 const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
 
 VIEWS.property = () => {
-  /* Drawn again when the filings and the locality positions land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
      or Reset on either path. */
@@ -38880,8 +38940,6 @@ const daysSince = (iso) => {
    leg they are for — see resolveInput. */
 let wheelResolveDraft = { leg: null, figures: {} };
 VIEWS.wheel = () => {
-  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const p = State.wheel;
   const m = wheelMath(p);
   const fit = wheelFit(p, m, null);
@@ -40821,6 +40879,8 @@ const OPP_EDIT_OPEN = new Set();
    "opp-2-…" — and OPP_EDIT_OPEN, keyed by id, then opened and closed both
    edit panels together. The saved-run and comparison ids made the same move. */
 let OPP_SEQ = 0;
+/* What "Record a property" holds before Add — see the form. */
+let oppDraft = null;
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
@@ -40857,7 +40917,15 @@ VIEWS.opportunities = () => {
      complete file before anything can be recorded. */
   const add = el('div', { class: 'card' });
   add.append(cardHead('Record a property', 'Enough to identify it. Evidence is added afterwards.'));
-  const draft = { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
+  /* WHAT IS ENTERED HERE BEFORE ADD IS KEPT THROUGH A REDRAW. The draft was
+     drawn with the page, and the page is drawn again when the filings land a
+     moment after it opens: a city, a price and an area given by then came
+     back as Kuching and two empty fields, and a name typed into the first
+     field went to a draft the new page no longer read — so the field, with
+     focus and the typing handed back to it (render(), 35-ui.js), showed a
+     name Add then said was missing. It is held here from the first
+     keystroke until Add takes it. */
+  const draft = oppDraft ||= { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
   /* Each control carries its own label: the labels had no `for` and the
      inputs no id, so all seven fields were unnamed to a screen reader. */
   const f = (label, key, kind) => {
@@ -40874,7 +40942,11 @@ VIEWS.opportunities = () => {
     } else {
       input = el('input', { class: 'input', id, type: kind === 'num' ? 'number' : 'text' });
     }
-    input.addEventListener('change', e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; });
+    /* A figure not given is 0 in the draft, and an empty field on the page. */
+    input.value = kind === 'num' ? (draft[key] || '') : draft[key];
+    const keep = e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; };
+    input.addEventListener('input', keep);
+    input.addEventListener('change', keep);
     fl.append(input);
     return fl;
   };
@@ -40911,6 +40983,7 @@ VIEWS.opportunities = () => {
       negotiatedPrice: null, valuerEstimate: null,
       nextAction: '', nextActionOwner: '', nextActionDue: '',
     }, ...State.opportunities];
+    oppDraft = null;
     saveOpportunities(); toast(`${draft.name} recorded`); render(); focusAfterRedraw('#opp-add');
   } }, 'Add to register'));
   wrap.append(add);
@@ -45990,8 +46063,6 @@ const areaRowButtonId = (n) => `area-rec-${String(n).replace(/[^A-Za-z0-9]+/g, '
 const obsOpenId = (o) => `obs-open-${String(o.id).replace(/[^A-Za-z0-9]+/g, '-')}`;
 
 VIEWS.areas = () => {
-  /* Drawn again when the filings and the locality positions land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const S = State.areaScreen;
   /* What the recorder holds unsaved goes when it closes — see areaRecorder. */
   if (!S.editing) S.drafts = null;
@@ -46462,8 +46533,6 @@ function areaRecorder(city, area) {
 }
 
 VIEWS.comparables = () => {
-  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Property'),
@@ -46894,8 +46963,6 @@ function openObservationDrawer(o) {
 }
 
 VIEWS.status = () => {
-  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Status'),
@@ -46999,8 +47066,6 @@ VIEWS.status = () => {
 };
 
 VIEWS.boundaries = () => {
-  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Learn'),
@@ -48084,9 +48149,14 @@ const DOCKS = {
       blocker: entered ? (fit.gates && fit.gates[0]) || null : 'No contract entered, so nothing is calculated yet.',
       next: entered ? null : {
         label: 'Load a worked contract',
+        /* The dock is drawn again without this action once a contract is
+           in, and focus fell to <body> with it. It goes where the page's own
+           "Load a worked contract" sends it (80-registers.js): the banner
+           that replaces the empty card, on the control that undoes the load. */
         onclick: () => {
           State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true };
-          saveWheel(); render(); toast('Worked contract loaded — illustrative figures');
+          saveWheel(); render(); focusAfterRedraw('#wheel-clear-example');
+          toast('Worked contract loaded — illustrative figures');
         },
       },
     };

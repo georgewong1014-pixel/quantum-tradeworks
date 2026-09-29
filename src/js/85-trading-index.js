@@ -1056,6 +1056,8 @@ const OPP_EDIT_OPEN = new Set();
    "opp-2-…" — and OPP_EDIT_OPEN, keyed by id, then opened and closed both
    edit panels together. The saved-run and comparison ids made the same move. */
 let OPP_SEQ = 0;
+/* What "Record a property" holds before Add — see the form. */
+let oppDraft = null;
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
@@ -1092,7 +1094,15 @@ VIEWS.opportunities = () => {
      complete file before anything can be recorded. */
   const add = el('div', { class: 'card' });
   add.append(cardHead('Record a property', 'Enough to identify it. Evidence is added afterwards.'));
-  const draft = { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
+  /* WHAT IS ENTERED HERE BEFORE ADD IS KEPT THROUGH A REDRAW. The draft was
+     drawn with the page, and the page is drawn again when the filings land a
+     moment after it opens: a city, a price and an area given by then came
+     back as Kuching and two empty fields, and a name typed into the first
+     field went to a draft the new page no longer read — so the field, with
+     focus and the typing handed back to it (render(), 35-ui.js), showed a
+     name Add then said was missing. It is held here from the first
+     keystroke until Add takes it. */
+  const draft = oppDraft ||= { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
   /* Each control carries its own label: the labels had no `for` and the
      inputs no id, so all seven fields were unnamed to a screen reader. */
   const f = (label, key, kind) => {
@@ -1109,7 +1119,11 @@ VIEWS.opportunities = () => {
     } else {
       input = el('input', { class: 'input', id, type: kind === 'num' ? 'number' : 'text' });
     }
-    input.addEventListener('change', e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; });
+    /* A figure not given is 0 in the draft, and an empty field on the page. */
+    input.value = kind === 'num' ? (draft[key] || '') : draft[key];
+    const keep = e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; };
+    input.addEventListener('input', keep);
+    input.addEventListener('change', keep);
     fl.append(input);
     return fl;
   };
@@ -1146,6 +1160,7 @@ VIEWS.opportunities = () => {
       negotiatedPrice: null, valuerEstimate: null,
       nextAction: '', nextActionOwner: '', nextActionDue: '',
     }, ...State.opportunities];
+    oppDraft = null;
     saveOpportunities(); toast(`${draft.name} recorded`); render(); focusAfterRedraw('#opp-add');
   } }, 'Add to register'));
   wrap.append(add);

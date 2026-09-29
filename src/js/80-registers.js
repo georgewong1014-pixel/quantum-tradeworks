@@ -510,8 +510,6 @@ const daysSince = (iso) => {
    leg they are for — see resolveInput. */
 let wheelResolveDraft = { leg: null, figures: {} };
 VIEWS.wheel = () => {
-  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const p = State.wheel;
   const m = wheelMath(p);
   const fit = wheelFit(p, m, null);

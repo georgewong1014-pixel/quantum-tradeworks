@@ -8233,6 +8233,211 @@ try {
     else ok(`scanner pages: 395 closed weeks with a gap before 2026-03-06 leave 30 readable — EMA(200) is named unknown and EMA(20) readable, and the line says where the gap is: "${r.text.slice(0, 140)}…"`);
   }
   /* ---- end bugfix: held across a gap ---- */
+  /* ---- bugfix: render-focus ---- */
+  /* R1–R5 — render() gives the control in use back when it redraws the page
+          on screen (35-ui.js). It replaced the view, the product tabs, the
+          dock and the sidebar's alert count under the reader, and focus fell
+          to <body> whenever a redraw nobody asked for landed — the filings
+          arriving a moment after a page opened, the OS switching to dark —
+          and a field redrawn a tick after Tab came back with the caret
+          before its figure, so typing went in front of it. The Cash Wheel
+          dock's action took itself away and left focus on <body>. The
+          filings are HELD here (the Fetch domain) until the control is in
+          use, so the redraw lands under it on every run. */
+  {
+    let holdRe = null;
+    const held = [];
+    const onPause = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.method !== 'Fetch.requestPaused' || m.sessionId !== sessionId) return;
+      if (holdRe && holdRe.test(m.params.request.url)) held.push(m.params.requestId);
+      else send('Fetch.continueRequest', { requestId: m.params.requestId }, sessionId);
+    };
+    ws.addEventListener('message', onPause);
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Network.enable', {}, sessionId);
+    await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+    await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/us.json*' }, { urlPattern: '*/data/sarawak-geo.json*' }] }, sessionId);
+    const key = async (k, code, text) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, windowsVirtualKeyCode: code, ...(text ? { text } : {}) }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code }, sessionId);
+    };
+    const typeIn = async (t) => { for (const ch of t) { await key(ch, ch.toUpperCase().charCodeAt(0), ch); await sleep(20); } };
+    const until = async (expr, what) => {
+      for (const t = Date.now(); Date.now() - t < 30000; await sleep(50)) { try { if (await evaluate(expr)) return; } catch { /* booting */ } }
+      throw new Error(`${what} — not seen in 30s`);
+    };
+    /* Opens `path`. With `hold`, what it matches is held back, and this
+       returns once `ready` holds on the page drawn without it. */
+    const open = async (path, hold, ready) => {
+      holdRe = hold;
+      await evaluate('window.__rfLeaving = true');
+      await send('Page.navigate', { url: `${BASE}${path}` }, sessionId);
+      await until(`!window.__rfLeaving && ${hold ? 'realPending === true' : 'propertyPagesSettled()'} && (${ready})`,
+        `${path} drawn${hold ? ' with its data held' : ''}`);
+    };
+    const release = async (path) => {
+      holdRe = null;
+      while (held.length) await send('Fetch.continueRequest', { requestId: held.shift() }, sessionId);
+      await until('propertyPagesSettled()', `${path} redrawn with its data`);
+      await sleep(300);
+    };
+    /* The control in focus: which it is, what it holds, where its caret is,
+       and whether every disclosure round it is open. */
+    const said = (x) => x.at === 'BODY' ? 'BODY' : `${x.at} reading ${JSON.stringify(x.value)}${x.caret ? `, caret ${JSON.stringify(x.caret)}` : ''}${x.open ? '' : ' in a closed disclosure'}`;
+    const at = async () => JSON.parse(await evaluate(`JSON.stringify((() => {
+      const a = document.activeElement;
+      if (!a || a === document.body) return { at: 'BODY' };
+      let caret = null;
+      try { if (typeof a.selectionStart === 'number') caret = [a.selectionStart, a.selectionEnd]; } catch { /* a number field */ }
+      return { at: a.id || a.getAttribute('href') || a.tagName + ':' + a.textContent.trim().slice(0, 32), value: a.value ?? null, caret,
+        open: [...document.querySelectorAll('details')].filter(d => d.contains(a)).every(d => d.open) };
+    })())`));
+    const kept = { landing: [], pressed: [], os: [], tab: [] };
+    const lost = { landing: [], pressed: [], os: [], tab: [] };
+    const saved = {};
+    /* How many cases each group holds, so one that stopped part-way fails
+       rather than passing on the cases it reached. */
+    const cases = { landing: 4, pressed: 1, os: 3, tab: 2 };
+    let broke = null;
+    try {
+      /* R1 — "Record a property": a name being typed, the caret inside it,
+         and a city and a price given before it. */
+      await open('/property/opportunities', /us\.json/, `!!document.getElementById('opp-new-name')`);
+      saved.opportunities = await evaluate(`localStorage.getItem('vl.opportunities')`);
+      await evaluate(`(() => { const s = document.getElementById('opp-new-city'); s.value = 'sibu'; s.dispatchEvent(new Event('change', { bubbles: true }));
+        document.getElementById('opp-new-askingPrice').focus(); return true; })()`);
+      await typeIn('450000');
+      await evaluate(`document.getElementById('opp-new-name').focus()`);
+      await typeIn('Lot 7'); await key('ArrowLeft', 37); await key('ArrowLeft', 37);
+      await release('/property/opportunities');
+      const name = await at();
+      const form = JSON.parse(await evaluate(`JSON.stringify({ city: document.getElementById('opp-new-city')?.value, price: document.getElementById('opp-new-askingPrice')?.value })`));
+      await typeIn('X');
+      const typed = await evaluate(`document.getElementById('opp-new-name')?.value`);
+      const added = JSON.parse(await evaluate(`(() => { const n = State.opportunities.length; document.getElementById('opp-add').click();
+        const o = State.opportunities[0]; return JSON.stringify(State.opportunities.length > n ? { name: o.name, city: o.deal.city, price: o.deal.price } : null); })()`));
+      await evaluate(`(() => { const v = ${JSON.stringify(saved.opportunities)}; if (v == null) localStorage.removeItem('vl.opportunities'); else localStorage.setItem('vl.opportunities', v);
+        State.opportunities = store.read('opportunities', []); return true; })()`);
+      const r1 = `the name with "Lot 7" typed and the caret after "Lot" → ${said(name)}; then X → ${JSON.stringify(typed)}; the city ${form.city}, the price ${JSON.stringify(form.price)}; Add recorded ${JSON.stringify(added)}`;
+      (name.at === 'opp-new-name' && name.value === 'Lot 7' && JSON.stringify(name.caret) === '[3,3]' && typed === 'LotX 7'
+        && form.city === 'sibu' && form.price === '450000' && added?.name === 'LotX 7' && added.city === 'sibu' && added.price === 450000
+        ? kept : lost).landing.push(r1);
+
+      /* R2 — an Equities or Property tab, and the sidebar's scanner-alert
+         count (the one sidebar link render() draws afresh; a stand-in count,
+         since this build ships no alerts file). */
+      await open('/property/areas', /us\.json|sarawak-geo\.json/, `document.querySelectorAll('#productTabs a.ptab').length > 1`);
+      const tab = await evaluate(`(() => { const a = document.querySelectorAll('#productTabs a.ptab')[1]; a.focus(); return a.getAttribute('href'); })()`);
+      await release('/property/areas');
+      const onTab = await at();
+      (onTab.at === tab ? kept : lost).landing.push(`the product tab ${tab} → ${onTab.at}`);
+      await open('/property/areas', /us\.json|sarawak-geo\.json/, `!!document.querySelector('#appnav a.sb-link')`);
+      const count = await evaluate(`(() => { scanUnreadCount = () => 3; render(); const a = document.querySelector('#appnav .sb-count'); a?.focus();
+        return a && document.activeElement === a ? a.getAttribute('href') : null; })()`);
+      await release('/property/areas');
+      const onCount = await at();
+      (count && onCount.at === count ? kept : lost).landing.push(`the sidebar's alert count ${count} → ${onCount.at}`);
+
+      /* R3 — the dock's action, on a Cash Wheel with no contract entered;
+         then pressed, when it goes from the dock with the empty card. */
+      saved.wheel = await evaluate(`localStorage.getItem('vl.wheelPlan')`);
+      await evaluate(`localStorage.removeItem('vl.wheelPlan')`);
+      const dockAction = `[...document.querySelectorAll('.dock button')].find(b => b.textContent.trim() === 'Load a worked contract')`;
+      await open('/us-options/wheel', /us\.json/, `!!${dockAction}`);
+      await evaluate(`${dockAction}.focus()`);
+      await release('/us-options/wheel');
+      const onDock = await at();
+      (onDock.at === 'BUTTON:Load a worked contract' ? kept : lost).landing.push(`the dock's "Load a worked contract" → ${onDock.at}`);
+      await evaluate(`${dockAction}?.focus()`);
+      await key('Enter', 13, '\r'); await sleep(300);
+      const pressed = await at();
+      /* The next page is a fresh load, which reads the plan back from storage. */
+      await evaluate(`(() => { const v = ${JSON.stringify(saved.wheel)}; if (v == null) localStorage.removeItem('vl.wheelPlan'); else localStorage.setItem('vl.wheelPlan', v); return true; })()`);
+      (pressed.at === 'wheel-clear-example' ? kept : lost).pressed.push(`the dock's "Load a worked contract", pressed → ${pressed.at}`);
+
+      /* R4 — the screener's slider, and a figure being typed into an
+         advanced filter — two disclosures deep, both opened by the reader —
+         across the OS switching theme (no theme chosen, so the page redraws
+         to follow it). */
+      saved.theme = await evaluate(`localStorage.getItem('vl.theme')`);
+      await evaluate(`localStorage.removeItem('vl.theme')`);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] }, sessionId);
+      await open('/discover/screener', null, `!!document.getElementById('covRange')`);
+      saved.screen = await evaluate(`JSON.stringify(State.screen)`);
+      await evaluate(`(() => { State.screen.crit = {}; State.screen.minCoverage = 50; State.appliedTemplate = null; render();
+        const n = document.getElementById('covRange'); n.scrollIntoView({ block: 'center' }); n.focus(); return true; })()`);
+      await key('ArrowRight', 39); await sleep(200);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+      await sleep(400);
+      const onSlider = await at();
+      (onSlider.at === 'covRange' ? kept : lost).os.push(`the completeness slider → ${onSlider.at}`);
+      const adv = await evaluate(`(() => { const d = [...document.querySelectorAll('main details')].find(x => /Advanced filters/.test(x.querySelector('summary')?.textContent || ''));
+        const f = d.querySelector('input'); for (let x = f.closest('details'); x; x = x.parentElement.closest('details')) x.open = true;
+        f.scrollIntoView({ block: 'center' }); f.focus(); return document.activeElement === f ? f.id : null; })()`);
+      await typeIn('7');
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] }, sessionId);
+      await sleep(400);
+      const onAdv = await at();
+      await typeIn('5');
+      const advTyped = await evaluate(`document.getElementById(${JSON.stringify(adv)})?.value`);
+      (adv && onAdv.at === adv && onAdv.value === '7' && onAdv.open && advTyped === '75' ? kept : lost).os
+        .push(`the advanced filter ${adv} with 7 typed → ${said(onAdv)}, then 5 → ${JSON.stringify(advTyped)}`);
+
+      /* R5 — Tab to a field holding a figure, then type: the figure Tab
+         selected is replaced. On the screener a maximum of 30, and on
+         /compare a Bursa withholding of 0. */
+      await evaluate(`(() => { document.activeElement?.blur(); State.screen.crit = { roic: { min: null, max: 30 } }; render();
+        const n = document.getElementById('crit-roic-min'); n.scrollIntoView({ block: 'center' }); n.focus(); return true; })()`);
+      await typeIn('5'); await key('Tab', 9); await sleep(300);
+      await typeIn('40'); await key('Tab', 9); await sleep(300);
+      const crit = await evaluate(`JSON.stringify(State.screen.crit.roic)`);
+      (crit === '{"min":5,"max":40}' ? kept : lost).tab.push(`the screener's ROIC: 5, Tab, 40 over a maximum of 30 → ${crit}`);
+      await evaluate(`(() => { document.activeElement?.blur(); State.screen = JSON.parse(${JSON.stringify(saved.screen)}); return true; })()`);
+      saved.cmp = await evaluate(`JSON.stringify({ compare: State.compare, wht: State.wht })`);
+      await evaluate(`(async () => { State.compare = U.filter(r => r.c.real).slice(0, 2).map(r => r.c.id); State.wht = { US: 15, MY: 0 };
+        navigate('/compare'); await new Promise(r => setTimeout(r, 400));
+        const n = document.getElementById('wht-US'); n.scrollIntoView({ block: 'center' }); n.focus(); n.select(); return true; })()`);
+      await typeIn('10'); await key('Tab', 9); await sleep(300);
+      await typeIn('7'); await key('Tab', 9); await sleep(300);
+      const wht = await evaluate(`JSON.stringify(State.wht)`);
+      (wht === '{"US":10,"MY":7}' ? kept : lost).tab.push(`/compare's withholding: 10, Tab, 7 over a Bursa rate of 0 → ${wht}`);
+      await evaluate(`(() => { document.activeElement?.blur(); const k = JSON.parse(${JSON.stringify(saved.cmp)}); State.compare = k.compare; saveCompare();
+        State.wht = k.wht; store.write('wht', k.wht); return true; })()`);
+
+      /* R4, again — a Scanner section tab, drawn inside the page, across
+         the OS switching theme back to dark. */
+      await evaluate(`(async () => { navigate('/app/scanner'); await new Promise(r => setTimeout(r, 400)); return true; })()`);
+      const sTab = await evaluate(`(() => { const a = document.querySelectorAll('#views .scan-subnav a.ptab')[1]; if (!a) return null;
+        a.focus(); return document.activeElement === a ? a.getAttribute('href') : null; })()`);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+      await sleep(400);
+      const onSTab = await at();
+      (sTab && onSTab.at === sTab ? kept : lost).os.push(`the Scanner's section tab ${sTab} → ${onSTab.at}`);
+    } catch (err) {
+      broke = `the checks stopped: ${String(err.message).split('\n')[0]}`;
+    } finally {
+      holdRe = null;
+      while (held.length) await send('Fetch.continueRequest', { requestId: held.shift() }, sessionId);
+      await send('Fetch.disable', {}, sessionId);
+      await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+      await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+      if (saved.theme != null) await evaluate(`localStorage.setItem('vl.theme', ${JSON.stringify(saved.theme)}); true`).catch(() => {});
+      ws.removeEventListener('message', onPause);
+    }
+    const short = (g) => lost[g].length > 0 || kept[g].length < cases[g];
+    const why = (g) => [...lost[g], ...(kept[g].length + lost[g].length < cases[g] ? [broke || 'not every case ran'] : [])];
+    if (short('landing')) fail('render-focus: the filings landing take the control in use from the reader', why('landing'));
+    else ok(`render-focus: the control in use keeps focus, what was typed and its caret when the filings land — ${kept.landing.length} cases: a name mid-typing with a city and a price beside it, a product tab, the sidebar's alert count, the dock's action`);
+    if (short('pressed')) fail('render-focus: the dock\'s action drops focus on <body> when it takes itself away', why('pressed'));
+    else ok('render-focus: the Cash Wheel dock\'s "Load a worked contract" hands focus to the banner\'s control that undoes the load, as the page\'s own button does');
+    if (short('os')) fail('render-focus: the OS switching theme takes the control in use from the reader', why('os'));
+    else ok('render-focus: the screener\'s slider, a figure being typed into an advanced filter two disclosures deep, and a Scanner section tab keep focus when the OS switches theme');
+    if (short('tab')) fail('render-focus: typing after Tab goes in front of the next field\'s figure', why('tab'));
+    else ok('render-focus: Tab then typing replaces the next field\'s figure — the screener\'s ROIC maximum (30 → 40) and /compare\'s Bursa withholding (0 → 7)');
+  }
+  /* ---- end bugfix: render-focus ---- */
 
 } catch (e) {
   fail('harness error', e.message);

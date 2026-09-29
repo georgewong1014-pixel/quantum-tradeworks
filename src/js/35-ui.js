@@ -1517,18 +1517,25 @@ function buildNav() {
 /* THE PRODUCT'S TABS, above its pages. Drawn into their own host in <main>,
    outside the view, so a tab change does not replay the view's entrance on
    the strip the reader just pressed. A nav landmark named for the product;
-   the tab for the page on screen is current. */
+   the tab for the page on screen is current.
+   A strip the same as the one on screen is left in place. It was rebuilt on
+   every render, so a tab the reader had reached went to <body> when the
+   filings landed a moment after the page opened, and a strip scrolled along
+   on a phone jumped back to its current tab. */
 function renderProductTabs() {
   const host = shellEl.tabsHost;
   if (!host) return;
   const pid = productOf(State.view);
   const tabs = PRODUCT_TABS[pid];
-  if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; return; }
+  if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; delete host.dataset.strip; return; }
   const p = productById(pid);
   const here = tabs.find(t => t.views.includes(State.view));
+  const strip = JSON.stringify([pid, tabs.map(t => [t.label, t.path]), here?.path ?? null]);
+  if (!host.hidden && host.dataset.strip === strip) return;
   const nav = sectionTabs({ label: `${p.name} sections`, pid, tabs: tabs.map(t => ({ label: t.label, path: t.path, current: t === here })) });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
+  host.dataset.strip = strip;
   wireSectionTabs(nav);
 }
 
@@ -1698,7 +1705,125 @@ function bootSkeleton() {
   return wrap;
 }
 
+/* THE CONTROL IN USE SURVIVES A REDRAW OF ITS OWN PAGE.
+   ---------------------------------------------------------------------------
+   render() replaces the whole view, the product tabs above it and the dock
+   below it, so a control the reader had reached in any of them went with a
+   redraw and focus fell to <body>, throwing a keyboard or screen-reader
+   reader back to the skip link. The redraws a control asks for mostly hand
+   focus on themselves (renderKeepFocus, focusAfterRedraw); the ones nobody
+   asked for could not. Every page that does not wait behind the skeleton is
+   drawn at once and drawn again when the filings land (boot routes again,
+   95-boot.js), and the area screen and the calculator again when the
+   locality positions do — a second or two on a fast line, as long as the
+   2.4MB of filings take on a slow one. With them held back, a name being
+   typed into "Record a property" on /property/opportunities, and an
+   Equities or Property tab, each went to <body>. The property pages carried
+   their own copy of this (keepFocusThroughRedraw, 70-property.js); this
+   replaces it, for every page.
+
+   So render() notes the control in focus before it draws anything, where it
+   sits somewhere a redraw replaces (REDRAW_FOCUS_SCOPES — never a drawer,
+   the search or a dialog, which a redraw leaves alone). A microtask later
+   the redraw and whatever called it are over, and only if focus fell to
+   <body> — a caller that moved focus has done so by then, synchronously —
+   it goes back to the same control in the new page: by id, or else by
+   which of its kind it was, a link by its address and anything else by
+   what it says. What the reader was typing in it comes too, where it had
+   not yet been committed, and a <details> it sat in is opened again, since
+   a closed one cannot hold focus. Only on a redraw of the page already on
+   screen: a navigation keeps its own rule (afterRoute puts focus on the new
+   page), and a control is never looked for on another page. Where one task
+   redraws twice, the first note stands, because it is what the reader had.
+
+   THE CARET COMES WITH IT. A field focused by script takes the caret at its
+   start, with nothing selected. A field's change redraws a tick later
+   (renderKeepFocus from a setTimeout), after Tab has moved focus to the next
+   field and selected its figure for typing to replace, and the next field
+   came back with the caret before its figure: on the screener a maximum of
+   30, retyped 40 after Tab, read 4030, and on /compare a Bursa withholding
+   of 0 retyped 7 read 70. Where the redraw's caller put focus back on the
+   same control (renderKeepFocus), only the caret is restored. A number field
+   has no selection a page can read or set, so its state is taken from what
+   Chrome reports as the document's selection — its whole figure, after
+   Tab — and put back with select(), or else the caret goes to the end,
+   where typing leaves it. */
+const typedSinceCommit = new WeakSet();
+document.addEventListener('input', (e) => typedSinceCommit.add(e.target), true);
+document.addEventListener('change', (e) => typedSinceCommit.delete(e.target), true);
+function fieldCaret(n) {
+  if (!n || !/^(INPUT|TEXTAREA)$/.test(n.tagName)) return null;
+  try { if (typeof n.selectionStart === 'number') return [n.selectionStart, n.selectionEnd, n.selectionDirection]; }
+  catch { /* number and date fields throw rather than answer */ }
+  if (n.type !== 'number' || n.value === '') return null;
+  const s = document.getSelection();
+  return s && s.type === 'Range' && s.toString() === n.value ? 'all' : 'end';
+}
+function putCaret(n, caret) {
+  if (Array.isArray(caret)) { try { n.setSelectionRange(...caret); } catch { /* not a text field now */ } return; }
+  if (caret === 'all') { n.select(); return; }
+  /* Setting a value moves the caret to its end. */
+  if (caret === 'end' && n.value !== '') { const v = n.value; n.value = ''; n.value = v; }
+}
+/* Where a control sits that render() replaces: the page and its product
+   tabs (#main), the dock, and the chrome — built once, all but the
+   sidebar's scanner-alert count, which is drawn afresh with every page. */
+const REDRAW_FOCUS_SCOPES = ['#main', '.dock', '#sidebar', '#appbar', '#pubbar'];
+/* A control drawn later than the page — a point on a locality map, a frame
+   after it — is not there to be found when the redraw ends. The module that
+   draws it claims it here and hands focus to it when it draws (cityMap,
+   70-property.js). */
+const redrawFocusClaims = [];
+/* The page render() last drew, and its note of the control in focus while
+   a redraw of that page is under way. */
+let renderedPage = null, focusNote = null;
+const pageOnScreen = () => `${State.view} ${location.pathname}`;
+function noteFocusForRedraw() {
+  const a = document.activeElement;
+  if (!a || a === document.body) return null;
+  const scope = REDRAW_FOCUS_SCOPES.find(s => a.closest(s));
+  if (!scope || redrawFocusClaims.some(claim => claim(a))) return null;
+  const said = (n) => (n.getAttribute('aria-label') || n.textContent || '').replace(/\s+/g, ' ').trim();
+  const link = a.tagName === 'A' ? a.getAttribute('href') : null;
+  const words = said(a);
+  const kin = (root) => [...root.querySelectorAll(a.tagName)]
+    .filter(n => !n.id && (link !== null ? n.getAttribute('href') === link : said(n) === words));
+  return {
+    a, scope, kin, page: pageOnScreen(),
+    nth: a.id ? -1 : kin(a.closest(scope)).indexOf(a),
+    typed: typedSinceCommit.has(a) ? a.value : null,
+    /* A summary's own disclosure may have been closed; any other holder of focus sat in open ones. */
+    ownOpen: a.tagName === 'SUMMARY' && !!a.parentElement?.open,
+    caret: fieldCaret(a),
+  };
+}
+function giveFocusBack(h) {
+  const { a, caret } = h;
+  if (a.isConnected || renderedPage !== h.page) return;
+  const at = document.activeElement;
+  if (at && at !== document.body) {
+    if (caret && a.id && at.id === a.id) putCaret(at, caret);
+    return;
+  }
+  const root = document.querySelector(h.scope);
+  const n = !root ? null : a.id ? document.getElementById(a.id) : h.kin(root)[h.nth];
+  if (!n || !root.contains(n)) return;
+  for (let d = n.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) {
+    if (n.tagName === 'SUMMARY' && d === n.parentElement) { if (h.ownOpen) d.open = true; }
+    else d.open = true;
+  }
+  if (h.typed !== null && n.value !== h.typed) n.value = h.typed;
+  n.focus({ preventScroll: true });
+  if (caret && document.activeElement === n) putCaret(n, caret);
+}
+
 function render() {
+  /* Before anything is replaced, and on a redraw of the page on screen only
+     — see noteFocusForRedraw above. */
+  if (!focusNote && renderedPage === pageOnScreen()) {
+    focusNote = noteFocusForRedraw();
+    if (focusNote) queueMicrotask(() => { const h = focusNote; focusNote = null; giveFocusBack(h); });
+  }
   buildNav();
   renderProductTabs();
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
@@ -1710,6 +1835,9 @@ function render() {
   if (!(realPending && UNIVERSE_VIEWS.has(State.view))) mountFlagNotice(node, State.view, State.researchTab);
   const section = el('section', { class: 'view', data: { active: '1' } }, el('div', { class: 'shell' }, node));
   viewRoot.replaceChildren(section);
+  /* Read once the view is drawn: a view can move to another address as it
+     draws (/my/scanner?symbol= opens the setup builder). */
+  renderedPage = pageOnScreen();
   /* Now, not only when headingWatch next runs, so anything that reads the
      page straight after a render reads the levels it states. */
   fitHeadingLevels(viewRoot);

@@ -11,7 +11,9 @@
    tab, or Tab out of a field each left focus on <body>, and the next Tab
    started again from the skip link. The redraw waits one task, so focus has
    settled wherever the key sent it — the same control, or the next one after
-   a Tab — and renderKeepFocus returns it to the redrawn control with that id.
+   a Tab — and renderKeepFocus returns it to the redrawn control with that id,
+   with the caret or selection it had there: after Tab, the next field's
+   figure selected, so typing replaces it (render(), 35-ui.js).
    Every control that redraws through this carries a stable id. */
 const redrawKeepFocus = () => setTimeout(renderKeepFocus, 0);
 

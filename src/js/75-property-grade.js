@@ -1711,8 +1711,6 @@ let observationDraft = null;
 const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
 
 VIEWS.property = () => {
-  /* Drawn again when the filings and the locality positions land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
      or Reset on either path. */

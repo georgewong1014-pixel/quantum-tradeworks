@@ -1099,7 +1099,10 @@ function sortScreenRows(rows, sc) {
    replaces the whole view, so the focused slider, select or checkbox was
    destroyed under the reader: one arrow press moved the completeness slider,
    focus fell to <body>, and the next press did nothing. Controls that re-render
-   carry an id, and focus returns to the new element with the same id. */
+   carry an id, and focus returns to the new element with the same id.
+   At once, by id; render() then puts back the caret or the selection the
+   field had (noteFocusForRedraw, 35-ui.js), so a figure Tab selected is
+   still selected for typing to replace. */
 function renderKeepFocus() {
   const id = document.activeElement?.id;
   render();

@@ -492,9 +492,14 @@ const DOCKS = {
       blocker: entered ? (fit.gates && fit.gates[0]) || null : 'No contract entered, so nothing is calculated yet.',
       next: entered ? null : {
         label: 'Load a worked contract',
+        /* The dock is drawn again without this action once a contract is
+           in, and focus fell to <body> with it. It goes where the page's own
+           "Load a worked contract" sends it (80-registers.js): the banner
+           that replaces the empty card, on the control that undoes the load. */
         onclick: () => {
           State.wheel = { ...State.wheel, ...WHEEL_WORKED_EXAMPLE, isWorkedExample: true };
-          saveWheel(); render(); toast('Worked contract loaded — illustrative figures');
+          saveWheel(); render(); focusAfterRedraw('#wheel-clear-example');
+          toast('Worked contract loaded — illustrative figures');
         },
       },
     };

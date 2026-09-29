@@ -28,8 +28,6 @@ const areaRowButtonId = (n) => `area-rec-${String(n).replace(/[^A-Za-z0-9]+/g, '
 const obsOpenId = (o) => `obs-open-${String(o.id).replace(/[^A-Za-z0-9]+/g, '-')}`;
 
 VIEWS.areas = () => {
-  /* Drawn again when the filings and the locality positions land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const S = State.areaScreen;
   /* What the recorder holds unsaved goes when it closes — see areaRecorder. */
   if (!S.editing) S.drafts = null;
@@ -500,8 +498,6 @@ function areaRecorder(city, area) {
 }
 
 VIEWS.comparables = () => {
-  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Property'),
@@ -932,8 +928,6 @@ function openObservationDrawer(o) {
 }
 
 VIEWS.status = () => {
-  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Status'),
@@ -1037,8 +1031,6 @@ VIEWS.status = () => {
 };
 
 VIEWS.boundaries = () => {
-  /* Drawn again when the filings land — keepFocusThroughRedraw (70-property.js). */
-  keepFocusThroughRedraw();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Learn'),
