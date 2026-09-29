@@ -1584,5 +1584,220 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
 }
 /* ---- end frames: verify ---- */
 
+/* ---- bugfix6: ingest ---- */
+/* THE IMPORT, AFTER THE FRAMES. Each case failed before its fix:
+   - a volume of 0 on a daily bar whose price moved was stored as 0, while
+     the same export's weeks and months stored it as absent; and nothing
+     could ever take a stored 0 out, since an absent volume offered again
+     fills nothing in;
+   - Yahoo and Twelve Data kept a 0 on a bar whose price moved (Yahoo only
+     where the whole window had none);
+   - two exports of one chart in one run were read in the folder's order,
+     which puts the browser's " (1)" — the newer — first, so the older was
+     written over it, a revised closed week recorded as corrected back;
+   - --keep trimmed every timeframe: a monthly import with --keep 6 cut the
+     daily series to six sessions, a daily one the imported months; and a
+     keep of 0, 2.5 or a word kept everything;
+   - --overlap called every week "unexplained" where the daily bars carry
+     no volume and the weekly ones do.
+   Synthetic files; temporary folders; no personal file is read. */
+{
+  const S = await import('./ingest/history-store.mjs');
+  const { mergeFrameBars, saveHistory, volumeNotCounted } = S;
+  const { compareFrames, describeOverlap } = await import('./ingest/history-check.mjs');
+  const BD = join(tmpdir(), `qt-bugfix6-ingest-${process.pid}`);
+  await rm(BD, { recursive: true, force: true });
+  await mkdir(join(BD, 'x'), { recursive: true });
+  const nodeB = (script, args) => run(process.execPath, [join(ROOT, script), ...args], { cwd: ROOT }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  const imp = (...args) => nodeB('ingest/history-import.mjs', args);
+  const reg = join(BD, 'instruments.json');
+  await writeFile(reg, JSON.stringify({ instruments: [{ symbol: 'GLD', market: 'FX' }] }));
+  const sec = (iso) => String(Date.parse(iso) / 1000);
+  const csv = (rows, head = 'time,open,high,low,close,Volume') => [head, ...rows.map(r => r.join(','))].join('\n') + '\n';
+  const put = async (dirName, name, text, saved) => { await mkdir(join(BD, dirName), { recursive: true }); const p = join(BD, dirName, name); await writeFile(p, text); await utimes(p, new Date(saved), new Date(saved)); return p; };
+  const readJson = async (p) => (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null);
+  const gld = { source: 'import:OANDA_GLD, 1D.csv', capturedAt: '2026-09-28T00:00:00.000Z', market: 'FX', E, now: NOW };
+  try {
+    /* ------------------------------------------- a daily 0 that is no count -- */
+    /* Gold's sessions of 21 to 23 September, each stamped 17:00 New York the
+       evening before (21:00Z):
+         Mon 21  range 95 to 110, volume 0    → no count: absent
+         Tue 22  high = low = 105, volume 0   → nothing traded: 0
+         Wed 23  volume 1200                  → 1200 */
+    const dRows = [[sec('2026-09-20T21:00:00Z'), 100, 110, 95, 105, 0], [sec('2026-09-21T21:00:00Z'), 105, 105, 105, 105, 0], [sec('2026-09-22T21:00:00Z'), 105, 112, 101, 108, 1200]];
+    const dp = await put('d', 'OANDA_GLD, 1D.csv', csv(dRows), '2026-09-28T00:00:00Z');
+    const out1 = join(BD, 'h1.json');
+    const r1 = await imp('--in', dp, '--instruments', reg, '--out', out1);
+    const h1 = await readJson(out1);
+    check(r1.code === 0 && same(h1?.volume?.GLD, { '2026-09-22': 0, '2026-09-23': 1200 }) && Object.keys(h1?.series?.GLD || {}).length === 3
+      && /volume 0 on 1 session\(s\) whose price moved \(2026-09-21 … 2026-09-21\): the broker recorded no count, so none is stored — not a session with no trading/.test(r1.stdout)
+      && volumeNotCounted({ volume: 0, high: 2, low: 1 }) && !volumeNotCounted({ volume: 0, high: 1, low: 1 }) && !volumeNotCounted({ volume: 0, high: null, low: null }) && !volumeNotCounted({ volume: 5, high: 2, low: 1 }),
+      'bugfix6 ingest: a daily export\'s volume of 0 on a session whose price moved is stored as absent, as a week\'s or a month\'s already was, and the import names the span; a 0 where the high equals the low stays 0',
+      { code: r1.code, vol: h1?.volume, out: r1.stdout.slice(0, 700), err: r1.stderr.slice(0, 300) });
+
+    /* ------------------------------------ a stored 0, and the one path out -- */
+    /* The history an import made before this fix: the same file's bars,
+       with 21 September's volume stored as 0. */
+    const out2 = join(BD, 'h2.json');
+    const pre = emptyHistory();
+    mergeBars(pre, 'GLD', [{ date: '2026-09-21', open: 100, high: 110, low: 95, close: 105, volume: 0 }, { date: '2026-09-22', open: 105, high: 105, low: 105, close: 105, volume: 0 },
+      { date: '2026-09-23', open: 105, high: 112, low: 101, close: 108, volume: 1200 }], gld);
+    await saveHistory(out2, pre, { now: NOW });
+    /* Every other path leaves it: the store reads it as it is; a provider's
+       bar with no volume fills nothing in over it; a lower-ranked reading
+       that says it was no count does not outrank the import. */
+    const loaded = await S.loadHistory(out2);
+    const other = mergeBars(loaded, 'GLD', [{ date: '2026-09-21', open: 100, high: 110, low: 95, close: 105, volume: null }], { ...gld, source: 'yahoo', capturedAt: '2026-09-29T00:00:00Z' });
+    const lower = mergeBars(loaded, 'GLD', [{ date: '2026-09-21', open: 100, high: 110, low: 95, close: 105, noCount: true }], { ...gld, source: 'screen', capturedAt: '2026-09-29T00:00:00Z' });
+    const r2 = await imp('--in', dp, '--instruments', reg, '--out', out2);
+    const h2 = await readJson(out2);
+    const r2b = await imp('--in', dp, '--instruments', reg, '--out', out2);
+    const h2b = await readJson(out2);
+    check(loaded.volume.GLD['2026-09-21'] === 0 && other.unchanged === 1 && lower.outranked.length === 1 && loaded.volume.GLD['2026-09-21'] === 0
+      && r2.code === 0 && same(h2?.volume?.GLD, { '2026-09-22': 0, '2026-09-23': 1200 })
+      && same(h2?.corrections?.GLD?.map(c => [c.date, c.field, c.from, c.to]), [['2026-09-21', 'volume', 0, null]]) && /corrected : 1 field\(s\)/.test(r2.stdout)
+      && E.scanBars(h2, 'GLD', { market: 'FX' }).volumes[0] === null
+      && r2b.code === 0 && h2b?.corrections?.GLD?.length === 1 && /new bars  : 0, 3 unchanged/.test(r2b.stdout),
+      'bugfix6 ingest: re-importing the export takes out the 0 an earlier import stored on a session whose price moved — recorded as a correction — and a second re-import changes nothing; the store, a provider\'s bar without a volume and a lower-ranked reading leave a stored 0 as it was',
+      { loaded: loaded.volume.GLD, other: other.unchanged, lower: lower.outranked.length, r2: r2.stdout.split('\n').filter(l => /GLD|corrected|new bars/.test(l)), vol: h2?.volume?.GLD, corr: h2?.corrections, r2b: r2b.stdout.split('\n').filter(l => /new bars/.test(l)) });
+    /* The same path for an imported month holding a 0 (a history written
+       by the store's merge directly). July 2026, stamped 17:00 New York on
+       30 June: volume 0 with a range of 30. */
+    const out3 = join(BD, 'h3.json');
+    const pm = emptyHistory();
+    mergeFrameBars(pm, '1M', 'GLD', [{ date: '2026-07-01', open: 100, high: 120, low: 90, close: 110, volume: 0 }], { ...gld, source: 'import:OANDA_GLD, 1M.csv', capturedAt: '2026-09-28T17:27:00.000Z' });
+    await saveHistory(out3, pm, { now: NOW });
+    const mp = await put('m', 'OANDA_GLD, 1M.csv', csv([[sec('2026-06-30T21:00:00Z'), 100, 120, 90, 110, 0]]), '2026-09-28T17:27:00Z');
+    const r3 = await imp('--in', mp, '--instruments', reg, '--out', out3);
+    const M3 = (await readJson(out3))?.frames?.['1M']?.GLD || {};
+    check(r3.code === 0 && M3.volume?.['2026-07-01'] === undefined && same(M3.corrections?.map(c => [c.date, c.field, c.from, c.to]), [['2026-07-01', 'volume', 0, null]]),
+      'bugfix6 ingest: re-importing a monthly export takes out a 0 its frame held for a month whose price moved, recorded in the frame\'s own corrections',
+      { code: r3.code, M3, out: r3.stdout.slice(0, 500) });
+
+    /* ------------------------------------------------------- the providers -- */
+    const realFetch = globalThis.fetch;
+    const t0 = Date.parse('2026-09-21T13:30:00Z') / 1000;
+    try {
+      globalThis.fetch = async () => ({ ok: true, json: async () => ({ chart: { result: [{ meta: { exchangeTimezoneName: 'America/New_York' }, timestamp: [t0, t0 + 86400, t0 + 2 * 86400],
+        indicators: { quote: [{ open: [10, 10, 11], high: [11, 10, 12], low: [9.5, 10, 10.5], close: [10.5, 10, 11.5], volume: [0, 0, 700] }] } }] } }) });
+      const y = await yahooProvider().history('AAA', '2026-09-01', '2026-09-30');
+      globalThis.fetch = async () => ({ ok: true, json: async () => ({ values: [{ datetime: '2026-09-23', open: '11', high: '12', low: '10.5', close: '11.5', volume: '700' },
+        { datetime: '2026-09-22', open: '10', high: '10', low: '10', close: '10', volume: '0' }, { datetime: '2026-09-21', open: '10', high: '11', low: '9.5', close: '10.5', volume: '0' }] }) });
+      const t = await twelveDataProvider({ apiKey: 'k' }).history('AAA', '2026-09-01', '2026-09-30');
+      check(same(y?.map(b => b.volume), [null, 0, 700]) && same(t?.map(b => b.volume), [null, 0, 700]),
+        'bugfix6 ingest: Yahoo and Twelve Data bars with a volume of 0 on a session whose price moved come back with no volume, in a window that counts others; a 0 where the high equals the low stays 0',
+        { y: y?.map(b => [b.date, b.volume]), t: t?.map(b => [b.date, b.volume]) });
+    } finally { globalThis.fetch = realFetch; }
+
+    /* ------------------------------------------- two exports of one chart -- */
+    /* The older weekly export was saved on Monday 28 September, the week of
+       the 21st closed at 117 and the 28th in progress at 115; the newer on
+       Saturday 3 October, the 21st revised to 117.5 and the 28th final at
+       120. The browser named the newer "(1)", which the folder lists first. */
+    const older = [[sec('2026-09-13T21:00:00Z'), 108, 115, 104, 112, 1200], [sec('2026-09-20T21:00:00Z'), 112, 118, 111, 117, 1300], [sec('2026-09-27T21:00:00Z'), 117, 119, 114, 115, 400]];
+    const newer = [[sec('2026-09-13T21:00:00Z'), 108, 115, 104, 112, 1200], [sec('2026-09-20T21:00:00Z'), 112, 118, 111, 117.5, 1300], [sec('2026-09-27T21:00:00Z'), 117, 121, 113, 120, 1500]];
+    await put('two', 'OANDA_GLD, 1W.csv', csv(older), '2026-09-28T17:27:00Z');
+    await put('two', 'OANDA_GLD, 1W (1).csv', csv(newer), '2026-10-03T00:00:00Z');
+    const out4 = join(BD, 'h4.json');
+    const r4 = await imp('--dir', join(BD, 'two'), '--instruments', reg, '--out', out4);
+    const W4 = (await readJson(out4))?.frames?.['1W']?.GLD || {};
+    check(r4.code === 0 && same(W4.series, { '2026-09-14': 112, '2026-09-21': 117.5, '2026-09-28': 120 })
+      && same(W4.corrections?.map(c => [c.date, c.field, c.from, c.to, c.src]), [['2026-09-21', 'close', 117, 117.5, 'import:OANDA_GLD, 1W (1).csv']])
+      && W4.meta?.['2026-09-28']?.src === 'import:OANDA_GLD, 1W (1).csv' && /finalised : 1 provisional bar/.test(r4.stdout) && !/outranked/.test(r4.stdout)
+      && /imported frames: GLD 1W 3 weeks\r?\n/.test(r4.stdout),
+      'bugfix6 ingest: two exports of one chart in one --dir run are read in the order they were saved — the newer "(1)" is the last word: its revised closed week stands (a correction from 117 to 117.5, not back), its final week supersedes the older file\'s week in progress, nothing is refused, and the frame is named once',
+      { code: r4.code, series: W4.series, corr: W4.corrections, out: r4.stdout.split('\n').filter(l => /GLD|finalised|corrected|outranked|imported frames/.test(l)) });
+    /* The same for a daily export and its copy: a price break (×2 from 18
+       September) the run names once, not once per file. */
+    const brk = weekdays('2026-09-14', 8).map((d, k) => [sec(new Date(Date.parse(`${d}T21:00:00Z`) - 86400000).toISOString()), k < 4 ? 100 : 200, k < 4 ? 101 : 202, k < 4 ? 99 : 198, k < 4 ? 100 : 200, 10]);
+    await put('brk', 'OANDA_GLD, 1D.csv', csv(brk), '2026-09-26T00:00:00Z');
+    await put('brk', 'OANDA_GLD, 1D (1).csv', csv(brk), '2026-09-27T00:00:00Z');
+    const rb = await imp('--dir', join(BD, 'brk'), '--instruments', reg, '--out', join(BD, 'hb.json'));
+    check(rb.code === 0 && /breaks    : 1 price break\(s\) no recorded adjustment explains/.test(rb.stdout) && (rb.stdout.match(/GLD 2026-09-17 → 2026-09-18: ×2/g) || []).length === 1,
+      'bugfix6 ingest: a price break in a daily export imported with its copy in one run is named once — it was counted and listed once per file',
+      rb.stdout.split('\n').filter(l => /breaks|→/.test(l)));
+    /* --self-check reads them in that order too: gold's daily export for
+       7 to 18 September and two weekly ones, the older saved on Wednesday
+       16 September (the week of the 7th final at a close the newer revised,
+       the 14th in progress), the newer on Monday 21 September, agreeing
+       with the daily bars. Read by name, the older went second and its
+       week of the 7th stood against the daily bars, unexplained. */
+    const days = weekdays('2026-09-07', 10);
+    const dR = days.map((d, k) => [sec(new Date(Date.parse(`${d}T21:00:00Z`) - 86400000).toISOString()), 100 + k, 103 + k, 99 + k, 101 + k, 1000 + k]);
+    const wk = (s) => { const x = dR.slice(s, s + 5); return [x[0][0], x[0][1], Math.max(...x.map(r => r[2])), Math.min(...x.map(r => r[3])), x[4][4], x.reduce((a, r) => a + r[5], 0)]; };
+    const wNew = [wk(0), wk(5)];
+    const wOld = [[...wk(0).slice(0, 4), wk(0)[4] + 0.5, wk(0)[5]], [...wk(5).slice(0, 4), 106.2, 3000]];
+    await put('sc', 'OANDA_GLD, 1D.csv', csv(dR), '2026-09-21T12:00:00Z');
+    await put('sc', 'OANDA_GLD, 1W.csv', csv(wOld), '2026-09-16T12:00:00Z');
+    await put('sc', 'OANDA_GLD, 1W (1).csv', csv(wNew), '2026-09-21T12:00:00Z');
+    const r5 = await nodeB('ingest/history-check.mjs', ['--self-check', '--dir', join(BD, 'sc'), '--instruments', reg, '--now', '2026-09-21T12:00:00Z']);
+    check(r5.code === 0 && /1W +GLD +2 week\(s\) overlap .*: 2 match on open, high, low, close and volume/.test(r5.stdout) && /every price difference has a reason/.test(r5.stdout),
+      'bugfix6 ingest: --self-check imports two exports of one chart in the order they were saved, so the newer one is compared — the older one\'s revised week no longer stands as an unexplained difference',
+      { code: r5.code, out: r5.stdout.slice(0, 1200), err: r5.stderr.slice(-300) });
+    /* A weekly export the import refuses whole: a New York stock with no
+       registry row (the default market) stamped on Sundays, every stamp a
+       day the market does not trade. No frame reached the temporary
+       history, and the self-check said "nothing to compare — every price
+       difference has a reason", exit 0. */
+    await put('ref', 'NYSE_STK, 1D.csv', csv(weekdays('2026-09-07', 10).map((d, k) => [sec(`${d}T13:30:00Z`), 100 + k, 103 + k, 99 + k, 101 + k, 1000 + k])), '2026-09-21T12:00:00Z');
+    await put('ref', 'NYSE_STK, 1W.csv', csv([[sec('2026-09-06T13:30:00Z'), 100, 107, 99, 105, 5010], [sec('2026-09-13T13:30:00Z'), 105, 112, 104, 110, 5035]]), '2026-09-21T12:00:00Z');
+    const r5b = await nodeB('ingest/history-check.mjs', ['--self-check', '--dir', join(BD, 'ref'), '--instruments', reg, '--now', '2026-09-21T12:00:00Z']);
+    check(r5b.code === 2 && /refused +NYSE_STK, 1W\.csv: 2 row\(s\) the import refused \(NON_SESSION_DAY\) — not compared/.test(r5b.stdout)
+      && /2 row\(s\) of the exports were refused by the import and not compared/.test(r5b.stdout) && !/refused +NYSE_STK, 1D\.csv/.test(r5b.stdout),
+      'bugfix6 ingest: --self-check names the rows of an export the import refused, which nothing compared, and exits 2 — a weekly export refused whole passed as "nothing to compare", exit 0',
+      { code: r5b.code, out: r5b.stdout.slice(0, 900), err: r5b.stderr.slice(-300) });
+
+    /* ------------------------------------------------------------- --keep -- */
+    /* A history holding five sessions of daily gold and five imported months. */
+    const base = emptyHistory();
+    mergeBars(base, 'GLD', weekdays('2026-09-14', 5).map((d, k) => ({ date: d, open: 100 + k, high: 102 + k, low: 99 + k, close: 101 + k, volume: 10 })), gld);
+    mergeFrameBars(base, '1M', 'GLD', ['2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-03'].map((d, k) => ({ date: d, open: 100 + k, high: 110 + k, low: 95 + k, close: 105 + k, volume: 1000 })),
+      { ...gld, source: 'import:old-months.csv', capturedAt: '2026-09-28T17:27:00.000Z' });
+    const out6 = join(BD, 'h6.json'), out7 = join(BD, 'h7.json');
+    await saveHistory(out6, JSON.parse(JSON.stringify(base)), { now: NOW });
+    await saveHistory(out7, JSON.parse(JSON.stringify(base)), { now: NOW });
+    const r6 = await imp('--in', dp, '--instruments', reg, '--out', out6, '--keep', '2');
+    const h6 = await readJson(out6);
+    const r7 = await imp('--in', mp, '--instruments', reg, '--out', out7, '--keep', '3');
+    const h7 = await readJson(out7);
+    check(r6.code === 0 && Object.keys(h6?.series?.GLD || {}).length === 2 && Object.keys(h6?.frames?.['1M']?.GLD?.series || {}).length === 5
+      && r7.code === 0 && Object.keys(h7?.series?.GLD || {}).length === 5 && same(Object.keys(h7?.frames?.['1M']?.GLD?.series || {}).sort(), ['2026-06-01', '2026-07-01', '2026-08-01']),
+      'bugfix6 ingest: --keep trims only the timeframe the import writes — a daily import with --keep 2 keeps the five imported months, and a monthly import with --keep 3 keeps the five daily sessions (it cut them to three)',
+      { daily: [r6.code, Object.keys(h6?.series?.GLD || {}).length, Object.keys(h6?.frames?.['1M']?.GLD?.series || {}).length], monthly: [r7.code, Object.keys(h7?.series?.GLD || {}).length, Object.keys(h7?.frames?.['1M']?.GLD?.series || {})] });
+    const text6 = await readFile(out6, 'utf8');
+    const bad = [];
+    for (const k of ['0', '2.5', '-3', 'abc']) bad.push(await imp('--in', dp, '--instruments', reg, '--out', out6, '--keep', k));
+    const pin = join(BD, 'prices.json');
+    await writeFile(pin, JSON.stringify({ prices: { GLD: { close: 106, date: '2026-09-25', capturedAt: '2026-09-28T00:00:00Z' } } }));
+    const hk = await nodeB('ingest/history.mjs', ['--in', pin, '--out', out6, '--instruments', reg, '--keep', '0']);
+    let threw = null; try { await S.updateHistory(join(BD, 'never.json'), () => [], { keep: 1.5 }); } catch (e) { threw = e.code; }
+    check(bad.every(b => b.code === 1 && /--keep ".*" is not a whole number of bars, 1 or more — nothing was written/.test(b.stderr)) && await readFile(out6, 'utf8') === text6
+      && hk.code === 1 && /history not written: the keep must be a whole number of bars, 1 or more/.test(hk.stderr) && threw === 'BAD_KEEP' && !existsSync(join(BD, 'never.json')),
+      'bugfix6 ingest: a --keep of 0, 2.5, -3 or a word is refused and nothing is written — each trimmed nothing and kept every bar; history.mjs and the store refuse it too',
+      { bad: bad.map(b => [b.code, b.stderr.slice(0, 120)]), hk: [hk.code, hk.stderr.slice(0, 160)], threw });
+
+    /* ------------------------------------------- the overlap, no volume -- */
+    /* Gold's daily bars with no volume (a daily export without the column,
+       or a provider that sends none for the pair) beside weekly bars with
+       their tick counts: every price agrees. */
+    const hv = emptyHistory();
+    mergeBars(hv, 'GLD', weekdays('2026-09-07', 10).map((d, k) => ({ date: d, open: 100 + k, high: 103 + k, low: 99 + k, close: 101 + k })), { ...gld, capturedAt: '2026-09-21T12:00:00Z' });
+    const wv = [0, 5].map(s => { const ds = weekdays('2026-09-07', 10).slice(s, s + 5); return { date: ds[0], open: 100 + s, high: 107 + s, low: 99 + s, close: 105 + s, volume: 5000 + s }; });
+    mergeFrameBars(hv, '1W', 'GLD', wv, { ...gld, source: 'import:w.csv', capturedAt: '2026-09-21T12:00:00Z' });
+    const ov = compareFrames(hv, { E, instruments: [{ symbol: 'GLD', market: 'FX' }], now: '2026-09-21T12:00:00Z' });
+    const dv = describeOverlap(ov);
+    const reasons = ov[0]?.periods?.map(p => p.reason);
+    check(same(reasons, ['no-count', 'no-count']) && dv.ok && dv.unexplained === 0 && dv.volumeOnly === 2
+      && /5 daily bar\(s\) of the week hold no volume \(2026-09-07, 2026-09-08, 2026-09-09, … — the daily file gave none/.test(dv.lines.join('\n')),
+      'bugfix6 ingest: --overlap gives a week whose prices agree and whose volume only the imported side holds its reason — the daily bars hold no volume — where it called every such week unexplained and exited 2',
+      { reasons, lines: dv.lines, summary: dv.summary });
+  } catch (e) {
+    fail('bugfix6 ingest: the test threw', e.stack || e.message);
+  } finally {
+    await rm(BD, { recursive: true, force: true }).catch(() => {});
+  }
+}
+/* ---- end bugfix6: ingest ---- */
+
 console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

@@ -17,7 +17,8 @@
  *           shifted series, a session held under two dates, a price break no
  *           recorded adjustment explains, or an imported week or month filed
  *           under a key that is not the engine's (and, after --refetch, what is
- *           left; after --overlap, a difference no reason explains)
+ *           left; after --overlap, a difference no reason explains; after
+ *           --self-check, that or a row of an export the import refused)
  *   exit 1  the history, the adjustments file or the engine could not be read,
  *           or the re-fetch (or the self-check's import) failed
  *
@@ -56,10 +57,12 @@
  * daily series covers only in part (it starts or ends inside it), a period
  * still trading when the files were saved at different instants, a weekday
  * with no daily bar where the imported volume is the sum of the days held (a
- * holiday) or is not (a daily bar the daily export lacks). --self-check reads
- * the TradingView exports in a folder (default watchlist-shots/) into a
- * temporary history — never data/price-history.json — and compares them
- * there. It reads personal files, so it is a local tool, not a CI check.
+ * holiday) or is not (a daily bar the daily export lacks), a volume only one
+ * side holds (no count). --self-check reads the TradingView exports in a
+ * folder (default watchlist-shots/) into a temporary history — never
+ * data/price-history.json — and compares them there, naming any row an
+ * import refused. It reads personal files, so it is a local tool, not a CI
+ * check.
  *
  * THE REPAIR IS A RE-FETCH, NEVER AN EDIT
  *
@@ -84,7 +87,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { readFile, readdir, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, readdir, mkdtemp, rm, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -296,6 +299,20 @@ function whyDiffer({ E, tf, pk, market, unit, expected, daily, built, i, diffs, 
     }
     return { reason: 'missing-daily', why: `a daily bar the daily export lacks: no bar on ${missing.join(', ')}${held != null && imp.volume != null ? ` (the sessions held sum to ${held} against the imported ${imp.volume})` : ''}, and the ${unit}'s ${fields} differ${diffs.length === 1 ? 's' : ''}` };
   }
+  /* Every price agrees and one side holds no volume: a daily bar of the
+     period has none (a daily export with no volume column, a provider that
+     sends none for a currency pair, or a 0 on a session whose price moved,
+     which the import stores as no count), so the built bar leaves the
+     period's volume out, as it does across any session without one — or the
+     imported bar has none. A daily file without volume beside a weekly one
+     with it made every week of the overlap "unexplained". Nothing computed
+     from prices is affected. */
+  if (diffs.every(d => d.field === 'volume') && (imp.volume == null) !== (built.volumes[i] == null)) {
+    const none = daily.dates.map((d, k) => [d, k]).filter(([d, k]) => periodKey(E, tf, d) === pk && daily.volumes[k] == null).map(([d]) => d);
+    return { reason: 'no-count', why: imp.volume == null
+      ? `open, high, low and close agree; the imported ${unit} holds no volume (its export gave none, or a 0 on a ${unit} whose price moved — no count), so there is nothing to compare the built ${built.volumes[i]} with; no price is affected`
+      : `open, high, low and close agree; ${none.length} daily bar(s) of the ${unit} hold no volume (${none.slice(0, 3).join(', ')}${none.length > 3 ? ', …' : ''} — the daily file gave none, or a 0 on a session whose price moved, which is no count), so the built ${unit} leaves its volume out; no price is affected` };
+  }
   /* Every price agrees and only the volume differs, by a sliver: the two
      exports count one closed period a few apart. On the owner's gold files
      one closed week's tick count differed by 4 in 3.59 million, both files
@@ -311,8 +328,9 @@ function whyDiffer({ E, tf, pk, market, unit, expected, daily, built, i, diffs, 
 }
 
 /* The overlap in words; `ok` is false when any difference is unexplained.
-   A difference in volume alone (volume-only) is counted apart: listed, but
-   not a disagreement about any price. */
+   A difference in volume alone (volume-only, or no-count: a volume on one
+   side only) is counted apart: listed, but not a disagreement about any
+   price. */
 export function describeOverlap(rows) {
   const L = [];
   let unexplained = 0, volumeOnly = 0;
@@ -325,7 +343,7 @@ export function describeOverlap(rows) {
     L.push(`${head} ${r.overlap} ${r.unit}(s) overlap (${r.periods[0].period} … ${r.periods[r.periods.length - 1].period}, daily ${r.daily.first} … ${r.daily.last}): ${r.matched} match on open, high, low, close and volume${diff.length ? `; ${diff.length} differ` : ''}`);
     for (const p of diff) {
       if (p.reason === 'unexplained') unexplained++;
-      if (p.reason === 'volume-only') volumeOnly++;
+      if (p.reason === 'volume-only' || p.reason === 'no-count') volumeOnly++;
       L.push(`          ${p.period} ${p.diffs.map(d => `${d.field} ${d.imported} vs ${d.built}`).join(', ') || '—'}`);
       L.push(`                     ${p.why}`);
     }
@@ -349,9 +367,17 @@ export async function selfCheck({ dir = resolve(ROOT, 'watchlist-shots'), instru
   try {
     const out = join(tmp, 'price-history.json');
     const imports = [];
-    /* Daily first, so the report reads in the order the frames are built. */
+    /* Daily first, so the report reads in the order the frames are built;
+       and two exports of one chart (the browser's " (1)" beside the first)
+       in the order they were saved, as history-import reads them in one
+       run. By name alone the newer " (1)" went first and the older file
+       was then written over it. */
     const order = { '1D': 0, '1W': 1, '1M': 2 };
-    names.sort((a, b) => order[exportTimeframe(tradingViewName(a).interval)] - order[exportTimeframe(tradingViewName(b).interval)] || a.localeCompare(b));
+    const saved = new Map();
+    for (const n of names) saved.set(n, (await stat(join(dir, n))).mtimeMs);
+    const tv = (n) => tradingViewName(n);
+    names.sort((a, b) => order[exportTimeframe(tv(a).interval)] - order[exportTimeframe(tv(b).interval)]
+      || tv(a).symbol.localeCompare(tv(b).symbol) || saved.get(a) - saved.get(b) || a.localeCompare(b));
     for (const n of names) {
       const run = spawnSync(process.execPath, [join(ROOT, 'ingest/history-import.mjs'), '--in', join(dir, n), '--out', out, '--instruments', instrumentsPath], { cwd: ROOT, encoding: 'utf8' });
       imports.push({ file: n, status: run.status, stdout: run.stdout || '', stderr: run.stderr || '' });
@@ -359,7 +385,22 @@ export async function selfCheck({ dir = resolve(ROOT, 'watchlist-shots'), instru
     }
     const history = await loadHistory(out);
     const instruments = await loadInstruments(instrumentsPath);
-    return { dir, files: names, imports, rows: compareFrames(history, { E: eng, instruments, now }), frames: checkFrames(history, { E: eng, instruments, now }) };
+    /* The rows an import refused never reached the temporary history, so
+       nothing compared them. A weekly export whose every stamp was refused
+       (a symbol with no registry row, its Sunday stamps read on a market
+       that does not trade Sundays) left no frame, and the self-check said
+       "nothing to compare — every price difference has a reason", exit 0.
+       Each export's refused rows are named from the import's rejects file;
+       a reading not written because a later one of the same chart is held
+       (PROVISIONAL_READING, OUTRANKED) is not among them — the later one
+       is compared. */
+    let rejects = [];
+    try { rejects = JSON.parse(await readFile(rejectsPathFor(out), 'utf8'))?.rejects || []; } catch { /* no row refused */ }
+    const refused = names.map(n => {
+      const rows = rejects.filter(x => x?.source === `import:${n}` && !(x.codes || []).some(c => c === 'PROVISIONAL_READING' || c === 'OUTRANKED'));
+      return { file: n, rows: rows.length, codes: [...new Set(rows.flatMap(x => x.codes || []))] };
+    }).filter(x => x.rows);
+    return { dir, files: names, imports, refused, rows: compareFrames(history, { E: eng, instruments, now }), frames: checkFrames(history, { E: eng, instruments, now }) };
   } finally { await rm(tmp, { recursive: true, force: true }); }
 }
 
@@ -471,13 +512,15 @@ async function main() {
      history file (--overlap), or in the owner's exports read into a
      temporary one (--self-check). */
   if (has('overlap') || has('self-check')) {
-    let rows, head = [];
+    let rows, head = [], refused = [];
     try {
       if (has('self-check')) {
         const dir = resolve(flag('dir', resolve(ROOT, 'watchlist-shots')));
         const s = await selfCheck({ dir, instrumentsPath, now, E });
         rows = s.rows;
+        refused = s.refused;
         head.push(`self-check  ${s.files.length} export(s) from ${dir}, imported into a temporary history (removed): ${s.files.join(', ')}`);
+        refused.forEach(x => head.push(`refused   ${x.file}: ${x.rows} row(s) the import refused (${x.codes.join(', ')}) — not compared; import it on its own to see each row and why`));
         head.push(...describeFrames(s.frames).filter(Boolean));
         head.push('');
       } else {
@@ -487,9 +530,11 @@ async function main() {
       }
     } catch (e) { console.error(e.message); process.exit(1); }
     const d = describeOverlap(rows);
-    if (has('json')) console.log(JSON.stringify(rows, null, 2));
-    else [...head, ...d.lines, '', d.summary].forEach(l => console.log(l));
-    process.exit(d.ok ? 0 : 2);
+    const notCompared = refused.reduce((t, x) => t + x.rows, 0);
+    const summary = notCompared ? `${d.summary}; ${notCompared} row(s) of the exports were refused by the import and not compared` : d.summary;
+    if (has('json')) { console.log(JSON.stringify(rows, null, 2)); if (notCompared) console.error(summary); }
+    else [...head, ...d.lines, '', summary].forEach(l => console.log(l));
+    process.exit(d.ok && !notCompared ? 0 : 2);
   }
 
   try { R = await checkHistory({ historyPath, instrumentsPath, adjustmentsPath, now, E }); }

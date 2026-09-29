@@ -306,6 +306,7 @@ What the store decides, so no writer decides it differently:
 | **Conflicts** | a source rank: an import or a provider (`import:<file>`, `yahoo`, `twelvedata`) outranks the screen, and a bar with no recorded source ranks with the screen. A lower rank never replaces a higher one — the row is reported as outranked. An equal or higher rank that disagrees replaces the bar, and every changed field is recorded in `corrections`, which the engine reads as a CORRECTED bar. |
 | **Provisional bars** | a bar captured before its session closed is superseded by any later capture, whatever its rank, and that is not a correction — it was never the session's value. Such a reading replaces nothing else: offered over a bar captured after the close, one with no capture time, or a provisional one captured later (the older of two exports, imported after the newer), it is not written, the import says so, and it goes to the rejects file as PROVISIONAL_READING. |
 | **A bar is one source's reading** | when the close changes, open, high, low and volume come from the new source too (absent where it has none); a high from one vendor beside another's close describes no real session. |
+| **No count is not zero** | a volume of 0 on a bar whose price moved (its high above its low) is no count — the broker or vendor recorded nothing — and is stored as absent, by the import (day, week and month alike) and by the Yahoo and Twelve Data adapters. A 0 where the high equals the low (nothing traded, the price stood) stays 0. A 0 the history already holds changes only when the export is imported again: the import then takes it out and records that as a correction. |
 | **Refused rows** | written to `data/price-history.rejects.json` (git-ignored) with their codes — never into the history, never silently dropped. |
 | **Trim** | the newest 2000 bars per symbol, with volume, open/high/low, provenance and corrections dropped together. (The daily writer kept 500 and trimmed no volume; a 600-bar import plus one daily run left 500 closes and 600 volumes.) |
 | **Write** | under a lock (`data/price-history.json.lock`), to a temporary file renamed over the old one, the previous file kept as `.bak`. |
@@ -377,7 +378,18 @@ losing an export's last row and a screen reading made then).
   replaces it. The output names each file's last bar and its status.
 - **Volume** from a spot currency or metals broker (market `FX`) is a tick
   count — how many times the broker's price changed, not ounces, lots or
-  contracts traded. It is recorded as given, and the output says so.
+  contracts traded. It is recorded as given, and the output says so. A 0 on
+  a session whose price moved is no count: it is stored as absent, as it is
+  for a week or a month, and the output names the span ("volume 0 on 3
+  session(s) whose price moved …"). Re-importing an export takes out a 0 an
+  earlier import stored for such a session, recorded as a correction.
+- **Two exports of one chart in one run** — the browser names the second
+  download `OANDA_XAUUSD, 1W (1).csv` — are read in the order they were
+  saved, so the newer one is the last word, as if each had been imported on
+  its own in turn.
+- **`--keep`** trims only the timeframes the run imports: the daily series
+  for a daily file, the imported weeks and months for a weekly or monthly
+  one. It must be a whole number, 1 or more.
 - **Indicator columns** — a TradingView export carries one per plot on the
   chart — are not stored; the output counts them. The history holds bars,
   not what a chart drew on them: anything comparing indicators with
@@ -799,7 +811,8 @@ frames: { "1W" | "1M": { SYM: {
   daily bars. The write is locked and atomic, keeps a `.bak`, and sends refused
   rows to the rejects file with their `timeframe` and `period`. Each frame is
   trimmed to the keep; a daily writer's `--keep` never trims frames it did
-  not write.
+  not write, and a weekly or monthly import's `--keep` never trims the daily
+  series.
 - **Final or provisional.** A period is FINAL once its last expected session
   (the market's last weekday in it) had closed when the file was saved. The
   week or month still trading is PROVISIONAL, and the next export replaces it
@@ -808,7 +821,8 @@ frames: { "1W" | "1M": { SYM: {
 - **No count is not zero.** A volume of 0 on a period whose price moved is
   stored as absent. OANDA's monthly gold export writes 0 for every month
   before March 2006, while its prices range by tens of dollars, and the
-  output names the span.
+  output names the span. A daily export's 0 on a session whose price moved
+  is read the same way.
 
 **What reads them.** The scanner. For a symbol with an imported frame, its
 weekly and monthly bars — a weekly or monthly setup's own, and those a daily
@@ -882,11 +896,15 @@ difference a likely reason:
 | a holiday | a weekday has no daily bar and the imported volume is exactly the sum of the days held |
 | a daily bar the daily export lacks | the same gap, but the period's own bar includes a session the daily file does not |
 | volume alone | every price agrees and the volumes differ by a sliver; this is listed but does not fail |
+| no count | every price agrees and only one side holds a volume: a daily bar of the period has none (a daily file with no volume column, or a 0 on a session whose price moved), or the imported bar has none; listed, does not fail |
 | unexplained | exits 2 |
 
 `--self-check` imports the TradingView exports in a folder one by one into a
-temporary history, using `history-import.mjs` itself. It compares them and
-then removes the temporary history. It never reads or writes
+temporary history, using `history-import.mjs` itself — two exports of one
+chart in the order they were saved. It compares them and then removes the
+temporary history. A row the import refused never reaches the comparison,
+so each export's refused rows are named and the check exits 2: a weekly
+export refused whole is not "nothing to compare". It never reads or writes
 `data/price-history.json`. It reads personal exports, so it is a local tool.
 CI checks the same code on synthetic files (`history-store-test.mjs`, the
 frames block).

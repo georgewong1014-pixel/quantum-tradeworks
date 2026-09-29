@@ -337,7 +337,11 @@ function mergeRows(hist, symbol, rows, { source, capturedAt = null, market = nul
   const sym = String(symbol);
   const out = { symbol: sym, source, market, added: 0, filled: 0, confirmed: 0, unchanged: 0, superseded: [], corrected: [], outranked: [], rejected: [] };
   const rank = sourceRank(source);
-  const all = (Array.isArray(rows) ? rows : []).map(r => ({ date: typeof r?.date === 'string' ? r.date.trim() : r?.date, open: num(r?.open), high: num(r?.high), low: num(r?.low), close: num(r?.close), volume: num(r?.volume), at: r?.capturedAt || capturedAt }));
+  /* `noCount` on a row: the reader found its volume was no count
+     (volumeNotCounted) — the row's volume is absent, and a 0 the history
+     holds for that bar is taken out (below). */
+  const all = (Array.isArray(rows) ? rows : []).map(r => ({ date: typeof r?.date === 'string' ? r.date.trim() : r?.date, open: num(r?.open), high: num(r?.high), low: num(r?.low), close: num(r?.close),
+    volume: r?.noCount === true ? null : num(r?.volume), noCount: r?.noCount === true, at: r?.capturedAt || capturedAt }));
   /* Two rows for one date in one batch is the signature of a series dated
      by two conventions (the UTC day and the session day); neither is
      guessed between. The same row twice is not two readings, and there is
@@ -380,7 +384,14 @@ function mergeRows(hist, symbol, rows, { source, capturedAt = null, market = nul
     }
     const sameClose = sameNum(held.close, bar.close, tolerance);
     const ohlcOffered = hasOhlc(bar);
-    const differs = !sameClose || (bar.volume != null && !sameNum(held.volume, bar.volume, tolerance))
+    /* A 0 held where this reading says the broker recorded no count. An
+       absent volume offered otherwise says nothing (a file with no volume
+       column) and leaves the held one; this one says the 0 was never a
+       count, so it goes — under the same rank and provisional rules as any
+       other change, and recorded as one. Only the import passes noCount:
+       re-importing the export is the one path that changes a stored 0. */
+    const uncounted = r.noCount && held.volume === 0;
+    const differs = !sameClose || (bar.volume != null && !sameNum(held.volume, bar.volume, tolerance)) || uncounted
       || (ohlcOffered && hasOhlc(held) && ['open', 'high', 'low'].some(k => !sameNum(held[k], bar[k], tolerance)));
     /* ...and the converse: a reading taken while its session traded (its
        week or month, for an imported period) replaces nothing else — not a
@@ -424,7 +435,7 @@ function mergeRows(hist, symbol, rows, { source, capturedAt = null, market = nul
     if (bar.volume != null) {
       if (held.volume == null) { next.volume = bar.volume; filled = true; }
       else if (!sameNum(held.volume, bar.volume, tolerance)) { record('volume', held.volume, bar.volume); next.volume = bar.volume; changed = true; }
-    }
+    } else if (uncounted) { record('volume', held.volume, null); next.volume = null; changed = true; }
     /* A merged bar is validated again: kept open/high/low from the held bar
        must still bracket the close. On the row's own session, as the row
        was: a period's key (a Monday, the 1st) need not be one. */
@@ -594,6 +605,13 @@ export function trimHistory(hist, keep = KEEP) {
    daily one: a daily writer asked to keep 500 sessions has said nothing
    about 1,300 weeks it did not write. */
 export async function updateHistory(path, fn, { keep = KEEP, frameKeep = KEEP, now = new Date().toISOString(), rejectsPath = null, dry = false } = {}) {
+  /* A keep is a whole number of bars, one or more. --keep 0, 2.5, -5 or a
+     word trimmed nothing at all — the cutoff index fell off the series and
+     every bar was kept — where the reader had asked for a limit. Refused
+     before anything is read or written. */
+  for (const [name, n] of [['keep', keep], ['frame keep', frameKeep]]) {
+    if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error(`the ${name} must be a whole number of bars, 1 or more — got ${Number.isNaN(n) ? 'no number' : n}`), { code: 'BAD_KEEP' });
+  }
   await mkdir(dirname(path), { recursive: true });
   return withLock(`${path}.lock`, async () => {
     const hist = await loadHistory(path);
@@ -699,6 +717,17 @@ export function numberCell(raw) {
   if (s.includes(',')) return /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(s) ? Number(s.replace(/,/g, '')) : NaN;
   return Number(s);
 }
+
+/* A volume of 0 on a bar whose price moved is no count: a price that
+   changed was quoted, so something was counted, and the 0 is the broker or
+   the vendor having recorded nothing. OANDA's monthly gold export writes 0
+   for every month before March 2006 while the price ranges by tens of
+   dollars. Such a bar's volume is absent, never a session, week or month
+   with no trading. A 0 on a bar whose high equals its low — the price stood
+   still — is a session in which nothing traded, and stays 0; so does a 0
+   with no high and low to judge by. One rule for every reader: the import
+   (daily, weekly and monthly alike) and the providers. */
+export const volumeNotCounted = (row) => row?.volume === 0 && Number.isFinite(row.high) && Number.isFinite(row.low) && row.high > row.low;
 
 /* ---------------------------------------------------------------- dates -- */
 
