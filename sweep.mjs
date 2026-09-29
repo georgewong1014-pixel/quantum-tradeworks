@@ -400,6 +400,93 @@ for (const route of ROUTES) {
   else console.log(`ok   verify: the not-found card is noindex on an unknown company and an unknown address, and a found page is not, in the app as on a load; /foo/index.html/bar is the not-found card at the site's own base, asking for nothing under /foo/; all ${rows.length} parameter routes open their own view from a cold load`);
 }
 /* ---- end audit: verify ---- */
+/* ---- audit: slim ---- */
+/* THE APP LOADED WHERE IT WAS INLINE. Every page under pages/ and 404.html
+   now loads the app's script and stylesheet from assets/app.<hash>.js and
+   .css (build.mjs, THE APP ONCE) instead of carrying 3.3MB of both inline;
+   index.html, and every parameter route it answers, still carries them
+   inline. Both must run under the one policy vercel.json sends: the inline
+   script by its hash, the file by 'self'. The loop above opens every route
+   under that policy and would see a blocked script as a CSP line and an
+   empty page; this says which way each kind of page got its app, and that
+   the two ways give the same stylesheet.
+   And a page now paints before its script has arrived: on a slow connection
+   the header and an empty page stand on screen while 1MB of script comes
+   down. So the script is held back for 1.5s here, at a phone's width and a
+   desktop's, and the page must still draw with no error and move no more
+   than 0.1 (layout shift) once it does. */
+{
+  const evalValue = async (expression) => (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId)).result?.result?.value;
+  const p = [];
+  const ready = async () => {
+    for (let i = 0; i < 120; i++) {
+      if (await evalValue(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) return true;
+      await sleep(100);
+    }
+    return false;
+  };
+  const shape = () => evalValue(`({ view: State.view,
+    inline: [...document.scripts].filter(s => !s.src && s.textContent.length > 100000).length,
+    srcs: [...document.scripts].filter(s => s.src).map(s => new URL(s.src).pathname),
+    sheets: [...document.querySelectorAll('link[rel="stylesheet"]')].map(l => new URL(l.href).pathname),
+    rules: [...document.styleSheets].reduce((n, s) => { try { return n + s.cssRules.length; } catch { return n; } }, 0) })`);
+  const kinds = [['/', 'inline'], ['/company/aapl-apple-inc', 'inline'], ['/pricing', 'file'], ['/property/calculator', 'file'], ['/nope-for-the-slim-sweep', 'file']];
+  const rules = new Set();
+  for (const [path, how] of kinds) {
+    bucket = [];
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    if (!await ready()) { p.push(`${path}: the page did not finish loading`); continue; }
+    const s = await shape();
+    const csp = bucket.filter(x => /^CSP|EXCEPTION/.test(x));
+    if (csp.length) p.push(`${path}: ${csp.slice(0, 2).join('; ')}`);
+    if (how === 'inline' && (s.inline !== 1 || s.srcs.length || s.sheets.length)) p.push(`${path}: expected the app inline, found ${s.inline} inline, loads ${JSON.stringify([...s.srcs, ...s.sheets])}`);
+    if (how === 'file' && (s.inline || s.srcs.length !== 1 || !/^\/assets\/app\.[0-9a-f]{12}\.js$/.test(s.srcs[0]) || s.sheets.length !== 1 || !/^\/assets\/app\.[0-9a-f]{12}\.css$/.test(s.sheets[0])))
+      p.push(`${path}: expected the app from assets/, found ${s.inline} inline, loads ${JSON.stringify([...s.srcs, ...s.sheets])}`);
+    if (path.startsWith('/nope') ? s.view !== 'notfound' : s.view === 'notfound') p.push(`${path}: drew ${s.view}`);
+    rules.add(s.rules);
+  }
+  if (rules.size !== 1) p.push(`the stylesheet is not the same one inline and linked: ${[...rules].join(' / ')} rules`);
+  /* The script held back 1.5s: the frame painted without it must not move. */
+  let held = 0, worst = 0;
+  const hold = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.method !== 'Fetch.requestPaused' || m.sessionId !== sessionId) return;
+    held++;
+    setTimeout(() => send('Fetch.continueRequest', { requestId: m.params.requestId }, sessionId), 1500);
+  };
+  ws.addEventListener('message', hold);
+  /* From the network each time: the file is immutable, and a copy the browser
+     kept would never be held. */
+  await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*/assets/app.*.js', requestStage: 'Request' }] }, sessionId);
+  for (const [w, h, mobile] of [[390, 844, true], [1280, 900, false]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, sessionId);
+    for (const path of ['/pricing', '/property/calculator']) {
+      bucket = []; held = 0;
+      await send('Page.navigate', { url: BASE + path }, sessionId);
+      if (!await ready()) { p.push(`${path} @${w}, script 1.5s late: the page did not finish loading`); continue; }
+      await sleep(400);
+      const r = await evalValue(`new Promise(res => { const shifts = [];
+        new PerformanceObserver(l => shifts.push(...l.getEntries())).observe({ type: 'layout-shift', buffered: true });
+        const fcp = performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null;
+        const js = performance.getEntriesByType('resource').find(e => /\\/assets\\/app\\.[0-9a-f]{12}\\.js$/.test(e.name));
+        setTimeout(() => res({ cls: shifts.reduce((s, e) => s + e.value, 0), fcp, jsEnd: js ? js.responseEnd : null, view: State.view }), 150); })`);
+      const errs = bucket.filter(x => !/REQFAIL/.test(x) || !/ERR_ABORTED/.test(x));
+      if (!held) p.push(`${path} @${w}: the script was not held back — it did not come from assets/`);
+      if (errs.length) p.push(`${path} @${w}, script 1.5s late: ${errs.slice(0, 2).join('; ')}`);
+      worst = Math.max(worst, Number(r?.cls) || 0);
+      if (!(r?.cls <= 0.1)) p.push(`${path} @${w}, script 1.5s late: layout shift ${Number(r?.cls).toFixed(3)}`);
+      if (!(r?.fcp < r?.jsEnd)) p.push(`${path} @${w}, script 1.5s late: first paint ${r?.fcp}ms is not before the script arrived (${r?.jsEnd}ms), so nothing painted early was measured`);
+    }
+  }
+  await send('Fetch.disable', {}, sessionId);
+  await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+  ws.removeEventListener('message', hold);
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  if (p.length) { bad++; console.log('FAIL slim: the app is not loaded as each page should load it'); p.forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   slim: / and a parameter route run the app inline, a route page and the 404 run it from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
+}
+/* ---- end audit: slim ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

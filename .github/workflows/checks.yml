@@ -53,11 +53,14 @@ jobs:
         run: node syntax.mjs
 
       # The one failure mode the src/ split introduces. index.html, 404.html,
-      # the route pages under pages/ and vercel.json are all committed build
-      # outputs; if any drifts from the source, or a page is left behind by a
-      # route that is gone, what deploys is not what anybody reviewed. It also
-      # holds sitemap.xml to the canonical addresses the router sets.
-      - name: index.html, 404.html, pages/ and vercel.json match src/
+      # the route pages under pages/, the app's script and stylesheet under
+      # assets/ and vercel.json are all committed build outputs; if any drifts
+      # from the source, or a page is left behind by a route that is gone, or
+      # an app file by a build that is gone, what deploys is not what anybody
+      # reviewed. Every page but index.html must load the current two app files
+      # and weigh a page's weight, not the app's. It also holds sitemap.xml to
+      # the canonical addresses the router sets.
+      - name: index.html, 404.html, pages/, assets/ and vercel.json match src/
         run: node build.mjs --check
 
       # Every address is served what Vercel will serve it, before any script

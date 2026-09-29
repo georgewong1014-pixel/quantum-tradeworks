@@ -5,7 +5,9 @@
     "changes whenever the app changes. `node build.mjs --check` fails if the",
     "committed vercel.json no longer matches the committed index.html, which is",
     "the failure that would otherwise take the whole site down in production",
-    "while every local check still passed."
+    "while every local check still passed. index.html is the one page with the",
+    "script inline; every other page loads the same bytes from",
+    "assets/app.<hash>.js, which 'self' allows."
   ],
   "$comment-rewrites": [
     "One rewrite per route in ROUTES (src/js/35-ui.js), written by build.mjs in",
@@ -64,12 +66,47 @@
     },
     {
       "$comment": [
+        "The app's script, written once by build.mjs for every page but",
+        "index.html (which carries it inline): assets/app.<first 12 hex of its",
+        "SHA-256>.js, index.html's inline script byte for byte. Its name changes",
+        "whenever a byte of it does, so a browser may keep it for a year without",
+        "asking again (immutable), and a page names the one it was built with.",
+        "The source is the current file's exact address, filled in by the build:",
+        "a name no longer written is a 404, and not cached for a year. The",
+        "content type is said, not left to the host's guess, so serve.mjs and",
+        "Vercel send the same one; nosniff holds the browser to it. It is",
+        "allowed by script-src 'self' in the pages' policy below."
+      ],
+      "source": "@APP_SCRIPT",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
+        { "key": "Content-Type", "value": "text/javascript; charset=utf-8" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "$comment": [
+        "The app's stylesheet, the same way: index.html's inline <style>, byte",
+        "for byte, at assets/app.<hash>.css. Allowed by style-src 'self'."
+      ],
+      "source": "@APP_STYLES",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
+        { "key": "Content-Type", "value": "text/css; charset=utf-8" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "$comment": [
         "The app shell carries its own version, so it must always be revalidated.",
         "no-store rather than must-revalidate: a stale shell paired with a new",
         "data manifest is the one combination that renders wrong numbers, and",
-        "the file is a single 1.3MB gzip-compressible response on a CDN edge."
+        "the file is a single 1.3MB gzip-compressible response on a CDN edge.",
+        "Every address but data/ and the two app files above, which the build",
+        "names in the lookahead: each header of each response comes from one",
+        "rule, whatever order the host applies overlapping rules in."
       ],
-      "source": "/((?!data/).*)",
+      "source": "/((?!data/@APP_FILES).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" },
         {

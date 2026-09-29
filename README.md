@@ -51,10 +51,13 @@ Services Act before launch.
 
 ## Run it
 
-The deployed site is one static HTML file, assembled from `src/` by `build.mjs`
-and committed, so the host needs no build step. After editing anything under
-`src/`, run `node build.mjs` and commit the result; CI fails if `index.html`
-drifts from its source.
+The deployed site is static files assembled from `src/` by `build.mjs` and
+committed, so the host needs no build step: `index.html`, one self-contained
+HTML file with the app inline, and for every other address a small page (its
+own head, about 23kB) that loads the same script and stylesheet once from
+`assets/app.<hash>.js` and `.css`. After editing anything under `src/`, run
+`node build.mjs` and commit the result; CI fails if any of them drifts from
+its source.
 
 ```bash
 node serve.mjs            # http://localhost:8123
@@ -101,10 +104,11 @@ git commit --allow-empty -m "chore: trigger redeploy"
 ```
 .
 ├── src/              # the source: js/*.js in load order, styles.css, index and vercel templates
-├── build.mjs         # assembles index.html, 404.html, pages/ and vercel.json (with the CSP hash) from src/
-├── index.html        # the entire deployed application — generated, committed
-├── pages/            # the same page once per route without a parameter, each with that route's own <head> — generated, committed
-├── 404.html          # the same page with the not-found head and noindex, served with status 404 — generated, committed
+├── build.mjs         # assembles index.html, 404.html, pages/, assets/ and vercel.json (with the CSP hash) from src/
+├── index.html        # the entire deployed application, script and styles inline — generated, committed
+├── assets/           # index.html's inline script and stylesheet, once each, as app.<sha-256 prefix>.js/.css — generated, committed
+├── pages/            # a small page per route without a parameter: that route's own <head>, loading assets/ — generated, committed
+├── 404.html          # the same small page with the not-found head and noindex, served with status 404 — generated, committed
 ├── vercel.json       # host rewrites (one per route, generated from ROUTES), redirects and headers — generated, committed
 ├── data/             # committed datasets (us.json, instruments.json, …); licensed and personal files are git-ignored
 ├── serve.mjs         # zero-dependency static server, answering from vercel.json as Vercel does

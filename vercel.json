@@ -316,7 +316,41 @@
       ]
     },
     {
-      "source": "/((?!data/).*)",
+      "source": "/assets/app.642751f56128.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "text/javascript; charset=utf-8"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/assets/app.024ce34997c2.css",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "text/css; charset=utf-8"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/((?!data/|assets/app\\.642751f56128\\.js$|assets/app\\.024ce34997c2\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",

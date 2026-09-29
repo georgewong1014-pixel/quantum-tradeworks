@@ -26,8 +26,13 @@
  *   title, description and canonical that the client's setDocumentMeta sets
  *   there (evaluated out of src/js, as build.mjs evaluates it), og:url the
  *   canonical, og:/twitter: title and description the same; and apart from
- *   those tags the page is index.html byte for byte, so the one CSP hash in
- *   vercel.json covers its script. A query string changes nothing.
+ *   those tags the page is index.html byte for byte, but for loading the
+ *   app's script and stylesheet from assets/ where index.html carries them
+ *   inline. A query string changes nothing.
+ * - The app's two files under assets/ are index.html's inline script and
+ *   stylesheet byte for byte, served with a year's immutable cache and their
+ *   own content type; every page and the 404 load exactly those two and
+ *   weigh tens of kB, not the app's 3MB.
  * - A parameter route (/company/:id …) is served the generic page, 200.
  * - An unknown address, a deep one, one in the wrong case, one past a route's
  *   last segment, is served 404 with the not-found title and noindex — the
@@ -49,7 +54,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clientRouter, siteOrigin } from './build.mjs';
+import { clientRouter, siteOrigin, appFiles, linked, PAGE_LIMIT } from './build.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -148,11 +153,16 @@ const skeleton = (html) => {
   for (const re of Object.values(HEAD_TAGS)) top = top.replace(new RegExp(re.source.replace('([^<]*)', '[^<]*').replace('([^"]*)', '[^"]*') + '\\n?', 'g'), '');
   return sha(top + html.slice(end));
 };
-const inlineHash = (html) => 'sha256-' + createHash('sha256')
-  .update(html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>')), 'utf8').digest('base64');
+const scriptHash = (code) => 'sha256-' + createHash('sha256').update(code, 'utf8').digest('base64');
+/* A page's scripts: the inline ones' text, and the addresses of the others. */
+const inlineScripts = (html) => [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+const scriptSrcs = (html) => [...html.matchAll(/<script\b[^>]*\bsrc="([^"]*)"[^>]*>/g)].map(m => m[1]);
+const stylesheets = (html) => [...html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]*)"[^>]*>/g)].map(m => m[1]);
 
 /* The headers vercel.json gives this address, each present with its value,
-   and a CSP that names the hash of the script this very response carries. */
+   and a CSP that lets this very response run what it carries: the hash of
+   each inline script (index.html's), and 'self' for a script it loads from
+   this site (every other page's, assets/app.<hash>.js). */
 function headerProblems(res, { html = true } = {}) {
   const p = [];
   for (const [k, v] of Object.entries(expectHeaders(res.path.split('?')[0]))) {
@@ -161,7 +171,13 @@ function headerProblems(res, { html = true } = {}) {
   }
   if (html) {
     const csp = res.headers.get('content-security-policy') || '';
-    if (!csp.includes(`'${inlineHash(res.body)}'`)) p.push(`${res.path}: the Content-Security-Policy does not name the hash of the script this page carries`);
+    const directive = (name) => ` ${(csp.match(new RegExp(`(?:^|;)\\s*${name}\\s([^;]*)`)) || [])[1] || ''} `;
+    const scriptSrc = directive('script-src'), styleSrc = directive('style-src');
+    const inline = inlineScripts(res.body), srcs = scriptSrcs(res.body);
+    if (inline.some(code => !scriptSrc.includes(` '${scriptHash(code)}' `))) p.push(`${res.path}: the Content-Security-Policy does not name the hash of the script this page carries`);
+    for (const s of srcs) if (!/^\/(?!\/)/.test(s) || !scriptSrc.includes(" 'self' ")) p.push(`${res.path}: loads the script ${s}, which its Content-Security-Policy does not allow`);
+    for (const s of stylesheets(res.body)) if (!/^\/(?!\/)/.test(s) || !styleSrc.includes(" 'self' ")) p.push(`${res.path}: loads the stylesheet ${s}, which its Content-Security-Policy does not allow`);
+    if (!inline.length && !srcs.length) p.push(`${res.path}: carries no script at all`);
   }
   return p;
 }
@@ -174,7 +190,13 @@ const res0 = await getAll(['/', '/index.html']);
 const root = res0.get('/'), indexFile = res0.get('/index.html');
 if (!root.status) { console.error(`FAIL  nothing answered at ${BASE} (${root.error}) — start one with: node serve.mjs --port <port>`); process.exit(1); }
 const INDEX = read('index.html');
+/* Every page but index.html loads the app — index.html's own inline script
+   and stylesheet, written once each as assets/app.<hash>.js and .css — where
+   index.html carries it (build.mjs, THE APP ONCE). So a route page or the 404
+   page is index.html with that one swap, outside the head's own tags. */
+const APP = appFiles(INDEX);
 const INDEX_SKELETON = skeleton(INDEX);
+const PAGE_SKELETON = skeleton(linked(INDEX, APP));
 judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html: ${described(indexFile)}, ${indexFile.body === INDEX ? 'this checkout\'s file' : 'NOT this checkout\'s index.html (a deploy not landed, or another build)'}`],
   '/index.html is served, and it is this checkout\'s index.html', '/index.html is not served as this checkout\'s file');
 
@@ -187,10 +209,11 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     if (r.status !== 200 || !/text\/html/.test(r.type)) { p.push(`${path}: ${described(r)}`); continue; }
     const want = expectHead(path), have = headOf(r.body);
     for (const k of Object.keys(want)) if (have[k] !== want[k]) p.push(`${path}: ${k} is ${JSON.stringify(have[k])}, not ${JSON.stringify(want[k])}`);
-    if (skeleton(r.body) !== INDEX_SKELETON) p.push(`${path}: differs from index.html outside the route's own tags`);
+    /* The site root is index.html itself, the app inline. */
+    if (skeleton(r.body) !== (path === '/' ? INDEX_SKELETON : PAGE_SKELETON)) p.push(`${path}: differs from index.html outside the route's own tags${path === '/' ? '' : ' and the two app files it loads'}`);
     p.push(...headerProblems(r));
   }
-  judge(p, `every route without a parameter (${statics.length}) is served 200 with its own title, description, canonical, og: and twitter: tags, is index.html in every other byte, and carries vercel.json's headers with a CSP naming its script`,
+  judge(p, `every route without a parameter (${statics.length}) is served 200 with its own title, description, canonical, og: and twitter: tags, is index.html in every other byte but the two app files it loads in place of the inline ones, and carries vercel.json's headers with a CSP allowing its script`,
     'a route without a parameter is not served its own head');
 }
 
@@ -235,7 +258,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     if (h.title !== NOT_FOUND.title) p.push(`${path}: title ${JSON.stringify(h.title)}, not ${JSON.stringify(NOT_FOUND.title)}`);
     if (h.robots !== 'noindex') p.push(`${path}: robots is ${JSON.stringify(h.robots)}, not "noindex"`);
     if (h.canonical !== null || h.ogUrl !== null) p.push(`${path}: a 404 names an address of its own (canonical ${h.canonical}, og:url ${h.ogUrl})`);
-    if (skeleton(r.body) !== INDEX_SKELETON) p.push(`${path}: not the app — it differs from index.html outside the head's own tags`);
+    if (skeleton(r.body) !== PAGE_SKELETON) p.push(`${path}: not the app — it differs from index.html outside the head's own tags and the two app files it loads`);
     p.push(...headerProblems(r));
   }
   judge(p, `unknown, deep, wrong-case and overlong addresses (${unknown.length}) answer 404 with the not-found title, noindex, no canonical, the app's own page and the headers`,
@@ -358,6 +381,70 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     'an address is not answered as Vercel answers it');
 }
 /* ---- end audit: verify ---- */
+
+/* ---- audit: slim ---- */
+/* 9. THE APP ONCE. Every page under pages/ and 404.html was a whole copy of
+      index.html, 3.3MB with the app's script inline: 202MB deployed where
+      13.5MB had been, 177MB rewritten into git by every rebuild, and the
+      whole app sent as the 404 to every bot probing /wp-login.php or /.env.
+      The build now writes the script and the stylesheet once each, as
+      assets/app.<first 12 hex of their SHA-256>.js and .css, and each page
+      loads them where index.html carries them inline. Held here as served:
+      - the two files answer 200 with exactly index.html's inline bytes (and
+        the name is the hash of those bytes), a year's immutable cache, their
+        own content type and nosniff;
+      - every page and the 404 page load exactly those two, carry no inline
+        script or stylesheet, and weigh at most PAGE_LIMIT (build.mjs);
+      - index.html still carries the app inline, and loads nothing else —
+        the tools read the engine out of it, and its CSP hash names it;
+      - a name the build does not write is a 404 and is not told to stay in
+        a cache for a year, and a bot's probe is a 404 of a page's weight. */
+{
+  const p = [];
+  const APP_FILES = [['script', APP.script, /^(text|application)\/javascript;\s*charset=utf-8$/i], ['stylesheet', APP.styles, /^text\/css;\s*charset=utf-8$/i]];
+  for (const [kind, f, type] of APP_FILES) {
+    /* As bytes: the text helper above folds CRLF, which would hide one. */
+    const r = await fetch(`${BASE}/${f.file}`, { signal: AbortSignal.timeout(90000) }).catch(e => ({ status: 0, error: e.message, headers: new Headers() }));
+    if (r.status !== 200) { p.push(`/${f.file}: ${r.status || r.error}, not 200`); continue; }
+    const bytes = Buffer.from(await r.arrayBuffer());
+    const want = Buffer.from(f.body, 'utf8');
+    if (!bytes.equals(want)) p.push(`/${f.file}: ${bytes.length} bytes, not index.html's inline ${kind} (${want.length} bytes) byte for byte`);
+    const named = createHash('sha256').update(bytes).digest('hex').slice(0, 12);
+    if (!f.file.endsWith(`app.${named}.${kind === 'script' ? 'js' : 'css'}`)) p.push(`/${f.file}: its bytes hash to ${named}, which is not its name`);
+    if (r.headers.get('cache-control') !== 'public, max-age=31536000, immutable') p.push(`/${f.file}: Cache-Control ${JSON.stringify(r.headers.get('cache-control'))}, not a year's immutable cache`);
+    if (!type.test(r.headers.get('content-type') || '')) p.push(`/${f.file}: Content-Type ${JSON.stringify(r.headers.get('content-type'))}, not the ${kind}'s, with charset=utf-8`);
+    if (r.headers.get('x-content-type-options') !== 'nosniff') p.push(`/${f.file}: no X-Content-Type-Options: nosniff`);
+  }
+  /* Every page, reached at every address that serves one, and the 404. */
+  const pages = await getAll([...statics.filter(s => s !== '/'), '/nope-xyz', '/deep/unknown/path/for-served-check', '/wp-login.php', '/.env']);
+  let largest = ['', 0];
+  for (const [path, r] of pages) {
+    if (!r.status) { p.push(`${path}: ${described(r)}`); continue; }
+    const size = Buffer.byteLength(r.body, 'utf8');
+    if (size > largest[1]) largest = [path, size];
+    if (size > PAGE_LIMIT) p.push(`${path}: ${(size / 1024).toFixed(0)}kB, over the ${PAGE_LIMIT / 1024}kB a page may weigh — the app is in it again`);
+    const inline = inlineScripts(r.body).length + (r.body.match(/<style[\s>]/g) || []).length;
+    if (inline) p.push(`${path}: carries ${inline} inline <script> or <style>, which only index.html may`);
+    const srcs = scriptSrcs(r.body), css = stylesheets(r.body);
+    if (srcs.length !== 1 || srcs[0] !== `/${APP.script.file}`) p.push(`${path}: loads the scripts ${JSON.stringify(srcs)}, not /${APP.script.file} alone`);
+    if (css.length !== 1 || css[0] !== `/${APP.styles.file}`) p.push(`${path}: loads the stylesheets ${JSON.stringify(css)}, not /${APP.styles.file} alone`);
+    if (['/wp-login.php', '/.env'].includes(path) && r.status !== 404) p.push(`${path}: ${described(r)}, not 404`);
+  }
+  /* index.html is the app whole, as every tool that reads it expects. */
+  const index = (await getAll(['/index.html'])).get('/index.html');
+  if (scriptSrcs(index.body).length || stylesheets(index.body).length || inlineScripts(index.body).length !== 1 || inlineScripts(index.body)[0] !== APP.script.body)
+    p.push(`/index.html: does not carry the app inline and alone (${inlineScripts(index.body).length} inline, loads ${JSON.stringify([...scriptSrcs(index.body), ...stylesheets(index.body)])})`);
+  /* A name the build does not write, and the folder itself. */
+  const gone = await getAll(['/assets/app.000000000000.js', '/assets/app.000000000000.css', '/assets/', '/assets']);
+  for (const [path, r] of gone) {
+    if (path === '/assets/') { if (r.status !== 308 && r.status !== 404) p.push(`${path}: ${described(r)}`); continue; }
+    if (r.status !== 404) p.push(`${path}: ${described(r)}, not 404`);
+    if (/immutable/.test(r.headers.get('cache-control') || '')) p.push(`${path}: a 404 told to stay in a cache for a year (${r.headers.get('cache-control')})`);
+  }
+  judge(p, `the app is served once: /${APP.script.file} (${(Buffer.byteLength(APP.script.body) / 1024).toFixed(0)}kB) and /${APP.styles.file} (${(Buffer.byteLength(APP.styles.body) / 1024).toFixed(0)}kB) are index.html's inline bytes with a year's immutable cache and their content type; ${pages.size} page and 404 addresses load exactly those two, the largest ${(largest[1] / 1024).toFixed(0)}kB (${largest[0]}); index.html keeps the app inline; a stale name is an uncached 404`,
+    'the app is not served once, or a page carries it again');
+}
+/* ---- end audit: slim ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

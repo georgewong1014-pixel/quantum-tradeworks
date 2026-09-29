@@ -271,7 +271,11 @@ without a parameter has an exact rewrite to its own page (`pages/<route>.html`,
 the site root to `index.html`), whose `<head>` is the one the router sets
 there; the parameter routes rewrite to `index.html`; there is no catch-all,
 and any other address is served `404.html` with status 404, where the app
-draws the not-found card. `vercel.json` has two redirects of its own, both
+draws the not-found card. Every page but `index.html` — the route pages and
+`404.html` — carries only its head and the shell's markup, and loads the app's
+script and stylesheet from `assets/app.<hash>.js` and `.css`, which are
+`index.html's` inline ones byte for byte, cached for a year under a name that
+changes with their content. `vercel.json` has two redirects of its own, both
 308 with the query kept: a trailing slash comes off (`trailingSlash: false`),
 and an address ending in `/index.html` goes to its folder. `serve.mjs` answers
 from the same `vercel.json` by the same rules, and `served-check.mjs` checks

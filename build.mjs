@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Assembles index.html from src/. The shipped artefact is still exactly one
- * self-contained file — that has not changed, and must not.
+ * Assembles index.html from src/. index.html is still exactly one
+ * self-contained file — that has not changed, and must not: every tool that
+ * reads the engine reads it out of index.html.
  *
- *   node build.mjs            write index.html, 404.html, pages/ and vercel.json
+ *   node build.mjs            write index.html, 404.html, pages/, assets/ and vercel.json
  *   node build.mjs --check    build to memory, fail if any committed file differs
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -65,6 +66,35 @@
  * Parameter routes keep the generic page: which company an :id names is the
  * router's to resolve, after the filings load.
  * ─────────────────────────────────────────────────────────────────────────────
+ * THE APP ONCE, NOT FIFTY-SIX TIMES (2026-09-30)
+ *
+ * Each page above began as a whole copy of index.html — 3.3MB, nearly all of
+ * it the inline script — so the deployed tree went from 13.5MB to 202MB, a
+ * rebuild rewrote 177MB into git, and every bot probing an address that does
+ * not exist (/wp-login.php, /.env) was sent the whole app as 404.html.
+ *
+ * So the script and the stylesheet are written once each, as files named by
+ * their own content:
+ *
+ *   assets/app.<12 hex>.js   index.html's inline script, byte for byte
+ *   assets/app.<12 hex>.css  index.html's inline stylesheet, byte for byte
+ *
+ * and every page under pages/, and 404.html, loads them where index.html
+ * carries them inline: <link rel="stylesheet"> where the <style> was, and a
+ * plain <script src> — no defer, no async — where the <script> was, the last
+ * thing in <body>, so the script runs at the same point of the parse, after
+ * the same markup and the same stylesheet, as the inline one does. Nothing in
+ * it reads its own element (document.currentScript) or the page's source.
+ * A page is then its head and the shell's markup — tens of kB, and
+ * PAGE_LIMIT fails the build past that. The name is the first 12 hex of the
+ * file's SHA-256, so a changed file is a new address and vercel.json can let
+ * a browser keep one for a year (immutable); the build deletes the names it
+ * no longer writes, and --check fails on a stale one or a missing one.
+ *
+ * index.html keeps both inline and does not change: scanner/scan.mjs,
+ * ingest/history-store.mjs, tv-verify, bot-verify, qtti/batch.mjs, syntax.mjs
+ * and the harnesses read the engine, and the CSP hash, out of it.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
@@ -80,12 +110,27 @@ const NOT_FOUND = '404.html';
 /* The route pages' folder. No route starts with /pages, and nothing links to
    a file in it: each page is reached through its route's rewrite. */
 const PAGES = 'pages';
+/* The app's script and stylesheet, once each, named by their content (see
+   THE APP ONCE above). No route starts with /assets (routePlan refuses one),
+   and the build owns every file in the folder: one it did not write is stale. */
+const ASSETS = 'assets';
+/* The most a page or 404.html may weigh. A page is its head plus the shell's
+   markup, about 25kB; the app inline again would be 3.3MB. 200kB leaves room
+   for the shell to grow and none for the script or the stylesheet to creep
+   back in. */
+export const PAGE_LIMIT = 200 * 1024;
 
 const STYLE_MARKER = '/*@INJECT:styles*/\n';
 const SCRIPT_MARKER = '//@INJECT:scripts\n';
 const VERSIONS_MARKER = '/*@INJECT:dataversions*/';
 const CSP_MARKER = '@CSP_HASH';
 const REWRITES_MARKER = '@ROUTE_REWRITES';
+/* vercel.json's header sources for the two app files, filled in with their
+   current names: each file's own rule, and the pages' rule, which must not
+   reach them (one header, one rule, whatever order the host applies them in). */
+const APP_SCRIPT_MARKER = '@APP_SCRIPT';
+const APP_STYLES_MARKER = '@APP_STYLES';
+const APP_FILES_MARKER = '@APP_FILES';
 
 /* Data files that ship WITH the repo, and may therefore be cached forever under
    a content-addressed URL. The licensed lane is deliberately absent: those files
@@ -221,8 +266,8 @@ export function routePlan(template) {
        refused here rather than deployed with a second meaning. */
     if (!/^\/$|^(\/([A-Za-z0-9-]+|:[A-Za-z][A-Za-z0-9]*))+$/.test(r.path))
       throw new Error(`route ${r.path}: a path must be literal segments and whole-segment :params`);
-    /* data/ and _vercel/ are the host's and the files', never a page's. */
-    if (/^\/(data|_vercel)(\/|$)/.test(r.path)) throw new Error(`route ${r.path} is under /data or /_vercel`);
+    /* data/, assets/ and _vercel/ are the host's and the files', never a page's. */
+    if (/^\/(data|assets|_vercel)(\/|$)/.test(r.path)) throw new Error(`route ${r.path} is under /data, /assets or /_vercel`);
     if (r.path.includes(':')) { params.push(r.path); continue; }
     const route = router.matchRoute(r.path);
     /* A parameter route above it answers this address in the router, so its
@@ -278,7 +323,35 @@ export function withHead(html, head, { notFound = false } = {}) {
 }
 
 /* The inline script exactly as the browser sees it — what the CSP hash names. */
-const inlineScript = (html) => html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'));
+export const inlineScript = (html) => html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'));
+/* And the inline stylesheet: the one <style>, in the template's <head>. */
+export const inlineStyle = (html) => { const i = html.indexOf('<style>'); return html.slice(i + 7, html.indexOf('</style>', i)); };
+
+/* The two files every page but index.html loads: index.html's own inline
+   script and stylesheet, byte for byte, each at an address named by the
+   first 12 hex of its SHA-256. Read out of an assembled index.html, so that
+   served-check.mjs asks what the files must be of the index.html it holds. */
+export function appFiles(html) {
+  const script = inlineScript(html), styles = inlineStyle(html);
+  const name = (body, ext) => `${ASSETS}/app.${createHash('sha256').update(body, 'utf8').digest('hex').slice(0, 12)}.${ext}`;
+  return { script: { file: name(script, 'js'), body: script }, styles: { file: name(styles, 'css'), body: styles } };
+}
+
+/* A page that loads the two files where the shell carries them inline: the
+   <style> becomes a <link rel="stylesheet">, the <script> a plain <script
+   src> (parser-blocking, as the inline one is), and nothing else moves. It
+   refuses a page whose inline blocks are not the files' own bytes. */
+export function linked(page, files) {
+  const head = page.indexOf('</head>'), body = page.indexOf('<body>');
+  const s0 = page.indexOf('<style>'), s1 = page.indexOf('</style>', s0);
+  const j0 = page.indexOf('<script>'), j1 = page.lastIndexOf('</script>');
+  if (s0 < 0 || s1 < 0 || s1 > head) throw new Error('the page has no <style> in its <head> to link');
+  if (j0 < body || j1 < j0) throw new Error('the page has no <script> in its <body> to load');
+  if (page.slice(s0 + 7, s1) !== files.styles.body) throw new Error("the page's stylesheet is not the app's");
+  if (page.slice(j0 + 8, j1) !== files.script.body) throw new Error("the page's script is not the app's");
+  return page.slice(0, s0) + `<link rel="stylesheet" href="/${files.styles.file}">` + page.slice(s1 + 8, j0)
+    + `<script src="/${files.script.file}"></script>` + page.slice(j1 + 9);
+}
 
 export function build() {
   const template = lf(readFileSync(src('index.template.html'), 'utf8'));
@@ -310,6 +383,14 @@ export function build() {
   if (!js.includes(VERSIONS_MARKER)) throw new Error('src/js lost its data-version marker');
   js = js.replace(VERSIONS_MARKER, () => JSON.stringify(versions));
 
+  /* One stylesheet and one script, where linked() looks for them: the page's
+     own markup must not carry a second of either, which linked() would take
+     for the app's. Counted in the template, before the CSS and the JS (whose
+     text may say "<script" in a string) are in it. */
+  const count = (re) => (template.match(re) || []).length;
+  if (count(/<style[\s>]/g) !== 1 || count(/<script[\s>]/g) !== 1)
+    throw new Error(`the template carries ${count(/<style[\s>]/g)} <style> and ${count(/<script[\s>]/g)} <script> elements, where the build links exactly one of each`);
+
   const shell = template
     .replace(STYLE_MARKER, () => css)
     .replace(SCRIPT_MARKER, () => js);
@@ -317,10 +398,13 @@ export function build() {
   /* Every page is the shell with its route's head; the site root's is
      index.html. Pages whose heads are identical share one file, named after
      the route among them that is its own canonical address (the wheel's five
-     aliases share pages/us-options/wheel.html), else after the first. */
+     aliases share pages/us-options/wheel.html), else after the first.
+     index.html carries the app inline; every other page loads it from the
+     two files (appFiles, linked — THE APP ONCE, above). */
   const plan = routePlan(template);
   const html = withHead(shell, plan.pages.find(p => p.path === '/').head);
-  const notFound = withHead(shell, plan.notFound, { notFound: true });
+  const files = appFiles(html);
+  const notFound = linked(withHead(shell, plan.notFound, { notFound: true }), files);
   const groups = new Map();
   for (const p of plan.pages) {
     if (p.path === '/') continue;
@@ -334,7 +418,7 @@ export function build() {
     const named = group.find(p => plan.origin + p.path === p.head.canonical) || group[0];
     const file = `${PAGES}${named.path}.html`;
     fileOfHead.set(key, file);
-    pages.set(file, withHead(shell, named.head));
+    pages.set(file, linked(withHead(shell, named.head), files));
   }
   const rewrites = plan.pages.map(p => ({
     source: p.path,
@@ -348,11 +432,20 @@ export function build() {
   /* The CSP hash covers the inline script EXACTLY as the browser will see it —
      taken back out of the assembled document rather than from the pieces, so a
      templating slip can never produce a header that describes something other
-     than what shipped. Every page must carry that same script, byte for byte:
-     one header is served for all of them. */
+     than what shipped. index.html is the one page that carries it inline; the
+     file every other page loads is those same bytes (appFiles), allowed by
+     script-src 'self'. So no other page may carry an inline script — one the
+     hash does not name is blocked — and each must load exactly the current
+     two files, and weigh what a page does, not what the app does. */
   const inline = inlineScript(html);
+  const want = [`<link rel="stylesheet" href="/${files.styles.file}">`, `<script src="/${files.script.file}"></script>`];
   for (const [file, page] of [[NOT_FOUND, notFound], ...pages]) {
-    if (inlineScript(page) !== inline) throw new Error(`${file}'s inline script differs from index.html's, so the one CSP hash cannot cover both`);
+    const inlineLeft = (page.match(/<script(?![^>]*\bsrc=)[^>]*>|<style[\s>]/g) || []).length;
+    const loads = (page.match(/<script\b[^>]*\bsrc=|<link\b[^>]*\brel="stylesheet"/g) || []).length;
+    if (inlineLeft) throw new Error(`${file} carries ${inlineLeft} inline <script> or <style>, which only index.html may`);
+    if (loads !== 2 || !want.every(tag => page.split(tag).length === 2)) throw new Error(`${file} does not load exactly /${files.script.file} and /${files.styles.file}`);
+    const size = Buffer.byteLength(page, 'utf8');
+    if (size > PAGE_LIMIT) throw new Error(`${file} is ${(size / 1024).toFixed(0)}kB, over the ${PAGE_LIMIT / 1024}kB a page may weigh — is the app inline in it again?`);
   }
   const cspHash = 'sha256-' + createHash('sha256').update(inline, 'utf8').digest('base64');
 
@@ -372,10 +465,27 @@ export function build() {
   const parsed = JSON.parse(cfgTemplate.replace(CSP_MARKER, () => cspHash));
   if (parsed.rewrites !== REWRITES_MARKER) throw new Error(`vercel template's "rewrites" must be "${REWRITES_MARKER}" — the build writes them from ROUTES`);
   parsed.rewrites = rewrites;
+  /* The app files' header rules name the current files exactly, not a
+     pattern: an address the build no longer writes (/assets/app.<old>.js,
+     asked for by a page fetched a moment before a deploy) is a 404, and a
+     404 must not be told to stay in a cache for a year. The pages' rule
+     names them in a negative lookahead, so each header of each response is
+     set by exactly one rule. A literal "." is escaped there: it is a regular
+     expression, where elsewhere a source is path-to-regexp's literal text. */
+  const used = { [APP_SCRIPT_MARKER]: 0, [APP_STYLES_MARKER]: 0, [APP_FILES_MARKER]: 0 };
+  for (const rule of parsed.headers || []) {
+    if (rule.source === APP_SCRIPT_MARKER) { rule.source = `/${files.script.file}`; used[APP_SCRIPT_MARKER]++; }
+    else if (rule.source === APP_STYLES_MARKER) { rule.source = `/${files.styles.file}`; used[APP_STYLES_MARKER]++; }
+    else if (rule.source.includes(APP_FILES_MARKER)) {
+      rule.source = rule.source.replace(APP_FILES_MARKER, () => [files.script.file, files.styles.file].map(f => `|${f.replace(/\./g, '\\.')}$`).join(''));
+      used[APP_FILES_MARKER]++;
+    }
+  }
+  for (const [marker, n] of Object.entries(used)) if (n !== 1) throw new Error(`vercel template uses ${marker} in ${n} header sources, where the build fills in exactly one`);
   const vercel = JSON.stringify(stripComments(parsed), null, 2) + String.fromCharCode(10);
   if (vercel.includes('"$comment')) throw new Error('a $comment survived into vercel.json');
 
-  return { html, vercel, notFound, pages, rewrites, plan, modules, versions, cspHash };
+  return { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash };
 }
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -441,11 +551,17 @@ function servingProblems({ rewrites, plan }) {
 
 if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const built = build();
-  const { html, vercel, notFound, pages, rewrites, plan, modules, versions, cspHash } = built;
+  const { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash } = built;
   const CFG = join(ROOT, 'vercel.json');
   const kb = (n) => `${(n / 1024).toFixed(0)}kB`;
-  const outputs = [['index.html', html], ['vercel.json', vercel], [NOT_FOUND, notFound], ...pages];
-  const stale = filesUnder(PAGES).filter(f => !pages.has(f));
+  const outputs = [['index.html', html], ['vercel.json', vercel], [NOT_FOUND, notFound], ...pages,
+    [files.script.file, files.script.body], [files.styles.file, files.styles.body]];
+  /* A page no route writes, and an app file under a name the build no longer
+     writes — last build's app.<hash>.js, still deployed and still served,
+     though no page names it. */
+  const current = new Set([files.script.file, files.styles.file]);
+  const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f))];
+  const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
   const problems = servingProblems(built);
   const shared = plan.pages.length - 1 - pages.size;
 
@@ -460,10 +576,11 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
     /* A page for a route that no longer exists (or a path that changed) is
        still deployed and still served at its file's address; the build removes
        it, so a committed one means the build was not run. */
-    stale.forEach(f => drift.push(`${f} is stale — no route writes it any more`));
+    stale.forEach(f => drift.push(`${f} is stale — ${f.startsWith(PAGES) ? 'no route writes it any more' : 'no page loads it any more'}`));
     problems.forEach(p => drift.push(p));
     if (!drift.length) {
-      console.log(`index.html, 404.html, ${pages.size} route pages and vercel.json match src/ (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
+      console.log(`index.html, 404.html, ${pages.size} route pages, the app's two files and vercel.json match src/ (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
+      console.log(`every page but index.html loads /${files.script.file} and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}).`);
       console.log(`sitemap.xml lists only canonical addresses that are served their own page.`);
     } else {
       drift.forEach(d => console.error(d));
@@ -485,8 +602,10 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
     };
     prune(PAGES);
     console.log(`index.html   ${modules.length} modules  ${kb(html.length)}  ${sha(html).slice(0, 12)}`);
-    console.log(`404.html     the not-found head, noindex`);
-    console.log(`pages/       ${pages.size} pages for ${plan.pages.length - 1} routes without a parameter${shared ? ` (${shared} share a page)` : ''}${stale.length ? `; ${stale.length} stale removed` : ''}`);
+    console.log(`assets/      ${files.script.file.slice(ASSETS.length + 1)} ${kb(Buffer.byteLength(files.script.body))}, ${files.styles.file.slice(ASSETS.length + 1)} ${kb(Buffer.byteLength(files.styles.body))} — index.html's inline script and stylesheet`);
+    console.log(`404.html     the not-found head, noindex  ${kb(Buffer.byteLength(notFound))}`);
+    console.log(`pages/       ${pages.size} pages for ${plan.pages.length - 1} routes without a parameter${shared ? ` (${shared} share a page)` : ''}, the largest ${kb(largest)}`);
+    if (stale.length) console.log(`stale        ${stale.join(', ')} — removed`);
     console.log(`vercel.json  ${rewrites.length} rewrites (${plan.params.length} parameter routes to index.html)  csp ${cspHash.slice(0, 19)}…`);
     Object.entries(versions).forEach(([f, v]) => console.log(`  data/${f.padEnd(18)} v=${v}`));
     if (problems.length) {
