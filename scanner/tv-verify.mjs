@@ -133,8 +133,9 @@
  *
  * Exit status: 0 when nothing DIFFERS, 1 when something does (a column or a
  * period), 2 when a file cannot be read, its first five columns are not the
- * bars, a weekly or monthly file has two rows in one period, or the two
- * files cannot be compared (not weekly or monthly, another symbol). A column
+ * bars, a weekly or monthly file has two rows in one period, the two files
+ * cannot be compared (not weekly or monthly, another symbol), or a flag is
+ * given without its value. A column
  * NOT KNOWN, NOT COMPARED or a BOT PLOT decides nothing.
  *
  * The export is the reader's licensed data: this reads it where it lies and
@@ -393,16 +394,13 @@ export function intervalOf(file) {
 }
 const PERIOD_NOUN = { '1W': 'week', '1M': 'month' };
 export const BAR_FIELDS = ['open', 'high', 'low', 'close', 'volume'];
-/* The engine's scanWeekOf where the engine hands it out (its list gains it
-   with the imported frames); until it does, the engine's own formula
-   written out — scanner-test holds the two equal on every day of several
-   years, through the store's loadStoreEngine, which reads the engine's out
-   of index.html. */
-export const withWeekOf = (E) => (typeof E.scanWeekOf === 'function' ? E : { ...E, scanWeekOf: (d) => E.scanAddDays(d, -((E.scanWeekday(d) + 6) % 7)) });
 /* The period a session date falls in, named by its first day: the ISO
    week's Monday or the month's 1st — the engine's scanWeekOf and
-   scanMonthOf. */
-export const periodOf = (E, T) => (T === '1M' ? E.scanMonthOf : withWeekOf(E).scanWeekOf);
+   scanMonthOf, which the worker's list hands out (ENGINE_EXPORTS). A copy
+   of the week's formula stood in here until the list carried scanWeekOf;
+   two formulas for one key is what the store's period keys must never be,
+   and nothing reaches it now. */
+export const periodOf = (E, T) => (T === '1M' ? E.scanMonthOf : E.scanWeekOf);
 const periodLabel = (T, key) => (T === '1M' ? key.slice(0, 7) : `week of ${key}`);
 /* The sessions a period is expected to hold, on the calendar the engine
    builds it with (the market's weekdays: no exchange calendar is held). */
@@ -558,7 +556,6 @@ export function datingRule(M) {
    the import's: PROVISIONAL when the file was saved (`at`) before its last
    expected session closed. */
 export function datePeriods(E, T, cells, { market = null, file = 'export', at = null } = {}) {
-  E = withWeekOf(E);
   const M = E.scanMarket(market);
   const seen = new Map();
   const keys = cells.map((cell) => {
@@ -656,7 +653,7 @@ const botWhy = (sig) => (sig?.needsTradeTimeframe
    unless given; `at` is when the export was saved; `market` dates a weekly
    or monthly export's stamps. */
 export async function verify(text, { E = null, sets = {}, file = 'export', interval = undefined, daily = null, market = null, symbol = null, at = null } = {}) {
-  E = withWeekOf(E || await loadEngine());
+  E = E || await loadEngine();
   const T = interval === undefined ? intervalOf(file) : interval;
   const framed = T === '1W' || T === '1M';
   /* The bars first: two files that cannot be compared are refused before
@@ -917,8 +914,20 @@ async function main(argv) {
     console.error('usage: node scanner/tv-verify.mjs --csv "<TradingView export>" [--daily "<the daily export of the same symbol>"] [--interval 1D|1W|1M] [--market CODE] [--captured-at ISO] [--set id.param=value ...] [--json]');
     return 2;
   }
+  /* A flag typed without its value is refused, as bot-verify and the
+     worker refuse one: --captured-at, --market and a last --set with
+     nothing after them were read as absent, and the file was verified with
+     its modification time, the registry's market and the chart's settings —
+     exit 0, and nothing said the flag had not been applied. */
+  for (const k of ['market', 'captured-at']) {
+    if (args.includes(`--${k}`) && !val(k)) { console.error(`tv-verify: --${k} needs a value`); return 2; }
+  }
   const sets = [];
-  args.forEach((a, i) => { if (a === '--set' && args[i + 1]) sets.push(args[i + 1]); });
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] !== '--set') continue;
+    if (!args[i + 1] || args[i + 1].startsWith('--')) { console.error('tv-verify: --set needs a value (id.param=value)'); return 2; }
+    sets.push(args[++i]);
+  }
   /* The interval: the file name's, as the import reads it, or --interval
      for a file not named as TradingView names one. */
   const intervalFlag = val('interval');
