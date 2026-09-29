@@ -7991,6 +7991,222 @@ try {
   }
   /* ---- end frames: verify ---- */
 
+  /* ---- bugfix: scanner-pages ---- */
+  /* TODAY'S SCANNER PAGES, HELD TO WHAT THEY SAY (86-scanner.js,
+     87-scanner-ops.js), on synthetic history only:
+     1. a record made sessions after its bar — a weekly setup's week
+        recorded on the Tuesday after, a replay (--as-of) carrying the wall
+        clock, a day the worker caught up on — is evaluated again on the
+        history cut at its bar, and reproduces; the cut was judged stale
+        against the record's clock and every such record said "Does not
+        reproduce". A re-imported week still does not;
+     2. "Add your TradingView bot's signals" saved over a setup the
+        worker's file held and this browser did not as v1 with other
+        conditions, which the worker refuses; it adopts the file's version
+        first and saves its own as the next;
+     3. what a save says: "No change" when nothing changed (it said "Saved
+        2 setups"), and not "none of them records a match until you export"
+        when the file already carries them;
+     4. a yes-or-no left side replaced by a number's does not leave its 1
+        or 0 behind as "price equals 1";
+     5. the boundary names imported weekly and monthly bars, not only bars
+        derived from the daily ones;
+     6. a monthly EMA 200 is more daily bars than the history keeps, and
+        the history note says only the monthly export holds that many;
+     7. the historical page says whether a weekly setup's bar was imported;
+     8. a condition whose timeframe had no bar to read says "no monthly bar
+        could be read", not that the record leaves the bar out;
+     9. the builder refuses a new setup under an id only the worker's file
+        holds, and a copy's id passes over the file's ids — each was a
+        second v1 the worker refuses. */
+  scannerPages: {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const main = () => document.querySelector('main');
+      const keep = { h: scanHistoryFile, a: scanAlertsFile, s: scanSetupsFile, store: localStorage.getItem('vl.scanSetups'), read: localStorage.getItem('vl.scanAlertState'),
+        bot: JSON.stringify(scanBotState), draft: scanDraft, view: scanBacktestState.view };
+      const out = {};
+      try {
+        const reg = scanRegistryList();
+        /* Synthetic: gold's weekday sessions to Monday 2026-09-28, captured
+           after each close, and its weeks and months as imported frames
+           captured on the Tuesday morning — the week of the 28th still in
+           progress, so provisional. */
+        const days = [];
+        for (let d = new Date('2026-09-28T00:00:00Z'); days.length < 320; d.setUTCDate(d.getUTCDate() - 1)) if (d.getUTCDay() % 6) days.unshift(d.toISOString().slice(0, 10));
+        const series = { XAUUSD: {} }, ohlc = { XAUUSD: {} }, meta = { XAUUSD: {} };
+        days.forEach((d, i) => { const c = +(2000 + i * 0.7 + 20 * Math.sin(i / 7)).toFixed(3); series.XAUUSD[d] = c; ohlc.XAUUSD[d] = [c, +(c + 4).toFixed(3), +(c - 4).toFixed(3)]; meta.XAUUSD[d] = { src: 'import:SYN, 1D.csv', at: d + 'T23:30:00Z' }; });
+        const frame = (key) => { const f = { series: {}, ohlc: {}, volume: {}, meta: {} }, g = new Map();
+          days.forEach(d => { const k = key(d); if (!g.has(k)) g.set(k, []); g.get(k).push(d); });
+          for (const [k, ds] of g) { f.series[k] = +(series.XAUUSD[ds[ds.length - 1]] * 1.001).toFixed(3); f.ohlc[k] = [ohlc.XAUUSD[ds[0]][0], Math.max(...ds.map(d => ohlc.XAUUSD[d][1])), Math.min(...ds.map(d => ohlc.XAUUSD[d][2]))]; f.meta[k] = { src: 'import:SYN, x.csv', at: '2026-09-29T02:00:00Z' }; }
+          return f; };
+        const H = { schema: 2, generated: '2026-09-29T02:00:00Z', series, ohlc, meta, volume: {}, frames: { '1W': { XAUUSD: frame(scanWeekOf) }, '1M': { XAUUSD: frame(scanMonthOf) } } };
+        const cond = (tf, right = { value: 1 }) => ({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right, ...(tf ? { timeframe: tf } : {}) });
+        const mk = (id, timeframe, children) => scanNormaliseSetup({ id, version: 1, name: id, enabled: true, universe: { kind: 'symbols', symbols: ['XAUUSD'] }, timeframe,
+          confirmationMode: 'BAR_CLOSE', cooldownMode: 'EVERY_MATCH', cooldownBars: 0, expires: null, ruleTree: { type: 'group', logic: 'ALL', children } });
+        const wk = mk('sp-weekly', '1W', [cond()]), dy = mk('sp-daily', '1D', [cond(), cond('1W')]);
+
+        /* 1 — records made sessions after their bar, evaluated again. */
+        const now = '2026-09-29T02:00:00Z';
+        const recs = {
+          weekly: scanRun([wk], H, { now, instruments: reg, runId: 'sp1', origin: 'test' }).alerts[0] || null,
+          replay: scanRun([dy], H, { now, asOf: '2026-08-20', instruments: reg, runId: 'sp2', origin: 'replay' }).alerts[0] || null,
+          catchUp: scanRun([dy], H, { now, instruments: reg, runId: 'sp3', origin: 'test', pairs: { [scanPairKey(dy.id, dy.version, 'XAUUSD', '1D')]: { lastEvaluatedBar: '2026-09-22' } } }).alerts.find(a => a.candleDate === '2026-09-23') || null,
+        };
+        out.recs = Object.fromEntries(Object.entries(recs).map(([k, a]) => [k, a ? [a.timeframe, a.candleDate, a.detectedAt] : null]));
+        out.reproduce = Object.fromEntries(Object.entries(recs).map(([k, a]) => { const r = a ? scanReproduce(a, { history: H, list: [a] }) : null; return [k, r ? [r.state, r.text] : null]; }));
+        /* The control: the week the weekly record read, re-imported with
+           another close, still does not reproduce. */
+        const H2 = JSON.parse(JSON.stringify(H)); H2.frames['1W'].XAUUSD.series['2026-09-21'] = +(H2.frames['1W'].XAUUSD.series['2026-09-21'] * 1.5).toFixed(3);
+        out.control = recs.weekly ? scanReproduce(recs.weekly, { history: H2, list: [recs.weekly] }).state : null;
+        scanHistoryFile = H; scanAlertsFile = { alerts: Object.values(recs).filter(Boolean) }; scanSetupsFile = null;
+        if (recs.weekly) { navigate('/app/scanner/alerts/' + scanAlertIdOf(recs.weekly)); await w(250); }
+        out.verdict = main().querySelector('.scan-reproduce')?.textContent || '';
+
+        /* 2 — the bot's signals saved over a setup the worker's file holds. */
+        localStorage.removeItem('vl.scanSetups');
+        const filePack = scanBotPack({ symbols: ['XAUUSD'], tradeTimeframes: ['1W'], signals: ['tier2-buy'], cooldownMode: 'EVERY_MATCH' });
+        const fileId = filePack[0].id;
+        scanSetupsFile = { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: filePack };
+        Object.assign(scanBotState, { open: true, symbols: ['XAUUSD'], tfs: ['1W'], signals: ['tier2-buy', 'entry-buy'], cooldownMode: 'NEW_MATCH', criterion3: 'ema', result: null });
+        navigate('/app/scanner/setups'); await w(250);
+        const card = () => main().querySelector('details.scan-bot');
+        const save = async () => { const b = card().querySelector('button[data-scan-focus="bot-create"]'); b.focus(); b.click(); await w(300);
+          return { status: card()?.querySelector('.scan-bot-status')?.textContent || '', toast: [...document.querySelectorAll('.toast')].pop()?.textContent || '', focus: document.activeElement?.dataset?.scanFocus || null }; };
+        out.save1 = await save();
+        const st = scanStoreRead();
+        out.collide = { id: fileId, versions: (st.setups[fileId]?.versions || []).map(v => [v.version, v.source, v.hash === filePack[0].hash]), current: st.setups[fileId]?.current ?? null,
+          exported: scanExportDoc().setups.filter(s => s.id === fileId).map(s => [s.version, s.hash === filePack[0].hash]),
+          entry: (st.setups['mtfbot-d-entry-buy']?.versions || []).map(v => [v.version, v.source]) };
+        out.save2 = await save();
+        scanSetupsFile = scanExportDoc();
+        navigate('/app/scanner/alerts'); await w(80); navigate('/app/scanner/setups'); await w(250);
+        out.save3 = await save();
+
+        /* 3 — a yes-or-no left side replaced by a number's. */
+        scanDraft = null;
+        navigate('/app/scanner/setups/new'); await w(250);
+        const pick = async (l, v) => { const s = main().querySelector('select[aria-label="' + l + '"]'); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); await w(80); };
+        await pick('Condition 1: left side', 'wavetrend.bull');
+        out.flagIn = JSON.stringify(scanDraft.ruleTree.children[0].right);
+        await pick('Condition 1: left side', 'price');
+        out.flagOut = { right: JSON.stringify(scanDraft.ruleTree.children[0].right), prose: main().querySelector('.scan-cond .scan-prose')?.textContent || '',
+          value: main().querySelector('input[aria-label="Condition 1: right side value"]')?.value ?? null, focus: document.activeElement?.getAttribute('aria-label') || null };
+        await pick('Condition 1: left side', 'wavetrend.bull');
+        await pick('Condition 1: right side value', '0');
+        await pick('Condition 1: left side', 'cm_macd.above');
+        out.flagToFlag = JSON.stringify(scanDraft.ruleTree.children[0].right);
+        scanDraft = null;
+
+        /* 4 — the boundary names the imported weeks and months. */
+        navigate('/app/scanner/setups'); await w(200);
+        out.boundary = [...main().querySelectorAll('details.scan-boundary li')].map(li => li.textContent).find(t => /^Daily bars/.test(t)) || '';
+
+        /* 5 — what a monthly EMA200 needs, against what the history keeps. */
+        const ema = (tf) => ({ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'ema', n: 200 }, timeframe: tf });
+        const needM = scanNeedsOf([mk('sp-needs', '1D', [ema('1W'), ema('1M')])]);
+        out.needs = scanHistoryNeeds(['XAUUSD'], needM, { schema: 2, series, ohlc, meta, volume: {} })[0].lines.map(l => l.text);
+
+        /* 6 — the historical page names a weekly bar's origin. */
+        const hist = scanHistorical(wk, H, { symbols: ['XAUUSD'], maxBars: 600, instruments: reg });
+        scanBacktestState.view = 'every';
+        const box = scanBacktestResult({ setup: wk, from: null, to: null, out: scanBacktestMerge([hist], wk) });
+        out.histOrigin = [...new Set(hist.matches.map(m => m.barOrigin || null))];
+        out.histRows = [...box.querySelectorAll('details.scan-row-det > summary')].slice(-2).map(s => s.textContent);
+        const histD = scanHistorical(dy, H, { symbols: ['XAUUSD'], maxBars: 600, instruments: reg });
+        const boxD = scanBacktestResult({ setup: dy, from: null, to: null, out: scanBacktestMerge([histD], dy) });
+        out.histRowsDaily = [...boxD.querySelectorAll('details.scan-row-det > summary')].slice(-1).map(s => s.textContent);
+
+        /* 7 — a record whose monthly condition read no bar: no month had
+           closed in a history that begins in September. */
+        const cut = (m) => Object.fromEntries(Object.entries(m).filter(([d]) => d >= '2026-09-14'));
+        const Hs = { schema: 2, generated: now, series: { XAUUSD: cut(series.XAUUSD) }, ohlc: { XAUUSD: cut(ohlc.XAUUSD) }, meta: { XAUUSD: cut(meta.XAUUSD) }, volume: {} };
+        const anyM = scanNormaliseSetup({ ...mk('sp-any', '1D', [cond(), cond('1M')]), ruleTree: { type: 'group', logic: 'ANY', children: [cond(), cond('1M')] } });
+        const recM = scanRun([anyM], Hs, { now, instruments: reg, runId: 'sp4', origin: 'test' }).alerts[0] || null;
+        out.unread = recM ? recM.matchedConditions.map(c => [c.path, c.state, c.timeframe || null, c.barDate ?? null]) : null;
+        if (recM) {
+          scanHistoryFile = Hs; scanAlertsFile = { alerts: [recM] }; scanSetupsFile = { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: [anyM] };
+          navigate('/app/scanner/alerts/' + scanAlertIdOf(recM)); await w(250);
+          const t = [...main().querySelectorAll('table.dt')].find(x => /Conditions evaluated/.test(x.querySelector('caption')?.textContent || ''));
+          const ri = [...t.querySelectorAll('thead th')].map(h => h.textContent).indexOf('Read on');
+          out.unreadCells = [...t.querySelectorAll('tbody tr')].map(tr => tr.children[ri].innerText.replace(/\\s+/g, ' '));
+          navigate('/app/scanner/setups/' + anyM.id); await w(250);
+          out.unreadMini = main().querySelector('.scan-alert-mini')?.textContent || '';
+        }
+
+        /* 9 — a new setup under an id only the worker's file holds. */
+        localStorage.removeItem('vl.scanSetups');
+        scanSetupsFile = { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: [wk] };
+        const draft = { ...scanAsDraft(dy), id: wk.id, name: 'Another' };
+        out.fileId = scanDraftCheck(draft, { mode: 'new' }).problems.filter(p => p.path === 'id').map(p => p.code);
+        out.copyId = scanCopyId('sp');
+        scanSetupsFile = { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: [wk, { ...wk, id: 'sp-copy' }] };
+        out.copyIdTaken = scanCopyId('sp');
+        return out;
+      } finally {
+        scanHistoryFile = keep.h; scanAlertsFile = keep.a; scanSetupsFile = keep.s; scanDraft = keep.draft; scanBacktestState.view = keep.view;
+        if (keep.store == null) localStorage.removeItem('vl.scanSetups'); else localStorage.setItem('vl.scanSetups', keep.store);
+        if (keep.read == null) localStorage.removeItem('vl.scanAlertState'); else localStorage.setItem('vl.scanAlertState', keep.read);
+        Object.assign(scanBotState, JSON.parse(keep.bot));
+        navigate('/learn');
+      }
+    })()`);
+    if (!r || !r.recs) { fail('scanner pages: the block ran', r); break scannerPages; }
+
+    const p1 = [];
+    Object.entries(r.recs).forEach(([k, v]) => { if (!v) p1.push(`no ${k} record was made`); });
+    Object.entries(r.reproduce).forEach(([k, v]) => { if (v && v[0] !== 'REPRODUCES') p1.push(`${k}: ${v[1]}`); });
+    if (r.control !== 'DIFFERS') p1.push(`the weekly record, its week re-imported with another close, reads ${r.control}`);
+    if (!/^Reproduces\./.test(r.verdict)) p1.push(`the alert page says: ${r.verdict}`);
+    if (p1.length) fail('scanner pages: a record made sessions after its bar is evaluated again as the run read it', p1);
+    else ok('scanner pages: a weekly setup\'s week recorded on the Tuesday after, a replayed day and a caught-up day each reproduce on the history cut at the bar (each said "Does not reproduce": the cut was judged stale against the record\'s clock), and a re-imported week still does not');
+
+    const p2 = [];
+    if (JSON.stringify(r.collide.versions) !== JSON.stringify([[1, 'file', true], [2, 'bot', false]]) || r.collide.current !== 2) p2.push(`${r.collide.id} holds ${JSON.stringify(r.collide.versions)}, current v${r.collide.current} — the file's v1 adopted first, the card's as v2`);
+    if (JSON.stringify(r.collide.exported) !== JSON.stringify([[2, false]])) p2.push(`the export carries ${JSON.stringify(r.collide.exported)} for it — a v1 the worker already holds with other conditions is refused`);
+    if (JSON.stringify(r.collide.entry) !== JSON.stringify([[1, 'bot']])) p2.push(`a setup the file does not hold: ${JSON.stringify(r.collide.entry)}`);
+    if (!/adopted from it first/.test(r.save1.status) || r.save1.focus !== 'bot-create') p2.push(`after saving: "${r.save1.status}", focus ${r.save1.focus}`);
+    if (p2.length) fail('scanner pages: the bot\'s signals saved over a setup the worker\'s file holds follow the file\'s version', p2);
+    else ok('scanner pages: the bot\'s signals saved over a setup the worker\'s file holds at v1 adopt that v1 first and save as v2 — the export no longer carries a second v1 the worker refuses — and say so; one the file does not hold is v1');
+
+    const p3 = [];
+    if (!/^Saved 2 setups in this browser at /.test(r.save1.status) || !r.save1.status.includes('until you export scan-setups.json above') || !/^Saved 2 setups in this browser — export/.test(r.save1.toast)) p3.push(`a save that changed them: "${r.save1.status}" / "${r.save1.toast}"`);
+    if (!/^No change at /.test(r.save2.status) || /^Saved/.test(r.save2.toast) || !/^No change/.test(r.save2.toast)) p3.push(`a save that changed nothing: "${r.save2.status}" / "${r.save2.toast}"`);
+    if (!/data\/scan-setups\.json already carries each of them as saved here/.test(r.save3.status) || /none of them records a match/.test(r.save3.status)) p3.push(`saved as the file carries them: "${r.save3.status}"`);
+    if (p3.length) fail('scanner pages: the bot card says what its save did', p3);
+    else ok('scanner pages: the bot card says "No change" of a save that changed nothing (it said "Saved 2 setups"), and that the worker\'s file already carries them where it does (it said none records a match until exported)');
+
+    const p4 = [];
+    if (r.flagIn !== '{"value":1}') p4.push(`a yes-or-no left side's right side: ${r.flagIn}`);
+    if (r.flagOut.right !== '{"value":null}' || r.flagOut.prose !== 'price equals ?' || r.flagOut.value !== '') p4.push(`replaced by price: ${JSON.stringify(r.flagOut)}`);
+    if (r.flagToFlag !== '{"value":0}') p4.push(`one yes-or-no reading replaced by another kept ${r.flagToFlag}, not false (0)`);
+    if (p4.length) fail('scanner pages: a yes-or-no left side replaced by a number\'s leaves no true or false behind as a number', p4);
+    else ok('scanner pages: a yes-or-no left side replaced by price leaves the right side blank ("price equals ?", refused until a number is typed) rather than "price equals 1"; replaced by another yes-or-no reading it keeps false');
+
+    const p5 = [];
+    if (!/your imported TradingView weekly and monthly bars where your history holds them/.test(r.boundary) || /monthly bars derived from them;/.test(r.boundary)) p5.push(r.boundary);
+    const wkLine = r.needs.find(l => /^Weekly/.test(l)) || '', moLine = r.needs.find(l => /^Monthly/.test(l)) || '';
+    if (!/EMA200, which needs 200 monthly bars \(about 17 years of daily bars — more than the 2,000 daily bars your history keeps, so only your imported TradingView monthly bars can hold that many\)/.test(moLine)) p5.push(`monthly: ${moLine}`);
+    if (!/EMA200, which needs 200 weekly bars \(about 1,000 daily bars\)\./.test(wkLine)) p5.push(`weekly: ${wkLine}`);
+    if (!r.histOrigin.includes('imported') || !r.histRows.length || !r.histRows.every(t => / · imported$/.test(t)) || r.histRowsDaily.some(t => /imported|built from/.test(t))) p5.push(`historical rows: ${JSON.stringify(r.histRows)} / daily ${JSON.stringify(r.histRowsDaily)}`);
+    if (p5.length) fail('scanner pages: weekly and monthly bars are named as imported where they are, and a monthly EMA200 as more than the history keeps', p5);
+    else ok('scanner pages: the boundary names your imported weekly and monthly bars, a monthly EMA200 says it is more daily bars than the 2,000 the history keeps (a weekly one does not), and the historical page marks a weekly setup\'s imported bars');
+
+    const p6 = [];
+    if (!r.unread || r.unread[1]?.[2] !== '1M' || r.unread[1]?.[3] !== null) p6.push(`the record: ${JSON.stringify(r.unread)}`);
+    if (r.unreadCells?.[1] !== 'Monthly no bar could be read — see its status') p6.push(`Read on: ${JSON.stringify(r.unreadCells)}`);
+    if (!/no monthly bar could be read$/.test(r.unreadMini || '') || /does not say which/.test(r.unreadMini || '')) p6.push(`the setup's matches: ${r.unreadMini}`);
+    if (p6.length) fail('scanner pages: a condition whose timeframe had no bar to read says so', p6);
+    else ok('scanner pages: a monthly condition with no month closed reads "no bar could be read" in Read on and "no monthly bar could be read" in the setup\'s matches — not "bar not dated on the record"');
+
+    const p7 = [];
+    if (JSON.stringify(r.fileId) !== '["FILE_ID"]') p7.push(`a new setup under an id only the worker's file holds: ${JSON.stringify(r.fileId)} — saved, it is a second v1 the worker refuses`);
+    if (r.copyId !== 'sp-copy' || r.copyIdTaken !== 'sp-copy-2') p7.push(`a copy's id: ${r.copyId}, and with sp-copy in the file ${r.copyIdTaken}`);
+    if (p7.length) fail('scanner pages: the builder does not reuse an id the worker\'s file holds', p7);
+    else ok('scanner pages: the builder refuses a new setup under an id only the worker\'s file holds (FILE_ID — adopt it, or choose another), and a copy\'s id passes over the file\'s ids as over this browser\'s');
+  }
+  /* ---- end bugfix: scanner-pages ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
