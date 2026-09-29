@@ -159,8 +159,11 @@ function scanOpsAlertLink(a, label) {
 
 /* The scanner's own sections. Shared by every scanner page, the setups
    batch's included: scannerSubnav('dashboard' | 'market' | 'setups' |
-   'watchlists' | 'alerts' | 'backtest' | 'settings'). The operations pages
-   are not in it — they are the worker's, reached from the dashboard. */
+   'watchlists' | 'alerts' | 'backtest' | 'settings' | 'trading'). The
+   operations pages are not in it — they are the worker's, reached from the
+   dashboard. The QT Trading Index is a section of the Scanner (Release A):
+   its row is last, and its page (85-trading-index.js) draws this strip with
+   itself current. */
 const SCANNER_SUBNAV = [
   { id: 'dashboard',  label: 'Dashboard',            path: '/app/scanner' },
   { id: 'market',     label: 'Market (your series)', path: '/app/scanner/market' },
@@ -169,6 +172,7 @@ const SCANNER_SUBNAV = [
   { id: 'alerts',     label: 'Alerts',               path: '/app/scanner/alerts' },
   { id: 'backtest',   label: 'Historical',           path: '/app/scanner/backtest' },
   { id: 'settings',   label: 'Settings',             path: '/app/scanner/settings' },
+  { id: 'trading',    label: 'Trading Index',        path: '/research/trading-index' },
 ];
 /* The Alerts link carries the unread count — "Alerts · n", named "Alerts,
    n unread" — as the alerts pages' own strip did (SC-309 as built). This
@@ -176,15 +180,18 @@ const SCANNER_SUBNAV = [
    main navigation read "Scanner 24" over a strip that read only "Alerts".
    No count when nothing is counted (no alerts file, in-app off) or none is
    unread, as the main navigation's badge. */
+/* Drawn as the product tab row Equities and Property wear (sectionTabs,
+   35-ui.js): the Scanner's name and badge, then one scrolling row of
+   underline tabs. It was a grey box of pills with no name, wrapping into
+   three rows on a phone, one level of navigation drawn two ways across the
+   three products. The table and the unread count are unchanged. */
 function scannerSubnav(active) {
-  const row = el('nav', { class: 'segmented scan-subnav', 'aria-label': 'Scanner sections' });
   const unread = scanOpsUnread();
-  SCANNER_SUBNAV.forEach(s => {
-    const n = s.id === 'alerts' && unread > 0 ? unread : 0;
-    row.append(scanOpsLink(s.path, n ? `${s.label} · ${n}` : s.label, {
-      'aria-selected': active === s.id ? 'true' : 'false', 'aria-current': active === s.id ? 'page' : null, 'aria-label': n ? `${s.label}, ${n} unread` : null }));
-  });
-  return row;
+  return sectionTabs({ label: 'Scanner sections', pid: 'scanner', cls: 'scan-subnav', inView: true,
+    tabs: SCANNER_SUBNAV.map(s => {
+      const n = s.id === 'alerts' && unread > 0 ? unread : 0;
+      return { label: n ? `${s.label} · ${n}` : s.label, path: s.path, current: active === s.id, ariaLabel: n ? `${s.label}, ${n} unread` : null };
+    }) });
 }
 const SCANNER_OPS_NAV = [
   { id: 'overview', label: 'Overview',    path: '/admin/scanner' },
@@ -498,8 +505,14 @@ VIEWS.scannerDashboard = () => {
   const S = SCAN_STATE[st.state] || SCAN_STATE.never;
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(scannerSubnav('dashboard'));
-  wrap.append(scanOpsHead('Quantum Scanner · personal lane', 'Scanner',
-    'Whether your setups are active, when the last scan succeeded, which setups matched and whether anything is delivered — read from what the worker recorded on this machine. Nothing here is a scan run by this page and presented as the worker’s.'));
+  /* The product's one action, as its entry in PRODUCTS names it, is the
+     overview's primary: the page had none, and "Create a setup" was two
+     clicks away under Setups. */
+  const head = scanOpsHead('Quantum Scanner · personal lane', 'Scanner',
+    'Whether your setups are active, when the last scan succeeded, which setups matched and whether anything is delivered — read from what the worker recorded on this machine. Nothing here is a scan run by this page and presented as the worker’s.');
+  const sc = typeof productById === 'function' ? productById('scanner') : null;
+  if (sc?.action && sc.actionPath && matchRoute(sc.actionPath)) head.append(scanOpsLink(sc.actionPath, sc.action, { class: 'btn btn-primary' }));
+  wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
 

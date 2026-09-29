@@ -156,6 +156,28 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end bugfix3: property ---- */
 
+/* ---- release-a: fixes ---- */
+/* NO DIRECTIONS THROUGH NAVIGATION THAT IS GONE. "My Investments" was a header
+   item before Release A; neither chrome has it now (the sidebar says "Your
+   data & settings", and Tracked sits under Watchlists), yet a company's
+   snapshot, the search results, the screener and a trend drawer still sent
+   readers "under My Investments → Your data". Code only — a comment recording
+   the old name is history, not a direction. */
+{
+  const dir = join(ROOT, 'src', 'js');
+  const stale = [];
+  for (const f of readdirSync(dir).filter(x => x.endsWith('.js'))) {
+    const code = readFileSync(join(dir, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    code.split('\n').forEach(line => { if (/My Investments/.test(line)) stale.push(`${f}: ${line.trim().slice(0, 140)}`); });
+  }
+  if (stale.length) {
+    bad += stale.length;
+    console.error(`FAIL  ${stale.length} string(s) name "My Investments", which no navigation carries since Release A:`);
+    stale.forEach(x => console.error(`      ${x}`));
+  } else console.log('ok    no page text directs a reader through "My Investments", a header item Release A removed');
+}
+/* ---- end release-a: fixes ---- */
+
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`
   : `ok    none of the ${BANNED.length} banned phrases is used as a claim`);

@@ -101,7 +101,7 @@ VIEWS.researchReport = () => {
   /* ---------- the chrome: not part of what prints ---------- */
   const bar = el('div', { class: 'card dr-chrome' });
   bar.append(cardHead('Research report',
-    `${live.c.name} on one page, laid out for printing. ${S.fromRun ? `Rendered from saved run ${S.run.runId}.` : 'Rendered from the current dataset and your current Studio assumptions.'}`));
+    `${live.c.name} on one page, laid out for printing. ${S.fromRun ? `Rendered from saved run ${S.run.runId}.` : 'Rendered from the current dataset and your current Studio assumptions.'}`, null, { heading: false }));
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => window.print() }, 'Print or save as PDF'));
   acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(companyHref),

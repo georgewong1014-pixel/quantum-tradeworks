@@ -1,6 +1,22 @@
 /* ==========================================================================
-   VIEW — HOME
+   VIEW — RESEARCH QUEUE (Equities Research)
+
+   This was the whole of /app until Release A. The root URL used to drop a
+   visitor inside the application, so the dashboard was the equities research
+   queue: market context, FX, freshness, a change feed and a watchlist. Release
+   A makes /app the visitor's own dashboard (VIEW — MY DASHBOARD, below) and
+   moves this page, unchanged in substance, to /research/queue under Equities
+   Research. The first-run "What this is, in three lines" band stayed behind:
+   the homepage and the dashboard's first-time checklist now answer "what is
+   this, and where do I start", and a band repeating it on an equities page
+   was a third copy of the same orientation.
    ========================================================================== */
+
+/* It names companies throughout, so it waits for the filings like the page it
+   was (35-ui.js explains why a universe view never paints the sample set
+   first). Registered from here, as the scanner's pages register theirs, so
+   the route table's owner and this file do not edit the same lines. */
+UNIVERSE_VIEWS.add('researchQueue');
 
 /* One provenance per aggregate. The US card cap-weighted PGR, an illustrative
    company on a synthetic price and market cap, together with four filers on
@@ -20,55 +36,26 @@ function marketSummary(mkt) {
   return { rows, capTotal, wChg, advancers, total: rows.length, filed, asOf, leftOut: priced.length - rows.length };
 }
 
-VIEWS.home = () => {
+/* Whether the active watchlist is still the seeded sample (isSeededWL,
+   50-views-studio.js). */
+const activeWLIsSample = () => { try { const w = activeWL(); return !!w && typeof isSeededWL === 'function' && isSeededWL(w); } catch { return false; } };
+VIEWS.researchQueue = () => {
   const wrap = el('div');
 
   /* -- header ------------------------------------------------------------ */
   const hd = el('div', { class: 'page-hd' });
   const hl = el('div');
-  hl.append(el('p', { class: 'eyebrow' }, 'Research queue'));
-  hl.append(el('h1', {}, 'Research the company. Reach your own conclusion.'));
+  hl.append(el('p', { class: 'eyebrow' }, 'Equities Research'));
+  hl.append(el('h1', {}, 'Research queue'));
   hl.append(el('p', { class: 'body-lg', style: 'margin-top:8px' },
     'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
   hd.append(hl);
-  const hr = el('div', { class: 'row', style: 'gap:8px' });
+  const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openDashboardCustomiser(), html: `${icon('grid')} Customise` }));
   hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
   hd.append(hr);
   wrap.append(hd);
-
-  /* First-run orientation. The root URL drops a visitor inside the application,
-     so this band answers "what is this, what is it not, where do I start"
-     before they meet a dashboard of someone else's watchlist. Dismissible, and
-     the dismissal sticks. */
-  if (!store.read('introDismissed', false)) {
-    const intro = el('div', { class: 'card', style: 'margin-bottom:var(--lg);border-left:3px solid var(--brand)' });
-    const top = el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:flex-start' });
-    const txt = el('div', { style: 'flex:1 1 420px;min-width:0' });
-    txt.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' }, [
-      el('span', { class: 'chip chip-brand' }, 'New here?'),
-      el('h3', { class: 'h-card' }, 'What this is, in three lines'),
-    ]));
-    const ul = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-    ['A research subscription for US and Bursa Malaysia equities, plus a calculator that turns a Malaysian property into a financial model.',
-     'Every number shows the formula, the period and the coverage behind it — and says so plainly when it does not know.',
-     'It gives you analysis, not answers: no buy or sell ratings, no target prices, no recommendations.'
-    ].forEach(x => ul.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
-    txt.append(ul);
-    top.append(txt);
-    top.append(el('button', { class: 'iconbtn', 'aria-label': 'Dismiss introduction',
-      onclick: () => { store.write('introDismissed', true); render(); },
-      html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>` }));
-    intro.append(top);
-    const acts = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
-    acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openResearch('MAYBANK') }, 'Start with a company'));
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('property') }, 'Model a property'));
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { State.learnTab = 'dictionary'; go('learn'); } }, 'How it works'));
-    acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('plans') }, 'Plans'));
-    intro.append(acts);
-    wrap.append(intro);
-  }
 
   /* -- market context ---------------------------------------------------- */
   const ctx = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
@@ -192,7 +179,13 @@ VIEWS.home = () => {
     const body = el('div', { style: 'min-width:0;flex:1' });
     const t = el('div', { class: 'row row-wrap', style: 'gap:6px' });
     t.append(el('span', { style: 'font-size:13px;font-weight:600;color:var(--ink)' }, f.title));
-    if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, 'Watchlist'));
+    /* The illustrative marker every other company surface carries, as the
+       watchlist rows and the differences panel beside this feed do: an event
+       computed from synthetic figures (a discount, a payout ratio) is a
+       synthetic event, and the page's META says each company is labelled. */
+    const fr = BY_ID.get(f.id);
+    if (fr) { const ic = illusChip(fr.c); if (ic) t.append(ic); }
+    if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, activeWLIsSample() ? 'Sample watchlist' : 'Watchlist'));
     body.append(t);
     body.append(el('p', { class: 'caption', style: 'margin-top:2px' }, f.detail));
     const acts = el('div', { class: 'row', style: 'gap:4px;margin-top:6px' });
@@ -215,11 +208,15 @@ VIEWS.home = () => {
   const wlSel = el('select', { class: 'select', style: 'width:auto;max-width:190px;height:30px;font-size:13px',
     'aria-label': 'Active watchlist',
     onchange: e => { State.wlIdx = +e.target.value; render(); } });
+  /* A seeded list says it is one here, as the dashboard and the Watchlists
+     page do: the reader did not choose these companies. */
   State.watchlists.forEach((w, i) => wlSel.append(el('option', { value: i, selected: i === State.wlIdx ? '' : null },
-    `${w.name} (${w.ids.length})`)));
+    `${w.name} (${w.ids.length})${typeof isSeededWL === 'function' && isSeededWL(w) ? ' · sample' : ''}`)));
   wlHead.append(wlSel);
   wlHead.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openWatchlistManager(), html: `${icon('grid', 13)} Manage` }));
   wl.append(wlHead);
+  if (activeWLIsSample()) wl.append(el('p', { class: 'metaline', style: 'margin:-4px 0 6px' }, [el('span', { class: 'chip chip-bronze' }, 'Sample'),
+    ' A list written into this browser so the page has something to show — not one you chose.']));
   const wlRows = State.watchlist.map(id => BY_ID.get(id)).filter(Boolean);
   if (!wlRows.length) wl.append(emptyState('No companies on the watchlist yet.'));
   else {
@@ -293,7 +290,9 @@ VIEWS.home = () => {
   return wrap;
 };
 
-/* --------------------------------------------------- dashboard customising */
+/* ----------------------------------------------- research queue customising */
+/* The store key stays 'dash': it is what a reader's saved arrangement of these
+   cards has always been kept under, and renaming it would reset every one. */
 const DASH_CARDS = [
   { k:'context',   label:'Market context strip', col:'top'  },
   { k:'feed',      label:'What changed',         col:'main' },
@@ -309,7 +308,7 @@ const dashOrder = (col) => State.dash.filter(d => d.col === col && d.visible);
 function openDashboardCustomiser() {
   const body = el('div');
   body.append(el('p', { class: 'body', style: 'margin-bottom:var(--md)' },
-    'Reorder the home dashboard, move a card between the main column and the side rail, or hide it. Saved in this browser.'));
+    'Reorder the research queue, move a card between the main column and the side rail, or hide it. Saved in this browser.'));
   const list = el('div');
   State.dash.forEach((d, i) => {
     const meta = DASH_CARDS.find(c => c.k === d.k);
@@ -335,9 +334,472 @@ function openDashboardCustomiser() {
   body.append(list);
   body.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--md)', onclick: () => {
     State.dash = DASH_CARDS.map(c => ({ k: c.k, col: c.col, visible: true }));
-    saveDash(); closeDrawer(); render(); toast('Dashboard reset');
+    saveDash(); closeDrawer(); render(); toast('Research queue reset');
   } }, 'Reset to default'));
-  openDrawer('Customise dashboard', body);
+  openDrawer('Customise the research queue', body);
+}
+
+/* ==========================================================================
+   VIEW — MY DASHBOARD (/app)
+
+   The visitor's own page, not a product's. It answers five questions — what
+   changed since my last visit, did any of my setups match, what am I
+   monitoring, what have I saved, what next — and every answer is read from
+   what this browser holds or from the scanner's own record. There is no
+   account, so there is nobody's activity to show but the visitor's, and no
+   figure here is sample data: the lists, holdings, cases and price alerts
+   seeded on a first visit (50-views-studio.js) are said to be samples and
+   are never counted as the visitor's.
+
+   Two states, chosen by that one fact. With nothing of the visitor's own
+   saved, the page is an onboarding checklist whose ticks are read from real
+   state — no tiles of zeros, no empty charts. With something saved, it is
+   four counts that each open the page they count, the latest matches of the
+   visitor's setups, the items to continue, and the first steps not yet taken.
+
+   The previous visit's time is kept in the store (dashVisit), so "since your
+   last visit" means since this browser last had the dashboard open: a visit
+   ends after thirty minutes away from it, and a reload inside one does not
+   start another.
+   ========================================================================== */
+
+/* The four products — names, actions and status badges — are the shell's
+   (PRODUCTS, productById and productBadge in 35-ui.js), so the dashboard
+   cannot describe a product differently from the header, the sidebar and the
+   homepage. */
+
+/* A real anchor, so every tile and row is a link the browser understands —
+   middle-click, a new tab, the address in the status bar. */
+function myDashLink(path, attrs = {}, kids = []) {
+  return el('a', { ...attrs, href: href(path),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(path); } }, kids);
+}
+/* The one route helper that decides whether a link may be drawn at all: a
+   path that ends at the not-found card is never offered. */
+const myDashRoutes = (path) => { const r = matchRoute(path.split('?')[0]); return !!(r && VIEWS[r.view]); };
+
+/* ---------------------------------------------------------------- visits */
+/* { prev, seen }: `seen` is the last time the dashboard was drawn, `prev` the
+   end of the visit before this one. A draw more than thirty minutes after the
+   last one starts a visit, and the one that ended at `seen` becomes `prev`;
+   any draw inside a visit — a reload, a theme switch, coming back from a
+   company page — keeps the same `prev`, so the count of what is new does not
+   fall to nought the moment the page is looked at. */
+const MYDASH_VISIT_GAP_MS = 30 * 60 * 1000;
+function myDashVisit(now = new Date()) {
+  const raw = store.read('dashVisit', null);
+  const v = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const seen = Date.parse(v.seen), prev = Date.parse(v.prev);
+  const at = now.toISOString();
+  const next = !Number.isFinite(seen) ? { prev: null, seen: at }
+    : now.getTime() - seen > MYDASH_VISIT_GAP_MS ? { prev: new Date(seen).toISOString(), seen: at }
+    : { prev: Number.isFinite(prev) ? new Date(prev).toISOString() : null, seen: at };
+  store.write('dashVisit', next);
+  return next;
+}
+/* The reader's own clock: the time of day greets them, and the previous visit
+   is given in their local time, which is the only clock they were looking at. */
+const myDashGreeting = (d = new Date()) => { const h = d.getHours(); return h >= 5 && h < 12 ? 'Good morning' : h >= 12 && h < 18 ? 'Good afternoon' : 'Good evening'; };
+const myDashWhen = (iso) => new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const myDashPlural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/* ------------------------------------------------------ the visitor's own */
+/* Everything the page counts, from the stores that hold it. The samples are
+   left out by the rules that already decide what is a sample (a seeded list
+   or alert the reader has since changed is theirs). The scanner is counted
+   twice over, because it lives in two places: the setups saved in this
+   browser, and data/scan-setups.json, which is what the worker runs and is
+   only ever visible on the machine it runs on. */
+/* THE COMPANIES IN A LIST THAT ARE THE VISITOR'S OWN. A seeded list stopped
+   being a sample the moment anything touched it (isSeededWL reads updatedAt),
+   so one "Add to watchlist" on a company page — which adds to the active
+   list, the seeded Core watchlist on a fresh profile, and is the second step
+   of the journey /how-it-works describes — made all six seeded companies
+   "yours": the tile read 7 instruments in a list of your own, the checklist
+   ticked "Create a watchlist" when none had been created, and "Continue"
+   listed the sample list beside a note saying samples are not counted. A
+   member carries the date it was added (06-watchlists.js); the seed's
+   members were migrated with none, so in a seeded list only a dated member
+   is the visitor's. Any other list is theirs whole. */
+function myDashOwnIds(w) {
+  const seedIds = typeof SEEDED_WL_IDS !== 'undefined' ? SEEDED_WL_IDS : [];
+  const ids = Array.isArray(w?.ids) ? w.ids : [];
+  return seedIds.includes(w?.id) ? ids.filter(id => w.added && w.added[id]) : ids;
+}
+function myDashOwn() {
+  const seededPA = (pa) => (typeof isSeededPA === 'function' ? isSeededPA(pa) : false);
+  const seededPF = typeof SEEDED_PF_IDS !== 'undefined' ? SEEDED_PF_IDS : [];
+  const seedIds = typeof SEEDED_WL_IDS !== 'undefined' ? SEEDED_WL_IDS : [];
+  const all = (State.watchlists || []).filter(Boolean);
+  /* Lists holding at least one company the visitor put there, and the lists
+     they made themselves (the checklist's "Create a watchlist"). */
+  const lists = all.filter(w => myDashOwnIds(w).length);
+  const createdLists = all.filter(w => !seedIds.includes(w.id) && (w.ids || []).length);
+  /* Seeded lists still holding a seeded company: whatever is in them that the
+     visitor did not add is a sample, and is not counted. */
+  const sampleLists = all.filter(w => seedIds.includes(w.id) && myDashOwnIds(w).length < (w.ids || []).length);
+  const instruments = new Set(lists.flatMap(myDashOwnIds));
+  const scanSt = typeof scanStoreRead === 'function' ? scanStoreRead() : null;
+  const setups = scanSt && typeof scanBrowserSetups === 'function' ? scanBrowserSetups({ st: scanSt }) : [];
+  const setupsDoc = typeof scanSetupsFile !== 'undefined' ? scanSetupsFile : null;
+  const alertsDoc = typeof scanAlertsFile !== 'undefined' ? scanAlertsFile : null;
+  const scan = (setupsDoc || alertsDoc) && typeof scanOpsStatus === 'function' ? scanOpsStatus() : null;
+  const fileActive = setupsDoc && scan ? scan.active : null;
+  const alerts = alertsDoc && typeof scanAlertsInOrder === 'function' ? scanAlertsInOrder() : null;
+  const saved = typeof workspaceItems === 'function' ? workspaceItems().filter(i => !i.sample) : [];
+  const portfolios = (State.portfolios || []).filter(p => p && !seededPF.includes(p.id) && (p.holdings || []).length);
+  const priceAlerts = (State.priceAlerts || []).filter(pa => pa && !seededPA(pa));
+  const d = State.deal;
+  const dealStarted = !!d && (!!d.userStarted || Object.values(d.touched || {}).some(Boolean));
+  const propertySnaps = typeof loadWork === 'function' ? loadWork().filter(w => w?.kind === 'property').length : 0;
+  const researched = (State.recentCompanies || []).filter(id => BY_ID.has(id));
+  const setupsKnown = setups.length + (fileActive ? fileActive.valid : 0);
+  /* The scanner's record counts as the visitor's own: its matches are of their
+     setups. With a record and no readable setups file (renamed, or every setup
+     in it invalid) the page drew the first-time checklist and hid the matches
+     the sidebar was counting as unread on the same screen. */
+  const hasOwn = lists.length + setupsKnown + saved.length + portfolios.length + priceAlerts.length + propertySnaps + (alerts?.length || 0) > 0 || dealStarted;
+  return { lists, createdLists, sampleLists, instruments, scanSt, setups, setupsDoc, scan, fileActive, alerts, saved, portfolios,
+           priceAlerts, dealStarted, propertySnaps, researched, setupsKnown, hasOwn,
+           samples: typeof hasSeededData === 'function' && hasSeededData() };
+}
+
+/* The four first steps, each ticked from the state that proves it and each
+   with its one action. Research is ticked by a company report having been
+   read here (recentCompanies is written when one renders); a watchlist by a
+   list of the reader's own that holds a company; a setup by one saved here or
+   in the worker's file; a property model by an edit to the calculator's deal
+   or a saved snapshot of one. */
+function myDashSteps(o) {
+  const eq = productById('equities'), sc = productById('scanner'), pr = productById('property');
+  const lastCo = o.researched.length ? BY_ID.get(o.researched[0]) : null;
+  const createdIds = new Set(o.createdLists.flatMap(w => w.ids || []));
+  const inList = o.createdLists.length ? `${myDashPlural(o.createdLists.length, 'list')} of your own, ${myDashPlural(createdIds.size, 'company', 'companies')}` : '';
+  /* Companies added to a sample list are the visitor's, but no list was
+     created: the step says where they went rather than ticking itself. */
+  const inSample = !o.createdLists.length && o.instruments.size
+    ? `${myDashPlural(o.instruments.size, 'company', 'companies')} you added ${o.instruments.size === 1 ? 'sits' : 'sit'} in a sample list. A list of your own keeps your companies apart from the samples.` : '';
+  const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
+  return [
+    { k: 'research', product: 'equities', title: 'Research a company', done: !!lastCo,
+      note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}.`
+        : 'Statements, ratios and a valuation range, every figure with its formula and its source.',
+      action: eq?.action || 'Research a company', path: eq?.actionPath || '/research' },
+    { k: 'watchlist', product: null, title: 'Create a watchlist', done: o.createdLists.length > 0,
+      note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
+      action: 'Create a watchlist', path: '/my/watchlists' },
+    { k: 'setup', product: 'scanner', title: 'Create a scanner setup', done: o.setupsKnown > 0,
+      note: o.setupsKnown ? `${setupsText}.` : 'Conditions you choose, checked on each daily close of the price history you supply, with a record of every bar on which they held.',
+      action: sc?.action || 'Create a setup', path: sc?.actionPath || '/app/scanner/setups/new' },
+    { k: 'property', product: 'property', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
+      note: o.dealStarted || o.propertySnaps
+        ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved snapshot')}` : ''].filter(Boolean).join(' · ') + '.'
+        : 'A price, a rent and a loan in; the monthly cash flow, the rental yield and the cash needed up front out.',
+      action: pr?.action || 'Analyse a property', path: pr?.actionPath || '/property/calculator' },
+  ];
+}
+
+const MYDASH_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const MYDASH_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+
+/* One step as a row: its mark, its title and product, what it is or what was
+   done, and its action. Only the first step not yet done carries the primary
+   button, so the page has one thing to do next rather than four. */
+function myDashStepRow(s, primary) {
+  const li = el('li', { class: 'dash-step', data: { done: s.done ? '1' : '0' } });
+  li.append(el('span', { class: 'dash-step-mark', 'aria-hidden': 'true', html: s.done ? MYDASH_CHECK : '' }));
+  const body = el('div', { class: 'dash-step-body' });
+  body.append(el('div', { class: 'dash-step-t' }, [
+    el('h3', { class: 'h-card' }, [el('span', { class: 'sr-only' }, s.done ? 'Done: ' : 'Not done yet: '), s.title]),
+    s.product ? productBadge(s.product) : null,
+  ]));
+  body.append(el('p', { class: 'caption' }, s.note));
+  li.append(body);
+  li.append(myDashLink(s.path, { class: `btn ${primary ? 'btn-primary' : 'btn-ghost'} btn-sm dash-step-go` }, s.action));
+  return li;
+}
+
+/* A count that opens the page it counts. `value` is text, so an absent record
+   reads as what it is ("No record") and never as a nought. */
+function myDashTile({ icon: ic, label, value, sub, path, note }) {
+  return myDashLink(path, { class: 'dash-tile' }, [
+    el('span', { class: 'dash-tile-hd' }, [el('span', { class: 'dash-tile-ic', 'aria-hidden': 'true', html: icon(ic, 16) }), el('span', { class: 'stat-label' }, label)]),
+    el('span', { class: 'dash-tile-v' + (/^\d+$/.test(value) ? '' : ' is-text') }, value),
+    el('span', { class: 'stat-sub' }, sub),
+    note ? el('span', { class: 'dash-tile-note' }, note) : null,
+    el('span', { class: 'dash-tile-go', 'aria-hidden': 'true', html: MYDASH_CHEVRON }),
+  ]);
+}
+
+VIEWS.home = () => {
+  const visit = myDashVisit();
+  const o = myDashOwn();
+  const steps = myDashSteps(o);
+  const done = steps.filter(s => s.done).length;
+  const wrap = el('div', { class: 'dash' });
+
+  /* -- header ------------------------------------------------------------ */
+  /* New is by when the worker recorded the match (detectedAt), not by its
+     bar: a bar is a session's date, and a match found today can sit on
+     yesterday's. A record written with no time cannot be placed either side
+     of the visit, so it is named rather than counted. */
+  const alertTime = (a) => Date.parse(a?.detectedAt || a?.recordedAt || '');
+  const since = o.alerts && visit.prev ? o.alerts.filter(a => alertTime(a) > Date.parse(visit.prev)) : null;
+  const undated = o.alerts ? o.alerts.filter(a => !Number.isFinite(alertTime(a))).length : 0;
+  const lede = !o.hasOwn
+    ? 'Four first steps, each with its one action. As you take them, this page fills with your own work — never with sample data or anyone else’s activity.'
+    : !visit.prev ? 'This is the first visit this browser has recorded. From the next one, this line says what changed in between.'
+    : !o.alerts ? `Welcome back — you were last here ${myDashWhen(visit.prev)}.${o.setupsKnown ? ' The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : ''}`
+    : since.length ? `Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`
+    : `Nothing new in the scanner’s record since you were last here, ${myDashWhen(visit.prev)}${undated ? ` — ${myDashPlural(undated, 'match', 'matches')} with no recorded time cannot be placed either side of it` : ''}.`;
+  /* The page's name is part of its heading. As an eyebrow <p> above an h1
+     reading only "Good morning", heading navigation and the rotor never
+     named the page; the heading is now "My Dashboard: Good morning", drawn
+     as before. */
+  wrap.append(el('div', { class: 'page-hd dash-hd' }, el('div', {}, [
+    el('h1', {}, [el('span', { class: 'eyebrow dash-eyebrow' }, 'My Dashboard'), el('span', { class: 'sr-only' }, ': '), myDashGreeting()]),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
+  ])));
+
+  /* -- first time: the checklist, and nothing else ------------------------ */
+  if (!o.hasOwn) {
+    const card = el('section', { class: 'card dash-start', 'aria-labelledby': 'dash-start-hd' });
+    const top = el('div', { class: 'dash-start-top' });
+    top.append(el('div', {}, [
+      el('h2', { id: 'dash-start-hd', class: 'h-section' }, 'Set up your workspace'),
+      el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' }, 'Each step is ticked from what this browser actually holds, and stays ticked once it is true.'),
+    ]));
+    top.append(el('div', { class: 'dash-progress' }, [
+      el('span', { class: 'dash-progress-t' }, `${done} of ${steps.length} done`),
+      el('span', { class: 'dash-progress-bar', role: 'progressbar', 'aria-label': 'First steps done', 'aria-valuemin': '0',
+        'aria-valuemax': String(steps.length), 'aria-valuenow': String(done) },
+        el('i', { style: `transform:scaleX(${done / steps.length})` })),
+    ]));
+    card.append(top);
+    const firstOpen = steps.findIndex(s => !s.done);
+    card.append(el('ol', { class: 'dash-steps' }, steps.map((s, i) => myDashStepRow(s, i === firstOpen))));
+    /* Beside the steps, the two ways in that are not steps: the preferences
+       questions and the goal launcher. */
+    const ways = el('section', { class: 'card dash-ways', 'aria-labelledby': 'dash-ways-hd' });
+    ways.append(el('h2', { id: 'dash-ways-hd', class: 'h-card' }, 'Other ways in'));
+    ways.append(el('div', { class: 'dash-more' }, [
+      myDashLink('/welcome', { class: 'dash-more-link' }, [el('strong', {}, 'Set your preferences'),
+        el('span', { class: 'caption' }, onboarded() && !State.onboarding?.skipped ? 'Answered — change your market, currency or level of detail.' : 'Four questions: your goal, your experience, your market and your currency.')]),
+      myDashLink('/start', { class: 'dash-more-link' }, [el('strong', {}, 'Not sure where to start?'),
+        el('span', { class: 'caption' }, 'Pick what you want to find out, and the right tool opens.')]),
+    ]));
+    const aside = el('div', { class: 'dash-side' }, [ways, o.samples ? myDashSampleNote() : null]);
+    wrap.append(el('div', { class: 'dash-first' }, [card, aside]));
+    wrap.append(myDashFoot());
+    return wrap;
+  }
+
+  /* -- returning: four counts, each a door --------------------------------- */
+  const tiles = el('div', { class: 'dash-tiles' });
+  const fa = o.fileActive;
+  /* Active as the worker counts it: enabled, and not past its expiry date. */
+  const today = new Date().toISOString().slice(0, 10);
+  const browserOn = o.setups.filter(s => s.enabled !== false && !(s.expires && s.expires < today)).length;
+  tiles.append(myDashTile({ icon: 'target', label: 'Active setups', path: '/app/scanner/setups',
+    value: String(fa ? Math.max(0, fa.enabled - fa.expired) : browserOn),
+    sub: fa ? `Of ${fa.valid} valid in the worker’s file${o.setups.length ? ` · ${o.setups.length} saved here` : ''}`
+      : o.setups.length ? `Of ${myDashPlural(o.setups.length, 'setup')} saved in this browser — the worker runs them once exported` : 'None saved yet' }));
+  const st = typeof scanAlertStateRead === 'function' ? scanAlertStateRead() : {};
+  const unread = o.alerts && typeof scanAlertStatus === 'function' ? o.alerts.filter(a => scanAlertStatus(a, st) === 'NEW').length : null;
+  tiles.append(myDashTile({ icon: 'bell', path: '/app/scanner/alerts',
+    label: since ? 'New scanner alerts' : o.alerts ? 'Unread scanner alerts' : 'Scanner alerts',
+    value: since ? String(since.length) : o.alerts ? String(unread) : 'No record',
+    sub: since ? `Since ${myDashWhen(visit.prev)} · ${unread} unread${undated ? ` · ${undated} with no recorded time` : ''}`
+      : o.alerts ? `Of ${myDashPlural(o.alerts.length, 'match', 'matches')} recorded — no earlier visit to count from`
+      : o.setupsKnown ? 'The record stays on the machine the worker runs on' : 'You have no scanner setup yet' }));
+  tiles.append(myDashTile({ icon: 'grid', label: 'Instruments watchlisted', path: '/my/watchlists',
+    value: String(o.instruments.size),
+    sub: o.instruments.size ? `Added by you, in ${myDashPlural(o.lists.length, 'list')}` : 'None added by you yet',
+    note: o.sampleLists.length ? 'Sample companies not counted' : null }));
+  const moved = o.saved.filter(i => ['model', 'data', 'both'].includes(i.diff?.status)).length;
+  const kinds = (typeof WORKSPACE_KINDS !== 'undefined' ? WORKSPACE_KINDS : []).map(k => [k, o.saved.filter(i => i.kind === k.id).length]).filter(([, n]) => n);
+  tiles.append(myDashTile({ icon: 'doc', label: 'Saved models', path: '/my/workspace',
+    value: String(o.saved.length),
+    sub: o.saved.length ? kinds.slice(0, 2).map(([k, n]) => `${n} ${(n === 1 && typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE[k.id] : k.label).toLowerCase()}`).join(' · ') + (kinds.length > 2 ? ' · …' : '') : 'Nothing saved yet',
+    note: moved ? `${moved} saved under a model or data version since replaced` : null }));
+  wrap.append(tiles);
+
+  /* The record and what to do next on the left; the reader's own work on the
+     right. On a phone they stack in that order. */
+  const split = el('div', { class: 'dash-split' });
+  const main = el('div', { class: 'dash-side' });
+  main.append(myDashMatches(o, st));
+  const side = el('div', { class: 'dash-side' });
+  side.append(myDashContinue(o));
+  const open = steps.filter(s => !s.done);
+  if (open.length) {
+    const ns = el('section', { class: 'card', 'aria-labelledby': 'dash-next-hd' });
+    ns.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
+      el('h2', { id: 'dash-next-hd', class: 'h-card' }, 'Next steps'),
+      el('p', { class: 'caption', style: 'margin-top:2px' }, `${myDashPlural(open.length, 'first step')} not taken yet.`),
+    ])));
+    ns.append(el('ol', { class: 'dash-steps dash-steps-sm' }, open.map((s, i) => myDashStepRow(s, i === 0))));
+    main.append(ns);
+  }
+  if (o.samples) side.append(myDashSampleNote());
+  split.append(main, side);
+  wrap.append(split);
+  wrap.append(myDashFoot());
+  return wrap;
+};
+
+/* The latest matches, from the worker's record in date order — the alerts
+   page's own order, which is never a ranking. Each row opens its alert. The
+   setup's name is the reader's own title, quoted and attributed as theirs
+   ("your setup"), so a name like "Buy on the cross" reads as what they called
+   a rule, not as something this page says. */
+function myDashMatches(o, st) {
+  const card = el('section', { class: 'card dash-matches', 'aria-labelledby': 'dash-matches-hd' });
+  const hd = el('div', { class: 'card-hd' });
+  hd.append(el('div', {}, [
+    el('h2', { id: 'dash-matches-hd', class: 'h-card' }, 'Latest setup matches'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, 'Newest bar first, from the scanner’s record: the bars on which your own conditions held. A record, not a signal.'),
+  ]));
+  if (o.alerts?.length) hd.append(myDashLink('/app/scanner/alerts', { class: 'btn btn-ghost btn-sm' }, 'All alerts'));
+  card.append(hd);
+  const S = o.scan && typeof SCAN_STATE !== 'undefined' ? SCAN_STATE[o.scan.state] : null;
+  if (S && o.scan.state !== 'never') {
+    const ls = o.scan.lastSuccess, at = ls ? String(ls.finishedAt || ls.startedAt || '').slice(0, 10) : null;
+    card.append(el('div', { class: 'row row-wrap dash-scanline' }, [sevChip(S.sev, S.label),
+      el('span', { class: 'metaline' }, at ? `Last successful scan ${at}, on bars to ${ls.asOf || 'an unrecorded date'}.` : 'No scan has succeeded yet.'),
+      myDashLink('/app/scanner', { class: 'dash-inline' }, 'Scanner status')]));
+  }
+  const empty = (title, text, path, label) => el('div', { class: 'dash-empty' }, [
+    el('p', { class: 'dash-empty-t' }, title), el('p', { class: 'caption' }, text),
+    myDashLink(path, { class: 'btn btn-ghost btn-sm' }, label)]);
+  if (!o.alerts) {
+    card.append(o.setupsKnown
+      ? empty('No record can be seen from here', 'The worker writes its record of matches on the machine it runs on, and it never leaves that machine — so on this site there is nothing to list. Where the worker runs, run it once and reload.', '/app/scanner', 'Open the scanner')
+      : empty('No setup yet', 'A setup is the conditions you look for. Write one, and each bar on which it holds is recorded here.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'));
+    return card;
+  }
+  if (!o.alerts.length) {
+    card.append(empty('Nothing recorded yet', 'No setup of yours has matched on a bar the worker has evaluated. An empty record is the normal state of tight conditions, not a fault.', '/app/scanner/setups', 'Your setups'));
+    return card;
+  }
+  const EVENT = { NEW_MATCH: 'new match', MATCH: 'match', FIRST_OBSERVED: 'first observed' };
+  const nameOf = (a) => o.scanSt?.setups?.[a.setupId]?.name || a.setupName || a.setupId || 'a setup';
+  const ul = el('ul', { class: 'dash-list' });
+  o.alerts.slice(0, 5).forEach(a => {
+    const isNew = typeof scanAlertStatus === 'function' && scanAlertStatus(a, st) === 'NEW';
+    const bar = scanAlertBar(a) || 'an unrecorded bar';
+    ul.append(el('li', {}, myDashLink(scanAlertPath(a), { class: 'dash-row' }, [
+      el('span', { class: 'dash-row-main' }, [
+        el('span', { class: 'dash-row-t' }, [el('strong', {}, a.symbol || a.instrumentId || '—'),
+          el('span', { class: 'metaline' }, bar), isNew ? el('span', { class: 'chip chip-brand' }, 'new') : null]),
+        el('span', { class: 'dash-row-s' }, `Your setup “${nameOf(a)}”${a.setupVersion != null ? ` v${a.setupVersion}` : ''} · ${EVENT[a.eventType] || 'match'}`),
+      ]),
+      el('span', { class: 'dash-row-go', 'aria-hidden': 'true', html: MYDASH_CHEVRON }),
+    ])));
+  });
+  card.append(ul);
+  if (o.alerts.length > 5) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--xs)' },
+    `The five newest of ${o.alerts.length} recorded matches.`));
+  return card;
+}
+
+/* The most recent things the reader made, with the action that reopens each —
+   the workspace's own open, so an item behaves here as it does there — and
+   the companies they last read. A company with illustrative figures says so
+   wherever it is named. */
+function myDashContinue(o) {
+  const card = el('section', { class: 'card', 'aria-labelledby': 'dash-cont-hd' });
+  card.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
+    el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue where you left off'),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, 'Your most recent work in this browser, newest first.'),
+  ])));
+  const t = (v) => { const n = Date.parse(String(v || '').replace(' ', 'T') + (/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(String(v || '')) ? 'Z' : '')); return Number.isFinite(n) ? n : -Infinity; };
+  const kindOne = typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE : {};
+  const rows = [
+    ...o.saved.map(i => ({ at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
+      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null,
+      act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
+    /* A list names what the visitor put in it; a sample list says how many of
+       its companies are samples. Its chip is the workspace's rule: every
+       company illustrative, or some. */
+    ...o.lists.map(w => {
+      const own = myDashOwnIds(w).length, rest = (w.ids || []).length - own;
+      const rows = (w.ids || []).map(id => BY_ID.get(id)).filter(Boolean);
+      const illN = rows.filter(r => !r.c.real).length;
+      return { at: t(w.updatedAt || w.createdAt), when: w.updatedAt || w.createdAt, kind: rest ? 'Watchlist · sample list' : 'Watchlist', name: w.name,
+        detail: rest ? `${myDashPlural(own, 'company', 'companies')} added by you · ${rest} sample` : myDashPlural(own, 'company', 'companies'),
+        illus: illN && illN === rows.length ? 'all' : illN ? 'some' : null, path: '/my/watchlists' };
+    }),
+    ...o.setups.map(s => ({ at: t(s.updated || s.created), when: s.updated || s.created, kind: 'Scanner setup', name: s.name || s.id,
+      detail: `v${s.version} · ${s.enabled === false ? 'disabled' : 'enabled'}`, path: scanSetupPath(s.id) })),
+    ...o.portfolios.map(p => ({ at: -Infinity, when: null, kind: 'Portfolio', name: p.name, detail: myDashPlural(p.holdings.length, 'holding'), path: '/my/portfolio' })),
+    ...(o.dealStarted ? [{ at: -Infinity, when: null, kind: 'Property deal in progress', name: typeof WORK_KINDS !== 'undefined' ? WORK_KINDS.property.name() : 'Your deal',
+      detail: 'Kept in this browser as you edit', path: '/property/calculator' }] : []),
+    ...(o.priceAlerts.length ? [{ at: -Infinity, when: null, kind: 'Price alerts', name: myDashPlural(o.priceAlerts.length, 'price alert') + ' of your own',
+      detail: 'Kept in this browser', path: '/my/alerts' }] : []),
+  ].sort((a, b) => b.at - a.at).slice(0, 6);
+  if (!rows.length) {
+    card.append(el('div', { class: 'dash-empty' }, [
+      el('p', { class: 'dash-empty-t' }, 'Nothing saved in this browser yet'),
+      el('p', { class: 'caption' }, 'A valuation run, a comparison, a screen, an investment case or a tool snapshot appears here with the action that reopens it.'),
+      myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm' }, 'Saved models')]));
+  } else {
+    const ul = el('ul', { class: 'dash-list dash-cont' });
+    rows.forEach(r => {
+      /* One clock on the page: the reader's. The lede gives the last visit in
+         local time; these rows gave UTC with an ISO date, so a list edited an
+         hour ago read as older than a visit five hours ago. A bare date has no
+         time of day to convert and is printed as the date it is. */
+      const when = !r.when ? null : String(r.when).length <= 10
+        ? new Date(`${String(r.when)}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        : Number.isFinite(r.at) ? myDashWhen(r.at) : null;
+      const meta = [r.detail, when].filter(Boolean).join(' · ');
+      const chips = [
+        r.illus === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
+          : r.illus === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
+        r.moved ? el('span', { class: 'chip chip-warn', title: r.moved.text }, r.moved.label) : null,
+      ].filter(Boolean);
+      const main = el('span', { class: 'dash-row-main' }, [
+        el('span', { class: 'dash-row-k' }, r.kind),
+        el('span', { class: 'dash-row-t' }, [el('strong', {}, r.name), ...chips]),
+        el('span', { class: 'dash-row-s' }, meta),
+      ]);
+      ul.append(el('li', {}, r.path
+        ? myDashLink(r.path, { class: 'dash-row' }, [main, el('span', { class: 'dash-row-go', 'aria-hidden': 'true', html: MYDASH_CHEVRON })])
+        : el('div', { class: 'dash-row dash-row-act' }, [main, r.act])));
+    });
+    card.append(ul);
+  }
+  const recent = o.researched.slice(0, 5).map(id => BY_ID.get(id)).filter(Boolean);
+  if (recent.length) {
+    card.append(el('p', { class: 'stat-label', style: 'margin-top:var(--md)' }, 'Recently opened companies'));
+    card.append(el('div', { class: 'dash-cos' }, recent.map(r => myDashLink(companyPath(r.c), { class: 'dash-co', title: r.c.real ? r.c.name : `${r.c.name} — ${ILLUS_TITLE}` },
+      [el('strong', {}, r.c.tk), illusChip(r.c)]))));
+  }
+  return card;
+}
+
+/* The seeded samples are real rows in this browser's store; the page leaves
+   them out of every count, and says so, so the Watchlists page's two lists
+   and this page's "no list of your own" do not read as a contradiction. */
+function myDashSampleNote() {
+  return el('div', { class: 'dash-note' }, [
+    el('span', { class: 'chip chip-bronze' }, 'Sample data'),
+    el('p', { class: 'caption' }, 'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear the sample data'),
+  ]);
+}
+
+/* Where all of this lives, said once, and the way to the copy that travels. */
+function myDashFoot() {
+  const p = el('p', { class: 'caption dash-foot' }, [
+    'Everything on this page is read from this browser and the scanner’s own record — there is no account, and nothing syncs. The export on ',
+    myDashLink('/my/data', { class: 'dash-inline' }, 'Your data & settings'), ' is the copy that travels.',
+  ]);
+  /* The research queue this page used to be, while its address resolves. */
+  if (myDashRoutes('/research/queue')) p.append(' The equities research queue — market context and what changed across companies — is now the ',
+    myDashLink('/research/queue', { class: 'dash-inline' }, 'Research queue'), ' tab of Equities Research.');
+  return p;
 }
 
 /* ==========================================================================
@@ -857,7 +1319,7 @@ function renderScreener() {
         el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
           `${U.length - backed} of ${U.length} companies have no observed price history`),
         el('p', { class: 'metaline' },
-          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Add your own closes under My Investments → Your data.`),
+          `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Add your own closes under Your data & settings.`),
       ]));
     }
   }
@@ -2709,11 +3171,17 @@ function tabStrip(label, tabs, current, open, attrs = {}) {
 VIEWS.discover = () => {
   const wrap = el('div');
   const hd = el('div', { style: 'margin-bottom:var(--lg)' });
-  hd.append(el('p', { class: 'eyebrow' }, 'Discover'));
-  hd.append(el('h1', { style: 'font-size:24px;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
+  /* Equities Research's Screener (Release A): the product tab row above
+     names the product, and this strip is the Screener's sub-tabs. */
+  hd.append(el('p', { class: 'eyebrow' }, 'Screener'));
+  /* The page title's weight, 700, as on every other page (it was 600). */
+  hd.append(el('h1', { style: 'font-size:24px;font-weight:700;letter-spacing:-.02em;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
   /* Through the address: /discover/screener and /discover/value-map have
-     routes of their own, the other two ride on ?tab=. */
-  hd.append(tabStrip('Discover tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id })));
+     routes of their own, the other two ride on ?tab=. A segmented control,
+     not a second underline row: under the product's own underline tabs, two
+     identical rows gave no sign which was the product's and which this
+     page's. The tablist, its keys and its one tab stop are unchanged. */
+  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id }), { class: 'segmented tools-seg' }));
   wrap.append(hd);
 
   /* With a fallback: a tab id this view does not know renders the screener

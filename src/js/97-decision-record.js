@@ -283,7 +283,7 @@ VIEWS.decisionRecord = () => {
   const bar = el('div', { class: 'card dr-chrome' });
   bar.append(cardHead('Decision record',
     'One page holding the figures, every input with where it came from, the pictures and everything still open. '
-    + 'Print it or save it as PDF — this is the version that leaves the browser.'));
+    + 'Print it or save it as PDF — this is the version that leaves the browser.', null, { heading: false }));
   if (ready.length > 1) {
     const seg = el('div', { class: 'segmented', style: 'margin-top:var(--md)', role: 'tablist' });
     /* Focus stays on the tab that was pressed; render() alone replaced it and

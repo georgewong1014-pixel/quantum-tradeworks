@@ -213,7 +213,9 @@ function upsell(title, detail) {
   ]));
   box.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--sm)' }, detail));
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('plans') }, 'See plans'),
+    /* Outline: a plan prompt is never the page's primary action — on the
+       property calculator it was the only filled button, at the page's end. */
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'),
     el('span', { class: 'metaline' }, 'No payment is processed in this prototype.'),
   ]));
   return box;

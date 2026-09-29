@@ -18,6 +18,10 @@ function openSearch() {
      results gone, while searchOpen said it was open, so "/" only focused an
      invisible input and the search was dead until Escape. */
   clearTimeout(searchHideTimer); searchHideTimer = null;
+  /* A menu or the navigation drawer the search was opened from closes first,
+     handing focus to its own button — which is then where the search returns
+     it, rather than to a link inside a drawer that is no longer open. */
+  closeShellMenus({ restore: true });
   searchOpen = true;
   searchLastFocus = document.activeElement;
   searchModal.hidden = false;
@@ -50,10 +54,19 @@ function closeSearch({ restore = true } = {}) {
      here failed silently and dropped focus on <body>; focusMain() puts the
      tabindex back first. Anything else that did not take focus falls back to
      the search button. */
-  const target = back && back !== document.body && document.contains(back) && back !== searchInput ? back : $('#openSearch');
-  if (target?.id === 'main') { focusMain(); return; }
-  target?.focus?.({ preventScroll: true });
-  if (document.activeElement !== target) $('#openSearch')?.focus({ preventScroll: true });
+  /* There are three search buttons since Release A — the sidebar's, the slim
+     bar's, and none at all in the public header — and at most one shows, so
+     the fallback is whichever is on screen, and the page's main landmark
+     where none is. Focusing a hidden button fails silently and leaves focus
+     on <body>. */
+  const button = searchButtonShown();
+  const target = back && back !== document.body && document.contains(back) && back !== searchInput ? back : button;
+  if (!target || target.id === 'main') { focusMain(); return; }
+  target.focus?.({ preventScroll: true });
+  if (document.activeElement !== target) { if (button) button.focus({ preventScroll: true }); else focusMain(); }
+}
+function searchButtonShown() {
+  return [...document.querySelectorAll('[data-open-search]')].find(b => b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden') || null;
 }
 function runSearch(q) {
   const term = q.trim().toLowerCase();
@@ -80,7 +93,7 @@ function runSearch(q) {
       nm.append(el('div', { class: 'row', style: 'gap:6px' }, [
         el('span', { style: 'font-size:13px;font-weight:600' }, ins.symbol), marketChip(ins.market),
         el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]));
-      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on My Investments › Tracked`));
+      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on Watchlists › Tracked`));
       b.append(nm);
       return b;
     }
@@ -139,20 +152,31 @@ function runSearch(q) {
 /* Debounced: a keystroke every 40ms re-ranked the whole registry each time. */
 let searchTimer = null;
 searchInput.addEventListener('input', e => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { searchTimer = null; runSearch(e.target.value); }, 120); });
-$('#openSearch').addEventListener('click', openSearch);
+$$('[data-open-search]').forEach(b => b.addEventListener('click', openSearch));
 $('#closeSearch')?.addEventListener('click', closeSearch);
 document.addEventListener('keydown', e => {
   /* Escape closes the dialog on top, not every dialog. The search box opened
      over a drawer ("/" works there) closed both on one press, and the drawer
      the reader had gone back to went with it — its focus hand-back landing on
-     the page underneath. A second Escape closes the drawer. */
-  if (e.key === 'Escape') { if (searchOpen) closeSearch(); else if (drawer.dataset.open === '1') closeDrawer(); return; }
+     the page underneath. A second Escape closes the drawer. Then the chrome's
+     own: the navigation drawer, an open header menu, the phone's sheet — each
+     handing focus back to the button that opened it. */
+  if (e.key === 'Escape') {
+    if (searchOpen) closeSearch();
+    else if (drawer.dataset.open === '1') closeDrawer();
+    else closeNavDrawer() || closeMenu() || closeSheet();
+    return;
+  }
   if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) { e.preventDefault(); openSearch(); return; }
+  /* Ctrl+K and Cmd+K, the other key a reader reaches for. From anywhere, a
+     field included — it is a chord, and types nothing. */
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); openSearch(); return; }
 
   /* BOTH DIALOGS SAY aria-modal AND NEITHER WAS. Tab walked straight out of
      the drawer and the search box into the page behind them. While one is
-     open, Tab and Shift+Tab cycle inside it. */
-  const dialog = searchOpen ? searchModal : drawer.dataset.open === '1' ? drawer : null;
+     open, Tab and Shift+Tab cycle inside it — and inside the navigation
+     drawer, which says aria-modal too while it is open. */
+  const dialog = searchOpen ? searchModal : drawer.dataset.open === '1' ? drawer : navDrawerOpen ? $('#sidebar') : null;
   if (dialog && e.key === 'Tab') {
     const f = [...dialog.querySelectorAll('button,[href],input,select,textarea,summary,[tabindex]:not([tabindex="-1"])')]
       .filter(n => !n.disabled && n.offsetParent !== null);
@@ -196,11 +220,21 @@ function currentTheme() {
   return document.documentElement.dataset.theme
     || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 }
-/* The toggle says what pressing it does, from the theme actually showing. */
+/* The toggle says what pressing it does, from the theme actually showing.
+   Every toggle — the public header's, the sidebar's, the phone sheet's —
+   says the same thing: the icon, the name, and where there is room, the
+   theme it switches to in words. */
 function paintThemeToggle() {
   const t = currentTheme();
-  $('#themeIcon').innerHTML = t === 'dark' ? SUN : MOON;
-  themeToggle.setAttribute('aria-label', t === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme');
+  const said = t === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme';
+  $$('[data-theme-toggle]').forEach(b => {
+    b.setAttribute('aria-label', said);
+    const ico = b.querySelector('#themeIcon, [data-theme-icon]');
+    if (ico) ico.innerHTML = ico.tagName.toLowerCase() === 'svg' ? (t === 'dark' ? SUN : MOON)
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" style="width:18px;height:18px">${t === 'dark' ? SUN : MOON}</svg>`;
+    const label = b.querySelector('[data-theme-label]');
+    if (label) label.textContent = t === 'dark' ? 'Light theme' : 'Dark theme';
+  });
 }
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
@@ -209,7 +243,7 @@ function applyTheme(t) {
   /* charts read their colours from CSS custom properties, so redraw them */
   requestAnimationFrame(() => render());
 }
-themeToggle.addEventListener('click', () => applyTheme(currentTheme() === 'dark' ? 'light' : 'dark'));
+$$('[data-theme-toggle]').forEach(b => b.addEventListener('click', () => applyTheme(currentTheme() === 'dark' ? 'light' : 'dark')));
 
 const savedTheme = store.read('theme', null);
 if (savedTheme) document.documentElement.dataset.theme = savedTheme;
@@ -231,11 +265,13 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 /* ------------------------------------------------------------------- boot */
 const refreshSearchLabel = () => {
   /* No number while the filings are in flight. Writing "36" and correcting it to
-     "138" a second later states a figure the product is about to contradict,
-     and the static markup already says "Search companies…" — which is true in
-     both states. */
-  $('#searchLabel').textContent = realPending ? 'Search companies…' : `Search ${U.length} companies…`;
-  $('#openSearch').setAttribute('aria-label', realPending ? 'Search companies' : `Search ${U.length} companies`);
+     "138" a second later states a figure the product is about to contradict.
+     The visible label is "Search companies" in both states — it fits the
+     sidebar, and it is true in both — and the count, once there is a right
+     one, joins every search button's accessible name — after the words on
+     the button, so a voice command naming what is visible still finds it. */
+  $('#searchLabel').textContent = 'Search companies';
+  $$('[data-open-search]').forEach(b => b.setAttribute('aria-label', realPending ? 'Search companies' : `Search companies (${U.length})`));
 };
 
 /* The banner used to say every figure on the site was synthetic. That was true

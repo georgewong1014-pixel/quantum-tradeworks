@@ -27,6 +27,14 @@
   --text-card:    20px;   /* card headings */
   --text-h1:      24px;   /* page headings */
   --text-display: 32px;   /* marketing display */
+  /* The marketing tier (Release A): the homepage and /how-it-works only.
+     Fluid between a phone and 1440px, each with its floor and ceiling. */
+  --text-lede:       clamp(16px, 1.45vw, 19px);  /* a marketing page's standfirst */
+  --text-h3-lg:      clamp(22px, 2.1vw, 28px);   /* a product's name on /how-it-works */
+  --text-h2:         clamp(26px, 2.5vw, 34px);   /* a marketing section heading */
+  --text-stat:       30px;                       /* a dashboard count */
+  --text-display-lg: clamp(32px, 4.6vw, 54px);   /* /how-it-works' headline */
+  --text-hero:       clamp(36px, 5.6vw, 64px);   /* the homepage's headline */
 
   --weight-body:     400;
   --weight-medium:   500;
@@ -324,15 +332,6 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   backdrop-filter: saturate(1.4) blur(14px);
   border-bottom: 1px solid var(--line);
 }
-.topbar-in {
-  height: var(--topbar-h);
-  display: flex; align-items: center; gap: var(--lg);
-  max-width: var(--shell-max); margin: 0 auto; padding: 0 var(--xl);
-}
-@media (max-width: 900px) { .topbar-in { padding: 0 var(--lg); gap: var(--md); } }
-@media (max-width: 560px) { .topbar-in { padding: 0 var(--md); } }
-
-
 .brand { display: flex; align-items: center; gap: 10px; flex: none; text-decoration: none; }
 /* The mark is the naked octagonal Q, as in the primary lockup — no container. */
 .brand-mark { width: 30px; height: 30px; flex: none; display: block; }
@@ -343,7 +342,11 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   display: flex; align-items: baseline; gap: 6px;
 }
 .brand-name span { color: var(--logo-teal-text); font-weight: 700; letter-spacing: -.01em; }
-@media (max-width: 520px) { .brand-name span { display: none; } }
+/* Only in a bar, and only where a bar genuinely cannot hold it. It hid
+   "Tradeworks" below 520px everywhere — in the footer and the 320px drawer,
+   which have room — and in the header, which has room since its action reads
+   "Open" on a phone. The product's name is not truncated to fit a phone. */
+@media (max-width: 339px) { .bar-in .brand-name span { display: none; } }
 .brand-tagline {
   font-size:12px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--ink-3); margin-top: 5px; font-weight:600;
@@ -351,24 +354,11 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .brand-tagline i { color: var(--logo-teal); font-style: normal; }
 .brand-tagline i.amber { color: var(--logo-amber); }
 
-.mainnav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.mainnav::-webkit-scrollbar { display: none; }
-.navlink {
-  appearance: none; background: none; border: 0; cursor: pointer;
-  padding: 7px 9px; border-radius: var(--r-sm);
-  font-size:13px; font-weight:500; color: var(--ink-2); white-space: nowrap;
-  transition: color 160ms ease, background-color 160ms ease;
-  /* Nav items and buttons became real anchors so the browser contract works —
-     middle-click, open in new tab, copy link address. Anchors bring a default
-     underline that these never had. */
-  text-decoration: none;
-}
+/* Buttons became real anchors so the browser contract works — middle-click,
+   open in new tab, copy link address. Anchors bring a default underline that
+   these never had. */
 .btn, a.btn, .task-card, a.task-card { text-decoration: none; }
-.navlink:focus-visible, .btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-.navlink:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.navlink[aria-current="page"] { color: var(--ink); background: var(--surface-2); box-shadow: var(--lift-1); font-weight: 600; }
-
-.topbar-actions { display: flex; align-items: center; gap: var(--xs); flex: none; }
+.btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 .searchbtn {
   display: flex; align-items: center; gap: var(--xs);
@@ -380,22 +370,6 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .searchbtn:hover { border-color: var(--line-2); color: var(--ink-2); box-shadow: var(--lift-1); }
 .searchbtn .kbd { margin-left: auto; }
 @media (max-width: 1080px) { .searchbtn { min-width: 0; } .searchbtn-label, .searchbtn .kbd { display: none; } }
-
-/* With ten primary areas the nav can no longer share a row with the brand and
-   the actions on a narrow laptop without silently clipping the last item, so it
-   takes its own full-width row well before tablet widths.
-   Declared after the base .mainnav rule so the flex override actually wins. */
-@media (max-width: 1220px) {
-  .topbar-in { height: auto; flex-wrap: wrap; padding-top: 10px; row-gap: 0; }
-  .brand { flex: 1 1 auto; }
-  .topbar-actions { order: 2; }
-  .mainnav {
-    order: 3; flex: 0 0 100%; width: 100%;
-    margin-top: 8px; padding-top: 7px; padding-bottom: 6px;
-    border-top: 1px solid var(--line);
-  }
-  .navlink { padding: 7px 11px; }
-}
 
 .kbd {
   font-family: var(--mono); font-size:12px; color: var(--ink-3);
@@ -427,13 +401,21 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
 .disclosure svg { width: 14px; height: 14px; flex: none; color: var(--bronze); }
 .disclosure strong { color: var(--ink); font-weight:600; }
 
-/* On the public page the disclosure collapses to one compact line: the warning
-   still appears above the fold, but it no longer occupies four lines in front
-   of the headline. The full text stays in the markup for assistive technology
-   and for anyone who reads the source; only the elaboration is hidden. */
-body[data-surface="public"] .disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size:12px; }
-body[data-surface="public"] .disclosure-in .chip { display: none; }
-body[data-surface="public"] .disclosure-long { display: none; }
+/* ONE COMPACT LINE, ON BOTH CHROMES (Release A). The warning still appears
+   above the fold, but it no longer occupies four lines in front of the
+   headline. The elaboration — the source breakdown and the two research-mode
+   chips — is folded behind "Which sources?" at every width, never removed, so
+   every word of the disclosure is one press away on every page.
+   It was one line on the public pages only. Inside the app it ran the whole
+   breakdown and the two chips beside it: three lines at 1440px, five at 768
+   and 1024, and at 390 it put a workspace page's heading 311–577px down an
+   844px screen — every workspace page, every visit, for a sentence the
+   reader had already been shown. The material sentence (beta preview, do
+   not use for investment decisions) is the same on both, and always shown. */
+.disclosure-in { padding-top: 6px; padding-bottom: 6px; font-size:12px; }
+.disclosure-long { display: none; }
+#disclosureMore { display: inline; }
+body[data-disclosure="open"] .disclosure-long { display: inline; }
 
 /* THE WARNING WAS EATING HALF THE PHONE.
    ---------------------------------------------------------------------------
@@ -446,15 +428,16 @@ body[data-surface="public"] .disclosure-long { display: none; }
    breakdown, behind a control that says what it holds. A warning nobody reaches
    is not a warning, and neither is one that pushes the page off the screen.
 
-   The button hides itself where the long text already shows, so there is never
-   a control that expands something already visible. */
-#disclosureMore { display: none; font-size: 12px; }
+   Since Release A the breakdown folds at every width on both chromes (above),
+   so the button is always there and always expands something hidden. */
+#disclosureMore { font-size: 12px; }
 @media (max-width: 760px) {
-  body:not([data-surface="public"]) .disclosure-long { display: none; }
-  body:not([data-surface="public"]) #disclosureMore { display: inline; }
-  body[data-disclosure="open"] .disclosure-long { display: inline; }
-  body[data-surface="public"] #disclosureMore { display: none; }
   .disclosure-in .chip { font-size:12px; }
+  /* The property page's own qualifier folds on a phone as it always has,
+     and opens with the strip's "Which sources?". It borrowed the strip's
+     class, which now folds at every width. */
+  .fold-phone { display: none; }
+  body[data-disclosure="open"] .fold-phone { display: inline; }
 }
 .disclosure a { color: var(--ink); text-underline-offset: 3px; }
 
@@ -651,28 +634,16 @@ table.dt thead th.chg { color: var(--ink-3); }
 
 /* Auto-fit rather than fixed counts, so a row reflows instead of overflowing
    and no separate mobile rule is needed to stop horizontal scroll. */
-.grid-tasks { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 .grid-3     { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .grid-4     { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .grid-5     { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 
-/* TWO COLUMNS, AND THE RIGHT ONE IS THE PRODUCT.
-   ---------------------------------------------------------------------------
-   The hero was one 46rem column with an empty right half and no product proof
-   anywhere on the page — a research tool asking to be trusted while showing
-   nothing it produces.
-
-   What sits there is not a screenshot and not an illustration. It is the real
-   render path: dealModel, wheelMath and qttiRun called on deterministic
-   fixtures, drawn with the same components the workspaces use. It cannot drift
-   from what the product actually outputs, it inherits the theme, it stays
-   readable at any zoom, and a screen reader reads it as the figures it is.
-
-   min-height reserves the space so nothing moves when it paints. */
-.hero-grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: var(--xxl); align-items: center; }
-@media (max-width: 940px) { .hero-grid { grid-template-columns: 1fr; gap: var(--xl); } }
-.hero-proof { display: flex; flex-direction: column; gap: var(--md); min-height: 380px; }
-@media (max-width: 940px) { .hero-proof { min-height: 0; } }
+/* THE PROOF CARDS (/how-it-works since Release A; the homepage's hero until
+   then). Not a screenshot and not an illustration: the real render path —
+   dealModel, wheelMath and qttiRun called on deterministic fixtures, drawn
+   with the same components the workspaces use. They cannot drift from what
+   the product actually outputs, they inherit the theme, they stay readable
+   at any zoom, and a screen reader reads them as the figures they are. */
 .proof-card {
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-lg);
   padding: var(--md) var(--lg); box-shadow: var(--lift-1);
@@ -691,26 +662,12 @@ table.dt thead th.chg { color: var(--ink-3); }
 .proof-row .pk { font-size: 12px; color: var(--ink-3); align-self: end; }
 @media (max-width: 420px) { .proof-row .pv { font-size: 17px; } }
 
-.hero { padding: var(--xxxl) 0 var(--xl); }
-/* On a phone the top padding was pushing the headline a third of the way down
-   the first screen, under a warning banner that already takes a quarter of it. */
-@media (max-width: 940px) { .hero { padding: var(--xl) 0 var(--lg); } }
-.hero-h1 {
-  font-size: clamp(30px, 4.2vw, 46px); font-weight:700; letter-spacing: -0.022em;
-  line-height: 1.12; margin: 0; text-wrap: balance;
-}
-.hero-lede { font-size: clamp(15px, 1.4vw, 17px); color: var(--ink-2); line-height: 1.55; margin: var(--md) 0 0; max-width: 42rem; }
-
 .task-card { display: block; text-decoration: none; color: inherit; }
 .task-card:hover { border-color: color-mix(in srgb, var(--brand) 34%, var(--line)); }
 .task-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .task-cta { display: inline-block; font-size: 12px; font-weight: 600; color: var(--brand); }
 .task-cta::after { content: ' →'; }
 
-.step-n {
-  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--brand-wash); color: var(--brand); font-size: 12px; font-weight:700;
-}
 .ticklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 /* The blocker and refusal lists. Same reasoning as .body. */
 .ticklist li { font-size: 14px; line-height: 1.5; color: var(--ink-2); padding-left: 18px; position: relative; }
@@ -973,7 +930,8 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
    Two strips scroll horizontally with the scrollbar suppressed and no fade,
    arrow or any other sign that more exists. Measured at 390px:
 
-     .mainnav    55px hidden — the whole of "Learn" at 0px visible
+     the header  55px hidden — the whole of "Learn" at 0px visible (the
+                 pre-Release A header; the sidebar replaced it)
      .segmented  94px hidden on the screener's density toggle — the whole of
                  "Compact" at 0px visible, confirmed by hit-testing eight
                  points across its box and self-hitting none of them
@@ -991,8 +949,8 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
    at all, so the shadows stay for the one case that still scrolls and this
    rule never fires. */
 @media (max-width: 768px) {
-  .mainnav, .segmented, .subnav { flex-wrap: wrap; overflow-x: visible; }
-  .segmented, .mainnav { row-gap: 2px; }
+  .segmented, .subnav { flex-wrap: wrap; overflow-x: visible; }
+  .segmented { row-gap: 2px; }
   .subnav { row-gap: 0; }
 }
 
@@ -1042,7 +1000,7 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   /* The checkbox itself stays small; the whole 44px row is the target,
      because .checkline is the <label> that wraps it. */
   .checkline input { width: 20px; height: 20px; }
-  .navlink, .brand, .skip-link, .tickerbtn, .subnav button, .subnav a {
+  .brand, .skip-link, .tickerbtn, .subnav button, .subnav a {
     min-height: 44px; display: inline-flex; align-items: center;
   }
   /* height:34px would otherwise win the box calculation over min-height on
@@ -1254,8 +1212,9 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 @media (max-width: 640px) { .view { padding: var(--lg) 0 var(--xxl); } }
 
 .page-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--lg); flex-wrap: wrap; margin-bottom: var(--lg); }
-.page-hd h1 { font-size: 24px; font-weight:700; letter-spacing: -.02em; }
+.page-hd h1, .page-title { font-size: var(--text-h1); font-weight:700; letter-spacing: -.02em; }
 .page-hd > div:first-child { flex: 1 1 560px; min-width: 0; }
+@media (max-width: 760px) { .page-title { font-size: 22px; } }
 
 /* PROGRESSIVE DISCLOSURE ON THE PHONE.
    ---------------------------------------------------------------------------
@@ -1783,7 +1742,7 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
     --logo-navy: #14284B; --logo-teal-text: #0B7159; --logo-word: var(--logo-navy);
   }
   html, body { background: #fff !important; color: #16160f !important; }
-  .topbar, .mainnav, .subnav, .disclosure, .decision-dock, .footer,
+  .topbar, .subnav, .disclosure, .decision-dock, .footer,
   .drawer, .drawer-scrim, .modal, .modal-scrim, .toast, .skip-link,
   .dr-chrome, .segmented, .searchbtn, .iconbtn { display: none !important; }
   /* The card frame is screen furniture; on paper the page IS the card. */
@@ -1928,7 +1887,42 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   background: var(--bronze-wash); color: var(--bronze);
   border: 1px solid color-mix(in srgb, var(--bronze) 30%, transparent);
 }
-.scan-subnav { margin-bottom: 0; flex-wrap: wrap; }
+/* /pricing (VIEWS.plans, 90-area-screen.js). */
+.plan-grid { align-items: stretch; }
+.plan-card { display: flex; flex-direction: column; }
+.plan-cta { margin-top: auto; width: 100%; min-height: 44px; }
+.plan-current {
+  display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--r-md);
+  background: var(--brand-wash); color: var(--brand); font-size: var(--text-sm); font-weight: var(--weight-semibold);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent);
+}
+.plan-current svg { width: 15px; height: 15px; }
+@media (max-width: 599px) {
+  table.dt-stack, table.dt-stack tbody, table.dt-stack tr, table.dt-stack td { display: block; width: auto; }
+  table.dt-stack { min-width: 0; }
+  table.dt-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  table.dt-stack tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--md); padding: var(--sm) var(--md); border-top: 1px solid var(--grid); }
+  table.dt-stack tr:first-child { border-top: 0; }
+  table.dt-stack td { padding: 0 !important; border: 0 !important; background: none !important; text-align: left !important; }
+  table.dt-stack td:nth-child(2) { text-align: right !important; font-weight: var(--weight-semibold); }
+  table.dt-stack td:nth-child(3) { grid-column: 1 / -1; max-width: none !important; color: var(--ink-2); }
+}
+/* The Equities overview's search (researchHome): the page's largest control
+   and its one primary action, a 48px row. */
+.rh-searchrow .input.rh-search, .rh-searchrow .select { height: 48px; font-size: var(--text-body); }
+.rh-searchrow .input.rh-search { padding: 0 14px; }
+.rh-searchrow .rh-go { min-height: 48px; padding: 0 20px; font-size: var(--text-body); }
+@media (max-width: 560px) { .rh-searchrow .rh-go { flex: 1 1 100%; } }
+/* The sample-data banner on the personal pages (sampleBanner,
+   50-views-studio.js): a bronze note with room inside its rule. */
+.sample-banner {
+  padding: var(--sm) var(--md); margin-bottom: var(--md); border-radius: var(--r-md);
+  background: var(--bronze-wash); border: 1px solid color-mix(in srgb, var(--bronze) 26%, transparent);
+  border-left: 3px solid var(--bronze);
+}
+.stack > .sample-banner { margin-bottom: 0; }
+/* The operations pages' strip; the Scanner's own is a section row now. */
+.segmented.scan-subnav { margin-bottom: 0; flex-wrap: wrap; }
 
 /* The state band: a coloured edge keyed to the state, the chip and the
    headline saying it in words. */
@@ -2074,3 +2068,1162 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
   .scan-bot-syms { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); max-height: 264px; }
 }
 /* ---- end bot: pages ---- */
+/* ---- release-a: shell ---- */
+/* ==========================================================================
+   THE TWO CHROMES (Release A). <html data-chrome> is written by buildNav()
+   (35-ui.js) from the view on screen: "public" wears the header, "app" the
+   sidebar. With no attribute yet — the frame before the script — the public
+   header shows, since it is the front door's and holds nothing personal.
+   Palette, depth and type are the tokens at the top of this file; nothing
+   here invents a colour. Only transform, opacity and box-shadow move.
+   ========================================================================== */
+:root { --sidebar-w: 264px; }
+
+/* Which chrome shows. A hidden one is display:none — out of the tab order
+   and the accessibility tree, not merely invisible. */
+:root:not([data-chrome="app"]) .appbar,
+:root:not([data-chrome="app"]) .sidebar,
+:root:not([data-chrome="app"]) .navscrim { display: none; }
+:root[data-chrome="app"] .pubbar { display: none; }
+
+/* The bars' shared row. The old .topbar-in wrapped its six links under the
+   brand below 1220px; these rows never wrap, so none of that applies. */
+.bar-in {
+  display: flex; align-items: center; gap: var(--lg);
+  max-width: var(--shell-max); margin: 0 auto; padding: 0 var(--xl);
+  height: 64px;
+}
+.bar-in .brand { flex: none; }
+.bar-actions { display: flex; align-items: center; gap: var(--xs); margin-left: auto; flex: none; }
+@media (max-width: 900px) { .bar-in { padding: 0 var(--lg); gap: var(--md); } }
+@media (max-width: 560px) { .bar-in { padding: 0 var(--md); gap: var(--xs); } }
+
+/* ------------------------------------------------------- status badges */
+/* Live, Beta, Demo, Coming soon — always the word, never a colour alone.
+   Each pairing measures over 4.5:1 in both themes: the text tokens are the
+   ones built for their own washes (--ok-text, --brand, --bronze). */
+.status-badge {
+  display: inline-flex; align-items: center; flex: none;
+  height: 20px; padding: 0 7px; border-radius: 999px;
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .05em;
+  text-transform: uppercase; line-height: 1; white-space: nowrap;
+  border: 1px solid transparent;
+}
+/* Heard as a separate word — "Equities Research, Beta" — not run on as
+   "Equities Research BETA": a comma for a screen reader, drawn nowhere. */
+.status-badge::before {
+  content: ", "; position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.status-live { color: var(--ok-text); background: color-mix(in srgb, var(--ok) 11%, var(--surface)); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.status-beta { color: var(--brand); background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
+.status-demo { color: var(--bronze); background: var(--bronze-wash); border-color: color-mix(in srgb, var(--bronze) 30%, transparent); }
+.status-soon { color: var(--ink-2); background: var(--surface-sunk); border-color: var(--line-2); }
+
+/* ------------------------------------------------------- public header */
+.pubbar { z-index: 45; }
+.pubnav { flex: 1; min-width: 0; }
+.pubnav-list { list-style: none; padding: 0; display: flex; align-items: center; gap: 2px; }
+.publink {
+  appearance: none; border: 0; background: none; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 12px; border-radius: var(--r-md);
+  font-size: var(--text-body); font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap;
+  transition: box-shadow 180ms ease;
+}
+.publink:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.publink[aria-expanded="true"] { color: var(--ink); background: var(--surface-2); box-shadow: var(--lift-1); }
+.publink[aria-current="page"], .publink[data-current] { color: var(--ink); font-weight: var(--weight-semibold); box-shadow: inset 0 -2px 0 var(--brand); border-radius: var(--r-md) var(--r-md) 0 0; }
+.publink[aria-expanded="true"][data-current] { box-shadow: var(--lift-1); border-radius: var(--r-md); }
+.pub-chev { display: inline-flex; color: var(--ink-3); transition: transform 200ms ease; }
+.publink[aria-expanded="true"] .pub-chev { transform: rotate(180deg); }
+.pub-cta { min-height: 40px; padding: 0 16px; font-size: var(--text-body); gap: .28em; }
+/* The finger's floor, where a finger is: this rule sits after the touch
+   block's .btn rule and would otherwise undercut it by 4px. */
+@media (pointer: coarse), (max-width: 768px) { .pub-cta { min-height: 44px; } }
+/* Stepped down while the page's own primary action is on screen
+   (watchPageCta, 35-ui.js): the outline button, not a second filled one. */
+/* Outranks the dark theme's primary-text rule (:root[data-theme="dark"]
+   .btn-primary), which left dark ink on the dark outline button. */
+:root .pubbar .pub-cta.pub-cta-quiet {
+  background: var(--surface-2); color: var(--ink); border-color: var(--line-2);
+  box-shadow: var(--lift-1);
+}
+:root .pubbar .pub-cta.pub-cta-quiet:hover { box-shadow: var(--lift-2); }
+/* A phone's header: "Open", its name still "Open workspace", so the whole
+   wordmark fits beside it instead of shrinking to "Quantum". */
+@media (max-width: 520px) {
+  .pub-cta-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .pub-cta { padding: 0 14px; }
+}
+.pub-menubtn { display: none; }
+.pub-menubtn .ico-close, .pub-menubtn[aria-expanded="true"] .ico-open { display: none; }
+.pub-menubtn[aria-expanded="true"] .ico-close { display: block; }
+/* The page under the open sheet, dimmed, as under the app's drawer; a press
+   on it closes the sheet (a click outside the header does) and reaches
+   nothing beneath. Under the header, over everything else. */
+.pubscrim {
+  position: fixed; inset: 0; z-index: 44;
+  background: rgba(10, 14, 12, .45); backdrop-filter: blur(2px);
+  opacity: 0; transition: opacity 200ms ease;
+}
+.pubscrim[data-open="1"] { opacity: 1; }
+.pubscrim[hidden], :root[data-chrome="app"] .pubscrim { display: none; }
+
+/* A menu's panel: under its button, floating, the product's depth tokens. */
+.pubmenu { position: relative; }
+.pubpanel {
+  position: absolute; top: calc(100% + 12px); left: -8px; z-index: 5;
+  background: var(--surface); border-radius: var(--r-lg); padding: 10px;
+  box-shadow: var(--lift-3);
+  opacity: 0; transform: translateY(-6px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.pubpanel[data-open="1"] { opacity: 1; transform: none; }
+/* The resources panel is a grid, and an author display outranks the
+   browser's own [hidden] rule: closed, it stayed laid out, invisible, in the
+   tab order and under the pointer. */
+.pubpanel[hidden] { display: none; }
+.pubpanel-products { width: 440px; }
+.pubpanel-resources { width: 500px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--md); padding: 14px 10px 10px; }
+
+/* Product rows: the menu's and the phone sheet's. */
+.pp-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.pp-row {
+  display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; align-items: start;
+  padding: 10px 12px; border-radius: var(--r-md); text-decoration: none; color: var(--ink);
+  transition: transform 160ms ease;
+}
+a.pp-row:hover { background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
+a.pp-row:active { transform: translateY(1px); }
+/* Each product's icon in its own accent (--acc, .pub-acc-*), as on its
+   homepage card: one icon and one colour per product on every surface. */
+.pp-ico {
+  width: 38px; height: 38px; border-radius: var(--r-md); display: grid; place-items: center;
+  background: color-mix(in srgb, var(--acc, var(--brand)) 12%, var(--surface-2)); color: var(--acc, var(--brand));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc, var(--brand)) 20%, transparent);
+}
+.pp-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pp-name { font-size: var(--text-body); font-weight: var(--weight-semibold); }
+.pp-blurb { font-size: var(--text-sm); color: var(--ink-3); line-height: 1.45; }
+/* Where the badges' notes are printed, under the product rows. */
+.pp-foot { margin: 4px 0 0; padding: 8px 12px 2px; border-top: 1px solid var(--line); }
+.pp-foot-link {
+  display: inline-flex; align-items: center; min-height: 36px; font-size: var(--text-sm); font-weight: var(--weight-semibold);
+  color: var(--brand); text-decoration: none; border-radius: var(--r-xs);
+}
+.pp-foot-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pubsheet .pp-foot-link { min-height: 44px; }
+@media (pointer: coarse) { .pp-foot-link { min-height: 44px; } }
+/* Not built: text, not a control — no hover, no pointer, and its tile
+   drained of the brand colour, while its words keep full contrast. */
+.pp-row-off { cursor: default; }
+.pp-row-off .pp-ico { background: var(--surface-sunk); color: var(--ink-3); box-shadow: inset 0 0 0 1px var(--line); }
+.pp-row-off .pp-name { color: var(--ink-2); }
+
+/* Resource groups: the menu's two columns and the sheet's. */
+.rs-label {
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); padding: 4px 10px 6px;
+}
+.rs-list { list-style: none; padding: 0; display: flex; flex-direction: column; }
+.rs-link {
+  display: flex; align-items: center; min-height: 36px; padding: 6px 10px; border-radius: var(--r-sm);
+  font-size: var(--text-body); color: var(--ink-2); text-decoration: none;
+}
+.rs-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+/* The phone's sheet is a finger's list: every Resources link there was 36px. */
+.pubsheet .rs-link { min-height: 44px; }
+.rs-link[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); background: var(--brand-wash); }
+
+/* The phone's sheet: the header's items, stacked, under the header. */
+.pubsheet {
+  position: absolute; top: 100%; left: 0; right: 0;
+  max-height: calc(100dvh - 60px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+  box-shadow: 0 28px 60px -28px rgba(10, 14, 12, .35);
+  opacity: 0; transform: translateY(-6px);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.pubsheet[data-open="1"] { opacity: 1; transform: none; }
+.pubsheet[hidden] { display: none; }
+.sheet-in { max-width: 640px; margin: 0 auto; padding: var(--md) var(--md) var(--lg); display: flex; flex-direction: column; gap: var(--xs); }
+.sheet-links { list-style: none; padding: var(--xs) 0; margin: var(--xs) 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.sheet-link {
+  appearance: none; border: 0; background: none; cursor: pointer; font: inherit; text-align: left; width: 100%;
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; border-radius: var(--r-md);
+  font-size: var(--text-lead); font-weight: var(--weight-medium); color: var(--ink); text-decoration: none;
+}
+.sheet-link:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.sheet-link[aria-current="page"] { font-weight: var(--weight-semibold); background: var(--brand-wash); }
+.sheet-resources { display: grid; grid-template-columns: 1fr; gap: var(--xs); }
+@media (min-width: 560px) { .sheet-resources { grid-template-columns: 1fr 1fr; } }
+.sheet-theme { margin-top: var(--xs); border-top: 1px solid var(--line); border-radius: 0; padding-top: 6px; color: var(--ink-2); font-size: var(--text-body); }
+.sheet-theme .sb-ico { color: var(--ink-3); }
+
+@media (max-width: 1023.98px) {
+  .pubnav, .pub-theme { display: none; }
+  .pub-menubtn { display: grid; }
+  .pubbar .bar-in { height: 60px; }
+}
+/* A touch screen wider than a phone — a tablet held landscape, 1024px — is
+   still a finger. The site's own touch rule (pointer: coarse) gives 44px to
+   its controls; the shell's own links were left out of it: the header's
+   links and every sidebar item at 40px, the Resources links at 36px. */
+@media (pointer: coarse) {
+  .publink { height: 44px; }
+  .rs-link, .sb-link, .sb-search { min-height: 44px; }
+}
+@media (max-width: 400px) { .pub-cta { padding: 0 12px; } }
+
+/* ------------------------------------------------------- app: slim bar */
+.appbar .bar-in { height: var(--topbar-h); gap: var(--xs); }
+.appbar .iconbtn { width: 40px; height: 40px; }
+.appbar .brand { margin-left: 2px; }
+.appbar-search { margin-left: auto; min-width: 0; height: 40px; padding: 0 14px; gap: 8px; color: var(--ink-2); }
+@media (max-width: 360px) { .appbar-search-label { display: none; } }
+
+/* ------------------------------------------------------- app: sidebar */
+.sidebar {
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--line);
+}
+.sb-top { display: flex; align-items: center; justify-content: space-between; gap: var(--xs); padding: 16px 14px 10px 18px; }
+.sb-close { display: none; }
+.sb-search { margin: 4px 12px 6px; min-width: 0; width: auto; height: 38px; padding: 0 10px 0 12px; gap: 9px; }
+/* The search button's label hides below 1080px in the old header's rule; in
+   the sidebar there is room for it at every width it shows at. */
+.sidebar .searchbtn-label, .sidebar .searchbtn .kbd { display: inline; }
+.sb-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 2px 12px 8px; overscroll-behavior: contain; }
+.sb-label {
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); padding: 18px 10px 6px;
+}
+.sb-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sb-list-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+/* The products list keeps its distance from the foot when the sidebar is too
+   short for the foot's auto margin to open any. */
+.sb-nav > ul:nth-of-type(2) { margin-bottom: var(--md); }
+.sb-item { position: relative; }
+.sb-link {
+  appearance: none; border: 0; background: none; cursor: pointer; font: inherit; text-align: left; width: 100%;
+  display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 8px 0 10px; border-radius: var(--r-md);
+  font-size: var(--text-body); font-weight: var(--weight-medium); color: var(--ink-2); text-decoration: none;
+  transition: transform 140ms ease, box-shadow 180ms ease;
+}
+.sb-link:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.sb-link:active { transform: translateY(1px); }
+.sb-link:focus-visible { outline-offset: -2px; }
+.sb-link[aria-current="page"] {
+  color: var(--ink); font-weight: var(--weight-semibold); background: var(--surface-2);
+  box-shadow: 0 1px 2px rgba(20, 25, 22, .06), 0 6px 16px -10px rgba(20, 25, 22, .22), 0 0 0 1px var(--ring);
+}
+.sb-ico { display: inline-grid; place-items: center; width: 20px; flex: none; color: var(--ink-3); }
+.sb-link:hover .sb-ico { color: var(--ink-2); }
+.sb-link[aria-current="page"] .sb-ico { color: var(--acc, var(--brand)); }
+.sb-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-link .status-badge { margin-left: auto; }
+/* My Alerts' count: a link of its own, over the row's right end, to the
+   page that lists the scanner's alerts. The row keeps room for it. */
+.sb-item:has(.sb-count) > .sb-link { padding-right: 60px; }
+.sb-count {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 56px;
+  display: grid; place-items: center; border-radius: var(--r-md); text-decoration: none;
+}
+/* The Scanner's mark inside the pill: the count is the Scanner's, not My
+   Alerts'. */
+.sb-count .nav-count { margin-left: 0; gap: 3px; padding: 0 6px 0 5px; transition: transform 140ms ease; }
+.sb-count-ico { display: inline-grid; place-items: center; width: 11px; height: 11px; }
+.sb-count-ico svg { width: 11px; height: 11px; }
+.sb-count:hover .nav-count { transform: scale(1.08); }
+.sb-count:focus-visible { outline-offset: -2px; }
+.sb-foot { padding: 4px 12px 14px; }
+.sb-theme .sb-ico { color: var(--ink-3); }
+
+/* Beside the page, from 1024px. The page, the footer, the dock and the
+   toast all move over by its width; nothing is stuck to the top any more,
+   so the sticky measures that stood under the old header come to 0. */
+@media (min-width: 1024px) {
+  :root[data-chrome="app"] { --topbar-h: 0px; }
+  :root[data-chrome="app"] body { padding-left: var(--sidebar-w); }
+  :root[data-chrome="app"] .appbar { display: none; }
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 30; width: var(--sidebar-w);
+  }
+  .navscrim { display: none; }
+  :root[data-chrome="app"] .dock { left: var(--sidebar-w); }
+  :root[data-chrome="app"] .toast { left: calc(50% + var(--sidebar-w) / 2); }
+  :root[data-chrome="app"] .modal { left: calc(50% + var(--sidebar-w) / 2); }
+  /* The company strip stuck 1px above the edge (the measure less the old
+     bar's border); with no bar it rests on the edge. */
+  :root[data-chrome="app"] .ticker-sticky { top: 0; }
+}
+/* A page-length table's header row sticks under whatever bar is measured,
+   not the 60px design height — with the sidebar there is none. A header in
+   a scrolling wrap still pins at 0 (the .tablewrap rule outranks this). */
+table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
+
+/* Below 1024px: a drawer from the left, over a scrim. Invisible and out of
+   the tab order until opened; only its transform animates. */
+@media (max-width: 1023.98px) {
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 58;
+    width: min(320px, 86vw);
+    box-shadow: var(--lift-4);
+    visibility: hidden; transform: translateX(-104%);
+    transition: transform 260ms cubic-bezier(.22, .61, .36, 1);
+  }
+  .sidebar[data-drawer="opening"], .sidebar[data-drawer="open"], .sidebar[data-drawer="closing"] { visibility: visible; }
+  .sidebar[data-drawer="open"] { transform: none; }
+  .sb-close { display: grid; width: 44px; height: 44px; }
+  .sb-link, .sb-search { min-height: 44px; }
+  .navscrim {
+    position: fixed; inset: 0; z-index: 57;
+    background: rgba(10, 14, 12, .5); backdrop-filter: blur(3px);
+    opacity: 0; transition: opacity 220ms ease;
+  }
+  .navscrim[data-open="1"] { opacity: 1; }
+  .navscrim[hidden] { display: none; }
+}
+
+/* ------------------------------------------------------- disclosure */
+/* On both chromes, compact: one line, the same words and the same "Which
+   sources?" (the rules with the strip, near the top of this file). Inside
+   the app it sits at the top of the page column. The warning's words sit
+   beside their icon, and the button at the row's end. */
+@media (min-width: 761px) {
+  .disclosure-in > #disclosureText { flex: 1 1 520px; min-width: 0; }
+}
+
+/* ------------------------------------------------------- product tabs */
+/* Laid out by the width the row actually has, not the window's: beside the
+   sidebar a 1024px window leaves the row 760px, and a phone-shaped rule
+   keyed to the viewport would get both wrong. */
+.ptabs-host {
+  container-type: inline-size;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+.ptabs-host[hidden] { display: none; }
+.ptabs { display: flex; align-items: center; gap: var(--lg); min-width: 0; }
+.ptabs-name {
+  display: inline-flex; align-items: center; gap: 8px; flex: none;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink);
+  padding-right: var(--lg); border-right: 1px solid var(--line); height: 24px;
+}
+.ptabs-ico { display: inline-grid; place-items: center; color: var(--acc, var(--brand)); }
+.ptabs-list { list-style: none; padding: 0 7px; margin: 0 -7px; display: flex; gap: var(--lg); min-width: 0; overflow-x: auto; scrollbar-width: none; scroll-padding-inline: 48px; }
+/* The same row drawn by a page itself — the Scanner's sections, the personal
+   pages' — at the top of the view: pulled up over the view's top padding and
+   out across the shell's side padding, so its band, border and position are
+   the ones the Equities and Property rows have above the view. The space
+   under it comes out at the view's 32px (24px on a phone) whatever the page
+   stacks it in. */
+.ptabs-inview {
+  margin: calc(var(--xl) * -1) calc(var(--xl) * -1) var(--xl);
+  padding: 0 var(--xl);
+}
+.stack > .ptabs-inview { margin-bottom: var(--xs); }
+.scan-page > .ptabs-inview, div[style*="gap:var(--md)"] > .ptabs-inview { margin-bottom: var(--md); }
+@media (max-width: 900px) { .ptabs-inview { margin-left: calc(var(--lg) * -1); margin-right: calc(var(--lg) * -1); padding: 0 var(--lg); } }
+@media (max-width: 640px) {
+  .ptabs-inview { margin-top: calc(var(--lg) * -1); margin-bottom: var(--lg); }
+  .stack > .ptabs-inview { margin-bottom: 0; }
+  .scan-page > .ptabs-inview, div[style*="gap:var(--md)"] > .ptabs-inview { margin-bottom: var(--xs); }
+}
+@media (max-width: 560px) { .ptabs-inview { margin-left: calc(var(--md) * -1); margin-right: calc(var(--md) * -1); padding: 0 var(--md); } }
+.ptabs-list::-webkit-scrollbar { display: none; }
+/* 8px of padding inside each tab, taken back by its margin, so the row's
+   spacing is what it was and the focus ring — inset, since the row scrolls
+   and would clip an outset one — clears the label instead of crossing its
+   first and last letters. The underline stays the label's width. */
+.ptab {
+  position: relative; display: inline-flex; align-items: center; height: 48px; padding: 0 8px; margin: 0 -7px;
+  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; text-decoration: none;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+.ptab::after {
+  content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px; border-radius: 2px 2px 0 0;
+  background: var(--brand); opacity: 0; transition: opacity 180ms ease;
+}
+.ptab:hover { color: var(--ink); }
+.ptab:hover::after { opacity: .35; }
+.ptab[aria-current="page"] { color: var(--ink); font-weight: var(--weight-semibold); }
+.ptab[aria-current="page"]::after { opacity: 1; }
+.ptab:focus-visible { outline-offset: -2px; }
+/* Narrower: the product's name on its own line, the tabs one row that
+   scrolls — seven tabs wrapped into three rows of chips would push a phone's
+   page a fifth of a screen further down. The row fades at whichever end has
+   more to scroll to (data-fade, set by renderProductTabs), and the current
+   tab is scrolled into view. */
+@container (max-width: 940px) {
+  .ptabs { flex-direction: column; align-items: stretch; gap: 0; }
+  .ptabs-name { border-right: 0; padding: 12px 0 0; height: auto; }
+  .ptabs-list { gap: 20px; }
+  .ptab { height: 44px; }
+}
+.ptabs-list[data-fade="end"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+.ptabs-list[data-fade="start"] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+          mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+.ptabs-list[data-fade="both"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+          mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+}
+
+/* ------------------------------------------------------- footer */
+/* The Products column is the widest of the three: a product's name and its
+   badge are one unit, and at the old even split "Business Intelligence ·
+   Coming soon" broke onto two lines beside three rows that did not. */
+.footer-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)); gap: var(--xl) var(--lg); }
+@media (max-width: 1080px) {
+  .footer-grid { grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr)); }
+  .footer-grid > :first-child { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .footer-grid > :nth-child(2) { grid-column: 1 / -1; }
+}
+@media (max-width: 420px) { .footer-grid { grid-template-columns: minmax(0, 1fr); } }
+.foot-product { display: inline-flex; align-items: center; gap: 8px; flex-wrap: nowrap; font-size: var(--text-sm); }
+.foot-product-off { color: var(--ink-3); }
+.footer .foot-product .status-badge { height: 18px; }
+/* Inside the app the sidebar already carries the brand and the products, so
+   the footer under a workspace page is the slim one: Resources, Company and
+   the legal paragraph. The whole marketing footer ran ~620px under every
+   workspace page at 1440 and ~1,650px on a phone. */
+:root[data-chrome="app"] .footer-grid > :nth-child(-n+2) { display: none; }
+:root[data-chrome="app"] .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 720px; }
+:root[data-chrome="app"] .footer { padding-top: var(--xl); }
+@media (max-width: 420px) { :root[data-chrome="app"] .footer-grid { grid-template-columns: minmax(0, 1fr); } }
+/* The space above the footer is the section rhythm, 96px (80 on a phone):
+   the view's own bottom padding was 96 on top of the footer's 48. */
+.view { padding-bottom: var(--xxl); }
+@media (max-width: 640px) { .view { padding-bottom: var(--xl); } }
+/* The brand block: the mark in its gutter, the rest on one edge. */
+.foot-brand { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: start; }
+.foot-desc { font-size: var(--text-sm); max-width: 36ch; margin-top: var(--sm); }
+/* The rule above the legal paragraph runs the footer's width; the paragraph's
+   own measure stays 90 characters. Capped with the text, the rule stopped
+   halfway across the footer, at x=694 of 1216. */
+.footer .footer-legal { max-width: none; padding-right: max(0px, calc(100% - 90ch)); }
+/* A footer link keeps its 44px target on a touch screen without moving its
+   words: the padding that makes the target is taken back by a negative
+   margin, so every link starts on its column heading's edge, as the row of
+   text beside them (Business Intelligence) always did. It stood 6px in, and
+   centred inside a 44px minimum, a short one further still. */
+@media (pointer: coarse), (max-width: 768px) {
+  .footer a, .footer .linklike { margin-inline: -6px; justify-content: flex-start; }
+}
+
+/* ------------------------------------------------------- states */
+@media (forced-colors: active) {
+  .sb-link[aria-current="page"], .rs-link[aria-current="page"], .sheet-link[aria-current="page"] { outline: 2px solid Highlight; outline-offset: -2px; }
+  .publink[aria-current="page"], .publink[data-current] { text-decoration: underline; }
+  .status-badge { border-color: CanvasText; }
+}
+@media print {
+  .sidebar, .navscrim, .ptabs-host, .pubsheet, .appbar, .pubbar { display: none !important; }
+  body { padding-left: 0 !important; }
+}
+/* ---- /release-a: shell ---- */
+/* ---- release-a: public ---- */
+/* THE HOMEPAGE AND /how-it-works (55-views-public.js).
+   ---------------------------------------------------------------------------
+   Calm on purpose: one column of intent, generous space between sections, one
+   dominant action, and no figures on the homepage at all — a first-time
+   visitor is deciding what this is, not reading a terminal. Everything here is
+   built from the tokens at the top of this file (surfaces, ink, --brand, the
+   --lift depth steps, the 8/12/16/24/32/48/64/96 spacing) in both themes.
+   Only transform, opacity and box-shadow move. */
+
+.pub { display: flex; flex-direction: column; gap: var(--x4); }
+@media (max-width: 760px) { .pub { gap: var(--xxxl); } }
+
+/* Each product keeps one accent, used only on its icon, its steps and a faint
+   glow — never on text, so no accent has to clear a contrast bar. */
+.pub-acc-equities { --acc: var(--brand); }
+.pub-acc-scanner  { --acc: var(--s1); }
+.pub-acc-property { --acc: var(--s2); }
+.pub-acc-business { --acc: var(--ink-3); }
+
+/* ------------------------------------------------------------------ hero */
+/* THE FIVE-SECOND TEST. "What can I do, with which tool, and what will I
+   get" is answered by the four product cards, so they belong on the first
+   screen with the headline. With 64px above the kicker and the full 96px
+   section gap under the buttons, the card titles sat under the fold at
+   1024x768 and on every phone, and at 1440x900 their "Open …" lines did. The
+   hero now starts 32px down (16px on a phone), and the products follow it at
+   48px; the sections after them keep the 96px rhythm. */
+.pub-hero { position: relative; isolation: isolate; text-align: center; padding: var(--xl) 0 0; margin-bottom: calc(var(--xxl) - var(--x4)); }
+/* A soft field of light behind the headline, inside the section's own box so
+   it can never widen the page. Three low-opacity radial washes in the
+   product's colours; each fades out well before the box edge. */
+.pub-hero::before {
+  content: ''; position: absolute; z-index: -1; pointer-events: none;
+  inset: calc(var(--xl) * -1) 0 calc(var(--xl) * -1);
+  background:
+    radial-gradient(48% 60% at 50% 36%, color-mix(in srgb, var(--brand) 9%, transparent), transparent 72%),
+    radial-gradient(34% 44% at 82% 66%, color-mix(in srgb, var(--bronze) 6%, transparent), transparent 72%),
+    radial-gradient(34% 44% at 18% 70%, color-mix(in srgb, var(--s1) 5%, transparent), transparent 72%);
+}
+@media (max-width: 760px) { .pub-hero { padding-top: var(--md); margin-bottom: calc(var(--xxl) - var(--xxxl)); } }
+
+.pub-kicker {
+  display: inline-block; padding: 7px 16px; border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 86%, transparent); box-shadow: var(--lift-1);
+  font-size: var(--text-label); font-weight: var(--weight-semibold); letter-spacing: .09em; text-transform: uppercase;
+  color: var(--ink-2); line-height: 1.5;
+}
+.pub-kicker-dot { color: var(--bronze); font-weight: var(--weight-bold); }
+
+.pub-h1 {
+  font-size: var(--text-hero); font-weight: var(--weight-bold); line-height: 1.05; letter-spacing: -.034em;
+  max-width: 13.5em; margin: var(--lg) auto 0; text-wrap: balance; color: var(--ink);
+}
+.pub-lede {
+  font-size: var(--text-lede); line-height: 1.6; color: var(--ink-2);
+  max-width: 35em; margin: var(--lg) auto 0; text-wrap: pretty;
+}
+.pub-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sm); margin-top: var(--xl); }
+/* The page's buttons, a step larger than the app's: 48px, which is a target
+   on every pointer, not only a finger. */
+.pub-btn { min-height: 48px; padding: 0 22px; font-size: var(--text-lead); border-radius: var(--r-md); gap: var(--xs); }
+.pub-btn.btn-ghost { color: var(--ink); box-shadow: var(--lift-1); }
+.pub-btn.btn-ghost:hover { box-shadow: var(--lift-2); }
+.pub-btn:active { transform: translateY(0) scale(.985); }
+.pub-btn:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3px; }
+/* A short screen — a phone, or a tablet held landscape — gives the headline
+   less air, so the products it introduces reach the first screen. */
+@media (max-width: 599px), (min-width: 1000px) and (max-height: 860px) {
+  .pub-hero .pub-h1 { margin-top: var(--md); }
+  .pub-hero .pub-lede { margin-top: var(--md); }
+  .pub-hero .pub-ctas { margin-top: var(--lg); }
+}
+@media (min-width: 1000px) and (max-height: 860px) {
+  .pub-hero:not(.hiw-hd) { padding-top: 0; margin-top: calc(var(--md) * -1); }
+  .pub-hero .pub-h1 { font-size: var(--text-display-lg); }
+  #products .pub-section-hd { margin-bottom: var(--md); }
+}
+@media (min-width: 1000px) and (max-width: 1199px) {
+  .pub-card { padding: var(--md); }
+  .pub-card-top { margin-bottom: var(--sm); }
+  .pub-card-go, .pub-card-note { padding-top: var(--sm); }
+  /* Four across at this width leaves "Open Property Intelligence" no room
+     for its arrow on one line. */
+  .pub-card-go { font-size: var(--text-label); white-space: nowrap; }
+}
+/* On a phone the products are the next thing under the buttons, so a button
+   that only scrolls to them is left out; the one action stays. */
+@media (max-width: 599px) {
+  .pub-hero:not(.hiw-hd) .pub-ctas .btn-ghost { display: none; }
+  .pub-hero .pub-h1 { font-size: var(--text-display); }
+}
+@media (max-width: 479px) {
+  .pub-ctas { flex-direction: column; align-items: stretch; }
+  .pub-ctas .pub-btn { width: 100%; }
+}
+
+.pub-arrow { display: inline-flex; flex: none; transition: transform 200ms ease; }
+.pub-arrow svg { width: 16px; height: 16px; }
+.pub-btn:hover .pub-arrow, .pub-textlink:hover .pub-arrow, a.pub-card:hover .pub-arrow { transform: translateX(3px); }
+
+.pub-textlink {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px;
+  font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--brand); text-decoration: none;
+  border-radius: var(--r-xs);
+}
+.pub-textlink:hover { text-decoration: underline; text-underline-offset: 4px; }
+.pub-textlink:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+
+/* A heading a jump link sent focus to is a place, not a control. */
+.pub [tabindex="-1"]:focus { outline: none; }
+
+/* -------------------------------------------------------------- sections */
+.pub-section { scroll-margin-top: var(--lg); }
+.pub-section-hd { text-align: center; margin-bottom: var(--xl); }
+.pub-h2 { font-size: var(--text-h2); font-weight: var(--weight-bold); line-height: 1.15; letter-spacing: -.026em; text-wrap: balance; }
+.pub-body { font-size: var(--text-lead); line-height: 1.65; color: var(--ink-2); margin-top: var(--md); max-width: 38em; }
+
+/* --------------------------------------------------------- product cards */
+/* Four across from 1000px — at 1024 two rows of two put the second pair's
+   titles under the fold — two across on a tablet, and on a phone four
+   compact rows (below). */
+.pub-cards { display: grid; gap: var(--lg); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 600px)  { .pub-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .pub-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--md); } }
+#products .pub-section-hd { margin-bottom: var(--lg); }
+
+.pub-card {
+  position: relative; display: flex; flex-direction: column; height: 100%;
+  padding: var(--lg); border-radius: var(--r-xl);
+  background:
+    radial-gradient(120% 70% at 0% 0%, color-mix(in srgb, var(--acc, var(--brand)) 6%, transparent), transparent 60%),
+    var(--surface);
+  box-shadow: var(--lift-2); color: inherit; text-decoration: none;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+a.pub-card:hover { transform: translateY(-4px); box-shadow: var(--lift-3); }
+a.pub-card:active { transform: translateY(-1px); box-shadow: var(--lift-2); }
+a.pub-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 3px; border-radius: var(--r-xl); }
+/* Not built: flat, dashed and quiet — present so the product's shape is
+   honest, and visibly not a way in. No hover, no pointer. The dash is an
+   inset outline rather than a border, so its content lines up to the pixel
+   with the three cards beside it. */
+.pub-card-soon {
+  background: color-mix(in srgb, var(--surface-sunk) 72%, transparent);
+  box-shadow: none; outline: 1px dashed var(--line-2); outline-offset: -1px;
+}
+.pub-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sm); margin-bottom: var(--lg); }
+.pub-ico {
+  width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: var(--r-md);
+  color: var(--acc, var(--brand));
+  background: color-mix(in srgb, var(--acc, var(--brand)) 12%, var(--surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc, var(--brand)) 22%, transparent);
+}
+.pub-card-product {
+  font-size: var(--text-label); font-weight: var(--weight-semibold); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3);
+}
+.pub-card-title { font-size: var(--text-card); font-weight: var(--weight-bold); line-height: 1.2; letter-spacing: -.016em; margin-top: 6px; }
+.pub-card-blurb { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: var(--xs); }
+.pub-card-go {
+  margin-top: auto; padding-top: var(--lg); display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--brand);
+}
+.pub-card-note { margin-top: auto; padding-top: var(--lg); font-size: var(--text-sm); color: var(--ink-3); }
+@media (min-width: 600px) {
+  .pub-card-top { margin-bottom: var(--md); }
+  .pub-card-go, .pub-card-note { padding-top: var(--md); }
+}
+/* A phone: each product one compact row — its icon in a gutter, its name and
+   badge on the first line, the task, and the blurb — so the first two tasks
+   are on the first screen rather than one 260px card. The whole row is still
+   the link; its "Open …" line, which only repeats the product's name, is left
+   to the row's own hover, focus and pressed states. */
+@media (max-width: 599px) {
+  .pub-cards { gap: var(--sm); }
+  .pub-card {
+    display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; column-gap: 14px; row-gap: 2px;
+    align-items: start; padding: var(--md); border-radius: var(--r-lg);
+  }
+  .pub-card-top { display: contents; }
+  .pub-card-top .pub-ico { grid-column: 1; grid-row: 1 / span 3; }
+  .pub-card-top .status-badge { grid-column: 3; grid-row: 1; align-self: center; }
+  .pub-card-product { grid-column: 2; grid-row: 1; align-self: center; font-size: var(--text-micro); }
+  .pub-card-title { grid-column: 2 / -1; grid-row: 2; margin-top: 2px; font-size: var(--text-lead); }
+  .pub-card-blurb { grid-column: 2 / -1; grid-row: 3; margin-top: 2px; font-size: var(--text-sm); line-height: 1.45; }
+  .pub-card-go { display: none; }
+  .pub-card-note { grid-column: 2 / -1; grid-row: 4; padding-top: 4px; font-size: var(--text-label); }
+  a.pub-card:focus-visible { border-radius: var(--r-lg); }
+}
+
+/* The disclosure line under the cards: badge, one sentence, one link. */
+.pub-disclose {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px var(--sm);
+  max-width: 62rem; margin: var(--xl) auto 0; text-align: center;
+  font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2);
+}
+.pub-disclose .pub-textlink { font-size: var(--text-sm); }
+
+/* ---------------------------------------------------- research, connected */
+.pub-connected {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--xl);
+  padding: var(--xl) var(--lg); border-radius: var(--r-xl); box-shadow: var(--lift-2);
+  background:
+    radial-gradient(90% 80% at 0% 0%, color-mix(in srgb, var(--brand) 6%, transparent), transparent 60%),
+    radial-gradient(70% 70% at 100% 100%, color-mix(in srgb, var(--bronze) 6%, transparent), transparent 60%),
+    var(--surface);
+}
+@media (min-width: 960px) {
+  .pub-connected { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: var(--xxl); padding: var(--xxl); align-items: center; }
+}
+.pub-local {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--md); align-items: start;
+  margin-top: var(--xl); padding: var(--md) var(--lg) var(--xs); border-radius: var(--r-lg);
+  background: var(--surface-sunk); box-shadow: inset 0 0 0 1px var(--line);
+}
+.pub-local-t { font-size: var(--text-body); font-weight: var(--weight-bold); color: var(--ink); margin-top: 7px; }
+.pub-local-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 4px; }
+.pub-glyph {
+  width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: var(--r-md);
+  color: var(--acc, var(--brand)); background: color-mix(in srgb, var(--acc, var(--brand)) 12%, var(--surface-2));
+}
+.pub-kinds { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--md); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 600px) { .pub-kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pub-kind {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--md); align-items: start;
+  padding: var(--lg) var(--md) var(--lg) var(--lg); border-radius: var(--r-lg);
+  background: var(--surface-2); box-shadow: var(--lift-1);
+}
+.pub-kind-t { font-size: var(--text-lead); font-weight: var(--weight-bold); letter-spacing: -.008em; margin-top: 7px; }
+.pub-kind-b { font-size: var(--text-body); line-height: 1.5; color: var(--ink-2); margin-top: 4px; }
+/* On a phone the panel is the card: cards inside it again left a column of
+   text 200px wide inside three layers of padding. The four kinds become rows
+   under hairlines, and the browser note loses a step of padding. */
+@media (max-width: 599px) {
+  .pub-connected { padding: var(--xl) var(--md); gap: var(--lg); }
+  .pub-local { padding: var(--md) var(--md) var(--xs); gap: var(--sm); }
+  .pub-kinds { gap: 0; }
+  .pub-kind { padding: var(--md) 0; border-radius: 0; background: none; box-shadow: none; border-top: 1px solid var(--line); }
+  .pub-kind:last-child { padding-bottom: 0; }
+}
+
+/* ============================================================ how it works */
+.hiw-hd { padding-top: var(--xxl); }
+.hiw-h1 { font-size: var(--text-display-lg); max-width: 15em; }
+.hiw-toc-list {
+  list-style: none; margin: var(--xl) auto 0; padding: 0; max-width: 60rem;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: var(--xs);
+}
+.hiw-toc-link {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--md); border-radius: 999px;
+  background: var(--surface-2); box-shadow: var(--lift-1); text-decoration: none;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.hiw-toc-link:hover { transform: translateY(-1px); box-shadow: var(--lift-2); color: var(--ink); }
+.hiw-toc-link:active { transform: translateY(0); box-shadow: var(--lift-1); }
+.hiw-toc-link:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+/* Not built: text with its badge — flat and dashed like its homepage card,
+   no lift, no pointer, nothing to press. */
+.hiw-toc-soon {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--xs); min-height: 44px; padding: 0 var(--md);
+  border-radius: 999px; outline: 1px dashed var(--line-2); outline-offset: -1px;
+  background: color-mix(in srgb, var(--surface-sunk) 72%, transparent);
+  font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-2); cursor: default;
+}
+@media (max-width: 599px) {
+  .hiw-toc-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* An odd one out spans the row rather than sitting alone in half of it. */
+  .hiw-toc-list li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .hiw-toc-link, .hiw-toc-soon { width: 100%; justify-content: center; text-align: center; padding: 6px var(--sm); line-height: 1.3; }
+  .hiw-toc-soon { flex-wrap: wrap; gap: 2px var(--xs); }
+}
+
+/* The status legend. */
+.hiw-status {
+  padding: var(--lg); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--lift-1);
+  scroll-margin-top: var(--lg);
+}
+.hiw-status-h { font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.hiw-status-list { display: grid; gap: var(--lg); grid-template-columns: minmax(0, 1fr); margin-top: var(--md); }
+@media (min-width: 640px)  { .hiw-status-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .hiw-status-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.hiw-status-item dt { margin-bottom: var(--xs); }
+.hiw-status-item dd { margin: 0; }
+.hiw-status-m { display: block; font-size: var(--text-body); line-height: 1.5; color: var(--ink); }
+.hiw-status-who { display: block; font-size: var(--text-label); color: var(--ink-3); margin-top: 4px; }
+
+/* One product. */
+.hiw-products { display: flex; flex-direction: column; gap: var(--xl); }
+.hiw-product {
+  position: relative; padding: var(--xl) var(--lg); border-radius: var(--r-xl); box-shadow: var(--lift-2);
+  background:
+    radial-gradient(60% 50% at 100% 0%, color-mix(in srgb, var(--acc, var(--brand)) 7%, transparent), transparent 62%),
+    var(--surface);
+  scroll-margin-top: var(--lg);
+}
+@media (min-width: 900px) { .hiw-product { padding: var(--xxl); } }
+.hiw-product-soon {
+  background: color-mix(in srgb, var(--surface-sunk) 72%, transparent); box-shadow: none;
+  outline: 1px dashed var(--line-2); outline-offset: -1px;
+}
+/* A phone loses a step of padding at each level, so the examples keep a
+   readable measure inside the product card. */
+@media (max-width: 599px) {
+  .hiw-product { padding: var(--lg) var(--md); }
+  .hiw-panel { padding: var(--md); }
+  .hiw-ex-actions .pub-btn, .hiw-product-ft .pub-btn { width: 100%; }
+  .hiw-pills-k { flex: 1 0 100%; margin: 0 0 2px; }
+}
+/* A long label wraps inside its button rather than out of it. */
+.pub-btn { text-align: center; line-height: 1.3; padding-top: 10px; padding-bottom: 10px; }
+.hiw-product-hd { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--md) var(--xl); }
+.hiw-product-id { display: flex; align-items: flex-start; gap: var(--md); flex: 1 1 440px; min-width: 0; }
+.hiw-product-name { font-size: var(--text-h3-lg); font-weight: var(--weight-bold); line-height: 1.15; letter-spacing: -.02em; }
+.hiw-product-q { font-size: var(--text-lead); line-height: 1.5; color: var(--ink-2); margin-top: 6px; }
+.hiw-product-status { flex: 0 1 340px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--xs); }
+.hiw-product-note { font-size: var(--text-label); line-height: 1.5; color: var(--ink-3); }
+@media (min-width: 900px) { .hiw-product-status { align-items: flex-end; text-align: right; } }
+.hiw-soon { margin-top: var(--lg); font-size: var(--text-body); line-height: 1.6; color: var(--ink-2); max-width: 60ch; }
+.hiw-product-ft { margin-top: var(--xl); display: flex; flex-wrap: wrap; gap: var(--sm); }
+
+/* Input → analysis → result → save → next. A column with a spine on a
+   phone; a row with a rail from 1024px, where five columns have room. */
+.hiw-steps { list-style: none; margin: var(--xl) 0 0; padding: 0; display: grid; }
+.hiw-step { position: relative; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--md); padding-bottom: var(--lg); }
+.hiw-step:last-child { padding-bottom: 0; }
+.hiw-step:not(:last-child)::before {
+  content: ''; position: absolute; left: 17px; top: 42px; bottom: 6px; width: 2px; border-radius: 2px;
+  background: color-mix(in srgb, var(--acc, var(--brand)) 26%, var(--line));
+}
+.hiw-step-n {
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  font-size: var(--text-sm); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; color: var(--ink);
+  background: var(--surface-2); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--acc, var(--brand)) 55%, var(--line)), var(--lift-1);
+}
+.hiw-step-k { font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); margin-top: 8px; }
+.hiw-step-t { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 4px; max-width: 60ch; }
+@media (min-width: 1024px) {
+  .hiw-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--lg); }
+  .hiw-step { display: block; padding-bottom: 0; }
+  .hiw-step:not(:last-child)::before { left: 48px; right: calc(var(--lg) * -1 + 12px); top: 17px; bottom: auto; width: auto; height: 2px; }
+  .hiw-step-k { margin-top: var(--md); }
+}
+
+/* Worked examples, below the steps: a disclosure, folded on a phone and open
+   above 760px (hiwProduct). Its summary says it is one — a + beside the
+   title, − once open — and is a 44px target. */
+.hiw-examples { margin-top: var(--xxl); padding-top: var(--xl); border-top: 1px solid var(--line); }
+.hiw-examples-body { display: grid; gap: var(--xl); margin-top: var(--xl); }
+.hiw-examples-sum {
+  cursor: pointer; list-style: none; min-height: 44px; display: grid; grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 10px; align-items: center; border-radius: var(--r-sm);
+}
+.hiw-examples-sum::-webkit-details-marker { display: none; }
+.hiw-examples-sum::before {
+  content: '+'; grid-row: 1 / span 2; display: inline-grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 999px; border: 1px solid var(--line-2); font-size: var(--text-lead); line-height: 1; color: var(--ink-2); background: var(--surface-sunk);
+}
+.hiw-examples[open] > .hiw-examples-sum::before { content: '−'; }
+.hiw-examples-sum:hover::before { border-color: var(--ink-3); color: var(--ink); }
+.hiw-examples-sum:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
+.hiw-examples-n { grid-column: 2; }
+.hiw-examples-h { grid-column: 2; font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.hiw-example { min-width: 0; }
+.hiw-ex-t, .hiw-cap-t { font-size: var(--text-lead); font-weight: var(--weight-bold); letter-spacing: -.01em; }
+.hiw-ex-b, .hiw-cap-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 4px; max-width: 62ch; }
+.hiw-seg { margin: var(--md) 0 0; }
+.hiw-seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); font-weight: var(--weight-semibold); box-shadow: var(--lift-1); }
+.hiw-panel {
+  margin-top: var(--md); padding: var(--lg); border-radius: var(--r-lg);
+  background: var(--surface-2); box-shadow: var(--lift-1);
+}
+.hiw-label { margin-bottom: var(--md); line-height: 1.5; }
+.hiw-panel .hiw-label:last-child { margin-bottom: 0; }
+.hiw-tiles { gap: var(--lg) var(--md); }
+/* Five outputs in one row where they fit, three and two where they do not —
+   never four and an orphan, which is what auto-fit gave at 1024px. */
+.hiw-tiles.grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 600px)  { .hiw-tiles.grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .hiw-tiles.grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.hiw-tiles-6 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+@media (min-width: 1024px) { .hiw-tiles-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .hiw-tiles.hiw-tiles-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hiw-ex-actions { margin-top: var(--lg); display: flex; flex-wrap: wrap; gap: var(--sm); }
+.hiw-pills { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); margin-top: var(--md); }
+.hiw-pills-k { font-size: var(--text-sm); color: var(--ink-3); margin-right: 4px; }
+.hiw-pill {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--md); border-radius: 999px;
+  background: var(--surface-2); box-shadow: var(--lift-1); text-decoration: none;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.hiw-pill:hover { transform: translateY(-1px); box-shadow: var(--lift-2); }
+.hiw-pill:active { transform: translateY(0); box-shadow: var(--lift-1); }
+.hiw-pill:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+
+.hiw-figure { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--md) var(--xl); align-items: center; }
+@media (min-width: 900px) { .hiw-figure { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); } }
+.hiw-figure .proof-card { box-shadow: var(--lift-2); border-color: transparent; }
+.hiw-cap .pub-textlink { margin-top: 4px; }
+.hiw-aside {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--md); align-items: start;
+  padding: var(--md) var(--lg); border-radius: var(--r-lg); background: var(--surface-sunk); box-shadow: inset 0 0 0 1px var(--line);
+}
+.hiw-aside p { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); max-width: 78ch; margin-top: 7px; }
+@media (max-width: 599px) { .hiw-aside { padding: var(--md); gap: var(--sm); } }
+
+/* The connected journey. */
+.hiw-journey { scroll-margin-top: var(--lg); }
+.hiw-sec-hd { text-align: center; margin-bottom: var(--xl); }
+.hiw-sec-hd .pub-body { margin-left: auto; margin-right: auto; }
+.hiw-path { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--md); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 640px)  { .hiw-path { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* In two columns the fifth step — back to the company — closes the loop
+   across the full row instead of sitting alone in half of it. */
+@media (min-width: 640px) and (max-width: 1099px) { .hiw-path-step:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+@media (min-width: 1100px) { .hiw-path { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--lg); } }
+.hiw-path-step {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start;
+  padding: var(--lg); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--lift-2);
+}
+.hiw-path-n {
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--brand); background: var(--brand-wash);
+}
+.hiw-path-t { font-size: var(--text-lead); font-weight: var(--weight-bold); letter-spacing: -.01em; margin-top: var(--md); }
+.hiw-path-b { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); margin-top: 6px; }
+.hiw-path-step .pub-textlink { margin-top: auto; padding-top: var(--xs); font-size: var(--text-sm); }
+/* The chevron between two steps, on the row layout only, where the next step
+   is beside this one rather than under it. */
+@media (min-width: 1100px) {
+  .hiw-path-step:not(:last-child)::after {
+    content: ''; position: absolute; top: 40px; right: calc(var(--lg) * -1 + 6px); width: 10px; height: 10px;
+    border-top: 2px solid var(--line-2); border-right: 2px solid var(--line-2); transform: rotate(45deg);
+  }
+}
+
+/* The closing action. */
+.hiw-end {
+  text-align: center; padding: var(--xxl) var(--lg); border-radius: var(--r-xl); box-shadow: var(--lift-2);
+  background:
+    radial-gradient(60% 90% at 50% 0%, color-mix(in srgb, var(--brand) 10%, transparent), transparent 70%),
+    var(--surface);
+}
+.hiw-end .pub-body { margin-left: auto; margin-right: auto; }
+@media (max-width: 760px) { .hiw-end { padding: var(--xl) var(--lg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  a.pub-card:hover, .hiw-toc-link:hover, .hiw-pill:hover, .pub-btn:active { transform: none; }
+  .pub-btn:hover .pub-arrow, .pub-textlink:hover .pub-arrow, a.pub-card:hover .pub-arrow { transform: none; }
+}
+/* ---- /release-a: public ---- */
+/* ---- release-a: dashboard ---- */
+/* MY DASHBOARD (/app) — 40-views-discover.js, VIEW — MY DASHBOARD. Built from
+   the system's own tokens: the surfaces, the lift scale, the spacing scale
+   and the brand blue; no colour of its own. Only transform and box-shadow
+   are transitioned. */
+.dash { display: flex; flex-direction: column; gap: var(--lg); }
+.dash > .page-hd { margin-bottom: 0; }
+/* The page's name, drawn as the eyebrow it was, inside the h1. */
+.dash-hd h1 .dash-eyebrow { display: block; letter-spacing: .1em; margin-bottom: 2px; }
+.dash-hd .body-lg { max-width: 64ch; }
+/* The site clamps a page's standfirst to two lines on a phone (the
+   progressive-disclosure rule above). Here it is not preamble: it is the
+   answer to "what changed since my last visit", and a clamp cut the count off
+   at 360px. It is shown whole. */
+@media (max-width: 760px) {
+  .dash-hd .body-lg { display: block; -webkit-line-clamp: unset; overflow: visible; }
+}
+
+/* The first-time card. The one thing on the page, so it takes the page's
+   deepest lift and a quiet field of the brand and the bronze behind it. */
+.dash-start {
+  padding: var(--xl);
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--brand) 9%, transparent), transparent 55%),
+    radial-gradient(90% 120% at 100% 100%, color-mix(in srgb, var(--bronze) 9%, transparent), transparent 60%),
+    var(--surface);
+  box-shadow: var(--lift-3);
+}
+.dash-start-top {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--md) var(--lg); flex-wrap: wrap; margin-bottom: var(--sm);
+}
+.dash-start-top > div:first-child { flex: 1 1 320px; min-width: 0; }
+.dash-progress { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
+.dash-progress-t { font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.dash-progress-bar {
+  display: block; width: 180px; height: 6px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.dash-progress-bar > i {
+  display: block; height: 100%; border-radius: inherit; background: var(--brand);
+  transform-origin: left center; transition: transform 320ms ease;
+}
+
+/* A step: its mark, what it is, its one action. */
+.dash-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.dash-step {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center;
+  gap: var(--md); padding: var(--md) 0; border-top: 1px solid var(--grid);
+}
+.dash-steps-sm .dash-step { grid-template-columns: 26px minmax(0, 1fr) auto; gap: var(--sm); padding: var(--sm) 0; }
+.dash-steps-sm .dash-step:first-child { border-top: 0; padding-top: 0; }
+.dash-step-mark {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px dashed color-mix(in srgb, var(--ink-3) 70%, transparent); background: var(--surface-2);
+}
+.dash-steps-sm .dash-step-mark { width: 26px; height: 26px; }
+.dash-step[data-done="1"] .dash-step-mark { border: 0; background: var(--brand); color: var(--surface-2); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--brand) 60%, transparent); }
+.dash-step-mark svg { width: 15px; height: 15px; }
+.dash-step-t { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+.dash-step[data-done="1"] .dash-step-t .h-card { color: var(--ink-2); }
+.dash-step-body .caption { margin-top: 2px; max-width: 64ch; }
+.dash-step-go { white-space: nowrap; }
+
+/* The checklist, and beside it the two ways in that are not steps:
+   preferences and the goal launcher. */
+.dash-first { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: var(--lg); align-items: start; }
+.dash-more { display: flex; flex-direction: column; gap: var(--sm); margin-top: var(--sm); }
+.dash-more-link {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 44px;
+  padding: var(--sm) var(--md); border-radius: var(--r-md);
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--ink); text-decoration: none;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.dash-more-link strong { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.dash-more-link:hover { transform: translateY(-1px); box-shadow: var(--lift-2); }
+.dash-more-link:active { transform: none; box-shadow: var(--lift-1); }
+.dash-more-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Four counts, each a link to the page it counts. */
+.dash-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--md); }
+.dash-tile {
+  position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  padding: var(--lg) calc(var(--lg) + 20px) var(--lg) var(--lg);
+  background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--lift-2);
+  color: inherit; text-decoration: none;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+.dash-tile:hover { transform: translateY(-2px); box-shadow: var(--lift-3); }
+.dash-tile:active { transform: translateY(0); box-shadow: var(--lift-2); }
+.dash-tile:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.dash-tile-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.dash-tile-ic {
+  width: 30px; height: 30px; border-radius: 9px; flex: none; display: grid; place-items: center;
+  background: var(--brand-wash); color: var(--brand);
+}
+.dash-tile-v {
+  font-size: var(--text-stat); font-weight: var(--weight-bold); letter-spacing: -.025em; line-height: 1.1;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+}
+.dash-tile-v.is-text { font-size: var(--text-lead); letter-spacing: -.01em; line-height: 1.35; }
+.dash-tile-note { font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--bronze); }
+.dash-tile-go {
+  position: absolute; top: var(--lg); right: var(--md); width: 18px; height: 18px; color: var(--ink-3);
+  transition: transform 220ms ease;
+}
+.dash-tile:hover .dash-tile-go { transform: translateX(2px); }
+
+/* Matches on the left, what to continue and what is next on the right. */
+.dash-split { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: var(--lg); align-items: start; }
+.dash-side { display: flex; flex-direction: column; gap: var(--lg); min-width: 0; }
+.dash-scanline { gap: 8px; margin: calc(var(--xs) * -1) 0 var(--sm); }
+
+/* A list whose every row is a link (or carries its own action). */
+.dash-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.dash-list > li + li { border-top: 1px solid var(--grid); }
+.dash-row {
+  display: flex; align-items: center; gap: var(--sm); min-height: 56px;
+  padding: var(--sm) var(--xs); margin: 0 calc(var(--xs) * -1); border-radius: var(--r-md);
+  color: inherit; text-decoration: none;
+}
+a.dash-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+a.dash-row:hover .dash-row-go { transform: translateX(2px); }
+a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
+.dash-row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dash-row-k { font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.dash-row-t { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; font-size: var(--text-sm); }
+.dash-row-t strong { font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.dash-row-s { font-size: var(--text-label); color: var(--ink-3); overflow-wrap: anywhere; }
+.dash-row-go { flex: none; width: 16px; height: 16px; color: var(--ink-3); transition: transform 200ms ease; }
+.dash-row-act > .btn { flex: none; }
+
+/* An empty sub-section says what to do, with the action that does it. */
+.dash-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: var(--md); border-radius: var(--r-md);
+  background: var(--surface-sunk); border: 1px dashed var(--line-2);
+}
+.dash-empty-t { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.dash-empty .caption { max-width: 60ch; }
+.dash-empty .btn { margin-top: 4px; }
+
+.dash-cos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.dash-co {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px;
+  border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+  font-size: var(--text-sm); color: var(--ink); text-decoration: none;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.dash-co:hover { transform: translateY(-1px); box-shadow: var(--lift-1); }
+.dash-co:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.dash-note {
+  display: flex; align-items: center; gap: var(--sm) var(--md); flex-wrap: wrap;
+  padding: var(--md) var(--lg); border-radius: var(--r-lg);
+  background: var(--bronze-wash); border: 1px solid color-mix(in srgb, var(--bronze) 26%, transparent);
+}
+.dash-note .caption { flex: 1 1 320px; margin: 0; color: var(--ink-2); }
+.dash-side .dash-note { flex-direction: column; align-items: flex-start; }
+.dash-side .dash-note .caption { flex: none; }
+.dash-foot { max-width: 80ch; }
+.dash-inline { color: var(--brand); font-weight: var(--weight-semibold); text-underline-offset: 3px; }
+.dash-inline:hover { text-decoration-thickness: 2px; }
+
+@media (max-width: 1024px) {
+  .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-split, .dash-first { grid-template-columns: minmax(0, 1fr); }
+}
+/* A phone: one count to a row, its figure beside what it counts, so the four
+   take a screen's third rather than its whole height. */
+@media (max-width: 560px) {
+  .dash { gap: var(--md); }
+  .dash-start { padding: var(--lg) var(--md); }
+  .dash-progress { align-items: flex-start; }
+  .dash-step { grid-template-columns: 28px minmax(0, 1fr); gap: var(--sm); }
+  .dash-step-mark { width: 28px; height: 28px; }
+  .dash-step-go { grid-column: 2; justify-self: start; }
+  .dash-tiles { grid-template-columns: minmax(0, 1fr); gap: var(--sm); }
+  .dash-tile {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--md); row-gap: 2px;
+    padding: var(--sm) 40px var(--sm) var(--md);
+  }
+  .dash-tile-hd { margin-bottom: 0; }
+  .dash-tile-ic { width: 26px; height: 26px; border-radius: 8px; }
+  .dash-tile > :not(.dash-tile-v):not(.dash-tile-go) { grid-column: 1; }
+  .dash-tile-v { grid-column: 2; grid-row: 1 / span 3; align-self: center; text-align: right; }
+  .dash-tile-v.is-text { font-size: var(--text-body); }
+  .dash-tile-go { top: 50%; margin-top: -9px; }
+  .dash-note { padding: var(--md); }
+}
+@media (pointer: coarse), (max-width: 768px) {
+  .dash-co { min-height: 44px; }
+  .dash-scanline .dash-inline { display: inline-flex; align-items: center; min-height: 44px; }
+}
+/* Still under reduced motion, as the public pages' cards are: a lift on
+   hover is movement, and the global .01ms rule only made it a jump. */
+@media (prefers-reduced-motion: reduce) {
+  .dash-tile:hover, .dash-more-link:hover, .dash-co:hover,
+  .dash-tile:hover .dash-tile-go, a.dash-row:hover .dash-row-go { transform: none; }
+}
+/* ---- /release-a: dashboard ---- */
+/* ---- release-a: integration ---- */
+/* /welcome's way out (50-views-studio.js). Back and "Skip — take me to the
+   app" are .btn-sm (30px) buttons, lifted to 44px only by the phone rule
+   above, and on a phone the Skip button measured on that floor's very edge.
+   They are the page's exit, so they are a 44px target at every width. */
+.ob-foot .btn { min-height: 44px; min-width: 44px; padding: 0 14px; }
+/* The disclosure strip's layout, on both chromes. Wherever its sentence
+   wrapped — every phone — the warning icon sat alone on a row above it. The
+   icon now hangs in the strip's left gutter beside the first line, and the
+   sentence and "Which sources?" share one column. The two research-mode
+   chips are part of what "Which sources?" opens: one group, after the
+   breakdown, on a row of their own. Nothing is hidden that the button does
+   not open: the same words, the same chips. */
+.disclosure-chips { display: none; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basis: 100%; }
+@media (min-width: 761px) {
+  body[data-disclosure="open"] .disclosure-chips { padding-left: 26px; }
+}
+/* "Which sources?" keeps the finger's 44px wherever the touch rule gives it
+   one, without the strip growing to hold it: its box overhangs the line by
+   the strip's own padding, so a one-line strip stays one line tall. It was
+   the 44px button, alone on a row of its own, that made the strip 57px at
+   768 and 96px on a phone. */
+@media (pointer: coarse), (max-width: 768px) {
+  #disclosureMore { margin-block: -13px; vertical-align: middle; }
+}
+/* On a phone the sentence and its button run as one paragraph — "…for
+   investment decisions. Which sources?" — rather than a row of words and a
+   row for the button. */
+@media (max-width: 760px) {
+  .disclosure-in { display: block; position: relative; padding-left: calc(var(--lg) + 22px); line-height: 1.5; }
+  .disclosure-in > svg { position: absolute; left: var(--lg); top: 8px; }
+  #disclosureMore { margin-left: 6px; }
+  body[data-disclosure="open"] .disclosure-chips { display: flex; margin: 10px 0 2px; }
+}
+@media (max-width: 560px) {
+  .disclosure-in { padding-left: calc(var(--md) + 22px); }
+  .disclosure-in > svg { left: var(--md); }
+}
+/* ---- /release-a: integration ---- */

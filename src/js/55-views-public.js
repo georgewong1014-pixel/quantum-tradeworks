@@ -1,309 +1,530 @@
 /* ==========================================================================
-   PUBLIC HOMEPAGE
+   PUBLIC PAGES — THE HOMEPAGE AND HOW IT WORKS (Release A)
 
-   Separate from the dashboard on purpose. The previous root behaved like an
-   existing user's workspace — watchlist, alerts, research queue — which tells
-   a first-time visitor nothing about what the product is or why they would
-   use it. The dashboard now lives at /app and this is what the domain root
-   serves.
+   The homepage answers three questions and stops: what this is, what you can
+   do with it, and where your work lives. It used to carry the whole product
+   at once — three engine readouts in the hero, a report demo, a property deal
+   check, a trust grid, a routing band and a pricing strip — which read as a
+   trading terminal to somebody who had not yet decided what they came for.
+   None of it is lost. The examples moved to /how-it-works, still drawn by the
+   same engines, each beside the workflow it illustrates; the trust links are
+   in the Resources menu and the footer; pricing is in the header; the "not
+   sure where to start" route (/start) is offered by the dashboard.
+
+   The four products — their task, blurb, question, action and status — are
+   read from PRODUCTS (35-ui.js), so the homepage, the header's menu, the
+   sidebar and this page cannot describe one product four different ways.
+   The dashboard lives at /app; this is what the domain root serves.
    ========================================================================== */
-function taskCard(title, body, path, cta) {
-  const card = el('a', { class: 'card task-card', href: href(path),
-    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); navigate(path); } });
-  card.append(el('h3', { class: 'h-card' }, title));
-  card.append(el('p', { class: 'metaline', style: 'margin:6px 0 10px' }, body));
-  card.append(el('span', { class: 'task-cta' }, cta));
+
+/* A status badge by status alone — the legend on /how-it-works and the
+   homepage's disclosure line, where no one product is meant. Same classes as
+   productBadge (35-ui.js), so the two cannot look different. */
+function pubStatusBadge(status, title) {
+  return el('span', { class: `status-badge status-${status}`, title: title || null }, PRODUCT_STATUS[status] || status);
+}
+/* A product's own badge: productBadge hands back a fresh element (its
+   toString is its markup, for pages that build with strings), so the card
+   can give it the id its aria-describedby names. */
+const pubBadge = (p) => productBadge(p.id) || pubStatusBadge(p.status, p.statusNote);
+
+/* An in-app link that keeps the browser's own link behaviour: a modified or
+   middle click opens a tab, as every other internal link in the product does. */
+function pubLink(path, attrs, ...kids) {
+  return el('a', { href: href(path), ...attrs,
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, ...kids);
+}
+/* A link to a section of this page. Scrolled here rather than left to the
+   fragment: a changed hash fires popstate, and the router would repaint the
+   page under the scroll. Focus moves to the section's heading, so the next
+   Tab continues from where the reader was sent. Ids are prefixed (products,
+   hiw-*) so none can be read as one of the legacy #view links fromHash()
+   still honours. */
+function pubJump(targetId, attrs, ...kids) {
+  return el('a', { href: `#${targetId}`, ...attrs, onclick: (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+    e.preventDefault();
+    const t = document.getElementById(targetId);
+    if (!t) return;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    t.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' });
+    const h = t.querySelector('h2') || t;
+    h.setAttribute('tabindex', '-1');
+    h.focus({ preventScroll: true });
+  } }, ...kids);
+}
+
+const PUB_GLYPH = {
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/>',
+  browser: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/>',
+  loop: '<path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7"/><path d="M20 4v4.7h-4.7"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.3"/><path d="M4 20v-4.7h4.7"/>',
+};
+const pubSvg = (name, size) => ICON[name] ? icon(name, size)
+  : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${PUB_GLYPH[name] || ''}</svg>`;
+const pubArrow = () => el('span', { class: 'pub-arrow', 'aria-hidden': 'true', html: pubSvg('arrow', 16) });
+/* The product's icon from the shell's table (PRODUCT_ICON, 35-ui.js), so a
+   product looks the same on its card as in the menu, the sidebar and its
+   tab row: Equities was a document here and a chart everywhere else. */
+const pubIcon = (id) => el('span', { class: 'pub-ico', 'aria-hidden': 'true', html: pubSvg(PRODUCT_ICON[id] || 'grid', 22) });
+const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true', html: pubSvg(name, 18) });
+
+/* One product as a card. The whole card is the link, named by its task and
+   its product and described by its blurb and status, so a screen reader hears
+   "Research a company, Equities Research" rather than every word on the card.
+   A product with no path (Business Intelligence) is text: a card that looks
+   like a way in and leads nowhere is the one thing the brief rules out. */
+function pubProductCard(p) {
+  const id = (k) => `pub-${p.id}-${k}`;
+  const open = !!p.path;
+  /* Described by the blurb and the status with its note — "Beta: …" — rather
+     than by the badge, whose one word was all a screen reader heard, and its
+     qualifying note a mouse's tooltip only. */
+  const card = open
+    ? pubLink(p.path, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('t')} ${id('n')}`, 'aria-describedby': `${id('b')} ${id('s')}` })
+    : el('div', { class: `pub-card pub-card-soon pub-acc-${p.id}` });
+  const badge = pubBadge(p);
+  card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), badge]));
+  if (open) card.append(el('span', { class: 'sr-only', id: id('s') }, productNote(p.id)));
+  card.append(el('p', { class: 'pub-card-product', id: id('n') }, p.name));
+  card.append(el('h3', { class: 'pub-card-title', id: id('t') }, p.task));
+  card.append(el('p', { class: 'pub-card-blurb', id: id('b') }, p.blurb));
+  card.append(open
+    ? el('span', { class: 'pub-card-go', 'aria-hidden': 'true' }, `Open ${p.name}`, pubArrow())
+    : el('p', { class: 'pub-card-note' }, p.statusNote || 'Not built yet — nothing to open.'));
   return card;
 }
 
+/* The research disclaimers the body used to repeat, as one line: the badge,
+   the sentence that matters, and where the whole account is. The footer's
+   legal paragraph and the disclosure strip above the page are unchanged. */
+function pubDisclosure() {
+  return el('p', { class: 'pub-disclose' }, [
+    pubStatusBadge('beta', 'This build is a beta preview.'),
+    el('span', {}, 'Company figures are either filed with the SEC or illustrative, every company is labelled with which, and no market prices are licensed.'),
+    pubLink('/data-sources', { class: 'pub-textlink' }, 'Data sources', pubArrow()),
+  ]);
+}
+
 VIEWS.marketing = () => {
-  const wrap = el('div', { class: 'stack-lg' });
+  const wrap = el('div', { class: 'pub' });
 
-  /* -- 1. hero ---------------------------------------------------------- */
-  const hero = el('section', { class: 'hero' });
-  const grid = el('div', { class: 'hero-grid' });
+  /* -- 1. hero: what this is, and the one thing to do ------------------- */
+  const hero = el('section', { class: 'pub-hero', 'aria-labelledby': 'pub-hero-h' });
+  hero.append(el('p', { class: 'pub-kicker' }, 'Research', el('span', { class: 'pub-kicker-dot' }, ' · '), 'Monitor',
+    el('span', { class: 'pub-kicker-dot' }, ' · '), 'Model', el('span', { class: 'pub-kicker-dot' }, ' · '), 'Plan'));
+  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Make financial decisions with greater clarity.'));
+  /* True to what is built: three products work today and business planning
+     does not exist yet, so it is named as next rather than listed as done. */
+  hero.append(el('p', { class: 'pub-lede' },
+    'Research companies, monitor your own market setups and evaluate property investments — in one workspace. Business planning is next.'));
+  hero.append(el('div', { class: 'pub-ctas' }, [
+    pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow()),
+    pubJump('products', { class: 'btn btn-ghost pub-btn' }, 'Explore products'),
+  ]));
+  wrap.append(hero);
 
-  const left = el('div');
-  left.append(el('h1', { class: 'hero-h1' },
-    'Know what a Sarawak property does to your cash, and what a filed company actually reports.'));
-  left.append(el('p', { class: 'hero-lede' },
-    'Every figure shows its formula, its source and its date — and the product says so when it cannot work one out, '
-    + 'rather than filling the gap.'));
-  const heroCtas = el('div', { class: 'row row-wrap', style: 'gap:10px;margin-top:var(--lg)' });
-  /* Primary was "Research a Bursa company", which opens the one dataset here
-     that is entirely illustrative — the strongest call to action pointing at
-     the weakest evidence. The property calculator needs no market data to be
-     completely honest, and it is the surface that answers a decision. */
-  heroCtas.append(el('a', { class: 'btn btn-primary', href: href('/property/calculator'),
-    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
-    'Check a Sarawak property'));
-  heroCtas.append(el('a', { class: 'btn', href: href('/research'),
-    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/research'); } },
-    'Research an SEC-filed company'));
-  left.append(heroCtas);
-  left.append(el('p', { class: 'metaline', style: 'margin-top:var(--lg);max-width:56ch' },
-    'No stock tips, no rankings, no recommendations. '
-    + 'Malaysian company financials here are illustrative — they are labelled on every page that shows them.'));
-  grid.append(left);
+  /* -- 2. the four products --------------------------------------------- */
+  const products = el('section', { class: 'pub-section', id: 'products', 'aria-labelledby': 'pub-products-h' });
+  products.append(el('div', { class: 'pub-section-hd' }, el('h2', { class: 'pub-h2', id: 'pub-products-h' }, 'What would you like to do?')));
+  products.append(el('div', { class: 'pub-cards' }, PRODUCTS.map(pubProductCard)));
+  products.append(pubDisclosure());
+  wrap.append(products);
 
-  /* THE PROOF, COMPUTED RATHER THAN DRAWN.
-     Each card runs the real engine on a fixture and shows what comes back. No
-     figure below is written by hand, and each says where it came from. */
-  const proof = el('div', { class: 'hero-proof' });
-  const proofCard = (title, source, rows, note) => {
-    const c = el('div', { class: 'proof-card' });
-    c.append(el('div', { class: 'proof-hd' }, [
-      el('span', { style: 'font-size:13px;font-weight:700' }, title),
-      el('span', { class: 'proof-src' }, source),
-    ]));
-    /* Two passes, not three wrappers: every label, then every value. Siblings
-       in one grid line up; nested wrappers do not when one of them wraps. */
-    const r = el('div', { class: 'proof-row' });
-    rows.forEach(([k]) => r.append(el('span', { class: 'pk' }, k)));
-    rows.forEach(([, v, tone]) => r.append(el('span', { class: 'pv', style: tone ? `color:var(${tone})` : null }, v)));
-    c.append(r);
-    if (note) c.append(el('p', { class: 'proof-src', style: 'margin-top:8px' }, note));
-    return c;
-  };
+  /* -- 3. where the work lives ------------------------------------------
+     Said plainly, because it is the one thing a visitor would otherwise
+     assume wrongly: there is no account, so the workspace is this browser,
+     and the export is the only copy that goes anywhere else. */
+  const conn = el('section', { class: 'pub-section', 'aria-labelledby': 'pub-conn-h' });
+  const panel = el('div', { class: 'pub-connected' });
+  panel.append(el('div', { class: 'pub-connected-copy' }, [
+    el('h2', { class: 'pub-h2', id: 'pub-conn-h' }, 'Your research, connected.'),
+    el('p', { class: 'pub-body' },
+      'The companies you research, the watchlists you keep, your scanner setups and your property models are saved in one personal workspace — '
+      + 'so a company can go on a watchlist, a watchlist can be what a setup checks, and a match leads back to the company.'),
+    el('div', { class: 'pub-local' }, [
+      pubGlyph('browser'),
+      el('div', {}, [
+        el('p', { class: 'pub-local-t' }, 'It lives in this browser.'),
+        el('p', { class: 'pub-local-b' },
+          'There are no accounts and no copy on a server. The export on Your data is the copy that travels — to another browser, another device, or a backup.'),
+        pubLink('/my/data', { class: 'pub-textlink' }, 'Your data and the export', pubArrow()),
+      ]),
+    ]),
+  ]));
+  const kinds = el('ul', { class: 'pub-kinds' });
+  /* Each kind in its product's icon and accent, as on the cards above. */
+  [[PRODUCT_ICON.equities, 'Companies', 'Valuation runs, comparisons and investment cases you save.', 'equities'],
+   ['list', 'Watchlists', 'The companies you follow — and a universe a scanner setup can check.', null],
+   [PRODUCT_ICON.scanner, 'Scanner setups', 'Your own rules, with every version of each kept.', 'scanner'],
+   [PRODUCT_ICON.property, 'Property models', 'Deals saved from the calculator, and the properties you record.', 'property'],
+  ].forEach(([g, t, b, acc]) => kinds.append(el('li', { class: `pub-kind${acc ? ` pub-acc-${acc}` : ''}` }, [
+    pubGlyph(g), el('div', {}, [el('h3', { class: 'pub-kind-t' }, t), el('p', { class: 'pub-kind-b' }, b)]),
+  ])));
+  panel.append(kinds);
+  conn.append(panel);
+  wrap.append(conn);
 
-  /* 1 — the property engine on its own default deal. */
+  const wl = waitlistCard();
+  if (wl) wrap.append(wl);
+  return wrap;
+};
+
+/* ==========================================================================
+   HOW IT WORKS — /how-it-works
+
+   For each product, the workflow in plain words: what goes in, what the
+   product does with it, what comes out, what is kept, and what a reader does
+   next. Then the journey that joins them, what the status labels mean, and
+   the examples that left the homepage — each still computed by the engine it
+   illustrates, never typed in, and each saying where its figures came from.
+   One primary action, the same as the homepage's: open the workspace.
+   ========================================================================== */
+/* The steps are this page's words about each product, keyed by the product's
+   id. A product without an entry (Business Intelligence, which is not built)
+   gets no steps: describing the workflow of something that does not exist
+   would be the claim the brief forbids. */
+const HIW_FLOW = {
+  equities: [
+    ['Input', 'A company. Search by ticker, name or Bursa code, or narrow the list in the screener or on the value map.'],
+    ['Analysis', 'Statements, ratios and a valuation model chosen for the business type. Every figure shows its formula, its period and its source.'],
+    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see and change. No ratings, no target prices.'],
+    ['Save', 'Put the company on a watchlist, save a valuation run or a comparison, or write an investment case.'],
+    ['Next', 'Compare it with similar businesses, or write a scanner rule on the price history you supply for it.'],
+  ],
+  scanner: [
+    ['Input', 'Your own rules — conditions on the price history you supply — and what to check: a watchlist, a market or named instruments.'],
+    ['Analysis', 'Each rule is checked on every completed daily bar, by one engine shared by this page and the worker on your computer.'],
+    ['Result', 'A record of which conditions held on which bar, with their values. A record, not a signal: nothing is ranked and nothing is sent.'],
+    ['Save', 'Setups are kept in this browser with every version of each; the worker writes its matches to a file on your computer.'],
+    ['Next', 'Open a match, read the values behind it, and go on to the company page where the instrument is a company, or to Tracked where it is followed by price only.'],
+  ],
+  property: [
+    ['Input', 'The purchase: price, financing, rent and costs. The calculator starts on illustrative defaults and marks each one until you replace it.'],
+    ['Analysis', 'Instalment, fees, maintenance, vacancy, tax on the rent and exit costs, in one deal model shared by the calculator and its printed record.'],
+    ['Result', 'Cash to complete, safe cash, monthly cash flow, break-even rent, yield and rate of return — each with its working.'],
+    ['Save', 'Save the deal as a snapshot, record the property on the opportunity register, or print the decision record.'],
+    ['Next', 'Test it against the comparables you have recorded and the area screen for its town.'],
+  ],
+};
+
+function hiwSteps(p, steps) {
+  const ol = el('ol', { class: 'hiw-steps', 'aria-label': `${p.name}, step by step` });
+  steps.forEach(([k, t], i) => ol.append(el('li', { class: 'hiw-step' }, [
+    el('span', { class: 'hiw-step-n', 'aria-hidden': 'true' }, String(i + 1)),
+    el('div', { class: 'hiw-step-body' }, [el('p', { class: 'hiw-step-k' }, k), el('p', { class: 'hiw-step-t' }, t)]),
+  ])));
+  return ol;
+}
+
+/* A computed figure and what it is, side by side. */
+function hiwFigure(figure, title, body, link) {
+  return el('div', { class: 'hiw-figure' }, [
+    figure,
+    el('div', { class: 'hiw-cap' }, [
+      el('h4', { class: 'hiw-cap-t' }, title),
+      el('p', { class: 'hiw-cap-b' }, body),
+      link || null,
+    ]),
+  ]);
+}
+
+/* THE PROOF, COMPUTED RATHER THAN DRAWN.
+   Each card runs the real engine on a fixture and shows what comes back. No
+   figure below is written by hand, and each says where it came from. */
+function pubProofCard(title, source, rows, note) {
+  const c = el('div', { class: 'proof-card' });
+  c.append(el('div', { class: 'proof-hd' }, [
+    el('span', { style: 'font-size:13px;font-weight:700' }, title),
+    el('span', { class: 'proof-src' }, source),
+  ]));
+  /* Two passes, not three wrappers: every label, then every value. Siblings
+     in one grid line up; nested wrappers do not when one of them wraps. */
+  const r = el('div', { class: 'proof-row' });
+  rows.forEach(([k]) => r.append(el('span', { class: 'pk' }, k)));
+  rows.forEach(([, v, tone]) => r.append(el('span', { class: 'pv', style: tone ? `color:var(${tone})` : null }, v)));
+  c.append(r);
+  if (note) c.append(el('p', { class: 'proof-src', style: 'margin-top:8px' }, note));
+  return c;
+}
+
+/* The property engine on whatever the calculator holds in this browser.
+   What is still to be paid, as the calculator, its ledger and the decision
+   record all say. This printed the whole completion figure, booking deposit
+   included, so with RM5,000 paid at offer the card read "Cash to complete
+   RM95.3k" beside a calculator that read RM90.3k under the same name. And a
+   total with a line it cannot price says so, as those surfaces do: with the
+   reserve unpriced (a loan tenure of 0) the card printed the safe cash as the
+   answer where the calculator calls it "so far". Completion is short only by
+   an acquisition or financing line, as the record reckons it; safe cash by
+   any line. */
+function hiwPropertyCard() {
   const pm = dealModel(State.deal);
-  /* What is still to be paid, as the calculator, its ledger and the decision
-     record all say. This printed the whole completion figure, booking deposit
-     included, so with RM5,000 paid at offer the card read "Cash to complete
-     RM95.3k" beside a calculator that read RM90.3k under the same name.
-     And a total with a line it cannot price says so, as those surfaces do:
-     with the reserve unpriced (a loan tenure of 0) the card printed the safe
-     cash as the answer where the calculator calls it "so far". Completion is
-     short only by an acquisition or financing line, as the record reckons it;
-     safe cash by any line. */
   const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
-  proof.append(proofCard('Sarawak property', 'your inputs', [
+  return pubProofCard('Sarawak property', 'your inputs', [
     [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
     [pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
-  ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.'));
+  ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.');
+}
 
-  /* 2 — the Wheel engine on a worked contract. The worked contract alone:
-     it was laid over the reader's own saved plan, so their open fees and
-     conversion cost moved this card's "$50 strike" figures, and a plan
-     marked as an unverified adjusted contract blanked all three to a dash. */
+/* The Wheel engine on its worked contract alone. It was laid over the
+   reader's own saved plan, so their open fees and conversion cost moved this
+   card's "$50 strike" figures, and a plan marked as an unverified adjusted
+   contract blanked all three to a dash. fmtAmount, not fmtMoney, so the cards
+   share one scale: beside "RM95.3k" a "$5000.00" reads as a different kind of
+   number. */
+function hiwWheelCard() {
   const wm = wheelMath({ ...WHEEL_WORKED_EXAMPLE });
-  /* fmtAmount, not fmtMoney, so the three cards share one scale. Beside
-     "RM95.3k" a "$5000.00" reads as a different kind of number. */
-  proof.append(proofCard('US options Cash Wheel', 'figures you enter', [
+  return pubProofCard('US options Cash Wheel', 'figures you enter', [
     ['Assignment cash', fmtAmount(wm.requiredAssignmentCash, 'USD')],
     ['In ringgit', fmtAmount(wm.safeAssignmentCashMyr, 'MYR')],
     ['Worst case', fmtAmount(wm.putMaxLossIfZero, 'USD'), '--dn-text'],
-  ], 'One cash-secured put at a $50 strike. The obligation is shown before any premium, because the obligation is the decision.'));
+  ], 'One cash-secured put at a $50 strike. The obligation is shown before any premium, because the obligation is the decision.');
+}
 
-  /* 3 — the Trading Index on the specification's published example. */
+/* The Trading Index on the specification's published example. */
+function hiwTradingCard() {
   const qr = qttiRun(qttiWorkedExample());
-  proof.append(proofCard('QT Trading Index', 'worked example §14', [
+  return pubProofCard('QT Trading Index', 'worked example §14', [
     ['Trend regime', String(qr.regime)],
     ['Tranche ready', String(qr.tranche), '--dn-text'],
     ['Screenshot conf.', String(qr.confidence)],
-  ], `Three outputs, never blended. This example is blocked on ${qr.gates.length} conditions and the page names every one.`));
-  grid.append(proof);
+  ], `Three outputs, never blended. This example is blocked on ${qr.gates.length} conditions and the page names every one.`);
+}
 
-  hero.append(grid);
-  wrap.append(hero);
-  const wl = waitlistCard();
-  if (wl) wrap.append(wl);
-
-  /* -- 1b. start with a goal --------------------------------------------
-     Directly beneath the hero, above the task grid. The grid below is five
-     links, which serves a reader who already knows which tool they want; this
-     serves the one who has a question and does not know that the answer lives
-     behind a nav item called Discover. */
-  const startCard = el('section', { class: 'card', style: 'border-left:3px solid var(--brand)' });
-  startCard.append(el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:center' }, [
-    el('div', { style: 'flex:1 1 320px;min-width:0' }, [
-      el('h2', { class: 'h-card' }, 'Not sure where to start?'),
-      el('p', { class: 'body', style: 'font-size:14px;margin-top:6px' },
-        'Answer up to three questions and the right tool opens with your answers already filled in. '
-        + 'It routes a workflow — it is not a suitability assessment and it recommends nothing.'),
-    ]),
-    el('a', { class: 'btn btn-primary', style: 'flex:0 0 auto', href: href('/start'),
-      onclick: (e) => { e.preventDefault(); navigate('/start'); } }, 'Start with my goal'),
+/* WHAT A COMPANY REPORT CONTAINS — the report preview that was the
+   homepage's demo. A pick repaints only the panel, and focus stays on the
+   pressed button: the whole page used to re-render under the reader's
+   pointer, and the button that had focus was destroyed with it. */
+const HIW_PICKS = [
+  { id: 'MAYBANK', label: 'Maybank' }, { id: 'PBBANK', label: 'Public Bank' },
+  { id: 'TENAGA', label: 'Tenaga' }, { id: 'AAPL-SEC', label: 'Apple' },
+];
+function hiwReportBody(r) {
+  const out = [];
+  /* The illustrative marker every other company surface carries. The panel
+     showed synthetic Maybank scores and a valuation range with nothing saying
+     they were synthetic. */
+  if (!r.c.real) out.push(el('p', { class: 'metaline hiw-label' }, [
+    illusChip(r.c), ` ${r.c.name}: illustrative figures — synthetic, not filed. They show what the report contains, not what the company reported.`]));
+  else out.push(el('p', { class: 'metaline hiw-label' }, `${r.c.name}: from audited statements filed with the SEC.`));
+  const score = (s) => (isNum(s?.score) ? `${s.score}/100` : '—');
+  out.push(el('div', { class: 'grid grid-5 hiw-tiles' }, [
+    statTile('Business quality', score(r.scores?.quality), { sub: 'margin durability, returns, consistency' }),
+    statTile('Financial strength', score(r.scores?.strength), { sub: 'leverage, cover, liquidity' }),
+    statTile('Valuation range', isNum(r.val?.vals?.bear) && isNum(r.val?.vals?.bull)
+      ? `${fmtMoney(r.val.vals.bear, r.c.ccy)} – ${fmtMoney(r.val.vals.bull, r.c.ccy)}` : 'not computable',
+      { sub: r.val?.pack?.name || '—' }),
+    statTile('Principal risks', String((r.flags || []).length || 'none flagged'), { sub: 'raised from the reported figures' }),
+    statTile('Data completeness', isNum(r.m?.coverage) ? `${r.m.coverage}%` : '—', { sub: 'computable ÷ applicable metrics' }),
   ]));
-  wrap.append(startCard);
+  out.push(el('div', { class: 'hiw-ex-actions' },
+    el('a', { class: 'btn btn-ghost pub-btn', href: href(companyPath(r.c)),
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); openResearch(r.c.id); } },
+      'Open the full report', pubArrow())));
+  return out;
+}
+function hiwReportPreview() {
+  const box = el('div', { class: 'hiw-example' });
+  box.append(el('h4', { class: 'hiw-ex-t' }, 'What a company report contains'));
+  box.append(el('p', { class: 'hiw-ex-b' }, 'Pick one. Five outputs, then the full report.'));
+  const picks = HIW_PICKS.filter(p => BY_ID.has(p.id));
+  if (!picks.length) { box.append(el('p', { class: 'metaline' }, 'The example companies are still loading.')); return box; }
+  /* 'property' was a pick when this lived on the homepage; its figures are
+     the property deal check below now, so a stored 'property' opens the
+     first company. */
+  if (!picks.some(p => p.id === State.demoPick)) State.demoPick = picks[0].id;
+  const seg = el('div', { class: 'segmented hiw-seg', role: 'group', 'aria-label': 'Example company' });
+  const panel = el('div', { class: 'hiw-panel' });
+  const draw = () => {
+    panel.replaceChildren(...hiwReportBody(BY_ID.get(State.demoPick)));
+    seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pick === State.demoPick)));
+  };
+  picks.forEach(p => seg.append(el('button', { type: 'button', data: { pick: p.id },
+    onclick: () => { State.demoPick = p.id; draw(); } }, p.label)));
+  box.append(seg, panel);
+  draw();
+  return box;
+}
 
-  /* -- 2. choose what you want to do ------------------------------------ */
-  const tasks = el('section');
-  tasks.append(el('h2', { class: 'h-section' }, 'Choose what you want to do'));
-  const tgrid = el('div', { class: 'grid grid-tasks', style: 'margin-top:var(--md)' });
-  tgrid.append(taskCard('Find companies worth researching',
-    'Screen on quality, financial strength and valuation. Every filter states what it measures.',
-    '/discover/screener', 'Open the screener'));
-  tgrid.append(taskCard('Check whether a dividend is sustainable',
-    'Cover the distribution against earnings and free cash flow, and see how much headroom is left.',
-    /* Opens on the dividend cash coverage template — yield, cash payout, free
-       cash flow yield and the earnings payout ratio — rather than the default
-       columns, which carried no cover measure at all. */
-    '/discover/screener?template=div-cover', 'Check cover'));
-  tgrid.append(taskCard('Compare similar businesses',
-    'Compare on the measures that fit the business model rather than one generic table.',
-    '/compare', 'Compare companies'));
-  tgrid.append(taskCard('Calculate a property’s real cash flow',
-    'Instalment, maintenance, vacancy and exit costs — down to the monthly number.',
-    '/property/calculator', 'Open the calculator'));
-  tgrid.append(taskCard('Monitor changes to your investment case',
-    'Write down what must stay true, and be told when the evidence moves against it.',
-    '/my/theses', 'Build a case'));
-  tasks.append(tgrid);
-  wrap.append(tasks);
-
-  /* -- 3. interactive demonstration ------------------------------------- */
-  const demo = el('section');
-  demo.append(el('h2', { class: 'h-section' }, 'See what a report actually contains'));
-  demo.append(el('p', { class: 'body-lg' }, 'Pick one. Five outputs, then the full report.'));
-  const picks = [
-    { id: 'MAYBANK', label: 'Maybank' }, { id: 'PBBANK', label: 'Public Bank' },
-    { id: 'TENAGA', label: 'Tenaga' }, { id: 'AAPL-SEC', label: 'Apple' },
-  ].filter(p => BY_ID.has(p.id));
-  /* 'property' is a pick too. Checked against the company picks alone, it was
-     reset to the first company on every render, so the Kuching tab could be
-     clicked and never shown. */
-  State.demoPick = State.demoPick === 'property' || picks.some(p => p.id === State.demoPick) ? State.demoPick : (picks[0]?.id || null);
-
-  const seg = el('div', { class: 'segmented', style: 'margin:var(--md) 0' });
-  picks.forEach(p => seg.append(el('button', {
-    'aria-selected': State.demoPick === p.id ? 'true' : 'false',
-    onclick: () => { State.demoPick = p.id; render(); } }, p.label)));
-  seg.append(el('button', { 'aria-selected': State.demoPick === 'property' ? 'true' : 'false',
-    onclick: () => { State.demoPick = 'property'; render(); } }, 'A Kuching property'));
-  demo.append(seg);
-
-  /* THE KUCHING EXAMPLE, COMPUTED. Its figures were written by hand, and the
-     engine disagreed with them for the very inputs stated beside them — the
-     page then invited the reader to "Calculate my property" and see different
-     numbers. The example is the calculator's default deal at the stated price
-     and rent, run through the same dealModel the calculator uses. */
+/* THE KUCHING EXAMPLE, COMPUTED. Its figures were written by hand, and the
+   engine disagreed with them for the very inputs stated beside them — the
+   page then invited the reader to calculate their own and see different
+   numbers. The example is the calculator's default deal at the stated price
+   and rent, run through the same dealModel the calculator uses. */
+function hiwDealCheck() {
   const EX_PRICE = 550000, EX_RENT = 1900;
   const exm = dealModel({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
     checks: {}, price: EX_PRICE, rent: EX_RENT });
   const rm0 = (v) => isNum(v) ? fmtMoney(v, 'MYR', 0) : '—';
-  const exUpfront = isNum(exm.transactionCash) ? exm.transactionCash + (exm.improvementCash || 0) : null;
-  const exNote = 'Computed by the calculator’s own model from its illustrative defaults at this price and rent — an example, not a listing. Enter your own numbers to get your own answer.';
-
-  const panel = el('div', { class: 'card' });
-  if (State.demoPick === 'property') {
-    panel.append(el('div', { class: 'grid grid-5' }, [
-      statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { sub: 'after instalment, maintenance and vacancy' }),
+  const upfront = isNum(exm.transactionCash) ? exm.transactionCash + (exm.improvementCash || 0) : null;
+  const box = el('div', { class: 'hiw-example' });
+  box.append(el('h4', { class: 'hiw-ex-t' }, 'A Sarawak property deal check'));
+  box.append(el('p', { class: 'hiw-ex-b' }, `The calculator’s own model at ${rm0(EX_PRICE)} and ${rm0(EX_RENT)} a month.`));
+  box.append(el('div', { class: 'hiw-panel' }, [
+    el('div', { class: 'grid hiw-tiles hiw-tiles-6' }, [
+      statTile('Purchase price', rm0(EX_PRICE)),
+      statTile('Expected rent', rm0(EX_RENT), { sub: 'per month' }),
+      statTile('Gross yield', fmtPct(exm.grossYield, 2), { sub: 'annual rent ÷ purchase price' }),
+      statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { sub: 'after instalment, maintenance and vacancy',
+        tone: isNum(exm.cashflowMonthly) && exm.cashflowMonthly < 0 ? '--dn-text' : null }),
       statTile('Break-even rent', rm0(exm.breakEvenRent), { sub: 'rent needed to cover every cost' }),
-      statTile('Cash required upfront', rm0(exUpfront), { sub: 'deposit, fees, renovation' }),
-      statTile('Gross yield', fmtPct(EX_RENT * 12 / EX_PRICE * 100, 2), { sub: `${rm0(EX_RENT)} rent on ${rm0(EX_PRICE)}` }),
-      statTile('Evidence quality', 'Illustrative', { sub: 'default inputs, no verified comparables' }),
+      statTile('Cash required upfront', rm0(upfront), { sub: 'deposit, fees, renovation' }),
+    ]),
+    el('p', { class: 'metaline hiw-label', style: 'margin-top:var(--md)' },
+      'Computed by the calculator’s own model from its illustrative defaults at this price and rent — an example, not a listing, with no verified comparables behind it. Enter your own numbers to get your own answer.'),
+  ]));
+  const towns = el('div', { class: 'hiw-pills' }, el('span', { class: 'hiw-pills-k' }, 'Model a purchase in'));
+  ['Kuching', 'Sibu', 'Miri', 'Bintulu'].forEach(city =>
+    towns.append(pubLink(`/property/calculator?city=${city.toLowerCase()}`, { class: 'hiw-pill' }, city)));
+  box.append(towns);
+  return box;
+}
+
+/* Each product's examples. Figures only where an engine computes them. */
+const HIW_EXAMPLES = {
+  equities: () => [
+    hiwReportPreview(),
+    hiwFigure(hiwWheelCard(), 'The US Options Cash Wheel',
+      'Part of Equities Research: a cash-secured put and covered call cycle, modelled from a contract you enter. No option-chain data is connected.',
+      pubLink('/us-options/wheel', { class: 'pub-textlink' }, 'Open the Cash Wheel', pubArrow())),
+  ],
+  scanner: () => [
+    hiwFigure(hiwTradingCard(), 'The QT Trading Index',
+      'Part of Quantum Scanner: a multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record.',
+      pubLink('/research/trading-index', { class: 'pub-textlink' }, 'Open the Trading Index', pubArrow())),
+    el('div', { class: 'hiw-aside' }, [pubGlyph('info'), el('p', {},
+      'No example match is shown here. A match is recorded from price history you supply, and none ships with this site — so until yours is there, the scanner’s pages say what they would show.')]),
+  ],
+  property: () => [
+    hiwDealCheck(),
+    hiwFigure(hiwPropertyCard(), 'Your calculator, as it stands',
+      'The same model on whatever the calculator holds in this browser now — its illustrative defaults until you replace them.'),
+  ],
+};
+
+function hiwProduct(p) {
+  const s = el('section', { class: `hiw-product pub-acc-${p.id}${p.path ? '' : ' hiw-product-soon'}`, id: `hiw-${p.id}`,
+    'aria-labelledby': `hiw-${p.id}-h` });
+  s.append(el('div', { class: 'hiw-product-hd' }, [
+    el('div', { class: 'hiw-product-id' }, [pubIcon(p.id), el('div', {}, [
+      el('h2', { class: 'hiw-product-name', id: `hiw-${p.id}-h` }, p.name),
+      el('p', { class: 'hiw-product-q' }, p.question),
+    ])]),
+    el('div', { class: 'hiw-product-status' }, [pubBadge(p), el('p', { class: 'hiw-product-note' }, p.statusNote)]),
+  ]));
+  const steps = HIW_FLOW[p.id];
+  if (steps && p.path) s.append(hiwSteps(p, steps));
+  else s.append(el('p', { class: 'hiw-soon' }, `Planned: ${String(p.blurb || '').replace(/\.$/, '').toLowerCase()}. Its workflow is described here once it is built.`));
+  /* The examples fold on a phone. Open, they made the page 10,876px — about
+     thirteen screens at 390px — and the connected journey, the page's core
+     idea, began near 9,000px. Folded behind "Worked examples", every one of
+     them is a tap away and the steps and the journey come first; above 760px
+     they are open, as the page was drawn. */
+  const ex = p.path && HIW_EXAMPLES[p.id] ? HIW_EXAMPLES[p.id]() : null;
+  if (ex && ex.length) {
+    const folded = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
+    s.append(el('details', { class: 'hiw-examples', open: folded ? null : '' }, [
+      el('summary', { class: 'hiw-examples-sum' }, [el('h3', { class: 'hiw-examples-h' }, 'Worked examples'),
+        el('span', { class: 'hiw-examples-n caption' }, `${ex.length === 1 ? 'One example' : `${ex.length} examples`}, computed by the product’s own model`)]),
+      el('div', { class: 'hiw-examples-body' }, ex),
     ]));
-    panel.append(el('p', { class: 'metaline', style: 'margin-top:10px' }, exNote));
-  } else if (State.demoPick && BY_ID.has(State.demoPick)) {
-    const r = BY_ID.get(State.demoPick);
-    /* The illustrative marker every other company surface carries. The panel
-       showed synthetic Maybank scores and a valuation range with nothing
-       saying they were synthetic. */
-    if (!r.c.real) panel.append(el('p', { class: 'metaline', style: 'margin:0 0 10px' }, [
-      illusChip(r.c), ` ${r.c.name}: illustrative figures — synthetic, not filed. They show what the report contains, not what the company reported.`]));
-    panel.append(el('div', { class: 'grid grid-5' }, [
-      statTile('Business quality', `${r.scores.quality.score}/100`, { sub: 'margin durability, returns, consistency' }),
-      statTile('Financial strength', `${r.scores.strength.score}/100`, { sub: 'leverage, cover, liquidity' }),
-      statTile('Valuation range', isNum(r.val?.vals?.bear) && isNum(r.val?.vals?.bull)
-        ? `${fmtMoney(r.val.vals.bear, r.c.ccy)} – ${fmtMoney(r.val.vals.bull, r.c.ccy)}` : 'not computable',
-        { sub: r.val?.pack?.name || '—' }),
-      statTile('Principal risks', String((r.flags || []).length || 'none flagged'),
-        { sub: 'raised from the reported figures' }),
-      statTile('Data completeness', `${r.m.coverage}%`, { sub: 'computable ÷ applicable metrics' }),
-    ]));
-    panel.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
-      el('a', { class: 'btn btn-primary', href: href(companyPath(r.c)),
-        onclick: (e) => { e.preventDefault(); openResearch(r.c.id); } }, 'Open the complete research report')));
   }
-  demo.append(panel);
-  wrap.append(demo);
+  if (p.path && p.action && p.actionPath) s.append(el('div', { class: 'hiw-product-ft' },
+    pubLink(p.actionPath, { class: 'btn btn-ghost pub-btn' }, p.action, pubArrow())));
+  return s;
+}
 
-  /* -- 4. property ------------------------------------------------------ */
-  const prop = el('section');
-  prop.append(el('h2', { class: 'h-section' }, 'Sarawak property deal check'));
-  const cityGrid = el('div', { class: 'grid grid-4', style: 'margin-top:var(--md)' });
-  ['Kuching', 'Sibu', 'Miri', 'Bintulu'].forEach(city => {
-    const c = el('a', { class: 'card task-card', href: href('/property/calculator'),
-      href: href('/property/calculator') + '?city=' + city.toLowerCase(),
-      onclick: (e) => { e.preventDefault(); navigate('/property/calculator?city=' + city.toLowerCase()); } });
-    c.append(el('h3', { class: 'h-card' }, city));
-    c.append(el('span', { class: 'task-cta' }, 'Model a purchase here'));
-    cityGrid.append(c);
-  });
-  prop.append(cityGrid);
-  const example = el('div', { class: 'card', style: 'margin-top:var(--md)' });
-  example.append(el('div', { class: 'grid grid-5' }, [
-    statTile('Purchase price', rm0(EX_PRICE)),
-    statTile('Expected rent', rm0(EX_RENT), { sub: 'per month' }),
-    statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { tone: isNum(exm.cashflowMonthly) && exm.cashflowMonthly < 0 ? '--dn-text' : null }),
-    statTile('Break-even rent', rm0(exm.breakEvenRent)),
-    statTile('Cash required upfront', rm0(exUpfront)),
+/* The journey across the products, each step at the address where it
+   happens. The last step has no link of its own: it is the first step again,
+   reached from the match. */
+const HIW_JOURNEY = [
+  ['Research a company', 'Open its report: statements, ratios and a valuation model, each figure with its source.', '/research', 'Equities Research'],
+  ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
+  ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', 'New setup'],
+  ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
+  /* A match links to a company page only where its instrument is a company
+     (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
+     links to Tracked. The step said every match led to a company. */
+  ['Back to the company', 'Each match names its instrument. Where that is a company, it links to the company page and the research picks up again; a price-only instrument links to Tracked.', null, null],
+];
+function hiwJourney() {
+  const s = el('section', { class: 'hiw-journey', id: 'hiw-journey', 'aria-labelledby': 'hiw-journey-h' });
+  s.append(el('div', { class: 'hiw-sec-hd' }, [
+    el('h2', { class: 'pub-h2', id: 'hiw-journey-h' }, 'The connected journey'),
+    el('p', { class: 'pub-body' }, 'The products hand work to one another. One path through them, from a company to a rule that checks it, and back.'),
   ]));
-  example.append(el('p', { class: 'metaline', style: 'margin-top:10px' }, exNote));
-  example.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
-    el('a', { class: 'btn btn-primary', href: href('/property/calculator'),
-      onclick: (e) => { e.preventDefault(); navigate('/property/calculator'); } }, 'Calculate my property')));
-  prop.append(example);
-  wrap.append(prop);
+  const ol = el('ol', { class: 'hiw-path' });
+  HIW_JOURNEY.forEach(([t, b, path, label], i) => ol.append(el('li', { class: 'hiw-path-step' }, [
+    el('span', { class: 'hiw-path-n', 'aria-hidden': 'true', html: i === HIW_JOURNEY.length - 1 ? pubSvg('loop', 18) : String(i + 1) }),
+    el('h3', { class: 'hiw-path-t' }, t),
+    el('p', { class: 'hiw-path-b' }, b),
+    path ? pubLink(path, { class: 'pub-textlink' }, label, pubArrow()) : null,
+  ])));
+  s.append(ol);
+  return s;
+}
 
-  /* -- 5. how it works -------------------------------------------------- */
-  const how = el('section');
-  how.append(el('h2', { class: 'h-section' }, 'How it works'));
-  const steps = el('div', { class: 'grid grid-3', style: 'margin-top:var(--md)' });
-  [['1', 'Select a company or enter a property.'],
-   ['2', 'Review the evidence and assumptions.'],
-   ['3', 'Save what you believe and monitor what changes.']].forEach(([n, t]) => {
-    const s = el('div', { class: 'card' });
-    s.append(el('div', { class: 'step-n' }, n));
-    s.append(el('p', { style: 'margin-top:8px' }, t));
-    steps.append(s);
+/* What each status label means, and which products carry it today — read
+   from PRODUCTS, so the legend cannot disagree with the badges above it. */
+const HIW_STATUS = [
+  ['live', 'Works end to end on data you enter or on filed data.'],
+  ['beta', 'Works, with data or delivery still limited as its note says.'],
+  ['demo', 'Illustrative data only.'],
+  ['soon', 'Not built, nothing to open.'],
+];
+function hiwStatus(P) {
+  const s = el('section', { class: 'hiw-status', id: 'hiw-status', 'aria-labelledby': 'hiw-status-h' });
+  s.append(el('h2', { class: 'hiw-status-h', id: 'hiw-status-h' }, 'What the labels mean'));
+  const dl = el('dl', { class: 'hiw-status-list' });
+  HIW_STATUS.forEach(([st, meaning]) => {
+    const who = P.filter(p => p.status === st).map(p => p.name);
+    dl.append(el('div', { class: 'hiw-status-item' }, [
+      el('dt', {}, pubStatusBadge(st)),
+      el('dd', {}, [el('span', { class: 'hiw-status-m' }, meaning),
+        el('span', { class: 'hiw-status-who' }, who.length ? `Today: ${who.join(', ')}` : 'No product carries it today')]),
+    ]));
   });
-  how.append(steps);
-  wrap.append(how);
+  s.append(dl);
+  return s;
+}
 
-  /* -- 6. trust --------------------------------------------------------- */
-  const trust = el('section');
-  trust.append(el('h2', { class: 'h-section' }, 'What you can check for yourself'));
-  const tg = el('div', { class: 'grid grid-3', style: 'margin-top:var(--md)' });
-  [['Data sources', 'Every provider, its coverage, its delay and its licence status.', '/data-sources'],
-   ['Methodology', 'Metric definitions, scoring weights, peer grouping and model routing.', '/methodology'],
-   ['Corrections log', 'What was wrong, what it is now, and whether anyone was told.', '/corrections'],
-   ['Model version', `Currently ${MODEL_VERSION}. Saved screens record the version that produced them.`, '/methodology'],
-   /* Promised a legal entity, a location and a contact, then linked to a page
-      whose answer to all three is "not yet established". A card should not
-      advertise what the page it opens says does not exist. */
-   ['Who runs this', 'No entity is registered yet, and this page says so plainly.', '/about'],
-   ['Conflicts of interest', 'What we are and are not paid for, and what can never change a score.', '/about'],
-  ].forEach(([t, b, p]) => tg.append(taskCard(t, b, p, 'Read')));
-  trust.append(tg);
-  trust.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    `Data as of ${AS_OF}. This date does not advance on its own — nothing here is fed by a live source.`));
-  wrap.append(trust);
+VIEWS.howItWorks = () => {
+  const P = PRODUCTS;
+  const wrap = el('div', { class: 'pub hiw' });
 
-  /* -- 7. pricing ------------------------------------------------------- */
-  const pricing = el('section');
-  pricing.append(el('h2', { class: 'h-section' }, 'Pricing'));
-  const pg = el('div', { class: 'grid grid-3', style: 'margin-top:var(--md)' });
-  [PRICING.free, PRICING.founding, PRICING.property].forEach(t => {
-    const card = el('div', { class: 'card' });
-    card.append(el('h3', { class: 'h-card' }, t.name));
-    card.append(el('div', { style: 'font-size:24px;font-weight:700;margin:4px 0 2px' }, t.price));
-    if (t.period) card.append(el('div', { class: 'metaline' }, t.period));
-    card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' }, t.line));
-    pg.append(card);
-  });
-  pricing.append(pg);
-  pricing.append(el('div', { class: 'row', style: 'margin-top:var(--md);gap:10px' }, [
-    el('a', { class: 'btn', href: href('/pricing'), onclick: (e) => { e.preventDefault(); navigate('/pricing'); } }, 'Compare plans'),
+  const hd = el('div', { class: 'pub-hero hiw-hd' });
+  hd.append(el('p', { class: 'pub-kicker' }, 'How it works'));
+  hd.append(el('h1', { class: 'pub-h1 hiw-h1' }, 'From your question to a saved answer'));
+  hd.append(el('p', { class: 'pub-lede' },
+    'Each product starts from something you choose or enter, shows its working, and keeps what you save in this browser. '
+    + 'Here is each one step by step, how they connect, and worked examples computed by the products’ own models.'));
+  hd.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
+  /* A jump link for each product that is built. Business Intelligence was a
+     fourth identical pill — a link, styled as a way into a product the brief
+     says is never a link or a button. It is text here, with its badge, as on
+     the homepage card; its section below is still on the page. */
+  const toc = el('ul', { class: 'hiw-toc-list' });
+  P.forEach(p => toc.append(el('li', {}, p.path
+    ? pubJump(`hiw-${p.id}`, { class: 'hiw-toc-link' }, p.name)
+    : el('span', { class: 'hiw-toc-soon' }, [p.name, pubBadge(p)]))));
+  toc.append(el('li', {}, pubJump('hiw-journey', { class: 'hiw-toc-link' }, 'The connected journey')));
+  hd.append(el('nav', { class: 'hiw-toc', 'aria-label': 'On this page' }, toc));
+  wrap.append(hd);
+
+  wrap.append(hiwStatus(P));
+  const list = el('div', { class: 'hiw-products' });
+  P.forEach(p => list.append(hiwProduct(p)));
+  wrap.append(list);
+  wrap.append(hiwJourney());
+
+  wrap.append(el('section', { class: 'hiw-end', 'aria-labelledby': 'hiw-end-h' }, [
+    el('h2', { class: 'pub-h2', id: 'hiw-end-h' }, 'All of it, in one workspace'),
+    el('p', { class: 'pub-body' }, 'Open it to research a company, write a setup or model a property. What you save stays in this browser.'),
+    el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())),
   ]));
-  pricing.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
-    'No payment is processed anywhere in this build. Billing, trials, renewal and cancellation are not implemented — see Plans for what that means.'));
-  wrap.append(pricing);
-
   return wrap;
 };
 
@@ -817,11 +1038,16 @@ VIEWS.watchlists = () => {
   /* Above the heading, matching the other five. A strip that sits above the
      title on four pages and below it on two reads as a different control. */
   wrap.append(mySubnav('watchlists'));
+  /* The personal pages' heading — eyebrow, 24px title, standfirst — as My
+     Dashboard and Saved Models beside it in the sidebar have. It was a 40px
+     display heading with the sample banner above it, the one page of the
+     four that looked like a different product. */
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'My workspace'),
+    el('h1', {}, 'Watchlists'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
+  ])));
   appendSampleBanner(wrap);
-  wrap.append(el('div', {}, [
-    el('h1', { class: 'h-display' }, 'Watchlists'),
-    el('p', { class: 'body-lg' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
-  ]));
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
 
   /* Create, export and import — the operations the brief names, on the page
@@ -1108,18 +1334,20 @@ function openTrendDrawer(row, t) {
   tbl.append(tb2);
   body.append(el('div', { style: 'overflow-x:auto' }, tbl));
   body.append(el('p', { class: 'metaline' },
-    `Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Extend it by pasting closes under My Investments → Your data.`));
+    [`Series runs ${t.first || '—'} to ${t.lastDate || '—'}. Extend it by pasting closes under `,
+      el('a', { href: href('/my/data'), 'data-path': '/my/data' }, 'Your data & settings'), '.']));
 
   openDrawer(`${row.sym} — trend context`, body);
 }
 
-/* Shared secondary navigation for the personal surfaces. */
+/* Shared secondary navigation for the personal surfaces — the same section
+   row the products wear (sectionTabs, 35-ui.js), with no product name: one
+   scrolling row of underline tabs, the page on screen current. As a box of
+   pills it wrapped into two rows on a phone, a different control from the
+   row a reader had just used on a product page. */
 function mySubnav(active) {
-  const row = el('div', { class: 'segmented', style: 'margin-bottom:var(--md);flex-wrap:wrap' });
-  SUBNAV_MY.forEach(s => row.append(el('a', {
-    href: href(s.path), 'aria-selected': active === s.id ? 'true' : 'false',
-    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate(s.path); } }, s.label)));
-  return row;
+  return sectionTabs({ label: 'Personal pages', cls: 'my-subnav', inView: true,
+    tabs: SUBNAV_MY.map(s => ({ label: s.label, path: s.path, current: active === s.id })) });
 }
 
 /* A consistent empty state: says what the surface is for and offers the one
@@ -1141,9 +1369,17 @@ function emptyStateCta(title, body, ctaLabel, ctaPath) {
    is not yet registered — a reader can act on the second and is misled by the
    first.
    ========================================================================== */
+/* Headed as every page but the two marketing ones is: an eyebrow naming the
+   menu it is reached from, a 24px title, a standfirst. As 40px display
+   headings these four were a fifth heading size on the public chrome, beside
+   /pricing and /learn at 24px under the same header. */
 function trustPage(title, lede, blocks) {
   const wrap = el('div', { class: 'stack' });
-  wrap.append(el('div', {}, [el('h1', { class: 'h-display' }, title), el('p', { class: 'body-lg' }, lede)]));
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Resources'),
+    el('h1', {}, title),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
+  ])));
   blocks.forEach(([heading, body, pending]) => {
     const card = el('div', { class: 'card' });
     card.append(el('div', { class: 'row', style: 'gap:8px' }, [
@@ -1251,16 +1487,23 @@ VIEWS.notfound = () => {
   const wrap = el('div', { class: 'stack' });
   const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxxl) var(--lg)' });
   card.append(el('div', { class: 'num', style: 'font-size:44px;font-weight:700' }, '404'));
-  card.append(el('h1', { class: 'h-section', style: 'margin-top:6px' },
+  card.append(el('h1', { class: 'page-title', style: 'margin-top:6px' },
     State.notFoundWhat ? `No ${State.notFoundWhat}` : 'That page does not exist'));
-  card.append(el('p', { class: 'metaline', style: 'margin:10px auto 16px;max-width:54ch' },
+  card.append(el('p', { class: 'body-lg', style: 'margin:10px auto 0;max-width:54ch' },
     State.notFoundWhat
-      ? 'It may have been renamed, or it may not be in the universe this build covers. Search for it, or start from Discover.'
+      ? 'It may have been renamed, or it may not be in the universe this build covers. Search for it, or start from Equities Research.'
       : 'The link may be out of date. Everything below is a real destination.'));
-  const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap' });
-  [['Discover', '/discover'], ['Research', '/research'], ['Property', '/property'], ['Home', '/']]
-    .forEach(([l, p]) => row.append(el('a', { class: 'btn', href: href(p),
-      onclick: (e) => { e.preventDefault(); State.notFoundWhat = null; navigate(p); } }, l)));
+  /* The way out, in the navigation this build has: the workspace as the one
+     primary action, the products that exist by name (from PRODUCTS, so a
+     product that is not built is never offered), and home. The row still
+     named the old header — Discover, Research, Property — as bare .btn text
+     with no border or fill, so four words sat under the heading looking like
+     a sentence rather than four ways out. */
+  const go = (p) => (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); State.notFoundWhat = null; navigate(p); };
+  const row = el('div', { class: 'row', style: 'gap:8px;justify-content:center;flex-wrap:wrap;margin-top:var(--lg)' });
+  row.append(el('a', { class: 'btn btn-primary', href: href('/app'), onclick: go('/app') }, 'Open your workspace'));
+  PRODUCTS.filter(p => p.path).forEach(p => row.append(el('a', { class: 'btn btn-ghost', href: href(p.path), onclick: go(p.path) }, p.name)));
+  row.append(el('a', { class: 'btn btn-ghost', href: href('/'), onclick: go('/') }, 'Home'));
   card.append(row);
   wrap.append(card);
   return wrap;

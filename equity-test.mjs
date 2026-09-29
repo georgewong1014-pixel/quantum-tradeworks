@@ -101,9 +101,17 @@ const GOLDEN = [
   { id: 'NVDA-SEC', fy: 2025, rev: 130.497 },
 ];
 
-/* A hung evaluate() used to leave the job running to the runner's limit. */
+/* A hung evaluate() used to leave the job running to the runner's limit.
+   The limit was 240s when this file held 23 checks; it holds over 200 now.
+   Measured on the Release A merge (2026-09-29): 160s and 175s for a whole
+   run on a desktop machine, of which the three Release A blocks take about
+   4s — so 240s left a quarter of the run as headroom, and a runner half as
+   fast again would have been killed mid-check with nothing hung. 360s is
+   twice the measured run: still minutes short of any runner's own limit,
+   which is the hang this exists to end early. */
 let closing = false;
-const watchdog = setTimeout(() => { console.error('FAIL  timed out after 240s'); process.exit(1); }, 240000);
+const WATCHDOG_S = 360;
+const watchdog = setTimeout(() => { console.error(`FAIL  timed out after ${WATCHDOG_S}s`); process.exit(1); }, WATCHDOG_S * 1000);
 proc.on('exit', () => { if (!closing) { console.error('FAIL  the browser exited before the checks finished'); process.exit(1); } });
 
 let ws;
@@ -744,9 +752,11 @@ try {
       navigate('/learn?tab=scoring'); navigate('/corrections'); navigate('/learn');
       out.learn = State.learnTab;
       out.nav = {};
+      /* Release A: the app's sidebar or, on a public page, the header's
+         Resources menu — whichever chrome the page wears marks it. */
       for (const p of ['/app/equities', '/discover/sarawak', '/property/areas', '/learn/product-boundaries', '/my/scanner']) {
         navigate(p);
-        out.nav[p] = document.querySelector('#mainnav a[aria-current=page]')?.firstChild?.textContent || null;
+        out.nav[p] = (document.querySelector('#appnav a[aria-current=page] .sb-text') || document.querySelector('#pubnav a[aria-current=page]'))?.textContent.trim() || null;
       }
       const canon = () => document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '');
       navigate('/app/equities/aapl'); const c1 = canon();
@@ -771,7 +781,7 @@ try {
     if (r.carried !== 'financials') p.push(`moving to JPM from /app/equities/aapl/financials landed on ${r.carried}`);
     if (r.plans !== '/pricing?real=1') p.push(`go('plans') from the calculator went to ${r.plans}`);
     if (r.learn !== 'dictionary') p.push(`/learn after /corrections shows the ${r.learn} tab`);
-    const wantNav = { '/app/equities': 'Research', '/discover/sarawak': 'Discover', '/property/areas': 'Property', '/learn/product-boundaries': 'Learn', '/my/scanner': 'Scanner' };
+    const wantNav = { '/app/equities': 'Equities Research', '/discover/sarawak': 'Equities Research', '/property/areas': 'Property Intelligence', '/learn/product-boundaries': 'What this product will not do', '/my/scanner': 'Quantum Scanner' };
     for (const [k, v] of Object.entries(wantNav)) if (r.nav[k] !== v) p.push(`${k}: the header marks ${r.nav[k]}, not ${v}`);
     if (r.canon[0] !== r.canon[1] || !/^\/company\/aapl-/.test(r.canon[0])) p.push(`AAPL's canonicals: ${r.canon.join(' vs ')}`);
     if (r.chip && (r.chip[1] !== r.chip[0] || r.chip[2] !== null)) p.push(`a ${r.chip[0]} instrument shows the chip ${r.chip[1]} and currency ${r.chip[2]}`);
@@ -2095,7 +2105,7 @@ try {
       const stamped = items.filter(i => i.kind !== 'thesis').every(i => i.stamp?.model);
       navigate('/my/workspace'); await wait(200);
       const listed = document.querySelectorAll('.ws-list .ws-row:not(.ws-head)').length;
-      const inNav = [...document.querySelectorAll('main .segmented a')].some(a => a.textContent === 'Workspace' && a.getAttribute('aria-selected') === 'true');
+      const inNav = [...document.querySelectorAll('main nav.my-subnav a[aria-current=page]')].some(a => a.textContent === 'Workspace');
       const doc = exportEverything();
       const exported = ['runs', 'comparisons', 'savedScreens', 'savedWork', 'theses'].filter(k => k in doc.data);
       const run0 = doc.data.runs[0];
@@ -3280,17 +3290,21 @@ try {
       scanDeliveriesFile = keep.d; ingestRunsFile = keep.i; scanOpsClock = keep.k; scanOpsRead = keep.read; scanMarketState.result = null; scanBacktestState.result = null; };`;
   const opsWait = `const w = (ms) => new Promise(r => setTimeout(r, ms));`;
 
-  /* NAVIGATION. Scanner is the third destination, every scanner address
-     marks it current, /my/scanner is an alias whose canonical is
-     /app/scanner, and My Investments no longer carries a scanner tab. */
+  /* NAVIGATION. The scanner is the product after Equities Research — in the
+     app's sidebar since Release A, the header's successor — every scanner
+     address (and the Trading Index, a section of it now) marks it current,
+     /my/scanner is an alias whose canonical is /app/scanner, and My
+     Investments no longer carries a scanner tab. */
   {
     const r = await evaluate(`(async () => {
-      const out = { labels: NAV.map(n => n.label), my: SUBNAV_MY.map(s => s.id), cur: {}, views: {} };
-      for (const p of ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery', '/my/scanner']) {
+      const out = { labels: [...document.querySelectorAll('#appnav a.sb-link .sb-text')].map(n => n.textContent.trim()), my: SUBNAV_MY.map(s => s.id), cur: {}, views: {} };
+      for (const p of ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery', '/my/scanner', '/research/trading-index']) {
         navigate(p);
-        out.cur[p] = document.querySelector('#mainnav a[aria-current=page]')?.firstChild?.textContent || null;
+        out.cur[p] = document.querySelector('#appnav a[aria-current=page] .sb-text')?.textContent.trim() || null;
         out.views[p] = State.view;
       }
+      out.trading = document.querySelector('main nav[aria-label="Scanner sections"] a[aria-current=page]')?.textContent.trim() || null;
+      navigate('/my/scanner');
       out.canon = document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '');
       navigate('/my/scanner?symbol=MSFT');
       out.symbol = { view: State.view, path: location.pathname };
@@ -3300,18 +3314,20 @@ try {
       return out;
     })()`);
     const p = [];
-    if (r.labels.join() !== 'Discover,Research,Scanner,My Investments,Property,Learn') p.push(`header ${r.labels.join(', ')}`);
+    if (r.labels.join() !== 'My Dashboard,Watchlists,My Alerts,Saved Models,Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans') p.push(`sidebar ${r.labels.join(', ')}`);
     if (r.my.includes('scanner')) p.push('My Investments still carries a scanner tab');
-    for (const [k, v] of Object.entries(r.cur)) if (v !== 'Scanner') p.push(`${k} marks ${v}`);
+    for (const [k, v] of Object.entries(r.cur)) if (v !== 'Quantum Scanner') p.push(`${k} marks ${v}`);
+    if (r.trading !== 'Trading Index') p.push(`the Trading Index page's scanner strip marks ${r.trading}`);
     const wantView = { '/app/scanner': 'scannerDashboard', '/app/scanner/market': 'scannerMarket', '/app/scanner/backtest': 'scannerBacktest', '/admin/scanner': 'scannerAdmin',
-      '/admin/scanner/data': 'scannerAdminData', '/admin/scanner/jobs': 'scannerAdminJobs', '/admin/scanner/delivery': 'scannerAdminDelivery', '/my/scanner': 'scannerDashboard' };
+      '/admin/scanner/data': 'scannerAdminData', '/admin/scanner/jobs': 'scannerAdminJobs', '/admin/scanner/delivery': 'scannerAdminDelivery', '/my/scanner': 'scannerDashboard',
+      '/research/trading-index': 'tradingIndex' };
     for (const [k, v] of Object.entries(wantView)) if (r.views[k] !== v) p.push(`${k} renders ${r.views[k]}, not ${v}`);
     if (r.canon !== '/app/scanner') p.push(`/my/scanner's canonical is ${r.canon}`);
     if (r.symbol.view === 'notfound' || !(r.symbol.path === '/app/scanner/setups/new' || r.symbol.view === 'scannerDashboard')) p.push(`/my/scanner?symbol=MSFT went to ${JSON.stringify(r.symbol)}`);
     if (!r.section) p.push('a scanner view is not in the Scanner section');
     if (!r.noId) p.push('a scanner route names a parameter :id, which the router reads as a company');
-    if (p.length) fail('the scanner is in the header after Research, on every scanner address', p);
-    else ok(`the scanner is in the header after Research, on every scanner address — ${Object.keys(r.cur).length} addresses mark it current, /my/scanner canonicalises to /app/scanner, and /my/scanner?symbol= opens ${r.symbol.path === '/app/scanner/setups/new' ? 'the builder' : 'the dashboard (no builder in this build)'}`);
+    if (p.length) fail('the scanner is in the sidebar after Equities Research, on every scanner address', p);
+    else ok(`the scanner is in the sidebar after Equities Research, on every scanner address — the app sidebar lists Quantum Scanner straight after Equities Research, ${Object.keys(r.cur).length} addresses mark it current (the Trading Index among them, its strip naming itself), /my/scanner canonicalises to /app/scanner, and /my/scanner?symbol= opens ${r.symbol.path === '/app/scanner/setups/new' ? 'the builder' : 'the dashboard (no builder in this build)'}`);
   }
 
   /* THE DASHBOARD'S STATES, from injected records only: never, current,
@@ -4892,7 +4908,8 @@ try {
       out.wale = [...document.querySelectorAll('main table tbody tr')].find(tr => tr.cells[0].textContent === 'Weighted lease expiry')?.cells[1].textContent ?? null;
 
       /* 2. A model difference is never the green of a gain. */
-      navigate('/app');
+      /* The research queue is what /app was before Release A (40-views-discover.js). */
+      navigate('/research/queue');
       const cardEl = [...document.querySelectorAll('main h3.h-card')].find(h => /Largest differences/.test(h.textContent))?.closest('.card');
       const cells = cardEl ? [...cardEl.querySelectorAll('.num')].filter(x => /%$/.test(x.textContent)) : [];
       out.largest = { n: cells.length, pos: cells.filter(x => x.classList.contains('pos')).length,
@@ -4984,11 +5001,12 @@ try {
       closeDrawer({ restore: false });
       State.corrections = keepCases;
 
-      /* 10. The homepage's worked contract is the worked contract, whatever
-         the reader's own plan holds. */
+      /* 10. The worked contract's card is the worked contract, whatever the
+         reader's own plan holds. It moved with the other examples from the
+         homepage to /how-it-works (Release A). */
       const keepWheel = State.wheel;
       State.wheel = { ...State.wheel, adjustedContract: true, adjustmentVerified: false, openFees: 20, fxConversionCostMyr: 500 };
-      navigate('/');
+      navigate('/how-it-works');
       const wheelCard = [...document.querySelectorAll('.proof-card')].find(x => /Cash Wheel/.test(x.textContent));
       const want = wheelMath({ ...WHEEL_WORKED_EXAMPLE });
       out.wheel = { shown: wheelCard ? [...wheelCard.querySelectorAll('.pv')].map(x => x.textContent) : null,
@@ -5037,7 +5055,7 @@ try {
     if (r.restoreNames.length < 2 || r.restoreNames.some(n => !n)) p.push(`the restore drawer has an unnamed control: ${JSON.stringify(r.restoreNames)}`);
     if (!r.search || /“”/.test(r.search)) p.push(`a filters-only search with no match reads ${JSON.stringify(r.search)}`);
     if (!r.idx.flagged || r.idx.drawn || !r.idx.legend) p.push(`${r.idx.id} is indexed off a base at or below zero: ${JSON.stringify(r.idx)}`);
-    if (JSON.stringify(r.wheel.shown) !== JSON.stringify(r.wheel.want)) p.push(`the homepage's worked Wheel contract read the reader's plan: ${JSON.stringify(r.wheel)}`);
+    if (JSON.stringify(r.wheel.shown) !== JSON.stringify(r.wheel.want)) p.push(`the worked Wheel contract on /how-it-works read the reader's plan: ${JSON.stringify(r.wheel)}`);
     if (p.length) fail('the equity views say what they hold — moat, model differences, report lines, saved runs, price note, templates, tab strips, drawer names, worked contract, indexed chart, explorer search', p);
     else ok(`the equity views say what they hold — "Revenue growth stability" on the moat page, ${r.largest.n} model gaps in the neutral tone, the report's ${r.jpm.lab} and no bank cash-flow lines, ${r.split.id}'s per-share CAGR withheld, "Save this run" opens only the run it saved, the price-history note, both interest-cover templates stated not applied, two tablists, named drawer controls, the worked contract at ${r.wheel.want.join(' / ')}, ${r.idx.id}'s index left undrawn off its non-positive base`);
   }
@@ -5142,7 +5160,8 @@ try {
         const r = await evaluate(`(async () => {
           const w = (ms) => new Promise(r => setTimeout(r, ms));
           ${scanSeedP3};
-          const navCount = () => { const n = [...document.querySelectorAll('#mainnav a')].find(x => /^Scanner/.test(x.textContent.trim())); return n?.querySelector('.nav-count')?.textContent || null; };
+          /* The main navigation's count sits on My Alerts in the sidebar since Release A. */
+          const navCount = () => document.querySelector('#appnav [data-item="alerts"] .sb-count .nav-count')?.textContent || null;
           const a = scanAlertsInOrder().find(x => x.id && scanAlertStatus(x) === 'NEW');
           const id = scanAlertIdOf(a);
           navigate('/app/scanner/alerts/' + id); await w(80);
@@ -6461,7 +6480,8 @@ try {
         await w(250);
         out.blankAsked = !!asked; out.opened = location.pathname; out.universe = scanDraft && scanDraft.universe && scanDraft.universe.kind;
       } finally { window.confirm = keepConfirm; scanDraft = keepDraft; }
-      navigate('/app'); await w(300);
+      /* The freshness card moved with the research queue (Release A). */
+      navigate('/research/queue'); await w(300);
       const fresh = () => [...document.querySelectorAll('#views .card')].find(c => /Freshness/.test(c.textContent));
       out.loaded = fresh() ? fresh().textContent : null;
       const keepStatus = realStatus; realStatus = null; render(); await w(60);
@@ -6781,9 +6801,10 @@ try {
       const cs = fh[0] ? getComputedStyle(fh[0]) : null;
       return { out, n: fh.length, tags: [...new Set(fh.map(h => h.tagName))].join(','), size: cs?.fontSize, tt: cs?.textTransform };
     })()`);
-    if (Object.keys(r.out).length || r.n !== 4 || r.tags !== 'H2' || r.size !== '12px' || r.tt !== 'uppercase')
-      fail('bugfix4 shell: no page skips a heading level into the footer, whose four headings are h2 at 12px uppercase', r);
-    else ok('bugfix4 shell: no page skips a heading level into the footer — its four column headings are h2, still 12px uppercase');
+    /* Three columns since Release A — Products, Resources, Company. */
+    if (Object.keys(r.out).length || r.n !== 3 || r.tags !== 'H2' || r.size !== '12px' || r.tt !== 'uppercase')
+      fail('bugfix4 shell: no page skips a heading level into the footer, whose three headings are h2 at 12px uppercase', r);
+    else ok('bugfix4 shell: no page skips a heading level into the footer — its three column headings are h2, still 12px uppercase');
   }
   {
     /* A MARKET CAP UNDER HALF A MILLION BELOW ZERO IS NOUGHT. fmtCap took
@@ -7191,7 +7212,8 @@ try {
         text: c?.innerText.replace(/\\n+/g, ' / ') || '', btn: b?.textContent.trim(), primary: !!b?.classList.contains('btn-primary') };
       b.focus(); b.click(); await w(150);
       out.plan = State.plan; out.toast = document.getElementById('toast')?.textContent || '';
-      out.after = card()?.querySelector('button')?.textContent.trim();
+      /* The plan in force is a marked line, not a disabled button (release-a fix). */
+      out.after = card()?.querySelector('.plan-cta')?.textContent.trim();
       State.plan = 'pro'; store.write('plan', 'pro');
       /* A portfolio holding cash, so the page draws past its empty state. */
       const keep = { pf: JSON.stringify(State.portfolios), pfIdx: State.pfIdx };
@@ -7553,6 +7575,362 @@ try {
     else ok(`bot pages: the setup page names each of the ${r.weeklyConds} weekly conditions "on the last closed weekly bar", says what the history holds for them, and the alert page reads each condition on its bar — ${wk} on the imported weekly bar closing 2026-09-18, ${dy} on the daily bar of the alert — as the setup's matches do; both pages name it "your script’s ${r.title}"`);
   }
   /* ---- end bot: pages ---- */
+  /* ---- release-a: public ---- */
+  /* THE HOMEPAGE AND /how-it-works (Release A, 55-views-public.js).
+     The homepage is the brief's: its eyebrow and headline, one primary action
+     (the workspace), the four products read from PRODUCTS — each one with a
+     path a whole-card link to a route that renders, the one without a path
+     text with no link in it — the disclosure line to /data-sources and the
+     line about where saved work lives; and no figure, chart, table or example
+     at all, because it must not read as a trading terminal. The examples are
+     on /how-it-works: five steps for every built product and none for the
+     unbuilt one, the four status meanings, the five-step journey, the three
+     computed proof cards, every primary button to /app, and a company pick
+     that repaints its panel under the pressed button — it used to re-render
+     the page and drop focus to <body> — with the illustrative label on an
+     illustrative company. Every link on both pages resolves to a route that
+     renders. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const P = PRODUCTS;
+      const LABEL = PRODUCT_STATUS;
+      const main = () => document.querySelector('#views');
+      const resolves = (h) => { const u = new URL(h, location.origin); const rt = matchRoute(u.pathname); return !!rt && typeof VIEWS[rt.view] === 'function'; };
+      const dead = (root) => [...root.querySelectorAll('a[href]')].map(a => a.getAttribute('href')).filter(h => !h.startsWith('#') && !resolves(h));
+      const out = {};
+      navigate('/'); await w(150);
+      const m = main();
+      out.home = {
+        view: State.view,
+        h1: m.querySelector('h1')?.textContent,
+        kicker: m.querySelector('.pub-kicker')?.textContent,
+        primary: [...m.querySelectorAll('.btn-primary')].map(b => [b.textContent.trim(), b.getAttribute('href')]),
+        explore: [...m.querySelectorAll('a')].find(a => a.textContent.trim() === 'Explore products')?.getAttribute('href'),
+        cards: [...m.querySelectorAll('.pub-card')].map(c => ({ tag: c.tagName, href: c.getAttribute('href'),
+          title: c.querySelector('.pub-card-title')?.textContent, links: c.querySelectorAll('a').length,
+          badge: c.querySelector('.status-badge')?.textContent.trim() })),
+        want: P.map(p => ({ path: p.path ? href(p.path) : null, task: p.task, badge: LABEL[p.status] })),
+        figures: m.querySelectorAll('svg[aria-label], canvas, table, .proof-card, .stat, .segmented, .hero-proof').length,
+        dataSources: !!m.querySelector('.pub-disclose a[href$="/data-sources"]'),
+        myData: !!m.querySelector('a[href$="/my/data"]'),
+        dead: dead(m),
+      };
+      navigate('/how-it-works'); await w(150);
+      const h = main();
+      out.hiw = {
+        view: State.view,
+        primary: [...h.querySelectorAll('.btn-primary')].map(b => b.getAttribute('href')),
+        sections: P.map(p => { const s = h.querySelector('#hiw-' + p.id);
+          return s ? { id: p.id, built: !!p.path, steps: s.querySelectorAll('.hiw-step').length, links: s.querySelectorAll('a').length } : { id: p.id, missing: true }; }),
+        legend: h.querySelectorAll('.hiw-status-item').length,
+        journey: h.querySelectorAll('.hiw-path-step').length,
+        proofs: [...h.querySelectorAll('.proof-card .proof-hd')].map(x => x.firstElementChild?.textContent),
+        dead: dead(h),
+      };
+      const btns = [...h.querySelectorAll('.hiw-seg button')];
+      const pick = async (b) => {
+        if (!b) return null;
+        b.focus(); b.click(); await w(60);
+        return { focused: b.isConnected && document.activeElement === b,
+          pressed: main().querySelector('.hiw-seg button[aria-pressed="true"]') === b,
+          label: main().querySelector('.hiw-panel .hiw-label')?.textContent || '' };
+      };
+      out.pick = { n: btns.length,
+        illus: await pick(btns.find(b => BY_ID.get(b.dataset.pick) && !BY_ID.get(b.dataset.pick).c.real)),
+        real: await pick(btns.find(b => BY_ID.get(b.dataset.pick)?.c.real)) };
+      navigate('/');
+      return out;
+    })()`);
+    const p = [];
+    const { home, hiw, pick } = r;
+    if (home.view !== 'marketing') p.push(`/ renders ${home.view}`);
+    if (home.h1 !== 'Make financial decisions with greater clarity.') p.push(`homepage h1: "${home.h1}"`);
+    if (home.kicker !== 'Research · Monitor · Model · Plan') p.push(`homepage eyebrow: "${home.kicker}"`);
+    if (home.primary.length !== 1 || home.primary[0][0] !== 'Open your workspace' || !/\/app$/.test(home.primary[0][1] || ''))
+      p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
+    if (home.explore !== '#products') p.push(`"Explore products" goes to ${home.explore}`);
+    if (home.cards.length !== home.want.length) p.push(`${home.cards.length} product cards for ${home.want.length} products`);
+    home.want.forEach((want, i) => {
+      const c = home.cards[i] || {};
+      if (c.title !== want.task) p.push(`card ${i + 1} is titled "${c.title}", not "${want.task}"`);
+      if (c.badge !== want.badge) p.push(`card "${want.task}" wears "${c.badge}", not "${want.badge}"`);
+      if (want.path && (c.tag !== 'A' || c.href !== want.path)) p.push(`card "${want.task}" is ${c.tag} to ${c.href}, not a link to ${want.path}`);
+      if (!want.path && (c.tag === 'A' || c.links)) p.push(`card "${want.task}" has no product to open and still links (${c.tag}, ${c.links} links)`);
+    });
+    if (home.figures) p.push(`the homepage carries ${home.figures} figures, charts, tables or examples`);
+    if (!home.dataSources || !home.myData) p.push(`homepage links: data sources ${home.dataSources}, your data ${home.myData}`);
+    if (home.dead.length) p.push(`homepage links to no page: ${home.dead.join(', ')}`);
+    if (hiw.view !== 'howItWorks') p.push(`/how-it-works renders ${hiw.view}`);
+    if (!hiw.primary.length || hiw.primary.some(x => !/\/app$/.test(x || ''))) p.push(`/how-it-works primary actions: ${JSON.stringify(hiw.primary)}`);
+    hiw.sections.forEach(s => {
+      if (s.missing) p.push(`/how-it-works has no section for ${s.id}`);
+      else if (s.built && s.steps !== 5) p.push(`${s.id}: ${s.steps} workflow steps, not 5`);
+      else if (!s.built && (s.steps || s.links)) p.push(`${s.id} is not built and shows ${s.steps} steps and ${s.links} links`);
+    });
+    if (hiw.legend !== 4) p.push(`${hiw.legend} status meanings, not 4`);
+    if (hiw.journey !== 5) p.push(`${hiw.journey} journey steps, not 5`);
+    for (const t of ['Sarawak property', 'US options Cash Wheel', 'QT Trading Index'])
+      if (!hiw.proofs.includes(t)) p.push(`/how-it-works lost the "${t}" example (${hiw.proofs.join(', ')})`);
+    if (hiw.dead.length) p.push(`/how-it-works links to no page: ${hiw.dead.join(', ')}`);
+    if (pick.n < 3 || !pick.illus || !pick.real) p.push(`the report preview offers ${pick.n} companies (illustrative ${!!pick.illus}, filed ${!!pick.real})`);
+    for (const [k, x] of [['illustrative', pick.illus], ['filed', pick.real]]) {
+      if (x && (!x.focused || !x.pressed)) p.push(`picking the ${k} company lost focus or its pressed state: ${JSON.stringify(x)}`);
+    }
+    if (pick.illus && !/illustrative figures/.test(pick.illus.label)) p.push(`an illustrative company's preview is not labelled: "${pick.illus.label}"`);
+    if (pick.real && !/filed with the SEC/.test(pick.real.label)) p.push(`a filed company's preview does not say so: "${pick.real.label}"`);
+    if (p.length) fail('release-a public: the homepage and /how-it-works say what the brief says, and every link on them opens a page', p);
+    else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS and no figures; /how-it-works has the steps, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
+  }
+  /* ---- end release-a: public ---- */
+  /* ---- release-a: dashboard ---- */
+  /* MY DASHBOARD COUNTS ONLY WHAT IS THE VISITOR'S, AND EVERY COUNT IS A DOOR.
+     /app was the equities research queue; Release A makes it the visitor's
+     own dashboard and moves the queue to /research/queue. The rules it must
+     keep: with nothing of the visitor's own saved it is a checklist, never
+     tiles of zeros; the samples seeded on a first visit are never counted as
+     the visitor's; an absent scanner record is said to be absent, never a
+     nought; "new since the last visit" is by when the worker recorded a match
+     and survives a redraw inside the visit; a setup's name is quoted as the
+     visitor's own; and every link on the page opens a route that renders. A
+     clean profile is loaded for it (onboarded, so the router's gate is not
+     what is measured), and the reader's storage is put back after. */
+  {
+    const keepLs = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])))`);
+    const reload = async (path) => {
+      await send('Page.navigate', { url: `${BASE}${path}` }, sessionId);
+      for (let i = 0; i < 60; i++) {
+        await sleep(300);
+        try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && U.some(r => r.c.real)`)) break; } catch { /* booting */ }
+      }
+    };
+    await evaluate(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+      localStorage.setItem('vl.plan', JSON.stringify('pro'));
+      localStorage.setItem('vl.onboarding', JSON.stringify({ done: true, at: '2026-09-27T00:00:00Z' })); return true; })()`);
+    await reload('/app');
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const main = () => document.querySelector('#views');
+      /* Every link the page draws, by the route it opens. */
+      const deadLinks = () => [...main().querySelectorAll('a[href]')].map(a => new URL(a.href).pathname)
+        .filter(p => { const rt = matchRoute(p); return !rt || !VIEWS[rt.view]; });
+      const tiles = () => Object.fromEntries([...main().querySelectorAll('.dash-tile')].map(t => [t.querySelector('.stat-label').textContent, { v: t.querySelector('.dash-tile-v').textContent, href: new URL(t.href).pathname }]));
+      const out = {};
+      /* The deployed site: the worker's files are never there. */
+      scanSetupsFile = null; scanAlertsFile = null; navigate('/app'); await w(200);
+      out.first = { view: State.view, start: !!main().querySelector('.dash-start'), tiles: main().querySelectorAll('.dash-tile').length,
+        steps: [...main().querySelectorAll('.dash-step')].map(s => s.dataset.done).join(''), progress: main().querySelector('.dash-progress-t')?.textContent,
+        primary: main().querySelectorAll('.dash-start .btn-primary').length, samples: !!main().querySelector('.dash-note'), seeded: hasSeededData(),
+        prefs: !!main().querySelector('a[href$="/welcome"]'), start2: !!main().querySelector('a[href$="/start"]'), dead: deadLinks() };
+      /* Two steps taken: a company read, and a list of the reader's own. */
+      openResearch('MAYBANK'); await w(200); openResearch('MSFT-SEC'); await w(200);
+      const made = wlCreate('release-a list'); wlAdd(made.watchlist.id, 'MSFT-SEC'); wlAdd(made.watchlist.id, 'MAYBANK');
+      navigate('/app'); await w(200);
+      out.second = { tiles: tiles(), steps: [...main().querySelectorAll('.dash-step')].length, dead: deadLinks(),
+        text: main().textContent.replace(/\\s+/g, ' ') };
+      /* A visit two hours ago, and the worker's record: two matches found
+         since, one before, one of them read here. */
+      store.write('dashVisit', { prev: null, seen: new Date(Date.now() - 2 * 3600e3).toISOString() });
+      const now = new Date().toISOString();
+      scanAlertsFile = { alerts: [
+        { id: 'a0ra00001', setupId: 'ra-wt', setupName: 'WaveTrend Buy', setupVersion: 1, symbol: 'MSFT', candleDate: '2026-09-28', eventType: 'NEW_MATCH', close: 510, detectedAt: now },
+        { id: 'a0ra00002', setupId: 'ra-wt', setupName: 'WaveTrend Buy', setupVersion: 1, symbol: 'AAPL', candleDate: '2026-09-28', eventType: 'MATCH', close: 230, detectedAt: now },
+        { id: 'a0ra00003', setupId: 'ra-wt', setupName: 'WaveTrend Buy', setupVersion: 1, symbol: 'NVDA', candleDate: '2026-09-24', eventType: 'MATCH', close: 180, detectedAt: '2026-09-25T00:00:00Z' },
+      ] };
+      scanSetAlertStatus(['a0ra00002'], 'READ');
+      navigate('/app'); await w(200);
+      const rows = () => [...main().querySelectorAll('.dash-matches a.dash-row')];
+      out.third = { tiles: tiles(), lede: main().querySelector('.dash-hd .body-lg').textContent,
+        rows: rows().map(a => ({ href: new URL(a.href).pathname, text: a.textContent.replace(/\\s+/g, ' ').trim() })), dead: deadLinks() };
+      /* A redraw inside the same visit keeps the count. */
+      render(); await w(100);
+      out.redraw = tiles()['New scanner alerts']?.v;
+      /* The research queue is the old dashboard, whole. */
+      navigate('/research/queue'); if (State.view !== 'researchQueue') { State.view = 'researchQueue'; render(); } await w(200);
+      out.queue = { h1: main().querySelector('h1')?.textContent, fresh: /Freshness/.test(main().textContent), largest: /Largest differences/.test(main().textContent),
+        waits: UNIVERSE_VIEWS.has('researchQueue') };
+      return out;
+    })()`);
+    const p = [];
+    const f = r.first;
+    if (f.view !== 'home' || !f.start || f.tiles !== 0) p.push(`first time: view ${f.view}, checklist ${f.start}, ${f.tiles} tiles`);
+    if (f.steps !== '0000' || f.progress !== '0 of 4 done') p.push(`first time: steps ${f.steps}, "${f.progress}" — the seeded samples were counted as the visitor's`);
+    if (f.primary !== 1) p.push(`first time: ${f.primary} primary actions in the checklist, not one`);
+    if (!f.seeded || !f.samples) p.push(`first time: the seeded samples (${f.seeded}) are not named on the page (${f.samples})`);
+    if (!f.prefs || !f.start2) p.push(`first time: "Set your preferences" ${f.prefs}, "Not sure where to start?" ${f.start2}`);
+    const s = r.second, t2 = s.tiles;
+    if (t2['Instruments watchlisted']?.v !== '2') p.push(`one list of two companies reads ${JSON.stringify(t2['Instruments watchlisted'])} — the samples were counted`);
+    if (t2['Scanner alerts']?.v !== 'No record') p.push(`with no record visible the alerts tile reads ${JSON.stringify(t2['Scanner alerts'])}, not "No record"`);
+    if (t2['Active setups']?.v !== '0' || t2['Saved models']?.v !== '0') p.push(`counts with nothing saved: ${JSON.stringify(t2)}`);
+    if (s.steps !== 2) p.push(`next steps list ${s.steps} steps, not the two not taken`);
+    const hrefs = { 'Active setups': '/app/scanner/setups', 'Scanner alerts': '/app/scanner/alerts', 'Instruments watchlisted': '/my/watchlists', 'Saved models': '/my/workspace' };
+    for (const [k, h] of Object.entries(hrefs)) if (!t2[k] || !t2[k].href.endsWith(h)) p.push(`the ${k} tile opens ${t2[k]?.href}, not ${h}`);
+    if (!/MSFT/.test(s.text) || !/illustrative/i.test(s.text)) p.push('the recently read companies are not named, or the illustrative one is not marked');
+    const t = r.third;
+    if (t.tiles['New scanner alerts']?.v !== '2' || r.redraw !== '2') p.push(`new since the visit: ${t.tiles['New scanner alerts']?.v}, after a redraw ${r.redraw} — want 2 and 2`);
+    if (!/2 new matches/.test(t.lede)) p.push(`the lede does not say what changed: "${t.lede}"`);
+    if (t.rows.length !== 3 || t.rows.some(x => !/^\/app\/scanner\/alerts\/a0ra0000[123]$/.test(x.href))) p.push(`match rows: ${JSON.stringify(t.rows.map(x => x.href))}`);
+    if (t.rows.some(x => !/Your setup “WaveTrend Buy”/.test(x.text))) p.push(`a setup's name is not quoted as the visitor's own: ${JSON.stringify(t.rows.map(x => x.text))}`);
+    if (!/^MSFT/.test(t.rows[0]?.text || '') || !/new/.test(t.rows[0]?.text || '') || /new/.test((t.rows[1]?.text || '').replace(/new match/, ''))) p.push(`order or read state: ${JSON.stringify(t.rows.map(x => x.text))}`);
+    const dead = [...f.dead, ...s.dead, ...t.dead];
+    if (dead.length) p.push(`links to routes that do not render: ${[...new Set(dead)].join(', ')}`);
+    if (r.queue.h1 !== 'Research queue' || !r.queue.fresh || !r.queue.largest || !r.queue.waits) p.push(`the research queue: ${JSON.stringify(r.queue)}`);
+    if (p.length) fail('release-a dashboard: the visitor’s own counts, doors and record', p);
+    else ok(`release-a dashboard: a clean profile gets the four-step checklist (0 of 4, samples named and not counted, one primary action); a list of its own reads 2 instruments, an absent record reads "No record", and ${t.tiles['New scanner alerts'].v} matches recorded since the last visit stay ${r.redraw} after a redraw; each of ${t.rows.length} rows opens its alert as “your setup”, no link leads to a route that does not render, and the research queue keeps the old dashboard`);
+    await evaluate(`(() => { const keep = JSON.parse(${JSON.stringify(keepLs)});
+      Object.keys(localStorage).forEach(k => { if (!(k in keep)) localStorage.removeItem(k); });
+      Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v)); return true; })()`);
+    await reload('/research');
+  }
+  /* ---- end release-a: dashboard ---- */
+
+  /* ---- release-a: integration ---- */
+  /* WHERE THE THREE RELEASE A BRANCHES MEET. What the merge decided, held:
+     1. every public page wears the short disclosure '/' wears — no chips, the
+        long text folded — with "Which sources?" opening every word of it, and
+        every app page the full strip; the surface follows the chrome;
+     2. one row of navigation per level on the screener: the product row has
+        one "Screener" tab, current on all four tabs of the screener's page,
+        and no "Value map" tab, whose page is one click away in the page's own
+        strip; the research queue is Equities', in the sidebar and the tabs;
+     3. the Trading Index is the last row of the strip every scanner page
+        draws (SCANNER_SUBNAV), not a row copied into it at boot;
+     4. the scanner's unread count beside My Alerts is named for the page it
+        opens, and carries the Scanner's mark;
+     5. /welcome's way out is a 44px target at every width;
+     6. the dashboard's footnote names the page its link opens. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).display !== 'none';
+      const out = { surfaces: {}, tabs: {} };
+      for (const p of ['/', '/how-it-works', '/pricing', '/about', '/learn/glossary', '/data-sources', '/status', '/app', '/discover/screener', '/research/trading-index']) {
+        navigate(p); await w(40);
+        out.surfaces[p] = { chrome: document.documentElement.dataset.chrome, surface: document.body.dataset.surface,
+          chips: [...document.querySelectorAll('.disclosure-in .chip')].some(shown), long: shown(document.querySelector('.disclosure-long')),
+          more: shown(document.getElementById('disclosureMore')) };
+      }
+      navigate('/how-it-works'); await w(40);
+      const more = document.getElementById('disclosureMore');
+      more.click(); await w(20);
+      out.opened = { long: shown(document.querySelector('.disclosure-long')), exp: more.getAttribute('aria-expanded') };
+      more.click(); await w(20);
+      out.closed = { long: shown(document.querySelector('.disclosure-long')), exp: more.getAttribute('aria-expanded') };
+      for (const p of ['/discover/screener', '/discover/value-map', '/discover?tab=ideas', '/discover?tab=heatmap', '/research/queue']) {
+        navigate(p); await w(40);
+        out.tabs[p] = { labels: [...document.querySelectorAll('#productTabs .ptab')].map(a => a.textContent),
+          current: [...document.querySelectorAll('#productTabs .ptab[aria-current=page]')].map(a => a.textContent),
+          sub: [...document.querySelectorAll('#views [role=tablist][aria-label="Screener tools"] [role=tab]')].map(t => t.textContent),
+          side: document.querySelector('#appnav a[aria-current=page] .sb-text')?.textContent.trim() || null };
+      }
+      out.strip = SCANNER_SUBNAV.map(s => s.id);
+      navigate('/app/scanner/setups'); await w(40);
+      out.stripOnPage = [...document.querySelectorAll('#views nav[aria-label="Scanner sections"] a')].map(a => a.textContent);
+      const keepA = scanAlertsFile, keepSt = localStorage.getItem('vl.scanAlertState'), keepPrefs = localStorage.getItem('vl.scanPrefs');
+      try {
+        localStorage.removeItem('vl.scanAlertState'); localStorage.removeItem('vl.scanPrefs');
+        scanAlertsFile = { alerts: [1, 2, 3].map(i => ({ id: 'aint000' + i, key: 'int|' + i, setupId: 'int-setup', setupName: 'Integration', setupVersion: 1,
+          symbol: 'XAUUSD', timeframe: '1D', candleDate: '2026-09-2' + i, close: 1, eventType: 'NEW_MATCH', detectedAt: '2026-09-2' + i + 'T22:00:00Z' })) };
+        navigate('/app'); await w(60);
+        const c = document.querySelector('#appnav [data-item="alerts"] .sb-count');
+        out.count = c ? { label: c.getAttribute('aria-label'), href: new URL(c.href).pathname, text: c.textContent.trim(), mark: !!c.querySelector('.sb-count-ico svg') } : null;
+      } finally {
+        scanAlertsFile = keepA;
+        if (keepSt == null) localStorage.removeItem('vl.scanAlertState'); else localStorage.setItem('vl.scanAlertState', keepSt);
+        if (keepPrefs == null) localStorage.removeItem('vl.scanPrefs'); else localStorage.setItem('vl.scanPrefs', keepPrefs);
+      }
+      const keepOb = State.obStep;
+      State.obStep = 1; navigate('/welcome'); await w(60);
+      out.welcome = [...document.querySelectorAll('.ob-foot .btn')].map(b => ({ t: b.textContent.trim(), h: b.getBoundingClientRect().height, w: b.getBoundingClientRect().width }));
+      State.obStep = keepOb;
+      navigate('/app'); await w(60);
+      const foot = [...document.querySelectorAll('#views .dash-foot a')].find(a => new URL(a.href).pathname === '/research/queue');
+      out.foot = foot ? foot.textContent : null;
+      navigate('/research');
+      return out;
+    })()`);
+    const p = [];
+    for (const [path, s] of Object.entries(r.surfaces)) {
+      const pub = s.chrome === 'public';
+      if (s.surface !== s.chrome) p.push(`${path}: surface ${s.surface} under the ${s.chrome} chrome`);
+      if (pub && (s.chips || s.long || !s.more)) p.push(`${path} (public) shows the app's strip: ${JSON.stringify(s)}`);
+      if (!pub && s.long === false && s.more === false) p.push(`${path} (app) hides the long disclosure with no way to it: ${JSON.stringify(s)}`);
+    }
+    if (!r.opened.long || r.opened.exp !== 'true' || r.closed.long || r.closed.exp !== 'false') p.push(`"Which sources?" on /how-it-works: opened ${JSON.stringify(r.opened)}, closed ${JSON.stringify(r.closed)}`);
+    for (const [path, t] of Object.entries(r.tabs)) {
+      if (t.labels.includes('Value map')) p.push(`${path}: the product row still carries "Value map" (${t.labels.join(' · ')})`);
+      if (t.side !== 'Equities Research') p.push(`${path}: the sidebar marks ${t.side}`);
+      const want = path === '/research/queue' ? 'Research queue' : 'Screener';
+      if (t.current.length !== 1 || t.current[0] !== want) p.push(`${path}: product tab current ${JSON.stringify(t.current)}, not "${want}"`);
+      if (path !== '/research/queue' && t.sub.join('|') !== 'Stock Screener|Quality vs Value Map|Screening Strategies|Heatmap') p.push(`${path}: the screener's own strip reads ${t.sub.join(' · ')}`);
+    }
+    if (r.strip[r.strip.length - 1] !== 'trading' || r.strip.filter(x => x === 'trading').length !== 1) p.push(`SCANNER_SUBNAV: ${r.strip.join(', ')}`);
+    if (r.stripOnPage[r.stripOnPage.length - 1] !== 'Trading Index') p.push(`a scanner page's strip ends ${r.stripOnPage.slice(-1)[0]}`);
+    if (!r.count || r.count.label !== 'Scanner alerts, 3 unread' || r.count.href !== '/app/scanner/alerts' || r.count.text !== '3' || !r.count.mark) p.push(`the unread count beside My Alerts: ${JSON.stringify(r.count)}`);
+    if (r.welcome.length < 2 || r.welcome.some(b => b.h < 44 || b.w < 44)) p.push(`/welcome's Back and Skip: ${JSON.stringify(r.welcome)}`);
+    if (r.foot !== 'Research queue') p.push(`the dashboard's footnote link to /research/queue reads "${r.foot}"`);
+    if (p.length) fail('release-a integration: public pages wear the short disclosure, one navigation row per level, the Trading Index in the scanner strip, a named unread count, 44px on /welcome', p);
+    else ok(`release-a integration: ${Object.values(r.surfaces).filter(s => s.chrome === 'public').length} public pages wear the short disclosure with every word behind "Which sources?"; one "Screener" product tab, current on all four screener tabs, over the page's own strip; the Trading Index last in SCANNER_SUBNAV; the unread count named "${r.count.label}"; /welcome's ${r.welcome.map(b => b.t.split(' ')[0]).join(' and ')} at ${Math.min(...r.welcome.map(b => b.h))}px; the footnote's link says "${r.foot}"`);
+  }
+  /* ---- end release-a: integration ---- */
+
+  /* ---- release-a: fixes ---- */
+  /* THE DASHBOARD COUNTS ONLY WHAT THE VISITOR DID. One "Add to watchlist" on
+     a company page adds to the active list — the seeded Core watchlist on a
+     fresh profile, and step 2 of the journey /how-it-works describes — and
+     that one touch made all six seeded companies "yours": 7 instruments "in 1
+     list of your own", and "Create a watchlist" ticked with no list created.
+     Also: the Continue rows use the reader's clock, as the lede does, and a
+     list of illustrative companies wears the illustrative chip. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = { wl: JSON.stringify(State.watchlists), idx: State.wlIdx, visit: localStorage.getItem('vl.dashVisit'),
+        recent: JSON.stringify(State.recentCompanies || []) };
+      const out = {};
+      try {
+        /* A fresh profile's lists, as 05-plans.js seeds them and the migration dates them: no member dated. */
+        const seed = (id, name, ids) => ({ id, name, ids: [...ids], added: Object.fromEntries(ids.map(x => [x, null])), createdAt: null, updatedAt: null, schema: WATCHLIST_SCHEMA });
+        State.watchlists = [seed('wl-1', 'Core watchlist', ['AAPL', 'MAYBANK', 'PBBANK', 'NVDA', 'AXREIT', 'TENAGA'].filter(x => BY_ID.has(x))),
+                            seed('wl-2', 'Bursa income', ['MAYBANK', 'PBBANK', 'PETGAS', 'KLCC', 'IGBREIT'].filter(x => BY_ID.has(x)))];
+        State.wlIdx = 0; saveWatchlists();
+        const msft = [...BY_ID.keys()].find(k => /^MSFT/.test(k)) || 'MSFT';
+        toggleWatch(msft, 0); await w(40);
+        navigate('/app'); await w(120);
+        const tile = [...document.querySelectorAll('#views .dash-tile')].find(t => /Instruments watchlisted/.test(t.textContent));
+        out.tile = tile ? { v: tile.querySelector('.dash-tile-v')?.textContent, sub: tile.querySelector('.stat-sub')?.textContent, note: tile.querySelector('.dash-tile-note')?.textContent || null } : null;
+        const own = myDashOwn();
+        out.instruments = own.instruments.size; out.created = own.createdLists.length;
+        out.stepDone = myDashSteps(own).find(s => s.k === 'watchlist')?.done;
+        /* A list the visitor made, of illustrative companies, edited an hour ago. */
+        const illus = U.filter(r => !r.c.real).slice(0, 2).map(r => r.c.id);
+        const hourAgo = new Date(Date.now() - 3600e3).toISOString();
+        State.watchlists.push({ id: 'wl-fix-own', name: 'Fix own', ids: illus, added: Object.fromEntries(illus.map(x => [x, hourAgo])), createdAt: hourAgo, updatedAt: hourAgo, schema: WATCHLIST_SCHEMA });
+        saveWatchlists();
+        navigate('/app'); await w(120);
+        const row = [...document.querySelectorAll('#views .dash-cont .dash-row')].find(x => /Fix own/.test(x.textContent));
+        out.row = row ? { meta: row.querySelector('.dash-row-s')?.textContent || '', chip: row.querySelector('.chip-bronze')?.textContent || null } : null;
+        out.local = myDashWhen(Date.parse(hourAgo));
+      } finally {
+        State.watchlists = JSON.parse(keep.wl); State.wlIdx = keep.idx; saveWatchlists();
+        State.recentCompanies = JSON.parse(keep.recent);
+        if (keep.visit == null) localStorage.removeItem('vl.dashVisit'); else localStorage.setItem('vl.dashVisit', keep.visit);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (r.instruments !== 1) p.push(`one company added to the seeded list counts ${r.instruments} instruments, not 1`);
+    if (r.stepDone !== false || r.created !== 0) p.push(`"Create a watchlist" is ${r.stepDone ? 'ticked' : 'not ticked'} with ${r.created} list(s) created`);
+    if (r.tile && (r.tile.v !== '1' || /of your own/.test(r.tile.sub || '') || !/Sample companies not counted/.test(r.tile.note || ''))) p.push(`the tile reads ${JSON.stringify(r.tile)}`);
+    if (!r.row) p.push("a list of the visitor's own is not in Continue");
+    else {
+      if (/UTC/.test(r.row.meta) || !r.row.meta.includes(r.local)) p.push(`the Continue row's time is "${r.row.meta}", not the reader's clock ("${r.local}")`);
+      if (r.row.chip !== 'illustrative figures') p.push(`a list of illustrative companies wears ${JSON.stringify(r.row.chip)}`);
+    }
+    if (p.length) fail("release-a fixes: the dashboard counts only what the visitor did, on the reader's clock, with the illustrative chip", p);
+    else ok(`release-a fixes: one company added to the seeded list counts as 1 instrument (${r.tile ? r.tile.note : 'no tile'}), "Create a watchlist" stays open, and a list of the visitor's own reads "${r.row.meta}" with its illustrative chip`);
+  }
+  /* ---- end release-a: fixes ---- */
 
   /* ---- frames: verify ---- */
   /* H3-D: an alert of a daily setup whose conditions read imported weeks and
