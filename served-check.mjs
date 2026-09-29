@@ -300,5 +300,64 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   judge(p, `every sitemap address (${locs.length}) is served 200 with itself as its canonical`, 'a sitemap address is not served as its own canonical');
 }
 
+/* ---- audit: verify ---- */
+/* 8. What serve.mjs answered differently from Vercel. Each source in
+      vercel.json was compiled by @vercel/routing-utils — what Vercel turns
+      vercel.json into — and compared with serve.mjs's compilation over 122
+      addresses: every rewrite, redirect and header source agreed, and the
+      trailing-slash rule did not. Vercel's is ^/(.*)\/$ to /$1, one slash per
+      redirect; serve.mjs answered /pricing// with a 404 and // with a 400.
+      Held here by where the reader lands, not by the hops, so a host that
+      folds a run of slashes before routing passes as well.
+      And a file name in the wrong case (/INDEX.HTML, /Data/us.json) was
+      served 200 here, off a case-insensitive disk, where Vercel's
+      case-sensitive one has no such file. Last, no redirect may send a reader
+      off this site: //example.com/ must not become a Location of
+      //example.com, which a browser reads as another host. */
+{
+  /* Where a run of slashes ends up, following this site's own redirects: the
+     rule takes one slash per 308, and a host that folds the run first would
+     answer sooner — either way the reader must land on the page. */
+  const follow = async (path) => {
+    const hops = [];
+    for (let at = path; hops.length < 5;) {
+      const r = await fetch(BASE + at, { redirect: 'manual', signal: AbortSignal.timeout(90000) }).catch(e => ({ status: 0, error: e.message, headers: new Headers() }));
+      const loc = r.headers.get('location');
+      if (r.status >= 300 && r.status < 400 && loc) {
+        const next = new URL(loc, BASE + at);
+        if (next.origin !== new URL(BASE).origin) return { hops, status: r.status, offsite: loc };
+        hops.push(`${r.status} ${next.pathname}${next.search}`);
+        at = next.pathname + next.search;
+        continue;
+      }
+      return { hops, status: r.status, at, canonical: r.status === 200 ? headOf(await r.text()).canonical : null };
+    }
+    return { hops, status: 'too many redirects' };
+  };
+  const slash = [['/pricing//', '/pricing'], ['//', '/'], ['/app/scanner//?q=1', '/app/scanner?q=1']];
+  const cased = ['/INDEX.HTML', '/Index.html', '/Data/us.json', '/data/US.json', '/Pages/pricing.html', '/pages/Pricing.html', '/404.HTML', '/Og.png'];
+  const offsite = ['//example.com/', '//example.com/index.html', '///example.com/'];
+  const got = await getAll([...cased, ...offsite]);
+  const p = [];
+  for (const [from, to] of slash) {
+    const f = await follow(from);
+    const page = to.split('?')[0];
+    if (f.status !== 200 || f.at !== to || f.canonical !== ORIGIN + page)
+      p.push(`${from}: ${[...f.hops, f.offsite ? `off the site to ${f.offsite}` : `${f.status}${f.at ? ` at ${f.at}` : ''}`].join(' → ')}, not the page at ${to}`);
+  }
+  for (const path of cased) {
+    const r = got.get(path);
+    if (r.status !== 404) p.push(`${path}: ${described(r)} — a file name in the wrong case is not a file on Vercel`);
+    else if (headOf(r.body).title !== NOT_FOUND.title) p.push(`${path}: 404, but not the not-found page`);
+  }
+  for (const path of offsite) {
+    const r = got.get(path), loc = r.headers.get('location');
+    if (loc && new URL(loc, BASE).origin !== new URL(BASE).origin) p.push(`${path}: ${r.status} to ${loc} — a redirect off this site`);
+  }
+  judge(p, `a run of trailing slashes lands on its page, query kept (${slash.length}), a file name in the wrong case is a 404 (${cased.length}), and no redirect leaves the site (${offsite.length})`,
+    'an address is not answered as Vercel answers it');
+}
+/* ---- end audit: verify ---- */
+
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

@@ -10552,6 +10552,55 @@ try {
     else ok(`audit content C2–C5: Terms and Privacy open "Draft — not yet reviewed by a lawyer"; the entity, address, contact email and domain are dashed "To be supplied" markers on all four trust pages; Privacy names all ${keys.size} stored keys, no cookies (none set by any response), ${r.tag ? 'the analytics tag as it is' : 'no analytics'}, and the PDPA 2010 notice in ten parts with the Bahasa Malaysia version to be supplied; Terms cover the service and Malaysian law; About claims no legal conclusion; Contact's Report a data error opens and says it sends nothing`);
   }
   /* ---- end audit: content ---- */
+  /* ---- audit: verify ---- */
+  /* THE PROPERTY REPORT'S OFFER IS NOT A SALE EITHER. With the content
+     owner's plan prompt merged, the calculator's full-report offer read
+     "Full investor report — RM49 … Bought per report" over a button "Unlock
+     this report (prototype — no payment)", in the card whose own line now
+     says "Plans are not on sale yet — nothing can be bought" — a price, a
+     purchase and its denial side by side, on a site where nothing is on
+     sale. The offer and its controls must read as /pricing does: a proposed
+     price, not on sale, and a button that says it previews. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = { plan: State.plan, bought: State.propertyReportsBought };
+      State.plan = 'free'; store.write('plan', 'free');
+      State.propertyReportsBought = []; store.write('propertyReportsBought', []);
+      navigate('/property/calculator'); await w(400);
+      const main = document.querySelector('main');
+      const card = [...main.querySelectorAll('.card')].find(c => /^Full investor report/.test(c.querySelector('h3')?.textContent.trim() || ''));
+      const around = card ? [card, card.nextElementSibling].filter(Boolean) : [];
+      const out = { found: !!card, title: card?.querySelector('h3')?.textContent.trim() || '',
+        text: around.map(n => n.innerText).join(' / ').replace(/\\s+/g, ' '),
+        controls: around.flatMap(n => [...n.querySelectorAll('button, a[href]')]).map(b => b.textContent.trim().replace(/\\s+/g, ' ')) };
+      const b = around.flatMap(n => [...n.querySelectorAll('button')]).find(x => /^Preview this report/.test(x.textContent.trim()));
+      out.pressed = !!b;
+      b?.click(); await w(300);
+      out.toast = document.getElementById('toast')?.textContent || '';
+      out.previewed = State.propertyReportsBought.length;
+      out.report = !!document.getElementById('property-report-full');
+      State.plan = keep.plan; store.write('plan', keep.plan);
+      State.propertyReportsBought = keep.bought; store.write('propertyReportsBought', keep.bought);
+      navigate('/'); await w(200);
+      return out;
+    })()`);
+    const SALE = /\b(bought|buy|unlock\w*|subscribe|upgrade|checkout|purchase|order now|add to cart)\b/i;
+    const p = [];
+    if (!r.found) p.push('no full-report offer on /property/calculator on the Free plan');
+    else {
+      if (!/proposed/i.test(r.title)) p.push(`the offer's title reads "${r.title}"`);
+      if (!/not on sale/i.test(r.text)) p.push('the offer does not say the report is not on sale');
+      const said = r.text.replace(/nothing can be bought/gi, '');
+      if (SALE.test(said)) p.push(`the offer reads as a sale: "…${said.slice(Math.max(0, said.search(SALE) - 60), said.search(SALE) + 40)}…"`);
+      r.controls.filter(t => SALE.test(t)).forEach(t => p.push(`a control reads as a purchase: "${t}"`));
+      if (!r.pressed) p.push(`no "Preview this report in this browser" button among ${JSON.stringify(r.controls)}`);
+      else if (!r.previewed || !r.report || !/^Previewing/.test(r.toast) || /unlocked/i.test(r.toast)) p.push(`after the preview: ${r.previewed} previewed, report ${r.report}, toast "${r.toast}"`);
+    }
+    if (p.length) fail('audit verify: the calculator\'s full-report offer reads as /pricing does — proposed, not on sale, previewed in this browser', p);
+    else ok(`audit verify: the calculator's full-report offer is "${r.title}", says it is not on sale, and its button previews the report in this browser ("${r.toast}")`);
+  }
+  /* ---- end audit: verify ---- */
 
 } catch (e) {
   fail('harness error', e.message);

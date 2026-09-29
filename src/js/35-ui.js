@@ -751,10 +751,15 @@ const META = {
 /* The app is mounted at the domain root in production, but served from a
    subdirectory in some local setups. Deriving the base once keeps every
    generated link correct in both. */
+/* Only an address that ENDS in /index.html names the folder the app is
+   served from. Any address that merely contained it counted: the host
+   answers /foo/index.html/bar with the 404 page, where the app took /foo
+   for its folder, asked for /foo/data/us.json — a second 404, a 3MB one —
+   and warned that the filings failed to load. (/foo/index.html itself is
+   redirected to /foo by vercel.json before the app sees it.) */
 const BASE = (() => {
   const p = location.pathname;
-  const i = p.indexOf('/index.html');
-  return i > -1 ? p.slice(0, i) : '';
+  return p.endsWith('/index.html') ? p.slice(0, -'/index.html'.length) : '';
 })();
 const href = (path) => `${BASE}${path}` || '/';
 /* Data files live at the app's base, never relative to the current route. A
@@ -786,7 +791,7 @@ async function fetchJson(url) {
 }
 
 /* The app's own file names the front door. The host serves /index.html as
-   the file it is (the rewrite to the app skips dotted paths), and the path
+   the file it is (a file is served before any rewrite), and the path
    was matched as it stood, so the app answered its own front door with
    "That page does not exist". A trailing /index.html is the directory it
    sits in, which is also what BASE takes it to be. */
@@ -820,6 +825,18 @@ function setDocumentMeta(route) {
   let canon = document.querySelector('link[rel="canonical"]');
   if (!canon) { canon = document.createElement('link'); canon.setAttribute('rel', 'canonical'); document.head.append(canon); }
   canon.setAttribute('href', location.origin + href(canonicalPath(route)));
+  /* The not-found card says noindex, wherever it is drawn. The host answers
+     an address no route matches with 404.html, which carries it; but a
+     parameter route is served the app with 200 whatever its parameter, so
+     /company/no-such-name drew the card on a page a crawler was told was
+     real — the soft 404 the launch audit found, left on every company,
+     report and scanner address. And the app moves between pages without a
+     load, so a page reached from the 404 kept its noindex. The tag follows
+     the page on screen. */
+  const robots = document.querySelector('meta[name="robots"]');
+  if (route) robots?.remove();
+  else if (robots) robots.setAttribute('content', 'noindex');
+  else { const t = document.createElement('meta'); t.setAttribute('name', 'robots'); t.setAttribute('content', 'noindex'); document.head.append(t); }
 }
 
 /* ONE PAGE, ONE CANONICAL ADDRESS. The canonical was location.pathname, so
@@ -1052,11 +1069,11 @@ function applyRoute() {
     if (id) {
       State.ticker = id;
       /* A registry alias with a dot in it (1155.KL) opens the page in-app, but
-         the host serves any dotted path as a file: the rewrite to index.html
-         excludes it on Vercel and serve.mjs falls back only for extensionless
-         paths, so a reload or a shared link 404'd. The address is swapped for
-         the company's own dotless segment, keeping the route, tab and query,
-         so every address the router accepts is one that survives a reload. */
+         the host once served any dotted path as a file: the catch-all rewrite
+         excluded it, so a reload or a shared link 404'd. The rewrites are one
+         per route now and /company/:id takes a dot, but the address is still
+         swapped for the company's own dotless segment, keeping the route, tab
+         and query, so every company has one address whichever name opened it. */
       if (String(route.params.id).includes('.')) {
         const clean = (location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname).split('/');
         const at = route.path.split('/').indexOf(':id');

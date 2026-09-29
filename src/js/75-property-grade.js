@@ -3369,14 +3369,21 @@ VIEWS.property = () => {
     /* The offer has to describe what this particular report would contain. On a
        location with no comparable held, promising "comparable transactions and
        the price and rental range for this project" would be selling a section
-       that cannot be produced. */
-    out.append(upsell(`Full investor report — RM${PROPERTY_REPORT_PRICE.full}`,
+       that cannot be produced.
+       Nor may it read as a sale: nothing is on sale (the launch audit, 29
+       Sep 2026). It read "Full investor report — RM49 … Bought per report"
+       over a button "Unlock this report", in the card whose own line says
+       "nothing can be bought" — a price, a purchase and its denial side by
+       side. It now says what the pricing page says — a proposed price, not
+       on sale — and its button says what it does, as a plan's does there:
+       it previews the report in this browser. */
+    out.append(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
         ? `Adds net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
-        /* Bought per report. The line also offered it "included twice monthly
-           on All-Access", a tier that is not launched and must not appear
-           purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Bought per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''}.`));
+        /* Proposed per report. The line also offered it "included twice
+           monthly on All-Access", a tier that is not launched and must not
+           appear purchasable; it returns when the tier does. */
+        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     const included = num0(lim('propertyReports'));
     if (included > 0) {
@@ -3394,8 +3401,8 @@ VIEWS.property = () => {
       store.write('propertyReportsBought', State.propertyReportsBought);
       /* The offer is replaced by the report, and focus went to <body> with
          the button; it goes to the report's first heading. */
-      toast('Report unlocked — no payment was taken, this is a prototype'); render(); focusAfterRedraw('#property-report-full h3');
-    } }, `Unlock this report (prototype — no payment)`));
+      toast('Previewing the full report in this browser — nothing is on sale, and nothing was charged'); render(); focusAfterRedraw('#property-report-full h3');
+    } }, 'Preview this report in this browser'));
     buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'));
     out.append(el('div', {}, buy));
     layout.append(out);

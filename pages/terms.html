@@ -16288,10 +16288,15 @@ const META = {
 /* The app is mounted at the domain root in production, but served from a
    subdirectory in some local setups. Deriving the base once keeps every
    generated link correct in both. */
+/* Only an address that ENDS in /index.html names the folder the app is
+   served from. Any address that merely contained it counted: the host
+   answers /foo/index.html/bar with the 404 page, where the app took /foo
+   for its folder, asked for /foo/data/us.json — a second 404, a 3MB one —
+   and warned that the filings failed to load. (/foo/index.html itself is
+   redirected to /foo by vercel.json before the app sees it.) */
 const BASE = (() => {
   const p = location.pathname;
-  const i = p.indexOf('/index.html');
-  return i > -1 ? p.slice(0, i) : '';
+  return p.endsWith('/index.html') ? p.slice(0, -'/index.html'.length) : '';
 })();
 const href = (path) => `${BASE}${path}` || '/';
 /* Data files live at the app's base, never relative to the current route. A
@@ -16323,7 +16328,7 @@ async function fetchJson(url) {
 }
 
 /* The app's own file names the front door. The host serves /index.html as
-   the file it is (the rewrite to the app skips dotted paths), and the path
+   the file it is (a file is served before any rewrite), and the path
    was matched as it stood, so the app answered its own front door with
    "That page does not exist". A trailing /index.html is the directory it
    sits in, which is also what BASE takes it to be. */
@@ -16357,6 +16362,18 @@ function setDocumentMeta(route) {
   let canon = document.querySelector('link[rel="canonical"]');
   if (!canon) { canon = document.createElement('link'); canon.setAttribute('rel', 'canonical'); document.head.append(canon); }
   canon.setAttribute('href', location.origin + href(canonicalPath(route)));
+  /* The not-found card says noindex, wherever it is drawn. The host answers
+     an address no route matches with 404.html, which carries it; but a
+     parameter route is served the app with 200 whatever its parameter, so
+     /company/no-such-name drew the card on a page a crawler was told was
+     real — the soft 404 the launch audit found, left on every company,
+     report and scanner address. And the app moves between pages without a
+     load, so a page reached from the 404 kept its noindex. The tag follows
+     the page on screen. */
+  const robots = document.querySelector('meta[name="robots"]');
+  if (route) robots?.remove();
+  else if (robots) robots.setAttribute('content', 'noindex');
+  else { const t = document.createElement('meta'); t.setAttribute('name', 'robots'); t.setAttribute('content', 'noindex'); document.head.append(t); }
 }
 
 /* ONE PAGE, ONE CANONICAL ADDRESS. The canonical was location.pathname, so
@@ -16589,11 +16606,11 @@ function applyRoute() {
     if (id) {
       State.ticker = id;
       /* A registry alias with a dot in it (1155.KL) opens the page in-app, but
-         the host serves any dotted path as a file: the rewrite to index.html
-         excludes it on Vercel and serve.mjs falls back only for extensionless
-         paths, so a reload or a shared link 404'd. The address is swapped for
-         the company's own dotless segment, keeping the route, tab and query,
-         so every address the router accepts is one that survives a reload. */
+         the host once served any dotted path as a file: the catch-all rewrite
+         excluded it, so a reload or a shared link 404'd. The rewrites are one
+         per route now and /company/:id takes a dot, but the address is still
+         swapped for the company's own dotless segment, keeping the route, tab
+         and query, so every company has one address whichever name opened it. */
       if (String(route.params.id).includes('.')) {
         const clean = (location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname).split('/');
         const at = route.path.split('/').indexOf(':id');
@@ -38298,14 +38315,21 @@ VIEWS.property = () => {
     /* The offer has to describe what this particular report would contain. On a
        location with no comparable held, promising "comparable transactions and
        the price and rental range for this project" would be selling a section
-       that cannot be produced. */
-    out.append(upsell(`Full investor report — RM${PROPERTY_REPORT_PRICE.full}`,
+       that cannot be produced.
+       Nor may it read as a sale: nothing is on sale (the launch audit, 29
+       Sep 2026). It read "Full investor report — RM49 … Bought per report"
+       over a button "Unlock this report", in the card whose own line says
+       "nothing can be bought" — a price, a purchase and its denial side by
+       side. It now says what the pricing page says — a proposed price, not
+       on sale — and its button says what it does, as a plan's does there:
+       it previews the report in this browser. */
+    out.append(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
         ? `Adds net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
-        /* Bought per report. The line also offered it "included twice monthly
-           on All-Access", a tier that is not launched and must not appear
-           purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Bought per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''}.`));
+        /* Proposed per report. The line also offered it "included twice
+           monthly on All-Access", a tier that is not launched and must not
+           appear purchasable; it returns when the tier does. */
+        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     const included = num0(lim('propertyReports'));
     if (included > 0) {
@@ -38323,8 +38347,8 @@ VIEWS.property = () => {
       store.write('propertyReportsBought', State.propertyReportsBought);
       /* The offer is replaced by the report, and focus went to <body> with
          the button; it goes to the report's first heading. */
-      toast('Report unlocked — no payment was taken, this is a prototype'); render(); focusAfterRedraw('#property-report-full h3');
-    } }, `Unlock this report (prototype — no payment)`));
+      toast('Previewing the full report in this browser — nothing is on sale, and nothing was charged'); render(); focusAfterRedraw('#property-report-full h3');
+    } }, 'Preview this report in this browser'));
     buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'));
     out.append(el('div', {}, buy));
     layout.append(out);

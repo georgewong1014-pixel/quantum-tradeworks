@@ -101,11 +101,14 @@ git commit --allow-empty -m "chore: trigger redeploy"
 ```
 .
 ├── src/              # the source: js/*.js in load order, styles.css, index and vercel templates
-├── build.mjs         # assembles index.html and vercel.json (with the CSP hash) from src/
+├── build.mjs         # assembles index.html, 404.html, pages/ and vercel.json (with the CSP hash) from src/
 ├── index.html        # the entire deployed application — generated, committed
-├── vercel.json       # host rewrites and headers — generated, committed
+├── pages/            # the same page once per route without a parameter, each with that route's own <head> — generated, committed
+├── 404.html          # the same page with the not-found head and noindex, served with status 404 — generated, committed
+├── vercel.json       # host rewrites (one per route, generated from ROUTES), redirects and headers — generated, committed
 ├── data/             # committed datasets (us.json, instruments.json, …); licensed and personal files are git-ignored
-├── serve.mjs         # zero-dependency static server, applying vercel.json's headers
+├── serve.mjs         # zero-dependency static server, answering from vercel.json as Vercel does
+├── served-check.mjs  # what each address is served, over HTTP: heads, 404s, redirects, headers (--url for production)
 ├── screenshot.mjs    # zero-dependency screenshot tool (CDP over Node's WebSocket)
 ├── syntax.mjs, wording-check.mjs, scanner-test.mjs, ingest-test.mjs   # offline checks
 ├── sweep.mjs, mobile.mjs, coverage-frames.mjs, register-test.mjs,

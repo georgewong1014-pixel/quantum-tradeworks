@@ -148,7 +148,9 @@ export function clientRouter(origin) {
   const tags = new Map();
   const tag = () => {
     const attrs = {};
-    return { attrs, setAttribute: (k, v) => { attrs[k] = String(v); }, getAttribute: (k) => (k in attrs ? attrs[k] : null) };
+    /* remove(): setDocumentMeta takes the not-found card's robots tag off a
+       page that is found. The head written here carries its own (withHead). */
+    return { attrs, setAttribute: (k, v) => { attrs[k] = String(v); }, getAttribute: (k) => (k in attrs ? attrs[k] : null), remove() {} };
   };
   const document = {
     title: '',

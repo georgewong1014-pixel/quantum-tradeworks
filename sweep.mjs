@@ -332,6 +332,74 @@ for (const route of ROUTES) {
   bad += aqBad.length;
 }
 /* ---- end audit: quality ---- */
+/* ---- audit: verify ---- */
+/* THE NOT-FOUND CARD SAYS NOINDEX WHEREVER IT IS DRAWN, AND AN ADDRESS THAT
+   ONLY CONTAINS /index.html IS NOT THE APP'S FOLDER. Found verifying the
+   three launch-audit branches together:
+   - A parameter route is served the app with 200 whatever its parameter,
+     so /company/no-such-name drew the not-found card on a page that told a
+     crawler nothing — the soft 404 the audit found, still there on every
+     company, report and scanner address. setDocumentMeta now writes noindex
+     with the card and takes it off any page that is found, so a page reached
+     in the app from the 404 does not keep the 404's noindex either.
+   - BASE was taken from any address containing /index.html. The host answers
+     /foo/index.html/bar with the 404 page, where the app took /foo for its
+     folder and asked for /foo/data/us.json: a second 404, 3MB of not-found
+     page, and a warning that the filings failed. */
+{
+  const evalValue = async (expression) => (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId)).result?.result?.value;
+  let seen = [];
+  const listen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Network.requestWillBeSent') seen.push(m.params.request.url); };
+  ws.addEventListener('message', listen);
+  /* Opened fresh, and read once the router has settled with the filings in
+     (an unknown company is not called one until they land). */
+  const open = async (path) => {
+    await evalValue('window.__verifyMark = 1');
+    seen = [];
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 150; i++) {
+      if (await evalValue(`!window.__verifyMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break;
+      await sleep(100);
+    }
+    await sleep(300);
+    return head();
+  };
+  const head = () => evalValue(`({ view: State.view, base: BASE, robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null,
+    card: (document.querySelector('main')?.innerText || '').slice(0, 200) })`);
+  const inApp = async (path) => { await evalValue(`navigate(${JSON.stringify(path)})`); await sleep(400); return head(); };
+  const p = [];
+  const base = new URL(BASE);
+  const company = await open('/company/no-such-company-for-the-sweep');
+  if (company?.view !== 'notfound' || !/No company/.test(company.card)) p.push(`/company/no-such-company-for-the-sweep: ${company?.view}, not the not-found card`);
+  else if (company.robots !== 'noindex') p.push(`/company/no-such-company-for-the-sweep: the not-found card is drawn with robots ${JSON.stringify(company.robots)}, not noindex`);
+  const found = await open('/company/aapl-apple-inc');
+  if (found?.view !== 'research' || found.robots !== null) p.push(`/company/aapl-apple-inc: ${found?.view}, robots ${JSON.stringify(found?.robots)}`);
+  const lost = await open('/nope-for-the-verify-sweep');
+  if (lost?.view !== 'notfound' || lost.robots !== 'noindex') p.push(`/nope-for-the-verify-sweep: ${lost?.view}, robots ${JSON.stringify(lost?.robots)}`);
+  const onward = await inApp('/pricing');
+  if (onward?.view !== 'plans' || onward.robots !== null) p.push(`/pricing reached in the app from the 404: ${onward?.view}, robots ${JSON.stringify(onward?.robots)} — the 404's noindex stayed`);
+  const back = await inApp('/nope-again-for-the-verify-sweep');
+  if (back?.view !== 'notfound' || back.robots !== 'noindex') p.push(`an unknown address reached in the app: ${back?.view}, robots ${JSON.stringify(back?.robots)}`);
+  const folder = await open('/foo/index.html/bar');
+  const astray = seen.filter(u => { try { const x = new URL(u); return x.origin === base.origin && x.pathname.startsWith('/foo/') && x.pathname !== '/foo/index.html/bar'; } catch { return false; } });
+  if (folder?.view !== 'notfound' || folder.base !== '') p.push(`/foo/index.html/bar: ${folder?.view}, BASE ${JSON.stringify(folder?.base)}, not the not-found card at the site's own base`);
+  if (astray.length) p.push(`/foo/index.html/bar asked for ${astray.slice(0, 3).join(', ')} — files under a folder that is not the app's`);
+  /* Every parameter route, loaded cold from the address the host now
+     rewrites to index.html one pattern at a time (there is no catch-all to
+     fall back on), opens its own view — read from the page's ROUTES. */
+  const rows = await evalValue(`ROUTES.filter(r => r.path.includes(':')).map(r => ({ path: r.path, view: r.view }))`) || [];
+  const SAMPLE = { id: 'aapl-apple-inc', tab: 'financials', setup: 'no-such-setup-for-the-sweep', alert: 'a-no-such-alert' };
+  for (const r of rows) {
+    const path = r.path.replace(/:([A-Za-z]+)/g, (_, n) => SAMPLE[n] || 'x');
+    const h = await open(path);
+    if (h?.view !== r.view) p.push(`${path} (${r.path}): opened ${h?.view}, not ${r.view}`);
+  }
+  if (rows.length < 8) p.push(`only ${rows.length} parameter routes read from the page's ROUTES`);
+  ws.removeEventListener('message', listen);
+  if (p.length) { bad++; console.log('FAIL verify: the not-found card and the app\'s base'); p.forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   verify: the not-found card is noindex on an unknown company and an unknown address, and a found page is not, in the app as on a load; /foo/index.html/bar is the not-found card at the site's own base, asking for nothing under /foo/; all ${rows.length} parameter routes open their own view from a cold load`);
+}
+/* ---- end audit: verify ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

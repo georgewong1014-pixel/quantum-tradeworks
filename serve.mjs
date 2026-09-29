@@ -9,7 +9,7 @@
 // what production serves — not a friendlier local imitation of it.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync, realpathSync } from 'node:fs';
 import { join, extname, resolve, normalize, sep } from 'node:path';
 
 const arg = (name, fallback) => {
@@ -21,7 +21,9 @@ const arg = (name, fallback) => {
    was 3000, which is another project's server on the development machine, so
    `npm run dev` followed by `npm run sweep` found nothing to test. */
 const PORT = Number(arg('port', process.env.PORT || 8123));
-const ROOT = resolve(arg('root', '.'));
+/* The root as the file system spells it, so that a file's real name can be
+   compared with the address asked for (fileAt, below). */
+const ROOT = realpathSync.native(resolve(arg('root', '.')));
 
 /* The production configuration, applied locally. Without this the Content-
    Security-Policy only ever ran in production — and a CSP that blocks the
@@ -160,12 +162,18 @@ async function fileAt(pathname) {
   try { decoded = decodeURIComponent(pathname); } catch { return null; }
   const candidate = normalize(join(ROOT, decoded));
   if (candidate !== ROOT && !candidate.startsWith(ROOT + sep)) return null;
+  /* Spelled as the file is spelled. Vercel's file system is case-sensitive;
+     Windows' and macOS's are not, so /INDEX.HTML, /Data/us.json and
+     /PAGES/PRICING.HTML answered 200 here and 404 in production — a link in
+     the wrong case passed every local check. A name that differs from the
+     real one only in case is a miss, as it is there. */
+  const exact = (p) => { try { const real = realpathSync.native(p); return real === p || real.toLowerCase() !== p.toLowerCase(); } catch { return false; } };
   try {
     const info = await stat(candidate);
-    if (info.isFile()) return candidate;
+    if (info.isFile()) return exact(candidate) ? candidate : null;
     if (info.isDirectory()) {
       const index = join(candidate, 'index.html');
-      if ((await stat(index)).isFile()) return index;
+      if ((await stat(index)).isFile() && exact(index)) return index;
     }
   } catch { /* nothing there */ }
   return null;
@@ -185,8 +193,11 @@ const server = createServer((req, res) => {
 });
 
 async function handle(req, res) {
+  /* The path as it was sent. Resolved against a base, "//" and "//x/" read as
+     an address on another host and failed (400); Vercel reads them as paths.
+     Only the path and the query are used, so the Host header plays no part. */
   let url;
-  try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
+  try { url = new URL(req.url.startsWith('/') ? `http://localhost${req.url}` : req.url); }
   catch { res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' }); res.end('400 Bad Request'); return; }
   const { rewrites, redirects, trailingSlash } = config();
   const path = url.pathname;
@@ -197,11 +208,18 @@ async function handle(req, res) {
 
   /* trailingSlash: false. Vercel answers /pricing/ with a 308 to /pricing —
      the site root excepted, and the query kept — before it looks at a file or
-     a rewrite. The pattern is the one Vercel compiles for it: an address with
-     an empty segment (/pricing//) is not redirected, and so 404s there too. */
+     a rewrite. The pattern is the one Vercel compiles for it
+     (@vercel/routing-utils, convertTrailingSlash: ^/(.*)\/$ to /$1), so one
+     slash comes off per redirect: /pricing// goes to /pricing/ and then to
+     /pricing. This server answered /pricing// with a 404 on a narrower
+     pattern, which is not what production does.
+     One deliberate difference: a Location that would start "//" names
+     another host to a browser (//example.com/ would be sent to
+     example.com), so here it keeps a single slash. served-check.mjs holds
+     production to the same rule, so it is checked, not assumed. */
   if (trailingSlash === false) {
-    const m = /^\/((?:[^/]+\/)*[^/]+)\/$/.exec(path);
-    if (m) { redirect(308, `/${m[1]}${url.search}`); return; }
+    const m = /^\/(.*)\/$/.exec(path);
+    if (m) { redirect(308, `/${m[1]}`.replace(/^\/+/, '/') + url.search); return; }
   }
   /* Then the redirects, the first match deciding, its parameters filled into
      the destination and the query carried unless the destination has one. */

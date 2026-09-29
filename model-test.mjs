@@ -2036,7 +2036,7 @@ try {
     await evaluate(`(() => { window.__T.f5 = { deal: JSON.parse(JSON.stringify(State.deal)), bought: localStorage.getItem('vl.propertyReportsBought'), before: localStorage.getItem('vl.dealBeforeLink') };
       State.propertyReportsBought = []; store.write('propertyReportsBought', []); navigate('/property/calculator'); return true; })()`);
     await sleep(600);
-    const unlocked = await pressLabelled('Unlock this report');
+    const unlocked = await pressLabelled('Preview this report');
     await evaluate(`(() => { store.write('dealBeforeLink', { ...State.deal, price: 500000 }); render(); return true; })()`);
     await sleep(300);
     const restored = await pressLabelled('Restore my previous deal');
