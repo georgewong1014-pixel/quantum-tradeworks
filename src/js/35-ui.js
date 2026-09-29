@@ -719,7 +719,7 @@ const META = {
   scannerAdminDelivery: 'Which delivery channels exist for scanner alerts — in-app only — and why email, Telegram and push are not configured.',
   /* /Phase 3 — ops */
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
-  plans:     'Plans and pricing for Quantum Tradeworks research and property reports.',
+  plans:     'Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.',
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
@@ -743,9 +743,9 @@ const META = {
   workspace:   'Everything you have saved in this browser, across kinds, with the model and data version each was saved against.',
   ips:         'The Investment Policy Statement this product’s calculations carry out, and where the product departs from it.',
   about:       'What Quantum Tradeworks is and is not, and who is responsible for it.',
-  contact:     'How to report a wrong figure, and where the contact route will be published.',
-  privacy:     'What this build stores, where it stores it, and what leaves your device.',
-  terms:       'The terms this build is offered under: research, not advice.',
+  contact:     'What works today to report a wrong figure — the report form records a case in your browser — and where a contact route will be published.',
+  privacy:     'What this build stores, where it stores it and what leaves your device — no cookies, no accounts — and a draft PDPA 2010 notice.',
+  terms:       'Draft terms for this build: a research tool, not advice, with illustrative data, no warranty and nothing for sale; governed by Malaysian law.',
 };
 
 /* The app is mounted at the domain root in production, but served from a

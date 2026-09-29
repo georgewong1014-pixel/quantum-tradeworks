@@ -1258,6 +1258,66 @@ for (const w of [360, 390]) {
   }
 }
 /* ---- end fixwave: property ---- */
+/* ---- audit: content ---- */
+/* THE PRICING AND LEGAL PAGES ON A PHONE (launch audit, 29 Sep 2026). The
+   "To be supplied" markers sit inside sentences, and the longest of them —
+   "To be supplied: Bahasa Malaysia translation" — is wider than a 360px
+   card's line: it must wrap inside its card, never push the page sideways
+   or run past the card's edge. The draft line on Terms and Privacy is the
+   first thing under the heading and must be on the first screen of a phone;
+   each plan's preview button is a 44px target; and the pricing lede — no
+   payment provider, no refund policy — is shown whole, not clamped to two
+   lines as a page's standfirst is on a phone. Measured at 360, 390 and 768
+   in light and dark. */
+{
+  const fails = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    return r.result?.exceptionDetails ? { error: r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text } : r.result?.result?.value;
+  };
+  try {
+    for (const dark of [false, true]) {
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+      for (const w of [360, 390, 768]) {
+        await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+        await send('Page.navigate', { url: BASE + '/privacy' }, sessionId);
+        for (let i = 0; i < 40; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined'`) === true) break; }
+        const r = await ev(`(async () => {
+          const wait = (ms) => new Promise(res => setTimeout(res, ms));
+          const out = {};
+          for (const p of ['/privacy', '/terms', '/about', '/contact', '/pricing']) {
+            navigate(p); await wait(150); scrollTo(0, 0); await wait(50);
+            const m = document.querySelector('main');
+            const over = Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            const marks = [...m.querySelectorAll('.tbs')];
+            const outside = marks.filter(n => { const c = (n.closest('.card') || m).getBoundingClientRect();
+              return [...n.getClientRects()].some(b => b.left < c.left - 0.5 || b.right > c.right + 0.5); }).map(n => n.textContent.trim());
+            const draft = m.querySelector('.trust-draft');
+            const ctas = [...m.querySelectorAll('.plan-cta')].map(b => b.getBoundingClientRect()).filter(b => b.height < 44 || b.width < 44).length;
+            const lede = m.querySelector('.page-hd .body-lg');
+            out[p] = { over, marks: marks.length, outside, draftTop: draft ? Math.round(draft.getBoundingClientRect().top) : null, ctas,
+              clipped: lede ? lede.scrollHeight - lede.clientHeight : null };
+          }
+          return out;
+        })()`);
+        if (!r || r.error) { fails.push(`${w}px${dark ? ' dark' : ''}: ${r?.error || 'no result'}`); continue; }
+        for (const [p, v] of Object.entries(r)) {
+          const at = `${w}px${dark ? ' dark' : ''} ${p}`;
+          if (v.over > 2) fails.push(`${at}: overflow ${v.over}px`);
+          if (v.outside.length) fails.push(`${at}: markers past their card: ${v.outside.join('; ')}`);
+          if (p !== '/pricing' && !v.marks) fails.push(`${at}: no "To be supplied" marker`);
+          if ((p === '/privacy' || p === '/terms') && (v.draftTop == null || v.draftTop > 844 - 60)) fails.push(`${at}: the draft line is at ${v.draftTop}px, not on the first screen`);
+          if (v.ctas) fails.push(`${at}: ${v.ctas} plan button(s) under 44px`);
+          if (p === '/pricing' && !(v.clipped <= 1)) fails.push(`${at}: the lede that says nothing can be bought is clipped by ${v.clipped}px`);
+        }
+      }
+    }
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  if (fails.length) { bad++; console.log(`FAIL audit content — the pricing and legal pages on a phone: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+  else console.log('ok   audit content: /privacy, /terms, /about, /contact and /pricing at 360, 390 and 768, light and dark — no overflow, every "To be supplied" marker inside its card, the draft line on the first screen, the plan buttons 44px, the pricing lede whole');
+}
+/* ---- end audit: content ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

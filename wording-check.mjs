@@ -178,6 +178,55 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end release-a: fixes ---- */
 
+/* ---- audit: content ---- */
+/* THE LEGAL PAGES INVENT NO PARTY, AND SAY THEY ARE DRAFTS (launch audit,
+   29 Sep 2026). No operating entity is registered, so Terms, Privacy, About
+   and Contact show the entity's name, its registered address, its contact
+   email and the domain as "To be supplied" markers — and the Bahasa Malaysia
+   version of the PDPA notice likewise. Read from the source, comments left
+   out:
+   1. the details come from one table, OPERATOR (55-views-public.js), whose
+      entries are empty or read from LAUNCH, so a supplied detail is one edit
+      and every page follows; while an entry is empty its marker shows;
+   2. none of the trust pages or the plans page writes a detail into its
+      text anyway — no email address, no company suffix (Sdn Bhd, Berhad,
+      PLT), no registration number, no Malaysian telephone number;
+   3. Terms and Privacy both open with the draft line, which the built page
+      carries. */
+{
+  const code = (s) => s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+  const read = (f) => readFileSync(join(ROOT, 'src', 'js', f), 'utf8');
+  const pub = read('55-views-public.js'), plans = read('90-area-screen.js'), plansCore = read('05-plans.js'), launch = read('15-derivation.js');
+  const cut = (s, from, to) => { const i = s.indexOf(from); if (i < 0) return ''; const j = s.indexOf(to, i + from.length); return s.slice(i, j < 0 ? undefined : j); };
+  const trust = code(cut(pub, 'TRUST PAGES', 'VIEWS.notfound'));
+  const plansView = code(cut(plans, 'VIEWS.plans = () =>', '\n};'));
+  const wrong = [];
+  const table = trust.match(/const OPERATOR = \{([\s\S]*?)\n\};/);
+  const KEYS = { entity: 'operating entity name', address: 'registered address', email: 'contact email', domain: 'domain', bm: 'Bahasa Malaysia translation' };
+  if (!table) wrong.push('no OPERATOR table in the trust pages');
+  else for (const [k, label] of Object.entries(KEYS)) {
+    const row = table[1].match(new RegExp(`\\b${k}:\\s*\\{([^}]*)\\}`));
+    if (!row) { wrong.push(`OPERATOR has no "${k}"`); continue; }
+    if (!row[1].includes(`'${label}'`)) wrong.push(`OPERATOR.${k} is not marked "${label}"`);
+    const value = row[1].match(/value:\s*([^,]+)/)?.[1].trim();
+    if (value !== "''" && value !== '() => LAUNCH.contactEmail') wrong.push(`OPERATOR.${k} holds ${value} — a detail is supplied by the owner, never written in here`);
+  }
+  if (!/contactEmail:\s*'',/.test(launch)) wrong.push('LAUNCH.contactEmail is set: the markers and this check need the address the owner supplied');
+  const INVENTED = [[/[\w.+-]+@[\w-]+\.[a-z]{2,}/i, 'an email address'], [/\bSdn\.?\s*Bhd\b|\bBerhad\b|\bPLT\b/, 'a company suffix'],
+    [/\b\d{12}\b|\b\d{6,7}-[A-Z]\b/, 'a registration number'], [/(\+?6?0)1\d[\s-]?\d{3,4}[\s-]?\d{4}|\+60[\s-]?\d/, 'a telephone number']];
+  for (const [name, text] of [['the trust pages', trust], ['the plans page', plansView], ['05-plans.js', code(plansCore)]])
+    for (const [re, what] of INVENTED) { const m = text.match(re); if (m) wrong.push(`${name} write ${what}: "${m[0]}"`); }
+  const drafts = (html.match(/Draft — not yet reviewed by a lawyer\./g) || []).length;
+  if (!/trustPage\('Terms',[\s\S]*?\{ draft:/.test(trust) || !/trustPage\('Privacy',[\s\S]*?\{ draft:/.test(trust) || !drafts)
+    wrong.push(`Terms and Privacy do not both open with the draft line (${drafts} in the built page)`);
+  if (wrong.length) {
+    bad += wrong.length;
+    console.error(`FAIL  the legal pages: ${wrong.length} problem(s)`);
+    wrong.forEach(x => console.error(`      ${x}`));
+  } else console.log(`ok    the legal pages invent no party: the ${Object.keys(KEYS).length} details come from OPERATOR, none filled in, each shown as a "To be supplied" marker; no email, company, registration or telephone number is written into the trust or plans pages; Terms and Privacy open with the draft line`);
+}
+/* ---- end audit: content ---- */
+
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`
   : `ok    none of the ${BANNED.length} banned phrases is used as a claim`);

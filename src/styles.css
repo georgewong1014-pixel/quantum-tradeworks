@@ -1908,6 +1908,18 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent);
 }
 .plan-current svg { width: 15px; height: 15px; }
+/* A plan's price. A proposed one — every paid tier, since none is on sale
+   (launch audit, 29 Sep 2026) — is set back a step, as the unlaunched tier's
+   was: shown so the plan can be read, not offered. */
+.plan-price { font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
+.plan-price-proposed { color: var(--ink-3); }
+/* The lede is the page's answer — nothing can be bought, there is no
+   payment provider, no refund policy is needed — not preamble, so a phone
+   shows it whole. The standfirst rule (.page-hd .body-lg, above) clamped it
+   to two lines at 390px, after "shown so you can see what is planne…". */
+@media (max-width: 760px) {
+  .page-hd .body-lg.plan-lede { display: block; -webkit-line-clamp: unset; overflow: visible; }
+}
 @media (max-width: 599px) {
   table.dt-stack, table.dt-stack tbody, table.dt-stack tr, table.dt-stack td { display: block; width: auto; }
   table.dt-stack { min-width: 0; }
@@ -3250,3 +3262,52 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
    the page is not faded out and slid up again under the reader. */
 .view[data-active="1"][data-redrawn="1"] { animation: none; }
 /* ---- end bugfix: render-focus-verify ---- */
+
+/* ---- audit: content ---- */
+/* THE TRUST PAGES (55-views-public.js — About, Contact, Privacy, Terms).
+   A "To be supplied" marker is a gap, not a detail: the operating entity,
+   its address, its contact email and the domain do not exist yet, and a
+   placeholder set in body text reads as a fact. So the marker is drawn as
+   the product's placeholder is everywhere — bronze on its wash, the colour
+   pair tuned for text a reader must not skim past — with a dashed edge no
+   filled-in detail has, and its label in capitals. It sits in the sentence
+   as one piece: an inline box split "TO BE / SUPPLIED: domain" across two
+   lines at 1440, so it is an inline block that moves to the next line
+   whole, and wraps inside itself only when it is wider than the line — the
+   longest, "Bahasa Malaysia translation", is, on a 360px phone. */
+.tbs {
+  display: inline-block; max-width: 100%; padding: 0 7px; margin: 1px 2px; vertical-align: baseline;
+  border: 1px dashed color-mix(in srgb, var(--bronze) 72%, transparent); border-radius: var(--r-xs);
+  background: var(--bronze-wash); color: var(--bronze);
+  font-size: 13px; font-weight: 600; line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.tbs-k { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+/* A legal page is read, not scanned: one column at a reading width. The
+   cards ran the shell's full 1,216px at 1440 with their words in the left
+   half. */
+.trust-page { max-width: 760px; }
+/* The draft line, first under the heading of Terms and Privacy: the
+   pricing page's not-on-sale bar, in the same bronze, so "not settled"
+   looks the same wherever it is said. */
+.trust-draft {
+  border-left: 3px solid var(--bronze);
+  background: color-mix(in srgb, var(--bronze-wash) 50%, var(--surface));
+}
+.trust-draft .body { color: var(--ink-2); max-width: 75ch; }
+.trust-draft strong { color: var(--ink); font-weight: 700; }
+/* A card's paragraphs and lists: spaced as the inline 8px was, and held to
+   a readable measure — at 1440 a paragraph ran the card's full 1,100px. */
+.trust-card > * + * { margin-top: var(--xs); }
+.trust-card p, .trust-card li { max-width: 75ch; }
+.trust-card p:not(.metaline) { color: var(--ink-2); line-height: 1.6; }
+.trust-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: var(--xs); }
+.trust-list li { color: var(--ink-2); line-height: 1.6; }
+.trust-list li::marker { color: var(--ink-3); }
+.trust-list strong { color: var(--ink); font-weight: 600; }
+.trust-card a:not(.btn) { color: var(--brand); text-underline-offset: 3px; }
+/* A section within a page — the PDPA notice under Privacy — opens with a
+   rule and room, so the notice reads as its own document, not as more cards. */
+.trust-section { margin-top: var(--lg); padding-top: var(--lg); border-top: 1px solid var(--line); }
+.trust-section .body { max-width: 75ch; }
+/* ---- end audit: content ---- */
