@@ -1384,7 +1384,7 @@ try {
       State.deal = { ...window.__T.base, disposerCategory: 'citizen', marginalTaxPct: null, flatQuotePct: null };
       saveDeal(); navigate('/property/calculator');
       await new Promise(res => setTimeout(res, 400));
-      document.getElementById('disposerCategory').focus();
+      document.getElementById('disposerCategory-citizen').focus();
       return true;
     })()`);
     await press('ArrowDown', 40);
@@ -1400,7 +1400,7 @@ try {
     const bwd = await evaluate(`({ active: document.activeElement.id || document.activeElement.tagName, v: State.deal.flatQuoteYears })`);
     await evaluate(`(() => { State.deal = { ...window.__T.base }; saveDeal(); render(); return true; })()`);
     const r = { sel, fwd, bwd };
-    if (sel.active !== 'disposerCategory' || sel.v !== 'foreign') fail('arrow keys on the seller lose focus after the first press', r);
+    if (sel.active !== 'disposerCategory-foreign' || sel.v !== 'foreign') fail('arrow keys on the seller lose focus after the first press', r);
     else if (fwd.v !== 4 || fwd.active !== 'flatQuoteAmount') fail('Tab out of a changed quote does not reach the next field', r);
     else if (bwd.v !== 7 || bwd.active !== 'flatQuoteAmount') fail('Shift+Tab out of a changed quote does not reach the previous field', r);
     else ok('a keyboard change on the property panels keeps its place — arrows stay, Tab and Shift+Tab move one stop', r);
@@ -2192,6 +2192,425 @@ try {
     else ok('fixwave: shell — Tab and Shift+Tab past "Weeks a year you would use it yourself" move one stop on after the redraw, and the dock\'s review button takes focus into the list it opens');
   }
   /* ---- end fixwave: shell ---- */
+  /* ---- fixwave: property ---- */
+  /* The property findings of the 2026-09-29 hunt. Each check is named by its
+     finding and states the rule the page broke, so a failure here reads as
+     the defect rather than as a changed number. */
+  const fwKeep = (keys) => evaluate(`(() => { window.__fwKept = { deal: JSON.parse(JSON.stringify(State.deal)),
+    lang: State.lang, store: Object.fromEntries(${JSON.stringify(keys)}.map(k => [k, localStorage.getItem('vl.' + k)])) }; return true; })()`);
+  const fwPut = () => evaluate(`(() => { const k = window.__fwKept;
+    Object.entries(k.store).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v));
+    State.observations = store.read('observations', []); State.opportunities = store.read('opportunities', []);
+    State.propertyReportsBought = store.read('propertyReportsBought', []); State.areaProfiles = store.read('areaProfiles', {});
+    if (typeof loadRegisterLog === 'function') loadRegisterLog();
+    State.lang = k.lang; State.deal = k.deal; saveDeal(); navigate('/property/calculator'); return true; })()`);
+  const FW_KEYS = ['observations', 'registerLog', 'opportunities', 'propertyReportsBought', 'areaProfiles', 'lang', 'deal', 'borrowerProfile'];
+
+  /* P18 — one month of reserve reads "1 month", and P9 — with no instalment
+          (a loan tenure of 0) the burn and the three- and six-month figures
+          are not computed. The null instalment was added as nought, so a
+          RM514,800 loan contributed nothing and the paragraph printed
+          "burns RM0 a month … 6 months with no rent is RM2.5k" beside a tile
+          saying the reserve could not be priced. */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const tick = (ms = 250) => new Promise(res => setTimeout(res, ms));
+      const base = window.__fwKept.deal;
+      const tile = () => ([...document.querySelectorAll('main .panel')].map(p => p.textContent).find(t => t.startsWith('Cash to keep untouched')) || '');
+      const para = () => document.getElementById('d-reserveMonths')?.closest('.row')?.querySelector('p')?.textContent || '';
+      navigate('/property/calculator'); await tick(400);
+      State.deal = { ...base, reserveMonths: 1 }; saveDeal(); render(); await tick();
+      const one = tile();
+      State.deal = { ...base, tenureYears: 0 }; saveDeal(); render(); await tick();
+      const m = dealModel(State.deal);
+      return { one, para: para(), loan: m.loan, instalment: m.instalment, burnWithRent: m.burnWithRent, burnWithoutRent: m.burnWithoutRent,
+        scen: m.reserveScenarios.map(s => [s.noRent, s.stressedRent]) };
+    })()`);
+    await fwPut();
+    if (!/(^|\D)1 month of instalment/.test(r.one) || /(^|\D)1 months\b/.test(r.one)) fail('fixwave P18: one month of reserve is written "1 months"', r.one.slice(0, 120));
+    else ok('fixwave P18: a reserve of one month reads "1 month of instalment"');
+    const p = [];
+    if (r.burnWithRent !== null || r.burnWithoutRent !== null) p.push(`burns ${r.burnWithRent} with rent and ${r.burnWithoutRent} without, on a RM${r.loan} loan with no instalment`);
+    if (r.scen.some(s => s.some(v => v !== null))) p.push(`reserve scenarios ${JSON.stringify(r.scen)}`);
+    if (/burns RM|months with no rent is RM/.test(r.para)) p.push(`the paragraph reads "${r.para.slice(0, 160)}"`);
+    if (p.length) fail('fixwave P9: with a loan tenure of 0 the reserve paragraph prices a burn that leaves the loan out', p);
+    else ok(`fixwave P9: with no instalment the burn and the reserve scenarios are not computed, and the paragraph says so ("${r.para.slice(0, 70)}…")`);
+  }
+
+  /* P11 — "Application structure" is not scored from nothing. It scored 70
+           as soon as an income existed, with a basis that said the applicant
+           count and tenure fit were "recorded"; the page has no control for
+           either. */
+  {
+    const r = await evaluate(`(() => {
+      const lr = loanReadiness({ assessed: true, employmentType: 'salaried', verifiedNetMonthlyIncome: 9000, creditReview: 'not_checked',
+        applicantCount: 1, docs: {} }, dealModel(window.__T.base));
+      const c = lr.components.find(x => x.k === 'structure');
+      return { score: c.score, note: c.note };
+    })()`);
+    if (r.score !== null || /\brecorded\b/.test(r.note)) fail('fixwave P11: application structure is scored, or said to be recorded, with no input for it', r);
+    else ok(`fixwave P11: application structure is not tested — "${r.note.slice(0, 80)}…"`);
+  }
+
+  /* Also found — the loan-readiness note agrees with the total beside it.
+     With only the liquid buffer open (a cost line unpriced), the tile showed
+     a total and the note under the table said "A total is withheld while
+     any of these is open". */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const line = FEE_TABLE.lines.disbursements, was = line.status;
+      const keptB = JSON.parse(JSON.stringify(State.borrower));
+      try {
+        line.status = 'unset';
+        Object.assign(State.borrower, { assessed: true, verifiedNetMonthlyIncome: 15000, creditReview: 'none_reported', incomeStabilityMonths: 36, liquidCashAvailable: 200000 });
+        navigate('/property/calculator'); await new Promise(res => setTimeout(res, 450));
+        const lr = loanReadiness(State.borrower, dealModel(State.deal));
+        const note = [...document.querySelectorAll('main p')].map(p => p.textContent).find(t => t.startsWith('Not assessed:')) || '';
+        return { score: lr.score, unknowns: lr.unknowns, note };
+      } finally {
+        line.status = was;
+        Object.keys(State.borrower).forEach(k => delete State.borrower[k]); Object.assign(State.borrower, keptB);
+      }
+    })()`);
+    await fwPut();
+    if (typeof r.score !== 'number' || r.unknowns.join() !== 'liquid buffer' || !r.note || /A total is withheld/.test(r.note))
+      fail('fixwave (also found): the loan-readiness note says a total is withheld beside the total it shows', r);
+    else ok(`fixwave (also found): with only the buffer open the readiness total ${r.score}/100 is shown and the note says it is weighted over what was tested`);
+  }
+
+  /* P13 — the leasehold question can be answered, and an answer that
+           establishes nothing earns nothing. It asked "how many years remain
+           and has extension been applied for?" and took Yes or No; with no
+           adverse answer, either one moved the local-demand pillar from 0 to
+           10 as "settled without an adverse finding". */
+  {
+    const r = await evaluate(`(() => {
+      const q = SARAWAK_CHECKS.find(c => c.id === 'lease-remaining');
+      const at = (a) => { const d = { ...window.__T.base, checks: a ? { 'lease-remaining': a } : {} }; const m = dealModel(d);
+        return { demand: propertyGrade(d, m).scores.demand, flagged: !!q.flag && propertyRiskFlags(d, m).some(f => f.t === q.flag) }; };
+      return { q: q.q, adverse: q.adverse, none: at(null), yes: at('yes'), no: at('no'), unsure: at('unknown') };
+    })()`);
+    const answered = r.adverse ? (r.adverse === 'yes' ? r.no : r.yes) : null;
+    const against = r.adverse ? r[r.adverse] : null;
+    if (!r.adverse || against.demand !== r.none.demand || !against.flagged || r.none.flagged || !(answered.demand > r.none.demand))
+      fail('fixwave P13: an answer to the leasehold question that establishes nothing still earns local-demand credit', r);
+    else ok(`fixwave P13: "${r.q}" — "${r.adverse}" earns nothing and raises a flag, the other answer settles it`);
+  }
+
+  /* P8 — the environmental allowance follows the asset. A bare parcel was
+          charged for roof membranes, repainting, windows and furniture, and
+          the furniture fit-out that "applies only where the letting is
+          furnished" was added to every total, although no furnished input
+          exists — so a cash parcel with no outgoings failed Net economics on
+          the allowance alone. */
+  {
+    const r = await evaluate(`(() => {
+      const k = 'sibu|Town centre'; const had = State.areaProfiles[k];
+      State.areaProfiles[k] = { flood: { class: 'recurrent' }, coastal: { class: 'saline' } };
+      try {
+        const at = (x) => ({ ...window.__T.base, city: 'sibu', district: 'Town centre', projectId: customProjectId('sibu'), ...x });
+        const land = environmentalAllowance(at({ propertyType: 'Land' }));
+        const flat = environmentalAllowance(at({}));
+        const fit = flat.items.find(i => i.id === 'fitout');
+        const others = flat.items.filter(i => i.id !== 'fitout').reduce((s, i) => s + i.annual, 0);
+        const cash = at({ propertyType: 'Land', downPct: 100, assessment: 0, quitRent: 0, insurance: 0, maintenance: 0, sinkingFund: 0 });
+        const m = dealModel(cash);
+        const net = propertyIpsAnswers(cash, m, propertyGrade(cash, m)).find(a => a.id === 'net');
+        return { landAnnual: land.annual, landItems: land.items.map(i => i.id), flatAnnual: flat.annual, others, fit: fit && { annual: fit.annual, offered: !!fit.offered },
+          net: net && { verdict: net.verdict.label, failed: net.verdict === IPS_VERDICTS.fail, why: net.why } };
+      } finally { if (had) State.areaProfiles[k] = had; else delete State.areaProfiles[k]; }
+    })()`);
+    const p = [];
+    if (r.landAnnual !== 0 || r.landItems.length) p.push(`a bare parcel is charged RM${Math.round(r.landAnnual)} a year (${r.landItems.join(', ')})`);
+    if (Math.abs(r.flatAnnual - r.others) > 0.5) p.push(`the condominium's total RM${Math.round(r.flatAnnual)} includes fit-out RM${Math.round(r.fit?.annual || 0)} for a furnished letting nobody entered`);
+    if (!r.fit || !r.fit.offered) p.push('fit-out is not offered beside the total');
+    if (!r.net || r.net.failed) p.push(`a cash parcel with no outgoings: Net economics ${r.net?.verdict} — ${r.net?.why}`);
+    if (p.length) fail('fixwave P8: the environmental allowance charges building items to land, or furnished fit-out to every letting', p);
+    else ok(`fixwave P8: land carries no building allowance, fit-out is offered and kept out of the RM${Math.round(r.flatAnnual)} total, and a cash parcel with no outgoings passes Net economics`);
+  }
+
+  /* P16 — the words match the figures. The negative-cash-flow flag said the
+           monthly cost was "before any repairs or void periods" when it is
+           after the vacancy allowance and the repair reserve; the rent-or-buy
+           tile called 7% of the whole initial cash what "the deposit is not
+           earning". */
+  /* P12 — a class with no tenancy is not described in tenancy terms. The
+           page withholds rent, vacancy, yield and cover for land, and went on
+           to say the shortfall was "in the price against the rent", that the
+           entered vacancy was "the figure every output above uses", that "the
+           price and the rent drive every output", and listed the rent and the
+           maintenance as illustrative defaults. */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
+      const base = window.__fwKept.deal;
+      const draw = async (deal) => {
+        State.deal = { ...deal, touched: {}, evidence: { ...(deal.evidence || {}) } };
+        State.propertyReportsBought = [...(State.propertyReportsBought || []), State.deal.projectId];
+        store.write('propertyReportsBought', State.propertyReportsBought);
+        saveDeal(); navigate('/property/calculator'); await tick(450);
+        return document.querySelector('main').innerText;
+      };
+      const flat = await draw(base);
+      const m = dealModel(State.deal);
+      const trueCost = [...document.querySelectorAll('main .panel')].map(p => p.textContent).find(t => t.startsWith('True cost to own')) || '';
+      const land = await draw({ ...base, propertyType: 'Land' });
+      const lm = dealModel(State.deal), lg = propertyGrade(State.deal, lm);
+      const evRail = [...document.querySelectorAll('main select[id^="ev-"]')].map(s => s.id);
+      const evCard = [...document.querySelectorAll('main .card')].find(c => /What this rests on/.test(c.querySelector('h2,h3')?.textContent || ''));
+      const evRows = evCard ? [...evCard.querySelectorAll('tbody tr')].map(tr => tr.cells[0].textContent) : null;
+      return { flag: /before any repairs or void periods/.test(flat), trueCost, committed: fmtMoney(m.totalInitialCash, 'MYR', 0),
+        landSaid: ['in the price against the rent', 'that is the figure every output above uses', 'the price and the rent drive every output', 'deepest vacancy']
+          .filter(s => land.includes(s) || (lg.notes.downside || '').includes(s)),
+        negativeAtBest: lm.negativeAtBest, evRail, evRows };
+    })()`);
+    await fwPut();
+    const p16 = [];
+    if (r.flag) p16.push('the negative cash flow flag says "before any repairs or void periods"');
+    if (/the deposit is not earning/.test(r.trueCost) || !r.trueCost.includes(r.committed)) p16.push(`"${r.trueCost}" (the cash put in is ${r.committed})`);
+    if (p16.length) fail('fixwave P16: a sentence on the calculator contradicts the figure it describes', p16);
+    else ok(`fixwave P16: the flag is after the vacancy allowance and repair reserve, and the opportunity cost is on the ${r.committed} put in`);
+    const p12 = [];
+    if (r.landSaid.length) p12.push(`land is described as: ${r.landSaid.join(' | ')}`);
+    if (!r.negativeAtBest) p12.push('the land deal was not negative at best, so the structural-shortfall sentence was not reached');
+    if (r.evRail.includes('ev-rent') || r.evRail.includes('ev-maintenance')) p12.push(`the rail grades ${r.evRail.join(', ')}`);
+    if (!r.evRows || r.evRows.some(x => /rent|Maintenance/i.test(x))) p12.push(`"What this rests on" lists ${JSON.stringify(r.evRows)}`);
+    if (p12.length) fail('fixwave P12: a land parcel is described in the tenancy terms the page says it withholds', p12);
+    else ok(`fixwave P12: a land parcel's shortfall, vacancy note, evidence rows and downside note name no tenancy (evidence: ${r.evRows.join(', ')})`);
+  }
+
+  /* P17 — the language note says what is translated, and it is. In Bahasa
+           Malaysia the note said input labels and evidence grades were
+           translated while 24 of the rail's labels and every "Illustrative
+           default" stayed English. */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
+      navigate('/property/calculator'); await tick(400);
+      const rail = () => document.querySelector('main .rail-sticky');
+      const labels = () => Object.fromEntries([
+        ...[...rail().querySelectorAll('label[for]')].map(l => [l.htmlFor, l.textContent.trim()]),
+        ...[...rail().querySelectorAll('label.checkline')].map(l => [l.querySelector('input')?.id, l.textContent.trim()])]);
+      State.lang = 'en'; render(); await tick();
+      const en = labels();
+      State.lang = 'ms'; render(); await tick();
+      const ms = labels();
+      const evOpts = [...rail().querySelectorAll('select[id^="ev-"] option')].map(o => o.textContent);
+      const same = Object.keys(en).filter(id => ms[id] === en[id]
+        && !Object.values(PROPERTY_I18N).some(e => e.en === en[id] && e.ms === e.en));
+      return { n: Object.keys(en).length, same: same.map(id => en[id]), englishGrades: evOpts.filter(t => EVIDENCE.some(e => e.label === t)),
+        note: (SUMMARY_COPY.ms || {}).note };
+    })()`);
+    await fwPut();
+    if (r.same.length || r.englishGrades.length) fail(`fixwave P17: in Bahasa Malaysia the note says "${r.note}", and ${r.same.length} of ${r.n} rail labels and ${r.englishGrades.length} evidence grades are English`,
+      [...r.same.slice(0, 8), ...new Set(r.englishGrades)]);
+    else ok(`fixwave P17: every one of the rail's ${r.n} labels and its evidence grades read in Bahasa Malaysia, as its note says`);
+  }
+
+  /* P5 — a register record opens in the calculator at one of its city's
+          districts. A blank district put null into the deal ("Demand — null",
+          "No sourced transactions recorded in null"), with the select showing
+          "City centre" and the district panel listing the whole city; a free
+          text district the city does not list was modelled while the select
+          showed another, and the link carried a district the recipient could
+          not match. */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
+      const rec = (id, name, city, district) => ({ id, name, source: '', state: 'captured', capturedAt: '2026-09-01',
+        availabilityCheckedAt: null, available: null,
+        deal: { city, district, propertyType: 'Condominium', price: 0, sqft: 0, projectId: customProjectId(city), bankValuation: 0, titleType: 'unknown' },
+        touched: {}, evidence: {}, negotiatedPrice: null, valuerEstimate: null, nextAction: '', nextActionOwner: '', nextActionDue: '' });
+      State.opportunities = [rec('opp-fw-a', 'FW blank district', 'kuching', null), rec('opp-fw-b', 'FW free text', 'sibu', 'Jalan Pedada')];
+      saveOpportunities();
+      addObservation({ city: 'kuching', area: 'Stutong', kind: 'ask-rent', value: 1700, evidence: 'user', date: '2026-09-01' });
+      const open = async (name) => {
+        navigate('/property/opportunities'); await tick();
+        const card = [...document.querySelectorAll('main .card')].find(c => c.querySelector('h3')?.textContent === name);
+        [...card.querySelectorAll('button')].find(b => b.textContent.trim() === 'Open in the calculator').click();
+        await tick(500);
+        const text = document.querySelector('main').innerText;
+        const listed = SARAWAK_CITIES.find(c => c.id === State.deal.city)?.districts || [];
+        return { city: State.deal.city, district: State.deal.district, listed: listed.includes(State.deal.district),
+          sel: document.getElementById('dealDistrict')?.value, nulls: text.split('\\n').filter(l => /\\bnull\\b/.test(l)).slice(0, 4),
+          url: new URLSearchParams(location.search).get('district'), slug: slugParam(State.deal.district || '') };
+      };
+      const a = await open('FW blank district');
+      const b = await open('FW free text');
+      navigate('/property/opportunities'); await tick();
+      const kind = document.getElementById('opp-new-district')?.tagName;
+      const cityBox = document.getElementById('opp-new-city');
+      cityBox.value = 'sibu'; cityBox.dispatchEvent(new Event('input', { bubbles: true })); cityBox.dispatchEvent(new Event('change', { bubbles: true }));
+      await tick();
+      const offered = [...(document.getElementById('opp-new-district')?.options || [])].map(o => o.value).filter(Boolean);
+      oppDraft = null;
+      return { a, b, kind, offered, sibu: SARAWAK_CITIES.find(c => c.id === 'sibu').districts, cityWide: observationsFor('kuching', null).total };
+    })()`);
+    await fwPut();
+    const p = [];
+    for (const [k, x] of [['blank', r.a], ['free text', r.b]]) {
+      if (!x.listed || x.sel !== x.district) p.push(`${k}: the deal's district is ${JSON.stringify(x.district)}, the select shows ${x.sel}`);
+      if (x.nulls.length) p.push(`${k}: the page reads ${JSON.stringify(x.nulls)}`);
+      if (x.url !== x.slug) p.push(`${k}: the link carries district=${x.url} for ${x.district}`);
+    }
+    if (r.kind !== 'SELECT' || r.offered.join('|') !== r.sibu.join('|')) p.push(`"Area or district" is a ${r.kind} offering ${JSON.stringify(r.offered)} for Sibu`);
+    if (r.cityWide !== 0) p.push(`observationsFor with no district returns ${r.cityWide} records from the whole city`);
+    if (p.length) fail('fixwave P5: a register record opens in the calculator at a district its city does not have', p);
+    else ok(`fixwave P5: a blank district opens at ${r.a.district} and a district Sibu does not list at ${r.b.district}, the select and the link agree, and the register offers the city's own districts`);
+  }
+
+  /* P10 — an imported comparable's town is the town. "Kuching" was stored
+           beside the id "kuching" and never matched anywhere evidence is
+           read; 2026-13-45 passed a format-only date check; the register
+           printed the raw id. */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
+      const before = new Set((State.observations || []).map(o => o.id));
+      navigate('/property/comparables'); await tick();
+      document.getElementById('register-import').click(); await tick();
+      const ta = drawerBody.querySelector('textarea');
+      ta.value = ['city,area,kind,value,date,evidence,sourceRef,reviewedBy,propertyType',
+        'Kuching,Tabuan,let-rent,2000,2026-08-01,verified,FW 1,Auditor,Condominium',
+        'kuching,tabuan,let-rent,2100,2026-08-02,verified,FW 2,Auditor,Condominium',
+        'Sibu,Town centre,let-rent,1500,2026-13-45,verified,FW 3,Auditor,Condominium',
+        'Atlantis,Harbour,let-rent,1500,2026-08-03,verified,FW 4,Auditor,Condominium'].join('\\n');
+      const btn = (t) => [...drawerBody.querySelectorAll('button')].find(b => b.textContent.trim().startsWith(t));
+      btn('Check this paste').click(); await tick();
+      const report = drawerBody.innerText;
+      btn('Import ')?.click(); await tick();
+      const added = State.observations.filter(o => !before.has(o.id)).map(o => ({ city: o.city, area: o.area, date: o.date }));
+      const row = [...document.querySelectorAll('main tr')].find(tr => tr.textContent.includes('FW 1'));
+      const where = row ? [...row.cells].map(c => c.textContent).find(t => /Tabuan/i.test(t)) : null;
+      const counted = observationsFor('kuching', 'Tabuan').groups['let-rent']?.n || 0;
+      closeDrawer();
+      return { report: report.split('\\n').filter(l => /would be added|Row \\d/.test(l)), added, where, counted };
+    })()`);
+    await fwPut();
+    const p = [];
+    if (r.added.length !== 2 || r.added.some(x => x.city !== 'kuching' || x.area !== 'Tabuan')) p.push(`stored ${JSON.stringify(r.added)}`);
+    if (r.counted < 2) p.push(`the calculator counts ${r.counted} of the two Tabuan rents`);
+    if (r.where !== 'Tabuan, Kuching') p.push(`the register's Where reads "${r.where}"`);
+    if (!r.report.some(l => /13-45/.test(l)) || !r.report.some(l => /Atlantis/.test(l))) p.push(`the check did not refuse the impossible date and the unknown town: ${JSON.stringify(r.report)}`);
+    if (p.length) fail('fixwave P10: an imported comparable is stored under a town no page reads, or with an impossible date', p);
+    else ok('fixwave P10: "Kuching" and "kuching" import as kuching · Tabuan and both count, 2026-13-45 and an unknown town are refused with a reason, and the register names the town');
+  }
+
+  /* P15 — a land record is corrected as land. The drawer offered only
+           "Built-up area (sq ft)" — a field a land sale never uses — so the
+           4-point area behind the register's RM45,000/pt could be neither seen
+           nor corrected, and the record was stamped with the deal's
+           "Condominium". */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
+      navigate('/property/calculator'); await tick(400);
+      const q = (l) => document.querySelector('main [aria-label="' + l + '"]');
+      const set = (l, v) => { const n = q(l); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
+      set('What you observed', 'land-sold'); set('Observed value', '180000'); set('Land area', '4'); set('Unit the area is in', 'point'); set('Source reference', 'SPA 9');
+      document.getElementById('obs-record').click(); await tick();
+      const o = State.observations[0];
+      openObservationDrawer(o); await tick();
+      const labels = [...drawerBody.querySelectorAll('label')].map(l => l.textContent.trim());
+      const land = [...drawerBody.querySelectorAll('input')].find(i => /land area/i.test(i.labels?.[0]?.textContent || ''));
+      const shown = land ? land.value : null;
+      if (land) { land.value = '5'; land.dispatchEvent(new Event('change', { bubbles: true })); await tick(); }
+      const after = State.observations.find(x => x.id === o.id);
+      closeDrawer();
+      return { type: o.propertyType, labels, shown, landSqft: after.landSqft, want: toSqft(5, 'point'), unit: after.landUnit, sqft: after.sqft };
+    })()`);
+    await fwPut();
+    const p = [];
+    if (r.type !== 'Land') p.push(`a transacted land price is stamped "${r.type}"`);
+    if (r.labels.some(l => /Built-up area/.test(l))) p.push(`the drawer offers ${JSON.stringify(r.labels.filter(l => /area/i.test(l)))}`);
+    if (r.shown !== '4') p.push(`the land area shows ${JSON.stringify(r.shown)} for 4 points`);
+    if (!isFinite(r.landSqft) || Math.abs(r.landSqft - r.want) > 0.01 || r.unit !== 'point' || r.sqft != null) p.push(`correcting it to 5 points stored ${r.landSqft} sq ft in ${r.unit} (sqft ${r.sqft})`);
+    if (p.length) fail('fixwave P15: a land record\'s area cannot be seen or corrected in its drawer', p);
+    else ok('fixwave P15: a land sale is recorded as Land, and its drawer shows and corrects the land area in points');
+  }
+
+  /* P7 — the decision record is dated on the reader's clock. It printed the
+          UTC minute with no zone — 04:11 at 12:11 in Kuching, and the day
+          before until 08:00 — on the page that leaves the browser. */
+  {
+    await send('Emulation.setTimezoneOverride', { timezoneId: 'Asia/Kuching' }, sessionId);
+    const r = await evaluate(`(() => {
+      const now = caseRaisedAt(new Date());
+      const heads = [decisionRecordProperty(), decisionRecordWheel()].map(n => n.querySelector('.dr-head .metaline')?.textContent || '');
+      return { now, heads };
+    })()`);
+    await send('Emulation.setTimezoneOverride', { timezoneId: '' }, sessionId).catch(() => {});
+    const stamp = (s) => (s.match(/Prepared (\d{4}-\d\d-\d\d \d\d:\d\d)( UTC[+−]\d\d:\d\d)?/) || []);
+    const want = stamp('Prepared ' + r.now);
+    const bad = r.heads.filter(h => { const [, t, z] = stamp(h); return !t || z !== want[2] || Math.abs(new Date(t) - new Date(want[1])) > 60000; });
+    if (bad.length) fail(`fixwave P7: at ${r.now} in Kuching the decision record says`, bad.map(h => h.slice(0, 40)));
+    else ok(`fixwave P7: the property and wheel records say "Prepared ${r.now}"`);
+  }
+
+  /* P6 — what another tab or another document saved is not written over.
+          The borrower profile is never in the address, so a tab opened
+          earlier erased an income entered in a later one for good; and a
+          page restored from the back-forward cache held the deal it had
+          before, showed 572000 while storage held 650000, and wrote it
+          back on the next edit. */
+  {
+    await fwKeep(FW_KEYS);
+    const { result: { targetId: tB } } = await send('Target.createTarget', { url: 'about:blank' });
+    const { result: { sessionId: sB } } = await send('Target.attachToTarget', { targetId: tB, flatten: true });
+    const evalB = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sB)).result?.result?.value;
+    let two;
+    try {
+      await send('Runtime.enable', {}, sB);
+      await send('Page.navigate', { url: `${BASE}/property/calculator` }, sB);
+      for (const t = Date.now(); Date.now() - t < 30000; await sleep(150))
+        if (await evalB(`typeof propertyPagesSettled === 'function' && propertyPagesSettled()`) === true) break;
+      const typeA = (id, v) => evaluate(`(() => { const n = document.getElementById(${JSON.stringify(id)}); n.value = ${JSON.stringify(v)};
+        n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+      await evaluate(`(() => { navigate('/property/calculator'); return true; })()`);
+      await sleep(500);
+      /* Waited for, not slept on: until this tab holds what the other wrote,
+         or three seconds — where nothing re-reads it, it never will. */
+      const heard = async (expr) => { for (const t = Date.now(); Date.now() - t < 3000; await sleep(100)) if (await evaluate(expr)) return true; return false; };
+      const wroteB = await evalB(`(() => { State.borrower.verifiedNetMonthlyIncome = 9000; State.borrower.assessed = true; saveBorrower(); return store.read('borrowerProfile', {}).verifiedNetMonthlyIncome; })()`);
+      await heard(`State.borrower.verifiedNetMonthlyIncome === 9000`);
+      await typeA('b-existingMonthlyDebtPayments', '500'); await sleep(400);
+      const kept = await evaluate(`store.read('borrowerProfile', {})`);
+      await evalB(`(() => { store.write('borrowerProfile', null); return true; })()`);
+      await heard(`State.borrower.existingMonthlyDebtPayments === 0`);
+      await typeA('b-essentialMonthlyCommitments', '1200'); await sleep(400);
+      const erased = await evaluate(`store.read('borrowerProfile', {})`);
+      two = { wroteB, income: kept.verifiedNetMonthlyIncome, debt: kept.existingMonthlyDebtPayments, afterErase: erased.verifiedNetMonthlyIncome, debtAfterErase: erased.existingMonthlyDebtPayments };
+    } finally { await send('Target.closeTarget', { targetId: tB }).catch(() => {}); }
+    /* The restore itself, without relying on the browser choosing to cache:
+       another document saves a price behind this one's back, and this one is
+       shown again from the cache. */
+    const bf = await evaluate(`(async () => {
+      const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
+      navigate('/property/areas'); await tick();
+      localStorage.setItem('vl.deal', JSON.stringify({ ...State.deal, price: 650000 }));
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+      await tick();
+      const mem = State.deal.price;
+      navigate('/property/calculator'); await tick(450);
+      return { mem, box: document.getElementById('d-price')?.value, stored: store.read('deal').price };
+    })()`);
+    await fwPut();
+    const p = [];
+    if (two.wroteB !== 9000) p.push(`tab B could not save an income (it read back ${two.wroteB})`);
+    else if (two.income !== 9000 || two.debt !== 500) p.push(`tab B entered an income of 9000, tab A a debt of 500: stored income ${two.income}, debt ${two.debt}`);
+    if (two.afterErase !== 0 || two.debtAfterErase !== 0) p.push(`tab B erased the financing details and tab A's next edit wrote back income ${two.afterErase}, debt ${two.debtAfterErase}`);
+    if (bf.mem !== 650000 || bf.box !== '650000') p.push(`restored from the back-forward cache with 650000 stored: the page holds ${bf.mem} and shows ${bf.box}`);
+    if (p.length) fail('fixwave P6: a stale copy in one tab or document writes over what another saved', p);
+    else ok('fixwave P6: an income entered in another tab survives this tab\'s next edit, an erase in another tab stays erased, and a page restored from the cache reads the deal saved since');
+  }
+  /* ---- end fixwave: property ---- */
 
 } catch (e) {
   fail('harness error', e.message);

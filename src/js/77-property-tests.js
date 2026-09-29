@@ -165,25 +165,36 @@ function environmentalAllowance(d) {
   const cls = (attrId) => areaAttr(city, area, attrId)?.class || null;
   const recorded = { coastal: cls('coastal'), flood: cls('flood'), ground: cls('ground') };
   const anyRecorded = Object.values(recorded).some(Boolean);
+  /* THE ALLOWANCES MAINTAIN A BUILDING, SO A BARE PARCEL CARRIES NONE. Every
+     one of them is the upkeep of something built — membranes, paint, fittings,
+     furniture, the aprons round a piled structure — and a Land parcel was
+     charged all of them: RM4,576 a year on a flooded, saline plot, enough on
+     its own to fail Net economics for a cash parcel with no outgoings. */
+  const buildingless = propertyClassOf(d) === 'land';
 
-  const items = ENV_ALLOWANCES.map(a => {
+  const items = buildingless ? [] : ENV_ALLOWANCES.map(a => {
     const hit = Object.entries(a.triggers).find(([attr, classes]) =>
       recorded[attr] && classes.includes(recorded[attr]));
     if (!hit) return null;
     /* Fit-out only bites on a furnished letting, and this product has no field
-       saying whether it is one — so it is offered rather than applied. */
+       saying whether it is one — so it is offered rather than applied. It was
+       applied: listed with its own note saying so and added to the total
+       anyway, RM858 of a Sibu condominium's RM2,688. It stays on the list,
+       marked offered, and out of the total. */
     const annual = num0(d.price) * (a.pctOfValue / 100);
-    return { ...a, triggeredBy: hit[0], triggeredByClass: recorded[hit[0]], annual };
+    return { ...a, triggeredBy: hit[0], triggeredByClass: recorded[hit[0]], annual, offered: a.id === 'fitout' };
   }).filter(Boolean);
 
-  const annual = items.reduce((s, i) => s + i.annual, 0);
+  const annual = items.filter(i => !i.offered).reduce((s, i) => s + i.annual, 0);
   return {
-    items, annual, monthly: annual / 12, recorded, anyRecorded,
+    items, annual, monthly: annual / 12, recorded, anyRecorded, buildingless,
     /* What has NOT been established, because an absent allowance because
        nothing was recorded is a different statement from one because the
        locality is dry and inland. */
-    unexamined: ['coastal', 'flood', 'ground'].filter(k => !recorded[k]),
-    why: !anyRecorded
+    unexamined: buildingless ? [] : ['coastal', 'flood', 'ground'].filter(k => !recorded[k]),
+    why: buildingless
+      ? 'This is a bare parcel: there is no building, fitting or furnishing for any of these allowances to maintain, so none is applied.'
+      : !anyRecorded
       ? 'No coastal, flood or ground record exists for this locality, so no environmental allowance is computed. That is an absence of evidence, not an absence of exposure.'
       : items.length
         ? `${items.length} allowance${items.length === 1 ? '' : 's'} triggered by what has been recorded here.`
@@ -224,7 +235,7 @@ function rentVersusBuy(d, m, weeksOfOwnUsePerYear) {
   const priceToRent = price / annualRent;
 
   /* The owner's true annual carrying cost: everything that recurs, plus the
-     return the deposit is not earning elsewhere. Leaving out opportunity cost
+     return the cash put in is not earning elsewhere. Leaving out opportunity cost
      is what makes ownership look free. */
   /* opex, not a field called annualOperatingCost — which the model does not
      produce. The first version of this read that name, got zero, and quietly
@@ -249,7 +260,7 @@ function rentVersusBuy(d, m, weeksOfOwnUsePerYear) {
   const consumption = isNum(ratio) && ratio < 0.25;
 
   return {
-    ok: true, priceToRent, carrying, opportunity, trueCarrying, rentInstead, ratio, weeks, consumption,
+    ok: true, priceToRent, carrying, committed: equity, opportunity, trueCarrying, rentInstead, ratio, weeks, consumption,
     classification: !isNum(weeks)
       ? 'Not classified — enter the weeks a year you would actually use it.'
       : consumption

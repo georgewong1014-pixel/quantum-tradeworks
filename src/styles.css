@@ -1055,9 +1055,9 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
    Fixed to the bottom, one row, collapsible. z-index 35 puts it above the page
    and the sticky sub-nav at 25, and below the topbar at 40, the drawer at 61,
    the modal at 62 and the toast at 70 — a summary that covered a dialog would
-   be worse than no summary. #views carries the bottom padding so the dock can
-   never sit on top of the last card; padding the body would leave the footer
-   underneath it instead. */
+   be worse than no summary. The footer carries the dock's measured height
+   below itself (see .dock ~ .footer), so nothing on the page — the last card
+   or the footer's last line — has to stay under it. */
 .dock {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 35;
   background: var(--surface-2); border-top: 1px solid var(--line-2);
@@ -1078,11 +1078,17 @@ table.dt-pagesticky thead th { top: var(--topbar-h); }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .dock-acts { display: flex; gap: 8px; margin-left: auto; }
-#views[data-dock="1"] { padding-bottom: 132px; }
+/* THE DOCK SAT ON THE END OF THE FOOTER. The space for it was reserved on
+   #views, which ends above the footer, so at the bottom of the page the dock
+   covered the footer's last lines — the legal paragraph's "Nothing here may
+   be used for an investment decision", 143px of it on a phone and 31px at
+   1440 — and there was nothing further to scroll. The room is reserved after
+   the footer instead, at the dock's measured height (--dock-h, published by
+   render() and following the dock as it wraps), so the whole page can be
+   scrolled clear of it. The dock is mounted just before the footer. */
+.dock ~ .footer { padding-bottom: calc(var(--xl) + var(--dock-h, 0px)); }
 @media (max-width: 720px) {
-  /* On a phone the figures wrap to two rows and the actions need their own,
-     so the reserved space grows with it. */
-  #views[data-dock="1"] { padding-bottom: 188px; }
+  /* On a phone the figures wrap to two rows and the actions need their own. */
   .dock-figs { gap: var(--md); width: 100%; }
   .dock-acts { margin-left: 0; width: 100%; }
   .dock-acts .btn { flex: 1 1 0; }
@@ -1536,6 +1542,11 @@ details > summary::marker { content: ''; }
    dragging inside the field. A contract name and a screenshot filename fared
    little better at 37% and 25%. */
 .assumption .a-text { grid-column: 1 / -1; width: 100%; }
+/* A choice gets its own row for the same reason. In the 78px column the
+   evidence grades read "Illustra" for "Illustrative default" and "Verifie",
+   and the owner statement "month" and "not ag" — 40px of text for 51-120px
+   of words, at every width. */
+.assumption > .select-sm { grid-column: 1 / -1; width: 100%; max-width: none; }
 .assumption .a-note { grid-column: 1 / -1; font-size:12px; color: var(--ink-3); margin-top: -4px; }
 /* An input moved off its derived default is marked as the reader's, with the
    default beside it; the rule is a bronze edge, not a colour on the number. */

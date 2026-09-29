@@ -553,6 +553,31 @@ const saveDeal = () => {
 const slugParam = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const matchBySlug = (list, want) => list.find(x => slugParam(x) === slugParam(want));
 
+/* A DEAL'S DISTRICT IS ONE OF ITS CITY'S.
+   The calculator's district select, the address and every locality lookup
+   read a district from the city's own list. A register record carried
+   whatever was typed as its "Area or district", or null where nothing was,
+   and opening it in the calculator put that into the deal: "Demand — null",
+   "No sourced transactions recorded in null", the select showing City
+   centre; and a typed "Jalan Pedada" was modelled while the select showed
+   Town centre and the link carried a district no recipient could match.
+   listedDistrict finds a name on the city's list whatever its case or
+   spacing. dealDistrict is the district a deal is modelled at: the one it
+   names when the city lists it, else the stand-in offered where the city
+   lists that, else the city's first — which is what choosing the city
+   does. */
+const listedDistrict = (city, want) => {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  return def && want ? matchBySlug(def.districts, want) || null : null;
+};
+const dealDistrict = (city, want, standIn) => {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  if (!def) return want;
+  return listedDistrict(city, want) || listedDistrict(city, standIn) || def.districts[0];
+};
+/* A deal saved from such a record is put on its city's list when it loads. */
+State.deal.district = dealDistrict(State.deal.city, State.deal.district);
+
 /* THE WHOLE DEAL IN THE ADDRESS, NOT THREE FIELDS OF IT.
    ---------------------------------------------------------------------------
    The address carried city, district and type; a pasted link reproduced the
@@ -857,9 +882,7 @@ function workspaceLinkBanner(kind, plan, save) {
    established. The grade and the risk flags used to treat every answer
    alike: a 'yes' to flood, single-employer demand and unsold supply scored
    the local-demand pillar 100, exactly as all-'no' did, and a 'yes' to "has
-   the strata title issued" was raised as a risk. The leasehold question asks
-   two things at once and has no adverse answer; an answer to it counts as
-   settled and nothing more. */
+   the strata title issued" was raised as a risk. */
 const CHECK_ANSWERS = ['yes', 'no', 'unknown'];
 const SARAWAK_CHECKS = [
   { id:'title-restricted', adverse:'yes', q:'Is the title Native Area Land, NCR or another restricted class?',
@@ -872,7 +895,14 @@ const SARAWAK_CHECKS = [
     ],
     affects:['Whether the purchase can complete at all', 'Financing', 'Resale pool'],
     why:'Transfer of restricted classes is limited by the Sarawak Land Code. If it applies, no financial model matters until it is resolved.' },
-  { id:'lease-remaining', adverse:null, q:'If leasehold, how many years remain and has extension been applied for?',
+  /* Asked "how many years remain and has extension been applied for?" and
+     answered yes or no, with no adverse answer — so Yes and No alike counted
+     as settled and lifted local demand from 0 to 10, and a short lease with
+     nothing applied for, answered No, raised nothing. It now asks whether the
+     tenure has been confirmed, which the three answers can say, as the
+     resale question below does. */
+  { id:'lease-remaining', adverse:'no', flag:'The tenure and any remaining lease have not been confirmed',
+    q:'Have you confirmed the tenure on the title — freehold, or the years of lease remaining and whether an extension has been applied for?',
     who:'Lawyer, Land and Survey Department', sev:'warning',
     why:'Short remaining leases can reduce financing availability and resale demand. Confirm applicable thresholds with the intended lender.' },
   { id:'strata-issued', adverse:'no', flag:'The strata title has not issued', q:'For an apartment: has the strata title issued, or is it still a master title?',
@@ -2063,9 +2093,10 @@ const PROPERTY_I18N = {
   'ev.developer': { en:'Developer supplied', ms:'Daripada pemaju', zh:'发展商提供' },
   'ev.estimated': { en:'Estimated', ms:'Anggaran', zh:'估算' },
   'ev.assumed':   { en:'Assumed', ms:'Andaian', zh:'假设' },
+  'ev.illustrative_default': { en:'Illustrative default', ms:'Nilai lalai ilustratif', zh:'示例默认值' },
   /* the ten risk questions */
   'chk.title-restricted': { en:'Is the title Native Area Land, NCR or another restricted class?', ms:'Adakah hakmilik ini Tanah Kawasan Bumiputera (Native Area Land), NCR atau kelas terhad lain?', zh:'地契是否属土著地区土地（Native Area Land）、土著习俗地（NCR）或其他受限地类？' },
-  'chk.lease-remaining':  { en:'If leasehold, how many years remain and has extension been applied for?', ms:'Jika pajakan, berapa tahun berbaki dan adakah lanjutan tempoh dipohon?', zh:'若属租赁地契，尚余多少年？是否已申请延长年限？' },
+  'chk.lease-remaining':  { en:'Have you confirmed the tenure on the title — freehold, or the years of lease remaining and whether an extension has been applied for?', ms:'Adakah anda telah mengesahkan pegangan pada hakmilik — pegangan bebas, atau baki tahun pajakan dan sama ada lanjutan tempoh telah dipohon?', zh:'你是否已核实地契上的年限——永久地契，或租约尚余多少年、是否已申请延长？' },
   'chk.strata-issued':    { en:'For an apartment: has the strata title issued, or is it still a master title?', ms:'Bagi apartmen: adakah hakmilik strata telah dikeluarkan, atau masih hakmilik induk?', zh:'公寓单位：分层地契是否已发出，还是仍属总地契？' },
   'chk.flood':            { en:'Is the site in an area with a known flood history?', ms:'Adakah tapak ini terletak di kawasan yang ada sejarah banjir?', zh:'该地点是否位于已知有水灾记录的地区？' },
   'chk.single-employer':  { en:'Does rental demand here depend on one employer or one industry?', ms:'Adakah permintaan sewa di sini bergantung pada satu majikan atau satu industri?', zh:'这里的租赁需求是否依赖单一雇主或单一行业？' },
@@ -2074,13 +2105,25 @@ const PROPERTY_I18N = {
   'chk.supply':           { en:'Is there substantial unsold or newly completed supply nearby?', ms:'Adakah banyak unit belum terjual atau baru siap berhampiran?', zh:'附近是否有大量未售出或刚竣工的单位？' },
   'chk.comparables':      { en:'Have you verified comparable rental transactions, not asking prices?', ms:'Adakah anda telah mengesahkan transaksi sewa setanding, bukan kadar sewa yang diminta?', zh:'是否已核实同类单位的实际成交租金，而非叫价？' },
   'chk.resale-time':      { en:'Have you established how long a resale would realistically take in this district?', ms:'Adakah anda telah memastikan berapa lama jualan semula secara realistik mengambil masa di daerah ini?', zh:'你是否已确认在这个县转售实际需要多久？' },
-  /* calculator inputs */
+  /* calculator inputs — every label in Your deal, which the summary's note
+     says is translated. Twenty-five of its fifty were missing and stayed
+     English under a note in Bahasa Malaysia saying they were not. */
+  'in.city':      { en:'City', ms:'Bandar', zh:'城市' },
+  'in.district':  { en:'District or neighbourhood', ms:'Daerah atau kawasan kejiranan', zh:'地区或社区' },
+  'in.propertyType':{ en:'Property type', ms:'Jenis hartanah', zh:'产业类型' },
+  'in.assetClass':{ en:'Asset class', ms:'Kelas aset', zh:'资产类别' },
+  'in.titleType': { en:'Title class', ms:'Kelas hakmilik', zh:'地契类别' },
+  'in.remainingLease':{ en:'Years remaining on the lease (0 if freehold)', ms:'Baki tahun pajakan (0 jika pegangan bebas)', zh:'租约剩余年数（永久地契填 0）' },
+  'in.project':   { en:'Project', ms:'Projek', zh:'项目' },
   'in.sqft':      { en:'Built-up area (sq ft)', ms:'Keluasan binaan (sq ft)', zh:'建筑面积 (sq ft)' },
   'in.landSqft':  { en:'Land area (sq ft, 0 if none)', ms:'Keluasan tanah (sq ft, 0 jika tiada)', zh:'土地面积 (sq ft，无则填 0)' },
   'in.parking':   { en:'Allocated parking bays', ms:'Petak letak kereta diperuntukkan', zh:'分配的停车位' },
   'in.price':     { en:'Purchase price (RM)', ms:'Harga belian (RM)', zh:'购买价格 (RM)' },
   'in.bankValuation': { en:'Bank or valuer estimate (RM, 0 if not yet known)', ms:'Nilaian bank atau penilai (RM, 0 jika belum diketahui)', zh:'银行或估价师估值 (RM，未知则填 0)' },
   'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
+  'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
+  'in.renoRentUpliftPct':{ en:'Share of the rent that depends on the renovation (%)', ms:'Bahagian sewa yang bergantung pada ubah suai (%)', zh:'取决于装修的租金比例 (%)' },
+  'in.renoValueRecoveryPct':{ en:'Share of the renovation a buyer will pay for at exit (%)', ms:'Bahagian kos ubah suai yang akan dibayar pembeli semasa jualan (%)', zh:'出售时买家愿为装修支付的比例 (%)' },
   'in.downPct':   { en:'Deposit (%)', ms:'Deposit (%)', zh:'头期 (%)' },
   'in.ratePct':   { en:'Loan interest rate (%)', ms:'Kadar faedah pinjaman (%)', zh:'贷款利率 (%)' },
   'in.tenureYears':{ en:'Loan tenure (years)', ms:'Tempoh pinjaman (tahun)', zh:'贷款期限 (年)' },
@@ -2094,6 +2137,23 @@ const PROPERTY_I18N = {
   'in.insurance': { en:'Annual insurance (RM)', ms:'Insurans tahunan (RM)', zh:'每年保险费 (RM)' },
   'in.mgmtPct':   { en:'Letting and management fee (% of rent)', ms:'Fi sewaan dan pengurusan (% sewa)', zh:'出租与管理费 (占租金 %)' },
   'in.repairReservePct':{ en:'Repair reserve (% of rent)', ms:'Rizab pembaikan (% sewa)', zh:'维修储备 (占租金 %)' },
+  'in.selfManaged':{ en:'I will manage this property myself', ms:'Saya akan mengurus hartanah ini sendiri', zh:'我将自行管理此产业' },
+  'in.leasingFeeMonths':{ en:'Tenant placement fee (months of rent)', ms:'Fi mendapatkan penyewa (bulan sewa)', zh:'招租费（月租金数）' },
+  'in.renewalFeeMonths':{ en:'Renewal fee (months of rent)', ms:'Fi pembaharuan sewaan (bulan sewa)', zh:'续约费（月租金数）' },
+  'in.mgmtMinMonthly':{ en:'Minimum monthly fee (RM)', ms:'Fi bulanan minimum (RM)', zh:'每月最低管理费 (RM)' },
+  'in.tenancyMonths':{ en:'Expected tenancy length (months)', ms:'Jangkaan tempoh penyewaan (bulan)', zh:'预计租约期（月）' },
+  'in.daysToFirstTenant':{ en:'Target days to place a tenant', ms:'Sasaran hari untuk mendapatkan penyewa', zh:'找到租客的目标天数' },
+  'in.depositMonths':{ en:'Tenancy deposit held (months)', ms:'Deposit sewaan yang dipegang (bulan)', zh:'所持租赁押金（月）' },
+  'in.repairApprovalLimit':{ en:'Repair the manager may authorise without asking (RM)', ms:'Had pembaikan yang boleh diluluskan pengurus tanpa merujuk pemilik (RM)', zh:'管理人无需请示即可批准的维修金额 (RM)' },
+  'in.inspectionsPerYear':{ en:'Inspections a year, with a written report', ms:'Pemeriksaan setahun, dengan laporan bertulis', zh:'每年检查次数（附书面报告）' },
+  'in.arrearsChaseDays':{ en:'Days late before arrears are chased', ms:'Hari lewat sebelum tunggakan dituntut', zh:'欠租多少天后开始追讨' },
+  'in.ownerReportCadence':{ en:'Owner statement', ms:'Penyata pemilik', zh:'业主结单' },
+  'in.tenantPaysUtilities':{ en:'Tenant pays utilities, not the owner', ms:'Penyewa membayar utiliti, bukan pemilik', zh:'水电费由租客而非业主支付' },
+  /* the four figures whose evidence is graded, named as the rail names them */
+  'evr.price':    { en:'Purchase price', ms:'Harga belian', zh:'购买价格' },
+  'evr.rent':     { en:'Expected rent', ms:'Jangkaan sewa', zh:'预计租金' },
+  'evr.maintenance':{ en:'Maintenance', ms:'Penyelenggaraan', zh:'维修费' },
+  'evr.sqft':     { en:'Built-up area', ms:'Keluasan binaan', zh:'建筑面积' },
   'in.holdYears': { en:'Holding period (years)', ms:'Tempoh pegangan (tahun)', zh:'持有期 (年)' },
   'in.apprecPct': { en:'Annual capital growth (%)', ms:'Pertumbuhan modal tahunan (%)', zh:'年资本增值 (%)' },
   'in.sellMonths':{ en:'Expected months to sell', ms:'Jangkaan bulan untuk menjual', zh:'预计出售月数' },
@@ -2126,11 +2186,13 @@ const tr = (key) => METRIC_DICTIONARY[key]?.[lang()] || METRIC_DICTIONARY[key]?.
    figures and their names only — the surrounding explanation stays in English
    because a half-translated argument is harder to trust than an English one. */
 const SUMMARY_COPY = {
-  en: { title:'Summary', note:'Input labels, evidence grades and the ten risk questions are translated. The longer explanations remain in English.',
+  /* Says what is translated and no more: it claimed "input labels" while
+     half the rail's and every other panel's stayed English. */
+  en: { title:'Summary', note:'The labels in Your deal, its evidence grades and the ten risk questions are translated. The panels below and the longer explanations remain in English.',
         forEvery:'For every ringgit of rent you collect', afterAll:'after every cost modelled here', perMonth:'a month' },
-  ms: { title:'Ringkasan', note:'Label input, gred bukti dan sepuluh soalan risiko telah diterjemah. Penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
+  ms: { title:'Ringkasan', note:'Label dalam Your deal, gred buktinya dan sepuluh soalan risiko telah diterjemah. Panel di bawah dan penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
         forEvery:'Bagi setiap ringgit sewa yang dikutip', afterAll:'selepas semua kos yang dimodelkan di sini', perMonth:'sebulan' },
-  zh: { title:'摘要', note:'输入项名称、证据等级与十道风险问题已翻译，较长的说明仍为英文。',
+  zh: { title:'摘要', note:'“Your deal”中的输入项名称、其证据等级与十道风险问题已翻译；下方各面板及较长的说明仍为英文。',
         forEvery:'每收取一令吉租金', afterAll:'扣除此处模型中的所有成本后', perMonth:'每月' },
 };
 
@@ -2380,12 +2442,34 @@ const PROPERTY_SHARED_KEYS = {
   sarawakExposure:       () => { State.sarawakExposure = store.read('sarawakExposure', []); },
   propertyReportsBought: () => { State.propertyReportsBought = store.read('propertyReportsBought', []); },
   propertyReportLog:     () => { State.propertyReportLog = store.read('propertyReportLog', { month: meterMonth(), ids: [] }); },
+  borrowerProfile:       () => rereadBorrower(),
 };
 window.addEventListener('storage', (e) => {
   if (e.storageArea && e.storageArea !== localStorage) return;
   if (e.key === null) { Object.values(PROPERTY_SHARED_KEYS).forEach(f => f()); return; }
   const k = String(e.key).startsWith('vl.') ? String(e.key).slice(3) : null;
   if (k && Object.hasOwn(PROPERTY_SHARED_KEYS, k)) PROPERTY_SHARED_KEYS[k]();
+});
+/* A PAGE SHOWN AGAIN FROM THE BACK-FORWARD CACHE READS WHAT WAS SAVED SINCE.
+   Back to a page the browser kept resumes it exactly as it was, and nothing
+   announces the writes made while it was away: another document in this tab
+   made them, and `storage` reaches only the other tabs that are open. The
+   calculator came back holding the deal it had before — it showed a price
+   of 572000 while 650000 was saved — and the next edit wrote the old deal
+   back over the reader's. On a restore the deal, the financing details and
+   the lists above are read again, and the page is drawn from them. */
+window.addEventListener('pageshow', (e) => {
+  if (!e.persisted) return;
+  const held = () => JSON.stringify([State.deal, State.borrower, ...Object.keys(PROPERTY_SHARED_KEYS).map(k => State[k])]);
+  const was = held();
+  Object.values(PROPERTY_SHARED_KEYS).forEach(f => f());
+  const saved = store.read('deal', null);
+  if (saved) {
+    saved.holdYears = normHoldYears(saved.holdYears);
+    saved.district = dealDistrict(saved.city, saved.district);
+    State.deal = saved;
+  }
+  if (held() !== was) render();
 });
 
 /* THE COMPARABLES REGISTER IS THIS, EXTENDED — NOT A SECOND STORE.
@@ -2520,7 +2604,10 @@ function comparableSupport(d) {
    rather than the mean: with a handful of observations one unusual figure
    moves a mean and does not move a median. */
 function observationsFor(city, area) {
-  const rows = State.observations.filter(o => o.city === city && (!area || o.area === area));
+  /* A district's records, never the city's. With no district this returned
+     every record in the town, and the panel headed "What you have recorded —
+     null" summarised Kuching as though it were one locality. */
+  const rows = area ? State.observations.filter(o => o.city === city && o.area === area) : [];
   const groups = {};
   for (const o of rows) {
     const g = (groups[o.kind] = groups[o.kind] || { kind: OBS_BY_ID[o.kind], values: [], best: null, latest: null });

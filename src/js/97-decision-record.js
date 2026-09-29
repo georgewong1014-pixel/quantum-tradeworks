@@ -50,11 +50,14 @@ function decisionRecordProperty() {
   const out = el('div', { class: 'decision-record' });
 
   const where = [d.district, SARAWAK_CITIES.find(c => c.id === d.city)?.name].filter(Boolean).join(', ');
+  /* Prepared on the reader's clock, with its zone — in all three records.
+     It printed the UTC minute bare: "04:11" at 12:11 in Kuching, and the
+     day before until 08:00, on the page that goes to a lender or a lawyer. */
   out.append(el('div', { class: 'dr-head' }, [
     el('p', { class: 'eyebrow' }, 'Decision record · property'),
     el('h1', {}, `${d.propertyType || 'Property'}${where ? ` — ${where}` : ''}`),
     el('p', { class: 'metaline' },
-      `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${MODEL_VERSION} · research only, not advice`),
+      `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
   ]));
 
   /* ---- what it comes to ------------------------------------------------ */
@@ -230,7 +233,7 @@ function decisionRecordWheel() {
     el('p', { class: 'eyebrow' }, 'Decision record · options cash wheel'),
     el('h1', {}, `${(p.symbol || '').trim() || 'Unnamed contract'} — cash-secured put and covered call`),
     el('p', { class: 'metaline' },
-      `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · ${MODEL_VERSION} · research only, not advice`),
+      `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
   ]));
 
   if (p.isWorkedExample) out.append(el('p', { class: 'dr-warn' },
@@ -330,7 +333,7 @@ VIEWS.decisionRecord = () => {
       el('p', { class: 'eyebrow' }, 'Decision record · Trading Index'),
       el('h1', {}, `${State.qtti?.symbol || 'Instrument'} — trend evidence`),
       el('p', { class: 'metaline' },
-        `Prepared ${new Date().toISOString().slice(0, 16).replace('T', ' ')} · research only, not advice`),
+        `Prepared ${caseRaisedAt(new Date())} · research only, not advice`),
     ]));
     const figs = el('div', { class: 'dr-figs' });
     /* Confidence is its own measure: a run is assessable before its five

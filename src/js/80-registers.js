@@ -496,6 +496,13 @@ function candidateModel(o) {
   if (unpriced) delete od.price;
   if (!(num0(od.sqft) > 0)) delete od.sqft;
   const d = { ...State.deal, ...od, touched: o.touched || {}, evidence: o.evidence || {}, checks: o.checks || {} };
+  /* And a district the record's city lists. A blank one was null in the
+     deal, and a typed one the city does not list was modelled under a name
+     no locality, select or link could match; each is the calculator's
+     district where that is in the same city, as its price stands in, or else
+     the city's first. The record keeps what was typed (dealDistrict,
+     70-property.js). */
+  d.district = dealDistrict(d.city, od.district, State.deal.city === d.city ? State.deal.district : null);
   const m = dealModel(d);
   return { d, m, grade: propertyGrade(d, m), finance: propertyFinanceability(d, m) };
 }

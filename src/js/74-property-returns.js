@@ -280,20 +280,26 @@ function returnsAndTaxPanel(d, m) {
 
   /* ---- who is selling ----
      The exit charge differs by seller, and the model used to assume one kind
-     while saying so on a single screen. It is an input now. */
-  const who = el('div', { class: 'assumption', style: 'margin-top:var(--lg)' });
-  who.append(el('label', { for: 'disposerCategory' }, 'Who would be selling'));
-  const sel = el('select', { class: 'input a-text', id: 'disposerCategory',
-    'aria-label': 'Who would be selling the property',
-    onchange: e => {
-      State.deal.disposerCategory = e.target.value;
-      markTouched(State.deal, 'disposerCategory'); saveDeal(); renderFromControl(e.target);
-    } });
+     while saying so on a single screen. It is an input now.
+     Three radios whose words wrap, not a select. Each category is the Act's
+     sentence, up to 79 characters, and a select shows one line of it: on a
+     phone the box held 220px of the 385px "An individual who is a Malaysian
+     citizen or permanent resident". The arrow keys still move between them,
+     and each redraw hands focus back to the one chosen. */
+  const who = el('fieldset', { id: 'disposerCategory', style: 'margin:var(--lg) 0 0;padding:0;border:0;min-width:0' });
+  who.append(el('legend', { style: 'padding:0;margin-bottom:6px;font-size:14px;line-height:20px;color:var(--ink-2)' }, 'Who would be selling'));
   RPGT_CATEGORY_IDS.forEach(id => {
     const c = RPGT_SCHEDULE.categories[id];
-    sel.append(el('option', { value: id, selected: (d.disposerCategory || 'citizen') === id ? 'selected' : null }, c.label));
+    const l = el('label', { class: 'checkline', style: 'align-items:flex-start' });
+    l.append(el('input', { type: 'radio', name: 'disposerCategory', id: `disposerCategory-${id}`, value: id, style: 'margin-top:2px',
+      checked: (d.disposerCategory || 'citizen') === id ? '' : null,
+      onchange: e => {
+        State.deal.disposerCategory = e.target.value;
+        markTouched(State.deal, 'disposerCategory'); saveDeal(); renderFromControl(e.target);
+      } }));
+    l.append(el('span', {}, c.label));
+    who.append(l);
   });
-  who.append(sel);
   card.append(who);
 
   if (m.rpgtResult) {
