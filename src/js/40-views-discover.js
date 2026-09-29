@@ -243,8 +243,14 @@ VIEWS.researchQueue = () => {
   disc.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
     'A large difference indicates model sensitivity or disagreement. It is not a recommendation.'));
   disc.append(cardHead('Largest differences between market price and model estimate',
-    'An arithmetic sort of the universe by the distance between price and the modelled base case, restricted to Medium confidence or better. A sort, not a selection — the order carries no view about which company is worth owning.'));
-  const top = U.filter(r => r.val.mos && r.val.confBand !== 'Low').sort((a, b) => b.val.mos.base - a.val.mos.base).slice(0, 5);
+    'An arithmetic sort of the universe by the distance between price and the modelled base case, in either direction, restricted to Medium confidence or better. A sort, not a selection — the order carries no view about which company is worth owning.'));
+  /* By the size of the distance, the sign kept on each row. The sort was on
+     the signed difference, so the card listed the five largest discounts
+     only — PCHEM +69% down to PETGAS +28% — while Tenaga at −61% and Nestlé
+     at −53%, both High confidence, never appeared: a "five cheapest against
+     the model" list under a heading and a description that disclaim one. */
+  const top = U.filter(r => r.val.mos && isNum(r.val.mos.base) && r.val.confBand !== 'Low')
+    .sort((a, b) => (Math.abs(b.val.mos.base) - Math.abs(a.val.mos.base)) || String(a.c.tk).localeCompare(String(b.c.tk))).slice(0, 5);
   const dl = el('div', { style: 'display:flex;flex-direction:column' });
   top.forEach((r, i) => {
     const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
@@ -266,17 +272,30 @@ VIEWS.researchQueue = () => {
   /* research loop */
   const loop = el('div', { class: 'card' });
   loop.append(cardHead('The research loop', 'Each pass leaves evidence behind, so the next one starts further along.'));
-  const steps = [['Discover candidates', 'discover'], ['Inspect evidence', 'research'], ['Build a valuation range', 'research'], ['Save a thesis', 'thesis'], ['Monitor changes', 'alerts'], ['Review decision quality', 'thesis']];
+  /* The two company steps open the last company the reader opened, named on
+     the step, or the way in at /research when there is none. Both called
+     go('research'), which falls back to the seeded State.ticker: in a fresh
+     browser "Build a valuation range" opened Apple's Snapshot — not its
+     valuation — and on Free spent one of the month's five reports on a
+     company nobody chose. A navigation link never chooses a security. */
+  const lastOpened = (State.recentCompanies || []).map(id => BY_ID.get(id)).find(Boolean) || null;
+  const companyStep = (tab) => () => lastOpened ? openResearch(lastOpened.c.id, tab) : go('researchHome');
+  const steps = [['Discover candidates', () => go('discover')], ['Inspect evidence', companyStep(null), true],
+    ['Build a valuation range', companyStep('valuation'), true], ['Save a thesis', () => go('thesis')],
+    ['Monitor changes', () => go('alerts')], ['Review decision quality', () => go('thesis')]];
   const ol = el('ol', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:2px' });
-  steps.forEach(([label, target], i) => {
+  steps.forEach(([label, act, onCompany], i) => {
     /* tap-row: one line of 13px text in 7px padding is a 34px target, six of
        them stacked 2px apart — the 44px floor comes from the stylesheet on a
        phone, where a fingertip is what presses them. */
     ol.append(el('li', {}, el('button', {
       class: 'row tap-row', style:'width:100%;gap:10px;background:none;border:0;cursor:pointer;padding:7px 0;text-align:left',
-      onclick: () => go(target) }, [
+      onclick: act }, [
       el('span', { style: 'width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--brand-wash);color:var(--brand)' }, String(i + 1)),
-      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, label),
+      el('span', { style: 'display:flex;flex-direction:column;min-width:0' }, [
+        el('span', { style: 'font-size:13px;color:var(--ink-2)' }, label),
+        onCompany ? el('span', { class: 'metaline' }, lastOpened ? `${lastOpened.c.tk}, the last company you opened` : 'choose a company') : null,
+      ]),
     ])));
   });
   loop.append(ol);
@@ -1239,7 +1258,8 @@ function renderScreener() {
   const bmRow = el('div', { class: 'row row-wrap', style: 'gap:5px' });
   [...new Set(U.map(r => r.c.type))].forEach(t => {
     const on = sc.types.includes(t);
-    bmRow.append(el('button', { class: 'chip' + (on ? ' chip-brand' : ''), style: 'cursor:pointer',
+    /* aria-pressed: the on state was only the chip's colour. */
+    bmRow.append(el('button', { class: 'chip' + (on ? ' chip-brand' : ''), style: 'cursor:pointer', 'aria-pressed': on ? 'true' : 'false',
       onclick: () => { sc.types = on ? sc.types.filter(x => x !== t) : [...sc.types, t]; render(); } }, t));
   });
   bm.append(bmRow);
@@ -1366,8 +1386,12 @@ function renderScreener() {
   active.forEach(a => activeChips.append(el('button', { class: 'chip chip-brand', style: 'cursor:pointer;border:0',
     'aria-label': `Remove filter: ${a.label}`,
     onclick: () => { a.clear(); render(); } }, `${a.label} ✕`)));
+  /* Every chip shown, cleared the way its own ✕ clears it. This reset to
+     blankScreen(), whose defaults ARE two of the chips — completeness ≥ 60%
+     and PN17 / GN3 excluded — so on a fresh screen it did nothing, and after
+     a threshold was added it removed only that. Columns and sort stay. */
   if (active.length) activeChips.append(el('button', { class: 'btn btn-quiet btn-sm',
-    onclick: () => { State.screen = blankScreen(); render(); } }, 'Clear all'));
+    onclick: () => { active.forEach(a => a.clear()); render(); } }, 'Clear all'));
 
   const resHd = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
   const hdRow = el('div', { class: 'row row-wrap', style: 'gap:var(--sm)' });
@@ -1467,10 +1491,18 @@ function renderScreener() {
     const table = el('table', { class: 'dt', data: { density: State.density || 'comfortable' } });
     const thead = el('thead'); const htr = el('tr');
     cols.forEach(c2 => {
+      const sortBy = () => { if (sc.sort.k === c2.k) sc.sort.dir *= -1; else { sc.sort.k = c2.k; sc.sort.dir = -1; } render(); };
+      /* Enter and Space sort, as a click does. The header is a tab stop in
+         the grid (gridKeyboard), which leaves Enter and Space to the cell,
+         and this one bound only a click: sorting was pointer-only. The id
+         is how render() hands focus back to the same header after it
+         redraws the table, whose sort mark has changed. */
       const th = el('th', { class: (c2.k === 'ident' ? 'pin ' : '') + (c2.get ? 'sortable' : ''),
+        id: c2.get ? `scr-sort-${c2.k}` : null,
         'aria-sort': sc.sort.k === c2.k ? (sc.sort.dir === 1 ? 'ascending' : 'descending') : null,
-        onclick: c2.get ? () => { if (sc.sort.k === c2.k) sc.sort.dir *= -1; else { sc.sort.k = c2.k; sc.sort.dir = -1; } render(); } : null,
+        onclick: c2.get ? sortBy : null,
         html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
+      if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
       htr.append(th);
     });
     thead.append(htr); table.append(thead);
@@ -1766,6 +1798,10 @@ const FIELD_SPAN_LINE = Object.fromEntries(METRICS.filter(x => x.spanLine).map(x
    so they are not in INAPPLICABLE, whose length the coverage figure prints. */
 const ALSO_INAPPLICABLE = metricApplicability(false);
 const TYPE_NOUN = { bank: 'bank', insurer: 'insurer', early: 'pre-profit company', reit: 'REIT' };
+/* A business model as a noun with its article. Sentences put a fixed "a"
+   before the noun or the raw type key — "Not meaningful for a insurer", "the
+   measures that apply to a early business". */
+const typePhrase = (t) => { const n = TYPE_NOUN[t] || `${t} business`; return `${/^[aeiou]/i.test(n) ? 'an' : 'a'} ${n}`; };
 /* Why a measure whose inputs are all present still has no number. Each is the
    guard in derive() for that measure, in words. */
 const NM_WHY = Object.fromEntries(METRICS.filter(x => x.nmWhy).map(x => [x.k, x.nmWhy]));
@@ -1786,7 +1822,7 @@ function metricStatus(r, k) {
   const skip = [...(INAPPLICABLE[c?.type] || []), ...(ALSO_INAPPLICABLE[c?.type] || [])];
   if (skip.includes(k)) return why('not applicable', c.type === 'bank' && f?.miss
     ? f.miss
-    : `Not meaningful for a ${TYPE_NOUN[c.type] || c.type}. Excluded from the count of applicable measures rather than imputed.`);
+    : `Not meaningful for ${typePhrase(c.type)}. Excluded from the count of applicable measures rather than imputed.`);
   /* A measure the stored statements cannot support — interest cover, whose
      line the tuple does not carry — is not reported for any company, and the
      registry names the line it waits for. */
@@ -1940,7 +1976,14 @@ function openSourceDrawer(r, f) {
         present = isNum(c.px?.p);
         val = present ? `${fmtNum(c.px.p, 2)} ${c.ccy}` : 'none';
         period = present ? priceAsOfLabel(c) : '—';
-        src = c.px?.eod ? (c.pricePersonal ? 'read from your screen' : 'end-of-day close') : present ? 'entered by you' : 'no licensed feed';
+        /* By origin, as priceAsOfLabel dates it. Every price that was not an
+           end-of-day close read "entered by you" — the hand-written sample
+           price of each illustrative company included, which no reader
+           entered. */
+        src = c.px?.eod ? (c.pricePersonal ? 'read from your screen' : 'end-of-day close')
+          : !present ? 'no licensed feed'
+          : c.px.manual || c.real ? 'entered by you'
+          : 'illustrative sample price — a synthetic figure, not a quote';
       } else if (l === 'history') {
         present = (m.pxPoints || 0) > 0;
         val = `${m.pxPoints || 0} closes`;
@@ -2243,9 +2286,30 @@ function openMetricInfo(f) {
   body.append(el('p', { class: 'eyebrow' }, f.g));
   body.append(el('h3', { class: 'h-section', style: 'margin:4px 0 var(--sm)' }, f.label));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-  [['Formula', f.formula], ['Reporting period', 'The latest fiscal year each company reports — the year is stated on every company page and in the source drawer behind each cell'],
-   ['Source', 'Reported statement lines: SEC EDGAR companyfacts for the filed companies, synthetic sample lines for the illustrative ones. Each company page says which it is.'],
-   ['Normalisation', 'None — the figure is computed directly from the stored lines'], ['Missing-data behaviour', f.miss || 'Reported as unavailable; never imputed and never passes a threshold.']]
+  /* The period, source and normalisation of THIS measure, from what it reads
+     (its inputs) and its window (f.period, the registry's words). Every
+     measure used to get the statement-line boilerplate: "12-month price
+     change" was said to read the latest fiscal year's statement lines, with
+     no normalisation — all three false for a trailing series of closes —
+     and price-to-earnings never mentioned the price. */
+  const ins = FIELD_INPUTS[f.k] || [];
+  const usesHistory = ins.includes('history'), usesPrice = ins.includes('price');
+  const usesLines = ins.some(l => l !== 'history' && l !== 'price');
+  const LINES_SRC = 'reported statement lines — SEC EDGAR companyfacts for the filed companies, synthetic sample lines for the illustrative ones';
+  const PRICE_SRC = 'the price each company holds — an end-of-day close from a price file, a price you entered, or an illustrative company’s sample price; a filed company with none has no figure';
+  const source = usesHistory
+    ? 'Observed daily closes you imported or captured — held in this browser or your own price file, never shipped with the site. The illustrative sample prices do not reach this measure; a company with no closes held has no figure.'
+    : `${usesLines && usesPrice ? `From ${LINES_SRC}, and ${PRICE_SRC}` : usesPrice ? `From ${PRICE_SRC}` : `From ${LINES_SRC}`}. Each company page says which it is.`;
+  const kindOf = METRIC_BY_K[f.k]?.kind;
+  const normal = kindOf === 'modelled'
+    ? 'The output of the published scoring or valuation model: its inputs pass through the stated anchors and assumptions, set out on each company’s Quality and Valuation tabs.'
+    : usesHistory ? 'None — computed directly from the closes as held'
+    : usesPrice ? 'None — the stored lines and the price are used as held'
+    : 'None — the figure is computed directly from the stored lines';
+  [['Formula', f.formula],
+   ['Reporting period', `${f.period || 'The latest fiscal year each company reports'}${usesHistory ? '' : ' — the year is stated on every company page and in the source drawer behind each cell'}`],
+   ['Source', source],
+   ['Normalisation', normal], ['Missing-data behaviour', f.miss || 'Reported as unavailable; never imputed and never passes a threshold.']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   body.append(kv);
 
@@ -2544,6 +2608,34 @@ function exportScreen() {
 State.radar = { universe:'all', colorBy:'market', minConf:'all', yi:YEARS.length - 1, cohort:'market' };
 const RADAR_MIN_YI = YEARS.length - 5;   /* keep at least six periods in every snapshot */
 
+/* TWO SENTENCES THE VALUE MAP AND THE HEATMAP SHARE.
+   chartEmptyWhy: what stands where there is nothing to draw — the empty
+   watchlist named, or how many companies are in scope and that none can be
+   drawn, the reason following in the lines the chart already prints.
+   illusNote: which of the companies drawn are illustrative. Every mark and
+   tile at the latest stop is one, on a sample price, and nothing on either
+   chart said so beyond "prices as of sample price" in a caption. `held` is
+   where a listed company may be missing from (a past snapshot). */
+function chartEmptyWhy(universe, scoped, done, held = 'this dataset') {
+  const wl = universe === 'watchlist' ? activeWL() : null;
+  const n = scoped.length, ids = wl?.ids || [];
+  const where = wl ? `on your active watchlist “${wl.name}”` : 'in this universe';
+  if (wl && !ids.length) return `Your active watchlist “${wl.name}” is empty, so there is nothing to draw. Add companies to it from a company page or the screener, or choose another universe.`;
+  if (wl && !n) return ids.length === 1 ? `The one company ${where} is not in ${held}.` : `None of the ${ids.length} companies ${where} is in ${held}.`;
+  if (!n) return `No company in this universe is in ${held}.`;
+  return n === 1 ? `The one company ${where} cannot be ${done} — the reason is given below.`
+    : `None of the ${n} companies ${where} can be ${done} — the reason is given below.`;
+}
+function illusNote(rows, done) {
+  const k = rows.filter(r => !r.c.real).length;
+  if (!k) return null;
+  return el('p', { class: 'metaline', style: 'margin-top:6px;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap' }, [
+    illusChip({ real: false }),
+    el('span', {}, k === rows.length
+      ? `Every company ${done} here is illustrative — synthetic figures on sample prices, not evidence about any company.`
+      : `${k} of the ${rows.length} companies ${done} here are illustrative — synthetic figures on sample prices; each is marked in its name and in the table view.`)]);
+}
+
 function renderRadar() {
   const rr = State.radar;
   const wrap = el('div');
@@ -2635,8 +2727,11 @@ function renderRadar() {
   const noPctWhy = (r) => !isNum(r.q?.score) ? 'no quality score' : rr.cohort === 'sector' ? 'no sector peer' : 'no rank';
   /* The table prints the percentile that exists, or says there is none and why. */
   const pctText = (r) => { const p = pctOf(r); return isNum(p) ? String(p) : `— (${noPctWhy(r)})`; };
+  /* tag: an illustrative company says so in its mark's name and tooltip —
+     every mark drawn at the latest stop is one, on a sample price, and
+     neither the marks nor their names said it. */
   const points = rows.map(r => ({
-    id: r.c.id, label: r.c.tk, name: r.c.name,
+    id: r.c.id, label: r.c.tk, name: r.c.name + illusText(r.c), tag: r.c.real ? '' : 'illustrative',
     x: r.val.mos.base, y: pctOf(r), size: toBase(r.d.m.mcap, r.c.ccy),
     capLabel: fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy),
     model: r.val.pack.name, conf: r.val.confBand,
@@ -2646,7 +2741,13 @@ function renderRadar() {
 
   const card = el('div', { class: 'card' });
   const plot = el('div', { style: 'width:100%' });
-  card.append(plot);
+  /* Nothing to plot is said, not drawn: an empty watchlist gave full axes, a
+     grid and a two-market legend with no marks and no sentence. */
+  const nothing = !rows.length;
+  card.append(nothing ? emptyState(chartEmptyWhy(rr.universe, scoped, 'plotted',
+    rr.yi === YEARS.length - 1 ? 'this dataset' : `the FY${YEARS[rr.yi]} snapshot — filed companies carry no sample series and drop out of past years`)) : plot);
+  const illus = illusNote(rows, 'plotted');
+  if (illus) card.append(illus);
 
   /* legend is always present for two or more groups */
   const leg = el('div', { class: 'legend', style: 'margin-top:var(--sm);padding-top:var(--sm);border-top:1px solid var(--grid)' });
@@ -2658,7 +2759,7 @@ function renderRadar() {
       leg.append(el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(${v})"></span>${l}` })));
   }
   leg.append(el('span', { class: 'legend-item', style: 'margin-left:auto' , html: `<span class="legend-key" style="background:var(--ink-3);width:6px;height:6px;border-radius:50%"></span>Mark area = market capitalisation in ${State.baseCcy}` }));
-  card.append(leg);
+  if (!nothing) card.append(leg);
   card.append(el('div', { style: 'margin-top:var(--sm)' },
     el('div', { class: 'prov', html: [
       `<b>Period</b> ${rr.yi === YEARS.length - 1 ? 'latest reported for each company' : `FY${YEARS[rr.yi]} reported`}`,
@@ -2674,7 +2775,7 @@ function renderRadar() {
       belowConf ? `${belowConf} ${belowConf === 1 ? 'has' : 'have'} a model confidence below ${rr.minConf === 'high' ? 'High' : 'Medium'}, the least the confidence filter admits` : null,
     ].filter(Boolean).join('; ')}.`));
 
-  card.append(tableTwin('Show the table view of every plotted company',
+  if (!nothing) card.append(tableTwin('Show the table view of every plotted company',
     ['Company', 'Market', rr.yi === YEARS.length - 1 ? 'Price' : `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
     rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
       withSign(r.val.mos.base, 1), pctText(r),
@@ -2682,7 +2783,7 @@ function renderRadar() {
   wrap.append(card);
 
   const cohortLabel = rr.cohort === 'sector' ? 'sector' : 'market';
-  scatterChart(plot, {
+  if (!nothing) scatterChart(plot, {
     points,
     xLabel: 'Difference to model estimate vs base-case value — right of the line is below it, left is above it',
     xLabelShort: 'Difference to model estimate vs base-case model estimate',
@@ -2768,7 +2869,19 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
 
   const acts = el('div', { class: 'row', style: 'gap:8px' });
   acts.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => { closeDrawer(); openResearch(id, 'valuation'); } }, 'Open Valuation Studio'));
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => toggleWatch(id) }, State.watchlist.includes(id) ? 'On watchlist' : 'Add to watchlist'));
+  /* A toggle that says where it stands, as the company header's does. The
+     label was worked out once when the drawer opened, and toggleWatch
+     redraws the page behind the drawer, not the drawer: after "Add to
+     watchlist" added the company the button still said so, and the second
+     press quietly removed it again. Its label and aria-pressed are set
+     again from the list itself after every press — also when the press is
+     refused, which leaves the list as it was. */
+  const watchBtn = el('button', { class: 'btn btn-ghost btn-sm' });
+  const showWatch = () => { const on = State.watchlist.includes(id);
+    watchBtn.textContent = on ? '✓ On your watchlist' : 'Add to watchlist'; watchBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+  watchBtn.addEventListener('click', () => { toggleWatch(id); showWatch(); });
+  showWatch();
+  acts.append(watchBtn);
   body.append(acts);
   openDrawer('Valuation detail', body);
 }
@@ -3037,17 +3150,24 @@ function renderHeatmap() {
   groups.forEach(([label, gr]) => {
     if (!gr.length) return;
     const box = el('div', { style: 'min-width:0' });
-    if (label) box.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:8px' }, [
+    /* The panel says when all it holds is illustrative ("United States"
+       held one synthetic company), and counts in the singular for one. */
+    if (label) box.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:8px' }, [
       marketChip(gr[0].c.mkt),
       el('span', { class: 'h-card', style: 'font-size:13px' }, label),
-      el('span', { class: 'metaline' }, `${gr.length} companies · area scaled within this market`),
+      gr.every(r => !r.c.real) ? illusChip({ real: false }) : null,
+      el('span', { class: 'metaline' }, `${gr.length} ${gr.length === 1 ? 'company' : 'companies'} · area scaled within this market`),
     ]));
     const host = el('div', { style: 'width:100%' });
     box.append(host);
     panels.append(box);
     mounts.push([host, gr]);
   });
-  card.append(panels);
+  /* No tile to draw is said: an empty watchlist left a blank card over "0
+     companies" and an empty table link. */
+  card.append(rows.length ? panels : emptyState(chartEmptyWhy(st.universe, scoped, 'drawn')));
+  const illus = illusNote(rows, 'drawn');
+  if (illus) card.append(illus);
 
   /* scale legend — required for any continuous colour scale */
   const leg = el('div', { class: 'row row-wrap', style: 'gap:var(--md);margin-top:var(--md);padding-top:var(--sm);border-top:1px solid var(--grid)' });
@@ -3060,26 +3180,27 @@ function renderHeatmap() {
   const ramp = el('div', { class: 'row', style: 'gap:0;min-width:0' });
   DIVERGING.forEach(v => ramp.append(el('span', { style: `width:20px;height:9px;background:var(${v})` })));
   const rampEnd = (v) => el('span', { class: 'metaline', style: 'white-space:nowrap' }, mode.fmt(v));
-  leg.append(el('span', { class: 'legend-item', style: 'min-width:0' }, [rampEnd(-mode.full), ramp, rampEnd(mode.full)]));
+  if (rows.length) leg.append(el('span', { class: 'legend-item', style: 'min-width:0' }, [rampEnd(-mode.full), ramp, rampEnd(mode.full)]));
   const missingWhat = mode.price ? `observed ${mode.id === 'd1' ? 'day' : mode.label} change` : mode.label.toLowerCase().replace(/^vs /, 'difference to ');
   /* A price move is dated by the prices it is computed from, which are fixed
      files and sample figures, not a feed — so the caption names their dates. */
   const pxDates = mode.price ? [...new Set(rows.map(r => priceAsOfLabel(r.c)))] : [];
-  leg.append(el('span', { class: 'caption', style: 'margin-left:auto' }, `${rows.length} companies · ${mode.label}${mode.id === 'd1' ? ' vs previous close' : ''}${pxDates.length ? ` · prices as of ${pxDates.join('; ')}` : ''}${unobserved ? ` · ${unobserved} priced but with no ${missingWhat}, not drawn` : ''}`));
+  leg.append(el('span', { class: 'caption', style: 'margin-left:auto' }, `${rows.length} ${rows.length === 1 ? 'company' : 'companies'} · ${mode.label}${mode.id === 'd1' ? ' vs previous close' : ''}${pxDates.length ? ` · prices as of ${pxDates.join('; ')}` : ''}${unobserved ? ` · ${unobserved} priced but with no ${missingWhat}, not drawn` : ''}`));
   card.append(leg);
   if (noCap) {
     const unpriced = scoped.filter(r => !isNum(r.m.mcap) && !isNum(r.c.px?.p)).length;
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       `${noCap} of ${scoped.length} companies in this universe have no market capitalisation to size a tile — ${unpriced} carry no price${noCap > unpriced ? `, ${noCap - unpriced} no usable share count` : ''} — so they are not drawn.`));
   }
-  card.append(tableTwin('Show the table view of every tile',
+  if (rows.length) card.append(tableTwin('Show the table view of every tile',
     ['Company', 'Market', mode.label, 'Market cap'],
     rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, mode.fmt(mode.get(r)), fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)])));
   wrap.append(card);
 
+  /* tag: an illustrative tile says so in its accessible name (illusNote). */
   mounts.forEach(([host, gr]) => treemap(host, {
     items: gr.map(r => ({
-      id: r.c.id, label: r.c.tk, name: r.c.name + illusText(r.c),
+      id: r.c.id, label: r.c.tk, name: r.c.name + illusText(r.c), tag: r.c.real ? '' : 'illustrative',
       value: toBase(r.m.mcap, r.c.ccy), change: mode.get(r),
       capLabel: fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       metricLabel: mode.label,

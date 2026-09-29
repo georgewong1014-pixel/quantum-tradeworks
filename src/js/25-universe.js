@@ -618,8 +618,12 @@ function buildFeed() {
   const feed = [];
   U.forEach(r => {
     const { c, m, val } = r;
+    /* A state, worded as one. "moved to a 38% discount" named a change, and
+       there is no earlier value for it to have moved from: the item is any
+       company whose current discount exceeds 18%, in a dataset that does not
+       advance. */
     if (val.mos && val.mos.base > 18 && val.confBand !== 'Low')
-      feed.push({ kind:'valuation', sev:'good', id:c.id, title:`${c.tk} moved to a ${fmtPct(val.mos.base,0)} discount to base-case model estimate`,
+      feed.push({ kind:'valuation', sev:'good', id:c.id, title:`${c.tk} sits at a ${fmtPct(val.mos.base,0)} discount to its base-case model estimate`,
         detail:`${val.pack.name}, ${val.confBand.toLowerCase()} confidence. Largest driver: ${driverImpact(c, r.d, r.inputs)[0].label}.` });
     if (isNum(m.cashPayout) && m.cashPayout > 100)
       feed.push({ kind:'dividend', sev:'serious', id:c.id, title:`${c.tk} distribution is ${fmtPct(m.cashPayout,0)} of free cash flow`,

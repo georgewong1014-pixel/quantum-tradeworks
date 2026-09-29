@@ -935,18 +935,32 @@ VIEWS.researchHome = () => {
   return wrap;
 };
 
+/* The page heading of a company page or report the plan's meter refused. The
+   refused page had none: its only heading was the upsell's, a level-2 card
+   title, so a screen reader's list of headings began below the page's own
+   level and never said which company it was. */
+const reportRefusedHead = (c) => el('div', { class: 'page-hd' }, el('div', {}, [
+  el('p', { class: 'eyebrow' }, 'Company report'),
+  el('h1', {}, `${c.name} — report not available this month`),
+]));
+
 VIEWS.research = () => {
   const r = BY_ID.get(State.ticker) || U[0];
-  /* Recorded here rather than at navigation, so it reflects reports actually
-     rendered instead of every URL that was touched. */
-  State.recentCompanies = [r.c.id, ...(State.recentCompanies || []).filter(x => x !== r.c.id)].slice(0, 12);
-  store.write('recentCompanies', State.recentCompanies);
   const { c, m } = r;
   const wrap = el('div');
 
   /* Metered company reports. A company already opened this month is free to
      revisit — the meter counts distinct research, not page views. */
-  if (!noteReportRead(c.id)) {
+  const allowed = noteReportRead(c.id);
+  /* Recorded here rather than at navigation, so it reflects reports actually
+     rendered instead of every URL that was touched — and after the meter, so
+     a report it refused is not listed first under "Recently viewed". */
+  if (allowed) {
+    State.recentCompanies = [r.c.id, ...(State.recentCompanies || []).filter(x => x !== r.c.id)].slice(0, 12);
+    store.write('recentCompanies', State.recentCompanies);
+  }
+  if (!allowed) {
+    wrap.append(reportRefusedHead(c));
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
       `The Free plan covers ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''} Equities Research removes the limit.`));
     const back = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
@@ -1460,6 +1474,62 @@ function overviewTiles(r) {
   return card;
 }
 
+/* THE PEERS OF A COMPANY, CHOSEN ONE WAY FOR THE WHOLE PAGE.
+   "Closest peers" took the same business model AND (the same market OR the
+   same sector), then sorted on distance in market capitalisation — and a
+   filed company has no price, so the comparator returned 0 and the rows came
+   out in universe order. Apple's closest peers were AbbVie, Abbott,
+   Accenture, AEP and Amgen, the first five mature US rows, under a caption
+   saying they matched on business model "as well as sector"; Coca-Cola's
+   first peer was the illustrative Nestlé, and PepsiCo, Mondelez, Altria and
+   Philip Morris were left out. The Business tab ranked against the first six
+   rows of the same filter: Apple "1 of 7" against ABBV…AMZN, and the
+   illustrative Maybank ranked on return on equity against filed AXP, BAC,
+   BLK and C.
+   Now one selector serves both. The same business model and the same kind of
+   data — filed with filed, illustrative with illustrative, personal with
+   personal, the valuation tab's peer rule — the same sector first, and only
+   when fewer than `n` share it, the same market to make up the number.
+   Within each, nearest in latest-year revenue (a statement figure every
+   company holds, compared in one currency), then by ticker, so the order
+   never depends on where a row sits in the universe. `rule` is the caption:
+   it says which of the two was applied, and to how many. */
+function peerSet(r, n) {
+  const c = r.c;
+  const scale = (x) => { const v = convertTo(last(x.d.rev), x.c.ccy, 'USD'); return isNum(v) && v > 0 ? Math.log(v) : null; };
+  const own = scale(r);
+  const dist = (x) => { const s = scale(x); return isNum(own) && isNum(s) ? Math.abs(s - own) : Infinity; };
+  const order = (a, b) => (dist(a) - dist(b)) || String(a.c.tk).localeCompare(String(b.c.tk));
+  const kin = U.filter(x => x.c.id !== c.id && x.c.type === c.type
+    && !!x.c.real === !!c.real && !!x.c.personal === !!c.personal);
+  const classified = !!c.sector && c.sector !== 'Unclassified';
+  const sector = classified ? kin.filter(x => x.c.sector === c.sector).sort(order) : [];
+  const market = sector.length < n ? kin.filter(x => !sector.includes(x) && x.c.mkt === c.mkt).sort(order) : [];
+  const peers = [...sector, ...market].slice(0, n);
+  const inSector = peers.filter(x => sector.includes(x)).length;
+  const kind = c.personal ? 'personal-research' : c.real ? 'filed' : 'illustrative';
+  const Kind = kind[0].toUpperCase() + kind.slice(1);
+  const mktName = c.mkt === 'US' ? 'United States' : c.mkt === 'MY' ? 'Bursa Malaysia' : c.mkt;
+  const rule = !peers.length
+    ? `No other ${kind} company of the ${c.type} business model is carried here.`
+    : inSector === peers.length
+    ? `Matched on business model (${c.type}) and sector (${c.sector}), ${kind} companies only, nearest in latest-year revenue first.`
+    : `${inSector
+        ? `${inSector} ${inSector === 1 ? 'shares' : 'share'} the business model (${c.type}) and sector (${c.sector}); too few do, so ${peers.length - inSector} more`
+        : `None shares the business model (${c.type}) and ${classified ? `sector (${c.sector})` : 'a sector — this one is unclassified here'}, so these ${peers.length}`} share the business model and market (${mktName}). ${Kind} companies only, nearest in latest-year revenue first.`;
+  return { peers, inSector, rule };
+}
+/* "Open full comparison" from a peer set. Both peer buttons cut the set to
+   the plan's cap and said nothing — Coca-Cola's six opened on Free as two —
+   where the header's Compare link names who left, so that a comparison is
+   never cut silently. They now share that rule. */
+function comparePeers(c, peers) {
+  const all = [c.id, ...peers.map(p => p.c.id)], cap = LIMITS.compare;
+  State.compare = all.slice(0, cap); store.write('compare', State.compare); go('compare');
+  const left = all.slice(cap);
+  if (left.length) toast(`${cap} is the most a comparison holds on this plan — ${left.map(id => BY_ID.get(id)?.c.tk || id).join(', ')} left out`);
+}
+
 function tabSnapshot(r) {
   const { c, m, val } = r;
   const wrap = el('div', { class: 'research-layout' });
@@ -1643,9 +1713,18 @@ function tabSnapshot(r) {
       { sub: ctx ? '' : `needs ${(t.pending.find(x => x.id === 'sma200') || {}).more || '—'} more closes` })));
     g2.append(el('div', { class: 'panel' }, statTile('vs 200-day',
       isNum(t.values.dist200) ? withSign(t.values.dist200, 1) : '—', { sub: 'distance from the long-term average' })));
+    /* The reason is the 50-day measure's own. It read volumeContext's
+       pending, which counts toward that function's 20-day figure: with no
+       volume at all the tile said "needs 20 more days", and with 20 to 49
+       days held (no pending, no ratio) "the imported file carried no volume
+       column" — beside a file that carried thirty days of it. */
+    const volDays = vol.points || 0;
     g2.append(el('div', { class: 'panel' }, statTile('Volume vs 50-day',
-      isNum(vol.ratio50) ? `${fmtNum(vol.ratio50, 2)}×` : 'no volume',
-      { sub: vol.pending ? `needs ${vol.pending.more} more days` : vol.ratio50 ? 'latest day against its average' : 'the imported file carried no volume column' })));
+      isNum(vol.ratio50) ? `${fmtNum(vol.ratio50, 2)}×` : volDays ? 'not yet' : 'no volume',
+      { sub: isNum(vol.ratio50) ? 'latest day against its 50-day average'
+          : !volDays ? `the history held for ${real.symbol} carries no volume`
+          : volDays < 50 ? `${volDays} ${volDays === 1 ? 'day' : 'days'} of volume held; needs ${50 - volDays} more`
+          : 'the 50-day average volume is zero, so there is no ratio' })));
     tc.append(g2);
     tc.append(el('div', { class: 'row', style: 'margin-top:var(--md)' },
       el('button', { class: 'btn btn-ghost btn-sm',
@@ -1656,7 +1735,19 @@ function tabSnapshot(r) {
 
   const hist = priceHistory(c);
   const pc = el('div', { class: 'card' });
-  if (!hist) {
+  const obsDays = real ? Object.keys(real.series).filter(d => isNum(real.series[d])).sort().slice(-260) : [];
+  if (!hist && obsDays.length >= 2) {
+    /* Observed closes held for a company with no sample series — a filer
+       whose history was imported or captured. Trend context above counted
+       them ("Observed closes 260") while this card, directly beneath, said a
+       price series "needs a licensed feed". It draws the series both read. */
+    const days = obsDays;
+    pc.append(cardHead('Price history', `Observed closes from the price history you supplied — the ${days.length} latest held, ${days[0]} to ${days[days.length - 1]}, the series Trend context above reads. Not a licensed feed.`));
+    const ph = el('div', { style: 'width:100%' });
+    pc.append(ph);
+    lineChart(ph, { values: days.map(d => real.series[d]), labels: days, fmt: v => fmtMoney(v, c.ccy, 2), varName: '--s1',
+      title: `Observed closes for ${c.tk}, ${days[0]} to ${days[days.length - 1]}` });
+  } else if (!hist) {
     /* Fundamentals without a feed. Say so rather than draw an empty chart. */
     pc.append(cardHead('Price history', 'Not available for this company.'));
     pc.append(el('p', { class: 'body', style: 'font-size:13px' },
@@ -1683,24 +1774,19 @@ function tabSnapshot(r) {
   }
   main.append(pc);
 
-  /* peers — economically comparable, not merely same-sector */
-  const peers = U.filter(x => x.c.id !== c.id && x.c.type === c.type && (x.c.mkt === c.mkt || x.c.sector === c.sector))
-    .sort((a, b) => {
-      if (!isNum(m.mcap)) return 0;                 /* no anchor to sort against */
-      const da = isNum(a.m.mcap) ? Math.abs(a.m.mcap - m.mcap) : Infinity;
-      const db = isNum(b.m.mcap) ? Math.abs(b.m.mcap - m.mcap) : Infinity;
-      return da - db;
-    }).slice(0, 5);
+  /* peers — economically comparable, not merely same-sector (peerSet) */
+  const peerPick = peerSet(r, 5), peers = peerPick.peers;
   if (peers.length) {
     const pcard = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
     const ph2 = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
     ph2.append(el('h3', { class: 'h-card' }, 'Closest peers'));
     ph2.append(el('p', { class: 'caption', style: 'margin-top:2px' },
-      `Matched on business model (${c.type}) as well as sector — the metrics below mean the same thing across these companies.`));
+      `${peerPick.rule} The metrics below mean the same thing across these companies.`));
     /* Capped at the plan's Compare limit, as the Business tab's button is. A
-       fixed 8 put six columns on Free under "Choose up to 2 companies". */
+       fixed 8 put six columns on Free under "Choose up to 2 companies". The
+       cut is said (comparePeers). */
     ph2.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:6px;padding:0',
-      onclick: () => { State.compare = [c.id, ...peers.map(p => p.c.id)].slice(0, LIMITS.compare); store.write('compare', State.compare); go('compare'); } }, 'Open full comparison →'));
+      onclick: () => comparePeers(c, peers) }, 'Open full comparison →'));
     pcard.append(ph2);
     const tw2 = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
     const t2 = el('table', { class: 'dt' });
@@ -1828,13 +1914,15 @@ function tabBusiness(r) {
   wrap.append(prof);
 
   /* ---------- competitive position ---------- */
-  const rivals = U.filter(x => x.c.id !== c.id && x.c.type === c.type &&
-    (x.c.sector === c.sector || x.c.mkt === c.mkt)).slice(0, 6);
+  /* The Snapshot's selector (peerSet), six deep: it was the first six rows
+     of the universe sharing the model and the sector or the market. */
+  const rivalPick = peerSet(r, 6), rivals = rivalPick.peers;
   const comp = el('div', { class: 'card', style: 'grid-column:1/-1' });
-  comp.append(cardHead('Competitive position',
-    `Ranked against ${rivals.length} companies sharing this business model. Rank is computed from the universe carried here, so it says where this company sits among these peers — not among every listed competitor.`));
+  comp.append(cardHead('Competitive position', rivals.length
+    ? `Ranked against ${rivals.length} ${rivals.length === 1 ? 'company' : 'companies'}. ${rivalPick.rule} Rank is computed from the universe carried here, so it says where this company sits among these peers — not among every listed competitor.`
+    : 'Where this company sits among companies of the same business model and the same kind of data.'));
   if (!rivals.length) {
-    comp.append(el('p', { class: 'caption' }, 'No comparable peer of the same business model is carried in the universe here.'));
+    comp.append(el('p', { class: 'caption' }, rivalPick.rule));
   } else {
     const set = [r, ...rivals];
     const measures = c.type === 'bank'
@@ -1875,10 +1963,8 @@ function tabBusiness(r) {
     comp.append(el('div', { class: 'row row-wrap', style: 'gap:5px;margin-top:var(--sm)' },
       [el('span', { class: 'caption' }, 'Peer set:'), ...rivals.map(x =>
         el('button', { class: 'chip', style: 'cursor:pointer', onclick: () => openResearch(x.c.id) }, x.c.tk + illusText(x.c)))]));
-    comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', onclick: () => {
-      State.compare = [c.id, ...rivals.map(x => x.c.id)].slice(0, LIMITS.compare);
-      store.write('compare', State.compare); go('compare');
-    } }, 'Open the full comparison'));
+    comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)',
+      onclick: () => comparePeers(c, rivals) }, 'Open the full comparison'));
   }
   wrap.append(comp);
   return wrap;
@@ -2456,9 +2542,14 @@ function tabOwnership(r) {
     : 'Substantial holders as recorded in the illustrative set.'));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   /* `100 - null - null` is 100: a free float of exactly 100.0% was stated for
-     every filed company from two inputs shown as dashes on the same rows. */
+     every filed company from two inputs shown as dashes on the same rows.
+     Named for what it is. It was "Free float (implied)", but institutions —
+     index funds among them — hold free-float shares, so subtracting their
+     stake understated the float by all of it: Progressive, whose largest
+     holders are Vanguard, BlackRock and State Street, read a 14% float. The
+     set carries no strategic or locked-in holding to compute a float from. */
   [['Directors and insiders', fmtPct(c.own.insider, 2)], ['Institutional', fmtPct(c.own.inst, 1)],
-   ['Free float (implied)', isNum(c.own.inst) && isNum(c.own.insider) ? fmtPct(100 - c.own.inst - c.own.insider, 1) : '—']]
+   ['Not held by insiders or institutions', isNum(c.own.inst) && isNum(c.own.insider) ? fmtPct(100 - c.own.inst - c.own.insider, 1) : '—']]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
   own.append(kv);
   const tw = el('div', { class: 'tablewrap' });

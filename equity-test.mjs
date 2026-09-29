@@ -9507,6 +9507,426 @@ try {
     }
   }
   /* ---- end fixwave: workspace ---- */
+  /* ---- fixwave: equities ---- */
+  /* THE 2026-09-29 SITE HUNT, EQUITIES. Twenty-one confirmed findings, each
+     held here by the check that failed on the build they were found on
+     (0e1119b) and passes on the fix: peers chosen in universe order and
+     across kinds of data; a research-loop step that opened the seeded
+     company and spent a report; a "largest differences" list of discounts
+     only; a conversion on /compare with no rate; a sample price "entered by
+     you"; a drawer toggle that went stale; a sort the keyboard could not
+     reach; a "Clear all" that cleared nothing; toggles with no pressed
+     state; one metric definition for every measure; a report naming half a
+     summed line; a bank's cash flow called missing; a price card and a
+     volume tile that contradicted the trend card; empty charts with no
+     sentence; a free float that subtracted the institutions; charts of
+     synthetic companies that never said so; a refused report with no
+     heading, listed as viewed; a comparison cut silently; a change feed of
+     states; "a insurer" and "1 companies". */
+  const fwW = `const w = (ms) => new Promise(res => setTimeout(res, ms));
+    const card = (re) => [...document.querySelectorAll('#views .card')].find(k => re.test(k.querySelector('h1, h2, h3, h4')?.textContent || ''));`;
+  const fwKey = async (key) => {
+    const K = { Enter: ['Enter', 13, '\r'], ' ': ['Space', 32, ' '] }[key];
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key, code: K[0], windowsVirtualKeyCode: K[1], text: K[2] }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key, code: K[0], windowsVirtualKeyCode: K[1] }, sessionId);
+    await sleep(250);
+  };
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  try {
+    /* EQ-01 — the Snapshot's closest peers and the Business tab's peer set
+       are one selection: the same business model and kind of data, the
+       sector first, the market only to make up the number, nearest in
+       revenue first, and the caption says which rule it used. EQ-24 — the
+       peer buttons say when the plan's cap cuts the set. */
+    {
+      const r = await evaluate(`(async () => {
+        ${fwW}
+        const out = { bad: [], seen: [], cut: [], cutSeen: [] };
+        const kindOf = (x) => x.c.personal ? 'p' : x.c.real ? 'f' : 'i';
+        const byTk = new Map(U.map(x => [x.c.tk, x]));
+        const tkOf = (tr) => tr.querySelector('.tk')?.childNodes[0]?.textContent.trim() || null;
+        const scale = (x) => { const v = convertTo(last(x.d.rev), x.c.ccy, 'USD'); return isNum(v) && v > 0 ? Math.log(v) : null; };
+        for (const id of ['KO-SEC', 'AAPL-SEC', 'JPM-SEC', 'O-SEC', 'MAYBANK', 'PGR']) {
+          const row = BY_ID.get(id); if (!row) { out.bad.push(id + ' is not in the universe'); continue; }
+          const c = row.c;
+          const kin = U.filter(x => x.c.id !== c.id && x.c.type === c.type && kindOf(x) === kindOf(row));
+          const sec = kin.filter(x => c.sector !== 'Unclassified' && x.c.sector === c.sector);
+          navigate(companyPath(c) + '?tab=snapshot'); await w(250);
+          const pc = card(/^Closest peers$/);
+          const snap = pc ? [...pc.querySelectorAll('tbody tr')].slice(1).map(tkOf) : [];
+          const cap = pc ? pc.querySelector('p.caption').textContent : '';
+          navigate(companyPath(c) + '?tab=business'); await w(250);
+          const cp = card(/^Competitive position$/);
+          const biz = cp ? [...cp.querySelectorAll('button.chip')].map(b => b.textContent.split(' · ')[0]) : [];
+          out.seen.push(c.tk + ' [' + snap.join(' ') + ']');
+          for (const [where, list, n] of [['Snapshot', snap, 5], ['Business tab', biz, 6]]) {
+            const rows = list.map(t => byTk.get(t));
+            if (rows.some(x => !x)) { out.bad.push(c.tk + ' ' + where + ': a ticker not in the universe: ' + list.join(',')); continue; }
+            const off = rows.filter(x => !kin.includes(x)).map(x => x.c.tk + (x.c.real ? '' : ' (illustrative)'));
+            if (off.length) out.bad.push(c.tk + ' ' + where + ': not the same business model and kind of data: ' + off.join(', '));
+            const want = Math.min(n, kin.filter(x => sec.includes(x) || x.c.mkt === c.mkt).length);
+            if (list.length !== want) out.bad.push(c.tk + ' ' + where + ': ' + list.length + ' peers where ' + want + ' qualify');
+            const inSec = rows.filter(x => sec.includes(x)).length;
+            if (inSec < Math.min(n, sec.length)) out.bad.push(c.tk + ' ' + where + ': ' + inSec + ' of the ' + sec.length + ' same-sector companies shown, the rest from outside the sector: ' + list.join(','));
+            const k = rows.findIndex(x => !sec.includes(x));
+            if (k >= 0 && rows.slice(k).some(x => sec.includes(x))) out.bad.push(c.tk + ' ' + where + ': a same-sector peer listed after one from outside it');
+            const own = scale(row), d = (x) => { const s = scale(x); return isNum(own) && isNum(s) ? Math.abs(s - own) : Infinity; };
+            const grp = rows.filter(x => sec.includes(x));
+            if (grp.some((x, i) => i && d(x) < d(grp[i - 1]))) out.bad.push(c.tk + ' ' + where + ': not nearest in revenue first: ' + grp.map(x => x.c.tk).join(','));
+          }
+          if (snap.join() !== biz.slice(0, 5).join()) out.bad.push(c.tk + ': the Snapshot [' + snap.join(',') + '] and the Business tab [' + biz.join(',') + '] choose different peers');
+          const outside = snap.some(t => !sec.includes(byTk.get(t)));
+          if (!outside && !/and sector/.test(cap)) out.bad.push(c.tk + ': the caption does not state the rule applied: ' + cap);
+          if (outside && !/and market/.test(cap)) out.bad.push(c.tk + ': peers from outside the sector, and the caption does not say so: ' + cap);
+        }
+        navigate(companyPath(BY_ID.get('KO-SEC').c) + '?tab=snapshot'); await w(250);
+        const ko = card(/^Closest peers$/), koTk = ko ? [...ko.querySelectorAll('tbody tr')].slice(1).map(tkOf) : [];
+        const miss = ['PEP', 'MDLZ', 'MO', 'PM'].filter(t => !koTk.includes(t));
+        if (miss.length) out.bad.push('KO: the consumer-staples filers ' + miss.join(', ') + ' are not among its closest peers: ' + koTk.join(','));
+        /* EQ-24: on Free (a comparison of two) the button names who left. */
+        const keep = { plan: State.plan, log: JSON.stringify(State.reportLog), compare: [...State.compare] };
+        const toasts = [], orig = window.toast;
+        try {
+          window.toast = (m) => { toasts.push(m); return orig(m); };
+          State.plan = 'free'; State.reportLog = { month: meterMonth(), ids: [] };
+          for (const [path, re] of [['?tab=snapshot', /Open full comparison/], ['?tab=business', /Open the full comparison/]]) {
+            toasts.length = 0;
+            navigate(companyPath(BY_ID.get('KO-SEC').c) + path); await w(250);
+            [...document.querySelectorAll('#views button')].find(b => re.test(b.textContent))?.click(); await w(250);
+            const cut = State.compare.length, said = toasts.join(' | ');
+            out.cutSeen.push('Free ' + (path || 'snapshot') + ': ' + State.compare.join(',') + ' — ' + (said || 'no toast'));
+            if (cut !== lim('compare') || !/left out/.test(said) || !/2 is the most/.test(said)) out.cut.push('Free, KO ' + (path || 'Snapshot') + ': the peer set was cut to ' + cut + ' with ' + (said ? '"' + said + '"' : 'nothing said'));
+          }
+        } finally {
+          window.toast = orig;
+          State.plan = keep.plan; State.reportLog = JSON.parse(keep.log); store.write('reportLog', State.reportLog);
+          State.compare = keep.compare; store.write('compare', keep.compare);
+        }
+        return out;
+      })()`);
+      if (r.bad.length) fail('fixwave equities EQ-01: the Snapshot and the Business tab choose peers of the same model, kind and sector, and say how', r.bad.slice(0, 8));
+      else ok(`fixwave equities EQ-01: the Snapshot's closest peers and the Business tab's peer set are one selection — same business model and kind of data, the sector first, the market only to make up the number, nearest in revenue — and the caption says which — ${r.seen.join('; ')}`);
+      if (r.cut.length) fail('fixwave equities EQ-24: a peer comparison cut to the plan\'s cap says who left', r.cut);
+      else ok(`fixwave equities EQ-24: both peer buttons, cut to the plan's cap on Free, say who left — ${r.cutSeen.join('; ')}`);
+    }
+
+    /* EQ-02 — the research loop's company steps never open the seeded
+       company or spend a report: the way in with none opened, the last one
+       opened with one, on its valuation tab. EQ-03 — the "largest
+       differences" card lists the largest distances, either side. EQ-25 —
+       the feed words a state as a state. */
+    {
+      const r = await evaluate(`(async () => {
+        ${fwW}
+        const out = { bad: [], seen: [] };
+        const keep = { plan: State.plan, log: JSON.stringify(State.reportLog), recent: [...(State.recentCompanies || [])], ticker: State.ticker };
+        const step = (re) => [...document.querySelectorAll('#views li button')].find(b => re.test(b.textContent));
+        try {
+          State.plan = 'free'; State.reportLog = { month: meterMonth(), ids: [] }; State.recentCompanies = []; State.ticker = 'AAPL-SEC';
+          for (const re of [/Build a valuation range/, /Inspect evidence/]) {
+            navigate('/research/queue'); await w(300);
+            step(re)?.click(); await w(300);
+            const got = location.pathname + location.search;
+            out.seen.push('fresh: ' + got);
+            if (got !== '/research' || State.reportLog.ids.length || State.recentCompanies.length)
+              out.bad.push('fresh browser, "' + re.source + '" opened ' + got + ', spent ' + JSON.stringify(State.reportLog.ids) + ', recent ' + JSON.stringify(State.recentCompanies));
+          }
+          const ms = BY_ID.get('MSFT-SEC');
+          navigate(companyPath(ms.c)); await w(250);
+          navigate('/research/queue'); await w(300);
+          const b = step(/Build a valuation range/);
+          const said = b ? b.textContent : '';
+          b?.click(); await w(300);
+          const got = location.pathname + location.search;
+          out.seen.push('after MSFT: ' + got);
+          if (got !== companyPath(ms.c) + '?tab=valuation' || !/MSFT/.test(said)) out.bad.push('after opening MSFT, "Build a valuation range" (' + said + ') opened ' + got);
+        } finally {
+          State.plan = keep.plan; State.reportLog = JSON.parse(keep.log); store.write('reportLog', State.reportLog);
+          State.recentCompanies = keep.recent; store.write('recentCompanies', keep.recent); State.ticker = keep.ticker;
+        }
+        navigate('/research/queue'); await w(300);
+        const dc = card(/^Largest differences between market price and model estimate$/);
+        const shown = dc ? [...dc.querySelectorAll('button.row')].map(b => b.querySelector('span').textContent.trim() + ' ' + b.querySelector('.num').textContent.trim()) : [];
+        const want = U.filter(x => x.val.mos && isNum(x.val.mos.base) && x.val.confBand !== 'Low')
+          .sort((a, b) => Math.abs(b.val.mos.base) - Math.abs(a.val.mos.base)).slice(0, 5).map(x => x.c.tk + ' ' + withSign(x.val.mos.base, 0));
+        out.seen.push('largest: ' + shown.join(', '));
+        if (shown.join() !== want.join()) out.bad.push('the largest differences read ' + shown.join(', ') + ' where the largest distances are ' + want.join(', '));
+        if (!want.some(t => /[−-]/.test(t.split(' ')[1]))) out.bad.push('no negative difference among the five largest to hold the check: ' + want.join(', '));
+        const vals = buildFeed().filter(f => f.kind === 'valuation');
+        const moved = vals.filter(f => /moved/.test(f.title)).map(f => f.title);
+        if (!vals.length || moved.length) out.bad.push('the change feed says a company moved with no earlier value: ' + moved.slice(0, 2).join(' | '));
+        else out.seen.push('feed: ' + vals[0].title);
+        return out;
+      })()`);
+      if (r.bad.length) fail('fixwave equities EQ-02/EQ-03/EQ-25: the research queue neither picks a company nor lists one side, and its feed does not invent a change', r.bad);
+      else ok(`fixwave equities EQ-02/EQ-03/EQ-25: the loop's company steps open the way in, or the last company opened on its valuation tab, and spend nothing; the largest differences are the largest either side; a discount is a state, not a move — ${r.seen.join('; ')}`);
+    }
+
+    /* EQ-04 — a conversion on /compare shows its rate and the toggle, not
+       only a mixed one. EQ-15 — a bank's operating cash flow is not
+       applicable there, as on the company page and the report. EQ-11 — the
+       compare chips carry aria-pressed. */
+    {
+      const r = await evaluate(`(async () => {
+        ${fwW}
+        const out = { bad: [], seen: [] };
+        const keep = { base: State.baseCcy, ccy: State.compareCcy, compare: [...State.compare] };
+        const cells = (re) => { const tr = [...document.querySelectorAll('#views table.dt tbody tr')].find(x => re.test(x.cells[0]?.textContent || '')); return tr ? [...tr.cells].slice(1).map(td => td.textContent.trim()) : null; };
+        try {
+          State.compareCcy = 'common';
+          State.baseCcy = 'MYR';
+          navigate('/compare?companies=KO-SEC,PEP-SEC'); await w(400);
+          const rate = 'USD/MYR ' + FX.USDMYR.toFixed(4);
+          const myr = { toggle: !!document.getElementById('cmp-ccy-common'), rate: document.getElementById('views').textContent.includes(rate), rev: cells(/^Revenue, latest year/) };
+          out.seen.push('MYR: ' + JSON.stringify(myr));
+          if (!myr.rev || !myr.rev.every(t => /^RM/.test(t)) || !myr.toggle || !myr.rate) out.bad.push('two USD reporters in MYR: totals ' + JSON.stringify(myr.rev) + ', toggle ' + myr.toggle + ', rate ' + myr.rate);
+          State.baseCcy = 'USD'; render(); await w(300);
+          const usd = { toggle: !!document.getElementById('cmp-ccy-common'), rev: cells(/^Revenue, latest year/) };
+          if (!usd.rev || !usd.rev.every(t => /^\\$/.test(t)) || usd.toggle) out.bad.push('two USD reporters in USD: totals ' + JSON.stringify(usd.rev) + ', a currency bar ' + usd.toggle);
+          const on = [...document.querySelectorAll('#views button[id^="cmp-chip-"]')];
+          const wrong = on.filter(b => b.getAttribute('aria-pressed') !== String(State.compare.includes(b.id.slice(9))));
+          if (!on.length || wrong.length) out.bad.push(wrong.length + ' of ' + on.length + ' compare chips do not say whether they are selected, e.g. ' + (wrong[0]?.textContent || '') + ' aria-pressed=' + wrong[0]?.getAttribute('aria-pressed'));
+          for (const ids of ['CIMB,PBBANK', 'JPM-SEC,BAC-SEC']) {
+            navigate('/compare?companies=' + ids); await w(350);
+            const tr = [...document.querySelectorAll('#views table.dt tbody tr')].find(x => /^Operating cash flow/.test(x.cells[0]?.textContent || ''));
+            const ocf = tr ? [...tr.cells].slice(1).map(td => td.textContent.trim() + (td.querySelector('[title]') ? ' [' + td.querySelector('[title]').title + ']' : '')) : null;
+            out.seen.push(ids + ' OCF ' + (ocf ? ocf[0].slice(0, 60) : 'none'));
+            if (!ocf || !ocf.every(t => t.startsWith(ABSENCE['not applicable'].short + ' [') && /deposit-taking/.test(t))) out.bad.push(ids + ': a bank\\'s operating cash flow reads ' + JSON.stringify(ocf));
+          }
+        } finally {
+          State.baseCcy = keep.base; State.compareCcy = keep.ccy; State.compare = keep.compare; store.write('compare', keep.compare);
+        }
+        return out;
+      })()`);
+      if (r.bad.length) fail('fixwave equities EQ-04/EQ-11/EQ-15: /compare shows the rate of any conversion, says which chips are on, and calls a bank\'s cash flow not applicable', r.bad);
+      else ok(`fixwave equities EQ-04/EQ-11/EQ-15: two USD reporters read in MYR show the rate and the toggle, and in USD neither; every compare chip carries aria-pressed; a bank's operating cash flow is not applicable — ${r.seen.join('; ')}`);
+    }
+
+    /* EQ-06 — a sample price is sourced as one. EQ-13 — a measure's
+       definition drawer names its own period, source and normalisation.
+       EQ-26 — the type is a noun with its article. */
+    {
+      const r = await evaluate(`(async () => {
+        ${fwW}
+        const out = { bad: [], seen: [] };
+        const dl = () => { const o = {}; const d = drawer.querySelector('dl.kv'); if (!d) return o; [...d.children].forEach((n, i, a) => { if (n.tagName === 'DT') o[n.textContent] = a[i + 1]?.textContent || ''; }); return o; };
+        const shut = async () => { closeDrawer({ restore: false }); await w(250); };
+        openSourceDrawer(BY_ID.get('MAYBANK'), FIELD_BY_K.pe); await w(300);
+        const tr = [...drawer.querySelectorAll('tbody tr')].find(x => x.cells[0]?.textContent === 'price');
+        const src = tr ? tr.cells[tr.cells.length - 1].textContent : null;
+        out.seen.push('MAYBANK price: ' + src);
+        if (!src || /entered by you/.test(src) || !/sample price/.test(src)) out.bad.push('MAYBANK\\'s sample price is sourced "' + src + '"');
+        await shut();
+        const info = async (k) => { openMetricInfo(FIELD_BY_K[k]); await w(250); const o = dl(); await shut(); return o; };
+        const rs = await info('rs12'), pe = await info('pe'), roic = await info('roic');
+        if (!/Trailing twelve months of observed closes/.test(rs['Reporting period'] || '') || /statement lines/.test(rs.Source || '') || !/closes/.test(rs.Source || '') || /stored lines/.test(rs.Normalisation || ''))
+          out.bad.push('12-month price change: ' + JSON.stringify(rs).slice(0, 400));
+        if (!/price/.test(pe.Source || '') || !/statement lines/.test(pe.Source || '')) out.bad.push('Price / earnings source: ' + pe.Source);
+        if (/price/.test(roic.Source || '') || !/statement lines/.test(roic.Source || '')) out.bad.push('Return on invested capital source: ' + roic.Source);
+        out.seen.push('rs12 period "' + rs['Reporting period'] + '"');
+        const pgr = BY_ID.get('PGR'), early = U.find(x => x.c.type === 'early');
+        const k = [...(INAPPLICABLE.insurer || []), ...(ALSO_INAPPLICABLE.insurer || [])][0];
+        const st = metricStatus(pgr, k).text;
+        if (!/for an insurer\\./.test(st)) out.bad.push('metricStatus on PGR: ' + st);
+        for (const x of [pgr, early]) {
+          navigate(companyPath(x.c) + '/report'); await w(300);
+          const t = document.getElementById('views').textContent;
+          const cov = (t.match(/measures that apply to [^.]*? are computable/) || [''])[0];
+          out.seen.push(x.c.tk + ': ' + cov);
+          if (!cov || / a (insurer|early)/.test(cov) || !/ an insurer | a pre-profit company /.test(cov)) out.bad.push(x.c.tk + ' report: "' + cov + '"');
+          if (/ a insurer| a early/.test(t)) out.bad.push(x.c.tk + ' report still reads "a insurer" or "a early"');
+        }
+        return out;
+      })()`);
+      if (r.bad.length) fail('fixwave equities EQ-06/EQ-13/EQ-26: a sample price, a measure\'s definition and a business model are each said as what they are', r.bad);
+      else ok(`fixwave equities EQ-06/EQ-13/EQ-26: an illustrative sample price is sourced as one, not "entered by you"; each measure's drawer names its own period, source and normalisation; "an insurer", "a pre-profit company" — ${r.seen.join('; ')}`);
+    }
+
+    /* EQ-09 — Enter and Space sort a screener header, and focus stays on
+       it. EQ-10 — "Clear all" clears every filter shown. EQ-11 — the
+       business-model chips carry aria-pressed. */
+    {
+      await evaluate(`(async () => { State.screen = blankScreen(); navigate('/discover/screener'); await new Promise(r => setTimeout(r, 400)); return true; })()`);
+      const got = [];
+      const th = await evaluate(`(() => { const th = [...document.querySelectorAll('#views th.sortable')].find(x => /^Value/.test(x.textContent)); if (!th) return null; th.focus(); return { sort: JSON.stringify(State.screen.sort), focused: document.activeElement === th }; })()`);
+      got.push(th);
+      await fwKey('Enter');
+      got.push(await evaluate(`({ sort: JSON.stringify(State.screen.sort), focus: document.activeElement?.tagName + ' ' + document.activeElement?.textContent.trim() })`));
+      await fwKey(' ');
+      got.push(await evaluate(`({ sort: JSON.stringify(State.screen.sort), focus: document.activeElement?.tagName + ' ' + document.activeElement?.textContent.trim() })`));
+      const bad = [];
+      if (!th || !th.focused) bad.push('no focusable Value header');
+      else {
+        if (got[1].sort !== '{"k":"value","dir":-1}' || !/^TH Value/.test(got[1].focus)) bad.push(`Enter on the Value header: sort ${got[1].sort}, focus on ${got[1].focus}`);
+        if (got[2].sort !== '{"k":"value","dir":1}' || !/^TH Value/.test(got[2].focus)) bad.push(`Space on the Value header: sort ${got[2].sort}, focus on ${got[2].focus}`);
+      }
+      const r = await evaluate(`(async () => {
+        ${fwW}
+        const out = { bad: [], seen: [] };
+        try {
+          State.screen = blankScreen(); navigate('/discover/screener'); await w(350);
+          const before = activeFilters(State.screen).map(a => a.label);
+          [...document.querySelectorAll('#views button')].find(b => b.textContent.trim() === 'Clear all')?.click(); await w(300);
+          const after = activeFilters(State.screen).map(a => a.label);
+          const said = document.querySelector('#views h3.h-card')?.textContent || '';
+          out.seen.push('Clear all: ' + before.join(' + ') + ' → ' + (after.join(' + ') || 'none') + ', "' + said + '"');
+          if (!before.length || after.length || !/No filters applied/.test(document.getElementById('views').textContent)) out.bad.push('Clear all left ' + JSON.stringify(after) + ' of ' + JSON.stringify(before));
+          const chips = () => { const lab = [...document.querySelectorAll('#views label.caption')].find(l => l.textContent === 'Business model'); return lab ? [...lab.parentElement.querySelectorAll('button.chip')] : []; };
+          const unmarked = chips().filter(b => !['true', 'false'].includes(b.getAttribute('aria-pressed')));
+          chips().find(b => b.textContent === 'bank')?.click(); await w(300);
+          const bank = chips().find(b => b.textContent === 'bank');
+          out.seen.push('bank chip aria-pressed=' + bank?.getAttribute('aria-pressed'));
+          if (!chips().length || unmarked.length || bank?.getAttribute('aria-pressed') !== 'true' || chips().some(b => b !== bank && b.getAttribute('aria-pressed') !== 'false'))
+            out.bad.push('business-model chips: ' + chips().map(b => b.textContent + '=' + b.getAttribute('aria-pressed')).join(', '));
+        } finally { State.screen = blankScreen(); }
+        return out;
+      })()`);
+      bad.push(...r.bad);
+      if (bad.length) fail('fixwave equities EQ-09/EQ-10/EQ-11: the screener sorts from the keyboard, clears all, and says which chips are on', bad);
+      else ok(`fixwave equities EQ-09/EQ-10/EQ-11: Enter and Space on a sortable header sort it and keep focus there; "Clear all" leaves no filter; the business-model chips carry aria-pressed — ${got.slice(1).map(g => g.sort).join(' then ')}; ${r.seen.join('; ')}`);
+    }
+
+    /* EQ-08 — the value map's drawer toggle reports the list after each
+       press. EQ-18 — an empty watchlist says so on both charts. EQ-21 —
+       an illustrative mark or tile says so, and the charts count them.
+       EQ-26 — one company is "1 company". */
+    {
+      const r = await evaluate(`(async () => {
+        ${fwW}
+        const out = { bad: [], seen: [] };
+        const keep = { heat: State.heat.universe, radar: State.radar.universe, ids: [...activeWL().ids] };
+        const text = () => document.getElementById('views').textContent;
+        try {
+          State.radar.universe = 'all'; navigate('/discover/value-map'); await w(350);
+          const id = U.find(x => !x.c.real && x.val.mos && !State.watchlist.includes(x.c.id))?.c.id;
+          openRadarDetail(id); await w(300);
+          const btn = () => [...drawer.querySelectorAll('button')].find(b => /watchlist/i.test(b.textContent));
+          const st = () => [btn()?.textContent, btn()?.getAttribute('aria-pressed'), State.watchlist.includes(id)].join(' / ');
+          const s0 = st(); btn()?.click(); await w(250); const s1 = st(); btn()?.click(); await w(250); const s2 = st();
+          closeDrawer({ restore: false }); await w(250);
+          out.seen.push(id + ': ' + s0 + ' → ' + s1 + ' → ' + s2);
+          if (s0 !== 'Add to watchlist / false / false' || s1 !== '✓ On your watchlist / true / true' || s2 !== s0) out.bad.push('value-map drawer toggle: ' + s0 + ' → ' + s1 + ' → ' + s2);
+          const marks = [...document.querySelectorAll('#views svg g[role=button]')].map(g => g.getAttribute('aria-label'));
+          const tkOf = (l) => l.split(',')[0].split(' ')[0];
+          const byTk = new Map(U.map(x => [x.c.tk, x]));
+          const quiet = marks.filter(l => byTk.get(tkOf(l)) && !byTk.get(tkOf(l)).c.real && !/, illustrative,/.test(l));
+          if (!marks.length || quiet.length || !/illustrative — synthetic figures on sample prices/.test(text())) out.bad.push('value map: ' + quiet.length + ' of ' + marks.length + ' illustrative marks do not say so, e.g. ' + quiet[0]);
+          State.heat.universe = 'all'; navigate('/discover?tab=heatmap'); await w(400);
+          const tiles = [...document.querySelectorAll('#views svg g.tile[role=button]')].map(g => g.getAttribute('aria-label'));
+          const quietT = tiles.filter(l => byTk.get(tkOf(l)) && !byTk.get(tkOf(l)).c.real && !/, illustrative,/.test(l));
+          out.seen.push(tiles.length + ' tiles, e.g. ' + tiles[0]);
+          if (!tiles.length || quietT.length || !/illustrative — synthetic figures on sample prices/.test(text())) out.bad.push('heatmap: ' + quietT.length + ' of ' + tiles.length + ' illustrative tiles do not say so, e.g. ' + quietT[0]);
+          const ones = text().match(/\\b1 companies\\b/g);
+          if (ones) out.bad.push('the heatmap reads "1 companies"');
+          const panelOne = [...document.querySelectorAll('#views .metaline')].map(p => p.textContent).find(t => /^1 company · area scaled/.test(t));
+          const hm = HEAT_MODES.find(m => m.id === State.heat.mode) || HEAT_MODES[0];
+          const per = ['US', 'MY'].map(m => U.filter(x => x.c.mkt === m && isNum(x.m.mcap) && isNum(hm.get(x))).length);
+          const oneGroup = per.every(k => k > 0) && per.includes(1);
+          if (oneGroup && !panelOne) out.bad.push('a one-company panel does not read "1 company"');
+          activeWL().ids = [];
+          State.heat.universe = 'watchlist'; render(); await w(300);
+          const h0 = text();
+          State.radar.universe = 'watchlist'; navigate('/discover/value-map'); await w(350);
+          const v0 = text(), vChart = !!document.querySelector('#views svg[aria-label^="Valuation against quality"]');
+          const nm = '“' + activeWL().name + '” is empty';
+          out.seen.push('empty list: ' + (h0.includes(nm) ? 'heatmap says so' : 'heatmap silent') + ', ' + (v0.includes(nm) && !vChart ? 'value map says so' : 'value map silent'));
+          if (!h0.includes(nm)) out.bad.push('heatmap on an empty watchlist does not say it is empty');
+          if (!v0.includes(nm) || vChart) out.bad.push('value map on an empty watchlist: sentence ' + v0.includes(nm) + ', empty chart drawn ' + vChart);
+          activeWL().ids = ['AAPL-SEC'];
+          render(); await w(300);
+          const v1 = text();
+          State.heat.universe = 'watchlist'; navigate('/discover?tab=heatmap'); await w(350);
+          const h1 = text();
+          if (!/The one company on your active watchlist .* cannot be plotted/.test(v1) || !/The one company on your active watchlist .* cannot be drawn/.test(h1)) out.bad.push('a watchlist of one unpriced filer: the charts do not say none can be drawn');
+        } finally {
+          activeWL().ids = keep.ids; State.heat.universe = keep.heat; State.radar.universe = keep.radar;
+        }
+        return out;
+      })()`);
+      if (r.bad.length) fail('fixwave equities EQ-08/EQ-18/EQ-21/EQ-26: the value map and heatmap keep their toggle true, say when there is nothing to draw, and mark what is illustrative', r.bad);
+      else ok(`fixwave equities EQ-08/EQ-18/EQ-21/EQ-26: the drawer toggle follows the list; an empty or unpriced watchlist is said, not drawn; every illustrative mark and tile says so and the charts count them; one company is "1 company" — ${r.seen.join('; ')}`);
+    }
+
+    /* EQ-14 — the report names both concepts of a summed line. EQ-20 —
+       the ownership row is named for what it computes. EQ-23 — a refused
+       report has a page heading and is not listed as viewed. */
+    {
+      const r = await evaluate(`(async () => {
+        ${fwW}
+        const out = { bad: [], seen: [] };
+        for (const id of ['AAPL-SEC', 'MSFT-SEC']) {
+          const x = BY_ID.get(id);
+          navigate(companyPath(x.c) + '/report'); await w(300);
+          const tr = [...document.querySelectorAll('#views .rr-hist tbody tr')].find(t => /^Total debt/.test(t.cells[0].textContent));
+          const kind = tr ? tr.cells[tr.cells.length - 1].textContent : null;
+          const want = (lineConcept(x.c, 'debt', latestFy(x.c)) || '').split(' + ').filter(Boolean);
+          out.seen.push(x.c.tk + ' debt: ' + kind);
+          if (!kind || want.length < 2 || want.some(k => !kind.includes(k))) out.bad.push(x.c.tk + ' report: Total debt reads "' + kind + '" for ' + want.join(' + '));
+        }
+        navigate(companyPath(BY_ID.get('PGR').c) + '?tab=ownership'); await w(300);
+        const own = document.getElementById('views').textContent;
+        if (/Free float/.test(own) || !/Not held by insiders or institutions/.test(own)) out.bad.push('PGR ownership still names 100 − insiders − institutions a free float');
+        const keep = { plan: State.plan, log: JSON.stringify(State.reportLog), recent: [...(State.recentCompanies || [])] };
+        try {
+          State.plan = 'free';
+          State.reportLog = { month: meterMonth(), ids: ['KO-SEC', 'AAPL-SEC', 'MSFT-SEC', 'NVDA-SEC', 'PGR'] };
+          State.recentCompanies = ['PGR', 'NVDA-SEC'];
+          const g = BY_ID.get('GOOGL-SEC');
+          for (const path of ['', '/report']) {
+            navigate(companyPath(g.c) + path); await w(300);
+            const h1 = [...document.querySelectorAll('#views h1')].map(h => h.textContent);
+            out.seen.push('refused ' + (path || 'page') + ': h1 ' + JSON.stringify(h1));
+            if (h1.length !== 1 || !h1[0].includes(g.c.name) || !/You have used all 5/.test(document.getElementById('views').textContent)) out.bad.push('the refused ' + (path || 'company page') + ' has h1 ' + JSON.stringify(h1));
+          }
+          if (State.recentCompanies[0] === 'GOOGL-SEC' || State.recentCompanies.includes('GOOGL-SEC')) out.bad.push('the refused GOOGL is listed as recently viewed: ' + State.recentCompanies.join(','));
+        } finally {
+          State.plan = keep.plan; State.reportLog = JSON.parse(keep.log); store.write('reportLog', State.reportLog);
+          State.recentCompanies = keep.recent; store.write('recentCompanies', keep.recent);
+        }
+        return out;
+      })()`);
+      if (r.bad.length) fail('fixwave equities EQ-14/EQ-20/EQ-23: the report names a summed line whole, the ownership row its own sum, and a refused report its company without listing it as read', r.bad);
+      else ok(`fixwave equities EQ-14/EQ-20/EQ-23: the report's Total debt names both concepts; the ownership row is "not held by insiders or institutions"; a refused company page and report each have an h1 and neither is listed as viewed — ${r.seen.join('; ')}`);
+    }
+
+    /* EQ-16 / EQ-17 — with observed closes held for a filer, the price
+       card draws them rather than asking for a feed, and the volume tile
+       gives the 50-day measure's own reason. A fixture in memory, not a
+       file: 260 closes for MSFT and MAYBANK (1155), 30 days of volume for
+       MSFT only. */
+    {
+      const r = await evaluate(`(async () => {
+        ${fwW}
+        const out = { bad: [], seen: [] };
+        const keepT = trackedHistory;
+        try {
+          const dates = [];
+          for (let d = new Date(Date.UTC(2025, 7, 1)); dates.length < 260; d = new Date(d.getTime() + 864e5)) { const k = d.getUTCDay(); if (k > 0 && k < 6) dates.push(d.toISOString().slice(0, 10)); }
+          const s = Object.fromEntries(dates.map((d, i) => [d, 400 + Math.sin(i / 9) * 20 + i * 0.1]));
+          const v = Object.fromEntries(dates.slice(-30).map((d, i) => [d, 2e7 + i * 1e5]));
+          trackedHistory = { series: { MSFT: s, '1155': s }, volume: { MSFT: v } };
+          refreshMomentum();
+          const tile = () => [...document.querySelectorAll('#views .stat')].find(t => /Volume vs 50-day/.test(t.textContent))?.textContent || '';
+          navigate(companyPath(BY_ID.get('MSFT-SEC').c) + '?tab=snapshot'); await w(400);
+          const ms = tile(), pc = card(/^Price history$/);
+          const pcText = pc ? pc.textContent : '';
+          out.seen.push('MSFT volume: ' + ms + ' | price card chart ' + !!pc?.querySelector('svg'));
+          if (!/needs 20 more/.test(ms) || /no volume column/.test(ms)) out.bad.push('MSFT with 30 days of volume: "' + ms + '"');
+          if (!pc || /licensed feed\\. Everything/.test(pcText) || /Not available for this company/.test(pcText) || !pc.querySelector('svg') || !/260/.test(pcText)) out.bad.push('MSFT price card with 260 closes held: "' + pcText.slice(0, 160) + '"');
+          navigate(companyPath(BY_ID.get('MAYBANK').c) + '?tab=snapshot'); await w(400);
+          const mb = tile();
+          out.seen.push('MAYBANK volume: ' + mb);
+          if (!/carries no volume/.test(mb) || /needs 20/.test(mb)) out.bad.push('MAYBANK with no volume: "' + mb + '"');
+        } finally { trackedHistory = keepT; refreshMomentum(); }
+        return out;
+      })()`);
+      if (r.bad.length) fail('fixwave equities EQ-16/EQ-17: the price card and the volume tile agree with the closes held', r.bad);
+      else ok(`fixwave equities EQ-16/EQ-17: a filer with closes held draws them in Price history, and the volume tile says how many days the 50-day ratio still needs, or that there is none — ${r.seen.join('; ')}`);
+    }
+  } finally {
+    await send('Emulation.clearDeviceMetricsOverride', {}, sessionId);
+  }
+  /* ---- end fixwave: equities ---- */
 
 } catch (e) {
   fail('harness error', e.message);
