@@ -29,7 +29,7 @@
  * a quote is the exchange's zone, so the reader can date `asOf` the same way.
  */
 
-import { dateInZone } from './history-store.mjs';
+import { dateInZone, volumeNotCounted } from './history-store.mjs';
 
 /* ==========================================================================
    WHY THERE IS NO YAHOO FINANCE OR TRADINGVIEW ADAPTER HERE
@@ -248,6 +248,13 @@ export function yahooProvider({ userAgent } = {}) {
          as readings let a "volume below 1" rule match. With no positive
          reading in the window, the volume is recorded as absent. */
       if (!out.some(r => r.volume > 0)) out.forEach(r => { r.volume = null; });
+      /* And a 0 on a bar whose price moved, in a window that does count: the
+         vendor recorded no count for that session (volumeNotCounted, the
+         import's rule). It was stored as a session with no trading. A 0
+         where the high equals the low — nothing traded, the price stood —
+         stays 0. A 0 the history already holds is left as it is: only
+         re-importing an export changes a stored 0. */
+      out.forEach(r => { if (volumeNotCounted(r)) r.volume = null; });
       return out.length ? out : null;
     },
 
@@ -435,6 +442,9 @@ export function twelveDataProvider({ apiKey, redistribution = false } = {}) {
         .map(v => ({ date: String(v.datetime).slice(0, 10), open: px(v.open), high: px(v.high), low: px(v.low), close: tdNum(v.close),
                      volume: tdNum(v.volume), tsUtc: null }))
         .filter(x => x.close != null)
+        /* A 0 on a bar whose price moved is no count (volumeNotCounted), as
+           for Yahoo and the import; a 0 where the high equals the low stays. */
+        .map(x => (volumeNotCounted(x) ? { ...x, volume: null } : x))
         .reverse();
     },
   };
