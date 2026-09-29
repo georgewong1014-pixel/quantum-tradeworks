@@ -450,10 +450,12 @@ export async function runOnce({ E, setupsPath, historyPath, alertsPath, instrume
   const setupLevel = r.skipped.filter(s => !s.symbol);
   const untestedEverywhere = r.untestedEverywhere || [];
 
+  /* framesRefused: the imported weeks and months held for an instrument
+     this run evaluated and not read, each with why (scanRun). */
   const lastRun = { at: now, runId, origin, trigger, asOf: r.asOf, asOfFrom: r.asOfFrom, replayAsOf: asOf || null, engine: r.engine, setups: r.setups, evaluated: r.evaluated,
                     matched: r.matched, recorded: r.alerts.length, deduped: r.deduped, cooldown: r.cooldown, continuing: r.continuing,
                     untested: r.untested, skipped: r.skipped.length, setupsHash,
-                    problems, untestedEverywhere, stale: r.stale || [], provisional: r.provisional || [],
+                    problems, untestedEverywhere, stale: r.stale || [], provisional: r.provisional || [], framesRefused: r.framesRefused || [],
                     readiness: (r.readiness?.markets || []).map(m => ({ market: m.market, state: m.state, expected: m.expected, newestFinal: m.newestFinal, inRun: m.inRun, text: m.text })),
                     cacheStats: r.cacheStats, catchUp: r.catchUp, skippedMarkets: r.skippedMarkets, universeResolvedFrom: r.universeResolvedFrom };
   const out = { engine: r.engine, updatedAt: now, lastRun, alerts: [...existing, ...r.alerts] };
@@ -946,11 +948,33 @@ async function main() {
     try { const reg = await readJson(instrumentsPath); instruments = Array.isArray(reg) ? reg : (reg?.instruments || []); } catch { /* none */ }
     if (runsDoc.damaged) unreadable.push({ what: 'runs', file: W.runs, why: runsDoc.damaged, blocksRun: false, bak: existsSync(`${W.runs}.bak`) ? `${W.runs}.bak` : null });
     if (control.damaged) unreadable.push({ what: 'control', file: W.control, why: control.damaged, blocksRun: false, bak: null });
+    /* The corporate actions a run applies (price-adjustments.json beside the
+       history): a file there that is not JSON fails every run, and a split
+       recorded against imported weeks or months means they are not read. */
+    const adjustmentsDoc = await readOr(join(dirname(historyPath), 'price-adjustments.json'), 'adjustments');
     const bad = (what) => unreadable.find(u => u.what === what);
     const historyMeta = history ? { symbols: Object.keys(history.series || {}), newestBar: newestBar(history) } : null;
     const st = E.scanStatus({ runs: runsDoc, alertsDoc, setupsDoc, historyMeta, control, now, instruments });
     let lock = null; try { lock = existsSync(W.lock) ? await readJson(W.lock) : null; } catch { lock = { unreadable: true }; }
-    if (has('json')) { console.log(JSON.stringify({ status: st, control, lock, unreadable, channels: CHANNELS, files: { ...W, alerts: alertsPath, setups: setupsPath, history: historyPath } }, null, 2)); process.exit(0); }
+    /* The imported weeks and months the history holds, per timeframe, and
+       those a run does not read: the engine's own judgement (scanFramesOf)
+       on the history with the recorded actions attached and each
+       instrument's registry market, as scanRun reads it. Every frame held
+       was reported as imported and read — a frame a recorded split refuses
+       among them, whose weeks every run builds from the daily bars. */
+    const framed = ['1W', '1M'].map(tf => [tf, Object.keys(history?.frames?.[tf] || {}).filter(s => Object.keys(history.frames[tf][s]?.series || {}).length).sort()]).filter(([, s]) => s.length);
+    const framesRefused = [];
+    if (framed.length) {
+      const withActions = E.scanAttachAdjustments(history, adjustmentsDoc);
+      const reg = E.scanRegistry(instruments);
+      for (const [tf, syms] of framed) {
+        for (const s of syms) {
+          const f = E.scanFramesOf(withActions, s, { market: reg.get(String(s).toUpperCase())?.market || null })?.[tf];
+          if (f?.refused) framesRefused.push({ symbol: s, timeframe: tf, why: f.refused.reason });
+        }
+      }
+    }
+    if (has('json')) { console.log(JSON.stringify({ status: st, control, lock, unreadable, framesRefused, channels: CHANNELS, files: { ...W, alerts: alertsPath, setups: setupsPath, history: historyPath } }, null, 2)); process.exit(0); }
     /* A run's bars are the range it evaluated (asOfFrom … asOf), as the
        dashboard and --runs print them. Only the newest was named, so a run
        that caught up a missed day read "bars of 2026-04-06" beside a match
@@ -988,12 +1012,16 @@ async function main() {
     /* Weeks and months are the imported ones where the history holds a
        TradingView weekly or monthly export for the instrument (frames), and
        built from the daily bars elsewhere: the line said "built from daily"
-       of both after imported ones were read. */
-    const framed = ['1W', '1M'].map(tf => [tf, Object.keys(history?.frames?.[tf] || {}).filter(s => Object.keys(history.frames[tf][s]?.series || {}).length).sort()]).filter(([, s]) => s.length);
+       of both after imported ones were read. A frame a recorded action
+       refuses is not among the imported ones read: it is named below the
+       line, with why, as the run summary names it. */
     const few = (s) => (s.length > 5 ? `${s.slice(0, 5).join(', ')} and ${s.length - 5} more` : s.join(', '));
-    console.log(`timeframe  daily, weekly and monthly (weekly and monthly ${framed.length
-      ? `imported where your history holds a TradingView export — ${framed.map(([tf, s]) => `${tf === '1W' ? 'weekly' : 'monthly'} for ${few(s)}`).join('; ')} — and otherwise built from daily`
+    const read = framed.map(([tf, s]) => [tf, s.filter(x => !framesRefused.some(r => r.symbol === x && r.timeframe === tf))]).filter(([, s]) => s.length);
+    console.log(`timeframe  daily, weekly and monthly (weekly and monthly ${read.length
+      ? `imported where your history holds a TradingView export — ${read.map(([tf, s]) => `${tf === '1W' ? 'weekly' : 'monthly'} for ${few(s)}`).join('; ')} — and otherwise built from daily`
+      : framed.length ? 'built from daily; the imported weekly or monthly bars your history holds are not read (below)'
       : 'built from daily; your history holds no imported weekly or monthly bars'}) — intraday bars need a licensed feed (SC-317)`);
+    framesRefused.forEach(x => console.log(`not read   ${x.symbol} ${E.scanTimeframeWord(x.timeframe)}: ${x.why}`));
     process.exit(0);
   }
 
@@ -1285,6 +1313,9 @@ async function main() {
                  continuing: r.continuing, untested: r.untested, skipped: r.skipped.length, problems: problems.length, untestedEverywhere: untestedEverywhere.length, deliveries: 0 };
   run.readiness = (r.readiness?.markets || []).map(m => ({ market: m.market, state: m.state, expected: m.expected, newestFinal: m.newestFinal, inRun: m.inRun, text: m.text }));
   run.stale = (r.stale || []).length; run.provisional = (r.provisional || []).length;
+  /* The imported weeks and months not read, with why: a split recorded
+     against them (scanFramesOf). Kept on the run as the summary prints it. */
+  run.framesRefused = r.framesRefused || [];
   /* C4: what the ops pages read off the run itself. */
   run.cacheStats = r.cacheStats || null;
   run.catchUp = r.catchUp || null;
@@ -1439,6 +1470,16 @@ function printRun({ E, r, out, dry, written, alertsPath, run, problems, setupLev
   if ((r.stale || []).length) {
     console.log('\nbehind the rest — evaluated, but on an old bar:');
     r.stale.forEach(x => console.log(`  · ${x.symbol}: ${x.why}`));
+  }
+  /* Imported weeks or months held for an instrument and not read: a split
+     or other action the reader recorded falls inside or after them, and
+     the weeks are built from the daily bars instead (scanFramesOf). The
+     engine listed them (framesRefused) and nothing printed them, so the
+     only trace was a condition reading "(built from daily bars)" with no
+     why, beside a history that holds the export. */
+  if ((r.framesRefused || []).length) {
+    console.log('\nimported weekly or monthly bars not read:');
+    r.framesRefused.forEach(x => console.log(`  · ${x.symbol} ${E.scanTimeframeWord(x.timeframe)}: ${x.why}`));
   }
   const routine = r.skipped.filter(s => s.symbol);
   if (routine.length) {

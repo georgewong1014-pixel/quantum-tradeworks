@@ -10689,7 +10689,12 @@ function scanBotPack({ symbols = null, universe = null, tradeTimeframes = ['1W',
    imported and how many built from the daily bars, over which periods —
    300 imported months make every monthly criterion readable where the
    daily bars alone never could. `imported` and `built` count them, with
-   their first and last periods; a frame held and not read says why. */
+   their first and last periods; a frame held and not read says why.
+   A criterion is `readable` only where a condition on it reads a value on
+   the last closed bar: `contiguous` counts the bars since a gap no window
+   spans (`gapBefore` names where it ends), and a criterion that cannot be
+   read however many bars are held — highs and lows not held, an
+   unexplained break — carries the evaluator's `reason`. */
 function scanBotWarmup(bars, { tradeTimeframes = ['1W', '1M'], criterion3 = 'ema', macdSignal = 'ema' } = {}) {
   const K = scanBotCriteria({ criterion3, macdSignal });
   /* The closed bars: a last bar captured while its session traded
@@ -10702,14 +10707,56 @@ function scanBotWarmup(bars, { tradeTimeframes = ['1W', '1M'], criterion3 = 'ema
   const last = n ? bars.dates[n - 1] : null;
   const needOf = (key) => Math.max(...[K[key].left, K[key].yes[1]].map(o => (o?.indicator ? SCAN_INDICATORS[o.indicator].needs(scanParams(o).params, scanFieldOf(o)) : 0)));
   const names = { c1: 'criterion 1', c2: 'criterion 2', c3: 'criterion 3', c4: 'criterion 4', c5: 'criterion 5', histUp: 'the histogram test' };
+  const C = scanCache();
   return ['1D', ...(Array.isArray(tradeTimeframes) ? tradeTimeframes : [tradeTimeframes]).map(scanTimeframe).filter(t => t === '1W' || t === '1M')].map(tf => {
     const F = tf === '1D' ? null : scanFrame(bars, tf);
     const held = tf === '1D' ? n : F && last ? scanFrameAt(F, last) + 1 : 0;
     const keys = tf === '1D' ? ['c1', 'c2', 'c3', 'c4', 'c5'] : ['c1', 'c2', 'c3', 'c4', 'histUp'];
-    const criteria = keys.map(k => ({ criterion: k, label: names[k], words: K[k].words, needs: needOf(k), readable: held >= needOf(k) }));
-    const needs = Math.max(...criteria.map(c => c.needs));
-    const short = criteria.filter(c => !c.readable);
     const word = scanTimeframeWord(tf);
+    const unit = tf === '1M' ? 'month' : tf === '1W' ? 'week' : 'session';
+    /* JUDGED AS THE EVALUATOR READS IT. Counting closed bars against each
+       criterion's need said "every criterion can be read" where the
+       evaluator reads none: a window never spans a gap of missing sessions
+       (imported weeks up to December and daily bars from March leave eight
+       weeks with no bar — 343 weekly bars held, and every weekly criterion
+       untested on every run), nor an unexplained price break, and WaveTrend
+       reads highs and lows, which a history of closes does not hold. So the
+       bars a window can read are those since the last gap it may not span
+       (`run`: the bar where a gap of more than the series tolerates ends,
+       to the last closed bar), and each criterion's operands are read on
+       the last closed bar as a condition reads them: a reason other than
+       too few bars — or a gap, counted in `run` — stands however many are
+       held, and is said. The series' staleness is left aside: it is the
+       clock's matter, which every run states, not what the history holds.
+       On the higher timeframes the bars are the merged ones a condition
+       reads (scanFrame), and a period after the last closed one that has
+       sessions and no bar makes the read stale, as it makes a condition's. */
+    const B = tf === '1D' ? (n ? bars : null) : F?.bars || null;
+    const at = held - 1;
+    let g = 0;
+    if (B) for (let j = at; j >= 1; j--) if ((B.gapBefore?.[j] || 0) > (B.gapTolerance ?? 0)) { g = j; break; }
+    const run = held - g;
+    const Bs = B && B.stale ? { ...B, stale: null } : B;
+    const staleAfter = F && at >= 0 ? scanFrameGap(F, at, last) : null;
+    const blockOf = (key) => {
+      if (!Bs || at < 0) return null;
+      if (staleAfter) return { code: 'STALE', text: `the ${unit} of ${staleAfter} has sessions and no bar in your history, so the last ${word} bar held (${B.dates[at]}) is not the last ${unit} closed` };
+      for (const o of [K[key].left, K[key].yes[1]]) {
+        if (!o?.indicator) continue;
+        const r = scanIndicator(o, Bs, { at, cache: C });
+        if (r.status !== 'VALID' && !['NEEDS_BARS', 'MISSING_SESSION'].includes(r.reason?.code)) {
+          const t = String(r.reason?.text || SCAN_REASONS[r.reason?.code] || 'it has no value there');
+          return { code: r.reason?.code || null, text: t.startsWith(`${r.label}: `) ? t.slice(r.label.length + 2) : t };
+        }
+      }
+      return null;
+    };
+    const criteria = keys.map(k => {
+      const need = needOf(k), reason = blockOf(k);
+      return { criterion: k, label: names[k], words: K[k].words, needs: need, readable: run >= need && !reason, ...(reason ? { reason } : {}) };
+    });
+    const needs = Math.max(...criteria.map(c => c.needs));
+    const short = criteria.filter(c => run < c.needs), blocked = criteria.filter(c => c.reason);
     /* Where the closed bars came from, when a frame is held: the first
        `held` merged bars are the ones closed as of the last daily bar. */
     const og = F && Array.isArray(F.bars.origin) ? F.bars.origin : null;
@@ -10720,11 +10767,19 @@ function scanBotWarmup(bars, { tradeTimeframes = ['1W', '1M'], criterion3 = 'ema
     const from = (x, what) => `${x.bars} ${what} (${tf === '1M' ? 'months' : 'weeks'} of ${per(x.first)}${x.bars > 1 ? ` … ${per(x.last)}` : ''})`;
     const whence = !og ? '' : refused ? `, all built from daily bars — your imported ${word} bars are not read: ${refused.reason}`
       : `, ${[imp ? from(imp, 'imported') : null, blt ? from(blt, 'built from daily bars') : null].filter(Boolean).join(' and ') || 'none imported or built'}`;
-    const more = imp ? `${scanBarsAsHistory(tf, needs - held)} more` : `${scanBarsAsHistory(tf, needs - held)} of daily history`;
-    const text = short.length
-      ? `${word}: ${held} closed ${word} bar${held === 1 ? '' : 's'} held${whence}; ${short.map(c => `${c.label} (${c.words}) needs ${c.needs}`).join(', ')} — untested until ${needs - held} more ${tf === '1M' ? 'months' : tf === '1W' ? 'weeks' : 'sessions'} are held (${more})`
+    const more = imp ? `${scanBarsAsHistory(tf, needs - run)} more` : `${scanBarsAsHistory(tf, needs - run)} of daily history`;
+    const gapAt = g > 0 ? `${tf === '1D' ? B.dates[g] : tf === '1M' ? per(F.periods[g]) : `the week of ${F.periods[g]}`}` : null;
+    const gapN = g > 0 ? B.gapBefore[g] : 0;
+    const since = short.length && g > 0
+      ? `; ${run} since the gap before ${gapAt} (${gapN} ${unit}${gapN === 1 ? '' : 's'} ${tf === '1D' ? 'with no bar' : 'with sessions and no bar'}, which an import holding ${gapN === 1 ? 'it' : 'them'} fills), and no window is read across it:`
+      : ';';
+    const text = short.length || blocked.length
+      ? `${word}: ${held} closed ${word} bar${held === 1 ? '' : 's'} held${whence}`
+        + (short.length ? `${since} ${short.map(c => `${c.label} (${c.words}) needs ${c.needs}`).join(', ')} — untested until ${needs - run} more ${unit}s are held (${more})` : '')
+        + (blocked.length ? `; ${blocked.map(c => `${c.label} (${c.words}) cannot be read: ${c.reason.text}`).join('; ')}` : '')
       : `${word}: ${held} closed ${word} bars held${whence} — every criterion can be read`;
-    return { timeframe: tf, held, needs, ready: !short.length, criteria, text,
+    return { timeframe: tf, held, needs, ready: !short.length && !blocked.length, criteria, text,
+             ...(g > 0 ? { contiguous: run, gapBefore: gapAt } : {}),
              ...(og ? { imported: imp?.bars || 0, built: blt?.bars || 0, importedRange: imp ? [imp.first, imp.last] : null, builtRange: blt ? [blt.first, blt.last] : null, frameRefused: refused } : {}) };
   });
 }
