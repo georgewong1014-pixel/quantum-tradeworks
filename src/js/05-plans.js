@@ -34,9 +34,11 @@ const PLANS = {
        and a later launch is a flag change rather than a rebuild, but never
        offered — a tier a user cannot obtain must not appear purchasable. The
        plans page shows it marked not on sale, at a proposed price, and its
-       button previews the entitlements in this browser as every card's switch
-       does (VIEWS.plans, 90-area-screen.js). Whether that preview should be
-       reachable at all is an open product decision. */
+       button previews the entitlements in this browser as every card's
+       button does (VIEWS.plans, 90-area-screen.js) — since the launch audit
+       no plan is on sale, so every paid tier is a proposal and a preview.
+       Whether that preview should be reachable at all is an open product
+       decision. */
     id:'all', name:'All-Access', launched:false,
     tagline:'Cross-asset — not launched. Introduce only after both products show demand', priceMo:79, priceYr:699,
     blurb:'Everything in Equities Research, plus the property portfolio, two standard property reports a month, and the consolidated net-worth view.',
@@ -48,19 +50,12 @@ const PLANS = {
 };
 const PROPERTY_REPORT_PRICE = { basic:19, full:49, verified:89 };
 
-/* The single pricing surface. Anything that displays a price reads this, so a
-   change lands everywhere at once and two pages cannot drift apart again. */
-const PRICING = {
-  free:     { name:'Free', price:'RM0',
-              line:`${PLANS.free.limits.reportsPerMonth} company reports a month` },
-  founding: { name:PLANS.pro.foundingName, price:`RM${PLANS.pro.founding}`,
-              period:'for the first year',
-              line:`Limited to ${PLANS.pro.foundingSeats} members. Renews at RM${PLANS.pro.priceYr} a year.` },
-  standard: { name:PLANS.pro.name, price:`RM${PLANS.pro.priceMo}`, period:'a month',
-              line:`Or RM${PLANS.pro.priceYr} a year after the beta.` },
-  property: { name:'Property report', price:`RM${PROPERTY_REPORT_PRICE.basic}`, period:'and up',
-              line:`Saved analysis RM${PROPERTY_REPORT_PRICE.basic} · full report RM${PROPERTY_REPORT_PRICE.full} · verified RM${PROPERTY_REPORT_PRICE.verified}.` },
-};
+/* PLANS and PROPERTY_REPORT_PRICE are the pricing surface: the plans page
+   and every offer read them. A second table, PRICING, held the same prices
+   as sales lines — "Limited to 500 members. Renews at RM299 a year." — and
+   nothing read it; with no plan on sale (launch audit, 29 Sep 2026) a
+   renewal line waiting to be surfaced was a purchase claim in waiting, so it
+   is gone rather than kept in step. */
 
 const State = {
   view: 'home',
@@ -205,10 +200,14 @@ function setPlan(id) {
      comparison that the page, a click later, said holds up to two. */
   clampToPlan();
   /* A tier that is not on sale is previewed, not switched to: "Switched to
-     All-Access" read as a plan the reader now had. */
-  toast(PLANS[id].launched === false
-    ? `Previewing ${PLANS[id].name} in this browser — it has not launched and cannot be bought`
-    : `Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
+     All-Access" read as a plan the reader now had. Since the launch audit
+     (29 Sep 2026) no tier is on sale, so "Switched to Equities Research — no
+     payment was taken" read the same way: every paid tier is previewed, and
+     the toast says so; going back to Free is only that. */
+  const pl = PLANS[id];
+  toast(id === 'free' ? `Back on ${pl.name} in this browser`
+    : pl.launched === false ? `Previewing ${pl.name} in this browser — it has not launched and cannot be bought`
+    : `Previewing ${pl.name} in this browser — plans are not on sale yet, and nothing was charged`);
   /* The button pressed on /pricing comes back from the redraw as the
      disabled "Current plan", which cannot hold focus, so a keyboard reader
      who switched plan was left on <body>. Focus goes to the heading of the
@@ -231,7 +230,9 @@ function upsell(title, detail) {
     /* Outline: a plan prompt is never the page's primary action — on the
        property calculator it was the only filled button, at the page's end. */
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'),
-    el('span', { class: 'metaline' }, 'No payment is processed in this prototype.'),
+    /* Said as the pricing page says it: nothing is on sale, not merely
+       unpaid in a prototype. */
+    el('span', { class: 'metaline' }, 'Plans are not on sale yet — nothing can be bought.'),
   ]));
   return box;
 }

@@ -6525,8 +6525,10 @@ try {
       ${bf3}
       const out = {};
       navigate('/pricing'); await w(150);
-      out.free = await press(btn('Switch to Free')) && at();
-      out.pro = await press(btn('Switch to Equities Research')) && at();
+      /* The buttons say they preview a plan in this browser since the launch
+         audit (audit: content) — no plan is on sale to switch to. */
+      out.free = await press(btn('Return to Free in this browser')) && at();
+      out.pro = await press(btn('Preview Equities Research in this browser')) && at();
       return out;
     })()`);
     await evaluate(`State.plan = 'pro'; store.write('plan', 'pro'); true`);
@@ -10364,6 +10366,192 @@ try {
     }
   }
   /* ---- end audit: quality ---- */
+
+  /* ---- audit: content ---- */
+  /* THE LAUNCH AUDIT'S CONTENT FIXES (owner's decisions, 29 Sep 2026).
+     /pricing stays in the header and the sitemap but says the plans are not
+     on sale, and no control on it reads as a purchase: a plan's button says
+     it previews the plan in this browser, which is all it does. Terms and
+     Privacy are drafts and say so first; the operating entity, its address,
+     its contact email and the domain are markers styled as gaps, never
+     filled in. Privacy says what the build processes, read from the code —
+     every key it stores, no cookies, analytics only if the page carries the
+     tag — and carries the PDPA 2010 notice with its Bahasa Malaysia version
+     marked as to be supplied. Contact says what works today, and its one
+     working route opens. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const main = () => document.querySelector('main');
+      const keep = State.plan;
+      State.plan = 'free'; store.write('plan', 'free');
+      navigate('/pricing'); await w(200);
+      const out = {};
+      out.h1 = main().querySelector('h1')?.textContent.trim() || '';
+      out.lead = main().querySelector('.page-hd .body-lg')?.textContent.trim() || '';
+      const controls = () => [...main().querySelectorAll('button, a[href], [role=button]')].filter(n => n.getClientRects().length)
+        .map(n => ((n.getAttribute('aria-label') || '') + ' ' + n.textContent).trim().replace(/\\s+/g, ' '));
+      const cards = () => [...main().querySelectorAll('.plan-card')].map(c => ({ name: c.querySelector('h3')?.textContent.trim(),
+        chips: [...c.querySelectorAll('.chip')].map(x => x.textContent.trim()),
+        cta: c.querySelector('.plan-cta')?.textContent.trim(), primary: !!c.querySelector('.plan-cta.btn-primary'),
+        text: c.innerText.replace(/\\n+/g, ' / ') }));
+      out.free = PLANS.free.name;
+      out.controls = controls(); out.cards = cards();
+      const card = (id) => [...main().querySelectorAll('.plan-card')].find(c => c.querySelector('h3')?.textContent.trim() === PLANS[id].name);
+      const pro = card('pro')?.querySelector('button');
+      pro?.focus(); pro?.click(); await w(200);
+      out.plan = State.plan; out.toast = document.getElementById('toast')?.textContent || '';
+      out.controlsAfter = controls(); out.cardsAfter = cards();
+      const free = card('free')?.querySelector('button');
+      free?.focus(); free?.click(); await w(200);
+      out.planBack = State.plan; out.toastFree = document.getElementById('toast')?.textContent || '';
+      out.header = [...document.querySelectorAll('#pubnav a, #pubSheet a')].some(a => (a.dataset.path || a.getAttribute('href')) === '/pricing');
+      out.meta = document.querySelector('meta[name=description]')?.content || '';
+      State.plan = keep; store.write('plan', keep);
+      return out;
+    })()`);
+    const sitemap = await (await fetch(`${BASE}/sitemap.xml`)).text();
+    const BUY = /\b(subscribe|buy|upgrade|get started|checkout|check out|purchase|order now|add to cart|switch to|start (your )?(free )?trial)\b/i;
+    const p = [];
+    if (!/not on sale/i.test(r.h1)) p.push(`the heading reads "${r.h1}"`);
+    for (const [re, what] of [[/nothing on this page can be bought/i, 'nothing can be bought'], [/no payment provider/i, 'there is no payment provider'],
+      [/no refund policy/i, 'no refund policy is needed'], [/proposed/i, 'the prices are proposed']])
+      if (!re.test(r.lead)) p.push(`the lead does not say ${what}: "${r.lead.slice(0, 160)}"`);
+    [...new Set([...r.controls, ...r.controlsAfter])].filter(t => BUY.test(t)).forEach(t => p.push(`a control reads as a purchase: "${t}"`));
+    const paid = r.cards.filter(c => c.name !== r.free);
+    if (r.cards.length !== 3 || paid.length !== 2) p.push(`${r.cards.length} plan cards`);
+    for (const c of paid) {
+      if (!c.chips.includes('Not on sale')) p.push(`${c.name}: chips ${JSON.stringify(c.chips)}`);
+      if (!/proposed/i.test(c.text)) p.push(`${c.name}: its price is not said to be proposed`);
+      if (!/^Preview .+ in this browser$/.test(c.cta || '')) p.push(`${c.name}: its button reads "${c.cta}"`);
+    }
+    if ([...r.cards, ...r.cardsAfter].some(c => c.primary)) p.push('a plan button is drawn as the page\'s primary action');
+    if (r.plan !== 'pro' || !/^Previewing .+ in this browser/.test(r.toast) || !/not on sale/.test(r.toast)) p.push(`after the preview: plan ${r.plan}, toast "${r.toast}"`);
+    const back = r.cardsAfter.find(c => c.name === r.free)?.cta || '';
+    if (!/in this browser/.test(back)) p.push(`with a paid plan previewed, Free's button reads "${back}"`);
+    if (r.planBack !== 'free' || /Switched to/.test(r.toastFree)) p.push(`back to Free: plan ${r.planBack}, toast "${r.toastFree}"`);
+    if (!r.header) p.push('the header has no Pricing link');
+    if (!/<loc>[^<]*\/pricing<\/loc>/.test(sitemap)) p.push('sitemap.xml does not list /pricing');
+    if (!/not on sale/i.test(r.meta)) p.push(`the page's description reads "${r.meta}"`);
+    if (p.length) fail('audit content C1: /pricing says the plans are not on sale and no control on it reads as a purchase', p);
+    else ok(`audit content C1: /pricing reads "${r.h1}", its lead says nothing can be bought, no payment provider exists and no refund policy is needed; each paid plan is marked not on sale at a proposed price, its button previews it in this browser, and it stays in the header and the sitemap`);
+  }
+  {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const SRC = new URL('./src/js/', import.meta.url);
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const main = () => document.querySelector('main');
+      const page = async (path) => {
+        navigate(path); await w(200);
+        const m = main(), first = m.querySelector('.page-hd')?.nextElementSibling;
+        const marks = [...m.querySelectorAll('.tbs')].map(n => {
+          const cs = getComputedStyle(n), box = n.closest('.card') || m;
+          return { key: n.dataset.tbs, text: n.textContent.trim().replace(/\\s+/g, ' '), border: cs.borderTopStyle, bg: cs.backgroundColor,
+            color: cs.color, around: getComputedStyle(n.parentElement).color, card: getComputedStyle(box).backgroundColor };
+        });
+        return { text: m.innerText, first: first?.innerText.replace(/\\s+/g, ' ').trim() || '', marks,
+          heads: [...m.querySelectorAll('h2, h3')].map(h => h.tagName + ' ' + h.textContent.trim()) };
+      };
+      const out = {};
+      const tag = document.querySelector('script[src*="/_vercel/insights/"]');
+      out.tag = !!tag;
+      out.privacy = await page('/privacy');
+      out.terms = await page('/terms');
+      out.about = await page('/about');
+      out.contact = await page('/contact');
+      /* The analytics sentence is read from the page's own tags: without the
+         tag the page must say there is no analytics. */
+      if (tag) { const at = tag.nextSibling; tag.remove(); out.noTag = (await page('/privacy')).text; at ? at.before(tag) : document.head.append(tag); }
+      else out.noTag = out.privacy.text;
+      navigate('/contact'); await w(200);
+      const rb = [...main().querySelectorAll('button')].find(b => b.textContent.trim() === 'Report a data error');
+      out.report = !!rb;
+      rb?.focus(); rb?.click(); await w(300);
+      const dr = document.getElementById('drawer');
+      out.drawer = dr && !dr.hidden ? { title: document.getElementById('drawerTitle')?.textContent.trim(), text: dr.innerText.slice(0, 600) } : null;
+      if (dr && !dr.hidden) closeDrawer({ restore: false });
+      out.cookie = document.cookie;
+      out.contactEmail = LAUNCH.contactEmail;
+      return out;
+    })()`);
+    const p = [];
+    /* Drafts, said first. */
+    for (const k of ['privacy', 'terms'])
+      if (!/^Draft — not yet reviewed by a lawyer\./.test(r[k].first)) p.push(`${k}: the first thing under the heading is "${r[k].first.slice(0, 80)}"`);
+    /* The markers: present, and drawn as gaps rather than as body text. */
+    const need = { privacy: ['entity', 'address', 'email', 'domain', 'bm'], terms: ['entity', 'address', 'email', 'domain'], about: ['entity', 'address'], contact: ['email', 'address', 'entity'] };
+    for (const [k, keys] of Object.entries(need)) {
+      const have = new Set(r[k].marks.map(m => m.key));
+      keys.filter(x => !have.has(x)).forEach(x => p.push(`${k}: no "${x}" marker`));
+      r[k].marks.filter(m => !/^To be supplied: \S/.test(m.text) || m.border !== 'dashed' || m.bg === m.card || /rgba\(0, 0, 0, 0\)|transparent/.test(m.bg) || m.color === m.around)
+        .forEach(m => p.push(`${k}: the "${m.key}" marker reads "${m.text}" with a ${m.border} border on ${m.bg}, ${m.color} in ${m.around} text`));
+    }
+    if (r.contactEmail) p.push('LAUNCH.contactEmail is set; this check describes a build with no contact address');
+    /* Privacy: what the build processes, true to the code. */
+    const pv = r.privacy.text;
+    for (const [re, what] of [[/no cookies/i, 'no cookies'], [/There are no accounts/, 'no accounts'], [/this site's own files|this site’s own files/, 'only this site\'s own files are requested'],
+      [/Report a data error[^.]*records the case in this browser and sends nothing/, 'what Report a data error does'], [/no contact address/i, 'that there is no contact address']])
+      if (!re.test(pv)) p.push(`privacy does not say ${what}`);
+    if (r.tag ? (!/Vercel Web Analytics/.test(pv) || /No analytics/.test(pv)) : !/No analytics/.test(pv)) p.push(`privacy's analytics statement disagrees with the page, which ${r.tag ? 'carries' : 'does not carry'} the tag`);
+    if (!/No analytics/.test(r.noTag) || /includes the Vercel Web Analytics script/.test(r.noTag)) p.push('without the analytics tag, privacy still describes analytics');
+    const pd = r.privacy.heads.join(' | ');
+    if (!/H2 Personal Data Protection Act 2010/.test(pd)) p.push(`privacy has no PDPA 2010 section: ${pd.slice(0, 200)}`);
+    for (const h of ['Who the data user is', 'What personal data is processed, and where it comes from', 'Purposes', 'Who it is disclosed to',
+      'Whether you must provide it', 'Access and correction', 'Your choices', 'Security and retention', 'Requests and complaints', 'Bahasa Malaysia'])
+      if (!r.privacy.heads.includes('H3 ' + h)) p.push(`the PDPA notice has no "${h}" part`);
+    if (!/not by machine/i.test(pv)) p.push('the Bahasa Malaysia note does not say the translation will not be machine-made');
+    /* Every key the code stores is named on the privacy page. */
+    const keys = new Set();
+    for (const f of readdirSync(SRC).filter(x => x.endsWith('.js'))) {
+      const s = readFileSync(new URL(f, SRC), 'utf8');
+      for (const m of s.matchAll(/store\.(?:write|read)\('([\w.-]+)'/g)) keys.add(m[1]);
+      for (const m of s.matchAll(/'(rateUnit(?:Built|Land))'/g)) keys.add(m[1]);
+      const u = s.match(/const USER_DATA_KEY = '([\w.-]+)'/); if (u) keys.add(u[1]);
+    }
+    const NAMED = {
+      alertKinds: /which alert types the feed shows/, areaProfiles: /locality profiles/, baseCcy: /base currency/, borrowerProfile: /borrower profile/,
+      compare: /companies you put in a comparison/, compareCcy: /currency the Compare and screener pages total in/, comparisons: /saved comparisons/,
+      corrections: /data-error cases you record/, dash: /dashboard layout/, dashVisit: /when you last opened your dashboard/, deal: /property inputs/,
+      dealBeforeLink: /deal you had before opening a shared link/, demand: /demand records/, density: /table density/, dividendsReceived: /dividends you record/,
+      explainDepth: /how much explanation to show/, lang: /language of the property pages/, launcherAnswers: /launcher and onboarding questions/,
+      manualPrices: /prices or statement lines you paste in/, observations: /prices and rents you record in the comparables register/,
+      onboarding: /whether you dismissed the introduction/, opportunities: /saved property candidates/, plan: /the plan you are previewing/,
+      portfolios: /portfolio holdings/, priceAlerts: /price alerts/, propertyReportLog: /included property reports you used this month/,
+      propertyReportsBought: /property reports you unlocked/, qttiPlan: /trading-index observations/, rateUnitBuilt: /units for property rates/,
+      rateUnitLand: /units for property rates/, realData: /whether filed SEC data is switched on/, recentCompanies: /companies you recently viewed/,
+      registerActor: /name or initials you give the register log/, registerLog: /register records/, reportLog: /company reports you opened this month/,
+      requiredDiscount: /required discount/, reviews: /reviews you write/, runs: /saved valuation runs/, sarawakExposure: /Sarawak exposure records/,
+      savedScreens: /saved screens/, savedWork: /saved-work snapshots/, scanAlertState: /scanner alerts you have read or archived/,
+      scanPrefs: /scanner notification and display preferences/, scanSetups: /scanner setups with every version/, screen: /screener’s current filters/,
+      screenCcy: /currency the Compare and screener pages total in/, sensAxes: /valuation sensitivity grid/, theme: /theme/, theses: /investment cases/,
+      valuation: /valuation assumptions you edit/, watchlist: /watchlists/, watchlists: /watchlists/, wheelLegs: /Cash Wheel plan and its legs/,
+      wheelPlan: /Cash Wheel plan/, wht: /withholding-tax settings/, wlActive: /which watchlist is active/, userData: /prices or statement lines you paste in/,
+    };
+    const unnamed = [...keys].filter(k => !NAMED[k] || !NAMED[k].test(pv));
+    if (keys.size < 40 || unnamed.length) p.push(`${unnamed.length} of the ${keys.size} stored keys are not named on the privacy page: ${unnamed.join(', ')}`);
+    /* No cookies: none in the browser, none set by a response. */
+    if (r.cookie) p.push(`document.cookie holds "${r.cookie.slice(0, 80)}"`);
+    for (const path of ['/', '/privacy', '/pricing', `/data/instruments.json`]) {
+      const res = await fetch(BASE + path);
+      if (res.headers.get('set-cookie')) p.push(`${path} answers with Set-Cookie`);
+    }
+    /* Terms: the service as it is. */
+    const tm = r.terms.text;
+    for (const [re, what] of [[/research tool/i, 'a research tool'], [/not advice/i, 'no advice'], [/synthetic|illustrative/i, 'illustrative data'],
+      [/without any promise|no warranty/i, 'no warranty'], [/places, routes or executes/i, 'no execution'], [/local storage/i, 'local storage'],
+      [/no account/i, 'no accounts'], [/not on sale/i, 'pricing not on sale'], [/laws of Malaysia/, 'governing law Malaysia']])
+      if (!re.test(tm)) p.push(`terms do not cover ${what}`);
+    /* About and Contact: true about who runs this and what works. */
+    if (/does not carry on any regulated activity/.test(r.about.text)) p.push('about states a legal conclusion no opinion has given: "does not carry on any regulated activity"');
+    if (!/No operating company has been registered/.test(r.about.text)) p.push('about no longer says no entity is registered');
+    if (!/There is no contact address yet/.test(r.contact.text)) p.push('contact does not say there is no contact address yet');
+    if (!r.report || !r.drawer || r.drawer.title !== 'Report a data error' || !/does not send anything/.test(r.drawer.text)) p.push(`contact's Report a data error: button ${r.report}, drawer ${JSON.stringify(r.drawer)?.slice(0, 160)}`);
+    if (/most useful thing you can tell us/.test(r.contact.text)) p.push('contact asks the reader to tell "us" with no way to reach anyone');
+    if (p.length) fail('audit content C2–C5: Terms and Privacy are marked drafts with their gaps shown as markers, Privacy says what the build processes and gives the PDPA notice, and About and Contact say what is true today', p);
+    else ok(`audit content C2–C5: Terms and Privacy open "Draft — not yet reviewed by a lawyer"; the entity, address, contact email and domain are dashed "To be supplied" markers on all four trust pages; Privacy names all ${keys.size} stored keys, no cookies (none set by any response), ${r.tag ? 'the analytics tag as it is' : 'no analytics'}, and the PDPA 2010 notice in ten parts with the Bahasa Malaysia version to be supplied; Terms cover the service and Malaysian law; About claims no legal conclusion; Contact's Report a data error opens and says it sends nothing`);
+  }
+  /* ---- end audit: content ---- */
 
 } catch (e) {
   fail('harness error', e.message);

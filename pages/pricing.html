@@ -7,7 +7,7 @@
      that does not run the script reads the same positioning the router sets
      (35-ui.js ROUTES and META.marketing). -->
 <title>Pricing · Quantum Tradeworks</title>
-<meta name="description" content="Plans and pricing for Quantum Tradeworks research and property reports.">
+<meta name="description" content="Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#2764E7">
 <link rel="canonical" href="https://quantum-tradeworks.vercel.app/pricing">
@@ -17,7 +17,7 @@
 <meta property="og:site_name" content="Quantum Tradeworks">
 <meta property="og:url" content="https://quantum-tradeworks.vercel.app/pricing">
 <meta property="og:title" content="Pricing · Quantum Tradeworks">
-<meta property="og:description" content="Plans and pricing for Quantum Tradeworks research and property reports.">
+<meta property="og:description" content="Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.">
 <meta property="og:image" content="https://quantum-tradeworks.vercel.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -25,7 +25,7 @@
 <meta property="og:locale" content="en_MY">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Pricing · Quantum Tradeworks">
-<meta name="twitter:description" content="Plans and pricing for Quantum Tradeworks research and property reports.">
+<meta name="twitter:description" content="Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.">
 <meta name="twitter:image" content="https://quantum-tradeworks.vercel.app/og.png">
 
 <!-- App-icon variant of the mark. The chart and building are dropped here:
@@ -1943,6 +1943,18 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent);
 }
 .plan-current svg { width: 15px; height: 15px; }
+/* A plan's price. A proposed one — every paid tier, since none is on sale
+   (launch audit, 29 Sep 2026) — is set back a step, as the unlaunched tier's
+   was: shown so the plan can be read, not offered. */
+.plan-price { font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
+.plan-price-proposed { color: var(--ink-3); }
+/* The lede is the page's answer — nothing can be bought, there is no
+   payment provider, no refund policy is needed — not preamble, so a phone
+   shows it whole. The standfirst rule (.page-hd .body-lg, above) clamped it
+   to two lines at 390px, after "shown so you can see what is planne…". */
+@media (max-width: 760px) {
+  .page-hd .body-lg.plan-lede { display: block; -webkit-line-clamp: unset; overflow: visible; }
+}
 @media (max-width: 599px) {
   table.dt-stack, table.dt-stack tbody, table.dt-stack tr, table.dt-stack td { display: block; width: auto; }
   table.dt-stack { min-width: 0; }
@@ -3315,6 +3327,55 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
   background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1);
 }
 /* ---- end audit: quality ---- */
+
+/* ---- audit: content ---- */
+/* THE TRUST PAGES (55-views-public.js — About, Contact, Privacy, Terms).
+   A "To be supplied" marker is a gap, not a detail: the operating entity,
+   its address, its contact email and the domain do not exist yet, and a
+   placeholder set in body text reads as a fact. So the marker is drawn as
+   the product's placeholder is everywhere — bronze on its wash, the colour
+   pair tuned for text a reader must not skim past — with a dashed edge no
+   filled-in detail has, and its label in capitals. It sits in the sentence
+   as one piece: an inline box split "TO BE / SUPPLIED: domain" across two
+   lines at 1440, so it is an inline block that moves to the next line
+   whole, and wraps inside itself only when it is wider than the line — the
+   longest, "Bahasa Malaysia translation", is, on a 360px phone. */
+.tbs {
+  display: inline-block; max-width: 100%; padding: 0 7px; margin: 1px 2px; vertical-align: baseline;
+  border: 1px dashed color-mix(in srgb, var(--bronze) 72%, transparent); border-radius: var(--r-xs);
+  background: var(--bronze-wash); color: var(--bronze);
+  font-size: 13px; font-weight: 600; line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.tbs-k { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+/* A legal page is read, not scanned: one column at a reading width. The
+   cards ran the shell's full 1,216px at 1440 with their words in the left
+   half. */
+.trust-page { max-width: 760px; }
+/* The draft line, first under the heading of Terms and Privacy: the
+   pricing page's not-on-sale bar, in the same bronze, so "not settled"
+   looks the same wherever it is said. */
+.trust-draft {
+  border-left: 3px solid var(--bronze);
+  background: color-mix(in srgb, var(--bronze-wash) 50%, var(--surface));
+}
+.trust-draft .body { color: var(--ink-2); max-width: 75ch; }
+.trust-draft strong { color: var(--ink); font-weight: 700; }
+/* A card's paragraphs and lists: spaced as the inline 8px was, and held to
+   a readable measure — at 1440 a paragraph ran the card's full 1,100px. */
+.trust-card > * + * { margin-top: var(--xs); }
+.trust-card p, .trust-card li { max-width: 75ch; }
+.trust-card p:not(.metaline) { color: var(--ink-2); line-height: 1.6; }
+.trust-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: var(--xs); }
+.trust-list li { color: var(--ink-2); line-height: 1.6; }
+.trust-list li::marker { color: var(--ink-3); }
+.trust-list strong { color: var(--ink); font-weight: 600; }
+.trust-card a:not(.btn) { color: var(--brand); text-underline-offset: 3px; }
+/* A section within a page — the PDPA notice under Privacy — opens with a
+   rule and room, so the notice reads as its own document, not as more cards. */
+.trust-section { margin-top: var(--lg); padding-top: var(--lg); border-top: 1px solid var(--line); }
+.trust-section .body { max-width: 75ch; }
+/* ---- end audit: content ---- */
 </style>
 <!--
   NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
@@ -4156,9 +4217,11 @@ const PLANS = {
        and a later launch is a flag change rather than a rebuild, but never
        offered — a tier a user cannot obtain must not appear purchasable. The
        plans page shows it marked not on sale, at a proposed price, and its
-       button previews the entitlements in this browser as every card's switch
-       does (VIEWS.plans, 90-area-screen.js). Whether that preview should be
-       reachable at all is an open product decision. */
+       button previews the entitlements in this browser as every card's
+       button does (VIEWS.plans, 90-area-screen.js) — since the launch audit
+       no plan is on sale, so every paid tier is a proposal and a preview.
+       Whether that preview should be reachable at all is an open product
+       decision. */
     id:'all', name:'All-Access', launched:false,
     tagline:'Cross-asset — not launched. Introduce only after both products show demand', priceMo:79, priceYr:699,
     blurb:'Everything in Equities Research, plus the property portfolio, two standard property reports a month, and the consolidated net-worth view.',
@@ -4170,19 +4233,12 @@ const PLANS = {
 };
 const PROPERTY_REPORT_PRICE = { basic:19, full:49, verified:89 };
 
-/* The single pricing surface. Anything that displays a price reads this, so a
-   change lands everywhere at once and two pages cannot drift apart again. */
-const PRICING = {
-  free:     { name:'Free', price:'RM0',
-              line:`${PLANS.free.limits.reportsPerMonth} company reports a month` },
-  founding: { name:PLANS.pro.foundingName, price:`RM${PLANS.pro.founding}`,
-              period:'for the first year',
-              line:`Limited to ${PLANS.pro.foundingSeats} members. Renews at RM${PLANS.pro.priceYr} a year.` },
-  standard: { name:PLANS.pro.name, price:`RM${PLANS.pro.priceMo}`, period:'a month',
-              line:`Or RM${PLANS.pro.priceYr} a year after the beta.` },
-  property: { name:'Property report', price:`RM${PROPERTY_REPORT_PRICE.basic}`, period:'and up',
-              line:`Saved analysis RM${PROPERTY_REPORT_PRICE.basic} · full report RM${PROPERTY_REPORT_PRICE.full} · verified RM${PROPERTY_REPORT_PRICE.verified}.` },
-};
+/* PLANS and PROPERTY_REPORT_PRICE are the pricing surface: the plans page
+   and every offer read them. A second table, PRICING, held the same prices
+   as sales lines — "Limited to 500 members. Renews at RM299 a year." — and
+   nothing read it; with no plan on sale (launch audit, 29 Sep 2026) a
+   renewal line waiting to be surfaced was a purchase claim in waiting, so it
+   is gone rather than kept in step. */
 
 const State = {
   view: 'home',
@@ -4327,10 +4383,14 @@ function setPlan(id) {
      comparison that the page, a click later, said holds up to two. */
   clampToPlan();
   /* A tier that is not on sale is previewed, not switched to: "Switched to
-     All-Access" read as a plan the reader now had. */
-  toast(PLANS[id].launched === false
-    ? `Previewing ${PLANS[id].name} in this browser — it has not launched and cannot be bought`
-    : `Switched to ${PLANS[id].name} — no payment was taken, this is a prototype`);
+     All-Access" read as a plan the reader now had. Since the launch audit
+     (29 Sep 2026) no tier is on sale, so "Switched to Equities Research — no
+     payment was taken" read the same way: every paid tier is previewed, and
+     the toast says so; going back to Free is only that. */
+  const pl = PLANS[id];
+  toast(id === 'free' ? `Back on ${pl.name} in this browser`
+    : pl.launched === false ? `Previewing ${pl.name} in this browser — it has not launched and cannot be bought`
+    : `Previewing ${pl.name} in this browser — plans are not on sale yet, and nothing was charged`);
   /* The button pressed on /pricing comes back from the redraw as the
      disabled "Current plan", which cannot hold focus, so a keyboard reader
      who switched plan was left on <body>. Focus goes to the heading of the
@@ -4353,7 +4413,9 @@ function upsell(title, detail) {
     /* Outline: a plan prompt is never the page's primary action — on the
        property calculator it was the only filled button, at the page's end. */
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'),
-    el('span', { class: 'metaline' }, 'No payment is processed in this prototype.'),
+    /* Said as the pricing page says it: nothing is on sale, not merely
+       unpaid in a prototype. */
+    el('span', { class: 'metaline' }, 'Plans are not on sale yet — nothing can be bought.'),
   ]));
   return box;
 }
@@ -16194,7 +16256,7 @@ const META = {
   scannerAdminDelivery: 'Which delivery channels exist for scanner alerts — in-app only — and why email, Telegram and push are not configured.',
   /* /Phase 3 — ops */
   learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
-  plans:     'Plans and pricing for Quantum Tradeworks research and property reports.',
+  plans:     'Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.',
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
      Each says what the page is, and claims nothing it does not do. */
@@ -16218,9 +16280,9 @@ const META = {
   workspace:   'Everything you have saved in this browser, across kinds, with the model and data version each was saved against.',
   ips:         'The Investment Policy Statement this product’s calculations carry out, and where the product departs from it.',
   about:       'What Quantum Tradeworks is and is not, and who is responsible for it.',
-  contact:     'How to report a wrong figure, and where the contact route will be published.',
-  privacy:     'What this build stores, where it stores it, and what leaves your device.',
-  terms:       'The terms this build is offered under: research, not advice.',
+  contact:     'What works today to report a wrong figure — the report form records a case in your browser — and where a contact route will be published.',
+  privacy:     'What this build stores, where it stores it and what leaves your device — no cookies, no accounts — and a draft PDPA 2010 notice.',
+  terms:       'Draft terms for this build: a research tool, not advice, with illustrative data, no warranty and nothing for sale; governed by Malaysian law.',
 };
 
 /* The app is mounted at the domain root in production, but served from a
@@ -29032,30 +29094,91 @@ function emptyStateCta(title, body, ctaLabel, ctaPath) {
    is not yet registered — a reader can act on the second and is misled by the
    first.
    ========================================================================== */
+
+/* THE DETAILS NOBODY HAS SUPPLIED YET, IN ONE TABLE (launch audit, 29 Sep
+   2026). Terms, Privacy and its PDPA notice need the operating entity's
+   name, its registered address, a contact email and the domain the site
+   launches on — and none exists: no entity is registered, and the contact
+   address is LAUNCH.contactEmail (15-derivation.js), which is empty. Typed
+   into four pages as prose, a placeholder reads as a fact and a real detail
+   has to be found four times. So every page reads them from here: an empty
+   value draws a "To be supplied" marker, styled as a gap rather than as body
+   text, and a value the owner supplies replaces the marker on every page at
+   once. The Bahasa Malaysia version of the PDPA notice is marked the same
+   way. wording-check.mjs holds the table empty until a detail arrives from
+   the owner, and fails on an email, a company name or a registration number
+   written into these pages instead. */
+const OPERATOR = {
+  entity:  { label: 'operating entity name', value: '' },
+  address: { label: 'registered address', value: '' },
+  email:   { label: 'contact email', value: () => LAUNCH.contactEmail },
+  domain:  { label: 'domain', value: '' },
+  bm:      { label: 'Bahasa Malaysia translation', value: '' },
+};
+/* The detail, or its marker. The marker's words are real text — "To be
+   supplied: contact email" — so a screen reader hears the gap as a sighted
+   reader sees it. */
+function supplied(k) {
+  const d = OPERATOR[k];
+  const v = typeof d.value === 'function' ? d.value() : d.value;
+  if (v) return k === 'email' ? el('a', { href: `mailto:${v}` }, v) : v;
+  return el('span', { class: 'tbs', 'data-tbs': k }, [el('span', { class: 'tbs-k' }, 'To be supplied:'), ` ${d.label}`]);
+}
+/* A paragraph of words and nodes (a marker, a link), and a list. */
+const tp = (...parts) => el('p', {}, parts);
+const tlist = (items) => el('ul', { class: 'trust-list' }, items.map(i => el('li', {}, i)));
+const tlink = (text, path) => el('a', { href: href(path), 'data-path': path }, text);
+
+/* READ FROM THE PAGE, AS THE WAITLIST SENTENCE IS READ FROM LAUNCH. The
+   analytics tag lives in the HTML shell (src/index.template.html), which the
+   launch audit takes it out of until analytics returns with a consent
+   notice. A sentence typed here would be true of one shell and false of the
+   other: the privacy page said "This deployment includes the Vercel Web
+   Analytics script" whatever the page carried. */
+const analyticsTagged = () => !!document.querySelector('script[src*="/_vercel/insights/"]');
+
 /* Headed as every page but the two marketing ones is: an eyebrow naming the
    menu it is reached from, a 24px title, a standfirst. As 40px display
    headings these four were a fifth heading size on the public chrome, beside
-   /pricing and /learn at 24px under the same header. */
-function trustPage(title, lede, blocks) {
-  const wrap = el('div', { class: 'stack' });
+   /pricing and /learn at 24px under the same header.
+   `draft` puts the draft line first under the heading, before anything a
+   reader could take as settled. A block that is an object, { section, lede },
+   opens a section of its own: its title is the h2 and the cards after it
+   take h3, so the outline steps down rather than flattening a notice into
+   the cards around it. */
+function trustPage(title, lede, blocks, { draft } = {}) {
+  const wrap = el('div', { class: 'stack trust-page' });
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Resources'),
     el('h1', {}, title),
     el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
   ])));
-  blocks.forEach(([heading, body, pending]) => {
-    const card = el('div', { class: 'card' });
-    card.append(el('div', { class: 'row', style: 'gap:8px' }, [
-      el('h2', { class: 'h-card' }, heading),
+  if (draft) wrap.append(el('div', { class: 'card trust-draft' },
+    el('p', { class: 'body' }, [el('strong', {}, 'Draft — not yet reviewed by a lawyer.'), ` ${draft}`])));
+  let level = 'h2';
+  blocks.forEach(b => {
+    if (!Array.isArray(b)) {
+      wrap.append(el('div', { class: 'trust-section' }, [
+        el('h2', { class: 'h-section' }, b.section),
+        b.lede ? el('p', { class: 'body', style: 'margin-top:6px' }, b.lede) : null,
+      ]));
+      level = 'h3';
+      return;
+    }
+    const [heading, body, pending] = b;
+    const card = el('div', { class: 'card trust-card' });
+    card.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+      el(level, { class: 'h-card' }, heading),
       pending ? el('span', { class: 'chip chip-bronze' }, 'not yet established') : null,
     ]));
     /* A paragraph may be a [text, path] pair, which renders as a real link.
        "See the contact page." was a bare <p> whose closest('a') was null, so the
-       one sentence on the About page that points somewhere pointed nowhere. */
+       one sentence on the About page that points somewhere pointed nowhere.
+       A node (tp, tlist) is placed as it is. */
     (Array.isArray(body) ? body : [body]).forEach(p => {
-      if (Array.isArray(p)) card.append(el('p', { style: 'margin-top:8px' },
-        el('a', { href: href(p[1]), 'data-path': p[1] }, p[0])));
-      else card.append(el('p', { class: pending ? 'metaline' : '', style: 'margin-top:8px' }, p));
+      if (p?.nodeType) card.append(p);
+      else if (Array.isArray(p)) card.append(el('p', {}, tlink(p[0], p[1])));
+      else card.append(el('p', { class: pending ? 'metaline' : '' }, p));
     });
     wrap.append(card);
   });
@@ -29075,79 +29198,175 @@ VIEWS.about = () => trustPage('About',
       ['Not advice. It does not tell you what to buy, hold or sell, produces no ratings or target prices, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment.',
        'Not a data vendor. It does not redistribute market data, and where a price is shown its source and licence are stated on the page.']],
     ['Legal entity and registration',
-      'No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.', true],
+      ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',
+       tp('Operating entity: ', supplied('entity'), ' · Registered address: ', supplied('address'))], true],
     ['The people responsible',
       'Not published. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
+    /* It said the product "does not carry on any regulated activity". That
+       is the conclusion a Malaysian securities-law opinion would give, and
+       the launch audit's first blocker is that no such opinion exists yet —
+       the page asserted the answer to the question still open. What is true
+       is what the product is built to do and that the opinion is pending. */
     ['Regulatory position',
-      'This product is not licensed by the Securities Commission Malaysia and does not carry on any regulated activity. It publishes research and calculators; it gives no personal recommendation.'],
+      'This product is not licensed by the Securities Commission Malaysia. It is built to publish research and calculators and to give no personal recommendation. Whether that keeps it outside the activities the Capital Markets and Services Act 2007 regulates has not yet been confirmed by a legal opinion, and one is required before a public launch.'],
     ['Conflicts of interest',
       ['Nothing on this site is paid for. There are no broker commissions, no mortgage introductions, no developer fees, no advertising, no issuer payments and no sponsored content.',
        'If any of that changes it will be declared here before it takes effect. A score or a valuation must never move because of who paid — that is the one commitment this product cannot trade away.']],
     ['Contact', [['See the contact page.', '/contact']]],
   ]);
 
+/* WHAT WORKS TODAY, SAID FIRST. The page opened "If a number here is
+   wrong, that is the most useful thing you can tell us" on a site with no
+   address to tell anyone at, and said every correction is published in the
+   log — a reader's case is not; nobody receives it. The one route that
+   works is the report form, which records a case in this browser and sends
+   nothing; the page now says exactly that, and opens it. The address comes
+   from OPERATOR, so when LAUNCH.contactEmail is set the marker becomes the
+   address — the page did not read it at all, although LAUNCH's own note
+   says /contact does. */
 VIEWS.contact = () => trustPage('Contact',
-  'How to reach whoever is responsible for a page, a figure or a correction.',
+  'What works today to reach whoever is responsible for a page, a figure or a correction — and what does not exist yet.',
   [
-    ['Corrections',
-      'If a number here is wrong, that is the most useful thing you can tell us. Every correction is published in the corrections log with what was wrong, what it is now and why.'],
+    ['What works today',
+      [(() => {
+        const v = OPERATOR.email.value();
+        return v
+          ? tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.')
+          : tp('There is no contact address yet — no email, no form and no telephone number — so nothing you write on this site reaches anyone.');
+      })(),
+       tp('One route does work. ', el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. It does not send the case: the last step hands it to you as text to copy, and every case you record is listed under ', tlink('Corrections', '/corrections'), ', ready to send once there is somewhere to send it.'),
+       el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+         el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
+       ])]],
     ['Contact address',
-      'Not yet published. A contact route will be listed here alongside the registered entity rather than before it.', true],
+      [tp('Email: ', supplied('email'), ' · Post: ', supplied('address'), ', for ', supplied('entity'), '.'),
+       'A contact route will be listed here alongside the registered entity rather than before it.'], true],
     ['What to include',
       'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'],
+    ['The corrections log',
+      [tp('The ', tlink('corrections log', '/corrections'), ' records corrections made to this build — what was wrong and what changed, dated by the change. A case you record is not added to it, because nobody has received it.')]],
   ]);
 
-VIEWS.privacy = () => trustPage('Privacy',
-  'What this build stores, where it stores it, and what leaves your device.',
-  [
+VIEWS.privacy = () => {
+  const tagged = analyticsTagged();
+  const nos = ['no accounts', 'no cookies', tagged ? null : 'no analytics', waitlistReady() ? null : 'no form that sends anything'].filter(Boolean);
+  /* "In short" is built from the same flags as the sentences below it, so
+     the summary cannot say more than the page does. The one thing that does
+     travel — a page's own address, which the property calculator fills with
+     the deal's figures — is named here too, not only further down. */
+  return trustPage('Privacy',
+    'What this build stores, where it stores it and what leaves your device — then the notice the Personal Data Protection Act 2010 asks for.',
+    [
+    ['In short',
+      [`The site sends nothing you enter to anyone${waitlistReady() ? ', except an email address you choose to give the waitlist' : ''}: there ${nos.length === 1 ? 'is' : 'are'} ${nos.slice(0, -1).join(', ')}${nos.length > 1 ? ' and ' : ''}${nos[nos.length - 1]}. Your browser asks this site for its own files and nothing else, and what you save stays in this browser, on your device. The one thing that travels is a page’s own address when the page is loaded — the property calculator keeps the deal’s figures in it — as set out below.`]],
     ['What is stored',
       /* The full list, because a privacy page that names some of what it
          stores is worse than one that names none: it invites the reader to
          assume the rest is not there. The borrower profile in particular —
          income, commitments, credit conduct — is the most personal thing this
-         product holds and was not on this page. */
-      ['Everything this product remembers is held in this browser’s local storage, and none of it is sent anywhere: your watchlists, saved screens, investment cases and the reviews you write of them, saved valuation runs and the valuation assumptions you edit, saved comparisons, portfolio holdings and the dividends you record against them, price alerts, the companies you recently viewed, the Cash Wheel plan and its legs, withholding-tax settings, property inputs and the evidence and register records behind them (with the name or initials you give the register log), the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct), saved property candidates and the report-purchase log, Sarawak exposure records, your trading-index observations, your scanner setups with every version of each, which scanner alerts you have read or archived, your scanner notification and display preferences, any prices or statement lines you paste in, the data-error cases you record, saved-work snapshots, your answers to the launcher and onboarding questions, the plan you selected, and your theme and base currency. '
-       /* Named after an audit compared this list with every key the code
-          writes. The report log is a per-company reading record of the same
-          kind as recently viewed, and was missing with the rest. */
-       + 'Also: the companies you put in a comparison, the required discount you set on a valuation, which company reports you opened this month (counted against the plan’s monthly allowance), the screener’s current filters, which alert types the feed shows, the property deal you had before opening a shared link, and display preferences — dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the inputs you chose for the valuation sensitivity grid, the units for property rates, whether filed SEC data is switched on, and whether you dismissed the introduction.',
+         product holds and was not on this page.
+         Named after an audit compared this list with every key the code
+         writes; the launch audit did so again and found four more — the
+         area screen's locality profiles and demand records (both in the
+         export, PORTABLE_KEYS), which watchlist is active, and when the
+         dashboard was last opened. equity-test now compares the page with
+         the code's keys, so a new key is named or the check fails. Grouped
+         by what the reader made, so the list can be read. */
+      [tp('Everything this product remembers is held in this browser’s local storage, under this site’s address, and none of it is sent anywhere. Unlike a cookie, local storage is not sent with any request: it stays on this device until you clear it. It holds:'),
+       tlist([
+         [el('strong', {}, 'Your research: '), 'your watchlists and which watchlist is active; saved screens and the screener’s current filters; investment cases and the reviews you write of them; saved valuation runs, the valuation assumptions you edit, the required discount you set and the inputs you chose for the valuation sensitivity grid; saved comparisons and the companies you put in a comparison; portfolio holdings and the dividends you record against them; price alerts, and which alert types the feed shows; the companies you recently viewed, and which company reports you opened this month (counted against the plan’s monthly allowance); any prices or statement lines you paste in; the Cash Wheel plan and its legs; withholding-tax settings; and your trading-index observations.'],
+         [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
+         [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
+         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
+       ]),
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
-        'This deployment includes the Vercel Web Analytics script. Where the operator has switched analytics on, page views are counted: the path you visited, the site that referred you, your country, and whether you are on a phone or a desktop. It sets no cookies, stores no identifier, and cannot follow you to another site — there is no way to tell a returning visitor from a new one, which is the trade being made deliberately. Where it is not switched on, the script does not load and nothing is counted.',
-        'When SEC-filed companies are loaded, the filing data is fetched from a file served by this site. No request identifying you is made to any third party.',
+        tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and the published NAPIC summary. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
+        tp('Each request reaches the company that hosts this site, Vercel, carrying what every web request carries: your IP address, your browser’s name and version, and the address requested. This build does not read or keep those requests; what the host records about them, and for how long, is governed by the host’s own terms.'),
+        tp('Some pages keep what is on screen in their address, so that a copied link reproduces it. The property calculator writes the deal’s figures there — the price, the rent and the other inputs you changed, never the borrower profile. An address reaches the host only when a page is loaded with it: a reload, or a link someone opens.'),
+        tagged
+          ? tp('This deployment includes the Vercel Web Analytics script. Where the operator has switched analytics on, page views are counted: the path you visited, the site that referred you, your country, and whether you are on a phone or a desktop. It sets no cookies, stores no identifier, and cannot follow you to another site. Where it is not switched on, the request for the script is refused and nothing is counted.')
+          : tp('No analytics. This build loads no analytics, advertising or tracking script and counts no page views. If analytics is switched on later, it will come with a consent notice, and this page will say what it records before it records anything.'),
         /* Written from the same flag the waitlist renders from. If that form is
            ever switched on, this sentence appears with it — a privacy page that
            has to be remembered separately is one that will be wrong. */
-        ...(waitlistReady()
-          ? ['If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.']
-          : ['There is no form on this site that sends anything anywhere. No email address is requested and none can be submitted.']),
-        'Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.',
+        waitlistReady()
+          ? tp('If you enter an email address in the waitlist, that address is sent to the form service configured for this deployment and used for one message about launch. Nothing else on this page is sent with it.')
+          : tp('There is no form on this site that sends anything anywhere. No email address is requested and none can be submitted.'),
+        tp(el('strong', {}, 'Report a data error'), ' records the case in this browser and sends nothing — there is no contact address yet. Its last step hands you the case as text to copy; copying uses your clipboard only when you press the button.'),
+        tp('Exporting your data is the only other way anything leaves, and it goes to a file on your own machine when you ask for it.'),
+        tp('Links to outside sources — SEC EDGAR, NAPIC, Bursa Malaysia and others — take you to those sites only when you follow one. That visit is between you and that site; the policy this site is served with lets your browser tell it at most this site’s name, never the page you were on.'),
       ]],
+    ['Cookies',
+      'This build sets no cookies, and no response it is served with sets one. Your theme, the plan you are previewing and everything else it remembers are kept in local storage instead, which never travels with a request.'],
     ['What is never collected',
       'No brokerage credentials, no account numbers, no identity documents. The portfolio feature records what you type and nothing else.'],
     ['Clearing your data',
-      'Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly. Export first if you want to keep it — there is no copy on any server to fall back on.'],
-    ['A formal policy',
-      'This page describes the build as it actually behaves. A formal privacy policy naming a data controller follows the registered entity.', true],
-  ]);
+      [tp('Clearing this site’s storage in your browser removes everything the product holds about you, immediately and irreversibly. Export first if you want to keep it — ', tlink('Your data', '/my/data'), ' lists what is saved and writes it to a file. There is no copy on any server to fall back on.')]],
+    { section: 'Personal Data Protection Act 2010 — notice',
+      lede: 'The notice a data user gives under the Personal Data Protection Act 2010 (Malaysia): what personal data is processed and why, where it comes from, who it goes to, and how to ask for access or a correction. It is written for this build, which collects nothing on a server, and for what a launch would add — each addition listed here before it is collected.' },
+    ['Who the data user is',
+      [tp(supplied('entity'), ', ', supplied('address'), ', operating this site at ', supplied('domain'), '.'),
+       'No operating entity has been registered yet. The data user named here will be responsible for any personal data a launch collects; this build collects none on a server.']],
+    ['What personal data is processed, and where it comes from',
+      ['Today this build collects none. What you type — including the income, debts and credit record you may enter for the property calculator’s loan-readiness check — comes from you and stays in your browser, where no one else can read it. The only personal data that reaches anyone is what every web request carries to the host — your IP address and your browser’s name and version — as set out above.',
+       'A launch would add only what a feature needs, collected from you directly and listed here before it is collected: your email address and message if you write to the contact address; your email address if a waitlist opens; and, if accounts or paid plans are offered, the details they need, with payment handled by a provider named here first.']],
+    ['Purposes',
+      'Today there are none, because nothing is collected. At launch, personal data would be used only to answer a message or a correction you send, to send a launch message you asked for, to provide an account or a plan you chose, and to meet a legal obligation. It would not be sold, used for advertising, or used to send you marketing you have not agreed to.'],
+    ['Who it is disclosed to',
+      'Today, no one: this build holds nothing to disclose. At launch, only the service providers that run the site for the data user — the host, and an email or payment provider, each named here before it is used — and an authority where the law requires it. The host’s servers may be outside Malaysia; if a launch transfers personal data out of Malaysia, this notice will say where.'],
+    ['Whether you must provide it',
+      'Nothing is obligatory. Every page works without you giving any personal data. At launch, if you choose not to give an email address, the only consequence is that no reply or message can reach you.'],
+    ['Access and correction',
+      ['The Act gives you the right to ask a data user for a copy of the personal data it holds about you, to ask for it to be corrected, to withdraw your consent to its processing, and to require that it is not used for direct marketing.',
+       tp('Today this build holds nothing about you on a server, so there is nothing to request. What it stores is on your device and is yours to see, correct, export and delete — ', tlink('Your data', '/my/data'), ' lists it. At launch, send requests to ', supplied('email'), '.')]],
+    ['Your choices',
+      'You can use everything here without giving anything, and export or clear what this browser stores at any time. At launch you would be able to decline any message you did not ask for, and withdraw from one you did.'],
+    ['Security and retention',
+      'On your device, anyone who can use this browser profile can read what it stores — clear it on a shared computer. The site’s security policy stops the page itself connecting to any other address. At launch, personal data would be kept only as long as its purpose needs, and the period would be stated here.'],
+    ['Requests and complaints',
+      [tp('Write to ', supplied('email'), ' or to ', supplied('address'), '. Until these are supplied there is no one to send a request to — and nothing held to request.'),
+       'If a request is not resolved, you may complain to the Personal Data Protection Commissioner.']],
+    ['Bahasa Malaysia',
+      [tp('The Act requires this notice in the national language as well as in English. The Bahasa Malaysia version is ', supplied('bm'), ': it will be translated for legal use, not by machine, and until it is, this English draft is the only version.')]],
+  ], { draft: 'It describes what this build does, read from its code, but it is not a settled policy: no operating entity has been registered to give it, and every detail shown as “To be supplied” is a gap, not a fact.' });
+};
 
 VIEWS.terms = () => trustPage('Terms',
-  'The terms this build is offered under.',
+  'The terms this build is offered under: a research tool, not advice, with nothing for sale.',
   [
+    ['Who offers this site',
+      [tp(supplied('entity'), ', ', supplied('address'), ', at ', supplied('domain'), '.'),
+       'No operating entity has been registered yet. Until one is, these terms are published so you can see what this build is and is not, and on what footing it is offered.']],
+    ['What the service is',
+      'A research tool and a property calculator, in beta. It shows the figures companies reported, derives measures from them and models a range of values under assumptions you can see and change; the calculator models a property purchase from figures you enter. It is free to use, needs no account, and is offered as it stands.'],
     ['Research, not advice',
-      'Everything here is general information. It does not take account of your objectives, financial situation or needs, and nothing on this site is a recommendation to deal in any security or property.'],
-    ['Sample data',
-      'The Malaysian companies carry synthetic financials that exist to demonstrate the interface, as does any US listing marked illustrative; the rest of the US set carries audited statements from SEC filings. Each company is labelled with which it is, wherever it appears. Do not use a sample figure for a decision.'],
-    ['No warranty on figures',
-      'Data is drawn from filings and files you supply. Errors are possible, are corrected when found, and are logged. Verify anything you intend to act on against the primary source.'],
+      'Everything here is general information. It does not take account of your objectives, financial situation or needs, and nothing on this site is a recommendation to deal in any security or property. It is not licensed by the Securities Commission Malaysia and gives no personal recommendation; before acting, consider advice from someone licensed to give it.'],
+    ['Illustrative data',
+      'The Malaysian companies carry synthetic financials that exist to demonstrate the interface, as does any US listing marked illustrative; the rest of the US set carries audited statements from SEC filings. Each company is labelled with which it is, wherever it appears. No market-data licence is in place for either exchange. Do not use a sample figure for a decision.'],
+    ['No warranty',
+      [tp('The site and everything on it are provided as they are, without any promise that they are accurate, complete, current or fit for a purpose, to the extent the law allows. Figures are drawn from filings and from files you supply; errors are possible, are corrected when found, and are logged in the ', tlink('corrections log', '/corrections'), '. Verify anything you intend to act on against the primary source.'),
+       'To the extent the law allows, no one behind this site is liable for a loss that follows from relying on it.']],
+    ['No execution',
+      'Nothing here places, routes or executes an order. There is no brokerage connection, and no instruction you give this site reaches a market, a broker or a bank.'],
     ['Prices and licensing',
       'No market data is redistributed. Where a price is shown, its source and the right it is shown under are stated on the page.'],
-    ['Payment',
-      'No payment is processed anywhere in this build. Nothing charges, renews or cancels, and the plan controls are demonstrations.'],
-    ['Governing terms',
-      'Formal terms follow the registered entity.', true],
-  ]);
+    ['Your data stays in your browser',
+      [tp('What you enter is kept in this browser’s local storage and nowhere else — see ', tlink('Privacy', '/privacy'), '. Export anything you want to keep: clearing the browser’s storage deletes it, and there is no copy anywhere to restore it from.'),
+       'Data you paste in stays under the terms you obtained it on — a broker’s export is still your broker’s data.']],
+    ['No accounts',
+      'There is no sign-in and no account, so there is nothing to register, close or cancel.'],
+    ['Pricing: not on sale',
+      [tp('The plans on the ', tlink('pricing page', '/pricing'), ' are proposed prices, shown so you can see what is planned. Nothing can be bought: there is no checkout and no payment provider, nothing is charged or renewed, and so there is no refund policy yet. A plan’s button previews its features in this browser only.'),
+       'If sales ever open, terms of sale and a refund policy will be published here before anything can be bought.']],
+    ['Changes',
+      'These terms change with the build they describe. This draft was written on 29 September 2026.'],
+    ['Governing law',
+      'These terms are governed by the laws of Malaysia, and the courts of Malaysia have jurisdiction over any dispute about them.'],
+    ['Contact',
+      [tp(supplied('email'), ' · ', supplied('address'), '. Until they are supplied, the ', tlink('contact page', '/contact'), ' says what works today.')]],
+  ], { draft: 'These terms are a working draft: no operating entity has been registered to offer them, and every detail shown as “To be supplied” is a gap, not a fact.' });
 
 VIEWS.notfound = () => {
   const wrap = el('div', { class: 'stack' });
@@ -48708,8 +48927,12 @@ VIEWS.boundaries = () => {
 
 function scopeCard() {
   const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
-  card.append(cardHead('What is being sold: research',
-    'This is a research subscription. You are paying for analysis, evidence and tools that let you reach your own conclusion — not for a conclusion. That is a deliberate product boundary, and it is the reason several obvious features do not exist here.'));
+  /* It said "You are paying for analysis" on a build where nobody pays for
+     anything: no plan is on sale (launch audit, 29 Sep 2026). What the
+     product offers is the same; what a plan would charge for is said as a
+     proposal. */
+  card.append(cardHead('What is on offer: research',
+    'This is research. The proposed plans would charge for analysis, evidence and tools that let you reach your own conclusion — not for a conclusion — and nothing is on sale yet. That is a deliberate product boundary, and it is the reason several obvious features do not exist here.'));
   const g = el('div', { class: 'grid g-2' });
 
   const inc = el('div');
@@ -48749,11 +48972,22 @@ function scopeCard() {
 
 VIEWS.plans = () => {
   const wrap = el('div');
+  /* NOT ON SALE, SAID FIRST (launch audit, 29 Sep 2026). The owner's
+     decision: the page stays in the header, and says plainly that the plans
+     are proposals — nothing can be bought, no payment provider exists, and
+     no refund policy is needed because nothing is charged. The heading was
+     "A research subscription, and a report fee for property", which reads as
+     an offer; the rationale for the two shapes of price follows the facts
+     rather than standing in for them. */
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Plans'),
-    el('h1', {}, 'A research subscription, and a report fee for property'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Equity research earns weekly engagement, so it is priced as a subscription. Property research is episodic — most people buy a home every several years, not every month — so it is priced per report. Charging a monthly fee for something used twice a year is how churn is manufactured.'),
+    el('h1', {}, 'Proposed plans — not on sale yet'),
+    /* plan-lede: shown whole on a phone, where a page's standfirst is
+       clamped to two lines — here it is the answer, not preamble. */
+    el('p', { class: 'body-lg plan-lede', style: 'margin-top:8px' },
+      'Nothing on this page can be bought. These are the prices proposed for a launch, shown so you can see what is planned and what each plan would include. There is no checkout and no payment provider, nothing is charged, and so there is no refund policy yet — there is nothing to refund.'),
+    el('p', { class: 'body', style: 'margin-top:8px' },
+      'Equity research is proposed as a subscription because it is used every week. Property research is episodic — most people buy a home every several years, not every month — so it is proposed as a fee per report.'),
   ])));
   /* The scope card used to open this page: two columns of what the product
      deliberately will not do, before a reader had seen a single price. It is
@@ -48764,9 +48998,9 @@ VIEWS.plans = () => {
 
   const bar = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
   bar.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
-    el('span', { class: 'chip chip-bronze' }, 'Prototype'),
+    el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' },
-      'No payment is processed anywhere in this build. There is no checkout, no card capture, no trial clock and no renewal. The switcher below changes your entitlements locally so both sides of the free-to-paid boundary can be inspected — that is all it does.'),
+      'No payment is processed anywhere in this build: no checkout, no card capture, no trial clock, no renewal. The button on each card previews that plan’s features in this browser only, so both sides of the free-to-paid boundary can be inspected. The choice is kept in this browser and changes nothing anywhere else.'),
   ]));
   wrap.append(bar);
 
@@ -48781,25 +49015,30 @@ VIEWS.plans = () => {
        built exactly like the others: "Phase 2", RM79 a month in the price's
        type, and a primary "Switch to All-Access" button. The switch is what
        every card's button is, a local change of entitlements, and it still
-       is; what changes is what the card says. The price is the proposed one
-       and says so, the chip says the tier is not on sale, and the button says
-       it previews the tier in this browser. Whether the prototype's switcher
-       should reach an unlaunched tier at all is a product decision this does
-       not make. */
-    const onSale = pl.launched !== false;
+       is; what changes is what the card says.
+       Since the launch audit no paid tier is on sale, so what was true of
+       All-Access is true of Equities Research as well: "Switch to Equities
+       Research" was a filled primary button beside RM29 a month, the
+       page's one call to action, and it read as the way to pay. Every paid
+       card now carries the Not on sale chip, its price says it is proposed,
+       and its button — outlined, never the page's primary action — says it
+       previews the plan in this browser, which is all it does. Free is what
+       every visitor has; its button only returns to it. */
+    const paid = !!pl.priceMo;
+    const launched = pl.launched !== false;
     const card = el('div', { class: 'card plan-card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
       el('h3', { class: 'h-card' }, pl.name),
-      active ? el('span', { class: 'chip chip-brand' }, onSale ? 'Current' : 'Previewing') : null,
-      onSale ? null : el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
+      active ? el('span', { class: 'chip chip-brand' }, paid ? 'Previewing' : 'Current') : null,
+      paid ? el('span', { class: 'chip chip-bronze' }, 'Not on sale') : null,
     ]));
     card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, pl.tagline));
-    card.append(el('div', { class: 'row', style: 'gap:6px;align-items:baseline;margin-bottom:2px' }, [
-      el('span', { style: `font-size:24px;font-weight:700;letter-spacing:-.02em${onSale ? '' : ';color:var(--ink-3)'}` }, pl.priceMo ? `RM${pl.priceMo}` : 'RM0'),
-      el('span', { class: 'metaline' }, !pl.priceMo ? 'forever' : onSale ? '/month' : '/month proposed — it cannot be bought'),
+    card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;align-items:baseline;margin-bottom:2px' }, [
+      el('span', { class: paid ? 'plan-price plan-price-proposed' : 'plan-price' }, paid ? `RM${pl.priceMo}` : 'RM0'),
+      el('span', { class: 'metaline' }, !paid ? 'no charge' : launched ? '/month, proposed' : '/month, proposed — it cannot be bought'),
     ]));
     if (pl.priceYr) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' },
-      `${onSale ? 'or' : 'Proposed at'} RM${pl.priceYr} a year${pl.founding ? ` · founding offer RM${pl.founding} for the first year, ${pl.foundingSeats} seats` : ''}`));
+      `Proposed at RM${pl.priceYr} a year${pl.founding ? `, with a founding price of RM${pl.founding} for the first year for the first ${pl.foundingSeats} members` : ''}.`));
     card.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--md)' }, pl.blurb));
     /* The size of what is being sold, taken from the universe on screen rather
        than written into the copy, so it cannot be left behind when the universe
@@ -48827,7 +49066,7 @@ VIEWS.plans = () => {
       ['Price alerts', `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
       ['Exports', pl.limits.exports ? 'Yes' : 'No'],
       ['Property calculator', pl.limits.propertyCalculator ? 'Included' : 'No'],
-      ['Property reports', pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Pay per report'],
+      ['Property reports', pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Per report, proposed'],
       ['Cross-asset net worth', pl.limits.crossAsset ? 'Yes' : 'No'],
       /* No market-data licence has been signed for either exchange, so no plan
          can deliver price data at any latency. Listing a delay tier here sold a
@@ -48840,32 +49079,33 @@ VIEWS.plans = () => {
     const dl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
     rows.forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', {}, v)); });
     card.append(dl);
-    if (!onSale) card.append(el('p', { class: 'metaline', style: 'margin:-4px 0 var(--md)' },
-      `${pl.name} has not launched and cannot be bought. The preview turns on its entitlements here, as the switch on every card does, so the view it adds can be inspected.`));
+    if (paid) card.append(el('p', { class: 'metaline', style: 'margin:-4px 0 var(--md)' }, launched
+      ? `${pl.name} is not on sale yet. The preview turns on its features here so they can be inspected; nothing is charged.`
+      : `${pl.name} has not launched and cannot be bought. The preview turns on its entitlements here, as the preview on every card does, so the view it adds can be inspected.`));
     /* The plan in force is a state, said as one — a marked line with a tick —
        not a disabled button at 45% opacity, which in the dark theme was
        barely there. The others are full-height buttons (.btn, not .btn-sm):
        a 30px "Switch to…" was outweighed by the header's 40px action. */
     card.append(active
       ? el('p', { class: 'plan-cta plan-current' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 15) }),
-          onSale ? 'Current plan' : 'Previewing in this browser'])
-      : el('button', { class: `plan-cta btn ${onSale ? 'btn-primary' : 'btn-ghost'}`, onclick: () => setPlan(pl.id) },
-          onSale ? `Switch to ${pl.name}` : `Preview ${pl.name} in this browser`));
+          paid ? 'Previewing in this browser' : 'Current plan'])
+      : el('button', { class: 'plan-cta btn btn-ghost', onclick: () => setPlan(pl.id) },
+          paid ? `Preview ${pl.name} in this browser` : `Return to ${pl.name} in this browser`));
     grid.append(card);
   });
   wrap.append(grid);
 
   /* property report pricing */
   const pr = el('div', { class: 'card', style: 'margin-top:var(--md)' });
-  pr.append(cardHead('Property Deal Check — priced per report',
-    'Transactional rather than recurring. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this covers the same ground and adds the investment model on top.'));
+  pr.append(cardHead('Property Deal Check — proposed prices per report',
+    'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
   /* "What it adds" is prose, left-aligned in its cells, so its heading is
      too — it sat right-aligned over them. Below 600px the rows stack (name
      and price, then what it adds): the table ran 336px in a 308px scroller
      and cut the description to a 100px column. */
   const pt = el('table', { class: 'dt dt-stack' });
-  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Price', 'What it adds'].map((h, i) => el('th', { style: i === 2 ? 'text-align:left' : null }, h)))));
+  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds'].map((h, i) => el('th', { style: i === 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
     ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.'],
     ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Comparable transactions, price and rental ranges, net operating income, cash-on-cash, debt-service cover, ten-year scenarios, exit costs and the equity comparison.'],
@@ -48882,7 +49122,7 @@ VIEWS.plans = () => {
      the two touched with no gap. */
   const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand);margin-top:var(--md)' });
   boundaryLine.append(el('p', { class: 'body', style: 'font-size:13px' },
-    'What you are paying for is research: analysis, evidence and tools that let you reach your own conclusion — not a conclusion. There are no ratings, no target prices and no suitability questions, and that is a product boundary rather than a backlog.'));
+    'What the proposed plans would charge for is research: analysis, evidence and tools that let you reach your own conclusion — not a conclusion. There are no ratings, no target prices and no suitability questions, and that is a product boundary rather than a backlog.'));
   boundaryLine.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', href: href('/learn/product-boundaries'),
     onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/learn/product-boundaries'); } },
     'What this product will not do, and why'));
