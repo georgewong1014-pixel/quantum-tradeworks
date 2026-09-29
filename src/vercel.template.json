@@ -7,11 +7,42 @@
     "the failure that would otherwise take the whole site down in production",
     "while every local check still passed."
   ],
-  "rewrites": [
-    {
-      "source": "/((?!_vercel/|data/|.*\\..*).*)",
-      "destination": "/index.html"
-    }
+  "$comment-rewrites": [
+    "One rewrite per route in ROUTES (src/js/35-ui.js), written by build.mjs in",
+    "place of the marker below. A route without a parameter goes to its own page",
+    "(pages/<route>.html, the site root to index.html), whose <head> is the one",
+    "the router sets there; a parameter route (/company/:id …) to index.html.",
+    "Every exact path is listed before any :param, and each is explicit: nothing",
+    "relies on Vercel checking its files before its rewrites.",
+    "",
+    "There is no catch-all. It answered 200 with the homepage for any address,",
+    "so a dead link was a soft 404. Anything no rewrite and no file answers is",
+    "served 404.html with status 404: the shell with the not-found head and",
+    "noindex, on which the app draws its not-found card. /data/ and /_vercel/",
+    "are never rewritten: they are files, or they are absent.",
+    "",
+    "serve.mjs reads these rewrites, trailingSlash and 404.html from vercel.json,",
+    "so every local harness is served what Vercel serves."
+  ],
+  "rewrites": "@ROUTE_REWRITES",
+  "$comment-trailingSlash": [
+    "/pricing/ opens the pricing page in the router, which drops a trailing",
+    "slash. The catch-all served it; a rewrite's source matches its path",
+    "exactly. false makes Vercel answer 308 to the same address without the",
+    "slash, keeping the query, so each page has one address."
+  ],
+  "trailingSlash": false,
+  "$comment-redirects": [
+    "An address ending in /index.html means the folder it names: /pricing/index.html",
+    "is /pricing. Answered as an unknown address it got the 404 page, where the",
+    "router took /pricing for a folder the app is deployed in (BASE, 35-ui.js),",
+    "drew the homepage instead of the not-found card and asked for",
+    "/pricing/data/us.json. A 308 to the folder's own address answers it: a route",
+    "there opens, anything else is the not-found page. The site root's own",
+    "/index.html is not matched (:path+ needs a segment) and is served as the file."
+  ],
+  "redirects": [
+    { "source": "/:path+/index.html", "destination": "/:path+", "permanent": true }
   ],
   "headers": [
     {

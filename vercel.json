@@ -1,8 +1,308 @@
 {
   "rewrites": [
     {
-      "source": "/((?!_vercel/|data/|.*\\..*).*)",
+      "source": "/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/app",
+      "destination": "/pages/app.html"
+    },
+    {
+      "source": "/how-it-works",
+      "destination": "/pages/how-it-works.html"
+    },
+    {
+      "source": "/research/queue",
+      "destination": "/pages/research/queue.html"
+    },
+    {
+      "source": "/welcome",
+      "destination": "/pages/welcome.html"
+    },
+    {
+      "source": "/discover",
+      "destination": "/pages/discover.html"
+    },
+    {
+      "source": "/discover/screener",
+      "destination": "/pages/discover/screener.html"
+    },
+    {
+      "source": "/discover/value-map",
+      "destination": "/pages/discover/value-map.html"
+    },
+    {
+      "source": "/research",
+      "destination": "/pages/research.html"
+    },
+    {
+      "source": "/app/equities",
+      "destination": "/pages/app/equities.html"
+    },
+    {
+      "source": "/app/equities/explore",
+      "destination": "/pages/app/equities/explore.html"
+    },
+    {
+      "source": "/app/equities/compare",
+      "destination": "/pages/app/equities/compare.html"
+    },
+    {
+      "source": "/app/watchlists",
+      "destination": "/pages/my/watchlists.html"
+    },
+    {
+      "source": "/equities/methodology",
+      "destination": "/pages/methodology.html"
+    },
+    {
+      "source": "/compare",
+      "destination": "/pages/compare.html"
+    },
+    {
+      "source": "/my/portfolio",
+      "destination": "/pages/my/portfolio.html"
+    },
+    {
+      "source": "/my/watchlists",
+      "destination": "/pages/my/watchlists.html"
+    },
+    {
+      "source": "/my/theses",
+      "destination": "/pages/my/theses.html"
+    },
+    {
+      "source": "/my/alerts",
+      "destination": "/pages/my/alerts.html"
+    },
+    {
+      "source": "/my/tracked",
+      "destination": "/pages/my/tracked.html"
+    },
+    {
+      "source": "/app/scanner",
+      "destination": "/pages/app/scanner.html"
+    },
+    {
+      "source": "/app/scanner/market",
+      "destination": "/pages/app/scanner/market.html"
+    },
+    {
+      "source": "/app/scanner/backtest",
+      "destination": "/pages/app/scanner/backtest.html"
+    },
+    {
+      "source": "/admin/scanner",
+      "destination": "/pages/admin/scanner.html"
+    },
+    {
+      "source": "/admin/scanner/data",
+      "destination": "/pages/admin/scanner/data.html"
+    },
+    {
+      "source": "/admin/scanner/jobs",
+      "destination": "/pages/admin/scanner/jobs.html"
+    },
+    {
+      "source": "/admin/scanner/delivery",
+      "destination": "/pages/admin/scanner/delivery.html"
+    },
+    {
+      "source": "/my/scanner",
+      "destination": "/pages/app/scanner.html"
+    },
+    {
+      "source": "/app/scanner/setups",
+      "destination": "/pages/app/scanner/setups.html"
+    },
+    {
+      "source": "/app/scanner/setups/new",
+      "destination": "/pages/app/scanner/setups/new.html"
+    },
+    {
+      "source": "/app/scanner/watchlists",
+      "destination": "/pages/app/scanner/watchlists.html"
+    },
+    {
+      "source": "/app/scanner/alerts",
+      "destination": "/pages/app/scanner/alerts.html"
+    },
+    {
+      "source": "/app/scanner/settings",
+      "destination": "/pages/app/scanner/settings.html"
+    },
+    {
+      "source": "/start",
+      "destination": "/pages/start.html"
+    },
+    {
+      "source": "/my/data",
+      "destination": "/pages/my/data.html"
+    },
+    {
+      "source": "/my/workspace",
+      "destination": "/pages/my/workspace.html"
+    },
+    {
+      "source": "/app/workspace",
+      "destination": "/pages/my/workspace.html"
+    },
+    {
+      "source": "/discover/sarawak",
+      "destination": "/pages/discover/sarawak.html"
+    },
+    {
+      "source": "/property",
+      "destination": "/pages/property.html"
+    },
+    {
+      "source": "/property/calculator",
+      "destination": "/pages/property/calculator.html"
+    },
+    {
+      "source": "/property/opportunities",
+      "destination": "/pages/property/opportunities.html"
+    },
+    {
+      "source": "/property/comparables",
+      "destination": "/pages/property/comparables.html"
+    },
+    {
+      "source": "/property/areas",
+      "destination": "/pages/property/areas.html"
+    },
+    {
+      "source": "/us-options/wheel",
+      "destination": "/pages/us-options/wheel.html"
+    },
+    {
+      "source": "/wheel",
+      "destination": "/pages/us-options/wheel.html"
+    },
+    {
+      "source": "/cash-wheel",
+      "destination": "/pages/us-options/wheel.html"
+    },
+    {
+      "source": "/options",
+      "destination": "/pages/us-options/wheel.html"
+    },
+    {
+      "source": "/my/wheel",
+      "destination": "/pages/us-options/wheel.html"
+    },
+    {
+      "source": "/my/options",
+      "destination": "/pages/us-options/wheel.html"
+    },
+    {
+      "source": "/trading-index",
+      "destination": "/pages/research/trading-index.html"
+    },
+    {
+      "source": "/research/trading-index",
+      "destination": "/pages/research/trading-index.html"
+    },
+    {
+      "source": "/learn/trading-index",
+      "destination": "/pages/learn/trading-index.html"
+    },
+    {
+      "source": "/learn",
+      "destination": "/pages/learn.html"
+    },
+    {
+      "source": "/learn/glossary",
+      "destination": "/pages/learn/glossary.html"
+    },
+    {
+      "source": "/methodology",
+      "destination": "/pages/methodology.html"
+    },
+    {
+      "source": "/data-sources",
+      "destination": "/pages/data-sources.html"
+    },
+    {
+      "source": "/learn/product-boundaries",
+      "destination": "/pages/learn/product-boundaries.html"
+    },
+    {
+      "source": "/status",
+      "destination": "/pages/status.html"
+    },
+    {
+      "source": "/decision-record",
+      "destination": "/pages/decision-record.html"
+    },
+    {
+      "source": "/methodology/ips",
+      "destination": "/pages/methodology/ips.html"
+    },
+    {
+      "source": "/corrections",
+      "destination": "/pages/corrections.html"
+    },
+    {
+      "source": "/pricing",
+      "destination": "/pages/pricing.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/pages/about.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/pages/contact.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/pages/privacy.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/pages/terms.html"
+    },
+    {
+      "source": "/company/:id",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/company/:id/report",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/app/equities/:id",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/app/equities/:id/report",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/app/equities/:id/:tab",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/app/scanner/setups/:setup",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/app/scanner/setups/:setup/edit",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/app/scanner/alerts/:alert",
+      "destination": "/index.html"
+    }
+  ],
+  "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/:path+/index.html",
+      "destination": "/:path+",
+      "permanent": true
     }
   ],
   "headers": [

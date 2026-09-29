@@ -1,43 +1,16 @@
 #!/usr/bin/env node
 // Minimal zero-dependency static server for local preview + screenshotting.
 //   node serve.mjs [--port 8123] [--root .]
+//
+// It answers every request the way Vercel answers it, from the same
+// vercel.json: a trailing slash is redirected, then the redirects apply, a
+// file is served as itself, then the rewrites are tried in order, and
+// anything left is 404.html with status 404. Every harness runs against this server, so what they test is
+// what production serves — not a friendlier local imitation of it.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { readFileSync, statSync } from 'node:fs';
 import { join, extname, resolve, normalize, sep } from 'node:path';
-
-/* The production headers, applied locally. Without this the Content-Security-
-   Policy only ever ran in production — and a CSP that blocks the app's own
-   inline script does not degrade, it shows a blank page. The whole point of the
-   generated policy is that it can be wrong; it has to be wrong HERE first. */
-const CONFIG = new URL('./vercel.json', import.meta.url);
-
-/* Re-read per request rather than at startup. The CSP hash is derived from the
-   built script, so every `node build.mjs` changes it — and a server holding the
-   previous hash serves a policy that blocks the app it is serving. That looks
-   exactly like a code bug: a blank page, one console line, and a build that
-   passes every check. Rebuilding is the common case during development, so the
-   config has to be as fresh as the file. A stat-and-parse per request is
-   nothing next to reading a 1.3MB page off disk. */
-let cachedMtime = 0, cachedRules = [];
-function headerRules() {
-  try {
-    const m = statSync(CONFIG).mtimeMs;
-    if (m !== cachedMtime) {
-      cachedMtime = m;
-      cachedRules = (JSON.parse(readFileSync(CONFIG, 'utf8')).headers || [])
-        .map(g => ({ re: new RegExp('^' + g.source + '$'), headers: g.headers }));
-    }
-  } catch { /* no config, or mid-write: keep the last good rules */ }
-  return cachedRules;
-}
-const configuredHeaders = (pathname) => {
-  const out = {};
-  for (const rule of headerRules()) {
-    if (rule.re.test(pathname)) rule.headers.forEach(h => { out[h.key.toLowerCase()] = h.value; });
-  }
-  return out;
-};
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -50,12 +23,118 @@ const arg = (name, fallback) => {
 const PORT = Number(arg('port', process.env.PORT || 8123));
 const ROOT = resolve(arg('root', '.'));
 
+/* The production configuration, applied locally. Without this the Content-
+   Security-Policy only ever ran in production — and a CSP that blocks the
+   app's own inline script does not degrade, it shows a blank page. The whole
+   point of the generated policy is that it can be wrong; it has to be wrong
+   HERE first. The same holds for the rewrites since they became one per route:
+   a route the build forgot must 404 here, not only on Vercel. The site's own
+   vercel.json, beside the files it describes. */
+const CONFIG = join(ROOT, 'vercel.json');
+
+/* A vercel.json source is path-to-regexp (v6, the version Vercel compiles
+   with: case-sensitive, and strict, so /pricing does not match /pricing/).
+   This implements the part of it this site uses — literal characters,
+   whole-segment :params, :params+ (one or more segments), and (regex) groups
+   — and refuses the rest by name, so a template that starts using more fails
+   here, loudly, instead of meaning one thing locally and another in
+   production. A parameter is a named group, which is how a redirect's
+   destination is filled in. */
+function sourceRegExp(source) {
+  let re = '';
+  for (let i = 0; i < source.length;) {
+    const ch = source[i];
+    if (ch === ':') {
+      const m = /^:([A-Za-z_][A-Za-z0-9_]*)/.exec(source.slice(i));
+      if (!m) throw new Error(`a ":" that is not a parameter in ${source}`);
+      i += m[0].length;
+      const repeat = source[i] === '+';
+      if (repeat) i++;
+      if (source[i] === '(' || '*+?'.includes(source[i] || ' ')) throw new Error(`serve.mjs does not implement this parameter's pattern or modifier: ${source}`);
+      re += repeat ? `(?<${m[1]}>[^\\/#\\?]+?(?:\\/[^\\/#\\?]+?)*)` : `(?<${m[1]}>[^\\/#\\?]+?)`;
+      continue;
+    }
+    if (ch === '(') {
+      let depth = 0, j = i;
+      for (; j < source.length; j++) {
+        if (source[j] === '\\') { j++; continue; }
+        if (source[j] === '(') depth++;
+        else if (source[j] === ')' && --depth === 0) break;
+      }
+      if (depth !== 0) throw new Error(`an unclosed group in ${source}`);
+      re += source.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    if ('*+?{}'.includes(ch)) throw new Error(`serve.mjs does not implement "${ch}" in a vercel.json source: ${source}`);
+    re += ch.replace(/[.^$|[\]\\/]/g, '\\$&');
+    i++;
+  }
+  return new RegExp(`^${re}$`);
+}
+
+/* Re-read when it changes rather than at startup. The CSP hash is derived from
+   the built script, so every `node build.mjs` changes it — and a server
+   holding the previous hash serves a policy that blocks the app it is serving.
+   That looks exactly like a code bug: a blank page, one console line, and a
+   build that passes every check. Rebuilding is the common case during
+   development, so the config has to be as fresh as the file. A stat per
+   request is nothing next to reading a 3MB page off disk. */
+const IMPLEMENTED = new Set(['headers', 'rewrites', 'redirects', 'trailingSlash']);
+let cachedMtime = 0, refusedMtime = 0, cfg = { headers: [], rewrites: [], redirects: [], trailingSlash: undefined };
+function config() {
+  let m = 0;
+  try {
+    m = statSync(CONFIG).mtimeMs;
+    if (m !== cachedMtime && m !== refusedMtime) {
+      const raw = JSON.parse(readFileSync(CONFIG, 'utf8'));
+      const next = {
+        headers: (raw.headers || []).map(g => ({ re: sourceRegExp(g.source), headers: g.headers })),
+        rewrites: (raw.rewrites || []).map(r => {
+          if (/[:$]/.test(r.destination)) throw new Error(`serve.mjs does not substitute parameters into a destination: ${r.destination}`);
+          return { re: sourceRegExp(r.source), destination: r.destination };
+        }),
+        /* permanent (the default) is 308, temporary 307, as Vercel sends them. */
+        redirects: (raw.redirects || []).map(r => {
+          if (r.has || r.missing) throw new Error(`serve.mjs does not implement a redirect's has/missing: ${r.source}`);
+          return { re: sourceRegExp(r.source), destination: r.destination,
+            status: r.statusCode || (r.permanent === false ? 307 : 308) };
+        }),
+        trailingSlash: raw.trailingSlash,
+      };
+      /* What this server would silently serve differently, said once per
+         version of the file. */
+      const missing = Object.keys(raw).filter(k => !IMPLEMENTED.has(k));
+      if (raw.trailingSlash === true) missing.push('trailingSlash: true');
+      if (missing.length) console.error(`serve.mjs does not implement vercel.json's ${missing.join(', ')} — what it serves differs from Vercel`);
+      cfg = next;
+      cachedMtime = m;
+    }
+  } catch (err) {
+    /* No config, or mid-write: keep the last good one. A config that parses
+       but cannot be served is said, not swallowed — once, not per request. */
+    if (!(err instanceof SyntaxError) && err.code !== 'ENOENT') {
+      refusedMtime = m;
+      console.error(`vercel.json cannot be served as Vercel would: ${err.message} — keeping the last good configuration`);
+    }
+  }
+  return cfg;
+}
+const configuredHeaders = (pathname) => {
+  const out = {};
+  for (const rule of config().headers) {
+    if (rule.re.test(pathname)) rule.headers.forEach(h => { out[h.key.toLowerCase()] = h.value; });
+  }
+  return out;
+};
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -69,43 +148,27 @@ const MIME = {
   '.map': 'application/json; charset=utf-8',
 };
 
-async function resolveTarget(pathname) {
+/* The file at an address, as a static host has it: a file is itself, a folder
+   is its index.html. Nothing else — no /about for about.html, which Vercel
+   does not do without cleanUrls, and no fallback to the app: that is the
+   rewrites' job now, and only for the addresses they name. */
+async function fileAt(pathname) {
   // Contain every request inside ROOT. A malformed percent sequence (/%zz, or
   // a link truncated mid-escape) used to throw here, outside any handler, and
-  // take the whole server down for every other tab — now it is a plain 404.
+  // take the whole server down for every other tab — now it is a plain miss.
   let decoded;
-  try { decoded = decodeURIComponent(pathname.split('?')[0]); } catch { return null; }
+  try { decoded = decodeURIComponent(pathname); } catch { return null; }
   const candidate = normalize(join(ROOT, decoded));
   if (candidate !== ROOT && !candidate.startsWith(ROOT + sep)) return null;
-
   try {
     const info = await stat(candidate);
+    if (info.isFile()) return candidate;
     if (info.isDirectory()) {
       const index = join(candidate, 'index.html');
-      await stat(index);
-      return index;
+      if ((await stat(index)).isFile()) return index;
     }
-    return candidate;
-  } catch {
-    // Allow extensionless pretty URLs: /about -> /about.html
-    if (!extname(candidate)) {
-      try {
-        await stat(candidate + '.html');
-        return candidate + '.html';
-      } catch { /* fall through */ }
-      // Single-page fallback. The app owns routes like /company/1155-maybank
-      // and /my/portfolio, which have no file behind them — without this a
-      // refresh on any real route 404s and the router never gets to run.
-      // Only extensionless paths fall back, so a genuinely missing asset still
-      // 404s instead of being served an HTML page with the wrong MIME type.
-      try {
-        const spa = join(ROOT, 'index.html');
-        await stat(spa);
-        return spa;
-      } catch { /* no app entry point */ }
-    }
-    return null;
-  }
+  } catch { /* nothing there */ }
+  return null;
 }
 
 /* Every request is contained. An async handler that throws is an unhandled
@@ -125,21 +188,58 @@ async function handle(req, res) {
   let url;
   try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
   catch { res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' }); res.end('400 Bad Request'); return; }
-  const file = await resolveTarget(url.pathname);
+  const { rewrites, redirects, trailingSlash } = config();
+  const path = url.pathname;
+  const redirect = (status, location) => {
+    res.writeHead(status, { location, 'content-type': 'text/plain; charset=utf-8' });
+    res.end(req.method === 'HEAD' ? undefined : `Redirecting to ${location}`);
+  };
 
+  /* trailingSlash: false. Vercel answers /pricing/ with a 308 to /pricing —
+     the site root excepted, and the query kept — before it looks at a file or
+     a rewrite. The pattern is the one Vercel compiles for it: an address with
+     an empty segment (/pricing//) is not redirected, and so 404s there too. */
+  if (trailingSlash === false) {
+    const m = /^\/((?:[^/]+\/)*[^/]+)\/$/.exec(path);
+    if (m) { redirect(308, `/${m[1]}${url.search}`); return; }
+  }
+  /* Then the redirects, the first match deciding, its parameters filled into
+     the destination and the query carried unless the destination has one. */
+  for (const r of redirects) {
+    const m = r.re.exec(path);
+    if (!m) continue;
+    const to = r.destination.replace(/:([A-Za-z_][A-Za-z0-9_]*)\+?/g, (_, n) => m.groups?.[n] ?? '');
+    redirect(r.status, to.includes('?') ? to : `${to}${url.search}`);
+    return;
+  }
+
+  /* Files first, as Vercel does; then the rewrites, in order, the first whose
+     source matches deciding (the query plays no part in either); then the 404
+     page, with its status. Headers are chosen by the address that was asked
+     for, not the file that answers it — the order Vercel applies them in. */
+  let file = await fileAt(path);
+  let status = 200;
   if (!file) {
-    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-    res.end(`404 Not Found: ${url.pathname}`);
+    const hit = rewrites.find(r => r.re.test(path));
+    if (hit) file = await fileAt(hit.destination);
+  }
+  if (!file) {
+    status = 404;
+    file = await fileAt('/404.html');
+  }
+  if (!file) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', ...configuredHeaders(path) });
+    res.end(`404 Not Found: ${path}`);
     return;
   }
 
   try {
     const body = await readFile(file);
-    res.writeHead(200, {
+    res.writeHead(status, {
       'content-type': MIME[extname(file).toLowerCase()] || 'application/octet-stream',
       'cache-control': 'no-cache, no-store, must-revalidate',
       'content-length': body.length,
-      ...configuredHeaders(url.pathname),
+      ...configuredHeaders(path),
     });
     res.end(req.method === 'HEAD' ? undefined : body);
   } catch (err) {
@@ -157,7 +257,8 @@ server.on('error', (err) => {
 });
 
 server.listen(PORT, () => {
+  const c = config();
   console.log(`serving ${ROOT}`);
   console.log(`http://localhost:${PORT}`);
-  console.log(`applying ${headerRules().length} header rule(s) from vercel.json, re-read on change`);
+  console.log(`applying ${c.headers.length} header rule(s), ${c.redirects.length} redirect(s) and ${c.rewrites.length} rewrite(s) from vercel.json${c.trailingSlash === false ? ', trailing slashes redirected' : ''}, re-read on change`);
 });
