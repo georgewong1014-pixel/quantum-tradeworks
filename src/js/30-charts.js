@@ -889,7 +889,9 @@ function scatterChart(container, { points, xLabel, xLabelShort, yLabel, yLabelSh
       const g = sv('g', { style: 'cursor:pointer' });
       g.setAttribute('tabindex', '0');
       g.setAttribute('role', 'button');
-      g.setAttribute('aria-label', `${p.label}, ${xFmt(p.x)} to base-case model estimate, ${yWords(p)}`);
+      /* p.tag ("illustrative") follows the name: a synthetic company's mark
+         was announced exactly as a filed one's. */
+      g.setAttribute('aria-label', `${p.label}${p.tag ? `, ${p.tag}` : ''}, ${xFmt(p.x)} to base-case model estimate, ${yWords(p)}`);
       const fill = `var(${p.varName})`;
       const cy = Y(yAt(p));
       g.append(sv('circle', { cx: X(p.x), cy, r: R(p.size), fill, opacity: .30 }));
@@ -1014,7 +1016,8 @@ function treemap(container, { items, valueFmt, onPick, full = 8, pickNote = 'Sel
       const g = sv('g', { class: 'tile', style: 'cursor:pointer' });
       g.setAttribute('tabindex', '0');
       g.setAttribute('role', 'button');
-      g.setAttribute('aria-label', `${t.label}, ${t.metricLabel} ${valueFmt(t.change)}, market cap ${t.capLabel}`);
+      /* t.tag ("illustrative") follows the name, as on the value map. */
+      g.setAttribute('aria-label', `${t.label}${t.tag ? `, ${t.tag}` : ''}, ${t.metricLabel} ${valueFmt(t.change)}, market cap ${t.capLabel}`);
       g.append(sv('rect', { x: t.x + GAP / 2, y: t.y + GAP / 2, width: w, height: h, rx: Math.min(6, w / 6, h / 6), fill }));
       const ink = inkOn(fill);
       /* only label when the text fits with padding — never clip */
@@ -1053,7 +1056,7 @@ function treemap(container, { items, valueFmt, onPick, full = 8, pickNote = 'Sel
     /* The name opens with the words the button shows, so a reader who says
        what they see — "PGR +0.36%" — names the button. */
     offer.forEach(t => list.append(el('button', { type: 'button', class: 'btn btn-ghost btn-sm',
-      'aria-label': `${t.label} ${valueFmt(t.change)}, ${t.metricLabel}, market cap ${t.capLabel}`,
+      'aria-label': `${t.label} ${valueFmt(t.change)}, ${t.tag ? `${t.tag}, ` : ''}${t.metricLabel}, market cap ${t.capLabel}`,
       onclick: () => onPick(t.id) }, `${t.label} ${valueFmt(t.change)}`)));
     return el('div', {}, s, list);
   });

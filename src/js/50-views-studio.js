@@ -1839,7 +1839,10 @@ VIEWS.compare = () => {
   const chips = el('div', { class: 'row row-wrap', style: 'gap:5px' });
   U.forEach(r => {
     const on = State.compare.includes(r.c.id);
+    /* aria-pressed: which companies are in the comparison was only the
+       chips' colour. */
     chips.append(el('button', { class: 'chip' + (on ? ' chip-brand' : ''), style: 'cursor:pointer', id: `cmp-chip-${r.c.id}`,
+      'aria-pressed': on ? 'true' : 'false',
       onclick: () => {
         State.compare = on ? State.compare.filter(x => x !== r.c.id)
           : (State.compare.length >= LIMITS.compare ? (toast(`${LIMITS.compare} is the maximum`), State.compare) : [...State.compare, r.c.id]);
@@ -1917,6 +1920,13 @@ VIEWS.compare = () => {
      number no exchange ever printed. */
   const showLocal = State.compareCcy === 'local';
   const mixedCcy = new Set(rows.map(r => r.c.ccy)).size > 1;
+  /* Whenever a total is converted, not only when the selection mixes
+     currencies. Two USD reporters with the base currency at MYR printed
+     every total in ringgit under column heads reading "USD", with no rate on
+     the page and the toggle hidden, because the bar was appended only for a
+     mixed selection — a conversion made silently, against the rule above. */
+  const converts = !showLocal && rows.some(r => r.c.ccy !== State.baseCcy);
+  const foreign = rows.some(r => r.c.ccy !== State.baseCcy);
   const ccyBar = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   ccyBar.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
     el('span', { class: 'metaline' }, 'Show totals in'),
@@ -1928,16 +1938,16 @@ VIEWS.compare = () => {
         onclick: () => { State.compareCcy = 'local'; store.write('compareCcy', 'local'); redrawKeepFocus(); } },
         'Local currency'),
     ]),
-    mixedCcy && !showLocal
+    converts
       ? el('span', { class: FX.source === 'sample' ? 'chip chip-bronze' : 'chip' },
           `USD/MYR ${FX.USDMYR.toFixed(4)} · ${FX.named || (FX.source === 'sample' ? 'indicative sample rate' : 'your price file')}${FX.asOf ? ' · ' + FX.asOf : ''}`)
       : null,
   ]));
   ccyBar.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     showLocal
-      ? 'Each company is shown in the currency it trades in. Figures are not comparable across markets in this mode.'
-      : `Market capitalisations are converted to ${State.baseCcy} at the rate above. Share prices stay in the currency they trade in — a converted quote is a number no exchange printed.`));
-  if (mixedCcy) wrap.append(ccyBar);
+      ? `Each company is shown in the currency it trades in.${mixedCcy ? ' Figures are not comparable across markets in this mode.' : ''}`
+      : `Market capitalisation and the scale rows are converted to ${State.baseCcy} at the rate above. Share prices stay in the currency they trade in — a converted quote is a number no exchange printed.`));
+  if (mixedCcy || foreign) wrap.append(ccyBar);
 
   /* ==== comparison packs =============================================== */
   /* Which measures matter is decided by what the businesses are. A bank has no
@@ -2050,7 +2060,14 @@ VIEWS.compare = () => {
       if (!(a > 0)) return absentCell('not meaningful', 'The prior year’s revenue is zero or negative, so a growth rate has no meaning.');
       return withSign((b / a - 1) * 100, 1);
     }],
-    ['Operating cash flow', r => lineCell(r, last(r.d.ocf), ['ocf'])],
+    /* A bank's operating cash flow is not applicable, as its free cash flow
+       and net debt are below, and as the company page and the report say.
+       It went through lineCell, which called it "not reported … not in the
+       latest stored statements": a missing-data claim about a line that is
+       meaningless for a deposit-taking balance sheet. */
+    ['Operating cash flow', r => r.c.type === 'bank'
+      ? absentCell('not applicable', 'Operating cash flow is not meaningful for a deposit-taking balance sheet: it moves with deposits and loans, not with what the bank earns.')
+      : lineCell(r, last(r.d.ocf), ['ocf'])],
     /* Not a row at all for an all-bank selection; a bank in a mixed one says
        why its cell is empty. */
     ...(pack.id === 'bank' ? [] : [['Free cash flow', r => r.c.type === 'bank'

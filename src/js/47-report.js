@@ -84,6 +84,7 @@ VIEWS.researchReport = () => {
 
   /* The same meter as the company page: a report is that company's research. */
   if (!noteReportRead(live.c.id)) {
+    wrap.append(reportRefusedHead(live.c));
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
       `The Free plan covers ${lim('reportsPerMonth')} distinct companies a calendar month, and a printable report of one you have already opened costs nothing more.`));
     return wrap;
@@ -169,7 +170,9 @@ VIEWS.researchReport = () => {
   kvRow('Years held', `FY${ys[0]}–FY${ys[ys.length - 1]} (${ys.length})`);
   kvRow('Latest fiscal year', `FY${fy}${fyEnd ? `, ended ${fmtFyEnd(fyEnd)}` : c.real ? ' — the period-end date is not in this dataset yet' : ''}`);
   kvRow('Price', isNum(c.px?.p) ? `${fmtMoney(c.px.p, c.ccy)} — ${priceAsOfLabel(c)}` : c.real ? 'No licensed price. Every price-derived figure below is unavailable, and says so.' : 'none');
-  kvRow('Coverage', `${m.coverage}% of the measures that apply to a ${c.type} business are computable`);
+  /* typePhrase: "a insurer business" and "a early business" were the raw
+     type key after a fixed article. */
+  kvRow('Coverage', `${m.coverage}% of the measures that apply to ${typePhrase(c.type)} are computable`);
   kvRow('Model version', MODEL_VERSION);
   kvRow('Data version', S.fromRun ? stampDataText(S.run.stamp) : stampDataText(buildStamp(c)));
   kvRow('Rendered from', S.fromRun ? `Saved run ${S.run.runId}, saved ${S.run.saved}` : 'The current dataset');
@@ -194,10 +197,19 @@ VIEWS.researchReport = () => {
     if (!c.real) return 'Illustrative';
     if (k === 'fcf') return short ? 'Calculated' : 'Calculated — operating cash flow less capex';
     if (c.personal) return 'Reported — statements you supplied';
-    const keys = LINE_PROV[k]?.keys || [k];
-    const p = c.provenance && typeof c.provenance === 'object' ? keys.map(x => c.provenance[x]).find(Boolean) : null;
-    if (short) return p?.mixedTags ? 'Reported · XBRL, more than one tag' : 'Reported · XBRL';
-    return p?.concept ? `Reported · ${String(p.concept).split(' + ')[0]}${p.mixedTags ? ' (more than one tag)' : ''}` : 'Reported';
+    /* A summed line names every concept in its sum. Total debt is the
+       non-current line plus the current portion (LINE_PROV mode 'sum'), and
+       this took the first key's concept alone: Apple's 90.68 printed
+       "Reported · LongTermDebtNoncurrent" beside a figure that is two
+       concepts added, where the company page's drawer names both. A 'first'
+       line (the share count) is still the first key the filer reported. */
+    const spec = LINE_PROV[k] || { keys: [k], mode: 'first' };
+    const held = c.provenance && typeof c.provenance === 'object' ? spec.keys.map(x => c.provenance[x]).filter(Boolean) : [];
+    const ps = spec.mode === 'sum' ? held : held.slice(0, 1);
+    const mixed = ps.some(p => p.mixedTags);
+    if (short) return mixed ? 'Reported · XBRL, more than one tag' : 'Reported · XBRL';
+    const concepts = ps.filter(p => p.concept).map(p => String(p.concept).split(' + ')[0]);
+    return concepts.length ? `Reported · ${concepts.join(' + ')}${mixed ? ' (more than one tag)' : ''}` : 'Reported';
   };
   /* THE PAGE'S LINES, UNDER THE PAGE'S NAMES. The report kept its own list:
      it called a filed bank's pre-tax income "Operating profit (EBIT)" where
