@@ -1303,9 +1303,26 @@ function scanSpecKey(spec, { multiplier = true } = {}) {
   return `${id}(${ps})${f ? `.${f}` : ''}${multiplier && m !== 1 ? `*${m}` : ''}`;
 }
 
+/* THE WINDOW OF A HIGHEST OR LOWEST, NAMED BY THE BARS IT READS. It was
+   "52-week" whenever n was 252, on any bars: 252 monthly bars (21 years),
+   252 weekly bars, 252 daily bars of a seven-day crypto market (36 weeks)
+   — while 52 weekly bars, the real 52-week high, read "52-bar". A week and
+   a month are what their bars are; a daily bar is a session, and 252 of
+   them are 52 weeks only on a weekday market. Where the timeframe is not
+   known — a sentence about a setup whose instruments span markets, a
+   condition out of context — it is bars. `ctx` is { timeframe, market }. */
+function scanWindowWords(n, { timeframe = null, market = null } = {}) {
+  const tf = timeframe == null || timeframe === '' ? null : scanTimeframe(timeframe);
+  if (tf === '1W') return `${n}-week`;
+  if (tf === '1M') return `${n}-month`;
+  if (tf === '1D') return n === 252 && market != null && SCAN_MARKETS[String(market).toUpperCase()]?.days?.length === 5 ? '52-week' : `${n}-session`;
+  return `${n}-bar`;
+}
 /* How a side reads in words — the page's list, the builder and the alert
-   text all use this, so the rule a reader sees is the rule that ran. */
-function scanSideLabel(s) {
+   text all use this, so the rule a reader sees is the rule that ran.
+   `ctx` ({ timeframe, market }) is what the side is read on, where known:
+   a window of n bars is named by it (scanWindowWords). */
+function scanSideLabel(s, ctx = {}) {
   const id = s?.indicator, def = SCAN_INDICATORS[id];
   if (!def) return id ? `unknown indicator “${id}”` : '—';
   const p = scanParams(s).params;
@@ -1319,10 +1336,10 @@ function scanSideLabel(s) {
       break;
     }
     case 'bb': { const f = scanFieldOf(s); base = `Bollinger(${p.n},${p.k}) ${f === 'pctb' ? '%b' : f}`; break; }
-    case 'high_n': base = p.n === 252 ? '52-week high' : `${p.n}-bar high`; break;
-    case 'low_n': base = p.n === 252 ? '52-week low' : `${p.n}-bar low`; break;
-    case 'close_high_n': base = p.n === 252 ? '52-week closing high' : `${p.n}-bar closing high`; break;
-    case 'close_low_n': base = p.n === 252 ? '52-week closing low' : `${p.n}-bar closing low`; break;
+    case 'high_n': base = `${scanWindowWords(p.n, ctx || {})} high`; break;
+    case 'low_n': base = `${scanWindowWords(p.n, ctx || {})} low`; break;
+    case 'close_high_n': base = `${scanWindowWords(p.n, ctx || {})} closing high`; break;
+    case 'close_low_n': base = `${scanWindowWords(p.n, ctx || {})} closing low`; break;
     case 'change': base = `${p.n}-bar change %`; break;
     case 'rvol': base = `relative volume (${p.n}-bar)`; break;
     default: base = def.sideLabel ? def.sideLabel(p, scanFieldOf(s)) : def.label;
@@ -2409,7 +2426,7 @@ function scanComputeSeries(id, params, field, bars, needs) {
 function scanIndicatorCore(spec, bars, cache) {
   const id = spec?.indicator, def = SCAN_INDICATORS[id];
   const len = bars?.closes?.length || 0;
-  const label = scanSideLabel(spec || {});
+  const label = scanSideLabel(spec || {}, { timeframe: bars?.timeframe || null, market: bars?.market ?? null });
   const fill = (st, code, text) => ({ id, len, label, specKey: scanSpecKey(spec || {}), unit: null, needs: Infinity, field: null, calcVersion: null,
     whole: { status: st, reason: { code, text } }, base: null, mult: 1 });
   if (!def) return fill('INVALID_INPUT', 'UNKNOWN_INDICATOR', id ? `unknown indicator “${id}”` : 'no indicator is named');
@@ -2627,10 +2644,10 @@ function scanCanonicalOf(s) {
 const scanCanonical = (setup) => scanCanonicalOf(scanNormaliseSetup(setup));
 
 /* A condition and a tree in words, for the page's list and the builder. */
-function scanOperandProse(o) {
+function scanOperandProse(o, ctx = {}) {
   if (o == null) return '?';
   if (typeof o !== 'object') return scanNumeric(o) ? String(Number(o)) : '?';
-  if (o.indicator != null) return scanSideLabel(o);
+  if (o.indicator != null) return scanSideLabel(o, ctx);
   return scanNumeric(o.value) ? String(Number(o.value)) : '?';
 }
 /* A YES-OR-NO READING (unit 'flag') asked whether it EQUALS 1 or 0 is
@@ -2647,27 +2664,31 @@ function scanFlagLiteral(c) {
   return scanNumeric(r) && (Number(r) === 0 || Number(r) === 1) ? Number(r) : null;
 }
 const scanFlagWord = (v) => (Number(v) === 1 ? 'true' : 'false');
-function scanConditionProse(c) {
+/* `setupTf` is the timeframe of the setup the condition belongs to, where
+   known: a condition with none of its own is read on it, and a window of n
+   bars is named by it (scanWindowWords). */
+function scanConditionProse(c, { setupTf = null } = {}) {
   if (!c || typeof c !== 'object') return '(not a condition)';
   const op = scanOpName(c.op);
   /* A condition read on a timeframe of its own says which, first. */
   const on = c.timeframe != null && c.timeframe !== '' ? `${scanTimeframeWord(scanTimeframe(c.timeframe))}: ` : '';
-  if (op === 'BETWEEN') return `${on}${scanOperandProse(c.left)} between ${scanOperandProse(c.range?.[0])} and ${scanOperandProse(c.range?.[1])}`;
+  const ctx = { timeframe: c.timeframe != null && c.timeframe !== '' ? c.timeframe : setupTf };
+  if (op === 'BETWEEN') return `${on}${scanOperandProse(c.left, ctx)} between ${scanOperandProse(c.range?.[0], ctx)} and ${scanOperandProse(c.range?.[1], ctx)}`;
   const flag = scanFlagLiteral(c);
-  if (flag != null) return `${on}${scanOperandProse(c.left)} is ${scanFlagWord(flag)}`;
-  return `${on}${scanOperandProse(c.left)} ${op ? SCAN_OPERATORS[op].label : `“${c.op}”`} ${scanOperandProse(c.right)}`;
+  if (flag != null) return `${on}${scanOperandProse(c.left, ctx)} is ${scanFlagWord(flag)}`;
+  return `${on}${scanOperandProse(c.left, ctx)} ${op ? SCAN_OPERATORS[op].label : `“${c.op}”`} ${scanOperandProse(c.right, ctx)}`;
 }
 /* A timeframe as a word of a sentence: 'weekly', 'monthly', 'daily'. */
 const scanTimeframeWord = (tf) => (SCAN_TIMEFRAMES[tf]?.label || String(tf)).toLowerCase();
 /* The tree as indented lines: { depth, text }. A group line reads "all of"
    or "any of"; its conditions follow one level in. */
-function scanTreeLines(tree) {
+function scanTreeLines(tree, setupTf = null) {
   const out = [];
   const walk = (n, depth) => {
     if (n?.type === 'group') {
       if (depth > 0) out.push({ depth, text: `${n.logic === 'ANY' ? 'any' : 'all'} of:`, group: true });
       (Array.isArray(n.children) ? n.children : []).forEach(c => walk(c, depth + 1));
-    } else out.push({ depth, text: scanConditionProse(n) });
+    } else out.push({ depth, text: scanConditionProse(n, { setupTf }) });
   };
   walk(tree, 0);
   return out;
@@ -2781,14 +2802,49 @@ function scanValidate(doc, { limits = null } = {}) {
         if (c.left && typeof c.left === 'object' && c.left.indicator == null && 'value' in c.left) { bad(path, 'BAD_OPERAND', 'the left side must be an indicator, not a fixed value'); return; }
         const lu = operand(c.left, path, 'left');
         if (lu === false) return;
-        const ll = scanSideLabel(c.left);
+        const ll = scanSideLabel(c.left, { timeframe: c.timeframe ?? s.timeframe });
+        /* A YES-OR-NO READING IS ASKED WHETHER IT IS TRUE OR FALSE. A flag
+           is 1 or 0, and the builder asks it EQUALS 1 or 0 ("is true", "is
+           false"). Every other operator was accepted and saved: "crosses
+           above 1" and "above 1" never hold on a reading that is only ever
+           1 or 0, "at or below 1" and "between 0 and 1" always do, and the
+           rest ask "is true" or "is false" another way — a setup could run,
+           match nothing and say nothing. Any other operator, or a
+           comparison of the flag with another reading, is refused with what
+           it would have done; a setup saved with one is reported wherever
+           it is validated, never rewritten. The bar a flag turns true is a
+           new match of "is true" (cooldown mode NEW_MATCH). */
+        if (lu === 'flag' && op !== 'EQUALS') {
+          const num = (x) => (x && typeof x === 'object' && x.indicator == null && scanNumeric(x.value) ? Number(x.value) : null);
+          const r0 = c.right, lit = num(r0);
+          let asked = null, does = null;
+          if (op === 'BETWEEN') {
+            const [a, b] = Array.isArray(c.range) ? c.range.map(num) : [null, null];
+            if (a != null && b != null) {
+              const lo = Math.min(a, b), hi = Math.max(a, b), t = lo <= 1 && hi >= 1, f = lo <= 0 && hi >= 0;
+              asked = `between ${a} and ${b}`;
+              does = t && f ? 'always holds' : t ? 'asks “is true” another way' : f ? 'asks “is false” another way' : 'never holds';
+            }
+          } else if (r0 && typeof r0 === 'object' && r0.indicator != null) {
+            asked = `${SCAN_OPERATORS[op].label} ${scanSideLabel(r0, { timeframe: c.timeframe ?? s.timeframe })}`;
+            does = 'compares two yes-or-no readings';
+          } else if (lit === 0 || lit === 1) {
+            asked = `${SCAN_OPERATORS[op].label} ${lit}`;
+            does = { GREATER_THAN: ['asks “is true” another way', 'never holds'], GREATER_THAN_OR_EQUAL: ['always holds', 'asks “is true” another way'],
+                     LESS_THAN: ['never holds', 'asks “is false” another way'], LESS_THAN_OR_EQUAL: ['asks “is false” another way', 'always holds'],
+                     CROSSES_ABOVE: ['holds on the bar it turns true — ask “is true” and record new matches only', 'never holds'],
+                     CROSSES_BELOW: ['never holds', 'holds on the bar it turns false — ask “is false” and record new matches only'] }[op]?.[lit] || null;
+          }
+          bad(path, 'FLAG_OPERATOR', `${ll} is a yes-or-no reading (1 or 0), asked only whether it is true or false — equals 1 or equals 0 — so “${asked || SCAN_OPERATORS[op].label}” is refused${does ? `: on a reading that is only ever 1 or 0 it ${does}` : ''}`);
+          return;
+        }
         if (op === 'BETWEEN') {
           if (c.right != null) { bad(path, 'EXTRA_OPERAND', '"between" takes a range, and this condition also carries a right side, which would be ignored'); return; }
           if (!Array.isArray(c.range) || c.range.length !== 2) { bad(path, 'INVALID_LITERAL', '"between" needs a range of two numbers'); return; }
           c.range.forEach((r, j) => {
             if (r && typeof r === 'object' && r.indicator != null) {
               const ru = operand(r, path, `range bound ${j + 1}`);
-              if (ru !== false && ru !== lu) bad(path, 'UNIT_MISMATCH', `${ll} (${SCAN_UNITS[lu]?.label || lu}) cannot be bounded by ${scanSideLabel(r)} (${SCAN_UNITS[ru]?.label || ru})`);
+              if (ru !== false && ru !== lu) bad(path, 'UNIT_MISMATCH', `${ll} (${SCAN_UNITS[lu]?.label || lu}) cannot be bounded by ${scanSideLabel(r, { timeframe: c.timeframe ?? s.timeframe })} (${SCAN_UNITS[ru]?.label || ru})`);
             } else if (!scanNumeric(r?.value)) bad(path, 'INVALID_LITERAL', '"between" needs a range of two numbers');
             else literal(r.value, lu, path, `range bound ${j + 1}`, ll);
           });
@@ -2799,7 +2855,7 @@ function scanValidate(doc, { limits = null } = {}) {
         if (r && typeof r === 'object' && r.indicator != null) {
           const ru = operand(r, path, 'right');
           if (ru === false) return;
-          if (ru !== lu) { bad(path, 'UNIT_MISMATCH', `${ll} (${SCAN_UNITS[lu]?.label || lu}) cannot be compared with ${scanSideLabel(r)} (${SCAN_UNITS[ru]?.label || ru})`); return; }
+          if (ru !== lu) { bad(path, 'UNIT_MISMATCH', `${ll} (${SCAN_UNITS[lu]?.label || lu}) cannot be compared with ${scanSideLabel(r, { timeframe: c.timeframe ?? s.timeframe })} (${SCAN_UNITS[ru]?.label || ru})`); return; }
           if (op === 'EQUALS' && !SCAN_OPERATORS.EQUALS.equatableUnits.includes(lu)) bad(path, 'EQUALS_NOT_ALLOWED', `exact equality of two ${SCAN_UNITS[lu]?.label || lu} readings is noise — use BETWEEN, or compare with a fixed value`);
         } else if (r && typeof r === 'object' && 'value' in r) literal(r.value, lu, path, 'the right-hand value', ll);
         else bad(path, 'MISSING_OPERAND', 'right side needs an indicator or a numeric value');
@@ -2934,7 +2990,7 @@ function scanRecordStatus(c) {
 }
 function scanEvalHigher(cond, tf, bars, i, cache) {
   const own = bars?.timeframe || '1D', word = scanTimeframeWord(tf), unit = tf === '1M' ? 'month' : 'week';
-  const label = cond?.left && typeof cond.left === 'object' && cond.left.indicator != null ? scanSideLabel(cond.left) : 'the condition';
+  const label = cond?.left && typeof cond.left === 'object' && cond.left.indicator != null ? scanSideLabel(cond.left, { timeframe: tf, market: bars?.market ?? null }) : 'the condition';
   const res = { type: 'condition', path: null, op: scanOpName(cond?.op) || cond?.op || null, state: 'UNAVAILABLE', met: null, text: '', reason: null,
                 left: null, right: null, prevLeft: null, prevRight: null, leftLabel: null, rightLabel: null, leftValue: null, rightValue: null,
                 timeframe: tf, barDate: null, barOrigin: null };
@@ -3330,7 +3386,12 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
      untestedEverywhere is decided from the pairs actually evaluated. */
   const out = { engine: `scan ${SCAN_VERSION}`, runId, origin, replayAsOf: asOf || null, alerts: [], evaluated: 0, matched: 0, untested: 0,
                 deduped: 0, cooldown: 0, continuing: 0, skipped: [], setups: 0, untestedList: [], untestedEverywhere: [], stale: [], provisional: [],
-                pairs: {}, catchUp: null, catchUpList: [], skippedMarkets: [], narrowed: null, universeResolvedFrom: [], watchlistFallbacks: [] };
+                pairs: {}, catchUp: null, catchUpList: [], skippedMarkets: [], narrowed: null, universeResolvedFrom: [], watchlistFallbacks: [],
+                /* The id of every alert this run matched: each it recorded,
+                   and each it found already recorded (the id of that
+                   record's key). The dashboard's "matched on the last scan"
+                   reads it (scanStatus). */
+                matchedAlertIds: [] };
   const prior = Array.isArray(existing) ? existing : [];
   const seen = new Set(prior.map(a => a?.key).filter(Boolean));
   /* The recorded bars per setup version, instrument and timeframe: what a
@@ -3532,7 +3593,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
         const key = scanKey(s.id, s.version, instrumentId || sym, s.timeframe, jb, eventType);
         const forms = [key, scanKey(s.id, s.version, sym, s.timeframe, jb, eventType)];
         if (s.version === 1 && s.timeframe === '1D') forms.push(scanLegacyKey(s.id, sym, jb));
-        if (forms.some(k => seen.has(k))) { out.deduped++; out.skipped.push({ setup: s.id, symbol: sym, why: 'already recorded for this bar' }); continue; }
+        if (forms.some(k => seen.has(k))) { out.deduped++; out.matchedAlertIds.push(scanAlertId(forms.find(k => seen.has(k)))); out.skipped.push({ setup: s.id, symbol: sym, why: 'already recorded for this bar' }); continue; }
         /* Cooldown counts BARS of this instrument, not days: a holiday is not
            a bar. Counted as the bars held after the previous alert's bar, so a
            bar removed from the history does not lose the cooldown. */
@@ -3606,6 +3667,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
           bar: jb, rules: r.conditions.map(c => ({ text: c.text, met: c.met })), recordedAt: now || null,
         };
         out.alerts.push(rec);
+        out.matchedAlertIds.push(rec.id);
         forms.forEach(k => seen.add(k));
         if (!recordedBars.has(ck)) recordedBars.set(ck, []);
         recordedBars.get(ck).push(jb);
@@ -4086,7 +4148,8 @@ function scanDataHealth(history, instruments, now) {
   syms.forEach(sym => { const m = reg.get(String(sym).toUpperCase())?.market || null; const k = m ? String(m).toUpperCase() : ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(sym); });
   const order = [...groups.keys()].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a < b ? -1 : a > b ? 1 : 0));
   const markets = [], series = [];
-  const totals = { series: syms.length, bars: 0, invalid: 0, gaps: 0, jumps: 0, unexplained: 0, stale: 0, provisional: 0, weekend: 0, shifted: 0, duplicates: 0 };
+  const totals = { series: syms.length, bars: 0, invalid: 0, gaps: 0, jumps: 0, unexplained: 0, stale: 0, provisional: 0, weekend: 0, shifted: 0, duplicates: 0,
+                   importedBars: 0, importedRead: 0, importedInvalid: 0, framesRefused: 0 };
   const clock = now != null && Number.isFinite(scanMs(now));
   order.forEach(k => {
     const market = k || null;
@@ -4123,7 +4186,28 @@ function scanDataHealth(history, instruments, now) {
       const offDays = heldDays.filter(d => !M.days.includes(scanWeekday(d)));
       if (offDays.length) weekend.push({ symbol: sym, bars: offDays.length, first: offDays[0], last: offDays[offDays.length - 1] });
       const duplicates = scanDuplicateSessions(history, sym, market);
-      series.push({ symbol: sym, market, bars: n, first: b.dates[0] || null, last, hasOHLC: b.hasOHLC,
+      /* THE IMPORTED WEEKS AND MONTHS. The report read the daily bars only,
+         so the weekly and monthly bars imported from the reader's exports
+         were never counted, and a frame the engine refuses — a recorded
+         split inside it, which the daily bars are adjusted for and the
+         imported ones are not — left the page saying "Nothing to look at"
+         while every weekly setup on the symbol read bars built from the
+         daily ones. Each frame is read as a weekly or monthly setup reads
+         it (scanFrameBars): the periods it holds, the imported bars read,
+         those refused as invalid, and the reason a whole frame is refused. */
+      const held = scanFramesOf(history, sym, { market });
+      const frames = [];
+      for (const tf of ['1W', '1M']) {
+        const f = held?.[tf];
+        if (!f) continue;
+        const F = scanFrameBars(b, tf, { calendar: cal, now: clock ? now : null, frame: f });
+        const bad = (F.invalid || []).filter(x => x.origin === 'imported');
+        const read = f.refused ? 0 : (Array.isArray(F.origin) ? F.origin.filter(o => o === 'imported').length : 0);
+        frames.push({ symbol: sym, market, timeframe: tf, held: f.periods, first: f.first, last: f.last, read, invalid: bad,
+                      refused: f.refused ? f.refused.reason : null, action: f.refused ? f.refused.action : null });
+        totals.importedBars += f.periods; totals.importedRead += read; totals.importedInvalid += bad.length; totals.framesRefused += f.refused ? 1 : 0;
+      }
+      series.push({ symbol: sym, market, bars: n, first: b.dates[0] || null, last, hasOHLC: b.hasOHLC, frames,
                     volumeCoverage: n ? withVol / n : 0, invalid: b.invalid, dropped, gaps, jumps, unexplained, statusCounts,
                     weekdays: profile.counts, offSession: offDays.length, shifted: profile.shifted ? { ...profile.shifted, sundayShare: profile.sundayShare, saturdayShare: profile.saturdayShare } : null,
                     duplicates, adjustments: b.adjustments || [], adjustmentVersion: b.adjustmentVersion || null,
@@ -4155,7 +4239,7 @@ function scanDataHealth(history, instruments, now) {
   return { at: clock ? new Date(scanMs(now)).toISOString() : null, engine: `scan ${SCAN_VERSION}`,
            file: { schema: history?.schema ?? 1, generated: history?.generated ?? null, source: history?.source ?? null, symbols: syms.length,
                    ohlc: !!history?.ohlc, meta: !!history?.meta, corrections: !!history?.corrections },
-           markets, series, totals, adjustments };
+           markets, series, totals, adjustments, frames: series.flatMap(s => s.frames) };
 }
 /* THE HISTORY REPORT, in the shape ingest/history-check.mjs prints and the
    data page reads: every refused bar with its codes, the bars dated on a
@@ -4352,7 +4436,18 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
      whose last session is a day behind another's — was left out, and the
      dashboard said "No setup matched on the bars of that scan" of a run
      whose own record counted the match as recorded. */
-  const ofLastScan = (a) => barOf(a) === lastSuccess.asOf || (lastSuccess.id != null && a.runId != null && a.runId === lastSuccess.id);
+  /* AND THOSE IT FOUND ALREADY RECORDED. A weekly or monthly setup's match
+     is on the last closed week or month, not the newest daily bar: the run
+     that recorded it counted it, and the next run on the same bars, which
+     found it again and did not record it twice, did not — "12 matches"
+     became "9" with nothing changed, and the weekly rows moved to "earlier
+     matches" under a heading that still dated them to the last scan. The
+     same befell a market a session behind another. A run that records the
+     ids of every alert it matched (matchedAlertIds, recorded or already
+     recorded) is read by that list; one written before it, by the bar. */
+  const matchedIds = Array.isArray(lastSuccess?.matchedAlertIds) ? new Set(lastSuccess.matchedAlertIds) : null;
+  const ofLastScan = (a) => (lastSuccess.id != null && a.runId != null && a.runId === lastSuccess.id)
+    || (matchedIds ? matchedIds.has(a.id || (a.key ? scanAlertId(a.key) : null)) : barOf(a) === lastSuccess.asOf);
   const latestMatches = lastSuccess?.asOf ? alerts.map((a, i) => ({ a, i })).filter(x => ofLastScan(x.a))
     .sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map(x => x.a) : [];
   const recentBars = [...new Set(alerts.map(barOf).filter(Boolean))].sort().reverse().slice(0, 5);
@@ -4360,7 +4455,10 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
     .sort((x, y) => barOf(y.a).localeCompare(barOf(x.a)) || rank(x.a) - rank(y.a) || x.i - y.i).map(x => x.a);
   const unread = alertState ? alerts.filter(a => !alertState[a.id || a.key]).length : null;
   return { state, reasons, active, monitored, lastSuccess, lastAttempt, latestMatches, recent, engine,
-           notifications: { channel: 'none', text: 'No channel exists: alerts are recorded in a file on this machine and shown in the app; nothing is sent.', inApp: { unread } } };
+           /* One channel exists, in the app, as Settings and Delivery say
+              and the worker's delivery record lists it (IN_APP ACTIVE): this
+              said "No channel exists" beside them. */
+           notifications: { channel: 'in_app', text: 'One channel exists: in the app. Alerts are recorded in a file on this machine and read in the app; nothing is sent.', inApp: { unread } } };
 }
 
 /* -------------------------------------------------------------------- drift -- */
@@ -4371,12 +4469,18 @@ function scanSetupDrift(browserSetups, fileDoc) {
   const fileList = Array.isArray(fileDoc) ? fileDoc : Array.isArray(fileDoc?.setups) ? fileDoc.setups : [];
   const B = norm(browserSetups), F = norm(fileList);
   const out = { onlyInBrowser: [], onlyInFile: [], differ: [], same: [] };
+  /* A name is not part of a version, but the worker writes it into every
+     alert it records (setupName): a setup renamed on one side and not the
+     other was "in step", and new records kept the old name while this
+     browser showed the new one. It differs, as the enabled flag does. */
+  const nameOf = (s) => String(s.name || s.id);
   B.forEach((b, id) => {
     const f = F.get(id);
     if (!f) { out.onlyInBrowser.push(id); return; }
-    if (b.hash === f.hash && b.version === f.version && b.enabled === f.enabled) { out.same.push(id); return; }
+    if (b.hash === f.hash && b.version === f.version && b.enabled === f.enabled && nameOf(b) === nameOf(f)) { out.same.push(id); return; }
     out.differ.push({ id, browserVersion: b.version, fileVersion: f.version, browserHash: b.hash, fileHash: f.hash,
                       rulesDiffer: b.hash !== f.hash, enabledDiffers: b.enabled !== f.enabled,
+                      nameDiffers: nameOf(b) !== nameOf(f), browserName: nameOf(b), fileName: nameOf(f),
                       newer: b.version > f.version ? 'browser' : f.version > b.version ? 'file' : 'unknown' });
   });
   F.forEach((f, id) => { if (!B.has(id)) out.onlyInFile.push(id); });

@@ -9357,9 +9357,26 @@ function scanSpecKey(spec, { multiplier = true } = {}) {
   return `${id}(${ps})${f ? `.${f}` : ''}${multiplier && m !== 1 ? `*${m}` : ''}`;
 }
 
+/* THE WINDOW OF A HIGHEST OR LOWEST, NAMED BY THE BARS IT READS. It was
+   "52-week" whenever n was 252, on any bars: 252 monthly bars (21 years),
+   252 weekly bars, 252 daily bars of a seven-day crypto market (36 weeks)
+   — while 52 weekly bars, the real 52-week high, read "52-bar". A week and
+   a month are what their bars are; a daily bar is a session, and 252 of
+   them are 52 weeks only on a weekday market. Where the timeframe is not
+   known — a sentence about a setup whose instruments span markets, a
+   condition out of context — it is bars. `ctx` is { timeframe, market }. */
+function scanWindowWords(n, { timeframe = null, market = null } = {}) {
+  const tf = timeframe == null || timeframe === '' ? null : scanTimeframe(timeframe);
+  if (tf === '1W') return `${n}-week`;
+  if (tf === '1M') return `${n}-month`;
+  if (tf === '1D') return n === 252 && market != null && SCAN_MARKETS[String(market).toUpperCase()]?.days?.length === 5 ? '52-week' : `${n}-session`;
+  return `${n}-bar`;
+}
 /* How a side reads in words — the page's list, the builder and the alert
-   text all use this, so the rule a reader sees is the rule that ran. */
-function scanSideLabel(s) {
+   text all use this, so the rule a reader sees is the rule that ran.
+   `ctx` ({ timeframe, market }) is what the side is read on, where known:
+   a window of n bars is named by it (scanWindowWords). */
+function scanSideLabel(s, ctx = {}) {
   const id = s?.indicator, def = SCAN_INDICATORS[id];
   if (!def) return id ? `unknown indicator “${id}”` : '—';
   const p = scanParams(s).params;
@@ -9373,10 +9390,10 @@ function scanSideLabel(s) {
       break;
     }
     case 'bb': { const f = scanFieldOf(s); base = `Bollinger(${p.n},${p.k}) ${f === 'pctb' ? '%b' : f}`; break; }
-    case 'high_n': base = p.n === 252 ? '52-week high' : `${p.n}-bar high`; break;
-    case 'low_n': base = p.n === 252 ? '52-week low' : `${p.n}-bar low`; break;
-    case 'close_high_n': base = p.n === 252 ? '52-week closing high' : `${p.n}-bar closing high`; break;
-    case 'close_low_n': base = p.n === 252 ? '52-week closing low' : `${p.n}-bar closing low`; break;
+    case 'high_n': base = `${scanWindowWords(p.n, ctx || {})} high`; break;
+    case 'low_n': base = `${scanWindowWords(p.n, ctx || {})} low`; break;
+    case 'close_high_n': base = `${scanWindowWords(p.n, ctx || {})} closing high`; break;
+    case 'close_low_n': base = `${scanWindowWords(p.n, ctx || {})} closing low`; break;
     case 'change': base = `${p.n}-bar change %`; break;
     case 'rvol': base = `relative volume (${p.n}-bar)`; break;
     default: base = def.sideLabel ? def.sideLabel(p, scanFieldOf(s)) : def.label;
@@ -10463,7 +10480,7 @@ function scanComputeSeries(id, params, field, bars, needs) {
 function scanIndicatorCore(spec, bars, cache) {
   const id = spec?.indicator, def = SCAN_INDICATORS[id];
   const len = bars?.closes?.length || 0;
-  const label = scanSideLabel(spec || {});
+  const label = scanSideLabel(spec || {}, { timeframe: bars?.timeframe || null, market: bars?.market ?? null });
   const fill = (st, code, text) => ({ id, len, label, specKey: scanSpecKey(spec || {}), unit: null, needs: Infinity, field: null, calcVersion: null,
     whole: { status: st, reason: { code, text } }, base: null, mult: 1 });
   if (!def) return fill('INVALID_INPUT', 'UNKNOWN_INDICATOR', id ? `unknown indicator “${id}”` : 'no indicator is named');
@@ -10681,10 +10698,10 @@ function scanCanonicalOf(s) {
 const scanCanonical = (setup) => scanCanonicalOf(scanNormaliseSetup(setup));
 
 /* A condition and a tree in words, for the page's list and the builder. */
-function scanOperandProse(o) {
+function scanOperandProse(o, ctx = {}) {
   if (o == null) return '?';
   if (typeof o !== 'object') return scanNumeric(o) ? String(Number(o)) : '?';
-  if (o.indicator != null) return scanSideLabel(o);
+  if (o.indicator != null) return scanSideLabel(o, ctx);
   return scanNumeric(o.value) ? String(Number(o.value)) : '?';
 }
 /* A YES-OR-NO READING (unit 'flag') asked whether it EQUALS 1 or 0 is
@@ -10701,27 +10718,31 @@ function scanFlagLiteral(c) {
   return scanNumeric(r) && (Number(r) === 0 || Number(r) === 1) ? Number(r) : null;
 }
 const scanFlagWord = (v) => (Number(v) === 1 ? 'true' : 'false');
-function scanConditionProse(c) {
+/* `setupTf` is the timeframe of the setup the condition belongs to, where
+   known: a condition with none of its own is read on it, and a window of n
+   bars is named by it (scanWindowWords). */
+function scanConditionProse(c, { setupTf = null } = {}) {
   if (!c || typeof c !== 'object') return '(not a condition)';
   const op = scanOpName(c.op);
   /* A condition read on a timeframe of its own says which, first. */
   const on = c.timeframe != null && c.timeframe !== '' ? `${scanTimeframeWord(scanTimeframe(c.timeframe))}: ` : '';
-  if (op === 'BETWEEN') return `${on}${scanOperandProse(c.left)} between ${scanOperandProse(c.range?.[0])} and ${scanOperandProse(c.range?.[1])}`;
+  const ctx = { timeframe: c.timeframe != null && c.timeframe !== '' ? c.timeframe : setupTf };
+  if (op === 'BETWEEN') return `${on}${scanOperandProse(c.left, ctx)} between ${scanOperandProse(c.range?.[0], ctx)} and ${scanOperandProse(c.range?.[1], ctx)}`;
   const flag = scanFlagLiteral(c);
-  if (flag != null) return `${on}${scanOperandProse(c.left)} is ${scanFlagWord(flag)}`;
-  return `${on}${scanOperandProse(c.left)} ${op ? SCAN_OPERATORS[op].label : `“${c.op}”`} ${scanOperandProse(c.right)}`;
+  if (flag != null) return `${on}${scanOperandProse(c.left, ctx)} is ${scanFlagWord(flag)}`;
+  return `${on}${scanOperandProse(c.left, ctx)} ${op ? SCAN_OPERATORS[op].label : `“${c.op}”`} ${scanOperandProse(c.right, ctx)}`;
 }
 /* A timeframe as a word of a sentence: 'weekly', 'monthly', 'daily'. */
 const scanTimeframeWord = (tf) => (SCAN_TIMEFRAMES[tf]?.label || String(tf)).toLowerCase();
 /* The tree as indented lines: { depth, text }. A group line reads "all of"
    or "any of"; its conditions follow one level in. */
-function scanTreeLines(tree) {
+function scanTreeLines(tree, setupTf = null) {
   const out = [];
   const walk = (n, depth) => {
     if (n?.type === 'group') {
       if (depth > 0) out.push({ depth, text: `${n.logic === 'ANY' ? 'any' : 'all'} of:`, group: true });
       (Array.isArray(n.children) ? n.children : []).forEach(c => walk(c, depth + 1));
-    } else out.push({ depth, text: scanConditionProse(n) });
+    } else out.push({ depth, text: scanConditionProse(n, { setupTf }) });
   };
   walk(tree, 0);
   return out;
@@ -10835,14 +10856,49 @@ function scanValidate(doc, { limits = null } = {}) {
         if (c.left && typeof c.left === 'object' && c.left.indicator == null && 'value' in c.left) { bad(path, 'BAD_OPERAND', 'the left side must be an indicator, not a fixed value'); return; }
         const lu = operand(c.left, path, 'left');
         if (lu === false) return;
-        const ll = scanSideLabel(c.left);
+        const ll = scanSideLabel(c.left, { timeframe: c.timeframe ?? s.timeframe });
+        /* A YES-OR-NO READING IS ASKED WHETHER IT IS TRUE OR FALSE. A flag
+           is 1 or 0, and the builder asks it EQUALS 1 or 0 ("is true", "is
+           false"). Every other operator was accepted and saved: "crosses
+           above 1" and "above 1" never hold on a reading that is only ever
+           1 or 0, "at or below 1" and "between 0 and 1" always do, and the
+           rest ask "is true" or "is false" another way — a setup could run,
+           match nothing and say nothing. Any other operator, or a
+           comparison of the flag with another reading, is refused with what
+           it would have done; a setup saved with one is reported wherever
+           it is validated, never rewritten. The bar a flag turns true is a
+           new match of "is true" (cooldown mode NEW_MATCH). */
+        if (lu === 'flag' && op !== 'EQUALS') {
+          const num = (x) => (x && typeof x === 'object' && x.indicator == null && scanNumeric(x.value) ? Number(x.value) : null);
+          const r0 = c.right, lit = num(r0);
+          let asked = null, does = null;
+          if (op === 'BETWEEN') {
+            const [a, b] = Array.isArray(c.range) ? c.range.map(num) : [null, null];
+            if (a != null && b != null) {
+              const lo = Math.min(a, b), hi = Math.max(a, b), t = lo <= 1 && hi >= 1, f = lo <= 0 && hi >= 0;
+              asked = `between ${a} and ${b}`;
+              does = t && f ? 'always holds' : t ? 'asks “is true” another way' : f ? 'asks “is false” another way' : 'never holds';
+            }
+          } else if (r0 && typeof r0 === 'object' && r0.indicator != null) {
+            asked = `${SCAN_OPERATORS[op].label} ${scanSideLabel(r0, { timeframe: c.timeframe ?? s.timeframe })}`;
+            does = 'compares two yes-or-no readings';
+          } else if (lit === 0 || lit === 1) {
+            asked = `${SCAN_OPERATORS[op].label} ${lit}`;
+            does = { GREATER_THAN: ['asks “is true” another way', 'never holds'], GREATER_THAN_OR_EQUAL: ['always holds', 'asks “is true” another way'],
+                     LESS_THAN: ['never holds', 'asks “is false” another way'], LESS_THAN_OR_EQUAL: ['asks “is false” another way', 'always holds'],
+                     CROSSES_ABOVE: ['holds on the bar it turns true — ask “is true” and record new matches only', 'never holds'],
+                     CROSSES_BELOW: ['never holds', 'holds on the bar it turns false — ask “is false” and record new matches only'] }[op]?.[lit] || null;
+          }
+          bad(path, 'FLAG_OPERATOR', `${ll} is a yes-or-no reading (1 or 0), asked only whether it is true or false — equals 1 or equals 0 — so “${asked || SCAN_OPERATORS[op].label}” is refused${does ? `: on a reading that is only ever 1 or 0 it ${does}` : ''}`);
+          return;
+        }
         if (op === 'BETWEEN') {
           if (c.right != null) { bad(path, 'EXTRA_OPERAND', '"between" takes a range, and this condition also carries a right side, which would be ignored'); return; }
           if (!Array.isArray(c.range) || c.range.length !== 2) { bad(path, 'INVALID_LITERAL', '"between" needs a range of two numbers'); return; }
           c.range.forEach((r, j) => {
             if (r && typeof r === 'object' && r.indicator != null) {
               const ru = operand(r, path, `range bound ${j + 1}`);
-              if (ru !== false && ru !== lu) bad(path, 'UNIT_MISMATCH', `${ll} (${SCAN_UNITS[lu]?.label || lu}) cannot be bounded by ${scanSideLabel(r)} (${SCAN_UNITS[ru]?.label || ru})`);
+              if (ru !== false && ru !== lu) bad(path, 'UNIT_MISMATCH', `${ll} (${SCAN_UNITS[lu]?.label || lu}) cannot be bounded by ${scanSideLabel(r, { timeframe: c.timeframe ?? s.timeframe })} (${SCAN_UNITS[ru]?.label || ru})`);
             } else if (!scanNumeric(r?.value)) bad(path, 'INVALID_LITERAL', '"between" needs a range of two numbers');
             else literal(r.value, lu, path, `range bound ${j + 1}`, ll);
           });
@@ -10853,7 +10909,7 @@ function scanValidate(doc, { limits = null } = {}) {
         if (r && typeof r === 'object' && r.indicator != null) {
           const ru = operand(r, path, 'right');
           if (ru === false) return;
-          if (ru !== lu) { bad(path, 'UNIT_MISMATCH', `${ll} (${SCAN_UNITS[lu]?.label || lu}) cannot be compared with ${scanSideLabel(r)} (${SCAN_UNITS[ru]?.label || ru})`); return; }
+          if (ru !== lu) { bad(path, 'UNIT_MISMATCH', `${ll} (${SCAN_UNITS[lu]?.label || lu}) cannot be compared with ${scanSideLabel(r, { timeframe: c.timeframe ?? s.timeframe })} (${SCAN_UNITS[ru]?.label || ru})`); return; }
           if (op === 'EQUALS' && !SCAN_OPERATORS.EQUALS.equatableUnits.includes(lu)) bad(path, 'EQUALS_NOT_ALLOWED', `exact equality of two ${SCAN_UNITS[lu]?.label || lu} readings is noise — use BETWEEN, or compare with a fixed value`);
         } else if (r && typeof r === 'object' && 'value' in r) literal(r.value, lu, path, 'the right-hand value', ll);
         else bad(path, 'MISSING_OPERAND', 'right side needs an indicator or a numeric value');
@@ -10988,7 +11044,7 @@ function scanRecordStatus(c) {
 }
 function scanEvalHigher(cond, tf, bars, i, cache) {
   const own = bars?.timeframe || '1D', word = scanTimeframeWord(tf), unit = tf === '1M' ? 'month' : 'week';
-  const label = cond?.left && typeof cond.left === 'object' && cond.left.indicator != null ? scanSideLabel(cond.left) : 'the condition';
+  const label = cond?.left && typeof cond.left === 'object' && cond.left.indicator != null ? scanSideLabel(cond.left, { timeframe: tf, market: bars?.market ?? null }) : 'the condition';
   const res = { type: 'condition', path: null, op: scanOpName(cond?.op) || cond?.op || null, state: 'UNAVAILABLE', met: null, text: '', reason: null,
                 left: null, right: null, prevLeft: null, prevRight: null, leftLabel: null, rightLabel: null, leftValue: null, rightValue: null,
                 timeframe: tf, barDate: null, barOrigin: null };
@@ -11384,7 +11440,12 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
      untestedEverywhere is decided from the pairs actually evaluated. */
   const out = { engine: `scan ${SCAN_VERSION}`, runId, origin, replayAsOf: asOf || null, alerts: [], evaluated: 0, matched: 0, untested: 0,
                 deduped: 0, cooldown: 0, continuing: 0, skipped: [], setups: 0, untestedList: [], untestedEverywhere: [], stale: [], provisional: [],
-                pairs: {}, catchUp: null, catchUpList: [], skippedMarkets: [], narrowed: null, universeResolvedFrom: [], watchlistFallbacks: [] };
+                pairs: {}, catchUp: null, catchUpList: [], skippedMarkets: [], narrowed: null, universeResolvedFrom: [], watchlistFallbacks: [],
+                /* The id of every alert this run matched: each it recorded,
+                   and each it found already recorded (the id of that
+                   record's key). The dashboard's "matched on the last scan"
+                   reads it (scanStatus). */
+                matchedAlertIds: [] };
   const prior = Array.isArray(existing) ? existing : [];
   const seen = new Set(prior.map(a => a?.key).filter(Boolean));
   /* The recorded bars per setup version, instrument and timeframe: what a
@@ -11586,7 +11647,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
         const key = scanKey(s.id, s.version, instrumentId || sym, s.timeframe, jb, eventType);
         const forms = [key, scanKey(s.id, s.version, sym, s.timeframe, jb, eventType)];
         if (s.version === 1 && s.timeframe === '1D') forms.push(scanLegacyKey(s.id, sym, jb));
-        if (forms.some(k => seen.has(k))) { out.deduped++; out.skipped.push({ setup: s.id, symbol: sym, why: 'already recorded for this bar' }); continue; }
+        if (forms.some(k => seen.has(k))) { out.deduped++; out.matchedAlertIds.push(scanAlertId(forms.find(k => seen.has(k)))); out.skipped.push({ setup: s.id, symbol: sym, why: 'already recorded for this bar' }); continue; }
         /* Cooldown counts BARS of this instrument, not days: a holiday is not
            a bar. Counted as the bars held after the previous alert's bar, so a
            bar removed from the history does not lose the cooldown. */
@@ -11660,6 +11721,7 @@ function scanRun(setups, history, { instruments = [], existing = [], now = null,
           bar: jb, rules: r.conditions.map(c => ({ text: c.text, met: c.met })), recordedAt: now || null,
         };
         out.alerts.push(rec);
+        out.matchedAlertIds.push(rec.id);
         forms.forEach(k => seen.add(k));
         if (!recordedBars.has(ck)) recordedBars.set(ck, []);
         recordedBars.get(ck).push(jb);
@@ -12140,7 +12202,8 @@ function scanDataHealth(history, instruments, now) {
   syms.forEach(sym => { const m = reg.get(String(sym).toUpperCase())?.market || null; const k = m ? String(m).toUpperCase() : ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(sym); });
   const order = [...groups.keys()].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a < b ? -1 : a > b ? 1 : 0));
   const markets = [], series = [];
-  const totals = { series: syms.length, bars: 0, invalid: 0, gaps: 0, jumps: 0, unexplained: 0, stale: 0, provisional: 0, weekend: 0, shifted: 0, duplicates: 0 };
+  const totals = { series: syms.length, bars: 0, invalid: 0, gaps: 0, jumps: 0, unexplained: 0, stale: 0, provisional: 0, weekend: 0, shifted: 0, duplicates: 0,
+                   importedBars: 0, importedRead: 0, importedInvalid: 0, framesRefused: 0 };
   const clock = now != null && Number.isFinite(scanMs(now));
   order.forEach(k => {
     const market = k || null;
@@ -12177,7 +12240,28 @@ function scanDataHealth(history, instruments, now) {
       const offDays = heldDays.filter(d => !M.days.includes(scanWeekday(d)));
       if (offDays.length) weekend.push({ symbol: sym, bars: offDays.length, first: offDays[0], last: offDays[offDays.length - 1] });
       const duplicates = scanDuplicateSessions(history, sym, market);
-      series.push({ symbol: sym, market, bars: n, first: b.dates[0] || null, last, hasOHLC: b.hasOHLC,
+      /* THE IMPORTED WEEKS AND MONTHS. The report read the daily bars only,
+         so the weekly and monthly bars imported from the reader's exports
+         were never counted, and a frame the engine refuses — a recorded
+         split inside it, which the daily bars are adjusted for and the
+         imported ones are not — left the page saying "Nothing to look at"
+         while every weekly setup on the symbol read bars built from the
+         daily ones. Each frame is read as a weekly or monthly setup reads
+         it (scanFrameBars): the periods it holds, the imported bars read,
+         those refused as invalid, and the reason a whole frame is refused. */
+      const held = scanFramesOf(history, sym, { market });
+      const frames = [];
+      for (const tf of ['1W', '1M']) {
+        const f = held?.[tf];
+        if (!f) continue;
+        const F = scanFrameBars(b, tf, { calendar: cal, now: clock ? now : null, frame: f });
+        const bad = (F.invalid || []).filter(x => x.origin === 'imported');
+        const read = f.refused ? 0 : (Array.isArray(F.origin) ? F.origin.filter(o => o === 'imported').length : 0);
+        frames.push({ symbol: sym, market, timeframe: tf, held: f.periods, first: f.first, last: f.last, read, invalid: bad,
+                      refused: f.refused ? f.refused.reason : null, action: f.refused ? f.refused.action : null });
+        totals.importedBars += f.periods; totals.importedRead += read; totals.importedInvalid += bad.length; totals.framesRefused += f.refused ? 1 : 0;
+      }
+      series.push({ symbol: sym, market, bars: n, first: b.dates[0] || null, last, hasOHLC: b.hasOHLC, frames,
                     volumeCoverage: n ? withVol / n : 0, invalid: b.invalid, dropped, gaps, jumps, unexplained, statusCounts,
                     weekdays: profile.counts, offSession: offDays.length, shifted: profile.shifted ? { ...profile.shifted, sundayShare: profile.sundayShare, saturdayShare: profile.saturdayShare } : null,
                     duplicates, adjustments: b.adjustments || [], adjustmentVersion: b.adjustmentVersion || null,
@@ -12209,7 +12293,7 @@ function scanDataHealth(history, instruments, now) {
   return { at: clock ? new Date(scanMs(now)).toISOString() : null, engine: `scan ${SCAN_VERSION}`,
            file: { schema: history?.schema ?? 1, generated: history?.generated ?? null, source: history?.source ?? null, symbols: syms.length,
                    ohlc: !!history?.ohlc, meta: !!history?.meta, corrections: !!history?.corrections },
-           markets, series, totals, adjustments };
+           markets, series, totals, adjustments, frames: series.flatMap(s => s.frames) };
 }
 /* THE HISTORY REPORT, in the shape ingest/history-check.mjs prints and the
    data page reads: every refused bar with its codes, the bars dated on a
@@ -12406,7 +12490,18 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
      whose last session is a day behind another's — was left out, and the
      dashboard said "No setup matched on the bars of that scan" of a run
      whose own record counted the match as recorded. */
-  const ofLastScan = (a) => barOf(a) === lastSuccess.asOf || (lastSuccess.id != null && a.runId != null && a.runId === lastSuccess.id);
+  /* AND THOSE IT FOUND ALREADY RECORDED. A weekly or monthly setup's match
+     is on the last closed week or month, not the newest daily bar: the run
+     that recorded it counted it, and the next run on the same bars, which
+     found it again and did not record it twice, did not — "12 matches"
+     became "9" with nothing changed, and the weekly rows moved to "earlier
+     matches" under a heading that still dated them to the last scan. The
+     same befell a market a session behind another. A run that records the
+     ids of every alert it matched (matchedAlertIds, recorded or already
+     recorded) is read by that list; one written before it, by the bar. */
+  const matchedIds = Array.isArray(lastSuccess?.matchedAlertIds) ? new Set(lastSuccess.matchedAlertIds) : null;
+  const ofLastScan = (a) => (lastSuccess.id != null && a.runId != null && a.runId === lastSuccess.id)
+    || (matchedIds ? matchedIds.has(a.id || (a.key ? scanAlertId(a.key) : null)) : barOf(a) === lastSuccess.asOf);
   const latestMatches = lastSuccess?.asOf ? alerts.map((a, i) => ({ a, i })).filter(x => ofLastScan(x.a))
     .sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map(x => x.a) : [];
   const recentBars = [...new Set(alerts.map(barOf).filter(Boolean))].sort().reverse().slice(0, 5);
@@ -12414,7 +12509,10 @@ function scanStatus({ runs = null, alertsDoc = null, setupsDoc = null, historyMe
     .sort((x, y) => barOf(y.a).localeCompare(barOf(x.a)) || rank(x.a) - rank(y.a) || x.i - y.i).map(x => x.a);
   const unread = alertState ? alerts.filter(a => !alertState[a.id || a.key]).length : null;
   return { state, reasons, active, monitored, lastSuccess, lastAttempt, latestMatches, recent, engine,
-           notifications: { channel: 'none', text: 'No channel exists: alerts are recorded in a file on this machine and shown in the app; nothing is sent.', inApp: { unread } } };
+           /* One channel exists, in the app, as Settings and Delivery say
+              and the worker's delivery record lists it (IN_APP ACTIVE): this
+              said "No channel exists" beside them. */
+           notifications: { channel: 'in_app', text: 'One channel exists: in the app. Alerts are recorded in a file on this machine and read in the app; nothing is sent.', inApp: { unread } } };
 }
 
 /* -------------------------------------------------------------------- drift -- */
@@ -12425,12 +12523,18 @@ function scanSetupDrift(browserSetups, fileDoc) {
   const fileList = Array.isArray(fileDoc) ? fileDoc : Array.isArray(fileDoc?.setups) ? fileDoc.setups : [];
   const B = norm(browserSetups), F = norm(fileList);
   const out = { onlyInBrowser: [], onlyInFile: [], differ: [], same: [] };
+  /* A name is not part of a version, but the worker writes it into every
+     alert it records (setupName): a setup renamed on one side and not the
+     other was "in step", and new records kept the old name while this
+     browser showed the new one. It differs, as the enabled flag does. */
+  const nameOf = (s) => String(s.name || s.id);
   B.forEach((b, id) => {
     const f = F.get(id);
     if (!f) { out.onlyInBrowser.push(id); return; }
-    if (b.hash === f.hash && b.version === f.version && b.enabled === f.enabled) { out.same.push(id); return; }
+    if (b.hash === f.hash && b.version === f.version && b.enabled === f.enabled && nameOf(b) === nameOf(f)) { out.same.push(id); return; }
     out.differ.push({ id, browserVersion: b.version, fileVersion: f.version, browserHash: b.hash, fileHash: f.hash,
                       rulesDiffer: b.hash !== f.hash, enabledDiffers: b.enabled !== f.enabled,
+                      nameDiffers: nameOf(b) !== nameOf(f), browserName: nameOf(b), fileName: nameOf(f),
                       newer: b.version > f.version ? 'browser' : f.version > b.version ? 'file' : 'unknown' });
   });
   F.forEach((f, id) => { if (!B.has(id)) out.onlyInFile.push(id); });
@@ -41572,10 +41676,13 @@ async function scanCopy(text, done) {
 }
 /* A card saying an address names nothing in the reader's record — never the
    not-found card: the page exists; the record does not hold that one. */
-function scanNotInRecord(what, detail, back) {
+/* `page`: the card is the whole page (an address naming a setup or an
+   alert the record does not hold), so its title is the page's one h1 —
+   those pages had no h1 at all, and their first heading was this h2. */
+function scanNotInRecord(what, detail, back, { page = false } = {}) {
   const card = el('div', { class: 'card' });
   card.append(el('p', { class: 'eyebrow' }, 'Not in your record'));
-  card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, what));
+  card.append(el(page ? 'h1' : 'h2', { class: 'h-card', style: 'margin-top:4px' }, what));
   card.append(el('p', { class: 'body', style: 'margin-top:8px' }, detail));
   if (back) card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, scanLink(back[0], back[1], { class: 'btn btn-ghost btn-sm' })));
   return card;
@@ -41607,6 +41714,17 @@ function scanRender({ fallback = null, focus = null } = {}) {
   if (!key) return;
   const pool = [...document.querySelectorAll('main button, main a[href], main input, main select, main textarea')].filter(n => !n.disabled);
   (pool.find(n => scanFocusKey(n) === key) || (fallback ? pool.find(n => scanFocusKey(n) === fallback) : null))?.focus({ preventScroll: true });
+}
+
+/* A SETUP SAVED HERE THAT THE ENGINE NOW REFUSES — one saved before a
+   rule it breaks existed, such as an operator other than "is" on a
+   yes-or-no reading (FLAG_OPERATOR) — is reported where it is listed, with
+   the engine's reasons, and never rewritten: the worker leaves it out, and
+   so does anything here that runs it. Null when it validates. */
+function scanRefusedNote(s) {
+  const ps = (scanValidate({ setups: [s] }).problemsBySetup[s.id] || []).map(p => `${p.path ? `${p.path}: ` : ''}${p.text}`).map(t => t.charAt(0).toUpperCase() + t.slice(1));
+  return ps.length ? el('p', { class: 'caption scan-note scan-warn scan-refused', style: 'margin-top:6px' },
+    `Refused as it stands, as the worker refuses it — it records nothing, and nothing here changes it for you. ${ps.join('; ')}. Edit it to write the condition again.`) : null;
 }
 
 /* A labelled fact, for the detail pages' key–value grids. An absent value
@@ -41778,7 +41896,9 @@ function scanExportDoc({ st = scanStoreRead(), now = new Date().toISOString() } 
   };
 }
 function scanMarkExported(doc, { st = scanStoreRead() } = {}) {
-  st.exported = { at: doc.exportedAt, setups: Object.fromEntries(doc.setups.map(s => [s.id, { version: s.version, hash: s.hash, enabled: s.enabled }])) };
+  /* The name too: the worker writes it into every alert it records, so a
+     rename is something the file has not been told (scanDriftRows). */
+  st.exported = { at: doc.exportedAt, setups: Object.fromEntries(doc.setups.map(s => [s.id, { version: s.version, hash: s.hash, enabled: s.enabled, name: s.name || s.id }])) };
   scanStoreWrite(st);
 }
 const scanExportName = () => 'scan-setups.json';
@@ -41849,11 +41969,17 @@ function scanDriftRows({ st = scanStoreRead(), fileDoc = scanSetupsFile } = {}) 
   if (fileDoc == null) {
     browser.forEach(b => {
       const ex = st.exported?.setups?.[b.id];
-      const same = ex && ex.version === b.version && ex.hash === b.hash && ex.enabled === b.enabled;
+      /* An export recorded before names were kept says nothing of the
+         name, and is not read as a rename. */
+      const renamed = !!ex && typeof ex.name === 'string' && ex.name !== (b.name || b.id);
+      const same = ex && ex.version === b.version && ex.hash === b.hash && ex.enabled === b.enabled && !renamed;
+      const onlyName = renamed && ex.version === b.version && ex.hash === b.hash && ex.enabled === b.enabled;
       rows.set(b.id, same
         ? { id: b.id, state: 'UNCONFIRMED', browser: b, file: null, text: `Exported ${scanDay(st.exported.at)} as v${b.version}. The worker’s file cannot be seen from here, so whether it still holds that version cannot be confirmed.` }
-        : { id: b.id, state: 'NOT_EXPORTED', browser: b, file: null, text: ex
-            ? `Changed since the export of ${scanDay(st.exported.at)} (which carried v${ex.version}${ex.enabled ? '' : ', disabled'}). The worker’s file cannot be seen from here; until you export, the worker runs whatever that file holds.`
+        : { id: b.id, state: 'NOT_EXPORTED', browser: b, file: null, renamed, text: onlyName
+            ? `Renamed here since the export of ${scanDay(st.exported.at)}, which carried v${ex.version} as “${ex.name}”. The worker’s file cannot be seen from here; until you export, the worker names it “${ex.name}” in every match it records.`
+            : ex
+            ? `Changed since the export of ${scanDay(st.exported.at)} (which carried v${ex.version}${ex.enabled ? '' : ', disabled'}${renamed ? ` as “${ex.name}”` : ''}). The worker’s file cannot be seen from here; until you export, the worker runs whatever that file holds.`
             : 'Never exported. The worker’s file cannot be seen from here, and this browser’s copy is the only copy until you export it.' });
     });
     /* Deleted here after the last export, which carried it: the worker's
@@ -41883,12 +42009,22 @@ function scanDriftRows({ st = scanStoreRead(), fileDoc = scanSetupsFile } = {}) 
       : (f.updated && rec?.updated && String(f.updated) > String(rec.updated) ? 'FILE_NEWER' : 'NOT_EXPORTED');
     else state = known && x.fileVersion <= x.browserVersion ? 'NOT_EXPORTED' : 'FILE_NEWER';
     const en = x.enabledDiffers ? ` It is ${b.enabled ? 'enabled' : 'disabled'} here and ${f.enabled ? 'enabled' : 'disabled'} in the file.` : '';
-    const text = state === 'NOT_EXPORTED'
-      ? `Saved here as v${x.browserVersion}; the file still holds v${x.fileVersion}, which is what the worker runs.${en}`
+    /* A rename: the worker writes the file's name into every match it
+       records, so it is said which name that is. */
+    const nm = x.nameDiffers ? (state === 'NOT_EXPORTED'
+      ? ` It is named “${x.browserName}” here and “${x.fileName}” in the file, which every match the worker records carries until you export.`
+      : ` It is named “${x.fileName}” in the file and “${x.browserName}” here.`) : '';
+    const onlyName = x.nameDiffers && !x.rulesDiffer && !x.enabledDiffers && x.browserVersion === x.fileVersion;
+    const text = onlyName
+      ? (state === 'NOT_EXPORTED'
+        ? `Renamed here: the file carries v${x.fileVersion}, the version saved here, as “${x.fileName}”, and the worker names it so in every match it records until you export.`
+        : `Renamed in the file, to “${x.fileName}”, after this browser’s copy (“${x.browserName}”); the conditions are v${x.fileVersion} on both sides.`)
+      : state === 'NOT_EXPORTED'
+      ? `Saved here as v${x.browserVersion}; the file still holds v${x.fileVersion}, which is what the worker runs.${en}${nm}`
       : x.rulesDiffer
-        ? `The file holds v${x.fileVersion} with conditions this browser has not seen (edited by hand, or in another browser); here the current version is v${x.browserVersion}.${en}`
-        : `The file was changed after this browser’s copy.${en}`;
-    rows.set(x.id, { id: x.id, state, browser: b, file: f, text, enabledDiffers: x.enabledDiffers });
+        ? `The file holds v${x.fileVersion} with conditions this browser has not seen (edited by hand, or in another browser); here the current version is v${x.browserVersion}.${en}${nm}`
+        : `The file was changed after this browser’s copy.${en}${nm}`;
+    rows.set(x.id, { id: x.id, state, browser: b, file: f, text, enabledDiffers: x.enabledDiffers, nameDiffers: x.nameDiffers });
   });
   return [...rows.values()];
 }
@@ -42085,7 +42221,7 @@ const scanHigherTfs = (tf) => Object.values(SCAN_TIMEFRAMES)
    timeframe other than its setup's names it ("on the last closed weekly
    bar"), unless the engine's words already say one. */
 function scanCondSentence(c, setupTf = null) {
-  let t = scanConditionProse(c);
+  let t = scanConditionProse(c, { setupTf });
   /* The engine names a condition's own timeframe first ("weekly: …"); these
      pages say it last, and only where it is not the setup's own. */
   t = t.replace(/^(daily|weekly|monthly): /i, '');
@@ -42274,7 +42410,7 @@ function scanNeedsOf(setups) {
        Pine indicators); the engine's own MACD and Bollinger name the field
        in their label, so each field is its own entry. */
     const key = def.sideLabel ? scanSpecKey(o, { multiplier: false }).replace(/\)\.\w+$/, ')') : scanSpecKey(o, { multiplier: false });
-    const head = def.sideLabel ? def.sideLabel(params, null) : scanSideLabel({ ...o, multiplier: undefined });
+    const head = def.sideLabel ? def.sideLabel(params, null) : scanSideLabel({ ...o, multiplier: undefined }, { timeframe: tf });
     const fl = def.sideLabel && f ? def.fieldLabels?.[f] : null;
     const field = typeof fl === 'function' ? fl(params) : fl || (def.sideLabel && f && !def.fieldLabels ? f : '');
     if (!byTf.has(tf)) byTf.set(tf, new Map());
@@ -42752,7 +42888,7 @@ VIEWS.scannerSetups = () => {
         el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
           scanLink(scanSetupPath(r.id), s?.name || r.name || r.id, { style: 'font-weight:600' }), scanDriftChip(r),
           el('span', { class: 'spacer' }),
-          (r.state === 'FILE_NEWER' || r.state === 'FILE_ONLY') ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Adopt ${r.id} from the file`, onclick: () => {
+          (r.state === 'FILE_NEWER' || r.state === 'FILE_ONLY') ? el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `Adopt from file: ${r.id}`, onclick: () => {
             const out = scanAdoptFromFile(r.id);
             toast(out.ok ? `Adopted ${r.id} as v${out.version}` : `Not adopted — ${out.problems[0]}`);
             scanRender();
@@ -42814,6 +42950,8 @@ VIEWS.scannerSetups = () => {
       if (s.description) p.append(el('p', { class: 'body', style: 'margin-top:6px;font-size:13px' }, s.description));
       p.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, `Universe: ${scanUniverseProse(s.universe)} · ${scanTimeframeProse(s)}.`));
       p.append(scanTreeList(s.ruleTree, s.timeframe));
+      const refusedNote = scanRefusedNote(s);
+      if (refusedNote) p.append(refusedNote);
       const wd = scanWatchlistDrift(s);
       if (wd && !wd.same) p.append(el('p', { class: 'caption scan-note', style: 'margin-top:6px' }, wd.text));
       p.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, nAlerts
@@ -42878,7 +43016,7 @@ VIEWS.scannerSetup = () => {
   const fileSetup = drift?.file || null;
   const alerts = scanAlertsInOrder(scanAlertsOf(id));
   if (!rec && !fileSetup && !alerts.length) {
-    wrap.append(scanNotInRecord(`No setup “${id}”`, `This browser holds no setup with that id, ${scanSetupsFile ? 'data/scan-setups.json does not name it' : 'data/scan-setups.json cannot be seen from here'}, and ${scanAlertsFile ? 'no recorded match names it' : 'the alerts file cannot be seen from here'}.`, ['/app/scanner/setups', 'Your setups']));
+    wrap.append(scanNotInRecord(`No setup “${id}”`, `This browser holds no setup with that id, ${scanSetupsFile ? 'data/scan-setups.json does not name it' : 'data/scan-setups.json cannot be seen from here'}, and ${scanAlertsFile ? 'no recorded match names it' : 'the alerts file cannot be seen from here'}.`, ['/app/scanner/setups', 'Your setups'], { page: true }));
     return wrap;
   }
   const cur = rec ? scanRecordSetup(rec) : fileSetup;
@@ -42929,6 +43067,7 @@ VIEWS.scannerSetup = () => {
     cv.append(facts);
     cv.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Conditions'));
     cv.append(scanTreeList(cur.ruleTree, cur.timeframe));
+    if (rec) { const refusedNote = scanRefusedNote(cur); if (refusedNote) cv.append(refusedNote); }
     if (drift) cv.append(el('p', { class: 'caption scan-note', style: 'margin-top:var(--sm)' }, drift.text));
     const wd = scanWatchlistDrift(cur);
     if (wd) cv.append(el('p', { class: 'caption scan-note', style: 'margin-top:6px' }, wd.text));
@@ -43283,7 +43422,7 @@ function scanBuilderView(mode) {
     if (!rec || rec.deleted) {
       wrap.append(scanNotInRecord(`No setup “${id}” to edit`, rec?.deleted
         ? 'That setup is deleted. Restore it from the setups page to edit it.'
-        : 'This browser holds no setup with that id. A setup only in the worker’s file is adopted first, from the setups page; then it can be edited here.', ['/app/scanner/setups', 'Your setups']));
+        : 'This browser holds no setup with that id. A setup only in the worker’s file is adopted first, from the setups page; then it can be edited here.', ['/app/scanner/setups', 'Your setups'], { page: true }));
       return wrap;
     }
     if (!scanEditDraft || scanEditDraft.id !== id || scanEditDraft.base !== rec.current) scanEditDraft = { id, base: rec.current, d: scanAsDraft(scanRecordSetup(rec)) };
@@ -43571,7 +43710,18 @@ function scanBuilder(d, ctx) {
         }
       }, { 'aria-label': `${L}: left side` })));
       params(c.left, 'Left');
-      grid.append(field('Operator', select(scanOpName(c.op) || c.op, OPS, v => {
+      /* A yes-or-no reading is asked "is true" or "is false" and nothing
+         else — the engine refuses any other operator on it (FLAG_OPERATOR).
+         Every operator was offered, and switching to "crosses above" kept
+         the builder's 1: "… crosses above 1", ready to save, which never
+         holds. Only "is" is offered; an operator a saved setup already
+         holds stays shown, marked refused, and is not changed for the
+         reader. */
+      const opNow = scanOpName(c.op) || c.op;
+      const opItems = unit === 'flag'
+        ? [['EQUALS', 'is — true or false (=)'], ...(opNow !== 'EQUALS' ? [[opNow, `${SCAN_OPERATORS[opNow]?.label || opNow} — not asked of a yes-or-no reading, so refused`, true]] : [])]
+        : OPS;
+      grid.append(field('Operator', select(opNow, opItems, v => {
         const was = scanOpName(c.op);
         c.op = v;
         if (v === 'BETWEEN' && was !== 'BETWEEN') { delete c.right; c.range = [{ value: null }, { value: null }]; }
@@ -43623,7 +43773,7 @@ function scanBuilder(d, ctx) {
       c3.append(row);
     });
     const full = tree.children.length >= SCAN_LIMITS.maxConditions;
-    c3.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Add a condition', disabled: full ? '' : null, onclick: () => {
+    c3.append(el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': full ? `The limit is ${SCAN_LIMITS.maxConditions} conditions` : 'Add a condition', disabled: full ? '' : null, onclick: () => {
       tree.children.push(scanBlankCondition()); rebuild(`Condition ${tree.children.length}: left side`);
     } }, full ? `The limit is ${SCAN_LIMITS.maxConditions} conditions` : 'Add a condition'));
   }
@@ -43652,7 +43802,7 @@ function scanBuilder(d, ctx) {
     if (!out.ok) { toast(`Not saved — ${out.problems[0]}`); refresh(); return; }
     if (mode === 'new') { scanDraft = null; scanIdAuto = true; } else scanEditDraft = null;
     toast(out.created ? `Saved ${out.id} as v${out.version}` : out.bumped ? `Saved as v${out.version}; the earlier versions are kept`
-      : out.metaChanged ? `No change to the conditions — still v${out.version}; the name and flags are updated` : `No change — still v${out.version}`);
+      : out.metaChanged ? `No change to the conditions — still v${out.version}; the name and flags are updated — export to tell the worker` : `No change — still v${out.version}`);
     navigate(scanSetupPath(out.id));
   } }, mode === 'edit' ? 'Save (new version)' : 'Save');
   const testBtn = el('button', { class: 'btn btn-ghost', 'aria-label': 'Test against your history (not recorded)', onclick: () => {
@@ -43673,7 +43823,7 @@ function scanBuilder(d, ctx) {
     }
     return { kind: 'quantum-tradeworks-scan-setups', schema: 2, setups: [s] };
   };
-  const copyBtn = el('button', { class: 'btn btn-ghost', 'aria-label': 'Copy setup JSON', onclick: async () => {
+  const copyBtn = el('button', { class: 'btn btn-ghost', 'aria-label': 'Copy JSON of this setup', onclick: async () => {
     const t = JSON.stringify(draftDoc(), null, 2);
     pre.textContent = t; pre.hidden = false;
     await scanCopy(t, 'Setup JSON copied — to add it to a file, paste the object inside its "setups" list');
@@ -43805,7 +43955,7 @@ VIEWS.scannerWatchlists = () => {
       el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
         /* A draft with changes in it was replaced without a word, where
            every other start the builder offers asks first. */
-        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `New setup on ${w.name}`, onclick: () => {
+        el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `New setup on this list: ${w.name}`, onclick: () => {
           if (scanDraft && !scanDraftUntouched() && !confirm('Replace the draft open in the builder with a new setup on this list? What is in the draft now is not kept.')) return;
           scanDraft = { ...scanBlankDraft(), universe: { kind: 'watchlist', watchlistId: w.id } }; scanIdAuto = true; navigate('/app/scanner/setups/new');
         } }, 'New setup on this list'),
@@ -44110,27 +44260,54 @@ function scanReproduce(a, { history = scanHistoryFile, list = scanAlertList() } 
   const out = { bar, sym, bars: null, at: -1, closes: [], values: [], state: null, text: '' };
   if (!history?.series) return { ...out, state: 'NO_HISTORY', text: 'The price history is not loaded here, so the bar cannot be evaluated again — on the deployed site it never is.' };
   if (!history.series[sym]) return { ...out, state: 'NO_SERIES', text: `The history holds no series ${sym}, so the bar cannot be evaluated again.` };
-  const heldNow = history.series[sym];
   const since = a.detectedAt || a.recordedAt || null;
+  const reg0 = scanRegistryList();
+  const mkt0 = 'market' in a ? a.market : scanMarketOf(sym, reg0);
+  /* EACH RECORD AGAINST THE BARS OF ITS OWN TIMEFRAME. Every close a
+     record holds was compared with history.series, which holds daily
+     closes only: a weekly record read from imported weekly bars was set
+     against the daily close filed under its date, so its own page said it
+     reproduced and then listed its own bar as a close that differed
+     ("recorded 324.04, now 835.85"), and every daily alert on the symbol
+     listed it too. A week dated by a holiday Friday's Thursday has no daily
+     close under its date at all, and read "now not held". A record's close
+     is its bar's close: the week's or the month's, as the history builds
+     that bar now (imported where held, else from the daily bars). */
+  const closesNow = new Map();
+  const closesOf = (tf) => {
+    if (!closesNow.has(tf)) {
+      if (tf === '1D') closesNow.set(tf, (d) => history.series[sym][d]);
+      else {
+        const b = scanBars(history, sym, { timeframe: tf, market: mkt0, calendar: scanCalendar(history, reg0, mkt0), staleTolerance: Infinity });
+        const m = new Map(b.dates.map((d, i) => [d, b.closes[i]]));
+        closesNow.set(tf, (d) => m.get(d));
+      }
+    }
+    return closesNow.get(tf);
+  };
   const diffs = new Map();
   const note = (x) => {
     const d = scanAlertBar(x);
-    if (!x || x.symbol !== sym || !d || d > bar || !isNum(x.close) || diffs.has(d)) return;
-    const now = heldNow[d];
-    if (!isNum(now) || Math.abs(now - x.close) > scanTol(now, x.close)) diffs.set(d, { date: d, recorded: x.close, now: isNum(now) ? now : null, via: 'record' });
-    else diffs.set(d, null);
+    if (!x || x.symbol !== sym || !d || d > bar || !isNum(x.close)) return;
+    const tf = scanTimeframe(x.timeframe);
+    if (tf !== '1D' && tf !== '1W' && tf !== '1M') return;
+    const k = `${tf}|${d}`;
+    if (diffs.has(k)) return;
+    const now = closesOf(tf)(d);
+    if (!isNum(now) || Math.abs(now - x.close) > scanTol(now, x.close)) diffs.set(k, { date: d, timeframe: tf, recorded: x.close, now: isNum(now) ? now : null, via: 'record' });
+    else diffs.set(k, null);
   };
   note(a);
   list.forEach(note);
+  /* The corrections log names daily closes. */
   (Array.isArray(history.corrections?.[sym]) ? history.corrections[sym] : []).forEach(c => {
-    if (c?.field !== 'close' || !c.date || c.date > bar || diffs.get(c.date)) return;
+    if (c?.field !== 'close' || !c.date || c.date > bar || diffs.get(`1D|${c.date}`)) return;
     if (since && c.at && String(c.at) <= String(since)) return;
-    diffs.set(c.date, { date: c.date, recorded: c.from ?? null, now: c.to ?? null, via: 'correction', at: c.at || null, src: c.src || null });
+    diffs.set(`1D|${c.date}`, { date: c.date, timeframe: '1D', recorded: c.from ?? null, now: c.to ?? null, via: 'correction', at: c.at || null, src: c.src || null });
   });
-  out.closes = [...diffs.values()].filter(Boolean).sort((x, y) => y.date.localeCompare(x.date));
+  out.closes = [...diffs.values()].filter(Boolean).sort((x, y) => y.date.localeCompare(x.date) || (SCAN_TF_RANK[x.timeframe] ?? 0) - (SCAN_TF_RANK[y.timeframe] ?? 0));
   const src = scanAlertSetup(a);
-  const reg = scanRegistryList();
-  const mkt = 'market' in a ? a.market : scanMarketOf(sym, reg);
+  const reg = reg0, mkt = mkt0;
   const cut = scanTruncateHistory(history, bar);
   /* NOT STALE BECAUSE IT IS CUT. The cut ends at the alert's bar, and the
      clock is the moment the record was made, which can be sessions later:
@@ -44212,7 +44389,8 @@ VIEWS.scannerAlert = () => {
   if (clash && !a) {
     const card = el('div', { class: 'card scan-collision' });
     card.append(el('p', { class: 'eyebrow' }, 'One id, several records'));
-    card.append(el('h2', { class: 'h-card', style: 'margin-top:4px' }, `${scanPlural(clash.length, 'record')} share the id ${want}`));
+    /* The whole page, so its one h1 (as scanNotInRecord's { page }). */
+    card.append(el('h1', { class: 'h-card', style: 'margin-top:4px' }, `${scanPlural(clash.length, 'record')} share the id ${want}`));
     card.append(el('p', { class: 'body', style: 'margin-top:8px;max-width:72ch' }, `An alert’s id is an eight-digit hash of its key, so two different keys can, rarely, give the same id. Each record is listed with its own key and opens by it. Their read and archived status in this browser is shared, because status is kept by id.${wantKey ? ` None of them has the key ${wantKey}.` : ''}`));
     const ul = el('ul', { class: 'scan-alert-mini', style: 'margin-top:var(--sm)' });
     clash.forEach(x => ul.append(el('li', {}, [
@@ -44226,7 +44404,7 @@ VIEWS.scannerAlert = () => {
   if (!a) {
     wrap.append(scanNotInRecord(`No alert “${want}”`, scanAlertsFile
       ? `data/scan-alerts.json holds ${scanPlural(list.length, 'record')}, and none has that id. An alert’s id is taken from its key, so it does not change; a record removed from the file cannot be shown.`
-      : 'data/scan-alerts.json cannot be seen from here — it lives on the machine the worker runs on and is never deployed.', ['/app/scanner/alerts', 'All alerts']));
+      : 'data/scan-alerts.json cannot be seen from here — it lives on the machine the worker runs on and is never deployed.', ['/app/scanner/alerts', 'All alerts'], { page: true }));
     return wrap;
   }
   const id = scanAlertIdOf(a);
@@ -44371,10 +44549,13 @@ VIEWS.scannerAlert = () => {
        reads as the one it moved from. */
     const pair = (x) => { const f = scanValuesFmt([x.recorded, x.now], prefs, 'price'); return [x.recorded, x.now].map(v => (isNum(v) ? f(v) : 'not held')); };
     c5.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, rep.closes.length
-      ? `${scanPlural(rep.closes.length, 'bar')} up to ${bar} ${rep.closes.length === 1 ? 'has a close' : 'have closes'} that differ from the record:`
+      ? `${scanPlural(rep.closes.length, 'bar')} up to ${bar} ${rep.closes.length === 1 ? 'has a close that differs' : 'have closes that differ'} from the record:`
       : `No close the record holds for ${a.symbol} up to ${bar} differs from the history, and its corrections log names none changed since this was detected.`));
+    /* A weekly or monthly record's close is its week's or month's, and says
+       so beside a daily one of the same date. */
+    const tfNote = (x) => (x.timeframe && x.timeframe !== '1D' ? ` (${scanTfWord(x.timeframe)} bar)` : '');
     if (rep.closes.length) c5.append(el('ul', { class: 'rulelist scan-close-diffs' }, rep.closes.slice(0, 20).map(x => { const [was, is] = pair(x); return el('li', { class: 'caption' }, x.via === 'record'
-      ? `${x.date} — recorded ${was}, now ${is}`
+      ? `${x.date}${tfNote(x)} — recorded ${was}, now ${is}`
       : `${x.date} — corrected${x.at ? ` ${scanStamp(x.at)}` : ' (time not recorded)'}${x.src ? ` by ${x.src}` : ''}, from ${was} to ${is}`); })));
     if (rep.closes.length > 20) c5.append(el('p', { class: 'caption' }, `Showing the latest 20 of ${rep.closes.length}.`));
   }
@@ -44437,7 +44618,9 @@ VIEWS.scannerAlert = () => {
   const lineage = el('ol', { class: 'scan-lineage' }, [
     el('li', {}, `data/price-history.json${a.historyGenerated ? `, generated ${scanStamp(a.historyGenerated)} when this was evaluated` : scanHistoryFile?.generated ? `, generated ${scanStamp(scanHistoryFile.generated)} as loaded now` : ''}${scanHistoryFile?.source ? `, source “${scanHistoryFile.source}”` : ''}`),
     el('li', {}, `series ${a.symbol}${a.instrumentId && a.instrumentId !== a.symbol ? ` (${a.instrumentId})` : ''}, ${SCAN_TIMEFRAMES[scanTimeframe(a.timeframe)]?.label?.toLowerCase() || 'daily'} bars up to ${bar}${a.dataVersion ? ` — data version ${a.dataVersion}` : ''}`),
-    el('li', {}, `engine ${a.engine || '?'} evaluated setup ${a.setupId} v${version ?? '?'}${a.runId ? ` in run ${a.runId}` : ''}${urf ? `, its list resolved from ${urf.source === 'export' ? `the export of ${scanStamp(urf.exportedAt)}` : `its snapshot of ${urf.asOf || '?'}`}` : ''}`),
+    /* A value the record does not carry says so, as its facts do
+       (scanFact), rather than print "engine ?" or "v?". */
+    el('li', {}, `${a.engine ? `engine ${a.engine}` : 'the engine (not recorded on this record)'} evaluated setup ${a.setupId} ${version != null ? `v${version}` : '(version not recorded)'}${a.runId ? ` in run ${a.runId}` : ''}${urf ? `, its list resolved from ${urf.source === 'export' ? `the export of ${scanStamp(urf.exportedAt)}` : `its snapshot of ${urf.asOf || '?'}`}` : ''}`),
     el('li', {}, 'written to data/scan-alerts.json; read here. Nothing was sent.'),
   ]);
   c4.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Lineage'));
@@ -45091,7 +45274,7 @@ VIEWS.scannerDashboard = () => {
        : [la ? 'No scan has evaluated a bar yet, so no match can be shown — see the latest attempt beside this.' : 'No scan has been recorded, so no match can be shown.'],
     scanOpsLink('/app/scanner/alerts', 'Alert history')));
   const unread = scanOpsUnread();
-  tiles.append(tile('Are notifications working?', 'No channel',
+  tiles.append(tile('Are notifications working?', 'In-app only',
     [st.notifications.text,
      unread == null ? (typeof scanUnreadCount === 'function' ? 'Unread in this browser: not counted — no alerts file is visible here.' : 'Unread in this browser: not counted — the alerts pages are not in this build.') : `${scanOpsPlural(unread, 'alert')} unread in this browser.`],
     el('span', {}, [scanOpsLink('/app/scanner/settings', 'Settings'), ' · ', scanOpsLink('/admin/scanner/delivery', 'Delivery')])));
@@ -45172,16 +45355,25 @@ const scanMarketState = { market: '__all', setup: null, pasted: '', pastedSetup:
    exactly as the worker validates it), the builder's draft when there is
    one and it validates, and a setup pasted here. Keyed so a choice survives
    a re-render. */
+/* THE SETUPS SAVED IN THIS BROWSER are "your setups" too — the Setups page
+   is titled so — and they were not offered: a setup just saved was missing
+   from both pages, one edited here to v2 was offered only as the file's
+   v1, and on the published site, which has no file, a saved setup could be
+   run only by copying its JSON and pasting it. Each is offered at its
+   current version, validated as the worker validates it, in a group of its
+   own, apart from the file's copy of the same id. */
 function scanOpsSetupChoices(pasted) {
   const out = [];
   const doc = scanOpsSetupsDoc();
-  if (doc) scanValidate(doc).setups.forEach(s => out.push({ key: `file:${s.id}`, label: `${s.name || s.id} (v${s.version}${s.enabled ? '' : ', disabled'})`, setup: s }));
+  if (doc) scanValidate(doc).setups.forEach(s => out.push({ key: `file:${s.id}`, group: 'In data/scan-setups.json', label: `${s.name || s.id} (v${s.version}${s.enabled ? '' : ', disabled'})`, setup: s }));
+  if (typeof scanBrowserSetups === 'function') scanValidate({ setups: scanBrowserSetups() }).setups
+    .forEach(s => out.push({ key: `saved:${s.id}`, group: 'Saved in this browser', label: `${s.name || s.id} (v${s.version}${s.enabled ? '' : ', disabled'}, saved here)`, setup: s }));
   const draft = typeof scanDraft !== 'undefined' ? scanDraft : null;
   if (draft && typeof draft === 'object') {
     const v = scanValidate({ setups: [{ ...draft, id: draft.id || 'builder-draft', enabled: true }] });
-    if (v.setups.length) out.push({ key: 'draft', label: 'The builder’s draft (not saved)', setup: v.setups[0] });
+    if (v.setups.length) out.push({ key: 'draft', group: 'Not saved', label: 'The builder’s draft (not saved)', setup: v.setups[0] });
   }
-  if (pasted) out.push({ key: 'pasted', label: `Pasted here: ${pasted.name || pasted.id}`, setup: pasted });
+  if (pasted) out.push({ key: 'pasted', group: 'Not saved', label: `Pasted here: ${pasted.name || pasted.id}`, setup: pasted });
   return out;
 }
 /* A pasted setup, validated with the worker's own function: the JSON the
@@ -45199,12 +45391,16 @@ function scanOpsSetupPicker(state, onChange) {
   const box = el('div', { class: 'grid g-2 scan-form' });
   const choices = scanOpsSetupChoices(state.pastedSetup);
   if (!choices.some(c => c.key === state.setup)) state.setup = choices[0]?.key || null;
+  const groups = [...new Set(choices.map(c => c.group))];
   const sel = el('select', { class: 'select', id: 'scan-setup-pick', onchange: (e) => { state.setup = e.target.value; state.result = null; onChange('scan-setup-pick'); } },
-    choices.length ? choices.map(c => el('option', { value: c.key, selected: c.key === state.setup ? '' : null }, c.label))
+    choices.length ? groups.map(g => el('optgroup', { label: g }, choices.filter(c => c.group === g).map(c => el('option', { value: c.key, selected: c.key === state.setup ? '' : null }, c.label))))
                    : [el('option', { value: '' }, 'No setup available — paste one')]);
   if (!choices.length) sel.disabled = true;
+  const from = [scanOpsSetupsDoc() ? 'data/scan-setups.json' : null, choices.some(c => c.key.startsWith('saved:')) ? 'the setups saved in this browser' : null].filter(Boolean);
   box.append(el('div', { class: 'field' }, [el('label', { for: 'scan-setup-pick' }, 'Setup'), sel,
-    el('p', { class: 'metaline' }, scanOpsSetupsDoc() ? 'From data/scan-setups.json, validated as the worker validates it.' : 'No setups file is loaded; paste a setup to use one.')]));
+    el('p', { class: 'metaline' }, from.length
+      ? `From ${from.join(' and ')}, validated as the worker validates it.${from.length > 1 ? ' A setup saved here runs here as saved; the worker runs the file’s copy until you export.' : ''}`
+      : 'No setups file is loaded and no setup is saved in this browser; paste a setup to use one.')]));
   const ta = el('textarea', { class: 'input scan-paste', id: 'scan-paste', rows: '3', spellcheck: 'false', placeholder: '{ "id": "…", "ruleTree": { … } }' }, state.pasted || '');
   /* Which of several pasted setups was taken is said, and kept across the
      re-render the choice causes: the note was worked out and never shown,
@@ -45385,7 +45581,7 @@ VIEWS.scannerMarket = () => {
     const regCount = market === '__all' ? scanOpsRegistry().length : scanOpsRegistry().filter(i => String(i.market || '').toUpperCase() === market).length;
     /* Where the setup came from decides what the builder can be handed:
        only a setup in the file has an id the builder can find (?from=). */
-    const source = String(setupKey || '').startsWith('file:') ? 'file' : setupKey === 'draft' ? 'draft' : 'pasted';
+    const source = String(setupKey || '').startsWith('file:') ? 'file' : String(setupKey || '').startsWith('saved:') ? 'saved' : setupKey === 'draft' ? 'draft' : 'pasted';
     S.result = { at: new Date().toISOString(), setup: s, source, market, asOf: asOfDay, now, rows, capped: all.length > symbols.length ? all.length : 0, registry: regCount };
     const out = job.ui.results;
     out.replaceChildren(scanScreenResult(S.result));
@@ -45444,13 +45640,13 @@ function scanScreenResult(R) {
 function scanScreenSave(R) {
   const q = new URLSearchParams();
   if (R.market !== '__all') q.set('market', R.market);
-  if (R.source === 'file' && R.setup?.id) q.set('from', R.setup.id);
+  if ((R.source === 'file' || R.source === 'saved') && R.setup?.id) q.set('from', R.setup.id);
   const path = `/app/scanner/setups/new${q.toString() ? `?${q}` : ''}`;
   const name = R.setup?.name || R.setup?.id || 'this setup';
   const where = R.market === '__all' ? null : R.market;
   const pick = where ? '' : ' Choose that universe there: the link cannot carry it.';
-  const what = R.source === 'file'
-    ? `opens the builder on a copy of ${name}${where ? ` with ${where} as its universe` : ''}. The setup in your file is not changed.${pick}`
+  const what = R.source === 'file' || R.source === 'saved'
+    ? `opens the builder on a copy of ${name}${where ? ` with ${where} as its universe` : ''}. The setup ${R.source === 'saved' ? 'saved here' : 'in your file'} is not changed.${pick}`
     : R.source === 'draft'
       ? `opens the builder, where your draft is${where ? `, asking it for ${where} as the universe` : ''}.${pick}`
       : `opens the builder${where ? ` with ${where} as the universe` : ''}. A pasted setup is not in your setups file, so its conditions do not travel in the link: paste them there.${pick}`;
@@ -45861,7 +46057,11 @@ VIEWS.scannerAdminData = () => {
   const sum = el('section', { class: 'card' });
   sum.append(cardHead('The file', `data/price-history.json · schema ${H.file.schema} · written ${scanOpsWhen(H.file.generated)} · judged at ${scanOpsWhen(H.at)} · engine ${H.engine}`));
   const g = el('div', { class: 'grid scan-counts' });
-  [['Series', t.series], ['Bars', t.bars], ['Invalid bars', t.invalid], ['Gaps counted', t.gaps], ['Price breaks', t.jumps, t.jumps ? `${fmtNum(t.unexplained, 0)} unexplained` : null], ['Stale series', t.stale], ['Provisional bars', t.provisional]]
+  /* Bars are the daily bars; the imported weeks and months are counted
+     beside them (scanDataHealth's frames), with the frames not read. */
+  const tfWord = (tf) => (tf === '1M' ? 'monthly' : 'weekly');
+  [['Series', t.series], ['Daily bars', t.bars], ['Imported weekly and monthly bars', t.importedBars ?? 0, t.framesRefused ? `${scanOpsPlural(t.framesRefused, 'frame')} not read` : t.importedInvalid ? `${fmtNum(t.importedInvalid, 0)} invalid` : null],
+   ['Invalid bars', t.invalid], ['Gaps counted', t.gaps], ['Price breaks', t.jumps, t.jumps ? `${fmtNum(t.unexplained, 0)} unexplained` : null], ['Stale series', t.stale], ['Provisional bars', t.provisional]]
     .forEach(([l, v, sub]) => g.append(statTile(l, fmtNum(v, 0), sub ? { sub } : {})));
   sum.append(g);
   /* A ratio of 1 records a break as the market's own move and adjusts
@@ -45987,14 +46187,40 @@ VIEWS.scannerAdminData = () => {
   }
   wrap.append(brk);
 
-  const flagged = (s) => s.invalid.length || s.gaps.some(x => x.counted) || s.jumps.length || s.stale || s.shifted || s.duplicates.length || s.dropped.badDate || s.dropped.nonFinite || s.dropped.nonPositive;
+  /* THE IMPORTED WEEKS AND MONTHS. This page counted the daily bars only
+     and never looked at the weekly and monthly bars imported from the
+     reader's exports: a recorded split inside SPY's imported weeks made the
+     engine refuse them, and the page said "Nothing to look at" while the
+     setup page said the weeks were not read. Each frame is listed as a
+     weekly or monthly setup reads it, with the reason one is refused. */
+  const frames = Array.isArray(H.frames) ? H.frames : [];
+  const fr = el('section', { class: 'card', 'aria-label': 'Weekly and monthly bars' });
+  fr.append(cardHead('Weekly and monthly bars', 'The weeks and months imported from your own exports, as a weekly or monthly setup reads them: the imported bar where the export holds the period, one built from your daily bars where it does not. Nothing is corrected here — only named.'));
+  if (!frames.length) fr.append(el('p', { class: 'metaline' }, 'Your history holds no imported weekly or monthly bars, so every weekly and monthly bar is built from your daily bars.'));
+  else {
+    const notRead = frames.filter(f => f.refused);
+    if (notRead.length) fr.append(el('p', { class: 'caption scan-note scan-warn', style: 'margin:0 0 var(--sm)' },
+      `${scanOpsPlural(notRead.length, 'imported frame')} ${notRead.length === 1 ? 'is' : 'are'} not read: ${notRead.map(f => `${f.symbol}’s ${tfWord(f.timeframe)} bars`).join(', ')}. The engine builds ${notRead.length === 1 ? 'those weeks or months' : 'them'} from your daily bars instead — the reason is in the table.`));
+    fr.append(scanOpsTable(['Series', 'Timeframe', 'Imported bars', 'First … last', 'Read', 'Invalid', 'What the engine does'], frames.map(f => {
+      const gave = f.refused ? 0 : f.held - f.read - f.invalid.length;
+      return [f.symbol, tfWord(f.timeframe), fmtNum(f.held, 0), `${f.first} … ${f.last}`,
+        f.refused ? 'none' : `${fmtNum(f.read, 0)} of ${fmtNum(f.held, 0)}${gave > 0 ? ` (${fmtNum(gave, 0)} in progress, built from your daily bars)` : ''}`,
+        f.invalid.length ? `${f.invalid.length}: ${f.invalid.slice(0, 3).map(x => `${x.date} ${x.codes.join('/')}`).join('; ')}${f.invalid.length > 3 ? '; …' : ''}` : 'none',
+        f.refused ? el('span', {}, [sevChip('warning', 'not read'), ' ', el('span', { class: 'caption' }, `${f.refused.charAt(0).toUpperCase()}${f.refused.slice(1)}.`)]) : 'read where it holds the period'];
+    }), { wrapCols: [4, 6], caption: 'Imported weekly and monthly bars per series' }));
+  }
+  wrap.append(fr);
+
+  const framesOf = (s) => (Array.isArray(s.frames) ? s.frames : []);
+  const flagged = (s) => s.invalid.length || s.gaps.some(x => x.counted) || s.jumps.length || s.stale || s.shifted || s.duplicates.length || s.dropped.badDate || s.dropped.nonFinite || s.dropped.nonPositive
+    || framesOf(s).some(f => f.refused || f.invalid.length);
   const ser = el('section', { class: 'card' });
   const only = el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': 'true' }, 'Only series with something to look at');
   ser.append(cardHead('Series', 'In market order, then symbol order — the order of the file’s keys, not of anything about the series.'));
   const host = el('div');
   const draw = (all) => {
     const rows = H.series.filter(s => all || flagged(s));
-    host.replaceChildren(rows.length ? scanOpsPaged(rows, (list) => scanOpsTable(['Series', 'Market', 'Bars', 'First … last', 'Invalid', 'Gaps', 'Price breaks', 'Volume', 'Stale', 'Keep limit'],
+    host.replaceChildren(rows.length ? scanOpsPaged(rows, (list) => scanOpsTable(['Series', 'Market', 'Daily bars', 'First … last', 'Invalid', 'Gaps', 'Price breaks', 'Volume', 'Stale', 'Keep limit', 'Imported weeks and months'],
       list.map(s => [s.symbol, s.market || 'no market row', fmtNum(s.bars, 0), `${s.first || '—'} … ${s.last || '—'}`,
         s.invalid.length ? `${s.invalid.length}: ${s.invalid.slice(0, 3).map(x => `${x.date} ${x.codes.join('/')}`).join('; ')}${s.invalid.length > 3 ? '; …' : ''}` : 'none',
         (() => { const c = s.gaps.filter(x => x.counted); return s.gaps.length ? `${c.length} counted${s.gaps.length - c.length ? `, ${s.gaps.length - c.length} read as a possible holiday` : ''}${c.length ? ` (latest ${c[c.length - 1].after} → ${c[c.length - 1].before})` : ''}` : 'none'; })(),
@@ -46002,8 +46228,9 @@ VIEWS.scannerAdminData = () => {
         `${Math.round(s.volumeCoverage * 100)}% of bars`, s.stale ? `${s.behindSessions} session${s.behindSessions === 1 ? '' : 's'} behind ${s.stale.expected}` : 'no',
         /* The store's keep, read from the engine rather than typed: this
            said 500 after the store moved to 2000. */
-        s.atKeepLimit ? `at the ${fmtNum(SCAN_HISTORY_KEEP, 0)}-bar keep` : 'no']), { wrapCols: [4, 5, 6], caption: 'Health per series' }), { step: 50, noun: 'series' })
-      : el('p', { class: 'metaline' }, 'Nothing to look at: no series has an invalid bar, a counted gap, a price break, a shifted date or a stale last bar.'));
+        s.atKeepLimit ? `at the ${fmtNum(SCAN_HISTORY_KEEP, 0)}-bar keep` : 'no',
+        framesOf(s).length ? framesOf(s).map(f => `${tfWord(f.timeframe)}: ${f.refused ? 'not read' : `${fmtNum(f.read, 0)} of ${fmtNum(f.held, 0)} read`}${f.invalid.length ? `, ${f.invalid.length} invalid` : ''}`).join('; ') : 'none']), { wrapCols: [4, 5, 6, 10], caption: 'Health per series' }), { step: 50, noun: 'series' })
+      : el('p', { class: 'metaline' }, 'Nothing to look at: no series has an invalid bar, a counted gap, a price break, a shifted date, a stale last bar or imported weeks or months refused.'));
   };
   let all = false;
   only.addEventListener('click', () => { all = !all; only.setAttribute('aria-pressed', all ? 'false' : 'true'); only.textContent = all ? 'Show only series with something to look at' : 'Only series with something to look at'; draw(all); });
