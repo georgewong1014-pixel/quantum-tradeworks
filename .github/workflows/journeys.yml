@@ -1,0 +1,188 @@
+name: journeys
+
+# WHY THIS EXISTS
+#
+# checks.yml asks whether the commit is right before it ships. Nothing asked
+# whether the site that shipped works: that a reader can find a company and
+# read where its figures came from, model and save a property, build and save
+# a scanner setup, and press each primary call to action and land on a page.
+# journeys.mjs asks exactly that, in real Chrome, of the live site — and
+# /status shows the answer (91-health.js reads health/journeys.json).
+#
+# It runs
+#   - after every successful PRODUCTION deployment. Vercel's GitHub
+#     integration creates a GitHub deployment for each deploy and reports its
+#     states as deployment_status events. The payload used here:
+#       github.event.deployment_status.state          'success' once it is live
+#       github.event.deployment.environment           'Production' (or
+#                                                     'Production – <project>'
+#                                                     where a repo has several)
+#       github.event.deployment.production_environment  true for production
+#       github.event.deployment.sha                   the commit deployed
+#     Previews, and the pending/in_progress/failure states, are skipped;
+#   - nightly, so a site nobody deployed is still looked at every day;
+#   - by hand (workflow_dispatch).
+#
+# What it writes
+#   - the job summary: a table of every journey, its status, failing step,
+#     route and time;
+#   - ONE issue titled "Production journeys failing": opened on the first
+#     FAIL, its body replaced by the latest table while it fails, closed with
+#     a comment by the next run in which every journey passes;
+#   - health/journeys.json on main, ONLY when a status or a failing step
+#     changed or the recorded run is over a day old (journeys.mjs --decide
+#     holds the rule, and its --self-test the cases). The commit says
+#     [skip ci], so checks.yml does not run on it.
+#
+# LOOP SAFETY. That commit is deployed like any other (the file has to be on
+# the site for /status to read it), and its deployment runs this workflow
+# again. The second run finds the statuses it just recorded, a minute old,
+# and commits nothing — so one result makes at most one extra deployment.
+# If the platform ever skips "[skip ci]" commits, the file waits for the next
+# deployment of main instead; nothing loops either way.
+#
+# Permissions are the two it uses and nothing else: contents (the commit) and
+# issues (the issue). The concurrency group keeps two runs from racing to
+# commit; a push that loses to a developer's is rebased and retried.
+
+on:
+  deployment_status:
+  schedule:
+    - cron: '17 3 * * *'   # 03:17 UTC, 11:17 in Kuching
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: journeys
+  cancel-in-progress: false
+
+jobs:
+  journeys:
+    name: complete journeys on the live site
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+      (github.event.deployment.production_environment == true ||
+      startsWith(github.event.deployment.environment, 'Production')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # main, whatever triggered the run: the result is committed on top of it,
+      # and the whole history is there to match the served build to a commit.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: install Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+      - name: point the tools at it
+        run: |
+          echo "CHROME_PATH=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+          "${{ steps.chrome.outputs.chrome-path }}" --version
+
+      # --url production is the template's canonical origin. After a
+      # deployment, --commit waits (up to 300s) for the site to serve that
+      # commit's build before the journeys start, and records it as served.
+      # The exit code is kept for the last step, so a failing run still
+      # writes its summary, its issue and its record.
+      - name: run the journeys against the live site
+        id: run
+        env:
+          DEPLOY_SHA: ${{ github.event.deployment.sha }}
+        run: |
+          set +e
+          node journeys.mjs --url production \
+            --json "$RUNNER_TEMP/journeys.json" --markdown "$RUNNER_TEMP/journeys.md" \
+            ${DEPLOY_SHA:+--commit "$DEPLOY_SHA"}
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: job summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/journeys.md" ]; then
+            cat "$RUNNER_TEMP/journeys.md" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n[This run](%s/%s/actions/runs/%s)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> "$RUNNER_TEMP/journeys.md"
+          else
+            echo "journeys.mjs wrote no result — the log of the step above says why." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The rule lives in journeys.mjs (decide) so it is tested offline:
+      # commit only when a status or a failing step changed, or the recorded
+      # run is over 24 hours old.
+      - name: decide what to record
+        id: decide
+        if: always()
+        run: |
+          if [ ! -f "$RUNNER_TEMP/journeys.json" ]; then
+            echo "noresult=true" >> "$GITHUB_OUTPUT"
+            echo "commit=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git show origin/main:health/journeys.json > "$RUNNER_TEMP/recorded.json" 2>/dev/null || rm -f "$RUNNER_TEMP/recorded.json"
+          node journeys.mjs --decide "$RUNNER_TEMP/recorded.json" "$RUNNER_TEMP/journeys.json" | tee -a "$GITHUB_OUTPUT"
+
+      - name: open, update or close the issue
+        if: always() && steps.decide.outputs.noresult != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILS: ${{ steps.decide.outputs.fails }}
+          ALL_PASS: ${{ steps.decide.outputs.all_pass }}
+          RAN_AT: ${{ steps.decide.outputs.ran_at }}
+          SERVED: ${{ steps.decide.outputs.commit_served }}
+        run: |
+          title='Production journeys failing'
+          num=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
+                  --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n1)
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "${FAILS:-0}" -gt 0 ]; then
+            if [ -n "$num" ]; then
+              gh issue edit "$num" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/journeys.md"
+              echo "updated #$num"
+            else
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$RUNNER_TEMP/journeys.md"
+            fi
+          elif [ "$ALL_PASS" = "true" ] && [ -n "$num" ]; then
+            gh issue close "$num" --repo "$GITHUB_REPOSITORY" \
+              --comment "Every journey passes again — run of $RAN_AT against the live site${SERVED:+, commit ${SERVED:0:12}}. $run_url"
+          else
+            echo "no issue to open or close (fails=${FAILS:-0}, all_pass=${ALL_PASS:-false}, open issue: ${num:-none})"
+          fi
+
+      - name: record the result on main
+        if: always() && steps.decide.outputs.commit == 'true'
+        env:
+          SUMMARY: ${{ steps.decide.outputs.summary }}
+          WHY: ${{ steps.decide.outputs.why }}
+        run: |
+          mkdir -p health
+          cp "$RUNNER_TEMP/journeys.json" health/journeys.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add health/journeys.json
+          git commit -m "chore(health): production journeys — $SUMMARY [skip ci]" -m "$WHY" -m "Written by .github/workflows/journeys.yml from journeys.mjs --url production."
+          for i in 1 2 3 4 5; do
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((i * 5))
+            git pull --rebase origin main || { git rebase --abort; exit 1; }
+          done
+          echo "could not push the result after 5 attempts"
+          exit 1
+
+      - name: fail the run when a journey failed
+        if: always()
+        run: |
+          code="${{ steps.run.outputs.exit }}"
+          if [ "$code" != "0" ]; then
+            echo "a journey failed, or the journeys could not run (journeys.mjs exited ${code:-without a code})"
+            exit 1
+          fi

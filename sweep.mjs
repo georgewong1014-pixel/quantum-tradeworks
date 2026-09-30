@@ -487,6 +487,127 @@ for (const route of ROUTES) {
   else console.log(`ok   slim: / and a parameter route run the app inline, a route page and the 404 run it from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
 }
 /* ---- end audit: slim ---- */
+/* ---- audit1: health ---- */
+/* DOES EACH TOOL WORK? — /status (91-health.js). Two halves, held apart:
+   - "Checked in your browser now": each tool's own code on known inputs.
+     On this build every one of the four must say Pass; with data/us.json
+     answered 404 the equities check and the data-files check must say Fail
+     and name the file, never Pass on the illustrative sample.
+   - "Complete journeys on the live site": health/journeys.json, served here
+     from fixtures in place of the committed file. A good result must read
+     Pass with its run and commit; none (a 404) and the committed placeholder
+     "not run yet"; a failing one Fail with the step and the route it failed
+     at; an unreadable one must show no result at all, and a result five
+     days old must say so. Every visit must ask the site for the file, and
+     ask it with cache: 'no-store' — read off the page's own fetch — so a
+     reader is never shown a copy a cache kept. */
+{
+  const evalValue = async (expression) => (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId)).result?.result?.value;
+  const p = [];
+  let serve = null, usGone = false, asked = [];
+  const intercept = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.sessionId !== sessionId) return;
+    if (m.method !== 'Fetch.requestPaused') return;
+    const url = m.params.request.url, id = m.params.requestId;
+    if (/\/health\/journeys\.json/.test(url)) asked.push(url);
+    const answer = (status, body, type) => send('Fetch.fulfillRequest', { requestId: id, responseCode: status,
+      responseHeaders: [{ name: 'Content-Type', value: type }, { name: 'Cache-Control', value: 'no-cache' }], body: Buffer.from(body, 'utf8').toString('base64') }, sessionId);
+    if (/\/health\/journeys\.json/.test(url) && serve) answer(serve.status, typeof serve.body === 'string' ? serve.body : JSON.stringify(serve.body), serve.type || 'application/json; charset=utf-8');
+    else if (/\/data\/us\.json/.test(url) && usGone) answer(404, 'gone for the sweep', 'text/plain');
+    else send('Fetch.continueRequest', { requestId: id }, sessionId);
+  };
+  ws.addEventListener('message', intercept);
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*/health/journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }] }, sessionId);
+  /* How the page asks for the file: the cache mode of each fetch of it. */
+  const modes = await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const f = window.fetch; window.__healthModes = [];
+    window.fetch = function (u, o) { try { if (/health\\/journeys\\.json/.test(String(u && u.url || u))) window.__healthModes.push((o && o.cache) || (u && u.cache) || 'default'); } catch (e) {} return f.apply(this, arguments); }; })();` }, sessionId);
+  const open = async () => {
+    await evalValue('window.__healthMark = 1');
+    asked = [];
+    await send('Page.navigate', { url: BASE + '/status' }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      const done = await evalValue(`!window.__healthMark && !!document.getElementById('health-journeys-sum')
+        && !/Reading/.test(document.getElementById('health-journeys-sum').textContent) && document.getElementById('health-journeys-sum').textContent.length > 0
+        && document.querySelectorAll('#health-quick > li').length === 4 && !document.querySelector('#health-quick > li[data-status="PENDING"]')`);
+      if (done) break;
+      await sleep(100);
+    }
+    const out = await evalValue(`({ sum: document.getElementById('health-journeys-sum')?.textContent || '',
+      rows: [...document.querySelectorAll('#health-journeys > li')].map(li => ({ status: li.dataset.status, text: li.innerText })),
+      quick: [...document.querySelectorAll('#health-quick > li')].map(li => ({ status: li.dataset.status, text: li.innerText })),
+      quickSum: document.getElementById('health-quick-sum')?.textContent || '', h2: document.querySelector('#health h2')?.textContent || '',
+      modes: window.__healthModes || [] })`);
+    return { ...out, asked: asked.length };
+  };
+  const run = (id, name, status, extra = {}) => ({ id, name, status, failedStep: null, route: null, ms: 4200, note: null, ...extra });
+  const GOOD = { kind: 'quantum-tradeworks-journeys', schema: 1, ranAt: new Date(Date.now() - 3 * 3600000).toISOString(), url: 'https://quantum-tradeworks.vercel.app',
+    commit: 'abcdef1234567890', commitFrom: 'the sweep', journeys: [run('equities', 'Equities: search, filed statements, watchlist', 'PASS'), run('scanner', 'Scanner: build, save and evaluate a setup', 'PASS')] };
+  const FAILING = { ...GOOD, journeys: [GOOD.journeys[0], run('scanner', 'Scanner: build, save and evaluate a setup', 'FAIL', { failedStep: 'Save the setup', route: '/app/scanner/setups/new', note: 'Save did not open the setup’s page' })] };
+
+  /* The committed placeholder, as the server has it. */
+  serve = null;
+  let s = await open();
+  if (s.h2 !== 'Does each tool work?') p.push(`/status has no "Does each tool work?" section (${JSON.stringify(s.h2)})`);
+  const quickSaid = (q) => q.map(x => `${x.status}: ${x.text.replace(/\s+/g, ' ').slice(0, 110)}`).join(' | ');
+  if (s.quick.length !== 4 || s.quick.some(q => q.status !== 'PASS')) p.push(`the in-browser checks on this build: ${quickSaid(s.quick)}`);
+  if (!/^4 of 4 pass\./.test(s.quickSum)) p.push(`the in-browser summary reads ${JSON.stringify(s.quickSum)}`);
+  if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`the committed placeholder: ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows — not "not run yet"`);
+  if (!s.asked) p.push('/status never asked the site for health/journeys.json');
+  if (!s.modes.length || s.modes.some(m => m !== 'no-store')) p.push(`/status asks for health/journeys.json with cache ${JSON.stringify(s.modes)}, not no-store`);
+
+  /* A fixture, and the visit must have asked the site for it. */
+  const fixture = async (as, what) => { serve = as; const r = await open(); if (!r.asked) p.push(`${what}: the page never asked the site for the file`); return r; };
+  s = await fixture({ status: 200, body: GOOD }, 'a good result');
+  if (!/^Last recorded run /.test(s.sum) || !/2 of 2 pass/.test(s.sum) || !/abcdef1/.test(s.sum)) p.push(`a good result: ${JSON.stringify(s.sum)}`);
+  if (s.rows.length !== 2 || s.rows.some(r => r.status !== 'PASS')) p.push(`a good result's rows: ${JSON.stringify(s.rows.map(r => r.status))}`);
+
+  s = await fixture({ status: 404, body: '<!doctype html><title>404</title>', type: 'text/html; charset=utf-8' }, 'no file');
+  if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`no file (404): ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows`);
+
+  s = await fixture({ status: 200, body: FAILING }, 'a failing result');
+  const failRow = s.rows.find(r => r.status === 'FAIL');
+  if (!/1 failed/.test(s.sum)) p.push(`a failing result's summary: ${JSON.stringify(s.sum)}`);
+  if (!failRow || !/Save the setup/.test(failRow.text) || !/\/app\/scanner\/setups\/new/.test(failRow.text)) p.push(`a failing result does not name its step and route: ${JSON.stringify(failRow?.text || null)}`);
+
+  s = await fixture({ status: 200, body: '{"kind":"quantum-tradeworks-journeys","ranAt":"soon","journeys":[{"id":"x","name":"x","status":"OK"}]}' }, 'an unreadable result');
+  if (!/could not be read/.test(s.sum) || s.rows.length) p.push(`an unreadable result: ${JSON.stringify(s.sum.slice(0, 90))}, ${s.rows.length} rows — a result was shown`);
+
+  s = await fixture({ status: 200, body: { ...GOOD, ranAt: new Date(Date.now() - 5 * 86400000 - 3600000).toISOString() } }, 'a five-day-old result');
+  if (!/No run has been recorded for 5 days/.test(s.sum)) p.push(`a five-day-old result does not say how old it is: ${JSON.stringify(s.sum)}`);
+
+  /* The filed statements withheld: the checks that read them must fail and
+     say which file, rather than pass on the illustrative sample. */
+  /* The cache off, or the immutable copy the earlier loads kept would answer
+     before the 404 could. */
+  await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+  serve = null; usGone = true;
+  s = await open();
+  const eq = s.quick.find(q => /Equities Research/.test(q.text)), files = s.quick.find(q => /data files/.test(q.text));
+  if (eq?.status !== 'FAIL' || !/data\/us\.json/.test(eq.text)) p.push(`with data/us.json gone the equities check reads ${eq?.status}: ${JSON.stringify((eq?.text || '').slice(0, 120))}`);
+  if (files?.status !== 'FAIL' || !/data\/us\.json[^\n]*not served/.test(files.text)) p.push(`with data/us.json gone the data-files check reads ${files?.status}`);
+  usGone = false;
+
+  /* The full checks, from the keyboard: Enter on the button runs them, and
+     focus stays on it while they run and after. */
+  s = await open();
+  await evalValue(`document.getElementById('health-full-run').focus()`);
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' }, sessionId);
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+  for (let i = 0; i < 100 && !/^Full checks:/.test(await evalValue(`document.getElementById('health-full-sum')?.textContent || ''`)); i++) await sleep(100);
+  const full = await evalValue(`({ sum: document.getElementById('health-full-sum')?.textContent || '', focus: document.activeElement?.id || document.activeElement?.tagName,
+    rows: [...document.querySelectorAll('#health-full > li')].map(li => li.dataset.status) })`);
+  if (!/^Full checks: 3 of 3 pass\./.test(full.sum) || full.rows.some(x => x !== 'PASS')) p.push(`the full checks: ${JSON.stringify(full.sum)} ${JSON.stringify(full.rows)}`);
+  if (full.focus !== 'health-full-run') p.push(`focus went to ${full.focus} after the full checks ran from the keyboard`);
+
+  await send('Fetch.disable', {}, sessionId);
+  await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+  if (modes?.result?.identifier) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: modes.result.identifier }, sessionId);
+  ws.removeEventListener('message', intercept);
+  if (p.length) { bad++; console.log('FAIL health: /status does not say truthfully whether each tool works'); p.forEach(x => console.log('     ' + x)); }
+  else console.log('ok   health: /status runs its four in-browser checks to Pass on this build and to Fail, naming data/us.json, without it; the full checks pass from the keyboard with focus kept; the journeys result reads Pass from a good file, "not run yet" from none and from the placeholder, Fail with its step and route from a failing one, nothing from an unreadable one and its age from an old one — asked of the site on every visit, with no-store');
+}
+/* ---- end audit1: health ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

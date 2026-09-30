@@ -1,0 +1,10 @@
+{
+  "kind": "quantum-tradeworks-journeys",
+  "schema": 1,
+  "ranAt": null,
+  "url": null,
+  "commit": null,
+  "commitFrom": null,
+  "journeys": [],
+  "note": "No run recorded yet. .github/workflows/journeys.yml replaces this file with the result of journeys.mjs --url production after its first run; /status reads it and says not run yet until then."
+}

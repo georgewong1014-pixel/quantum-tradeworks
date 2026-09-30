@@ -455,5 +455,36 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
 }
 /* ---- end audit: slim ---- */
 
+/* ---- audit1: health ---- */
+/* 10. THE JOURNEYS' RESULT, AS IT IS NOW. /status reads health/journeys.json,
+      which the journeys workflow rewrites after a run against the live site
+      (journeys.mjs, .github/workflows/journeys.yml). Unlike data/ and
+      assets/, whose names change with their bytes and are cached for a
+      year, this file keeps its name and changes, so:
+      - it is served 200 as JSON with Cache-Control no-cache — revalidated
+        on every read, never kept as the result of a week ago;
+      - the build does not stamp it: no version in the app's DATA_VERSIONS,
+        so `node build.mjs --check` passes whatever the workflow commits;
+      - it is a journeys result, or the placeholder committed before the
+        first run (the page says "not run yet" for it). */
+{
+  const p = [];
+  const r = await fetch(`${BASE}/health/journeys.json`, { signal: AbortSignal.timeout(30000) }).catch(e => ({ status: 0, error: e.message, headers: new Headers(), text: async () => '' }));
+  let doc = null;
+  if (r.status !== 200) p.push(`/health/journeys.json: ${r.status || r.error}, not 200 — the placeholder is committed, so there is always a file`);
+  else {
+    if (!/^application\/json/i.test(r.headers.get('content-type') || '')) p.push(`/health/journeys.json: Content-Type ${JSON.stringify(r.headers.get('content-type'))}, not JSON`);
+    if ((r.headers.get('cache-control') || '') !== 'no-cache') p.push(`/health/journeys.json: Cache-Control ${JSON.stringify(r.headers.get('cache-control'))}, not no-cache — a reader could be shown an old result`);
+    try { doc = JSON.parse(await r.text()); } catch { p.push('/health/journeys.json: not JSON'); }
+    if (doc && doc.kind !== 'quantum-tradeworks-journeys') p.push(`/health/journeys.json: kind ${JSON.stringify(doc.kind)}, not a journeys result`);
+  }
+  const versions = /const DATA_VERSIONS = (\{[^;]*\});/.exec(APP.script.body);
+  if (!versions) p.push('the app carries no DATA_VERSIONS to check');
+  else if (Object.keys(JSON.parse(versions[1])).some(k => /journeys|health/.test(k))) p.push(`the build stamps a version on the journeys file (${versions[1]}), so build --check would depend on a file the workflow rewrites`);
+  judge(p, `/health/journeys.json is served as JSON with no-cache and is not versioned by the build (${doc?.ranAt ? `a run of ${doc.ranAt}` : 'the placeholder: no run recorded yet'})`,
+    'the journeys result is not served as it is now');
+}
+/* ---- end audit1: health ---- */
+
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

@@ -99,6 +99,62 @@ the old file for twenty minutes until an empty commit forced a real deployment:
 git commit --allow-empty -m "chore: trigger redeploy"
 ```
 
+## Does each tool work? — journeys and /status
+
+Every other check here looks at a page. `journeys.mjs` walks the paths a
+reader takes, in real Chrome, by real clicks and key presses, and passes a
+journey only when the whole path completes — entry, valid input, the
+calculation or data, a meaningful result, the save or next action:
+
+| Journey | The path |
+| --- | --- |
+| `equities` | search "apple" → Apple's company page → Financials: the filed statements, and a figure's source (SEC EDGAR, the CIK, the XBRL concept) → Add to watchlist → the watchlist lists it |
+| `screener` | a filter (return on equity ≥ 20) → the count changes → open a result → its company page |
+| `property` | the calculator: price, rent, loan → monthly cash flow, yield and cash required appear, and move with the rent and the loan → save → listed with the saved properties |
+| `scanner` | the builder: a condition (price crosses above its 20-bar EMA, on AAPL) → save → the setup's page shows it → its own evaluation |
+| `ctas` | every homepage card, the header's Open workspace, each product tab row link and the dashboard's first-time checklist: each lands on a working page (not a 404, not the not-found card, no console error) |
+
+Each journey is **PASS**, **DEGRADED** (completed, but a step was over its
+stated budget or a part the path does not depend on failed — the note says
+which) or **FAIL** (the step and the route named). The exit code is 0 unless
+a journey fails.
+
+```bash
+node journeys.mjs http://localhost:8123          # local: see below
+node journeys.mjs --url production               # the live site
+node journeys.mjs --url production --json out.json --markdown out.md
+node journeys.mjs --self-test                    # offline: the commit rule and the result's shape
+```
+
+**It never reads your personal files.** On your machine the page asks
+`serve.mjs` for the git-ignored personal lane (price history, scanner records,
+prices); a journey answers every such request 404 inside the browser, so it
+behaves as the deployed site does. The one exception: on a local run the
+scanner journey is served a *synthetic* price history, made in the page from
+the engine's own fixture and dated to end on the session the engine expects
+now, so its evaluate step must find a match. Against the deployed site there
+is no history, and the step instead holds the page to saying so.
+
+**Where the results go.** `.github/workflows/journeys.yml` runs it against the
+live site after every successful production deployment (Vercel's
+`deployment_status` events), nightly at 03:17 UTC, and by hand. It writes the
+job summary, keeps one issue titled *Production journeys failing* open while a
+journey fails and closes it on the next all-pass run, and commits
+`health/journeys.json` to main — only when a status or a failing step changed
+or the recorded run is a day old, with `[skip ci]`. The deployment of that
+commit runs the journeys again, finds the same results, and commits nothing.
+CI runs the journeys against `serve.mjs` on every push.
+
+**/status shows both halves** under *Does each tool work?* (`src/js/91-health.js`):
+checks run in the reader's browser when the page opens — the property model on
+a deal worked by hand, the scanner engine's self-test, Apple's filed statements
+through the pipeline against its 10-K, and whether each data file is served and
+loaded (a heavier set behind *Run the full checks*) — and the latest recorded
+journeys, read from `health/journeys.json` with `no-store`. The file is served
+`no-cache`, is not versioned by the build (so `build --check` never depends on
+it), and until the first run it is a placeholder the page reads as *not run
+yet*.
+
 ## Structure
 
 ```
@@ -117,6 +173,8 @@ git commit --allow-empty -m "chore: trigger redeploy"
 ├── syntax.mjs, wording-check.mjs, scanner-test.mjs, ingest-test.mjs   # offline checks
 ├── sweep.mjs, mobile.mjs, coverage-frames.mjs, register-test.mjs,
 │   model-test.mjs, equity-test.mjs                                    # browser harnesses
+├── journeys.mjs      # complete user journeys in real Chrome, locally or against the live site (--url production)
+├── health/           # journeys.json: the latest recorded journeys against the live site, read by /status — written by .github/workflows/journeys.yml
 ├── ingest/, scanner/, qtti/   # data ingest, the setup scanner, the trading-index tools
 └── package.json      # npm scripts for all of the above; devDependencies xlsx (NAPIC ingest) and sharp (renders)
 ```
