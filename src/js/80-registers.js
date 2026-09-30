@@ -239,7 +239,7 @@ const CAPABILITY_REGISTER = [
      check for Phase 3 stays red and names why. */
   { name:'Scanner routes and navigation', status:'beta', path:'/app/scanner',
     brief:['SC-NAV'], priority:'P0',
-    now:'Quantum Scanner in the app sidebar (the Products group, after Equities Research), with the scanner’s unread count as its own link beside My Alerts, and the Trading Index as the last section of its strip; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
+    now:'Quantum Scanner in the app sidebar (the Products group, after Equities Research), with the scanner’s unread matches counted on My Alerts, which lists them beside the research alerts, and the Trading Index as the last section of its strip; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
     gate:'/admin/* is not restricted to anyone: there are no accounts, so the operations pages are read-only views that say so. Intraday timeframes appear nowhere as available.',
     checks:[{ file:'equity-test.mjs', name:'the scanner is in the sidebar after Equities Research, on every scanner address' },
             { file:'register-check.mjs', name:'robots.txt keeps the scanner and operations paths out of crawlers' },
@@ -380,7 +380,7 @@ const CAPABILITY_REGISTER = [
             { file:'mobile.mjs', name:'no horizontal overflow at any width' },
             { file:'register-check.mjs', name:'register-check self-test' }] },
   { name:'Alerts and monitoring', status:'beta', path:'/my/alerts',
-    now:'Fact-change alerts.', gate:'Stale-data and duplicate controls are not yet implemented.' },
+    now:'Fact-change alerts and your price thresholds, with the scanner’s recorded matches beside them, each labelled by kind.', gate:'Stale-data and duplicate controls are not yet implemented.' },
   { name:'Bring your own market data', status:'maintenance', path:'/my/data',
     now:'Paste closes; they stay in this browser and never reach the site.' },
   { name:'Multilingual property workflow', status:'beta', path:'/property/calculator',

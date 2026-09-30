@@ -375,10 +375,12 @@ const PRODUCTS = [
 const PRODUCT_STATUS = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
 /* A product that is not built never appears in the app's navigation. */
 const SHOW_UNBUILT = false;
-/* "Reports" joins My Workspace once a list of reports exists. Today a report
-   is printed from a company page and nothing keeps it, so an item would open
-   a list that is not there. */
-const SHOW_REPORTS = false;
+/* "Reports" sits in My Workspace, after Saved Models, now that the list of
+   reports exists (/my/reports, 58-reports.js): what the reader's own work can
+   print, each opening the real report. It was kept out while a report was
+   printed only from its own page and nothing listed them, when an item would
+   have opened a list that was not there. */
+const SHOW_REPORTS = true;
 const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
 
 /* The badge a product wears, with its note as the title. It is an element,
@@ -532,11 +534,14 @@ const TOOLS = [
     status: 'live', statusNote: 'Lists of companies you follow, kept in this browser; each can be the universe a scanner setup checks.',
     action: { label: 'Create a watchlist', path: '/my/watchlists' } },
   { id: 'myAlerts', product: null, label: 'My Alerts', path: '/my/alerts', views: ['alerts'],
-    status: 'live', statusNote: 'The facts that changed against your investment cases and saved screens, each with its source period; nothing leaves this browser.',
+    status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
     action: { label: 'Review your alerts', path: '/my/alerts' } },
   { id: 'saved', product: null, label: 'Saved Models', path: '/my/workspace', views: ['workspace'],
     status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
     action: { label: 'Open your saved work', path: '/my/workspace' } },
+  { id: 'reports', product: null, label: 'Reports', path: '/my/reports', views: ['reports'],
+    status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report and decision record, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.',
+    action: { label: 'Open your reports', path: '/my/reports' } },
   { id: 'portfolio', product: null, label: 'Portfolio', path: '/my/portfolio', views: ['portfolio'],
     status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.',
     action: { label: 'Open your portfolio', path: '/my/portfolio' } },
@@ -791,6 +796,7 @@ const APP_NAV_WORKSPACE = [
   { id: 'watchlists', label: 'Watchlists',   icon: 'list',   path: '/my/watchlists' },
   { id: 'alerts',     label: 'My Alerts',    icon: 'bell',   path: '/my/alerts' },
   { id: 'workspace',  label: 'Saved Models', icon: 'folder', path: '/my/workspace' },
+  ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Reports', icon: 'doc', path: '/my/reports' }] : []),
 ];
 const APP_NAV_FOOT = [
   { id: 'userdata', label: 'Your data & settings', icon: 'database', path: '/my/data' },
@@ -842,6 +848,8 @@ const SUBNAV_MY = [
   /* Everything saved, across kinds, in one list — beside the page that
      exports it. */
   { id:'workspace',  label:'Workspace',  path:'/my/workspace' },
+  /* What that work can print (58-reports.js). */
+  { id:'reports',    label:'Reports',    path:'/my/reports' },
   { id:'userdata',   label:'Your data',  path:'/my/data' },
 ];
 
@@ -979,6 +987,8 @@ const ROUTES = [
   { path: '/my/watchlists',       view: 'watchlists',title: 'Watchlists' },
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
+  /* Release B: every report the reader's own work can print (58-reports.js). */
+  { path: '/my/reports',          view: 'reports',   title: 'Reports' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
   /* Phase 3 — ops */
   /* The scanner's dashboard, its two P1 surfaces and the four operations
@@ -1092,7 +1102,8 @@ const META = {
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
   thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
-  alerts:      'Alerts that name the fact that changed and its source period. Nothing is sent outside this browser.',
+  alerts:      'Your alerts, each labelled by kind: the facts that changed in the research you follow, with their source period, and your scanner setups’ recorded matches. Nothing is sent outside this browser.',
+  reports:     'Every report your own work in this browser can print — company research reports, property investor reports and decision records — each saved as PDF through your browser’s print.',
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
@@ -1606,6 +1617,7 @@ const SECTION_OF = {
   watchlists: 'watchlists', tracked: 'watchlists',
   alerts: 'alerts',
   workspace: 'workspace', thesis: 'workspace', portfolio: 'workspace',
+  reports: 'reports',
   userdata: 'userdata', plans: 'plans',
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
@@ -1631,10 +1643,12 @@ function decisionRecordSection() {
   const id = State.decisionSubject && ready.some(s => s.id === State.decisionSubject) ? State.decisionSubject : ready[0]?.id;
   return { property: 'property', wheel: 'equities', tradingIndex: 'scanner' }[id] || null;
 }
-/* Guarded twice: the function may not exist in a build without the alerts
-   pages, and a throw inside the chrome would take every page down with it. */
+/* My Alerts' unread count, as the alerts page counts it (alertsUnread,
+   60-trend.js). Guarded twice: the function may not exist in a build without
+   the alerts pages, and a throw inside the chrome would take every page down
+   with it. */
 function navUnread() {
-  try { const n = scanUnreadCount(); return Number.isInteger(n) && n > 0 ? n : null; } catch { return null; }
+  try { const n = typeof alertsUnread === 'function' ? alertsUnread() : null; return Number.isInteger(n) && n > 0 ? n : null; } catch { return null; }
 }
 
 /* ------------------------------------------------------------ the chrome */
@@ -1924,29 +1938,28 @@ function buildNav() {
   shellEl.appnav?.querySelectorAll('a.sb-link').forEach(a => {
     if (a.dataset.navId === section) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
-  /* THE SCANNER'S UNREAD ALERTS, on My Alerts. Counted by the alerts page's
-     own function (scanUnreadCount, null when no alerts file is visible); a
-     count is shown only when there is one, since a 0 would claim a record
-     exists. The count is a link of its own, to the page that lists those
-     alerts: /my/alerts is the research alert feed and does not list the
-     scanner's matches, so a count on its link would promise alerts the page
-     it opens does not show.
-     A bare number beside "My Alerts" read as My Alerts' own count, and its
-     name did not say where it led. So the pill carries the Scanner's mark
-     (its product icon, as in Products below) and the link is named for the
-     page it opens — "Scanner alerts, 3 unread", as the scanner's own strip
-     names its Alerts link. */
-  const alertsLi = shellEl.appnav?.querySelector('[data-item="alerts"]');
-  if (alertsLi) {
-    alertsLi.querySelector('.sb-count')?.remove();
-    const unread = typeof scanUnreadCount === 'function' ? navUnread() : null;
+  /* ONE UNREAD COUNT, ON MY ALERTS' OWN LINK (Release B). My Alerts lists
+     every kind of alert the product raises, each labelled (60-trend.js), and
+     carries one count: the unread among the kinds that keep a read state —
+     the scanner's matches, counted by the scanner's own rule (alertsUnread:
+     none when no record is visible here or the in-app count is switched off,
+     never "0", which would claim a record exists). The count sat beside My
+     Alerts as a link of its own to the Scanner's alerts, because the page My
+     Alerts opened did not list them; it does now, so the count is part of
+     the link to that page and the second link is gone. The pill is drawn,
+     and said as part of the link's name — "My Alerts, 3 unread", starting
+     with the words on screen so a voice command naming them finds it; the
+     exact count, past 99, is in the title. Updated in place, so a link with
+     the keyboard on it keeps it through a redraw. */
+  const alertsA = shellEl.appnav?.querySelector('[data-item="alerts"] > a.sb-link');
+  if (alertsA) {
+    alertsA.querySelectorAll('.sb-count, .sb-count-said').forEach(n => n.remove());
+    const unread = navUnread();
     if (unread) {
-      /* The name says what the pill shows — "99+" over 99 — so a voice
-         command naming the visible text finds it; the exact count is in the
-         title. */
-      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': `Scanner alerts, ${unread > 99 ? '99+' : unread} unread`,
-        title: `${unread} unread scanner alert${unread === 1 ? '' : 's'} — opens the Scanner’s alerts` },
-        el('span', { class: 'nav-count' }, [shellIcon(PRODUCT_ICON.scanner, 11, 'sb-count-ico'), unread > 99 ? '99+' : String(unread)])));
+      const shown = unread > 99 ? '99+' : String(unread);
+      alertsA.append(
+        el('span', { class: 'sb-count', 'aria-hidden': 'true', title: `${unread} unread scanner match${unread === 1 ? '' : 'es'} — not yet opened in this browser; muted setups are not counted` }, el('span', { class: 'nav-count' }, shown)),
+        el('span', { class: 'sr-only sb-count-said' }, `, ${shown} unread`));
     }
   }
   /* The public header's current link, and a mark on the menu that holds it. */

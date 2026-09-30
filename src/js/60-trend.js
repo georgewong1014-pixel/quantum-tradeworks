@@ -546,14 +546,188 @@ VIEWS.tracked = () => {
   return wrap;
 };
 
+/* ==========================================================================
+   MY ALERTS — ONE PAGE FOR BOTH KINDS (Release B)
+
+   The product raises two kinds of alert, and they lived on two pages that
+   did not name each other: the research feed here, and the scanner's matches
+   on /app/scanner/alerts, reached only from a count beside My Alerts that
+   opened somewhere else. This page lists both, each labelled by kind, with a
+   filter that counts each:
+   - Research: what changed in the reported figures of the companies the
+     reader follows and their investment cases, thesis-linked first, and the
+     price thresholds they set.
+   - Scanner matches: the bars on which the reader's own setups held, from
+     the scanner's record, each naming the setup, the symbol and the bar, new
+     or read, and linking to its alert page.
+
+   ONE UNREAD COUNT. Only the scanner's matches keep a read state (per
+   browser, scanAlertState); the research feed is rebuilt from the data on
+   every load, and a price threshold is a setting, not an event. So the
+   unread count — here, and on My Alerts in the sidebar — is the scanner's own
+   (scanUnreadCount), never one this page makes up, and listing a match does
+   not mark it read: opening it does, as on the scanner's pages.
+
+   THE RECORD IS THE SCANNER'S. It is written on the computer the worker runs
+   on; where it is not visible (the hosted site) the section says so, as the
+   scanner's pages do, and no count reads 0. /app/scanner/alerts stays its
+   full history — filters, bulk status, CSV — linked from the section.
+   ========================================================================== */
+
+/* The kinds the page shows, in the order it draws them. The choice is held in
+   the address (?kind=), as the scanner's own alert filters are, so a link can
+   open one kind and Back restores it; All is no parameter at all. */
+const ALERT_VIEW_KINDS = [
+  { id: 'all',      label: 'All' },
+  { id: 'research', label: 'Research' },
+  { id: 'scanner',  label: 'Scanner matches' },
+];
+const alertsKind = () => {
+  const k = new URLSearchParams(location.search).get('kind');
+  return k !== 'all' && ALERT_VIEW_KINDS.some(x => x.id === k) ? k : 'all';
+};
+
+/* The unread count My Alerts carries, on this page and on its sidebar link
+   (navUnread, 35-ui.js): the scanner's own count — its matches with no status
+   in this browser, less the setups the reader muted — or null, which is no
+   count at all, when its record is not visible here or its in-app count is
+   switched off. */
+function alertsUnread() {
+  try { const n = typeof scanUnreadCount === 'function' ? scanUnreadCount() : null; return Number.isInteger(n) ? n : null; } catch { return null; }
+}
+
+/* The scanner's record as this page lists it: the matches not archived, in
+   the record's own date order (scanAlertsInOrder — the bar, then when it was
+   detected; never a ranking), with each one's status in this browser read
+   and never written. null when no record is visible here. */
+function alertsScannerRecord() {
+  const doc = typeof scanAlertsFile !== 'undefined' ? scanAlertsFile : null;
+  if (!doc || typeof scanAlertsInOrder !== 'function') return null;
+  const st = scanAlertStateRead();
+  const all = scanAlertsInOrder();
+  const open = all.filter(a => scanAlertStatus(a, st) !== 'ARCHIVED');
+  return { all, open, st, prefs: scanPrefsRead(), unread: alertsUnread(), archived: all.length - open.length,
+    fresh: open.filter(a => scanAlertStatus(a, st) === 'NEW').length };
+}
+/* How many matches the section lists before sending the reader to the full
+   history, which pages, filters and exports them. */
+const ALERTS_SCANNER_ROWS = 10;
+
+/* The filter: one button per kind, each with the number that kind lists,
+   pressed for the kind on screen; and, under it, what the unread count is a
+   count of. A kind whose record is not here says so in place of a number. */
+function alertsKindBar(kind, researchN, rec) {
+  const scanN = rec ? rec.open.length : null;
+  const count = { all: researchN + (scanN || 0), research: researchN, scanner: scanN };
+  const setKind = (k) => {
+    const q = new URLSearchParams(location.search);
+    if (k === 'all') q.delete('kind'); else q.set('kind', k);
+    const s = q.toString();
+    history.replaceState(history.state, '', location.pathname + (s ? `?${s}` : ''));
+    /* The pressed button comes back under the same id, and keeps the keyboard. */
+    renderKeepFocus();
+  };
+  const seg = el('div', { class: 'segmented al-kind-seg', role: 'group', 'aria-label': 'Show alerts of one kind' },
+    ALERT_VIEW_KINDS.map(k => el('button', { type: 'button', id: `al-kind-${k.id}`, 'aria-pressed': kind === k.id ? 'true' : 'false', onclick: () => setKind(k.id) }, [
+      k.label, ' ', el('span', { class: 'al-kind-n' }, count[k.id] == null ? 'no record here' : String(count[k.id])),
+    ])));
+  const said = !rec
+    ? 'Nothing here is counted as unread: the scanner’s record, the one kind that keeps a read state, is not visible here, and research alerts are rebuilt from the data each time this page loads.'
+    : rec.prefs.inApp === false
+      ? `${rec.fresh} scanner match${rec.fresh === 1 ? '' : 'es'} not yet opened — the in-app unread count is switched off in the scanner’s settings, so none is counted on My Alerts.`
+      : `${rec.unread} unread scanner match${rec.unread === 1 ? '' : 'es'} — the count My Alerts carries. Research alerts are rebuilt from the data each time this page loads, so they are never unread.`;
+  return el('div', { class: 'al-kinds' }, [seg, el('p', { class: 'metaline al-kinds-said' }, said)]);
+}
+
+/* A card's head with an id on its heading, for the section it names. */
+const alertsSectionHead = (id, title, sub, right = null) => el('div', { class: 'card-hd' }, [
+  el('div', {}, [
+    el('h3', { class: 'h-card', id }, title),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:62ch' }, sub),
+  ]),
+  right,
+]);
+
+/* SCANNER MATCHES. The reader's setup is named as theirs — "Your setup
+   “Buy on the cross”" — so a setup's title reads as what they called a rule,
+   not as something this page says; each row opens its own alert page. */
+function alertsScannerSection(rec) {
+  const sec = el('section', { class: 'card al-sec', id: 'al-scanner', 'aria-labelledby': 'al-scanner-hd' });
+  const sub = 'The bars on which your own setups’ conditions held, from the scanner’s record — newest bar first; a record, not a signal. Opening one marks it read, as on the scanner’s own pages.';
+  if (!rec) {
+    /* Why, in the registry's words for the scanner's Alerts (toolState): the
+       record is not loaded here, and where it can be opened. */
+    const t = typeof toolState === 'function' ? toolState('scanAlerts') : null;
+    const why = t?.derived ? t.note : 'The scanner’s record has not been read in this tab yet.';
+    sec.append(alertsSectionHead('al-scanner-hd', 'Scanner matches', sub));
+    sec.append(el('div', { class: 'al-empty' }, [
+      el('p', { class: 'al-empty-t' }, 'The scanner’s record cannot be seen from here'),
+      el('p', { class: 'caption' }, `${why} So there is nothing to list here — and no unread count, rather than a count of nought.`),
+      toolLink('/app/scanner', { class: 'btn btn-ghost btn-sm' }, 'Open the scanner'),
+    ]));
+    return sec;
+  }
+  const every = toolLink('/app/scanner/alerts', { class: 'btn btn-ghost btn-sm al-every' }, ['Every scanner alert ', el('span', { 'aria-hidden': 'true' }, '→')]);
+  sec.append(alertsSectionHead('al-scanner-hd', `Scanner matches — ${rec.open.length}`, sub, every));
+  const mutedN = rec.unread != null ? Math.max(0, rec.fresh - rec.unread) : 0;
+  const archivedSaid = rec.archived
+    ? `${rec.archived} archived match${rec.archived === 1 ? ' is' : 'es are'} not listed here — the scanner’s alert history holds ${rec.archived === 1 ? 'it' : 'them'}.` : null;
+  if (!rec.all.length) {
+    sec.append(el('div', { class: 'al-empty' }, [
+      el('p', { class: 'al-empty-t' }, 'Nothing recorded yet'),
+      el('p', { class: 'caption' }, 'The worker adds a match to the record when one of your setups’ conditions holds on a bar. An empty record is the normal state of tight conditions, not a fault.'),
+      toolLink('/app/scanner/setups', { class: 'btn btn-ghost btn-sm' }, 'Your setups'),
+    ]));
+    return sec;
+  }
+  if (!rec.open.length) {
+    sec.append(el('div', { class: 'al-empty' }, [
+      el('p', { class: 'al-empty-t' }, 'Every recorded match is archived'),
+      el('p', { class: 'caption' }, archivedSaid),
+    ]));
+    return sec;
+  }
+  sec.append(el('p', { class: 'metaline al-scan-said' }, rec.prefs.inApp === false
+    ? `${rec.fresh} not yet opened — the in-app unread count is switched off in the scanner’s settings.`
+    : `${rec.unread} unread${mutedN ? ` — ${mutedN} more from ${mutedN === 1 ? 'a muted setup' : 'muted setups'}, not counted` : ''}.`));
+  const setups = typeof scanStoreRead === 'function' ? scanStoreRead().setups || {} : {};
+  const nameOf = (a) => setups[a.setupId]?.name || a.setupName || a.setupId || 'a setup';
+  const EVENT = { NEW_MATCH: 'new match', MATCH: 'match', FIRST_OBSERVED: 'first observed' };
+  const list = el('ul', { class: 'al-scan-list', 'aria-label': 'Scanner matches, newest bar first' });
+  rec.open.slice(0, ALERTS_SCANNER_ROWS).forEach(a => {
+    const isNew = scanAlertStatus(a, rec.st) === 'NEW';
+    const path = scanAlertPath(a);
+    const muted = !!rec.prefs.muted?.[a.setupId];
+    list.append(el('li', {}, el('a', { class: `al-scan-row${isNew ? ' is-new' : ''}`, href: href(path),
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, [
+      el('span', { class: 'al-scan-ic', 'aria-hidden': 'true', html: icon(PRODUCT_ICON.scanner, 15) }),
+      el('span', { class: 'al-scan-main' }, [
+        el('span', { class: 'al-scan-t' }, [
+          el('strong', {}, a.symbol || a.instrumentId || '—'),
+          el('span', { class: 'metaline' }, `bar ${scanAlertBar(a) || 'not recorded'}`),
+          el('span', { class: `chip al-scan-state${isNew ? ' chip-brand' : ''}` }, isNew ? 'new' : 'read'),
+        ]),
+        el('span', { class: 'al-scan-s' }, `Your setup “${nameOf(a)}”${a.setupVersion != null ? ` v${a.setupVersion}` : ''} · ${EVENT[a.eventType] || 'match'}${muted ? ' · setup muted' : ''}`),
+      ]),
+      el('span', { class: 'al-scan-go', 'aria-hidden': 'true', html: ROW_CHEVRON }),
+    ])));
+  });
+  sec.append(list);
+  const more = rec.open.length > ALERTS_SCANNER_ROWS
+    ? `The ${ALERTS_SCANNER_ROWS} newest of ${rec.open.length} matches not archived; the scanner’s alert history lists every one.` : null;
+  if (more || archivedSaid) sec.append(el('p', { class: 'metaline al-foot' }, [more, archivedSaid].filter(Boolean).join(' ')));
+  return sec;
+}
+
 VIEWS.alerts = () => {
+  const kind = alertsKind();
   const wrap = el('div');
   wrap.append(mySubnav('alerts'));
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Alerts'),
-    el('h1', {}, 'Tell me what changed, and why it matters to my thesis'),
+    el('p', { class: 'eyebrow' }, 'My workspace'),
+    el('h1', {}, 'My Alerts'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Every alert names the fact that changed, the source period, and which thesis condition it maps to. None of them contains an instruction to buy or sell.'),
+      'What changed in the research you follow, and the bars on which your own scanner setups held — each labelled by kind, each naming its source. None of them is an instruction to buy or sell.'),
   ])));
   appendSampleBanner(wrap);
 
@@ -630,8 +804,6 @@ VIEWS.alerts = () => {
     });
   });
 
-  const layout = el('div', { class: 'thesis-layout' });
-
   /* The alert types in the rail filter this feed. They were checkboxes with no
      handler and no storage: unticking every one changed nothing, and crossed
      price alerts appeared tagged "Price move" while that type read as off.
@@ -639,95 +811,110 @@ VIEWS.alerts = () => {
   const kindOn = (k) => State.alertKinds.includes(k);
   const shown = items.filter(a => kindOn(a.kind));
   const hiddenN = items.length - shown.length;
+  const rec = alertsScannerRecord();
 
-  const feedCard = el('div', { class: 'card' });
-  /* The feed is rebuilt from the current state each time the page loads; it is
-     not a history of changes, and nothing merges two items about one fact. It
-     used to say it was deduplicated, which the status register says is not
-     built. */
-  feedCard.append(cardHead(`Alert feed — ${shown.length}`,
-    'Rebuilt from the current data each time this page loads. Not deduplicated: one company can appear once per source that reports on it.'));
-  if (hiddenN) feedCard.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
-    `${hiddenN} more item${hiddenN === 1 ? ' is' : 's are'} hidden by the types switched off under Alert types.`));
-  if (!shown.length) feedCard.append(emptyState(items.length ? 'Every current item is of a type you have switched off.' : 'Nothing has changed state since the last run.'));
-  const l = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
-  shown.forEach(a => {
-    const s = SEV_STYLE[a.sev] || SEV_STYLE.info;
-    const item = el('div', { class: 'noteitem' });
-    item.append(el('span', { class: 'ni-icon', style: `background:color-mix(in srgb, var(${s.v}) 15%, transparent);color:var(${s.v})`, html: icon(s.icon, 13) }));
-    const b = el('div', { style: 'flex:1;min-width:0' });
-    b.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-      el('span', { style: 'font-size:13px;font-weight:600' }, a.title),
-      el('span', { class: 'chip' }, ALERT_KINDS.find(k => k.id === a.kind)?.label || a.kind),
-    ]));
-    b.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:2px' }, a.what));
-    b.append(el('p', { class: 'caption', style: 'margin-top:2px' }, a.detail));
-    b.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px' }, [
-      el('span', { class: 'metaline' }, a.source),
-      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(a.id) }, 'Open evidence'),
-      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('thesis') }, 'Review thesis'),
-    ]));
-    item.append(b);
-    l.append(item);
-  });
-  feedCard.append(l);
-  layout.append(feedCard);
+  /* The two kinds, counted, and the one the page shows. */
+  wrap.append(alertsKindBar(kind, shown.length, rec));
+
+  const layout = el('div', { class: 'thesis-layout al-layout' });
+  const main = el('div', { class: 'al-main' });
+
+  /* RESEARCH. The feed is rebuilt from the current state each time the page
+     loads; it is not a history of changes, and nothing merges two items about
+     one fact. It used to say it was deduplicated, which the status register
+     says is not built. */
+  if (kind !== 'scanner') {
+    const feedCard = el('section', { class: 'card al-sec', id: 'al-research', 'aria-labelledby': 'al-research-hd' });
+    feedCard.append(alertsSectionHead('al-research-hd', `Research — ${shown.length}`,
+      'The facts that changed in the companies you follow and your investment cases, thesis-linked first, and any price threshold of yours crossed. Rebuilt from the current data on each load, so never unread; not deduplicated — one company can appear once per source that reports on it.'));
+    if (hiddenN) feedCard.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
+      `${hiddenN} more item${hiddenN === 1 ? ' is' : 's are'} hidden by the types switched off under Alert types.`));
+    if (!shown.length) feedCard.append(emptyState(items.length ? 'Every current item is of a type you have switched off.' : 'Nothing has changed state since the last run.'));
+    const l = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
+    shown.forEach(a => {
+      const s = SEV_STYLE[a.sev] || SEV_STYLE.info;
+      const item = el('div', { class: 'noteitem' });
+      item.append(el('span', { class: 'ni-icon', style: `background:color-mix(in srgb, var(${s.v}) 15%, transparent);color:var(${s.v})`, html: icon(s.icon, 13) }));
+      const b = el('div', { style: 'flex:1;min-width:0' });
+      b.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
+        el('span', { style: 'font-size:13px;font-weight:600' }, a.title),
+        el('span', { class: 'chip' }, ALERT_KINDS.find(k => k.id === a.kind)?.label || a.kind),
+      ]));
+      b.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:2px' }, a.what));
+      b.append(el('p', { class: 'caption', style: 'margin-top:2px' }, a.detail));
+      b.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px' }, [
+        el('span', { class: 'metaline' }, a.source),
+        el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(a.id) }, 'Open evidence'),
+        el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('thesis') }, 'Review thesis'),
+      ]));
+      item.append(b);
+      l.append(item);
+    });
+    feedCard.append(l);
+    main.append(feedCard);
+  }
+  if (kind !== 'research') main.append(alertsScannerSection(rec));
+  layout.append(main);
 
   const rail = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
-  /* ---------- price alert manager ---------- */
-  const pac = el('div', { class: 'card' });
-  /* The count the plan's cap applies to is the reader's own (ownAlertCount);
-     the samples are named beside it rather than filling two of three slots. */
-  const samplePA = State.priceAlerts.length - ownAlertCount();
-  pac.append(cardHead(`Price alerts — ${ownAlertCount()}/${LIMITS.priceAlerts}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
-    'Thresholds you set yourself. They fire on price alone, which is why they are the one alert type off by default in the list below.',
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
-  if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));
-  const pal = el('div', { style: 'display:flex;flex-direction:column' });
-  State.priceAlerts.forEach((pa, i) => {
-    const r = BY_ID.get(pa.ticker);
-    /* The same test the feed applies. Without the price check, null < 50 is
-       true, so an alert on an unpriced company read "Crossed" here while the
-       feed, correctly, showed nothing. */
-    const priced = !!r && isNum(r.c.px?.p);
-    const hit = priced && (pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price);
-    const tk = r ? r.c.tk : pa.ticker;
-    const row = el('div', { class: 'row row-wrap', style: `gap:8px;padding:8px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
-    row.append(el('span', { style: 'font-size:13px;font-weight:600;min-width:74px' }, tk));
-    if (isSeededPA(pa)) row.append(el('span', { class: 'chip chip-bronze', title: 'Written into this browser on a first visit. Not yours, and not counted against the plan.' }, 'sample'));
-    row.append(el('span', { class: 'metaline' }, `${pa.op} ${r ? fmtMoney(pa.price, r.c.ccy) : pa.price}`));
-    row.append(el('span', { class: 'spacer' }));
-    row.append(!priced ? el('span', { class: 'chip', title: 'No price is carried for this company, so the threshold cannot be tested.' }, 'No price')
-      : hit ? sevChip('info', kindOn('price') ? 'Crossed' : 'Crossed · Price move is off') : el('span', { class: 'chip' }, 'Waiting'));
-    row.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Edit ${tk} price alert`,
-      onclick: () => openPriceAlertEditor(pa) }, 'Edit'));
-    pal.append(row);
-  });
-  pac.append(pal);
-  rail.append(pac);
+  /* The research feed's own controls — the reader's price thresholds and the
+     types the feed shows — go with it: shown with the research kind. */
+  if (kind !== 'scanner') {
+    /* ---------- price alert manager ---------- */
+    const pac = el('div', { class: 'card' });
+    /* The count the plan's cap applies to is the reader's own (ownAlertCount);
+       the samples are named beside it rather than filling two of three slots. */
+    const samplePA = State.priceAlerts.length - ownAlertCount();
+    pac.append(cardHead(`Price alerts — ${ownAlertCount()}/${LIMITS.priceAlerts}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
+      'Research alerts you set yourself: thresholds that fire on price alone, which is why they are the one alert type off by default in the list below.',
+      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
+    if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));
+    const pal = el('div', { style: 'display:flex;flex-direction:column' });
+    State.priceAlerts.forEach((pa, i) => {
+      const r = BY_ID.get(pa.ticker);
+      /* The same test the feed applies. Without the price check, null < 50 is
+         true, so an alert on an unpriced company read "Crossed" here while the
+         feed, correctly, showed nothing. */
+      const priced = !!r && isNum(r.c.px?.p);
+      const hit = priced && (pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price);
+      const tk = r ? r.c.tk : pa.ticker;
+      const row = el('div', { class: 'row row-wrap', style: `gap:8px;padding:8px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
+      row.append(el('span', { style: 'font-size:13px;font-weight:600;min-width:74px' }, tk));
+      if (isSeededPA(pa)) row.append(el('span', { class: 'chip chip-bronze', title: 'Written into this browser on a first visit. Not yours, and not counted against the plan.' }, 'sample'));
+      row.append(el('span', { class: 'metaline' }, `${pa.op} ${r ? fmtMoney(pa.price, r.c.ccy) : pa.price}`));
+      row.append(el('span', { class: 'spacer' }));
+      row.append(!priced ? el('span', { class: 'chip', title: 'No price is carried for this company, so the threshold cannot be tested.' }, 'No price')
+        : hit ? sevChip('info', kindOn('price') ? 'Crossed' : 'Crossed · Price move is off') : el('span', { class: 'chip' }, 'Waiting'));
+      row.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Edit ${tk} price alert`,
+        onclick: () => openPriceAlertEditor(pa) }, 'Edit'));
+      pal.append(row);
+    });
+    pac.append(pal);
+    rail.append(pac);
 
-  const rules = el('div', { class: 'card' });
-  rules.append(cardHead('Alert types', 'Which types the feed shows. Defaults are thesis-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
-  ALERT_KINDS.forEach(k => {
-    const built = k.built !== false;
-    const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
-    /* An id and renderKeepFocus: render() rebuilt the switch, so Space on
-       one dropped focus on <body> and the next Tab started from the top. */
-    lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
-      style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
-      onchange: e => {
-        State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
-        saveAlertKinds(); renderKeepFocus();
-      } }));
-    const tx = el('div');
-    tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
-    tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` },
-      built ? k.note : `${k.note} Nothing in this build produces this type yet, so there is nothing for the switch to show or hide.`));
-    lab.append(tx);
-    rules.append(lab);
-  });
-  rail.append(rules);
+    const rules = el('div', { class: 'card' });
+    rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are thesis-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
+    ALERT_KINDS.forEach(k => {
+      const built = k.built !== false;
+      const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
+      /* An id and renderKeepFocus: render() rebuilt the switch, so Space on
+         one dropped focus on <body> and the next Tab started from the top. */
+      lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
+        style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
+        onchange: e => {
+          State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
+          saveAlertKinds(); renderKeepFocus();
+        } }));
+      const tx = el('div');
+      tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
+      tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` },
+        built ? k.note : `${k.note} Nothing in this build produces this type yet, so there is nothing for the switch to show or hide.`));
+      lab.append(tx);
+      rules.append(lab);
+    });
+    rail.append(rules);
+  }
 
   const pref = el('div', { class: 'card' });
   /* Nothing is delivered — there is no server, no channel and no contact
@@ -739,11 +926,13 @@ VIEWS.alerts = () => {
   [['Delivery', 'would be a daily digest'], ['Deduplication window', 'would be 24 hours'], ['Time zone', MARKETS.MY.tz],
    ['Quiet hours', 'would be 22:00 – 07:00'], ['Per-company cap', 'would be 3 a day']].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
   pref.append(kv);
+  /* The scanner's matches were "recorded to a file; see /my/scanner" — a
+     pointer away from the page. They are listed here now, and are not
+     delivered either. */
   pref.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'A US filing published after the Malaysian market closes would be held to the next digest rather than sent overnight — when there is a digest to hold it to. The scanner records matches to a file; see /my/scanner.'));
+    'A US filing published after the Malaysian market closes would be held to the next digest rather than sent overnight — when there is a digest to hold it to. Scanner matches are not sent either: the worker records them to a file on your own computer, and this page lists them from it.'));
   rail.append(pref);
   layout.append(rail);
   wrap.append(layout);
   return wrap;
 };
-

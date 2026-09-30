@@ -12215,10 +12215,12 @@ const PRODUCTS = [
 const PRODUCT_STATUS = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
 /* A product that is not built never appears in the app's navigation. */
 const SHOW_UNBUILT = false;
-/* "Reports" joins My Workspace once a list of reports exists. Today a report
-   is printed from a company page and nothing keeps it, so an item would open
-   a list that is not there. */
-const SHOW_REPORTS = false;
+/* "Reports" sits in My Workspace, after Saved Models, now that the list of
+   reports exists (/my/reports, 58-reports.js): what the reader's own work can
+   print, each opening the real report. It was kept out while a report was
+   printed only from its own page and nothing listed them, when an item would
+   have opened a list that was not there. */
+const SHOW_REPORTS = true;
 const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
 
 /* The badge a product wears, with its note as the title. It is an element,
@@ -12372,11 +12374,14 @@ const TOOLS = [
     status: 'live', statusNote: 'Lists of companies you follow, kept in this browser; each can be the universe a scanner setup checks.',
     action: { label: 'Create a watchlist', path: '/my/watchlists' } },
   { id: 'myAlerts', product: null, label: 'My Alerts', path: '/my/alerts', views: ['alerts'],
-    status: 'live', statusNote: 'The facts that changed against your investment cases and saved screens, each with its source period; nothing leaves this browser.',
+    status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
     action: { label: 'Review your alerts', path: '/my/alerts' } },
   { id: 'saved', product: null, label: 'Saved Models', path: '/my/workspace', views: ['workspace'],
     status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
     action: { label: 'Open your saved work', path: '/my/workspace' } },
+  { id: 'reports', product: null, label: 'Reports', path: '/my/reports', views: ['reports'],
+    status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report and decision record, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.',
+    action: { label: 'Open your reports', path: '/my/reports' } },
   { id: 'portfolio', product: null, label: 'Portfolio', path: '/my/portfolio', views: ['portfolio'],
     status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.',
     action: { label: 'Open your portfolio', path: '/my/portfolio' } },
@@ -12631,6 +12636,7 @@ const APP_NAV_WORKSPACE = [
   { id: 'watchlists', label: 'Watchlists',   icon: 'list',   path: '/my/watchlists' },
   { id: 'alerts',     label: 'My Alerts',    icon: 'bell',   path: '/my/alerts' },
   { id: 'workspace',  label: 'Saved Models', icon: 'folder', path: '/my/workspace' },
+  ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Reports', icon: 'doc', path: '/my/reports' }] : []),
 ];
 const APP_NAV_FOOT = [
   { id: 'userdata', label: 'Your data & settings', icon: 'database', path: '/my/data' },
@@ -12682,6 +12688,8 @@ const SUBNAV_MY = [
   /* Everything saved, across kinds, in one list — beside the page that
      exports it. */
   { id:'workspace',  label:'Workspace',  path:'/my/workspace' },
+  /* What that work can print (58-reports.js). */
+  { id:'reports',    label:'Reports',    path:'/my/reports' },
   { id:'userdata',   label:'Your data',  path:'/my/data' },
 ];
 
@@ -12819,6 +12827,8 @@ const ROUTES = [
   { path: '/my/watchlists',       view: 'watchlists',title: 'Watchlists' },
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
+  /* Release B: every report the reader's own work can print (58-reports.js). */
+  { path: '/my/reports',          view: 'reports',   title: 'Reports' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
   /* Phase 3 — ops */
   /* The scanner's dashboard, its two P1 surfaces and the four operations
@@ -12932,7 +12942,8 @@ const META = {
   portfolio:   'Holdings kept in this browser, with business performance separated from currency movement.',
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
   thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
-  alerts:      'Alerts that name the fact that changed and its source period. Nothing is sent outside this browser.',
+  alerts:      'Your alerts, each labelled by kind: the facts that changed in the research you follow, with their source period, and your scanner setups’ recorded matches. Nothing is sent outside this browser.',
+  reports:     'Every report your own work in this browser can print — company research reports, property investor reports and decision records — each saved as PDF through your browser’s print.',
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
@@ -13446,6 +13457,7 @@ const SECTION_OF = {
   watchlists: 'watchlists', tracked: 'watchlists',
   alerts: 'alerts',
   workspace: 'workspace', thesis: 'workspace', portfolio: 'workspace',
+  reports: 'reports',
   userdata: 'userdata', plans: 'plans',
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
@@ -13471,10 +13483,12 @@ function decisionRecordSection() {
   const id = State.decisionSubject && ready.some(s => s.id === State.decisionSubject) ? State.decisionSubject : ready[0]?.id;
   return { property: 'property', wheel: 'equities', tradingIndex: 'scanner' }[id] || null;
 }
-/* Guarded twice: the function may not exist in a build without the alerts
-   pages, and a throw inside the chrome would take every page down with it. */
+/* My Alerts' unread count, as the alerts page counts it (alertsUnread,
+   60-trend.js). Guarded twice: the function may not exist in a build without
+   the alerts pages, and a throw inside the chrome would take every page down
+   with it. */
 function navUnread() {
-  try { const n = scanUnreadCount(); return Number.isInteger(n) && n > 0 ? n : null; } catch { return null; }
+  try { const n = typeof alertsUnread === 'function' ? alertsUnread() : null; return Number.isInteger(n) && n > 0 ? n : null; } catch { return null; }
 }
 
 /* ------------------------------------------------------------ the chrome */
@@ -13764,29 +13778,28 @@ function buildNav() {
   shellEl.appnav?.querySelectorAll('a.sb-link').forEach(a => {
     if (a.dataset.navId === section) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
-  /* THE SCANNER'S UNREAD ALERTS, on My Alerts. Counted by the alerts page's
-     own function (scanUnreadCount, null when no alerts file is visible); a
-     count is shown only when there is one, since a 0 would claim a record
-     exists. The count is a link of its own, to the page that lists those
-     alerts: /my/alerts is the research alert feed and does not list the
-     scanner's matches, so a count on its link would promise alerts the page
-     it opens does not show.
-     A bare number beside "My Alerts" read as My Alerts' own count, and its
-     name did not say where it led. So the pill carries the Scanner's mark
-     (its product icon, as in Products below) and the link is named for the
-     page it opens — "Scanner alerts, 3 unread", as the scanner's own strip
-     names its Alerts link. */
-  const alertsLi = shellEl.appnav?.querySelector('[data-item="alerts"]');
-  if (alertsLi) {
-    alertsLi.querySelector('.sb-count')?.remove();
-    const unread = typeof scanUnreadCount === 'function' ? navUnread() : null;
+  /* ONE UNREAD COUNT, ON MY ALERTS' OWN LINK (Release B). My Alerts lists
+     every kind of alert the product raises, each labelled (60-trend.js), and
+     carries one count: the unread among the kinds that keep a read state —
+     the scanner's matches, counted by the scanner's own rule (alertsUnread:
+     none when no record is visible here or the in-app count is switched off,
+     never "0", which would claim a record exists). The count sat beside My
+     Alerts as a link of its own to the Scanner's alerts, because the page My
+     Alerts opened did not list them; it does now, so the count is part of
+     the link to that page and the second link is gone. The pill is drawn,
+     and said as part of the link's name — "My Alerts, 3 unread", starting
+     with the words on screen so a voice command naming them finds it; the
+     exact count, past 99, is in the title. Updated in place, so a link with
+     the keyboard on it keeps it through a redraw. */
+  const alertsA = shellEl.appnav?.querySelector('[data-item="alerts"] > a.sb-link');
+  if (alertsA) {
+    alertsA.querySelectorAll('.sb-count, .sb-count-said').forEach(n => n.remove());
+    const unread = navUnread();
     if (unread) {
-      /* The name says what the pill shows — "99+" over 99 — so a voice
-         command naming the visible text finds it; the exact count is in the
-         title. */
-      alertsLi.append(shellLink('/app/scanner/alerts', { class: 'sb-count', 'aria-label': `Scanner alerts, ${unread > 99 ? '99+' : unread} unread`,
-        title: `${unread} unread scanner alert${unread === 1 ? '' : 's'} — opens the Scanner’s alerts` },
-        el('span', { class: 'nav-count' }, [shellIcon(PRODUCT_ICON.scanner, 11, 'sb-count-ico'), unread > 99 ? '99+' : String(unread)])));
+      const shown = unread > 99 ? '99+' : String(unread);
+      alertsA.append(
+        el('span', { class: 'sb-count', 'aria-hidden': 'true', title: `${unread} unread scanner match${unread === 1 ? '' : 'es'} — not yet opened in this browser; muted setups are not counted` }, el('span', { class: 'nav-count' }, shown)),
+        el('span', { class: 'sr-only sb-count-said' }, `, ${shown} unread`));
     }
   }
   /* The public header's current link, and a mark on the menu that holds it. */
@@ -26667,6 +26680,302 @@ VIEWS.workspace = () => {
   return wrap;
 };
 /* ==========================================================================
+   REPORTS — WHAT THE READER'S OWN WORK CAN PRINT (Release B, /my/reports)
+
+   Every report in the product is a page of the tool that makes it: a
+   company's research report (/company/:id/report), a saved property's
+   investor report (the calculator's Report section) and its decision record,
+   and the Cash Wheel's and the Trading Index's decision records
+   (/decision-record). Each was reached only from inside its tool, so a
+   reader looking for a report had to remember which tool, which company,
+   which property. This page lists them, from the reader's own work in this
+   browser, and every row opens the real report: it prints as it always has,
+   through the browser's own print — "Save as PDF" as the printer, the
+   navigation and controls hidden. Nothing is generated here, stored or kept.
+
+   WHOSE WORK. A company is listed when the reader opened it — the companies
+   last read here, those read this calendar month, and any with a valuation
+   run they saved — or put it on a list of their own; a seeded sample list's
+   companies are not theirs (myDashOwnIds). A property is listed when it is
+   saved in My properties. The Cash Wheel and the Trading Index each hold one
+   piece of work, and its record is listed only when that work is the
+   reader's: a contract they entered, not the worked one; chart evidence
+   they recorded, not the §14 example (the launcher's own rule, 55-views-
+   public.js).
+
+   THE ALLOWANCE. A company's report is metered as its page is
+   (reportAllowed, 05-plans.js): distinct companies a calendar month, a
+   company already opened this month costing nothing more. Each row says
+   what opening it would do, and the page says what is left in the company
+   page's words. Listing spends nothing; a report the meter would refuse is
+   said to be unavailable, not offered as a link to the refusal.
+   ========================================================================== */
+
+/* It names companies, so it waits for the filings as every such page does
+   (UNIVERSE_VIEWS, 35-ui.js) — registered from here, as the scanner's pages
+   and the research queue register theirs. */
+UNIVERSE_VIEWS.add('reports');
+
+/* The chevron a row that is a link ends with (My Alerts' scanner rows too). */
+const ROW_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+
+/* The companies whose research report the reader's own work can print, in
+   the order the reader last came to them: those read here most recently
+   first, then those read this month, then those with a saved valuation run,
+   then those on a list of their own — each with why it is listed. A company
+   the loaded data does not hold (a filed one, with the filings failed) is
+   not listed; the page says so. */
+function reportCompanies() {
+  const out = new Map();
+  const add = (id) => {
+    const row = id ? BY_ID.get(id) : null;
+    if (!row) return null;
+    if (!out.has(row.c.id)) out.set(row.c.id, { row, opened: false, runs: [], lists: [] });
+    return out.get(row.c.id);
+  };
+  (State.recentCompanies || []).forEach(id => { const e = add(id); if (e) e.opened = true; });
+  if (State.reportLog?.month === meterMonth()) (State.reportLog.ids || []).forEach(id => { const e = add(id); if (e) e.opened = true; });
+  /* Newest first, as the store keeps them. */
+  (store.read('runs', []) || []).forEach(run => { const e = add(run?.id); if (e) e.runs.push(run); });
+  (State.watchlists || []).forEach(w => {
+    const mine = typeof myDashOwnIds === 'function' ? myDashOwnIds(w) : (w?.ids || []);
+    mine.forEach(id => { const e = add(id); if (e && !e.lists.includes(w.name)) e.lists.push(w.name); });
+  });
+  return [...out.values()];
+}
+
+/* What opening a company's report would do to this month's allowance, by
+   the meter's own rule. */
+function reportMeterFor(id) {
+  if (!Number.isFinite(lim('reportsPerMonth'))) return { state: 'unmetered' };
+  const r = reportAllowed(id);
+  if (r.ok && !r.counted) return { state: 'opened' };
+  return r.ok ? { state: 'costs', left: reportsLeft() } : { state: 'refused' };
+}
+/* The first day of next month, when a refused report opens again. */
+const reportNextMonth = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 1).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }); };
+
+/* The allowance, in the company page's words (VIEWS.research): what the plan
+   covers, and what this month has used. */
+function reportAllowanceLine() {
+  const p = planOf(), limit = lim('reportsPerMonth');
+  if (!Number.isFinite(limit)) return `The ${p.name} plan, previewed in this browser, sets no monthly limit on company reports.`;
+  const used = State.reportLog.ids.length;
+  const tks = State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean);
+  return `The ${p.name} plan covers ${limit} distinct company reports a calendar month, and revisiting one you have already opened never costs another. `
+    + `This month: ${used} of your ${limit} used${tks.length ? ` (${tks.join(', ')})` : ''} — ${reportsLeft()} left.`;
+}
+
+/* An in-app link that keeps the browser's own link behaviour. */
+const reportLink = (path, attrs, ...kids) => el('a', { href: href(path), ...attrs,
+  onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, ...kids);
+
+/* A saved property's two reports. The property on the calculator is
+   reported as it stands there — its open scenario and any changes not yet
+   saved, which the report and the record both say — rather than reloaded
+   over them. Another is opened as My properties opens it (openPropertyModel):
+   whatever was on the calculator that exists nowhere else is kept aside
+   first, and "Restore my previous deal" puts it back. */
+function reportsOpenProperty(rec, to) {
+  if (State.deal?.modelId !== rec.id && !openPropertyModel(rec.id, { show: false })) return;
+  if (to === 'record') { State.decisionSubject = 'property'; navigate('/decision-record'); return; }
+  navigate('/property/calculator');
+  /* To the Report section once the calculator has settled — its data landing
+     redraws the page above the section — as an address naming the section
+     is landed on (propertyArrivalSection, 71-property-models.js). */
+  const at = Date.now();
+  const land = () => {
+    if (State.view !== 'property') return;
+    if (typeof propertyPagesSettled === 'function' && !propertyPagesSettled() && Date.now() - at < 10000) { setTimeout(land, 200); return; }
+    goToPropertySection('report', { instant: true });
+  };
+  setTimeout(land, 0);
+}
+/* The Cash Wheel's and the Trading Index's records print the tool's current
+   work; the record page draws the subject chosen when it is ready. */
+function reportsOpenRecord(subject) {
+  State.decisionSubject = subject;
+  navigate('/decision-record');
+}
+
+/* Whether each tool's current work is the reader's own, by the launcher's
+   rule: a contract with a put strike that is not the worked contract; chart
+   evidence that is not the §14 example and names a symbol or a panel. */
+const reportsWheelOwn = () => num0(State.wheel?.putStrike) > 0 && !State.wheel?.isWorkedExample;
+function reportsQttiOwn() {
+  const q = State.qtti;
+  return !!q && JSON.stringify(q) !== JSON.stringify(qttiWorkedExample())
+    && (String(q.symbol || '').trim() !== '' || ['daily', 'weekly', 'monthly'].some(t => q.timeframes?.[t]?.present));
+}
+
+/* A section: a card with a heading the section is named by, a sentence, and
+   what the heading's right holds. */
+function reportsSection(id, title, sub) {
+  const sec = el('section', { class: 'card rp-sec', id, 'aria-labelledby': `${id}-hd` });
+  sec.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: `${id}-hd` }, title),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' }, sub),
+  ])));
+  return sec;
+}
+/* A section with nothing in it says what to do, with the action that does it. */
+const reportsNone = (text, ...acts) => el('div', { class: 'rp-none' }, [el('p', { class: 'caption' }, text), acts.length ? el('div', { class: 'rp-acts' }, acts) : null]);
+const reportsRow = (id, main, acts) => el('li', { class: 'rp-row', 'data-id': id }, [el('div', { class: 'rp-row-main' }, main), el('div', { class: 'rp-acts' }, acts)]);
+
+VIEWS.reports = () => {
+  const wrap = el('div', { class: 'rp-page' });
+  wrap.append(mySubnav('reports'));
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'My workspace'),
+    el('h1', {}, 'Reports'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Every report your own work in this browser can produce, each opening the real one — to print, or to save as PDF through your browser’s print. Nothing is generated on a server and no copy is kept.'),
+  ])));
+
+  /* A log kept from an earlier month counts nothing now: the meter's own turn
+     to a new month (reportAllowed, 05-plans.js), made once before anything
+     here reads it, so the rows and the allowance line read the same month. */
+  if (State.reportLog?.month !== meterMonth()) State.reportLog = { month: meterMonth(), ids: [] };
+  const cos = reportCompanies();
+  const props = pmAll().sort((a, b) => String(pmUpdated(b) || '').localeCompare(String(pmUpdated(a) || '')));
+  const wheelOwn = reportsWheelOwn(), qttiOwn = reportsQttiOwn();
+
+  /* Nothing of the reader's own: what a report is, and the one way to make one. */
+  if (!cos.length && !props.length && !wheelOwn && !qttiOwn) {
+    const empty = el('section', { class: 'card rp-empty', id: 'rp-empty', 'aria-labelledby': 'rp-empty-hd' });
+    empty.append(el('h2', { class: 'h-card', id: 'rp-empty-hd' }, 'No reports yet'));
+    empty.append(el('p', { class: 'body' },
+      'A report is one page made from your own work, laid out to print or save as PDF: a company’s research report — its statements, its measures and your valuation assumptions, with where every figure came from — a saved property’s investor report and decision record, or the decision record of a Cash Wheel contract or of Trading Index chart evidence.'));
+    empty.append(el('p', { class: 'caption' },
+      'Open a company’s page, save a property, enter a contract or record chart evidence, and its report is listed here.'));
+    empty.append(reportLink(productById('equities')?.actionPath || '/research', { class: 'btn btn-primary' }, productById('equities')?.action || 'Start research'));
+    wrap.append(empty);
+    return wrap;
+  }
+
+  /* ---------- company research reports ---------- */
+  /* A section with nothing in it is headed without a count: what it says
+     under its heading is what to do, not a nought. */
+  const cs = reportsSection('rp-companies', `Company research reports${cos.length ? ` — ${cos.length}` : ''}`,
+    'One company on one printable page: its statements, its measures with their status, your valuation assumptions and where every figure came from. Listed for the companies you opened here or keep on a list of your own.');
+  cs.append(el('div', { class: 'rp-meter', id: 'rp-meter' }, [el('span', { class: 'chip' }, 'This month’s allowance'), el('p', { class: 'metaline' }, reportAllowanceLine())]));
+  const filings = typeof toolSource === 'function' ? toolSource('filings') : null;
+  if (filings?.state === 'unavailable') cs.append(el('p', { class: 'caption rp-warn' },
+    `${filings.why} A filed company you opened is listed again once they load.`));
+  if (!cos.length) cs.append(reportsNone('No company yet. Open a company’s page, or add one to a watchlist of your own, and its research report is listed here.',
+    reportLink('/research', { class: 'btn btn-ghost btn-sm' }, productById('equities')?.action || 'Start research')));
+  else {
+    const ul = el('ul', { class: 'rp-list', 'aria-label': 'Company research reports' });
+    cos.forEach(({ row, opened, runs, lists }) => {
+      const c = row.c;
+      const base = `${companyPath(c)}/report`;
+      const meter = reportMeterFor(c.id);
+      const why = [opened ? 'opened in this browser' : null,
+        lists.length ? `on your list${lists.length === 1 ? '' : 's'} ${lists.map(n => `“${n}”`).join(', ')}` : null,
+        runs.length ? `${runs.length} saved valuation run${runs.length === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
+      const meterSaid = meter.state === 'opened' ? 'Opened this month — its report costs nothing more.'
+        : meter.state === 'costs' ? `Not opened this month — opening its report uses 1 of the ${meter.left} left.`
+        : meter.state === 'refused' ? `This month’s ${lim('reportsPerMonth')} company reports are used, and it was not one of them — its report opens again on ${reportNextMonth()}.`
+        : null;
+      const acts = meter.state === 'refused'
+        ? [el('span', { class: 'rp-off' }, 'Not available this month')]
+        : [reportLink(base, { class: 'btn btn-ghost btn-sm', 'aria-label': `Research report — ${c.name}` }, 'Research report'),
+           /* A run reprints the figures it saved (47-report.js), newest first. */
+           ...runs.slice(0, 3).map(run => reportLink(`${base}?run=${encodeURIComponent(run.runId)}`, { class: 'btn btn-quiet btn-sm', 'aria-label': `Research report of ${c.tk} as saved in run ${run.runId}` },
+             `As saved ${String(run.stamp?.savedAt || run.saved || '').slice(0, 10) || run.runId}`))];
+      ul.append(reportsRow(c.id, [
+        el('div', { class: 'rp-chips' }, [
+          !c.real ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
+            : c.personal ? el('span', { class: 'chip chip-bronze' }, 'annual statements — personal research')
+            : el('span', { class: 'chip' }, 'SEC-filed statements'),
+        ]),
+        el('strong', { class: 'rp-name' }, c.name),
+        el('span', { class: 'metaline' }, [c.tk, why].filter(Boolean).join(' · ')),
+        meterSaid ? el('span', { class: 'caption rp-said' }, meterSaid) : null,
+        runs.length > 3 ? el('span', { class: 'caption rp-said' }, `The three newest runs are here; Saved Models lists all ${runs.length}.`) : null,
+      ], acts));
+    });
+    cs.append(ul);
+  }
+  wrap.append(cs);
+
+  /* ---------- property reports ---------- */
+  const st = propertyStatus(State.deal);
+  const ps = reportsSection('rp-properties', `Property reports${props.length ? ` — ${props.length} ${props.length === 1 ? 'property' : 'properties'}` : ''}`,
+    'For each property saved in My properties: its investor report — the calculator’s Report section for it, with the grade, what the answer rests on and the gates still open — and its decision record, the one printable page of it, carried to a lender or a lawyer.');
+  if (!props.length) ps.append(reportsNone('No property saved yet. Save one on the calculator, and its investor report and decision record are listed here.',
+    reportLink('/property/calculator', { class: 'btn btn-ghost btn-sm' }, productById('property')?.action || 'Analyse a property')));
+  else {
+    const ul = el('ul', { class: 'rp-list', 'aria-label': 'Property reports' });
+    props.forEach(rec => {
+      const d = pmInputsOf(rec);
+      const onCalc = st.kind === 'model' && st.rec?.id === rec.id;
+      const nSc = (rec.scenarios || []).length;
+      const full = typeof propertyReportUnlocked === 'function' && propertyReportUnlocked(d.projectId);
+      ul.append(reportsRow(rec.id, [
+        el('div', { class: 'rp-chips' }, [
+          onCalc ? el('span', { class: 'chip chip-brand' }, st.dirty ? 'On the calculator · unsaved changes' : 'On the calculator') : null,
+          workIsSample(rec) ? el('span', { class: 'chip chip-bronze', title: 'Every figure in it is the calculator’s sample input. Not your figures.' }, 'sample') : null,
+          nSc ? el('span', { class: 'chip' }, `${nSc} scenario${nSc === 1 ? '' : 's'}`) : null,
+          full ? el('span', { class: 'chip', title: 'The full investor report is previewed in this browser for this property’s project — nothing is on sale, and nothing was charged.' }, 'full report previewed') : null,
+        ]),
+        el('strong', { class: 'rp-name' }, rec.name),
+        el('span', { class: 'metaline' }, `${pmPlace(d)} · ${d.propertyType || 'Property'} · saved ${pmWhen(pmUpdated(rec))}`),
+        onCalc ? el('span', { class: 'caption rp-said' }, `Its reports show what is on the calculator${st.sc ? `, the scenario “${st.sc.name}” open` : ''}${st.dirty ? ', the changes not yet saved included — each says so' : ''}.`) : null,
+      ], [
+        el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: `rp-inv-${rec.id}`, 'data-tool-path': '/property/calculator',
+          'aria-label': `Investor report — ${rec.name}`, onclick: () => reportsOpenProperty(rec, 'report') }, 'Investor report'),
+        el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: `rp-rec-${rec.id}`,
+          'aria-label': `Decision record — ${rec.name}`, onclick: () => reportsOpenProperty(rec, 'record') }, 'Decision record'),
+      ]));
+    });
+    ps.append(ul);
+  }
+  wrap.append(ps);
+
+  /* ---------- the Cash Wheel's and the Trading Index's records ---------- */
+  const tools = [wheelOwn, qttiOwn].filter(Boolean).length;
+  /* The count is of records that can be printed: chart evidence the index
+     cannot assess yet is listed, with what it lacks, but prints nothing. */
+  const qttiNow = qttiOwn ? qttiRun(State.qtti) : null;
+  const printable = (wheelOwn ? 1 : 0) + (qttiNow?.assessable ? 1 : 0);
+  const rs = reportsSection('rp-records', `Cash Wheel and Trading Index records${printable ? ` — ${printable}` : ''}`,
+    'Each tool holds one piece of work at a time, and its decision record prints it: the figures, what is unresolved and what the record does not tell you.');
+  if (!tools) rs.append(reportsNone('Neither tool holds work of yours yet. Enter a contract on the Cash Wheel, or record chart evidence on the Trading Index, and its decision record is listed here.',
+    reportLink('/us-options/wheel', { class: 'btn btn-ghost btn-sm' }, 'Model a wheel'),
+    reportLink('/research/trading-index', { class: 'btn btn-ghost btn-sm' }, 'Assess a trend')));
+  else {
+    const ul = el('ul', { class: 'rp-list', 'aria-label': 'Cash Wheel and Trading Index records' });
+    if (wheelOwn) {
+      const p = State.wheel;
+      ul.append(reportsRow('wheel', [
+        el('div', { class: 'rp-chips' }, el('span', { class: 'chip' }, 'Cash Wheel')),
+        el('strong', { class: 'rp-name' }, `${String(p.symbol || '').trim() || 'Unnamed contract'} — cash-secured put and covered call`),
+        el('span', { class: 'metaline' }, `Put strike ${fmtMoney(num0(p.putStrike), 'USD')} · the contract you entered · no chain data is connected`),
+      ], [el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'rp-rec-wheel', 'aria-label': 'Decision record — Cash Wheel contract',
+        onclick: () => reportsOpenRecord('wheel') }, 'Decision record')]));
+    }
+    if (qttiOwn) {
+      const q = State.qtti, run = qttiNow;
+      const sym = String(q.symbol || '').trim() || 'Unnamed instrument';
+      ul.append(reportsRow('tradingIndex', [
+        el('div', { class: 'rp-chips' }, el('span', { class: 'chip' }, 'Trading Index')),
+        el('strong', { class: 'rp-name' }, `${sym} — trend evidence`),
+        el('span', { class: 'metaline' }, `${q.capturedAt ? `Captured ${String(q.capturedAt).replace('T', ' ')}` : 'No capture time recorded'} · chart evidence you recorded`),
+        /* A record needs evidence the index can assess; until then the row
+           says what is missing, and the way to finish it. */
+        run.assessable ? null : el('span', { class: 'caption rp-said' }, `No record yet — the evidence is not assessable: ${(run.reject || [])[0] || 'it is incomplete.'}`),
+      ], run.assessable
+        ? [el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'rp-rec-tradingIndex', 'aria-label': `Decision record — Trading Index, ${sym}`,
+            onclick: () => reportsOpenRecord('tradingIndex') }, 'Decision record')]
+        : [reportLink('/research/trading-index', { class: 'btn btn-ghost btn-sm' }, 'Finish the evidence')]));
+    }
+    rs.append(ul);
+  }
+  wrap.append(rs);
+  return wrap;
+};
+/* ==========================================================================
    TREND CONTEXT ENGINE
 
    For instruments that have no fundamentals and never will: indices, currency
@@ -27214,14 +27523,188 @@ VIEWS.tracked = () => {
   return wrap;
 };
 
+/* ==========================================================================
+   MY ALERTS — ONE PAGE FOR BOTH KINDS (Release B)
+
+   The product raises two kinds of alert, and they lived on two pages that
+   did not name each other: the research feed here, and the scanner's matches
+   on /app/scanner/alerts, reached only from a count beside My Alerts that
+   opened somewhere else. This page lists both, each labelled by kind, with a
+   filter that counts each:
+   - Research: what changed in the reported figures of the companies the
+     reader follows and their investment cases, thesis-linked first, and the
+     price thresholds they set.
+   - Scanner matches: the bars on which the reader's own setups held, from
+     the scanner's record, each naming the setup, the symbol and the bar, new
+     or read, and linking to its alert page.
+
+   ONE UNREAD COUNT. Only the scanner's matches keep a read state (per
+   browser, scanAlertState); the research feed is rebuilt from the data on
+   every load, and a price threshold is a setting, not an event. So the
+   unread count — here, and on My Alerts in the sidebar — is the scanner's own
+   (scanUnreadCount), never one this page makes up, and listing a match does
+   not mark it read: opening it does, as on the scanner's pages.
+
+   THE RECORD IS THE SCANNER'S. It is written on the computer the worker runs
+   on; where it is not visible (the hosted site) the section says so, as the
+   scanner's pages do, and no count reads 0. /app/scanner/alerts stays its
+   full history — filters, bulk status, CSV — linked from the section.
+   ========================================================================== */
+
+/* The kinds the page shows, in the order it draws them. The choice is held in
+   the address (?kind=), as the scanner's own alert filters are, so a link can
+   open one kind and Back restores it; All is no parameter at all. */
+const ALERT_VIEW_KINDS = [
+  { id: 'all',      label: 'All' },
+  { id: 'research', label: 'Research' },
+  { id: 'scanner',  label: 'Scanner matches' },
+];
+const alertsKind = () => {
+  const k = new URLSearchParams(location.search).get('kind');
+  return k !== 'all' && ALERT_VIEW_KINDS.some(x => x.id === k) ? k : 'all';
+};
+
+/* The unread count My Alerts carries, on this page and on its sidebar link
+   (navUnread, 35-ui.js): the scanner's own count — its matches with no status
+   in this browser, less the setups the reader muted — or null, which is no
+   count at all, when its record is not visible here or its in-app count is
+   switched off. */
+function alertsUnread() {
+  try { const n = typeof scanUnreadCount === 'function' ? scanUnreadCount() : null; return Number.isInteger(n) ? n : null; } catch { return null; }
+}
+
+/* The scanner's record as this page lists it: the matches not archived, in
+   the record's own date order (scanAlertsInOrder — the bar, then when it was
+   detected; never a ranking), with each one's status in this browser read
+   and never written. null when no record is visible here. */
+function alertsScannerRecord() {
+  const doc = typeof scanAlertsFile !== 'undefined' ? scanAlertsFile : null;
+  if (!doc || typeof scanAlertsInOrder !== 'function') return null;
+  const st = scanAlertStateRead();
+  const all = scanAlertsInOrder();
+  const open = all.filter(a => scanAlertStatus(a, st) !== 'ARCHIVED');
+  return { all, open, st, prefs: scanPrefsRead(), unread: alertsUnread(), archived: all.length - open.length,
+    fresh: open.filter(a => scanAlertStatus(a, st) === 'NEW').length };
+}
+/* How many matches the section lists before sending the reader to the full
+   history, which pages, filters and exports them. */
+const ALERTS_SCANNER_ROWS = 10;
+
+/* The filter: one button per kind, each with the number that kind lists,
+   pressed for the kind on screen; and, under it, what the unread count is a
+   count of. A kind whose record is not here says so in place of a number. */
+function alertsKindBar(kind, researchN, rec) {
+  const scanN = rec ? rec.open.length : null;
+  const count = { all: researchN + (scanN || 0), research: researchN, scanner: scanN };
+  const setKind = (k) => {
+    const q = new URLSearchParams(location.search);
+    if (k === 'all') q.delete('kind'); else q.set('kind', k);
+    const s = q.toString();
+    history.replaceState(history.state, '', location.pathname + (s ? `?${s}` : ''));
+    /* The pressed button comes back under the same id, and keeps the keyboard. */
+    renderKeepFocus();
+  };
+  const seg = el('div', { class: 'segmented al-kind-seg', role: 'group', 'aria-label': 'Show alerts of one kind' },
+    ALERT_VIEW_KINDS.map(k => el('button', { type: 'button', id: `al-kind-${k.id}`, 'aria-pressed': kind === k.id ? 'true' : 'false', onclick: () => setKind(k.id) }, [
+      k.label, ' ', el('span', { class: 'al-kind-n' }, count[k.id] == null ? 'no record here' : String(count[k.id])),
+    ])));
+  const said = !rec
+    ? 'Nothing here is counted as unread: the scanner’s record, the one kind that keeps a read state, is not visible here, and research alerts are rebuilt from the data each time this page loads.'
+    : rec.prefs.inApp === false
+      ? `${rec.fresh} scanner match${rec.fresh === 1 ? '' : 'es'} not yet opened — the in-app unread count is switched off in the scanner’s settings, so none is counted on My Alerts.`
+      : `${rec.unread} unread scanner match${rec.unread === 1 ? '' : 'es'} — the count My Alerts carries. Research alerts are rebuilt from the data each time this page loads, so they are never unread.`;
+  return el('div', { class: 'al-kinds' }, [seg, el('p', { class: 'metaline al-kinds-said' }, said)]);
+}
+
+/* A card's head with an id on its heading, for the section it names. */
+const alertsSectionHead = (id, title, sub, right = null) => el('div', { class: 'card-hd' }, [
+  el('div', {}, [
+    el('h3', { class: 'h-card', id }, title),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:62ch' }, sub),
+  ]),
+  right,
+]);
+
+/* SCANNER MATCHES. The reader's setup is named as theirs — "Your setup
+   “Buy on the cross”" — so a setup's title reads as what they called a rule,
+   not as something this page says; each row opens its own alert page. */
+function alertsScannerSection(rec) {
+  const sec = el('section', { class: 'card al-sec', id: 'al-scanner', 'aria-labelledby': 'al-scanner-hd' });
+  const sub = 'The bars on which your own setups’ conditions held, from the scanner’s record — newest bar first; a record, not a signal. Opening one marks it read, as on the scanner’s own pages.';
+  if (!rec) {
+    /* Why, in the registry's words for the scanner's Alerts (toolState): the
+       record is not loaded here, and where it can be opened. */
+    const t = typeof toolState === 'function' ? toolState('scanAlerts') : null;
+    const why = t?.derived ? t.note : 'The scanner’s record has not been read in this tab yet.';
+    sec.append(alertsSectionHead('al-scanner-hd', 'Scanner matches', sub));
+    sec.append(el('div', { class: 'al-empty' }, [
+      el('p', { class: 'al-empty-t' }, 'The scanner’s record cannot be seen from here'),
+      el('p', { class: 'caption' }, `${why} So there is nothing to list here — and no unread count, rather than a count of nought.`),
+      toolLink('/app/scanner', { class: 'btn btn-ghost btn-sm' }, 'Open the scanner'),
+    ]));
+    return sec;
+  }
+  const every = toolLink('/app/scanner/alerts', { class: 'btn btn-ghost btn-sm al-every' }, ['Every scanner alert ', el('span', { 'aria-hidden': 'true' }, '→')]);
+  sec.append(alertsSectionHead('al-scanner-hd', `Scanner matches — ${rec.open.length}`, sub, every));
+  const mutedN = rec.unread != null ? Math.max(0, rec.fresh - rec.unread) : 0;
+  const archivedSaid = rec.archived
+    ? `${rec.archived} archived match${rec.archived === 1 ? ' is' : 'es are'} not listed here — the scanner’s alert history holds ${rec.archived === 1 ? 'it' : 'them'}.` : null;
+  if (!rec.all.length) {
+    sec.append(el('div', { class: 'al-empty' }, [
+      el('p', { class: 'al-empty-t' }, 'Nothing recorded yet'),
+      el('p', { class: 'caption' }, 'The worker adds a match to the record when one of your setups’ conditions holds on a bar. An empty record is the normal state of tight conditions, not a fault.'),
+      toolLink('/app/scanner/setups', { class: 'btn btn-ghost btn-sm' }, 'Your setups'),
+    ]));
+    return sec;
+  }
+  if (!rec.open.length) {
+    sec.append(el('div', { class: 'al-empty' }, [
+      el('p', { class: 'al-empty-t' }, 'Every recorded match is archived'),
+      el('p', { class: 'caption' }, archivedSaid),
+    ]));
+    return sec;
+  }
+  sec.append(el('p', { class: 'metaline al-scan-said' }, rec.prefs.inApp === false
+    ? `${rec.fresh} not yet opened — the in-app unread count is switched off in the scanner’s settings.`
+    : `${rec.unread} unread${mutedN ? ` — ${mutedN} more from ${mutedN === 1 ? 'a muted setup' : 'muted setups'}, not counted` : ''}.`));
+  const setups = typeof scanStoreRead === 'function' ? scanStoreRead().setups || {} : {};
+  const nameOf = (a) => setups[a.setupId]?.name || a.setupName || a.setupId || 'a setup';
+  const EVENT = { NEW_MATCH: 'new match', MATCH: 'match', FIRST_OBSERVED: 'first observed' };
+  const list = el('ul', { class: 'al-scan-list', 'aria-label': 'Scanner matches, newest bar first' });
+  rec.open.slice(0, ALERTS_SCANNER_ROWS).forEach(a => {
+    const isNew = scanAlertStatus(a, rec.st) === 'NEW';
+    const path = scanAlertPath(a);
+    const muted = !!rec.prefs.muted?.[a.setupId];
+    list.append(el('li', {}, el('a', { class: `al-scan-row${isNew ? ' is-new' : ''}`, href: href(path),
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, [
+      el('span', { class: 'al-scan-ic', 'aria-hidden': 'true', html: icon(PRODUCT_ICON.scanner, 15) }),
+      el('span', { class: 'al-scan-main' }, [
+        el('span', { class: 'al-scan-t' }, [
+          el('strong', {}, a.symbol || a.instrumentId || '—'),
+          el('span', { class: 'metaline' }, `bar ${scanAlertBar(a) || 'not recorded'}`),
+          el('span', { class: `chip al-scan-state${isNew ? ' chip-brand' : ''}` }, isNew ? 'new' : 'read'),
+        ]),
+        el('span', { class: 'al-scan-s' }, `Your setup “${nameOf(a)}”${a.setupVersion != null ? ` v${a.setupVersion}` : ''} · ${EVENT[a.eventType] || 'match'}${muted ? ' · setup muted' : ''}`),
+      ]),
+      el('span', { class: 'al-scan-go', 'aria-hidden': 'true', html: ROW_CHEVRON }),
+    ])));
+  });
+  sec.append(list);
+  const more = rec.open.length > ALERTS_SCANNER_ROWS
+    ? `The ${ALERTS_SCANNER_ROWS} newest of ${rec.open.length} matches not archived; the scanner’s alert history lists every one.` : null;
+  if (more || archivedSaid) sec.append(el('p', { class: 'metaline al-foot' }, [more, archivedSaid].filter(Boolean).join(' ')));
+  return sec;
+}
+
 VIEWS.alerts = () => {
+  const kind = alertsKind();
   const wrap = el('div');
   wrap.append(mySubnav('alerts'));
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Alerts'),
-    el('h1', {}, 'Tell me what changed, and why it matters to my thesis'),
+    el('p', { class: 'eyebrow' }, 'My workspace'),
+    el('h1', {}, 'My Alerts'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Every alert names the fact that changed, the source period, and which thesis condition it maps to. None of them contains an instruction to buy or sell.'),
+      'What changed in the research you follow, and the bars on which your own scanner setups held — each labelled by kind, each naming its source. None of them is an instruction to buy or sell.'),
   ])));
   appendSampleBanner(wrap);
 
@@ -27298,8 +27781,6 @@ VIEWS.alerts = () => {
     });
   });
 
-  const layout = el('div', { class: 'thesis-layout' });
-
   /* The alert types in the rail filter this feed. They were checkboxes with no
      handler and no storage: unticking every one changed nothing, and crossed
      price alerts appeared tagged "Price move" while that type read as off.
@@ -27307,95 +27788,110 @@ VIEWS.alerts = () => {
   const kindOn = (k) => State.alertKinds.includes(k);
   const shown = items.filter(a => kindOn(a.kind));
   const hiddenN = items.length - shown.length;
+  const rec = alertsScannerRecord();
 
-  const feedCard = el('div', { class: 'card' });
-  /* The feed is rebuilt from the current state each time the page loads; it is
-     not a history of changes, and nothing merges two items about one fact. It
-     used to say it was deduplicated, which the status register says is not
-     built. */
-  feedCard.append(cardHead(`Alert feed — ${shown.length}`,
-    'Rebuilt from the current data each time this page loads. Not deduplicated: one company can appear once per source that reports on it.'));
-  if (hiddenN) feedCard.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
-    `${hiddenN} more item${hiddenN === 1 ? ' is' : 's are'} hidden by the types switched off under Alert types.`));
-  if (!shown.length) feedCard.append(emptyState(items.length ? 'Every current item is of a type you have switched off.' : 'Nothing has changed state since the last run.'));
-  const l = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
-  shown.forEach(a => {
-    const s = SEV_STYLE[a.sev] || SEV_STYLE.info;
-    const item = el('div', { class: 'noteitem' });
-    item.append(el('span', { class: 'ni-icon', style: `background:color-mix(in srgb, var(${s.v}) 15%, transparent);color:var(${s.v})`, html: icon(s.icon, 13) }));
-    const b = el('div', { style: 'flex:1;min-width:0' });
-    b.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
-      el('span', { style: 'font-size:13px;font-weight:600' }, a.title),
-      el('span', { class: 'chip' }, ALERT_KINDS.find(k => k.id === a.kind)?.label || a.kind),
-    ]));
-    b.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:2px' }, a.what));
-    b.append(el('p', { class: 'caption', style: 'margin-top:2px' }, a.detail));
-    b.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px' }, [
-      el('span', { class: 'metaline' }, a.source),
-      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(a.id) }, 'Open evidence'),
-      el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('thesis') }, 'Review thesis'),
-    ]));
-    item.append(b);
-    l.append(item);
-  });
-  feedCard.append(l);
-  layout.append(feedCard);
+  /* The two kinds, counted, and the one the page shows. */
+  wrap.append(alertsKindBar(kind, shown.length, rec));
+
+  const layout = el('div', { class: 'thesis-layout al-layout' });
+  const main = el('div', { class: 'al-main' });
+
+  /* RESEARCH. The feed is rebuilt from the current state each time the page
+     loads; it is not a history of changes, and nothing merges two items about
+     one fact. It used to say it was deduplicated, which the status register
+     says is not built. */
+  if (kind !== 'scanner') {
+    const feedCard = el('section', { class: 'card al-sec', id: 'al-research', 'aria-labelledby': 'al-research-hd' });
+    feedCard.append(alertsSectionHead('al-research-hd', `Research — ${shown.length}`,
+      'The facts that changed in the companies you follow and your investment cases, thesis-linked first, and any price threshold of yours crossed. Rebuilt from the current data on each load, so never unread; not deduplicated — one company can appear once per source that reports on it.'));
+    if (hiddenN) feedCard.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
+      `${hiddenN} more item${hiddenN === 1 ? ' is' : 's are'} hidden by the types switched off under Alert types.`));
+    if (!shown.length) feedCard.append(emptyState(items.length ? 'Every current item is of a type you have switched off.' : 'Nothing has changed state since the last run.'));
+    const l = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
+    shown.forEach(a => {
+      const s = SEV_STYLE[a.sev] || SEV_STYLE.info;
+      const item = el('div', { class: 'noteitem' });
+      item.append(el('span', { class: 'ni-icon', style: `background:color-mix(in srgb, var(${s.v}) 15%, transparent);color:var(${s.v})`, html: icon(s.icon, 13) }));
+      const b = el('div', { style: 'flex:1;min-width:0' });
+      b.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
+        el('span', { style: 'font-size:13px;font-weight:600' }, a.title),
+        el('span', { class: 'chip' }, ALERT_KINDS.find(k => k.id === a.kind)?.label || a.kind),
+      ]));
+      b.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:2px' }, a.what));
+      b.append(el('p', { class: 'caption', style: 'margin-top:2px' }, a.detail));
+      b.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px' }, [
+        el('span', { class: 'metaline' }, a.source),
+        el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(a.id) }, 'Open evidence'),
+        el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('thesis') }, 'Review thesis'),
+      ]));
+      item.append(b);
+      l.append(item);
+    });
+    feedCard.append(l);
+    main.append(feedCard);
+  }
+  if (kind !== 'research') main.append(alertsScannerSection(rec));
+  layout.append(main);
 
   const rail = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
-  /* ---------- price alert manager ---------- */
-  const pac = el('div', { class: 'card' });
-  /* The count the plan's cap applies to is the reader's own (ownAlertCount);
-     the samples are named beside it rather than filling two of three slots. */
-  const samplePA = State.priceAlerts.length - ownAlertCount();
-  pac.append(cardHead(`Price alerts — ${ownAlertCount()}/${LIMITS.priceAlerts}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
-    'Thresholds you set yourself. They fire on price alone, which is why they are the one alert type off by default in the list below.',
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
-  if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));
-  const pal = el('div', { style: 'display:flex;flex-direction:column' });
-  State.priceAlerts.forEach((pa, i) => {
-    const r = BY_ID.get(pa.ticker);
-    /* The same test the feed applies. Without the price check, null < 50 is
-       true, so an alert on an unpriced company read "Crossed" here while the
-       feed, correctly, showed nothing. */
-    const priced = !!r && isNum(r.c.px?.p);
-    const hit = priced && (pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price);
-    const tk = r ? r.c.tk : pa.ticker;
-    const row = el('div', { class: 'row row-wrap', style: `gap:8px;padding:8px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
-    row.append(el('span', { style: 'font-size:13px;font-weight:600;min-width:74px' }, tk));
-    if (isSeededPA(pa)) row.append(el('span', { class: 'chip chip-bronze', title: 'Written into this browser on a first visit. Not yours, and not counted against the plan.' }, 'sample'));
-    row.append(el('span', { class: 'metaline' }, `${pa.op} ${r ? fmtMoney(pa.price, r.c.ccy) : pa.price}`));
-    row.append(el('span', { class: 'spacer' }));
-    row.append(!priced ? el('span', { class: 'chip', title: 'No price is carried for this company, so the threshold cannot be tested.' }, 'No price')
-      : hit ? sevChip('info', kindOn('price') ? 'Crossed' : 'Crossed · Price move is off') : el('span', { class: 'chip' }, 'Waiting'));
-    row.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Edit ${tk} price alert`,
-      onclick: () => openPriceAlertEditor(pa) }, 'Edit'));
-    pal.append(row);
-  });
-  pac.append(pal);
-  rail.append(pac);
+  /* The research feed's own controls — the reader's price thresholds and the
+     types the feed shows — go with it: shown with the research kind. */
+  if (kind !== 'scanner') {
+    /* ---------- price alert manager ---------- */
+    const pac = el('div', { class: 'card' });
+    /* The count the plan's cap applies to is the reader's own (ownAlertCount);
+       the samples are named beside it rather than filling two of three slots. */
+    const samplePA = State.priceAlerts.length - ownAlertCount();
+    pac.append(cardHead(`Price alerts — ${ownAlertCount()}/${LIMITS.priceAlerts}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
+      'Research alerts you set yourself: thresholds that fire on price alone, which is why they are the one alert type off by default in the list below.',
+      el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
+    if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));
+    const pal = el('div', { style: 'display:flex;flex-direction:column' });
+    State.priceAlerts.forEach((pa, i) => {
+      const r = BY_ID.get(pa.ticker);
+      /* The same test the feed applies. Without the price check, null < 50 is
+         true, so an alert on an unpriced company read "Crossed" here while the
+         feed, correctly, showed nothing. */
+      const priced = !!r && isNum(r.c.px?.p);
+      const hit = priced && (pa.op === '>' ? r.c.px.p > pa.price : r.c.px.p < pa.price);
+      const tk = r ? r.c.tk : pa.ticker;
+      const row = el('div', { class: 'row row-wrap', style: `gap:8px;padding:8px 0;${i ? 'border-top:1px solid var(--grid)' : ''}` });
+      row.append(el('span', { style: 'font-size:13px;font-weight:600;min-width:74px' }, tk));
+      if (isSeededPA(pa)) row.append(el('span', { class: 'chip chip-bronze', title: 'Written into this browser on a first visit. Not yours, and not counted against the plan.' }, 'sample'));
+      row.append(el('span', { class: 'metaline' }, `${pa.op} ${r ? fmtMoney(pa.price, r.c.ccy) : pa.price}`));
+      row.append(el('span', { class: 'spacer' }));
+      row.append(!priced ? el('span', { class: 'chip', title: 'No price is carried for this company, so the threshold cannot be tested.' }, 'No price')
+        : hit ? sevChip('info', kindOn('price') ? 'Crossed' : 'Crossed · Price move is off') : el('span', { class: 'chip' }, 'Waiting'));
+      row.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Edit ${tk} price alert`,
+        onclick: () => openPriceAlertEditor(pa) }, 'Edit'));
+      pal.append(row);
+    });
+    pac.append(pal);
+    rail.append(pac);
 
-  const rules = el('div', { class: 'card' });
-  rules.append(cardHead('Alert types', 'Which types the feed shows. Defaults are thesis-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
-  ALERT_KINDS.forEach(k => {
-    const built = k.built !== false;
-    const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
-    /* An id and renderKeepFocus: render() rebuilt the switch, so Space on
-       one dropped focus on <body> and the next Tab started from the top. */
-    lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
-      style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
-      onchange: e => {
-        State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
-        saveAlertKinds(); renderKeepFocus();
-      } }));
-    const tx = el('div');
-    tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
-    tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` },
-      built ? k.note : `${k.note} Nothing in this build produces this type yet, so there is nothing for the switch to show or hide.`));
-    lab.append(tx);
-    rules.append(lab);
-  });
-  rail.append(rules);
+    const rules = el('div', { class: 'card' });
+    rules.append(cardHead('Alert types', 'Which types the research feed shows. Defaults are thesis-linked; price alerts are available but off by default. Your choice is kept in this browser.'));
+    ALERT_KINDS.forEach(k => {
+      const built = k.built !== false;
+      const lab = el('label', { class: 'checkline', style: 'align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--grid)' });
+      /* An id and renderKeepFocus: render() rebuilt the switch, so Space on
+         one dropped focus on <body> and the next Tab started from the top. */
+      lab.append(el('input', { type: 'checkbox', id: `ak-on-${k.id}`, checked: built && kindOn(k.id) ? '' : null, disabled: built ? null : '',
+        style: 'margin-top:3px', 'aria-describedby': `ak-${k.id}`,
+        onchange: e => {
+          State.alertKinds = e.target.checked ? [...new Set([...State.alertKinds, k.id])] : State.alertKinds.filter(x => x !== k.id);
+          saveAlertKinds(); renderKeepFocus();
+        } }));
+      const tx = el('div');
+      tx.append(el('div', { style: 'font-size:13px;color:var(--ink);font-weight:500' }, k.label));
+      tx.append(el('div', { class: 'metaline', id: `ak-${k.id}` },
+        built ? k.note : `${k.note} Nothing in this build produces this type yet, so there is nothing for the switch to show or hide.`));
+      lab.append(tx);
+      rules.append(lab);
+    });
+    rail.append(rules);
+  }
 
   const pref = el('div', { class: 'card' });
   /* Nothing is delivered — there is no server, no channel and no contact
@@ -27407,14 +27903,16 @@ VIEWS.alerts = () => {
   [['Delivery', 'would be a daily digest'], ['Deduplication window', 'would be 24 hours'], ['Time zone', MARKETS.MY.tz],
    ['Quiet hours', 'would be 22:00 – 07:00'], ['Per-company cap', 'would be 3 a day']].forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
   pref.append(kv);
+  /* The scanner's matches were "recorded to a file; see /my/scanner" — a
+     pointer away from the page. They are listed here now, and are not
+     delivered either. */
   pref.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'A US filing published after the Malaysian market closes would be held to the next digest rather than sent overnight — when there is a digest to hold it to. The scanner records matches to a file; see /my/scanner.'));
+    'A US filing published after the Malaysian market closes would be held to the next digest rather than sent overnight — when there is a digest to hold it to. Scanner matches are not sent either: the worker records them to a file on your own computer, and this page lists them from it.'));
   rail.append(pref);
   layout.append(rail);
   wrap.append(layout);
   return wrap;
 };
-
 /* ==========================================================================
    VIEW — LEARN / METHODOLOGY
    ========================================================================== */
@@ -38405,7 +38903,7 @@ const CAPABILITY_REGISTER = [
      check for Phase 3 stays red and names why. */
   { name:'Scanner routes and navigation', status:'beta', path:'/app/scanner',
     brief:['SC-NAV'], priority:'P0',
-    now:'Quantum Scanner in the app sidebar (the Products group, after Equities Research), with the scanner’s unread count as its own link beside My Alerts, and the Trading Index as the last section of its strip; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
+    now:'Quantum Scanner in the app sidebar (the Products group, after Equities Research), with the scanner’s unread matches counted on My Alerts, which lists them beside the research alerts, and the Trading Index as the last section of its strip; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
     gate:'/admin/* is not restricted to anyone: there are no accounts, so the operations pages are read-only views that say so. Intraday timeframes appear nowhere as available.',
     checks:[{ file:'equity-test.mjs', name:'the scanner is in the sidebar after Equities Research, on every scanner address' },
             { file:'register-check.mjs', name:'robots.txt keeps the scanner and operations paths out of crawlers' },
@@ -38546,7 +39044,7 @@ const CAPABILITY_REGISTER = [
             { file:'mobile.mjs', name:'no horizontal overflow at any width' },
             { file:'register-check.mjs', name:'register-check self-test' }] },
   { name:'Alerts and monitoring', status:'beta', path:'/my/alerts',
-    now:'Fact-change alerts.', gate:'Stale-data and duplicate controls are not yet implemented.' },
+    now:'Fact-change alerts and your price thresholds, with the scanner’s recorded matches beside them, each labelled by kind.', gate:'Stale-data and duplicate controls are not yet implemented.' },
   { name:'Bring your own market data', status:'maintenance', path:'/my/data',
     now:'Paste closes; they stay in this browser and never reach the site.' },
   { name:'Multilingual property workflow', status:'beta', path:'/property/calculator',
