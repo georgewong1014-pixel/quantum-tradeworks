@@ -125,6 +125,12 @@ jobs:
       - name: the capability register claims only what its routes and checks support
         run: node register-check.mjs
 
+      # The journeys workflow commits health/journeys.json only when a status
+      # or a failing step changes or the record is a day old — the rule that
+      # keeps a deploy of its own commit from committing again. Offline.
+      - name: the journeys' commit rule, result shape and table
+        run: node journeys.mjs --self-test
+
       # The CSP names a hash of the inline script. If the two ever disagree the
       # site is blank in production and fine everywhere else, so it is checked
       # against the built file rather than trusted.
@@ -281,3 +287,15 @@ jobs:
       # decision record shipped 186px of overflow at 390.
       - name: no horizontal overflow at any width
         run: node mobile.mjs http://localhost:8123
+
+      # Every check above looks at a page. These are journeys: find a company
+      # and its filed statements and keep it on a list, filter the screener
+      # and open a result, model a property and save it, build a scanner
+      # setup, save it and evaluate it, press every primary call to action —
+      # by real clicks, passing only when the whole path completes. The same
+      # script runs against the live site after each production deployment
+      # (journeys.yml); here the personal lane is answered 404 in the browser
+      # and the scanner reads a synthetic history made from its engine's
+      # fixture, so the evaluate step has to find the match.
+      - name: every tool works from start to finish
+        run: node journeys.mjs http://localhost:8123
