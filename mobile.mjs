@@ -1603,6 +1603,12 @@ for (const w of [360, 390]) {
             idx: idx ? { rows: new Set([...idx.children].map(li => Math.round(li.getBoundingClientRect().top))).size, scrolls: getComputedStyle(idx).overflowX } : null,
             cmp: cmp ? { cols: cmp.querySelectorAll('thead th').length, boxScrolls: !!box && getComputedStyle(box).overflowX === 'auto', inBox: !!box && box.getBoundingClientRect().right <= innerWidth + 1 } : null,
             rows: document.querySelectorAll('main .pm-list .pm-row:not(.pm-head)').length,
+            /* audit1/property-model-verify: the figures are labelled — on screen
+               where no column head names them (the Not saved card), and to a
+               screen reader everywhere (the list's head is hidden from it). */
+            loose: [...document.querySelectorAll('main .pm-loose .pm-label')].map(n => Math.round(n.getBoundingClientRect().height)),
+            listed: [...document.querySelectorAll('main .pm-list:not(.pm-loose) .pm-row:not(.pm-head) .pm-label')].map(n => getComputedStyle(n).display),
+            fits: box ? box.scrollWidth - box.clientWidth : null,
           };
         })()` }, sessionId);
         const v = r.result?.result?.value;
@@ -1612,14 +1618,33 @@ for (const w of [360, 390]) {
         if (v.over > 2) fails.push(`${at}: overflows by ${v.over}px`);
         v.small.forEach(s => fails.push(`${at}: "${s.t}" is ${s.w}×${s.h}px, under 44px`));
         if (path === '/property/models' && v.rows < 3) fails.push(`${at}: ${v.rows} rows (two properties and the sample expected)`);
+        if (path === '/property/models' && (!v.loose.length || v.loose.some(h => h < 8))) fails.push(`${at}: the Not saved card's figures are unlabelled on screen (label heights ${JSON.stringify(v.loose)})`);
+        if (path === '/property/models' && (!v.listed.length || v.listed.some(d => d === 'none'))) fails.push(`${at}: a saved property's figures have no label a screen reader reads (${[...new Set(v.listed)].join(', ') || 'none drawn'})`);
+        /* On a desktop the three columns are set side by side, not behind a
+           scroll: at 1440 the third was cut at its heading. */
+        if (path === '/property/calculator' && w >= 1440 && v.fits > 1) fails.push(`${at}: the three-column comparison needs ${v.fits}px of sideways scrolling`);
         if (path === '/property/calculator') {
           if (!v.idx || v.idx.rows !== 1 || v.idx.scrolls !== 'auto') fails.push(`${at}: the section index is ${JSON.stringify(v.idx)}`);
           if (!v.cmp || v.cmp.cols !== 4 || !v.cmp.boxScrolls || !v.cmp.inBox) fails.push(`${at}: the scenarios comparison is ${JSON.stringify(v.cmp)}`);
         }
       }
     }
+    /* The list's heading, which a save from the Not saved card hands the
+       keyboard to, shows it has it: its outline was removed with nothing in
+       its place. Keyboard first (a Tab), so a scripted focus is a visible one. */
+    {
+      await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 860, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await send('Page.navigate', { url: BASE + '/property/models' }, sessionId);
+      await sleep(1500);
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+      const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => { const h = document.getElementById('pm-list-hd'); if (!h) return null; h.focus();
+        const cs = getComputedStyle(h); return { fv: h.matches(':focus-visible'), outline: cs.outlineStyle, ow: parseFloat(cs.outlineWidth) || 0, shadow: cs.boxShadow }; })()` }, sessionId);
+      const v = r.result?.result?.value;
+      if (!v || !v.fv || ((v.outline === 'none' || !v.ow) && (!v.shadow || v.shadow === 'none'))) fails.push(`1440px /property/models: the list heading given the keyboard shows no focus (${JSON.stringify(v)})`);
+    }
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
-    if (!fails.length) console.log(`ok   audit1 property-model: /property/models and the sectioned calculator at 360, 390, 768, 1024 and 1440 (light) and 390 and 1440 (dark), ${measured} pages — no overflow, the bar's, the list's, the scenarios' controls and the section links 44px on a phone, the index one row that scrolls in itself, the three-column comparison in its own scroll box`);
+    if (!fails.length) console.log(`ok   audit1 property-model: /property/models and the sectioned calculator at 360, 390, 768, 1024 and 1440 (light) and 390 and 1440 (dark), ${measured} pages — no overflow, the bar's, the list's, the scenarios' controls and the section links 44px on a phone, the index one row that scrolls in itself, the three-column comparison in its own scroll box (side by side without one at 1440); every figure on My properties labelled, and its list heading visibly focused`);
   } catch (e) { fails.push(`the checks threw: ${e.message}`); }
   finally {
     const k = JSON.parse(kept.result?.result?.value || '{}');

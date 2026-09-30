@@ -2394,22 +2394,33 @@ try {
     const r = await evaluate(`(async () => {
       const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
       navigate('/property/calculator'); await tick(400);
-      const rail = () => document.querySelector('main .rail-sticky');
+      /* Every section's column of inputs. The calculator's inputs sit in five
+         columns since it was sectioned (audit1/property-model), and the first
+         alone was read: Acquisition's 15 of the 50 labels, and none of the
+         evidence grades, which are in Report's. */
+      const inRails = (sel) => [...document.querySelectorAll('main .rail-sticky')].flatMap(r => [...r.querySelectorAll(sel)]);
       const labels = () => Object.fromEntries([
-        ...[...rail().querySelectorAll('label[for]')].map(l => [l.htmlFor, l.textContent.trim()]),
-        ...[...rail().querySelectorAll('label.checkline')].map(l => [l.querySelector('input')?.id, l.textContent.trim()])]);
+        ...[...inRails('label[for]')].map(l => [l.htmlFor, l.textContent.trim()]),
+        ...[...inRails('label.checkline')].map(l => [l.querySelector('input')?.id, l.textContent.trim()])]);
       State.lang = 'en'; render(); await tick();
       const en = labels();
       State.lang = 'ms'; render(); await tick();
       const ms = labels();
-      const evOpts = [...rail().querySelectorAll('select[id^="ev-"] option')].map(o => o.textContent);
+      const evOpts = [...inRails('select[id^="ev-"] option')].map(o => o.textContent);
       const same = Object.keys(en).filter(id => ms[id] === en[id]
         && !Object.values(PROPERTY_I18N).some(e => e.en === en[id] && e.ms === e.en));
-      return { n: Object.keys(en).length, same: same.map(id => en[id]), englishGrades: evOpts.filter(t => EVIDENCE.some(e => e.label === t)),
-        note: (SUMMARY_COPY.ms || {}).note };
+      const secOf = (id) => (id && document.getElementById(id)?.closest('section.pc-sec')?.id) || null;
+      const secsRead = [...new Set(Object.keys(en).map(secOf).filter(Boolean))];
+      const secsWithLabels = [...new Set([...document.querySelectorAll('main section.pc-sec .pc-inputs label')].map(l => l.closest('section.pc-sec').id))];
+      return { secsRead, secsWithLabels, n: Object.keys(en).length, same: same.map(id => en[id]), englishGrades: evOpts.filter(t => EVIDENCE.some(e => e.label === t)),
+        evN: evOpts.length, note: (SUMMARY_COPY.ms || {}).note };
     })()`);
     await fwPut();
-    if (r.same.length || r.englishGrades.length) fail(`fixwave P17: in Bahasa Malaysia the note says "${r.note}", and ${r.same.length} of ${r.n} rail labels and ${r.englishGrades.length} evidence grades are English`,
+    /* And it reads what it names: the labels of every section that asks for
+       something, and the evidence grades — a check of none of them passes
+       whatever they say. */
+    if (!r.evN || r.secsRead.length < r.secsWithLabels.length) fail(`fixwave P17: the check read the labels of ${r.secsRead.join(', ') || 'no section'} of the sections with inputs (${r.secsWithLabels.join(', ')}) and ${r.evN} evidence grades`);
+    else if (r.same.length || r.englishGrades.length) fail(`fixwave P17: in Bahasa Malaysia the note says "${r.note}", and ${r.same.length} of ${r.n} rail labels and ${r.englishGrades.length} evidence grades are English`,
       [...r.same.slice(0, 8), ...new Set(r.englishGrades)]);
     else ok(`fixwave P17: every one of the rail's ${r.n} labels and its evidence grades read in Bahasa Malaysia, as its note says`);
   }
@@ -3037,6 +3048,218 @@ try {
         if (!r7b.inView) p7.push(`/property/calculator#scenarios did not open at Scenarios: ${JSON.stringify(r7b)}`);
         if (p7.length) fail('audit1 property-model A7: the calculator is five sections in the brief\'s order, each with its contract, reached from a sticky index', p7);
         else ok('audit1 property-model A7: Acquisition, Financing, Rental & expenses, Scenarios and Report, each opening "You provide" / "Quantum calculates" with its own inputs; the sticky index reaches each without a route, the heading clear of it and marked current, and /property/calculator#scenarios opens at Scenarios');
+      });
+
+      /* THE VERIFICATION'S OWN CHECKS (audit1/property-model-verify). Each
+         failed on the builder's commit 46c0e76 and holds after the fix it
+         names. */
+      await step('V1', async () => {
+        /* V1 — A LINK DOES NOT WRITE OVER WORK KEPT NOWHERE ELSE. Opening a
+           property, a new one or an opportunity keeps unsaved work aside,
+           and the slot it goes to is the one a shared link writes. The link
+           wrote the deal it replaced there unconditionally, so a deal kept
+           aside by "New property" was gone the moment a link was opened —
+           replaced by a saved property that was never at risk. */
+        await evaluate(`(async () => { ${A1}
+          window.__a1Prompt = [];
+          localStorage.removeItem('vl.dealBeforeLink');
+          newPropertyDeal({ show: false }); State.deal.price = 711111; markTouched(State.deal, 'price'); saveDeal();
+          newPropertyDeal({ show: false }); State.deal.price = 522222; markTouched(State.deal, 'price'); saveDeal();
+          saveActiveProperty({ name: 'V1 saved' });
+          return true; })()`);
+        await reload('/property/calculator?city=kuching&d=price:333000~touched:price');
+        const snap = `(async () => { await new Promise(r => setTimeout(r, 200));
+          return { price: State.deal.price, kept: store.read('dealBeforeLink', null)?.price ?? null,
+            saved: pmAll().map(r => pmInputsOf(r).price), toast: document.getElementById('toast')?.textContent || '' }; })()`;
+        const a = await evaluate(snap);
+        /* A second link, while the deal on the calculator (the first link's)
+           is unsaved work too: both it and the deal already kept aside survive. */
+        await reload('/property/calculator?city=kuching&d=price:344000~touched:price');
+        const b = await evaluate(snap);
+        /* And "Restore it" on My properties restores without writing the
+           deal's city, district and figures into My properties' address. */
+        const c = await evaluate(`(async () => { ${A1}
+          navigate('/property/models'); await w(250);
+          const before = location.search; restoreDealBeforeLink(); return { before, after: location.search, view: State.view }; })()`);
+        const pv1 = [];
+        if (c.view !== 'propertyModels' || c.after !== c.before) pv1.push(`restoring on My properties changed its address from "${c.before}" to "${c.after.slice(0, 80)}"`);
+        if (a.price !== 333000) pv1.push(`the link did not open (${a.price})`);
+        if (a.kept !== 711111 && !a.saved.includes(711111)) pv1.push(`the deal kept aside before the link (711,111) is gone: the slot holds ${a.kept}, the saved properties ${a.saved.join(', ')}`);
+        if (!a.saved.includes(522222)) pv1.push('the saved property the link replaced is not listed');
+        if (!/V1 saved/.test(a.toast)) pv1.push(`the toast does not say where the replaced property is: "${a.toast}"`);
+        if (b.price !== 344000 || b.kept !== 333000 || !b.saved.includes(711111)) pv1.push(`a second link: deal ${b.price}, slot ${b.kept}, saved ${b.saved.join(', ')} — 333,000 kept aside and 711,111 saved expected`);
+        if (pv1.length) fail('audit1 property-model V1: a shared link keeps what it replaces without writing over a deal already kept aside', pv1);
+        else ok('audit1 property-model V1: a link opened over a saved property leaves the deal already kept aside where it was (the property stays in My properties, and the toast says so); a link opened over unsaved work keeps that aside and saves the older kept deal as a property first — nothing entered is dropped');
+      });
+
+      await step('V2', async () => {
+        /* V2 — BACK TO THE CALCULATOR IS BACK TO THE PROPERTY IT HELD. The
+           address carries the deal, not which property it is; Back from My
+           properties to a calculator address rebuilt the deal from the link
+           as an unsaved one, "not saved as a property yet", so its next Save
+           made a second copy of a property already saved. */
+        const r = await evaluate(`(async () => { ${A1}
+          window.__a1Prompt = [];
+          /* Started by the reader (userStarted), which no address carries: the
+             property comes back as saved, not rebuilt from its address as changed. */
+          newPropertyDeal({ show: false }); State.deal.price = 610000; markTouched(State.deal, 'price'); State.deal.userStarted = true; saveDeal();
+          const A = saveActiveProperty({ name: 'V2 A' });
+          newPropertyDeal({ show: false }); State.deal.price = 420000; markTouched(State.deal, 'price'); saveDeal();
+          const B = saveActiveProperty({ name: 'V2 B' });
+          openPropertyModel(A.id, { show: false });
+          navigate('/property/calculator'); await w(400);
+          const n0 = pmAll().length;
+          document.getElementById('wb-property-list').click(); await w(400);
+          document.getElementById('pm-open-' + B.id).click(); await w(500);
+          const onB = State.deal.modelId === B.id;
+          history.back(); await w(600);
+          history.back(); await w(800);
+          const out = { onB, view: State.view, modelId: State.deal.modelId, A: A.id, price: State.deal.price,
+            status: txt(document.getElementById('pm-status')), added: pmAll().length - n0 };
+          /* A duplicate has the same figures, so the same address: Back from
+             it to the property it copies is still Back to that property. */
+          const C = duplicatePropertyModel(A.id);
+          document.getElementById('wb-property-list').click(); await w(400);
+          document.getElementById('pm-open-' + C.id).click(); await w(500);
+          const onC = State.deal.modelId === C.id;
+          history.back(); await w(600);
+          history.back(); await w(800);
+          out.dup = { onC, modelId: State.deal.modelId, status: txt(document.getElementById('pm-status')) };
+          deletePropertyModel(C.id);
+          return out;
+        })()`);
+        const pv2 = [];
+        if (!r.onB) pv2.push('My properties did not open V2 B');
+        if (r.view !== 'property' || r.price !== 610000) pv2.push(`Back did not return to V2 A's figures: ${r.view}, ${r.price}`);
+        if (r.modelId !== r.A || !/^Editing: V2 A · saved /.test(r.status)) pv2.push(`Back returned V2 A's figures as "${r.status}" (modelId ${r.modelId}), not as the saved property`);
+        if (r.added) pv2.push(`${r.added} properties were added by going Back`);
+        if (!r.dup.onC || r.dup.modelId !== r.A) pv2.push(`Back from V2 A's duplicate (same figures, same address) stayed on ${r.dup.modelId === r.A ? 'V2 A' : 'the duplicate'}: "${r.dup.status}"`);
+        if (pv2.length) fail('audit1 property-model V2: Back to a calculator address reopens the property it showed', pv2);
+        else ok('audit1 property-model V2: calculator (V2 A) → My properties → Open V2 B → Back → Back returns to V2 A as the saved property it is — "Editing: V2 A · saved …" — not an unsaved copy whose Save would list it twice; and Back from its duplicate, the same figures at the same address, returns to V2 A too');
+      });
+
+      await step('V3', async () => {
+        /* V3 — EACH CONTRACT SAYS WHAT ITS SECTION ASKS. On a land parcel
+           the Rental section said it asked "for no rent, vacancy or service
+           charge" above the rent, vacancy and service-charge fields; the
+           Report section asked for the demand sources and its contract did
+           not name them. */
+        const r = await evaluate(`(async () => { ${A1}
+          window.__a1Prompt = [];
+          const read = () => ({
+            rentalProvide: txt(document.querySelector('#rental .pc-contract')),
+            rentInput: !!document.querySelector('#rental #d-rent'), vacInput: !!document.querySelector('#rental #d-vacancyPct'),
+            scInput: !!document.querySelector('#rental #d-maintenance'),
+            reportProvide: txt(document.querySelector('#report .pc-contract')),
+            demandInputs: document.querySelectorAll('#report select[id^="demand-"]').length,
+          });
+          newPropertyDeal({ show: false }); navigate('/property/calculator'); await w(300);
+          const lets = read();
+          State.deal.propertyType = 'Land'; State.deal.propertyClassOverride = 'land'; saveDeal(); render(); await w(300);
+          const land = read();
+          return { lets, land };
+        })()`);
+        const pv3 = [];
+        for (const [k, x] of Object.entries(r)) {
+          if ((x.rentInput || x.vacInput || x.scInput) && /asked for no rent|no rent, vacancy or service charge/i.test(x.rentalProvide))
+            pv3.push(`${k}: Rental says "${x.rentalProvide}" above its rent, vacancy and service-charge fields`);
+          if (x.demandInputs && !/demand/i.test(x.reportProvide)) pv3.push(`${k}: Report asks for ${x.demandInputs} demand sources and says "${x.reportProvide}"`);
+        }
+        if (r.land.rentInput && !/uses none of them/i.test(r.land.rentalProvide)) pv3.push(`land: Rental does not say its rent fields go unused: "${r.land.rentalProvide}"`);
+        if (pv3.length) fail('audit1 property-model V3: each section\'s "You provide" line names what the section asks for', pv3);
+        else ok('audit1 property-model V3: on a let property and a land parcel, Rental\'s "You provide" line matches its fields (a parcel\'s rent, vacancy and service-charge fields said to go unused, not said to be absent) and Report\'s names the demand sources it asks for');
+      });
+
+      await step('V4', async () => {
+        /* V4 — THE PRIMARY SAYS WHAT IT SAVES. With a scenario open, the
+           slot's "Save this property" wrote the scenario and left the
+           property as it was. It reads "Save this scenario" there. */
+        const r = await evaluate(`(async () => { ${A1}
+          window.__a1Prompt = [];
+          newPropertyDeal({ show: false }); State.deal.price = 500500; markTouched(State.deal, 'price'); saveDeal();
+          const rec = saveActiveProperty({ name: 'V4 base' });
+          navigate('/property/calculator'); await w(300);
+          State.deal.rent = 2100; markTouched(State.deal, 'rent'); saveDeal();
+          window.__a1Prompt = ['V4 rent']; saveAsScenario(); render(); await w(250);
+          const out = { clean: primaries() };
+          State.deal.vacancyPct = 13; markTouched(State.deal, 'vacancyPct'); saveDeal(); render(); await w(250);
+          out.scenario = primaries();
+          document.getElementById('wb-property-save').click(); await w(300);
+          const after = pmFind(rec.id);
+          out.wrote = { sc: after.scenarios[0]?.overrides?.vacancyPct, base: pmInputsOf(after).vacancyPct };
+          openPropertyModel(rec.id, { show: false }); State.deal.rent = 1999; markTouched(State.deal, 'rent'); saveDeal(); render(); await w(250);
+          out.property = primaries();
+          deletePropertyModel(rec.id);
+          return out;
+        })()`);
+        const pv4 = [];
+        if (r.clean.join('|') !== 'Compare scenarios') pv4.push(`a saved scenario open: ${JSON.stringify(r.clean)}`);
+        if (r.scenario.join('|') !== 'Save this scenario') pv4.push(`a scenario open with changes: the primary reads ${JSON.stringify(r.scenario)}`);
+        if (r.wrote.sc !== 13 || r.wrote.base === 13) pv4.push(`it saved ${JSON.stringify(r.wrote)}`);
+        if (r.property.join('|') !== 'Save this property') pv4.push(`the property open with changes: ${JSON.stringify(r.property)}`);
+        if (pv4.length) fail('audit1 property-model V4: the primary action names what it saves', pv4);
+        else ok('audit1 property-model V4: the primary reads "Save this scenario" while a scenario with changes is open — and saves the scenario — and "Save this property" on the property itself');
+      });
+
+      await step('V5', async () => {
+        /* V5 — TWO REGISTER RECORDS THAT SHARE AN ID OPEN AS TWO PROPERTIES.
+           Before d7fec29 (28 Sep 2026) a record's id was its position and
+           its name — record two, remove one, add the same name, and two
+           records shared "opp-2-…". The handoff ties a property to a record
+           by id, so the second record opened the first one's property, with
+           the first one's price. */
+        const r = await evaluate(`(async () => { ${A1}
+          window.__a1Prompt = [];
+          const rec = (price) => ({ id: 'opp-2-v5-terrace', name: 'V5 terrace', source: '', state: 'captured', capturedAt: '2026-09-01',
+            availabilityCheckedAt: null, available: null, deal: { city: 'sibu', district: 'Lanang', propertyType: 'Terrace (2 storey)', price, sqft: 1400,
+            projectId: 'custom-sibu', bankValuation: 0, titleType: 'unknown' }, touched: { price: true }, evidence: { price: 'user' }, checks: {},
+            negotiatedPrice: null, valuerEstimate: null, nextAction: '', nextActionOwner: '', nextActionDue: '' });
+          State.opportunities = [rec(300000), rec(400000)]; saveOpportunities();
+          const openNth = async (n) => { navigate('/property/opportunities'); await w(250);
+            const card = [...document.querySelectorAll('main .card')].filter(c => c.querySelector('h3')?.textContent === 'V5 terrace')[n];
+            [...card.querySelectorAll('button')].find(b => b.textContent.trim() === 'Open in the calculator').click(); await w(400);
+            return { price: State.deal.price, modelId: State.deal.modelId }; };
+          const first = await openNth(0);
+          const second = await openNth(1);
+          const again = await openNth(0);
+          const ids = State.opportunities.map(o => o.id);
+          return { first, second, again, ids, tied: pmAll().filter(p => p.source?.kind === 'opportunity' && /v5-terrace/.test(p.source.id)).length };
+        })()`);
+        const pv5 = [];
+        if (r.first.price !== 300000) pv5.push(`the first record opened at ${r.first.price}`);
+        if (r.second.price !== 400000 || r.second.modelId === r.first.modelId) pv5.push(`the second record opened ${r.second.modelId === r.first.modelId ? 'the first one\'s property' : 'a property'} at ${r.second.price}`);
+        if (r.again.modelId !== r.first.modelId || r.again.price !== 300000) pv5.push(`the first record, opened again, did not reopen its own property: ${JSON.stringify(r.again)}`);
+        if (new Set(r.ids).size !== r.ids.length) pv5.push(`the register still holds a shared id: ${r.ids.join(', ')}`);
+        if (r.tied !== 2) pv5.push(`${r.tied} properties are tied to the two records`);
+        if (pv5.length) fail('audit1 property-model V5: two register records that shared an id open as their own properties', pv5);
+        else ok('audit1 property-model V5: two records written with one id (the pre-d7fec29 scheme) open as two properties at their own prices — the shared id is made unique on the first Open, before any property is tied to it — and each reopens its own');
+      });
+
+      await step('V6', async () => {
+        /* V6 — THE SAMPLE WITH THE READER'S ANSWERS IN IT IS KEPT TOO. A town
+           and district chosen and the checklist answered on the sample's
+           figures move no figure, so the deal was not "the reader's" and
+           "New property" dropped it without keeping it aside; a link, which
+           kept everything, now keeps it the same way. */
+        const r = await evaluate(`(async () => { ${A1}
+          window.__a1Prompt = [];
+          localStorage.removeItem('vl.dealBeforeLink');
+          newPropertyDeal({ show: false });
+          const id = SARAWAK_CHECKS[0].id;
+          State.deal.city = 'miri'; State.deal.district = 'Lutong'; State.deal.projectId = customProjectId('miri');
+          State.deal.checks = { ...(State.deal.checks || {}), [id]: 'no' }; saveDeal();
+          newPropertyDeal({ show: false });
+          const kept = store.read('dealBeforeLink', null);
+          /* The untouched sample is not kept over it. */
+          newPropertyDeal({ show: false });
+          const still = store.read('dealBeforeLink', null);
+          return { id, kept: kept && { city: kept.city, district: kept.district, answer: kept.checks?.[id] }, still: still && still.district };
+        })()`);
+        const pv6 = [];
+        if (!r.kept || r.kept.district !== 'Lutong' || r.kept.answer !== 'no') pv6.push(`New property over the sample with a district and an answer of the reader's kept ${JSON.stringify(r.kept)}`);
+        if (r.still !== 'Lutong') pv6.push(`a second New property, over the untouched sample, replaced it (${r.still})`);
+        if (pv6.length) fail('audit1 property-model V6: New property keeps the sample aside when the reader has chosen a place or answered the checklist on it', pv6);
+        else ok('audit1 property-model V6: New property keeps aside the sample with a district chosen and a checklist question answered on it, and a second New property over the untouched sample leaves that kept deal in place');
       });
     } finally {
       await evaluate(`(() => { const k = ${kept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`);

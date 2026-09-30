@@ -3470,7 +3470,16 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .pm-sc-pick input { margin-top: 3px; flex: none; }
 .pm-sc-what { display: block; margin-top: 2px; }
 .pm-sc-acts { display: flex; flex-wrap: wrap; gap: 6px; }
-.pm-sc-table th[scope="row"] { font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; }
+.pm-sc-table th[scope="row"] { font-weight: var(--weight-medium); color: var(--ink-2); min-width: 7.5rem; }
+/* Three columns side by side on a desktop, not behind a scroll: every cell
+   held its line (table.dt), and at 1440 the third column was cut at its
+   heading. Above a phone the headings, the grades and the row names wrap
+   (a figure has no space to break at); on a phone each keeps its line and
+   the box scrolls, as the comparison always did there. */
+@media (min-width: 561px) {
+  table.dt.pm-sc-table th, table.dt.pm-sc-table td { white-space: normal; }
+  table.dt.pm-sc-table thead th { vertical-align: bottom; }
+}
 
 /* A locality handed to the calculator from the area screen. */
 .pm-handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--md); }
@@ -3492,10 +3501,19 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .pm-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pm-row-main strong { font-size: var(--text-body); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
 .pm-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--text-sm); }
-.pm-label { display: none; }
+/* A figure's name. Above a phone the saved list's head row names the
+   columns — to the eye only, as it is hidden from a screen reader — so the
+   label stays for a screen reader, clipped; it was display:none, and the
+   figures were read with no name. The Not saved card has no head row, and
+   shows its labels at every width: its monthly position was a bare number. */
+.pm-label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+.pm-loose .pm-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; clip-path: none; white-space: normal; font-size: var(--text-label); color: var(--ink-3); }
 .pm-acts-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .pm-list-hd { padding: var(--lg) var(--lg) 0; margin-bottom: var(--sm); }
 .pm-list-hd .h-card:focus { outline: none; }
+/* Given the keyboard by a save from the Not saved card: its outline was
+   removed with nothing in its place. */
+.pm-list-hd .h-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
 .pm-list.pm-loose { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) auto; }
 .pm-loose .pm-row { padding-inline: 0; }
 @media (max-width: 900px) {
@@ -3504,7 +3522,7 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
   .pm-head { display: none; }
   .pm-row-main, .pm-acts-row { grid-column: 1 / -1; }
   .pm-acts-row { justify-content: flex-start; }
-  .pm-label { display: block; font-size: var(--text-label); color: var(--ink-3); }
+  .pm-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; clip-path: none; white-space: normal; display: block; font-size: var(--text-label); color: var(--ink-3); }
 }
 @media (max-width: 560px) {
   .pm-row { padding: var(--md); grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -32697,24 +32715,57 @@ function applyDealParam(d, str) {
    link now starts from the default deal, applies the link, and keeps the
    reader's previous deal to restore. */
 let propertyUrlSeen = null;
+/* The address and the property its entry shows: two properties with the
+   same figures — a duplicate, before it is edited — have one address, and
+   Back from one to the other is still an arrival. */
+const propertyUrlKey = () => `${location.search}|${(isRecord(history.state?.pm) && history.state.pm.modelId) || ""}`;
 function arrivePropertyUrl() {
-  if (location.search === propertyUrlSeen) return { changed: false };
-  propertyUrlSeen = location.search;
+  if (propertyUrlKey() === propertyUrlSeen) return { changed: false };
+  propertyUrlSeen = propertyUrlKey();
   const p = new URLSearchParams(location.search);
   const incoming = p.get('d');
-  if (!incoming) return { changed: readPropertyUrl(State.deal) };
+  /* BACK TO A PROPERTY IS BACK TO THAT PROPERTY. The address carries the
+     deal, not which saved property it is the working copy of, so Back from
+     My properties to a calculator address rebuilt the deal as nobody's —
+     "not saved as a property yet" — and its next Save listed the property a
+     second time. The history entry keeps the pointer instead (syncPropertyUrl
+     writes it there, never into the address a link carries): an entry this
+     page wrote describes its whole deal, and returned to, it is that deal
+     again, the property it was of included — changed since, the page says
+     so, as for any edit. A pasted link or another page's link opens an entry
+     with no pointer, and is read as it always was. */
+  const was = isRecord(history.state?.pm) ? history.state.pm : null;
+  if (!incoming && !was) return { changed: readPropertyUrl(State.deal) };
   /* Our own address, reloaded or returned to: nothing to apply. */
-  if (incoming === dealToParam(State.deal)) return { changed: readPropertyUrl(State.deal) };
+  if ((incoming || '') === dealToParam(State.deal) && (!was || (was.modelId || null) === (State.deal.modelId || null)))
+    return { changed: readPropertyUrl(State.deal) };
   /* A linked deal is nobody's saved property here: it opens unsaved, and
      "Save this property" makes it one of this reader's. */
-  const fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, modelId: null, scenarioId: null };
+  let fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {},
+    modelId: was?.modelId || null, scenarioId: (was?.modelId && was.scenarioId) || null };
   readPropertyUrl(fresh);
-  if (dealToParam(fresh) === dealToParam(State.deal) && fresh.city === State.deal.city) return { changed: false };
+  /* An entry whose address is its property as saved is that property as
+     saved, exactly — with what an address does not carry (a deal saved
+     before a field existed, who started it) — not a copy rebuilt from the
+     address and called changed. */
+  if (fresh.modelId && typeof pmFind === 'function') {
+    const rec = pmFind(fresh.modelId), sc = rec ? pmScenario(rec, fresh.scenarioId) : null;
+    const saved = rec ? pmSavedInputs(rec, sc) : null;
+    if (saved && dealToParam(saved) === dealToParam(fresh) && ['city', 'district', 'propertyType'].every(k => saved[k] === fresh[k]))
+      fresh = { ...pmCopy(saved), modelId: rec.id, scenarioId: sc ? sc.id : null };
+  }
+  if (dealToParam(fresh) === dealToParam(State.deal) && fresh.city === State.deal.city
+    && (fresh.modelId || null) === (State.deal.modelId || null)) return { changed: false };
   const previous = State.deal;
-  store.write('dealBeforeLink', previous);
+  /* Kept where Restore finds it, without writing over a deal already kept
+     there that exists nowhere else (propertyKeepReplaced,
+     71-property-models.js): this wrote the slot unconditionally, and a deal
+     "New property" had just kept aside was lost to the next link. */
+  const kept = typeof propertyKeepReplaced === 'function' ? propertyKeepReplaced(previous)
+    : (store.write('dealBeforeLink', previous), { kept: true });
   State.deal = fresh;
   store.write('deal', fresh);
-  return { changed: true, replaced: true };
+  return { changed: true, replaced: true, kept, back: !!was };
 }
 /* The kept deal comes back as the property it belonged to — it carries its
    modelId (71-property-models.js). And the deal it replaces is kept aside in
@@ -32728,7 +32779,10 @@ function restoreDealBeforeLink() {
   State.deal = prev;
   store.write('deal', prev);
   store.write('dealBeforeLink', swap);
-  syncPropertyUrl(prev);
+  /* The calculator's address, written only on the calculator — as saveDeal
+     does. My properties restores a kept deal too, and its own address was
+     given the deal's city, district and figures. */
+  if (State.view === 'property') syncPropertyUrl(prev);
   return true;
 }
 
@@ -32741,10 +32795,15 @@ function syncPropertyUrl(d) {
   if (dp) p.set('d', dp); else p.delete('d');
   const q = p.toString();
   const next = location.pathname + (q ? `?${q}` : '');
-  if (next !== location.pathname + location.search) history.replaceState(history.state, '', next);
+  /* Which saved property the entry shows, kept with the entry and not in the
+     address: Back returns to it (arrivePropertyUrl). */
+  const pm = { modelId: d.modelId || null, scenarioId: d.scenarioId || null };
+  const had = history.state;
+  const same = isRecord(had?.pm) && had.pm.modelId === pm.modelId && had.pm.scenarioId === pm.scenarioId;
+  if (next !== location.pathname + location.search || !same) history.replaceState({ ...(isRecord(had) ? had : {}), pm }, '', next);
   /* What this page wrote is what it has seen: the next render must not read
      it back as a new arrival. */
-  propertyUrlSeen = location.search;
+  propertyUrlSeen = propertyUrlKey();
 }
 
 /* Applies a link's parameters to the deal. Returns true when something actually
@@ -34899,15 +34958,65 @@ const propertyHasUnsavedWork = (d = State.deal) => { const st = propertyStatus(d
    than written over — nothing a reader entered is dropped by opening
    something else. */
 function propertySetAside(d = State.deal) {
-  if (!propertyHasUnsavedWork(d)) return false;
-  const held = store.read('dealBeforeLink', null);
-  if (held && isRecord(held) && !pmSame(held, d) && propertyHasUnsavedWork(held)) {
-    const at = new Date().toISOString();
-    const rec = pmNewRecord(held, `${pmNameOf(held)} — kept aside ${localDay()}`, at);
-    persistWork([rec, ...loadWork()]);
-  }
+  if (!pmWorthKeeping(d)) return false;
+  pmRescueKept(d);
   store.write('dealBeforeLink', pmCopy(d));
   return true;
+}
+/* WHAT WOULD BE LOST WITH A DEAL: unsaved work (propertyHasUnsavedWork), or
+   the sample with anything of the reader's in it — a town and district
+   chosen, the checklist answered — which the one rule for the reader's own
+   figures (dealIsTheReaders) does not count, since no figure moved, and
+   which "New property" or an opened property dropped without keeping. Only
+   a saved property as saved and the untouched sample are kept elsewhere: in
+   My properties, and in the tool itself. */
+function pmWorthKeeping(d) {
+  if (!isRecord(d)) return false;
+  const st = propertyStatus(d);
+  if (st.kind === 'model') return st.dirty;
+  if (st.kind === 'unsaved') return true;
+  return !pmSame({ touched: {}, ...pmNormalInputs(d) }, pmNormalInputs(pmSampleDeal()));
+}
+/* The deal already in the slot, saved as a property if it would be lost
+   and is about to be written over by another. The record, or null when
+   there was nothing to save. */
+function pmRescueKept(d) {
+  const held = store.read('dealBeforeLink', null);
+  if (!isRecord(held) || pmSame(held, d) || !pmWorthKeeping(held)) return null;
+  const rec = pmNewRecord(held, `${pmNameOf(held)} — kept aside ${localDay()}`, new Date().toISOString());
+  return persistWork([rec, ...loadWork()]) ? rec : null;
+}
+/* A LINK, OR BACK TO AN OLDER ADDRESS, REPLACES THE DEAL ON THE CALCULATOR
+   (arrivePropertyUrl, 70-property.js), and what it replaces goes to the same
+   slot. The link wrote it there unconditionally, so a deal "New property", an
+   opened property or an opportunity had just kept aside — work that existed
+   nowhere else — was lost to the next link, overwritten by a saved property
+   that was never at risk. What it replaces is kept as above, the slot's own
+   work saved as a property first; but a deal kept elsewhere — a saved
+   property as saved, the untouched sample — does not displace work kept
+   nowhere else: the slot is left as it is. */
+function propertyKeepReplaced(previous) {
+  const held = store.read('dealBeforeLink', null);
+  if (!pmWorthKeeping(previous) && isRecord(held) && !pmSame(held, previous) && pmWorthKeeping(held)) {
+    const st = propertyStatus(previous);
+    return { kept: false, saved: st.kind === 'model' ? st.rec : null };
+  }
+  const rescued = pmRescueKept(previous);
+  store.write('dealBeforeLink', pmCopy(previous));
+  return { kept: true, rescued };
+}
+/* What the arrival did, in the toast it shows (VIEWS.property). */
+function propertyArrivalNote(arrival) {
+  const st = propertyStatus(State.deal);
+  const k = arrival.kept || { kept: true };
+  const opened = !arrival.back ? 'Opened the linked deal'
+    : st.kind === 'model'
+      ? `Back to “${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”` : ''}${st.dirty ? ', with the figures this address held — not saved' : ''}`
+      : 'Back to the deal this address held';
+  const was = k.kept ? ' — the deal it replaced is kept; “Restore my previous deal” puts it back.'
+    : k.saved ? ` — “${k.saved.name}” is still saved in My properties, and the deal kept aside before it is still there to restore.`
+    : ' — the deal kept aside before it is still there to restore.';
+  return `${opened}${was}${k.rescued ? ` The deal that was kept aside before is saved as “${k.rescued.name}” in My properties.` : ''}`;
 }
 /* A property's suggested name: the district and the price, as the work bar
    named a snapshot (WORK_KINDS.property), read off the deal given. */
@@ -35093,6 +35202,22 @@ function deleteScenario(modelId, scId) {
    was changed in it since. Nothing is retyped, and the deal that was on the
    calculator is kept aside if it held unsaved work. */
 function openOpportunityProperty(o, modelled) {
+  /* ONE ID, ONE RECORD. A record's id was its position and its name until
+     d7fec29 (28 Sep 2026): record two, remove one, add the same name, and
+     two records shared "opp-2-…". The tie below is by id, so the second of
+     them opened the first one's property, at the first one's price. The
+     register's shared ids are made unique here, on the first Open of any of
+     them — before a property can be tied to one, since a tie is made only
+     below — the first record keeping its id. */
+  const reg = State.opportunities || [];
+  if (!o.id || reg.filter(x => x.id === o.id).length > 1) {
+    const seen = new Set();
+    reg.forEach((x, n) => {
+      if (!x.id || seen.has(x.id)) x.id = `opp-${Date.now().toString(36)}r${n.toString(36)}-${String(x.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`;
+      seen.add(x.id);
+    });
+    saveOpportunities();
+  }
   const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
   if (tied) return openPropertyModel(tied.id);
   const at = new Date().toISOString();
@@ -35162,8 +35287,12 @@ function propertyModelBar(d = State.deal) {
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
 
   const acts = el('div', { class: 'pm-acts' });
+  /* It says what it writes. With a scenario open a save writes the scenario
+     and leaves the property as saved (saveActiveProperty), under a button
+     that read "Save this property". */
   const primary = st.kind !== 'model' || st.dirty
-    ? el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } }, 'Save this property')
+    ? el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } },
+      st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property')
     : el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => goToPropertySection('scenarios', { focus: '#pm-sc-title' }) }, 'Compare scenarios');
   acts.append(primary);
   if (st.kind === 'model') {
@@ -35460,7 +35589,7 @@ function propertyScenariosPanel(d = State.deal) {
   figs[0].forEach(([label], r) => tb.append(el('tr', {}, [el('th', { scope: 'row', style: 'text-align:left' }, label),
     ...figs.map(f => el('td', { class: `num ${f[r][2]}`.trim() }, f[r][1]))])));
   tb.append(el('tr', {}, [el('th', { scope: 'row', style: 'text-align:left' }, 'Changes against the property'),
-    ...shown.map(c => el('td', { class: 'caption', style: 'white-space:normal;min-width:10rem' }, c.id === 'base' ? '—' : c.what))]));
+    ...shown.map(c => el('td', { class: 'caption', style: 'white-space:normal;min-width:8rem' }, c.id === 'base' ? '—' : c.what))]));
   t.append(tb);
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
@@ -35503,11 +35632,13 @@ VIEWS.propertyModels = () => {
 
   /* Work that exists nowhere else comes first: it is what a cleared tab loses. */
   const loose = [];
-  if (st.kind === 'unsaved' || (st.kind === 'model' && st.dirty)) loose.push({ kind: 'current', d: State.deal,
+  /* By the rule that keeps a deal aside (pmWorthKeeping): the sample with a
+     district chosen or the checklist answered is work kept nowhere else too. */
+  if (pmWorthKeeping(State.deal)) loose.push({ kind: 'current', d: State.deal,
     title: st.kind === 'model' ? `Unsaved changes to “${st.rec.name}”` : 'The deal on the calculator — not saved',
     note: st.kind === 'model' ? 'Changes on the calculator since this property was saved.' : 'Kept as you edit it, and on no list until it is saved.' });
   const kept = store.read('dealBeforeLink', null);
-  if (isRecord(kept) && propertyHasUnsavedWork(kept) && !pmSame(kept, State.deal)) loose.push({ kind: 'kept', d: kept,
+  if (isRecord(kept) && pmWorthKeeping(kept) && !pmSame(kept, State.deal)) loose.push({ kind: 'kept', d: kept,
     title: 'Kept aside — your previous deal', note: 'Put aside when a shared link, the launcher or another property was opened on the calculator.' });
   if (loose.length) {
     const lc = el('div', { class: 'card' });
@@ -37947,7 +38078,10 @@ VIEWS.property = () => {
      or Reset on either path. */
   const arrival = arrivePropertyUrl();
   if (arrival.changed) store.write('deal', State.deal);
-  if (arrival.replaced) setTimeout(() => toast('Opened the linked deal — your previous deal is kept; restore it beside the link'), 0);
+  /* Said as it happened: a link or Back, and where what it replaced went —
+     the slot, or, when the slot already held work kept nowhere else, My
+     properties (propertyArrivalNote, 71-property-models.js). */
+  if (arrival.replaced) { const note = propertyArrivalNote(arrival); setTimeout(() => toast(note), 0); }
   const d = State.deal;
   const m = dealModel(d);
   const paid = propertyReportUnlocked(d.projectId);
@@ -38405,8 +38539,11 @@ VIEWS.property = () => {
      produce, and opens by saying which is which (propertySection,
      71-property-models.js). Every input keeps its id, so a link, the review
      queue's "Go to it" and a redraw's focus still find it. The contracts
-     name only what the section asks and shows: a class with no tenancy is
-     asked for no rent. */
+     name what the section asks and shows. A class with no tenancy was said
+     to be "asked for no rent, vacancy or service charge" above the rent,
+     vacancy and service-charge fields, which every class is shown: the line
+     now says they go unused. And Report asks for the district's demand
+     sources, which its line did not name. */
   const lets = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
   const acq = propertySection('acquisition', {
     provide: 'where the property is, what it is — its type, class, title and size — the purchase price, any bank or valuer estimate, the booking deposit already paid, the renovation and the months of reserve you mean to hold.',
@@ -38417,13 +38554,13 @@ VIEWS.property = () => {
   const rnt = propertySection('rental', lets ? {
     provide: 'the expected rent, its growth and the vacancy allowance, the running costs — maintenance, sinking fund, assessment, quit rent, insurance, fees and a repair reserve — the management terms, and the weeks a year you would use it yourself.',
     calculates: 'the monthly position after vacancy, costs and the loan, the gross and net yield, the rent at which it breaks even, what management costs per occupied month and per tenancy, and owning it against renting it for your own weeks.' } : {
-    provide: 'the running costs — assessment, quit rent, insurance and any fees — and the weeks a year you would use it yourself. A class with no tenancy is asked for no rent, vacancy or service charge.',
+    provide: 'the running costs a parcel carries — assessment, quit rent and insurance — and the weeks a year you would use it yourself. The rent, vacancy, service-charge and management fields stay on the page, but a class with no tenancy uses none of them: nothing is computed from a rent nobody expects to receive.',
     calculates: 'what holding it costs each month, the loan included — a yield and a break-even rent are not quantities this class has, so none is computed.' });
   const scn = propertySection('scenarios', {
     provide: 'variations of this property saved as named scenarios, the exit — how long it is held, capital growth, the months and costs of selling — the return you would expect from equities instead, who is selling, and your top rate of tax if you give it.',
     calculates: 'up to three scenarios side by side — monthly position, cash required, yield, break-even rent and grade — which inputs move the rate of return most, the rate, vacancy and overrun at which it stops working, and the return and the tax on the rent over the hold.' });
   const rpt = propertySection('report', {
-    provide: 'your answers to the ten questions that decide more than the price, how each was established, and where each driving figure came from.',
+    provide: 'the state of each demand source you record for the district, your answers to the ten questions that decide more than the price, how each was established, and where each driving figure came from.',
     calculates: 'the grade against the methodology’s gates, the demand and environmental allowances recorded for the district, what the answer rests on, and — in the full report — the exits, the year-by-year path, the equity comparison and the risk flags; the decision record prints it.' });
 
   /* ---------- inputs ---------- */

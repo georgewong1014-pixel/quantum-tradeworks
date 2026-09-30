@@ -209,15 +209,65 @@ const propertyHasUnsavedWork = (d = State.deal) => { const st = propertyStatus(d
    than written over — nothing a reader entered is dropped by opening
    something else. */
 function propertySetAside(d = State.deal) {
-  if (!propertyHasUnsavedWork(d)) return false;
-  const held = store.read('dealBeforeLink', null);
-  if (held && isRecord(held) && !pmSame(held, d) && propertyHasUnsavedWork(held)) {
-    const at = new Date().toISOString();
-    const rec = pmNewRecord(held, `${pmNameOf(held)} — kept aside ${localDay()}`, at);
-    persistWork([rec, ...loadWork()]);
-  }
+  if (!pmWorthKeeping(d)) return false;
+  pmRescueKept(d);
   store.write('dealBeforeLink', pmCopy(d));
   return true;
+}
+/* WHAT WOULD BE LOST WITH A DEAL: unsaved work (propertyHasUnsavedWork), or
+   the sample with anything of the reader's in it — a town and district
+   chosen, the checklist answered — which the one rule for the reader's own
+   figures (dealIsTheReaders) does not count, since no figure moved, and
+   which "New property" or an opened property dropped without keeping. Only
+   a saved property as saved and the untouched sample are kept elsewhere: in
+   My properties, and in the tool itself. */
+function pmWorthKeeping(d) {
+  if (!isRecord(d)) return false;
+  const st = propertyStatus(d);
+  if (st.kind === 'model') return st.dirty;
+  if (st.kind === 'unsaved') return true;
+  return !pmSame({ touched: {}, ...pmNormalInputs(d) }, pmNormalInputs(pmSampleDeal()));
+}
+/* The deal already in the slot, saved as a property if it would be lost
+   and is about to be written over by another. The record, or null when
+   there was nothing to save. */
+function pmRescueKept(d) {
+  const held = store.read('dealBeforeLink', null);
+  if (!isRecord(held) || pmSame(held, d) || !pmWorthKeeping(held)) return null;
+  const rec = pmNewRecord(held, `${pmNameOf(held)} — kept aside ${localDay()}`, new Date().toISOString());
+  return persistWork([rec, ...loadWork()]) ? rec : null;
+}
+/* A LINK, OR BACK TO AN OLDER ADDRESS, REPLACES THE DEAL ON THE CALCULATOR
+   (arrivePropertyUrl, 70-property.js), and what it replaces goes to the same
+   slot. The link wrote it there unconditionally, so a deal "New property", an
+   opened property or an opportunity had just kept aside — work that existed
+   nowhere else — was lost to the next link, overwritten by a saved property
+   that was never at risk. What it replaces is kept as above, the slot's own
+   work saved as a property first; but a deal kept elsewhere — a saved
+   property as saved, the untouched sample — does not displace work kept
+   nowhere else: the slot is left as it is. */
+function propertyKeepReplaced(previous) {
+  const held = store.read('dealBeforeLink', null);
+  if (!pmWorthKeeping(previous) && isRecord(held) && !pmSame(held, previous) && pmWorthKeeping(held)) {
+    const st = propertyStatus(previous);
+    return { kept: false, saved: st.kind === 'model' ? st.rec : null };
+  }
+  const rescued = pmRescueKept(previous);
+  store.write('dealBeforeLink', pmCopy(previous));
+  return { kept: true, rescued };
+}
+/* What the arrival did, in the toast it shows (VIEWS.property). */
+function propertyArrivalNote(arrival) {
+  const st = propertyStatus(State.deal);
+  const k = arrival.kept || { kept: true };
+  const opened = !arrival.back ? 'Opened the linked deal'
+    : st.kind === 'model'
+      ? `Back to “${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”` : ''}${st.dirty ? ', with the figures this address held — not saved' : ''}`
+      : 'Back to the deal this address held';
+  const was = k.kept ? ' — the deal it replaced is kept; “Restore my previous deal” puts it back.'
+    : k.saved ? ` — “${k.saved.name}” is still saved in My properties, and the deal kept aside before it is still there to restore.`
+    : ' — the deal kept aside before it is still there to restore.';
+  return `${opened}${was}${k.rescued ? ` The deal that was kept aside before is saved as “${k.rescued.name}” in My properties.` : ''}`;
 }
 /* A property's suggested name: the district and the price, as the work bar
    named a snapshot (WORK_KINDS.property), read off the deal given. */
@@ -403,6 +453,22 @@ function deleteScenario(modelId, scId) {
    was changed in it since. Nothing is retyped, and the deal that was on the
    calculator is kept aside if it held unsaved work. */
 function openOpportunityProperty(o, modelled) {
+  /* ONE ID, ONE RECORD. A record's id was its position and its name until
+     d7fec29 (28 Sep 2026): record two, remove one, add the same name, and
+     two records shared "opp-2-…". The tie below is by id, so the second of
+     them opened the first one's property, at the first one's price. The
+     register's shared ids are made unique here, on the first Open of any of
+     them — before a property can be tied to one, since a tie is made only
+     below — the first record keeping its id. */
+  const reg = State.opportunities || [];
+  if (!o.id || reg.filter(x => x.id === o.id).length > 1) {
+    const seen = new Set();
+    reg.forEach((x, n) => {
+      if (!x.id || seen.has(x.id)) x.id = `opp-${Date.now().toString(36)}r${n.toString(36)}-${String(x.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`;
+      seen.add(x.id);
+    });
+    saveOpportunities();
+  }
   const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
   if (tied) return openPropertyModel(tied.id);
   const at = new Date().toISOString();
@@ -472,8 +538,12 @@ function propertyModelBar(d = State.deal) {
   bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
 
   const acts = el('div', { class: 'pm-acts' });
+  /* It says what it writes. With a scenario open a save writes the scenario
+     and leaves the property as saved (saveActiveProperty), under a button
+     that read "Save this property". */
   const primary = st.kind !== 'model' || st.dirty
-    ? el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } }, 'Save this property')
+    ? el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } },
+      st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property')
     : el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => goToPropertySection('scenarios', { focus: '#pm-sc-title' }) }, 'Compare scenarios');
   acts.append(primary);
   if (st.kind === 'model') {
@@ -770,7 +840,7 @@ function propertyScenariosPanel(d = State.deal) {
   figs[0].forEach(([label], r) => tb.append(el('tr', {}, [el('th', { scope: 'row', style: 'text-align:left' }, label),
     ...figs.map(f => el('td', { class: `num ${f[r][2]}`.trim() }, f[r][1]))])));
   tb.append(el('tr', {}, [el('th', { scope: 'row', style: 'text-align:left' }, 'Changes against the property'),
-    ...shown.map(c => el('td', { class: 'caption', style: 'white-space:normal;min-width:10rem' }, c.id === 'base' ? '—' : c.what))]));
+    ...shown.map(c => el('td', { class: 'caption', style: 'white-space:normal;min-width:8rem' }, c.id === 'base' ? '—' : c.what))]));
   t.append(tb);
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
@@ -813,11 +883,13 @@ VIEWS.propertyModels = () => {
 
   /* Work that exists nowhere else comes first: it is what a cleared tab loses. */
   const loose = [];
-  if (st.kind === 'unsaved' || (st.kind === 'model' && st.dirty)) loose.push({ kind: 'current', d: State.deal,
+  /* By the rule that keeps a deal aside (pmWorthKeeping): the sample with a
+     district chosen or the checklist answered is work kept nowhere else too. */
+  if (pmWorthKeeping(State.deal)) loose.push({ kind: 'current', d: State.deal,
     title: st.kind === 'model' ? `Unsaved changes to “${st.rec.name}”` : 'The deal on the calculator — not saved',
     note: st.kind === 'model' ? 'Changes on the calculator since this property was saved.' : 'Kept as you edit it, and on no list until it is saved.' });
   const kept = store.read('dealBeforeLink', null);
-  if (isRecord(kept) && propertyHasUnsavedWork(kept) && !pmSame(kept, State.deal)) loose.push({ kind: 'kept', d: kept,
+  if (isRecord(kept) && pmWorthKeeping(kept) && !pmSame(kept, State.deal)) loose.push({ kind: 'kept', d: kept,
     title: 'Kept aside — your previous deal', note: 'Put aside when a shared link, the launcher or another property was opened on the calculator.' });
   if (loose.length) {
     const lc = el('div', { class: 'card' });

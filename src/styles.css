@@ -3435,7 +3435,16 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .pm-sc-pick input { margin-top: 3px; flex: none; }
 .pm-sc-what { display: block; margin-top: 2px; }
 .pm-sc-acts { display: flex; flex-wrap: wrap; gap: 6px; }
-.pm-sc-table th[scope="row"] { font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; }
+.pm-sc-table th[scope="row"] { font-weight: var(--weight-medium); color: var(--ink-2); min-width: 7.5rem; }
+/* Three columns side by side on a desktop, not behind a scroll: every cell
+   held its line (table.dt), and at 1440 the third column was cut at its
+   heading. Above a phone the headings, the grades and the row names wrap
+   (a figure has no space to break at); on a phone each keeps its line and
+   the box scrolls, as the comparison always did there. */
+@media (min-width: 561px) {
+  table.dt.pm-sc-table th, table.dt.pm-sc-table td { white-space: normal; }
+  table.dt.pm-sc-table thead th { vertical-align: bottom; }
+}
 
 /* A locality handed to the calculator from the area screen. */
 .pm-handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--md); }
@@ -3457,10 +3466,19 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .pm-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .pm-row-main strong { font-size: var(--text-body); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
 .pm-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--text-sm); }
-.pm-label { display: none; }
+/* A figure's name. Above a phone the saved list's head row names the
+   columns — to the eye only, as it is hidden from a screen reader — so the
+   label stays for a screen reader, clipped; it was display:none, and the
+   figures were read with no name. The Not saved card has no head row, and
+   shows its labels at every width: its monthly position was a bare number. */
+.pm-label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+.pm-loose .pm-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; clip-path: none; white-space: normal; font-size: var(--text-label); color: var(--ink-3); }
 .pm-acts-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .pm-list-hd { padding: var(--lg) var(--lg) 0; margin-bottom: var(--sm); }
 .pm-list-hd .h-card:focus { outline: none; }
+/* Given the keyboard by a save from the Not saved card: its outline was
+   removed with nothing in its place. */
+.pm-list-hd .h-card:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
 .pm-list.pm-loose { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) auto; }
 .pm-loose .pm-row { padding-inline: 0; }
 @media (max-width: 900px) {
@@ -3469,7 +3487,7 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
   .pm-head { display: none; }
   .pm-row-main, .pm-acts-row { grid-column: 1 / -1; }
   .pm-acts-row { justify-content: flex-start; }
-  .pm-label { display: block; font-size: var(--text-label); color: var(--ink-3); }
+  .pm-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; clip-path: none; white-space: normal; display: block; font-size: var(--text-label); color: var(--ink-3); }
 }
 @media (max-width: 560px) {
   .pm-row { padding: var(--md); grid-template-columns: repeat(2, minmax(0, 1fr)); }

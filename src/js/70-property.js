@@ -701,24 +701,57 @@ function applyDealParam(d, str) {
    link now starts from the default deal, applies the link, and keeps the
    reader's previous deal to restore. */
 let propertyUrlSeen = null;
+/* The address and the property its entry shows: two properties with the
+   same figures — a duplicate, before it is edited — have one address, and
+   Back from one to the other is still an arrival. */
+const propertyUrlKey = () => `${location.search}|${(isRecord(history.state?.pm) && history.state.pm.modelId) || ""}`;
 function arrivePropertyUrl() {
-  if (location.search === propertyUrlSeen) return { changed: false };
-  propertyUrlSeen = location.search;
+  if (propertyUrlKey() === propertyUrlSeen) return { changed: false };
+  propertyUrlSeen = propertyUrlKey();
   const p = new URLSearchParams(location.search);
   const incoming = p.get('d');
-  if (!incoming) return { changed: readPropertyUrl(State.deal) };
+  /* BACK TO A PROPERTY IS BACK TO THAT PROPERTY. The address carries the
+     deal, not which saved property it is the working copy of, so Back from
+     My properties to a calculator address rebuilt the deal as nobody's —
+     "not saved as a property yet" — and its next Save listed the property a
+     second time. The history entry keeps the pointer instead (syncPropertyUrl
+     writes it there, never into the address a link carries): an entry this
+     page wrote describes its whole deal, and returned to, it is that deal
+     again, the property it was of included — changed since, the page says
+     so, as for any edit. A pasted link or another page's link opens an entry
+     with no pointer, and is read as it always was. */
+  const was = isRecord(history.state?.pm) ? history.state.pm : null;
+  if (!incoming && !was) return { changed: readPropertyUrl(State.deal) };
   /* Our own address, reloaded or returned to: nothing to apply. */
-  if (incoming === dealToParam(State.deal)) return { changed: readPropertyUrl(State.deal) };
+  if ((incoming || '') === dealToParam(State.deal) && (!was || (was.modelId || null) === (State.deal.modelId || null)))
+    return { changed: readPropertyUrl(State.deal) };
   /* A linked deal is nobody's saved property here: it opens unsaved, and
      "Save this property" makes it one of this reader's. */
-  const fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, modelId: null, scenarioId: null };
+  let fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {},
+    modelId: was?.modelId || null, scenarioId: (was?.modelId && was.scenarioId) || null };
   readPropertyUrl(fresh);
-  if (dealToParam(fresh) === dealToParam(State.deal) && fresh.city === State.deal.city) return { changed: false };
+  /* An entry whose address is its property as saved is that property as
+     saved, exactly — with what an address does not carry (a deal saved
+     before a field existed, who started it) — not a copy rebuilt from the
+     address and called changed. */
+  if (fresh.modelId && typeof pmFind === 'function') {
+    const rec = pmFind(fresh.modelId), sc = rec ? pmScenario(rec, fresh.scenarioId) : null;
+    const saved = rec ? pmSavedInputs(rec, sc) : null;
+    if (saved && dealToParam(saved) === dealToParam(fresh) && ['city', 'district', 'propertyType'].every(k => saved[k] === fresh[k]))
+      fresh = { ...pmCopy(saved), modelId: rec.id, scenarioId: sc ? sc.id : null };
+  }
+  if (dealToParam(fresh) === dealToParam(State.deal) && fresh.city === State.deal.city
+    && (fresh.modelId || null) === (State.deal.modelId || null)) return { changed: false };
   const previous = State.deal;
-  store.write('dealBeforeLink', previous);
+  /* Kept where Restore finds it, without writing over a deal already kept
+     there that exists nowhere else (propertyKeepReplaced,
+     71-property-models.js): this wrote the slot unconditionally, and a deal
+     "New property" had just kept aside was lost to the next link. */
+  const kept = typeof propertyKeepReplaced === 'function' ? propertyKeepReplaced(previous)
+    : (store.write('dealBeforeLink', previous), { kept: true });
   State.deal = fresh;
   store.write('deal', fresh);
-  return { changed: true, replaced: true };
+  return { changed: true, replaced: true, kept, back: !!was };
 }
 /* The kept deal comes back as the property it belonged to — it carries its
    modelId (71-property-models.js). And the deal it replaces is kept aside in
@@ -732,7 +765,10 @@ function restoreDealBeforeLink() {
   State.deal = prev;
   store.write('deal', prev);
   store.write('dealBeforeLink', swap);
-  syncPropertyUrl(prev);
+  /* The calculator's address, written only on the calculator — as saveDeal
+     does. My properties restores a kept deal too, and its own address was
+     given the deal's city, district and figures. */
+  if (State.view === 'property') syncPropertyUrl(prev);
   return true;
 }
 
@@ -745,10 +781,15 @@ function syncPropertyUrl(d) {
   if (dp) p.set('d', dp); else p.delete('d');
   const q = p.toString();
   const next = location.pathname + (q ? `?${q}` : '');
-  if (next !== location.pathname + location.search) history.replaceState(history.state, '', next);
+  /* Which saved property the entry shows, kept with the entry and not in the
+     address: Back returns to it (arrivePropertyUrl). */
+  const pm = { modelId: d.modelId || null, scenarioId: d.scenarioId || null };
+  const had = history.state;
+  const same = isRecord(had?.pm) && had.pm.modelId === pm.modelId && had.pm.scenarioId === pm.scenarioId;
+  if (next !== location.pathname + location.search || !same) history.replaceState({ ...(isRecord(had) ? had : {}), pm }, '', next);
   /* What this page wrote is what it has seen: the next render must not read
      it back as a new arrival. */
-  propertyUrlSeen = location.search;
+  propertyUrlSeen = propertyUrlKey();
 }
 
 /* Applies a link's parameters to the deal. Returns true when something actually

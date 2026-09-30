@@ -1754,7 +1754,10 @@ VIEWS.property = () => {
      or Reset on either path. */
   const arrival = arrivePropertyUrl();
   if (arrival.changed) store.write('deal', State.deal);
-  if (arrival.replaced) setTimeout(() => toast('Opened the linked deal — your previous deal is kept; restore it beside the link'), 0);
+  /* Said as it happened: a link or Back, and where what it replaced went —
+     the slot, or, when the slot already held work kept nowhere else, My
+     properties (propertyArrivalNote, 71-property-models.js). */
+  if (arrival.replaced) { const note = propertyArrivalNote(arrival); setTimeout(() => toast(note), 0); }
   const d = State.deal;
   const m = dealModel(d);
   const paid = propertyReportUnlocked(d.projectId);
@@ -2212,8 +2215,11 @@ VIEWS.property = () => {
      produce, and opens by saying which is which (propertySection,
      71-property-models.js). Every input keeps its id, so a link, the review
      queue's "Go to it" and a redraw's focus still find it. The contracts
-     name only what the section asks and shows: a class with no tenancy is
-     asked for no rent. */
+     name what the section asks and shows. A class with no tenancy was said
+     to be "asked for no rent, vacancy or service charge" above the rent,
+     vacancy and service-charge fields, which every class is shown: the line
+     now says they go unused. And Report asks for the district's demand
+     sources, which its line did not name. */
   const lets = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
   const acq = propertySection('acquisition', {
     provide: 'where the property is, what it is — its type, class, title and size — the purchase price, any bank or valuer estimate, the booking deposit already paid, the renovation and the months of reserve you mean to hold.',
@@ -2224,13 +2230,13 @@ VIEWS.property = () => {
   const rnt = propertySection('rental', lets ? {
     provide: 'the expected rent, its growth and the vacancy allowance, the running costs — maintenance, sinking fund, assessment, quit rent, insurance, fees and a repair reserve — the management terms, and the weeks a year you would use it yourself.',
     calculates: 'the monthly position after vacancy, costs and the loan, the gross and net yield, the rent at which it breaks even, what management costs per occupied month and per tenancy, and owning it against renting it for your own weeks.' } : {
-    provide: 'the running costs — assessment, quit rent, insurance and any fees — and the weeks a year you would use it yourself. A class with no tenancy is asked for no rent, vacancy or service charge.',
+    provide: 'the running costs a parcel carries — assessment, quit rent and insurance — and the weeks a year you would use it yourself. The rent, vacancy, service-charge and management fields stay on the page, but a class with no tenancy uses none of them: nothing is computed from a rent nobody expects to receive.',
     calculates: 'what holding it costs each month, the loan included — a yield and a break-even rent are not quantities this class has, so none is computed.' });
   const scn = propertySection('scenarios', {
     provide: 'variations of this property saved as named scenarios, the exit — how long it is held, capital growth, the months and costs of selling — the return you would expect from equities instead, who is selling, and your top rate of tax if you give it.',
     calculates: 'up to three scenarios side by side — monthly position, cash required, yield, break-even rent and grade — which inputs move the rate of return most, the rate, vacancy and overrun at which it stops working, and the return and the tax on the rent over the hold.' });
   const rpt = propertySection('report', {
-    provide: 'your answers to the ten questions that decide more than the price, how each was established, and where each driving figure came from.',
+    provide: 'the state of each demand source you record for the district, your answers to the ten questions that decide more than the price, how each was established, and where each driving figure came from.',
     calculates: 'the grade against the methodology’s gates, the demand and environmental allowances recorded for the district, what the answer rests on, and — in the full report — the exits, the year-by-year path, the equity comparison and the risk flags; the decision record prints it.' });
 
   /* ---------- inputs ---------- */
