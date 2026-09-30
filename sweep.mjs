@@ -487,6 +487,303 @@ for (const route of ROUTES) {
   else console.log(`ok   slim: / and a parameter route run the app inline, a route page and the 404 run it from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
 }
 /* ---- end audit: slim ---- */
+/* ---- audit1: registry-ctas ---- */
+/* ONE REGISTRY OF TOOLS; A TOOL THAT CANNOT BE USED IS NEVER OFFERED; ONE
+   NEXT ACTION ON EACH RESULT SCREEN (audit 1, #2, #3, #9; 35-ui.js TOOLS).
+   1. Every TOOLS entry is well formed — a written status is never Delayed or
+      Unavailable, every one has its sentence and its action — and every
+      entry in this build opens its own view at its address, as does its
+      action. The product tab rows are the registry's tabs.
+   2. As production serves it (live.localhost: the scanner's files are never
+      asked for), the tools that read them are Unavailable with the reason,
+      their tabs are text with the badge, and on no page is a soon or
+      unavailable tool a link — nor the unbuilt product a link or a button.
+   3. The derived states follow the data: data/us.json held back (answered
+      404) makes the Equities tools that read the filings Unavailable with
+      the load's own error, their tabs text and their pages say why, while
+      the Overview, Sarawak watch and the Cash Wheel stay usable; a clock a
+      year and more past the filings' own date makes them Delayed and still
+      links; a synthetic price history and match record (answered by the
+      check, never read from disk) bring the Market, Historical and Alerts
+      back, and a history ten days old makes them Delayed.
+   4. Each result screen has exactly one primary button: the company page
+      ("Add to watchlist", then "Create a setup for MSFT" to the builder with
+      the symbol), the scanner alert ("Open Apple Inc. research"), the
+      calculator, and the dashboard (the first step, then "Continue").
+   5. The goal words: the homepage cards read the products' actions and open
+      where each starts, Business reads "Coming soon" as text, and How it
+      works and the dashboard checklist use the same words. */
+{
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const u = new URL(BASE);
+  const ownMachine = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  const live = ownMachine ? `${u.protocol}//live.localhost${u.port ? ':' + u.port : ''}` : BASE;
+  const p = [];
+  const load = async (url) => {
+    bucket = [];
+    await ev('window.__rcMark = 1').catch(() => {});
+    await send('Page.navigate', { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      try { if (await ev(`!window.__rcMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ }
+      await sleep(100);
+    }
+    await sleep(400);
+  };
+  /* What the page offers that it must not: a link, from any part of the
+     page, to a tool whose state is soon or unavailable; a link or a button
+     for the product that is not built. */
+  /* A build without the registry is judged by what it offers: `unusable`
+     names the addresses that cannot work in the case under test. */
+  const OFFERED = (unusable = []) => `(() => { const out = []; const reg = typeof toolOfLink === 'function';
+    document.querySelectorAll('a[href]').forEach(a => {
+      if (!reg) { const at = new URL(a.href).pathname; if (!a.getAttribute('href').startsWith('#') && ${JSON.stringify(unusable)}.includes(at)) out.push(location.pathname + ': a link to ' + at + ' "' + a.textContent.trim().slice(0, 40) + '"'); return; }
+      const t = toolOfLink(a); if (!t) return; const s = toolState(t);
+      if (!s.actionable) out.push(location.pathname + ': a link to ' + t.id + ' (' + s.status + ') "' + a.textContent.trim().slice(0, 40) + '"'); });
+    document.querySelectorAll('a, button, [role=button], [role=link]').forEach(b => {
+      if (/Business Intelligence|Plan my business/.test(b.textContent)) out.push(location.pathname + ': a ' + b.tagName.toLowerCase() + ' for the unbuilt product'); });
+    const gone = reg ? TOOLS.filter(t => !toolPresent(t)).map(t => href(t.path)) : [];
+    document.querySelectorAll('a[href]').forEach(a => { if (gone.includes(new URL(a.href).pathname)) out.push(location.pathname + ': a link to a tool not in this build, ' + a.getAttribute('href')); });
+    return out; })()`;
+  /* Primary buttons a reader sees on the page: the view's and its dock's. */
+  const PRIMARIES = `[...document.querySelectorAll('#views .btn-primary, body > .dock .btn-primary')].filter(n => n.getClientRects().length)
+    .map(n => ({ t: n.textContent.trim(), href: n.getAttribute('href') }))`;
+  const clean = `(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('vl.plan', JSON.stringify('pro')); return true; })()`;
+
+  /* 1. The registry, and every tool in this build opening at its address. */
+  await load(BASE + '/app');
+  const hasReg = await ev(`typeof TOOLS !== 'undefined' && typeof toolState === 'function'`);
+  if (!hasReg) p.push('the page has no tool registry (TOOLS, toolState): nothing says which tools can be used here');
+  const reg = !hasReg ? [] : await ev(`TOOLS.map(t => ({ id: t.id, path: t.path, product: t.product, status: t.status, note: t.statusNote,
+    action: t.action ? t.action.path : null, label: t.action ? t.action.label : null, present: toolPresent(t), views: toolViews(t) }))`);
+  const ids = new Set();
+  let opened = 0;
+  const absent = [];
+  for (const t of reg) {
+    if (ids.has(t.id)) p.push(`TOOLS: ${t.id} twice`); ids.add(t.id);
+    if (!['live', 'beta', 'demo', 'soon'].includes(t.status)) p.push(`TOOLS ${t.id}: written status "${t.status}" — delayed and unavailable are derived, never written`);
+    if (!t.note || t.note.length < 20) p.push(`TOOLS ${t.id}: no sentence`);
+    if (!t.action || !t.label) p.push(`TOOLS ${t.id}: no primary action`);
+    if (!t.present) { absent.push(t.id); continue; }
+    for (const path of [t.path, ...(t.action && t.action !== t.path ? [t.action] : [])]) {
+      await load(BASE + path);
+      const v = await ev(`State.view`);
+      const ex = bucket.filter(x => /^EXCEPTION|^CONSOLE/.test(x));
+      if (v === 'notfound' || !t.views.includes(v) && path === t.path) p.push(`${t.id}: ${path} opens ${v}, not ${t.views.join(' or ')}`);
+      if (ex.length) p.push(`${t.id}: ${path}: ${ex.slice(0, 2).join('; ')}`);
+      opened++;
+    }
+  }
+  /* My properties arrives with the property model store (another branch):
+     its route and view make it the Property row's first tab, current on its
+     page, with Property current in the sidebar — no second table to edit.
+     Where it is not in this build, a stand-in route shows that it would. */
+  if (hasReg) {
+    await load(BASE + '/property/calculator');
+    const sim = await ev(`(async () => {
+      const had = toolPresent(toolById('models'));
+      if (!had) { ROUTES.push({ path: '/property/models', view: '__rcModels', title: 'My properties' });
+        VIEWS.__rcModels = () => el('div', {}, el('div', { class: 'page-hd' }, el('h1', {}, 'My properties (stand-in)'))); }
+      navigate('/property/models'); await new Promise(r => setTimeout(r, 300));
+      const out = { had, tabs: [...document.querySelectorAll('#productTabs .ptab')].map(a => [a.textContent.trim(), a.getAttribute('aria-current')]),
+        side: document.querySelector('#appnav a.sb-link[aria-current=page]')?.dataset.navId || null };
+      if (!had) { ROUTES.splice(ROUTES.findIndex(r => r.view === '__rcModels'), 1); delete VIEWS.__rcModels; }
+      navigate('/property/calculator'); await new Promise(r => setTimeout(r, 200));
+      out.after = [...document.querySelectorAll('#productTabs .ptab')].map(a => a.textContent.trim());
+      return out; })()`);
+    if (JSON.stringify(sim.tabs[0]) !== JSON.stringify(['My properties', 'page']) || sim.tabs[1]?.[0] !== 'Calculator' || sim.side !== 'property')
+      p.push(`My properties${sim.had ? '' : ' (stand-in)'}: tabs ${JSON.stringify(sim.tabs)}, sidebar ${sim.side}`);
+    if (!sim.had && sim.after.includes('My properties')) p.push('My properties is still a tab once its stand-in route is gone');
+  }
+  for (const [path, pid] of hasReg ? [['/research', 'equities'], ['/property/calculator', 'property']] : []) {
+    await load(BASE + path);
+    const r = await ev(`({ tabs: [...document.querySelectorAll('#productTabs .ptab')].map(a => a.dataset.path || a.getAttribute('href')),
+      want: productTabs(${JSON.stringify(pid)}).map(t => t.path) })`);
+    if (JSON.stringify(r.tabs) !== JSON.stringify(r.want.map(x => x))) p.push(`${path}: the ${pid} tabs ${JSON.stringify(r.tabs)} are not the registry's ${JSON.stringify(r.want)}`);
+  }
+
+  /* 2. As production serves it. */
+  const LIVE_PAGES = ['/', '/how-it-works', '/app', '/research', '/company/msft-microsoft', '/app/scanner', '/app/scanner/setups',
+    '/app/scanner/market', '/app/scanner/alerts', '/app/scanner/backtest', '/research/trading-index', '/property/calculator', '/my/workspace'];
+  let offLinks = 0;
+  for (const path of LIVE_PAGES) {
+    await load(live + path);
+    (await ev(OFFERED(['/app/scanner/market', '/app/scanner/alerts', '/app/scanner/backtest']))).forEach(x => p.push(`production: ${x}`));
+    if (path === '/app/scanner') {
+      const r = await ev(`({ states: !${hasReg} ? [] : ['market', 'scanAlerts', 'backtest'].map(id => [id, toolState(id).status, toolState(id).note]),
+        tabs: [...document.querySelectorAll('#views .scan-subnav .ptab')].map(n => [n.tagName, n.textContent.replace(/\\s+/g, ' ').trim()]) })`);
+      r.states.forEach(([id, st, note]) => { if (st !== 'unavailable' || !/never deployed/.test(note)) p.push(`production: ${id} is ${st} ("${note.slice(0, 60)}"), not unavailable with the reason`); });
+      for (const label of ['Market', 'Alerts', 'Historical']) {
+        const tab = r.tabs.find(([, t]) => t.startsWith(label));
+        if (!tab || tab[0] !== 'SPAN' || !/Unavailable/.test(tab[1])) p.push(`production: the scanner's ${label} tab is ${JSON.stringify(tab)}, not text with its badge`);
+        else offLinks++;
+      }
+      if (!r.tabs.some(([tag, t]) => tag === 'A' && t.startsWith('Setups'))) p.push('production: the Setups tab is not a link');
+    }
+    if (path === '/app/scanner/market' && !await ev(`/cannot work here/.test(document.querySelector('#views .tool-notice')?.textContent || '')`))
+      p.push('production: the Market page does not say why it cannot work here');
+  }
+
+  /* 3a. data/us.json held back. */
+  const held = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.method !== 'Fetch.requestPaused' || m.sessionId !== sessionId) return;
+    send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 404, responseHeaders: [{ name: 'Content-Type', value: 'text/plain' }],
+      body: Buffer.from('held back by the check').toString('base64') }, sessionId);
+  };
+  ws.addEventListener('message', held);
+  await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/us.json*', requestStage: 'Request' }] }, sessionId);
+  let heldOk = false;
+  const EQ_OFF = ['/discover/screener', '/discover/value-map', '/compare', '/research/queue'];
+  try {
+    await load(BASE + '/research');
+    const r = await ev(`({ ok: realStatus && realStatus.ok, error: realStatus && realStatus.error,
+      states: !${hasReg} ? null : Object.fromEntries(['screener', 'valuemap', 'compare', 'queue', 'overview', 'sarawak', 'wheel'].map(id => [id, [toolState(id).status, toolState(id).note]])),
+      tabs: [...document.querySelectorAll('#productTabs .ptab')].map(n => [n.tagName, n.textContent.replace(/\\s+/g, ' ').trim()]),
+      offered: ${OFFERED(EQ_OFF)} })`);
+    if (r.ok !== false) p.push(`us.json held back: the filings still loaded (${r.ok}) — the check is not testing the case`);
+    for (const id of r.states ? ['screener', 'valuemap', 'compare', 'queue'] : []) {
+      const [st, note] = r.states[id];
+      if (st !== 'unavailable' || !note.includes(r.error || '§')) p.push(`us.json held back: ${id} is ${st} ("${note.slice(0, 70)}"), not unavailable with the load's error`);
+    }
+    for (const id of r.states ? ['overview', 'sarawak', 'wheel'] : []) if (r.states[id][0] === 'unavailable') p.push(`us.json held back: ${id} does not read the filings and is unavailable`);
+    for (const [label, off] of [['Screener', true], ['Compare', true], ['Research queue', true], ['Overview', false], ['Sarawak watch', false], ['Cash Wheel', false]]) {
+      const tab = r.tabs.find(([, t]) => t.startsWith(label));
+      if (!tab || (off ? tab[0] !== 'SPAN' || !/Unavailable/.test(tab[1]) : tab[0] !== 'A')) p.push(`us.json held back: the ${label} tab is ${JSON.stringify(tab)}`);
+    }
+    r.offered.forEach(x => p.push(`us.json held back: ${x}`));
+    await load(BASE + '/discover/screener');
+    if (!/did not load/.test(await ev(`document.querySelector('#views .tool-notice')?.textContent || ''`))) p.push('us.json held back: the screener does not say why it cannot work');
+    (await ev(OFFERED(EQ_OFF))).forEach(x => p.push(`us.json held back: ${x}`));
+    await load(BASE + '/how-it-works');
+    const legend = await ev(`[...document.querySelectorAll('.hiw-status-who')].map(n => n.textContent).join(' | ')`);
+    if (!/Here, now: [^|]*Equities Screener/.test(legend)) p.push(`us.json held back: How it works does not list the Screener as unavailable: ${legend.slice(-160)}`);
+    heldOk = true;
+  } finally {
+    await send('Fetch.disable', {}, sessionId);
+    ws.removeEventListener('message', held);
+    await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+  }
+
+  /* 3b. The filings' own date, a year and more ago. */
+  await load(BASE + '/discover/screener');
+  const late = !hasReg ? { st: 'no registry', note: '', tab: null, notice: false } : await ev(`(async () => {
+    toolClock = new Date(Date.parse(realStatus.generated) + 400 * 864e5).toISOString(); render();
+    await new Promise(r => setTimeout(r, 150));
+    const tab = [...document.querySelectorAll('#productTabs .ptab')].find(n => n.textContent.startsWith('Screener'));
+    const out = { st: toolState('screener').status, note: toolState('screener').note, date: String(realStatus.generated).slice(0, 10),
+      tab: tab ? [tab.tagName, !!tab.parentElement.querySelector('.status-delayed')] : null, notice: !!document.querySelector('#views .tool-notice-delayed') };
+    toolClock = null; render();
+    out.after = toolState('screener').status;
+    return out; })()`);
+  if (late.st !== 'delayed' || !late.note.includes(late.date)) p.push(`filings 400 days old: the screener is ${late.st} ("${late.note.slice(0, 70)}")`);
+  if (!late.tab || late.tab[0] !== 'A' || !late.tab[1]) p.push(`filings 400 days old: the Screener tab is ${JSON.stringify(late.tab)}, not a link wearing Delayed`);
+  if (!late.notice) p.push('filings 400 days old: the screener does not say its data is late');
+  if (hasReg && late.after === 'delayed') p.push('filings: the clock put back, the screener is still delayed');
+
+  /* 3c and 4. A synthetic history and match record, answered by the check. */
+  let scanned = null;
+  if (ownMachine) {
+    const days = []; for (let d = Date.parse('2026-06-01'); d <= Date.parse('2026-09-25'); d += 864e5) { const w = new Date(d).getUTCDay(); if (w && w < 6) days.push(new Date(d).toISOString().slice(0, 10)); }
+    const hist = { generated: '2026-09-26T00:00:00Z', series: { AAPL: Object.fromEntries(days.map((d, i) => [d, 200 + i * 0.25])) } };
+    const alerts = { alerts: [{ id: 'a0rc00001', key: 'rc-check|AAPL|1D|2026-09-25', setupId: 'rc-check', setupName: 'Registry check', setupVersion: 1, symbol: 'AAPL',
+      candleDate: '2026-09-25', timeframe: '1D', eventType: 'NEW_MATCH', close: 230, detectedAt: '2026-09-26T01:00:00Z' }] };
+    const body = { 'price-history.json': hist, 'scan-alerts.json': alerts };
+    const answer = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.method !== 'Fetch.requestPaused' || m.sessionId !== sessionId) return;
+      const f = Object.keys(body).find(k => new URL(m.params.request.url).pathname.endsWith('/data/' + k));
+      send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }],
+        body: Buffer.from(JSON.stringify(body[f])).toString('base64') }, sessionId);
+    };
+    ws.addEventListener('message', answer);
+    await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+    await send('Fetch.enable', { patterns: Object.keys(body).map(k => ({ urlPattern: `*/data/${k}*`, requestStage: 'Request' })) }, sessionId);
+    try {
+      await load(BASE + '/app/scanner/market');
+      scanned = !hasReg ? { fresh: { st: [], links: [] }, stale: { st: [], links: [], note: '' } } : await ev(`(async () => {
+        const read = () => ({ st: ['market', 'scanAlerts', 'backtest'].map(id => toolState(id).status),
+          links: ['Market', 'Alerts', 'Historical'].map(l => { const n = [...document.querySelectorAll('#views .scan-subnav .ptab')].find(x => x.textContent.startsWith(l)); return n ? n.tagName + (n.parentElement.querySelector('.status-delayed') ? '+delayed' : '') : null; }) });
+        toolClock = '2026-09-27T12:00:00Z'; render(); await new Promise(r => setTimeout(r, 150));
+        const fresh = read();
+        toolClock = '2026-10-05T12:00:00Z'; render(); await new Promise(r => setTimeout(r, 150));
+        const stale = read(); stale.note = toolState('market').note;
+        toolClock = null; render();
+        return { fresh, stale }; })()`);
+      /* At a phone's width, the badges on tabs scrolled out of the row stay
+         in the row: the page itself does not scroll sideways. */
+      if (hasReg) {
+        await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+        const phone = await ev(`(async () => { toolClock = '2026-10-05T12:00:00Z'; render(); await new Promise(r => setTimeout(r, 200));
+          const over = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+          const badges = document.querySelectorAll('#views .scan-subnav .status-delayed').length;
+          toolClock = null; render(); return { over, badges }; })()`);
+        await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+        if (phone.badges < 2 || phone.over > 0) p.push(`at 390 with Delayed tabs: ${phone.badges} badges, the page scrolls ${phone.over}px sideways`);
+      }
+      if (scanned.fresh.st.join() !== 'beta,beta,beta' || scanned.fresh.links.join() !== 'A,A,A') p.push(`a history and a record here: ${JSON.stringify(scanned.fresh)}, not three usable tools`);
+      if (scanned.stale.st.join() !== 'delayed,delayed,delayed' || scanned.stale.links.join() !== 'A+delayed,A+delayed,A+delayed' || !/2026-09-25, 10 days old/.test(scanned.stale.note))
+        p.push(`a history ten days old: ${JSON.stringify(scanned.stale)}, not three links wearing Delayed with the date`);
+      await load(BASE + '/app/scanner/alerts/a0rc00001');
+      const al = await ev(`({ view: State.view, prim: ${PRIMARIES}, want: companyPath(BY_ID.get(companyIdFor('AAPL')).c) })`);
+      if (al.view !== 'scannerAlert' || al.prim.length !== 1 || al.prim[0].t !== 'Open Apple Inc. research' || !(al.prim[0].href || '').endsWith(al.want))
+        p.push(`the scanner alert's primary actions: ${JSON.stringify(al.prim)} (want one "Open Apple Inc. research" to ${al.want})`);
+    } finally {
+      await send('Fetch.disable', {}, sessionId);
+      ws.removeEventListener('message', answer);
+      await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+    }
+  }
+
+  /* 4. One primary action on each result screen, from a clean profile. */
+  await ev(clean);
+  await load(BASE + '/company/msft-microsoft');
+  const co1 = await ev(PRIMARIES);
+  await ev(`document.getElementById('co-watch').click(); true`);
+  await sleep(400);
+  const co2 = await ev(PRIMARIES);
+  if (co1.length !== 1 || co1[0].t !== 'Add to watchlist') p.push(`company page, not on a list: primary actions ${JSON.stringify(co1)}`);
+  if (co2.length !== 1 || co2[0].t !== 'Create a setup for MSFT' || !/\/app\/scanner\/setups\/new\?.*symbol=MSFT/.test(co2[0].href || ''))
+    p.push(`company page, on a list: primary actions ${JSON.stringify(co2)}`);
+  await load(BASE + '/property/calculator');
+  const calc = await ev(PRIMARIES);
+  if (calc.length !== 1) p.push(`the calculator's primary actions: ${JSON.stringify(calc)}`);
+  await ev(clean);
+  await load(BASE + '/app');
+  const dash1 = await ev(`({ prim: ${PRIMARIES}, first: !!document.querySelector('#views .dash-start') })`);
+  await ev(`(() => { const w = wlCreate('Registry check list'); wlAdd(w.watchlist.id, 'MSFT-SEC'); return true; })()`);
+  await load(BASE + '/app');
+  const dash2 = await ev(`({ prim: ${PRIMARIES}, first: !!document.querySelector('#views .dash-start'), row: document.querySelector('#views .dash-row-first')?.textContent || '' })`);
+  if (!dash1.first || dash1.prim.length !== 1 || dash1.prim[0].t !== 'Start research') p.push(`dashboard, first time: ${JSON.stringify(dash1)}`);
+  if (dash2.first || dash2.prim.length !== 1 || dash2.prim[0].t !== 'Continue' || !/Registry check list/.test(dash2.row)) p.push(`dashboard, returning: ${JSON.stringify(dash2)}`);
+
+  /* 5. The goal words. */
+  await load(BASE + '/');
+  const home = await ev(`({ cards: [...document.querySelectorAll('#views .pub-card')].map(c => ({ tag: c.tagName, href: c.getAttribute('href'),
+      go: (c.querySelector('.pub-card-go')?.textContent || '').trim(), note: (c.querySelector('.pub-card-note')?.firstChild?.textContent || '').trim(), links: c.querySelectorAll('a').length })),
+    want: PRODUCTS.map(p => ({ action: p.action, href: p.actionPath ? href(p.actionPath) : null })) })`);
+  const words = ['Start research', 'Create a setup', 'Analyse a property'];
+  if (JSON.stringify(home.want.slice(0, 3).map(w => w.action)) !== JSON.stringify(words)) p.push(`PRODUCTS' actions: ${JSON.stringify(home.want.map(w => w.action))}`);
+  home.cards.slice(0, 3).forEach((c, i) => { if (c.tag !== 'A' || c.go !== words[i] || c.href !== home.want[i].href) p.push(`homepage card ${i + 1}: ${JSON.stringify(c)}, not "${words[i]}" to ${home.want[i].href}`); });
+  const biz = home.cards[3];
+  if (!biz || biz.tag === 'A' || biz.links || biz.note !== 'Coming soon') p.push(`the Business card: ${JSON.stringify(biz)}, not "Coming soon" as text`);
+  await load(BASE + '/how-it-works');
+  const hiw = await ev(`[...document.querySelectorAll('#views .hiw-product-ft a')].map(a => a.textContent.trim())`);
+  if (JSON.stringify(hiw) !== JSON.stringify(words)) p.push(`How it works' product actions: ${JSON.stringify(hiw)}`);
+  await ev(clean);
+  await load(BASE + '/app');
+  const steps = await ev(`[...document.querySelectorAll('#views .dash-step-go')].map(a => a.textContent.trim())`);
+  for (const w of words) if (!steps.includes(w)) p.push(`the dashboard checklist does not say "${w}": ${JSON.stringify(steps)}`);
+
+  if (p.length) { bad++; console.log(`FAIL registry-ctas: the tool registry, what a tool that cannot be used offers, and one next action per result screen (${p.length} problems)`); p.slice(0, 60).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   registry-ctas: ${reg.length} tools in the registry (${absent.length ? `${absent.join(', ')} not in this build, listed nowhere` : 'all in this build'}), ${opened} addresses open their view; as production serves it ${offLinks} scanner tabs are text with the reason and no page offers an unusable tool; with us.json held back the four Equities tools that read it are Unavailable with its error${heldOk ? '' : ' (not reached)'}, 400 days past its date they are Delayed links; ${scanned ? 'a synthetic history and record bring Market, Alerts and Historical back and ten days old make them Delayed; the alert opens Apple Inc. research; ' : ''}the company page, the calculator and the dashboard each have one primary action, and the homepage, How it works and the checklist say "${words.join('", "')}"`);
+}
+/* ---- end audit1: registry-ctas ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

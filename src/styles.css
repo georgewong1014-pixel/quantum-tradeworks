@@ -3350,3 +3350,77 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
    long as it held focus. */
 .tablewrap[data-scroll-stop]:focus-visible { border-radius: var(--r-md); }
 /* ---- end audit: slim ---- */
+
+/* ---- audit1: registry-ctas ---- */
+/* The two states a tool is given by what loaded (TOOLS, toolState). Always
+   the word, never a colour alone; each pairing is a text token on its own
+   wash, over 4.5:1 in both themes, as the other four badges are. */
+.status-delayed { color: var(--dn-text); background: color-mix(in srgb, var(--serious) 11%, var(--surface)); border-color: color-mix(in srgb, var(--serious) 34%, transparent); }
+.status-unavailable { color: var(--critical-text); background: color-mix(in srgb, var(--critical) 9%, var(--surface)); border-color: color-mix(in srgb, var(--critical) 30%, transparent); }
+
+/* A TOOL THAT CANNOT BE USED HERE, AS TEXT (gateToolLink). It keeps its
+   place and its words, loses everything that says "press me" — no pointer,
+   no hover, no lift — and wears its badge. */
+.tool-off { cursor: default; }
+.tool-off .status-badge { margin-left: 6px; }
+.tool-off .pub-arrow, .tool-off .dash-tile-go, .tool-off .dash-row-go { display: none; }
+.ptab.tool-off, .ptab.tool-off:hover { color: var(--ink-3); }
+.ptab.tool-off:not([aria-current="page"]):hover::after { opacity: 0; }
+.ptab .status-badge { margin-left: 6px; }
+/* A tab that works, with its state marked after it (sectionTab). */
+/* Positioned, so the badge's visually hidden comma (.status-badge::before,
+   absolute) is laid out inside the row that scrolls, not at its far end on
+   the page: unpositioned, a Delayed badge on a phone's scrolled-away tab
+   widened the whole page by 300px. */
+.ptabs-list > li { position: relative; display: flex; align-items: center; }
+.ptabs-list > li > .status-badge { margin-left: 4px; }
+.pub-textlink.tool-off, .pub-textlink.tool-off:hover { color: var(--ink-2); text-decoration: none; }
+.dash-tile.tool-off {
+  background: color-mix(in srgb, var(--surface-sunk) 60%, var(--surface)); box-shadow: none;
+  outline: 1px dashed var(--line-2); outline-offset: -1px;
+}
+.dash-tile.tool-off:hover, .dash-tile.tool-off:active { transform: none; box-shadow: none; }
+.dash-tile.tool-off > .status-badge { position: absolute; top: var(--lg); right: var(--md); margin: 0; }
+@media (max-width: 560px) { .dash-tile.tool-off > .status-badge { position: static; grid-column: 1; justify-self: start; } }
+
+/* Its own page says why, under the heading — the flag notice's shape, in the
+   badge's colour. */
+.tool-notice {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; margin-bottom: var(--md);
+  border-radius: var(--r-md); font-size: 13px; line-height: 1.5; color: var(--ink);
+  background: color-mix(in srgb, var(--critical) 6%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--critical) 26%, transparent);
+}
+.tool-notice-delayed { background: color-mix(in srgb, var(--serious) 8%, var(--surface-2)); border-color: color-mix(in srgb, var(--serious) 32%, transparent); }
+.tool-notice p { margin: 0; max-width: 75ch; }
+.tool-notice-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tool-notice-hd strong { font-weight: var(--weight-semibold); }
+.scan-page > .tool-notice, div[style*="gap:var(--md)"] > .tool-notice { margin-bottom: 0; }
+
+/* How it works: each product's tools, their badge, their sentence and their
+   action — two columns where there is room. */
+.hiw-tools { margin-top: var(--xl); padding-top: var(--xl); border-top: 1px solid var(--line); }
+.hiw-tools-h { font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
+.hiw-tools-list { list-style: none; margin: var(--md) 0 0; padding: 0; display: grid; gap: var(--md) var(--xl); }
+@media (min-width: 760px) { .hiw-tools-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hiw-tool { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hiw-tool-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.hiw-tool-name { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.hiw-tool-note { font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); max-width: 60ch; }
+.hiw-tool-off .hiw-tool-name { color: var(--ink-2); }
+.hiw-tool .hiw-tool-go { align-self: flex-start; font-size: var(--text-sm); }
+
+/* The homepage card's goal ("Create a setup") is what the card does, so a
+   phone shows it too: it was hidden there when it only repeated the
+   product's name. */
+@media (max-width: 599px) {
+  .pub-card-go { display: inline-flex; grid-column: 2 / -1; grid-row: 4; padding-top: 6px; font-size: var(--text-sm); }
+}
+
+/* Six labels now, the two derived ones included: three to a row, not four
+   and a stray two. */
+@media (min-width: 1100px) { .hiw-status-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* The dashboard's newest item, with the page's one primary action. */
+.dash-row-first .dash-continue { flex: none; }
+/* ---- end audit1: registry-ctas ---- */

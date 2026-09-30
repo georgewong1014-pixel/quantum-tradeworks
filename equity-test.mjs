@@ -1678,7 +1678,7 @@ try {
   /* PHASE 2 C — THE COMPANY PAGE AS A RESEARCH DASHBOARD.
      The four overview tiles are the stored lines, not a recomputation; every
      company carries its source badge and the same freshness line; the header
-     offers its four actions, with the scanner off unless the reader's own
+     offers its four actions — the scanner's the builder with the symbol, saying whether the reader's own
      history is loaded; and a filer's exchange is not called "SEC filer". */
   {
     await evaluate(`openResearch('MSFT-SEC', 'snapshot'); true`);
@@ -1697,12 +1697,16 @@ try {
       const head = document.querySelector('main .card');
       const acts = [...head.querySelectorAll('.company-acts a, .company-acts button')].map(b => b.textContent.trim());
       const cmp = [...head.querySelectorAll('.company-acts a')].find(a => a.textContent.trim() === 'Compare');
-      const scan = [...head.querySelectorAll('.company-acts a, .company-acts button')].find(b => b.textContent.trim() === 'Open scanner');
+      /* audit1 registry-ctas: the scanner control is the builder with the
+         symbol — a setup is written anywhere — and the line under it says
+         whether the history to check it on is loaded. */
+      const scan = [...head.querySelectorAll('.company-acts a, .company-acts button')].find(b => b.textContent.trim() === 'Create a setup for MSFT');
+      const scanNote = head.querySelector('.company-acts .metaline')?.textContent || '';
       const prov = head.querySelector('.prov')?.textContent || '';
       const exch = [...head.querySelectorAll('.chip')].map(x => x.textContent).find(t => t.includes(' · MSFT')) || '';
       const noDashRow = ![...document.querySelectorAll('main .stat-label')].some(x => /Market capitalisation/.test(x.textContent)) || isNum(c.px.p);
       return { want, got, badges, fyOk, dtxt: dtxt.slice(0, 2000), acts, cmpHref: cmp?.getAttribute('href') || null,
-               scan: scan ? { tag: scan.tagName, disabled: !!scan.disabled, href: scan.getAttribute('href') } : null,
+               scan: scan ? { tag: scan.tagName, disabled: !!scan.disabled, href: scan.getAttribute('href') } : null, scanNote,
                lane: scannerLaneOn(), prov, exch, noDashRow,
                concept: c.provenance.rev.byYear[latestFy(c)] };
     })()`);
@@ -1711,16 +1715,17 @@ try {
     if (r.badges.length !== 4 || r.badges.some(b => b !== 'Filed')) p.push(`source badges: ${JSON.stringify(r.badges)}`);
     if (!r.fyOk) p.push('a tile does not name its fiscal year');
     if (!r.dtxt.includes(r.concept) || !/Original unit/.test(r.dtxt) || !/Transformation/.test(r.dtxt)) p.push('the Revenue tile does not open a drawer naming its XBRL concept, original unit and transformation');
-    for (const a of ['Add to watchlist', 'Compare', 'Save research', 'Open scanner'])
+    for (const a of ['Add to watchlist', 'Compare', 'Save research', 'Create a setup for MSFT'])
       if (!r.acts.some(x => x === a || (a === 'Add to watchlist' && /watchlist/.test(x)) || (a === 'Save research' && /investment case|Save research/.test(x)))) p.push(`header action missing: ${a}`);
     if (!r.cmpHref || !/\/compare\?companies=.*MSFT-SEC/.test(decodeURIComponent(r.cmpHref))) p.push(`Compare links to ${r.cmpHref}`);
     if (!r.scan) p.push('no scanner control');
-    else if (r.lane ? !(r.scan.tag === 'A' && /\/my\/scanner\?.*symbol=MSFT/.test(r.scan.href || '')) : !r.scan.disabled) p.push(`scanner control with history ${r.lane}: ${JSON.stringify(r.scan)}`);
+    else if (r.scan.tag !== 'A' || !/\/app\/scanner\/setups\/new\?.*symbol=MSFT/.test(r.scan.href || '') || /none is loaded here/.test(r.scanNote) === r.lane)
+      p.push(`scanner control with history ${r.lane}: ${JSON.stringify(r.scan)} — "${r.scanNote}"`);
     if (!/Statements\s*FY/.test(r.prov) || !/Source/.test(r.prov) || !/As of/.test(r.prov)) p.push(`freshness line: ${r.prov.slice(0, 200)}`);
     if (/SEC filer/.test(r.exch)) p.push(`the exchange chip reads "${r.exch}"`);
     if (!r.noDashRow) p.push('market tiles render as dashes on an unpriced filer');
     if (p.length) fail('the company page opens on its reported figures, its actions and one freshness line', p);
-    else ok(`MSFT-SEC opens on four filed tiles equal to its stored lines (${r.got.join(', ')}), each opening its source; Watchlist, Compare, Save research and a ${r.lane ? 'live' : 'switched-off'} personal-lane scanner; one freshness line; exchange "${r.exch}"`);
+    else ok(`MSFT-SEC opens on four filed tiles equal to its stored lines (${r.got.join(', ')}), each opening its source; Watchlist, Compare, Save research and "Create a setup for MSFT" to the builder, with the history it is checked on ${r.lane ? 'loaded' : 'said to be absent'}; one freshness line; exchange "${r.exch}"`);
   }
   {
     const r = await evaluate(`(() => {
@@ -7592,7 +7597,7 @@ try {
      line about where saved work lives; and no figure, chart, table or example
      at all, because it must not read as a trading terminal. The examples are
      on /how-it-works: five steps for every built product and none for the
-     unbuilt one, the four status meanings, the five-step journey, the three
+     unbuilt one, the six status meanings, the five-step journey, the three
      computed proof cards, every primary button to /app, and a company pick
      that repaints its panel under the pressed button — it used to re-render
      the page and drop focus to <body> — with the illustrative label on an
@@ -7618,7 +7623,7 @@ try {
         cards: [...m.querySelectorAll('.pub-card')].map(c => ({ tag: c.tagName, href: c.getAttribute('href'),
           title: c.querySelector('.pub-card-title')?.textContent, links: c.querySelectorAll('a').length,
           badge: c.querySelector('.status-badge')?.textContent.trim() })),
-        want: P.map(p => ({ path: p.path ? href(p.path) : null, task: p.task, badge: LABEL[p.status] })),
+        want: P.map(p => ({ path: p.path && p.actionPath ? href(p.actionPath) : null, task: p.task, badge: LABEL[p.status] })), /* audit1 registry-ctas: a card opens where its goal starts */
         figures: m.querySelectorAll('svg[aria-label], canvas, table, .proof-card, .stat, .segmented, .hero-proof').length,
         dataSources: !!m.querySelector('.pub-disclose a[href$="/data-sources"]'),
         myData: !!m.querySelector('a[href$="/my/data"]'),
@@ -7676,7 +7681,7 @@ try {
       else if (s.built && s.steps !== 5) p.push(`${s.id}: ${s.steps} workflow steps, not 5`);
       else if (!s.built && (s.steps || s.links)) p.push(`${s.id} is not built and shows ${s.steps} steps and ${s.links} links`);
     });
-    if (hiw.legend !== 4) p.push(`${hiw.legend} status meanings, not 4`);
+    if (hiw.legend !== 6) p.push(`${hiw.legend} status meanings, not 6 (the four written, and Delayed and Unavailable)`);
     if (hiw.journey !== 5) p.push(`${hiw.journey} journey steps, not 5`);
     for (const t of ['Sarawak property', 'US options Cash Wheel', 'QT Trading Index'])
       if (!hiw.proofs.includes(t)) p.push(`/how-it-works lost the "${t}" example (${hiw.proofs.join(', ')})`);
@@ -7722,7 +7727,9 @@ try {
       /* Every link the page draws, by the route it opens. */
       const deadLinks = () => [...main().querySelectorAll('a[href]')].map(a => new URL(a.href).pathname)
         .filter(p => { const rt = matchRoute(p); return !rt || !VIEWS[rt.view]; });
-      const tiles = () => Object.fromEntries([...main().querySelectorAll('.dash-tile')].map(t => [t.querySelector('.stat-label').textContent, { v: t.querySelector('.dash-tile-v').textContent, href: new URL(t.href).pathname }]));
+      /* audit1 registry-ctas: a count whose tool cannot be used here is text
+         (no href) — the scanner's alerts with no record visible. */
+      const tiles = () => Object.fromEntries([...main().querySelectorAll('.dash-tile')].map(t => [t.querySelector('.stat-label').textContent, { v: t.querySelector('.dash-tile-v').textContent, href: t.href ? new URL(t.href).pathname : null, off: t.classList.contains('tool-off') }]));
       const out = {};
       /* The deployed site: the worker's files are never there. */
       scanSetupsFile = null; scanAlertsFile = null; navigate('/app'); await w(200);
@@ -7771,8 +7778,13 @@ try {
     if (t2['Scanner alerts']?.v !== 'No record') p.push(`with no record visible the alerts tile reads ${JSON.stringify(t2['Scanner alerts'])}, not "No record"`);
     if (t2['Active setups']?.v !== '0' || t2['Saved models']?.v !== '0') p.push(`counts with nothing saved: ${JSON.stringify(t2)}`);
     if (s.steps !== 2) p.push(`next steps list ${s.steps} steps, not the two not taken`);
-    const hrefs = { 'Active setups': '/app/scanner/setups', 'Scanner alerts': '/app/scanner/alerts', 'Instruments watchlisted': '/my/watchlists', 'Saved models': '/my/workspace' };
-    for (const [k, h] of Object.entries(hrefs)) if (!t2[k] || !t2[k].href.endsWith(h)) p.push(`the ${k} tile opens ${t2[k]?.href}, not ${h}`);
+    const hrefs = { 'Active setups': '/app/scanner/setups', 'Instruments watchlisted': '/my/watchlists', 'Saved models': '/my/workspace' };
+    for (const [k, h] of Object.entries(hrefs)) if (!t2[k] || !(t2[k].href || '').endsWith(h)) p.push(`the ${k} tile opens ${t2[k]?.href}, not ${h}`);
+    /* audit1 registry-ctas: with no record here the Alerts tool is
+       unavailable, so its count is text, not a door to a page with nothing
+       to show; with a record (below) it opens the alerts. */
+    if (!t2['Scanner alerts'] || t2['Scanner alerts'].href || !t2['Scanner alerts'].off) p.push(`with no record visible the alerts tile is ${JSON.stringify(t2['Scanner alerts'])}, not text`);
+    if (!(r.third.tiles['New scanner alerts']?.href || '').endsWith('/app/scanner/alerts')) p.push(`with a record the alerts tile opens ${r.third.tiles['New scanner alerts']?.href}, not /app/scanner/alerts`);
     if (!/MSFT/.test(s.text) || !/illustrative/i.test(s.text)) p.push('the recently read companies are not named, or the illustrative one is not marked');
     const t = r.third;
     if (t.tiles['New scanner alerts']?.v !== '2' || r.redraw !== '2') p.push(`new since the visit: ${t.tiles['New scanner alerts']?.v}, after a redraw ${r.redraw} — want 2 and 2`);

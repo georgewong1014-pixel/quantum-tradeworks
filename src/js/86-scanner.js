@@ -2886,6 +2886,19 @@ function scanReproduce(a, { history = scanHistoryFile, list = scanAlertList() } 
   return out;
 }
 
+/* THE ALERT'S ONE NEXT ACTION (audit 1, #9). A recorded match is a reason
+   to look at the instrument again, so that is the page's primary button:
+   "Open <company> research" where the symbol is a company (as
+   scanSymbolLink resolves it), "Open <symbol> in Tracked" where it is
+   followed by price only, and with neither, the list of alerts. */
+function scanAlertNext(a) {
+  const id = a.symbol ? companyIdFor(a.symbol) : null;
+  const row = id ? BY_ID.get(id) : null;
+  const primary = { class: 'btn btn-primary btn-sm' };
+  if (row) return scanLink(companyPath(row.c), `Open ${row.c.name} research`, primary);
+  if (a.symbol && resolveInstrument(a.symbol)) return scanLink('/my/tracked', `Open ${a.symbol} in Tracked`, primary);
+  return scanLink('/app/scanner/alerts', 'All alerts', primary);
+}
 /* Set by the alert page's own status buttons for the redraw they ask for. */
 let scanAlertByHand = false;
 VIEWS.scannerAlert = () => {
@@ -2944,6 +2957,7 @@ VIEWS.scannerAlert = () => {
   const version = a.setupVersion ?? (legacy ? 1 : null);
   const head = scanPageHead(`${a.setupName || a.setupId} · ${a.symbol} · ${bar}`, null, 'Recorded match');
   head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+    scanAlertNext(a),
     el('span', { class: `chip ${SCAN_STATUS_CHIP[status]}` }, status.toLowerCase()),
     status !== 'ARCHIVED' ? el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'archive' }, onclick: () => { scanSetAlertStatus([id], 'ARCHIVED'); scanAlertByHand = true; toast('Archived'); scanRender(); } }, 'Archive')
       : el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'archive' }, onclick: () => { scanSetAlertStatus([id], 'READ'); scanAlertByHand = true; toast('Moved back to read'); scanRender(); } }, 'Unarchive'),

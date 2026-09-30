@@ -382,16 +382,20 @@ function openDashboardCustomiser() {
    start another.
    ========================================================================== */
 
-/* The four products — names, actions and status badges — are the shell's
-   (PRODUCTS, productById and productBadge in 35-ui.js), so the dashboard
-   cannot describe a product differently from the header, the sidebar and the
-   homepage. */
+/* The four products — names and actions — are the shell's (PRODUCTS,
+   productById in 35-ui.js), and every badge here is a tool's, from the one
+   registry (TOOLS, toolBadge), so the dashboard cannot describe a product or
+   a tool differently from the header, the sidebar, the tabs and How it
+   works. */
 
 /* A real anchor, so every tile and row is a link the browser understands —
-   middle-click, a new tab, the address in the status bar. */
+   middle-click, a new tab, the address in the status bar — and through the
+   shell's one gate (gateDetached, 35-ui.js): a count or a step whose tool
+   cannot be used here is drawn as text with the reason, not as a door. */
 function myDashLink(path, attrs = {}, kids = []) {
-  return el('a', { ...attrs, href: href(path),
+  const a = el('a', { ...attrs, href: href(path),
     onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(path); } }, kids);
+  return typeof gateDetached === 'function' ? gateDetached(a) : a;
 }
 /* The one route helper that decides whether a link may be drawn at all: a
    path that ends at the not-found card is never offered. */
@@ -508,17 +512,17 @@ function myDashSteps(o) {
     ? `${myDashPlural(o.instruments.size, 'company', 'companies')} you added ${o.instruments.size === 1 ? 'sits' : 'sit'} in a sample list. A list of your own keeps your companies apart from the samples.` : '';
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
   return [
-    { k: 'research', product: 'equities', title: 'Research a company', done: !!lastCo,
+    { k: 'research', product: 'equities', tool: 'overview', title: 'Research a company', done: !!lastCo,
       note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}.`
         : 'Statements, ratios and a valuation range, every figure with its formula and its source.',
-      action: eq?.action || 'Research a company', path: eq?.actionPath || '/research' },
-    { k: 'watchlist', product: null, title: 'Create a watchlist', done: o.createdLists.length > 0,
+      action: eq?.action || 'Start research', path: eq?.actionPath || '/research' },
+    { k: 'watchlist', product: null, tool: 'watchlists', title: 'Create a watchlist', done: o.createdLists.length > 0,
       note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
-      action: 'Create a watchlist', path: '/my/watchlists' },
-    { k: 'setup', product: 'scanner', title: 'Create a scanner setup', done: o.setupsKnown > 0,
+      action: toolById('watchlists')?.action.label || 'Create a watchlist', path: '/my/watchlists' },
+    { k: 'setup', product: 'scanner', tool: 'setups', title: 'Create a scanner setup', done: o.setupsKnown > 0,
       note: o.setupsKnown ? `${setupsText}.` : 'Conditions you choose, checked on each daily close of the price history you supply, with a record of every bar on which they held.',
       action: sc?.action || 'Create a setup', path: sc?.actionPath || '/app/scanner/setups/new' },
-    { k: 'property', product: 'property', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
+    { k: 'property', product: 'property', tool: 'calculator', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
       note: o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved snapshot')}` : ''].filter(Boolean).join(' · ') + '.'
         : 'A price, a rent and a loan in; the monthly cash flow, the rental yield and the cash needed up front out.',
@@ -538,7 +542,7 @@ function myDashStepRow(s, primary) {
   const body = el('div', { class: 'dash-step-body' });
   body.append(el('div', { class: 'dash-step-t' }, [
     el('h3', { class: 'h-card' }, [el('span', { class: 'sr-only' }, s.done ? 'Done: ' : 'Not done yet: '), s.title]),
-    s.product ? productBadge(s.product) : null,
+    s.tool ? toolBadge(s.tool) : s.product ? productBadge(s.product) : null,
   ]));
   body.append(el('p', { class: 'caption' }, s.note));
   li.append(body);
@@ -661,13 +665,23 @@ VIEWS.home = () => {
     note: moved ? `${moved} saved under a model or data version since replaced` : null }));
   wrap.append(tiles);
 
-  /* The record and what to do next on the left; the reader's own work on the
-     right. On a phone they stack in that order. */
+  /* ONE NEXT ACTION (audit 1, #9). A returning reader's next action is to
+     carry on with the most recent thing they made, so "Continue" on it is the
+     page's one primary button; the first step not taken was a second one, of
+     the same weight, on the same screen. With nothing to continue — a
+     scanner record and nothing saved — the first step keeps it.
+     The card holding that action leads the left column, above the record;
+     the steps not taken move to the right. On a phone the page stacks in
+     that order, so the one action is the first thing under the counts, not
+     below three steps; with nothing to continue, the record and the steps
+     keep the left, as before. */
   const split = el('div', { class: 'dash-split' });
   const main = el('div', { class: 'dash-side' });
-  main.append(myDashMatches(o, st));
   const side = el('div', { class: 'dash-side' });
-  side.append(myDashContinue(o));
+  const cont = myDashContinue(o);
+  const continues = !!cont.querySelector('.dash-continue.btn-primary');
+  if (continues) main.append(cont);
+  main.append(myDashMatches(o, st));
   const open = steps.filter(s => !s.done);
   if (open.length) {
     const ns = el('section', { class: 'card', 'aria-labelledby': 'dash-next-hd' });
@@ -675,9 +689,10 @@ VIEWS.home = () => {
       el('h2', { id: 'dash-next-hd', class: 'h-card' }, 'Next steps'),
       el('p', { class: 'caption', style: 'margin-top:2px' }, `${myDashPlural(open.length, 'first step')} not taken yet.`),
     ])));
-    ns.append(el('ol', { class: 'dash-steps dash-steps-sm' }, open.map((s, i) => myDashStepRow(s, i === 0))));
-    main.append(ns);
+    ns.append(el('ol', { class: 'dash-steps dash-steps-sm' }, open.map((s, i) => myDashStepRow(s, !continues && i === 0))));
+    (continues ? side : main).append(ns);
   }
+  if (!continues) side.append(cont);
   if (o.samples) side.append(myDashSampleNote());
   split.append(main, side);
   wrap.append(split);
@@ -754,7 +769,7 @@ function myDashContinue(o) {
   const kindOne = typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE : {};
   const rows = [
     ...o.saved.map(i => ({ at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
-      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null,
+      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, open: () => i.open(),
       act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
     /* A list names what the visitor put in it; a sample list says how many of
        its companies are samples. Its chip is the workspace's rule: every
@@ -782,7 +797,7 @@ function myDashContinue(o) {
       myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm' }, 'Saved models')]));
   } else {
     const ul = el('ul', { class: 'dash-list dash-cont' });
-    rows.forEach(r => {
+    rows.forEach((r, i) => {
       /* One clock on the page: the reader's. The lede gives the last visit in
          local time; these rows gave UTC with an ISO date, so a list edited an
          hour ago read as older than a visit five hours ago. A bare date has no
@@ -801,6 +816,17 @@ function myDashContinue(o) {
         el('span', { class: 'dash-row-t' }, [el('strong', {}, r.name), ...chips]),
         el('span', { class: 'dash-row-s' }, meta),
       ]);
+      /* The newest carries the page's one primary action, "Continue" — its
+         own open where it has one (a saved item reopens as the workspace
+         reopens it), else the page it lives on. */
+      if (i === 0) {
+        const name = `Continue: ${r.name}`;
+        const go = r.open
+          ? el('button', { type: 'button', class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name, onclick: r.open }, 'Continue')
+          : myDashLink(r.path, { class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name }, 'Continue');
+        ul.append(el('li', {}, el('div', { class: 'dash-row dash-row-act dash-row-first' }, [main, go])));
+        return;
+      }
       ul.append(el('li', {}, r.path
         ? myDashLink(r.path, { class: 'dash-row' }, [main, el('span', { class: 'dash-row-go', 'aria-hidden': 'true', html: MYDASH_CHEVRON })])
         : el('div', { class: 'dash-row dash-row-act' }, [main, r.act])));
