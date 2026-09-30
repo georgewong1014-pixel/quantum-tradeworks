@@ -45931,27 +45931,41 @@ const HEALTH_QUICK = [
     id: 'data-files', product: null, title: 'The data files each tool reads', waits: true,
     async run() {
       await healthUntil(() => typeof realPending === 'undefined' || !realPending, 20000);
+      /* loaded(): ok true (this page holds it), false (this page asked for
+         it and holds nothing usable) or null (this page does not read it, or
+         has not yet) — with the words for each. */
+      /* With the filed statements switched off in this browser the page
+         asks for neither of the files loaded with them (loadRealData): that
+         is the reader's choice, not a file failing to load. */
+      const OFF = { ok: null, off: true, text: 'not asked for: the filed statements are switched off in this browser' };
       const FILES = [
         { file: 'us.json', uses: 'the filed statements, for Equities Research', essential: true,
-          loaded: () => (realStatus?.ok ? 'loaded here' : realStatus ? `not loaded here (${realStatus.error})` : 'not loaded yet') },
+          loaded: () => (!realEnabled() ? OFF
+            : realStatus?.ok ? { ok: true, text: 'loaded here' } : realStatus ? { ok: false, text: `not loaded here (${realStatus.error})` } : { ok: null, text: 'not loaded yet' }) },
         { file: 'instruments.json', uses: 'the instrument registry, for search and the scanner',
-          loaded: () => (instruments?.instruments?.length ? 'loaded here' : 'not loaded here') },
+          loaded: () => (!realEnabled() ? OFF : instruments?.instruments?.length ? { ok: true, text: 'loaded here' } : { ok: false, text: 'not loaded here' }) },
         { file: 'napic-h1-2025.json', uses: 'the NAPIC benchmarks, for Property Intelligence',
-          loaded: () => (napicStatus?.ok ? 'loaded here' : napicStatus?.tried ? 'not loaded here' : null) },
+          loaded: () => (napicStatus?.ok ? { ok: true, text: 'loaded here' } : napicStatus?.tried ? { ok: false, text: 'not loaded here' } : { ok: null, text: null }) },
         /* Read by the property pages only, so this page has no copy of it. */
-        { file: 'sarawak-geo.json', uses: 'the area map, for Property Intelligence', loaded: () => null },
+        { file: 'sarawak-geo.json', uses: 'the area map, for Property Intelligence', loaded: () => ({ ok: null, text: null }) },
       ];
       const res = await Promise.all(FILES.map(async (x) => {
         try {
           const r = await fetch(dataUrl(x.file), { method: 'HEAD', cache: 'no-store' });
-          return { ...x, served: r.ok && /json/i.test(r.headers.get('content-type') || ''), code: r.status };
-        } catch (e) { return { ...x, served: false, code: e.message }; }
+          return { ...x, served: r.ok && /json/i.test(r.headers.get('content-type') || ''), code: r.status, l: x.loaded() };
+        } catch (e) { return { ...x, served: false, code: e.message, l: x.loaded() }; }
       }));
-      const missing = res.filter(x => !x.served);
+      /* A file that is served but did not load is as absent to the tool that
+         reads it as one that is not served: a HEAD that answers 200 over a
+         body the page could not use is not a Pass. */
+      const failed = res.filter(x => !x.served || x.l.ok === false);
+      /* The filed statements still loading after the wait above: not a
+         failure, and not yet a Pass. */
+      const pending = res.filter(x => x.served && x.essential && x.l.ok === null && !x.l.off);
       /* One line a file: which tool reads it, and whether it is there. */
-      const lines = res.map(x => `data/${x.file} — ${x.uses}: ${x.served ? `served${x.loaded() ? ` and ${x.loaded()}` : ''}` : `not served (${x.code})`}.`);
-      if (missing.some(x => x.essential)) return healthFail(lines);
-      if (missing.length) return healthDegraded(lines);
+      const lines = res.map(x => `data/${x.file} — ${x.uses}: ${x.served ? `served${x.l.text ? ` ${x.l.ok === true ? 'and' : 'but'} ${x.l.text}` : ''}` : `not served (${x.code})`}.`);
+      if (failed.some(x => x.essential)) return healthFail(lines);
+      if (failed.length || pending.length) return healthDegraded(lines);
       return healthPass(lines);
     },
   },
@@ -46169,8 +46183,11 @@ function healthPaint() {
       + (days >= 2 ? ` No run has been recorded for ${days} days — the scheduled run may not have run since.` : '');
     jl.replaceChildren(...list.map(j => healthRow({
       status: j.status, title: j.name,
+      /* Only a Pass may be described as within budget: a Degraded journey
+         was over a budget or lost a part, and one whose file gives no reason
+         says that rather than borrowing the Pass's sentence. */
       detail: j.status === 'FAIL' ? `Failed at “${j.failedStep}”${j.route ? ` on ${j.route}` : ''}.${j.note ? ` ${j.note}` : ''}`
-        : j.note || 'Completed, each step within its time budget.',
+        : j.note || (j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.'),
       meta: healthMs(j.ms),
     })));
   }
@@ -46209,7 +46226,7 @@ function healthSection() {
 
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Complete journeys on the live site'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
-    'A real browser, driven through the deployed site by GitHub Actions after each production deployment, nightly and when started by hand: it finds a company and opens its filed statements, filters the screener, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. A run that finds exactly what the recorded one found is recorded again only once that record is a day old, so the time shown can trail the latest run by up to a day. Nothing checks the site between runs.'));
+    'A real browser, driven through the deployed site by GitHub Actions after each production deployment, nightly and when started by hand: it finds a company and opens its filed statements, filters the screener, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. A run is recorded here when a journey’s status or failing step changed, or once the record is a day old — never by the run on the deployment of this record itself, which serves the same app — so what is shown can trail the latest run by up to a day. Nothing checks the site between runs.'));
   card.append(el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)' }));
   card.append(healthList('health-journeys'));
   /* Filled once the card is on the page. */

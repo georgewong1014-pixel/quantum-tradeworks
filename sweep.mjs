@@ -504,7 +504,7 @@ for (const route of ROUTES) {
 {
   const evalValue = async (expression) => (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId)).result?.result?.value;
   const p = [];
-  let serve = null, usGone = false, asked = [];
+  let serve = null, usGone = false, instBroken = false, asked = [];
   const intercept = (e) => {
     const m = JSON.parse(e.data);
     if (m.sessionId !== sessionId) return;
@@ -515,17 +515,19 @@ for (const route of ROUTES) {
       responseHeaders: [{ name: 'Content-Type', value: type }, { name: 'Cache-Control', value: 'no-cache' }], body: Buffer.from(body, 'utf8').toString('base64') }, sessionId);
     if (/\/health\/journeys\.json/.test(url) && serve) answer(serve.status, typeof serve.body === 'string' ? serve.body : JSON.stringify(serve.body), serve.type || 'application/json; charset=utf-8');
     else if (/\/data\/us\.json/.test(url) && usGone) answer(404, 'gone for the sweep', 'text/plain');
+    /* audit1 health-verify: served 200 as JSON, a body no reader can use. */
+    else if (/\/data\/instruments\.json/.test(url) && instBroken) answer(200, '{"instruments":[', 'application/json; charset=utf-8');
     else send('Fetch.continueRequest', { requestId: id }, sessionId);
   };
   ws.addEventListener('message', intercept);
-  await send('Fetch.enable', { patterns: [{ urlPattern: '*/health/journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }] }, sessionId);
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*/health/journeys.json*', requestStage: 'Request' }, { urlPattern: '*/data/us.json*', requestStage: 'Request' }, { urlPattern: '*/data/instruments.json*', requestStage: 'Request' }] }, sessionId);
   /* How the page asks for the file: the cache mode of each fetch of it. */
   const modes = await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const f = window.fetch; window.__healthModes = [];
     window.fetch = function (u, o) { try { if (/health\\/journeys\\.json/.test(String(u && u.url || u))) window.__healthModes.push((o && o.cache) || (u && u.cache) || 'default'); } catch (e) {} return f.apply(this, arguments); }; })();` }, sessionId);
-  const open = async () => {
+  const open = async (query = '') => {
     await evalValue('window.__healthMark = 1');
     asked = [];
-    await send('Page.navigate', { url: BASE + '/status' }, sessionId);
+    await send('Page.navigate', { url: BASE + '/status' + query }, sessionId);
     for (let i = 0; i < 200; i++) {
       const done = await evalValue(`!window.__healthMark && !!document.getElementById('health-journeys-sum')
         && !/Reading/.test(document.getElementById('health-journeys-sum').textContent) && document.getElementById('health-journeys-sum').textContent.length > 0
@@ -576,6 +578,13 @@ for (const route of ROUTES) {
   s = await fixture({ status: 200, body: { ...GOOD, ranAt: new Date(Date.now() - 5 * 86400000 - 3600000).toISOString() } }, 'a five-day-old result');
   if (!/No run has been recorded for 5 days/.test(s.sum)) p.push(`a five-day-old result does not say how old it is: ${JSON.stringify(s.sum)}`);
 
+  /* audit1 health-verify: a Degraded journey whose file gives no reason was
+     described with the Pass's sentence, "each step within its time budget"
+     — the one thing a Degraded journey is not. */
+  s = await fixture({ status: 200, body: { ...GOOD, journeys: [GOOD.journeys[0], run('scanner', 'Scanner: build, save and evaluate a setup', 'DEGRADED')] } }, 'a degraded result with no note');
+  const degRow = s.rows.find(r => r.status === 'DEGRADED');
+  if (!degRow || /within its time budget/.test(degRow.text) || !/degraded/i.test(degRow.text)) p.push(`a Degraded journey with no note reads ${JSON.stringify(degRow?.text?.replace(/\s+/g, ' ') || null)}`);
+
   /* The filed statements withheld: the checks that read them must fail and
      say which file, rather than pass on the illustrative sample. */
   /* The cache off, or the immutable copy the earlier loads kept would answer
@@ -587,6 +596,25 @@ for (const route of ROUTES) {
   if (eq?.status !== 'FAIL' || !/data\/us\.json/.test(eq.text)) p.push(`with data/us.json gone the equities check reads ${eq?.status}: ${JSON.stringify((eq?.text || '').slice(0, 120))}`);
   if (files?.status !== 'FAIL' || !/data\/us\.json[^\n]*not served/.test(files.text)) p.push(`with data/us.json gone the data-files check reads ${files?.status}`);
   usGone = false;
+
+  /* audit1 health-verify: data/instruments.json served (a HEAD answers 200
+     JSON) over a body the page cannot parse. The check read Pass with the
+     words "served and not loaded here" under it; a file the tool cannot
+     use is not a Pass. The cache is still off, so the broken body is what
+     the page gets. */
+  instBroken = true;
+  s = await open();
+  const inst = s.quick.find(q => /data files/.test(q.text));
+  if (inst?.status !== 'DEGRADED' || !/data\/instruments\.json[^\n]*not loaded/.test(inst.text)) p.push(`with data/instruments.json served but unreadable the data-files check reads ${inst?.status}: ${JSON.stringify((inst?.text || '').replace(/\s+/g, ' ').slice(0, 260))}`);
+  instBroken = false;
+
+  /* audit1 health-verify: the filed statements switched off by the reader
+     (?real=0). The equities check says so (Degraded); the data-files check
+     must not call data/us.json "not loaded yet" — nothing is loading, the
+     reader chose it — nor degrade on the reader's choice. */
+  s = await open('?real=0');
+  const off = s.quick.find(q => /data files/.test(q.text));
+  if (off?.status !== 'PASS' || /not loaded yet/.test(off.text) || !/data\/us\.json[^\n]*switched off/.test(off.text)) p.push(`with the filed statements switched off the data-files check reads ${off?.status}: ${JSON.stringify((off?.text || '').replace(/\s+/g, ' ').slice(0, 200))}`);
 
   /* The full checks, from the keyboard: Enter on the button runs them, and
      focus stays on it while they run and after. */
@@ -605,7 +633,7 @@ for (const route of ROUTES) {
   if (modes?.result?.identifier) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: modes.result.identifier }, sessionId);
   ws.removeEventListener('message', intercept);
   if (p.length) { bad++; console.log('FAIL health: /status does not say truthfully whether each tool works'); p.forEach(x => console.log('     ' + x)); }
-  else console.log('ok   health: /status runs its four in-browser checks to Pass on this build and to Fail, naming data/us.json, without it; the full checks pass from the keyboard with focus kept; the journeys result reads Pass from a good file, "not run yet" from none and from the placeholder, Fail with its step and route from a failing one, nothing from an unreadable one and its age from an old one — asked of the site on every visit, with no-store');
+  else console.log('ok   health: /status runs its four in-browser checks to Pass on this build and to Fail, naming data/us.json, without it, and to Degraded, naming data/instruments.json, when that is served but unreadable, and does not degrade the data files when the reader switched the filed statements off; a Degraded journey with no note is not called within budget; the full checks pass from the keyboard with focus kept; the journeys result reads Pass from a good file, "not run yet" from none and from the placeholder, Fail with its step and route from a failing one, nothing from an unreadable one and its age from an old one — asked of the site on every visit, with no-store');
 }
 /* ---- end audit1: health ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);

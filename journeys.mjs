@@ -12,10 +12,14 @@
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
  *   --only <id,id>       some journeys: equities, screener, property, scanner, ctas
- *   --decide <recorded.json> <new.json>
+ *   --decide <recorded.json> <new.json> [--deployed-files <list.txt>]
  *                        offline: should the new result be committed over the recorded one?
+ *                        The list is the paths the deployed commit changed: when it is only
+ *                        health/, the run tested the deployment of its own record and
+ *                        nothing is committed
  *                        Prints commit=, why=, fails=, degraded=, all_pass= lines (GITHUB_OUTPUT)
- *   --self-test          offline: the commit rule, the result's shape and the table, on fixtures
+ *   --self-test          offline: the commit rule, the result's shape and the table, on fixtures,
+ *                        and the workflow that applies the rule (its concurrency, inputs, permissions)
  *
  * Exit 0 when no journey FAILS (a DEGRADED one is reported, not fatal); 1 when
  * one does; 2 when the check itself cannot run (no browser, a bad argument).
@@ -115,12 +119,21 @@ export function signature(doc) {
 /* COMMIT ONLY WHAT IS NEWS. The workflow runs after every production
    deployment and nightly; the file it commits is deployed, and that
    deployment runs the journeys again. So a result is committed only when a
-   status or a failing step changed, or the recorded run is a day old — and
-   an identical result a minute later commits nothing, which is what ends
-   the loop. */
-export function decide(recorded, fresh, now = Date.now()) {
+   status or a failing step changed, or the recorded run is a day old.
+
+   AND NEVER FROM THE DEPLOYMENT OF ITS OWN RECORD. "An identical result a
+   minute later commits nothing" ends the loop only while the result is
+   identical — and a status can flap: a step a second over its budget is
+   DEGRADED on one run and PASS on the next, and each flip was a change, so
+   each was committed, deployed and run again. A deployment whose commit
+   changed nothing but health/ serves the same app as the one before it, so
+   its run is not news about the site: it still reports (the summary, the
+   issue), but it records nothing (deployedFiles, from the workflow). */
+export const ownRecord = (files) => Array.isArray(files) && files.length > 0 && files.every(f => /^health\//.test(f));
+export function decide(recorded, fresh, now = Date.now(), { deployedFiles = null } = {}) {
   const p = resultProblem(fresh);
   if (p || !hasRun(fresh)) return { commit: false, why: `the new result cannot be recorded: ${p || 'it holds no run'}` };
+  if (ownRecord(deployedFiles)) return { commit: false, why: `this run tested the deployment of a commit that changed only ${deployedFiles.join(', ')} — the same app as the deployment before it — so it records nothing: a status that differs on this run waits for the next nightly or code deployment, and a flapping status cannot loop` };
   if (recorded == null) return { commit: true, why: 'no result is recorded yet' };
   const rp = resultProblem(recorded);
   if (rp) return { commit: true, why: `the recorded result cannot be read (${rp})` };
@@ -181,12 +194,33 @@ function selfTest() {
   t(decide(failA, doc('2026-09-30T11:30:00Z', [j('a', 'FAIL', 'Save'), j('b', 'PASS')]), now).commit === false, 'the same failure at the same step: nothing committed');
   t(decide({ kind: 'nope' }, pass2, now).commit === true, 'an unreadable recorded file is replaced');
   t(decide(pass, { kind: RESULT_KIND, ranAt: 'soon', journeys: [] }, now).commit === false, 'an unreadable new result is never committed');
+  /* The flapping loop: PASS recorded, the deployment of that record's own
+     commit runs and a step is a second over budget — DEGRADED. Committed,
+     that deploys again, and the next run may flip back. */
+  const flap = doc('2026-09-30T11:30:00Z', [j('a', 'PASS'), j('b', 'DEGRADED')]);
+  t(decide(pass, flap, now, { deployedFiles: ['health/journeys.json'] }).commit === false, 'the deployment of the record\'s own commit records nothing, even when a status flapped (no loop)');
+  t(decide(undefined, pass2, now, { deployedFiles: ['health/journeys.json'] }).commit === false, 'the deployment of the record\'s own commit records nothing, even over no record');
+  t(decide(pass, flap, now, { deployedFiles: ['health/journeys.json', 'src/js/91-health.js'] }).commit === true, 'a deployment that changed the app as well is news: a changed status is committed');
+  t(decide(pass, flap, now, { deployedFiles: [] }).commit === true && decide(pass, flap, now).commit === true, 'with no list of the deployed files (nightly, by hand) the rule is unchanged');
   t(resultProblem(doc('2026-09-30T11:30:00Z', [j('a', 'FAIL')])) !== null, 'a FAIL with no named step is not a valid result');
   t(resultProblem(doc('2026-09-30T11:30:00Z', [{ ...j('a', 'PASS'), status: 'OK' }])) !== null, 'a status outside PASS, DEGRADED and FAIL is not a valid result');
   t(resultProblem({ kind: RESULT_KIND, schema: 1, ranAt: null, journeys: [] }) === null && !hasRun({ kind: RESULT_KIND, ranAt: null, journeys: [] }), 'the placeholder is valid and holds no run');
   const md = markdown(doc('2026-09-30T11:30:00Z', [j('a', 'PASS'), { ...j('b|c', 'FAIL', 'Step | with a pipe'), note: 'why' }]));
   t(/\| a \| PASS \| — \| — \| 1\.0 s \|/.test(md) && /Step \\\| with a pipe/.test(md) && /1 pass, 0 degraded, 1 fail/.test(md), 'the table: one row per journey, pipes escaped, the counts in the heading');
-  console.log(bad ? `\n${bad} self-test check(s) failed` : '\nself-test: the commit rule, the result shape and the table hold');
+  /* The workflow that applies the rule, read as text (no YAML parser here):
+     its concurrency is the job's, so an event whose job is skipped (a
+     preview deployment, a pending status) cannot cancel a production run
+     waiting its turn; the deployed commit's files reach the rule; and it
+     asks for the two permissions it uses and no others. */
+  const wf = join(ROOT, '.github/workflows/journeys.yml');
+  if (existsSync(wf)) {
+    const y = readFileSync(wf, 'utf8').replace(/\r\n/g, '\n');
+    t(!/^concurrency:/m.test(y) && /^ {4}concurrency:\n {6}group: journeys\n {6}cancel-in-progress: false$/m.test(y), 'the workflow: one concurrency group, the job\'s — a skipped preview event cannot cancel a pending production run');
+    t(/--decide [^\n]*--deployed-files/.test(y) && /git diff --name-only "\$DEPLOY_SHA\^" "\$DEPLOY_SHA"/.test(y), 'the workflow: the deployed commit\'s files reach the commit rule');
+    const perms = /^permissions:\n((?: {2}[^\n]*\n)+)/m.exec(y);
+    t(!!perms && perms[1].trim().split('\n').map(s => s.trim()).sort().join(',') === 'contents: write,issues: write', 'the workflow: permissions contents write and issues write, nothing else');
+  }
+  console.log(bad ? `\n${bad} self-test check(s) failed` : '\nself-test: the commit rule, the result shape, the table and the workflow hold');
   process.exit(bad ? 1 : 0);
 }
 
@@ -197,7 +231,11 @@ if (has('decide')) {
   if (!newFile) { console.error('usage: node journeys.mjs --decide <recorded.json> <new.json>'); process.exit(2); }
   const recorded = existsSync(recFile) ? readJson(recFile) : undefined;
   const fresh = readJson(newFile);
-  const d = decide(recorded === undefined && existsSync(recFile) ? { unreadable: true } : recorded, fresh);
+  /* --deployed-files <file>: the paths the deployed commit changed, one a
+     line (git diff --name-only <sha>^ <sha>), for a run after a deployment. */
+  const df = flag('deployed-files');
+  const deployedFiles = df && existsSync(df) ? readFileSync(df, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean) : null;
+  const d = decide(recorded === undefined && existsSync(recFile) ? { unreadable: true } : recorded, fresh, Date.now(), { deployedFiles });
   const js = fresh?.journeys || [];
   const n = (s) => js.filter(x => x.status === s).length;
   console.log(`commit=${d.commit}`);
@@ -619,6 +657,21 @@ const JOURNEYS = [
         const after = await tab.eval(count);
         if (!(after < before)) throw new StepError(`a minimum raised the count from ${before} to ${after}`);
         if (after === 0) throw new StepError('the filter left no company to open');
+        /* A lower count is not yet the filter the reader set: a screen that
+           kept the companies BELOW the minimum lowers the count too. Every
+           company listed must meet it — each one's return on equity as the
+           screener itself reads it for the test (critValue), against the
+           minimum the screen now holds, which must be the 20 typed. */
+        const off = await tab.eval(`(() => {
+          const sc = State.screen, min = sc?.crit?.roe?.min;
+          if (min !== 20) return 'the screen holds a return-on-equity minimum of ' + JSON.stringify(min ?? null) + ', not the 20 typed';
+          const all = [...new Set(BY_ID.values())];
+          const tks = [...document.querySelectorAll('main table.dt tbody .tickerbtn .tk')].map(n => n.childNodes[0]?.textContent?.trim()).filter(Boolean);
+          if (!tks.length) return 'the results list no company';
+          const bad = tks.map(tk => { const row = all.find(r => r?.c?.tk === tk); const v = row ? critValue(row, 'roe', sc) : null;
+            return isNum(v) && v >= min ? null : tk + ' (' + (isNum(v) ? v.toFixed(1) : 'none') + ')'; }).filter(Boolean);
+          return bad.length ? bad.length + ' of the ' + tks.length + ' companies listed do not meet it: ' + bad.slice(0, 4).join(', ') : null; })()`);
+        if (off) throw new StepError(`the filter is return on equity of at least 20, and ${off}`);
       });
       await step(j, tab, 'Open a result', BUDGET.action, async () => {
         const first = `document.querySelector('main table.dt tbody .tickerbtn')`;
@@ -699,9 +752,15 @@ const JOURNEYS = [
           await tab.click(visible('a[href="/my/workspace"]'), 'The Saved Models link');
           await tab.expect(`State.view === 'workspace'`, 'the Saved Models link did not open the saved models');
         }
+        /* With the name the journey gave it, the saved property is found by
+           that name. A save that asks for no name is found by the price that
+           was typed (RM600,000, or RM600.0k as the tool's own suggested name
+           writes it), which the sample deal (RM572,000) and no page heading
+           carries — the word "Property" is on every property page, saved
+           deal or none, so it proved nothing. */
         const want = prompted ? name : null;
-        await tab.expect(want ? `(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(want)})` : `/Journey check|Property/.test(document.querySelector('main')?.innerText || '')`,
-          `the saved property${want ? ` “${want}”` : ''} is not listed on ${models ? 'My properties' : 'Saved Models'}`);
+        await tab.expect(want ? `(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(want)})` : `/(?<![\\d.,])600(,000(?![\\d,])|(\\.0+)?k\\b)/i.test(document.querySelector('main')?.innerText || '')`,
+          `the saved property${want ? ` “${want}”` : ' (asked for no name; looked for by its price, RM600,000)'} is not listed on ${models ? 'My properties' : 'Saved Models'}`);
       });
     },
   },
@@ -750,6 +809,14 @@ const JOURNEYS = [
         const t = await tab.text();
         if (!/v1/.test(t)) throw new StepError('the setup page shows no version 1');
         if (!/crosses above/i.test(t) || !/EMA|exponential/i.test(t)) throw new StepError('the setup page does not show the condition that was saved');
+        /* The condition as it was built, length and all: a save that kept the
+           builder's default 50-bar average shows "crosses above" and "EMA"
+           too, and on the deployed site nothing after this step would see
+           the difference. */
+        if (!/crosses above (the )?EMA\s?20\b/i.test(t)) {
+          const said = (t.match(/[^\n]*crosses above[^\n]*/i) || [''])[0].trim();
+          throw new StepError(`the setup page shows the condition as “${said.slice(0, 80)}”, not the 20-bar EMA that was built`);
+        }
       });
       await step(j, tab, synthetic ? 'Evaluate it: a match on the synthetic history' : 'Evaluate it: the page says there is no price history here', BUDGET.action * 2, async () => {
         await tab.click(`[...document.querySelectorAll('main a')].find(a => a.textContent.trim() === 'Edit')`, 'Edit');
@@ -779,38 +846,49 @@ const JOURNEYS = [
       const failures = [];
       let checked = 0;
       /* Served as a first visit would be: 200, or a redirect on this site to
-         a page that is. */
+         a page that is — and the address it ends at. */
       const served = async (href) => {
         let url = new URL(href, BASE + '/').href;
         for (let hop = 0; hop < 3; hop++) {
           const r = await fetch(url, { redirect: 'manual' }).catch(e => ({ status: 0, error: e.message }));
           if ([301, 302, 307, 308].includes(r.status)) { url = new URL(r.headers.get('location'), url).href; continue; }
-          return r.status;
+          return { status: r.status, path: new URL(url).pathname };
         }
-        return 'a redirect loop';
+        return { status: 'a redirect loop', path: null };
       };
-      /* One press, and the page it lands on: the app drew a page that is not
-         the not-found card, with something in it, logging no error, at an
-         address the site serves. A failure here is recorded and the rest are
-         still pressed, so one run names every broken call to action. */
+      /* One press, and the page it lands on: the address the call to action
+         names (or the one the site redirects that address to), drawn by the
+         app as a page that is not the not-found card, with something in it,
+         logging no error, and served 200. A press that leaves the reader
+         where they were is a call to action that goes nowhere, whatever its
+         href says — the page it stays on is a working page, which is why
+         the address is held to, not only the page. A failure here is
+         recorded and the rest are still pressed, so one run names every
+         broken call to action. */
       const press = async (source, find, label, stepName) => {
         const errsAt = tab.errors.length;
         const from = await tab.where() || source;
         const href = await tab.eval(`(${find})?.getAttribute('href') || null`).catch(() => null);
         const r = await timed(j, tab, stepName, BUDGET.action, async () => {
           if (!href) throw new StepError(`“${label}” on ${source} is not a link`);
-          await tab.click(find, `“${label}”`);
           const target = new URL(href, BASE + '/').pathname;
-          if (target !== new URL(from, BASE + '/').pathname) await tab.waitFor(`location.pathname !== ${JSON.stringify(new URL(from, BASE + '/').pathname)}`, 6000);
+          const fin = await served(href);
+          const want = [...new Set([target, fin.path].filter(Boolean))];
+          await tab.click(find, `“${label}”`);
+          await tab.waitFor(`${JSON.stringify(want)}.includes(location.pathname)`, 6000);
           await tab.waitFor(`typeof realPending !== 'undefined' && !realPending && !!State.view`, 15000);
           await sleep(400);
-          const at = await tab.eval(`({ view: State.view, path: location.pathname + location.search, len: (document.querySelector('main')?.innerText || '').trim().length })`);
+          const at = await tab.eval(`({ view: State.view, path: location.pathname + location.search, pathname: location.pathname, len: (document.querySelector('main')?.innerText || '').trim().length })`);
+          if (!want.includes(at.pathname)) {
+            throw new StepError(at.pathname === new URL(from, BASE + '/').pathname
+              ? `“${label}” (${href}) goes nowhere: pressed, it left the reader on ${at.path}`
+              : `“${label}” (${href}) lands on ${at.path}, not on ${want.join(' or ')}`);
+          }
           if (at.view === 'notfound') throw new StepError(`“${label}” (${href}) lands on the not-found card at ${at.path}`);
           if (at.len < 80) throw new StepError(`“${label}” (${href}) lands on an empty page at ${at.path}`);
           const errs = unexpectedErrors(tab.errors.slice(errsAt));
           if (errs.length) throw new StepError(`“${label}” (${href}) logs ${errs.length} error(s) at ${at.path}: ${errs[0].text}`);
-          const status = await served(href);
-          if (status !== 200) throw new StepError(`“${label}” links to ${href}, which is served ${status}`);
+          if (fin.status !== 200) throw new StepError(`“${label}” links to ${href}, which is served ${fin.status}`);
         });
         if (r.ok) checked++;
         else failures.push({ step: stepName, route: r.route, why: r.why });
@@ -823,36 +901,51 @@ const JOURNEYS = [
       const LABEL = `(n) => (n.querySelector('h3, strong')?.textContent || n.textContent).trim().replace(/\\s+/g, ' ').slice(0, 60)`;
       const list = (sel) => tab.eval(`[...document.querySelectorAll(${JSON.stringify(sel)})].filter(n => n.getClientRects().length).map(${LABEL})`);
 
+      /* The pages the calls to action are pressed FROM. press() judges the
+         page each one lands on; an error logged while a source page loads
+         was judged by nothing — the homepage could throw on every load and
+         all five journeys passed, since no call to action lands on it. It
+         is a part of the path the press does not need, so it degrades the
+         journey (DEGRADED, the page named) rather than failing a press. */
+      const sourceErrs = new Map();
+      const load = async (path) => {
+        const at = tab.errors.length;
+        try { await tab.goto(path); } finally {
+          const errs = unexpectedErrors(tab.errors.slice(at));
+          if (errs.length && !sourceErrs.has(path)) sourceErrs.set(path, `${errs.length} error(s) logged while ${path} loaded: ${errs[0].text}`);
+        }
+      };
+
       /* The dashboard first, while this browser holds nothing of its own:
          the first-time checklist is what a new reader sees. */
-      await step(j, tab, 'Open My Dashboard', BUDGET.load, () => tab.goto('/app'));
+      await step(j, tab, 'Open My Dashboard', BUDGET.load, () => load('/app'));
       const steps = await list('main .dash-steps a[href], main .dash-more a[href]');
       if (!steps.length) failures.push({ step: 'Open My Dashboard', route: '/app', why: 'the dashboard shows no checklist actions to a first-time reader' });
       for (let i = 0; i < steps.length; i++) {
-        await tab.goto('/app').catch(() => {});
+        await load('/app').catch(() => {});
         await press('/app', `[...document.querySelectorAll('main .dash-steps a[href], main .dash-more a[href]')].filter(n => n.getClientRects().length)[${i}]`, steps[i], `Dashboard checklist “${steps[i]}”`);
       }
 
-      await tab.goto('/').catch(() => {});
+      await load('/').catch(() => {});
       await press('/', visible('a.pub-cta'), 'Open workspace', 'The header’s “Open workspace”');
 
-      await tab.goto('/').catch(() => {});
+      await load('/').catch(() => {});
       const cards = await list(CARDS);
       if (!cards.length) failures.push({ step: 'Homepage cards', route: '/', why: 'the homepage shows no product card that opens anything' });
       for (let i = 0; i < cards.length; i++) {
-        await tab.goto('/').catch(() => {});
+        await load('/').catch(() => {});
         await press('/', `[...document.querySelectorAll(${JSON.stringify(CARDS)})].filter(n => n.getClientRects().length)[${i}]`, cards[i], `Homepage card “${cards[i]}”`);
       }
 
       /* Each product's own row of tabs, pressed along the row as a reader
          moves through a product. */
       for (const [product, source] of [['Equities', '/research'], ['Property', '/property/calculator'], ['Scanner', '/app/scanner']]) {
-        await tab.goto(source).catch(() => {});
+        await load(source).catch(() => {});
         const tabs = await list('nav.ptabs a[href]');
         if (!tabs.length) { failures.push({ step: `${product} tabs`, route: source, why: `no row of product tabs on ${source}` }); continue; }
         for (let i = 0; i < tabs.length; i++) {
           const find = `[...document.querySelectorAll('nav.ptabs a[href]')].filter(n => n.getClientRects().length).find(n => (${LABEL})(n) === ${JSON.stringify(tabs[i])})`;
-          if (!await tab.eval(`!!(${find})`)) await tab.goto(source).catch(() => {});
+          if (!await tab.eval(`!!(${find})`)) await load(source).catch(() => {});
           await press(source, find, tabs[i], `${product} tab “${tabs[i]}”`);
         }
       }
@@ -861,11 +954,16 @@ const JOURNEYS = [
       if (failures.length) {
         j.fail(failures[0].step, failures[0].route,
           `${failures.length} of ${checked + failures.length} calls to action failed — ${failures.map(f => `${f.step}: ${f.why}`).join(' · ')}`);
-      } else j.notes.push(`${checked} calls to action pressed, each landing on a working page`);
+        sourceErrs.forEach(why => j.notes.push(why));
+      } else {
+        sourceErrs.forEach((why, path) => j.degrade(why, path));
+        j.notes.push(`${checked} calls to action pressed, each landing on a working page`);
+      }
     },
     /* A console error on a page a call to action lands on is that call
-       to action failing, so it is judged there (press), not as a
-       degradation of the whole journey. */
+       to action failing, so it is judged there (press); one on a page they
+       are pressed from degrades the journey (load, above). Neither is
+       judged again at the end. */
     errorsJudged: true,
   },
 ];

@@ -36,14 +36,19 @@ name: journeys
 #
 # LOOP SAFETY. That commit is deployed like any other (the file has to be on
 # the site for /status to read it), and its deployment runs this workflow
-# again. The second run finds the statuses it just recorded, a minute old,
-# and commits nothing — so one result makes at most one extra deployment.
-# If the platform ever skips "[skip ci]" commits, the file waits for the next
-# deployment of main instead; nothing loops either way.
+# again. That run still writes its summary and keeps the issue, but it
+# records nothing: the deployed commit changed only health/, so it serves the
+# same app as the deployment before it (decide's deployedFiles rule, held by
+# journeys.mjs --self-test). "The second run finds the same statuses" was not
+# enough on its own — a step a second over budget is DEGRADED on one run and
+# PASS on the next, and each flip would have been committed, deployed and run
+# again. So one result makes at most one extra deployment, whatever the
+# second run finds. If the platform ever skips "[skip ci]" commits, the file
+# waits for the next deployment of main instead; nothing loops either way.
 #
 # Permissions are the two it uses and nothing else: contents (the commit) and
-# issues (the issue). The concurrency group keeps two runs from racing to
-# commit; a push that loses to a developer's is rebased and retried.
+# issues (the issue). The job's concurrency group keeps two runs from racing
+# to commit; a push that loses to a developer's is rebased and retried.
 
 on:
   deployment_status:
@@ -55,10 +60,6 @@ permissions:
   contents: write
   issues: write
 
-concurrency:
-  group: journeys
-  cancel-in-progress: false
-
 jobs:
   journeys:
     name: complete journeys on the live site
@@ -67,6 +68,17 @@ jobs:
       (github.event.deployment_status.state == 'success' &&
       (github.event.deployment.production_environment == true ||
       startsWith(github.event.deployment.environment, 'Production')))
+    # The JOB's group, not the workflow's. A group holds one run in progress
+    # and one pending, and a newer pending run cancels the older. At the
+    # workflow level every deployment_status event joins it — each preview
+    # deployment of every pushed branch, and each deployment's pending
+    # status — so a production deployment's run waiting behind a nightly one
+    # was cancelled by the next preview event, whose job is then skipped:
+    # the deployment was never looked at. A job skipped by the if above
+    # never joins the job's group.
+    concurrency:
+      group: journeys
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -119,9 +131,14 @@ jobs:
       # The rule lives in journeys.mjs (decide) so it is tested offline:
       # commit only when a status or a failing step changed, or the recorded
       # run is over 24 hours old.
+      # After a deployment, the paths its commit changed go with the result:
+      # a deployment of the record's own commit (only health/ changed)
+      # records nothing, so a status that flaps cannot loop.
       - name: decide what to record
         id: decide
         if: always()
+        env:
+          DEPLOY_SHA: ${{ github.event.deployment.sha }}
         run: |
           if [ ! -f "$RUNNER_TEMP/journeys.json" ]; then
             echo "noresult=true" >> "$GITHUB_OUTPUT"
@@ -129,7 +146,11 @@ jobs:
             exit 0
           fi
           git show origin/main:health/journeys.json > "$RUNNER_TEMP/recorded.json" 2>/dev/null || rm -f "$RUNNER_TEMP/recorded.json"
-          node journeys.mjs --decide "$RUNNER_TEMP/recorded.json" "$RUNNER_TEMP/journeys.json" | tee -a "$GITHUB_OUTPUT"
+          deployed=''
+          if [ -n "$DEPLOY_SHA" ] && git diff --name-only "$DEPLOY_SHA^" "$DEPLOY_SHA" > "$RUNNER_TEMP/deployed-files.txt" 2>/dev/null; then
+            deployed="$RUNNER_TEMP/deployed-files.txt"
+          fi
+          node journeys.mjs --decide "$RUNNER_TEMP/recorded.json" "$RUNNER_TEMP/journeys.json" ${deployed:+--deployed-files "$deployed"} | tee -a "$GITHUB_OUTPUT"
 
       - name: open, update or close the issue
         if: always() && steps.decide.outputs.noresult != 'true'

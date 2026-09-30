@@ -142,8 +142,18 @@ job summary, keeps one issue titled *Production journeys failing* open while a
 journey fails and closes it on the next all-pass run, and commits
 `health/journeys.json` to main — only when a status or a failing step changed
 or the recorded run is a day old, with `[skip ci]`. The deployment of that
-commit runs the journeys again, finds the same results, and commits nothing.
-CI runs the journeys against `serve.mjs` on every push.
+commit runs the journeys again and records nothing, whatever it finds: its
+commit changed only `health/`, so it is the same app (`--decide
+--deployed-files`), and a status that flaps between PASS and DEGRADED cannot
+turn into a loop of commits and deployments. CI runs the journeys against
+`serve.mjs` on every push.
+
+A call to action passes only when pressing it reaches the address it names
+(a press that leaves the reader where they were is a failure, however working
+that page is); the screener's filter only when every company listed meets
+it; the scanner's save only when the setup's page shows the condition as it
+was built, length and all; and an error logged on a page the calls to action
+are pressed from degrades the journey.
 
 **/status shows both halves** under *Does each tool work?* (`src/js/91-health.js`):
 checks run in the reader's browser when the page opens — the property model on
