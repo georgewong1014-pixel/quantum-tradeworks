@@ -733,10 +733,11 @@ function toggleWatch(id, wlIdx = State.wlIdx) {
    works from the keyboard and a link opens in a new tab. The valuation tab is
    one tab away in the strip below, so it no longer needs a button here.
 
-   The scanner is the exception, and says so. It reads only price history the
-   reader supplied — the deployed site ships none, by design — so it is live
-   only where that history is loaded, and otherwise shown switched off with the
-   reason beside it. Nothing here implies it scans anything else. */
+   The scanner says what it needs. A setup for this company can be written
+   anywhere, but it is checked only on price history the reader supplied — the
+   deployed site ships none, by design — and the line under the actions says
+   whether that history is loaded. Nothing here implies it scans anything
+   else. */
 const scannerLaneOn = () => !!(scanHistoryFile?.series && Object.keys(scanHistoryFile.series).length);
 function companyActions(r) {
   const { c } = r;
@@ -745,10 +746,15 @@ function companyActions(r) {
   const link = (path, label, { before, ...attrs } = {}) => el('a', { class: 'btn btn-ghost btn-sm', href: href(path), ...attrs,
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); before?.(); navigate(path); } }, label);
   const watching = State.watchlist.includes(c.id);
+  /* ONE NEXT ACTION (audit 1, #9). The page had four equal buttons and no
+     way forward marked. The next step of the connected journey is the
+     primary one: "Add to watchlist" until the company is on the list, then
+     "Create a setup for <ticker>" — the builder with the symbol — and the
+     rest stay quiet. */
   /* An id, because its words change with what it does: render() finds the
      control in use again by id first, and by its words it found nothing and
      left focus on <main> after every press (35-ui.js, giveFocusBack). */
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'co-watch', 'aria-pressed': watching ? 'true' : 'false',
+  acts.append(el('button', { class: `btn ${watching ? 'btn-ghost' : 'btn-primary'} btn-sm`, id: 'co-watch', 'aria-pressed': watching ? 'true' : 'false',
     onclick: () => toggleWatch(c.id) }, watching ? '✓ On your watchlist' : 'Add to watchlist'));
   /* Compare adds this company to the selection already held, rather than
      replacing it, and drops the oldest when the plan's cap is reached — with a
@@ -770,13 +776,16 @@ function companyActions(r) {
     onclick: () => addToThesis(c.id) }, sampleCase ? 'Open the sample investment case' : thesis ? 'Open your investment case' : 'Save research'));
   const sym = c.tk || c.code || c.id;
   const on = scannerLaneOn();
-  if (on) acts.append(link(`/my/scanner?from=${encodeURIComponent(c.id)}&symbol=${encodeURIComponent(sym)}`, 'Open scanner',
-    { title: 'Personal-lane scanner: it scans only the price history you supplied' }));
-  else acts.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: '', 'aria-describedby': `scan-off-${c.id}` }, 'Open scanner'));
+  /* A setup is written and kept in this browser wherever the page is; what
+     needs the reader's own price history is evaluating it, and the line
+     under the actions says whether that history is here. The link passes
+     the shell's gate (toolLink), as every link to a tool does. */
+  const setupPath = `/app/scanner/setups/new?from=${encodeURIComponent(c.id)}&symbol=${encodeURIComponent(sym)}`;
+  acts.append(toolLink(setupPath, { class: `btn ${watching ? 'btn-primary' : 'btn-ghost'} btn-sm`, 'aria-describedby': `scan-off-${c.id}` }, `Create a setup for ${sym}`));
   box.append(acts);
   box.append(el('p', { class: 'metaline', id: `scan-off-${c.id}`, style: 'margin-top:6px;text-align:right' },
-    on ? `The scanner is a personal-lane tool: it scans only price history you supplied${scanHistoryFile.series[sym] ? `, which holds ${sym}` : `, which holds no series for ${sym}`}.`
-       : 'Scanner switched off here: it scans only price history you supplied, and none is loaded.'));
+    on ? `A setup is kept in this browser and checked only on price history you supplied${scanHistoryFile.series[sym] ? `, which holds ${sym}` : `, which holds no series for ${sym}`}.`
+       : 'A setup is kept in this browser and checked only on price history you supply; none is loaded here.'));
   return box;
 }
 
@@ -870,7 +879,10 @@ VIEWS.researchHome = () => {
   ];
   const cg = el('div', { class: 'grid grid-3' });
   colls.forEach(([t, b, go]) => {
-    const card = el('div', { class: 'card task-card', role:'button', tabindex:'0' });
+    /* Each card names the tool it opens (data-tool-path), so where that tool
+       cannot be used here — the filings failed to load — the shell's gate
+       draws the card as text with the reason (gateToolLink, 35-ui.js). */
+    const card = el('div', { class: 'card task-card', role:'button', tabindex:'0', 'data-tool-path': t === 'Sarawak Economy Watch' ? '/discover/sarawak' : '/discover/screener' });
     card.append(el('h3', { class: 'h-card' }, t));
     card.append(el('p', { class: 'body', style: 'font-size:13px' }, b));
     const act = () => go();
@@ -964,7 +976,7 @@ VIEWS.research = () => {
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
       `The Free plan covers ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''} Equities Research removes the limit.`));
     const back = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
-    back.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
+    back.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
     State.reportLog.ids.slice(0, 5).forEach(id => {
       const rr = BY_ID.get(id); if (!rr) return;
       back.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(id) }, rr.c.tk));
@@ -1313,6 +1325,13 @@ VIEWS.research = () => {
      itself have scrolled sideways on a phone — reintroducing the problem this
      is meant to solve one level down. */
   const panelNode = panel(r);
+  /* ONE NEXT ACTION ON EVERY TAB (audit 1, #9). The header's primary — "Add
+     to watchlist", then "Create a setup" — was a second primary on the tabs
+     that have one of their own: the Valuation Studio's "Save this valuation
+     run" and the Thesis tab's "Start a thesis". There the tab's own result
+     is the next action, and the header's steps back to quiet. */
+  if (panelNode.querySelector('.btn-primary'))
+    actionsBox.querySelectorAll('.btn-primary').forEach(b => b.classList.replace('btn-primary', 'btn-ghost'));
   const heads = [...panelNode.querySelectorAll('h3.h-card, h2.h-section')]
     .filter(h => (h.textContent || '').trim());
   if (heads.length >= 4) {
@@ -1786,7 +1805,7 @@ function tabSnapshot(r) {
     /* Capped at the plan's Compare limit, as the Business tab's button is. A
        fixed 8 put six columns on Free under "Choose up to 2 companies". The
        cut is said (comparePeers). */
-    ph2.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:6px;padding:0',
+    ph2.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:6px;padding:0', 'data-tool-path': '/compare',
       onclick: () => comparePeers(c, peers) }, 'Open full comparison →'));
     pcard.append(ph2);
     const tw2 = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
@@ -1964,7 +1983,7 @@ function tabBusiness(r) {
     comp.append(el('div', { class: 'row row-wrap', style: 'gap:5px;margin-top:var(--sm)' },
       [el('span', { class: 'caption' }, 'Peer set:'), ...rivals.map(x =>
         el('button', { class: 'chip', style: 'cursor:pointer', onclick: () => openResearch(x.c.id) }, x.c.tk + illusText(x.c)))]));
-    comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)',
+    comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', 'data-tool-path': '/compare',
       onclick: () => comparePeers(c, rivals) }, 'Open the full comparison'));
   }
   wrap.append(comp);

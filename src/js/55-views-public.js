@@ -21,7 +21,7 @@
    homepage's disclosure line, where no one product is meant. Same classes as
    productBadge (35-ui.js), so the two cannot look different. */
 function pubStatusBadge(status, title) {
-  return el('span', { class: `status-badge status-${status}`, title: title || null }, PRODUCT_STATUS[status] || status);
+  return el('span', { class: `status-badge status-${status}`, title: title || null }, (typeof TOOL_STATUS !== 'undefined' ? TOOL_STATUS : PRODUCT_STATUS)[status] || status);
 }
 /* A product's own badge: productBadge hands back a fresh element (its
    toString is its markup, for pages that build with strings), so the card
@@ -76,12 +76,17 @@ const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true
    like a way in and leads nowhere is the one thing the brief rules out. */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
-  const open = !!p.path;
-  /* Described by the blurb and the status with its note — "Beta: …" — rather
-     than by the badge, whose one word was all a screen reader heard, and its
-     qualifying note a mouse's tooltip only. */
+  /* A GOAL, NOT A PLACE (audit 1, #3). The card said "Open Equities
+     Research" and opened the product's front page, where the reader then had
+     to find the thing they came to do. It now says the goal — "Start
+     research", "Create a setup", "Analyse a property", the product's one
+     action as PRODUCTS words it — and opens the page where that starts; the
+     dashboard's checklist and How it works say the same words. The card is
+     named by that action and its product ("Create a setup, Quantum
+     Scanner"), and described by its task, blurb and status. */
+  const open = !!(p.path && p.action && p.actionPath);
   const card = open
-    ? pubLink(p.path, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('t')} ${id('n')}`, 'aria-describedby': `${id('b')} ${id('s')}` })
+    ? pubLink(p.actionPath, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('go')} ${id('n')}`, 'aria-describedby': `${id('t')} ${id('b')} ${id('s')}` })
     : el('div', { class: `pub-card pub-card-soon pub-acc-${p.id}` });
   const badge = pubBadge(p);
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), badge]));
@@ -89,9 +94,11 @@ function pubProductCard(p) {
   card.append(el('p', { class: 'pub-card-product', id: id('n') }, p.name));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') }, p.task));
   card.append(el('p', { class: 'pub-card-blurb', id: id('b') }, p.blurb));
+  /* Not built: "Coming soon", as words — nothing to press — with why beside
+     it for a screen reader, as the badge's title gives it to a mouse. */
   card.append(open
-    ? el('span', { class: 'pub-card-go', 'aria-hidden': 'true' }, `Open ${p.name}`, pubArrow())
-    : el('p', { class: 'pub-card-note' }, p.statusNote || 'Not built yet — nothing to open.'));
+    ? el('span', { class: 'pub-card-go' }, el('span', { id: id('go') }, p.action), pubArrow())
+    : el('p', { class: 'pub-card-note' }, [PRODUCT_STATUS[p.status] || PRODUCT_STATUS.soon, el('span', { class: 'sr-only' }, ` — ${p.statusNote || 'not built yet, nothing to open'}`)]));
   return card;
 }
 
@@ -207,6 +214,40 @@ const HIW_FLOW = {
     ['Next', 'Test it against the comparables you have recorded and the area screen for its town.'],
   ],
 };
+/* Where saved property models are a list of their own (My properties, the
+   property model store), the calculator's result says "Save this property",
+   then "Compare scenarios" — so the steps say it too, in those words. Until
+   that store is in the build, the steps say what the calculator does now. */
+function hiwFlow(id) {
+  const steps = HIW_FLOW[id];
+  const models = typeof toolById === 'function' ? toolById('models') : null;
+  if (id !== 'property' || !steps || !models || !toolPresent(models)) return steps;
+  return steps.map(([k, t]) => k === 'Save'
+    ? [k, 'Save this property: it joins My properties with its inputs, and each scenario you save of it is kept beside it. Record it on the opportunity register, or print the decision record.']
+    : k === 'Next' ? [k, 'Compare scenarios of it side by side, then test it against the comparables you have recorded and the area screen for its town.']
+    : [k, t]);
+}
+
+/* ITS TOOLS, AND THEIR STATE HERE (audit 1, #2). Each tool of the product
+   from the registry (TOOLS, 35-ui.js) — its badge, its sentence and its
+   primary action — so this page says what the tab rows and the dashboard
+   say. A tool that is delayed or unavailable here says why in place of its
+   sentence, and one that cannot be used offers no action. */
+function hiwTools(p) {
+  const tools = typeof TOOLS !== 'undefined' ? TOOLS.filter(t => t.product === p.id && toolPresent(t)) : [];
+  if (!tools.length) return null;
+  const box = el('div', { class: 'hiw-tools' });
+  box.append(el('h3', { class: 'hiw-tools-h', id: `hiw-${p.id}-tools` }, 'Its tools, and their state here'));
+  box.append(el('ul', { class: 'hiw-tools-list', 'aria-labelledby': `hiw-${p.id}-tools` }, tools.map(t => {
+    const s = toolState(t);
+    return el('li', { class: `hiw-tool${s.actionable ? '' : ' hiw-tool-off'}`, data: { tool: t.id, state: s.status } }, [
+      el('p', { class: 'hiw-tool-hd' }, [el('span', { class: 'hiw-tool-name' }, t.label), toolBadge(t)]),
+      el('p', { class: 'hiw-tool-note' }, s.note),
+      s.actionable && t.action ? pubLink(t.action.path, { class: 'pub-textlink hiw-tool-go' }, t.action.label, pubArrow()) : null,
+    ]);
+  })));
+  return box;
+}
 
 function hiwSteps(p, steps) {
   const ol = el('ol', { class: 'hiw-steps', 'aria-label': `${p.name}, step by step` });
@@ -424,9 +465,11 @@ function hiwProduct(p) {
     ])]),
     el('div', { class: 'hiw-product-status' }, [pubBadge(p), el('p', { class: 'hiw-product-note' }, p.statusNote)]),
   ]));
-  const steps = HIW_FLOW[p.id];
+  const steps = hiwFlow(p.id);
   if (steps && p.path) s.append(hiwSteps(p, steps));
   else s.append(el('p', { class: 'hiw-soon' }, `Planned: ${String(p.blurb || '').replace(/\.$/, '').toLowerCase()}. Its workflow is described here once it is built.`));
+  const tools = p.path ? hiwTools(p) : null;
+  if (tools) s.append(tools);
   /* The examples fold on a phone. Open, they made the page 10,876px — about
      thirteen screens at 390px — and the connected journey, the page's core
      idea, began near 9,000px. Folded behind "Worked examples", every one of
@@ -450,9 +493,9 @@ function hiwProduct(p) {
    happens. The last step has no link of its own: it is the first step again,
    reached from the match. */
 const HIW_JOURNEY = [
-  ['Research a company', 'Open its report: statements, ratios and a valuation model, each figure with its source.', '/research', 'Equities Research'],
+  ['Research a company', 'Open its report: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
-  ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', 'New setup'],
+  ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'],
   ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
   /* A match links to a company page only where its instrument is a company
      (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
@@ -476,24 +519,34 @@ function hiwJourney() {
   return s;
 }
 
-/* What each status label means, and which products carry it today — read
-   from PRODUCTS, so the legend cannot disagree with the badges above it. */
+/* What each status label means, and which products and tools carry it —
+   read from PRODUCTS and the tool registry (TOOLS), so the legend cannot
+   disagree with the badges below it. The last two are never written by
+   hand: they are what a tool's state becomes from what loaded here
+   (toolState, 35-ui.js), so their line says where they apply now. */
 const HIW_STATUS = [
   ['live', 'Works end to end on data you enter or on filed data.'],
   ['beta', 'Works, with data or delivery still limited as its note says.'],
   ['demo', 'Illustrative data only.'],
   ['soon', 'Not built, nothing to open.'],
+  ['delayed', 'Works, on a file older than its own date allows; its note says which file, and how old.'],
+  ['unavailable', 'Cannot work here: a file it needs did not load, or is never on this site. Shown as text, never as a link.'],
 ];
 function hiwStatus(P) {
   const s = el('section', { class: 'hiw-status', id: 'hiw-status', 'aria-labelledby': 'hiw-status-h' });
   s.append(el('h2', { class: 'hiw-status-h', id: 'hiw-status-h' }, 'What the labels mean'));
   const dl = el('dl', { class: 'hiw-status-list' });
+  const tools = typeof TOOLS !== 'undefined' ? TOOLS.filter(t => t.product && toolPresent(t)).map(toolState) : [];
   HIW_STATUS.forEach(([st, meaning]) => {
-    const who = P.filter(p => p.status === st).map(p => p.name);
+    const derived = st === 'delayed' || st === 'unavailable';
+    const who = derived
+      ? tools.filter(x => x.status === st).map(x => `${productById(x.tool.product)?.short || ''} ${x.tool.label}`.trim())
+      : P.filter(p => p.status === st).map(p => p.name);
     dl.append(el('div', { class: 'hiw-status-item' }, [
       el('dt', {}, pubStatusBadge(st)),
       el('dd', {}, [el('span', { class: 'hiw-status-m' }, meaning),
-        el('span', { class: 'hiw-status-who' }, who.length ? `Today: ${who.join(', ')}` : 'No product carries it today')]),
+        el('span', { class: 'hiw-status-who' }, who.length ? `${derived ? 'Here, now' : 'Today'}: ${who.join(', ')}`
+          : derived ? 'No tool here, now' : 'No product carries it today')]),
     ]));
   });
   s.append(dl);
@@ -760,8 +813,13 @@ VIEWS.launcher = () => {
   }
 
   if (open) {
+    /* The button names the tool it opens, so the shell's gate draws it as
+       text where that tool cannot be used here (gateToolLink, 35-ui.js):
+       with the filings failed to load, "Open the stock screener" sent the
+       reader to the Unavailable screener. */
+    const opens = { property: '/property/calculator', wheel: '/us-options/wheel', trading: '/research/trading-index', screen: '/discover/screener' }[L.goal] || null;
     card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--xl)' }, [
-      el('button', { class: 'btn btn-primary', onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
+      el('button', { class: 'btn btn-primary', 'data-tool-path': opens, onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
     ]));
     card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The tool will say which of its figures are still samples and which are yours.'));

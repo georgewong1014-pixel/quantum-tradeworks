@@ -3385,6 +3385,96 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
    long as it held focus. */
 .tablewrap[data-scroll-stop]:focus-visible { border-radius: var(--r-md); }
 /* ---- end audit: slim ---- */
+
+/* ---- audit1: registry-ctas ---- */
+/* The two states a tool is given by what loaded (TOOLS, toolState). Always
+   the word, never a colour alone; each pairing is a text token on its own
+   wash, over 4.5:1 in both themes, as the other four badges are. */
+.status-delayed { color: var(--dn-text); background: color-mix(in srgb, var(--serious) 11%, var(--surface)); border-color: color-mix(in srgb, var(--serious) 34%, transparent); }
+.status-unavailable { color: var(--critical-text); background: color-mix(in srgb, var(--critical) 9%, var(--surface)); border-color: color-mix(in srgb, var(--critical) 30%, transparent); }
+
+/* A TOOL THAT CANNOT BE USED HERE, AS TEXT (gateToolLink). It keeps its
+   place and its words, loses everything that says "press me" — no pointer,
+   no hover, no lift — and wears its badge. */
+.tool-off { cursor: default; }
+.tool-off .status-badge { margin-left: 6px; }
+.tool-off .pub-arrow, .tool-off .dash-tile-go, .tool-off .dash-row-go { display: none; }
+.ptab.tool-off, .ptab.tool-off:hover { color: var(--ink-3); }
+.ptab.tool-off:not([aria-current="page"]):hover::after { opacity: 0; }
+.ptab .status-badge { margin-left: 6px; }
+/* A tab that works, with its state marked after it (sectionTab). */
+/* Positioned, so the badge's visually hidden comma (.status-badge::before,
+   absolute) is laid out inside the row that scrolls, not at its far end on
+   the page: unpositioned, a Delayed badge on a phone's scrolled-away tab
+   widened the whole page by 300px. */
+.ptabs-list > li { position: relative; display: flex; align-items: center; }
+.ptabs-list > li > .status-badge { margin-left: 4px; }
+.pub-textlink.tool-off, .pub-textlink.tool-off:hover { color: var(--ink-2); text-decoration: none; }
+.dash-tile.tool-off {
+  background: color-mix(in srgb, var(--surface-sunk) 60%, var(--surface)); box-shadow: none;
+  outline: 1px dashed var(--line-2); outline-offset: -1px;
+}
+.dash-tile.tool-off:hover, .dash-tile.tool-off:active { transform: none; box-shadow: none; }
+.dash-tile.tool-off > .status-badge { position: absolute; top: var(--lg); right: var(--md); margin: 0; }
+@media (max-width: 560px) { .dash-tile.tool-off > .status-badge { position: static; grid-column: 1; justify-self: start; } }
+
+/* Its own page says why, under the heading — the flag notice's shape, in the
+   badge's colour. */
+.tool-notice {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; margin-bottom: var(--md);
+  border-radius: var(--r-md); font-size: 13px; line-height: 1.5; color: var(--ink);
+  background: color-mix(in srgb, var(--critical) 6%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--critical) 26%, transparent);
+}
+.tool-notice-delayed { background: color-mix(in srgb, var(--serious) 8%, var(--surface-2)); border-color: color-mix(in srgb, var(--serious) 32%, transparent); }
+.tool-notice p { margin: 0; max-width: 75ch; }
+.tool-notice-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tool-notice-hd strong { font-weight: var(--weight-semibold); }
+.scan-page > .tool-notice, div[style*="gap:var(--md)"] > .tool-notice { margin-bottom: 0; }
+
+/* How it works: each product's tools, their badge, their sentence and their
+   action — two columns where there is room. */
+.hiw-tools { margin-top: var(--xl); padding-top: var(--xl); border-top: 1px solid var(--line); }
+.hiw-tools-h { font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3); }
+.hiw-tools-list { list-style: none; margin: var(--md) 0 0; padding: 0; display: grid; gap: var(--md) var(--xl); }
+@media (min-width: 760px) { .hiw-tools-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hiw-tool { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hiw-tool-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.hiw-tool-name { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.hiw-tool-note { font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); max-width: 60ch; }
+.hiw-tool-off .hiw-tool-name { color: var(--ink-2); }
+.hiw-tool .hiw-tool-go { align-self: flex-start; font-size: var(--text-sm); }
+
+/* The homepage card's goal ("Create a setup") is what the card does, so a
+   phone shows it too: it was hidden there when it only repeated the
+   product's name. */
+@media (max-width: 599px) {
+  .pub-card-go { display: inline-flex; grid-column: 2 / -1; grid-row: 4; padding-top: 6px; font-size: var(--text-sm); }
+}
+
+/* Six labels now, the two derived ones included: three to a row, not four
+   and a stray two. */
+@media (min-width: 1100px) { .hiw-status-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* The dashboard's newest item, with the page's one primary action. */
+.dash-row-first .dash-continue { flex: none; }
+/* ---- end audit1: registry-ctas ---- */
+
+/* ---- audit1: registry-ctas-verify ---- */
+/* A card or a button that opens a tool by script, drawn as text where the
+   tool cannot be used here (data-tool-path, gateToolLink): the gated
+   dashboard tile's look — sunk, a dashed edge, no lift — with its badge on
+   a line of its own under the card's words. */
+.task-card.tool-off {
+  background: color-mix(in srgb, var(--surface-sunk) 60%, var(--surface)); box-shadow: none;
+  outline: 1px dashed var(--line-2); outline-offset: -1px;
+}
+.task-card.tool-off:hover { border-color: transparent; }
+.task-card.tool-off > .status-badge { display: inline-flex; margin: var(--sm) 0 0; }
+/* A button's words, its icon beside them, and the badge on the same line. */
+.tool-off-btn { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: 13px; color: var(--ink-2); }
+.tool-off-btn > .status-badge, .tool-off-btn .status-badge { margin-left: 0; }
+/* ---- end audit1: registry-ctas-verify ---- */
 </style>
 <!--
   NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
@@ -15900,7 +15990,10 @@ function toast(msg) {
 const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
-    question: 'How is this company performing financially?', action: 'Research a company', actionPath: '/research',
+    /* The action is worded as the goal it starts (audit 1, #3): the
+       homepage card, How it works and the dashboard checklist all read it
+       from here, so the three say the same words. */
+    question: 'How is this company performing financially?', action: 'Start research', actionPath: '/research',
     status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
     task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
@@ -15945,9 +16038,364 @@ const productNote = (id) => { const p = productById(id); return p ? `${PRODUCT_S
    and the public pages belong to none. Read from SECTION_OF (below), the one
    table that says where every view sits. */
 function productOf(view) {
-  const s = SECTION_OF[view];
+  const s = SECTION_OF[view] || toolProductOf(view);
   return PRODUCTS.some(p => p.id === s) ? s : null;
 }
+/* A view the table does not list, but a product's tool opens — a tool whose
+   route another branch adds, such as My properties — belongs to that
+   product: its tab row and its sidebar item follow it without a second
+   entry to keep in step. */
+function toolProductOf(view) {
+  if (typeof TOOLS === 'undefined' || !view) return null;
+  return TOOLS.find(t => t.product && toolViews(t).includes(view))?.product || null;
+}
+
+/* ==========================================================================
+   THE TOOLS, ONE REGISTRY (audit 1, #2)
+
+   PRODUCTS says what each product is. It said nothing about the tools inside
+   one, so a product's badge was the only status anywhere: the Scanner's Alerts
+   tab was a link on the hosted site, where the worker's record can never be,
+   and led to a page that explained it was empty; the Screener stayed a link
+   with the filings failed to load. Every tool the site offers is here — each
+   product tab, the Scanner's sections, each workspace surface — with its
+   product, its address, its status, one sentence true to the code, and its
+   primary action. Tabs, section strips, the sidebar, the dashboard and How it
+   works read their badges from it; no page writes a tool's status by hand.
+
+   WRITTEN AND DERIVED. live, beta, demo and soon are written, checked against
+   what the code does. delayed and unavailable are never written: they are
+   read from what actually loaded (toolState) —
+   - filings: data/us.json did not load → every tool that reads the filed set
+     is Unavailable, with the load's own error; its `generated` stamp more than
+     a year old → Delayed, because a company's annual filing since is not in it.
+   - history: data/price-history.json is not here → the tools that run on it
+     are Unavailable (the hosted site never has it); its newest bar more than
+     four calendar days old → Delayed, the four-day rule the scanner's own
+     status uses (scanStatus, 24-market-engine.js).
+   - alerts: data/scan-alerts.json is not here → the worker's record cannot be
+     read, so the tool that reads it is Unavailable.
+   A file opened from disk on the Scanner's dashboard counts as loaded, so a
+   tool comes back the moment it has what it needs.
+
+   A TOOL THAT CANNOT BE USED IS NOT OFFERED. A tool whose state is soon or
+   unavailable is text, never a link or a button — and that is enforced in one
+   place, gateToolLink below, which every link on the page passes through
+   whoever drew it (render, and a watch on the page for what a view draws by
+   itself). Its own page still opens at its address, and says why.
+
+   A tool that is not in this build — a route another branch adds — is not
+   listed anywhere until its route and view exist (toolPresent).
+   ========================================================================== */
+const TOOL_STATUS = { ...PRODUCT_STATUS, delayed: 'Delayed', unavailable: 'Unavailable' };
+/* The states a tab, a sidebar item or a dashboard row marks. Live and Beta
+   are the product's own badge, said once beside its name; a tab wears a badge
+   only when it differs in kind — illustrative only, late, not usable here. */
+const TOOL_FLAGGED = new Set(['demo', 'soon', 'delayed', 'unavailable']);
+const TOOL_OFF = new Set(['soon', 'unavailable']);
+const TOOLS = [
+  /* Equities Research */
+  { id: 'overview', product: 'equities', label: 'Overview', path: '/research', views: ['researchHome'], tab: true,
+    status: 'beta', statusNote: 'Find a company by name, ticker, listing code or CIK — the filed US companies and the illustrative Malaysian set, each labelled which.',
+    action: { label: 'Start research', path: '/research' } },
+  { id: 'screener', product: 'equities', label: 'Screener', path: '/discover/screener', views: ['discover'], tab: true, needs: ['filings'],
+    status: 'beta', statusNote: 'Screens the companies loaded here on quality, financial strength and valuation, every filter and measure explained; a measure that needs a price is blank where none is held.',
+    action: { label: 'Screen companies', path: '/discover/screener' } },
+  { id: 'valuemap', product: 'equities', label: 'Value map', path: '/discover/value-map', views: ['discover'], routeTab: 'radar', needs: ['filings'],
+    status: 'beta', statusNote: 'Places each company by quality against modelled value, which needs a price: no licensed price is held, so it places the illustrative set on sample prices and any company whose close you supplied.',
+    action: { label: 'Open the value map', path: '/discover/value-map' } },
+  { id: 'compare', product: 'equities', label: 'Compare', path: '/compare', views: ['compare'], tab: true, needs: ['filings'],
+    status: 'beta', statusNote: 'Companies side by side on the measures that fit each business model, every period, basis and absent cell stated; period-end months cannot be aligned yet.',
+    action: { label: 'Compare companies', path: '/compare' } },
+  { id: 'queue', product: 'equities', label: 'Research queue', path: '/research/queue', views: ['researchQueue'], tab: true, needs: ['filings'],
+    status: 'beta', statusNote: 'What changed in the reported figures, your watchlist first, with the data’s freshness — each company labelled filed or illustrative, nothing recommended.',
+    action: { label: 'Open the research queue', path: '/research/queue' } },
+  { id: 'sarawak', product: 'equities', label: 'Sarawak watch', path: '/discover/sarawak', views: ['sarawak'], tab: true,
+    status: 'beta', statusNote: 'Names the Bursa companies that operate in Sarawak; no statements are held for them, and each one’s exposure stays empty until you record it.',
+    action: { label: 'Open Sarawak watch', path: '/discover/sarawak' } },
+  { id: 'wheel', product: 'equities', label: 'Cash Wheel', path: '/us-options/wheel', views: ['wheel'], tab: true,
+    status: 'live', statusNote: 'A cash-secured put and covered call cycle modelled from a contract you enter; no option-chain data is connected.',
+    action: { label: 'Model a wheel', path: '/us-options/wheel' } },
+  /* Property Intelligence. "My properties" is the store of saved property
+     models; its route arrives with that work, and until then it is listed
+     nowhere (toolPresent). */
+  { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
+    status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
+    action: { label: 'Open my properties', path: '/property/models' } },
+  { id: 'calculator', product: 'property', label: 'Calculator', path: '/property/calculator', views: ['property'], tab: true,
+    status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
+    action: { label: 'Analyse a property', path: '/property/calculator' } },
+  { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas'], tab: true,
+    status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
+    action: { label: 'Screen a town', path: '/property/areas' } },
+  { id: 'comparables', product: 'property', label: 'Comparables', path: '/property/comparables', views: ['comparables'], tab: true,
+    status: 'live', statusNote: 'Sarawak transacted prices and achieved rents you record, each with what it rests on.',
+    action: { label: 'Record a comparable', path: '/property/comparables' } },
+  { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
+    status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
+    action: { label: 'Record a property', path: '/property/opportunities' } },
+  /* Quantum Scanner — its sections, as its own strip lists them
+     (SCANNER_SUBNAV, 87-scanner-ops.js). */
+  { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'],
+    status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from the worker’s records on your own computer — or from files you open here.',
+    action: { label: 'Open the scanner', path: '/app/scanner' } },
+  { id: 'market', product: 'scanner', label: 'Market', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'],
+    status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
+    action: { label: 'Screen your series', path: '/app/scanner/market' } },
+  { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'],
+    status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; the worker on your computer runs them once exported, and evaluating one here needs your price history.',
+    action: { label: 'Create a setup', path: '/app/scanner/setups/new' } },
+  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'],
+    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
+    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
+  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'],
+    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
+    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
+  { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'],
+    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
+    action: { label: 'Assess a trend', path: '/research/trading-index' } },
+  { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'],
+    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
+    action: { label: 'Open scanner settings', path: '/app/scanner/settings' } },
+  { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'],
+    status: 'beta', statusNote: 'Your watchlists as the universe a setup checks, exported to the file the worker reads.',
+    action: { label: 'Scan a watchlist', path: '/app/scanner/watchlists' } },
+  /* The workspace — the reader's own, in this browser. */
+  { id: 'dashboard', product: null, label: 'My Dashboard', path: '/app', views: ['home'],
+    status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.',
+    action: { label: 'Open my dashboard', path: '/app' } },
+  { id: 'watchlists', product: null, label: 'Watchlists', path: '/my/watchlists', views: ['watchlists'],
+    status: 'live', statusNote: 'Lists of companies you follow, kept in this browser; each can be the universe a scanner setup checks.',
+    action: { label: 'Create a watchlist', path: '/my/watchlists' } },
+  { id: 'myAlerts', product: null, label: 'My Alerts', path: '/my/alerts', views: ['alerts'],
+    status: 'live', statusNote: 'The facts that changed against your investment cases and saved screens, each with its source period; nothing leaves this browser.',
+    action: { label: 'Review your alerts', path: '/my/alerts' } },
+  { id: 'saved', product: null, label: 'Saved Models', path: '/my/workspace', views: ['workspace'],
+    status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
+    action: { label: 'Open your saved work', path: '/my/workspace' } },
+  { id: 'portfolio', product: null, label: 'Portfolio', path: '/my/portfolio', views: ['portfolio'],
+    status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.',
+    action: { label: 'Open your portfolio', path: '/my/portfolio' } },
+  { id: 'theses', product: null, label: 'Investment cases', path: '/my/theses', views: ['thesis'],
+    status: 'live', statusNote: 'What you believe about a company and what would prove you wrong, checked against the latest data held.',
+    action: { label: 'Write an investment case', path: '/my/theses' } },
+  { id: 'tracked', product: null, label: 'Tracked', path: '/my/tracked', views: ['tracked'],
+    status: 'beta', statusNote: 'Instruments followed by price and trend only, from closes you supply — this site ships none.',
+    action: { label: 'Open tracked instruments', path: '/my/tracked' } },
+  { id: 'userdata', product: null, label: 'Your data', path: '/my/data', views: ['userdata'],
+    status: 'live', statusNote: 'Prices you paste, kept in this browser, and the export that carries everything you saved.',
+    action: { label: 'Open your data', path: '/my/data' } },
+];
+const toolById = (id) => TOOLS.find(t => t.id === id) || null;
+/* The views a tool is, as written, or else the view its route opens. */
+const toolViews = (t) => t.views || [matchRoute(t.path)?.view].filter(Boolean);
+/* In this build: its route resolves to a view that exists. */
+const toolPresent = (t) => { const rt = t ? matchRoute(t.path) : null; return !!rt && typeof VIEWS[rt.view] === 'function'; };
+
+/* The clock the derived states are judged by; a check pins it. */
+let toolClock = null;
+const toolNow = () => new Date(toolClock || (typeof scanOpsClock !== 'undefined' && scanOpsClock) || Date.now());
+/* A filed set is annual statements: a year after it was built, a company's
+   next annual report has been filed and is not in it. */
+const FILINGS_STALE_DAYS = 365;
+/* The scanner's own rule (scanStatus): no exchange calendar is held, so more
+   than four calendar days — a weekend and a day — since the newest bar is
+   behind. */
+const HISTORY_BEHIND_DAYS = 4;
+const toolDay = (t) => String(t || '').slice(0, 10);
+/* The newest bar of a price history, read once per history. It was read
+   afresh for every link to a tool that runs on the history, and
+   scanOpsHistoryMeta walks every bar of every series — about 40ms for 200
+   series of ten years — so a scanner page with fifty links to its alerts
+   took 2.9s to draw instead of 0.45s, on the owner's own machine, the one
+   place a history is held. A history is replaced, never edited, when it
+   changes (loaded, opened from disk, its splits attached), so the object
+   itself is the key. */
+let toolHistoryRead = null;
+function toolNewestBar(h) {
+  if (!toolHistoryRead || toolHistoryRead.h !== h)
+    toolHistoryRead = { h, bar: typeof scanOpsHistoryMeta === 'function' ? scanOpsHistoryMeta(h)?.newestBar ?? null : null };
+  return toolHistoryRead.bar;
+}
+
+/* What one source's state does to the tools that read it: null when nothing
+   is wrong with it or nothing is known yet (a load still on its way is not a
+   failure), else { state, why }. Every name read here is guarded — a source's
+   module may load after this one, or be absent from a build. */
+function toolSource(name) {
+  const now = toolNow();
+  const filingsOn = typeof realEnabled === 'function' && realEnabled();
+  const status = typeof realStatus !== 'undefined' ? realStatus : null;
+  if (name === 'filings') {
+    if (!filingsOn || !status) return null;
+    if (!status.ok) return { state: 'unavailable', why: `The filed statements did not load (${status.error || 'no reason given'}), so only the illustrative companies are here.` };
+    const g = Date.parse(status.generated || '');
+    const days = Number.isFinite(g) ? Math.floor((now.getTime() - g) / 864e5) : null;
+    if (days != null && days > FILINGS_STALE_DAYS) return { state: 'delayed',
+      why: `The filed statements were retrieved from SEC EDGAR on ${toolDay(status.generated)}, ${days} days ago, so an annual report filed since then is not in them.` };
+    return null;
+  }
+  /* The scanner's files. One that is here — loaded, or opened from disk on
+     the Scanner's dashboard — is judged by what it holds, however it came.
+     One that is not is absent only once the load has looked for it: the
+     scanner's files are read in the same load as the filings, and only where
+     the page is served from the owner's machine (25-universe.js). */
+  const absent = (why) => {
+    const read = typeof scanOpsRead !== 'undefined' && scanOpsRead;
+    if (read) return { state: 'unavailable', why };
+    if (filingsOn && !status) return null;
+    return { state: 'unavailable', why: !filingsOn
+      ? 'The scanner’s files are read with the filed statements, and those are switched off in this tab.'
+      : 'The data load stopped before the scanner’s files were read.' };
+  };
+  if (name === 'history') {
+    const h = typeof scanOpsHistory === 'function' ? scanOpsHistory() : null;
+    if (!h?.series || !Object.keys(h.series).length) return absent('No price history is loaded here. The scanner reads data/price-history.json, which is built on your own computer and never deployed; open yours on the Scanner’s dashboard to use it in this tab.');
+    const newest = toolNewestBar(h);
+    const age = newest && typeof scanDayDiff === 'function' ? scanDayDiff(newest, now.toISOString().slice(0, 10)) : null;
+    if (age > HISTORY_BEHIND_DAYS) return { state: 'delayed',
+      why: `Your price history’s newest bar is ${newest}, ${age} days old — more than four calendar days (a weekend and a day), the rule the scanner’s own status uses.` };
+    return null;
+  }
+  if (name === 'alerts') {
+    const d = typeof scanOpsAlertsDoc === 'function' ? scanOpsAlertsDoc() : null;
+    if (!d) return absent('No record of matches is loaded here. The worker writes data/scan-alerts.json on the computer it runs on, and it is never deployed; open yours on the Scanner’s dashboard to read it in this tab.');
+    return null;
+  }
+  return null;
+}
+
+/* A tool's state now: its written status, or the worst its sources derive —
+   unavailable before delayed. `actionable` is the one question every link to
+   it asks. */
+function toolState(idOrTool) {
+  const t = typeof idOrTool === 'string' ? toolById(idOrTool) : idOrTool;
+  if (!t) return null;
+  const derived = [...(t.needs || []).map(toolSource), ...(t.ages || []).map(s => { const x = toolSource(s); return x?.state === 'delayed' ? x : null; })]
+    .filter(Boolean).sort((a, b) => (a.state === 'unavailable' ? -1 : 0) - (b.state === 'unavailable' ? -1 : 0))[0] || null;
+  const status = derived ? derived.state : t.status;
+  return { id: t.id, tool: t, status, written: t.status, derived: !!derived,
+    label: TOOL_STATUS[status] || status, note: derived ? derived.why : t.statusNote,
+    present: toolPresent(t), actionable: !TOOL_OFF.has(status) };
+}
+/* The badge a tool wears, as productBadge draws a product's: an element with
+   its note as the title, and its own markup in a template string. */
+function toolBadge(idOrTool) {
+  const s = toolState(idOrTool);
+  if (!s) return null;
+  const b = el('span', { class: `status-badge status-${s.status}`, title: s.note }, s.label);
+  b.toString = () => b.outerHTML;
+  return b;
+}
+/* The badge only where the state is worth marking (TOOL_FLAGGED). */
+const toolFlag = (idOrTool) => { const s = toolState(idOrTool); return s && TOOL_FLAGGED.has(s.status) ? toolBadge(s.tool) : null; };
+const toolNote = (idOrTool) => { const s = toolState(idOrTool); return s ? `${s.label}: ${s.note}` : null; };
+
+/* The tool an address opens: by the route's view, and where two tools share
+   a view (the screener and its value map), by the route's tab. */
+function toolForPath(path) {
+  const rt = matchRoute(String(path || '').split(/[?#]/)[0]);
+  if (!rt) return null;
+  const hits = TOOLS.filter(t => toolViews(t).includes(rt.view));
+  if (hits.length < 2) return hits[0] || null;
+  return hits.find(t => t.routeTab && t.routeTab === rt.tab) || hits.find(t => !t.routeTab) || hits[0];
+}
+/* The tool on screen, by the view and — on the screener's page — its tab. */
+function toolForView(view = State.view) {
+  const hits = TOOLS.filter(t => toolViews(t).includes(view));
+  if (hits.length < 2) return hits[0] || null;
+  const tab = view === 'discover' ? State.discoverTab : null;
+  return hits.find(t => t.routeTab && t.routeTab === tab) || hits.find(t => !t.routeTab) || hits[0];
+}
+
+/* THE ONE PLACE A TOOL THAT CANNOT BE USED STOPS BEING OFFERED. A link to a
+   tool whose state is soon or unavailable becomes text: its words, the
+   tool's badge and why, and nothing to press. Every class but the button's is
+   kept, so a tab still sits in its row and a tile in its grid. Links to
+   anything else — another origin, a download, a place on the page — are
+   left alone.
+   A BUTTON THAT OPENS A TOOL SAYS WHICH. The gate saw only links, so with
+   the filings failed to load the research home's collection cards, the
+   research queue's "Quality vs Value Map" (its primary button), a company's
+   "Open full comparison", "New thesis from a screen", the start page's
+   "Open the stock screener" and a saved screen's Open — the dashboard's
+   "Continue" among them — still sent the reader to the Unavailable screener
+   or comparison. A control that opens a tool by script names the tool's
+   address in data-tool-path, and passes through this same gate: where the
+   tool cannot be used it becomes text as a link does, and a card keeps its
+   place in its grid (its own tag, without the role and the Tab stop). */
+function toolOfLink(a) {
+  const h = a.getAttribute('data-tool-path') || a.getAttribute('data-path') || a.getAttribute('href');
+  if (!h || h.startsWith('#') || a.hasAttribute('download') || /^[a-z]+:/i.test(h) && !/^https?:/i.test(h)) return null;
+  let u;
+  try { u = new URL(h, location.href); } catch { return null; }
+  if (u.origin !== location.origin) return null;
+  return toolForPath(u.pathname);
+}
+function gateToolLink(a) {
+  const t = toolOfLink(a);
+  if (!t) return a;
+  const s = toolState(t);
+  if (s.actionable) return a;
+  const off = el(/^(A|BUTTON)$/.test(a.tagName) ? 'span' : a.tagName.toLowerCase(), { class: [...a.classList].filter(c => !/^btn/.test(c)).concat('tool-off', a.tagName === 'BUTTON' ? 'tool-off-btn' : []).join(' '),
+    'data-tool': t.id, 'data-tool-state': s.status, title: s.note });
+  if (a.id) off.id = a.id;
+  /* A control drawn with its layout inline keeps it — but not a pointer. */
+  if (a.getAttribute('style')) { off.setAttribute('style', a.getAttribute('style')); off.style.cursor = 'default'; }
+  if (a.getAttribute('aria-current')) off.setAttribute('aria-current', a.getAttribute('aria-current'));
+  off.append(...a.childNodes);
+  if (!off.querySelector('.status-badge')) off.append(' ', toolBadge(t));
+  off.append(el('span', { class: 'sr-only' }, ` — ${s.note}`));
+  a.replaceWith(off);
+  return off;
+}
+function gateToolLinks(root) {
+  if (!root || root.nodeType !== 1) return;
+  const sel = 'a[href], [data-tool-path]';
+  const links = root.matches(sel) ? [root] : [...root.querySelectorAll(sel)];
+  links.forEach(gateToolLink);
+}
+/* A link to a tool, for the pages that draw one by name: the same anchor
+   every in-app link is, through the same gate. */
+function toolLink(path, attrs = {}, ...kids) {
+  const a = el('a', { href: href(path), ...attrs, onclick: (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+    e.preventDefault(); navigate(path);
+  } }, ...kids);
+  return a.isConnected ? gateToolLink(a) : gateDetached(a);
+}
+/* Not yet on the page: gated in a holder, so the caller gets what will stand. */
+function gateDetached(a) {
+  const holder = document.createElement('div');
+  holder.append(a);
+  const out = gateToolLink(a);
+  out.remove();
+  return out;
+}
+
+/* The page of a tool that is delayed or unavailable says so, under its
+   heading, as a feature-flagged surface does (mountFlagNotice): it still
+   opens at its address, and whatever it can show, it shows. */
+function mountToolNotice(node) {
+  const t = toolForView();
+  const s = t ? toolState(t) : null;
+  if (!s || !s.derived || !node?.children) return null;
+  const notice = el('div', { class: `tool-notice tool-notice-${s.status}`, role: 'note', 'aria-label': `${t.label}: ${s.label.toLowerCase()}` }, [
+    el('p', { class: 'tool-notice-hd' }, [toolBadge(t), el('strong', {}, s.status === 'unavailable' ? `${t.label} cannot work here.` : `${t.label} is working on data older than it should be.`)]),
+    el('p', {}, s.note),
+  ]);
+  /* After the part of the page that holds its heading — a .page-hd, or the
+     screener's own header with its strip — else at the top. */
+  let hd = node.querySelector('h1');
+  while (hd && hd.parentElement !== node) hd = hd.parentElement;
+  if (hd) hd.after(notice); else node.prepend(notice);
+  return s;
+}
+
+/* A product's row of tabs, from the registry: its tools marked as tabs that
+   are in this build, in the registry's order. */
+const productTabs = (pid) => TOOLS.filter(t => t.product === pid && t.tab && toolPresent(t))
+  .map(t => ({ id: t.id, label: t.label, path: t.path, views: toolViews(t), tool: t }));
 
 /* Which chrome a view wears. Everything not listed is a page a reader works
    in. The not-found card is public: a stranger who followed a dead link is
@@ -16007,22 +16455,15 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
    "Overview" beside "Calculator" would be two names for the same page, the
    second one promising a summary that does not exist. The row gains it when
    a Property overview is built (docs/route-map.md). */
-const PRODUCT_TABS = {
-  equities: [
-    { id: 'overview', label: 'Overview',       path: '/research',           views: ['researchHome'] },
-    { id: 'screener', label: 'Screener',       path: '/discover/screener',  views: ['discover'] },
-    { id: 'compare',  label: 'Compare',        path: '/compare',            views: ['compare'] },
-    { id: 'queue',    label: 'Research queue', path: '/research/queue',     views: ['researchQueue'] },
-    { id: 'sarawak',  label: 'Sarawak watch',  path: '/discover/sarawak',   views: ['sarawak'] },
-    { id: 'wheel',    label: 'Cash Wheel',     path: '/us-options/wheel',   views: ['wheel'] },
-  ],
-  property: [
-    { id: 'calculator',    label: 'Calculator',    path: '/property/calculator',    views: ['property'] },
-    { id: 'areas',         label: 'Area screen',   path: '/property/areas',         views: ['areas'] },
-    { id: 'comparables',   label: 'Comparables',   path: '/property/comparables',   views: ['comparables'] },
-    { id: 'opportunities', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'] },
-  ],
-};
+/* Read from the registry (TOOLS, above): the tools of the product marked as
+   tabs and in this build, in the registry's order — so a tab's name, its
+   address and its badge cannot differ from How it works or the dashboard,
+   and a tool another branch adds takes its place in the row when its route
+   exists. Equities and Property only: the Scanner draws its own strip. */
+const PRODUCT_TABS = Object.defineProperties({}, {
+  equities: { enumerable: true, get: () => productTabs('equities') },
+  property: { enumerable: true, get: () => productTabs('property') },
+});
 /* The company page and its report belong to Equities but keep their own
    tabs; a second row above them would be two strips of tabs on one page. */
 const NO_PRODUCT_TABS = new Set(['research', 'researchReport']);
@@ -16058,6 +16499,13 @@ const viewRoot = $('#views');
 const headingWatch = new MutationObserver(() => { fitHeadingLevels(viewRoot); fitHeadingLevels(drawerBody, 2); });
 headingWatch.observe(viewRoot, { childList: true, subtree: true });
 headingWatch.observe(drawerBody, { childList: true, subtree: true });
+/* The same for links to tools: a view that draws part of itself later, and a
+   drawer, pass what they add through the one gate (gateToolLink), so a tool
+   that cannot be used here is text wherever a page offered it. Replacing a
+   link adds a node without one, so this never calls itself again. */
+const toolLinkWatch = new MutationObserver((recs) => recs.forEach(r => r.addedNodes.forEach(n => gateToolLinks(n))));
+toolLinkWatch.observe(viewRoot, { childList: true, subtree: true });
+toolLinkWatch.observe(drawerBody, { childList: true, subtree: true });
 
 /* --------------------------------------------------------------- routing */
 /* Real paths, not fragments. Previously go() changed State and re-rendered
@@ -17105,7 +17553,7 @@ function buildNav() {
   /* A drawer or a sheet belongs to the chrome that opened it. */
   if (chrome === 'public') closeNavDrawer({ restore: false, instant: true });
   else closeSheet({ restore: false });
-  const section = SECTION_OF[State.view] || decisionRecordSection() || null;
+  const section = SECTION_OF[State.view] || decisionRecordSection() || toolProductOf(State.view) || null;
   shellEl.appnav?.querySelectorAll('a.sb-link').forEach(a => {
     if (a.dataset.navId === section) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
@@ -17165,7 +17613,9 @@ function renderProductTabs() {
   if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; delete host.dataset.strip; return; }
   const p = productById(pid);
   const here = tabs.find(t => t.views.includes(State.view));
-  const strip = JSON.stringify([pid, tabs.map(t => [t.label, t.path]), here?.path ?? null]);
+  /* The tools' states are part of what the strip says: a tool the filings
+     failed under is text in it, and comes back a link when they load. */
+  const strip = JSON.stringify([pid, tabs.map(t => [t.label, t.path, toolState(t.tool)?.status]), here?.path ?? null]);
   if (!host.hidden && host.dataset.strip === strip) return;
   const nav = sectionTabs({ label: `${p.name} sections`, pid, tabs: tabs.map(t => ({ label: t.label, path: t.path, current: t === here })) });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
@@ -17184,12 +17634,26 @@ function renderProductTabs() {
    of underline tabs that scrolls, with the current tab marked aria-current.
    A strip drawn inside a view (inView) takes the band's look where it sits,
    at the top of the page (.ptabs-inview). */
+/* One tab. Where its tool cannot be used here, text in place of the link,
+   with the badge and why (gateToolLink), whichever page drew the strip.
+   Where the tool works but its state is worth marking — Delayed, Demo — the
+   badge stands after the tab rather than inside it, so the tab's name stays
+   its own words (the Scanner's "Alerts, 9 unread" among them), and the link
+   carries the state and why as its description. */
+function sectionTab(t) {
+  const tool = toolForPath(t.path);
+  const s = tool ? toolState(tool) : null;
+  const flagged = s && s.actionable && TOOL_FLAGGED.has(s.status);
+  const a = shellLink(t.path, { class: 'ptab', 'aria-current': t.current ? 'page' : null, 'aria-label': t.ariaLabel || null,
+    'aria-description': flagged ? `${s.label}: ${s.note}` : null }, t.label);
+  if (s && !s.actionable) return gateDetached(a);
+  return flagged ? [a, toolBadge(tool)] : a;
+}
 function sectionTabs({ label, pid = null, tabs, cls = '', inView = false }) {
   const p = pid ? productById(pid) : null;
   const nav = el('nav', { class: `ptabs ${pid ? `pub-acc-${pid} ` : ''}${cls}`.trim(), 'aria-label': label }, [
     p ? el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]) : null,
-    el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {},
-      shellLink(t.path, { class: 'ptab', 'aria-current': t.current ? 'page' : null, 'aria-label': t.ariaLabel || null }, t.label)))),
+    el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {}, sectionTab(t)))),
   ]);
   if (!inView) return nav;
   const band = el('div', { class: 'ptabs-host ptabs-inview' }, nav);
@@ -17799,7 +18263,12 @@ function drawPage(samePage) {
   /* A surface the capability register marks feature-flagged says so on the
      page, from the register row itself (80-registers.js). Not on the
      skeleton: there is no surface yet to describe. */
-  if (!(realPending && UNIVERSE_VIEWS.has(State.view))) mountFlagNotice(node, State.view, State.researchTab);
+  if (!(realPending && UNIVERSE_VIEWS.has(State.view))) {
+    mountFlagNotice(node, State.view, State.researchTab);
+    /* And a tool that is delayed or unavailable here says why on its own
+       page (TOOLS, toolState). */
+    mountToolNotice(node);
+  }
   /* A redraw of the page on screen does not play the page's entrance again
      (styles.css, .view[data-redrawn]). It did at every redraw — every
      filter changed on the screener, the filings landing, an OS switch to
@@ -17807,6 +18276,9 @@ function drawPage(samePage) {
      up 6px under the reader, and the control given focus back was measured
      6px off where it came to rest (stayPut). A new page still enters. */
   const section = el('section', { class: 'view', data: samePage ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, node));
+  /* Every link the page drew, through the one gate before it is shown: a
+     link to a tool that cannot be used here becomes text (gateToolLink). */
+  gateToolLinks(section);
   viewRoot.replaceChildren(section);
   /* The page's charts, which could not be drawn before it had a width
      (30-charts.js): now, so a redraw puts the page back as it was, the
@@ -17840,6 +18312,7 @@ function drawPage(samePage) {
     const dock = decisionDock(dockSpec);
     const footer = document.querySelector('body > .footer');
     footer ? footer.before(dock) : document.body.append(dock);
+    gateToolLinks(dock);
     /* Behind an open sheet or drawer, as the page it summarises is (BEHIND). */
     if (sheetOpen || navDrawerOpen) dock.setAttribute('inert', '');
     viewRoot.dataset.dock = '1';
@@ -18130,9 +18603,11 @@ VIEWS.researchQueue = () => {
     'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
   hd.append(hl);
   const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
-  hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
+  /* Each names the tool it opens, so the shell's gate draws it as text
+     where that tool cannot be used here (gateToolLink, 35-ui.js). */
+  hr.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openDashboardCustomiser(), html: `${icon('grid')} Customise` }));
-  hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
+  hr.append(el('button', { class: 'btn btn-primary btn-sm', 'data-tool-path': '/discover/value-map', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
   hd.append(hr);
   wrap.append(hd);
 
@@ -18369,6 +18844,8 @@ VIEWS.researchQueue = () => {
        phone, where a fingertip is what presses them. */
     ol.append(el('li', {}, el('button', {
       class: 'row tap-row', style:'width:100%;gap:10px;background:none;border:0;cursor:pointer;padding:7px 0;text-align:left',
+      /* The screener step names its tool, for the shell's gate. */
+      'data-tool-path': label === 'Discover candidates' ? '/discover' : null,
       onclick: act }, [
       el('span', { style: 'width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--brand-wash);color:var(--brand)' }, String(i + 1)),
       el('span', { style: 'display:flex;flex-direction:column;min-width:0' }, [
@@ -18461,17 +18938,22 @@ function openDashboardCustomiser() {
    start another.
    ========================================================================== */
 
-/* The four products — names, actions and status badges — are the shell's
-   (PRODUCTS, productById and productBadge in 35-ui.js), so the dashboard
-   cannot describe a product differently from the header, the sidebar and the
-   homepage. */
+/* The four products — names and actions — are the shell's (PRODUCTS,
+   productById in 35-ui.js), and every badge here is a tool's, from the one
+   registry (TOOLS, toolBadge), so the dashboard cannot describe a product or
+   a tool differently from the header, the sidebar, the tabs and How it
+   works. */
 
 /* A real anchor, so every tile and row is a link the browser understands —
-   middle-click, a new tab, the address in the status bar. */
+   middle-click, a new tab, the address in the status bar — and through the
+   shell's one gate (gateDetached, 35-ui.js): a count or a step whose tool
+   cannot be used here is drawn as text with the reason, not as a door. */
 function myDashLink(path, attrs = {}, kids = []) {
-  return el('a', { ...attrs, href: href(path),
+  const a = el('a', { ...attrs, href: href(path),
     onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(path); } }, kids);
+  return myDashGate(a);
 }
+const myDashGate = (n) => (typeof gateDetached === 'function' ? gateDetached(n) : n);
 /* The one route helper that decides whether a link may be drawn at all: a
    path that ends at the not-found card is never offered. */
 const myDashRoutes = (path) => { const r = matchRoute(path.split('?')[0]); return !!(r && VIEWS[r.view]); };
@@ -18587,17 +19069,17 @@ function myDashSteps(o) {
     ? `${myDashPlural(o.instruments.size, 'company', 'companies')} you added ${o.instruments.size === 1 ? 'sits' : 'sit'} in a sample list. A list of your own keeps your companies apart from the samples.` : '';
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
   return [
-    { k: 'research', product: 'equities', title: 'Research a company', done: !!lastCo,
+    { k: 'research', product: 'equities', tool: 'overview', title: 'Research a company', done: !!lastCo,
       note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}.`
         : 'Statements, ratios and a valuation range, every figure with its formula and its source.',
-      action: eq?.action || 'Research a company', path: eq?.actionPath || '/research' },
-    { k: 'watchlist', product: null, title: 'Create a watchlist', done: o.createdLists.length > 0,
+      action: eq?.action || 'Start research', path: eq?.actionPath || '/research' },
+    { k: 'watchlist', product: null, tool: 'watchlists', title: 'Create a watchlist', done: o.createdLists.length > 0,
       note: o.createdLists.length ? `${inList}.` : inSample || 'The companies you follow, in a list of your own — the scanner can take it as the universe it checks.',
-      action: 'Create a watchlist', path: '/my/watchlists' },
-    { k: 'setup', product: 'scanner', title: 'Create a scanner setup', done: o.setupsKnown > 0,
+      action: toolById('watchlists')?.action.label || 'Create a watchlist', path: '/my/watchlists' },
+    { k: 'setup', product: 'scanner', tool: 'setups', title: 'Create a scanner setup', done: o.setupsKnown > 0,
       note: o.setupsKnown ? `${setupsText}.` : 'Conditions you choose, checked on each daily close of the price history you supply, with a record of every bar on which they held.',
       action: sc?.action || 'Create a setup', path: sc?.actionPath || '/app/scanner/setups/new' },
-    { k: 'property', product: 'property', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
+    { k: 'property', product: 'property', tool: 'calculator', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
       note: o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved snapshot')}` : ''].filter(Boolean).join(' · ') + '.'
         : 'A price, a rent and a loan in; the monthly cash flow, the rental yield and the cash needed up front out.',
@@ -18617,7 +19099,7 @@ function myDashStepRow(s, primary) {
   const body = el('div', { class: 'dash-step-body' });
   body.append(el('div', { class: 'dash-step-t' }, [
     el('h3', { class: 'h-card' }, [el('span', { class: 'sr-only' }, s.done ? 'Done: ' : 'Not done yet: '), s.title]),
-    s.product ? productBadge(s.product) : null,
+    s.tool ? toolBadge(s.tool) : s.product ? productBadge(s.product) : null,
   ]));
   body.append(el('p', { class: 'caption' }, s.note));
   li.append(body);
@@ -18740,13 +19222,23 @@ VIEWS.home = () => {
     note: moved ? `${moved} saved under a model or data version since replaced` : null }));
   wrap.append(tiles);
 
-  /* The record and what to do next on the left; the reader's own work on the
-     right. On a phone they stack in that order. */
+  /* ONE NEXT ACTION (audit 1, #9). A returning reader's next action is to
+     carry on with the most recent thing they made, so "Continue" on it is the
+     page's one primary button; the first step not taken was a second one, of
+     the same weight, on the same screen. With nothing to continue — a
+     scanner record and nothing saved — the first step keeps it.
+     The card holding that action leads the left column, above the record;
+     the steps not taken move to the right. On a phone the page stacks in
+     that order, so the one action is the first thing under the counts, not
+     below three steps; with nothing to continue, the record and the steps
+     keep the left, as before. */
   const split = el('div', { class: 'dash-split' });
   const main = el('div', { class: 'dash-side' });
-  main.append(myDashMatches(o, st));
   const side = el('div', { class: 'dash-side' });
-  side.append(myDashContinue(o));
+  const cont = myDashContinue(o);
+  const continues = !!cont.querySelector('.dash-continue.btn-primary');
+  if (continues) main.append(cont);
+  main.append(myDashMatches(o, st));
   const open = steps.filter(s => !s.done);
   if (open.length) {
     const ns = el('section', { class: 'card', 'aria-labelledby': 'dash-next-hd' });
@@ -18754,9 +19246,10 @@ VIEWS.home = () => {
       el('h2', { id: 'dash-next-hd', class: 'h-card' }, 'Next steps'),
       el('p', { class: 'caption', style: 'margin-top:2px' }, `${myDashPlural(open.length, 'first step')} not taken yet.`),
     ])));
-    ns.append(el('ol', { class: 'dash-steps dash-steps-sm' }, open.map((s, i) => myDashStepRow(s, i === 0))));
-    main.append(ns);
+    ns.append(el('ol', { class: 'dash-steps dash-steps-sm' }, open.map((s, i) => myDashStepRow(s, !continues && i === 0))));
+    (continues ? side : main).append(ns);
   }
+  if (!continues) side.append(cont);
   if (o.samples) side.append(myDashSampleNote());
   split.append(main, side);
   wrap.append(split);
@@ -18833,8 +19326,8 @@ function myDashContinue(o) {
   const kindOne = typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE : {};
   const rows = [
     ...o.saved.map(i => ({ at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
-      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null,
-      act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
+      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, open: () => i.open(), opens: i.path || null,
+      act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, 'data-tool-path': i.path || null, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
     /* A list names what the visitor put in it; a sample list says how many of
        its companies are samples. Its chip is the workspace's rule: every
        company illustrative, or some. */
@@ -18861,7 +19354,7 @@ function myDashContinue(o) {
       myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm' }, 'Saved models')]));
   } else {
     const ul = el('ul', { class: 'dash-list dash-cont' });
-    rows.forEach(r => {
+    rows.forEach((r, i) => {
       /* One clock on the page: the reader's. The lede gives the last visit in
          local time; these rows gave UTC with an ISO date, so a list edited an
          hour ago read as older than a visit five hours ago. A bare date has no
@@ -18880,6 +19373,20 @@ function myDashContinue(o) {
         el('span', { class: 'dash-row-t' }, [el('strong', {}, r.name), ...chips]),
         el('span', { class: 'dash-row-s' }, meta),
       ]);
+      /* The newest carries the page's one primary action, "Continue" — its
+         own open where it has one (a saved item reopens as the workspace
+         reopens it), else the page it lives on. The button names the tool
+         it reopens and passes the shell's gate now, as the link does, so
+         a saved screen or comparison whose tool cannot be used here is
+         text, and the page's one primary action falls to the first step. */
+      if (i === 0) {
+        const name = `Continue: ${r.name}`;
+        const go = r.open
+          ? myDashGate(el('button', { type: 'button', class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name, 'data-tool-path': r.opens, onclick: r.open }, 'Continue'))
+          : myDashLink(r.path, { class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name }, 'Continue');
+        ul.append(el('li', {}, el('div', { class: 'dash-row dash-row-act dash-row-first' }, [main, go])));
+        return;
+      }
       ul.append(el('li', {}, r.path
         ? myDashLink(r.path, { class: 'dash-row' }, [main, el('span', { class: 'dash-row-go', 'aria-hidden': 'true', html: MYDASH_CHEVRON })])
         : el('div', { class: 'dash-row dash-row-act' }, [main, r.act])));
@@ -22192,10 +22699,11 @@ function toggleWatch(id, wlIdx = State.wlIdx) {
    works from the keyboard and a link opens in a new tab. The valuation tab is
    one tab away in the strip below, so it no longer needs a button here.
 
-   The scanner is the exception, and says so. It reads only price history the
-   reader supplied — the deployed site ships none, by design — so it is live
-   only where that history is loaded, and otherwise shown switched off with the
-   reason beside it. Nothing here implies it scans anything else. */
+   The scanner says what it needs. A setup for this company can be written
+   anywhere, but it is checked only on price history the reader supplied — the
+   deployed site ships none, by design — and the line under the actions says
+   whether that history is loaded. Nothing here implies it scans anything
+   else. */
 const scannerLaneOn = () => !!(scanHistoryFile?.series && Object.keys(scanHistoryFile.series).length);
 function companyActions(r) {
   const { c } = r;
@@ -22204,10 +22712,15 @@ function companyActions(r) {
   const link = (path, label, { before, ...attrs } = {}) => el('a', { class: 'btn btn-ghost btn-sm', href: href(path), ...attrs,
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); before?.(); navigate(path); } }, label);
   const watching = State.watchlist.includes(c.id);
+  /* ONE NEXT ACTION (audit 1, #9). The page had four equal buttons and no
+     way forward marked. The next step of the connected journey is the
+     primary one: "Add to watchlist" until the company is on the list, then
+     "Create a setup for <ticker>" — the builder with the symbol — and the
+     rest stay quiet. */
   /* An id, because its words change with what it does: render() finds the
      control in use again by id first, and by its words it found nothing and
      left focus on <main> after every press (35-ui.js, giveFocusBack). */
-  acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'co-watch', 'aria-pressed': watching ? 'true' : 'false',
+  acts.append(el('button', { class: `btn ${watching ? 'btn-ghost' : 'btn-primary'} btn-sm`, id: 'co-watch', 'aria-pressed': watching ? 'true' : 'false',
     onclick: () => toggleWatch(c.id) }, watching ? '✓ On your watchlist' : 'Add to watchlist'));
   /* Compare adds this company to the selection already held, rather than
      replacing it, and drops the oldest when the plan's cap is reached — with a
@@ -22229,13 +22742,16 @@ function companyActions(r) {
     onclick: () => addToThesis(c.id) }, sampleCase ? 'Open the sample investment case' : thesis ? 'Open your investment case' : 'Save research'));
   const sym = c.tk || c.code || c.id;
   const on = scannerLaneOn();
-  if (on) acts.append(link(`/my/scanner?from=${encodeURIComponent(c.id)}&symbol=${encodeURIComponent(sym)}`, 'Open scanner',
-    { title: 'Personal-lane scanner: it scans only the price history you supplied' }));
-  else acts.append(el('button', { class: 'btn btn-ghost btn-sm', disabled: '', 'aria-describedby': `scan-off-${c.id}` }, 'Open scanner'));
+  /* A setup is written and kept in this browser wherever the page is; what
+     needs the reader's own price history is evaluating it, and the line
+     under the actions says whether that history is here. The link passes
+     the shell's gate (toolLink), as every link to a tool does. */
+  const setupPath = `/app/scanner/setups/new?from=${encodeURIComponent(c.id)}&symbol=${encodeURIComponent(sym)}`;
+  acts.append(toolLink(setupPath, { class: `btn ${watching ? 'btn-primary' : 'btn-ghost'} btn-sm`, 'aria-describedby': `scan-off-${c.id}` }, `Create a setup for ${sym}`));
   box.append(acts);
   box.append(el('p', { class: 'metaline', id: `scan-off-${c.id}`, style: 'margin-top:6px;text-align:right' },
-    on ? `The scanner is a personal-lane tool: it scans only price history you supplied${scanHistoryFile.series[sym] ? `, which holds ${sym}` : `, which holds no series for ${sym}`}.`
-       : 'Scanner switched off here: it scans only price history you supplied, and none is loaded.'));
+    on ? `A setup is kept in this browser and checked only on price history you supplied${scanHistoryFile.series[sym] ? `, which holds ${sym}` : `, which holds no series for ${sym}`}.`
+       : 'A setup is kept in this browser and checked only on price history you supply; none is loaded here.'));
   return box;
 }
 
@@ -22329,7 +22845,10 @@ VIEWS.researchHome = () => {
   ];
   const cg = el('div', { class: 'grid grid-3' });
   colls.forEach(([t, b, go]) => {
-    const card = el('div', { class: 'card task-card', role:'button', tabindex:'0' });
+    /* Each card names the tool it opens (data-tool-path), so where that tool
+       cannot be used here — the filings failed to load — the shell's gate
+       draws the card as text with the reason (gateToolLink, 35-ui.js). */
+    const card = el('div', { class: 'card task-card', role:'button', tabindex:'0', 'data-tool-path': t === 'Sarawak Economy Watch' ? '/discover/sarawak' : '/discover/screener' });
     card.append(el('h3', { class: 'h-card' }, t));
     card.append(el('p', { class: 'body', style: 'font-size:13px' }, b));
     const act = () => go();
@@ -22423,7 +22942,7 @@ VIEWS.research = () => {
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
       `The Free plan covers ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''} Equities Research removes the limit.`));
     const back = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
-    back.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
+    back.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
     State.reportLog.ids.slice(0, 5).forEach(id => {
       const rr = BY_ID.get(id); if (!rr) return;
       back.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(id) }, rr.c.tk));
@@ -22772,6 +23291,13 @@ VIEWS.research = () => {
      itself have scrolled sideways on a phone — reintroducing the problem this
      is meant to solve one level down. */
   const panelNode = panel(r);
+  /* ONE NEXT ACTION ON EVERY TAB (audit 1, #9). The header's primary — "Add
+     to watchlist", then "Create a setup" — was a second primary on the tabs
+     that have one of their own: the Valuation Studio's "Save this valuation
+     run" and the Thesis tab's "Start a thesis". There the tab's own result
+     is the next action, and the header's steps back to quiet. */
+  if (panelNode.querySelector('.btn-primary'))
+    actionsBox.querySelectorAll('.btn-primary').forEach(b => b.classList.replace('btn-primary', 'btn-ghost'));
   const heads = [...panelNode.querySelectorAll('h3.h-card, h2.h-section')]
     .filter(h => (h.textContent || '').trim());
   if (heads.length >= 4) {
@@ -23245,7 +23771,7 @@ function tabSnapshot(r) {
     /* Capped at the plan's Compare limit, as the Business tab's button is. A
        fixed 8 put six columns on Free under "Choose up to 2 companies". The
        cut is said (comparePeers). */
-    ph2.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:6px;padding:0',
+    ph2.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:6px;padding:0', 'data-tool-path': '/compare',
       onclick: () => comparePeers(c, peers) }, 'Open full comparison →'));
     pcard.append(ph2);
     const tw2 = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
@@ -23423,7 +23949,7 @@ function tabBusiness(r) {
     comp.append(el('div', { class: 'row row-wrap', style: 'gap:5px;margin-top:var(--sm)' },
       [el('span', { class: 'caption' }, 'Peer set:'), ...rivals.map(x =>
         el('button', { class: 'chip', style: 'cursor:pointer', onclick: () => openResearch(x.c.id) }, x.c.tk + illusText(x.c)))]));
-    comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)',
+    comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', 'data-tool-path': '/compare',
       onclick: () => comparePeers(c, rivals) }, 'Open the full comparison'));
   }
   wrap.append(comp);
@@ -26278,7 +26804,7 @@ VIEWS.thesis = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.'),
   ]));
-  hd.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
+  hd.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
   wrap.append(hd);
   /* Under the heading, on every personal page: the page says what it is
      before it says whose data is on it. */
@@ -27843,7 +28369,7 @@ VIEWS.onboarding = () => {
    homepage's disclosure line, where no one product is meant. Same classes as
    productBadge (35-ui.js), so the two cannot look different. */
 function pubStatusBadge(status, title) {
-  return el('span', { class: `status-badge status-${status}`, title: title || null }, PRODUCT_STATUS[status] || status);
+  return el('span', { class: `status-badge status-${status}`, title: title || null }, (typeof TOOL_STATUS !== 'undefined' ? TOOL_STATUS : PRODUCT_STATUS)[status] || status);
 }
 /* A product's own badge: productBadge hands back a fresh element (its
    toString is its markup, for pages that build with strings), so the card
@@ -27898,12 +28424,17 @@ const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true
    like a way in and leads nowhere is the one thing the brief rules out. */
 function pubProductCard(p) {
   const id = (k) => `pub-${p.id}-${k}`;
-  const open = !!p.path;
-  /* Described by the blurb and the status with its note — "Beta: …" — rather
-     than by the badge, whose one word was all a screen reader heard, and its
-     qualifying note a mouse's tooltip only. */
+  /* A GOAL, NOT A PLACE (audit 1, #3). The card said "Open Equities
+     Research" and opened the product's front page, where the reader then had
+     to find the thing they came to do. It now says the goal — "Start
+     research", "Create a setup", "Analyse a property", the product's one
+     action as PRODUCTS words it — and opens the page where that starts; the
+     dashboard's checklist and How it works say the same words. The card is
+     named by that action and its product ("Create a setup, Quantum
+     Scanner"), and described by its task, blurb and status. */
+  const open = !!(p.path && p.action && p.actionPath);
   const card = open
-    ? pubLink(p.path, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('t')} ${id('n')}`, 'aria-describedby': `${id('b')} ${id('s')}` })
+    ? pubLink(p.actionPath, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('go')} ${id('n')}`, 'aria-describedby': `${id('t')} ${id('b')} ${id('s')}` })
     : el('div', { class: `pub-card pub-card-soon pub-acc-${p.id}` });
   const badge = pubBadge(p);
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), badge]));
@@ -27911,9 +28442,11 @@ function pubProductCard(p) {
   card.append(el('p', { class: 'pub-card-product', id: id('n') }, p.name));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') }, p.task));
   card.append(el('p', { class: 'pub-card-blurb', id: id('b') }, p.blurb));
+  /* Not built: "Coming soon", as words — nothing to press — with why beside
+     it for a screen reader, as the badge's title gives it to a mouse. */
   card.append(open
-    ? el('span', { class: 'pub-card-go', 'aria-hidden': 'true' }, `Open ${p.name}`, pubArrow())
-    : el('p', { class: 'pub-card-note' }, p.statusNote || 'Not built yet — nothing to open.'));
+    ? el('span', { class: 'pub-card-go' }, el('span', { id: id('go') }, p.action), pubArrow())
+    : el('p', { class: 'pub-card-note' }, [PRODUCT_STATUS[p.status] || PRODUCT_STATUS.soon, el('span', { class: 'sr-only' }, ` — ${p.statusNote || 'not built yet, nothing to open'}`)]));
   return card;
 }
 
@@ -28029,6 +28562,40 @@ const HIW_FLOW = {
     ['Next', 'Test it against the comparables you have recorded and the area screen for its town.'],
   ],
 };
+/* Where saved property models are a list of their own (My properties, the
+   property model store), the calculator's result says "Save this property",
+   then "Compare scenarios" — so the steps say it too, in those words. Until
+   that store is in the build, the steps say what the calculator does now. */
+function hiwFlow(id) {
+  const steps = HIW_FLOW[id];
+  const models = typeof toolById === 'function' ? toolById('models') : null;
+  if (id !== 'property' || !steps || !models || !toolPresent(models)) return steps;
+  return steps.map(([k, t]) => k === 'Save'
+    ? [k, 'Save this property: it joins My properties with its inputs, and each scenario you save of it is kept beside it. Record it on the opportunity register, or print the decision record.']
+    : k === 'Next' ? [k, 'Compare scenarios of it side by side, then test it against the comparables you have recorded and the area screen for its town.']
+    : [k, t]);
+}
+
+/* ITS TOOLS, AND THEIR STATE HERE (audit 1, #2). Each tool of the product
+   from the registry (TOOLS, 35-ui.js) — its badge, its sentence and its
+   primary action — so this page says what the tab rows and the dashboard
+   say. A tool that is delayed or unavailable here says why in place of its
+   sentence, and one that cannot be used offers no action. */
+function hiwTools(p) {
+  const tools = typeof TOOLS !== 'undefined' ? TOOLS.filter(t => t.product === p.id && toolPresent(t)) : [];
+  if (!tools.length) return null;
+  const box = el('div', { class: 'hiw-tools' });
+  box.append(el('h3', { class: 'hiw-tools-h', id: `hiw-${p.id}-tools` }, 'Its tools, and their state here'));
+  box.append(el('ul', { class: 'hiw-tools-list', 'aria-labelledby': `hiw-${p.id}-tools` }, tools.map(t => {
+    const s = toolState(t);
+    return el('li', { class: `hiw-tool${s.actionable ? '' : ' hiw-tool-off'}`, data: { tool: t.id, state: s.status } }, [
+      el('p', { class: 'hiw-tool-hd' }, [el('span', { class: 'hiw-tool-name' }, t.label), toolBadge(t)]),
+      el('p', { class: 'hiw-tool-note' }, s.note),
+      s.actionable && t.action ? pubLink(t.action.path, { class: 'pub-textlink hiw-tool-go' }, t.action.label, pubArrow()) : null,
+    ]);
+  })));
+  return box;
+}
 
 function hiwSteps(p, steps) {
   const ol = el('ol', { class: 'hiw-steps', 'aria-label': `${p.name}, step by step` });
@@ -28246,9 +28813,11 @@ function hiwProduct(p) {
     ])]),
     el('div', { class: 'hiw-product-status' }, [pubBadge(p), el('p', { class: 'hiw-product-note' }, p.statusNote)]),
   ]));
-  const steps = HIW_FLOW[p.id];
+  const steps = hiwFlow(p.id);
   if (steps && p.path) s.append(hiwSteps(p, steps));
   else s.append(el('p', { class: 'hiw-soon' }, `Planned: ${String(p.blurb || '').replace(/\.$/, '').toLowerCase()}. Its workflow is described here once it is built.`));
+  const tools = p.path ? hiwTools(p) : null;
+  if (tools) s.append(tools);
   /* The examples fold on a phone. Open, they made the page 10,876px — about
      thirteen screens at 390px — and the connected journey, the page's core
      idea, began near 9,000px. Folded behind "Worked examples", every one of
@@ -28272,9 +28841,9 @@ function hiwProduct(p) {
    happens. The last step has no link of its own: it is the first step again,
    reached from the match. */
 const HIW_JOURNEY = [
-  ['Research a company', 'Open its report: statements, ratios and a valuation model, each figure with its source.', '/research', 'Equities Research'],
+  ['Research a company', 'Open its report: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
-  ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', 'New setup'],
+  ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'],
   ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
   /* A match links to a company page only where its instrument is a company
      (scanSymbolLink, 86-scanner.js); a price-only instrument such as XAUUSD
@@ -28298,24 +28867,34 @@ function hiwJourney() {
   return s;
 }
 
-/* What each status label means, and which products carry it today — read
-   from PRODUCTS, so the legend cannot disagree with the badges above it. */
+/* What each status label means, and which products and tools carry it —
+   read from PRODUCTS and the tool registry (TOOLS), so the legend cannot
+   disagree with the badges below it. The last two are never written by
+   hand: they are what a tool's state becomes from what loaded here
+   (toolState, 35-ui.js), so their line says where they apply now. */
 const HIW_STATUS = [
   ['live', 'Works end to end on data you enter or on filed data.'],
   ['beta', 'Works, with data or delivery still limited as its note says.'],
   ['demo', 'Illustrative data only.'],
   ['soon', 'Not built, nothing to open.'],
+  ['delayed', 'Works, on a file older than its own date allows; its note says which file, and how old.'],
+  ['unavailable', 'Cannot work here: a file it needs did not load, or is never on this site. Shown as text, never as a link.'],
 ];
 function hiwStatus(P) {
   const s = el('section', { class: 'hiw-status', id: 'hiw-status', 'aria-labelledby': 'hiw-status-h' });
   s.append(el('h2', { class: 'hiw-status-h', id: 'hiw-status-h' }, 'What the labels mean'));
   const dl = el('dl', { class: 'hiw-status-list' });
+  const tools = typeof TOOLS !== 'undefined' ? TOOLS.filter(t => t.product && toolPresent(t)).map(toolState) : [];
   HIW_STATUS.forEach(([st, meaning]) => {
-    const who = P.filter(p => p.status === st).map(p => p.name);
+    const derived = st === 'delayed' || st === 'unavailable';
+    const who = derived
+      ? tools.filter(x => x.status === st).map(x => `${productById(x.tool.product)?.short || ''} ${x.tool.label}`.trim())
+      : P.filter(p => p.status === st).map(p => p.name);
     dl.append(el('div', { class: 'hiw-status-item' }, [
       el('dt', {}, pubStatusBadge(st)),
       el('dd', {}, [el('span', { class: 'hiw-status-m' }, meaning),
-        el('span', { class: 'hiw-status-who' }, who.length ? `Today: ${who.join(', ')}` : 'No product carries it today')]),
+        el('span', { class: 'hiw-status-who' }, who.length ? `${derived ? 'Here, now' : 'Today'}: ${who.join(', ')}`
+          : derived ? 'No tool here, now' : 'No product carries it today')]),
     ]));
   });
   s.append(dl);
@@ -28582,8 +29161,13 @@ VIEWS.launcher = () => {
   }
 
   if (open) {
+    /* The button names the tool it opens, so the shell's gate draws it as
+       text where that tool cannot be used here (gateToolLink, 35-ui.js):
+       with the filings failed to load, "Open the stock screener" sent the
+       reader to the Unavailable screener. */
+    const opens = { property: '/property/calculator', wheel: '/us-options/wheel', trading: '/research/trading-index', screen: '/discover/screener' }[L.goal] || null;
     card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--xl)' }, [
-      el('button', { class: 'btn btn-primary', onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
+      el('button', { class: 'btn btn-primary', 'data-tool-path': opens, onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
     ]));
     card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The tool will say which of its figures are still samples and which are yours.'));
@@ -29657,7 +30241,7 @@ function workspaceItems() {
     kind: 'comparison', key: s.id, name: s.name, subject: (s.tks || s.ids.map(tkOf)).join(', '), ids: s.ids,
     created: s.created, stamp: s.stamp, legacy: null, illustrative: illusOf(s.stamp, s.ids),
     detail: `${s.ids.length} compan${s.ids.length === 1 ? 'y' : 'ies'} · every cell kept as it read when saved`,
-    open: () => openComparison(s.id),
+    open: () => openComparison(s.id), path: '/compare',
     duplicate: () => saveComparisons([{ ...s, id: `cmp-${Date.now().toString(36)}${(CMP_SEQ++).toString(36)}`, name: `${s.name} (copy)`.slice(0, 80) }, ...loadComparisons()]),
     remove: () => saveComparisons(loadComparisons().filter(x => x.id !== s.id)),
   }));
@@ -29667,7 +30251,7 @@ function workspaceItems() {
     subject: `${(s.snapshot?.matches || []).length} matches when saved`, ids: [],
     created: s.snapshot?.stamp?.savedAt || s.snapshot?.saved || null, stamp: s.snapshot?.stamp, legacy: { model: s.snapshot?.model ?? s.model },
     illustrative: null, detail: 'Criteria, and every match with its scores as saved',
-    open: () => { navigate('/discover/screener'); openSavedScreen(idx); },
+    open: () => { navigate('/discover/screener'); openSavedScreen(idx); }, path: '/discover/screener',
     remove: () => { State.savedScreens = State.savedScreens.filter((_, i) => i !== idx); store.write('savedScreens', State.savedScreens); },
   }));
 
@@ -29737,8 +30321,11 @@ VIEWS.workspace = () => {
 
   /* The limits, before the list: where this lives, and what "moved" means. */
   const lim = el('div', { class: 'card ws-limits' });
+  /* The surface's status is the registry's (TOOLS, 'saved'), with its
+     sentence as the title — the one badge the sidebar, the dashboard and
+     How it works read. It was a chip written here by hand. */
   lim.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:8px' }, [
-    el('span', { class: 'chip chip-bronze' }, 'Beta'),
+    toolBadge('saved'),
     el('span', { class: 'chip' }, 'Stored in this browser'),
     el('span', { class: 'chip' }, 'No account, no sync, no sharing'),
   ]));
@@ -29809,7 +30396,10 @@ VIEWS.workspace = () => {
     const acts = el('div', { class: 'ws-acts' });
     /* Outline, not primary: a filled Open on every row was a page of primary
        actions, none of them dominant. Named for its row, as Delete is. */
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm ws-open', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
+    /* `path`, where an item reopens in a tool, names that tool for the
+       shell's gate (gateToolLink): a saved screen is not offered while the
+       screener cannot be used here. */
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm ws-open', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, 'data-tool-path': i.path || null, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
     (i.extra || []).forEach(([label, path]) => acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(path),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label)));
     /* Confirmed only if the browser kept it: a refused write left the list as
@@ -45942,6 +46532,19 @@ function scanReproduce(a, { history = scanHistoryFile, list = scanAlertList() } 
   return out;
 }
 
+/* THE ALERT'S ONE NEXT ACTION (audit 1, #9). A recorded match is a reason
+   to look at the instrument again, so that is the page's primary button:
+   "Open <company> research" where the symbol is a company (as
+   scanSymbolLink resolves it), "Open <symbol> in Tracked" where it is
+   followed by price only, and with neither, the list of alerts. */
+function scanAlertNext(a) {
+  const id = a.symbol ? companyIdFor(a.symbol) : null;
+  const row = id ? BY_ID.get(id) : null;
+  const primary = { class: 'btn btn-primary btn-sm' };
+  if (row) return scanLink(companyPath(row.c), `Open ${row.c.name} research`, primary);
+  if (a.symbol && resolveInstrument(a.symbol)) return scanLink('/my/tracked', `Open ${a.symbol} in Tracked`, primary);
+  return scanLink('/app/scanner/alerts', 'All alerts', primary);
+}
 /* Set by the alert page's own status buttons for the redraw they ask for. */
 let scanAlertByHand = false;
 VIEWS.scannerAlert = () => {
@@ -46000,6 +46603,7 @@ VIEWS.scannerAlert = () => {
   const version = a.setupVersion ?? (legacy ? 1 : null);
   const head = scanPageHead(`${a.setupName || a.setupId} · ${a.symbol} · ${bar}`, null, 'Recorded match');
   head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+    scanAlertNext(a),
     el('span', { class: `chip ${SCAN_STATUS_CHIP[status]}` }, status.toLowerCase()),
     status !== 'ARCHIVED' ? el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'archive' }, onclick: () => { scanSetAlertStatus([id], 'ARCHIVED'); scanAlertByHand = true; toast('Archived'); scanRender(); } }, 'Archive')
       : el('button', { class: 'btn btn-ghost btn-sm', data: { scanFocus: 'archive' }, onclick: () => { scanSetAlertStatus([id], 'READ'); scanAlertByHand = true; toast('Moved back to read'); scanRender(); } }, 'Unarchive'),
