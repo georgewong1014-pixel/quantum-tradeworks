@@ -716,8 +716,11 @@ VIEWS.launcher = () => {
          goes where a shared link puts the deal it displaces, and the
          calculator's "Restore my previous deal" offers it back. */
       const had = State.deal;
-      const kept = dealIsTheReaders(had);
-      if (kept) store.write('dealBeforeLink', had);
+      /* Through the property model's own rule (71-property-models.js): it keeps
+         unsaved work and a sample with the reader's choices in it, and moves any
+         older work already kept aside into My properties first — a plain write
+         here replaced that older work, the only copy of it. */
+      const kept = typeof propertySetAside === 'function' ? propertySetAside(had) : (dealIsTheReaders(had) && (store.write('dealBeforeLink', had), true));
       State.deal = { ...PROPERTY_DEFAULT_DEAL, city,
         district: (SARAWAK_CITIES.find(c => c.id === city)?.districts || [''])[0],
         projectId: (projectsForCity(city)[0] || {}).id || customProjectId(city),

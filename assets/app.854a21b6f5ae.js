@@ -15549,7 +15549,9 @@ function myDashContinue(o) {
     ...o.setups.map(s => ({ at: t(s.updated || s.created), when: s.updated || s.created, kind: 'Scanner setup', name: s.name || s.id,
       detail: `v${s.version} · ${s.enabled === false ? 'disabled' : 'enabled'}`, path: scanSetupPath(s.id) })),
     ...o.portfolios.map(p => ({ at: -Infinity, when: null, kind: 'Portfolio', name: p.name, detail: myDashPlural(p.holdings.length, 'holding'), path: '/my/portfolio' })),
-    ...(o.dealStarted ? [{ at: -Infinity, when: null, kind: 'Property deal in progress', name: typeof WORK_KINDS !== 'undefined' ? WORK_KINDS.property.name() : 'Your deal',
+    /* In progress only while it holds unsaved work: a saved property left as
+       saved is already listed as itself, and was listed twice. */
+    ...(o.dealStarted && (typeof propertyHasUnsavedWork !== 'function' || propertyHasUnsavedWork()) ? [{ at: -Infinity, when: null, kind: 'Property deal in progress', name: typeof WORK_KINDS !== 'undefined' ? WORK_KINDS.property.name() : 'Your deal',
       detail: 'Kept in this browser as you edit', path: '/property/calculator' }] : []),
     ...(o.priceAlerts.length ? [{ at: -Infinity, when: null, kind: 'Price alerts', name: myDashPlural(o.priceAlerts.length, 'price alert') + ' of your own',
       detail: 'Kept in this browser', path: '/my/alerts' }] : []),
@@ -25271,8 +25273,11 @@ VIEWS.launcher = () => {
          goes where a shared link puts the deal it displaces, and the
          calculator's "Restore my previous deal" offers it back. */
       const had = State.deal;
-      const kept = dealIsTheReaders(had);
-      if (kept) store.write('dealBeforeLink', had);
+      /* Through the property model's own rule (71-property-models.js): it keeps
+         unsaved work and a sample with the reader's choices in it, and moves any
+         older work already kept aside into My properties first — a plain write
+         here replaced that older work, the only copy of it. */
+      const kept = typeof propertySetAside === 'function' ? propertySetAside(had) : (dealIsTheReaders(had) && (store.write('dealBeforeLink', had), true));
       State.deal = { ...PROPERTY_DEFAULT_DEAL, city,
         district: (SARAWAK_CITIES.find(c => c.id === city)?.districts || [''])[0],
         projectId: (projectsForCity(city)[0] || {}).id || customProjectId(city),

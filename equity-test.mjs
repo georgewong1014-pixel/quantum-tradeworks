@@ -10614,6 +10614,59 @@ try {
   }
   /* ---- end audit: verify ---- */
 
+  /* ---- audit1: integration ---- */
+  /* Two things the property owner found in files that were not theirs, fixed
+     when the three branches met:
+     - /start set the reader's deal aside with a plain write over the slot, so
+       older work already kept there — the only copy of it — was replaced.
+       It now goes through propertySetAside, which moves that older work into
+       My properties first.
+     - The dashboard's "Continue" listed a saved property twice while it sat
+       unchanged on the calculator: as itself, and as a deal in progress. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = {};
+      const before = pmAll().map(x => x.id);
+      const keepDeal = JSON.stringify(State.deal), keepAside = store.read('dealBeforeLink', null);
+      try {
+        /* Older unsaved work already kept aside, and newer unsaved work on the calculator. */
+        store.write('dealBeforeLink', { ...PROPERTY_DEFAULT_DEAL, price: 777000, touched: { price: true }, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {} });
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, price: 888000, touched: { price: true }, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {} };
+        store.write('deal', State.deal);
+        navigate('/start'); await w(100);
+        State.launcher.goal = 'property'; State.launcher.a.property = { city: 'kuching', mode: 'own' }; render(); await w(100);
+        [...document.querySelectorAll('main button')].find(b => /^Open the /.test(b.textContent.trim()))?.click(); await w(600);
+        out.aside = store.read('dealBeforeLink', null)?.price ?? null;
+        out.older = pmAll().filter(x => !before.includes(x.id)).map(x => pmInputsOf(x)?.price);
+
+        /* A saved property, unchanged on the calculator: listed once. */
+        newPropertyDeal({ show: false });
+        State.deal = { ...State.deal, price: 612000, touched: { ...(State.deal.touched || {}), price: true } };
+        saveActiveProperty({ name: 'Audit1 dash' });
+        navigate('/app'); await w(300);
+        const rows = () => [...document.querySelectorAll('main')].map(m => m.textContent).join(' ');
+        out.savedInProgress = (rows().match(/Property deal in progress/g) || []).length;
+        out.savedListed = /Audit1 dash/.test(rows());
+        /* Changed and not saved: now it is also work in progress. */
+        State.deal = { ...State.deal, price: 613000 }; render(); await w(300);
+        out.dirtyInProgress = (rows().match(/Property deal in progress/g) || []).length;
+      } finally {
+        pmAll().filter(x => !before.includes(x.id)).forEach(x => deleteWork(x.id));
+        State.deal = JSON.parse(keepDeal); store.write('deal', State.deal); store.write('dealBeforeLink', keepAside);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (r.aside !== 888000) p.push(`the newer deal is not the one kept aside: ${r.aside}`);
+    if (!r.older.includes(777000)) p.push(`the older work kept aside was lost — My properties gained ${JSON.stringify(r.older)}`);
+    if (r.savedInProgress !== 0 || !r.savedListed) p.push(`a saved, unchanged property: ${r.savedInProgress} "in progress" row(s), listed ${r.savedListed}`);
+    if (r.dirtyInProgress !== 1) p.push(`changed and not saved: ${r.dirtyInProgress} "in progress" row(s), not 1`);
+    if (p.length) fail('audit1 integration: /start keeps older kept-aside work, and a saved property is listed once on the dashboard', p);
+    else ok('audit1 integration: /start keeps the newer deal aside and moves the older kept-aside work into My properties; a saved property on the calculator is listed once on the dashboard, and as in progress only once it has unsaved changes');
+  }
+  /* ---- end audit1: integration ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
