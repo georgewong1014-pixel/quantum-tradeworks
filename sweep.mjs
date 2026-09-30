@@ -784,6 +784,209 @@ for (const route of ROUTES) {
   else console.log(`ok   registry-ctas: ${reg.length} tools in the registry (${absent.length ? `${absent.join(', ')} not in this build, listed nowhere` : 'all in this build'}), ${opened} addresses open their view; as production serves it ${offLinks} scanner tabs are text with the reason and no page offers an unusable tool; with us.json held back the four Equities tools that read it are Unavailable with its error${heldOk ? '' : ' (not reached)'}, 400 days past its date they are Delayed links; ${scanned ? 'a synthetic history and record bring Market, Alerts and Historical back and ten days old make them Delayed; the alert opens Apple Inc. research; ' : ''}the company page, the calculator and the dashboard each have one primary action, and the homepage, How it works and the checklist say "${words.join('", "')}"`);
 }
 /* ---- end audit1: registry-ctas ---- */
+/* ---- audit1: registry-ctas-verify ---- */
+/* THE VERIFIER'S CHECKS ON THE TOOL REGISTRY (audit 1, #2, #9), each one
+   failing on the registry as first built (499a7e3).
+   1. A control that opens a tool by script is gated as a link is. With
+      data/us.json held back, no visible button or role=button on the
+      research home, the research queue, a company page (both peer
+      comparisons), the investment cases, the start page's screen goal, the
+      workspace and the dashboard (a saved screen the newest thing) sends
+      the reader to the screener, the value map, a comparison or the queue —
+      judged by the route each press asks for, navigate() recording instead
+      of moving, not by the registry's reading of it. The research home's
+      five screener cards are text wearing Unavailable, its Sarawak card is
+      still a button, and the dashboard's one primary action is not the
+      "Continue" whose tool cannot be used.
+   2. The watch on the page gates what is added after a page is drawn: an
+      anchor to the Market and a button naming Historical, added to the page
+      and to the drawer on the hosted site, are text a moment later.
+   3. As production serves it, nothing on the pages below — sidebar, header,
+      footer and tab rows included — links to the scanner's Market, Alerts
+      or Historical, judged by the address; and no chip reads a status word.
+   4. One primary action on every tab of the company page, on a list and
+      not: the Valuation and Thesis tabs have primaries of their own.
+   5. The registry reads a price history's newest bar once per history, not
+      once per link: the alerts page, with 300 matches over a history of 200
+      series of ten years, drew in 2.9s instead of 0.45s.
+   6. The Saved Models page wears the registry's badge for its status.
+   7. The dashboard's "Continue" is on the newest thing made (the first
+      build's check had one item, so any row passed). */
+{
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const u = new URL(BASE);
+  const ownMachine = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname);
+  const live = ownMachine ? `${u.protocol}//live.localhost${u.port ? ':' + u.port : ''}` : BASE;
+  const p = [];
+  const load = async (url) => {
+    bucket = [];
+    await ev('window.__rvMark = 1').catch(() => {});
+    await send('Page.navigate', { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      try { if (await ev(`!window.__rvMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ }
+      await sleep(100);
+    }
+    await sleep(400);
+  };
+  const clean = `(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('vl.plan', JSON.stringify('pro')); return true; })()`;
+  const PRIMARIES = `[...document.querySelectorAll('#views .btn-primary, body > .dock .btn-primary')].filter(n => n.getClientRects().length).map(n => n.textContent.trim())`;
+  /* Every visible button on the page pressed once, with navigate() writing
+     down where it was sent instead of going; confirm, alert and prompt
+     answered no. A press that asks for one of `views` is a control offering
+     a tool that cannot be used. Buttons that destroy or export are left. */
+  const PRESS = (views) => `(async () => {
+    const out = []; const real = navigate, rc = window.confirm, ra = window.alert, rp = window.prompt;
+    let seen = [];
+    window.confirm = () => false; window.alert = () => {}; window.prompt = () => null;
+    navigate = (to) => { seen.push(String(to)); };
+    try {
+      const btns = [...document.querySelectorAll('#views button, #views [role=button], body > .dock button')].filter(n => n.getClientRects().length && !n.disabled
+        && n.getAttribute('role') !== 'tab' && !/delete|remove|clear|reset|forget|erase|archive|export|download|copy|print|import|restore|paste|undo|open your files|choose/i.test(n.textContent));
+      for (const n of btns) {
+        seen = [];
+        try { n.click(); } catch { /* the press's own failure is not this check's */ }
+        await new Promise(r => setTimeout(r, 30));
+        for (const to of seen) { const v = matchRoute(to.split('?')[0])?.view;
+          if (${JSON.stringify(views)}.includes(v)) out.push(location.pathname + ': "' + n.textContent.trim().replace(/\\s+/g, ' ').slice(0, 44) + '" (' + n.tagName.toLowerCase() + ') opens ' + to); }
+        if (typeof closeSheet === 'function') try { closeSheet({ restore: false }); } catch {}
+        if (typeof closeDrawer === 'function') try { closeDrawer(); } catch {}
+      }
+    } finally { navigate = real; window.confirm = rc; window.alert = ra; window.prompt = rp; }
+    return out; })()`;
+
+  /* 1. With data/us.json held back. */
+  const held = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.method !== 'Fetch.requestPaused' || m.sessionId !== sessionId) return;
+    send('Fetch.fulfillRequest', { requestId: m.params.requestId, responseCode: 404, responseHeaders: [{ name: 'Content-Type', value: 'text/plain' }],
+      body: Buffer.from('held back by the check').toString('base64') }, sessionId);
+  };
+  const OFF_VIEWS = ['discover', 'compare', 'researchQueue'];
+  let pressed = 0;
+  ws.addEventListener('message', held);
+  await send('Network.setCacheDisabled', { cacheDisabled: true }, sessionId);
+  await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/us.json*', requestStage: 'Request' }] }, sessionId);
+  try {
+    await load(BASE + '/privacy');
+    await ev(clean);
+    const seedScreen = `(() => { State.savedScreens = [{ name: 'Verify screen', screen: blankScreen(), snapshot: { matches: [], saved: '2026-09-29', stamp: { savedAt: new Date().toISOString() } } }];
+      store.write('savedScreens', State.savedScreens); render(); return true; })()`;
+    for (const [path, before] of [['/research'], ['/research/queue'], ['/company/1155-malayan-banking-berhad'], ['/company/1155-malayan-banking-berhad?tab=business'],
+      ['/my/theses'], ['/start', `State.launcher.goal = 'screen'; render(); true`], ['/my/workspace', seedScreen], ['/app']]) {
+      await load(BASE + path);
+      if ((await ev(`realStatus && realStatus.ok`)) !== false) { p.push(`us.json held back: the filings loaded on ${path} — the check is not testing the case`); continue; }
+      if (before) { await ev(before); await sleep(300); }
+      if (path === '/research') {
+        const r = await ev(`({ off: [...document.querySelectorAll('#views .task-card.tool-off')].map(n => [n.querySelector('h3')?.textContent, !!n.querySelector('.status-unavailable'), n.getAttribute('role'), n.tabIndex]),
+          swk: !!document.querySelector('#views .task-card[role=button][data-tool-path="/discover/sarawak"]') })`);
+        if (r.off.length !== 5 || r.off.some(([, badge, role, tab]) => !badge || role || tab >= 0)) p.push(`us.json held back: the research home's screener cards are ${JSON.stringify(r.off)}, not five texts wearing Unavailable`);
+        if (!r.swk) p.push('us.json held back: the research home\'s Sarawak card is no longer a button — its tool does not read the filings');
+      }
+      (await ev(PRESS(OFF_VIEWS))).forEach(x => p.push(`us.json held back: ${x}`));
+      pressed++;
+      if (path === '/app') {
+        const r = await ev(`({ prim: ${PRIMARIES}, off: !!document.querySelector('#views .dash-continue.tool-off') })`);
+        if (r.prim.length !== 1 || r.prim[0] === 'Continue' || !r.off) p.push(`us.json held back, a saved screen the newest thing: the dashboard's primary actions ${JSON.stringify(r.prim)}, its Continue ${r.off ? 'text' : 'not text'}`);
+      }
+    }
+  } finally {
+    await send('Fetch.disable', {}, sessionId);
+    ws.removeEventListener('message', held);
+    await send('Network.setCacheDisabled', { cacheDisabled: false }, sessionId);
+  }
+
+  /* 2 and 3. As production serves it. */
+  const SCAN_OFF = /^\/app\/scanner\/(market|alerts|backtest)(\/|$)/;
+  const PROD = ['/', '/how-it-works', '/app', '/research', '/company/msft-microsoft', '/app/scanner', '/app/scanner/setups', '/app/scanner/setups/new',
+    '/app/scanner/watchlists', '/app/scanner/settings', '/research/trading-index', '/property/calculator', '/my/workspace', '/my/tracked', '/my/alerts'];
+  for (const path of PROD) {
+    await load(live + path);
+    const r = await ev(`({ links: [...document.querySelectorAll('a[href], [data-tool-path]')].map(a => [a.tagName, a.getAttribute('data-tool-path') || new URL(a.href).pathname, a.textContent.trim().replace(/\\s+/g, ' ').slice(0, 40)])
+        .filter(([, at]) => ${SCAN_OFF}.test(at)),
+      chips: [...document.querySelectorAll('.chip')].map(n => n.textContent.trim()).filter(t => /^(Live|Beta|Demo|Coming soon)$/.test(t)) })`);
+    r.links.forEach(([tag, at, t]) => p.push(`production ${path}: a ${tag.toLowerCase()} to ${at} "${t}"`));
+    r.chips.forEach(t => p.push(`production ${path}: a chip reads "${t}", a status written by hand`));
+  }
+  await load(live + '/app/scanner');
+  const watch = await ev(`(async () => {
+    const a = el('a', { href: href('/app/scanner/market'), class: 'rv-added' }, 'Market, added late');
+    const b = el('button', { type: 'button', class: 'btn btn-ghost rv-added', 'data-tool-path': '/app/scanner/backtest' }, 'Historical, added late');
+    const c = el('a', { href: href('/app/scanner/alerts'), class: 'rv-added' }, 'Alerts, in the drawer');
+    document.querySelector('#views .shell').append(a, b);
+    drawerBody.append(c);
+    await new Promise(r => setTimeout(r, 60));
+    const out = [...document.querySelectorAll('.rv-added')].map(n => [n.tagName, n.classList.contains('tool-off'), n.textContent.trim().slice(0, 30)]);
+    document.querySelectorAll('.rv-added').forEach(n => n.remove());
+    return out; })()`);
+  if (watch.length !== 3 || watch.some(([tag, off]) => tag !== 'SPAN' || !off)) p.push(`production: what a page adds after it is drawn is ${JSON.stringify(watch)}, not three texts`);
+
+  /* 4. One primary on every tab of the company page. */
+  await load(BASE + '/privacy');
+  await ev(clean);
+  const tabs = await ev(`RESEARCH_TABS.map(t => t.id)`);
+  let tabsSeen = 0;
+  for (const listed of [false, true]) {
+    if (listed) { await load(BASE + '/company/msft-microsoft'); await ev(`State.watchlist.includes('MSFT-SEC') || toggleWatch('MSFT-SEC'); true`); await sleep(300); }
+    for (const t of tabs) {
+      await load(BASE + `/company/msft-microsoft?tab=${t}`);
+      const prim = await ev(PRIMARIES);
+      tabsSeen++;
+      if (prim.length !== 1) p.push(`company page, ${t} tab, ${listed ? 'on a list' : 'not on a list'}: primary actions ${JSON.stringify(prim)}`);
+    }
+  }
+
+  /* 5. The history's newest bar, read once per history. */
+  let reads = null;
+  if (ownMachine) {
+    await load(BASE + '/app/scanner');
+    reads = await ev(`(async () => {
+      const days = []; for (let d = Date.parse('2016-01-04'); d <= Date.parse('2026-09-25'); d += 864e5) { const w = new Date(d).getUTCDay(); if (w && w < 6) days.push(new Date(d).toISOString().slice(0, 10)); }
+      const series = {}; for (let i = 0; i < 200; i++) series['RV' + i] = Object.fromEntries(days.map((d, j) => [d, 100 + j * 0.01]));
+      scanHistoryFile = { generated: '2026-09-26T00:00:00Z', series };
+      scanAlertsFile = { alerts: Array.from({ length: 300 }, (_, i) => ({ id: 'b' + String(i).padStart(8, '0'), key: 'rv|RV' + (i % 200) + '|1D|' + i, setupId: 'rv', setupName: 'Verify', setupVersion: 1,
+        symbol: 'RV' + (i % 200), candleDate: '2026-09-25', timeframe: '1D', eventType: 'NEW_MATCH', close: 1, detectedAt: '2026-09-26T01:00:00Z' })) };
+      const real = scanOpsHistoryMeta; let n = 0;
+      scanOpsHistoryMeta = (h) => { n++; return real(h); };
+      const t0 = performance.now(); navigate('/app/scanner/alerts'); const ms = performance.now() - t0;
+      const links = document.querySelectorAll('#views a[href*="/app/scanner/alerts/"]').length;
+      scanOpsHistoryMeta = real; scanHistoryFile = null; scanAlertsFile = null;
+      return { n, ms: Math.round(ms), links }; })()`);
+    if (reads.links < 20 || reads.n > 3) p.push(`the alerts page with ${reads.links} links to its matches read the history's newest bar ${reads.n} times (${reads.ms}ms) — once per link, not once per history`);
+  }
+
+  /* 6. Saved Models' status, from the registry. */
+  await load(BASE + '/my/workspace');
+  const ws6 = await ev(`(() => { const s = toolState('saved'); const b = document.querySelector('#views .ws-limits .status-badge');
+    return { want: [s.label, s.note], got: b ? [b.textContent.trim(), b.title] : null,
+      chips: [...document.querySelectorAll('#views .ws-limits .chip')].map(n => n.textContent.trim()) }; })()`);
+  if (JSON.stringify(ws6.got) !== JSON.stringify(ws6.want) || ws6.chips.some(t => /^(Live|Beta|Demo|Coming soon)$/.test(t)))
+    p.push(`Saved Models' status: badge ${JSON.stringify(ws6.got)}, chips ${JSON.stringify(ws6.chips)} — want the registry's ${JSON.stringify(ws6.want[0])}`);
+
+  /* 7. "Continue" is on the newest thing, not the first one made: a list
+     made in January and a screen saved now — Continue opens the screen,
+     the page's one primary action, and the list is a quiet row below it. */
+  await ev(clean);
+  await load(BASE + '/privacy');
+  await ev(`(() => { const w = wlCreate('Verify older list').watchlist; wlAdd(w.id, 'MSFT-SEC');
+    const x = State.watchlists.find(v => v.id === w.id); x.createdAt = x.updatedAt = '2026-01-05T09:00:00Z'; saveWatchlists();
+    State.savedScreens = [{ name: 'Verify newer screen', screen: blankScreen(), snapshot: { matches: [], saved: '2026-09-29', stamp: { savedAt: new Date().toISOString() } } }];
+    store.write('savedScreens', State.savedScreens); return true; })()`);
+  await load(BASE + '/app');
+  const cont7 = await ev(`({ prim: ${PRIMARIES}, first: document.querySelector('#views .dash-row-first')?.textContent || '',
+    rows: [...document.querySelectorAll('#views .dash-cont > li')].map(li => li.querySelector('strong')?.textContent) })`);
+  if (cont7.prim.length !== 1 || cont7.prim[0] !== 'Continue' || !/Verify newer screen/.test(cont7.first) || cont7.rows.indexOf('Verify older list') < 1)
+    p.push(`dashboard, an older list and a newer screen: primary ${JSON.stringify(cont7.prim)} on "${cont7.first.slice(0, 60)}", rows ${JSON.stringify(cont7.rows)}`);
+  await ev(clean);
+
+  if (p.length) { bad++; console.log(`FAIL registry-ctas-verify: controls that open a tool by script, what a page adds late, one primary on every company tab, the history read once, statuses from the registry (${p.length} problems)`); p.slice(0, 60).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   registry-ctas-verify: with us.json held back no button on ${pressed} pages opens the screener, the value map, a comparison or the queue — the research home's screener cards and a saved screen's Continue are text; as production serves it ${PROD.length} pages link nowhere near the scanner's Market, Alerts or Historical, write no status by hand, and what a page or the drawer adds late is gated; one primary action on each of ${tabsSeen} company tabs; ${reads ? `the alerts page's ${reads.links} links read the history's newest bar ${reads.n} time${reads.n === 1 ? '' : 's'} (${reads.ms}ms); ` : ''}Saved Models wears the registry's badge; the dashboard's Continue is on the newest thing made`);
+}
+/* ---- end audit1: registry-ctas-verify ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

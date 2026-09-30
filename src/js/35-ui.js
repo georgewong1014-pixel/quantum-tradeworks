@@ -567,6 +567,20 @@ const FILINGS_STALE_DAYS = 365;
    behind. */
 const HISTORY_BEHIND_DAYS = 4;
 const toolDay = (t) => String(t || '').slice(0, 10);
+/* The newest bar of a price history, read once per history. It was read
+   afresh for every link to a tool that runs on the history, and
+   scanOpsHistoryMeta walks every bar of every series — about 40ms for 200
+   series of ten years — so a scanner page with fifty links to its alerts
+   took 2.9s to draw instead of 0.45s, on the owner's own machine, the one
+   place a history is held. A history is replaced, never edited, when it
+   changes (loaded, opened from disk, its splits attached), so the object
+   itself is the key. */
+let toolHistoryRead = null;
+function toolNewestBar(h) {
+  if (!toolHistoryRead || toolHistoryRead.h !== h)
+    toolHistoryRead = { h, bar: typeof scanOpsHistoryMeta === 'function' ? scanOpsHistoryMeta(h)?.newestBar ?? null : null };
+  return toolHistoryRead.bar;
+}
 
 /* What one source's state does to the tools that read it: null when nothing
    is wrong with it or nothing is known yet (a load still on its way is not a
@@ -601,7 +615,7 @@ function toolSource(name) {
   if (name === 'history') {
     const h = typeof scanOpsHistory === 'function' ? scanOpsHistory() : null;
     if (!h?.series || !Object.keys(h.series).length) return absent('No price history is loaded here. The scanner reads data/price-history.json, which is built on your own computer and never deployed; open yours on the Scanner’s dashboard to use it in this tab.');
-    const newest = typeof scanOpsHistoryMeta === 'function' ? scanOpsHistoryMeta(h)?.newestBar : null;
+    const newest = toolNewestBar(h);
     const age = newest && typeof scanDayDiff === 'function' ? scanDayDiff(newest, now.toISOString().slice(0, 10)) : null;
     if (age > HISTORY_BEHIND_DAYS) return { state: 'delayed',
       why: `Your price history’s newest bar is ${newest}, ${age} days old — more than four calendar days (a weekend and a day), the rule the scanner’s own status uses.` };
@@ -663,9 +677,19 @@ function toolForView(view = State.view) {
    tool's badge and why, and nothing to press. Every class but the button's is
    kept, so a tab still sits in its row and a tile in its grid. Links to
    anything else — another origin, a download, a place on the page — are
-   left alone. */
+   left alone.
+   A BUTTON THAT OPENS A TOOL SAYS WHICH. The gate saw only links, so with
+   the filings failed to load the research home's collection cards, the
+   research queue's "Quality vs Value Map" (its primary button), a company's
+   "Open full comparison", "New thesis from a screen", the start page's
+   "Open the stock screener" and a saved screen's Open — the dashboard's
+   "Continue" among them — still sent the reader to the Unavailable screener
+   or comparison. A control that opens a tool by script names the tool's
+   address in data-tool-path, and passes through this same gate: where the
+   tool cannot be used it becomes text as a link does, and a card keeps its
+   place in its grid (its own tag, without the role and the Tab stop). */
 function toolOfLink(a) {
-  const h = a.getAttribute('data-path') || a.getAttribute('href');
+  const h = a.getAttribute('data-tool-path') || a.getAttribute('data-path') || a.getAttribute('href');
   if (!h || h.startsWith('#') || a.hasAttribute('download') || /^[a-z]+:/i.test(h) && !/^https?:/i.test(h)) return null;
   let u;
   try { u = new URL(h, location.href); } catch { return null; }
@@ -677,9 +701,11 @@ function gateToolLink(a) {
   if (!t) return a;
   const s = toolState(t);
   if (s.actionable) return a;
-  const off = el('span', { class: [...a.classList].filter(c => !/^btn/.test(c)).concat('tool-off').join(' '),
+  const off = el(/^(A|BUTTON)$/.test(a.tagName) ? 'span' : a.tagName.toLowerCase(), { class: [...a.classList].filter(c => !/^btn/.test(c)).concat('tool-off', a.tagName === 'BUTTON' ? 'tool-off-btn' : []).join(' '),
     'data-tool': t.id, 'data-tool-state': s.status, title: s.note });
   if (a.id) off.id = a.id;
+  /* A control drawn with its layout inline keeps it — but not a pointer. */
+  if (a.getAttribute('style')) { off.setAttribute('style', a.getAttribute('style')); off.style.cursor = 'default'; }
   if (a.getAttribute('aria-current')) off.setAttribute('aria-current', a.getAttribute('aria-current'));
   off.append(...a.childNodes);
   if (!off.querySelector('.status-badge')) off.append(' ', toolBadge(t));
@@ -689,7 +715,8 @@ function gateToolLink(a) {
 }
 function gateToolLinks(root) {
   if (!root || root.nodeType !== 1) return;
-  const links = root.matches('a[href]') ? [root] : [...root.querySelectorAll('a[href]')];
+  const sel = 'a[href], [data-tool-path]';
+  const links = root.matches(sel) ? [root] : [...root.querySelectorAll(sel)];
   links.forEach(gateToolLink);
 }
 /* A link to a tool, for the pages that draw one by name: the same anchor

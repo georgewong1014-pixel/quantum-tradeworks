@@ -3425,3 +3425,19 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
 /* The dashboard's newest item, with the page's one primary action. */
 .dash-row-first .dash-continue { flex: none; }
 /* ---- end audit1: registry-ctas ---- */
+
+/* ---- audit1: registry-ctas-verify ---- */
+/* A card or a button that opens a tool by script, drawn as text where the
+   tool cannot be used here (data-tool-path, gateToolLink): the gated
+   dashboard tile's look — sunk, a dashed edge, no lift — with its badge on
+   a line of its own under the card's words. */
+.task-card.tool-off {
+  background: color-mix(in srgb, var(--surface-sunk) 60%, var(--surface)); box-shadow: none;
+  outline: 1px dashed var(--line-2); outline-offset: -1px;
+}
+.task-card.tool-off:hover { border-color: transparent; }
+.task-card.tool-off > .status-badge { display: inline-flex; margin: var(--sm) 0 0; }
+/* A button's words, its icon beside them, and the badge on the same line. */
+.tool-off-btn { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: 13px; color: var(--ink-2); }
+.tool-off-btn > .status-badge, .tool-off-btn .status-badge { margin-left: 0; }
+/* ---- end audit1: registry-ctas-verify ---- */

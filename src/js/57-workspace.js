@@ -71,7 +71,7 @@ function workspaceItems() {
     kind: 'comparison', key: s.id, name: s.name, subject: (s.tks || s.ids.map(tkOf)).join(', '), ids: s.ids,
     created: s.created, stamp: s.stamp, legacy: null, illustrative: illusOf(s.stamp, s.ids),
     detail: `${s.ids.length} compan${s.ids.length === 1 ? 'y' : 'ies'} · every cell kept as it read when saved`,
-    open: () => openComparison(s.id),
+    open: () => openComparison(s.id), path: '/compare',
     duplicate: () => saveComparisons([{ ...s, id: `cmp-${Date.now().toString(36)}${(CMP_SEQ++).toString(36)}`, name: `${s.name} (copy)`.slice(0, 80) }, ...loadComparisons()]),
     remove: () => saveComparisons(loadComparisons().filter(x => x.id !== s.id)),
   }));
@@ -81,7 +81,7 @@ function workspaceItems() {
     subject: `${(s.snapshot?.matches || []).length} matches when saved`, ids: [],
     created: s.snapshot?.stamp?.savedAt || s.snapshot?.saved || null, stamp: s.snapshot?.stamp, legacy: { model: s.snapshot?.model ?? s.model },
     illustrative: null, detail: 'Criteria, and every match with its scores as saved',
-    open: () => { navigate('/discover/screener'); openSavedScreen(idx); },
+    open: () => { navigate('/discover/screener'); openSavedScreen(idx); }, path: '/discover/screener',
     remove: () => { State.savedScreens = State.savedScreens.filter((_, i) => i !== idx); store.write('savedScreens', State.savedScreens); },
   }));
 
@@ -151,8 +151,11 @@ VIEWS.workspace = () => {
 
   /* The limits, before the list: where this lives, and what "moved" means. */
   const lim = el('div', { class: 'card ws-limits' });
+  /* The surface's status is the registry's (TOOLS, 'saved'), with its
+     sentence as the title — the one badge the sidebar, the dashboard and
+     How it works read. It was a chip written here by hand. */
   lim.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:8px' }, [
-    el('span', { class: 'chip chip-bronze' }, 'Beta'),
+    toolBadge('saved'),
     el('span', { class: 'chip' }, 'Stored in this browser'),
     el('span', { class: 'chip' }, 'No account, no sync, no sharing'),
   ]));
@@ -223,7 +226,10 @@ VIEWS.workspace = () => {
     const acts = el('div', { class: 'ws-acts' });
     /* Outline, not primary: a filled Open on every row was a page of primary
        actions, none of them dominant. Named for its row, as Delete is. */
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm ws-open', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
+    /* `path`, where an item reopens in a tool, names that tool for the
+       shell's gate (gateToolLink): a saved screen is not offered while the
+       screener cannot be used here. */
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm ws-open', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, 'data-tool-path': i.path || null, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
     (i.extra || []).forEach(([label, path]) => acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(path),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label)));
     /* Confirmed only if the browser kept it: a refused write left the list as

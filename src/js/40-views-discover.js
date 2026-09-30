@@ -51,9 +51,11 @@ VIEWS.researchQueue = () => {
     'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
   hd.append(hl);
   const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
-  hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
+  /* Each names the tool it opens, so the shell's gate draws it as text
+     where that tool cannot be used here (gateToolLink, 35-ui.js). */
+  hr.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openDashboardCustomiser(), html: `${icon('grid')} Customise` }));
-  hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
+  hr.append(el('button', { class: 'btn btn-primary btn-sm', 'data-tool-path': '/discover/value-map', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
   hd.append(hr);
   wrap.append(hd);
 
@@ -290,6 +292,8 @@ VIEWS.researchQueue = () => {
        phone, where a fingertip is what presses them. */
     ol.append(el('li', {}, el('button', {
       class: 'row tap-row', style:'width:100%;gap:10px;background:none;border:0;cursor:pointer;padding:7px 0;text-align:left',
+      /* The screener step names its tool, for the shell's gate. */
+      'data-tool-path': label === 'Discover candidates' ? '/discover' : null,
       onclick: act }, [
       el('span', { style: 'width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--brand-wash);color:var(--brand)' }, String(i + 1)),
       el('span', { style: 'display:flex;flex-direction:column;min-width:0' }, [
@@ -395,8 +399,9 @@ function openDashboardCustomiser() {
 function myDashLink(path, attrs = {}, kids = []) {
   const a = el('a', { ...attrs, href: href(path),
     onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(path); } }, kids);
-  return typeof gateDetached === 'function' ? gateDetached(a) : a;
+  return myDashGate(a);
 }
+const myDashGate = (n) => (typeof gateDetached === 'function' ? gateDetached(n) : n);
 /* The one route helper that decides whether a link may be drawn at all: a
    path that ends at the not-found card is never offered. */
 const myDashRoutes = (path) => { const r = matchRoute(path.split('?')[0]); return !!(r && VIEWS[r.view]); };
@@ -769,8 +774,8 @@ function myDashContinue(o) {
   const kindOne = typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE : {};
   const rows = [
     ...o.saved.map(i => ({ at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
-      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, open: () => i.open(),
-      act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
+      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, open: () => i.open(), opens: i.path || null,
+      act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, 'data-tool-path': i.path || null, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
     /* A list names what the visitor put in it; a sample list says how many of
        its companies are samples. Its chip is the workspace's rule: every
        company illustrative, or some. */
@@ -818,11 +823,14 @@ function myDashContinue(o) {
       ]);
       /* The newest carries the page's one primary action, "Continue" — its
          own open where it has one (a saved item reopens as the workspace
-         reopens it), else the page it lives on. */
+         reopens it), else the page it lives on. The button names the tool
+         it reopens and passes the shell's gate now, as the link does, so
+         a saved screen or comparison whose tool cannot be used here is
+         text, and the page's one primary action falls to the first step. */
       if (i === 0) {
         const name = `Continue: ${r.name}`;
         const go = r.open
-          ? el('button', { type: 'button', class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name, onclick: r.open }, 'Continue')
+          ? myDashGate(el('button', { type: 'button', class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name, 'data-tool-path': r.opens, onclick: r.open }, 'Continue'))
           : myDashLink(r.path, { class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name }, 'Continue');
         ul.append(el('li', {}, el('div', { class: 'dash-row dash-row-act dash-row-first' }, [main, go])));
         return;

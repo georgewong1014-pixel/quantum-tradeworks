@@ -12407,6 +12407,20 @@ const FILINGS_STALE_DAYS = 365;
    behind. */
 const HISTORY_BEHIND_DAYS = 4;
 const toolDay = (t) => String(t || '').slice(0, 10);
+/* The newest bar of a price history, read once per history. It was read
+   afresh for every link to a tool that runs on the history, and
+   scanOpsHistoryMeta walks every bar of every series — about 40ms for 200
+   series of ten years — so a scanner page with fifty links to its alerts
+   took 2.9s to draw instead of 0.45s, on the owner's own machine, the one
+   place a history is held. A history is replaced, never edited, when it
+   changes (loaded, opened from disk, its splits attached), so the object
+   itself is the key. */
+let toolHistoryRead = null;
+function toolNewestBar(h) {
+  if (!toolHistoryRead || toolHistoryRead.h !== h)
+    toolHistoryRead = { h, bar: typeof scanOpsHistoryMeta === 'function' ? scanOpsHistoryMeta(h)?.newestBar ?? null : null };
+  return toolHistoryRead.bar;
+}
 
 /* What one source's state does to the tools that read it: null when nothing
    is wrong with it or nothing is known yet (a load still on its way is not a
@@ -12441,7 +12455,7 @@ function toolSource(name) {
   if (name === 'history') {
     const h = typeof scanOpsHistory === 'function' ? scanOpsHistory() : null;
     if (!h?.series || !Object.keys(h.series).length) return absent('No price history is loaded here. The scanner reads data/price-history.json, which is built on your own computer and never deployed; open yours on the Scanner’s dashboard to use it in this tab.');
-    const newest = typeof scanOpsHistoryMeta === 'function' ? scanOpsHistoryMeta(h)?.newestBar : null;
+    const newest = toolNewestBar(h);
     const age = newest && typeof scanDayDiff === 'function' ? scanDayDiff(newest, now.toISOString().slice(0, 10)) : null;
     if (age > HISTORY_BEHIND_DAYS) return { state: 'delayed',
       why: `Your price history’s newest bar is ${newest}, ${age} days old — more than four calendar days (a weekend and a day), the rule the scanner’s own status uses.` };
@@ -12503,9 +12517,19 @@ function toolForView(view = State.view) {
    tool's badge and why, and nothing to press. Every class but the button's is
    kept, so a tab still sits in its row and a tile in its grid. Links to
    anything else — another origin, a download, a place on the page — are
-   left alone. */
+   left alone.
+   A BUTTON THAT OPENS A TOOL SAYS WHICH. The gate saw only links, so with
+   the filings failed to load the research home's collection cards, the
+   research queue's "Quality vs Value Map" (its primary button), a company's
+   "Open full comparison", "New thesis from a screen", the start page's
+   "Open the stock screener" and a saved screen's Open — the dashboard's
+   "Continue" among them — still sent the reader to the Unavailable screener
+   or comparison. A control that opens a tool by script names the tool's
+   address in data-tool-path, and passes through this same gate: where the
+   tool cannot be used it becomes text as a link does, and a card keeps its
+   place in its grid (its own tag, without the role and the Tab stop). */
 function toolOfLink(a) {
-  const h = a.getAttribute('data-path') || a.getAttribute('href');
+  const h = a.getAttribute('data-tool-path') || a.getAttribute('data-path') || a.getAttribute('href');
   if (!h || h.startsWith('#') || a.hasAttribute('download') || /^[a-z]+:/i.test(h) && !/^https?:/i.test(h)) return null;
   let u;
   try { u = new URL(h, location.href); } catch { return null; }
@@ -12517,9 +12541,11 @@ function gateToolLink(a) {
   if (!t) return a;
   const s = toolState(t);
   if (s.actionable) return a;
-  const off = el('span', { class: [...a.classList].filter(c => !/^btn/.test(c)).concat('tool-off').join(' '),
+  const off = el(/^(A|BUTTON)$/.test(a.tagName) ? 'span' : a.tagName.toLowerCase(), { class: [...a.classList].filter(c => !/^btn/.test(c)).concat('tool-off', a.tagName === 'BUTTON' ? 'tool-off-btn' : []).join(' '),
     'data-tool': t.id, 'data-tool-state': s.status, title: s.note });
   if (a.id) off.id = a.id;
+  /* A control drawn with its layout inline keeps it — but not a pointer. */
+  if (a.getAttribute('style')) { off.setAttribute('style', a.getAttribute('style')); off.style.cursor = 'default'; }
   if (a.getAttribute('aria-current')) off.setAttribute('aria-current', a.getAttribute('aria-current'));
   off.append(...a.childNodes);
   if (!off.querySelector('.status-badge')) off.append(' ', toolBadge(t));
@@ -12529,7 +12555,8 @@ function gateToolLink(a) {
 }
 function gateToolLinks(root) {
   if (!root || root.nodeType !== 1) return;
-  const links = root.matches('a[href]') ? [root] : [...root.querySelectorAll('a[href]')];
+  const sel = 'a[href], [data-tool-path]';
+  const links = root.matches(sel) ? [root] : [...root.querySelectorAll(sel)];
   links.forEach(gateToolLink);
 }
 /* A link to a tool, for the pages that draw one by name: the same anchor
@@ -14780,9 +14807,11 @@ VIEWS.researchQueue = () => {
     'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
   hd.append(hl);
   const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
-  hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
+  /* Each names the tool it opens, so the shell's gate draws it as text
+     where that tool cannot be used here (gateToolLink, 35-ui.js). */
+  hr.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openDashboardCustomiser(), html: `${icon('grid')} Customise` }));
-  hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
+  hr.append(el('button', { class: 'btn btn-primary btn-sm', 'data-tool-path': '/discover/value-map', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
   hd.append(hr);
   wrap.append(hd);
 
@@ -15019,6 +15048,8 @@ VIEWS.researchQueue = () => {
        phone, where a fingertip is what presses them. */
     ol.append(el('li', {}, el('button', {
       class: 'row tap-row', style:'width:100%;gap:10px;background:none;border:0;cursor:pointer;padding:7px 0;text-align:left',
+      /* The screener step names its tool, for the shell's gate. */
+      'data-tool-path': label === 'Discover candidates' ? '/discover' : null,
       onclick: act }, [
       el('span', { style: 'width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--brand-wash);color:var(--brand)' }, String(i + 1)),
       el('span', { style: 'display:flex;flex-direction:column;min-width:0' }, [
@@ -15124,8 +15155,9 @@ function openDashboardCustomiser() {
 function myDashLink(path, attrs = {}, kids = []) {
   const a = el('a', { ...attrs, href: href(path),
     onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); navigate(path); } }, kids);
-  return typeof gateDetached === 'function' ? gateDetached(a) : a;
+  return myDashGate(a);
 }
+const myDashGate = (n) => (typeof gateDetached === 'function' ? gateDetached(n) : n);
 /* The one route helper that decides whether a link may be drawn at all: a
    path that ends at the not-found card is never offered. */
 const myDashRoutes = (path) => { const r = matchRoute(path.split('?')[0]); return !!(r && VIEWS[r.view]); };
@@ -15498,8 +15530,8 @@ function myDashContinue(o) {
   const kindOne = typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE : {};
   const rows = [
     ...o.saved.map(i => ({ at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
-      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, open: () => i.open(),
-      act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
+      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, open: () => i.open(), opens: i.path || null,
+      act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, 'data-tool-path': i.path || null, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
     /* A list names what the visitor put in it; a sample list says how many of
        its companies are samples. Its chip is the workspace's rule: every
        company illustrative, or some. */
@@ -15547,11 +15579,14 @@ function myDashContinue(o) {
       ]);
       /* The newest carries the page's one primary action, "Continue" — its
          own open where it has one (a saved item reopens as the workspace
-         reopens it), else the page it lives on. */
+         reopens it), else the page it lives on. The button names the tool
+         it reopens and passes the shell's gate now, as the link does, so
+         a saved screen or comparison whose tool cannot be used here is
+         text, and the page's one primary action falls to the first step. */
       if (i === 0) {
         const name = `Continue: ${r.name}`;
         const go = r.open
-          ? el('button', { type: 'button', class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name, onclick: r.open }, 'Continue')
+          ? myDashGate(el('button', { type: 'button', class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name, 'data-tool-path': r.opens, onclick: r.open }, 'Continue'))
           : myDashLink(r.path, { class: 'btn btn-primary btn-sm dash-continue', 'aria-label': name }, 'Continue');
         ul.append(el('li', {}, el('div', { class: 'dash-row dash-row-act dash-row-first' }, [main, go])));
         return;
@@ -19014,7 +19049,10 @@ VIEWS.researchHome = () => {
   ];
   const cg = el('div', { class: 'grid grid-3' });
   colls.forEach(([t, b, go]) => {
-    const card = el('div', { class: 'card task-card', role:'button', tabindex:'0' });
+    /* Each card names the tool it opens (data-tool-path), so where that tool
+       cannot be used here — the filings failed to load — the shell's gate
+       draws the card as text with the reason (gateToolLink, 35-ui.js). */
+    const card = el('div', { class: 'card task-card', role:'button', tabindex:'0', 'data-tool-path': t === 'Sarawak Economy Watch' ? '/discover/sarawak' : '/discover/screener' });
     card.append(el('h3', { class: 'h-card' }, t));
     card.append(el('p', { class: 'body', style: 'font-size:13px' }, b));
     const act = () => go();
@@ -19108,7 +19146,7 @@ VIEWS.research = () => {
     wrap.append(upsell(`You have used all ${lim('reportsPerMonth')} company reports this month`,
       `The Free plan covers ${lim('reportsPerMonth')} distinct company reports a calendar month, and revisiting one you have already opened never costs another. ${State.reportLog.ids.length ? `This month you have read ${State.reportLog.ids.map(x => BY_ID.get(x)?.c.tk).filter(Boolean).join(', ')}.` : ''} Equities Research removes the limit.`));
     const back = el('div', { class: 'row', style: 'gap:8px;margin-top:var(--md)' });
-    back.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
+    back.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }) }, 'Back to the screener'));
     State.reportLog.ids.slice(0, 5).forEach(id => {
       const rr = BY_ID.get(id); if (!rr) return;
       back.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(id) }, rr.c.tk));
@@ -19457,6 +19495,13 @@ VIEWS.research = () => {
      itself have scrolled sideways on a phone — reintroducing the problem this
      is meant to solve one level down. */
   const panelNode = panel(r);
+  /* ONE NEXT ACTION ON EVERY TAB (audit 1, #9). The header's primary — "Add
+     to watchlist", then "Create a setup" — was a second primary on the tabs
+     that have one of their own: the Valuation Studio's "Save this valuation
+     run" and the Thesis tab's "Start a thesis". There the tab's own result
+     is the next action, and the header's steps back to quiet. */
+  if (panelNode.querySelector('.btn-primary'))
+    actionsBox.querySelectorAll('.btn-primary').forEach(b => b.classList.replace('btn-primary', 'btn-ghost'));
   const heads = [...panelNode.querySelectorAll('h3.h-card, h2.h-section')]
     .filter(h => (h.textContent || '').trim());
   if (heads.length >= 4) {
@@ -19930,7 +19975,7 @@ function tabSnapshot(r) {
     /* Capped at the plan's Compare limit, as the Business tab's button is. A
        fixed 8 put six columns on Free under "Choose up to 2 companies". The
        cut is said (comparePeers). */
-    ph2.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:6px;padding:0',
+    ph2.append(el('button', { class: 'btn btn-quiet btn-sm', style: 'margin-top:6px;padding:0', 'data-tool-path': '/compare',
       onclick: () => comparePeers(c, peers) }, 'Open full comparison →'));
     pcard.append(ph2);
     const tw2 = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0' });
@@ -20108,7 +20153,7 @@ function tabBusiness(r) {
     comp.append(el('div', { class: 'row row-wrap', style: 'gap:5px;margin-top:var(--sm)' },
       [el('span', { class: 'caption' }, 'Peer set:'), ...rivals.map(x =>
         el('button', { class: 'chip', style: 'cursor:pointer', onclick: () => openResearch(x.c.id) }, x.c.tk + illusText(x.c)))]));
-    comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)',
+    comp.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', 'data-tool-path': '/compare',
       onclick: () => comparePeers(c, rivals) }, 'Open the full comparison'));
   }
   wrap.append(comp);
@@ -22963,7 +23008,7 @@ VIEWS.thesis = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.'),
   ]));
-  hd.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
+  hd.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
   wrap.append(hd);
   /* Under the heading, on every personal page: the page says what it is
      before it says whose data is on it. */
@@ -25320,8 +25365,13 @@ VIEWS.launcher = () => {
   }
 
   if (open) {
+    /* The button names the tool it opens, so the shell's gate draws it as
+       text where that tool cannot be used here (gateToolLink, 35-ui.js):
+       with the filings failed to load, "Open the stock screener" sent the
+       reader to the Unavailable screener. */
+    const opens = { property: '/property/calculator', wheel: '/us-options/wheel', trading: '/research/trading-index', screen: '/discover/screener' }[L.goal] || null;
     card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--xl)' }, [
-      el('button', { class: 'btn btn-primary', onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
+      el('button', { class: 'btn btn-primary', 'data-tool-path': opens, onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
     ]));
     card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The tool will say which of its figures are still samples and which are yours.'));
@@ -26395,7 +26445,7 @@ function workspaceItems() {
     kind: 'comparison', key: s.id, name: s.name, subject: (s.tks || s.ids.map(tkOf)).join(', '), ids: s.ids,
     created: s.created, stamp: s.stamp, legacy: null, illustrative: illusOf(s.stamp, s.ids),
     detail: `${s.ids.length} compan${s.ids.length === 1 ? 'y' : 'ies'} · every cell kept as it read when saved`,
-    open: () => openComparison(s.id),
+    open: () => openComparison(s.id), path: '/compare',
     duplicate: () => saveComparisons([{ ...s, id: `cmp-${Date.now().toString(36)}${(CMP_SEQ++).toString(36)}`, name: `${s.name} (copy)`.slice(0, 80) }, ...loadComparisons()]),
     remove: () => saveComparisons(loadComparisons().filter(x => x.id !== s.id)),
   }));
@@ -26405,7 +26455,7 @@ function workspaceItems() {
     subject: `${(s.snapshot?.matches || []).length} matches when saved`, ids: [],
     created: s.snapshot?.stamp?.savedAt || s.snapshot?.saved || null, stamp: s.snapshot?.stamp, legacy: { model: s.snapshot?.model ?? s.model },
     illustrative: null, detail: 'Criteria, and every match with its scores as saved',
-    open: () => { navigate('/discover/screener'); openSavedScreen(idx); },
+    open: () => { navigate('/discover/screener'); openSavedScreen(idx); }, path: '/discover/screener',
     remove: () => { State.savedScreens = State.savedScreens.filter((_, i) => i !== idx); store.write('savedScreens', State.savedScreens); },
   }));
 
@@ -26475,8 +26525,11 @@ VIEWS.workspace = () => {
 
   /* The limits, before the list: where this lives, and what "moved" means. */
   const lim = el('div', { class: 'card ws-limits' });
+  /* The surface's status is the registry's (TOOLS, 'saved'), with its
+     sentence as the title — the one badge the sidebar, the dashboard and
+     How it works read. It was a chip written here by hand. */
   lim.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:8px' }, [
-    el('span', { class: 'chip chip-bronze' }, 'Beta'),
+    toolBadge('saved'),
     el('span', { class: 'chip' }, 'Stored in this browser'),
     el('span', { class: 'chip' }, 'No account, no sync, no sharing'),
   ]));
@@ -26547,7 +26600,10 @@ VIEWS.workspace = () => {
     const acts = el('div', { class: 'ws-acts' });
     /* Outline, not primary: a filled Open on every row was a page of primary
        actions, none of them dominant. Named for its row, as Delete is. */
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm ws-open', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
+    /* `path`, where an item reopens in a tool, names that tool for the
+       shell's gate (gateToolLink): a saved screen is not offered while the
+       screener cannot be used here. */
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm ws-open', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, 'data-tool-path': i.path || null, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open'));
     (i.extra || []).forEach(([label, path]) => acts.append(el('a', { class: 'btn btn-ghost btn-sm', href: href(path),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label)));
     /* Confirmed only if the browser kept it: a refused write left the list as

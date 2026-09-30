@@ -1666,7 +1666,7 @@ VIEWS.thesis = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.'),
   ]));
-  hd.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
+  hd.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
   wrap.append(hd);
   /* Under the heading, on every personal page: the page says what it is
      before it says whose data is on it. */

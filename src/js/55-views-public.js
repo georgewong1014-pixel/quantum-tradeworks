@@ -813,8 +813,13 @@ VIEWS.launcher = () => {
   }
 
   if (open) {
+    /* The button names the tool it opens, so the shell's gate draws it as
+       text where that tool cannot be used here (gateToolLink, 35-ui.js):
+       with the filings failed to load, "Open the stock screener" sent the
+       reader to the Unavailable screener. */
+    const opens = { property: '/property/calculator', wheel: '/us-options/wheel', trading: '/research/trading-index', screen: '/discover/screener' }[L.goal] || null;
     card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--xl)' }, [
-      el('button', { class: 'btn btn-primary', onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
+      el('button', { class: 'btn btn-primary', 'data-tool-path': opens, onclick: open }, `Open the ${goal.tool.toLowerCase()}`),
     ]));
     card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The tool will say which of its figures are still samples and which are yours.'));
