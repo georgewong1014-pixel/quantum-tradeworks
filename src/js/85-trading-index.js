@@ -1384,11 +1384,18 @@ VIEWS.opportunities = () => {
        the raw record over the calculator's deal, so an unpriced record opened
        at a price of 0 — a free property — where the register had modelled it
        on the calculator's price, and the calculator's checklist answers were
-       kept as though they were the record's. */
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-      State.deal = { ...modelled[i].d };
-      saveDeal(); navigate('/property/calculator');
-    } }, 'Open in the calculator'));
+       kept as though they were the record's.
+       And it opens as the record's own property (openOpportunityProperty,
+       71-property-models.js). It replaced the calculator's deal outright, so
+       a deal being worked on was gone with no way back, and the next Open
+       started again from the register: whatever had been changed in the
+       calculator since — a rent confirmed, a rate quoted — had to be typed a
+       second time. The first Open saves it as a property tied to the record;
+       every Open after reopens that property as it was left. */
+    const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `opp-${i}-calc`,
+      title: tied ? `Opens “${tied.name}”, saved from this record` : 'Saves this record as a property and opens it',
+      onclick: () => openOpportunityProperty(o, modelled[i].d) }, 'Open in the calculator'));
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Remove ${o.name} from the register?`)) return;
       State.opportunities = list.filter((_, j) => j !== i); saveOpportunities(); render();

@@ -161,6 +161,10 @@
       "destination": "/pages/property/calculator.html"
     },
     {
+      "source": "/property/models",
+      "destination": "/pages/property/models.html"
+    },
+    {
       "source": "/property/opportunities",
       "destination": "/pages/property/opportunities.html"
     },
@@ -316,7 +320,7 @@
       ]
     },
     {
-      "source": "/assets/app.16a054d3a875.js",
+      "source": "/assets/app.6a7e9905f8be.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -333,7 +337,7 @@
       ]
     },
     {
-      "source": "/assets/app.3baf8e7a07f5.css",
+      "source": "/assets/app.9485ce74c9d8.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -350,7 +354,7 @@
       ]
     },
     {
-      "source": "/((?!data/|assets/app\\.16a054d3a875\\.js$|assets/app\\.3baf8e7a07f5\\.css$).*)",
+      "source": "/((?!data/|assets/app\\.6a7e9905f8be\\.js$|assets/app\\.9485ce74c9d8\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -358,7 +362,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-FqBU06h1mGhxU3qn+BfOIIpSKq/jmis32yx9kgK8ez4='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-an6ZBfi+UzagNIGPJ/uwHQNwWZbAlWOKmcIJHAoOaqQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

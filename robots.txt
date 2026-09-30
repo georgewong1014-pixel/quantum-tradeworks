@@ -7,6 +7,9 @@
 # brief's address for the same watchlists page, so it is excluded with it, and
 # /app/workspace — everything saved in this browser — with /my/workspace.
 #
+# /property/models is My properties: the properties one reader saved, read from
+# their browser. Personal, like /my/.
+#
 # /app/scanner is the personal-lane scanner: the reader's own setups, alerts
 # and history, read from files on their own machine. /admin/ is a read-only
 # view of one machine's scanner worker. Neither has anything for an index.
@@ -21,6 +24,7 @@ Disallow: /app$
 Disallow: /my/
 Disallow: /app/watchlists
 Disallow: /app/workspace
+Disallow: /property/models
 Disallow: /app/scanner
 Disallow: /admin/
 Allow: /

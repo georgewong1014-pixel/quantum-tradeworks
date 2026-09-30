@@ -532,6 +532,12 @@ State.deal.holdYears = normHoldYears(State.deal.holdYears);
    is already on screen — the write-before-read that stops a stale link from
    undoing the reader's last change. */
 const saveDeal = () => {
+  /* Which saved property the deal is the working copy of, and which of its
+     scenarios is open (71-property-models.js) — null for a deal not saved as
+     a property. Written with the deal, so a reload reopens the same one; a
+     deal built without them (the launcher's, a test's) is not a property. */
+  if (!('modelId' in State.deal)) State.deal.modelId = null;
+  if (!('scenarioId' in State.deal)) State.deal.scenarioId = null;
   store.write('deal', State.deal);
   /* /property serves the calculator as well as /property/calculator. Syncing
      on one path only left /property's address stale, and the next render
@@ -703,7 +709,9 @@ function arrivePropertyUrl() {
   if (!incoming) return { changed: readPropertyUrl(State.deal) };
   /* Our own address, reloaded or returned to: nothing to apply. */
   if (incoming === dealToParam(State.deal)) return { changed: readPropertyUrl(State.deal) };
-  const fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+  /* A linked deal is nobody's saved property here: it opens unsaved, and
+     "Save this property" makes it one of this reader's. */
+  const fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, modelId: null, scenarioId: null };
   readPropertyUrl(fresh);
   if (dealToParam(fresh) === dealToParam(State.deal) && fresh.city === State.deal.city) return { changed: false };
   const previous = State.deal;
@@ -712,12 +720,18 @@ function arrivePropertyUrl() {
   store.write('deal', fresh);
   return { changed: true, replaced: true };
 }
+/* The kept deal comes back as the property it belonged to — it carries its
+   modelId (71-property-models.js). And the deal it replaces is kept aside in
+   its turn when it holds work kept nowhere else — a deal entered and never
+   saved, or a property's unsaved changes — so a restore can be undone by
+   restoring again: restoring used to drop whatever was on the calculator. */
 function restoreDealBeforeLink() {
   const prev = store.read('dealBeforeLink', null);
   if (!prev) return false;
+  const swap = typeof propertyHasUnsavedWork === 'function' && propertyHasUnsavedWork(State.deal) ? State.deal : null;
   State.deal = prev;
   store.write('deal', prev);
-  store.write('dealBeforeLink', null);
+  store.write('dealBeforeLink', swap);
   syncPropertyUrl(prev);
   return true;
 }
@@ -2194,11 +2208,14 @@ const tr = (key) => METRIC_DICTIONARY[key]?.[lang()] || METRIC_DICTIONARY[key]?.
 const SUMMARY_COPY = {
   /* Says what is translated and no more: it claimed "input labels" while
      half the rail's and every other panel's stayed English. */
-  en: { title:'Summary', note:'The labels in Your deal, its evidence grades and the ten risk questions are translated. The panels below and the longer explanations remain in English.',
+  /* "Your deal" was the one card that held every input. The inputs are in
+     each section's own column since the calculator was sectioned, and the
+     note names them where they are. */
+  en: { title:'Summary', note:'The input labels in every section, their evidence grades and the ten risk questions are translated. The section headings, the panels and the longer explanations remain in English.',
         forEvery:'For every ringgit of rent you collect', afterAll:'after every cost modelled here', perMonth:'a month' },
-  ms: { title:'Ringkasan', note:'Label dalam Your deal, gred buktinya dan sepuluh soalan risiko telah diterjemah. Panel di bawah dan penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
+  ms: { title:'Ringkasan', note:'Label input dalam setiap bahagian, gred buktinya dan sepuluh soalan risiko telah diterjemah. Tajuk bahagian, panel dan penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
         forEvery:'Bagi setiap ringgit sewa yang dikutip', afterAll:'selepas semua kos yang dimodelkan di sini', perMonth:'sebulan' },
-  zh: { title:'摘要', note:'“Your deal”中的输入项名称、其证据等级与十道风险问题已翻译；下方各面板及较长的说明仍为英文。',
+  zh: { title:'摘要', note:'各部分的输入项名称、其证据等级与十道风险问题已翻译；各部分标题、面板及较长的说明仍为英文。',
         forEvery:'每收取一令吉租金', afterAll:'扣除此处模型中的所有成本后', perMonth:'每月' },
 };
 

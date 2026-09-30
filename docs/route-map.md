@@ -94,6 +94,7 @@ whichever address opened it.
 | `/discover/sarawak` | sarawak | app | Equities Research (product) | canonical |
 | `/property` | property | app | Property Intelligence (product) | canonical |
 | `/property/calculator` | property | app | Property Intelligence (product) | alias of `/property` |
+| `/property/models` | propertyModels | app | Property Intelligence (product) | canonical — My properties, the reader's saved properties (audit #1, 30 Sep 2026) |
 | `/property/opportunities` | opportunities | app | Property Intelligence (product) | canonical |
 | `/property/comparables` | comparables | app | Property Intelligence (product) | canonical |
 | `/property/areas` | areas | app | Property Intelligence (product) | canonical |
@@ -146,8 +147,8 @@ lists those two and not the bare addresses.
 `/pricing`, `/about`, `/contact`, `/privacy`, `/terms`.
 
 Left out on purpose: every alias above; `/my/*`, `/app/watchlists`,
-`/app/workspace`, `/app/scanner/*` and `/admin/*`, which `robots.txt`
-disallows (personal or one machine's); `/app` — My Dashboard, the visitor's
+`/app/workspace`, `/property/models`, `/app/scanner/*` and `/admin/*`, which
+`robots.txt` disallows (personal or one machine's); `/app` — My Dashboard, the visitor's
 own counts and saved work — which `robots.txt` also disallows, by that
 address alone (`Disallow: /app$`); `/welcome` and `/start`, which are
 application shells rather than destinations; parameterised pages.
@@ -225,9 +226,12 @@ One row above an Equities or Property page (a nav landmark named
   Heatmap (`/discover?tab=heatmap`). One row of navigation per level: the
   Value map is not a product tab as well, where it repeated the strip
   beneath it, and it stays one click away.
-- **Property Intelligence** — Calculator (`/property/calculator`, current on
-  `/property` too) · Area screen (`/property/areas`) · Comparables
-  (`/property/comparables`) · Opportunities (`/property/opportunities`).
+- **Property Intelligence** — My properties (`/property/models`) · Calculator
+  (`/property/calculator`, current on `/property` too) · Area screen
+  (`/property/areas`) · Comparables (`/property/comparables`) · Opportunities
+  (`/property/opportunities`). The calculator's five sections (Acquisition,
+  Financing, Rental & expenses, Scenarios, Report) are anchors on its page,
+  not routes: `/property/calculator#scenarios` opens at Scenarios.
   There is no Overview tab: `/property` and `/property/calculator` are one
   view (the calculator; its canonical is `/property`), so an Overview tab
   would be a second name for the same page. The row gains it when a Property

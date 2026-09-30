@@ -3350,3 +3350,130 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
    long as it held focus. */
 .tablewrap[data-scroll-stop]:focus-visible { border-radius: var(--r-md); }
 /* ---- end audit: slim ---- */
+
+/* ---- audit1: property-model ---- */
+/* THE PROPERTY BEING EDITED, THE CALCULATOR'S SECTIONS, AND MY PROPERTIES
+   (71-property-models.js, VIEWS.property in 75-property-grade.js).
+   Tokens only; transitions on transform alone. */
+
+/* The bar: which property is on the calculator, and its one next action. */
+.pm-bar { display: flex; flex-direction: column; gap: var(--sm); padding: var(--md) var(--lg); margin-bottom: var(--md); }
+.pm-bar-hd { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pm-status { margin: 0; font-size: var(--text-body); line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
+.pm-status strong { color: var(--ink); font-weight: var(--weight-semibold); }
+.pm-status:focus { outline: none; }
+.pm-status:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
+.pm-unsaved { color: var(--bronze); font-weight: var(--weight-semibold); }
+.pm-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); }
+.pm-acts .select { width: auto; max-width: 100%; }
+.pm-links { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+@media (max-width: 560px) {
+  .pm-bar { padding: var(--md); }
+  .pm-acts > .btn-primary { flex: 1 1 100%; }
+  .pm-acts .select { flex: 1 1 100%; }
+  .pm-links { margin-left: 0; }
+}
+
+/* The section index: one row, sticky under whatever bar is measured, over
+   the page as the company strip is. Controls a sticky element hides are
+   scrolled clear of it: the page's scroll padding counts it in. */
+:root { --pc-index-h: 48px; }
+html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h)) + var(--pc-index-h) + 12px); }
+.pc-index {
+  position: sticky; top: var(--topbar-live, var(--topbar-h)); z-index: 24;
+  margin: 0 calc(var(--xl) * -1) var(--md); padding: 0 var(--xl);
+  background: color-mix(in srgb, var(--plane) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 900px) { .pc-index { margin: 0 calc(var(--lg) * -1) var(--md); padding: 0 var(--lg); } }
+@media (max-width: 560px) { .pc-index { margin: 0 calc(var(--md) * -1) var(--md); padding: 0 var(--md); } }
+.pc-index-list {
+  position: relative; list-style: none; margin: 0; padding: 0; display: flex; gap: var(--lg);
+  overflow-x: auto; scrollbar-width: none; min-height: var(--pc-index-h);
+}
+.pc-index-list::-webkit-scrollbar { display: none; }
+.pc-index-list > li { display: flex; flex: none; }
+.pc-index-link {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  min-height: var(--pc-index-h); min-width: 44px; padding: 0 2px; white-space: nowrap;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2); text-decoration: none;
+}
+.pc-index-link::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px;
+  background: var(--brand); transform: scaleX(0); transform-origin: left center; transition: transform 200ms ease;
+}
+.pc-index-link:hover { color: var(--ink); }
+.pc-index-link:hover::after { transform: scaleX(.35); }
+.pc-index-link[aria-current] { color: var(--ink); }
+.pc-index-link[aria-current]::after { transform: scaleX(1); }
+.pc-index-link:focus-visible { outline-offset: -2px; }
+
+/* A section: its number, its name, and the two lines that say what it asks
+   and what it works out — then its inputs beside what they produce. */
+.pc-sec { margin-top: var(--xxl); }
+.pc-sec-hd { margin-bottom: var(--lg); padding-top: var(--lg); border-top: 1px solid var(--line); }
+.pc-sec-hd .eyebrow { margin: 0 0 4px; }
+.pc-sec-hd .h-section { display: inline-block; margin: 0 0 var(--sm); }
+.pc-sec-hd .h-section:focus { outline: none; }
+.pc-sec-hd .h-section:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
+.pc-contract { margin: 4px 0 0; max-width: 78ch; font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); }
+.pc-contract-k { font-weight: var(--weight-semibold); color: var(--ink); }
+.pc-outputs { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+/* A stuck column rests under the index as well as the bar. */
+.pc-sec .rail-sticky { top: calc(var(--topbar-live, var(--topbar-h)) + var(--pc-index-h) + 12px); }
+@media (max-width: 560px) { .pc-sec { margin-top: var(--xl); } }
+
+/* Scenarios, and the comparison. */
+.pm-sc-list { list-style: none; margin: 0; padding: 0; }
+.pm-sc-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--xs) var(--md); padding: var(--sm) 0; border-top: 1px solid var(--grid);
+}
+.pm-sc-row.is-open { box-shadow: inset 3px 0 0 var(--brand); padding-left: var(--sm); }
+.pm-sc-pick { display: flex; align-items: flex-start; gap: 10px; flex: 1 1 320px; min-width: 0; cursor: pointer; }
+.pm-sc-pick input { margin-top: 3px; flex: none; }
+.pm-sc-what { display: block; margin-top: 2px; }
+.pm-sc-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pm-sc-table th[scope="row"] { font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; }
+
+/* A locality handed to the calculator from the area screen. */
+.pm-handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--md); }
+
+/* My properties: one row a property, the columns labelled on a phone. The
+   rows share the list's columns (subgrid), so the head lines up with every
+   row however wide a row's actions are. */
+.pm-list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr) auto;
+}
+.pm-row {
+  grid-column: 1 / -1; display: grid; grid-template-columns: subgrid;
+  column-gap: var(--md); align-items: center; padding: var(--md) var(--lg); border-top: 1px solid var(--grid);
+}
+.pm-head { padding-block: var(--sm); font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.pm-row.is-open { box-shadow: inset 3px 0 0 var(--brand); }
+.pm-sample { background: color-mix(in srgb, var(--bronze-wash) 40%, transparent); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+.pm-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pm-row-main strong { font-size: var(--text-body); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.pm-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--text-sm); }
+.pm-label { display: none; }
+.pm-acts-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.pm-list-hd { padding: var(--lg) var(--lg) 0; margin-bottom: var(--sm); }
+.pm-list-hd .h-card:focus { outline: none; }
+.pm-list.pm-loose { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) auto; }
+.pm-loose .pm-row { padding-inline: 0; }
+@media (max-width: 900px) {
+  .pm-list, .pm-list.pm-loose { display: block; }
+  .pm-row, .pm-loose .pm-row { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: var(--sm); }
+  .pm-head { display: none; }
+  .pm-row-main, .pm-acts-row { grid-column: 1 / -1; }
+  .pm-acts-row { justify-content: flex-start; }
+  .pm-label { display: block; font-size: var(--text-label); color: var(--ink-3); }
+}
+@media (max-width: 560px) {
+  .pm-row { padding: var(--md); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pm-loose .pm-row { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-inline: 0; }
+}
+@media print { .pm-bar, .pc-index { display: none !important; } }
+/* ---- end audit1: property-model ---- */

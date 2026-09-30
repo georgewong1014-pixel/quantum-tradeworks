@@ -1543,6 +1543,91 @@ for (const w of [360, 390]) {
   if (fails.length) { bad++; console.log(`FAIL audit slim — a scroll box the keyboard cannot reach, or a Tab stop with no name: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
 }
 /* ---- end audit: slim ---- */
+/* ---- audit1: property-model ---- */
+/* MY PROPERTIES AND THE SECTIONED CALCULATOR, AT EVERY WIDTH (daily audit
+   #1, item 7). /property/models lists saved properties in a table-like grid
+   that stacks on a phone, and the calculator gained a bar that says which
+   property is on it, a sticky row of five section links and a scenarios
+   comparison. With two saved properties — one with a long name and two
+   scenarios, compared — and an unsaved change on the calculator: no
+   horizontal overflow at 360, 390, 768, 1024 or 1440, light and dark; on a
+   phone every control in the bar, the list and the scenarios is 44px on
+   both axes, and each section link too; the index stays one row that
+   scrolls inside itself; and the comparison scrolls in its own box. */
+{
+  const fails = [];
+  const seed = `(() => {
+    const base = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { price: true }, price: 598000 };
+    const at = '2026-09-30T02:00:00.000Z';
+    const rec = (id, name, deal, scenarios) => ({ id, kind: 'property', name, createdAt: at, updatedAt: at, savedAt: '2026-09-30 02:00',
+      modelVersion: MODEL_VERSION, asOf: AS_OF, editor: 'this browser', stamp: buildStamp('property'), payload: { deal }, scenarios });
+    const list = [
+      rec('w-property-a1m-long', 'Riveria Park Residences, block C, level 17, the corner unit facing the river — second viewing', base,
+        [{ id: 'sc-a1m-1', name: 'Rent at the top of the observed range', overrides: { rent: 2200 }, createdAt: at, updatedAt: at },
+         { id: 'sc-a1m-2', name: 'Rate up one point and a longer vacancy', overrides: { ratePct: 5.3, vacancyPct: 14 }, createdAt: at, updatedAt: at }]),
+      rec('w-property-a1m-b', 'Lanang terrace', { ...base, city: 'sibu', district: 'Lanang', projectId: 'custom-sibu', price: 455000 }, []),
+    ];
+    localStorage.setItem('vl.savedWork', JSON.stringify(list));
+    localStorage.setItem('vl.deal', JSON.stringify({ ...base, rent: 1990, modelId: 'w-property-a1m-long', scenarioId: null }));
+    return true;
+  })()`;
+  const kept = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify({ w: localStorage.getItem('vl.savedWork'), d: localStorage.getItem('vl.deal') })` }, sessionId);
+  try {
+    let seeded = false, measured = 0;
+    for (const dark of [false, true]) for (const w of [360, 390, 768, 1024, 1440]) {
+      if (dark && ![390, 1440].includes(w)) continue;
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 860, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      for (const path of ['/property/models', '/property/calculator']) {
+        await send('Page.navigate', { url: BASE + path }, sessionId);
+        await sleep(1500);
+        if (!seeded) {
+          await send('Runtime.evaluate', { expression: `localStorage.removeItem('vl.theme'); ${seed}` }, sessionId);
+          seeded = true;
+          await send('Page.navigate', { url: BASE + path }, sessionId);
+          await sleep(1500);
+        }
+        const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+          const w = (ms) => new Promise(res => setTimeout(res, ms));
+          for (let i = 0; i < 40 && !(typeof propertyPagesSettled === 'function' && propertyPagesSettled()); i++) await w(150);
+          if (State.view === 'property') { PM_COMPARE['w-property-a1m-long'] = ['base', 'sc-a1m-1', 'sc-a1m-2']; render(); await w(300); }
+          const small = (sel) => [...document.querySelectorAll(sel)].filter(n => n.getClientRects().length).map(n => { const b = n.getBoundingClientRect();
+            return { t: (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 28), w: Math.round(b.width), h: Math.round(b.height) }; })
+            .filter(b => Math.min(b.w, b.h) < 44);
+          const idx = document.querySelector('.pc-index-list');
+          const cmp = document.querySelector('.pm-sc-table');
+          let box = cmp && cmp.parentElement;
+          return {
+            view: State.view, over: document.documentElement.scrollWidth - innerWidth,
+            small: innerWidth < 768 ? small('main .pm-bar button, main .pm-bar a, main .pm-bar select, main .pm-row button, main .pm-scenarios button, main .pc-index-link') : [],
+            idx: idx ? { rows: new Set([...idx.children].map(li => Math.round(li.getBoundingClientRect().top))).size, scrolls: getComputedStyle(idx).overflowX } : null,
+            cmp: cmp ? { cols: cmp.querySelectorAll('thead th').length, boxScrolls: !!box && getComputedStyle(box).overflowX === 'auto', inBox: !!box && box.getBoundingClientRect().right <= innerWidth + 1 } : null,
+            rows: document.querySelectorAll('main .pm-list .pm-row:not(.pm-head)').length,
+          };
+        })()` }, sessionId);
+        const v = r.result?.result?.value;
+        const at = `${w}px${dark ? ' dark' : ''} ${path}`;
+        if (!v) { fails.push(`${at}: could not be measured`); continue; }
+        measured++;
+        if (v.over > 2) fails.push(`${at}: overflows by ${v.over}px`);
+        v.small.forEach(s => fails.push(`${at}: "${s.t}" is ${s.w}×${s.h}px, under 44px`));
+        if (path === '/property/models' && v.rows < 3) fails.push(`${at}: ${v.rows} rows (two properties and the sample expected)`);
+        if (path === '/property/calculator') {
+          if (!v.idx || v.idx.rows !== 1 || v.idx.scrolls !== 'auto') fails.push(`${at}: the section index is ${JSON.stringify(v.idx)}`);
+          if (!v.cmp || v.cmp.cols !== 4 || !v.cmp.boxScrolls || !v.cmp.inBox) fails.push(`${at}: the scenarios comparison is ${JSON.stringify(v.cmp)}`);
+        }
+      }
+    }
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+    if (!fails.length) console.log(`ok   audit1 property-model: /property/models and the sectioned calculator at 360, 390, 768, 1024 and 1440 (light) and 390 and 1440 (dark), ${measured} pages — no overflow, the bar's, the list's, the scenarios' controls and the section links 44px on a phone, the index one row that scrolls in itself, the three-column comparison in its own scroll box`);
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    const k = JSON.parse(kept.result?.result?.value || '{}');
+    await send('Runtime.evaluate', { expression: `(() => { const k = ${JSON.stringify(k)}; const put = (key, v) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v); put('savedWork', k.w); put('deal', k.d); return true; })()` }, sessionId);
+  }
+  if (fails.length) { bad++; console.log(`FAIL audit1 property-model — My properties or the sectioned calculator at some width: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+}
+/* ---- end audit1: property-model ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

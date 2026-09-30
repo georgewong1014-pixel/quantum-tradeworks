@@ -3385,6 +3385,133 @@ body[data-disclosure="open"] .disclosure-chips { display: inline-flex; flex-basi
    long as it held focus. */
 .tablewrap[data-scroll-stop]:focus-visible { border-radius: var(--r-md); }
 /* ---- end audit: slim ---- */
+
+/* ---- audit1: property-model ---- */
+/* THE PROPERTY BEING EDITED, THE CALCULATOR'S SECTIONS, AND MY PROPERTIES
+   (71-property-models.js, VIEWS.property in 75-property-grade.js).
+   Tokens only; transitions on transform alone. */
+
+/* The bar: which property is on the calculator, and its one next action. */
+.pm-bar { display: flex; flex-direction: column; gap: var(--sm); padding: var(--md) var(--lg); margin-bottom: var(--md); }
+.pm-bar-hd { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pm-status { margin: 0; font-size: var(--text-body); line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere; }
+.pm-status strong { color: var(--ink); font-weight: var(--weight-semibold); }
+.pm-status:focus { outline: none; }
+.pm-status:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
+.pm-unsaved { color: var(--bronze); font-weight: var(--weight-semibold); }
+.pm-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); }
+.pm-acts .select { width: auto; max-width: 100%; }
+.pm-links { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+@media (max-width: 560px) {
+  .pm-bar { padding: var(--md); }
+  .pm-acts > .btn-primary { flex: 1 1 100%; }
+  .pm-acts .select { flex: 1 1 100%; }
+  .pm-links { margin-left: 0; }
+}
+
+/* The section index: one row, sticky under whatever bar is measured, over
+   the page as the company strip is. Controls a sticky element hides are
+   scrolled clear of it: the page's scroll padding counts it in. */
+:root { --pc-index-h: 48px; }
+html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h)) + var(--pc-index-h) + 12px); }
+.pc-index {
+  position: sticky; top: var(--topbar-live, var(--topbar-h)); z-index: 24;
+  margin: 0 calc(var(--xl) * -1) var(--md); padding: 0 var(--xl);
+  background: color-mix(in srgb, var(--plane) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 900px) { .pc-index { margin: 0 calc(var(--lg) * -1) var(--md); padding: 0 var(--lg); } }
+@media (max-width: 560px) { .pc-index { margin: 0 calc(var(--md) * -1) var(--md); padding: 0 var(--md); } }
+.pc-index-list {
+  position: relative; list-style: none; margin: 0; padding: 0; display: flex; gap: var(--lg);
+  overflow-x: auto; scrollbar-width: none; min-height: var(--pc-index-h);
+}
+.pc-index-list::-webkit-scrollbar { display: none; }
+.pc-index-list > li { display: flex; flex: none; }
+.pc-index-link {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  min-height: var(--pc-index-h); min-width: 44px; padding: 0 2px; white-space: nowrap;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2); text-decoration: none;
+}
+.pc-index-link::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px;
+  background: var(--brand); transform: scaleX(0); transform-origin: left center; transition: transform 200ms ease;
+}
+.pc-index-link:hover { color: var(--ink); }
+.pc-index-link:hover::after { transform: scaleX(.35); }
+.pc-index-link[aria-current] { color: var(--ink); }
+.pc-index-link[aria-current]::after { transform: scaleX(1); }
+.pc-index-link:focus-visible { outline-offset: -2px; }
+
+/* A section: its number, its name, and the two lines that say what it asks
+   and what it works out — then its inputs beside what they produce. */
+.pc-sec { margin-top: var(--xxl); }
+.pc-sec-hd { margin-bottom: var(--lg); padding-top: var(--lg); border-top: 1px solid var(--line); }
+.pc-sec-hd .eyebrow { margin: 0 0 4px; }
+.pc-sec-hd .h-section { display: inline-block; margin: 0 0 var(--sm); }
+.pc-sec-hd .h-section:focus { outline: none; }
+.pc-sec-hd .h-section:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
+.pc-contract { margin: 4px 0 0; max-width: 78ch; font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); }
+.pc-contract-k { font-weight: var(--weight-semibold); color: var(--ink); }
+.pc-outputs { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+/* A stuck column rests under the index as well as the bar. */
+.pc-sec .rail-sticky { top: calc(var(--topbar-live, var(--topbar-h)) + var(--pc-index-h) + 12px); }
+@media (max-width: 560px) { .pc-sec { margin-top: var(--xl); } }
+
+/* Scenarios, and the comparison. */
+.pm-sc-list { list-style: none; margin: 0; padding: 0; }
+.pm-sc-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: var(--xs) var(--md); padding: var(--sm) 0; border-top: 1px solid var(--grid);
+}
+.pm-sc-row.is-open { box-shadow: inset 3px 0 0 var(--brand); padding-left: var(--sm); }
+.pm-sc-pick { display: flex; align-items: flex-start; gap: 10px; flex: 1 1 320px; min-width: 0; cursor: pointer; }
+.pm-sc-pick input { margin-top: 3px; flex: none; }
+.pm-sc-what { display: block; margin-top: 2px; }
+.pm-sc-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pm-sc-table th[scope="row"] { font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; }
+
+/* A locality handed to the calculator from the area screen. */
+.pm-handoff { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--md); }
+
+/* My properties: one row a property, the columns labelled on a phone. The
+   rows share the list's columns (subgrid), so the head lines up with every
+   row however wide a row's actions are. */
+.pm-list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr) auto;
+}
+.pm-row {
+  grid-column: 1 / -1; display: grid; grid-template-columns: subgrid;
+  column-gap: var(--md); align-items: center; padding: var(--md) var(--lg); border-top: 1px solid var(--grid);
+}
+.pm-head { padding-block: var(--sm); font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.pm-row.is-open { box-shadow: inset 3px 0 0 var(--brand); }
+.pm-sample { background: color-mix(in srgb, var(--bronze-wash) 40%, transparent); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+.pm-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pm-row-main strong { font-size: var(--text-body); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.pm-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--text-sm); }
+.pm-label { display: none; }
+.pm-acts-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.pm-list-hd { padding: var(--lg) var(--lg) 0; margin-bottom: var(--sm); }
+.pm-list-hd .h-card:focus { outline: none; }
+.pm-list.pm-loose { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) auto; }
+.pm-loose .pm-row { padding-inline: 0; }
+@media (max-width: 900px) {
+  .pm-list, .pm-list.pm-loose { display: block; }
+  .pm-row, .pm-loose .pm-row { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: var(--sm); }
+  .pm-head { display: none; }
+  .pm-row-main, .pm-acts-row { grid-column: 1 / -1; }
+  .pm-acts-row { justify-content: flex-start; }
+  .pm-label { display: block; font-size: var(--text-label); color: var(--ink-3); }
+}
+@media (max-width: 560px) {
+  .pm-row { padding: var(--md); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pm-loose .pm-row { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-inline: 0; }
+}
+@media print { .pm-bar, .pc-index { display: none !important; } }
+/* ---- end audit1: property-model ---- */
 </style>
 <!--
   NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
@@ -16017,6 +16144,7 @@ const PRODUCT_TABS = {
     { id: 'wheel',    label: 'Cash Wheel',     path: '/us-options/wheel',   views: ['wheel'] },
   ],
   property: [
+    { id: 'models',        label: 'My properties', path: '/property/models',        views: ['propertyModels'] },
     { id: 'calculator',    label: 'Calculator',    path: '/property/calculator',    views: ['property'] },
     { id: 'areas',         label: 'Area screen',   path: '/property/areas',         views: ['areas'] },
     { id: 'comparables',   label: 'Comparables',   path: '/property/comparables',   views: ['comparables'] },
@@ -16208,6 +16336,7 @@ const ROUTES = [
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
+  { path: '/property/models',     view: 'propertyModels', title: 'My properties' },
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
@@ -16256,6 +16385,7 @@ const META = {
   sarawak: 'Companies with material exposure to the Sarawak economy. Inclusion is descriptive and does not indicate preference.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
+  propertyModels: 'The properties you have saved in this browser, each with its inputs and its scenarios. Open one and the calculator edits it.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
   scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on the last daily bar your history holds. Nothing ranked, nothing delivered.',
   /* Phase 3 — ops */
@@ -16796,6 +16926,7 @@ const SECTION_OF = {
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
   property: 'property', opportunities: 'property', comparables: 'property', areas: 'property',
+  propertyModels: 'property',
   tradingIndex: 'scanner',
   /* Preferences and the goal launcher are reached from My Dashboard's
      "Other ways in", so the dashboard is where a reader on them is; with
@@ -29691,20 +29822,29 @@ function workspaceItems() {
   });
 
   /* A snapshot of the tool's sample inputs or worked example is a sample
-     (workIsSample, 15-derivation.js), and says so. */
-  loadWork().forEach(w => { const sample = workIsSample(w); items.push({
-    kind: 'work', key: w.id, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
-    created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
-    sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
-    detail: sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
-      : 'Your own inputs to the tool, as saved',
-    open: () => {
-      if (!resumeWork(w.id)) { toast('That record holds nothing to restore'); return; }
-      navigate(WORK_PATHS[w.kind] || '/my/data'); toast(`Resumed "${w.name}"`);
-    },
-    duplicate: () => duplicateWork(w.id),
-    remove: () => deleteWork(w.id),
-  }); });
+     (workIsSample, 15-derivation.js), and says so. A saved property is a
+     property model (71-property-models.js): it reopens as the property the
+     calculator edits, with its scenarios, where Resume made the calculator a
+     copy of it that its next save would have listed as a second property. */
+  loadWork().forEach(w => {
+    const sample = workIsSample(w);
+    const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
+    const nSc = prop ? (w.scenarios || []).length : 0;
+    items.push({
+      kind: 'work', key: w.id, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
+      sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
+      detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
+        : 'Your own inputs to the tool, as saved') + (nSc ? ` · ${nSc} scenario${nSc === 1 ? '' : 's'}` : ''),
+      open: () => {
+        if (prop) { openPropertyModel(w.id); return; }
+        if (!resumeWork(w.id)) { toast('That record holds nothing to restore'); return; }
+        navigate(WORK_PATHS[w.kind] || '/my/data'); toast(`Resumed "${w.name}"`);
+      },
+      duplicate: () => (prop ? duplicatePropertyModel(w.id) : duplicateWork(w.id)),
+      remove: () => (prop ? deletePropertyModel(w.id) : deleteWork(w.id)),
+    });
+  });
 
   items.forEach(it => { it.diff = stampDiff(it.stamp, it.legacy); });
   return items;
@@ -32388,6 +32528,12 @@ State.deal.holdYears = normHoldYears(State.deal.holdYears);
    is already on screen — the write-before-read that stops a stale link from
    undoing the reader's last change. */
 const saveDeal = () => {
+  /* Which saved property the deal is the working copy of, and which of its
+     scenarios is open (71-property-models.js) — null for a deal not saved as
+     a property. Written with the deal, so a reload reopens the same one; a
+     deal built without them (the launcher's, a test's) is not a property. */
+  if (!('modelId' in State.deal)) State.deal.modelId = null;
+  if (!('scenarioId' in State.deal)) State.deal.scenarioId = null;
   store.write('deal', State.deal);
   /* /property serves the calculator as well as /property/calculator. Syncing
      on one path only left /property's address stale, and the next render
@@ -32559,7 +32705,9 @@ function arrivePropertyUrl() {
   if (!incoming) return { changed: readPropertyUrl(State.deal) };
   /* Our own address, reloaded or returned to: nothing to apply. */
   if (incoming === dealToParam(State.deal)) return { changed: readPropertyUrl(State.deal) };
-  const fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+  /* A linked deal is nobody's saved property here: it opens unsaved, and
+     "Save this property" makes it one of this reader's. */
+  const fresh = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, modelId: null, scenarioId: null };
   readPropertyUrl(fresh);
   if (dealToParam(fresh) === dealToParam(State.deal) && fresh.city === State.deal.city) return { changed: false };
   const previous = State.deal;
@@ -32568,12 +32716,18 @@ function arrivePropertyUrl() {
   store.write('deal', fresh);
   return { changed: true, replaced: true };
 }
+/* The kept deal comes back as the property it belonged to — it carries its
+   modelId (71-property-models.js). And the deal it replaces is kept aside in
+   its turn when it holds work kept nowhere else — a deal entered and never
+   saved, or a property's unsaved changes — so a restore can be undone by
+   restoring again: restoring used to drop whatever was on the calculator. */
 function restoreDealBeforeLink() {
   const prev = store.read('dealBeforeLink', null);
   if (!prev) return false;
+  const swap = typeof propertyHasUnsavedWork === 'function' && propertyHasUnsavedWork(State.deal) ? State.deal : null;
   State.deal = prev;
   store.write('deal', prev);
-  store.write('dealBeforeLink', null);
+  store.write('dealBeforeLink', swap);
   syncPropertyUrl(prev);
   return true;
 }
@@ -34050,11 +34204,14 @@ const tr = (key) => METRIC_DICTIONARY[key]?.[lang()] || METRIC_DICTIONARY[key]?.
 const SUMMARY_COPY = {
   /* Says what is translated and no more: it claimed "input labels" while
      half the rail's and every other panel's stayed English. */
-  en: { title:'Summary', note:'The labels in Your deal, its evidence grades and the ten risk questions are translated. The panels below and the longer explanations remain in English.',
+  /* "Your deal" was the one card that held every input. The inputs are in
+     each section's own column since the calculator was sectioned, and the
+     note names them where they are. */
+  en: { title:'Summary', note:'The input labels in every section, their evidence grades and the ten risk questions are translated. The section headings, the panels and the longer explanations remain in English.',
         forEvery:'For every ringgit of rent you collect', afterAll:'after every cost modelled here', perMonth:'a month' },
-  ms: { title:'Ringkasan', note:'Label dalam Your deal, gred buktinya dan sepuluh soalan risiko telah diterjemah. Panel di bawah dan penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
+  ms: { title:'Ringkasan', note:'Label input dalam setiap bahagian, gred buktinya dan sepuluh soalan risiko telah diterjemah. Tajuk bahagian, panel dan penjelasan yang lebih panjang kekal dalam bahasa Inggeris.',
         forEvery:'Bagi setiap ringgit sewa yang dikutip', afterAll:'selepas semua kos yang dimodelkan di sini', perMonth:'sebulan' },
-  zh: { title:'摘要', note:'“Your deal”中的输入项名称、其证据等级与十道风险问题已翻译；下方各面板及较长的说明仍为英文。',
+  zh: { title:'摘要', note:'各部分的输入项名称、其证据等级与十道风险问题已翻译；各部分标题、面板及较长的说明仍为英文。',
         forEvery:'每收取一令吉租金', afterAll:'扣除此处模型中的所有成本后', perMonth:'每月' },
 };
 
@@ -34531,6 +34688,923 @@ function affordabilityPanel(cityName) {
   return card;
 }
 
+/* ==========================================================================
+   MY PROPERTIES — ONE STORE FOR EVERY PROPERTY A READER SAVES
+   --------------------------------------------------------------------------
+   Four things each held part of "the property I am working on", and none of
+   them knew about the others: the calculator's deal (one, overwritten by the
+   next), the work bar's snapshots of it ("Save this deal", listed again as
+   tool snapshots in Saved Models, each a frozen copy that nothing could
+   edit), the deal a shared link or the launcher put aside ("Restore my
+   previous deal"), and an opportunity opened in the calculator, which laid
+   its figures over whatever deal was there and kept nothing. A second
+   property meant retyping the first to get back to it, and there was no
+   list of the properties a reader had.
+
+   So a saved property is now a model the calculator edits, in ONE store.
+   The store is the saved-work list the snapshots already lived in
+   (15-derivation.js), because that list is already what the export, a
+   backup, Your data, Saved Models and the dashboard read, and what the
+   privacy page names: a property saved here is carried and listed by every
+   one of them without a second list to fall out of step with the first. A
+   property record is the snapshot's record, grown:
+
+     { id, kind: 'property', name, createdAt, updatedAt,
+       payload: { deal },   ← the inputs: the calculator's whole deal — price,
+                              deposit, financing, rent, vacancy, expenses,
+                              district, evidence, checklist — under the name
+                              the saved-work store has always given them
+       scenarios: [{ id, name, overrides, createdAt, updatedAt }],
+       source?: { kind: 'opportunity', id, name },
+       savedAt, modelVersion, asOf, editor, stamp }   ← as saved work carries
+
+   The calculator's deal (State.deal, the `deal` key) is the working copy of
+   the ACTIVE property: `modelId` names which one, `scenarioId` which of its
+   scenarios is open. Every property tool — financing, returns, sensitivity,
+   the tests, the grade, the decision record, the report — reads that one
+   deal, so a figure is typed once. It is written as it is edited, so a
+   reload keeps it; the property is changed by "Save this property", so a
+   change can be tried, compared as a scenario, or discarded, and the page
+   says which state it is in ("Editing: <name> · saved <time>" or "Unsaved
+   changes").
+
+   A scenario is the property with some inputs changed. It stores only what
+   differs from the property as saved (its overrides); everything else
+   follows the property, so a scenario saved on a rent of 2,000 still has
+   the price the property has today.
+
+   WHAT IS NOT MOVED. The deal kept aside by a shared link or the launcher
+   stays where they put it (55-views-public.js writes it), and "Restore my
+   previous deal" still puts it back — now as the property it belonged to,
+   because it carries its `modelId`. Work that exists nowhere else is never
+   replaced without being kept aside the same way (propertySetAside).
+   ========================================================================== */
+
+/* The two fields that say which property the deal on the calculator is a
+   copy of. They are never part of a property's inputs, never in a shared
+   link (SHARE_KEYS is the default deal's own fields), and never compared. */
+const PM_POINTERS = ['modelId', 'scenarioId'];
+const pmInputsOf = (rec) => (rec && isRecord(rec.payload?.deal) ? rec.payload.deal : null);
+/* A snapshot saved by the old storage-reading save before anything was
+   entered holds no deal at all. It is left as it is — Saved Models still
+   lists it and says it holds nothing to restore — and is not a property. */
+const pmIsProperty = (rec) => rec?.kind === 'property' && !!pmInputsOf(rec);
+const pmCopy = (v) => JSON.parse(JSON.stringify(v));
+const pmBare = (d) => { const o = { ...(d || {}) }; PM_POINTERS.forEach(k => delete o[k]); return o; };
+/* JSON with its keys in order, so two deals that hold the same inputs compare
+   equal however their keys were added. */
+function pmCanon(v) {
+  if (Array.isArray(v)) return `[${v.map(pmCanon).join(',')}]`;
+  if (v && typeof v === 'object') return `{${Object.keys(v).filter(k => v[k] !== undefined).sort()
+    .map(k => `${JSON.stringify(k)}:${pmCanon(v[k])}`).join(',')}}`;
+  return v === undefined ? 'null' : JSON.stringify(v);
+}
+const pmSame = (a, b) => pmCanon(pmBare(a)) === pmCanon(pmBare(b));
+/* The inputs as the calculator holds them once loaded: a whole-year hold and
+   a district on the city's own list (normHoldYears, dealDistrict — the rules
+   70-property.js applies to the deal it boots with). A property is stored so,
+   or it would open already "changed". */
+function pmNormalInputs(d) {
+  const x = pmBare(pmCopy(d));
+  x.holdYears = normHoldYears(x.holdYears);
+  x.district = dealDistrict(x.city, x.district);
+  return x;
+}
+/* A scenario's inputs: the property's, with what the scenario changes. A
+   figure is replaced; a record of figures — the evidence grades, which
+   figures were entered, the checklist — is changed key by key, so a grade
+   the scenario did not touch follows the property. */
+function pmMerge(base, overrides) {
+  const out = pmCopy(base);
+  for (const [k, v] of Object.entries(overrides || {})) {
+    if (PM_POINTERS.includes(k)) continue;
+    out[k] = isRecord(v) && isRecord(out[k]) ? { ...out[k], ...pmCopy(v) } : pmCopy(v);
+  }
+  return out;
+}
+/* What a deal changes against its property: the overrides pmMerge undoes. */
+function pmDiff(work, base) {
+  const w = pmBare(work), b = pmBare(base), ov = {};
+  for (const k of Object.keys(w)) {
+    if (pmCanon(w[k]) === pmCanon(b[k])) continue;
+    if (isRecord(w[k]) && isRecord(b[k])) {
+      const sub = {};
+      for (const sk of Object.keys(w[k])) if (pmCanon(w[k][sk]) !== pmCanon(b[k][sk])) sub[sk] = pmCopy(w[k][sk]);
+      if (Object.keys(sub).length) ov[k] = sub;
+    } else ov[k] = pmCopy(w[k]);
+  }
+  return ov;
+}
+
+const pmAll = () => loadWork().filter(pmIsProperty);
+const pmFind = (id) => (id ? pmAll().find(r => r.id === id) || null : null);
+const pmScenario = (rec, id) => (rec && id ? (rec.scenarios || []).find(s => s.id === id) || null : null);
+/* The inputs a property or one of its scenarios holds as saved. */
+const pmSavedInputs = (rec, sc) => (sc ? pmMerge(pmInputsOf(rec), sc.overrides) : pmInputsOf(rec));
+
+/* Stored as the saved-work store stamps a record: savedAt in its UTC
+   minute, which Saved Models, Your data and the dashboard read, beside the
+   ISO time this module reads. */
+const pmSavedAtOf = (iso) => String(iso).replace('T', ' ').slice(0, 16);
+const pmIsoOfSavedAt = (v) => (/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(String(v || '')) ? `${String(v).replace(' ', 'T')}:00.000Z` : null);
+function pmStampRecord(rec, at) {
+  rec.updatedAt = at;
+  rec.savedAt = pmSavedAtOf(at);
+  rec.modelVersion = MODEL_VERSION;
+  rec.asOf = AS_OF;
+  rec.editor = 'this browser';
+  rec.stamp = buildStamp('property');
+}
+/* When a property last changed. A record saved since this page loaded by
+   the saved-work store's own save carries only its stamp and its UTC minute
+   until the next load gives it the rest (migratePropertyStore). */
+const pmUpdated = (rec) => rec?.updatedAt || rec?.stamp?.savedAt || pmIsoOfSavedAt(rec?.savedAt) || null;
+/* When, on the reader's clock: "today at 14:32", or the date and time. */
+function pmWhen(iso) {
+  const t = iso ? new Date(iso) : null;
+  if (!t || !Number.isFinite(t.getTime())) return 'date not recorded';
+  const hm = t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return localDay(t) === localDay() ? `today at ${hm}`
+    : `${t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, ${hm}`;
+}
+
+/* --------------------------------------------------------------- migration */
+/* WHAT WAS SAVED BEFORE THIS STORE IS THE STORE.
+   A snapshot the work bar saved ("Save this deal"), listed as a tool
+   snapshot in Saved Models, becomes a property: it gains its created and
+   updated times — from its stamp, else its UTC save minute — and an empty
+   list of scenarios, and its inputs are held as the calculator loads them.
+   Nothing it held is dropped. The deal in progress and the deal kept aside
+   before a shared link are not turned into properties nobody asked for:
+   each is attached to the property it is an unchanged copy of, if there is
+   one, and otherwise stays what it was — the calculator's unsaved deal,
+   listed on My properties with Save, and the kept deal "Restore my previous
+   deal" puts back. Run on every load, and changes nothing the second time:
+   each step writes only what is absent. */
+function migratePropertyStore() {
+  const list = loadWork();
+  let changed = false;
+  for (const rec of list) {
+    if (!pmIsProperty(rec)) continue;
+    const before = pmCanon(rec);
+    if (!('createdAt' in rec)) rec.createdAt = rec.stamp?.savedAt || pmIsoOfSavedAt(rec.savedAt) || null;
+    if (!('updatedAt' in rec)) rec.updatedAt = rec.createdAt;
+    if (!Array.isArray(rec.scenarios)) rec.scenarios = [];
+    rec.scenarios = rec.scenarios.filter(s => isRecord(s) && s.id && isRecord(s.overrides));
+    rec.payload = { ...rec.payload, deal: pmNormalInputs(rec.payload.deal) };
+    if (pmCanon(rec) !== before) changed = true;
+  }
+  if (changed) persistWork(list);
+  const props = list.filter(pmIsProperty);
+  /* Newest first, as saveWork writes them: a copy of a deal saved twice is
+     the later one. */
+  const attach = (d) => {
+    if (!isRecord(d) || 'modelId' in d) return false;
+    const hit = props.find(r => pmSame(pmNormalInputs(d), pmInputsOf(r)));
+    d.modelId = hit ? hit.id : null;
+    d.scenarioId = null;
+    return true;
+  };
+  /* Written only where it was stored: a first visit's default deal is not
+     put into storage by being looked at. */
+  const storedDeal = store.read('deal', null);
+  if (attach(State.deal) && storedDeal) store.write('deal', State.deal);
+  const kept = store.read('dealBeforeLink', null);
+  if (attach(kept)) store.write('dealBeforeLink', kept);
+}
+migratePropertyStore();
+
+/* ------------------------------------------------------------------ status */
+/* Which property the calculator's deal is, and whether it differs from the
+   property as saved. A pointer to a property deleted elsewhere (Saved
+   Models, Your data, a restored file) is dropped here, so the deal is then
+   what it is: an unsaved one. */
+function propertyStatus(d = State.deal) {
+  let rec = pmFind(d?.modelId);
+  if (d && d.modelId && !rec) { d.modelId = null; d.scenarioId = null; }
+  let sc = pmScenario(rec, d?.scenarioId);
+  if (d && d.scenarioId && !sc) d.scenarioId = null;
+  if (!rec) return { kind: dealIsTheReaders(d) ? 'unsaved' : 'sample', rec: null, sc: null, dirty: true };
+  return { kind: 'model', rec, sc, dirty: !pmSame(d, pmSavedInputs(rec, sc)) };
+}
+/* Work that exists nowhere else: a deal the reader started and never saved,
+   or a saved property with changes not saved. */
+const propertyHasUnsavedWork = (d = State.deal) => { const st = propertyStatus(d); return st.kind === 'model' ? st.dirty : st.kind === 'unsaved'; };
+
+/* ----------------------------------------------------------------- actions */
+/* BEFORE THE CALCULATOR IS GIVEN ANOTHER DEAL, work that exists nowhere else
+   is kept aside where a shared link and the launcher keep it, and "Restore
+   my previous deal" puts it back. The slot holds one deal; if it already
+   holds unsaved work of its own, that is saved as a property first rather
+   than written over — nothing a reader entered is dropped by opening
+   something else. */
+function propertySetAside(d = State.deal) {
+  if (!propertyHasUnsavedWork(d)) return false;
+  const held = store.read('dealBeforeLink', null);
+  if (held && isRecord(held) && !pmSame(held, d) && propertyHasUnsavedWork(held)) {
+    const at = new Date().toISOString();
+    const rec = pmNewRecord(held, `${pmNameOf(held)} — kept aside ${localDay()}`, at);
+    persistWork([rec, ...loadWork()]);
+  }
+  store.write('dealBeforeLink', pmCopy(d));
+  return true;
+}
+/* A property's suggested name: the district and the price, as the work bar
+   named a snapshot (WORK_KINDS.property), read off the deal given. */
+const pmNameOf = (d) => `${d?.district || 'Property'} — ${fmtAmount(num0(d?.price), 'MYR')}`;
+function pmNewRecord(deal, name, at, extra = {}) {
+  const rec = { id: nextWorkId('property'), kind: 'property', name: String(name || pmNameOf(deal)).slice(0, 80),
+    createdAt: at, payload: { deal: pmNormalInputs(deal) }, scenarios: [], ...extra };
+  pmStampRecord(rec, at);
+  return rec;
+}
+/* The calculator is given a deal: the one it had is kept aside if it holds
+   work kept nowhere else, and the address follows (saveDeal). */
+function propertyLoad(deal, { modelId = null, scenarioId = null } = {}) {
+  const kept = propertySetAside(State.deal);
+  State.deal = { ...pmNormalInputs(deal), modelId, scenarioId };
+  saveDeal();
+  return kept;
+}
+/* To the calculator, or — already on it — its top, with the keyboard on the
+   line that says which property it now edits. */
+function propertyShowCalculator() {
+  if (State.view === 'property') {
+    render();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    focusAfterRedraw('#pm-status');
+  } else navigate('/property/calculator');
+}
+const pmKeptNote = (kept) => (kept ? ' Your unsaved deal is kept aside — “Restore my previous deal” puts it back.' : '');
+
+function openPropertyModel(id, { scenarioId = null, show = true } = {}) {
+  const rec = pmFind(id);
+  if (!rec) { toast('That property is no longer saved in this browser'); return false; }
+  const sc = pmScenario(rec, scenarioId);
+  const kept = propertyLoad(pmSavedInputs(rec, sc), { modelId: rec.id, scenarioId: sc ? sc.id : null });
+  if (show) propertyShowCalculator();
+  toast(`${sc ? `Editing the scenario “${sc.name}” of` : 'Editing'} “${rec.name}”.${pmKeptNote(kept)}`);
+  return true;
+}
+/* A new property starts from the sample deal — the figures a first visit
+   sees, each marked an illustrative default until it is changed — because a
+   calculator with no price, rent or tenure computes nothing. */
+const pmSampleDeal = () => ({ ...PROPERTY_DEFAULT_DEAL, touched: {},
+  evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: { ...PROPERTY_DEFAULT_DEAL.checks } });
+function newPropertyDeal({ show = true } = {}) {
+  const kept = propertyLoad(pmSampleDeal());
+  if (show) propertyShowCalculator();
+  toast(`A new property, from the sample deal — replace its figures with yours, then save it.${pmKeptNote(kept)}`);
+}
+
+/* SAVE THIS PROPERTY. Unsaved: it becomes a property, named by the reader.
+   A saved property: its inputs are replaced by what is on the calculator —
+   or, with a scenario open, the scenario's changes are. Confirmed only if
+   the browser kept it (store.failed, 00-core.js). */
+function saveActiveProperty({ name = null } = {}) {
+  const d = State.deal;
+  const st = propertyStatus(d);
+  const at = new Date().toISOString();
+  const refused = store.failed;
+  const list = loadWork();
+  if (st.kind !== 'model') {
+    const suggested = pmNameOf(d);
+    const typed = name ?? prompt('Name this property', suggested);
+    if (typed === null) return null;
+    const rec = pmNewRecord(d, typed.trim() || suggested, at);
+    if (!persistWork([rec, ...list]) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
+    d.modelId = rec.id; d.scenarioId = null;
+    saveDeal();
+    toast(`Saved “${rec.name}” — it is listed in My properties`);
+    return rec;
+  }
+  const rec = list.find(r => r.id === st.rec.id);
+  if (st.sc) {
+    const sc = rec.scenarios.find(s => s.id === st.sc.id);
+    sc.overrides = pmDiff(d, pmInputsOf(rec));
+    sc.updatedAt = at;
+  } else rec.payload = { ...rec.payload, deal: pmNormalInputs(d) };
+  pmStampRecord(rec, at);
+  if (!persistWork(list) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
+  toast(st.sc ? `Saved the scenario “${st.sc.name}” of “${rec.name}”` : `Saved “${rec.name}”`);
+  return rec;
+}
+
+/* SAVE AS A SCENARIO: what the calculator holds, as the property with those
+   inputs changed. Only for a saved property, and only when something differs
+   from it — a scenario identical to its property is the property twice. */
+let PM_SC_SEQ = 0;
+function saveAsScenario() {
+  const d = State.deal;
+  const st = propertyStatus(d);
+  if (st.kind !== 'model') { toast('Save this property first — a scenario is a variation of a saved property'); return null; }
+  const list = loadWork();
+  const rec = list.find(r => r.id === st.rec.id);
+  const overrides = pmDiff(d, pmInputsOf(rec));
+  if (!Object.keys(overrides).length) { toast(`These are the inputs “${rec.name}” is saved with. Change a figure, then save the change as a scenario.`); return null; }
+  /* A snapshot saved since this page loaded, by the saved-work store's own
+     save, has no list yet until the next load gives it one. */
+  if (!Array.isArray(rec.scenarios)) rec.scenarios = [];
+  const suggested = pmOverrideLine(overrides, 2) || `Scenario ${rec.scenarios.length + 1}`;
+  const typed = prompt(`Name this scenario of “${rec.name}”`, suggested);
+  if (typed === null) return null;
+  const at = new Date().toISOString();
+  const sc = { id: `sc-${Date.now().toString(36)}-${(PM_SC_SEQ++).toString(36)}`, name: (typed.trim() || suggested).slice(0, 80),
+    overrides, createdAt: at, updatedAt: at };
+  rec.scenarios.push(sc);
+  pmStampRecord(rec, at);
+  const refused = store.failed;
+  if (!persistWork(list) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
+  d.scenarioId = sc.id;
+  saveDeal();
+  /* Compared at once beside the property as saved. */
+  pmCompareSelect(rec.id, ['base', sc.id]);
+  toast(`Saved the scenario “${sc.name}” of “${rec.name}”`);
+  return sc;
+}
+
+/* Whether the calculator holds something to save as a new scenario: changes
+   not yet saved, which differ from the property as saved. */
+const pmCanSaveScenario = (d, st) => st.kind === 'model' && st.dirty && Object.keys(pmDiff(d, pmInputsOf(st.rec))).length > 0;
+
+/* Put the deal back as it was last saved. */
+function discardPropertyChanges() {
+  const st = propertyStatus();
+  if (st.kind !== 'model' || !st.dirty) return false;
+  if (!confirm(`Discard the changes made since “${st.sc ? st.sc.name : st.rec.name}” was saved?`)) return false;
+  State.deal = { ...pmCopy(pmSavedInputs(st.rec, st.sc)), modelId: st.rec.id, scenarioId: st.sc ? st.sc.id : null };
+  saveDeal();
+  toast('Changes discarded');
+  return true;
+}
+
+function duplicatePropertyModel(id) {
+  const list = loadWork();
+  const rec = list.find(r => r.id === id && pmIsProperty(r));
+  if (!rec) return null;
+  const at = new Date().toISOString();
+  const copy = { ...pmCopy(rec), id: nextWorkId('property'), name: `${rec.name} (copy)`.slice(0, 80), createdAt: at };
+  /* The opportunity a property was opened from opens that property, not its copy. */
+  delete copy.source;
+  pmStampRecord(copy, at);
+  const i = list.indexOf(rec);
+  list.splice(i, 0, copy);
+  return persistWork(list) ? copy : null;
+}
+function renamePropertyModel(id, name) {
+  const list = loadWork();
+  const rec = list.find(r => r.id === id && pmIsProperty(r));
+  const clean = String(name || '').trim().slice(0, 80);
+  if (!rec || !clean) return false;
+  rec.name = clean;
+  return persistWork(list);
+}
+/* A deleted property's deal stays on the calculator if it is open there —
+   as an unsaved deal, so nothing on screen goes with it. */
+function deletePropertyModel(id) {
+  const ok = persistWork(loadWork().filter(r => r.id !== id));
+  if (ok && State.deal?.modelId === id) { State.deal.modelId = null; State.deal.scenarioId = null; saveDeal(); }
+  return ok;
+}
+function renameScenario(modelId, scId, name) {
+  const list = loadWork();
+  const sc = pmScenario(list.find(r => r.id === modelId), scId);
+  const clean = String(name || '').trim().slice(0, 80);
+  if (!sc || !clean) return false;
+  sc.name = clean;
+  return persistWork(list);
+}
+function deleteScenario(modelId, scId) {
+  const list = loadWork();
+  const rec = list.find(r => r.id === modelId);
+  if (!rec) return false;
+  rec.scenarios = (rec.scenarios || []).filter(s => s.id !== scId);
+  const ok = persistWork(list);
+  /* Open on the calculator: it stays there, as the property with changes. */
+  if (ok && State.deal?.modelId === modelId && State.deal.scenarioId === scId) { State.deal.scenarioId = null; saveDeal(); }
+  return ok;
+}
+
+/* ------------------------------------------------------------- the handoffs */
+/* An opportunity opens as ITS property. The first time, the register's own
+   figures — laid over the calculator's, as the register models it
+   (candidateModel, 80-registers.js) — are saved as a property named for the
+   record and tied to it; after that the same property opens, with whatever
+   was changed in it since. Nothing is retyped, and the deal that was on the
+   calculator is kept aside if it held unsaved work. */
+function openOpportunityProperty(o, modelled) {
+  const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
+  if (tied) return openPropertyModel(tied.id);
+  const at = new Date().toISOString();
+  const rec = pmNewRecord(modelled, o.name, at, { source: { kind: 'opportunity', id: o.id, name: o.name } });
+  const refused = store.failed;
+  if (!persistWork([rec, ...loadWork()]) || store.failed !== refused) { toast(STORE_REFUSED); return false; }
+  const kept = propertyLoad(pmInputsOf(rec), { modelId: rec.id });
+  propertyShowCalculator();
+  toast(`Opened “${rec.name}” — saved as a property from the opportunity register.${pmKeptNote(kept)}`);
+  return true;
+}
+/* A locality from the area screen or the comparables register becomes the
+   district of the property on the calculator. Only a district the town
+   lists: the calculator models one of its city's districts, and a locality
+   of the reader's own would be modelled as the town's first under a name the
+   page did not show (dealDistrict, 70-property.js). The project follows the
+   town, as choosing the town on the calculator does. */
+const propertyPlaceListed = (city, area) => listedDistrict(city, area);
+function usePlaceInCalculator(city, area) {
+  const district = listedDistrict(city, area);
+  if (!district) return false;
+  const d = State.deal;
+  if (d.city !== city) {
+    d.city = city;
+    if (!projectsForCity(city).some(x => x.id === d.projectId)) d.projectId = customProjectId(city);
+  }
+  d.district = district;
+  saveDeal();
+  navigate('/property/calculator');
+  const st = propertyStatus(d);
+  toast(`${district}, ${(SARAWAK_CITIES.find(c => c.id === city) || {}).name || city} is now the district of ${st.kind === 'model' ? `“${st.rec.name}” — unsaved until you save it` : 'the deal on the calculator'}`);
+  return true;
+}
+/* The control both pages draw for it: a button for a listed district, and
+   for a locality the town does not list, a sentence saying why there is none. */
+function usePlaceControl(city, area, { id } = {}) {
+  const town = (SARAWAK_CITIES.find(c => c.id === city) || {}).name || city;
+  if (!propertyPlaceListed(city, area)) return el('p', { class: 'metaline' },
+    `${area} is not one of ${town}'s listed districts, so the calculator cannot model it by name.`);
+  return el('button', { class: 'btn btn-ghost btn-sm', id: id || null, onclick: () => usePlaceInCalculator(city, area) },
+    `Use ${area} in the calculator`);
+}
+
+/* ---------------------------------------------------------- the model bar */
+/* WHICH PROPERTY IS ON THE CALCULATOR, AND ITS ONE NEXT ACTION.
+   The work bar said "This browser only" and offered Save, Resume, Duplicate
+   latest and Reset, and nothing on the page said whether what was on screen
+   was saved, or as what. The bar now says which property is being edited
+   and whether it has changed since it was saved, and its one primary action
+   is the next one: Save this property until the property is saved, then
+   Compare scenarios. The primary slot keeps one id through the save, so the
+   keyboard stays on it as it turns from one to the other — Save, Duplicate,
+   Open a saved property and New property each keep theirs, as the work
+   bar's did (renderKeepFocus). */
+function propertyModelBar(d = State.deal) {
+  const st = propertyStatus(d);
+  const bar = el('section', { class: 'card pm-bar', 'aria-label': 'The property on the calculator' });
+  const status = el('p', { class: 'pm-status', id: 'pm-status', tabindex: '-1' });
+  if (st.kind === 'model') {
+    status.append('Editing: ', el('strong', {}, st.rec.name));
+    if (st.sc) status.append(' — scenario ', el('strong', {}, `“${st.sc.name}”`));
+    status.append(' · ', st.dirty
+      ? el('span', { class: 'pm-unsaved' }, 'Unsaved changes')
+      : `saved ${pmWhen(st.sc ? st.sc.updatedAt : pmUpdated(st.rec))}`);
+  } else if (st.kind === 'unsaved') status.append(el('span', { class: 'pm-unsaved' }, 'Unsaved changes'), ' — not saved as a property yet');
+  else status.append(el('strong', {}, 'Sample deal'), ' — not saved as a property. Every driving figure is the tool’s illustrative default until you change it.');
+  bar.append(el('div', { class: 'pm-bar-hd' }, [el('span', { class: 'eyebrow' }, 'This browser only'), status]));
+
+  const acts = el('div', { class: 'pm-acts' });
+  const primary = st.kind !== 'model' || st.dirty
+    ? el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } }, 'Save this property')
+    : el('button', { class: 'btn btn-primary', id: 'wb-property-save', onclick: () => goToPropertySection('scenarios', { focus: '#pm-sc-title' }) }, 'Compare scenarios');
+  acts.append(primary);
+  if (st.kind === 'model') {
+    /* Offered for changes not saved: an open scenario with none is already
+       saved, and saving it again as a scenario made its twin. */
+    if (pmCanSaveScenario(d, st)) acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-scenario',
+      onclick: () => { if (saveAsScenario()) renderKeepFocus(); } }, st.sc ? 'Save as a new scenario' : 'Save as a scenario'));
+    if (st.sc) acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-base',
+      onclick: () => { openPropertyModel(st.rec.id, { show: false }); renderKeepFocus(); focusAfterRedraw('#wb-property-base', '#pm-status'); } }, 'Back to the property'));
+    if (st.dirty) acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-discard',
+      onclick: () => { if (discardPropertyChanges()) { render(); focusAfterRedraw('#pm-status'); } } }, 'Discard changes'));
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-dup', onclick: () => {
+      const refused = store.failed;
+      const copy = duplicatePropertyModel(st.rec.id);
+      renderKeepFocus();
+      toast(store.failed !== refused || !copy ? STORE_REFUSED : `Duplicated as “${copy.name}” — open it from My properties`);
+    } }, 'Duplicate'));
+  }
+  const others = pmAll().filter(r => r.id !== st.rec?.id);
+  if (others.length) {
+    const sel = el('select', { class: 'select select-sm', id: 'wb-property-resume', 'aria-label': 'Open a saved property',
+      onchange: e => {
+        const id = e.target.value;
+        if (!id) return;
+        openPropertyModel(id, { show: false });
+        renderKeepFocus();
+      } });
+    sel.append(el('option', { value: '' }, `Open a saved property… (${others.length})`));
+    others.forEach(r => sel.append(el('option', { value: r.id }, `${r.name} · ${pmWhen(pmUpdated(r))}`)));
+    acts.append(sel);
+  }
+  acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-reset', onclick: () => { newPropertyDeal({ show: false }); renderKeepFocus(); } }, 'New property'));
+  const link = (path, label, id) => el('a', { class: 'btn btn-quiet btn-sm', id, href: href(path),
+    onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label);
+  acts.append(el('span', { class: 'pm-links' }, [link('/property/models', 'My properties', 'wb-property-list'), link('/my/data', 'Back up everything', 'wb-property-backup')]));
+  bar.append(acts);
+  return bar;
+}
+
+/* --------------------------------------------- the calculator's sections */
+/* ONE PAGE, FIVE SECTIONS, IN THE ORDER A PURCHASE IS WORKED THROUGH.
+   Each opens with what the reader gives it and what it works out, and a
+   sticky index reaches each without a route of its own: the address stays
+   the deal (syncPropertyUrl). The ids are the anchors other pages link to —
+   /property/calculator#scenarios opens at the Scenarios section. */
+const PC_SECTIONS = [
+  { id: 'acquisition', label: 'Acquisition' },
+  { id: 'financing',   label: 'Financing' },
+  { id: 'rental',      label: 'Rental & expenses' },
+  { id: 'scenarios',   label: 'Scenarios' },
+  { id: 'report',      label: 'Report' },
+];
+function propertySection(id, { provide, calculates }) {
+  const i = PC_SECTIONS.findIndex(s => s.id === id);
+  const s = PC_SECTIONS[i];
+  const inputs = el('div', { class: 'card rail-sticky pc-inputs' });
+  const outputs = el('div', { class: 'pc-outputs' });
+  const node = el('section', { class: 'pc-sec', id, 'aria-labelledby': `pc-h-${id}` }, [
+    el('header', { class: 'pc-sec-hd' }, [
+      el('p', { class: 'eyebrow' }, `${i + 1} of ${PC_SECTIONS.length}`),
+      el('h2', { class: 'h-section', id: `pc-h-${id}`, tabindex: '-1' }, s.label),
+      el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'You provide: '), provide]),
+      el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'Quantum calculates: '), calculates]),
+    ]),
+    el('div', { class: 'studio-layout pc-sec-body' }, [inputs, outputs]),
+  ]);
+  return { node, inputs, outputs };
+}
+/* To a section, and the keyboard with it: its heading, or a control in it. */
+/* A control named in `focus` is scrolled to itself: on a phone a section's
+   outputs sit below its inputs, and scrolled to the section's top the
+   control the keyboard was given was a screen or two out of sight. */
+function goToPropertySection(id, { focus = null, instant = false } = {}) {
+  const sec = document.getElementById(id);
+  if (!sec) return false;
+  const named = focus && document.querySelector(focus);
+  const target = named || document.getElementById(`pc-h-${id}`);
+  (named || sec).scrollIntoView({ block: 'start', ...(instant ? { behavior: 'instant' } : {}) });
+  target?.focus({ preventScroll: true });
+  pcMarkCurrent();
+  return true;
+}
+function propertySectionIndex() {
+  const nav = el('nav', { class: 'pc-index', 'aria-label': 'Calculator sections' });
+  nav.append(el('ol', { class: 'pc-index-list' }, PC_SECTIONS.map(s => el('li', {},
+    el('a', { class: 'pc-index-link', href: `#${s.id}`, data: { sec: s.id },
+      /* The address is the deal, and a hash in it would be dropped by the next
+         edit anyway: the link scrolls. A modified click opens the section's
+         own address, which lands on it (propertyArrivalSection). */
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); goToPropertySection(s.id); } },
+      s.label)))));
+  return nav;
+}
+/* The index says which section is on screen: the last one whose top has
+   reached the index's lower edge. */
+function pcMarkCurrent() {
+  const nav = document.querySelector('.pc-index');
+  if (!nav) return;
+  const edge = nav.getBoundingClientRect().bottom + 24;
+  let here = null;
+  for (const s of PC_SECTIONS) {
+    const n = document.getElementById(s.id);
+    if (n && n.getBoundingClientRect().top <= edge) here = s.id;
+  }
+  nav.querySelectorAll('.pc-index-link').forEach(a => {
+    if (a.dataset.sec === here) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
+  });
+  /* On a phone the row is narrower than its five links, and the section on
+     screen was the one cut off at its edge: the row is scrolled to it. */
+  const list = nav.querySelector('.pc-index-list'), cur = here && nav.querySelector(`[data-sec="${here}"]`);
+  if (list && cur && (cur.offsetLeft < list.scrollLeft || cur.offsetLeft + cur.offsetWidth > list.scrollLeft + list.clientWidth))
+    list.scrollLeft = Math.max(0, cur.offsetLeft - 16);
+}
+{
+  let queued = false;
+  addEventListener('scroll', () => {
+    if (queued || !document.querySelector('.pc-index')) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; pcMarkCurrent(); });
+  }, { passive: true });
+}
+/* A section named in the address when the calculator is opened — a link to
+   /property/calculator#scenarios — is scrolled to once the page is drawn.
+   Read before the page writes its own address, which carries no hash. */
+/* Not before the page has its data: the filings and the locality file each
+   redraw it as they land, the district panel and the map growing by
+   thousands of pixels above the section, and a scroll made before that
+   was left a screen of Acquisition short of it (the redraw replaces every
+   node, so the browser has nothing to anchor the scroll to). Held until the
+   pages settle (propertyPagesSettled), for ten seconds at most. */
+let pcArrivalSeen = null, pcArrivalWant = null, pcArrivalAt = 0;
+function propertyArrivalSection() {
+  const want = location.hash.replace(/^#/, '');
+  const key = location.pathname + location.search + location.hash;
+  if (PC_SECTIONS.some(s => s.id === want) && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
+  if (!pcArrivalWant) return;
+  const go = () => {
+    if (!pcArrivalWant || State.view !== 'property') { pcArrivalWant = null; return; }
+    if (!propertyPagesSettled() && Date.now() - pcArrivalAt < 10000) { setTimeout(go, 200); return; }
+    const id = pcArrivalWant;
+    pcArrivalWant = null;
+    /* At once, as a browser lands on an anchor: a page's length of smooth
+       scrolling is not an arrival. */
+    goToPropertySection(id, { instant: true });
+  };
+  setTimeout(go, 0);
+}
+
+/* The Report section's last word: the printable record of the same inputs.
+   The decision record draws whichever tool's work is chosen on it, so the
+   link chooses the property. */
+function propertyReportNext(d = State.deal) {
+  const st = propertyStatus(d);
+  const card = el('div', { class: 'card' });
+  card.append(cardHead('Take the report with you',
+    `The decision record prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open. It reads the same inputs as every section above.`));
+  card.append(el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
+    onclick: e => { State.decisionSubject = 'property'; if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/decision-record'); } },
+    'Open the decision record'));
+  return card;
+}
+
+/* -------------------------------------------------------------- scenarios */
+/* Which columns the comparison shows, per property, for the session: the
+   property as saved and at most two scenarios, until the reader picks. */
+const PM_COMPARE = {};
+function pmCompareSelect(modelId, ids) { PM_COMPARE[modelId] = ids.slice(0, 3); }
+/* What a scenario changes, in words: "Expected monthly rent (RM) 2,000;
+   Loan interest rate (%) 4.8". The label is the calculator's own for the
+   field; a record of grades or answers is named by what it is. */
+const PM_RECORD_WORDS = { evidence: 'evidence grades', touched: 'which figures are yours', checks: 'checklist answers', checkEvidence: 'how checklist answers were established' };
+/* The fields the rail does not label: named as the panels that set them do. */
+const PM_FIELD_WORDS = {
+  reserveMonths: 'Months of reserve', ownUseWeeks: 'Weeks a year of own use', marginalTaxPct: 'Marginal tax rate (%)',
+  disposerCategory: 'Who is selling', flatQuotePct: 'Flat-rate quote (%)', flatQuoteAmount: 'Flat-rate amount (RM)',
+  flatQuoteYears: 'Flat-rate term (years)', mrtaPremium: 'MRTA premium (RM)', mltaPremiumAnnual: 'MLTA premium a year (RM)',
+  propertyClassOverride: 'Asset class', valuationRule: 'What the loan is calculated on', userStarted: 'started by you',
+};
+function pmOverrideLine(ov, max = 6) {
+  /* Which figures were entered is bookkeeping that follows a changed figure
+     (markTouched), not a change of its own worth naming. */
+  const bits = Object.entries(ov || {}).filter(([k]) => k !== 'touched').map(([k, v]) => {
+    if (isRecord(v)) return PM_RECORD_WORDS[k] || k;
+    const label = PROPERTY_I18N[`in.${k}`]?.en || PM_FIELD_WORDS[k] || k;
+    const shown = typeof v === 'number' ? fmtNum(v, Number.isInteger(v) ? 0 : 2) : v === null ? 'not set' : String(v);
+    return `${label} ${shown}`;
+  });
+  return bits.length > max ? `${bits.slice(0, max).join('; ')}; and ${bits.length - max} more` : bits.join('; ');
+}
+/* The five figures the comparison sets side by side, from the calculator's
+   own model and grade — the same engine the page reads, never a second one. */
+function pmCompareFigures(d) {
+  const m = dealModel(d), g = propertyGrade(d, m);
+  const short = (m.missingCostLines || []).length;
+  return [
+    ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—', isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? 'neg' : ''],
+    ['Cash required', isNum(m.safeCashRequired) ? `${fmtAmount(m.safeCashRequired, 'MYR')}${short ? ' so far' : ''}` : '—', ''],
+    ['Net yield', isNum(m.netYield) ? fmtPct(m.netYield, 2) : '—', ''],
+    ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—', ''],
+    ['Grade', `${g.grade}${g.verdict ? ` — ${g.verdict}` : ''}`, ''],
+  ];
+}
+function propertyScenariosPanel(d = State.deal) {
+  const st = propertyStatus(d);
+  const card = el('div', { class: 'card pm-scenarios' });
+  card.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h3', { class: 'h-card', id: 'pm-sc-title', tabindex: '-1' }, st.kind === 'model' ? `Scenarios of “${st.rec.name}”` : 'Scenarios'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' },
+      'A scenario is this property with some inputs changed. It keeps only what it changes; everything else follows the property as saved. Up to three are set side by side on the same model.'),
+  ])));
+  if (st.kind !== 'model') {
+    card.append(el('p', { class: 'body' }, 'Scenarios belong to a saved property. Save this property, change a figure — the rent, the rate, the deposit — and save the change as a scenario to compare it with the property as saved.'));
+    card.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', id: 'pm-sc-save-first',
+      onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#pm-sc-title'); } } }, 'Save this property first'));
+    return card;
+  }
+  const rec = st.rec, base = pmInputsOf(rec);
+  /* The columns on offer: the property as saved, each scenario, and — while
+     the calculator holds changes not saved — those changes as they stand. */
+  const cols = [{ id: 'base', name: `${rec.name} as saved`, short: 'As saved', inputs: base, what: 'Every input as the property is saved — what each scenario changes is measured against it' }];
+  (rec.scenarios || []).forEach(s => cols.push({ id: s.id, name: s.name, short: s.name, inputs: pmMerge(base, s.overrides), what: pmOverrideLine(s.overrides) || 'Nothing changed', sc: s }));
+  if (st.dirty) cols.push({ id: 'current', name: 'On the calculator now, unsaved', short: 'Unsaved changes', inputs: pmBare(d), what: pmOverrideLine(pmDiff(d, base)) || 'Nothing changed' });
+  const valid = new Set(cols.map(c => c.id));
+  let chosen = (PM_COMPARE[rec.id] || []).filter(id => valid.has(id));
+  if (!PM_COMPARE[rec.id]) chosen = cols.slice(0, 3).map(c => c.id);
+  PM_COMPARE[rec.id] = chosen;
+
+  const list = el('ul', { class: 'pm-sc-list', 'aria-label': `Scenarios of ${rec.name}` });
+  cols.forEach(c => {
+    const on = chosen.includes(c.id);
+    const cbId = `pm-sc-cmp-${c.id}`;
+    /* The one the calculator has open — the property itself, or a scenario. */
+    const open = c.id === 'base' ? !d.scenarioId : c.id === d.scenarioId;
+    const row = el('li', { class: `pm-sc-row${open ? ' is-open' : ''}` });
+    row.append(el('label', { class: 'checkline pm-sc-pick', for: cbId }, [
+      el('input', { type: 'checkbox', id: cbId, checked: on ? '' : null, onchange: e => {
+        const now = PM_COMPARE[rec.id] || [];
+        if (e.target.checked && now.length >= 3) { e.target.checked = false; toast('Three at most side by side — clear one first'); return; }
+        PM_COMPARE[rec.id] = e.target.checked ? [...now, c.id] : now.filter(x => x !== c.id);
+        renderKeepFocus();
+      } }),
+      el('span', {}, [el('strong', {}, c.name),
+        open ? el('span', { class: 'chip chip-brand', style: 'margin-left:6px' }, st.dirty ? 'open · unsaved changes' : 'open on the calculator') : null,
+        el('span', { class: 'metaline pm-sc-what' }, c.what)]),
+    ]));
+    const acts = el('div', { class: 'pm-sc-acts' });
+    if (c.sc) {
+      acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `pm-sc-open-${c.id}`, 'aria-label': `Open the scenario ${c.name} to edit`,
+        onclick: () => { openPropertyModel(rec.id, { scenarioId: c.id, show: false }); render(); window.scrollTo({ top: 0, behavior: 'instant' }); focusAfterRedraw('#pm-status'); } }, 'Open to edit'));
+      acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `pm-sc-ren-${c.id}`, 'aria-label': `Rename the scenario ${c.name}`,
+        onclick: () => {
+          const name = prompt('Rename this scenario', c.name);
+          if (name === null || !name.trim()) return;
+          const refused = store.failed;
+          renameScenario(rec.id, c.id, name); renderKeepFocus();
+          toast(store.failed !== refused ? STORE_REFUSED : 'Renamed');
+        } }, 'Rename'));
+      acts.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Delete the scenario ${c.name}`,
+        onclick: () => {
+          if (!confirm(`Delete the scenario “${c.name}”? This browser holds the only copy.`)) return;
+          const refused = store.failed;
+          deleteScenario(rec.id, c.id); render();
+          focusAfterRedraw('#pm-sc-title');
+          toast(store.failed !== refused ? STORE_UNDELETED : 'Scenario deleted');
+        } }, 'Delete'));
+    } else if (c.id === 'base' && d.scenarioId) {
+      acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'pm-sc-open-base',
+        onclick: () => { openPropertyModel(rec.id, { show: false }); render(); window.scrollTo({ top: 0, behavior: 'instant' }); focusAfterRedraw('#pm-status'); } }, 'Open to edit'));
+    }
+    row.append(acts);
+    list.append(row);
+  });
+  card.append(list);
+
+  const add = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' });
+  if (pmCanSaveScenario(d, st)) add.append(el('button', { class: 'btn btn-ghost btn-sm', id: 'pm-sc-save',
+    onclick: () => { if (saveAsScenario()) { renderKeepFocus(); focusAfterRedraw('#pm-sc-save', '#pm-sc-title'); } } },
+    'Save what is on the calculator as a scenario'));
+  else add.append(el('p', { class: 'metaline' }, 'To add a scenario, change an input in any section above — the rent, the rate, the deposit — and save the change here or from the bar at the top.'));
+  card.append(add);
+
+  const shown = cols.filter(c => chosen.includes(c.id));
+  if (shown.length < 2) {
+    card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+      cols.length < 2 ? 'Nothing to set beside the property yet: save a scenario and it is compared here.' : 'Tick two or three to set them side by side.'));
+    return card;
+  }
+  const figs = shown.map(c => pmCompareFigures(c.inputs));
+  const t = el('table', { class: 'dt pm-sc-table' });
+  t.append(el('caption', { class: 'sr-only' }, `${shown.map(c => c.short).join(', ')}, side by side`));
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', style: 'text-align:left' }, el('span', { class: 'sr-only' }, 'Figure')),
+    ...shown.map(c => el('th', { scope: 'col', class: 'num' }, c.short))])));
+  const tb = el('tbody');
+  figs[0].forEach(([label], r) => tb.append(el('tr', {}, [el('th', { scope: 'row', style: 'text-align:left' }, label),
+    ...figs.map(f => el('td', { class: `num ${f[r][2]}`.trim() }, f[r][1]))])));
+  tb.append(el('tr', {}, [el('th', { scope: 'row', style: 'text-align:left' }, 'Changes against the property'),
+    ...shown.map(c => el('td', { class: 'caption', style: 'white-space:normal;min-width:10rem' }, c.id === 'base' ? '—' : c.what))]));
+  t.append(tb);
+  card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+    'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the underwriting grade. Scenarios, not forecasts — and nothing here is ranked.'));
+  return card;
+}
+
+/* ------------------------------------------------------------ My properties */
+/* /property/models: every property this browser holds, the one on the
+   calculator marked, the sample deal said to be a sample, and any deal kept
+   nowhere else — the calculator's unsaved one, the one kept aside before a
+   shared link — listed with what saves or restores it. */
+function pmRowFigures(d) {
+  const m = dealModel(d);
+  return { price: fmtAmount(num0(d.price), 'MYR'), monthly: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
+    neg: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 };
+}
+const pmPlace = (d) => [d?.district, (SARAWAK_CITIES.find(c => c.id === d?.city) || {}).name].filter(Boolean).join(', ') || '—';
+
+VIEWS.propertyModels = () => {
+  const wrap = el('div', { class: 'pm-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
+    el('p', { class: 'eyebrow' }, 'Property'),
+    el('h1', {}, 'My properties'),
+    el('p', { class: 'body-lg', style: 'margin-top:8px' },
+      'Each property you save keeps its inputs and its scenarios. Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice.'),
+  ])));
+
+  const props = pmAll().sort((a, b) => String(pmUpdated(b) || '').localeCompare(String(pmUpdated(a) || '')));
+  const st = propertyStatus(State.deal);
+  const lim = el('div', { class: 'card pm-limits' });
+  lim.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
+    el('span', { class: 'chip' }, 'Stored in this browser'),
+    el('span', { class: 'chip' }, 'No account, no sync'),
+    el('p', { class: 'metaline', style: 'flex:1 1 280px;margin:0' },
+      'A cleared browser or another device starts empty. The export on Your data carries every property here, with its scenarios.'),
+    el('button', { class: 'btn btn-primary', id: 'pm-new', onclick: () => newPropertyDeal() }, 'New property'),
+  ]));
+  wrap.append(lim);
+
+  /* Work that exists nowhere else comes first: it is what a cleared tab loses. */
+  const loose = [];
+  if (st.kind === 'unsaved' || (st.kind === 'model' && st.dirty)) loose.push({ kind: 'current', d: State.deal,
+    title: st.kind === 'model' ? `Unsaved changes to “${st.rec.name}”` : 'The deal on the calculator — not saved',
+    note: st.kind === 'model' ? 'Changes on the calculator since this property was saved.' : 'Kept as you edit it, and on no list until it is saved.' });
+  const kept = store.read('dealBeforeLink', null);
+  if (isRecord(kept) && propertyHasUnsavedWork(kept) && !pmSame(kept, State.deal)) loose.push({ kind: 'kept', d: kept,
+    title: 'Kept aside — your previous deal', note: 'Put aside when a shared link, the launcher or another property was opened on the calculator.' });
+  if (loose.length) {
+    const lc = el('div', { class: 'card' });
+    lc.append(cardHead('Not saved as a property', 'Each is held in this browser in one place only. Save it to keep it in the list below.'));
+    const ul = el('ul', { class: 'pm-list pm-loose' });
+    loose.forEach(x => {
+      const f = pmRowFigures(x.d);
+      ul.append(el('li', { class: 'pm-row' }, [
+        el('div', { class: 'pm-row-main' }, [
+          el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [el('span', { class: 'chip chip-bronze' }, 'Not saved')]),
+          el('strong', {}, x.title),
+          el('span', { class: 'metaline' }, `${pmPlace(x.d)} · ${f.price} · ${x.note}`),
+        ]),
+        el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Monthly position'), el('span', { class: `num${f.neg ? ' neg' : ''}` }, f.monthly)]),
+        el('div', { class: 'pm-acts-row' }, x.kind === 'current'
+          ? [el('button', { class: 'btn btn-ghost btn-sm', id: 'pm-loose-open', onclick: () => navigate('/property/calculator') }, 'Continue'),
+             el('button', { class: 'btn btn-quiet btn-sm', id: 'pm-loose-save', onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#pm-list-hd'); } } }, 'Save it')]
+          : [el('button', { class: 'btn btn-ghost btn-sm', id: 'pm-kept-restore', onclick: () => {
+              if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); navigate('/property/calculator'); }
+            } }, 'Restore it')]),
+      ]));
+    });
+    lc.append(ul);
+    wrap.append(lc);
+  }
+
+  const lc = el('div', { class: 'card', style: 'padding:0' });
+  lc.append(el('div', { class: 'card-hd pm-list-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'pm-list-hd', tabindex: '-1' }, props.length ? `${props.length} saved propert${props.length === 1 ? 'y' : 'ies'}` : 'No properties saved yet'),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, props.length
+      ? 'Newest change first. The order is when each was last saved, not how it compares.'
+      : 'Open the sample deal or start a new property, change its figures to yours, and save it. Every property you save is listed here.'),
+  ])));
+  const ul = el('ul', { class: 'pm-list', 'aria-label': 'Saved properties' });
+  ul.append(el('li', { class: 'pm-row pm-head', 'aria-hidden': 'true' }, [el('span', {}, 'Property'), el('span', {}, 'Price'),
+    el('span', {}, 'Monthly position'), el('span', {}, 'Updated'), el('span', {}, '')]));
+  props.forEach((rec, idx) => {
+    const d = pmInputsOf(rec), f = pmRowFigures(d);
+    const onCalc = st.rec?.id === rec.id;
+    const sample = workIsSample(rec);
+    const nSc = (rec.scenarios || []).length;
+    const acts = el('div', { class: 'pm-acts-row' });
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm pm-open', id: `pm-open-${rec.id}`, 'aria-label': `Open ${rec.name}`,
+      onclick: () => openPropertyModel(rec.id) }, 'Open'));
+    const kept = (act, done, refocus) => { const refused = store.failed; act(); render(); refocus(); toast(store.failed !== refused ? STORE_REFUSED : done); };
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `pm-dup-${rec.id}`, 'aria-label': `Duplicate ${rec.name}`,
+      onclick: () => kept(() => duplicatePropertyModel(rec.id), 'Duplicated', () => focusAfterRedraw(`#pm-dup-${rec.id}`)) }, 'Duplicate'));
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `pm-ren-${rec.id}`, 'aria-label': `Rename ${rec.name}`,
+      onclick: () => {
+        const name = prompt('Rename this property', rec.name);
+        if (name === null || !name.trim()) return;
+        kept(() => renamePropertyModel(rec.id, name), 'Renamed', () => focusAfterRedraw(`#pm-ren-${rec.id}`));
+      } }, 'Rename'));
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', 'aria-label': `Delete ${rec.name}`,
+      onclick: () => {
+        if (!confirm(`Delete “${rec.name}”${nSc ? ` and its ${nSc} scenario${nSc === 1 ? '' : 's'}` : ''}? This browser holds the only copy.${onCalc ? ' It stays on the calculator as an unsaved deal.' : ''}`)) return;
+        const refused = store.failed;
+        deletePropertyModel(rec.id); render();
+        const opens = $$('#views .pm-list .pm-open');
+        focusAfterRedraw(opens[Math.min(idx, opens.length - 1)], '#pm-new');
+        toast(store.failed !== refused ? STORE_UNDELETED : 'Deleted');
+      } }, 'Delete'));
+    ul.append(el('li', { class: `pm-row${onCalc ? ' is-open' : ''}` }, [
+      el('div', { class: 'pm-row-main' }, [
+        el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
+          onCalc ? el('span', { class: 'chip chip-brand' }, st.dirty ? 'On the calculator · unsaved changes' : 'On the calculator') : null,
+          sample ? el('span', { class: 'chip chip-bronze', title: 'Every figure in it is the calculator’s sample input. Not your figures.' }, 'sample') : null,
+          rec.source?.kind === 'opportunity' ? el('span', { class: 'chip' }, 'From the opportunity register') : null,
+          nSc ? el('span', { class: 'chip' }, `${nSc} scenario${nSc === 1 ? '' : 's'}`) : null,
+        ]),
+        el('strong', {}, rec.name),
+        el('span', { class: 'metaline' }, `${pmPlace(d)} · ${d.propertyType || 'Property'}`),
+      ]),
+      el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Price'), el('span', { class: 'num' }, f.price)]),
+      el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Monthly position'), el('span', { class: `num${f.neg ? ' neg' : ''}` }, f.monthly)]),
+      el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Updated'), el('span', {}, pmWhen(pmUpdated(rec)))]),
+      acts,
+    ]));
+  });
+  /* The sample, always offered and always called one. */
+  const sd = pmSampleDeal(), sf = pmRowFigures(sd);
+  const proj = PROJECTS.find(p => p.id === sd.projectId);
+  ul.append(el('li', { class: 'pm-row pm-sample' }, [
+    el('div', { class: 'pm-row-main' }, [
+      el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [el('span', { class: 'chip chip-bronze' }, 'Sample — not a real listing')]),
+      el('strong', {}, `Sample deal${proj ? ` — ${proj.name}` : ''}`),
+      el('span', { class: 'metaline' }, `${pmPlace(sd)} · ${sd.propertyType} · illustrative figures this tool carries, chosen by nobody for any property`),
+    ]),
+    el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Price'), el('span', { class: 'num' }, sf.price)]),
+    el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Monthly position'), el('span', { class: `num${sf.neg ? ' neg' : ''}` }, sf.monthly)]),
+    el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Updated'), el('span', {}, 'not saved')]),
+    el('div', { class: 'pm-acts-row' }, el('button', { class: 'btn btn-ghost btn-sm', id: 'pm-open-sample', onclick: () => newPropertyDeal() }, 'Open the sample')),
+  ]));
+  lc.append(ul);
+  wrap.append(lc);
+  return wrap;
+};
 /* ==========================================================================
    LAND RISK — WHAT IS KNOWN, WHAT IS NOT, AND NO SINGLE NUMBER
    --------------------------------------------------------------------------
@@ -36865,6 +37939,9 @@ let observationDraft = null;
 const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
 
 VIEWS.property = () => {
+  /* A section the address names (#scenarios), read before this page writes
+     its own address, which carries none (71-property-models.js). */
+  propertyArrivalSection();
   /* The address is read when it is new — a link, a bookmark, Back — and not on
      every render, which is what used to undo an edit on /property and a Resume
      or Reset on either path. */
@@ -36899,21 +37976,21 @@ VIEWS.property = () => {
   ]));
   wrap.append(disc);
 
-  /* Reset restores the seeded defaults rather than blanking every field: a
-     property calculator with no price, rent or tenure is not a fresh start, it
-     is a broken model that produces nothing until twenty numbers are typed.
-     `touched` and `evidence` are cleared with them, so the restored figures go
-     back to being honestly labelled illustrative defaults rather than
-     inheriting the previous reader's provenance. */
-  /* Saving the deal is the calculator's working action, so it is the page's
-     one primary button; the report paywall's buttons at the page's end were
-     the only filled ones, 15,000px down. */
-  wrap.append(workBar('property', () => {
-    State.deal = { ...PROPERTY_DEFAULT_DEAL, touched: {},
-      evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
-      checks: { ...PROPERTY_DEFAULT_DEAL.checks } };
-    saveDeal();
-  }, { primary: true, saveLabel: 'Save this deal' }));
+  /* WHICH PROPERTY THIS IS, AND THE PAGE'S ONE PRIMARY ACTION.
+     The work bar saved snapshots of the deal, and nothing said whether what
+     was on screen was saved, or as what. The bar (71-property-models.js) says
+     which property is being edited and whether it has changed since it was
+     saved, and its primary action is the next one: Save this property until
+     it is saved, then Compare scenarios. "New property" starts from the
+     seeded defaults rather than blank fields — a calculator with no price,
+     rent or tenure is not a fresh start, it is a model that produces nothing
+     — with `touched` and `evidence` cleared, so every figure is honestly an
+     illustrative default again; and work kept nowhere else is kept aside
+     before it is replaced. The report paywall's buttons at the page's end
+     were once its only filled ones, 15,000px down. */
+  wrap.append(propertyModelBar(d));
+  /* The five sections below, reached from wherever the page is scrolled to. */
+  wrap.append(propertySectionIndex());
 
   /* Stated once, at the top, while any figure that drives the model is still a
      seeded number. "Built from your inputs" in the line above is only true once
@@ -37284,7 +38361,7 @@ VIEWS.property = () => {
     } }, 'Erase my financing details'));
   }
   finCard.append(bd);
-  wrap.append(finCard);
+  /* Drawn in the Financing section, below. */
 
   /* Modelling states that change every figure below and cannot be inferred from
      the numbers themselves. */
@@ -37312,25 +38389,51 @@ VIEWS.property = () => {
   /* The opportunity register had no inbound link anywhere in the product, and
      the reader who has just modelled a deal is precisely the one who wants to
      record it. A real anchor, so it can be opened in a new tab. */
-  wrap.append(el('div', { class: 'note', style: 'display:flex;flex-wrap:wrap;gap:10px;align-items:center' }, [
+  const regNote = el('div', { class: 'note', style: 'display:flex;flex-wrap:wrap;gap:10px;align-items:center' }, [
     el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px;margin:0' },
       'Modelling one deal answers what it would do. Recording several answers which ones exist and what you actually know about each — the register keeps the source, the availability date, four separate prices and a next action with an owner.'),
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/opportunities'),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/opportunities'); } },
       'Open the opportunity register'),
-  ]));
+  ]);
 
-  const layout = el('div', { class: 'studio-layout' });
+  /* THE FIVE SECTIONS, IN THE ORDER A PURCHASE IS WORKED THROUGH.
+     One card held every input, "Your deal", beside one column of every
+     output, so the loan's inputs sat three screens from the loan and the
+     answer to "what does the rent have to be" was below the ten-question
+     checklist. Each section now holds its own inputs beside what they
+     produce, and opens by saying which is which (propertySection,
+     71-property-models.js). Every input keeps its id, so a link, the review
+     queue's "Go to it" and a redraw's focus still find it. The contracts
+     name only what the section asks and shows: a class with no tenancy is
+     asked for no rent. */
+  const lets = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
+  const acq = propertySection('acquisition', {
+    provide: 'where the property is, what it is — its type, class, title and size — the purchase price, any bank or valuer estimate, the booking deposit already paid, the renovation and the months of reserve you mean to hold.',
+    calculates: 'the cash to complete and every cost line under it — the deposit, stamp duties, legal fees and any valuation gap — the price per unit of area, and the safe cash required once the renovation and the reserve are counted.' });
+  const fnc = propertySection('financing', {
+    provide: 'the deposit, the loan interest rate and its tenure; any flat-rate or loan-insurance quote you were given; and, only if you choose, your own income, debts and credit record.',
+    calculates: 'the loan and the value it is lent against, the monthly instalment, the loan at a 70, 80 and 90% margin of finance, what the quotes cost, and whether the borrower and the property can each be financed.' });
+  const rnt = propertySection('rental', lets ? {
+    provide: 'the expected rent, its growth and the vacancy allowance, the running costs — maintenance, sinking fund, assessment, quit rent, insurance, fees and a repair reserve — the management terms, and the weeks a year you would use it yourself.',
+    calculates: 'the monthly position after vacancy, costs and the loan, the gross and net yield, the rent at which it breaks even, what management costs per occupied month and per tenancy, and owning it against renting it for your own weeks.' } : {
+    provide: 'the running costs — assessment, quit rent, insurance and any fees — and the weeks a year you would use it yourself. A class with no tenancy is asked for no rent, vacancy or service charge.',
+    calculates: 'what holding it costs each month, the loan included — a yield and a break-even rent are not quantities this class has, so none is computed.' });
+  const scn = propertySection('scenarios', {
+    provide: 'variations of this property saved as named scenarios, the exit — how long it is held, capital growth, the months and costs of selling — the return you would expect from equities instead, who is selling, and your top rate of tax if you give it.',
+    calculates: 'up to three scenarios side by side — monthly position, cash required, yield, break-even rent and grade — which inputs move the rate of return most, the rate, vacancy and overrun at which it stops working, and the return and the tax on the rent over the hold.' });
+  const rpt = propertySection('report', {
+    provide: 'your answers to the ten questions that decide more than the price, how each was established, and where each driving figure came from.',
+    calculates: 'the grade against the methodology’s gates, the demand and environmental allowances recorded for the district, what the answer rests on, and — in the full report — the exits, the year-by-year path, the equity comparison and the risk flags; the decision record prints it.' });
 
   /* ---------- inputs ---------- */
-  const rail = el('div', { class: 'card rail-sticky' });
-  rail.append(cardHead('Your deal', 'Everything is yours to enter. The free calculator is complete — nothing below is withheld.'));
+  const rail = acq.inputs;
 
   /* Location first. In Sarawak the district decides the title class, the flood
      exposure and who the tenants are, and every one of those matters more to
      the outcome than the purchase price does. */
   const loc = el('div', { style: 'margin-bottom:var(--md);padding-bottom:var(--md);border-bottom:1px solid var(--line)' });
-  loc.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, '1 · Where'));
+  loc.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, 'Where'));
 
   const cityField = el('div', { class: 'field' });
   cityField.append(el('label', { for: 'dealCity' }, ptr('in.city', 'City')));
@@ -37352,7 +38455,12 @@ VIEWS.property = () => {
     /* Restore goes once it has restored, and focus went with it to <body>;
        it goes to Copy, which sat beside it. */
     store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
-      if (restoreDealBeforeLink()) { toast('Your previous deal is restored'); render(); focusAfterRedraw('#property-copy-link'); }
+      /* The deal it replaces is kept aside in its turn when it held work kept
+         nowhere else (restoreDealBeforeLink), and the toast says so. */
+      if (restoreDealBeforeLink()) {
+        toast(store.read('dealBeforeLink', null) ? 'Your previous deal is restored — the one it replaced is kept aside; restore again to swap back' : 'Your previous deal is restored');
+        render(); focusAfterRedraw('#property-copy-link');
+      }
     } }, 'Restore my previous deal') : null,
   ]));
 
@@ -37668,7 +38776,7 @@ VIEWS.property = () => {
     loc.append(leaseField);
   }
   rail.append(loc);
-  rail.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, '2 · What'));
+  rail.append(el('p', { class: 'eyebrow', style: 'margin-bottom:8px' }, 'What'));
 
   const psel = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   psel.append(el('label', { for: 'pj' }, ptr('in.project', 'Project')));
@@ -37705,29 +38813,34 @@ VIEWS.property = () => {
      endured rather than a model to be understood. Each group is one question:
      what does it cost, what does it earn, what does it cost to run, what
      happens on the way out. */
+  /* Each group in the section it belongs to (sec): the loan's three figures
+     left "Purchase" for Financing, and the exit went to Scenarios, where
+     what it decides — the rate of return, and its sensitivity — is drawn. */
   const GROUPS = [
-    ['Size and parking', [
+    [acq, 'Size and parking', [
       ['sqft', 'Built-up area (sq ft)', 10],
       ['landSqft', 'Land area (sq ft, 0 if none)', 10],
       ['parking', 'Allocated parking bays', 1],
     ]],
-    ['3 · Purchase', [
+    [acq, 'Purchase', [
       ['price', 'Purchase price (RM)', 1000],
       ['bankValuation', 'Bank or valuer estimate (RM, 0 if not yet known)', 1000],
       ['bookingDepositPaid', 'Booking deposit already paid (RM)', 500],
       ['renovation', 'Renovation and furnishing (RM)', 500],
       ['renoRentUpliftPct', 'Share of the rent that depends on the renovation (%)', 5],
       ['renoValueRecoveryPct', 'Share of the renovation a buyer will pay for at exit (%)', 10],
+    ]],
+    [fnc, 'Loan', [
       ['downPct', 'Deposit (%)', 1],
       ['ratePct', 'Loan interest rate (%)', 0.05],
       ['tenureYears', 'Loan tenure (years)', 1],
     ]],
-    ['4 · Income', [
+    [rnt, 'Income', [
       ['rent', 'Expected monthly rent (RM)', 50],
       ['rentGrowthPct', 'Annual rent growth (%)', 0.25],
       ['vacancyPct', 'Vacancy allowance (%)', 1],
     ]],
-    ['5 · Running costs', [
+    [rnt, 'Running costs', [
       ['maintenance', 'Monthly maintenance (RM)', 10],
       ['sinkingFund', 'Monthly sinking fund (RM)', 10],
       ['assessment', 'Annual assessment (RM)', 50],
@@ -37739,7 +38852,7 @@ VIEWS.property = () => {
     /* A fee percentage says what management costs and nothing about what it
        does. These are the terms that decide both — and the ones a landlord has
        to agree before signing a mandate, not after. */
-    ['6 · Management operations', [
+    [rnt, 'Management operations', [
       ['selfManaged', 'I will manage this property myself', 'bool'],
       ['leasingFeeMonths', 'Tenant placement fee (months of rent)', 0.25],
       ['renewalFeeMonths', 'Renewal fee (months of rent)', 0.25],
@@ -37753,19 +38866,20 @@ VIEWS.property = () => {
       ['ownerReportCadence', 'Owner statement', ['monthly', 'quarterly', 'on request', 'not agreed']],
       ['tenantPaysUtilities', 'Tenant pays utilities, not the owner', 'bool'],
     ]],
-    ['7 · Exit', [
+    [scn, 'Exit', [
       ['holdYears', 'Holding period (years)', 1],
       ['apprecPct', 'Annual capital growth (%)', 0.25],
       ['sellMonths', 'Expected months to sell', 1],
       ['agentPct', 'Agent commission on exit (%)', 0.25],
       ['exitLegalPct', 'Legal costs on exit (%)', 0.1],
     ]],
-    ['8 · Comparison', [
+    [scn, 'Comparison', [
       ['equityReturnPct', 'Assumed equity return (% a year)', 0.5],
     ]],
   ];
-  GROUPS.forEach(([heading, fields]) => {
-    rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, heading));
+  GROUPS.forEach(([sec, heading, fields]) => {
+    const rail = sec.inputs;
+    rail.append(el('p', { class: 'eyebrow', style: rail.childElementCount ? 'margin:var(--md) 0 8px' : 'margin:0 0 8px' }, heading));
     fields.forEach(([k, label, step]) => {
       const f = el('div', { class: 'assumption' });
       /* Two non-numeric kinds, because a management mandate is made of
@@ -37816,41 +38930,41 @@ VIEWS.property = () => {
   });
 
   /* Provenance for the figures that actually move the answer. */
-  rail.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, '9 · Evidence quality'));
-  /* The figures this class has (evidenceDriversFor, 70-property.js). A
-     bare parcel was told that "the price and the rent drive every output"
-     and asked to grade a rent and a service charge the page withholds. */
-  const railDrivers = evidenceDriversFor(d);
-  rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, railDrivers.includes('rent')
-    ? 'Where each of the four figures below came from — the price and the rent drive every output.'
-    : `Where each of the ${railDrivers.length === 2 ? 'two' : railDrivers.length} figures below came from — the price drives every output.`));
-  [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
-    .filter(([k]) => railDrivers.includes(k))
-    .forEach(([k, label]) => {
-      const f = el('div', { class: 'assumption' });
-      f.append(el('label', { for: `ev-${k}` }, ptr(`evr.${k}`, label)));
-      const sel = el('select', { class: 'select select-sm', id: `ev-${k}`,
-        onchange: e => {
-          d.evidence = { ...(d.evidence || {}), [k]: e.target.value };
-          /* Grading a figure IS a statement about it, so it stops being an
-             untouched default at that point — but only upward. Selecting
-             "illustrative default" leaves it exactly what it is. */
-          if (e.target.value !== 'illustrative_default') markTouched(d, k);
-          saveDeal(); renderKeepFocus();
-        } });
-      const shown = shownEvidence(d, k);
-      EVIDENCE.forEach(ev => sel.append(el('option', { value: ev.id,
-        selected: shown === ev.id ? '' : null }, ptr(`ev.${ev.id}`, ev.label))));
-      f.append(sel);
-      rail.append(f);
-    });
-
-  layout.append(rail);
+  {
+    const rail = rpt.inputs;
+    rail.append(el('p', { class: 'eyebrow', style: 'margin:0 0 8px' }, 'Evidence quality'));
+    /* The figures this class has (evidenceDriversFor, 70-property.js). A
+       bare parcel was told that "the price and the rent drive every output"
+       and asked to grade a rent and a service charge the page withholds. */
+    const railDrivers = evidenceDriversFor(d);
+    rail.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, railDrivers.includes('rent')
+      ? 'Where each of the four figures below came from — the price and the rent drive every output.'
+      : `Where each of the ${railDrivers.length === 2 ? 'two' : railDrivers.length} figures below came from — the price drives every output.`));
+    [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
+      .filter(([k]) => railDrivers.includes(k))
+      .forEach(([k, label]) => {
+        const f = el('div', { class: 'assumption' });
+        f.append(el('label', { for: `ev-${k}` }, ptr(`evr.${k}`, label)));
+        const sel = el('select', { class: 'select select-sm', id: `ev-${k}`,
+          onchange: e => {
+            d.evidence = { ...(d.evidence || {}), [k]: e.target.value };
+            /* Grading a figure IS a statement about it, so it stops being an
+               untouched default at that point — but only upward. Selecting
+               "illustrative default" leaves it exactly what it is. */
+            if (e.target.value !== 'illustrative_default') markTouched(d, k);
+            saveDeal(); renderKeepFocus();
+          } });
+        const shown = shownEvidence(d, k);
+        EVIDENCE.forEach(ev => sel.append(el('option', { value: ev.id,
+          selected: shown === ev.id ? '' : null }, ptr(`ev.${ev.id}`, ev.label))));
+        f.append(sel);
+        rail.append(f);
+      });
+  }
 
   /* ---------- outputs ---------- */
-  const out = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md);min-width:0' });
-
-  /* free tier: the four headline numbers */
+  /* The summary in the reader's language, and the review queue, above the
+     sections: both are about every section at once. */
   const free = el('div', { class: 'card' });
   /* Language applies to the summary below and to the metric names in it. The
      analysis itself stays in English, which the note says rather than leaving
@@ -37922,15 +39036,18 @@ VIEWS.property = () => {
     q.append(det);
     free.append(q);
   }
+  const summaryCard = free;
 
-  free.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.'));
+  /* The four headline numbers, in the section whose inputs make them. */
+  const headline = el('div', { class: 'card' });
+  headline.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.'));
   const fg = el('div', { class: 'grid g-4' });
   fg.append(el('div', { class: 'panel' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
   fg.append(el('div', { class: 'panel' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
   fg.append(el('div', { class: 'panel' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
     { sub: 'After costs, vacancy and the loan', tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
   fg.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
-  free.append(fg);
+  headline.append(fg);
 
   /* THE SAME PRICE, IN THE UNITS IT WILL BE ARGUED IN.
      A Sarawak land negotiation happens in points, a valuer's report in square
@@ -37943,15 +39060,21 @@ VIEWS.property = () => {
      twice and no rate is stored, so they cannot drift apart. */
   /* IPS §3, §6.5, §6.7 and §6.8 — the four that had no implementation. The
      gate panel goes first because it is the summary the rest explains. */
-  free.append(returnsAndTaxPanel(d, m));
+  const returnsPanel = returnsAndTaxPanel(d, m);
   /* Directly after the return, because it answers the question the return
      provokes: which of these forty inputs did that number come from. */
-  free.append(propertySensitivityPanel(d, m));
-  free.append(financingChoicesPanel(d, m));
-  free.append(ipsGatePanel(propertyIps(d, m, g), { title: 'Against the methodology' }));
-  free.append(demandPanel(d.city, d.district));
-  free.append(environmentalPanel(d));
-  free.append(rentVersusBuyPanel(d, m));
+  const sensPanel = propertySensitivityPanel(d, m);
+  const choicesPanel = financingChoicesPanel(d, m);
+  const gatesPanel = ipsGatePanel(propertyIps(d, m, g), { title: 'Against the methodology' });
+  const demandCard = demandPanel(d.city, d.district);
+  const envCard = environmentalPanel(d);
+  const rentBuyCard = rentVersusBuyPanel(d, m);
+
+  /* What buying it takes: the price per unit, where the cash goes, the
+     ledger, and the cash to hold back. */
+  const buyCard = el('div', { class: 'card' });
+  buyCard.append(cardHead('What buying it takes',
+    'The cash to complete, where every ringgit of it goes, and the safe cash required once the renovation and the reserve are counted.'));
 
   const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
   unitCard.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
@@ -37977,7 +39100,7 @@ VIEWS.property = () => {
   ug2.append(unitTile('Maintenance, monthly', m.maintPsf, 'sqm', 2, 'Service charge per m² per month'));
   unitCard.append(ug2);
   unitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, POINT_DEFINITION));
-  free.append(unitCard);
+  buyCard.append(unitCard);
 
   /* The two rent tiles above, drawn against each other. One series, so no
      legend — the title names it and both marks are directly labelled. */
@@ -38009,7 +39132,7 @@ VIEWS.property = () => {
         : `At ${fmtMoney(d.rent, 'MYR')} the rent covers fixed costs and the loan with `
           + `${fmtMoney(-short, 'MYR')} a month over. Break-even rent is a gross asking rent, `
           + 'measured after vacancy and the rent-linked costs.'));
-    free.append(rb);
+    headline.append(rb);
   }
 
   /* The same build-up as a picture, above the table that itemises it. Two
@@ -38032,7 +39155,7 @@ VIEWS.property = () => {
     cashWaterfall(wfHost, m);
     wf.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
       'Completing and being safe are different amounts of money. The table below itemises every line in each group.'));
-    free.append(wf);
+    buyCard.append(wf);
   }
 
   /* A table rather than a sentence, because a sentence that lists four
@@ -38149,7 +39272,10 @@ VIEWS.property = () => {
   fin.append(el('div', { class: 'tablewrap' }, scT));
   fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'Scenarios, not offers. No lender has seen this property or this borrower, and the margin a lender will actually extend depends on its own valuation, its credit policy and the applicant. Cash equity is the purchase price less the loan, so it carries any valuation gap with it.'));
-  cash.append(fin);
+  const loanCard = el('div', { class: 'card' });
+  loanCard.append(cardHead('The loan', 'What the loan is lent against, what it funds, and what it would be at other margins of finance.'));
+  fin.style.cssText = '';
+  loanCard.append(fin);
   /* The three figures, before the ledger's own total. One number answered three
      questions at once — what leaves the account at completion, what it takes to
      make the property earn, and what must still be there afterwards — and a
@@ -38195,8 +39321,7 @@ VIEWS.property = () => {
 
   cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `The reserve is not paid to anyone — it is what stays in your account after completion. Completion and rent-ready together take ${fmtAmount(m.acquisitionCost, 'MYR')}; the reserve is on top of that.`));
-  free.append(cash);
-  out.append(free);
+  buyCard.append(cash);
 
   /* ---------- Sarawak checklist ---------- */
   /* Questions, answered by the buyer, each naming who can actually settle it.
@@ -38285,7 +39410,7 @@ VIEWS.property = () => {
   });
   chk.append(el('p', { class: 'metaline', style: 'margin-top:var(--md);padding-top:10px;border-top:1px solid var(--line)' },
     'This tool does not determine legal eligibility, flood risk or market demand. Each question names the professional or authority who can.'));
-  out.append(chk);
+  const checkCard = chk;
 
   /* ---------- stress tests ---------- */
   const stressCard = el('div', { class: 'card' });
@@ -38372,7 +39497,6 @@ VIEWS.property = () => {
     { label: 'Cash-on-cash', num: true, get: r2 => isNum(r2.cashOnCash) ? fmtPct(r2.cashOnCash, 2) : '—',
       tone: r2 => isNum(r2.cashOnCash) && r2.cashOnCash >= 0 ? 'pos' : 'neg' },
   ]));
-  out.append(stressCard);
 
   /* ---------- management operations ---------- */
   const ops = el('div', { class: 'card' });
@@ -38437,7 +39561,6 @@ VIEWS.property = () => {
   if (d.ownerReportCadence === 'not agreed') duties.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
     'No reporting cadence has been agreed. Owner statements are the only routine evidence that the rest of this list is happening.'));
   ops.append(duties);
-  out.append(ops);
 
   /* ---------- evidence quality ---------- */
   const ev = el('div', { class: 'card' });
@@ -38482,8 +39605,8 @@ VIEWS.property = () => {
       : weakest.e.rank <= 1
         ? `The weakest figure here is ${weakest.label.toLowerCase()} — ${weakest.e.label.toLowerCase()}. A verified report is one where every row reads "verified transaction". That is the difference between the two, not extra pages.`
         : `The weakest figure here is ${weakest.label.toLowerCase()} — ${weakest.e.label.toLowerCase()}. Verified transactions are stronger still.`));
-  out.append(ev);
 
+  const reportCards = [];
   if (!paid) {
     /* The offer has to describe what this particular report would contain. On a
        location with no comparable held, promising "comparable transactions and
@@ -38496,7 +39619,7 @@ VIEWS.property = () => {
        side. It now says what the pricing page says — a proposed price, not
        on sale — and its button says what it does, as a plan's does there:
        it previews the report in this browser. */
-    out.append(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
+    reportCards.push(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
         ? `Adds net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
         /* Proposed per report. The line also offered it "included twice
@@ -38523,265 +39646,268 @@ VIEWS.property = () => {
       toast('Previewing the full report in this browser — nothing is on sale, and nothing was charged'); render(); focusAfterRedraw('#property-report-full h3');
     } }, 'Preview this report in this browser'));
     buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'));
-    out.append(el('div', {}, buy));
-    layout.append(out);
-    wrap.append(layout);
-    return wrap;
-  }
-
-  /* ---------- exits and the alternative ---------- */
-  const exitCard = el('div', { class: 'card', id: 'property-report-full' });
-  exitCard.append(cardHead('Selling in year 5 and year 10',
-    'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.'));
-  const exTable = el('table', { class: 'dt' });
-  exTable.append(el('thead', {}, el('tr', {}, ['', 'Sell in year 5', 'Sell in year 10'].map((h, i) =>
-    el('th', { class: i ? 'num' : '' }, h)))));
-  const exBody = el('tbody');
-  const exRows = [
-    ['Sale value', e => fmtAmount(e.value, 'MYR')],
-    ['Loan outstanding', e => isNum(e.outstanding) ? `−${fmtAmount(e.outstanding, 'MYR')}` : '—'],
-    ['Agent commission', e => `−${fmtAmount(e.agentFee, 'MYR')}`],
-    ['Legal on exit', e => `−${fmtAmount(e.exitLegal, 'MYR')}`],
-    [`Carried while selling`, e => isNum(e.carry) ? `−${fmtAmount(e.carry, 'MYR')}` : '—'],
-    ['Real property gains tax', e => `−${fmtAmount(e.rpgt, 'MYR')} (${e.rpgtPct}%)`],
-    ['Net proceeds', e => fmtAmount(e.net, 'MYR')],
-    [m.taxComputed ? 'Rental cash over the hold, after tax on the rent' : 'Rental cash over the hold, before tax', e => fmtAmount(e.cumCash, 'MYR')],
-    ['Total profit on cash invested', e => fmtAmount(e.profit, 'MYR')],
-    ['Annualised', e => isNum(e.annualised) ? fmtPct(e.annualised, 2) : '—'],
-    /* The model's own reason for a missing rate, never a fixed one: the old
-       "the capital does not come back" sat beside a positive profit whenever
-       the flows had two rates rather than none. */
-    ['Rate of return if sold then', e => isNum(e.irrPct) ? fmtPct(e.irrPct, 2)
-      : el('span', { class: 'caption', style: 'white-space:normal' }, `No rate. ${e.irrWhy || ''}`.trim())],
-  ];
-  exRows.forEach(([label, get], i) => {
-    const strong = i >= exRows.length - 2;
-    exBody.append(el('tr', {}, [
-      el('td', { style: strong ? 'font-weight:600' : '' }, label),
-      ...m.exits.map(e => el('td', { class: 'num', style: strong ? 'font-weight:600' : '' }, get(e))),
-    ]));
-  });
-  exTable.append(exBody);
-  exitCard.append(el('div', { style: 'overflow-x:auto' }, exTable));
-
-  exitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'Exit costs include the months the property is carried unlet while it sells — a real cost in a Sarawak secondary market, and one most calculators leave out.'));
-  out.append(exitCard);
-
-  /* ---------- hold or sell, year by year ---------- */
-  {
-    const hs = m.holdVsSell || [];
-    const card = el('div', { class: 'card' });
-    card.append(cardHead('If you sold in year…',
-      'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.'));
-    const rated = hs.filter(e => isNum(e.irrPct));
-    const host = el('div', { style: 'width:100%' });
-    card.append(host);
-    const t = el('table', { class: 'dt' });
-    t.append(el('thead', {}, el('tr', {}, ['Year', 'Sale value', 'Loan outstanding', 'RPGT', 'Net proceeds', 'Rental cash to date', 'Rate of return'].map((h, i) =>
-      el('th', { class: i ? 'num' : '' }, h)))));
-    const tb = el('tbody');
-    hs.forEach(e => tb.append(el('tr', {}, [
-      el('td', {}, String(e.yrs)),
-      el('td', { class: 'num' }, fmtAmount(e.value, 'MYR')),
-      el('td', { class: 'num' }, fmtAmount(e.outstanding, 'MYR')),
-      el('td', { class: 'num' }, `${e.rpgtPct}%`),
-      el('td', { class: 'num' }, fmtAmount(e.net, 'MYR')),
-      el('td', { class: 'num' }, fmtAmount(e.cumCash, 'MYR')),
-      el('td', { class: 'num' + (isNum(e.irrPct) ? '' : ' caption'), title: isNum(e.irrPct) ? null : (e.irrWhy || null) }, isNum(e.irrPct) ? fmtPct(e.irrPct, 2) : 'no rate'),
-    ])));
-    t.append(tb);
-    card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
-    card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-      /* Every year, unranked. Naming the year with the highest rate was the
-         model choosing an exit by its own measure — the pick this product
-         leaves to the reader. */
-      (rated.length ? '' : 'No exit year returns a rate under these assumptions. ')
-      + 'That is arithmetic on the entered figures — the appreciation rate, the gains-tax band for the year, and how much of the loan is left — and not a view on when to sell. '
-      + `Rental cash is ${m.taxComputed ? 'after' : 'before'} tax on the rent.`));
-    out.append(card);
-    if (rated.length) columnChart(host, { cats: hs.map(e => `Y${e.yrs}`), series: [{ key:'irr', label:'Rate of return if sold that year', values: hs.map(e => isNum(e.irrPct) ? e.irrPct : null), varName:'--s1' }], fmt: v => fmtPct(v, 1), title: 'Rate of return by exit year' });
-  }
-
-  /* ---------- what the renovation returns ---------- */
-  {
-    const rr = renovationReturn(d, m);
-    const card = el('div', { class: 'card' });
-    card.append(cardHead('What the renovation returns',
-      'The deal as entered against the same deal with no renovation — the rent reduced by the share that depends on it, nothing recovered at the sale.'));
-    if (!rr.applicable) card.append(el('p', { class: 'body', style: 'font-size:13px' }, rr.why));
-    else {
-      const g = el('div', { class: 'grid g-3' });
-      [['Renovation and furnishing', fmtAmount(rr.cost, 'MYR'), 'spent before the property can earn'],
-       ['Rent that depends on it', isNum(rr.rentUpliftAnnual) ? `${fmtAmount(rr.rentUpliftAnnual, 'MYR')} a year` : '—', `${fmtPct(rr.rentUpliftPct, 0)} of the entered rent, after vacancy`],
-       ['Payback from rent alone', isNum(rr.paybackYears) ? `${fmtNum(rr.paybackYears, 1)} years` : 'never — no rent is attributed to it', 'cost ÷ the rent it produces'],
-       ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
-       ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
-       ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} safe cash instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
-      ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel' }, statTile(k, v, { sub }))));
-      card.append(g);
-      card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-        (isNum(rr.irrDelta)
-          ? `The renovation ${rr.irrDelta >= 0 ? 'adds' : 'costs'} ${fmtNum(Math.abs(rr.irrDelta), 2)} percentage points of return under these two inputs. `
-          : '')
-        + (rr.rentUpliftPct === 0 && rr.recoveryPct === 0
-          ? 'Both inputs are at nought, so the model treats the spend as buying nothing — no rent, no value at the sale. If that is not what you believe, say what you do believe in the two fields under Purchase; the answer will follow.'
-          : 'Neither input is observed: what a refit adds to rent and to a sale price is an estimate until a valuer or a tenant says otherwise, and this card says only what follows from the estimate you entered.')));
-    }
-    out.append(card);
-  }
-
-  /* ---------- paid report ---------- */
-  const comps = el('div', { class: 'card' });
-  if (m.proj.custom) {
-    /* An empty comparables table with "RM null–null" beneath it would read as a
-       market with no transactions rather than as a tool with no data. The card
-       says which of the two it is. */
-    comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
-      'None held for this location.'));
-    comps.append(el('p', { class: 'body', style: 'font-size:13px' },
-      `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
-    comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-      /* This said "Every figure above came from you" while the provenance table
-         three cards up correctly reported all four critical figures as
-         Illustrative default. On an untouched deal nothing came from the reader
-         at all, and the sentence sits behind the paywall — so the one place it
-         appears is the one place somebody has decided the report is worth
-         paying for. It now reads what is actually true of whichever figures are
-         in play. */
-      `Every figure above is either one you entered or a default this tool carried in, and the source table above says which is which for each. `
-      + (untouched.length
-          ? `${untouched.length} of the four figures that drive this model ${untouched.length === 1 ? 'is' : 'are'} still an illustrative default. `
-          : '')
-      + 'Nothing on this page has been checked against a market, so treat the outputs as arithmetic on those inputs rather than as a valuation.'));
-    comps.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Where a comparable can be obtained'));
-    comps.append(el('ul', { class: 'ticklist' }, [
-      el('li', {}, 'NAPIC (Valuation and Property Services Department) publishes transacted prices by district. Their Property Market Report is the standard reference.'),
-      el('li', {}, 'A registered valuer can produce a formal comparable analysis for the specific address.'),
-      el('li', {}, 'Local agents hold recent tenancies — ask for signed tenancies rather than asking rents, which are the figure most commonly quoted and least commonly achieved.'),
-    ]));
+    reportCards.push(el('div', {}, buy));
   } else {
-    comps.append(cardHead(`Comparable transactions — ${m.proj.name}`,
-      `${m.proj.type}, ${m.proj.tenure}, ${m.proj.area}. Sample transaction data for demonstration.`));
-    const ctw = el('div', { class: 'tablewrap' });
-    const ct = el('table', { class: 'dt' });
-    ct.append(el('thead', {}, el('tr', {}, ['Quarter', 'Median psf', 'Transactions', 'vs your price'].map(h => el('th', {}, h)))));
-    ct.append(el('tbody', {}, m.proj.txns.map(([q, ppsf, n]) => el('tr', {}, [
-      el('td', { class: 'ident' }, q), el('td', {}, `RM${ppsf}`), el('td', {}, String(n)),
-      el('td', { class: signClass(m.psf ? ppsf - m.psf : 0) }, m.psf ? withSign((ppsf - m.psf) / m.psf * 100, 1) : '—'),
+    /* ---------- exits and the alternative ---------- */
+    const exitCard = el('div', { class: 'card', id: 'property-report-full' });
+    exitCard.append(cardHead('Selling in year 5 and year 10',
+      'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.'));
+    const exTable = el('table', { class: 'dt' });
+    exTable.append(el('thead', {}, el('tr', {}, ['', 'Sell in year 5', 'Sell in year 10'].map((h, i) =>
+      el('th', { class: i ? 'num' : '' }, h)))));
+    const exBody = el('tbody');
+    const exRows = [
+      ['Sale value', e => fmtAmount(e.value, 'MYR')],
+      ['Loan outstanding', e => isNum(e.outstanding) ? `−${fmtAmount(e.outstanding, 'MYR')}` : '—'],
+      ['Agent commission', e => `−${fmtAmount(e.agentFee, 'MYR')}`],
+      ['Legal on exit', e => `−${fmtAmount(e.exitLegal, 'MYR')}`],
+      [`Carried while selling`, e => isNum(e.carry) ? `−${fmtAmount(e.carry, 'MYR')}` : '—'],
+      ['Real property gains tax', e => `−${fmtAmount(e.rpgt, 'MYR')} (${e.rpgtPct}%)`],
+      ['Net proceeds', e => fmtAmount(e.net, 'MYR')],
+      [m.taxComputed ? 'Rental cash over the hold, after tax on the rent' : 'Rental cash over the hold, before tax', e => fmtAmount(e.cumCash, 'MYR')],
+      ['Total profit on cash invested', e => fmtAmount(e.profit, 'MYR')],
+      ['Annualised', e => isNum(e.annualised) ? fmtPct(e.annualised, 2) : '—'],
+      /* The model's own reason for a missing rate, never a fixed one: the old
+         "the capital does not come back" sat beside a positive profit whenever
+         the flows had two rates rather than none. */
+      ['Rate of return if sold then', e => isNum(e.irrPct) ? fmtPct(e.irrPct, 2)
+        : el('span', { class: 'caption', style: 'white-space:normal' }, `No rate. ${e.irrWhy || ''}`.trim())],
+    ];
+    exRows.forEach(([label, get], i) => {
+      const strong = i >= exRows.length - 2;
+      exBody.append(el('tr', {}, [
+        el('td', { style: strong ? 'font-weight:600' : '' }, label),
+        ...m.exits.map(e => el('td', { class: 'num', style: strong ? 'font-weight:600' : '' }, get(e))),
+      ]));
+    });
+    exTable.append(exBody);
+    exitCard.append(el('div', { style: 'overflow-x:auto' }, exTable));
+
+    exitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+      'Exit costs include the months the property is carried unlet while it sells — a real cost in a Sarawak secondary market, and one most calculators leave out.'));
+    reportCards.push(exitCard);
+
+    /* ---------- hold or sell, year by year ---------- */
+    {
+      const hs = m.holdVsSell || [];
+      const card = el('div', { class: 'card' });
+      card.append(cardHead('If you sold in year…',
+        'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.'));
+      const rated = hs.filter(e => isNum(e.irrPct));
+      const host = el('div', { style: 'width:100%' });
+      card.append(host);
+      const t = el('table', { class: 'dt' });
+      t.append(el('thead', {}, el('tr', {}, ['Year', 'Sale value', 'Loan outstanding', 'RPGT', 'Net proceeds', 'Rental cash to date', 'Rate of return'].map((h, i) =>
+        el('th', { class: i ? 'num' : '' }, h)))));
+      const tb = el('tbody');
+      hs.forEach(e => tb.append(el('tr', {}, [
+        el('td', {}, String(e.yrs)),
+        el('td', { class: 'num' }, fmtAmount(e.value, 'MYR')),
+        el('td', { class: 'num' }, fmtAmount(e.outstanding, 'MYR')),
+        el('td', { class: 'num' }, `${e.rpgtPct}%`),
+        el('td', { class: 'num' }, fmtAmount(e.net, 'MYR')),
+        el('td', { class: 'num' }, fmtAmount(e.cumCash, 'MYR')),
+        el('td', { class: 'num' + (isNum(e.irrPct) ? '' : ' caption'), title: isNum(e.irrPct) ? null : (e.irrWhy || null) }, isNum(e.irrPct) ? fmtPct(e.irrPct, 2) : 'no rate'),
+      ])));
+      t.append(tb);
+      card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--sm)' }, t));
+      card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+        /* Every year, unranked. Naming the year with the highest rate was the
+           model choosing an exit by its own measure — the pick this product
+           leaves to the reader. */
+        (rated.length ? '' : 'No exit year returns a rate under these assumptions. ')
+        + 'That is arithmetic on the entered figures — the appreciation rate, the gains-tax band for the year, and how much of the loan is left — and not a view on when to sell. '
+        + `Rental cash is ${m.taxComputed ? 'after' : 'before'} tax on the rent.`));
+      reportCards.push(card);
+      if (rated.length) columnChart(host, { cats: hs.map(e => `Y${e.yrs}`), series: [{ key:'irr', label:'Rate of return if sold that year', values: hs.map(e => isNum(e.irrPct) ? e.irrPct : null), varName:'--s1' }], fmt: v => fmtPct(v, 1), title: 'Rate of return by exit year' });
+    }
+
+    /* ---------- what the renovation returns ---------- */
+    {
+      const rr = renovationReturn(d, m);
+      const card = el('div', { class: 'card' });
+      card.append(cardHead('What the renovation returns',
+        'The deal as entered against the same deal with no renovation — the rent reduced by the share that depends on it, nothing recovered at the sale.'));
+      if (!rr.applicable) card.append(el('p', { class: 'body', style: 'font-size:13px' }, rr.why));
+      else {
+        const g = el('div', { class: 'grid g-3' });
+        [['Renovation and furnishing', fmtAmount(rr.cost, 'MYR'), 'spent before the property can earn'],
+         ['Rent that depends on it', isNum(rr.rentUpliftAnnual) ? `${fmtAmount(rr.rentUpliftAnnual, 'MYR')} a year` : '—', `${fmtPct(rr.rentUpliftPct, 0)} of the entered rent, after vacancy`],
+         ['Payback from rent alone', isNum(rr.paybackYears) ? `${fmtNum(rr.paybackYears, 1)} years` : 'never — no rent is attributed to it', 'cost ÷ the rent it produces'],
+         ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
+         ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
+         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} safe cash instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
+        ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel' }, statTile(k, v, { sub }))));
+        card.append(g);
+        card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+          (isNum(rr.irrDelta)
+            ? `The renovation ${rr.irrDelta >= 0 ? 'adds' : 'costs'} ${fmtNum(Math.abs(rr.irrDelta), 2)} percentage points of return under these two inputs. `
+            : '')
+          + (rr.rentUpliftPct === 0 && rr.recoveryPct === 0
+            ? 'Both inputs are at nought, so the model treats the spend as buying nothing — no rent, no value at the sale. If that is not what you believe, say what you do believe in the two fields under Purchase; the answer will follow.'
+            : 'Neither input is observed: what a refit adds to rent and to a sale price is an estimate until a valuer or a tenant says otherwise, and this card says only what follows from the estimate you entered.')));
+      }
+      reportCards.push(card);
+    }
+
+    /* ---------- paid report ---------- */
+    const comps = el('div', { class: 'card' });
+    if (m.proj.custom) {
+      /* An empty comparables table with "RM null–null" beneath it would read as a
+         market with no transactions rather than as a tool with no data. The card
+         says which of the two it is. */
+      comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
+        'None held for this location.'));
+      comps.append(el('p', { class: 'body', style: 'font-size:13px' },
+        `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
+      comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+        /* This said "Every figure above came from you" while the provenance table
+           three cards up correctly reported all four critical figures as
+           Illustrative default. On an untouched deal nothing came from the reader
+           at all, and the sentence sits behind the paywall — so the one place it
+           appears is the one place somebody has decided the report is worth
+           paying for. It now reads what is actually true of whichever figures are
+           in play. */
+        `Every figure above is either one you entered or a default this tool carried in, and the source table above says which is which for each. `
+        + (untouched.length
+            ? `${untouched.length} of the four figures that drive this model ${untouched.length === 1 ? 'is' : 'are'} still an illustrative default. `
+            : '')
+        + 'Nothing on this page has been checked against a market, so treat the outputs as arithmetic on those inputs rather than as a valuation.'));
+      comps.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Where a comparable can be obtained'));
+      comps.append(el('ul', { class: 'ticklist' }, [
+        el('li', {}, 'NAPIC (Valuation and Property Services Department) publishes transacted prices by district. Their Property Market Report is the standard reference.'),
+        el('li', {}, 'A registered valuer can produce a formal comparable analysis for the specific address.'),
+        el('li', {}, 'Local agents hold recent tenancies — ask for signed tenancies rather than asking rents, which are the figure most commonly quoted and least commonly achieved.'),
+      ]));
+    } else {
+      comps.append(cardHead(`Comparable transactions — ${m.proj.name}`,
+        `${m.proj.type}, ${m.proj.tenure}, ${m.proj.area}. Sample transaction data for demonstration.`));
+      const ctw = el('div', { class: 'tablewrap' });
+      const ct = el('table', { class: 'dt' });
+      ct.append(el('thead', {}, el('tr', {}, ['Quarter', 'Median psf', 'Transactions', 'vs your price'].map(h => el('th', {}, h)))));
+      ct.append(el('tbody', {}, m.proj.txns.map(([q, ppsf, n]) => el('tr', {}, [
+        el('td', { class: 'ident' }, q), el('td', {}, `RM${ppsf}`), el('td', {}, String(n)),
+        el('td', { class: signClass(m.psf ? ppsf - m.psf : 0) }, m.psf ? withSign((ppsf - m.psf) / m.psf * 100, 1) : '—'),
+      ]))));
+      ctw.append(ct); comps.append(ctw);
+      const rng = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
+      rng.append(el('div', { class: 'panel' }, statTile('Your price psf', m.psf ? `RM${m.psf.toFixed(0)}` : '—',
+        { sub: `Project range RM${m.proj.psfLo}–${m.proj.psfHi}, median RM${m.proj.psfMid}` })));
+      rng.append(el('div', { class: 'panel' }, statTile('Your rent', `RM${d.rent}`,
+        { sub: `Observed range RM${m.proj.rentLo}–${m.proj.rentHi}, median RM${m.proj.rentMid}` })));
+      rng.append(el('div', { class: 'panel' }, statTile('Area vacancy', fmtPct(m.proj.vacancyPct, 0),
+        { sub: `You assumed ${fmtPct(d.vacancyPct, 0)}` })));
+      comps.append(rng);
+    }
+    reportCards.push(comps);
+
+    const inv = el('div', { class: 'card' });
+    inv.append(cardHead('Investment measures', 'Computed from your inputs. Every figure below traces to the assumptions on the left.'));
+    const ig = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
+    ig.append(el('div', { class: 'panel' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
+    ig.append(el('div', { class: 'panel' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
+    ig.append(el('div', { class: 'panel' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
+      { sub: 'Annual cash flow ÷ cash invested', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+    ig.append(el('div', { class: 'panel' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
+      { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
+    inv.append(ig);
+    const kv = el('dl', { class: 'kv' });
+    [['Gross annual rent', fmtAmount(m.grossAnnualRent, 'MYR')],
+     [`Effective rent after ${fmtPct(d.vacancyPct, 0)} vacancy`, fmtAmount(m.effectiveRent, 'MYR')],
+     ['Operating costs', fmtAmount(m.opex, 'MYR')],
+     ['Annual debt service', fmtAmount(m.annualDebtService, 'MYR')],
+     ['Cash invested at acquisition', fmtAmount(m.acquisitionCost, 'MYR')]]
+     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
+    inv.append(kv);
+    reportCards.push(inv);
+
+    /* scenario path */
+    const sc2 = el('div', { class: 'card' });
+    sc2.append(cardHead(`${d.holdYears}-year scenario`,
+      `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.`));
+    const stw = el('div', { class: 'tablewrap' });
+    const st = el('table', { class: 'dt' });
+    st.append(el('thead', {}, el('tr', {}, ['Year', 'Effective rent', 'Operating costs', 'Debt service', 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
+    st.append(el('tbody', {}, m.path.map(p2 => el('tr', {}, [
+      el('td', { class: 'ident' }, `Year ${p2.y}`),
+      el('td', {}, fmtAmount(p2.rent, 'MYR')), el('td', {}, fmtAmount(p2.opex, 'MYR')),
+      el('td', {}, fmtAmount(p2.debt, 'MYR')),
+      el('td', { class: signClass(p2.cf) }, fmtAmount(p2.cf, 'MYR')),
+      el('td', { class: signClass(p2.cum) }, fmtAmount(p2.cum, 'MYR')),
+      el('td', {}, fmtAmount(p2.value, 'MYR')), el('td', {}, fmtAmount(p2.balance, 'MYR')),
     ]))));
-    ctw.append(ct); comps.append(ctw);
-    const rng = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-    rng.append(el('div', { class: 'panel' }, statTile('Your price psf', m.psf ? `RM${m.psf.toFixed(0)}` : '—',
-      { sub: `Project range RM${m.proj.psfLo}–${m.proj.psfHi}, median RM${m.proj.psfMid}` })));
-    rng.append(el('div', { class: 'panel' }, statTile('Your rent', `RM${d.rent}`,
-      { sub: `Observed range RM${m.proj.rentLo}–${m.proj.rentHi}, median RM${m.proj.rentMid}` })));
-    rng.append(el('div', { class: 'panel' }, statTile('Area vacancy', fmtPct(m.proj.vacancyPct, 0),
-      { sub: `You assumed ${fmtPct(d.vacancyPct, 0)}` })));
-    comps.append(rng);
+    stw.append(st); sc2.append(stw);
+    reportCards.push(sc2);
+
+
+    /* equity comparison — the cross-asset point of the whole product */
+    const eq2 = el('div', { class: 'card' });
+    eq2.append(cardHead('The same cash in equities',
+      `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`));
+    /* The real rate, not the annualised multiple. Comparing a property against
+       a compounding alternative on a figure that ignores timing was the least
+       defensible place the old approximation appeared. */
+    const need = isNum(m.irrPct) ? m.irrPct : null;
+    const eg = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
+    eg.append(el('div', { class: 'panel' }, statTile('Property, internal rate of return', isNum(need) ? fmtPct(need, 2) : '—',
+      { sub: `Including leverage, costs and ${m.rpgtPct}% RPGT` })));
+    /* The capital the rate of return is measured on, the reserve included —
+       the returns panel states the same figure. This tile showed the cash
+       before the reserve beside a rate computed on the cash after it. */
+    eg.append(el('div', { class: 'panel' }, statTile('Cash committed', fmtAmount(m.equityOut, 'MYR'),
+      { sub: 'Deposit, entry costs and the reserve — what the rate of return is measured on' })));
+    eg.append(el('div', { class: 'panel' }, statTile('Monthly commitment',
+      isNum(m.cashflowMonthly) ? fmtAmount(Math.max(0, -m.cashflowMonthly), 'MYR') : '—',
+      { sub: !isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown'
+        : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
+    eq2.append(eg);
+    /* THE READER'S OWN ALTERNATIVE, NOT A PICK LIST. This table was the five
+       Bursa names with the highest dividend yield in the dataset — sorted,
+       cut to five, each with a quality score and an upside against a model
+       estimate, and unlabelled although the rows were illustrative. A ranked
+       selection of securities on a property page is a recommendation by
+       another name. What the card is for is the reader's stated alternative:
+       the equity return they entered, applied to the same capital. */
+    const etw = el('div', { class: 'tablewrap' });
+    const et = el('table', { class: 'dt' });
+    et.append(el('thead', {}, el('tr', {}, ['', ...m.equity.map(q => `Year ${q.yrs}`)].map((h, i) => el('th', { class: i ? 'num' : '' }, h)))));
+    et.append(el('tbody', {}, [
+      ['The same cash at your equity return', q => fmtAmount(q.value, 'MYR')],
+      ['Profit in equities', q => fmtAmount(q.profit, 'MYR')],
+      ['Profit in this property', q => fmtAmount(q.propertyProfit, 'MYR')],
+      ['Property less equities', q => isNum(q.vsProperty) ? `${q.vsProperty > 0 ? '+' : ''}${fmtAmount(q.vsProperty, 'MYR')}` : '—'],
+    ].map(([label, get]) => el('tr', {}, [el('td', {}, label), ...m.equity.map(q => el('td', { class: 'num' }, get(q)))]))));
+    etw.append(et); eq2.append(etw);
+    eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+      `At the ${fmtPct(num0(d.equityReturnPct), 1)} a year you entered under “Assumed equity return” — your figure, not a forecast, and no security is named or preferred.`));
+    eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+      `The property scenario shows a net yield of ${fmtPct(m.netYield, 2)} before leverage and ${isNum(need) ? fmtPct(need, 2) : '—'} annualised on cash after it. Equities are liquid, divisible and carry no maintenance; property is leveraged, lumpy and illiquid. The comparison is of returns, not of risk.`));
+    reportCards.push(eq2);
+
+    /* risk flags */
+    const rf = el('div', { class: 'card' });
+    const flags = propertyRiskFlags(d, m);
+    rf.append(cardHead(`Risk flags — ${flags.filter(f => f.sev !== 'good').length}`,
+      'Computed from your assumptions against the sample project data. Each names the input that triggered it.'));
+    const fl = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
+    flags.forEach(f => {
+      const item = el('div', { class: 'panel' });
+      item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:600' }, f.t)]));
+      item.append(el('p', { class: 'body', style: 'font-size:13px' }, f.n));
+      fl.append(item);
+    });
+    rf.append(fl);
+    reportCards.push(rf);
   }
-  out.append(comps);
 
-  const inv = el('div', { class: 'card' });
-  inv.append(cardHead('Investment measures', 'Computed from your inputs. Every figure below traces to the assumptions on the left.'));
-  const ig = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
-  ig.append(el('div', { class: 'panel' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
-  ig.append(el('div', { class: 'panel' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
-  ig.append(el('div', { class: 'panel' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
-    { sub: 'Annual cash flow ÷ cash invested', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
-  ig.append(el('div', { class: 'panel' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
-    { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
-  inv.append(ig);
-  const kv = el('dl', { class: 'kv' });
-  [['Gross annual rent', fmtAmount(m.grossAnnualRent, 'MYR')],
-   [`Effective rent after ${fmtPct(d.vacancyPct, 0)} vacancy`, fmtAmount(m.effectiveRent, 'MYR')],
-   ['Operating costs', fmtAmount(m.opex, 'MYR')],
-   ['Annual debt service', fmtAmount(m.annualDebtService, 'MYR')],
-   ['Cash invested at acquisition', fmtAmount(m.acquisitionCost, 'MYR')]]
-   .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
-  inv.append(kv);
-  out.append(inv);
-
-  /* scenario path */
-  const sc2 = el('div', { class: 'card' });
-  sc2.append(cardHead(`${d.holdYears}-year scenario`,
-    `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.`));
-  const stw = el('div', { class: 'tablewrap' });
-  const st = el('table', { class: 'dt' });
-  st.append(el('thead', {}, el('tr', {}, ['Year', 'Effective rent', 'Operating costs', 'Debt service', 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
-  st.append(el('tbody', {}, m.path.map(p2 => el('tr', {}, [
-    el('td', { class: 'ident' }, `Year ${p2.y}`),
-    el('td', {}, fmtAmount(p2.rent, 'MYR')), el('td', {}, fmtAmount(p2.opex, 'MYR')),
-    el('td', {}, fmtAmount(p2.debt, 'MYR')),
-    el('td', { class: signClass(p2.cf) }, fmtAmount(p2.cf, 'MYR')),
-    el('td', { class: signClass(p2.cum) }, fmtAmount(p2.cum, 'MYR')),
-    el('td', {}, fmtAmount(p2.value, 'MYR')), el('td', {}, fmtAmount(p2.balance, 'MYR')),
-  ]))));
-  stw.append(st); sc2.append(stw);
-  out.append(sc2);
-
-
-  /* equity comparison — the cross-asset point of the whole product */
-  const eq2 = el('div', { class: 'card' });
-  eq2.append(cardHead('The same cash in equities',
-    `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`));
-  /* The real rate, not the annualised multiple. Comparing a property against
-     a compounding alternative on a figure that ignores timing was the least
-     defensible place the old approximation appeared. */
-  const need = isNum(m.irrPct) ? m.irrPct : null;
-  const eg = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
-  eg.append(el('div', { class: 'panel' }, statTile('Property, internal rate of return', isNum(need) ? fmtPct(need, 2) : '—',
-    { sub: `Including leverage, costs and ${m.rpgtPct}% RPGT` })));
-  /* The capital the rate of return is measured on, the reserve included —
-     the returns panel states the same figure. This tile showed the cash
-     before the reserve beside a rate computed on the cash after it. */
-  eg.append(el('div', { class: 'panel' }, statTile('Cash committed', fmtAmount(m.equityOut, 'MYR'),
-    { sub: 'Deposit, entry costs and the reserve — what the rate of return is measured on' })));
-  eg.append(el('div', { class: 'panel' }, statTile('Monthly commitment',
-    isNum(m.cashflowMonthly) ? fmtAmount(Math.max(0, -m.cashflowMonthly), 'MYR') : '—',
-    { sub: !isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown'
-      : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
-  eq2.append(eg);
-  /* THE READER'S OWN ALTERNATIVE, NOT A PICK LIST. This table was the five
-     Bursa names with the highest dividend yield in the dataset — sorted,
-     cut to five, each with a quality score and an upside against a model
-     estimate, and unlabelled although the rows were illustrative. A ranked
-     selection of securities on a property page is a recommendation by
-     another name. What the card is for is the reader's stated alternative:
-     the equity return they entered, applied to the same capital. */
-  const etw = el('div', { class: 'tablewrap' });
-  const et = el('table', { class: 'dt' });
-  et.append(el('thead', {}, el('tr', {}, ['', ...m.equity.map(q => `Year ${q.yrs}`)].map((h, i) => el('th', { class: i ? 'num' : '' }, h)))));
-  et.append(el('tbody', {}, [
-    ['The same cash at your equity return', q => fmtAmount(q.value, 'MYR')],
-    ['Profit in equities', q => fmtAmount(q.profit, 'MYR')],
-    ['Profit in this property', q => fmtAmount(q.propertyProfit, 'MYR')],
-    ['Property less equities', q => isNum(q.vsProperty) ? `${q.vsProperty > 0 ? '+' : ''}${fmtAmount(q.vsProperty, 'MYR')}` : '—'],
-  ].map(([label, get]) => el('tr', {}, [el('td', {}, label), ...m.equity.map(q => el('td', { class: 'num' }, get(q)))]))));
-  etw.append(et); eq2.append(etw);
-  eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `At the ${fmtPct(num0(d.equityReturnPct), 1)} a year you entered under “Assumed equity return” — your figure, not a forecast, and no security is named or preferred.`));
-  eq2.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `The property scenario shows a net yield of ${fmtPct(m.netYield, 2)} before leverage and ${isNum(need) ? fmtPct(need, 2) : '—'} annualised on cash after it. Equities are liquid, divisible and carry no maintenance; property is leveraged, lumpy and illiquid. The comparison is of returns, not of risk.`));
-  out.append(eq2);
-
-  /* risk flags */
-  const rf = el('div', { class: 'card' });
-  const flags = propertyRiskFlags(d, m);
-  rf.append(cardHead(`Risk flags — ${flags.filter(f => f.sev !== 'good').length}`,
-    'Computed from your assumptions against the sample project data. Each names the input that triggered it.'));
-  const fl = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
-  flags.forEach(f => {
-    const item = el('div', { class: 'panel' });
-    item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:600' }, f.t)]));
-    item.append(el('p', { class: 'body', style: 'font-size:13px' }, f.n));
-    fl.append(item);
-  });
-  rf.append(fl);
-  out.append(rf);
-
-  layout.append(out);
-  wrap.append(layout);
+  /* ---------- the page, assembled ---------- */
+  wrap.append(summaryCard);
+  acq.outputs.append(buyCard);
+  fnc.outputs.append(loanCard, finCard, choicesPanel);
+  rnt.outputs.append(headline, ops, rentBuyCard);
+  scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
+  rpt.outputs.append(checkCard, gatesPanel, demandCard, envCard, ev, ...reportCards, propertyReportNext(d), regNote);
+  [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
   return wrap;
 };
 
@@ -43034,11 +44160,18 @@ VIEWS.opportunities = () => {
        the raw record over the calculator's deal, so an unpriced record opened
        at a price of 0 — a free property — where the register had modelled it
        on the calculator's price, and the calculator's checklist answers were
-       kept as though they were the record's. */
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-      State.deal = { ...modelled[i].d };
-      saveDeal(); navigate('/property/calculator');
-    } }, 'Open in the calculator'));
+       kept as though they were the record's.
+       And it opens as the record's own property (openOpportunityProperty,
+       71-property-models.js). It replaced the calculator's deal outright, so
+       a deal being worked on was gone with no way back, and the next Open
+       started again from the register: whatever had been changed in the
+       calculator since — a rent confirmed, a rate quoted — had to be typed a
+       second time. The first Open saves it as a property tied to the record;
+       every Open after reopens that property as it was left. */
+    const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `opp-${i}-calc`,
+      title: tied ? `Opens “${tied.name}”, saved from this record` : 'Saves this record as a property and opens it',
+      onclick: () => openOpportunityProperty(o, modelled[i].d) }, 'Open in the calculator'));
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
       if (!confirm(`Remove ${o.name} from the register?`)) return;
       State.opportunities = list.filter((_, j) => j !== i); saveOpportunities(); render();
@@ -48403,6 +49536,19 @@ VIEWS.areas = () => {
      needs — "peat, 3 m or deeper" is a fact, "deep piling dominates build cost"
      is the reason to care. */
   if (S.editing) {
+    /* THE LOCALITY BEING READ, CARRIED TO THE PROPERTY BEING MODELLED.
+       A reader who screened Stutong and wanted to model a flat there went
+       to the calculator and chose the town and the district again by hand.
+       It is passed into the property on the calculator instead — its city
+       and district, nothing else (usePlaceInCalculator,
+       71-property-models.js). */
+    const st = propertyStatus(State.deal);
+    wrap.append(el('div', { class: 'card pm-handoff' }, [
+      propertyPlaceListed(S.city, S.editing) ? el('p', { class: 'body', style: 'margin:0;flex:1 1 320px' }, [
+        el('strong', {}, `${S.editing}, ${city.name}`),
+        ` — model a property here. The district of ${st.kind === 'model' ? `“${st.rec.name}”` : 'the deal on the calculator'} becomes ${S.editing}; its figures stay as they are.`]) : null,
+      usePlaceControl(S.city, S.editing, { id: 'area-use-in-calc' }),
+    ]));
     wrap.append(officialBenchmarkPanel(S.city, S.editing));
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));
@@ -48973,6 +50119,10 @@ function openObservationDrawer(o) {
    ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${townName(o.city)}`]]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
   body.append(kv);
+  /* The record's district, carried to the property on the calculator — as
+     the area screen carries a locality (usePlaceInCalculator). The drawer
+     goes with the page it belonged to (afterRoute). */
+  if (o.city && o.area) body.append(el('div', { style: 'margin-top:var(--md)' }, usePlaceControl(o.city, o.area, { id: 'obs-use-in-calc' })));
   body.append(histHost);
   paint();
 
@@ -50343,11 +51493,22 @@ function decisionRecordProperty() {
   /* Prepared on the reader's clock, with its zone — in all three records.
      It printed the UTC minute bare: "04:11" at 12:11 in Kuching, and the
      day before until 08:00, on the page that goes to a lender or a lawyer. */
+  /* Which saved property, and which of its scenarios, the record is of — the
+     deal on the calculator is the working copy of one (71-property-models.js),
+     and a printed page that did not say which could be carried to a lender as
+     the wrong one. Changes not yet saved are said to be. */
+  const st = propertyStatus(d);
+  const which = st.kind === 'model'
+    ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”` : ''}${st.dirty ? ', with changes not yet saved' : ''}`
+    : st.kind === 'unsaved' ? 'a deal not saved as a property' : 'the calculator’s sample deal';
   out.append(el('div', { class: 'dr-head' }, [
     el('p', { class: 'eyebrow' }, 'Decision record · property'),
     el('h1', {}, `${d.propertyType || 'Property'}${where ? ` — ${where}` : ''}`),
+    /* The record's own line, "Prepared …", stays the head's metaline: it is
+       the one the date check and a reader look for under the heading. */
     el('p', { class: 'metaline' },
       `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
+    el('p', { class: 'caption dr-which' }, `Of ${which}.`),
   ]));
 
   /* ---- what it comes to ------------------------------------------------ */
