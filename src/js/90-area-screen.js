@@ -366,6 +366,19 @@ VIEWS.areas = () => {
      needs — "peat, 3 m or deeper" is a fact, "deep piling dominates build cost"
      is the reason to care. */
   if (S.editing) {
+    /* THE LOCALITY BEING READ, CARRIED TO THE PROPERTY BEING MODELLED.
+       A reader who screened Stutong and wanted to model a flat there went
+       to the calculator and chose the town and the district again by hand.
+       It is passed into the property on the calculator instead — its city
+       and district, nothing else (usePlaceInCalculator,
+       71-property-models.js). */
+    const st = propertyStatus(State.deal);
+    wrap.append(el('div', { class: 'card pm-handoff' }, [
+      propertyPlaceListed(S.city, S.editing) ? el('p', { class: 'body', style: 'margin:0;flex:1 1 320px' }, [
+        el('strong', {}, `${S.editing}, ${city.name}`),
+        ` — model a property here. The district of ${st.kind === 'model' ? `“${st.rec.name}”` : 'the deal on the calculator'} becomes ${S.editing}; its figures stay as they are.`]) : null,
+      usePlaceControl(S.city, S.editing, { id: 'area-use-in-calc' }),
+    ]));
     wrap.append(officialBenchmarkPanel(S.city, S.editing));
     wrap.append(localityTransactionPanel(S.city, S.editing));
     wrap.append(landRiskPanel(S.city, S.editing));
@@ -936,6 +949,10 @@ function openObservationDrawer(o) {
    ['Evidence class', evidenceOf(o.evidence).label], ['District', `${o.area || '—'}, ${townName(o.city)}`]]
     .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, String(v))); });
   body.append(kv);
+  /* The record's district, carried to the property on the calculator — as
+     the area screen carries a locality (usePlaceInCalculator). The drawer
+     goes with the page it belonged to (afterRoute). */
+  if (o.city && o.area) body.append(el('div', { style: 'margin-top:var(--md)' }, usePlaceControl(o.city, o.area, { id: 'obs-use-in-calc' })));
   body.append(histHost);
   paint();
 

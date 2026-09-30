@@ -105,20 +105,29 @@ function workspaceItems() {
   });
 
   /* A snapshot of the tool's sample inputs or worked example is a sample
-     (workIsSample, 15-derivation.js), and says so. */
-  loadWork().forEach(w => { const sample = workIsSample(w); items.push({
-    kind: 'work', key: w.id, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
-    created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
-    sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
-    detail: sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
-      : 'Your own inputs to the tool, as saved',
-    open: () => {
-      if (!resumeWork(w.id)) { toast('That record holds nothing to restore'); return; }
-      navigate(WORK_PATHS[w.kind] || '/my/data'); toast(`Resumed "${w.name}"`);
-    },
-    duplicate: () => duplicateWork(w.id),
-    remove: () => deleteWork(w.id),
-  }); });
+     (workIsSample, 15-derivation.js), and says so. A saved property is a
+     property model (71-property-models.js): it reopens as the property the
+     calculator edits, with its scenarios, where Resume made the calculator a
+     copy of it that its next save would have listed as a second property. */
+  loadWork().forEach(w => {
+    const sample = workIsSample(w);
+    const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
+    const nSc = prop ? (w.scenarios || []).length : 0;
+    items.push({
+      kind: 'work', key: w.id, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
+      sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
+      detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
+        : 'Your own inputs to the tool, as saved') + (nSc ? ` · ${nSc} scenario${nSc === 1 ? '' : 's'}` : ''),
+      open: () => {
+        if (prop) { openPropertyModel(w.id); return; }
+        if (!resumeWork(w.id)) { toast('That record holds nothing to restore'); return; }
+        navigate(WORK_PATHS[w.kind] || '/my/data'); toast(`Resumed "${w.name}"`);
+      },
+      duplicate: () => (prop ? duplicatePropertyModel(w.id) : duplicateWork(w.id)),
+      remove: () => (prop ? deletePropertyModel(w.id) : deleteWork(w.id)),
+    });
+  });
 
   items.forEach(it => { it.diff = stampDiff(it.stamp, it.legacy); });
   return items;

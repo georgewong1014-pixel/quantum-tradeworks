@@ -1020,6 +1020,7 @@ const ROUTES = [
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
+  { path: '/property/models',     view: 'propertyModels', title: 'My properties' },
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
@@ -1068,6 +1069,7 @@ const META = {
   sarawak: 'Companies with material exposure to the Sarawak economy. Inclusion is descriptive and does not indicate preference.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
+  propertyModels: 'The properties you have saved in this browser, each with its inputs and its scenarios. Open one and the calculator edits it.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
   scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on the last daily bar your history holds. Nothing ranked, nothing delivered.',
   /* Phase 3 — ops */
@@ -1608,6 +1610,7 @@ const SECTION_OF = {
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
   property: 'property', opportunities: 'property', comparables: 'property', areas: 'property',
+  propertyModels: 'property',
   tradingIndex: 'scanner',
   /* Preferences and the goal launcher are reached from My Dashboard's
      "Other ways in", so the dashboard is where a reader on them is; with

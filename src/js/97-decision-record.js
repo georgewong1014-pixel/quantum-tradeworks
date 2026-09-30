@@ -53,11 +53,22 @@ function decisionRecordProperty() {
   /* Prepared on the reader's clock, with its zone — in all three records.
      It printed the UTC minute bare: "04:11" at 12:11 in Kuching, and the
      day before until 08:00, on the page that goes to a lender or a lawyer. */
+  /* Which saved property, and which of its scenarios, the record is of — the
+     deal on the calculator is the working copy of one (71-property-models.js),
+     and a printed page that did not say which could be carried to a lender as
+     the wrong one. Changes not yet saved are said to be. */
+  const st = propertyStatus(d);
+  const which = st.kind === 'model'
+    ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”` : ''}${st.dirty ? ', with changes not yet saved' : ''}`
+    : st.kind === 'unsaved' ? 'a deal not saved as a property' : 'the calculator’s sample deal';
   out.append(el('div', { class: 'dr-head' }, [
     el('p', { class: 'eyebrow' }, 'Decision record · property'),
     el('h1', {}, `${d.propertyType || 'Property'}${where ? ` — ${where}` : ''}`),
+    /* The record's own line, "Prepared …", stays the head's metaline: it is
+       the one the date check and a reader look for under the heading. */
     el('p', { class: 'metaline' },
       `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
+    el('p', { class: 'caption dr-which' }, `Of ${which}.`),
   ]));
 
   /* ---- what it comes to ------------------------------------------------ */
