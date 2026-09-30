@@ -291,6 +291,12 @@ for (const route of ROUTES) {
   for (const [w, h, mobile] of WIDTHS) {
     await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, sessionId);
     for (const p of PAGES) {
+      /* Through about:blank first: the page before this one (the owner's
+         machine, asking for the personal lane) can still be answering when
+         the next navigation starts, and its 404s — on localhost, not on this
+         page's host — were counted against this page. */
+      await send('Page.navigate', { url: 'about:blank' }, sessionId);
+      await sleep(400);
       seen = []; broken = []; logged = [];
       await send('Page.navigate', { url: live + p }, sessionId);
       await sleep(2600);
@@ -902,11 +908,15 @@ for (const route of ROUTES) {
   await load(BASE + '/property/calculator');
   const calc = await ev(PRIMARIES);
   if (calc.length !== 1) p.push(`the calculator's primary actions: ${JSON.stringify(calc)}`);
-  await ev(clean);
-  await load(BASE + '/app');
+  /* On the production-like host (live.localhost): on the owner's machine the
+     worker's own files are the reader's work, so /app there is never a first
+     visit, whatever this browser's storage holds. */
+  const LIVE = (() => { const u = new URL(BASE); return ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname) ? `${u.protocol}//live.localhost${u.port ? ':' + u.port : ''}` : BASE; })();
+  await load(LIVE + '/app'); await ev(clean);
+  await load(LIVE + '/app');
   const dash1 = await ev(`({ prim: ${PRIMARIES}, first: !!document.querySelector('#views .dash-start') })`);
   await ev(`(() => { const w = wlCreate('Registry check list'); wlAdd(w.watchlist.id, 'MSFT-SEC'); return true; })()`);
-  await load(BASE + '/app');
+  await load(LIVE + '/app');
   const dash2 = await ev(`({ prim: ${PRIMARIES}, first: !!document.querySelector('#views .dash-start'), row: document.querySelector('#views .dash-row-first')?.textContent || '' })`);
   if (!dash1.first || dash1.prim.length !== 1 || dash1.prim[0].t !== 'Start research') p.push(`dashboard, first time: ${JSON.stringify(dash1)}`);
   if (dash2.first || dash2.prim.length !== 1 || dash2.prim[0].t !== 'Continue' || !/Registry check list/.test(dash2.row)) p.push(`dashboard, returning: ${JSON.stringify(dash2)}`);
@@ -924,8 +934,8 @@ for (const route of ROUTES) {
   await load(BASE + '/how-it-works');
   const hiw = await ev(`[...document.querySelectorAll('#views .hiw-product-ft a')].map(a => a.textContent.trim())`);
   if (JSON.stringify(hiw) !== JSON.stringify(words)) p.push(`How it works' product actions: ${JSON.stringify(hiw)}`);
-  await ev(clean);
-  await load(BASE + '/app');
+  await load(LIVE + '/app'); await ev(clean);
+  await load(LIVE + '/app');
   const steps = await ev(`[...document.querySelectorAll('#views .dash-step-go')].map(a => a.textContent.trim())`);
   for (const w of words) if (!steps.includes(w)) p.push(`the dashboard checklist does not say "${w}": ${JSON.stringify(steps)}`);
 
