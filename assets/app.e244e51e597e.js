@@ -13945,9 +13945,26 @@ function wireSectionTabs(nav) {
   /* Not while a tab in it holds focus: a strip redrawn under the reader
      (render() gives focus back, and where the strip was scrolled) keeps the
      tab in use in view rather than swinging to the current one. */
-  if (cur && !list.contains(document.activeElement) && list.scrollWidth > list.clientWidth + 1) {
+  const centre = () => {
+    if (!cur || list.contains(document.activeElement) || list.scrollWidth <= list.clientWidth + 1) return;
     const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
     list.scrollLeft += (c.left + c.width / 2) - (l.left + l.width / 2);
+  };
+  centre();
+  /* The header's row is wired before the page under it is drawn. The page's
+     scrollbar, when it comes, takes 15px from the row: the Scanner's eight
+     tabs then overflowed by 15px more than when they were centred, and the
+     current one — the last, the Trading Index — stood 14px past the row's
+     end at 1024 and 1280. Each time the row's width changes, a current tab
+     not wholly in it is brought back into it. */
+  if (cur && typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(() => {
+      if (!list.isConnected) { ro.disconnect(); return; }
+      const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
+      if (c.left < l.left - 1 || c.right > l.right + 1) centre();
+      fadeTabs(list);
+    });
+    ro.observe(list);
   }
   list.addEventListener('scroll', () => fadeTabs(list), { passive: true });
   list.addEventListener('focusin', (e) => {
@@ -14988,14 +15005,14 @@ function startHereExample(pid) {
 function startHereAction(pid) {
   const p = productById(pid);
   const same = matchRoute(p.actionPath)?.view === State.view;
-  if (same) return el('button', { type: 'button', class: 'btn btn-ghost start-here-go', onclick: () => {
+  if (same) return el('button', { type: 'button', class: 'btn btn-quiet start-here-go', onclick: () => {
     const f = [...document.querySelectorAll('#views input:not([type=hidden]), #views select, #views textarea')]
       .find(n => !n.closest('.start-here') && n.getClientRects().length && !n.disabled);
     if (!f) { focusMain(); return; }
     f.scrollIntoView({ block: 'center' });
     f.focus({ preventScroll: true });
   } }, [p.action, el('span', { 'aria-hidden': 'true', html: icon('down', 15) })]);
-  return el('a', { class: 'btn btn-ghost start-here-go', href: href(p.actionPath), onclick: (e) => {
+  return el('a', { class: 'btn btn-quiet start-here-go', href: href(p.actionPath), onclick: (e) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
     e.preventDefault(); navigate(p.actionPath);
   } }, [p.action, el('span', { 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"/></svg>' })]);
@@ -15003,7 +15020,9 @@ function startHereAction(pid) {
 
 /* THE PANEL. A named region at the top of the page — not a dialog, nothing
    that takes focus or blocks the page — with no primary button: the page's
-   own action stays the one primary. */
+   own action stays the one primary. Its action is quiet too: as a bordered
+   button it sat above the Trading Index's "Save this run" and read first —
+   at 390px the widest control on the screen, the save under the dock. */
 function startHerePanel(pid) {
   const p = productById(pid), s = START_HERE[pid];
   if (!p || !s) return null;

@@ -3750,11 +3750,12 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 }
 .start-here-gets { font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); max-width: 92ch; }
 .start-here-ft { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--lg); margin-top: var(--sm); }
-.start-here-go {
-  color: var(--ink); border-color: color-mix(in srgb, var(--acc, var(--brand)) 42%, var(--line));
-  background: color-mix(in srgb, var(--acc, var(--brand)) 6%, var(--surface-2));
-}
-.start-here-go:hover { border-color: var(--acc, var(--brand)); }
+/* The product's one action at a link's weight, its text in line with the
+   panel's: the page's own action is the one that draws the eye. */
+.start-here-go { margin-left: -8px; color: var(--ink); font-size: var(--text-sm); }
+.start-here-go svg { transition: transform 200ms ease; }
+a.start-here-go:hover svg { transform: translateX(2px); }
+button.start-here-go:hover svg { transform: translateY(2px); }
 .start-here-ex-line { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: var(--text-sm); color: var(--ink-2); min-width: 0; }
 .start-here-label { font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
 .start-here-ex {
@@ -3780,7 +3781,7 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   .start-here-does { font-size: 15px; }
   .start-here-gets { font-size: var(--text-sm); }
   .start-here-ft { flex-direction: column; align-items: stretch; gap: 2px; margin-top: var(--xs); }
-  .start-here-go { justify-content: center; }
+  .start-here-go { align-self: flex-start; }
   /* The example's label and its chip on one line, the example itself under
      them at its full width: three short rows became two. */
   .start-here-ex-line > .chip { order: 1; }

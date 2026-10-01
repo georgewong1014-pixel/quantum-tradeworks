@@ -2105,9 +2105,26 @@ function wireSectionTabs(nav) {
   /* Not while a tab in it holds focus: a strip redrawn under the reader
      (render() gives focus back, and where the strip was scrolled) keeps the
      tab in use in view rather than swinging to the current one. */
-  if (cur && !list.contains(document.activeElement) && list.scrollWidth > list.clientWidth + 1) {
+  const centre = () => {
+    if (!cur || list.contains(document.activeElement) || list.scrollWidth <= list.clientWidth + 1) return;
     const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
     list.scrollLeft += (c.left + c.width / 2) - (l.left + l.width / 2);
+  };
+  centre();
+  /* The header's row is wired before the page under it is drawn. The page's
+     scrollbar, when it comes, takes 15px from the row: the Scanner's eight
+     tabs then overflowed by 15px more than when they were centred, and the
+     current one — the last, the Trading Index — stood 14px past the row's
+     end at 1024 and 1280. Each time the row's width changes, a current tab
+     not wholly in it is brought back into it. */
+  if (cur && typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(() => {
+      if (!list.isConnected) { ro.disconnect(); return; }
+      const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
+      if (c.left < l.left - 1 || c.right > l.right + 1) centre();
+      fadeTabs(list);
+    });
+    ro.observe(list);
   }
   list.addEventListener('scroll', () => fadeTabs(list), { passive: true });
   list.addEventListener('focusin', (e) => {

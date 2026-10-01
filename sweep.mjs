@@ -1682,6 +1682,11 @@ for (const route of ROUTES) {
     const tokenRe = new Map(cos.map(c => [c.id, new RegExp(`^${esc(c.tk)}(?=$|[\\s,·—:(])`)]));
     const anyRe = new Map(cos.filter(c => c.tk.length >= 3).map(c => [c.id, new RegExp(`(^|[^A-Za-z0-9-])${esc(c.tk)}(?=$|[^A-Za-z0-9-])`)]));
     const occ = [];
+    /* A grade is not a ticker: the strategy table's Grade column holds A–D,
+       and C and D are filers' tickers too (Citigroup, Dominion) — a graded
+       Income row on Apple's page read as two unlabelled filed companies. */
+    const inGradeColumn = (n) => { const td = n.closest('td'); const th = td && td.closest('table')?.querySelector('thead tr')?.children[td.cellIndex];
+      return !!th && /^Grade$/i.test(th.textContent.trim()); };
     const rootEls = roots.map(s => document.querySelector(s)).filter(Boolean);
     for (const root of rootEls) {
       for (const n of root.querySelectorAll('svg [aria-label]')) {
@@ -1691,7 +1696,7 @@ for (const route of ROUTES) {
       const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       for (let t = w.nextNode(); t; t = w.nextNode()) {
         const s = t.nodeValue.trim();
-        if (!s || t.parentElement.closest('script,style,select,option,textarea,svg')) continue;
+        if (!s || t.parentElement.closest('script,style,select,option,textarea,svg') || inGradeColumn(t.parentElement)) continue;
         let c = cos.find(c => tokenRe.get(c.id).test(s) || s === c.name);
         if (!c && s.length <= 80) c = cos.find(c => anyRe.get(c.id)?.test(s));
         if (c) occ.push({ node: t.parentElement, c, svg: false });
@@ -2124,6 +2129,62 @@ for (const route of ROUTES) {
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
 }
 /* ---- end releaseB: search-recent ---- */
+/* ---- releaseB: integration ---- */
+/* THE CURRENT TAB IS WHOLLY IN ITS ROW. The header's tab row is wired before
+   the page under it is drawn, and the page's scrollbar then takes 15px from
+   it. Once the Scanner's eight tabs and the workspace's nine stood in the
+   header (Release B), the current tab of each row's last page — the Trading
+   Index, Your data — stood 14–15px past the row's end at 1024 and 1280,
+   opened cold. The last two tabs of every product's row and the
+   workspace's, opened cold at four widths: the current tab inside its row. */
+{
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (url) => {
+    await ev('window.__rbMark = 1').catch(() => {});
+    await send('Page.navigate', { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      try { if (await ev(`!window.__rbMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ }
+      await sleep(100);
+    }
+    await sleep(500);
+  };
+  const p = [];
+  let n = 0;
+  try {
+    await load(BASE + '/privacy');
+    const pages = await ev(`(() => {
+      const rows = [...Object.entries(PRODUCT_TABS), ['workspace', workspaceTabs()]];
+      return rows.flatMap(([row, ts]) => ts.filter(t => (t.tool ? toolState(t.tool) : null)?.actionable !== false).slice(-2).map(t => ({ row, path: t.path })));
+    })()`);
+    if (pages.length < 8) p.push(`only ${pages.length} pages to open: ${JSON.stringify(pages)}`);
+    for (const [w, h, mobile] of [[390, 844, true], [1024, 900, false], [1280, 900, false], [1440, 900, false]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, sessionId);
+      for (const { row, path } of pages) {
+        await load(BASE + path);
+        const r = await ev(`(() => {
+          const host = document.getElementById('productTabs');
+          const list = host && !host.hidden ? host.querySelector('.ptabs-list') : null;
+          if (!list) return { none: true };
+          const cur = list.querySelector('.ptab[aria-current]');
+          if (!cur) return { nocur: true };
+          const l = list.getBoundingClientRect(), c = cur.getBoundingClientRect();
+          return { inRow: c.left >= l.left - 1 && c.right <= l.right + 1, cur: cur.textContent.trim(), by: Math.round(Math.max(l.left - c.left, c.right - l.right)), over: list.scrollWidth - list.clientWidth };
+        })()`);
+        n++;
+        if (r.none || r.nocur) p.push(`${w}px ${path} (${row}): ${r.none ? 'no tab row' : 'no current tab'}`);
+        else if (!r.inRow) p.push(`${w}px ${path} (${row}): the current tab "${r.cur}" stands ${r.by}px outside its row (it overflows by ${r.over}px)`);
+      }
+    }
+  } catch (e) { p.push(`the check threw: ${e.message}`); }
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  if (p.length) { bad++; console.log(`FAIL releaseB integration: a page's current tab outside its row (${p.length} problems)`); p.slice(0, 30).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   releaseB integration: the current tab wholly inside its row on the last two tabs of every product's row and the workspace's, opened cold — ${n} pages at 390, 1024, 1280 and 1440`);
+}
+/* ---- end releaseB: integration ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

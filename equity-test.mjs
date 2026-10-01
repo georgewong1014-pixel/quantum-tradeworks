@@ -10831,7 +10831,9 @@ try {
         const items = [...document.querySelectorAll('#appnav ul[aria-labelledby="sb-ws"] > li')].map(li => li.dataset.item);
         out.side = { items, current: document.querySelector('#appnav a.sb-link[aria-current=page]')?.dataset.navId || null };
         out.tool = typeof toolById === 'function' && toolById('reports') ? { path: toolById('reports').path, present: toolPresent(toolById('reports')), state: toolState('reports')?.status } : null;
-        out.strip = txt(document.querySelector('#views nav[aria-label="Personal pages"] [aria-current="page"]'));
+        /* The workspace header's tab row (36-layouts.js workspaceTabs) — the
+           "Personal pages" strip it replaced is gone. */
+        out.strip = txt(document.querySelector('#productTabs nav[aria-label="My workspace sections"] [aria-current="page"]'));
 
         /* The reader's own work: two companies opened, one on a list of their
            own, a saved property, a contract and chart evidence. */
@@ -10892,9 +10894,9 @@ try {
       if (at < 0 || q.side.items[at - 1] !== 'workspace') p4.push(`My workspace in the sidebar reads ${q.side.items.join(', ')} — Reports not after Saved Models`);
       if (q.side.current !== 'reports') p4.push(`the sidebar marks ${q.side.current} on /my/reports`);
       if (!q.tool || q.tool.path !== '/my/reports' || !q.tool.present) p4.push(`TOOLS: ${JSON.stringify(q.tool)}`);
-      if (q.strip !== 'Reports') p4.push(`the personal pages' strip marks "${q.strip}"`);
+      if (q.strip !== 'Reports') p4.push(`the workspace header's tabs mark "${q.strip}"`);
       if (p4.length) fail('releaseB reports: /my/reports is a page, in the sidebar after Saved Models, with a TOOLS entry', p4);
-      else ok(`releaseB reports: /my/reports is a page ("${q.title}"), the sidebar's My workspace reads ${q.side.items.join(', ')} with Reports current, TOOLS lists it (${q.tool.state}) and the personal strip marks it`);
+      else ok(`releaseB reports: /my/reports is a page ("${q.title}"), the sidebar's My workspace reads ${q.side.items.join(', ')} with Reports current, TOOLS lists it (${q.tool.state}) and the workspace header's tabs mark it`);
 
       const p5 = [];
       for (const [k, c] of Object.entries(q.cos)) {

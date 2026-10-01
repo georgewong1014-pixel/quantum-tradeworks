@@ -166,14 +166,14 @@ function startHereExample(pid) {
 function startHereAction(pid) {
   const p = productById(pid);
   const same = matchRoute(p.actionPath)?.view === State.view;
-  if (same) return el('button', { type: 'button', class: 'btn btn-ghost start-here-go', onclick: () => {
+  if (same) return el('button', { type: 'button', class: 'btn btn-quiet start-here-go', onclick: () => {
     const f = [...document.querySelectorAll('#views input:not([type=hidden]), #views select, #views textarea')]
       .find(n => !n.closest('.start-here') && n.getClientRects().length && !n.disabled);
     if (!f) { focusMain(); return; }
     f.scrollIntoView({ block: 'center' });
     f.focus({ preventScroll: true });
   } }, [p.action, el('span', { 'aria-hidden': 'true', html: icon('down', 15) })]);
-  return el('a', { class: 'btn btn-ghost start-here-go', href: href(p.actionPath), onclick: (e) => {
+  return el('a', { class: 'btn btn-quiet start-here-go', href: href(p.actionPath), onclick: (e) => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
     e.preventDefault(); navigate(p.actionPath);
   } }, [p.action, el('span', { 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"/></svg>' })]);
@@ -181,7 +181,9 @@ function startHereAction(pid) {
 
 /* THE PANEL. A named region at the top of the page — not a dialog, nothing
    that takes focus or blocks the page — with no primary button: the page's
-   own action stays the one primary. */
+   own action stays the one primary. Its action is quiet too: as a bordered
+   button it sat above the Trading Index's "Save this run" and read first —
+   at 390px the widest control on the screen, the save under the dock. */
 function startHerePanel(pid) {
   const p = productById(pid), s = START_HERE[pid];
   if (!p || !s) return null;
