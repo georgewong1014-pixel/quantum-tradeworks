@@ -773,7 +773,7 @@ for (const route of ROUTES) {
     (await ev(OFFERED(['/app/scanner/market', '/app/scanner/alerts', '/app/scanner/backtest']))).forEach(x => p.push(`production: ${x}`));
     if (path === '/app/scanner') {
       const r = await ev(`({ states: !${hasReg} ? [] : ['market', 'scanAlerts', 'backtest'].map(id => [id, toolState(id).status, toolState(id).note]),
-        tabs: [...document.querySelectorAll('#views .scan-subnav .ptab')].map(n => [n.tagName, n.textContent.replace(/\\s+/g, ' ').trim()]) })`);
+        tabs: [...document.querySelectorAll('#productTabs .scan-subnav .ptab')].map(n => [n.tagName, n.textContent.replace(/\\s+/g, ' ').trim()]) })`);
       r.states.forEach(([id, st, note]) => { if (st !== 'unavailable' || !/never deployed/.test(note)) p.push(`production: ${id} is ${st} ("${note.slice(0, 60)}"), not unavailable with the reason`); });
       for (const label of ['Market', 'Alerts', 'Historical']) {
         const tab = r.tabs.find(([, t]) => t.startsWith(label));
@@ -866,7 +866,7 @@ for (const route of ROUTES) {
       await load(BASE + '/app/scanner/market');
       scanned = !hasReg ? { fresh: { st: [], links: [] }, stale: { st: [], links: [], note: '' } } : await ev(`(async () => {
         const read = () => ({ st: ['market', 'scanAlerts', 'backtest'].map(id => toolState(id).status),
-          links: ['Market', 'Alerts', 'Historical'].map(l => { const n = [...document.querySelectorAll('#views .scan-subnav .ptab')].find(x => x.textContent.startsWith(l)); return n ? n.tagName + (n.parentElement.querySelector('.status-delayed') ? '+delayed' : '') : null; }) });
+          links: ['Market', 'Alerts', 'Historical'].map(l => { const n = [...document.querySelectorAll('#productTabs .scan-subnav .ptab')].find(x => x.textContent.startsWith(l)); return n ? n.tagName + (n.parentElement.querySelector('.status-delayed') ? '+delayed' : '') : null; }) });
         toolClock = '2026-09-27T12:00:00Z'; render(); await new Promise(r => setTimeout(r, 150));
         const fresh = read();
         toolClock = '2026-10-05T12:00:00Z'; render(); await new Promise(r => setTimeout(r, 150));
@@ -879,7 +879,7 @@ for (const route of ROUTES) {
         await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
         const phone = await ev(`(async () => { toolClock = '2026-10-05T12:00:00Z'; render(); await new Promise(r => setTimeout(r, 200));
           const over = document.documentElement.scrollWidth - document.documentElement.clientWidth;
-          const badges = document.querySelectorAll('#views .scan-subnav .status-delayed').length;
+          const badges = document.querySelectorAll('#productTabs .scan-subnav .status-delayed').length;
           toolClock = null; render(); return { over, badges }; })()`);
         await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
         if (phone.badges < 2 || phone.over > 0) p.push(`at 390 with Delayed tabs: ${phone.badges} badges, the page scrolls ${phone.over}px sideways`);
@@ -1270,6 +1270,277 @@ for (const route of ROUTES) {
   else console.log(`ok   company heads: the ${live.length} companies the page holds with its filings in (${nFiled} filed with the SEC, ${live.length - nFiled} illustrative) are the ${plan.length} the build wrote pages for, each at the address the page's companyPath gives it and its resolver reads back; each is served the title and canonical the page's setDocumentMeta sets there, og: and twitter: repeating them, and the page's own description led by the company's name, ticker, market and source; ${opened.length} opened cold (${opened.join(', ')}) draw their company page with the head they were served`);
 }
 /* ---- end releaseB: D ---- */
+/* ---- releaseB: layouts-onboarding ---- */
+/* ONE PRODUCT HEADER, ONE WORKSPACE HEADER, ONE PAGE HEAD; A START HERE
+   PANEL PER PRODUCT; AN EMPTY STATE THAT SAYS WHAT TO DO (Release B, B5, B6).
+   B5. Every page of Equities, the Scanner and Property wears the shell's
+   product header — the product's name and badge, and ONE row of tabs read
+   from TOOLS with the page's own tab current — and no nav inside the page
+   repeats those tabs (the Scanner drew a second strip of its own, from its
+   own table, with labels the registry did not use). Every My Workspace page
+   wears the workspace header, its tabs the workspace's tools. The head of
+   every one of those pages is the one pattern: an eyebrow saying where the
+   page sits (the product, or My workspace), the h1, and a lede of one line;
+   and a product page offers at most one primary action.
+   B6. In a browser that has hidden nothing, each product's pages open with
+   a Start here panel above the head: what the product does, its one action,
+   what the reader gets, a labelled example that opens (Apple's filed
+   report, the example setup, the sample property) and a control that hides
+   it — a region of the page, never a dialog, and never a primary button.
+   Hidden on one product it is gone from that product's every page, and stays
+   gone across a reload, while the others keep theirs; it is on no public or
+   workspace page; Your data & settings says which are hidden and brings them
+   back. And every workspace page, emptied, says what to do next with one
+   action. */
+{
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (url) => {
+    bucket = [];
+    await ev('window.__loMark = 1').catch(() => {});
+    await send('Page.navigate', { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      try { if (await ev(`!window.__loMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ }
+      await sleep(100);
+    }
+    await sleep(400);
+  };
+  const u = new URL(BASE);
+  const LIVE = ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname) ? `${u.protocol}//live.localhost${u.port ? ':' + u.port : ''}` : BASE;
+  const p = [];
+  const clean = `(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('vl.plan', JSON.stringify('pro')); return true; })()`;
+  const PRIMARIES = `[...document.querySelectorAll('#views .btn-primary, body > .dock .btn-primary')].filter(n => n.getClientRects().length).map(n => n.textContent.trim())`;
+  /* A tab's own words: a link's text, or — where the gate made it text —
+     the words before its badge; an unread count after " · " is the tab's
+     own too, but not its name. */
+  const HEADER = `(() => {
+    const host = document.querySelector('#productTabs');
+    const navs = host && !host.hidden ? [...host.querySelectorAll('nav')] : [];
+    const nav = navs[0] || null;
+    const tabs = nav ? [...nav.querySelectorAll('.ptabs-list > li > .ptab')] : [];
+    const word = (n) => (n.childNodes[0]?.textContent || '').trim().replace(/ · \\d+\\+?$/, '');
+    const name = nav?.querySelector('.ptabs-name');
+    return { navs: navs.length, name: name ? (name.childNodes.length ? [...name.childNodes].filter(c => !c.classList?.contains('status-badge')).map(c => c.textContent).join('').trim() : '') : null,
+      badge: name?.querySelector('.status-badge')?.textContent.trim() || null,
+      tabs: tabs.map(word), current: tabs.filter(n => n.getAttribute('aria-current') === 'page').map(word),
+      hrefs: tabs.map(n => n.getAttribute('href')).filter(Boolean).map(h => new URL(h, location.href).pathname) };
+  })()`;
+  const HEAD = `(() => {
+    const hd = document.querySelector('#views .page-hd');
+    const h1 = document.querySelector('#views h1');
+    const lede = hd?.querySelector('.page-lede');
+    const lh = lede ? parseFloat(getComputedStyle(lede).lineHeight) || 24 : 0;
+    return { hd: !!hd, h1: h1 ? h1.textContent.trim() : null, h1InHead: !!(hd && h1 && hd.contains(h1)),
+      eyebrow: hd?.querySelector('.eyebrow')?.textContent.trim() || null,
+      lede: lede ? lede.textContent.trim() : null, lines: lede ? Math.round(lede.getBoundingClientRect().height / lh) : 0 };
+  })()`;
+  /* A nav inside the page carrying two or more of the header's own tabs is
+     the second strip. */
+  const REPEATS = (hrefs) => `[...document.querySelectorAll('#views nav')].filter(n => {
+      const at = [...n.querySelectorAll('a[href]')].map(a => new URL(a.href).pathname);
+      return ${JSON.stringify(hrefs)}.filter(h => at.includes(h)).length >= 2; }).map(n => n.getAttribute('aria-label') || n.className)`;
+
+  const PRODUCT_PAGES = [
+    ['equities', ['/research', '/discover/screener', '/discover/value-map', '/compare', '/research/queue', '/discover/sarawak', '/us-options/wheel']],
+    ['scanner', ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/alerts',
+      '/app/scanner/backtest', '/app/scanner/watchlists', '/app/scanner/settings', '/research/trading-index']],
+    ['property', ['/property/models', '/property/calculator', '/property/areas', '/property/comparables', '/property/opportunities']],
+  ];
+  /* My Alerts is being rebuilt beside this (Release B, B1): it is held to
+     the workspace header, which the shell draws, and not to a head its own
+     branch is writing. */
+  const WORK_PAGES = ['/app', '/my/watchlists', '/my/alerts', '/my/workspace', '/my/portfolio', '/my/theses', '/my/tracked', '/my/data'];
+  const OWN_HEAD_ELSEWHERE = new Set(['/my/alerts']);
+
+  /* B5. The headers and the heads — with every Start here hidden, so what
+     is measured is the page, not the panel above it. */
+  await load(BASE + '/privacy'); await ev(clean);
+  await ev(`localStorage.setItem('vl.startHere', JSON.stringify({ equities: '2026-09-30T00:00:00Z', scanner: '2026-09-30T00:00:00Z', property: '2026-09-30T00:00:00Z' })); true`);
+  let pagesSeen = 0;
+  for (const [pid, paths] of PRODUCT_PAGES) {
+    for (const path of paths) {
+      await load(BASE + path);
+      pagesSeen++;
+      const r = await ev(`({ view: State.view, h: ${HEADER}, head: ${HEAD}, prim: ${PRIMARIES},
+        want: { name: productById(${JSON.stringify(pid)}).name, badge: PRODUCT_STATUS[productById(${JSON.stringify(pid)}).status],
+          tabs: productTabs(${JSON.stringify(pid)}).map(t => t.label), here: productTabs(${JSON.stringify(pid)}).filter(t => t.views.includes(State.view)).map(t => t.label),
+          paths: productTabs(${JSON.stringify(pid)}).map(t => href(t.path)) } })`);
+      const { h, head, want } = r;
+      if (h.navs !== 1) p.push(`${path}: ${h.navs} navs in the product header, not one`);
+      else {
+        if (h.name !== want.name || h.badge !== want.badge) p.push(`${path}: the header names ${JSON.stringify(h.name)} ${JSON.stringify(h.badge)}, not ${want.name} ${want.badge}`);
+        if (JSON.stringify(h.tabs) !== JSON.stringify(want.tabs)) p.push(`${path}: the header's tabs ${JSON.stringify(h.tabs)} are not the registry's ${JSON.stringify(want.tabs)}`);
+        if (JSON.stringify(h.current) !== JSON.stringify(want.here)) p.push(`${path}: the current tab is ${JSON.stringify(h.current)}, not ${JSON.stringify(want.here)}`);
+      }
+      const again = await ev(REPEATS(want.paths));
+      if (again.length) p.push(`${path}: a second strip in the page repeats the header's tabs (${again.join(', ')})`);
+      if (!head.hd || !head.h1InHead) p.push(`${path}: the h1 "${head.h1}" is not in the page head`);
+      if (head.eyebrow !== want.name) p.push(`${path}: the eyebrow reads ${JSON.stringify(head.eyebrow)}, not "${want.name}"`);
+      if (!head.lede || head.lines !== 1) p.push(`${path}: the lede ${head.lede ? `is ${head.lines} lines ("${head.lede.slice(0, 70)}…")` : 'is missing'}, not one line`);
+      if (r.prim.length > 1) p.push(`${path}: ${r.prim.length} primary actions (${r.prim.join(', ')})`);
+    }
+  }
+  for (const path of WORK_PAGES) {
+    await load(BASE + path);
+    pagesSeen++;
+    const r = await ev(`({ h: ${HEADER}, head: ${HEAD}, want: { tabs: TOOLS.filter(t => t.product === null && toolPresent(t)).map(t => t.label),
+      here: TOOLS.filter(t => t.product === null && toolPresent(t) && toolViews(t).includes(State.view)).map(t => t.label),
+      paths: TOOLS.filter(t => t.product === null && toolPresent(t)).map(t => href(t.path)) } })`);
+    const { h, head, want } = r;
+    if (h.navs !== 1) p.push(`${path}: ${h.navs} navs in the workspace header, not one`);
+    else {
+      if (h.name !== 'My workspace' || h.badge) p.push(`${path}: the header names ${JSON.stringify(h.name)}${h.badge ? ` with a badge ${h.badge}` : ''}, not "My workspace"`);
+      if (JSON.stringify(h.tabs) !== JSON.stringify(want.tabs)) p.push(`${path}: the workspace tabs ${JSON.stringify(h.tabs)} are not the registry's ${JSON.stringify(want.tabs)}`);
+      if (JSON.stringify(h.current) !== JSON.stringify(want.here)) p.push(`${path}: the current tab is ${JSON.stringify(h.current)}, not ${JSON.stringify(want.here)}`);
+    }
+    const again = await ev(REPEATS(want.paths));
+    if (again.length) p.push(`${path}: a second strip in the page repeats the workspace tabs (${again.join(', ')})`);
+    if (OWN_HEAD_ELSEWHERE.has(path)) continue;
+    if (!head.hd || !head.h1InHead) p.push(`${path}: the h1 "${head.h1}" is not in the page head`);
+    if (head.eyebrow !== 'My workspace') p.push(`${path}: the eyebrow reads ${JSON.stringify(head.eyebrow)}, not "My workspace"`);
+    if (!head.lede || head.lines !== 1) p.push(`${path}: the lede ${head.lede ? `is ${head.lines} lines ("${head.lede.slice(0, 70)}…")` : 'is missing'}, not one line`);
+  }
+  /* The Scanner's Alerts tab keeps the unread count its own strip carried,
+     in its words and its name. */
+  await load(BASE + '/app/scanner/setups');
+  const unread = await ev(`(async () => {
+    const keep = [scanAlertsFile, store.read('scanAlertState', null)];
+    scanAlertsFile = { alerts: [{ id: 'a0lo00001', key: 'lo-check|AAPL|1D|2026-09-25', setupId: 'lo-check', setupName: 'Layout check', setupVersion: 1, symbol: 'AAPL',
+      candleDate: '2026-09-25', timeframe: '1D', eventType: 'NEW_MATCH', close: 230, detectedAt: '2026-09-26T01:00:00Z' }] };
+    store.write('scanAlertState', {}); render(); await new Promise(r => setTimeout(r, 150));
+    const a = [...document.querySelectorAll('#productTabs .ptab')].find(n => (n.getAttribute('href') || '').endsWith('/app/scanner/alerts'));
+    const out = a ? [a.textContent.trim(), a.getAttribute('aria-label')] : null;
+    scanAlertsFile = keep[0]; if (keep[1] == null) localStorage.removeItem('vl.scanAlertState'); else store.write('scanAlertState', keep[1]); render();
+    return out; })()`);
+  if (!unread || unread[0] !== 'Alerts · 1' || unread[1] !== 'Alerts, 1 unread') p.push(`the Scanner's Alerts tab with one unread match reads ${JSON.stringify(unread)}, not "Alerts · 1" named "Alerts, 1 unread"`);
+
+  /* B6. The Start here panels, from a browser that has hidden nothing. */
+  await ev(clean);
+  const PANEL = `(() => {
+    const n = document.querySelector('#views .start-here');
+    if (!n) return null;
+    const hd = document.querySelector('#views .page-hd');
+    const go = n.querySelector('.start-here-go'), ex = n.querySelector('.start-here-ex'), hide = n.querySelector('.start-here-hide');
+    return { product: n.dataset.product || null, name: n.getAttribute('aria-label') || '', role: n.getAttribute('role'), modal: n.hasAttribute('aria-modal'),
+      above: !!(hd && (n.compareDocumentPosition(hd) & Node.DOCUMENT_POSITION_FOLLOWING)), text: n.innerText.replace(/\\s+/g, ' '),
+      go: go ? { tag: go.tagName, text: go.textContent.trim(), href: go.getAttribute('href') } : null,
+      ex: ex ? { tag: ex.tagName, text: ex.textContent.trim().replace(/\\s+/g, ' '), href: ex.getAttribute('href') } : null,
+      hide: hide ? { tag: hide.tagName, name: hide.getAttribute('aria-label') || hide.textContent.trim() } : null,
+      primaries: n.querySelectorAll('.btn-primary').length };
+  })()`;
+  const FIRST = [['equities', '/research', /Apple/, /filed|SEC/i], ['scanner', '/app/scanner', /Trend breakout/, /example/i], ['property', '/property/models', /sample/i, /sample|illustrative/i]];
+  for (const [pid, path, exWords, exLabel] of FIRST) {
+    await load(BASE + path);
+    const r = await ev(`({ panel: ${PANEL}, want: { name: productById(${JSON.stringify(pid)}).name, action: productById(${JSON.stringify(pid)}).action, at: href(productById(${JSON.stringify(pid)}).actionPath) } })`);
+    const x = r.panel;
+    if (!x) { p.push(`${path}: no Start here panel for ${r.want.name} in a browser that has hidden nothing`); continue; }
+    if (x.product !== pid || !/Start here/.test(x.name) || !x.name.includes(r.want.name)) p.push(`${path}: the panel is ${JSON.stringify([x.product, x.name])}, not Start here for ${r.want.name}`);
+    if (x.role === 'dialog' || x.role === 'alertdialog' || x.modal) p.push(`${path}: the panel is a dialog (${x.role}${x.modal ? ', aria-modal' : ''})`);
+    if (!x.above) p.push(`${path}: the panel is not at the top, above the page's head`);
+    if (x.primaries) p.push(`${path}: the panel carries ${x.primaries} primary button(s) — the page's own action stays the one primary`);
+    if (!x.go || x.go.text !== r.want.action) p.push(`${path}: the panel's action is ${JSON.stringify(x.go)}, not "${r.want.action}"`);
+    else if (x.go.href && x.go.href !== r.want.at) p.push(`${path}: "${r.want.action}" links to ${x.go.href}, not ${r.want.at}`);
+    if (!x.ex || !exWords.test(x.ex.text) || !exLabel.test(x.text)) p.push(`${path}: the example is ${JSON.stringify(x.ex)} — want ${exWords} labelled ${exLabel}`);
+    if (!x.hide || !/Start here/i.test(x.hide.name) || x.hide.tag !== 'BUTTON') p.push(`${path}: the control that hides it is ${JSON.stringify(x.hide)}`);
+    if (x.text.length > 700) p.push(`${path}: the panel runs to ${x.text.length} characters — compact is a few lines`);
+  }
+  /* Each example opens what it names. */
+  await load(BASE + '/research');
+  if (await ev(`!!document.querySelector('#views .start-here .start-here-ex')`)) {
+    await ev(`document.querySelector('#views .start-here .start-here-ex').click(); true`); await sleep(900);
+    const ex1 = await ev(`({ view: State.view, name: BY_ID.get(State.ticker)?.c.name || '', real: !!BY_ID.get(State.ticker)?.c.real })`);
+    if (ex1.view !== 'researchReport' || !/Apple/.test(ex1.name) || !ex1.real) p.push(`Apple's filed report, pressed, opens ${JSON.stringify(ex1)}`);
+  }
+  await load(BASE + '/app/scanner');
+  if (await ev(`!!document.querySelector('#views .start-here .start-here-ex')`)) {
+    await ev(`document.querySelector('#views .start-here .start-here-ex').click(); true`); await sleep(900);
+    const ex2 = await ev(`({ view: State.view, name: (typeof scanDraft !== 'undefined' && scanDraft?.name) || '', want: SCAN_EXAMPLES.setups.find(x => x.id === 'trend-breakout')?.name,
+      picked: document.querySelector('#views [aria-label="Start from an example"]')?.value || '', note: /an illustration of the syntax, not a suggestion/.test(document.querySelector('#views')?.innerText || '') })`);
+    if (ex2.view !== 'scannerSetupNew' || ex2.name !== ex2.want || ex2.picked !== 'trend-breakout' || !ex2.note) p.push(`the example setup, pressed, opens ${JSON.stringify(ex2)}`);
+  }
+  await load(BASE + '/property/models');
+  if (await ev(`!!document.querySelector('#views .start-here .start-here-ex')`)) {
+    await ev(`document.querySelector('#views .start-here .start-here-ex').click(); true`); await sleep(900);
+    const ex3 = await ev(`({ view: State.view, project: State.deal?.projectId || null, price: State.deal?.price ?? null,
+      want: pmSampleDeal().projectId || null, wantPrice: pmSampleDeal().price ?? null })`).catch(e => ({ error: e.message }));
+    if (ex3.error || ex3.view !== 'property' || !ex3.want || ex3.project !== ex3.want || ex3.price !== ex3.wantPrice) p.push(`the sample property, pressed, opens ${JSON.stringify(ex3)}`);
+  }
+  /* Hidden on Equities: gone from its pages, kept by the others, remembered. */
+  await ev(clean);
+  await load(BASE + '/research');
+  const hid = await ev(`(async () => {
+    const b = document.querySelector('#views .start-here .start-here-hide');
+    if (!b) return null;
+    b.focus(); b.click(); await new Promise(r => setTimeout(r, 300));
+    const at = document.activeElement;
+    return { gone: !document.querySelector('#views .start-here'), focus: at && at !== document.body ? (at.id || at.tagName) : 'body',
+      kept: JSON.parse(localStorage.getItem('vl.startHere') || 'null') };
+  })()`);
+  if (!hid) p.push('/research: nothing hides the panel');
+  else {
+    if (!hid.gone) p.push('/research: hidden, the panel is still there');
+    if (hid.focus === 'body') p.push('/research: hiding the panel drops focus on <body>');
+    if (!hid.kept || !hid.kept.equities) p.push(`hiding Equities' panel is not remembered: vl.startHere ${JSON.stringify(hid.kept)}`);
+  }
+  const seen = {};
+  for (const path of ['/compare', '/discover/screener', '/research', '/app/scanner', '/research/trading-index', '/property/models', '/property/calculator',
+    '/', '/how-it-works', '/app', '/my/watchlists', '/company/aapl-apple-inc', '/admin/scanner']) {
+    await load(BASE + path);
+    seen[path] = await ev(`document.querySelector('#views .start-here')?.dataset.product || null`);
+  }
+  for (const path of ['/compare', '/discover/screener', '/research']) if (seen[path]) p.push(`${path}: Equities' panel is back after it was hidden (${seen[path]})`);
+  for (const [path, pid] of [['/app/scanner', 'scanner'], ['/research/trading-index', 'scanner'], ['/property/models', 'property'], ['/property/calculator', 'property']])
+    if (seen[path] !== pid) p.push(`${path}: ${pid}'s panel is ${JSON.stringify(seen[path])} while only Equities' is hidden`);
+  /* Nor on a company page, or the Scanner's read-only operations pages. */
+  for (const path of ['/', '/how-it-works', '/app', '/my/watchlists', '/company/aapl-apple-inc', '/admin/scanner']) if (seen[path]) p.push(`${path}: a Start here panel (${seen[path]}) on a page that is not one of a product's tools`);
+  /* Your data & settings says so, and brings it back. */
+  await load(BASE + '/my/data');
+  const reset = await ev(`(async () => {
+    const b = document.getElementById('startHereReset');
+    const card = b?.closest('.card');
+    const said = card ? card.innerText.replace(/\\s+/g, ' ') : '';
+    if (!b) return { said: (document.querySelector('#views')?.innerText.match(/Start here[^.]*\\./) || [''])[0] };
+    b.click(); await new Promise(r => setTimeout(r, 300));
+    return { button: b.textContent.trim(), said, kept: JSON.parse(localStorage.getItem('vl.startHere') || 'null') };
+  })()`);
+  if (!reset.button) p.push(`/my/data offers no control that brings the Start here panels back (${JSON.stringify(reset.said)})`);
+  else {
+    if (!/Equities Research/.test(reset.said)) p.push(`/my/data does not say which panel is hidden: "${reset.said.slice(0, 160)}"`);
+    if (reset.kept && Object.keys(reset.kept).length) p.push(`after "${reset.button}", vl.startHere still holds ${JSON.stringify(reset.kept)}`);
+    await load(BASE + '/research');
+    if (await ev(`document.querySelector('#views .start-here')?.dataset.product || null`) !== 'equities') p.push('after the reset, /research has no Start here panel');
+  }
+
+  /* Every workspace page, emptied: what to do next, and one action. On the
+     production-like host, where the worker's record is not the reader's
+     work (the dashboard's first visit). */
+  await load(LIVE + '/my/watchlists'); await ev(clean);
+  await load(LIVE + '/my/watchlists');
+  await ev(`(() => { clearSeededData(); return true; })()`);
+  const EMPTY = `(() => { const e = [...document.querySelectorAll('#views [data-empty], #views .dash-start')].filter(n => n.getClientRects().length);
+    return { says: e.map(n => n.innerText.replace(/\\s+/g, ' ').trim()), prim: ${PRIMARIES},
+      acts: e.map(n => [...n.querySelectorAll('a[href], button')].filter(x => x.getClientRects().length).length) }; })()`;
+  const empties = [];
+  for (const [path, before] of [['/app'], ['/my/watchlists'], ['/my/watchlists', `(() => { State.watchlists = []; saveWatchlists(); render(); return true; })()`],
+    ['/my/workspace'], ['/my/portfolio'], ['/my/theses']]) {
+    await load(LIVE + path);
+    if (before) { await ev(before); await sleep(300); }
+    const r = await ev(EMPTY);
+    const at = `${path}${before ? ' (no lists at all)' : ''}`;
+    empties.push(at);
+    if (!r.says.length || r.says.some(t => t.length < 25)) p.push(`${at}, emptied: no empty state that says what to do next (${JSON.stringify(r.says)})`);
+    if (r.prim.length !== 1) p.push(`${at}, emptied: ${r.prim.length} primary actions (${r.prim.join(', ')}), not the one next action`);
+  }
+  await ev(clean);
+
+  if (p.length) { bad++; console.log(`FAIL releaseB layouts-onboarding: one product header, one workspace header, one page head, a Start here per product, empty states with one action (${p.length} problems)`); p.slice(0, 80).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   releaseB layouts-onboarding: ${pagesSeen} product and workspace pages each wear one header from the registry — the product's name, badge and tabs, or My workspace — with their own tab current and no second strip, and a head of eyebrow, h1 and a one-line lede; no product page offers two primary actions; the Scanner's Alerts tab says "Alerts · 1"; each product opens with a Start here panel (its action, what you get, an example that opens — Apple's filed report, the example setup, the sample property), hidden per product and remembered, on no public or workspace page, brought back from Your data & settings; ${empties.length} emptied workspace pages each say what to do next, with one action`);
+}
+/* ---- end releaseB: layouts-onboarding ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

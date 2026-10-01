@@ -168,12 +168,12 @@ function scanSubnav(active) {
   });
   return row;
 }
-function scanPageHead(title, lede, eyebrow = 'Quantum Scanner · personal lane') {
-  return el('div', { class: 'page-hd', style: 'margin-bottom:0' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, eyebrow),
-    el('h1', {}, title),
-    lede ? el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede) : null,
-  ]));
+/* The one page head (pageHead, 36-layouts.js; Release B, B5): the eyebrow
+   is the product's name — these pages said "Quantum Scanner · personal
+   lane", "Scanner setup · new" and "Recorded match" — the lede one line,
+   and what the page must still say at its top the note under it. */
+function scanPageHead(title, lede, note = null) {
+  return pageHead({ title, lede, note });
 }
 const scanPage = () => el('div', { class: 'scan-page' });
 /* A download of a JSON document, as the watchlists page does it. */
@@ -1381,7 +1381,8 @@ VIEWS.scannerSetups = () => {
   const drift = scanDriftRows({ st });
   const driftById = new Map(drift.map(r => [r.id, r]));
   const fileCheck = scanSetupsFile ? scanValidate(scanSetupsFile) : null;
-  const head = scanPageHead('Your setups', 'Conditions you wrote, saved in this browser with every version, and exported to the file the worker reads. Nothing here proposes a setup or ranks one against another.');
+  const head = scanPageHead('Your setups', 'Conditions you wrote, saved in this browser with every version.',
+    'Exported to the file the worker reads. Nothing here proposes a setup or ranks one against another.');
   head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [scanLink('/app/scanner/setups/new', 'New setup', { class: 'btn btn-primary' })]));
   wrap.append(head);
 
@@ -1444,7 +1445,9 @@ VIEWS.scannerSetups = () => {
     e.append(el('p', { class: 'body', style: 'margin:6px auto 0' }, fileOnly.length
       ? `The worker’s file holds ${scanPlural(fileOnly.length, 'setup')} this browser has not adopted. Adopt them above to see their versions here and edit them in the builder, or write a new one.`
       : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales. A committed example of the file is at scanner/setups.example.json.'));
-    e.append(el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--md)' }, scanLink('/app/scanner/setups/new', 'Write a setup', { class: 'btn btn-primary btn-sm' })));
+    /* One primary action on the page (Release B, B5): the head's "New setup"
+       is it, and this, the same address, stays quiet beside the words. */
+    e.append(el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--md)' }, scanLink('/app/scanner/setups/new', 'Write a setup', { class: 'btn btn-ghost btn-sm' })));
     wrap.append(e);
   } else {
     const list = el('div', { class: 'card' });
@@ -1540,7 +1543,8 @@ VIEWS.scannerSetup = () => {
   const q = Number(new URLSearchParams(location.search).get('version'));
   const wantV = Number.isInteger(q) && q > 0 ? q : null;
   const name = cur?.name || alerts[0]?.setupName || id;
-  const head = scanPageHead(name, cur?.description || null, rec?.deleted ? 'Scanner setup · deleted' : 'Scanner setup');
+  const head = scanPageHead(name, cur?.description || null,
+    rec?.deleted ? 'Deleted: its versions are kept, because the matches it recorded name them, and it has left the export.' : null);
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px' });
   if (rec && !rec.deleted) {
     acts.append(scanLink(`/app/scanner/setups/${encodeURIComponent(id)}/edit`, 'Edit', { class: 'btn btn-primary btn-sm' }));
@@ -1846,7 +1850,10 @@ const SCAN_EXAMPLE_DOC = {
    seed's words are not shown over it, and it counts as changed unless it
    is blank. */
 let scanDraftSeed = null;
-const SCAN_SEED_PARAMS = ['from', 'fromAlert', 'key', 'market', 'symbol'];
+/* ?example=<id> starts from one of the committed examples, as the builder's
+   own "Start from an example" does — the door the Scanner's Start here panel
+   opens (Release B, B6; 36-layouts.js). */
+const SCAN_SEED_PARAMS = ['from', 'fromAlert', 'key', 'market', 'symbol', 'example'];
 const scanSeedSig = (qs = new URLSearchParams(location.search)) => SCAN_SEED_PARAMS.filter(k => qs.get(k)).map(k => `${k}=${qs.get(k)}`).join('&');
 const scanSeedOwns = () => !!scanDraft && scanDraftSeed?.draft === scanDraft;
 const scanDraftUntouched = () => !!scanDraft && JSON.stringify(scanDraft) === (scanSeedOwns() ? scanDraftSeed.json : JSON.stringify(scanBlankDraft()));
@@ -1897,7 +1904,7 @@ function scanAlertSetup(a) {
 function scanSeedDraft(qs) {
   const notes = [];
   let d = null;
-  const from = qs.get('from'), fromAlert = qs.get('fromAlert');
+  const from = qs.get('from'), fromAlert = qs.get('fromAlert'), example = qs.get('example');
   const copyOf = (s, name, whence) => {
     const x = scanAsDraft(s);
     Object.assign(x, { id: scanCopyId(s.id), name: `Copy of ${name || s.name || s.id}`, description: '', enabled: true });
@@ -1917,6 +1924,15 @@ function scanSeedDraft(qs) {
        ?from= beside ?symbol=. That is where the reader came from, not a
        setup to copy, so it is not reported as missing. */
     else if (!(typeof BY_ID !== 'undefined' && BY_ID.has(from))) notes.push(`No setup “${from}” is saved here${scanSetupsFile ? ' or in the worker’s file' : ''}, so the draft starts blank.`);
+  } else if (example) {
+    /* As the picker loads one (scanExamplePicker): as written, under its
+       own id unless a setup here or in the worker's file already has it. */
+    const ex = SCAN_EXAMPLES.setups.find(x => x.id === example);
+    if (ex) {
+      d = scanAsDraft(ex);
+      if (scanStoreRead().setups[d.id] || scanFileSetupIds().has(d.id)) d.id = scanCopyId(d.id);
+      notes.push(`Started from the example “${ex.name}” (scanner/setups.example.json) — an illustration of the syntax, not a suggestion. Its id, name, universe and every condition are yours to replace.`);
+    } else notes.push(`No example “${example}” is in scanner/setups.example.json, so the draft starts blank.`);
   }
   d = d || scanBlankDraft();
   const market = String(qs.get('market') || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -1960,8 +1976,8 @@ function scanBuilderView(mode) {
     d = scanDraft;
   }
   wrap.append(mode === 'edit'
-    ? scanPageHead(`Edit ${rec.name || rec.id}`, `Currently v${rec.current}. A change to what it evaluates saves as v${Math.max(...rec.versions.map(v => v.version)) + 1} and keeps every earlier version; a change to the name, description or enabled flag does not.`, 'Scanner setup · edit')
-    : scanPageHead('New setup', 'Conditions you choose, evaluated on your own history. Test it here, then save it as version 1; the setups page exports it to the file the worker reads.', 'Scanner setup · new'));
+    ? scanPageHead(`Edit ${rec.name || rec.id}`, `Currently v${rec.current}.`, `A change to what it evaluates saves as v${Math.max(...rec.versions.map(v => v.version)) + 1} and keeps every earlier version; a change to the name, description or enabled flag does not.`)
+    : scanPageHead('New setup', 'Conditions you choose, evaluated on your own history.', 'Test it here, then save it as version 1; the setups page exports it to the file the worker reads.'));
   if (ask) {
     const p = el('div', { class: 'card scan-seed-ask', role: 'region', 'aria-label': 'A draft is already open' });
     p.append(cardHead('A draft is already open', 'This address starts a new draft, and the one open here has changes. Nothing is replaced until you choose.'));
@@ -1989,7 +2005,7 @@ function scanBuilderView(mode) {
    was loaded, and an arrow key — which on Windows changes a closed select —
    chose the first example again at every press: the other four could not be
    reached from the keyboard. */
-const scanShownExample = () => (scanSeedOwns() && scanDraftSeed.example) || '';
+const scanShownExample = () => (scanSeedOwns() && (scanDraftSeed.example || new URLSearchParams(scanDraftSeed.sig || '').get('example'))) || '';
 function scanExamplePicker() {
   const card = el('div', { class: 'card scan-examples' });
   const id = `scanf-${++scanFieldSeq}`;
@@ -2440,7 +2456,8 @@ function scanBuilder(d, ctx) {
 VIEWS.scannerWatchlists = () => {
   const wrap = scanPage();
   wrap.append(scanSubnav('watchlists'));
-  wrap.append(scanPageHead('Watchlist scanner', 'Your watchlists as scanner universes. The worker cannot read this browser, so a setup carries a snapshot of its list’s symbols, or is resolved from your latest export of the lists; this page says where either has parted from the list.'));
+  wrap.append(scanPageHead('Watchlist scanner', 'Your watchlists as scanner universes.',
+    'The worker cannot read this browser, so a setup carries a snapshot of its list’s symbols, or is resolved from your latest export of the lists; this page says where either has parted from the list.'));
   const lists = State.watchlists || [];
   /* The file the worker resolves export-resolved setups from, and when
      this browser last wrote it. */
@@ -2570,7 +2587,8 @@ VIEWS.scannerAlerts = () => {
   const inRange = (a) => { const b = scanAlertBar(a); return (!f.from || b >= f.from) && (!f.to || b <= f.to); };
   const rangeText = f.from && f.to ? `between ${f.from} and ${f.to}` : f.from ? `on or after ${f.from}` : f.to ? `on or before ${f.to}` : '';
   const unread = scanUnreadCount();
-  wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first — a record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
+  wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first.',
+    'A record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
   if (!scanAlertsFile) {
     wrap.append(scanNotInRecord('The alerts file cannot be seen from here', 'data/scan-alerts.json lives on the machine the worker runs on; it is git-ignored and never deployed, so on the published site there is nothing to show — and no unread count, rather than a count of nought. Locally, run node scanner/scan.mjs and reload.', ['/app/scanner/setups', 'Your setups']));
     return wrap;
@@ -2955,7 +2973,7 @@ VIEWS.scannerAlert = () => {
   const nr = legacy ? 'not recorded — this alert predates engine 0.3.0' : null;
   const bar = scanAlertBar(a);
   const version = a.setupVersion ?? (legacy ? 1 : null);
-  const head = scanPageHead(`${a.setupName || a.setupId} · ${a.symbol} · ${bar}`, null, 'Recorded match');
+  const head = scanPageHead(`${a.setupName || a.setupId} · ${a.symbol} · ${bar}`, 'A match the worker recorded.');
   head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
     scanAlertNext(a),
     el('span', { class: `chip ${SCAN_STATUS_CHIP[status]}` }, status.toLowerCase()),
@@ -3183,7 +3201,8 @@ const SCAN_CHANNELS = [
 VIEWS.scannerSettings = () => {
   const wrap = scanPage();
   wrap.append(scanSubnav('settings'));
-  wrap.append(scanPageHead('Scanner settings', 'Notifications and display, kept in this browser. The in-app notification centre is the alerts page and its unread count; nothing is sent anywhere.'));
+  wrap.append(scanPageHead('Scanner settings', 'Notifications and display, kept in this browser.',
+    'The in-app notification centre is the alerts page and its unread count; nothing is sent anywhere.'));
   const prefs = scanPrefsRead();
   const deliveries = typeof scanDeliveriesFile !== 'undefined' ? scanDeliveriesFile : null;
 

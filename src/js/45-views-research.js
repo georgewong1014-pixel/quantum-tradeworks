@@ -796,14 +796,10 @@ function companyActions(r) {
    never silently choose a security. */
 VIEWS.researchHome = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Research'),
-    el('h1', {}, 'Start from a company, a market or a question'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Nothing on this page is ordered by preference, and opening it does not choose a company for you.'),
-  ]));
-  wrap.append(hd);
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Start from a company, a market or a question',
+    lede: 'Find a company by name, ticker, listing code or CIK — or start from a market.',
+    note: 'Nothing on this page is ordered by preference, and opening it does not choose a company for you.' }));
 
   const search = el('div', { class: 'card' });
   search.append(cardHead('Find a company', 'By name, ticker, listing code, CIK or an old link — and by market and coverage.'));

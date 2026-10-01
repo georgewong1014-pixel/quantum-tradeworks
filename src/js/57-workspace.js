@@ -146,17 +146,12 @@ const fmtSaved = (v) => {
 
 VIEWS.workspace = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(mySubnav('workspace'));
   const all = workspaceItems();
 
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Workspace · this browser only'),
-    el('h1', {}, 'Everything you have saved'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Valuation runs, comparisons, screens, investment cases and tool snapshots, each with the model and data version it was saved against — and whether either has moved since.'),
-  ]));
-  wrap.append(hd);
+  /* The one head (pageHead, 36-layouts.js): under My workspace's header,
+     which is drawn by the shell. */
+  wrap.append(pageHead({ title: 'Everything you have saved', lede: 'Everything saved in this browser, each with the version it was saved against.',
+    note: 'Valuation runs, comparisons, screens, investment cases and tool snapshots — and whether the model or the data under each has moved since.' }));
 
   /* The limits, before the list: where this lives, and what "moved" means. */
   const lim = el('div', { class: 'card ws-limits' });

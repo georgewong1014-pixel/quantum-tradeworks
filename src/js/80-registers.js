@@ -522,12 +522,11 @@ VIEWS.wheel = () => {
   const fit = wheelFit(p, m, null);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'US equities'),
-    el('h1', {}, 'Options Cash Wheel'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'A fully collateralised cash-secured put and covered call cycle, modelled from figures you enter. Research and arithmetic — no chain data, no recommended contract, no execution.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). Its
+     eyebrow said "US equities"; the Cash Wheel is a tab of Equities
+     Research, whose header is above it. */
+  wrap.append(pageHead({ title: 'Options Cash Wheel', lede: 'A cash-secured put and covered call cycle, modelled from figures you enter.',
+    note: 'Fully collateralised, on US equities. Research and arithmetic — no chain data, no recommended contract, no execution.' }));
 
   /* "Fill in the identity" is gone once used, so focus goes to the banner's
      "Linked to …" heading rather than falling to <body>. */

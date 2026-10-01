@@ -1658,16 +1658,10 @@ function openReview(t) {
 
 VIEWS.thesis = () => {
   const wrap = el('div');
-  wrap.append(mySubnav('thesis'));
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Thesis'),
-    el('h1', {}, 'What you believe, and what would prove you wrong'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.'),
-  ]));
-  hd.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
-  wrap.append(hd);
+  /* The one head (pageHead, 36-layouts.js), under My workspace's header. */
+  wrap.append(pageHead({ title: 'What you believe, and what would prove you wrong', lede: 'Your investment cases, each checked against the latest data held.',
+    note: 'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.',
+    action: el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }) }));
   /* Under the heading, on every personal page: the page says what it is
      before it says whose data is on it. */
   appendSampleBanner(wrap);
@@ -1696,7 +1690,13 @@ VIEWS.thesis = () => {
    .forEach(([l, v, s]) => stats.append(el('div', { class: 'card' }, statTile(l, v, { sub: s }))));
   wrap.append(stats);
 
-  if (!State.theses.length) { wrap.append(el('div', { class: 'card' }, emptyState('No thesis yet. Open any company and start one from the Thesis tab.'))); return wrap; }
+  /* What to do next, with the one action that does it (Release B, B6): a
+     case is written on a company's own Thesis tab, so the action opens the
+     way to a company. It said where to go and offered no way there. */
+  if (!State.theses.length) {
+    wrap.append(emptyStateCta('No investment cases yet', 'A case records what you believe about a company and what would prove you wrong. Open a company and write one from its Thesis tab.', 'Find a company', '/research'));
+    return wrap;
+  }
   const list = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   State.theses.forEach(t => list.append(thesisCard(t)));
   wrap.append(list);
@@ -1829,14 +1829,9 @@ function openComparison(id) {
 VIEWS.compare = () => {
   CMP_LIVE = null;
   const wrap = el('div');
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Compare'),
-    el('h1', {}, 'Economically comparable, not just same-sector'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Sector alone is not a peer group. Business model, capital intensity, maturity and market convention all change which metrics mean the same thing across two companies.'),
-  ]));
-  wrap.append(hd);
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Economically comparable, not just same-sector', lede: 'Sector alone is not a peer group.',
+    note: 'Business model, capital intensity, maturity and market convention all change which metrics mean the same thing across two companies.' }));
   /* The names in a ?companies= link that are no company here, said rather
      than dropped (applyRoute, 35-ui.js). */
   const missing = State.compareMissing || [];
@@ -2447,20 +2442,11 @@ function positionsOf(pf) {
 
 VIEWS.portfolio = () => {
   const wrap = el('div');
-  /* mySubnav existed and was called from userdata and watchlists only — the two
-     surfaces nothing in the product linked to. So the four pages a reader could
-     actually reach were each a dead end, and the two that carried the way out
-     were unreachable. Four calls restore six finished surfaces to each other. */
-  wrap.append(mySubnav('portfolio'));
+  /* The personal pages reach one another through My workspace's header,
+     drawn by the shell above every one of them (Release B, B5); the page
+     itself opens with the one head (pageHead, 36-layouts.js). */
   const pf = activePF();
 
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Portfolio'),
-    el('h1', {}, 'Understand your exposures — not a trading screen'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'This view separates business performance from currency movement from transaction costs, and shows how much of the portfolio is backed by a written thesis. It does not optimise, rebalance, or recommend an allocation.'),
-  ]));
   const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
   /* Focus stays on the select across the redraw (redrawKeepFocus). */
   const sel = el('select', { class: 'select', style: 'width:auto;min-width:190px', 'aria-label': 'Active portfolio', id: 'pf-active',
@@ -2470,8 +2456,10 @@ VIEWS.portfolio = () => {
   hr.append(sel);
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPortfolioManager(), html: `${icon('briefcase', 13)} Manage` }));
   hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openAddHolding(), html: `${icon('plus', 13)} Add holding` }));
-  hd.append(hr);
-  wrap.append(hd);
+  wrap.append(pageHead({ title: 'Understand your exposures — not a trading screen',
+    lede: 'Your holdings, with business performance kept apart from currency and costs.',
+    note: 'It shows how much of the portfolio is backed by a written thesis, and it does not optimise, rebalance, or recommend an allocation.',
+    action: hr }));
   appendSampleBanner(wrap);
 
   const pos = positionsOf(pf);

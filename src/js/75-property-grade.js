@@ -1411,14 +1411,11 @@ VIEWS.sarawak = () => {
   });
   [...swkOpenRecords].forEach(k => { if (!swkHeld.has(k)) swkOpenRecords.delete(k); });
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Sarawak Economy Watch'),
-    el('h1', {}, 'Companies with material exposure to the Sarawak economy'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Inclusion is descriptive and does not indicate preference. This is a research collection, not a recommended-stock list, and nothing here is ordered by merit.'),
-  ]));
-  wrap.append(hd);
+  /* The one head every product page wears (pageHead, 36-layouts.js); the
+     watch's own name is its tab in the header above. */
+  wrap.append(pageHead({ title: 'Companies with material exposure to the Sarawak economy',
+    lede: 'The Bursa companies that operate in Sarawak, and what you record about them.',
+    note: 'Inclusion is descriptive and does not indicate preference. This is a research collection, not a recommended-stock list, and nothing here is ordered by merit.' }));
 
   const recs = State.sarawakExposure || [];
 
@@ -1763,12 +1760,9 @@ VIEWS.property = () => {
   const paid = propertyReportUnlocked(d.projectId);
   const wrap = el('div');
 
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property Deal Check'),
-    el('h1', {}, 'Turn a property into a financial model'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Most property tools show you what things sold for. This models what owning it would actually do to your cash: true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.',
+    note: 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.' }));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
